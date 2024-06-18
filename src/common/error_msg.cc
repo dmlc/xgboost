@@ -11,7 +11,7 @@
 #include "xgboost/logging.h"
 
 namespace xgboost::error {
-[[nodiscard]] std::string DeprecatedFunc(StringView old, StringView since, StringView replacement) {
+std::string DeprecatedFunc(StringView old, StringView since, StringView replacement) {
   std::stringstream ss;
   ss << "`" << old << "` is deprecated since" << since << ", use `" << replacement << "` instead.";
   return ss.str();

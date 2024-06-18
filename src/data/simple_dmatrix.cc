@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014~2023, XGBoost Contributors
  * \file simple_dmatrix.cc
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank, Allgather
-#include "../collective/allgather.h"
 #include "../common/error_msg.h"             // for InconsistentMaxBin
 #include "./simple_batch_iterator.h"
 #include "adapter.h"
@@ -60,7 +59,7 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
     auto& h_data = out_page.data.HostVector();
     auto& h_offset = out_page.offset.HostVector();
     size_t rptr{0};
-    for (bst_idx_t i = 0; i < this->Info().num_row_; i++) {
+    for (bst_row_t i = 0; i < this->Info().num_row_; i++) {
       auto inst = batch[i];
       auto prev_size = h_data.size();
       std::copy_if(inst.begin(), inst.end(), std::back_inserter(h_data),
@@ -77,11 +76,8 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
 
 void SimpleDMatrix::ReindexFeatures(Context const* ctx) {
   if (info_.IsColumnSplit() && collective::GetWorldSize() > 1) {
-    std::vector<std::uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = info_.num_col_;
-    auto rc = collective::Allgather(ctx, linalg::MakeVec(buffer.data(), buffer.size()));
-    SafeColl(rc);
-    auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
+    auto const cols = collective::Allgather(info_.num_col_);
+    auto const offset = std::accumulate(cols.cbegin(), cols.cbegin() + collective::GetRank(), 0ul);
     if (offset == 0) {
       return;
     }

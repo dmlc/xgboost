@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/collective/socket.h>
@@ -21,19 +21,14 @@ TEST_F(SocketTest, Basic) {
   auto run_test = [msg](SockDomain domain) {
     auto server = TCPSocket::Create(domain);
     ASSERT_EQ(server.Domain(), domain);
-    std::int32_t port{0};
-    auto rc = Success() << [&] {
-      return server.BindHost(&port);
-    } << [&] {
-      return server.Listen();
-    };
-    SafeColl(rc);
+    auto port = server.BindHost();
+    server.Listen();
 
     TCPSocket client;
     if (domain == SockDomain::kV4) {
       auto const& addr = SockAddrV4::Loopback().Addr();
       auto rc = Connect(StringView{addr}, port, 1, std::chrono::seconds{3}, &client);
-      SafeColl(rc);
+      ASSERT_TRUE(rc.OK()) << rc.Report();
     } else {
       auto const& addr = SockAddrV6::Loopback().Addr();
       auto rc = Connect(StringView{addr}, port, 1, std::chrono::seconds{3}, &client);
@@ -50,8 +45,7 @@ TEST_F(SocketTest, Basic) {
     accepted.Send(msg);
 
     std::string str;
-    rc = client.Recv(&str);
-    SafeColl(rc);
+    client.Recv(&str);
     ASSERT_EQ(StringView{str}, msg);
   };
 

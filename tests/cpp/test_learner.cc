@@ -1,16 +1,18 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright (c) 2017-2023, XGBoost contributors
  */
-#include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <xgboost/learner.h>         // for Learner
-#include <xgboost/logging.h>         // for LogCheck_NE, CHECK_NE, LogCheck_EQ
-#include <xgboost/objective.h>       // for ObjFunction
-#include <xgboost/version_config.h>  // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR
+#include <gmock/gmock.h>
+#include <xgboost/learner.h>                        // for Learner
+#include <xgboost/logging.h>                        // for LogCheck_NE, CHECK_NE, LogCheck_EQ
+#include <xgboost/objective.h>                      // for ObjFunction
+#include <xgboost/version_config.h>                 // for XGBOOST_VER_MAJOR, XGBOOST_VER_MINOR
 
 #include <algorithm>                                // for equal, transform
+#include <cinttypes>                                // for int32_t, int64_t, uint32_t
 #include <cstddef>                                  // for size_t
 #include <iosfwd>                                   // for ofstream
+#include <iterator>                                 // for back_insert_iterator, back_inserter
 #include <limits>                                   // for numeric_limits
 #include <map>                                      // for map
 #include <memory>                                   // for unique_ptr, shared_ptr, __shared_ptr_...
@@ -26,9 +28,9 @@
 #include "../../src/common/io.h"                    // for LoadSequentialFile
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "../../src/common/random.h"                // for GlobalRandom
-#include "./collective/test_worker.h"               // for TestDistributedGlobal
 #include "dmlc/io.h"                                // for Stream
 #include "dmlc/omp.h"                               // for omp_get_max_threads
+#include "dmlc/registry.h"                          // for Registry
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
 #include "objective_helpers.h"                      // for MakeObjNamesForTest, ObjTestNameGenerator
@@ -80,7 +82,9 @@ TEST(Learner, ParameterValidation) {
 
   // whitespace
   learner->SetParam("tree method", "exact");
-  ASSERT_THAT([&] { learner->Configure(); }, GMockThrow(R"("tree method" contains whitespace)"));
+  EXPECT_THAT([&] { learner->Configure(); },
+              ::testing::ThrowsMessage<dmlc::Error>(
+                  ::testing::HasSubstr(R"("tree method" contains whitespace)")));
 }
 
 TEST(Learner, CheckGroup) {
@@ -101,9 +105,9 @@ TEST(Learner, CheckGroup) {
     labels[i] = i % 2;
   }
 
-  p_mat->SetInfo("weight", Make1dInterfaceTest(weight.data(), kNumGroups));
-  p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), kNumGroups));
-  p_mat->SetInfo("label", Make1dInterfaceTest(labels.data(), kNumRows));
+  p_mat->SetInfo("weight", static_cast<void *>(weight.data()), DataType::kFloat32, kNumGroups);
+  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups);
+  p_mat->SetInfo("label", labels.data(), DataType::kFloat32, kNumRows);
 
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
@@ -113,7 +117,7 @@ TEST(Learner, CheckGroup) {
   group.resize(kNumGroups+1);
   group[3] = 4;
   group[4] = 1;
-  p_mat->SetInfo("group", Make1dInterfaceTest(group.data(), kNumGroups+1));
+  p_mat->SetInfo("group", group.data(), DataType::kUInt32, kNumGroups+1);
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 }
 
@@ -130,7 +134,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   for (size_t i = 0; i < num_row; ++i) {
     labels[i] = i % 2;
   }
-  dmat->SetInfo("label", Make1dInterfaceTest(labels.data(), num_row));
+  dmat->SetInfo("label", labels.data(), DataType::kFloat32, num_row);
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"objective", "binary:logistic"}});
@@ -215,7 +219,7 @@ TEST(Learner, JsonModelIO) {
 }
 
 TEST(Learner, ConfigIO) {
-  bst_idx_t n_samples = 128;
+  bst_row_t n_samples = 128;
   bst_feature_t n_features = 12;
   std::shared_ptr<DMatrix> p_fmat{
       RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true, false, 2)};
@@ -658,7 +662,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     auto const world_size = collective::GetWorldSize();
     auto const rank = collective::GetRank();
 
-    auto p_fmat = MakeFmatForObjTest(objective, 10, 10);
+    auto p_fmat = MakeFmatForObjTest(objective);
     std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
     learner->SetParam("tree_method", "approx");
@@ -682,7 +686,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
 
  public:
   void Run(std::string objective) {
-    auto p_fmat = MakeFmatForObjTest(objective, 10, 10);
+    auto p_fmat = MakeFmatForObjTest(objective);
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
     learner->SetParam("tree_method", "approx");
     learner->SetParam("objective", objective);
@@ -703,9 +707,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     auto constexpr kWorldSize{3};
     auto call = [this, &objective](auto&... args) { TestBaseScore(objective, args...); };
     auto score = GetBaseScore(config);
-    collective::TestDistributedGlobal(kWorldSize, [&] {
-      call(score, model);
-    });
+    RunWithInMemoryCommunicator(kWorldSize, call, score, model);
   }
 };
 
@@ -738,7 +740,7 @@ void VerifyColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Arg
                                Json const& expected_model) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto p_fmat = MakeFmatForObjTest("", 10, 10);
+  auto p_fmat = MakeFmatForObjTest("");
   std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
   std::string device = "cpu";
   if (use_gpu) {
@@ -749,99 +751,82 @@ void VerifyColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Arg
   ASSERT_EQ(model, expected_model);
 }
 
-void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args const& args,
-                             bool federated) {
-  auto p_fmat = MakeFmatForObjTest("", 10, 10);
+void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args const& args) {
+  auto p_fmat = MakeFmatForObjTest("");
   std::string device = use_gpu ? "cuda:0" : "cpu";
   auto model = GetModelWithArgs(p_fmat, tree_method, device, args);
 
   auto world_size{3};
   if (use_gpu) {
     world_size = common::AllVisibleGPUs();
-    // Simulate MPU on a single GPU. Federated doesn't use nccl, can run multiple
-    // instances on the same GPU.
-    if (world_size == 1 && federated) {
+    // Simulate MPU on a single GPU.
+    if (world_size == 1) {
       world_size = 3;
     }
   }
-  if (federated) {
-#if defined(XGBOOST_USE_FEDERATED)
-    collective::TestFederatedGlobal(
-        world_size, [&] { VerifyColumnSplitWithArgs(tree_method, use_gpu, args, model); });
-#else
-    GTEST_SKIP_("Not compiled with federated learning.");
-#endif  //  defined(XGBOOST_USE_FEDERATED)
-  } else {
-#if !defined(XGBOOST_USE_NCCL)
-    if (use_gpu) {
-      GTEST_SKIP_("Not compiled with NCCL.");
-      return;
-    }
-#endif  //  defined(XGBOOST_USE_NCCL)
-    collective::TestDistributedGlobal(
-        world_size, [&] { VerifyColumnSplitWithArgs(tree_method, use_gpu, args, model); });
-  }
+  RunWithInMemoryCommunicator(world_size, VerifyColumnSplitWithArgs, tree_method, use_gpu, args,
+                              model);
 }
 
-class ColumnSplitTrainingTest
-    : public ::testing::TestWithParam<std::tuple<std::string, bool, bool>> {
- public:
-  static void TestColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu,
-                                           bool federated) {
-    Args args{
-        {"colsample_bytree", "0.5"}, {"colsample_bylevel", "0.6"}, {"colsample_bynode", "0.7"}};
-    TestColumnSplitWithArgs(tree_method, use_gpu, args, federated);
-  }
-  static void TestColumnSplitInteractionConstraints(std::string const& tree_method, bool use_gpu,
-                                                    bool federated) {
-    Args args{{"interaction_constraints", "[[0, 5, 7], [2, 8, 9], [1, 3, 6]]"}};
-    TestColumnSplitWithArgs(tree_method, use_gpu, args, federated);
-  }
-  static void TestColumnSplitMonotoneConstraints(std::string const& tree_method, bool use_gpu,
-                                                 bool federated) {
-    Args args{{"monotone_constraints", "(1,-1,0,1,1,-1,-1,0,0,1)"}};
-    TestColumnSplitWithArgs(tree_method, use_gpu, args, federated);
-  }
-};
+void TestColumnSplitColumnSampler(std::string const& tree_method, bool use_gpu) {
+  Args args{{"colsample_bytree", "0.5"}, {"colsample_bylevel", "0.6"}, {"colsample_bynode", "0.7"}};
+  TestColumnSplitWithArgs(tree_method, use_gpu, args);
+}
 
-auto MakeParamsForTest() {
-  std::vector<std::tuple<std::string, bool, bool>> configs;
-  for (auto tm : {"hist", "approx"}) {
-#if defined(XGBOOST_USE_CUDA)
-    std::array<bool, 2> use_gpu{true, false};
-#else
-    std::array<bool, 1> use_gpu{false};
-#endif
-    for (auto i : use_gpu) {
-#if defined(XGBOOST_USE_FEDERATED)
-      std::array<bool, 2> fed{true, false};
-#else
-      std::array<bool, 1> fed{false};
-#endif
-      for (auto j : fed) {
-        configs.emplace_back(tm, i, j);
-      }
-    }
-  }
-  return configs;
+void TestColumnSplitInteractionConstraints(std::string const& tree_method, bool use_gpu) {
+  Args args{{"interaction_constraints", "[[0, 5, 7], [2, 8, 9], [1, 3, 6]]"}};
+  TestColumnSplitWithArgs(tree_method, use_gpu, args);
+}
+
+void TestColumnSplitMonotoneConstraints(std::string const& tree_method, bool use_gpu) {
+  Args args{{"monotone_constraints", "(1,-1,0,1,1,-1,-1,0,0,1)"}};
+  TestColumnSplitWithArgs(tree_method, use_gpu, args);
 }
 }  // anonymous namespace
 
-TEST_P(ColumnSplitTrainingTest, ColumnSampler) {
-  auto param = GetParam();
-  std::apply(TestColumnSplitColumnSampler, param);
+TEST(ColumnSplitColumnSampler, Approx) { TestColumnSplitColumnSampler("approx", false); }
+
+TEST(ColumnSplitColumnSampler, Hist) { TestColumnSplitColumnSampler("hist", false); }
+
+#if defined(XGBOOST_USE_CUDA)
+TEST(MGPUColumnSplitColumnSampler, GPUApprox) { TestColumnSplitColumnSampler("approx", true); }
+
+TEST(MGPUColumnSplitColumnSampler, GPUHist) { TestColumnSplitColumnSampler("hist", true); }
+#endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(ColumnSplitInteractionConstraints, Approx) {
+  TestColumnSplitInteractionConstraints("approx", false);
 }
 
-TEST_P(ColumnSplitTrainingTest, InteractionConstraints) {
-  auto param = GetParam();
-  std::apply(TestColumnSplitInteractionConstraints, param);
+TEST(ColumnSplitInteractionConstraints, Hist) {
+  TestColumnSplitInteractionConstraints("hist", false);
 }
 
-TEST_P(ColumnSplitTrainingTest, MonotoneConstraints) {
-  auto param = GetParam();
-  std::apply(TestColumnSplitMonotoneConstraints, param);
+#if defined(XGBOOST_USE_CUDA)
+TEST(MGPUColumnSplitInteractionConstraints, GPUApprox) {
+  TestColumnSplitInteractionConstraints("approx", true);
 }
 
-INSTANTIATE_TEST_SUITE_P(ColumnSplit, ColumnSplitTrainingTest,
-                         ::testing::ValuesIn(MakeParamsForTest()));
+TEST(MGPUColumnSplitInteractionConstraints, GPUHist) {
+  TestColumnSplitInteractionConstraints("hist", true);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(ColumnSplitMonotoneConstraints, Approx) {
+  TestColumnSplitMonotoneConstraints("approx", false);
+}
+
+TEST(ColumnSplitMonotoneConstraints, Hist) {
+  TestColumnSplitMonotoneConstraints("hist", false);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST(MGPUColumnSplitMonotoneConstraints, GPUApprox) {
+  TestColumnSplitMonotoneConstraints("approx", true);
+}
+
+TEST(MGPUColumnSplitMonotoneConstraints, GPUHist) {
+  TestColumnSplitMonotoneConstraints("hist", true);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

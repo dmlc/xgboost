@@ -8,14 +8,19 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import DataSplitMode
 
+try:
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.csv as pc
+except ImportError:
+    pass
+
 pytestmark = pytest.mark.skipif(
     tm.no_arrow()["condition"] or tm.no_pandas()["condition"],
     reason=tm.no_arrow()["reason"] + " or " + tm.no_pandas()["reason"],
 )
 
-import pandas as pd
-import pyarrow as pa
-import pyarrow.csv as pc
+dpath = "demo/data/"
 
 
 class TestArrowTable:

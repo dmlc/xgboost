@@ -6,11 +6,11 @@ dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 
 param <- list(max_depth = 2, eta = 1, objective = 'binary:logistic')
-evals <- list(eval = dtest, train = dtrain)
+watchlist <- list(eval = dtest, train = dtrain)
 nrounds <- 2
 
 # training the model for two rounds
-bst <- xgb.train(param, dtrain, nrounds, nthread = 2, evals = evals)
+bst <- xgb.train(param, dtrain, nrounds, nthread = 2, watchlist)
 cat('start testing prediction from first n trees\n')
 labels <- getinfo(dtest, 'label')
 

@@ -6,7 +6,6 @@ Example of training survival model with Dask on CPU
 
 import os
 
-import dask.array as da
 import dask.dataframe as dd
 from dask.distributed import Client, LocalCluster
 
@@ -14,7 +13,7 @@ from xgboost import dask as dxgb
 from xgboost.dask import DaskDMatrix
 
 
-def main(client: Client) -> da.Array:
+def main(client):
     # Load an example survival data from CSV into a Dask data frame.
     # The Veterans' Administration Lung Cancer Trial
     # The Statistical Analysis of Failure Time Data by Kalbfleisch J. and Prentice R (1980)

@@ -48,8 +48,10 @@ class Coll : public std::enable_shared_from_this<Coll> {
    * @brief Allgather
    *
    * @param [in,out] data Data buffer for input and output.
+   * @param [in] size Size of data for each worker.
    */
-  [[nodiscard]] virtual Result Allgather(Comm const& comm, common::Span<std::int8_t> data);
+  [[nodiscard]] virtual Result Allgather(Comm const& comm, common::Span<std::int8_t> data,
+                                         std::int64_t size);
   /**
    * @brief Allgather with variable length.
    *

@@ -9,7 +9,6 @@
 
 #include "../../../src/data/adapter.h"         // ArrayAdapter
 #include "../../../src/data/simple_dmatrix.h"  // SimpleDMatrix
-#include "../collective/test_worker.h"         // for TestDistributedGlobal
 #include "../filesystem.h"                     // dmlc::TemporaryDirectory
 #include "../helpers.h"                        // RandomDataGenerator,CreateSimpleTestData
 #include "xgboost/base.h"
@@ -224,7 +223,7 @@ TEST(SimpleDMatrix, FromFile) {
     auto batch = page.GetView();
     EXPECT_EQ(batch.Size(), kExpectedNumRow);
     EXPECT_EQ(page.offset.HostVector(),
-              std::vector<bst_idx_t>({0, 3, 6, 9, 12, 15, 15}));
+              std::vector<bst_row_t>({0, 3, 6, 9, 12, 15, 15}));
     EXPECT_EQ(page.base_rowid, 0);
 
     for (auto i = 0ull; i < batch.Size() - 1; i++) {
@@ -445,5 +444,5 @@ void VerifyColumnSplit() {
 
 TEST(SimpleDMatrix, ColumnSplit) {
   auto constexpr kWorldSize{3};
-  collective::TestDistributedGlobal(kWorldSize, VerifyColumnSplit);
+  RunWithInMemoryCommunicator(kWorldSize, VerifyColumnSplit);
 }

@@ -782,10 +782,7 @@ class XGBModel(XGBModelBase):
 
     def _more_tags(self) -> Dict[str, bool]:
         """Tags used for scikit-learn data validation."""
-        tags = {"allow_nan": True, "no_validation": True}
-        if hasattr(self, "kwargs") and self.kwargs.get("updater") == "shotgun":
-            tags["non_deterministic"] = True
-        return tags
+        return {"allow_nan": True, "no_validation": True}
 
     def __sklearn_is_fitted__(self) -> bool:
         return hasattr(self, "_Booster")
@@ -1442,11 +1439,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     ) -> None:
         super().__init__(objective=objective, **kwargs)
 
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multilabel"] = True
-        return tags
-
     @_deprecate_positional_args
     def fit(
         self,
@@ -1724,12 +1716,6 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
         self, *, objective: SklObjective = "reg:squarederror", **kwargs: Any
     ) -> None:
         super().__init__(objective=objective, **kwargs)
-
-    def _more_tags(self) -> Dict[str, bool]:
-        tags = super()._more_tags()
-        tags["multioutput"] = True
-        tags["multioutput_only"] = False
-        return tags
 
 
 @xgboost_model_doc(

@@ -14,6 +14,7 @@
 #include <algorithm>   // for max
 #include <cstddef>     // for size_t
 #include <cstdint>     // for int32_t, uint32_t
+#include <functional>  // for function
 #include <iterator>    // for back_inserter
 #include <limits>      // for numeric_limits
 #include <memory>      // for shared_ptr, allocator, unique_ptr
@@ -32,7 +33,6 @@
 #include "../../../../src/tree/hist/histogram.h"          // for HistogramBuilder
 #include "../../../../src/tree/hist/param.h"              // for HistMakerTrainParam
 #include "../../categorical_helpers.h"                    // for OneHotEncodeFeature
-#include "../../collective/test_worker.h"                 // for TestDistributedGlobal
 #include "../../helpers.h"                                // for RandomDataGenerator, GenerateRa...
 
 namespace xgboost::tree {
@@ -290,10 +290,8 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
     double hess = sol.GetHess();
     if (is_distributed && (!is_col_split || (is_secure && is_col_split))) {
       // the solution also needs to be allreduce
-      collective::SafeColl(
-          collective::Allreduce(&ctx, linalg::MakeVec(&grad, 1), collective::Op::kSum));
-      collective::SafeColl(
-          collective::Allreduce(&ctx, linalg::MakeVec(&hess, 1), collective::Op::kSum));
+      collective::Allreduce<collective::Operation::kSum>(&grad, 1);
+      collective::Allreduce<collective::Operation::kSum>(&hess, 1);
     }
     ASSERT_NEAR(grad, histogram.Histogram()[nid][i].GetGrad(), kEps);
     ASSERT_NEAR(hess, histogram.Histogram()[nid][i].GetHess(), kEps);
@@ -309,21 +307,20 @@ TEST(CPUHistogram, BuildHist) {
 
 TEST(CPUHistogram, BuildHistDist) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers,
-                                    [] { TestBuildHistogram(true, false, false, false); });
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, false, false); });
+  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, false, false, false);
+  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, true, false, false);
 }
 
 TEST(CPUHistogram, BuildHistDistColSplit) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true, false); });
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true, false); });
+  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, true, true, false);
+  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, false, true, false);
 }
 
 TEST(CPUHistogram, BuildHistDistColSplitSecure) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true, true); });
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true, true); });
+  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, true, true, true);
+  RunWithInMemoryCommunicator(kWorkers, TestBuildHistogram, true, false, true, true);
 }
 
 namespace {
@@ -431,9 +428,9 @@ void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, boo
     batch_param.hess = hess;
   }
 
-  std::vector<bst_idx_t> partition_size(1, 0);
+  std::vector<std::size_t> partition_size(1, 0);
   bst_bin_t total_bins{0};
-  bst_idx_t n_samples{0};
+  bst_row_t n_samples{0};
 
   auto gpair = GenerateRandomGradients(m->Info().num_row_, 0.0, 1.0);
   auto const &h_gpair = gpair.HostVector();

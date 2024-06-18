@@ -512,7 +512,7 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   return ret;
 }
 
-XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset, SEXP allow_groups) {
+XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
   SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   R_xlen_t len = Rf_xlength(idxset);
@@ -531,7 +531,7 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset, SEXP allow_groups
     res_code = XGDMatrixSliceDMatrixEx(R_ExternalPtrAddr(handle),
                                        BeginPtr(idxvec), len,
                                        &res,
-                                       Rf_asLogical(allow_groups));
+                                       0);
   }
   CHECK_CALL(res_code);
   R_SetExternalPtrAddr(ret, res);
@@ -1673,19 +1673,4 @@ XGB_DLL SEXP XGBoosterSlice_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEX
   R_API_END();
   Rf_unprotect(1);
   return out;
-}
-
-XGB_DLL SEXP XGBoosterSliceAndReplace_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step) {
-  R_API_BEGIN();
-  BoosterHandle old_handle = R_ExternalPtrAddr(handle);
-  BoosterHandle new_handle = nullptr;
-  CHECK_CALL(XGBoosterSlice(old_handle,
-                            Rf_asInteger(begin_layer),
-                            Rf_asInteger(end_layer),
-                            Rf_asInteger(step),
-                            &new_handle));
-  R_SetExternalPtrAddr(handle, new_handle);
-  CHECK_CALL(XGBoosterFree(old_handle));
-  R_API_END();
-  return R_NilValue;
 }

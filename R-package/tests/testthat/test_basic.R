@@ -20,7 +20,7 @@ test_that("train and predict binary classification", {
       data = xgb.DMatrix(train$data, label = train$label), max_depth = 2,
       eta = 1, nthread = n_threads, nrounds = nrounds,
       objective = "binary:logistic", eval_metric = "error",
-      evals = list(train = xgb.DMatrix(train$data, label = train$label))
+      watchlist = list(train = xgb.DMatrix(train$data, label = train$label))
     ),
     "train-error"
   )
@@ -152,7 +152,7 @@ test_that("train and predict softprob", {
       data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
       max_depth = 3, eta = 0.5, nthread = n_threads, nrounds = 5,
       objective = "multi:softprob", num_class = 3, eval_metric = "merror",
-      evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
+      watchlist = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
     ),
     "train-merror"
   )
@@ -203,7 +203,7 @@ test_that("train and predict softmax", {
       data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
       max_depth = 3, eta = 0.5, nthread = n_threads, nrounds = 5,
       objective = "multi:softmax", num_class = 3, eval_metric = "merror",
-      evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
+      watchlist = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
     ),
     "train-merror"
   )
@@ -226,7 +226,7 @@ test_that("train and predict RF", {
     nthread = n_threads,
     nrounds = 1, objective = "binary:logistic", eval_metric = "error",
     num_parallel_tree = 20, subsample = 0.6, colsample_bytree = 0.1,
-    evals = list(train = xgb.DMatrix(train$data, label = lb))
+    watchlist = list(train = xgb.DMatrix(train$data, label = lb))
   )
   expect_equal(xgb.get.num.boosted.rounds(bst), 1)
 
@@ -250,7 +250,7 @@ test_that("train and predict RF with softprob", {
     objective = "multi:softprob", eval_metric = "merror",
     num_class = 3, verbose = 0,
     num_parallel_tree = 4, subsample = 0.5, colsample_bytree = 0.5,
-    evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
+    watchlist = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
   )
   expect_equal(xgb.get.num.boosted.rounds(bst), 15)
   # predict for all iterations:
@@ -271,7 +271,7 @@ test_that("use of multiple eval metrics works", {
       data = xgb.DMatrix(train$data, label = train$label), max_depth = 2,
       eta = 1, nthread = n_threads, nrounds = 2, objective = "binary:logistic",
       eval_metric = "error", eval_metric = "auc", eval_metric = "logloss",
-      evals = list(train = xgb.DMatrix(train$data, label = train$label))
+      watchlist = list(train = xgb.DMatrix(train$data, label = train$label))
     ),
     "train-error.*train-auc.*train-logloss"
   )
@@ -283,7 +283,7 @@ test_that("use of multiple eval metrics works", {
       data = xgb.DMatrix(train$data, label = train$label), max_depth = 2,
       eta = 1, nthread = n_threads, nrounds = 2, objective = "binary:logistic",
       eval_metric = list("error", "auc", "logloss"),
-      evals = list(train = xgb.DMatrix(train$data, label = train$label))
+      watchlist = list(train = xgb.DMatrix(train$data, label = train$label))
     ),
     "train-error.*train-auc.*train-logloss"
   )
@@ -295,19 +295,19 @@ test_that("use of multiple eval metrics works", {
 
 test_that("training continuation works", {
   dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = n_threads)
-  evals <- list(train = dtrain)
+  watchlist <- list(train = dtrain)
   param <- list(
     objective = "binary:logistic", max_depth = 2, eta = 1, nthread = n_threads
   )
 
   # for the reference, use 4 iterations at once:
   set.seed(11)
-  bst <- xgb.train(param, dtrain, nrounds = 4, evals = evals, verbose = 0)
+  bst <- xgb.train(param, dtrain, nrounds = 4, watchlist, verbose = 0)
   # first two iterations:
   set.seed(11)
-  bst1 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0)
+  bst1 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0)
   # continue for two more:
-  bst2 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0, xgb_model = bst1)
+  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = bst1)
   if (!windows_flag && !solaris_flag) {
     expect_equal(xgb.save.raw(bst), xgb.save.raw(bst2))
   }
@@ -315,7 +315,7 @@ test_that("training continuation works", {
   expect_equal(dim(attributes(bst2)$evaluation_log), c(4, 2))
   expect_equal(attributes(bst2)$evaluation_log, attributes(bst)$evaluation_log)
   # test continuing from raw model data
-  bst2 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0, xgb_model = xgb.save.raw(bst1))
+  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = xgb.save.raw(bst1))
   if (!windows_flag && !solaris_flag) {
     expect_equal(xgb.save.raw(bst), xgb.save.raw(bst2))
   }
@@ -323,7 +323,7 @@ test_that("training continuation works", {
   # test continuing from a model in file
   fname <- file.path(tempdir(), "xgboost.json")
   xgb.save(bst1, fname)
-  bst2 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0, xgb_model = fname)
+  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = fname)
   if (!windows_flag && !solaris_flag) {
     expect_equal(xgb.save.raw(bst), xgb.save.raw(bst2))
   }
@@ -334,7 +334,7 @@ test_that("xgb.cv works", {
   set.seed(11)
   expect_output(
     cv <- xgb.cv(
-      data = xgb.DMatrix(train$data, label = train$label), max_depth = 2, nfold = 5,
+      data = train$data, label = train$label, max_depth = 2, nfold = 5,
       eta = 1., nthread = n_threads, nrounds = 2, objective = "binary:logistic",
       eval_metric = "error", verbose = TRUE
     ),
@@ -348,6 +348,7 @@ test_that("xgb.cv works", {
   expect_false(is.null(cv$folds) && is.list(cv$folds))
   expect_length(cv$folds, 5)
   expect_false(is.null(cv$params) && is.list(cv$params))
+  expect_false(is.null(cv$callbacks))
   expect_false(is.null(cv$call))
 })
 
@@ -357,13 +358,13 @@ test_that("xgb.cv works with stratified folds", {
   cv <- xgb.cv(
     data = dtrain, max_depth = 2, nfold = 5,
     eta = 1., nthread = n_threads, nrounds = 2, objective = "binary:logistic",
-    verbose = FALSE, stratified = FALSE
+    verbose = TRUE, stratified = FALSE
   )
   set.seed(314159)
   cv2 <- xgb.cv(
     data = dtrain, max_depth = 2, nfold = 5,
     eta = 1., nthread = n_threads, nrounds = 2, objective = "binary:logistic",
-    verbose = FALSE, stratified = TRUE
+    verbose = TRUE, stratified = TRUE
   )
   # Stratified folds should result in a different evaluation logs
   expect_true(all(cv$evaluation_log[, test_logloss_mean] != cv2$evaluation_log[, test_logloss_mean]))
@@ -417,7 +418,7 @@ test_that("max_delta_step works", {
   dtrain <- xgb.DMatrix(
     agaricus.train$data, label = agaricus.train$label, nthread = n_threads
   )
-  evals <- list(train = dtrain)
+  watchlist <- list(train = dtrain)
   param <- list(
     objective = "binary:logistic", eval_metric = "logloss", max_depth = 2,
     nthread = n_threads,
@@ -425,9 +426,9 @@ test_that("max_delta_step works", {
   )
   nrounds <- 5
   # model with no restriction on max_delta_step
-  bst1 <- xgb.train(param, dtrain, nrounds, evals = evals, verbose = 1)
+  bst1 <- xgb.train(param, dtrain, nrounds, watchlist, verbose = 1)
   # model with restricted max_delta_step
-  bst2 <- xgb.train(param, dtrain, nrounds, evals = evals, verbose = 1, max_delta_step = 1)
+  bst2 <- xgb.train(param, dtrain, nrounds, watchlist, verbose = 1, max_delta_step = 1)
   # the no-restriction model is expected to have consistently lower loss during the initial iterations
   expect_true(all(attributes(bst1)$evaluation_log$train_logloss < attributes(bst2)$evaluation_log$train_logloss))
   expect_lt(mean(attributes(bst1)$evaluation_log$train_logloss) / mean(attributes(bst2)$evaluation_log$train_logloss), 0.8)
@@ -444,7 +445,7 @@ test_that("colsample_bytree works", {
   colnames(test_x) <- paste0("Feature_", sprintf("%03d", 1:100))
   dtrain <- xgb.DMatrix(train_x, label = train_y, nthread = n_threads)
   dtest <- xgb.DMatrix(test_x, label = test_y, nthread = n_threads)
-  evals <- list(train = dtrain, eval = dtest)
+  watchlist <- list(train = dtrain, eval = dtest)
   ## Use colsample_bytree = 0.01, so that roughly one out of 100 features is chosen for
   ## each tree
   param <- list(
@@ -453,7 +454,7 @@ test_that("colsample_bytree works", {
     eval_metric = "auc"
   )
   set.seed(2)
-  bst <- xgb.train(param, dtrain, nrounds = 100, evals = evals, verbose = 0)
+  bst <- xgb.train(param, dtrain, nrounds = 100, watchlist, verbose = 0)
   xgb.importance(model = bst)
   # If colsample_bytree works properly, a variety of features should be used
   # in the 100 trees
@@ -884,58 +885,4 @@ test_that("Seed in params override PRNG from R", {
       )
     )
   )
-})
-
-test_that("xgb.cv works for AFT", {
-  X <- matrix(c(1, -1, -1, 1, 0, 1, 1, 0), nrow = 4, byrow = TRUE)  # 4x2 matrix
-  dtrain <- xgb.DMatrix(X, nthread = n_threads)
-
-  params <- list(objective = 'survival:aft', learning_rate = 0.2, max_depth = 2L)
-
-  # data must have bounds
-  expect_error(
-    xgb.cv(
-      params = params,
-      data = dtrain,
-      nround = 5L,
-      nfold = 4L,
-      nthread = n_threads
-    )
-  )
-
-  setinfo(dtrain, 'label_lower_bound', c(2, 3, 0, 4))
-  setinfo(dtrain, 'label_upper_bound', c(2, Inf, 4, 5))
-
-  # automatic stratified splitting is turned off
-  expect_warning(
-    xgb.cv(
-      params = params, data = dtrain, nround = 5L, nfold = 4L,
-      nthread = n_threads, stratified = TRUE, verbose = FALSE
-    )
-  )
-
-  # this works without any issue
-  expect_no_warning(
-    xgb.cv(params = params, data = dtrain, nround = 5L, nfold = 4L, verbose = FALSE)
-  )
-})
-
-test_that("xgb.cv works for ranking", {
-  data(iris)
-  x <- iris[, -(4:5)]
-  y <- as.integer(iris$Petal.Width)
-  group <- rep(50, 3)
-  dm <- xgb.DMatrix(x, label = y, group = group)
-  res <- xgb.cv(
-    data = dm,
-    params = list(
-      objective = "rank:pairwise",
-      max_depth = 3
-    ),
-    nrounds = 3,
-    nfold = 2,
-    verbose = FALSE,
-    stratified = FALSE
-  )
-  expect_equal(length(res$folds), 2L)
 })

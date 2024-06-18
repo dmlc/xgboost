@@ -1,7 +1,6 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023, XGBoost Contributors
  */
-#include "rabit/internal/socket.h"
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>       // gethostbyname
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
@@ -28,23 +27,15 @@
 #include "tracker.h"
 #include "xgboost/collective/result.h"  // for Result, Fail, Success
 #include "xgboost/collective/socket.h"  // for GetHostName, FailWithCode, MakeSockAddress, ...
-#include "xgboost/json.h"               // for Json
+#include "xgboost/json.h"
 
 namespace xgboost::collective {
-
 Tracker::Tracker(Json const& config)
-    : sortby_{static_cast<SortBy>(
-          OptionalArg<Integer const>(config, "sortby", static_cast<Integer::Int>(SortBy::kHost)))},
-      n_workers_{
-          static_cast<std::int32_t>(RequiredArg<Integer const>(config, "n_workers", __func__))},
+    : n_workers_{static_cast<std::int32_t>(
+          RequiredArg<Integer const>(config, "n_workers", __func__))},
       port_{static_cast<std::int32_t>(OptionalArg<Integer const>(config, "port", Integer::Int{0}))},
-      timeout_{std::chrono::seconds{
-          OptionalArg<Integer const>(config, "timeout", static_cast<std::int64_t>(0))}} {
-  using std::chrono_literals::operator""s;
-  // Some old configurations in JVM for the scala implementation (removed) use 0 to
-  // indicate blocking. We continue that convention here.
-  timeout_ = (timeout_ == 0s) ? -1s : timeout_;
-}
+      timeout_{std::chrono::seconds{OptionalArg<Integer const>(
+          config, "timeout", static_cast<std::int64_t>(collective::DefaultTimeoutSec()))}} {}
 
 Result Tracker::WaitUntilReady() const {
   using namespace std::chrono_literals;  // NOLINT
@@ -55,7 +46,7 @@ Result Tracker::WaitUntilReady() const {
   timer.Start();
   while (!this->Ready()) {
     auto ela = timer.Duration().count();
-    if (HasTimeout(this->Timeout()) && ela > this->Timeout().count()) {
+    if (ela > this->Timeout().count()) {
       return Fail("Failed to start tracker, timeout:" + std::to_string(this->Timeout().count()) +
                   " seconds.");
     }
@@ -65,25 +56,20 @@ Result Tracker::WaitUntilReady() const {
   return Success();
 }
 
-RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddress addr)
+RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddrV4 addr)
     : sock_{std::move(sock)} {
   std::int32_t rank{0};
   Json jcmd;
   std::int32_t port{0};
 
-  rc_ = Success() << [&] {
-    return proto::Magic{}.Verify(&sock_);
-  } << [&] {
+  rc_ = Success() << [&] { return proto::Magic{}.Verify(&sock_); } << [&] {
     return proto::Connect{}.TrackerRecv(&sock_, &world_, &rank, &task_id_);
   } << [&] {
     std::string cmd;
-    auto rc = sock_.Recv(&cmd);
-    if (!rc.OK()) {
-      return rc;
-    }
+    sock_.Recv(&cmd);
     jcmd = Json::Load(StringView{cmd});
     cmd_ = static_cast<proto::CMD>(get<Integer const>(jcmd["cmd"]));
-    return rc;
+    return Success();
   } << [&] {
     if (cmd_ == proto::CMD::kStart) {
       proto::Start start;
@@ -97,37 +83,28 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
     }
     return Success();
   } << [&] {
-    if (addr.IsV4()) {
-      auto host = addr.V4().Addr();
-      info_ = proto::PeerInfo{host, port, rank};
-    } else {
-      auto host = addr.V6().Addr();
-      info_ = proto::PeerInfo{host, port, rank};
-    }
+    auto host = addr.Addr();
+    info_ = proto::PeerInfo{host, port, rank};
     return Success();
   };
 }
 
 RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
   std::string self;
-  auto rc = Success() << [&] {
-    return collective::GetHostAddress(&self);
-  } << [&] {
-    host_ = OptionalArg<String>(config, "host", self);
+  auto rc = collective::GetHostAddress(&self);
+  auto host = OptionalArg<String>(config, "host", self);
 
-    auto addr = MakeSockAddress(xgboost::StringView{host_}, 0);
-    listener_ = TCPSocket::Create(addr.IsV4() ? SockDomain::kV4 : SockDomain::kV6);
-    return listener_.Bind(host_, &this->port_);
-  } << [&] {
-    return listener_.Listen();
-  };
-  SafeColl(rc);
+  host_ = host;
+  listener_ = TCPSocket::Create(SockDomain::kV4);
+  rc = listener_.Bind(host, &this->port_);
+  CHECK(rc.OK()) << rc.Report();
+  listener_.Listen();
 }
 
 Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   auto& workers = *p_workers;
 
-  std::sort(workers.begin(), workers.end(), WorkerCmp{this->sortby_});
+  std::sort(workers.begin(), workers.end(), WorkerCmp{});
 
   std::vector<std::thread> bootstrap_threads;
   for (std::int32_t r = 0; r < n_workers_; ++r) {
@@ -234,13 +211,9 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       //
       // retry is set to 1, just let the worker timeout or error. Otherwise the
       // tracker and the worker might be waiting for each other.
-      auto rc = Success() << [&] {
-        return Connect(w.first, w.second, 1, timeout_, &out);
-      } << [&] {
-        return proto::Error{}.SignalError(&out);
-      };
+      auto rc = Connect(w.first, w.second, 1, timeout_, &out);
       if (!rc.OK()) {
-        return Fail("Failed to inform worker:" + w.first + " for error.", std::move(rc));
+        return Fail("Failed to inform workers to stop.");
       }
     }
     return Success();
@@ -249,45 +222,18 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   return std::async(std::launch::async, [this, handle_error] {
     State state{this->n_workers_};
 
-    auto select_accept = [&](TCPSocket* sock, auto* addr) {
-      // accept with poll so that we can enable timeout and interruption.
-      rabit::utils::PollHelper poll;
-      auto rc = Success() << [&] {
-        std::lock_guard lock{listener_mu_};
-        return listener_.NonBlocking(true);
-      } << [&] {
-        {
-          std::lock_guard lock{listener_mu_};
-          poll.WatchRead(listener_);
-        }
-        if (state.running) {
-          // Don't timeout if the communicator group is up and running.
-          return poll.Poll(std::chrono::seconds{-1});
-        } else {
-          // Have timeout for workers to bootstrap.
-          return poll.Poll(timeout_);
-        }
-      } << [&] {
-        // this->Stop() closes the socket with a lock. Therefore, when the accept returns
-        // due to shutdown, the state is still valid (closed).
-        return listener_.Accept(sock, addr);
-      };
-      return rc;
-    };
-
     while (state.ShouldContinue()) {
       TCPSocket sock;
-      SockAddress addr;
+      SockAddrV4 addr;
       this->ready_ = true;
-      auto rc = select_accept(&sock, &addr);
+      auto rc = listener_.Accept(&sock, &addr);
       if (!rc.OK()) {
-        return Fail("Failed to accept connection.", this->Stop() + std::move(rc));
+        return Fail("Failed to accept connection.", std::move(rc));
       }
 
       auto worker = WorkerProxy{n_workers_, std::move(sock), std::move(addr)};
       if (!worker.Status().OK()) {
-        LOG(WARNING) << "Failed to initialize worker proxy." << worker.Status().Report();
-        continue;
+        return Fail("Failed to initialize worker proxy.", std::move(worker.Status()));
       }
       switch (worker.Command()) {
         case proto::CMD::kStart: {
@@ -297,7 +243,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
             state.Error();
             rc = handle_error(worker);
             if (!rc.OK()) {
-              return Fail("Failed to handle abort.", this->Stop() + std::move(rc));
+              return Fail("Failed to handle abort.", std::move(rc));
             }
           }
 
@@ -307,7 +253,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
             state.Bootstrap();
           }
           if (!rc.OK()) {
-            return this->Stop() + std::move(rc);
+            return rc;
           }
           continue;
         }
@@ -334,41 +280,23 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
         }
         case proto::CMD::kInvalid:
         default: {
-          return Fail("Invalid command received.", this->Stop());
+          return Fail("Invalid command received.");
         }
       }
     }
-    return this->Stop();
+    ready_ = false;
+    return Success();
   });
 }
 
 [[nodiscard]] Json RabitTracker::WorkerArgs() const {
   auto rc = this->WaitUntilReady();
-  SafeColl(rc);
+  CHECK(rc.OK()) << rc.Report();
 
   Json args{Object{}};
-  args["dmlc_tracker_uri"] = String{host_};
-  args["dmlc_tracker_port"] = this->Port();
+  args["DMLC_TRACKER_URI"] = String{host_};
+  args["DMLC_TRACKER_PORT"] = this->Port();
   return args;
-}
-
-[[nodiscard]] Result RabitTracker::Stop() {
-  if (!this->Ready()) {
-    return Success();
-  }
-
-  ready_ = false;
-  std::lock_guard lock{listener_mu_};
-  if (this->listener_.IsClosed()) {
-    return Success();
-  }
-
-  return Success() << [&] {
-    // This should have the effect of stopping the `accept` call.
-    return this->listener_.Shutdown();
-  } << [&] {
-    return listener_.Close();
-  };
 }
 
 [[nodiscard]] Result GetHostAddress(std::string* out) {

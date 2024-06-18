@@ -1,11 +1,10 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
 #include <cstddef>  // for size_t
 #include <fstream>  // for ofstream
-#include <numeric>  // for iota
 
 #include "../../../src/common/io.h"
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
@@ -15,8 +14,8 @@ namespace xgboost::common {
 TEST(MemoryFixSizeBuffer, Seek) {
   size_t constexpr kSize { 64 };
   std::vector<int32_t> memory( kSize );
-  MemoryFixSizeBuffer buf(memory.data(), memory.size());
-  buf.Seek(MemoryFixSizeBuffer::kSeekEnd);
+  rabit::utils::MemoryFixSizeBuffer buf(memory.data(), memory.size());
+  buf.Seek(rabit::utils::MemoryFixSizeBuffer::kSeekEnd);
   size_t end = buf.Tell();
   ASSERT_EQ(end, kSize);
 }

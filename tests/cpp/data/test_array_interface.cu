@@ -1,11 +1,10 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2023, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
-
-#include "../../../src/data/array_interface.h"
 #include "../helpers.h"
+#include "../../../src/data/array_interface.h"
 
 namespace xgboost {
 

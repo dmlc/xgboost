@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023, XGBoost Contributors
  */
 #pragma once
 
@@ -9,6 +9,7 @@
 #include "../../src/common/device_helpers.cuh"  // for CUDAStreamView
 #include "federated_comm.h"                     // for FederatedComm
 #include "xgboost/context.h"                    // for Context
+#include "xgboost/logging.h"
 
 namespace xgboost::collective {
 class CUDAFederatedComm : public FederatedComm {

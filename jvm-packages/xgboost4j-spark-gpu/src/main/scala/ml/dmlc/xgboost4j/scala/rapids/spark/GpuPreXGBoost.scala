@@ -160,7 +160,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
 
     // Check columns and build column data batch
     val trainingData = GpuUtils.buildColumnDataBatch(feturesCols,
-      labelName, weightName, marginName, groupName, castedDF)
+      labelName, weightName, marginName, "", castedDF)
 
     // eval map
     val evalDataMap = evalSets.map {

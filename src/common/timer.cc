@@ -1,17 +1,20 @@
-/**
- * Copyright 2019-2024, XGBoost Contributors
+/*!
+ * Copyright by Contributors 2019
  */
 #include "timer.h"
 
+#include <sstream>
 #include <utility>
 
 #include "../collective/communicator-inl.h"
 
 #if defined(XGBOOST_USE_NVTX)
-#include <nvtx3/nvToolsExt.h>
+#include <nvToolsExt.h>
 #endif  // defined(XGBOOST_USE_NVTX)
 
-namespace xgboost::common {
+namespace xgboost {
+namespace common {
+
 void Monitor::Start(std::string const &name) {
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
     auto &stats = statistics_map_[name];
@@ -58,10 +61,9 @@ void Monitor::Print() const {
                              kv.second.timer.elapsed)
                              .count());
   }
-  if (stat_map.empty()) {
-    return;
-  }
   LOG(CONSOLE) << "======== Monitor (" << rank << "): " << label_ << " ========";
   this->PrintStatistics(stat_map);
 }
-}  // namespace xgboost::common
+
+}  // namespace common
+}  // namespace xgboost

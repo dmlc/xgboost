@@ -29,14 +29,14 @@ if(PLUGIN_SYCL)
     ${xgboost_SOURCE_DIR}/rabit/include)
 
   target_compile_definitions(plugin_sycl_test PUBLIC -DXGBOOST_USE_SYCL=1)
+
   target_link_libraries(plugin_sycl_test PUBLIC -fsycl)
-  target_link_libraries(plugin_sycl_test PRIVATE ${GTEST_LIBRARIES})
 
   set_target_properties(plugin_sycl_test PROPERTIES
-    COMPILE_FLAGS -fsycl
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
+  COMPILE_FLAGS -fsycl
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+  POSITION_INDEPENDENT_CODE ON)
   if(USE_OPENMP)
     find_package(OpenMP REQUIRED)
     set_target_properties(plugin_sycl_test PROPERTIES
@@ -59,6 +59,7 @@ endif()
 target_sources(testxgboost PRIVATE ${TEST_SOURCES} ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 
 if(USE_CUDA AND PLUGIN_RMM)
+  find_package(CUDA)
   target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
 endif()
 
@@ -70,7 +71,7 @@ target_include_directories(testxgboost
   ${xgboost_SOURCE_DIR}/rabit/include)
 target_link_libraries(testxgboost
   PRIVATE
-  GTest::gtest GTest::gmock)
+  ${GTEST_LIBRARIES})
 
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 

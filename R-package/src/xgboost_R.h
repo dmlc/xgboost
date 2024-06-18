@@ -112,10 +112,9 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
  * \brief create a new dmatrix from sliced content of existing matrix
  * \param handle instance of data matrix to be sliced
  * \param idxset index set
- * \param allow_groups Whether to allow slicing the DMatrix if it has a 'group' field
  * \return a sliced new matrix
  */
-XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset, SEXP allow_groups);
+XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset);
 
 /*!
  * \brief load a data matrix into binary file
@@ -535,15 +534,5 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config);
  * \return The sliced booster with the requested rounds only
  */
 XGB_DLL SEXP XGBoosterSlice_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step);
-
-/*!
- * \brief Slice a fitted booster model (by rounds), and replace its handle with the result
- * \param handle handle to the fitted booster
- * \param begin_layer start of the slice
- * \param end_later end of the slice; end_layer=0 is equivalent to end_layer=num_boost_round
- * \param step step size of the slice
- * \return NULL
- */
-XGB_DLL SEXP XGBoosterSliceAndReplace_R(SEXP handle, SEXP begin_layer, SEXP end_layer, SEXP step);
 
 #endif  // XGBOOST_WRAPPER_R_H_ // NOLINT(*)

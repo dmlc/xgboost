@@ -84,7 +84,7 @@ def main(tmpdir: str) -> xgboost.Booster:
     it = Iterator(files)
     # For non-data arguments, specify it here once instead of passing them by the `next`
     # method.
-    missing = np.nan
+    missing = np.NaN
     Xy = xgboost.DMatrix(it, missing=missing, enable_categorical=False)
 
     # ``approx`` is also supported, but less efficient due to sketching. GPU behaves

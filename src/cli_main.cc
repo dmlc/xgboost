@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include "collective/communicator-inl.h"
 #include "common/common.h"
 #include "common/config.h"
 #include "common/io.h"
@@ -192,6 +193,10 @@ class CLI {
 
   void CLITrain() {
     const double tstart_data_load = dmlc::GetTime();
+    if (collective::IsDistributed()) {
+      std::string pname = collective::GetProcessorName();
+      LOG(CONSOLE) << "start " << pname << ":" << collective::GetRank();
+    }
     // load in data.
     std::shared_ptr<DMatrix> dtrain(DMatrix::Load(
         param_.train_path, ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
@@ -230,9 +235,15 @@ class CLI {
         version += 1;
       }
       std::string res = learner_->EvalOneIter(i, eval_datasets, eval_data_names);
-      LOG(CONSOLE) << res;
-
-      if (param_.save_period != 0 && (i + 1) % param_.save_period == 0) {
+      if (collective::IsDistributed()) {
+        if (collective::GetRank() == 0) {
+          LOG(TRACKER) << res;
+        }
+      } else {
+        LOG(CONSOLE) << res;
+      }
+      if (param_.save_period != 0 && (i + 1) % param_.save_period == 0 &&
+          collective::GetRank() == 0) {
         std::ostringstream os;
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
            << i + 1 << ".model";
@@ -245,7 +256,8 @@ class CLI {
               << " sec";
     // always save final round
     if ((param_.save_period == 0 ||
-         param_.num_round % param_.save_period != 0)) {
+         param_.num_round % param_.save_period != 0) &&
+         collective::GetRank() == 0) {
       std::ostringstream os;
       if (param_.model_out == CLIParam::kNull) {
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
@@ -453,6 +465,13 @@ class CLI {
       }
     }
 
+    // Initialize the collective communicator.
+    Json json{JsonObject()};
+    for (auto& kv : cfg) {
+      json[kv.first] = String(kv.second);
+    }
+    collective::Init(json);
+
     param_.Configure(cfg);
   }
 
@@ -487,6 +506,10 @@ class CLI {
       return 1;
     }
     return 0;
+  }
+
+  ~CLI() {
+    collective::Finalize();
   }
 };
 }  // namespace xgboost

@@ -13,18 +13,13 @@
 #include "../../../src/common/common.h"
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
 #include "../../../src/data/ellpack_page.h"    // for EllpackPage
-#include "../../../src/tree/param.h"           // for TrainParam
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../../../src/tree/updater_gpu_hist.cu"
-#include "../collective/test_worker.h"  // for BaseMGPUTest
-#include "../filesystem.h"              // dmlc::TemporaryDirectory
+#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "../histogram_helpers.h"
 #include "xgboost/context.h"
 #include "xgboost/json.h"
-
-#if defined(XGBOOST_USE_FEDERATED)
-#include "../plugin/federated/test_worker.h"  // for TestFederatedGlobal
-#endif  // defined(XGBOOST_USE_FEDERATED)
 
 namespace xgboost::tree {
 TEST(GpuHist, DeviceHistogram) {
@@ -445,7 +440,7 @@ RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   return tree;
 }
 
-void VerifyHistColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& expected_tree) {
+void VerifyHistColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
   Context ctx(MakeCUDACtx(GPUIDX));
 
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
@@ -463,9 +458,9 @@ void VerifyHistColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& ex
 }
 }  // anonymous namespace
 
-class MGPUHistTest : public collective::BaseMGPUTest {};
+class MGPUHistTest : public BaseMGPUTest {};
 
-TEST_F(MGPUHistTest, HistColumnSplit) {
+TEST_F(MGPUHistTest, GPUHistColumnSplit) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
@@ -473,8 +468,7 @@ TEST_F(MGPUHistTest, HistColumnSplit) {
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
   RegTree expected_tree = GetHistTree(&ctx, dmat.get());
 
-  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, true);
-  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, false);
+  DoTest(VerifyHistColumnSplit, kRows, kCols, expected_tree);
 }
 
 namespace {
@@ -496,7 +490,7 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
   return tree;
 }
 
-void VerifyApproxColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& expected_tree) {
+void VerifyApproxColumnSplit(bst_row_t rows, bst_feature_t cols, RegTree const& expected_tree) {
   Context ctx(MakeCUDACtx(GPUIDX));
 
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
@@ -514,7 +508,7 @@ void VerifyApproxColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& 
 }
 }  // anonymous namespace
 
-class MGPUApproxTest : public collective::BaseMGPUTest {};
+class MGPUApproxTest : public BaseMGPUTest {};
 
 TEST_F(MGPUApproxTest, GPUApproxColumnSplit) {
   auto constexpr kRows = 32;
@@ -524,7 +518,6 @@ TEST_F(MGPUApproxTest, GPUApproxColumnSplit) {
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
   RegTree expected_tree = GetApproxTree(&ctx, dmat.get());
 
-  this->DoTest([&] { VerifyApproxColumnSplit(kRows, kCols, expected_tree); }, true);
-  this->DoTest([&] { VerifyApproxColumnSplit(kRows, kCols, expected_tree); }, false);
+  DoTest(VerifyApproxColumnSplit, kRows, kCols, expected_tree);
 }
 }  // namespace xgboost::tree

@@ -1,0 +1,1 @@
+# This directory contains the CPU network module for XGBoost.  The library originates from [RABIT](https://github.com/dmlc/rabit)

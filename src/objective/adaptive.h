@@ -9,6 +9,8 @@
 #include <vector>   // std::vector
 
 #include "../collective/aggregator.h"
+#include "../collective/communicator-inl.h"
+#include "../common/common.h"
 #include "xgboost/base.h"                // bst_node_t
 #include "xgboost/context.h"             // Context
 #include "xgboost/data.h"                // MetaInfo
@@ -40,7 +42,7 @@ inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
 
-  bst_idx_t n_leaf = collective::GlobalMax(ctx, info, static_cast<bst_idx_t>(h_node_idx.size()));
+  size_t n_leaf = collective::GlobalMax(ctx, info, h_node_idx.size());
   CHECK(quantiles.empty() || quantiles.size() == n_leaf);
   if (quantiles.empty()) {
     quantiles.resize(n_leaf, std::numeric_limits<float>::quiet_NaN());

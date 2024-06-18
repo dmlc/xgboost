@@ -177,7 +177,7 @@ double GroupRankingROC(Context const* ctx, common::Span<float const> predts,
   if (sum_w != 0) {
     auc /= sum_w;
   }
-  CHECK_LE(auc, 1.0 + kRtEps);
+  CHECK_LE(auc, 1.0f);
   return auc;
 }
 
@@ -264,14 +264,9 @@ class EvalAUC : public MetricNoCache {
       info.weights_.SetDevice(ctx_->Device());
     }
     //  We use the global size to handle empty dataset.
-    std::array<bst_idx_t, 2> meta{info.labels.Size(), preds.Size()};
+    std::array<size_t, 2> meta{info.labels.Size(), preds.Size()};
     if (!info.IsVerticalFederated()) {
-      auto rc = collective::Allreduce(
-          ctx_,
-          linalg::MakeTensorView(DeviceOrd::CPU(), common::Span{meta.data(), meta.size()},
-                                 meta.size()),
-          collective::Op::kMax);
-      collective::SafeColl(rc);
+      collective::Allreduce<collective::Operation::kMax>(meta.data(), meta.size());
     }
     if (meta[0] == 0) {
       // Empty across all workers, which is not supported.
@@ -295,8 +290,8 @@ class EvalAUC : public MetricNoCache {
 
       auc = collective::GlobalRatio(ctx_, info, auc, static_cast<double>(valid_groups));
       if (!std::isnan(auc)) {
-        CHECK_LE(auc, 1.0 + kRtEps) << "Total AUC across groups: " << auc * valid_groups
-                                    << ", valid groups: " << valid_groups;
+        CHECK_LE(auc, 1) << "Total AUC across groups: " << auc * valid_groups
+                         << ", valid groups: " << valid_groups;
       }
     } else if (meta[0] != meta[1] && meta[1] % meta[0] == 0) {
       /**
@@ -316,8 +311,7 @@ class EvalAUC : public MetricNoCache {
       }
       auc = collective::GlobalRatio(ctx_, info, auc, fp * tp);
       if (!std::isnan(auc)) {
-        CHECK_LE(auc, 1.0 + kRtEps);
-        auc = std::min(auc, 1.0);
+        CHECK_LE(auc, 1.0);
       }
     }
     if (std::isnan(auc)) {

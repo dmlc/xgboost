@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2023 by XGBoost Contributors
  */
 #include <algorithm>  // for max, fill, min
 #include <any>        // for any, any_cast
@@ -12,7 +12,7 @@
 #include <vector>     // for vector
 
 #include "../collective/communicator-inl.h"   // for Allreduce, IsDistributed
-#include "../collective/allreduce.h"
+#include "../collective/communicator.h"       // for Operation
 #include "../common/bitfield.h"               // for RBitField8
 #include "../common/categorical.h"            // for IsCat, Decision
 #include "../common/common.h"                 // for DivRoundUp
@@ -184,7 +184,7 @@ void FVecDrop(std::size_t const block_size, std::size_t const fvec_offset,
 static std::size_t constexpr kUnroll = 8;
 
 struct SparsePageView {
-  bst_idx_t base_rowid;
+  bst_row_t base_rowid;
   HostSparsePageView view;
 
   explicit SparsePageView(SparsePage const *p) : base_rowid{p->base_rowid} { view = p->GetView(); }
@@ -193,7 +193,7 @@ struct SparsePageView {
 };
 
 struct SingleInstanceView {
-  bst_idx_t base_rowid{};
+  bst_row_t base_rowid{};
   SparsePage::Inst const &inst;
 
   explicit SingleInstanceView(SparsePage::Inst const &instance) : inst{instance} {}
@@ -214,7 +214,7 @@ struct GHistIndexMatrixView {
   std::vector<float> const& values_;
 
  public:
-  bst_idx_t base_rowid;
+  size_t base_rowid;
 
  public:
   GHistIndexMatrixView(GHistIndexMatrix const &_page, uint64_t n_feat,
@@ -292,7 +292,7 @@ class AdapterView {
 
   [[nodiscard]] size_t Size() const { return adapter_->NumRows(); }
 
-  bst_idx_t const static base_rowid = 0;  // NOLINT
+  bst_row_t const static base_rowid = 0;  // NOLINT
 };
 
 template <typename DataView, size_t block_of_rows_size>
@@ -461,17 +461,11 @@ class ColumnSplitHelper {
     return tree_offsets_[tree_index] * n_rows_ + row_id * tree_sizes_[tree_index] + node_id;
   }
 
-  void AllreduceBitVectors(Context const *ctx) {
-    auto rc = collective::Success() << [&] {
-      return collective::Allreduce(
-          ctx, linalg::MakeVec(decision_storage_.data(), decision_storage_.size()),
-          collective::Op::kBitwiseOR);
-    } << [&] {
-      return collective::Allreduce(
-          ctx, linalg::MakeVec(missing_storage_.data(), missing_storage_.size()),
-          collective::Op::kBitwiseAND);
-    };
-    collective::SafeColl(rc);
+  void AllreduceBitVectors(Context const*) {
+    collective::Allreduce<collective::Operation::kBitwiseOR>(decision_storage_.data(),
+                                                             decision_storage_.size());
+    collective::Allreduce<collective::Operation::kBitwiseAND>(missing_storage_.data(),
+                                                              missing_storage_.size());
   }
 
   void MaskOneTree(RegTree::FVec const &feat, std::size_t tree_id, std::size_t row_id) {

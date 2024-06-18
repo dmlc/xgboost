@@ -7,9 +7,11 @@
 
 #include "../helpers.h"
 
-namespace xgboost::metric {
-inline void VerifyBinaryAUC(DataSplitMode data_split_mode, DeviceOrd device) {
-  auto ctx = MakeCUDACtx(device.ordinal);
+namespace xgboost {
+namespace metric {
+
+inline void VerifyBinaryAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   Metric* metric = uni_ptr.get();
   ASSERT_STREQ(metric->Name(), "auc");
@@ -51,8 +53,8 @@ inline void VerifyBinaryAUC(DataSplitMode data_split_mode, DeviceOrd device) {
               0.5, 1e-10);
 }
 
-inline void VerifyMultiClassAUC(DataSplitMode data_split_mode, DeviceOrd device) {
-  auto ctx = MakeCUDACtx(device.ordinal);
+inline void VerifyMultiClassAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx)};
   auto metric = uni_ptr.get();
 
@@ -112,8 +114,8 @@ inline void VerifyMultiClassAUC(DataSplitMode data_split_mode, DeviceOrd device)
   ASSERT_GT(auc, 0.714);
 }
 
-inline void VerifyRankingAUC(DataSplitMode data_split_mode, DeviceOrd device) {
-  auto ctx = MakeCUDACtx(device.ordinal);
+inline void VerifyRankingAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
+  auto ctx = MakeCUDACtx(GPUIDX);
   std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx)};
 
   // single group
@@ -146,8 +148,8 @@ inline void VerifyRankingAUC(DataSplitMode data_split_mode, DeviceOrd device) {
               0.769841f, 1e-6);
 }
 
-inline void VerifyPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
-  auto ctx = MakeCUDACtx(device.ordinal);
+inline void VerifyPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   xgboost::Metric* metric = xgboost::Metric::Create("aucpr", &ctx);
   ASSERT_STREQ(metric->Name(), "aucpr");
@@ -183,8 +185,8 @@ inline void VerifyPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   delete metric;
 }
 
-inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
-  auto ctx = MakeCUDACtx(device.ordinal);
+inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
 
@@ -207,8 +209,8 @@ inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode, DeviceOrd devic
   ASSERT_GT(auc, 0.699);
 }
 
-inline void VerifyRankingPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
-  auto ctx = MakeCUDACtx(device.ordinal);
+inline void VerifyRankingPRAUC(DataSplitMode data_split_mode = DataSplitMode::kRow) {
+  auto ctx = MakeCUDACtx(GPUIDX);
 
   std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx)};
 
@@ -243,4 +245,5 @@ inline void VerifyRankingPRAUC(DataSplitMode data_split_mode, DeviceOrd device) 
                     data_split_mode),
       0.556021f, 0.001f);
 }
-}  // namespace xgboost::metric
+}  // namespace metric
+}  // namespace xgboost
