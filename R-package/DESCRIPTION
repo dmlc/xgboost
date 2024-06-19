@@ -57,7 +57,8 @@ Suggests:
     igraph (>= 1.0.1),
     float,
     titanic,
-    RhpcBLASctl
+    RhpcBLASctl,
+    survival
 Depends:
     R (>= 4.3.0)
 Imports:

@@ -51,9 +51,8 @@
 #' nthread <- 2
 #' data.table::setDTthreads(nthread)
 #'
-#' bst <- xgboost(
-#'   data = agaricus.train$data,
-#'   label = agaricus.train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
 #'   max_depth = 3,
 #'   eta = 1,
 #'   nthread = nthread,

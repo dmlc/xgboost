@@ -316,12 +316,10 @@
 #'                  early_stopping_rounds = 3)
 #'
 #' ## An 'xgboost' interface example:
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label,
-#'                max_depth = 2, eta = 1, nthread = nthread, nrounds = 2,
-#'                objective = "binary:logistic")
+#' bst <- xgboost(x = agaricus.train$data, y = factor(agaricus.train$label),
+#'                params = list(max_depth = 2, eta = 1), nthread = nthread, nrounds = 2)
 #' pred <- predict(bst, agaricus.test$data)
 #'
-#' @rdname xgb.train
 #' @export
 xgb.train <- function(params = list(), data, nrounds, evals = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,

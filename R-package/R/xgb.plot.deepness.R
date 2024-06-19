@@ -48,9 +48,8 @@
 #' data.table::setDTthreads(nthread)
 #'
 #' ## Change max_depth to a higher number to get a more significant result
-#' bst <- xgboost(
-#'   data = agaricus.train$data,
-#'   label = agaricus.train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
 #'   max_depth = 6,
 #'   nthread = nthread,
 #'   nrounds = 50,
