@@ -94,15 +94,6 @@ trait HasFeaturesCols extends Params {
   }
 }
 
-trait HasValidationIndicatorCol extends Params {
-
-  final val validationIndicatorCol: Param[String] = new Param[String](this,
-    "validationIndicatorCol", "Name of the column that indicates whether each row is for " +
-      "training or for validation. False indicates training; true indicates validation.")
-
-  final def getValidationIndicatorCol: String = $(validationIndicatorCol)
-}
-
 /**
  * A trait to hold non-xgboost parameters
  */
@@ -124,13 +115,19 @@ trait NonXGBoostParams extends Params {
  */
 private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFeaturesCol
   with HasLabelCol with HasBaseMarginCol with HasWeightCol with HasPredictionCol
-  with HasLeafPredictionCol with HasContribPredictionCol with HasValidationIndicatorCol
+  with HasLeafPredictionCol with HasContribPredictionCol
   with RabitParams with NonXGBoostParams with SchemaValidationTrait {
 
   final val numWorkers = new IntParam(this, "numWorkers", "Number of workers used to train xgboost",
     ParamValidators.gtEq(1))
 
   final def getNumRound: Int = $(numRound)
+
+  final val forceRepartition = new BooleanParam(this, "forceRepartition", "If the partition " +
+    "is equal to numWorkers, xgboost won't repartition the dataset. Set forceRepartition to " +
+    "true to force repartition.")
+
+  final def getForceRepartition: Boolean = $(forceRepartition)
 
   final val numRound = new IntParam(this, "numRound", "The number of rounds for boosting",
     ParamValidators.gtEq(1))
@@ -139,6 +136,8 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
     "Number of rounds of decreasing eval metric to tolerate before stopping training",
     ParamValidators.gtEq(0))
 
+  final def getNumEarlyStoppingRounds: Int = $(numEarlyStoppingRounds)
+
   final val inferBatchSize = new IntParam(this, "inferBatchSize", "batch size in rows " +
     "to be grouped for inference",
     ParamValidators.gtEq(1))
@@ -146,18 +145,26 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   /** @group getParam */
   final def getInferBatchSize: Int = $(inferBatchSize)
 
-  final def getNumEarlyStoppingRounds: Int = $(numEarlyStoppingRounds)
+  /**
+   * the value treated as missing. default: Float.NaN
+   */
+  final val missing = new FloatParam(this, "missing", "The value treated as missing")
+
+  final def getMissing: Float = $(missing)
 
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
-    numEarlyStoppingRounds -> 0)
+    numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
+    featuresCols -> Array.empty)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
-    validationIndicatorCol)
+    forceRepartition, missing, featuresCols)
 
   final def getNumWorkers: Int = $(numWorkers)
 
   def setNumWorkers(value: Int): T = set(numWorkers, value).asInstanceOf[T]
+
+  def setForceRepartition(value: Boolean): T = set(forceRepartition, value).asInstanceOf[T]
 
   def setNumRound(value: Int): T = set(numRound, value).asInstanceOf[T]
 
@@ -178,9 +185,6 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setContribPredictionCol(value: String): T = set(contribPredictionCol, value).asInstanceOf[T]
 
   def setInferBatchSize(value: Int): T = set(inferBatchSize, value).asInstanceOf[T]
-
-  def setValidationIndicatorCol(value: String): T =
-    set(validationIndicatorCol, value).asInstanceOf[T]
 
   def setRabitTrackerTimeout(value: Int): T = set(rabitTrackerTimeout, value).asInstanceOf[T]
 
@@ -210,9 +214,11 @@ private[spark] trait ClassificationParams[T <: Params] extends SparkParams[T]
 
   def setThresholds(value: Array[Double]): T = set(thresholds, value).asInstanceOf[T]
 
+  /**
+   * XGBoost doesn't use validateAndTransformSchema.
+   */
   override def validateAndTransformSchema(schema: StructType,
                                           fitting: Boolean): StructType = {
-
     var outputSchema = SparkUtils.appendColumn(schema, $(predictionCol), DoubleType)
     outputSchema = SparkUtils.appendVectorUDTColumn(outputSchema, $(rawPredictionCol))
     outputSchema = SparkUtils.appendVectorUDTColumn(outputSchema, $(probabilityCol))

@@ -41,10 +41,10 @@ class XXXXXSuite extends AnyFunSuite with GpuTestSuite {
 
       var Array(trainDf, validationDf) = df.randomSplit(Array(0.8, 0.2), seed = 1)
 
-      trainDf = trainDf.withColumn("validation", lit(false))
-      validationDf = validationDf.withColumn("validationDf", lit(true))
+//      trainDf = trainDf.withColumn("validation", lit(false))
+//      validationDf = validationDf.withColumn("validationDf", lit(true))
 
-      df = trainDf.union(validationDf)
+//      df = trainDf.union(validationDf)
 //
 //      // Assemble the feature columns into a single vector column
 //      val assembler = new VectorAssembler()
@@ -63,7 +63,9 @@ class XXXXXSuite extends AnyFunSuite with GpuTestSuite {
         //      .setBaseMarginCol("base_margin")
         .setFeaturesCol(features)
         .setLabelCol(labelCol)
-        .setValidationIndicatorCol("validation")
+        .setDevice("cuda")
+        .setEvalDataset(validationDf)
+//        .setValidationIndicatorCol("validation")
         //      .setPredictionCol("")
         .setRawPredictionCol("")
         .setProbabilityCol("xxxx")
@@ -76,16 +78,16 @@ class XXXXXSuite extends AnyFunSuite with GpuTestSuite {
       println(loadedEst.getNumRound)
       println(loadedEst.getMaxDepth)
 
-      val model = loadedEst.fit(df)
+      val model = est.fit(trainDf)
       println("-----------------------")
       println(model.getNumRound)
       println(model.getMaxDepth)
 
-      model.write.overwrite().save("/tmp/model/")
-      val loadedModel = XGBoostClassificationModel.load("/tmp/model")
-      println(loadedModel.getNumRound)
-      println(loadedModel.getMaxDepth)
-      model.transform(df).drop(features: _*).show(150, false)
+//      model.write.overwrite().save("/tmp/model/")
+//      val loadedModel = XGBoostClassificationModel.load("/tmp/model")
+//      println(loadedModel.getNumRound)
+//      println(loadedModel.getMaxDepth)
+//      model.transform(df).drop(features: _*).show(150, false)
     }
 
   }

@@ -28,15 +28,15 @@ import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker, XGBoostError}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 
 private[spark] case class RuntimeParams(
-  numWorkers: Int,
-  numRounds: Int,
-  obj: ObjectiveTrait,
-  eval: EvalTrait,
-  trackerConf: TrackerConf,
-  earlyStoppingRounds: Int,
-  device: String,
-  isLocal: Boolean,
-  runOnGpu: Boolean)
+    numWorkers: Int,
+    numRounds: Int,
+    obj: ObjectiveTrait,
+    eval: EvalTrait,
+    trackerConf: TrackerConf,
+    earlyStoppingRounds: Int,
+    device: String,
+    isLocal: Boolean,
+    runOnGpu: Boolean)
 
 /**
  * A trait to manage stage-level scheduling
@@ -195,7 +195,11 @@ private[spark] object XGBoost extends StageLevelScheduling {
     rabitEnv.put("DMLC_TASK_ID", partitionId.toString)
 
     try {
-      Communicator.init(rabitEnv)
+      try {
+        Communicator.init(rabitEnv)
+      } catch {
+        case e: Throwable => logger.error(e)
+      }
       val numEarlyStoppingRounds = runtimeParams.earlyStoppingRounds
       val metrics = Array.tabulate(watches.size)(_ =>
         Array.ofDim[Float](runtimeParams.numRounds))
@@ -282,7 +286,11 @@ private[spark] object XGBoost extends StageLevelScheduling {
         logger.error("XGBoost job was aborted due to ", t)
         throw t
     } finally {
-      tracker.stop()
+      try {
+        tracker.stop()
+      } catch {
+        case t: Throwable => logger.error(t)
+      }
     }
   }
 }

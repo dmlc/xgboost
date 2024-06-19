@@ -1,1 +1,1 @@
-ml.dmlc.xgboost4j.scala.spark.GPUXGBoostPlugin
+ml.dmlc.xgboost4j.scala.spark.GpuXGBoostPlugin

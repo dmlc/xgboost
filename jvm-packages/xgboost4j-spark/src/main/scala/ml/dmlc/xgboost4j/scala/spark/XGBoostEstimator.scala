@@ -25,7 +25,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
 import org.apache.spark.ml.{Estimator, Model}
 import org.apache.spark.ml.linalg.Vector
-import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, MLWriter}
 import org.apache.spark.ml.xgboost.SparkUtils
 import org.apache.spark.rdd.RDD
@@ -40,20 +40,34 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 
 
 /**
- * Hold the column indexes used to get the column index
+ * Hold the column index
  */
-private case class ColumnIndexes(label: String,
-                                 features: String,
-                                 weight: Option[String] = None,
-                                 baseMargin: Option[String] = None,
-                                 group: Option[String] = None,
-                                 valiation: Option[String] = None)
+private[spark] case class ColumnIndices(
+    labelId: Int,
+    featureId: Option[Int], // the feature type is VectorUDT or Array
+    featureIds: Option[Seq[Int]], // the feature type is columnar
+    weightId: Option[Int],
+    marginId: Option[Int],
+    groupId: Option[Int])
+
+private[spark] trait NonParamVariables[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]] {
+
+  private var dataset: Option[Dataset[_]] = None
+
+  def setEvalDataset(ds: Dataset[_]): T = {
+    this.dataset = Some(ds)
+    this.asInstanceOf[T]
+  }
+
+  def getEvalDataset(): Option[Dataset[_]] = {
+    this.dataset
+  }
+}
 
 private[spark] abstract class XGBoostEstimator[
-  Learner <: XGBoostEstimator[Learner, M],
-  M <: XGBoostModel[M]
-] extends Estimator[M] with XGBoostParams[Learner] with SparkParams[Learner]
-  with ParamMapConversion with DefaultParamsWritable {
+  Learner <: XGBoostEstimator[Learner, M], M <: XGBoostModel[M]] extends Estimator[M]
+  with XGBoostParams[Learner] with SparkParams[Learner]
+  with NonParamVariables[Learner, M] with ParamMapConversion with DefaultParamsWritable {
 
   protected val logger = LogFactory.getLog("XGBoostSpark")
 
@@ -64,9 +78,9 @@ private[spark] abstract class XGBoostEstimator[
 
     val serviceLoader = ServiceLoader.load(classOf[XGBoostPlugin], classLoader)
 
-    // For now, we only trust GPUXGBoostPlugin.
+    // For now, we only trust GpuXGBoostPlugin.
     serviceLoader.asScala.filter(x => x.getClass.getName.equals(
-      "ml.dmlc.xgboost4j.scala.spark.GPUXGBoostPlugin")).toList match {
+      "ml.dmlc.xgboost4j.scala.spark.GpuXGBoostPlugin")).toList match {
       case Nil => None
       case head :: Nil =>
         Some(head)
@@ -96,74 +110,109 @@ private[spark] abstract class XGBoostEstimator[
   }
 
   /**
+   * Repartition the dataset to the numWorkers if needed.
+   *
+   * @param dataset to be repartition
+   * @return the repartitioned dataset
+   */
+  private[spark] def repartitionIfNeeded(dataset: Dataset[_]): Dataset[_] = {
+    val numPartitions = dataset.rdd.getNumPartitions
+    if (getForceRepartition || getNumWorkers != numPartitions) {
+      dataset.repartition(getNumWorkers)
+    } else {
+      dataset
+    }
+  }
+
+  /**
+   * Build the columns indices.
+   */
+  private[spark] def buildColumnIndices(schema: StructType): ColumnIndices = {
+    // Get feature id(s)
+    val (featureIds: Option[Seq[Int]], featureId: Option[Int]) =
+      if (getFeaturesCols.length != 0) {
+        (Some(getFeaturesCols.map(schema.fieldIndex).toSeq), None)
+      } else {
+        (None, Some(schema.fieldIndex(getFeaturesCol)))
+      }
+
+    // function to get the column id according to the parameter
+    def columnId(param: Param[String]): Option[Int] = {
+      if (isDefined(param) && $(param).nonEmpty) {
+        Some(schema.fieldIndex($(param)))
+      } else {
+        None
+      }
+    }
+
+    // Special handle for group
+    val groupId: Option[Int] = this match {
+      case p: HasGroupCol => columnId(p.groupCol)
+      case _ => None
+    }
+
+    ColumnIndices(
+      labelId = columnId(labelCol).get,
+      featureId = featureId,
+      featureIds = featureIds,
+      columnId(weightCol),
+      columnId(baseMarginCol),
+      groupId)
+  }
+
+  private[spark] def isDefinedNonEmpty(param: Param[String]): Boolean = {
+    if (isDefined(param) && $(param).nonEmpty) true else false
+  }
+
+  /**
    * Preprocess the dataset to meet the xgboost input requirement
    *
    * @param dataset
    * @return
    */
-  private def preprocess(dataset: Dataset[_]): (Dataset[_], ColumnIndexes) = {
-    // Columns to be selected for XGBoost
+  private def preprocess(dataset: Dataset[_]): (Dataset[_], ColumnIndices) = {
+
+    // Columns to be selected for XGBoost training
     val selectedCols: ArrayBuffer[Column] = ArrayBuffer.empty
     val schema = dataset.schema
 
-    // TODO, support columnar and array.
-    selectedCols.append(castToFloatIfNeeded(schema, getLabelCol))
-    selectedCols.append(col(getFeaturesCol))
-
-    val weightName = if (isDefined(weightCol) && getWeightCol.nonEmpty) {
-      selectedCols.append(castToFloatIfNeeded(schema, getWeightCol))
-      Some(getWeightCol)
-    } else {
-      None
-    }
-
-    val baseMarginName = if (isDefined(baseMarginCol) && getBaseMarginCol.nonEmpty) {
-      selectedCols.append(castToFloatIfNeeded(schema, getBaseMarginCol))
-      Some(getBaseMarginCol)
-    } else {
-      None
-    }
-
-    // TODO, check the validation col
-    val validationName = if (isDefined(validationIndicatorCol) &&
-      getValidationIndicatorCol.nonEmpty) {
-      selectedCols.append(col(getValidationIndicatorCol))
-      Some(getValidationIndicatorCol)
-    } else {
-      None
-    }
-
-    var groupName: Option[String] = None
-    this match {
-      case p: HasGroupCol =>
-        // Cast group col to IntegerType if necessary
-        if (isDefined(p.groupCol) && $(p.groupCol).nonEmpty) {
-          selectedCols.append(castToFloatIfNeeded(schema, p.getGroupCol))
-          groupName = Some(p.getGroupCol)
+    def selectCol(c: Param[String]) = {
+      if (isDefinedNonEmpty(c)) {
+        // Validation col should be a boolean column.
+        if (c == featuresCol) {
+          selectedCols.append(col($(c)))
+        } else {
+          selectedCols.append(castToFloatIfNeeded(schema, $(c)))
         }
+      }
+    }
+
+    Seq(labelCol, featuresCol, weightCol, baseMarginCol).foreach(selectCol)
+    this match {
+      case p: HasGroupCol => selectCol(p.groupCol)
       case _ =>
     }
+    val input = repartitionIfNeeded(dataset.select(selectedCols: _*))
 
-    var input = dataset.select(selectedCols: _*)
+    val columnIndices = buildColumnIndices(input.schema)
+    (input, columnIndices)
+  }
 
-    // TODO,
-    //  1. add a parameter to force repartition,
-    //  2. follow xgboost pyspark way check if repartition is needed.
-    val numWorkers = getNumWorkers
-    val numPartitions = dataset.rdd.getNumPartitions
-    input = if (numWorkers == numPartitions) {
-      input
-    } else {
-      input.repartition(numWorkers)
+  private def toXGBLabeledPoint(dataset: Dataset[_],
+                                columnIndexes: ColumnIndices): RDD[XGBLabeledPoint] = {
+    dataset.rdd.map {
+      case row: Row =>
+        val label = row.getFloat(columnIndexes.labelId)
+        val features = row.getAs[Vector](columnIndexes.featureId.get)
+        val weight = columnIndexes.weightId.map(row.getFloat).getOrElse(1.0f)
+        val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
+        val group = columnIndexes.groupId.map(row.getFloat).getOrElse(-1.0f)
+
+        // TODO support sparse vector.
+        // TODO support array
+        val values = features.toArray.map(_.toFloat)
+        XGBLabeledPoint(label, values.length, null, values, weight, group.toInt, baseMargin)
     }
-    val columnIndexes = ColumnIndexes(
-      getLabelCol,
-      getFeaturesCol,
-      weight = weightName,
-      baseMargin = baseMarginName,
-      group = groupName,
-      valiation = validationName)
-    (input, columnIndexes)
   }
 
   /**
@@ -173,86 +222,33 @@ private[spark] abstract class XGBoostEstimator[
    * @param columnsOrder the order of columns including weight/group/base margin ...
    * @return RDD
    */
-  def toRdd(dataset: Dataset[_], columnIndexes: ColumnIndexes): RDD[Watches] = {
+  def toRdd(dataset: Dataset[_], columnIndices: ColumnIndices): RDD[Watches] = {
+    val trainRDD = toXGBLabeledPoint(dataset, columnIndices)
 
-    // 1. to XGBLabeledPoint
-    val labeledPointRDD = dataset.rdd.map {
-      case row: Row =>
-        val label = row.getFloat(row.fieldIndex(columnIndexes.label))
-        val features = row.getAs[Vector](columnIndexes.features)
-        val weight = columnIndexes.weight.map(v => row.getFloat(row.fieldIndex(v))).getOrElse(1.0f)
-        val baseMargin = columnIndexes.baseMargin.map(v =>
-          row.getFloat(row.fieldIndex(v))).getOrElse(Float.NaN)
-        val group = columnIndexes.group.map(v =>
-          row.getFloat(row.fieldIndex(v))).getOrElse(-1.0f)
-
-        // TODO support sparse vector.
-        // TODO support array
-        val values = features.toArray.map(_.toFloat)
-        val isValidation = columnIndexes.valiation.exists(v =>
-          row.getBoolean(row.fieldIndex(v)))
-
-        (isValidation,
-          XGBLabeledPoint(label, values.length, null, values, weight, group.toInt, baseMargin))
-    }
-
-
-    labeledPointRDD.mapPartitions { iter =>
-      val datasets: ArrayBuffer[DMatrix] = ArrayBuffer.empty
-      val names: ArrayBuffer[String] = ArrayBuffer.empty
-      val validations: ArrayBuffer[XGBLabeledPoint] = ArrayBuffer.empty
-
-      val trainIter = if (columnIndexes.valiation.isDefined) {
-        // Extract validations during build Train DMatrix
-        val dataIter = new Iterator[XGBLabeledPoint] {
-          private var tmp: Option[XGBLabeledPoint] = None
-
-          override def hasNext: Boolean = {
-            if (tmp.isDefined) {
-              return true
-            }
-            while (iter.hasNext) {
-              val (isVal, labelPoint) = iter.next()
-              if (isVal) {
-                validations.append(labelPoint)
-              } else {
-                tmp = Some(labelPoint)
-                return true
-              }
-            }
-            false
-          }
-
-          override def next(): XGBLabeledPoint = {
-            val xgbLabeledPoint = tmp.get
-            tmp = None
-            xgbLabeledPoint
-          }
-        }
-        dataIter
-      } else {
-        iter.map(_._2)
+    val x = getEvalDataset()
+    getEvalDataset().map { eval =>
+      val (evalDf, _) = preprocess(eval)
+      val evalRDD = toXGBLabeledPoint(evalDf, columnIndices)
+      trainRDD.zipPartitions(evalRDD) { (trainIter, evalIter) =>
+        val trainDMatrix = new DMatrix(trainIter)
+        val evalDMatrix = new DMatrix(evalIter)
+        val watches = new Watches(Array(trainDMatrix, evalDMatrix),
+          Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None)
+        Iterator.single(watches)
       }
-
-      datasets.append(new DMatrix(trainIter))
-      names.append(Utils.TRAIN_NAME)
-      if (columnIndexes.valiation.isDefined) {
-        datasets.append(new DMatrix(validations.toIterator))
-        names.append(Utils.VALIDATION_NAME)
+    }.getOrElse(
+      trainRDD.mapPartitions { iter =>
+        // Handle weight/base margin
+        val watches = new Watches(Array(new DMatrix(iter)), Array(Utils.TRAIN_NAME), None)
+        Iterator.single(watches)
       }
-
-      // TODO  1. support external memory 2. rework or remove Watches
-      val watches = new Watches(datasets.toArray, names.toArray, None)
-      Iterator.single(watches)
-    }
+    )
   }
 
   protected def createModel(booster: Booster, summary: XGBoostTrainingSummary): M
 
   private def getRuntimeParameters(isLocal: Boolean): RuntimeParams = {
-
-    val runOnGpu = false
-
+    val runOnGpu = if (getDevice != "cpu" || getTreeMethod == "gpu_hist") true else false
     RuntimeParams(
       getNumWorkers,
       getNumRound,
@@ -361,9 +357,9 @@ private[spark] abstract class XGBoostEstimator[
  * @tparam the exact model which must extend from XGBoostModel
  */
 private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
-  override val uid: String,
-  private val model: Booster,
-  private val trainingSummary: Option[XGBoostTrainingSummary]) extends Model[M] with MLWritable
+    override val uid: String,
+    private val model: Booster,
+    private val trainingSummary: Option[XGBoostTrainingSummary]) extends Model[M] with MLWritable
   with XGBoostParams[M] with SparkParams[M] {
 
   protected val TMP_TRANSFORMED_COL = "_tmp_xgb_transformed_col"
@@ -395,17 +391,19 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
     // Be careful about the order of columns
     var schema = dataset.schema
 
-    var hasLeafPredictionCol = false
-    if (isDefined(leafPredictionCol) && getLeafPredictionCol.nonEmpty) {
-      schema = schema.add(StructField(getLeafPredictionCol, ArrayType(FloatType)))
-      hasLeafPredictionCol = true
+    /** If the parameter is defined, add it to schema and turn true */
+    def addToSchema(param: Param[String], colName: Option[String] = None): Boolean = {
+      if (isDefined(param) && $(param).nonEmpty) {
+        val name = colName.getOrElse($(param))
+        schema = schema.add(StructField(name, ArrayType(FloatType)))
+        true
+      } else {
+        false
+      }
     }
 
-    var hasContribPredictionCol = false
-    if (isDefined(contribPredictionCol) && getContribPredictionCol.nonEmpty) {
-      schema = schema.add(StructField(getContribPredictionCol, ArrayType(FloatType)))
-      hasContribPredictionCol = true
-    }
+    val hasLeafPredictionCol = addToSchema(leafPredictionCol)
+    val hasContribPredictionCol = addToSchema(contribPredictionCol)
 
     var hasRawPredictionCol = false
     // For classification case, the tranformed col is probability,
@@ -413,16 +411,8 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
     var hasTransformedCol = false
     this match {
       case p: ClassificationParams[_] => // classification case
-        if (isDefined(p.rawPredictionCol) && p.getRawPredictionCol.nonEmpty) {
-          schema = schema.add(
-            StructField(p.getRawPredictionCol, ArrayType(FloatType)))
-          hasRawPredictionCol = true
-        }
-        if (isDefined(p.probabilityCol) && p.getProbabilityCol.nonEmpty) {
-          schema = schema.add(
-            StructField(TMP_TRANSFORMED_COL, ArrayType(FloatType)))
-          hasTransformedCol = true
-        }
+        hasRawPredictionCol = addToSchema(p.rawPredictionCol)
+        hasTransformedCol = addToSchema(p.probabilityCol, Some(TMP_TRANSFORMED_COL))
 
         if (isDefined(predictionCol) && getPredictionCol.nonEmpty) {
           // Let's use transformed col to calculate the prediction
@@ -435,11 +425,8 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
         }
       case _ =>
         // Rename TMP_TRANSFORMED_COL to prediction in the postTransform.
-        if (isDefined(predictionCol) && getPredictionCol.nonEmpty) {
-          schema = schema.add(
-            StructField(TMP_TRANSFORMED_COL, ArrayType(FloatType)))
-          hasTransformedCol = true
-        }
+        hasTransformedCol = addToSchema(predictionCol, Some(TMP_TRANSFORMED_COL))
+
     }
 
     // TODO configurable
@@ -457,25 +444,29 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
         // DMatrix used to prediction
         val dm = new DMatrix(features.map(_.asXGB))
 
-        var tmpOut = batchRow.map(_.toSeq)
+        try {
+          var tmpOut = batchRow.map(_.toSeq)
 
-        val zip = (left: Seq[Seq[_]], right: Array[Array[Float]]) => left.zip(right).map {
-          case (a, b) => a ++ Seq(b)
-        }
+          val zip = (left: Seq[Seq[_]], right: Array[Array[Float]]) => left.zip(right).map {
+            case (a, b) => a ++ Seq(b)
+          }
 
-        if (hasLeafPredictionCol) {
-          tmpOut = zip(tmpOut, bBooster.value.predictLeaf(dm))
+          if (hasLeafPredictionCol) {
+            tmpOut = zip(tmpOut, bBooster.value.predictLeaf(dm))
+          }
+          if (hasContribPredictionCol) {
+            tmpOut = zip(tmpOut, bBooster.value.predictContrib(dm))
+          }
+          if (hasRawPredictionCol) {
+            tmpOut = zip(tmpOut, bBooster.value.predict(dm, outPutMargin = true))
+          }
+          if (hasTransformedCol) {
+            tmpOut = zip(tmpOut, bBooster.value.predict(dm, outPutMargin = false))
+          }
+          tmpOut.map(Row.fromSeq)
+        } finally {
+          dm.delete()
         }
-        if (hasContribPredictionCol) {
-          tmpOut = zip(tmpOut, bBooster.value.predictContrib(dm))
-        }
-        if (hasRawPredictionCol) {
-          tmpOut = zip(tmpOut, bBooster.value.predict(dm, outPutMargin = true))
-        }
-        if (hasTransformedCol) {
-          tmpOut = zip(tmpOut, bBooster.value.predict(dm, outPutMargin = false))
-        }
-        tmpOut.map(Row.fromSeq)
       }
 
     }(Encoders.row(schema))

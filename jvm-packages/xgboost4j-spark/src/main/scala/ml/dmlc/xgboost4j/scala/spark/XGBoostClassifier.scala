@@ -20,7 +20,7 @@ import scala.collection.mutable
 
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.ml.param.ParamMap
-import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader, SchemaUtils}
+import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader}
 import org.apache.spark.ml.xgboost.SparkUtils
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.{col, udf}
@@ -86,16 +86,17 @@ class XGBoostClassifier(override val uid: String,
 }
 
 object XGBoostClassifier extends DefaultParamsReadable[XGBoostClassifier] {
-  private val uid = Identifiable.randomUID("xgbc")
+  private val _uid = Identifiable.randomUID("xgbc")
+
   override def load(path: String): XGBoostClassifier = super.load(path)
 }
 
 // TODO add num classes
 class XGBoostClassificationModel(
-                                  uid: String,
-                                  model: Booster,
-                                  trainingSummary: Option[XGBoostTrainingSummary] = None
-                                )
+    uid: String,
+    model: Booster,
+    trainingSummary: Option[XGBoostTrainingSummary] = None
+)
   extends XGBoostModel[XGBoostClassificationModel](uid, model, trainingSummary)
     with ClassificationParams[XGBoostClassificationModel] {
 

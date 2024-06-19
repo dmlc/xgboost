@@ -57,18 +57,18 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     //    df = df.withColumn("base_margin", lit(20))
     //      .withColumn("weight", rand(1))
 
-    var Array(trainDf, validationDf) = df.randomSplit(Array(0.8, 0.2), seed = 1)
-
-    trainDf = trainDf.withColumn("validation", lit(false))
-    validationDf = validationDf.withColumn("validationDf", lit(true))
-
-    df = trainDf.union(validationDf)
-
-    // Assemble the feature columns into a single vector column
+        // Assemble the feature columns into a single vector column
     val assembler = new VectorAssembler()
       .setInputCols(features)
       .setOutputCol("features")
     val dataset = assembler.transform(df)
+
+    var Array(trainDf, validationDf) = dataset.randomSplit(Array(0.8, 0.2), seed = 1)
+
+//    trainDf = trainDf.withColumn("validation", lit(false))
+//    validationDf = validationDf.withColumn("validationDf", lit(true))
+
+//    df = trainDf.union(validationDf)
 
     //    val arrayInput = df.select(array(features.map(col(_)): _*).as("features"),
     //      col("label"), col("base_margin"))
@@ -80,7 +80,8 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
       //      .setWeightCol("weight")
       //      .setBaseMarginCol("base_margin")
       .setLabelCol(labelCol)
-      .setValidationIndicatorCol("validation")
+      .setEvalDataset(validationDf)
+//      .setValidationIndicatorCol("validation")
       //      .setPredictionCol("")
       .setRawPredictionCol("")
       .setProbabilityCol("xxxx")
@@ -93,7 +94,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     println(loadedEst.getNumRound)
     println(loadedEst.getMaxDepth)
 
-    val model = loadedEst.fit(dataset)
+    val model = est.fit(dataset)
     println("-----------------------")
     println(model.getNumRound)
     println(model.getMaxDepth)

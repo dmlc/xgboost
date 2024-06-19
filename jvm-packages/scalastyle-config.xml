@@ -210,7 +210,7 @@ This file is divided into 3 sections:
       <parameter name="groups">java,scala,3rdParty,dmlc</parameter>
       <parameter name="group.java">javax?\..*</parameter>
       <parameter name="group.scala">scala\..*</parameter>
-      <parameter name="group.3rdParty">(?!ml\.dmlc\.xgboost4j\.).*</parameter>
+      <parameter name="group.3rdParty">(?!ml\.dmlc\.xgboost4j).*</parameter>
       <parameter name="group.dmlc">ml.dmlc.xgboost4j.*</parameter>
     </parameters>
   </check>
