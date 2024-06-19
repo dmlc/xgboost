@@ -113,7 +113,10 @@ class MetaInfo {
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
 
   MetaInfo Copy() const;
-
+  /**
+   * @brief Whether the matrix is dense.
+   */
+  bool IsDense() const { return num_col_ * num_row_ == num_nonzero_; }
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -538,10 +541,10 @@ class DMatrix {
   /*! \brief virtual destructor */
   virtual ~DMatrix();
 
-  /*! \brief Whether the matrix is dense. */
-  [[nodiscard]] bool IsDense() const {
-    return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
-  }
+  /**
+   * @brief Whether the matrix is dense.
+   */
+  [[nodiscard]] bool IsDense() const { return this->Info().IsDense(); }
 
   /**
    * \brief Load DMatrix from URI.

@@ -150,13 +150,13 @@ TEST(GpuHist, BuildHistSharedMem) {
   TestBuildHist<GradientPairPrecise>(true);
 }
 
-HistogramCutsWrapper GetHostCutMatrix () {
-  HistogramCutsWrapper cmat;
-  cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
-  cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
+std::shared_ptr<detail::HistogramCutsWrapper> GetHostCutMatrix () {
+  auto cmat = std::make_shared<detail::HistogramCutsWrapper>();
+  cmat->SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
+  cmat->SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
   // 24 cut fields, 3 cut fields for each feature (column).
   // Each row of the cut represents the cuts for a data column.
-  cmat.SetValues({0.30f, 0.67f, 1.64f,
+  cmat->SetValues({0.30f, 0.67f, 1.64f,
               0.32f, 0.77f, 1.95f,
               0.29f, 0.70f, 1.80f,
               0.32f, 0.75f, 1.85f,

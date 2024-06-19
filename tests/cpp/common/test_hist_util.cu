@@ -56,8 +56,7 @@ TEST(HistUtil, DeviceSketch) {
 
 TEST(HistUtil, SketchBatchNumElements) {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  LOG(WARNING) << "Test not runnable with RMM enabled.";
-  return;
+  GTEST_SKIP_("Test not runnable with RMM enabled.");
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   size_t constexpr kCols = 10000;
   int device;

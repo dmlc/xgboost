@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost Contributors
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #include "gradient_index_page_source.h"
 

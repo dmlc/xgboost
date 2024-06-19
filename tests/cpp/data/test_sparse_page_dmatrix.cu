@@ -164,9 +164,9 @@ TEST(SparsePageDMatrix, EllpackPageContent) {
   size_t offset = 0;
   for (auto& batch : dmat_ext->GetBatches<EllpackPage>(&ctx, param)) {
     if (!impl_ext) {
-      impl_ext = std::make_unique<EllpackPageImpl>(batch.Impl()->gidx_buffer.Device(),
-                                                   batch.Impl()->Cuts(), batch.Impl()->is_dense,
-                                                   batch.Impl()->row_stride, kRows);
+      impl_ext = std::make_unique<EllpackPageImpl>(
+          batch.Impl()->gidx_buffer.Device(), batch.Impl()->CutsShared(), batch.Impl()->is_dense,
+          batch.Impl()->row_stride, kRows);
     }
     auto n_elems = impl_ext->Copy(ctx.Device(), batch.Impl(), offset);
     offset += n_elems;

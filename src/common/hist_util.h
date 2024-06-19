@@ -162,6 +162,17 @@ class HistogramCuts {
     }
     return vals[bin_idx - 1];
   }
+
+  void SetDevice(DeviceOrd d) const {
+    this->cut_ptrs_.SetDevice(d);
+    this->cut_ptrs_.ConstDevicePointer();
+
+    this->cut_values_.SetDevice(d);
+    this->cut_values_.ConstDevicePointer();
+
+    this->min_vals_.SetDevice(d);
+    this->min_vals_.ConstDevicePointer();
+  }
 };
 
 /**

@@ -21,7 +21,7 @@ void EllpackPageSource::Fetch() {
     auto const &csr = source_->Page();
     this->page_.reset(new EllpackPage{});
     auto *impl = this->page_->Impl();
-    *impl = EllpackPageImpl(device_, *cuts_, *csr, is_dense_, row_stride_, feature_types_);
+    *impl = EllpackPageImpl(device_, cuts_, *csr, is_dense_, row_stride_, feature_types_);
     page_->SetBaseRowId(csr->base_rowid);
     this->WriteCache();
   }

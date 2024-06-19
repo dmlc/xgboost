@@ -7,22 +7,27 @@
 #include <cstddef>  // for size_t
 #include <memory>   // for unique_ptr
 
-#include "../../../src/common/column_matrix.h"
-#include "../../../src/common/io.h"                // for MmapResource, AlignedResourceReadStream...
-#include "../../../src/data/gradient_index.h"      // for GHistIndexMatrix
-#include "../../../src/data/sparse_page_writer.h"  // for CreatePageFormat
-#include "../helpers.h"                            // for RandomDataGenerator
+#include "../../../src/common/column_matrix.h"  // for common::ColumnMatrix
+#include "../../../src/common/io.h"             // for MmapResource, AlignedResourceReadStream...
+#include "../../../src/data/gradient_index.h"   // for GHistIndexMatrix
+#include "../../../src/data/gradient_index_format.h"  // for GHistIndexRawFormat
+#include "../helpers.h"                               // for RandomDataGenerator
 
 namespace xgboost::data {
 TEST(GHistIndexPageRawFormat, IO) {
   Context ctx;
 
-  std::unique_ptr<SparsePageFormat<GHistIndexMatrix>> format{
-      CreatePageFormat<GHistIndexMatrix>("raw")};
   auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
   dmlc::TemporaryDirectory tmpdir;
   std::string path = tmpdir.path + "/ghistindex.page";
   auto batch = BatchParam{256, 0.5};
+
+  common::HistogramCuts cuts;
+  for (auto const &index : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
+    cuts = index.Cuts();
+    break;
+  }
+  auto format = std::make_unique<GHistIndexRawFormat>(std::move(cuts));
 
   std::size_t bytes{0};
   {
@@ -36,7 +41,7 @@ TEST(GHistIndexPageRawFormat, IO) {
 
   std::unique_ptr<common::AlignedResourceReadStream> fi{
       std::make_unique<common::PrivateMmapConstStream>(path, 0, bytes)};
-  format->Read(&page, fi.get());
+  ASSERT_TRUE(format->Read(&page, fi.get()));
 
   for (auto const &gidx : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
     auto const &loaded = gidx;
