@@ -3,7 +3,7 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
-## 2.1.0 (2024 Jun 3)
+## 2.1.0 (2024 Jun 20)
 
 We are thrilled to announce the XGBoost 2.1 release. This note will start by summarizing some general changes and then highlighting specific package updates. As we are working on a [new R interface](https://github.com/dmlc/xgboost/issues/9810), this release will not include the R package. We'll update the R package as soon as it's ready. Stay tuned!
 
