@@ -38,7 +38,7 @@ void TestFederatedImpl(std::int32_t n_workers, WorkerFn&& fn) {
   std::vector<std::thread> workers;
   using namespace std::chrono_literals;
   auto rc = tracker.WaitUntilReady();
-  ASSERT_TRUE(rc.OK()) << rc.Report();
+  SafeColl(rc);
   std::int32_t port = tracker.Port();
 
   for (std::int32_t i = 0; i < n_workers; ++i) {
@@ -50,8 +50,8 @@ void TestFederatedImpl(std::int32_t n_workers, WorkerFn&& fn) {
   }
 
   rc = tracker.Shutdown();
-  ASSERT_TRUE(rc.OK()) << rc.Report();
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(rc);
+  SafeColl(fut.get());
 }
 
 template <typename WorkerFn>

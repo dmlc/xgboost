@@ -61,7 +61,7 @@ TEST_F(LoopTest, Timeout) {
   Loop::Op op{Loop::Op::kRead, 0, data.data(), data.size(), &pair_.second, 0};
   loop_->Submit(std::move(op));
   auto rc = loop_->Block();
-  ASSERT_FALSE(rc.OK());
+  SafeColl(rc);
   ASSERT_EQ(rc.Code(), std::make_error_code(std::errc::timed_out)) << rc.Report();
 }
 

@@ -70,7 +70,7 @@ TEST_F(SocketTest, Bind) {
     auto sock = TCPSocket::Create(domain);
     std::int32_t port{0};
     auto rc = sock.Bind(any, &port);
-    ASSERT_TRUE(rc.OK());
+    SafeColl(rc);
     ASSERT_NE(port, 0);
   };
 

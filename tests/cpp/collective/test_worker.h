@@ -50,8 +50,8 @@ class WorkerForTest {
     for (std::int32_t i = 0; i < comm_.World(); ++i) {
       if (i != comm_.Rank()) {
         ASSERT_TRUE(comm_.Chan(i)->Socket()->NonBlocking());
-        ASSERT_TRUE(comm_.Chan(i)->Socket()->SetBufSize(n_bytes).OK());
-        ASSERT_TRUE(comm_.Chan(i)->Socket()->SetNoDelay().OK());
+        SafeColl(comm_.Chan(i)->Socket()->SetBufSize(n_bytes));
+        SafeColl(comm_.Chan(i)->Socket()->SetNoDelay());
       }
     }
   }
@@ -131,7 +131,7 @@ void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
     t.join();
   }
 
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(fut.get());
 }
 
 inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
@@ -182,7 +182,7 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
     t.join();
   }
 
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(fut.get());
   system::SocketFinalize();
 }
 
