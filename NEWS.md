@@ -19,12 +19,12 @@ An important ongoing work for XGBoost, which we've been collaborating on, is to 
 - Work with IPv6. Currently, this is only supported by the dask interface.
 - Built-in support for various operations like broadcast, allgatherV, allreduce, etc.
 
-Related PRs (#9597, #9576, #9523, #9524, #9593, #9596, #9661, #10319, #10152, #10125, #10332, #10306, #10208, #10203, #10199, #9784, #9777, #9773, #9772, #9759, #9745, #9695, #9738, #9732, #9726, #9688, #9681, #9679, #9659, #9650, #9644, #9649, #9917, #9990, #10313, #10315, #10112, #9531, #10075, #9805, #10198).
+Related PRs (#9597, #9576, #9523, #9524, #9593, #9596, #9661, #10319, #10152, #10125, #10332, #10306, #10208, #10203, #10199, #9784, #9777, #9773, #9772, #9759, #9745, #9695, #9738, #9732, #9726, #9688, #9681, #9679, #9659, #9650, #9644, #9649, #9917, #9990, #10313, #10315, #10112, #9531, #10075, #9805, #10198, #10414).
 
 The existing option of using `MPI` in RABIT is removed in the release. (#9525)
 
 ### NCCL is now fetched from PyPI.
-In the previous version, XGBoost statically linked NCCL, which significantly increased the binary size and led to hitting the PyPI repository limit. However, with the new release, we have made a significant improvement. The new release can now dynamically load NCCL from an external source, reducing the binary size. For the PyPI package, the `nvidia-nccl-cu12` package will be fetched during installation. With more downstream packages reusing NCCL, we expect the user environments to be slimmer in the future as well. (#9796, #9804)
+In the previous version, XGBoost statically linked NCCL, which significantly increased the binary size and led to hitting the PyPI repository limit. With the new release, we have made a significant improvement. The new release can now dynamically load NCCL from an external source, reducing the binary size. For the PyPI package, the `nvidia-nccl-cu12` package will be fetched during installation. With more downstream packages reusing NCCL, we expect the user environments to be slimmer in the future as well. (#9796, #9804, #10447)
 
 ### Multi-output
 We continue the work on multi-target and vector leaf in this release:
@@ -44,12 +44,14 @@ Progress has been made on federated learning with improved support for column-sp
 
 ### Ongoing work for SYCL support.
 
-XGBoost is developing a SYCL plugin for SYCL devices, starting with the `hist` tree method. (#10216, #9800, #10311, #9691, #10269, #10251, #10222, #10174, #10080, #10057, #10011, #10138, #10119, #10045, #9876, #9846, #9682)
+XGBoost is developing a SYCL plugin for SYCL devices, starting with the `hist` tree method. (#10216, #9800, #10311, #9691, #10269, #10251, #10222, #10174, #10080, #10057, #10011, #10138, #10119, #10045, #9876, #9846, #9682) XGBoost now supports launchable inference on SYCL devices, and that work on adding SYCL support for training is ongoing.
+
+Looking ahead, we plan to complete the training in coming releases and then focus on improving test coverage for SYCL, particularly for Python tests.
 
 ### Optimizations
 - Implement column sampler in CUDA for GPU-based tree methods. This helps us get faster training time when column sampling is employed (#9785)
 - CMake LTO and CUDA arch (#9677)
-- Small optimization to external memory with a thread pool. This reduces the number of threads launched during iteration. (#9605, #10288)
+- Small optimization to external memory with a thread pool. This reduces the number of threads launched during iteration. (#9605, #10288, #10374)
 
 ### Deprecation and breaking changes
 Package-specific breaking changes are outlined in respective sections. Here we list general breaking changes in this release:
@@ -68,9 +70,12 @@ This section lists some new features that are general to all language bindings. 
 - Change default metric for gamma regression to `deviance`. (#9757)
 - Normalization for learning to rank is now optional with the introduction of the new `lambdarank_normalization` parameter. (#10094)
 - Contribution prediction with `QuantileDMatrix` on CPU. (#10043)
+- XGBoost on macos no longer bundles OpenMP runtime. Users can install the latest runtime from their dependency manager of choice. (https://github.com/dmlc/xgboost/pull/10440). Along with which, JVM packages on MacoOS are not built with OpenMP support (https://github.com/dmlc/xgboost/pull/10449).
 
 ### Bug fixes
+- Fix training with categorical data from external memory. (https://github.com/dmlc/xgboost/pull/10433)
 - Fix compilation with CTK-12. (#10123)
+- Fix inconsistent runtime library on Windows. (#10404)
 - Fix default metric configuration. (#9575)
 - Fix feature names with special characters. (#9923)
 - Fix global configuration for external memory training. (#10173)
@@ -110,12 +115,15 @@ Other than the changes in networking, we have some optimizations and document up
 - Users are now encouraged to use `from xgboost import dask`  instead of `import xgboost.dask` to avoid drawing in unnecessary dependencies for non-dask users. (#9742)
 d3f2dbe64 * [dask] Add seed to demos. (#10009)
 - New document using dask XGBoost with k8s. (#10271)
-59d7b8dc7 * [doc] Add typing to dask demos. (#10207)
+- Workaround potentially unaligned pointer from an empty partition. (#10418)
+- Workaround a race condition in the latest dask. (#10419)
+- [doc] Add typing to dask demos. (#10207)
 
 * PySpark
 PySpark has several new features along with some small fixes:
 - Support stage-level scheduling for training on various platforms, including yarn/k8s. (#9519, #10209, #9786, #9727)
 - Support GPU-based transform methods (#9542)
+- Avoid expensive repartition when appropriate. (#10408)
 - Refactor the logging and the GPU code path (#10077, 9724)
 - Sort workers by task ID. This helps the PySpark interface obtain deterministic results. (#10220)
 - Fix PySpark with verbosity=3. (#10172)
@@ -130,12 +138,15 @@ Following is a list of new features in the Python package:
 - Support sample weight in sklearn custom objective. (#10050)
 - New supported data types, including `cudf.pandas` (#9602), `torch.Tensor` (#9971), and more scipy types (#9881).
 - Support pandas 2.2 and numpy 2.0. (#10266, #9557, #10252, #10175)
+- Support latest rapids including rmm. (#10435)
 - Improved data cache option in data iterator. (#10286)
 - Accept numpy generators as `random_state` (#9743)
 - Support returning base score as intercept in the sklearn interface. (#9486)
 - Support arrow through pandas ext types. This is built on top of the new DataFrame API in XGBoost. See general features for more info. (#9612)
 - Handle np integer in model slice and prediction. (#10007)
 - Improved sklearn tags support. (#10230)
+- The base image for building Linux binary wheels are updated to rockylinux8. (#10399)
+- Improved handling for float128. (#10322)
 
 * Fixes
 - Fix `DMatrix` with `None` input. (#10052)
@@ -162,7 +173,7 @@ Here is a list of JVM-specific changes. Like the PySpark package, the JVM packag
 - Allow JVM-Package to access inplace predict method (#9167)
 - Support JDK 17 for test (#9959)
 - Various dependency updates.(#10211, #10210, #10217, #10156, #10070, #9809, #9517, #10235, #10276, #9331, #10335, #10309, #10240, #10244, #10260, #9489, #9326, #10294, #10197, #10196, #10193, #10202, #10191, #10188, #9328, #9311, #9951, #10151, #9827, #9820, #10253)
-- Update the tutorial of xgboost4j-spark-gpu (#9752)
+- Update and fixes for document. (#9752, #10385)
 
 * Bug Fixes
 - Fixes memory leak in error handling. (#10307)
