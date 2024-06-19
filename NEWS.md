@@ -60,13 +60,12 @@ Package-specific breaking changes are outlined in respective sections. Here we l
 - The `XGBoosterGetModelRaw` is now removed after deprecation in 1.6. (#9617)
 - Drop support for loading remote files. This feature lacks any test. Users are encouraged to use dedicated libraries to fetch remote content. (#9504)
 - Remove the dense libsvm parser plugin. This plugin is never tested or documented (#9799)
-- Make the columnar data setter more general (#9905)
 - `XGDMatrixSetDenseInfo` and `XGDMatrixSetUIntInfo` are now deprecated. Use the array interface based alternatives instead.
 
 ### Features
 This section lists some new features that are general to all language bindings. For package-specific changes, please visit respective sections.
 - Adopt a new XGBoost logo (#10270)
-- Now supports dataframe data format in native XGBoost. This improvement enhances performance and reduces memory usage when working with dataframe-based structures such as pandas, arrow, and R dataframe. (#9828, #9616)
+- Now supports dataframe data format in native XGBoost. This improvement enhances performance and reduces memory usage when working with dataframe-based structures such as pandas, arrow, and R dataframe. (#9828, #9616, #9905)
 - Change default metric for gamma regression to `deviance`. (#9757)
 - Normalization for learning to rank is now optional with the introduction of the new `lambdarank_normalization` parameter. (#10094)
 - Contribution prediction with `QuantileDMatrix` on CPU. (#10043)
