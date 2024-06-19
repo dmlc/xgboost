@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.io.{File, FileInputStream}
 
 import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkContext
+import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
@@ -27,7 +28,7 @@ import org.scalatest.funsuite.AnyFunSuite
 trait PerTest extends BeforeAndAfterEach {
   self: AnyFunSuite =>
 
-  protected val numWorkers: Int = 1
+  protected val numWorkers: Int = 4
 
   @transient private var currentSession: SparkSession = _
 
@@ -84,4 +85,33 @@ trait PerTest extends BeforeAndAfterEach {
       r.close()
     }
   }
+
+  def smallBinaryClassificationVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
+    (0.0, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),
+    (0.0, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
+    (1.0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
+    (0.0, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
+    (1.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7)),
+  ))).toDF("label", "margin", "weight", "features")
+
+  def smallMultiClassificationVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
+    (0.0, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),
+    (2.0, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
+    (1.0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
+    (0.0, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
+    (2.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7)),
+  ))).toDF("label", "margin", "weight", "features")
+
+
+  def smallGroupVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
+    (0.0, 1, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),
+    (2.0, 1, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
+    (1.0, 0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
+    (0.0, 2, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
+    (2.0, 2, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7)),
+  ))).toDF("label", "group", "margin", "weight", "features")
+
 }

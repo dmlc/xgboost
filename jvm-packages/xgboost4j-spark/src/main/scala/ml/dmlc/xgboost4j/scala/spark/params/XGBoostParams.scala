@@ -186,6 +186,8 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   def setInferBatchSize(value: Int): T = set(inferBatchSize, value).asInstanceOf[T]
 
+  def setMissing(value: Float): T = set(missing, value).asInstanceOf[T]
+
   def setRabitTrackerTimeout(value: Int): T = set(rabitTrackerTimeout, value).asInstanceOf[T]
 
   def setRabitTrackerHostIp(value: String): T = set(rabitTrackerHostIp, value).asInstanceOf[T]
