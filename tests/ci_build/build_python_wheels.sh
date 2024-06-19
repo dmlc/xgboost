@@ -12,13 +12,8 @@ platform_id=$1
 commit_id=$2
 
 if [[ "$platform_id" == macosx_* ]]; then
-    # Make sure to use a libomp version binary compatible with the oldest
-    # supported version of the macos SDK as libomp will be vendored into the
-    # XGBoost wheels for MacOS.
     if [[ "$platform_id" == macosx_arm64 ]]; then
         # MacOS, Apple Silicon
-        # arm64 builds must cross compile because CI is on x64
-        # cibuildwheel will take care of cross-compilation.
         wheel_tag=macosx_12_0_arm64
         cpython_ver=39
         cibw_archs=arm64
@@ -44,9 +39,18 @@ else
     exit 2
 fi
 
+# Tell delocate-wheel to not vendor libomp.dylib into the wheel"
+export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libomp.dylib"
+
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
 python tests/ci_build/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
   --commit-hash ${commit_id}  \
   --platform-tag ${wheel_tag}
+
+# List dependencies of libxgboost.dylib
+mkdir tmp
+unzip -j wheelhouse/xgboost-*.whl xgboost/lib/libxgboost.dylib -d tmp
+otool -L tmp/libxgboost.dylib
+rm -rf tmp
