@@ -11,33 +11,19 @@ fi
 platform_id=$1
 commit_id=$2
 
-# Bundle libomp 11.1.0 when targeting MacOS.
-# This is a workaround in order to prevent segfaults when running inside a Conda environment.
-# See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025125003 for more context.
-# The workaround is also used by the scikit-learn project.
 if [[ "$platform_id" == macosx_* ]]; then
-    # Make sure to use a libomp version binary compatible with the oldest
-    # supported version of the macos SDK as libomp will be vendored into the
-    # XGBoost wheels for MacOS.
-
     if [[ "$platform_id" == macosx_arm64 ]]; then
         # MacOS, Apple Silicon
-        # arm64 builds must cross compile because CI is on x64
-        # cibuildwheel will take care of cross-compilation.
         wheel_tag=macosx_12_0_arm64
         cpython_ver=39
         cibw_archs=arm64
         export MACOSX_DEPLOYMENT_TARGET=12.0
-        #OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
-        OPENMP_URL="https://xgboost-ci-jenkins-artifacts.s3.us-west-2.amazonaws.com/llvm-openmp-11.1.0-hf3c4609_1-osx-arm64.tar.bz2"
     elif [[ "$platform_id" == macosx_x86_64 ]]; then
         # MacOS, Intel
         wheel_tag=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
         cpython_ver=39
         cibw_archs=x86_64
         export MACOSX_DEPLOYMENT_TARGET=10.15
-        #OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
-        OPENMP_URL="https://xgboost-ci-jenkins-artifacts.s3.us-west-2.amazonaws.com/llvm-openmp-11.1.0-hda6cdc1_1-osx-64.tar.bz2"
     else
         echo "Platform not supported: $platform_id"
         exit 3
@@ -48,22 +34,13 @@ if [[ "$platform_id" == macosx_* ]]; then
     export CIBW_ENVIRONMENT=${setup_env_var}
     export CIBW_TEST_SKIP='*-macosx_arm64'
     export CIBW_BUILD_VERBOSITY=3
-
-    mamba create -n build $OPENMP_URL
-    PREFIX="$HOME/miniconda3/envs/build"
-
-    # Set up build flags for cibuildwheel
-    # This is needed to bundle libomp lib we downloaded earlier
-    export CC=/usr/bin/clang
-    export CXX=/usr/bin/clang++
-    export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
-    export CFLAGS="$CFLAGS -I$PREFIX/include"
-    export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
-    export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
 else
     echo "Platform not supported: $platform_id"
     exit 2
 fi
+
+# Tell delocate-wheel to not vendor libomp.dylib into the wheel"
+export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libomp.dylib"
 
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
@@ -71,3 +48,9 @@ python tests/ci_build/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
   --commit-hash ${commit_id}  \
   --platform-tag ${wheel_tag}
+
+# List dependencies of libxgboost.dylib
+mkdir tmp
+unzip -j wheelhouse/xgboost-*.whl xgboost/lib/libxgboost.dylib -d tmp
+otool -L tmp/libxgboost.dylib
+rm -rf tmp
