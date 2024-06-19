@@ -1,5 +1,8 @@
 # Find OpenMP library on MacOS
 # Automatically handle locating libomp from the Homebrew package manager
+
+# lint_cmake: -package/consistency
+
 macro(find_openmp_macos)
   if(NOT APPLE)
     message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() must only be used on MacOS")
