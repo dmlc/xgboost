@@ -234,28 +234,17 @@ endif()
 
 find_package(Threads REQUIRED)
 
+# -- OpenMP
+include(cmake/FindOpenMPMacOS.cmake)
 if(USE_OPENMP)
   if(APPLE)
-    find_package(OpenMP)
-    if(NOT OpenMP_FOUND)
-      # Try again with extra path info; required for libomp 15+ from Homebrew
-      execute_process(COMMAND brew --prefix libomp
-                      OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
-                      OUTPUT_STRIP_TRAILING_WHITESPACE)
-      set(OpenMP_C_FLAGS
-        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
-      set(OpenMP_CXX_FLAGS
-        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
-      set(OpenMP_C_LIB_NAMES omp)
-      set(OpenMP_CXX_LIB_NAMES omp)
-      set(OpenMP_omp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
-      find_package(OpenMP REQUIRED)
-    endif()
+    find_openmp_macos()
   else()
     find_package(OpenMP REQUIRED)
   endif()
 endif()
-#Add for IBM i
+
+# Add for IBM i
 if(${CMAKE_SYSTEM_NAME} MATCHES "OS400")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
   set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X64 qc <TARGET> <OBJECTS>")
@@ -378,6 +367,10 @@ if(JVM_BINDINGS)
   xgboost_target_properties(xgboost4j)
   xgboost_target_link_libraries(xgboost4j)
   xgboost_target_defs(xgboost4j)
+endif()
+
+if(USE_OPENMP AND APPLE)
+  patch_openmp_path_macos(xgboost libxgboost)
 endif()
 
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
