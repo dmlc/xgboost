@@ -112,8 +112,8 @@ Here is a list of documentation changes not specific to any XGBoost package.
 Other than the changes in networking, we have some optimizations and document updates in dask:
 - Filter models on workers instead of clients; this prevents an OOM error on the client machine. (#9518)
 - Users are now encouraged to use `from xgboost import dask`  instead of `import xgboost.dask` to avoid drawing in unnecessary dependencies for non-dask users. (#9742)
-d3f2dbe64 * [dask] Add seed to demos. (#10009)
-- New document using dask XGBoost with k8s. (#10271)
+- Add seed to demos. (#10009)
+- New document for using dask XGBoost with k8s. (#10271)
 - Workaround potentially unaligned pointer from an empty partition. (#10418)
 - Workaround a race condition in the latest dask. (#10419)
 - [doc] Add typing to dask demos. (#10207)
@@ -125,9 +125,9 @@ PySpark has several new features along with some small fixes:
 - Avoid expensive repartition when appropriate. (#10408)
 - Refactor the logging and the GPU code path (#10077, 9724)
 - Sort workers by task ID. This helps the PySpark interface obtain deterministic results. (#10220)
-- Fix PySpark with verbosity=3. (#10172)
-- Fix spark_estimator doc (#10066)
-419e05231 * [pyspark] rework transform to reuse same code (#9292)
+- Fix PySpark with `verbosity=3`. (#10172)
+- Fix spark estimator doc. (#10066)
+- Rework transform for improved code reusing. (#9292)
 
 * Breaking changes
 For the Python package, `eval_metric`, `early_stopping_rounds`, and `callbacks` from now removed from the `fit` method in the sklearn interface. They were deprecated in 1.6. Use the parameters with the same name in constructors instead. (#9986)
@@ -137,14 +137,14 @@ Following is a list of new features in the Python package:
 - Support sample weight in sklearn custom objective. (#10050)
 - New supported data types, including `cudf.pandas` (#9602), `torch.Tensor` (#9971), and more scipy types (#9881).
 - Support pandas 2.2 and numpy 2.0. (#10266, #9557, #10252, #10175)
-- Support latest rapids including rmm. (#10435)
+- Support the latest rapids including rmm. (#10435)
 - Improved data cache option in data iterator. (#10286)
 - Accept numpy generators as `random_state` (#9743)
 - Support returning base score as intercept in the sklearn interface. (#9486)
 - Support arrow through pandas ext types. This is built on top of the new DataFrame API in XGBoost. See general features for more info. (#9612)
 - Handle np integer in model slice and prediction. (#10007)
 - Improved sklearn tags support. (#10230)
-- The base image for building Linux binary wheels are updated to rockylinux8. (#10399)
+- The base image for building Linux binary wheels is updated to rockylinux8. (#10399)
 - Improved handling for float128. (#10322)
 
 * Fixes
