@@ -131,19 +131,6 @@ Here is a list of documentation changes not specific to any XGBoost package.
 - Brief introduction to ``base_score``. (#9882)
 - Mention data consistency for categorical features. (#9678)
 
-***********
-Maintenance
-***********
-
-- Add formatting and linting requirements to the CMake script. (#9653, #9641, #9637, #9728, #9674)
-- Refactors and cleanups (#10085, #10120, #10074, #9645, #9992, #9568, #9731, #9527).
-- Update nvtx. (#10227)
-- Tests. (#9499, #9553, #9737)
-- Throw error for 32-bit architectures (#10005)
-- Helpers. (#9505, #9572, #9750, #9541, #9983, #9714)
-- Fix mingw hanging on regex in context (#9729)
-- Linters. (#10010, #9634)
-
 **************
 Python package
 **************
@@ -241,8 +228,22 @@ Bug Fixes
 - Fixes memory leak in error handling. (#10307)
 - Fixes group col for GPU packages (#10254)
 
+***********
+Maintenance
+***********
+
+- Add formatting and linting requirements to the CMake script. (#9653, #9641, #9637, #9728, #9674)
+- Refactors and cleanups (#10085, #10120, #10074, #9645, #9992, #9568, #9731, #9527).
+- Update nvtx. (#10227)
+- Tests. (#9499, #9553, #9737)
+- Throw error for 32-bit architectures (#10005)
+- Helpers. (#9505, #9572, #9750, #9541, #9983, #9714)
+- Fix mingw hanging on regex in context (#9729)
+- Linters. (#10010, #9634)
+
+**
 CI
---
+**
 
 - Meta info about the Python package is uploaded for easier parsing (#10295)
 - Various dependency updates (#10274, #10280, #10278, #10275, #10320, #10305, #10267, #9544, #10228, #10133, #10187, #9857, #10042, #10268, #9654, #9835)
