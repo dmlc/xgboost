@@ -35,3 +35,4 @@ Contents
   C++ Interface <c++>
   CLI Interface <cli>
   contrib/index
+  changes/index
