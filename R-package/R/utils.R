@@ -42,11 +42,11 @@ NVL <- function(x, val) {
   return("multi:softprob")
 }
 
-.SURVIVAL_RIGHT_CENSORING_OBJECTIVES <- function() {
+.SURVIVAL_RIGHT_CENSORING_OBJECTIVES <- function() { # nolint
   return(c("survival:cox", "survival:aft"))
 }
 
-.SURVIVAL_ALL_CENSORING_OBJECTIVES <- function() {
+.SURVIVAL_ALL_CENSORING_OBJECTIVES <- function() { # nolint
   return("survival:aft")
 }
 

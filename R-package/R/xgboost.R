@@ -180,7 +180,7 @@ process.y.margin.and.objective <- function(
     if (length(y_levels) == 2) {
       if (is.null(objective)) {
         objective <- "binary:logistic"
-      } else{
+      } else {
         if (!(objective %in% .BINARY_CLASSIF_OBJECTIVES())) {
           stop(
             "Got binary 'y' - supported objectives for this data are: ",
@@ -327,7 +327,7 @@ process.y.margin.and.objective <- function(
           label_lower_bound = ifelse(y[, 3L] == 2, 0, y[, 1L]),
           label_upper_bound = ifelse(
             y[, 3L] == 0, Inf,
-            ifelse(y[, 3L]== 3, y[, 2L], y[, 1L])
+            ifelse(y[, 3L] == 3, y[, 2L], y[, 1L])
           )
         )
       }
@@ -607,7 +607,7 @@ process.x.and.col.args <- function(
       if (!NROW(colnames(x))) {
         stop("If passing 'monotone_constraints' as a named list, 'x' must have column names.")
       }
-      if (any(duplicated(names(monotone_constraints)))) {
+      if (anyDuplicated(names(monotone_constraints))) {
         stop(
           "'monotone_constraints' contains duplicated names: ",
           paste(
@@ -936,7 +936,7 @@ xgboost <- function(
 
   use_qdm <- check.can.use.qdm(x, params)
   if (use_qdm && "max_bin" %in% names(params)) {
-    lst_args$dmatrix_args$max_bin <- max_bin
+    lst_args$dmatrix_args$max_bin <- params$max_bin
   }
 
   nthreads <- check.nthreads(nthreads)

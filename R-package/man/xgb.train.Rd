@@ -209,15 +209,6 @@ to customize the training process.
 }\if{html}{\out{</div>}}}
 
 \item{...}{other parameters to pass to \code{params}.}
-
-\item{label}{vector of response values. Should not be provided when data is
-a local data file name or an \code{xgb.DMatrix}.}
-
-\item{missing}{by default is set to NA, which means that NA values should be considered as 'missing'
-by the algorithm. Sometimes, 0 or other extreme value might be used to represent missing values.
-This parameter is only used when input is a dense matrix.}
-
-\item{weight}{a vector indicating the weight for each row of the input.}
 }
 \value{
 An object of class \code{xgb.Booster}.
