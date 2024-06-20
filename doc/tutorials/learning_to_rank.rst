@@ -52,7 +52,7 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   X, y = make_classification(random_state=seed)
   rng = np.random.default_rng(seed)
   n_query_groups = 3
-  qid = rng.integers(0, n_query_groups, size=X.shape[0])
+  qid = sorted(rng.integers(0, n_query_groups, size=X.shape[0]))
 
   # Sort the inputs based on query index
   sorted_idx = np.argsort(qid)
@@ -71,6 +71,7 @@ Please note that, as of writing, there's no learning-to-rank interface in scikit
 
 .. code-block:: python
 
+  import pandas as pd
   df = pd.DataFrame(X, columns=[str(i) for i in range(X.shape[1])])
   df["qid"] = qid[sorted_idx]
   ranker.fit(df, y)  # No need to pass qid as a separate argument
