@@ -735,8 +735,8 @@ process.x.and.col.args <- function(
 #' @title Fit XGBoost Model
 #' @description Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 #'
-#' See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html
-#' }{Introduction to Boosted Trees} for a longer explanation of what XGBoost does.
+#' See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{
+#' Introduction to Boosted Trees} for a longer explanation of what XGBoost does.
 #'
 #' This function is intended to provide a more user-friendly interface for XGBoost that follows
 #' R's conventions for model fitting and predictions, but which doesn't expose all of the
@@ -790,8 +790,8 @@ process.x.and.col.args <- function(
 #' class instead of to the first factor level. If `y` is a `logical` vector, then `TRUE` will be
 #' set as the last level.
 #' @param objective Optimization objective to minimize based on the supplied data, to be passed
-#' by name as a string / character (e.g. `reg:absoluteerror`). See the \href{
-#' https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{
+#' by name as a string / character (e.g. `reg:absoluteerror`). See the
+#' \href{https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{
 #' Learning Task Parameters} page for more detailed information on allowed values.
 #'
 #' If `NULL` (the default), will be automatically determined from `y` according to the following
@@ -811,9 +811,9 @@ process.x.and.col.args <- function(
 #' here - for example, objectives which are a variation of another but with a different default
 #' prediction type (e.g. `multi:softmax` vs. `multi:softprob`) are not allowed, and neither are
 #' ranking objectives, nor custom objectives at the moment.
-#' @param params List of training parameters. See the online documentation \href{
-#' https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for details about
-#' possible values and what they do.
+#' @param params List of training parameters. See the online documentation
+#' \href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
+#' details about possible values and what they do.
 #'
 #' Note that not all possible values from the core XGBoost library are allowed as `params` for
 #' 'xgboost()' - in particular, values which are direct arguments to this function (such as
@@ -858,9 +858,9 @@ process.x.and.col.args <- function(
 #' columns by names), where each vector is a group of indices of features that are allowed to
 #' interact with each other.
 #'
-#' See the tutorial \href{
-#' https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html
-#' }{Feature Interaction Constraints} for more information.
+#' See the tutorial
+#' \href{https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html}{
+#' Feature Interaction Constraints} for more information.
 #' @param feature_weights Feature weights for column sampling.
 #'
 #' Can be passed either as a vector with length matching to columns of `x`, or as a named
