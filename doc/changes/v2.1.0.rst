@@ -79,6 +79,7 @@ Deprecation and breaking changes
 ********************************
 
 Package-specific breaking changes are outlined in respective sections. Here we list general breaking changes in this release:
+
 - The command line interface is deprecated due to the increasing complexity of the machine learning ecosystem. Building a machine learning model using a command shell is no longer feasible and could mislead newcomers. (#9485)
 - ``Universal binary JSON`` is now the default format for saving models (#9947, #9958, #9954, #9955). See https://github.com/dmlc/xgboost/issues/7547 for more info.
 - The ``XGBoosterGetModelRaw`` is now removed after deprecation in 1.6. (#9617)
