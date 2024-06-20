@@ -206,21 +206,21 @@ Maintenance
 - linter, formatting, etc. (#10296, #10014)
 - Tests. (#9962, #10285, #9997, #9943, #9934)
 
-***********
-JVM package
-***********
+************
+JVM packages
+************
 
 Here is a list of JVM-specific changes. Like the PySpark package, the JVM package also gains stage-level scheduling.
 
 Features and related documents
 ------------------------------
 
-- [breaking] Remove rabit checkpoint. (#9599)
 - Support stage-level scheduling (#9775)
 - Allow JVM-Package to access inplace predict method (#9167)
 - Support JDK 17 for test (#9959)
 - Various dependency updates.(#10211, #10210, #10217, #10156, #10070, #9809, #9517, #10235, #10276, #9331, #10335, #10309, #10240, #10244, #10260, #9489, #9326, #10294, #10197, #10196, #10193, #10202, #10191, #10188, #9328, #9311, #9951, #10151, #9827, #9820, #10253)
 - Update and fixes for document. (#9752, #10385)
+- Remove rabit checkpoint. (#9599)
 
 Bug Fixes
 ---------
