@@ -12,8 +12,8 @@
 #include "../common/cuda_context.cuh"
 #include "../common/hist_util.cuh"
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
-#include "./ellpack_page.cuh"
-#include "device_adapter.cuh"  // for NoInfInData
+#include "device_adapter.cuh"              // for NoInfInData
+#include "ellpack_page.cuh"
 #include "ellpack_page.h"
 #include "gradient_index.h"
 #include "xgboost/data.h"
@@ -32,11 +32,6 @@ EllpackPage::EllpackPage(EllpackPage&& that) { std::swap(impl_, that.impl_); }
 size_t EllpackPage::Size() const { return impl_->Size(); }
 
 void EllpackPage::SetBaseRowId(std::size_t row_id) { impl_->SetBaseRowId(row_id); }
-
-[[nodiscard]] common::HistogramCuts& EllpackPage::Cuts() {
-  CHECK(impl_);
-  return impl_->Cuts();
-}
 
 [[nodiscard]] common::HistogramCuts const& EllpackPage::Cuts() const {
   CHECK(impl_);
@@ -94,7 +89,8 @@ __global__ void CompressBinEllpackKernel(
 }
 
 // Construct an ELLPACK matrix with the given number of empty rows.
-EllpackPageImpl::EllpackPageImpl(DeviceOrd device, common::HistogramCuts cuts, bool is_dense,
+EllpackPageImpl::EllpackPageImpl(DeviceOrd device,
+                                 std::shared_ptr<common::HistogramCuts const> cuts, bool is_dense,
                                  size_t row_stride, size_t n_rows)
     : is_dense(is_dense), cuts_(std::move(cuts)), row_stride(row_stride), n_rows(n_rows) {
   monitor_.Init("ellpack_page");
@@ -105,12 +101,11 @@ EllpackPageImpl::EllpackPageImpl(DeviceOrd device, common::HistogramCuts cuts, b
   monitor_.Stop("InitCompressedData");
 }
 
-EllpackPageImpl::EllpackPageImpl(DeviceOrd device, common::HistogramCuts cuts,
-                                 const SparsePage &page, bool is_dense,
-                                 size_t row_stride,
+EllpackPageImpl::EllpackPageImpl(DeviceOrd device,
+                                 std::shared_ptr<common::HistogramCuts const> cuts,
+                                 const SparsePage& page, bool is_dense, size_t row_stride,
                                  common::Span<FeatureType const> feature_types)
-    : cuts_(std::move(cuts)), is_dense(is_dense), n_rows(page.Size()),
-      row_stride(row_stride) {
+    : cuts_(std::move(cuts)), is_dense(is_dense), n_rows(page.Size()), row_stride(row_stride) {
   this->InitCompressedData(device);
   this->CreateHistIndices(device, page, feature_types);
 }
@@ -127,9 +122,10 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* dmat, const BatchP
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   row_stride = GetRowStride(dmat);
   if (!param.hess.empty()) {
-    cuts_ = common::DeviceSketchWithHessian(ctx, dmat, param.max_bin, param.hess);
+    cuts_ = std::make_shared<common::HistogramCuts>(
+        common::DeviceSketchWithHessian(ctx, dmat, param.max_bin, param.hess));
   } else {
-    cuts_ = common::DeviceSketch(ctx, dmat, param.max_bin);
+    cuts_ = std::make_shared<common::HistogramCuts>(common::DeviceSketch(ctx, dmat, param.max_bin));
   }
   monitor_.Stop("Quantiles");
 
@@ -297,7 +293,7 @@ template <typename AdapterBatch>
 EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, DeviceOrd device, bool is_dense,
                                  common::Span<size_t> row_counts_span,
                                  common::Span<FeatureType const> feature_types, size_t row_stride,
-                                 size_t n_rows, common::HistogramCuts const& cuts) {
+                                 size_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
   *this = EllpackPageImpl(device, cuts, is_dense, row_stride, n_rows);
@@ -309,7 +305,7 @@ EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, DeviceOrd de
   template EllpackPageImpl::EllpackPageImpl(                                               \
       __BATCH_T batch, float missing, DeviceOrd device, bool is_dense,                     \
       common::Span<size_t> row_counts_span, common::Span<FeatureType const> feature_types, \
-      size_t row_stride, size_t n_rows, common::HistogramCuts const& cuts);
+      size_t row_stride, size_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
@@ -359,7 +355,11 @@ void CopyGHistToEllpack(GHistIndexMatrix const& page, common::Span<size_t const>
 
 EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
                                  common::Span<FeatureType const> ft)
-    : is_dense{page.IsDense()}, base_rowid{page.base_rowid}, n_rows{page.Size()}, cuts_{page.cut} {
+    : is_dense{page.IsDense()},
+      base_rowid{page.base_rowid},
+      n_rows{page.Size()},
+      // This makes a copy of the cut values.
+      cuts_{std::make_shared<common::HistogramCuts>(page.cut)} {
   auto it = common::MakeIndexTransformIter(
       [&](size_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
   row_stride = *std::max_element(it, it + page.Size());

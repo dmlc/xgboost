@@ -9,7 +9,6 @@
 #include <limits>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "allreduce.h"
 #include "broadcast.h"

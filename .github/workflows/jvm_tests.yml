@@ -16,43 +16,44 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-11]
+        os: [windows-latest, ubuntu-latest, macos-13]
 
     steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
 
-    - uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7  # v1.8.1
+    - uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9  # v4.2.1
       with:
-        micromamba-version: '1.5.6-0'
-        environment-name: jvm_tests
-        create-args: >-
-          python=3.10
-          awscli
-        cache-downloads: true
-        cache-environment: true
-        init-shell: bash powershell
+        distribution: 'temurin'
+        java-version: '8'
+
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+      with:
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: jvm_tests
+        environment-file: tests/ci_build/conda_env/jvm_tests.yml
+        use-mamba: true
 
     - name: Cache Maven packages
-      uses: actions/cache@13aacd865c20de90d75de3b17ebe84f7a17d57d2  # v4.0.0
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
 
-    - name: Build xgboost4j.dll
-      run: |
-        mkdir build
-        cd build
-        cmake .. -G"Visual Studio 17 2022" -A x64 -DJVM_BINDINGS=ON
-        cmake --build . --config Release
-      if: matrix.os == 'windows-latest'
-
     - name: Test XGBoost4J (Core)
       run: |
         cd jvm-packages
         mvn test -B -pl :xgboost4j_2.12
+
+    - name: Test XGBoost4J (Core, Spark, Examples)
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
 
     - name: Extract branch name
       shell: bash
@@ -61,7 +62,7 @@ jobs:
       id: extract_branch
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        (matrix.os == 'windows-latest' || matrix.os == 'macos-11')
+        (matrix.os == 'windows-latest' || matrix.os == 'macos-13')
 
     - name: Publish artifact xgboost4j.dll to S3
       run: |
@@ -85,21 +86,10 @@ jobs:
         python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
       if: |
         (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        matrix.os == 'macos-11'
+        matrix.os == 'macos-13'
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-
-    - name: Test XGBoost4J (Core, Spark, Examples)
-      run: |
-        rm -rfv build/
-        cd jvm-packages
-        mvn -B test
-      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
-      env:
-        RABIT_MOCK: ON
-
 
     - name: Build and Test XGBoost4J with scala 2.13
       run: |
@@ -107,5 +97,3 @@ jobs:
         cd jvm-packages
         mvn -B clean install test -Pdefault,scala-2.13
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
-      env:
-        RABIT_MOCK: ON

@@ -7,8 +7,9 @@
 
 #include <algorithm>  // for min
 #include <atomic>     // for atomic
+#include <cstdint>    // for uint64_t
 #include <cstdio>     // for remove
-#include <future>     // for async
+#include <future>     // for future
 #include <memory>     // for unique_ptr
 #include <mutex>      // for mutex
 #include <numeric>    // for partial_sum
@@ -55,7 +56,7 @@ struct Cache {
     offset.push_back(0);
   }
 
-  static std::string ShardName(std::string name, std::string format) {
+  [[nodiscard]] static std::string ShardName(std::string name, std::string format) {
     CHECK_EQ(format.front(), '.');
     return name + format;
   }
@@ -72,9 +73,13 @@ struct Cache {
    */
   [[nodiscard]] auto View(std::size_t i) const {
     std::uint64_t off = offset.at(i);
-    std::uint64_t len = offset.at(i + 1) - offset[i];
+    std::uint64_t len = this->Bytes(i);
     return std::pair{off, len};
   }
+  /**
+   * @brief Get the number of bytes for the i^th page.
+   */
+  [[nodiscard]] std::uint64_t Bytes(std::size_t i) const { return offset.at(i + 1) - offset[i]; }
   /**
    * @brief Call this once the write for the cache is complete.
    */
@@ -174,7 +179,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
   ExceHandler exce_;
   common::Monitor monitor_;
 
-  bool ReadCache() {
+  [[nodiscard]] virtual SparsePageFormat<S>* CreatePageFormat() const {
+    return ::xgboost::data::CreatePageFormat<S>("raw");
+  }
+
+  [[nodiscard]] bool ReadCache() {
     CHECK(!at_end_);
     if (!cache_info_->written) {
       return false;
@@ -207,7 +216,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         *GlobalConfigThreadLocalStore::Get() = config;
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
-          std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
+          std::unique_ptr<SparsePageFormat<S>> fmt{this->CreatePageFormat()};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
           auto fi = std::make_unique<common::PrivateMmapConstStream>(name, offset, length);
@@ -216,7 +225,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
         return page;
       });
     }
-
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
@@ -235,7 +243,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     CHECK(!cache_info_->written);
     common::Timer timer;
     timer.Start();
-    std::unique_ptr<SparsePageFormat<S>> fmt{CreatePageFormat<S>("raw")};
+    std::unique_ptr<SparsePageFormat<S>> fmt{this->CreatePageFormat()};
 
     auto name = cache_info_->ShardName();
     std::unique_ptr<common::AlignedFileWriteStream> fo;
@@ -279,9 +287,9 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S> {
     }
   }
 
-  [[nodiscard]] uint32_t Iter() const { return count_; }
+  [[nodiscard]] std::uint32_t Iter() const { return count_; }
 
-  const S &operator*() const override {
+  [[nodiscard]] S const& operator*() const override {
     CHECK(page_);
     return *page_;
   }
@@ -311,22 +319,29 @@ inline void DevicePush(DMatrixProxy*, float, SparsePage*) { common::AssertGPUSup
 #endif
 
 class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
-  // This is the source from the user.
+  // This is the source iterator from the user.
   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter_;
   DMatrixProxy* proxy_;
   std::size_t base_row_id_{0};
+  bst_idx_t fetch_cnt_{0};  // Used for sanity check.
 
   void Fetch() final {
+    fetch_cnt_++;
     page_ = std::make_shared<SparsePage>();
+    // The first round of reading, this is responsible for initialization.
     if (!this->ReadCache()) {
-      bool type_error { false };
+      bool type_error{false};
       CHECK(proxy_);
-      HostAdapterDispatch(proxy_, [&](auto const &adapter_batch) {
-        page_->Push(adapter_batch, this->missing_, this->nthreads_);
-      }, &type_error);
+      HostAdapterDispatch(
+          proxy_,
+          [&](auto const& adapter_batch) {
+            page_->Push(adapter_batch, this->missing_, this->nthreads_);
+          },
+          &type_error);
       if (type_error) {
         DevicePush(proxy_, missing_, page_.get());
       }
+
       page_->SetBaseRowId(base_row_id_);
       base_row_id_ += page_->Size();
       n_batches_++;
@@ -351,11 +366,13 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   SparsePageSource& operator++() final {
     TryLockGuard guard{single_threaded_};
     count_++;
+
     if (cache_info_->written) {
       at_end_ = (count_ == n_batches_);
     } else {
       at_end_ = !iter_.Next();
     }
+    CHECK_LE(count_, n_batches_);
 
     if (at_end_) {
       CHECK_EQ(cache_info_->offset.size(), n_batches_ + 1);
@@ -381,6 +398,8 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     TryLockGuard guard{single_threaded_};
     base_row_id_ = 0;
   }
+
+  [[nodiscard]] auto FetchCount() const { return fetch_cnt_; }
 };
 
 // A mixin for advancing the iterator.
@@ -394,11 +413,11 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
   bool sync_{true};
 
  public:
-  PageSourceIncMixIn(float missing, int nthreads, bst_feature_t n_features, uint32_t n_batches,
-                     std::shared_ptr<Cache> cache, bool sync)
+  PageSourceIncMixIn(float missing, std::int32_t nthreads, bst_feature_t n_features,
+                     std::uint32_t n_batches, std::shared_ptr<Cache> cache, bool sync)
       : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
 
-  PageSourceIncMixIn& operator++() final {
+  [[nodiscard]] PageSourceIncMixIn& operator++() final {
     TryLockGuard guard{this->single_threaded_};
     if (sync_) {
       ++(*source_);
@@ -421,6 +440,13 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S> {
       CHECK_EQ(source_->Iter(), this->count_);
     }
     return *this;
+  }
+
+  void Reset() final {
+    if (sync_) {
+      this->source_->Reset();
+    }
+    Super::Reset();
   }
 };
 

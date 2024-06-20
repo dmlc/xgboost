@@ -17,7 +17,7 @@ steps:
   - label: ":docker: Build containers"
     commands:
       - "tests/buildkite/build-containers.sh gpu"
-      - "tests/buildkite/build-containers.sh gpu_build_centos7"
+      - "tests/buildkite/build-containers.sh gpu_build_rockylinux8"
       - "tests/buildkite/build-containers.sh jvm_gpu_build"
     key: build-containers
     agents:
@@ -29,7 +29,7 @@ steps:
     key: build-cuda
     agents:
       queue: linux-amd64-cpu
-  - label: ":console: Build JVM packages with CUDA"
+  - label: ":console: Build and test JVM packages with CUDA"
     command: "tests/buildkite/build-jvm-packages-gpu.sh"
     key: build-jvm-packages-gpu
     agents:

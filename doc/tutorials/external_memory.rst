@@ -29,7 +29,7 @@ supplied by the user. However, unlike the :py:class:`~xgboost.QuantileDMatrix`, 
 memory will not concatenate the batches unless GPU is used (it uses a hybrid approach,
 more details follow). Instead, it will cache all batches on the external memory and fetch
 them on-demand.  Go to the end of the document to see a comparison between
-`QuantileDMatrix` and external memory.
+:py:class:`~xgboost.QuantileDMatrix` and external memory.
 
 *************
 Data Iterator
@@ -39,8 +39,8 @@ Starting from XGBoost 1.5, users can define their own data loader using Python o
 interface.  There are some examples in the ``demo`` directory for quick start.  This is a
 generalized version of text input external memory, where users no longer need to prepare a
 text file that XGBoost recognizes.  To enable the feature, users need to define a data
-iterator with 2 class methods: ``next`` and ``reset``, then pass it into the ``DMatrix``
-constructor.
+iterator with 2 class methods: ``next`` and ``reset``, then pass it into the
+:py:class:`~xgboost.DMatrix` constructor.
 
 .. code-block:: python
 
@@ -89,7 +89,7 @@ constructor.
 The above snippet is a simplified version of :ref:`sphx_glr_python_examples_external_memory.py`.
 For an example in C, please see ``demo/c-api/external-memory/``. The iterator is the
 common interface for using external memory with XGBoost, you can pass the resulting
-``DMatrix`` object for training, prediction, and evaluation.
+:py:class:`DMatrix` object for training, prediction, and evaluation.
 
 It is important to set the batch size based on the memory available. A good starting point
 is to set the batch size to 10GB per batch if you have 64GB of memory. It is *not*
@@ -197,29 +197,34 @@ have been conducted on Linux distributions.
 Another important point to keep in mind is that creating the initial cache for XGBoost may
 take some time. The interface to external memory is through custom iterators, which we can
 not assume to be thread-safe. Therefore, initialization is performed sequentially. Using
-the `xgboost.config_context` with `verbosity=2` can give you some information on what
-XGBoost is doing during the wait if you don't mind the extra output.
+the :py:func:`~xgboost.config_context` with `verbosity=2` can give you some information on
+what XGBoost is doing during the wait if you don't mind the extra output.
 
 *******************************
 Compared to the QuantileDMatrix
 *******************************
 
-Passing an iterator to the :py:class:`~xgboost.QuantileDmatrix` enables direct
-construction of `QuantileDmatrix` with data chunks. On the other hand, if it's passed to
-:py:class:`~xgboost.DMatrix`, it instead enables the external memory feature. The
-:py:class:`~xgboost.QuantileDmatrix` concatenates the data on memory after compression and
-doesn't fetch data during training. On the other hand, the external memory `DMatrix`
-fetches data batches from external memory on-demand.  Use the `QuantileDMatrix` (with
-iterator if necessary) when you can fit most of your data in memory. The training would be
-an order of magnitude faster than using external memory.
+Passing an iterator to the :py:class:`~xgboost.QuantileDMatrix` enables direct
+construction of :py:class:`~xgboost.QuantileDMatrix` with data chunks. On the other hand,
+if it's passed to :py:class:`~xgboost.DMatrix`, it instead enables the external memory
+feature. The :py:class:`~xgboost.QuantileDMatrix` concatenates the data on memory after
+compression and doesn't fetch data during training. On the other hand, the external memory
+:py:class:`~xgboost.DMatrix` fetches data batches from external memory on-demand.  Use the
+:py:class:`~xgboost.QuantileDMatrix` (with iterator if necessary) when you can fit most of
+your data in memory. The training would be an order of magnitude faster than using
+external memory.
 
 ****************
 Text File Inputs
 ****************
 
-This is the original form of external memory support, users are encouraged to use custom
-data iterator instead. There is no big difference between using external memory version of
-text input and the in-memory version.  The only difference is the filename format.
+.. warning::
+
+   This is the original form of external memory support before 1.5, users are encouraged
+   to use custom data iterator instead.
+
+There is no big difference between using external memory version of text input and the
+in-memory version.  The only difference is the filename format.
 
 The external memory version takes in the following `URI
 <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>`_ format:

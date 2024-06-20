@@ -211,7 +211,7 @@ str(pred_contr)
 summary(rowSums(pred_contr) - qlogis(pred))
 # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
 contr1 <- pred_contr[1,]
-contr1 <- contr1[-length(contr1)]    # drop BIAS
+contr1 <- contr1[-length(contr1)]    # drop intercept
 contr1 <- contr1[contr1 != 0]        # drop non-contributing features
 contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
 old_mar <- par("mar")

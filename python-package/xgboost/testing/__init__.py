@@ -195,12 +195,6 @@ def skip_win() -> PytestSkip:
     return {"reason": "Unsupported platform.", "condition": is_windows()}
 
 
-def skip_s390x() -> PytestSkip:
-    condition = platform.machine() == "s390x"
-    reason = "Known to fail on s390x"
-    return {"condition": condition, "reason": reason}
-
-
 class IteratorForTest(xgb.core.DataIter):
     """Iterator for testing streaming DMatrix. (external memory, quantile)"""
 
@@ -523,7 +517,6 @@ def make_sparse_regression(
 
     """
     if not hasattr(np.random, "default_rng"):
-        # old version of numpy on s390x
         rng = np.random.RandomState(1994)
         X = sparse.random(
             m=n_samples,

@@ -49,7 +49,6 @@ class EllpackPage {
   [[nodiscard]] const EllpackPageImpl* Impl() const { return impl_.get(); }
   EllpackPageImpl* Impl() { return impl_.get(); }
 
-  [[nodiscard]] common::HistogramCuts& Cuts();
   [[nodiscard]] common::HistogramCuts const& Cuts() const;
 
  private:

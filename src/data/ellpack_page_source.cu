@@ -1,8 +1,7 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <memory>
-#include <utility>
 
 #include "ellpack_page.cuh"
 #include "ellpack_page.h"  // for EllpackPage
@@ -22,7 +21,7 @@ void EllpackPageSource::Fetch() {
     auto const &csr = source_->Page();
     this->page_.reset(new EllpackPage{});
     auto *impl = this->page_->Impl();
-    *impl = EllpackPageImpl(device_, *cuts_, *csr, is_dense_, row_stride_, feature_types_);
+    *impl = EllpackPageImpl(device_, cuts_, *csr, is_dense_, row_stride_, feature_types_);
     page_->SetBaseRowId(csr->base_rowid);
     this->WriteCache();
   }

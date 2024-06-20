@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024 by XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -11,7 +11,6 @@
 #include <cstdint>  // for uint32_t
 #include <limits>
 #include <map>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -162,6 +161,17 @@ class HistogramCuts {
       return mins[fidx];
     }
     return vals[bin_idx - 1];
+  }
+
+  void SetDevice(DeviceOrd d) const {
+    this->cut_ptrs_.SetDevice(d);
+    this->cut_ptrs_.ConstDevicePointer();
+
+    this->cut_values_.SetDevice(d);
+    this->cut_values_.ConstDevicePointer();
+
+    this->min_vals_.SetDevice(d);
+    this->min_vals_.ConstDevicePointer();
   }
 };
 

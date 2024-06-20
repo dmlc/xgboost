@@ -43,7 +43,7 @@ def make_batches(
 class Iterator(xgboost.DataIter):
     """A custom iterator for loading files in batches."""
 
-    def __init__(self, file_paths: List[Tuple[str, str]]):
+    def __init__(self, file_paths: List[Tuple[str, str]]) -> None:
         self._file_paths = file_paths
         self._it = 0
         # XGBoost will generate some cache files under current directory with the prefix

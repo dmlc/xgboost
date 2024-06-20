@@ -249,7 +249,7 @@ xgb.get.handle <- function(object) {
 #' summary(rowSums(pred_contr) - qlogis(pred))
 #' # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
 #' contr1 <- pred_contr[1,]
-#' contr1 <- contr1[-length(contr1)]    # drop BIAS
+#' contr1 <- contr1[-length(contr1)]    # drop intercept
 #' contr1 <- contr1[contr1 != 0]        # drop non-contributing features
 #' contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
 #' old_mar <- par("mar")
@@ -473,7 +473,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
 
   .Call(XGSetArrayDimInplace_R, arr, rev(shape))
 
-  cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
+  cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "(Intercept)") else NULL
   n_groups <- shape[2]
 
   ## Needed regardless of whether strict shape is being used.

@@ -13,45 +13,6 @@ function(auto_source_group SOURCES)
   endforeach()
 endfunction()
 
-# Force static runtime for MSVC
-function(msvc_use_static_runtime)
-  if(MSVC AND (NOT BUILD_SHARED_LIBS) AND (NOT FORCE_SHARED_CRT))
-      set(variables
-          CMAKE_C_FLAGS_DEBUG
-          CMAKE_C_FLAGS_MINSIZEREL
-          CMAKE_C_FLAGS_RELEASE
-          CMAKE_C_FLAGS_RELWITHDEBINFO
-          CMAKE_CXX_FLAGS_DEBUG
-          CMAKE_CXX_FLAGS_MINSIZEREL
-          CMAKE_CXX_FLAGS_RELEASE
-          CMAKE_CXX_FLAGS_RELWITHDEBINFO
-      )
-      foreach(variable ${variables})
-          if(${variable} MATCHES "/MD")
-              string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
-              set(${variable} "${${variable}}"  PARENT_SCOPE)
-          endif()
-      endforeach()
-      set(variables
-          CMAKE_CUDA_FLAGS
-          CMAKE_CUDA_FLAGS_DEBUG
-          CMAKE_CUDA_FLAGS_MINSIZEREL
-          CMAKE_CUDA_FLAGS_RELEASE
-          CMAKE_CUDA_FLAGS_RELWITHDEBINFO
-      )
-      foreach(variable ${variables})
-          if(${variable} MATCHES "-MD")
-              string(REGEX REPLACE "-MD" "-MT" ${variable} "${${variable}}")
-              set(${variable} "${${variable}}"  PARENT_SCOPE)
-          endif()
-          if(${variable} MATCHES "/MD")
-              string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
-              set(${variable} "${${variable}}"  PARENT_SCOPE)
-          endif()
-      endforeach()
-  endif()
-endfunction()
-
 # Set output directory of target, ignoring debug or release
 function(set_output_directory target dir)
   set_target_properties(${target} PROPERTIES
@@ -151,7 +112,6 @@ function(xgboost_set_cuda_flags target)
   target_include_directories(
     ${target} PRIVATE
     ${xgboost_SOURCE_DIR}/gputreeshap
-    ${xgboost_SOURCE_DIR}/rabit/include
     ${CUDAToolkit_INCLUDE_DIRS})
 
   if(MSVC)
@@ -176,6 +136,7 @@ function(xgboost_link_nccl target)
   set(xgboost_nccl_flags -DXGBOOST_USE_NCCL=1)
   if(USE_DLOPEN_NCCL)
     list(APPEND xgboost_nccl_flags -DXGBOOST_USE_DLOPEN_NCCL=1)
+    target_link_libraries(${target} PRIVATE ${CMAKE_DL_LIBS})
   endif()
 
   if(BUILD_STATIC_LIB)

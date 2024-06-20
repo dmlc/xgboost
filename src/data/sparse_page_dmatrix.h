@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023, XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file sparse_page_dmatrix.h
  * \brief External-memory version of DMatrix.
  * \author Tianqi Chen
@@ -7,12 +7,10 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 #define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
-#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "ellpack_page_source.h"
 #include "gradient_index_page_source.h"
@@ -22,7 +20,7 @@
 
 namespace xgboost::data {
 /**
- * \brief DMatrix used for external memory.
+ * @brief DMatrix used for external memory.
  *
  * The external memory is created for controlling memory usage by splitting up data into
  * multiple batches.  However that doesn't mean we will actually process exactly 1 batch
@@ -51,8 +49,13 @@ namespace xgboost::data {
  * want to change the generated page like Ellpack, pass parameter into `GetBatches` to
  * re-generate them instead of trying to modify the pages in-place.
  *
- * A possible optimization is dropping the sparse page once dependent pages like ellpack
- * are constructed and cached.
+ * The overall chain of responsibility of external memory DMatrix:
+ *
+ *    User defined iterator (in Python/C/R) -> Proxy DMatrix -> Sparse page Source ->
+ *    Other sources (Like Ellpack) -> Sparse Page DMatrix -> Caller
+ *
+ * A possible optimization is skipping the sparse page source for `hist` based algorithms
+ * similar to the Quantile DMatrix.
  */
 class SparsePageDMatrix : public DMatrix {
   MetaInfo info_;
@@ -67,7 +70,7 @@ class SparsePageDMatrix : public DMatrix {
   float missing_;
   Context fmat_ctx_;
   std::string cache_prefix_;
-  uint32_t n_batches_{0};
+  std::uint32_t n_batches_{0};
   // sparse page is the source to other page types, we make a special member function.
   void InitializeSparsePage(Context const *ctx);
   // Non-virtual version that can be used in constructor
@@ -93,11 +96,11 @@ class SparsePageDMatrix : public DMatrix {
     }
   }
 
-  MetaInfo &Info() override;
-  const MetaInfo &Info() const override;
-  Context const *Ctx() const override { return &fmat_ctx_; }
+  [[nodiscard]] MetaInfo &Info() override;
+  [[nodiscard]] const MetaInfo &Info() const override;
+  [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
   // The only DMatrix implementation that returns false.
-  bool SingleColBlock() const override { return false; }
+  [[nodiscard]] bool SingleColBlock() const override { return false; }
   DMatrix *Slice(common::Span<int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
@@ -105,6 +108,20 @@ class SparsePageDMatrix : public DMatrix {
   DMatrix *SliceCol(int, int) override {
     LOG(FATAL) << "Slicing DMatrix columns is not supported for external memory.";
     return nullptr;
+  }
+
+  [[nodiscard]] bool EllpackExists() const override {
+    return static_cast<bool>(ellpack_page_source_);
+  }
+  [[nodiscard]] bool GHistIndexExists() const override {
+    return static_cast<bool>(ghist_index_source_);
+  }
+  [[nodiscard]] bool SparsePageExists() const override {
+    return static_cast<bool>(sparse_page_source_);
+  }
+  // For testing, getter for the number of fetches for sparse page source.
+  [[nodiscard]] auto SparsePageFetchCount() const {
+    return this->sparse_page_source_->FetchCount();
   }
 
  private:
@@ -118,24 +135,24 @@ class SparsePageDMatrix : public DMatrix {
     return BatchSet<ExtSparsePage>(BatchIterator<ExtSparsePage>(nullptr));
   }
 
+ private:
   // source data pointers.
   std::shared_ptr<SparsePageSource> sparse_page_source_;
   std::shared_ptr<EllpackPageSource> ellpack_page_source_;
   std::shared_ptr<CSCPageSource> column_source_;
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
-
-  bool EllpackExists() const override { return static_cast<bool>(ellpack_page_source_); }
-  bool GHistIndexExists() const override { return static_cast<bool>(ghist_index_source_); }
-  bool SparsePageExists() const override { return static_cast<bool>(sparse_page_source_); }
 };
 
-inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
+[[nodiscard]] inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
   std::stringstream ss;
   ss << ptr;
   return prefix + "-" + ss.str();
 }
 
+/**
+ * @brief Make cache if it doesn't exist yet.
+ */
 inline std::string MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
                              std::map<std::string, std::shared_ptr<Cache>> *out) {
   auto &cache_info = *out;

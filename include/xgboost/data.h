@@ -113,7 +113,10 @@ class MetaInfo {
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
 
   MetaInfo Copy() const;
-
+  /**
+   * @brief Whether the matrix is dense.
+   */
+  bool IsDense() const { return num_col_ * num_row_ == num_nonzero_; }
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -468,10 +471,7 @@ class BatchIterator {
     return *(*impl_);
   }
 
-  bool operator!=(const BatchIterator&) const {
-    CHECK(impl_ != nullptr);
-    return !impl_->AtEnd();
-  }
+  [[nodiscard]] bool operator!=(const BatchIterator&) const { return !this->AtEnd(); }
 
   [[nodiscard]] bool AtEnd() const {
     CHECK(impl_ != nullptr);
@@ -506,13 +506,13 @@ class DMatrix {
  public:
   /*! \brief default constructor */
   DMatrix()  = default;
-  /*! \brief meta information of the dataset */
-  virtual MetaInfo& Info() = 0;
+  /** @brief meta information of the dataset */
+  [[nodiscard]] virtual MetaInfo& Info() = 0;
   virtual void SetInfo(const char* key, std::string const& interface_str) {
     auto const& ctx = *this->Ctx();
     this->Info().SetInfo(ctx, key, StringView{interface_str});
   }
-  /*! \brief meta information of the dataset */
+  /** @brief meta information of the dataset */
   [[nodiscard]] virtual const MetaInfo& Info() const = 0;
 
   /*! \brief Get thread local memory for returning data from DMatrix. */
@@ -541,10 +541,10 @@ class DMatrix {
   /*! \brief virtual destructor */
   virtual ~DMatrix();
 
-  /*! \brief Whether the matrix is dense. */
-  [[nodiscard]] bool IsDense() const {
-    return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
-  }
+  /**
+   * @brief Whether the matrix is dense.
+   */
+  [[nodiscard]] bool IsDense() const { return this->Info().IsDense(); }
 
   /**
    * \brief Load DMatrix from URI.

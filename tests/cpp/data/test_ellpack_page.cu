@@ -152,7 +152,7 @@ TEST(EllpackPage, Copy) {
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(FstCU(), page->Cuts(), page->is_dense, page->row_stride, kRows);
+  EllpackPageImpl result(FstCU(), page->CutsShared(), page->is_dense, page->row_stride, kRows);
 
   // Copy batch pages into the result page.
   size_t offset = 0;
@@ -200,7 +200,8 @@ TEST(EllpackPage, Compact) {
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(FstCU(), page->Cuts(), page->is_dense, page->row_stride, kCompactedRows);
+  EllpackPageImpl result(FstCU(), page->CutsShared(), page->is_dense, page->row_stride,
+                         kCompactedRows);
 
   // Compact batch pages into the result page.
   std::vector<size_t> row_indexes_h {

@@ -23,20 +23,20 @@ struct EllpackDeviceAccessor {
   bool is_dense;
   /*! \brief Row length for ELLPACK, equal to number of features. */
   size_t row_stride;
-  size_t base_rowid{};
-  size_t n_rows{};
-  common::CompressedIterator<uint32_t> gidx_iter;
+  bst_idx_t base_rowid{0};
+  bst_idx_t n_rows{0};
+  common::CompressedIterator<std::uint32_t> gidx_iter;
   /*! \brief Minimum value for each feature. Size equals to number of features. */
-  common::Span<const bst_float> min_fvalue;
+  common::Span<const float> min_fvalue;
   /*! \brief Histogram cut pointers. Size equals to (number of features + 1). */
-  common::Span<const uint32_t> feature_segments;
+  common::Span<const std::uint32_t> feature_segments;
   /*! \brief Histogram cut values. Size equals to (bins per feature * number of features). */
-  common::Span<const bst_float> gidx_fvalue_map;
+  common::Span<const float> gidx_fvalue_map;
 
   common::Span<const FeatureType> feature_types;
 
-  EllpackDeviceAccessor(DeviceOrd device, const common::HistogramCuts& cuts, bool is_dense,
-                        size_t row_stride, size_t base_rowid, size_t n_rows,
+  EllpackDeviceAccessor(DeviceOrd device, std::shared_ptr<const common::HistogramCuts> cuts,
+                        bool is_dense, size_t row_stride, size_t base_rowid, size_t n_rows,
                         common::CompressedIterator<uint32_t> gidx_iter,
                         common::Span<FeatureType const> feature_types)
       : is_dense(is_dense),
@@ -46,16 +46,16 @@ struct EllpackDeviceAccessor {
         gidx_iter(gidx_iter),
         feature_types{feature_types} {
     if (device.IsCPU()) {
-      gidx_fvalue_map = cuts.cut_values_.ConstHostSpan();
-      feature_segments = cuts.cut_ptrs_.ConstHostSpan();
-      min_fvalue = cuts.min_vals_.ConstHostSpan();
+      gidx_fvalue_map = cuts->cut_values_.ConstHostSpan();
+      feature_segments = cuts->cut_ptrs_.ConstHostSpan();
+      min_fvalue = cuts->min_vals_.ConstHostSpan();
     } else {
-      cuts.cut_values_.SetDevice(device);
-      cuts.cut_ptrs_.SetDevice(device);
-      cuts.min_vals_.SetDevice(device);
-      gidx_fvalue_map = cuts.cut_values_.ConstDeviceSpan();
-      feature_segments = cuts.cut_ptrs_.ConstDeviceSpan();
-      min_fvalue = cuts.min_vals_.ConstDeviceSpan();
+      cuts->cut_values_.SetDevice(device);
+      cuts->cut_ptrs_.SetDevice(device);
+      cuts->min_vals_.SetDevice(device);
+      gidx_fvalue_map = cuts->cut_values_.ConstDeviceSpan();
+      feature_segments = cuts->cut_ptrs_.ConstDeviceSpan();
+      min_fvalue = cuts->min_vals_.ConstDeviceSpan();
     }
   }
   // Get a matrix element, uses binary search for look up Return NaN if missing
@@ -142,13 +142,14 @@ class EllpackPageImpl {
    * This is used in the sampling case. The ELLPACK page is constructed from an existing EllpackInfo
    * and the given number of rows.
    */
-  EllpackPageImpl(DeviceOrd device, common::HistogramCuts cuts, bool is_dense, size_t row_stride,
-                  size_t n_rows);
+  EllpackPageImpl(DeviceOrd device, std::shared_ptr<common::HistogramCuts const> cuts,
+                  bool is_dense, size_t row_stride, size_t n_rows);
   /*!
    * \brief Constructor used for external memory.
    */
-  EllpackPageImpl(DeviceOrd device, common::HistogramCuts cuts, const SparsePage& page,
-                  bool is_dense, size_t row_stride, common::Span<FeatureType const> feature_types);
+  EllpackPageImpl(DeviceOrd device, std::shared_ptr<common::HistogramCuts const> cuts,
+                  const SparsePage& page, bool is_dense, size_t row_stride,
+                  common::Span<FeatureType const> feature_types);
 
   /*!
    * \brief Constructor from an existing DMatrix.
@@ -162,7 +163,7 @@ class EllpackPageImpl {
   explicit EllpackPageImpl(AdapterBatch batch, float missing, DeviceOrd device, bool is_dense,
                            common::Span<size_t> row_counts_span,
                            common::Span<FeatureType const> feature_types, size_t row_stride,
-                           size_t n_rows, common::HistogramCuts const& cuts);
+                           size_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
   /**
    * \brief Constructor from an existing CPU gradient index.
    */
@@ -194,8 +195,9 @@ class EllpackPageImpl {
     base_rowid = row_id;
   }
 
-  [[nodiscard]] common::HistogramCuts& Cuts() { return cuts_; }
-  [[nodiscard]] common::HistogramCuts const& Cuts() const { return cuts_; }
+  [[nodiscard]] common::HistogramCuts const& Cuts() const { return *cuts_; }
+  [[nodiscard]] std::shared_ptr<common::HistogramCuts const> CutsShared() const { return cuts_; }
+  void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts) { cuts_ = cuts; }
 
   /*! \return Estimation of memory cost of this page. */
   static size_t MemCostBytes(size_t num_rows, size_t row_stride, const common::HistogramCuts&cuts) ;
@@ -203,7 +205,7 @@ class EllpackPageImpl {
 
   /*! \brief Return the total number of symbols (total number of bins plus 1 for
    * not found). */
-  [[nodiscard]] std::size_t NumSymbols() const { return cuts_.TotalBins() + 1; }
+  [[nodiscard]] std::size_t NumSymbols() const { return cuts_->TotalBins() + 1; }
 
   [[nodiscard]] EllpackDeviceAccessor GetDeviceAccessor(
       DeviceOrd device, common::Span<FeatureType const> feature_types = {}) const;
@@ -225,19 +227,18 @@ class EllpackPageImpl {
    */
   void InitCompressedData(DeviceOrd device);
 
-
-public:
+ public:
   /*! \brief Whether or not if the matrix is dense. */
   bool is_dense;
   /*! \brief Row length for ELLPACK. */
   size_t row_stride;
-  size_t base_rowid{0};
-  size_t n_rows{};
+  bst_idx_t base_rowid{0};
+  bst_idx_t n_rows{};
   /*! \brief global index of histogram, which is stored in ELLPACK format. */
   HostDeviceVector<common::CompressedByteT> gidx_buffer;
 
  private:
-  common::HistogramCuts cuts_;
+  std::shared_ptr<common::HistogramCuts const> cuts_;
   common::Monitor monitor_;
 };
 
