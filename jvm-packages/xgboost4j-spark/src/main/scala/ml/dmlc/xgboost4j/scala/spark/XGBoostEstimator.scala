@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.util.ServiceLoader
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters.iterableAsScalaIterableConverter
 
@@ -258,20 +259,38 @@ private[spark] abstract class XGBoostEstimator[
   private[spark] def toRdd(dataset: Dataset[_], columnIndices: ColumnIndices): RDD[Watches] = {
     val trainRDD = toXGBLabeledPoint(dataset, columnIndices)
 
+    // transform the labeledpoint to get margins and build DMatrix
+    // TODO support basemargin for multiclassification
+    // TODO, move it into JNI
+    def buildDMatrix(iter: Iterator[XGBLabeledPoint]) = {
+      if (columnIndices.marginId.isDefined) {
+        val trainMargins = new mutable.ArrayBuilder.ofFloat
+        val transformedIter = iter.map { labeledPoint =>
+          trainMargins += labeledPoint.baseMargin
+          labeledPoint
+        }
+        val dm = new DMatrix(transformedIter)
+        dm.setBaseMargin(trainMargins.result())
+        dm
+      } else {
+        new DMatrix(iter)
+      }
+    }
+
     getEvalDataset().map { eval =>
       val (evalDf, _) = preprocess(eval)
       val evalRDD = toXGBLabeledPoint(evalDf, columnIndices)
-      trainRDD.zipPartitions(evalRDD) { (trainIter, evalIter) =>
-        val trainDMatrix = new DMatrix(trainIter)
-        val evalDMatrix = new DMatrix(evalIter)
+      trainRDD.zipPartitions(evalRDD) { (left, right) =>
+        val trainDMatrix = buildDMatrix(left)
+        val evalDMatrix = buildDMatrix(right)
         val watches = new Watches(Array(trainDMatrix, evalDMatrix),
           Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None)
         Iterator.single(watches)
       }
     }.getOrElse(
       trainRDD.mapPartitions { iter =>
-        // Handle weight/base margin
-        val watches = new Watches(Array(new DMatrix(iter)), Array(Utils.TRAIN_NAME), None)
+        val dm = buildDMatrix(iter)
+        val watches = new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
         Iterator.single(watches)
       }
     )
@@ -371,7 +390,7 @@ private[spark] abstract class XGBoostEstimator[
     copyValues(createModel(booster, summary))
   }
 
-  override def copy(extra: ParamMap): Learner = defaultCopy(extra)
+  override def copy(extra: ParamMap): Learner = defaultCopy(extra).asInstanceOf[Learner]
 
   // Not used in XGBoost
   override def transformSchema(schema: StructType): StructType = {

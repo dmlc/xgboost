@@ -16,11 +16,87 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.File
+
 import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.sql.functions.lit
+import org.apache.spark.ml.param.ParamMap
 import org.scalatest.funsuite.AnyFunSuite
 
+import ml.dmlc.xgboost4j.scala.spark.params.XGBoostParams
+
 class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
+
+  test("params") {
+    val xgbParams: Map[String, Any] = Map(
+      "max_depth" -> 5,
+      "eta" -> 0.2,
+      "objective" -> "binary:logistic"
+    )
+    val classifier = new XGBoostClassifier(xgbParams)
+      .setFeaturesCol("abc")
+      .setMissing(0.2f)
+      .setAlpha(0.97)
+
+    assert(classifier.getMaxDepth === 5)
+    assert(classifier.getEta === 0.2)
+    assert(classifier.getObjective === "binary:logistic")
+    assert(classifier.getFeaturesCol === "abc")
+    assert(classifier.getMissing === 0.2f)
+    assert(classifier.getAlpha === 0.97)
+
+    classifier.setEta(0.66).setMaxDepth(7)
+    assert(classifier.getMaxDepth === 7)
+    assert(classifier.getEta === 0.66)
+  }
+
+  test("XGBoostClassifier copy") {
+    val classifier = new XGBoostClassifier().setNthread(2).setNumWorkers(10)
+    val classifierCopied = classifier.copy(ParamMap.empty)
+
+    assert(classifier.uid === classifierCopied.uid)
+    assert(classifier.getNthread === classifierCopied.getNthread)
+    assert(classifier.getNumWorkers === classifier.getNumWorkers)
+  }
+
+  test("XGBoostClassification copy") {
+    val model = new XGBoostClassificationModel("hello").setNthread(2).setNumWorkers(10)
+    val modelCopied = model.copy(ParamMap.empty)
+    assert(model.uid === modelCopied.uid)
+    assert(model.getNthread === modelCopied.getNthread)
+    assert(model.getNumWorkers === modelCopied.getNumWorkers)
+  }
+
+  test("read/write") {
+    val trainDf = smallBinaryClassificationVector
+    val xgbParams: Map[String, Any] = Map(
+      "max_depth" -> 5,
+      "eta" -> 0.2,
+      "objective" -> "binary:logistic"
+    )
+
+    def check(xgboostParams: XGBoostParams[_]): Unit = {
+      assert(xgboostParams.getMaxDepth === 5)
+      assert(xgboostParams.getEta === 0.2)
+      assert(xgboostParams.getObjective === "binary:logistic")
+    }
+
+    val classifierPath = new File(tempDir.toFile, "classifier").getPath
+    val classifier = new XGBoostClassifier(xgbParams)
+    check(classifier)
+
+    classifier.write.overwrite().save(classifierPath)
+    val loadedClassifier = XGBoostClassifier.load(classifierPath)
+    check(loadedClassifier)
+
+    val model = loadedClassifier.fit(trainDf)
+    check(model)
+
+    val modelPath = new File(tempDir.toFile, "model").getPath
+    model.write.overwrite().save(modelPath)
+    val modelLoaded = XGBoostClassificationModel.load(modelPath)
+    check(modelLoaded)
+  }
+
 
   test("pipeline") {
     val spark = ss
@@ -57,7 +133,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     //    df = df.withColumn("base_margin", lit(20))
     //      .withColumn("weight", rand(1))
 
-        // Assemble the feature columns into a single vector column
+    // Assemble the feature columns into a single vector column
     val assembler = new VectorAssembler()
       .setInputCols(features)
       .setOutputCol("features")
@@ -65,10 +141,10 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
 
     var Array(trainDf, validationDf) = dataset.randomSplit(Array(0.8, 0.2), seed = 1)
 
-//    trainDf = trainDf.withColumn("validation", lit(false))
-//    validationDf = validationDf.withColumn("validationDf", lit(true))
+    //    trainDf = trainDf.withColumn("validation", lit(false))
+    //    validationDf = validationDf.withColumn("validationDf", lit(true))
 
-//    df = trainDf.union(validationDf)
+    //    df = trainDf.union(validationDf)
 
     //    val arrayInput = df.select(array(features.map(col(_)): _*).as("features"),
     //      col("label"), col("base_margin"))
@@ -81,7 +157,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
       //      .setBaseMarginCol("base_margin")
       .setLabelCol(labelCol)
       .setEvalDataset(validationDf)
-//      .setValidationIndicatorCol("validation")
+      //      .setValidationIndicatorCol("validation")
       //      .setPredictionCol("")
       .setRawPredictionCol("")
       .setProbabilityCol("xxxx")
