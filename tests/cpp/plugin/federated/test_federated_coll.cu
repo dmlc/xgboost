@@ -41,7 +41,7 @@ void TestAllreduce(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
 
   auto rc = w.coll->Allreduce(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)),
                               ArrayInterfaceHandler::kI4, Op::kSum);
-  ASSERT_TRUE(rc.OK());
+  SafeColl(rc);
   for (auto i = 0; i < 5; i++) {
     ASSERT_EQ(buffer[i], expected[i]);
   }
@@ -63,7 +63,7 @@ void TestBroadcast(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
     rc = w.coll->Broadcast(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)), 0);
     ASSERT_EQ(buffer, expect);
   }
-  ASSERT_TRUE(rc.OK());
+  SafeColl(rc);
 }
 
 void TestAllgather(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::int32_t n_workers) {
@@ -72,7 +72,7 @@ void TestAllgather(std::shared_ptr<FederatedComm> comm, std::int32_t rank, std::
   dh::device_vector<std::int32_t> buffer(n_workers, 0);
   buffer[comm->Rank()] = comm->Rank();
   auto rc = w.coll->Allgather(*w.nccl_comm, common::EraseType(dh::ToSpan(buffer)));
-  ASSERT_TRUE(rc.OK());
+  SafeColl(rc);
   for (auto i = 0; i < n_workers; i++) {
     ASSERT_EQ(buffer[i], i);
   }
@@ -92,7 +92,7 @@ void TestAllgatherV(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
   auto rc = w.coll->AllgatherV(*w.nccl_comm, common::EraseType(dh::ToSpan(inputs[comm->Rank()])),
                                common::Span{sizes.data(), sizes.size()}, recv_segments,
                                common::EraseType(dh::ToSpan(r)), AllgatherVAlgo::kRing);
-  ASSERT_TRUE(rc.OK());
+  SafeColl(rc);
 
   ASSERT_EQ(r[0], 1);
   for (std::size_t i = 1; i < r.size(); ++i) {

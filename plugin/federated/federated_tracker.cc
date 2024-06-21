@@ -115,7 +115,7 @@ FederatedTracker::~FederatedTracker() = default;
 
 Result FederatedTracker::Shutdown() {
   auto rc = this->WaitUntilReady();
-  CHECK(rc.OK()) << rc.Report();
+  SafeColl(rc);
 
   try {
     server_->Shutdown();
@@ -132,7 +132,7 @@ Result FederatedTracker::Shutdown() {
 
   std::string host;
   rc = GetHostAddress(&host);
-  CHECK(rc.OK());
+  SafeColl(rc);
   Json args{Object{}};
   args["dmlc_tracker_uri"] = String{host};
   args["dmlc_tracker_port"] = this->Port();

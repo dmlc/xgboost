@@ -41,7 +41,7 @@ TEST_F(TrackerAPITest, CAPI) {
   auto args = Json::Load(StringView{cargs});
 
   std::string host;
-  ASSERT_TRUE(GetHostAddress(&host).OK());
+  SafeColl(GetHostAddress(&host));
   ASSERT_EQ(host, get<String const>(args["dmlc_tracker_uri"]));
   auto port = get<Integer const>(args["dmlc_tracker_port"]);
   ASSERT_NE(port, 0);
