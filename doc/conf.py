@@ -26,6 +26,14 @@ PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
 TMP_DIR = os.path.join(CURR_PATH, "tmp")
 DOX_DIR = "doxygen"
 
+os.environ["XGBOOST_BUILD_DOC"] = "1"
+
+# Version information.
+import xgboost  # NOQA
+
+version = xgboost.__version__
+release = xgboost.__version__
+
 
 def run_doxygen():
     """Run the doxygen make command in the designated folder."""
@@ -69,7 +77,7 @@ def build_jvm_docs():
     elif git_branch == "latest":
         git_branch = "master"
     elif git_branch == "stable":
-        git_branch = f"release_{version}"
+        git_branch = f"release_{xgboost.__version__}"
     print(f"git_branch = {git_branch}")
 
     def try_fetch_jvm_doc(branch):
@@ -133,13 +141,6 @@ project = "xgboost"
 author = "%s developers" % project
 copyright = "2022, %s" % author
 github_doc_root = "https://github.com/dmlc/xgboost/tree/master/doc/"
-
-os.environ["XGBOOST_BUILD_DOC"] = "1"
-# Version information.
-import xgboost  # NOQA
-
-version = xgboost.__version__
-release = xgboost.__version__
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones
