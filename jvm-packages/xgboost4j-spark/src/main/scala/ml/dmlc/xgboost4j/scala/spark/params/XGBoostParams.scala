@@ -23,6 +23,8 @@ import org.apache.spark.ml.param.shared._
 import org.apache.spark.ml.xgboost.SparkUtils
 import org.apache.spark.sql.types.{DoubleType, StructType}
 
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
+
 
 trait HasLeafPredictionCol extends Params {
   /**
@@ -152,13 +154,23 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getMissing: Float = $(missing)
 
+  final val customObj = new CustomObjParam(this, "customObj", "customized objective function " +
+    "provided by user")
+
+  final def getCustomObj: ObjectiveTrait = $(customObj)
+
+  final val customEval = new CustomEvalParam(this, "customEval",
+    "customized evaluation function provided by user")
+
+  final def getCustomEval: EvalTrait = $(customEval)
+
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
-    featuresCols -> Array.empty)
+    featuresCols -> Array.empty, customObj -> null, customEval -> null)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
-    forceRepartition, missing, featuresCols)
+    forceRepartition, missing, featuresCols, customEval, customObj)
 
   final def getNumWorkers: Int = $(numWorkers)
 
@@ -187,6 +199,10 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setInferBatchSize(value: Int): T = set(inferBatchSize, value).asInstanceOf[T]
 
   def setMissing(value: Float): T = set(missing, value).asInstanceOf[T]
+
+  def setCustomObj(value: ObjectiveTrait): T = set(customObj, value).asInstanceOf[T]
+
+  def setCustomEval(value: EvalTrait): T = set(customEval, value).asInstanceOf[T]
 
   def setRabitTrackerTimeout(value: Int): T = set(rabitTrackerTimeout, value).asInstanceOf[T]
 

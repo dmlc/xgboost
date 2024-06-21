@@ -30,13 +30,13 @@ import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 private[spark] case class RuntimeParams(
     numWorkers: Int,
     numRounds: Int,
-    obj: ObjectiveTrait,
-    eval: EvalTrait,
     trackerConf: TrackerConf,
     earlyStoppingRounds: Int,
     device: String,
     isLocal: Boolean,
-    runOnGpu: Boolean)
+    runOnGpu: Boolean,
+    obj: Option[ObjectiveTrait] = None,
+    eval: Option[EvalTrait] = None)
 
 /**
  * A trait to manage stage-level scheduling
@@ -216,8 +216,8 @@ private[spark] object XGBoost extends StageLevelScheduling {
         logger.info("Leveraging gpu device " + gpuId + " to train")
         params = params + ("device" -> s"cuda:$gpuId")
       }
-      SXGBoost.train(watches.toMap("train"), params, runtimeParams.numRounds,
-        watches.toMap, metrics, runtimeParams.obj, runtimeParams.eval,
+      SXGBoost.train(watches.toMap("train"), params, runtimeParams.numRounds, watches.toMap,
+        metrics, runtimeParams.obj.getOrElse(null), runtimeParams.eval.getOrElse(null),
         earlyStoppingRound = numEarlyStoppingRounds)
     } catch {
       case xgbException: XGBoostError =>

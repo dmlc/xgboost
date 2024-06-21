@@ -16,13 +16,32 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
+import org.apache.spark.ml.feature.{LabeledPoint => MLLabeledPoint}
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector, Vectors}
 import org.json4s.{DefaultFormats, FullTypeHints, JField, JValue, NoTypeHints, TypeHints}
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
 // based on org.apache.spark.util copy /paste
 object Utils {
+
+  private[spark] implicit class XGBLabeledPointFeatures(
+      val labeledPoint: XGBLabeledPoint
+  ) extends AnyVal {
+    /** Converts the point to [[MLLabeledPoint]]. */
+    private[spark] def asML: MLLabeledPoint = {
+      MLLabeledPoint(labeledPoint.label, labeledPoint.features)
+    }
+
+    /**
+     * Returns feature of the point as [[org.apache.spark.ml.linalg.Vector]].
+     */
+    def features: Vector = if (labeledPoint.indices == null) {
+      Vectors.dense(labeledPoint.values.map(_.toDouble))
+    } else {
+      Vectors.sparse(labeledPoint.size, labeledPoint.indices, labeledPoint.values.map(_.toDouble))
+    }
+  }
 
   private[spark] implicit class MLVectorToXGBLabeledPoint(val v: Vector) extends AnyVal {
     /**

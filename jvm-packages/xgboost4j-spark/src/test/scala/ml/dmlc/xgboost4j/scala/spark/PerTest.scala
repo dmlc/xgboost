@@ -25,6 +25,8 @@ import org.apache.spark.sql._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
 
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+
 trait PerTest extends BeforeAndAfterEach {
   self: AnyFunSuite =>
 
@@ -67,6 +69,19 @@ trait PerTest extends BeforeAndAfterEach {
     for (file <- dir.listFiles() if file.getName.startsWith(prefix)) {
       file.delete()
     }
+  }
+
+  protected def buildDataFrame(
+      labeledPoints: Seq[XGBLabeledPoint],
+      numPartitions: Int = numWorkers): DataFrame = {
+    import Utils.XGBLabeledPointFeatures
+    val it = labeledPoints.iterator.zipWithIndex
+      .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+        (id, labeledPoint.label, labeledPoint.features)
+      }
+
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
+      .toDF("id", "label", "features")
   }
 
   protected def compareTwoFiles(lhs: String, rhs: String): Boolean = {

@@ -16,12 +16,92 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.File
+import java.util.Arrays
+
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.ml.linalg.Vectors
 import org.scalatest.funsuite.AnyFunSuite
 
+import ml.dmlc.xgboost4j.scala.DMatrix
+
 class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
+
+  test("RuntimeParameter") {
+    var runtimeParams = new XGBoostClassifier(
+      Map("device" -> "cpu", "num_workers" -> 1, "num_round" -> 1))
+      .getRuntimeParameters(true)
+    assert(!runtimeParams.runOnGpu)
+
+    runtimeParams = new XGBoostClassifier(
+      Map("device" -> "cuda", "num_workers" -> 1, "num_round" -> 1))
+      .getRuntimeParameters(true)
+    assert(runtimeParams.runOnGpu)
+
+    runtimeParams = new XGBoostClassifier(
+      Map("device" -> "cpu", "tree_method" -> "gpu_hist", "num_workers" -> 1, "num_round" -> 1))
+      .getRuntimeParameters(true)
+    assert(runtimeParams.runOnGpu)
+
+    runtimeParams = new XGBoostClassifier(
+      Map("device" -> "cuda", "tree_method" -> "gpu_hist",
+        "num_workers" -> 1, "num_round" -> 1))
+      .getRuntimeParameters(true)
+    assert(runtimeParams.runOnGpu)
+  }
+
+  test("custom_eval does not support early stopping") {
+    val paramMap = Map("eta" -> "0.1", "custom_eval" -> new EvalError, "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6", "num_round" -> 5,
+      "num_workers" -> numWorkers, "num_early_stopping_rounds" -> 2)
+
+    val trainingDF = smallBinaryClassificationVector
+
+    val thrown = intercept[IllegalArgumentException] {
+      new XGBoostClassifier(paramMap).fit(trainingDF)
+    }
+
+    assert(thrown.getMessage.contains("custom_eval does not support early stopping"))
+  }
+
+  test("test persistence of XGBoostClassifier and XGBoostClassificationModel " +
+    "using custom Eval and Obj") {
+    val trainingDF = buildDataFrame(Classification.train)
+    val testDM = new DMatrix(Classification.test.iterator)
+
+    val paramMap = Map("eta" -> "0.1", "max_depth" -> "6",
+      "verbosity" -> "1", "objective" -> "binary:logistic")
+
+    val xgbc = new XGBoostClassifier(paramMap)
+      .setCustomObj(new CustomObj(1))
+      .setCustomEval(new EvalError)
+      .setNumRound(10)
+      .setNumWorkers(numWorkers)
+
+    val xgbcPath = new File(tempDir.toFile, "xgbc").getPath
+    xgbc.write.overwrite().save(xgbcPath)
+    val xgbc2 = XGBoostClassifier.load(xgbcPath)
+
+    assert(xgbc.getCustomObj.asInstanceOf[CustomObj].customParameter === 1)
+    assert(xgbc2.getCustomObj.asInstanceOf[CustomObj].customParameter === 1)
+
+    val eval = new EvalError()
+
+    val model = xgbc.fit(trainingDF)
+    val evalResults = eval.eval(model.nativeBooster.predict(testDM, outPutMargin = true), testDM)
+    assert(evalResults < 0.1)
+    val xgbcModelPath = new File(tempDir.toFile, "xgbcModel").getPath
+    model.write.overwrite.save(xgbcModelPath)
+    val model2 = XGBoostClassificationModel.load(xgbcModelPath)
+    assert(Arrays.equals(model.nativeBooster.toByteArray, model2.nativeBooster.toByteArray))
+
+    assert(model.getEta === model2.getEta)
+    assert(model.getNumRound === model2.getNumRound)
+    assert(model.getRawPredictionCol === model2.getRawPredictionCol)
+    val evalResults2 = eval.eval(model2.nativeBooster.predict(testDM, outPutMargin = true), testDM)
+    assert(evalResults === evalResults2)
+  }
 
   test("Check for Spark encryption over-the-wire") {
     val originalSslConfOpt = ss.conf.getOption("spark.ssl.enabled")
