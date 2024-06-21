@@ -52,7 +52,7 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   X, y = make_classification(random_state=seed)
   rng = np.random.default_rng(seed)
   n_query_groups = 3
-  qid = sorted(rng.integers(0, n_query_groups, size=X.shape[0]))
+  qid = rng.integers(0, n_query_groups, size=X.shape[0])
 
   # Sort the inputs based on query index
   sorted_idx = np.argsort(qid)
