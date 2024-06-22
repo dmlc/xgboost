@@ -39,7 +39,7 @@ documentation = "https://xgboost.readthedocs.io/en/stable/"
 repository = "https://github.com/dmlc/xgboost"
 
 [project.optional-dependencies]
-pandas = ["pandas"]
+pandas = ["pandas>=1.2"]
 scikit-learn = ["scikit-learn"]
 dask = ["dask", "pandas", "distributed"]
 datatable = ["datatable"]
