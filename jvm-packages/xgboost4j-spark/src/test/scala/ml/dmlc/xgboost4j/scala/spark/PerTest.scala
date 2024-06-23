@@ -45,6 +45,7 @@ trait PerTest extends BeforeAndAfterEach {
     .config("spark.driver.memory", "512m")
     .config("spark.barrier.sync.timeout", 10)
     .config("spark.task.cpus", 1)
+    .config("spark.stage.maxConsecutiveAttempts", 1)
 
   override def beforeEach(): Unit = getOrCreateSession
 

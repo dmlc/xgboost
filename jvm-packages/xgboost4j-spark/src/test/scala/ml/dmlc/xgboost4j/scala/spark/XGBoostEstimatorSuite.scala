@@ -27,6 +27,13 @@ import org.scalatest.funsuite.AnyFunSuite
 import ml.dmlc.xgboost4j.scala.DMatrix
 
 class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
+  test("nthread") {
+    val classifier = new XGBoostClassifier().setNthread(100)
+
+    intercept[IllegalArgumentException](
+      classifier.validate(smallBinaryClassificationVector)
+    )
+  }
 
   test("RuntimeParameter") {
     var runtimeParams = new XGBoostClassifier(

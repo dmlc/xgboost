@@ -27,6 +27,7 @@ import org.apache.spark.sql.functions.{col, udf}
 
 import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.spark.params.ClassificationParams
+import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{binaryClassificationObjs, multiClassificationObjs}
 
 
 class XGBoostClassifier(override val uid: String,
@@ -42,41 +43,59 @@ class XGBoostClassifier(override val uid: String,
 
   xgboost2SparkParams(xgboostParams)
 
-  /**
-   * Validate the parameters before training, throw exception if possible
-   */
-  override protected def validate(dataset: Dataset[_]): Unit = {
-    super.validate(dataset)
-
-    // The default objective is for regression case.
+  private def validateObjective(dataset: Dataset[_]): Unit = {
+    // If the objective is set explicitly, it must be in binaryClassificationObjs and
+    // multiClassificationObjs
     val obj = if (isSet(objective)) {
-      Some(getObjective)
+      val tmpObj = getObjective
+      val supportedObjs = binaryClassificationObjs.toSeq ++ multiClassificationObjs.toSeq
+      require(supportedObjs.contains(tmpObj),
+        s"Wrong objective for XGBoostClassifier, supported objs: ${supportedObjs.mkString(",")}")
+      Some(tmpObj)
     } else {
       None
     }
 
-    var numClasses = getNumClass
-    // If user didn't set it, inferred it.
-    if (numClasses == 0) {
-      numClasses = SparkUtils.getNumClasses(dataset, getLabelCol)
+    def inferNumClasses: Int = {
+      var numClasses = getNumClass
+      // Infer num class if num class is not set explicitly.
+      // Note that user sets the num classes explicitly, we're not checking that.
+      if (numClasses == 0) {
+        numClasses = SparkUtils.getNumClasses(dataset, getLabelCol)
+      }
+      require(numClasses > 0)
+      numClasses
     }
-    assert(numClasses > 0)
 
-    if (numClasses <= 2) {
-      if (!obj.exists(_.startsWith("binary:"))) {
-        logger.warn(s"Inferred for binary classification, but found wrong objective: " +
-          s"${getObjective}, rewrite objective to binary:logistic")
-        setObjective("binary:logistic")
+    // objective is set explicitly.
+    if (obj.isDefined) {
+      if (multiClassificationObjs.contains(getObjective)) {
+        setNumClass(inferNumClasses)
+      } else {
+        // binary classification doesn't require num_class be set
+        require(!isSet(numClass), "num_class is not allowed for binary classification")
       }
     } else {
-      if (!obj.exists(_.startsWith("multi:"))) {
-        logger.warn(s"Inferred for multiclass classification, but found wrong objective: " +
-          s"${getObjective}, rewrite objective to multi:softprob")
+      // infer the objective according to the num_class
+      val numClasses = inferNumClasses
+      if (numClasses <= 2) {
+        setObjective("binary:logistic")
+        logger.warn("Inferred for binary classification, set the objective to binary:logistic")
+        require(!isSet(numClass), "num_class is not allowed for binary classification")
+      } else {
+        logger.warn("Inferred for multi classification, set the objective to multi:softprob")
         setObjective("multi:softprob")
+        setNumClass(numClasses)
       }
-      setNumClass(numClasses)
     }
+  }
 
+  /**
+   * Validate the parameters before training, throw exception if possible
+   */
+  override protected[spark] def validate(dataset: Dataset[_]): Unit = {
+    super.validate(dataset)
+    validateObjective(dataset)
   }
 
   override protected def createModel(booster: Booster, summary: XGBoostTrainingSummary):
@@ -130,6 +149,7 @@ class XGBoostClassificationModel(
 
   override def postTransform(dataset: Dataset[_]): Dataset[_] = {
     var output = dataset
+    // Always use probability col to get the prediction
     if (isDefined(predictionCol) && getPredictionCol.nonEmpty) {
       val predCol = udf { probability: mutable.WrappedArray[Float] =>
         probability2prediction(Vectors.dense(probability.map(_.toDouble).toArray))

@@ -51,7 +51,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
   }
 
   // TODO, support numeric type
-  private def preprocess[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
+  private[spark] def preprocess[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M], dataset: Dataset[_]): Dataset[_] = {
 
     // Columns to be selected for XGBoost training
@@ -80,7 +80,8 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     estimator.repartitionIfNeeded(input)
   }
 
-  private def validate[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
+  // visiable for testing
+  private[spark] def validate[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
       dataset: Dataset[_]): Unit = {
     require(estimator.getTreeMethod == "gpu_hist" || estimator.getDevice != "cpu",

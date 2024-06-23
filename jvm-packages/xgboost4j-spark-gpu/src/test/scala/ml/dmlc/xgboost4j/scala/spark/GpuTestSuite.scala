@@ -246,6 +246,7 @@ object SparkSessionHolder extends Logging {
       .config("spark.sql.adaptive.enabled", "false")
       .config("spark.rapids.sql.enabled", "false")
       .config("spark.rapids.sql.test.enabled", "false")
+      .config("spark.stage.maxConsecutiveAttempts", "1")
       .config("spark.plugins", "com.nvidia.spark.SQLPlugin")
       .config("spark.rapids.memory.gpu.pooling.enabled", "false") // Disable RMM for unit tests.
       .config("spark.sql.files.maxPartitionBytes", "1000")

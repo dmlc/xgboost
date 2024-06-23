@@ -89,6 +89,9 @@ private[spark] abstract class XGBoostEstimator[
     }
   }
 
+  /** Visiable for testing */
+  private[spark] def getPlugin: Option[XGBoostPlugin] = plugin
+
   private def isPluginEnabled(dataset: Dataset[_]): Boolean = {
     plugin.map(_.isEnabled(dataset)).getOrElse(false)
   }
@@ -339,7 +342,7 @@ private[spark] abstract class XGBoostEstimator[
   /**
    * Validate the parameters before training, throw exception if possible
    */
-  protected def validate(dataset: Dataset[_]): Unit = {
+  protected[spark] def validate(dataset: Dataset[_]): Unit = {
     validateSparkSslConf(dataset.sparkSession)
     val schema = dataset.schema
     SparkUtils.checkNumericType(schema, $(labelCol))
