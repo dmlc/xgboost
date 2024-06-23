@@ -17,6 +17,7 @@ $command_wrapper ${python_bin} tests/ci_build/rename_whl.py  \
   --commit-hash ${BUILDKITE_COMMIT}  \
   --platform-tag ${WHEEL_TAG}
 rm -rf python-package/dist/
+mkdir python-package/dist/
 mv -v wheelhouse/*.whl python-package/dist/
 
 echo "--- Upload Python wheel"
