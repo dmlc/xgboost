@@ -1,0 +1,15 @@
+FROM quay.io/pypa/manylinux2014_x86_64
+
+# Install lightweight sudo (not bound to TTY)
+ENV GOSU_VERSION 1.10
+RUN set -ex; \
+    curl -o /usr/local/bin/gosu -L "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]
