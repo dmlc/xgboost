@@ -70,7 +70,7 @@ steps:
     command: "tests/buildkite/build-manylinux2014-aarch64.sh"
     key: build-manylinux2014-aarch64
     agents:
-      queue: linux-amd64-arm64
+      queue: linux-arm64-cpu
   - wait
   #### -------- TEST --------
   - label: ":console: Test Python package, CPU"
