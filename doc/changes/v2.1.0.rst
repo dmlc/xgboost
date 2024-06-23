@@ -44,7 +44,7 @@ Starting from 2.1.0, XGBoost Python package will be distributed in two variants:
 
 The ``pip`` package manager will automatically choose the correct variant depending on your system.
 
-Starting from **May 31, 2024**, we will stop distributing the ``manylinux2014`` variant and exclusively
+Starting from **May 31, 2025**, we will stop distributing the ``manylinux2014`` variant and exclusively
 distribute the ``manylinux_2_28`` variant. We made this decision so that our CI/CD pipeline won't have
 depend on software components that reached end-of-life (such as CentOS 7). We strongly encourage
 everyone to migrate to recent Linux distros in order to use future versions of XGBoost.
