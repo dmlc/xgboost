@@ -41,7 +41,7 @@ $command_wrapper python tests/ci_build/rename_whl.py  \
   --platform-tag ${WHEEL_TAG}
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
-tests/ci_build/ci_build.sh auditwheel_x86_64 auditwheel repair \
+tests/ci_build/ci_build.sh manylinux_2_28_x86_64 auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 $command_wrapper python tests/ci_build/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
@@ -49,7 +49,7 @@ $command_wrapper python tests/ci_build/rename_whl.py  \
   --platform-tag ${WHEEL_TAG}
 mv -v wheelhouse/*.whl python-package/dist/
 # Make sure that libgomp.so is vendored in the wheel
-tests/ci_build/ci_build.sh auditwheel_x86_64 bash -c \
+tests/ci_build/ci_build.sh manylinux_2_28_x86_64 bash -c \
   "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
 
 echo "--- Upload Python wheel"
