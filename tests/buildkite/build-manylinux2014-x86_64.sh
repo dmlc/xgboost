@@ -26,8 +26,8 @@ mv -v wheelhouse/*.whl python-package/dist/
 
 echo "--- Upload Python wheel"
 buildkite-agent artifact upload python-package/dist/*.whl
-#if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-#then
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
   aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
     --acl public-read --no-progress
-#fi
+fi
