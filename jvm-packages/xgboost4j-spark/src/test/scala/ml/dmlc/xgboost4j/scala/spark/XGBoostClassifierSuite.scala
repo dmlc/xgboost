@@ -84,7 +84,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     }
 
     val classifierPath = new File(tempDir.toFile, "classifier").getPath
-    val classifier = new XGBoostClassifier(xgbParams)
+    val classifier = new XGBoostClassifier(xgbParams).setNumRound(2)
     check(classifier)
 
     classifier.write.overwrite().save(classifierPath)
@@ -93,10 +93,12 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
 
     val model = loadedClassifier.fit(trainDf)
     check(model)
+    assert(model.numClasses === 2)
 
     val modelPath = new File(tempDir.toFile, "model").getPath
     model.write.overwrite().save(modelPath)
     val modelLoaded = XGBoostClassificationModel.load(modelPath)
+    assert(modelLoaded.numClasses === 2)
     check(modelLoaded)
   }
 
@@ -158,9 +160,9 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     // Infer objective according num class
     classifier = new XGBoostClassifier()
     classifier.setNumClass(2)
-    classifier.validate(trainDf)
-    assert(classifier.getObjective === "binary:logistic")
-    assert(!classifier.isSet(classifier.numClass))
+    intercept[IllegalArgumentException](
+      classifier.validate(trainDf)
+    )
 
     // Infer to num class according to num class
     classifier = new XGBoostClassifier()

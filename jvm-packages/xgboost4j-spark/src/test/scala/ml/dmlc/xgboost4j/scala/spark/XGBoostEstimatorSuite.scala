@@ -60,20 +60,6 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(runtimeParams.runOnGpu)
   }
 
-  test("custom_eval does not support early stopping") {
-    val paramMap = Map("eta" -> "0.1", "custom_eval" -> new EvalError, "silent" -> "1",
-      "objective" -> "multi:softmax", "num_class" -> "6", "num_round" -> 5,
-      "num_workers" -> numWorkers, "num_early_stopping_rounds" -> 2)
-
-    val trainingDF = smallBinaryClassificationVector
-
-    val thrown = intercept[IllegalArgumentException] {
-      new XGBoostClassifier(paramMap).fit(trainingDF)
-    }
-
-    assert(thrown.getMessage.contains("custom_eval does not support early stopping"))
-  }
-
   test("test persistence of XGBoostClassifier and XGBoostClassificationModel " +
     "using custom Eval and Obj") {
     val trainingDF = buildDataFrame(Classification.train)
@@ -438,7 +424,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
 
       // test json
       val modelPath = new File(tempDir.toFile, "xgbc").getPath
-      model.write.option("format", "json").save(modelPath)
+      model.write.overwrite().option("format", "json").save(modelPath)
       val nativeJsonModelPath = new File(tempDir.toFile, "nativeModel.json").getPath
       model.nativeBooster.saveModel(nativeJsonModelPath)
       assert(compareTwoFiles(new File(modelPath, "data/model").getPath,
@@ -446,7 +432,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
 
       // test ubj
       val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
-      model.write.save(modelUbjPath)
+      model.write.overwrite().save(modelUbjPath)
       val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel.ubj").getPath
       model.nativeBooster.saveModel(nativeUbjModelPath)
       assert(compareTwoFiles(new File(modelUbjPath, "data/model").getPath,
@@ -454,7 +440,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
 
       // json file should be indifferent with ubj file
       val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
-      model.write.option("format", "json").save(modelJsonPath)
+      model.write.overwrite().option("format", "json").save(modelJsonPath)
       val nativeUbjModelPath1 = new File(tempDir.toFile, "nativeModel1.ubj").getPath
       model.nativeBooster.saveModel(nativeUbjModelPath1)
       assert(!compareTwoFiles(new File(modelJsonPath, "data/model").getPath,

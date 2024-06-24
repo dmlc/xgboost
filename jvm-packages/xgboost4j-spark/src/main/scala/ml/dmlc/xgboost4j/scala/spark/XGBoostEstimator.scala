@@ -29,14 +29,14 @@ import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, MLWriter}
-import org.apache.spark.ml.xgboost.SparkUtils
+import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
 
-import ml.dmlc.xgboost4j.java.{Booster => JBooster}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import ml.dmlc.xgboost4j.java.{Booster => JBooster}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.spark.Utils.MLVectorToXGBLabeledPoint
 import ml.dmlc.xgboost4j.scala.spark.params.{ParamUtils, _}
@@ -67,7 +67,7 @@ private[spark] trait NonParamVariables[T <: XGBoostEstimator[T, M], M <: XGBoost
   }
 }
 
-private[spark] abstract class XGBoostEstimator[
+private[spark] trait XGBoostEstimator[
   Learner <: XGBoostEstimator[Learner, M], M <: XGBoostModel[M]] extends Estimator[M]
   with XGBoostParams[Learner] with SparkParams[Learner] with ParamUtils[Learner]
   with NonParamVariables[Learner, M] with ParamMapConversion with DefaultParamsWritable {
@@ -378,7 +378,8 @@ private[spark] abstract class XGBoostEstimator[
 
   }
 
-  override def fit(dataset: Dataset[_]): M = {
+
+  def train(dataset: Dataset[_]): M = {
     validate(dataset)
 
     val rdd = if (isPluginEnabled(dataset)) {
@@ -414,10 +415,7 @@ private[spark] abstract class XGBoostEstimator[
  * @param trainingSummary the training summary
  * @tparam the exact model which must extend from XGBoostModel
  */
-private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
-    override val uid: String,
-    private val model: Booster,
-    private val trainingSummary: Option[XGBoostTrainingSummary]) extends Model[M] with MLWritable
+private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with MLWritable
   with XGBoostParams[M] with SparkParams[M] with ParamUtils[M] {
 
   protected val TMP_TRANSFORMED_COL = "_tmp_xgb_transformed_col"
@@ -429,11 +427,9 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
    *
    * @return
    */
-  def nativeBooster: Booster = model
+  def nativeBooster: Booster
 
-  def summary: XGBoostTrainingSummary = trainingSummary.getOrElse {
-    throw new IllegalStateException("No training summary available for this XGBoostModel")
-  }
+  def summary: Option[XGBoostTrainingSummary]
 
   // Not used in XGBoost
   override def transformSchema(schema: StructType): StructType = {
@@ -468,7 +464,7 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
     // while for others, it's the prediction value.
     var hasTransformedCol = false
     this match {
-      case p: ClassificationParams[_] => // classification case
+      case p: XGBProbabilisticClassifierParams[_] => // classification case
         hasRawPredictionCol = addToSchema(p.rawPredictionCol)
         hasTransformedCol = addToSchema(p.probabilityCol, Some(TMP_TRANSFORMED_COL))
 
@@ -555,6 +551,9 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
 private[spark] class XGBoostModelWriter[M <: XGBoostModel[M]](instance: M) extends MLWriter {
 
   override protected def saveImpl(path: String): Unit = {
+    if (Option(instance.nativeBooster).isEmpty) {
+      throw new RuntimeException("The XGBoost model has not been trained")
+    }
     SparkUtils.saveMetadata(instance, path, sc)
 
     // Save model data

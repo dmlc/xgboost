@@ -17,13 +17,42 @@
 package org.apache.spark.ml.xgboost
 
 import org.apache.spark.SparkContext
+import org.apache.spark.ml.classification.ProbabilisticClassifierParams
 import org.apache.spark.ml.linalg.VectorUDT
 import org.apache.spark.ml.param.Params
 import org.apache.spark.ml.util.{DatasetUtils, DefaultParamsReader, DefaultParamsWriter, SchemaUtils}
 import org.apache.spark.ml.util.DefaultParamsReader.Metadata
 import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.types.{DataType, StructType}
+import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
 import org.json4s.{JObject, JValue}
+
+import ml.dmlc.xgboost4j.scala.spark.params.{NonXGBoostParams, SparkParams}
+
+/**
+ * XGBoost classification spark-specific parameters which should not be passed
+ * into the xgboost library
+ *
+ * @tparam T should be XGBoostClassifier or XGBoostClassificationModel
+ */
+trait XGBProbabilisticClassifierParams[T <: Params]
+  extends ProbabilisticClassifierParams with NonXGBoostParams {
+
+  /**
+   * XGBoost doesn't use validateAndTransformSchema since spark validateAndTransformSchema
+   * needs to ensure the feature is vector type
+   */
+  override protected def validateAndTransformSchema(
+      schema: StructType,
+      fitting: Boolean,
+      featuresDataType: DataType): StructType = {
+    var outputSchema = SparkUtils.appendColumn(schema, $(predictionCol), DoubleType)
+    outputSchema = SparkUtils.appendVectorUDTColumn(outputSchema, $(rawPredictionCol))
+    outputSchema = SparkUtils.appendVectorUDTColumn(outputSchema, $(probabilityCol))
+    outputSchema
+  }
+
+  addNonXGBoostParam(rawPredictionCol, probabilityCol, thresholds)
+}
 
 /** Utils to access the spark internal functions */
 object SparkUtils {

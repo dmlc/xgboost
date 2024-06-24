@@ -18,31 +18,35 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
 
+import org.apache.spark.ml.classification.{ProbabilisticClassificationModel, ProbabilisticClassifier}
 import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader}
-import org.apache.spark.ml.xgboost.SparkUtils
+import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.{col, udf}
+import org.json4s.DefaultFormats
 
 import ml.dmlc.xgboost4j.scala.Booster
-import ml.dmlc.xgboost4j.scala.spark.params.ClassificationParams
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{binaryClassificationObjs, multiClassificationObjs}
 
 
 class XGBoostClassifier(override val uid: String,
                         private[spark] val xgboostParams: Map[String, Any])
-  extends XGBoostEstimator[XGBoostClassifier, XGBoostClassificationModel]
-    with ClassificationParams[XGBoostClassifier] {
+  extends ProbabilisticClassifier[Vector, XGBoostClassifier, XGBoostClassificationModel]
+    with XGBoostEstimator[XGBoostClassifier, XGBoostClassificationModel]
+    with XGBProbabilisticClassifierParams[XGBoostClassifier] {
 
-  def this() = this(Identifiable.randomUID("xgbc"), Map.empty)
+  def this() = this(XGBoostClassifier._uid, Map.empty)
 
   def this(uid: String) = this(uid, Map.empty)
 
-  def this(xgboostParams: Map[String, Any]) = this(Identifiable.randomUID("xgbc"), xgboostParams)
+  def this(xgboostParams: Map[String, Any]) = this(XGBoostClassifier._uid, xgboostParams)
 
   xgboost2SparkParams(xgboostParams)
+
+  private var numberClasses = 0
 
   private def validateObjective(dataset: Dataset[_]): Unit = {
     // If the objective is set explicitly, it must be in binaryClassificationObjs and
@@ -58,35 +62,37 @@ class XGBoostClassifier(override val uid: String,
     }
 
     def inferNumClasses: Int = {
-      var numClasses = getNumClass
+      var num = getNumClass
       // Infer num class if num class is not set explicitly.
       // Note that user sets the num classes explicitly, we're not checking that.
-      if (numClasses == 0) {
-        numClasses = SparkUtils.getNumClasses(dataset, getLabelCol)
+      if (num == 0) {
+        num = SparkUtils.getNumClasses(dataset, getLabelCol)
       }
-      require(numClasses > 0)
-      numClasses
+      require(num > 0)
+      num
     }
 
     // objective is set explicitly.
     if (obj.isDefined) {
       if (multiClassificationObjs.contains(getObjective)) {
-        setNumClass(inferNumClasses)
+        numberClasses = inferNumClasses
+        setNumClass(numberClasses)
       } else {
+        numberClasses = 2
         // binary classification doesn't require num_class be set
         require(!isSet(numClass), "num_class is not allowed for binary classification")
       }
     } else {
       // infer the objective according to the num_class
-      val numClasses = inferNumClasses
-      if (numClasses <= 2) {
+      numberClasses = inferNumClasses
+      if (numberClasses <= 2) {
         setObjective("binary:logistic")
         logger.warn("Inferred for binary classification, set the objective to binary:logistic")
         require(!isSet(numClass), "num_class is not allowed for binary classification")
       } else {
         logger.warn("Inferred for multi classification, set the objective to multi:softprob")
         setObjective("multi:softprob")
-        setNumClass(numClasses)
+        setNumClass(numberClasses)
       }
     }
   }
@@ -101,7 +107,7 @@ class XGBoostClassifier(override val uid: String,
 
   override protected def createModel(booster: Booster, summary: XGBoostTrainingSummary):
   XGBoostClassificationModel = {
-    new XGBoostClassificationModel(uid, booster, Some(summary))
+    new XGBoostClassificationModel(uid, numberClasses, booster, Some(summary))
   }
 }
 
@@ -111,42 +117,16 @@ object XGBoostClassifier extends DefaultParamsReadable[XGBoostClassifier] {
   override def load(path: String): XGBoostClassifier = super.load(path)
 }
 
-// TODO add num classes
 class XGBoostClassificationModel(
-    uid: String,
-    model: Booster,
-    trainingSummary: Option[XGBoostTrainingSummary] = None
-)
-  extends XGBoostModel[XGBoostClassificationModel](uid, model, trainingSummary)
-    with ClassificationParams[XGBoostClassificationModel] {
+    val uid: String,
+    val numClasses: Int,
+    val nativeBooster: Booster,
+    val summary: Option[XGBoostTrainingSummary] = None
+) extends ProbabilisticClassificationModel[Vector, XGBoostClassificationModel]
+  with XGBoostModel[XGBoostClassificationModel]
+  with XGBProbabilisticClassifierParams[XGBoostClassificationModel] {
 
-  def this(uid: String) = this(uid, null)
-
-  // Copied from Spark
-  private def probability2prediction(probability: Vector): Double = {
-    if (!isDefined(thresholds)) {
-      probability.argmax
-    } else {
-      val thresholds = getThresholds
-      var argMax = 0
-      var max = Double.NegativeInfinity
-      var i = 0
-      val probabilitySize = probability.size
-      while (i < probabilitySize) {
-        // Thresholds are all > 0, excepting that at most one may be 0.
-        // The single class whose threshold is 0, if any, will always be predicted
-        // ('scaled' = +Infinity). However in the case that this class also has
-        // 0 probability, the class will not be selected ('scaled' is NaN).
-        val scaled = probability(i) / thresholds(i)
-        if (scaled > max) {
-          max = scaled
-          argMax = i
-        }
-        i += 1
-      }
-      argMax
-    }
-  }
+  def this(uid: String) = this(uid, 0, null)
 
   override def postTransform(dataset: Dataset[_]): Dataset[_] = {
     var output = dataset
@@ -173,9 +153,18 @@ class XGBoostClassificationModel(
   }
 
   override def copy(extra: ParamMap): XGBoostClassificationModel = {
-    val newModel = copyValues(new XGBoostClassificationModel(uid, model, trainingSummary), extra)
+    val newModel = copyValues(new XGBoostClassificationModel(uid, numClasses,
+      nativeBooster, summary), extra)
     newModel.setParent(parent)
   }
+
+  override protected def raw2probabilityInPlace(rawPrediction: Vector): Vector = {
+    throw new Exception("XGBoost-Spark does not support \'raw2probabilityInPlace\'")
+  }
+
+  override def predictRaw(features: Vector): Vector =
+    throw new Exception("XGBoost-Spark does not support \'predictRaw\'")
+
 }
 
 object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel] {
@@ -186,7 +175,9 @@ object XGBoostClassificationModel extends MLReadable[XGBoostClassificationModel]
     override def load(path: String): XGBoostClassificationModel = {
       val xgbModel = loadBooster(path)
       val meta = SparkUtils.loadMetadata(path, sc)
-      val model = new XGBoostClassificationModel(meta.uid, xgbModel)
+      implicit val format = DefaultFormats
+      val numClasses = (meta.params \ "numClass").extractOpt[Int].getOrElse(2)
+      val model = new XGBoostClassificationModel(meta.uid, numClasses, xgbModel)
       meta.getAndSetParams(model)
       model
     }

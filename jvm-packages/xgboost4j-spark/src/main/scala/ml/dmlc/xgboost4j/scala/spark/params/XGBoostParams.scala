@@ -197,17 +197,11 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   def setNumRound(value: Int): T = set(numRound, value).asInstanceOf[T]
 
-  def setFeaturesCol(value: String): T = set(featuresCol, value).asInstanceOf[T]
-
   def setFeaturesCol(value: Array[String]): T = set(featuresCols, value).asInstanceOf[T]
-
-  def setLabelCol(value: String): T = set(labelCol, value).asInstanceOf[T]
 
   def setBaseMarginCol(value: String): T = set(baseMarginCol, value).asInstanceOf[T]
 
   def setWeightCol(value: String): T = set(weightCol, value).asInstanceOf[T]
-
-  def setPredictionCol(value: String): T = set(predictionCol, value).asInstanceOf[T]
 
   def setLeafPredictionCol(value: String): T = set(leafPredictionCol, value).asInstanceOf[T]
 
@@ -238,34 +232,7 @@ private[spark] trait SchemaValidationTrait {
                                  fitting: Boolean): StructType = schema
 }
 
-/**
- * XGBoost classification spark-specific parameters which should not be passed
- * into the xgboost library
- *
- * @tparam T should be XGBoostClassifier or XGBoostClassificationModel
- */
-private[spark] trait ClassificationParams[T <: Params] extends SparkParams[T]
-  with HasRawPredictionCol with HasProbabilityCol with HasThresholds with NonXGBoostParams {
 
-  def setRawPredictionCol(value: String): T = set(rawPredictionCol, value).asInstanceOf[T]
-
-  def setProbabilityCol(value: String): T = set(probabilityCol, value).asInstanceOf[T]
-
-  def setThresholds(value: Array[Double]): T = set(thresholds, value).asInstanceOf[T]
-
-  /**
-   * XGBoost doesn't use validateAndTransformSchema.
-   */
-  override def validateAndTransformSchema(schema: StructType,
-                                          fitting: Boolean): StructType = {
-    var outputSchema = SparkUtils.appendColumn(schema, $(predictionCol), DoubleType)
-    outputSchema = SparkUtils.appendVectorUDTColumn(outputSchema, $(rawPredictionCol))
-    outputSchema = SparkUtils.appendVectorUDTColumn(outputSchema, $(probabilityCol))
-    outputSchema
-  }
-
-  addNonXGBoostParam(rawPredictionCol, probabilityCol, thresholds)
-}
 
 /**
  * XGBoost ranking spark-specific parameters
