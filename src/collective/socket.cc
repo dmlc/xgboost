@@ -26,6 +26,8 @@ SockAddress MakeSockAddress(StringView host, in_port_t port) {
   struct addrinfo *res = nullptr;
   int sig = getaddrinfo(host.c_str(), nullptr, &hints, &res);
   if (sig != 0) {
+    LOG(FATAL) << "Failed to get addr info for: " << host << ":" << port
+      << ", error: " << gai_strerror(sig);
     return {};
   }
   if (res->ai_family == static_cast<std::int32_t>(SockDomain::kV4)) {
@@ -44,7 +46,7 @@ SockAddress MakeSockAddress(StringView host, in_port_t port) {
     freeaddrinfo(res);
     return SockAddress{v};
   } else {
-    LOG(FATAL) << "Failed to get addr info for: " << host;
+    LOG(FATAL) << "Failed to get addr info for: " << host << ":" << port;
   }
 
   return SockAddress{};
