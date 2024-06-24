@@ -119,7 +119,7 @@ This section lists some new features that are general to all language bindings. 
 - Change default metric for gamma regression to ``deviance``. (#9757)
 - Normalization for learning to rank is now optional with the introduction of the new ``lambdarank_normalization`` parameter. (#10094)
 - Contribution prediction with ``QuantileDMatrix`` on CPU. (#10043)
-- XGBoost on macos no longer bundles OpenMP runtime. Users can install the latest runtime from their dependency manager of choice. (#10440). Along with which, JVM packages on MacoOS are not built with OpenMP support (#10449).
+- XGBoost on macos no longer bundles OpenMP runtime. Users can install the latest runtime from their dependency manager of choice. (#10440). Along with which, JVM packages on MacoOS are now built with OpenMP support (#10449).
 
 *********
 Bug fixes
