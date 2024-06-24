@@ -18,8 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
-import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.ml.linalg.{DenseVector, Vector}
+import org.apache.spark.ml.linalg.{DenseVector}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql.DataFrame
 import org.scalatest.funsuite.AnyFunSuite
@@ -106,7 +105,6 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     val classifier = new XGBoostClassifier().setNumRound(1)
     val model = classifier.fit(trainDf)
     var out = model.transform(trainDf)
-
     // Transform should not discard the other columns of the transforming dataframe
     Seq("label", "margin", "weight", "features").foreach { v =>
       assert(out.schema.names.contains(v))
@@ -196,20 +194,43 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     assert(classifier.getNumClass === 3)
   }
 
-  test("Binary classification") {
-
-  }
-
-  test("Multiclass classification") {
-
-  }
-
-  test("XGBoost-Spark XGBoostClassifier output should match XGBoost4j") {
+  test("XGBoost-Spark binary classification output should match XGBoost4j") {
     val trainingDM = new DMatrix(Classification.train.iterator)
     val testDM = new DMatrix(Classification.test.iterator)
     val trainingDF = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+    val paramMap = Map("objective" -> "binary:logistic")
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, 5, paramMap)
+  }
+
+  test("XGBoost-Spark binary classification output with weight should match XGBoost4j") {
+    val trainingDM = new DMatrix(Classification.trainWithWeight.iterator)
+    trainingDM.setWeight(Classification.randomWeights)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val trainingDF = buildDataFrame(Classification.trainWithWeight)
+    val testDF = buildDataFrame(Classification.test)
+    val paramMap = Map("objective" -> "binary:logistic")
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF,
+      5, paramMap, Some("weight"))
+  }
+
+  test("XGBoost-Spark multi classification output should match XGBoost4j") {
+    val trainingDM = new DMatrix(MultiClassification.train.iterator)
+    val testDM = new DMatrix(MultiClassification.test.iterator)
+    val trainingDF = buildDataFrame(MultiClassification.train)
+    val testDF = buildDataFrame(MultiClassification.test)
+    val paramMap = Map("objective" -> "multi:softprob", "num_class" -> 6)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, 5, paramMap)
+  }
+
+  test("XGBoost-Spark multi classification output with weight should match XGBoost4j") {
+    val trainingDM = new DMatrix(MultiClassification.trainWithWeight.iterator)
+    trainingDM.setWeight(MultiClassification.randomWeights)
+    val testDM = new DMatrix(MultiClassification.test.iterator)
+    val trainingDF = buildDataFrame(MultiClassification.trainWithWeight)
+    val testDF = buildDataFrame(MultiClassification.test)
+    val paramMap = Map("objective" -> "multi:softprob", "num_class" -> 6)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, 5, paramMap, Some("weight"))
   }
 
   private def checkResultsWithXGBoost4j(
@@ -217,129 +238,56 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
       testDM: DMatrix,
       trainingDF: DataFrame,
       testDF: DataFrame,
-      round: Int = 5): Unit = {
+      round: Int = 5,
+      xgbParams: Map[String, Any] = Map.empty,
+      weightCol: Option[String] = None): Unit = {
     val paramMap = Map(
       "eta" -> "1",
       "max_depth" -> "6",
       "base_score" -> 0.5,
-      "objective" -> "binary:logistic",
-      "max_bin" -> 16)
-    val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
-    val prediction1 = model1.predict(testDM)
+      "max_bin" -> 16) ++ xgbParams
+    val xgb4jModel = ScalaXGBoost.train(trainingDM, paramMap, round)
 
-    val model2 = new XGBoostClassifier(paramMap)
-      .setNumRound(round).setNumWorkers(numWorkers).fit(trainingDF)
+    val classifier = new XGBoostClassifier(paramMap)
+      .setNumRound(round)
+      .setNumWorkers(numWorkers)
+      .setLeafPredictionCol("leaf")
+      .setContribPredictionCol("contrib")
+    weightCol.foreach(weight => classifier.setWeightCol(weight))
 
-    val prediction2 = model2.transform(testDF).collect().map(row =>
-      (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
-
-    assert(testDF.count() === prediction2.size)
-    // the vector length in probability column is 2 since we have to fit to the evaluator in Spark
-    for (i <- prediction1.indices) {
-      assert(prediction1(i).length === prediction2(i).values.length - 1)
-      for (j <- prediction1(i).indices) {
-        assert(prediction1(i)(j) === prediction2(i)(j + 1))
+    def checkEqual(left: Array[Array[Float]], right: Map[Int, Array[Float]]) = {
+      assert(left.size === right.size)
+      left.zipWithIndex.foreach { case (leftValue, index) =>
+        assert(leftValue.sameElements(right(index)))
       }
     }
 
-    val prediction3 = model1.predict(testDM, outPutMargin = true)
-    val prediction4 = model2.transform(testDF).collect().map(row =>
-      (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction"))).toMap
+    val xgbSparkModel = classifier.fit(trainingDF)
+    val rows = xgbSparkModel.transform(testDF).collect()
 
-    assert(testDF.count() === prediction4.size)
-    // the vector length in rawPrediction column is 2 since we have to fit to the evaluator in Spark
-    for (i <- prediction3.indices) {
-      assert(prediction3(i).length === prediction4(i).values.length - 1)
-      for (j <- prediction3(i).indices) {
-        assert(prediction3(i)(j) === prediction4(i)(j + 1))
-      }
-    }
+    // Check Leaf
+    val xgb4jLeaf = xgb4jModel.predictLeaf(testDM)
+    val xgbSparkLeaf = rows.map(row =>
+      (row.getAs[Int]("id"), row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))).toMap
+    checkEqual(xgb4jLeaf, xgbSparkLeaf)
 
-  }
+    // Check contrib
+    val xgb4jContrib = xgb4jModel.predictContrib(testDM)
+    val xgbSparkContrib = rows.map(row =>
+      (row.getAs[Int]("id"), row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))).toMap
+    checkEqual(xgb4jContrib, xgbSparkContrib)
 
+    // Check probability
+    val xgb4jProb = xgb4jModel.predict(testDM)
+    val xgbSparkProb = rows.map(row =>
+      (row.getAs[Int]("id"), row.getAs[DenseVector]("probability").toArray.map(_.toFloat))).toMap
+    checkEqual(xgb4jProb, xgbSparkProb)
 
-  test("pipeline") {
-    val spark = ss
-    var df = spark.read.parquet("/home/bobwang/data/iris/parquet")
-
-    val conf = df.sparkSession.conf
-
-    val x = conf.get("spark.rapids.sql.enabled", "false")
-    println(x)
-
-
-  }
-
-  test("test NewXGBoostClassifierSuite") {
-    // Define the schema for the fake data
-
-    val spark = ss
-    //        val features = Array("feature1", "feature2", "feature3", "feature4")
-
-    //    val df = Seq(
-    //      (1.0, 0.0, 0.0, 0.0, 0.0, 30),
-    //      (2.0, 3.0, 4.0, 4.0, 0.0, 31),
-    //      (3.0, 4.0, 5.0, 5.0, 1.0, 32),
-    //      (4.0, 5.0, 6.0, 6.0, 1.0, 33),
-    //    ).toDF("feature1", "feature2", "feature3", "feature4", "label", "base_margin")
-
-    var df = spark.read.parquet("/home/bobwang/data/iris/parquet")
-
-    // Select the features and label columns
-    val labelCol = "class"
-
-    val features = df.schema.names.filter(_ != labelCol)
-
-    //    df = df.withColumn("base_margin", lit(20))
-    //      .withColumn("weight", rand(1))
-
-    // Assemble the feature columns into a single vector column
-    val assembler = new VectorAssembler()
-      .setInputCols(features)
-      .setOutputCol("features")
-    val dataset = assembler.transform(df)
-
-    var Array(trainDf, validationDf) = dataset.randomSplit(Array(0.8, 0.2), seed = 1)
-
-    //    trainDf = trainDf.withColumn("validation", lit(false))
-    //    validationDf = validationDf.withColumn("validationDf", lit(true))
-
-    //    df = trainDf.union(validationDf)
-
-    //    val arrayInput = df.select(array(features.map(col(_)): _*).as("features"),
-    //      col("label"), col("base_margin"))
-
-    val est = new XGBoostClassifier()
-      .setNumWorkers(1)
-      .setNumRound(2)
-      .setMaxDepth(3)
-      //      .setWeightCol("weight")
-      //      .setBaseMarginCol("base_margin")
-      .setLabelCol(labelCol)
-      .setEvalDataset(validationDf)
-      //      .setValidationIndicatorCol("validation")
-      //      .setPredictionCol("")
-      .setRawPredictionCol("")
-      .setProbabilityCol("xxxx")
-    //      .setContribPredictionCol("contrb")
-    //      .setLeafPredictionCol("leaf")
-    //    val est = new XGBoostClassifier().setLabelCol(labelCol)
-    //    est.fit(arrayInput)
-    est.write.overwrite().save("/tmp/abcdef")
-    val loadedEst = XGBoostClassifier.load("/tmp/abcdef")
-    println(loadedEst.getNumRound)
-    println(loadedEst.getMaxDepth)
-
-    val model = est.fit(dataset)
-    println("-----------------------")
-    println(model.getNumRound)
-    println(model.getMaxDepth)
-
-    model.write.overwrite().save("/tmp/model/")
-    val loadedModel = XGBoostClassificationModel.load("/tmp/model")
-    println(loadedModel.getNumRound)
-    println(loadedModel.getMaxDepth)
-    model.transform(dataset).drop(features: _*).show(150, false)
+    // Check rawPrediction
+    val xgb4jRawPred = xgb4jModel.predict(testDM, outPutMargin = true)
+    val xgbSparkRawPred = rows.map(row =>
+      (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction").toArray.map(_.toFloat))).toMap
+    checkEqual(xgb4jRawPred, xgbSparkRawPred)
   }
 
 }

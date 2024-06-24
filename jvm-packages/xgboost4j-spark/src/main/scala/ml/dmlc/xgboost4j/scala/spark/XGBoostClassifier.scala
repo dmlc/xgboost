@@ -18,6 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable
 
+import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader}
@@ -150,16 +151,24 @@ class XGBoostClassificationModel(
   override def postTransform(dataset: Dataset[_]): Dataset[_] = {
     var output = dataset
     // Always use probability col to get the prediction
-    if (isDefined(predictionCol) && getPredictionCol.nonEmpty) {
+    if (isDefinedNonEmpty(predictionCol)) {
       val predCol = udf { probability: mutable.WrappedArray[Float] =>
         probability2prediction(Vectors.dense(probability.map(_.toDouble).toArray))
       }
       output = output.withColumn(getPredictionCol, predCol(col(TMP_TRANSFORMED_COL)))
     }
 
-    if (isDefined(probabilityCol) && getProbabilityCol.nonEmpty) {
-      output = output.withColumnRenamed(TMP_TRANSFORMED_COL, getProbabilityCol)
+    if (isDefinedNonEmpty(probabilityCol)) {
+      output = output.withColumn(TMP_TRANSFORMED_COL,
+          array_to_vector(output.col(TMP_TRANSFORMED_COL)))
+        .withColumnRenamed(TMP_TRANSFORMED_COL, getProbabilityCol)
     }
+
+    if (isDefinedNonEmpty(rawPredictionCol)) {
+      output = output.withColumn(getRawPredictionCol,
+        array_to_vector(output.col(getRawPredictionCol)))
+    }
+
     output.drop(TMP_TRANSFORMED_COL)
   }
 

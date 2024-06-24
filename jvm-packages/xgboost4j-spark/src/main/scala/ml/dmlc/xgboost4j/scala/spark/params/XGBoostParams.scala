@@ -363,3 +363,10 @@ private[spark] trait XGBoostParams[T <: Params] extends TreeBoosterParams
 
   def setNthread(value: Int): T = set(nthread, value).asInstanceOf[T]
 }
+
+private[spark] trait ParamUtils[T <: Params] extends Params {
+
+  def isDefinedNonEmpty(param: Param[String]): Boolean = {
+    isDefined(param) && $(param).nonEmpty
+  }
+}

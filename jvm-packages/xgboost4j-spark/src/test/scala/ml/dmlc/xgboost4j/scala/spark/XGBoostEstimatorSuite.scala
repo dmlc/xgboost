@@ -427,4 +427,37 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(margins.toArray.sorted === Array(-0.5f, -0.5f, -0.4f, 0.5f).sorted)
   }
 
+  test("XGBoost-Spark model format should match xgboost4j ") {
+    val trainingDF = buildDataFrame(MultiClassification.train)
+
+    Seq(new XGBoostClassifier()).foreach { est =>
+      est.setNumRound(5)
+      val model = est.fit(trainingDF)
+
+      // test json
+      val modelPath = new File(tempDir.toFile, "xgbc").getPath
+      model.write.option("format", "json").save(modelPath)
+      val nativeJsonModelPath = new File(tempDir.toFile, "nativeModel.json").getPath
+      model.nativeBooster.saveModel(nativeJsonModelPath)
+      assert(compareTwoFiles(new File(modelPath, "data/model").getPath,
+        nativeJsonModelPath))
+
+      // test ubj
+      val modelUbjPath = new File(tempDir.toFile, "xgbcUbj").getPath
+      model.write.save(modelUbjPath)
+      val nativeUbjModelPath = new File(tempDir.toFile, "nativeModel.ubj").getPath
+      model.nativeBooster.saveModel(nativeUbjModelPath)
+      assert(compareTwoFiles(new File(modelUbjPath, "data/model").getPath,
+        nativeUbjModelPath))
+
+      // json file should be indifferent with ubj file
+      val modelJsonPath = new File(tempDir.toFile, "xgbcJson").getPath
+      model.write.option("format", "json").save(modelJsonPath)
+      val nativeUbjModelPath1 = new File(tempDir.toFile, "nativeModel1.ubj").getPath
+      model.nativeBooster.saveModel(nativeUbjModelPath1)
+      assert(!compareTwoFiles(new File(modelJsonPath, "data/model").getPath,
+        nativeUbjModelPath1))
+    }
+  }
+
 }

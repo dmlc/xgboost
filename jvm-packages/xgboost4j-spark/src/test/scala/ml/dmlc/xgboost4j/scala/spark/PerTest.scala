@@ -78,11 +78,11 @@ trait PerTest extends BeforeAndAfterEach {
     import Utils.XGBLabeledPointFeatures
     val it = labeledPoints.iterator.zipWithIndex
       .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
-        (id, labeledPoint.label, labeledPoint.features)
+        (id, labeledPoint.label, labeledPoint.features, labeledPoint.weight)
       }
 
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
-      .toDF("id", "label", "features")
+      .toDF("id", "label", "features", "weight")
   }
 
   protected def compareTwoFiles(lhs: String, rhs: String): Boolean = {

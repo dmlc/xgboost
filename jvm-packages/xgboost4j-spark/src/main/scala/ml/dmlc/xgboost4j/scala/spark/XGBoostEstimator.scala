@@ -25,6 +25,7 @@ import scala.jdk.CollectionConverters.iterableAsScalaIterableConverter
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
 import org.apache.spark.ml.{Estimator, Model}
+import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, MLWriter}
@@ -34,10 +35,11 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
 
+import ml.dmlc.xgboost4j.java.{Booster => JBooster}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.spark.Utils.MLVectorToXGBLabeledPoint
-import ml.dmlc.xgboost4j.scala.spark.params._
+import ml.dmlc.xgboost4j.scala.spark.params.{ParamUtils, _}
 
 
 /**
@@ -67,7 +69,7 @@ private[spark] trait NonParamVariables[T <: XGBoostEstimator[T, M], M <: XGBoost
 
 private[spark] abstract class XGBoostEstimator[
   Learner <: XGBoostEstimator[Learner, M], M <: XGBoostModel[M]] extends Estimator[M]
-  with XGBoostParams[Learner] with SparkParams[Learner]
+  with XGBoostParams[Learner] with SparkParams[Learner] with ParamUtils[Learner]
   with NonParamVariables[Learner, M] with ParamMapConversion with DefaultParamsWritable {
 
   protected val logger = LogFactory.getLog("XGBoostSpark")
@@ -142,7 +144,7 @@ private[spark] abstract class XGBoostEstimator[
 
     // function to get the column id according to the parameter
     def columnId(param: Param[String]): Option[Int] = {
-      if (isDefined(param) && $(param).nonEmpty) {
+      if (isDefinedNonEmpty(param)) {
         Some(schema.fieldIndex($(param)))
       } else {
         None
@@ -162,10 +164,6 @@ private[spark] abstract class XGBoostEstimator[
       columnId(weightCol),
       columnId(baseMarginCol),
       groupId)
-  }
-
-  private[spark] def isDefinedNonEmpty(param: Param[String]): Boolean = {
-    if (isDefined(param) && $(param).nonEmpty) true else false
   }
 
   /**
@@ -346,11 +344,11 @@ private[spark] abstract class XGBoostEstimator[
     validateSparkSslConf(dataset.sparkSession)
     val schema = dataset.schema
     SparkUtils.checkNumericType(schema, $(labelCol))
-    if (isDefined(weightCol) && $(weightCol).nonEmpty) {
+    if (isDefinedNonEmpty(weightCol)) {
       SparkUtils.checkNumericType(schema, $(weightCol))
     }
 
-    if (isDefined(baseMarginCol) && $(baseMarginCol).nonEmpty) {
+    if (isDefinedNonEmpty(baseMarginCol)) {
       SparkUtils.checkNumericType(schema, $(baseMarginCol))
     }
 
@@ -413,7 +411,7 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
     override val uid: String,
     private val model: Booster,
     private val trainingSummary: Option[XGBoostTrainingSummary]) extends Model[M] with MLWritable
-  with XGBoostParams[M] with SparkParams[M] {
+  with XGBoostParams[M] with SparkParams[M] with ParamUtils[M] {
 
   protected val TMP_TRANSFORMED_COL = "_tmp_xgb_transformed_col"
 
@@ -446,7 +444,7 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
 
     /** If the parameter is defined, add it to schema and turn true */
     def addToSchema(param: Param[String], colName: Option[String] = None): Boolean = {
-      if (isDefined(param) && $(param).nonEmpty) {
+      if (isDefinedNonEmpty(param)) {
         val name = colName.getOrElse($(param))
         schema = schema.add(StructField(name, ArrayType(FloatType)))
         true
@@ -467,7 +465,7 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
         hasRawPredictionCol = addToSchema(p.rawPredictionCol)
         hasTransformedCol = addToSchema(p.probabilityCol, Some(TMP_TRANSFORMED_COL))
 
-        if (isDefined(predictionCol) && getPredictionCol.nonEmpty) {
+        if (isDefinedNonEmpty(predictionCol)) {
           // Let's use transformed col to calculate the prediction
           if (!hasTransformedCol) {
             // Add the transformed col for predition
@@ -488,7 +486,7 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
     val bBooster = spark.sparkContext.broadcast(nativeBooster)
     val featureName = getFeaturesCol
 
-    val outputData = dataset.toDF().mapPartitions { rowIter =>
+    var output = dataset.toDF().mapPartitions { rowIter =>
 
       rowIter.grouped(inferBatchSize).flatMap { batchRow =>
         val features = batchRow.iterator.map(row => row.getAs[Vector](
@@ -524,7 +522,19 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
 
     }(Encoders.row(schema))
     bBooster.unpersist(blocking = false)
-    postTransform(outputData).toDF()
+
+    // Convert leaf/contrib to the vector from array
+    if (hasLeafPredictionCol) {
+      output = output.withColumn(getLeafPredictionCol,
+        array_to_vector(output.col(getLeafPredictionCol)))
+    }
+
+    if (hasContribPredictionCol) {
+      output = output.withColumn(getContribPredictionCol,
+        array_to_vector(output.col(getContribPredictionCol)))
+    }
+
+    postTransform(output).toDF()
   }
 
   override def write: MLWriter = new XGBoostModelWriter[XGBoostModel[_]](this)
@@ -536,6 +546,7 @@ private[spark] abstract class XGBoostModel[M <: XGBoostModel[M]](
  * @param instance model to be written
  */
 private[spark] class XGBoostModelWriter[M <: XGBoostModel[M]](instance: M) extends MLWriter {
+
   override protected def saveImpl(path: String): Unit = {
     SparkUtils.saveMetadata(instance, path, sc)
 
@@ -543,8 +554,9 @@ private[spark] class XGBoostModelWriter[M <: XGBoostModel[M]](instance: M) exten
     val dataPath = new Path(path, "data").toString
     val internalPath = new Path(dataPath, "model")
     val outputStream = internalPath.getFileSystem(sc.hadoopConfiguration).create(internalPath)
+    val format = optionMap.getOrElse("format", JBooster.DEFAULT_FORMAT)
     try {
-      instance.nativeBooster.saveModel(outputStream)
+      instance.nativeBooster.saveModel(outputStream, format)
     } finally {
       outputStream.close()
     }
