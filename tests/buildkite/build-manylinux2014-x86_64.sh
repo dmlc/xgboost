@@ -13,7 +13,7 @@ echo "--- Build binary wheel for ${WHEEL_TAG}"
 patch -p0 < tests/buildkite/manylinux2014_warning.patch
 $command_wrapper bash -c \
   "cd python-package && ${python_bin} -m pip wheel --no-deps -vvv . --wheel-dir dist/"
-git checkout .  # discard the patch
+git checkout python-package/xgboost/core.py  # discard the patch
 
 $command_wrapper auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
 $command_wrapper ${python_bin} tests/ci_build/rename_whl.py  \
