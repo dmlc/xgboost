@@ -22,11 +22,11 @@ namespace xgboost::collective {
 SockAddress MakeSockAddress(StringView host, in_port_t port) {
   struct addrinfo hints;
   std::memset(&hints, 0, sizeof(hints));
-  hints.ai_protocol = SOCK_STREAM;
+  hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
   int sig = getaddrinfo(host.c_str(), nullptr, &hints, &res);
   if (sig != 0) {
-    LOG(FATAL) << "Failed to get addr info for: " << host << ":" << port
+    LOG(FATAL) << "Failed to get addr info for: " << host
       << ", error: " << gai_strerror(sig);
     return {};
   }
@@ -46,7 +46,7 @@ SockAddress MakeSockAddress(StringView host, in_port_t port) {
     freeaddrinfo(res);
     return SockAddress{v};
   } else {
-    LOG(FATAL) << "Failed to get addr info for: " << host << ":" << port;
+    LOG(FATAL) << "Failed to get addr info for: " << host;
   }
 
   return SockAddress{};
