@@ -9,8 +9,12 @@ command_wrapper="tests/ci_build/ci_build.sh manylinux2014_aarch64"
 python_bin="/opt/python/cp310-cp310/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG}"
+# Patch to add warning about manylinux2014 variant
+patch -p0 < tests/buildkite/manylinux2014_warning.patch
 $command_wrapper bash -c \
   "cd python-package && ${python_bin} -m pip wheel --no-deps -vvv . --wheel-dir dist/"
+git checkout .  # discard the patch
+
 $command_wrapper auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
 $command_wrapper ${python_bin} tests/ci_build/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
