@@ -164,13 +164,30 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getCustomEval: EvalTrait = $(customEval)
 
+  /** Feature's name, it will be set to DMatrix and Booster, and in the final native json model.
+   * In native code, the parameter name is feature_name.
+   * */
+  final val featureNames = new StringArrayParam(this, "feature_names",
+    "an array of feature names")
+
+  final def getFeatureNames: Array[String] = $(featureNames)
+
+  /** Feature types, q is numeric and c is categorical.
+   * In native code, the parameter name is feature_type
+   * */
+  final val featureTypes = new StringArrayParam(this, "feature_types",
+    "an array of feature types")
+
+  final def getFeatureTypes: Array[String] = $(featureTypes)
+
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
-    featuresCols -> Array.empty, customObj -> null, customEval -> null)
+    featuresCols -> Array.empty, customObj -> null, customEval -> null,
+    featureNames -> Array.empty, featureTypes -> Array.empty)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
-    forceRepartition, missing, featuresCols, customEval, customObj)
+    forceRepartition, missing, featuresCols, customEval, customObj, featureTypes, featureNames)
 
   final def getNumWorkers: Int = $(numWorkers)
 
@@ -209,6 +226,10 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setRabitTrackerHostIp(value: String): T = set(rabitTrackerHostIp, value).asInstanceOf[T]
 
   def setRabitTrackerPort(value: Int): T = set(rabitTrackerPort, value).asInstanceOf[T]
+
+  def setFeatureNames(value: Array[String]): T = set(featureNames, value).asInstanceOf[T]
+
+  def setFeatureTypes(value: Array[String]): T = set(featureTypes, value).asInstanceOf[T]
 }
 
 private[spark] trait SchemaValidationTrait {

@@ -22,6 +22,8 @@ import java.util.Arrays
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.ml.linalg.Vectors
+import org.json4s.jackson.parseJson
+import org.json4s.{DefaultFormats, Formats}
 import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.scala.DMatrix
@@ -458,6 +460,27 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       assert(!compareTwoFiles(new File(modelJsonPath, "data/model").getPath,
         nativeUbjModelPath1))
     }
+  }
+
+  test("native json model file should store feature_name and feature_type") {
+    val featureNames = (1 to 33).map(idx => s"feature_${idx}").toArray
+    val featureTypes = (1 to 33).map(idx => "q").toArray
+    val trainingDF = buildDataFrame(MultiClassification.train)
+    val xgb = new XGBoostClassifier()
+      .setNumWorkers(numWorkers)
+      .setFeatureNames(featureNames)
+      .setFeatureTypes(featureTypes)
+      .setNumRound(2)
+    val model = xgb.fit(trainingDF)
+    val modelStr = new String(model.nativeBooster.toByteArray("json"))
+    val jsonModel = parseJson(modelStr)
+    implicit val formats: Formats = DefaultFormats
+    val featureNamesInModel = (jsonModel \ "learner" \ "feature_names").extract[List[String]]
+    val featureTypesInModel = (jsonModel \ "learner" \ "feature_types").extract[List[String]]
+    assert(featureNamesInModel.length == 33)
+    assert(featureTypesInModel.length == 33)
+    assert(featureNames sameElements featureNamesInModel)
+    assert(featureTypes sameElements featureTypesInModel)
   }
 
 }

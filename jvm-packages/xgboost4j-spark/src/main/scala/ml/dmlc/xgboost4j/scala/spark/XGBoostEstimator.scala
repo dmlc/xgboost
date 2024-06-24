@@ -260,11 +260,15 @@ private[spark] abstract class XGBoostEstimator[
   private[spark] def toRdd(dataset: Dataset[_], columnIndices: ColumnIndices): RDD[Watches] = {
     val trainRDD = toXGBLabeledPoint(dataset, columnIndices)
 
+    val x: Array[String] = Array.empty
+    val featureNames = if (getFeatureNames.isEmpty) None else Some(getFeatureNames)
+    val featureTypes = if (getFeatureTypes.isEmpty) None else Some(getFeatureTypes)
+
     // transform the labeledpoint to get margins and build DMatrix
     // TODO support basemargin for multiclassification
     // TODO, move it into JNI
     def buildDMatrix(iter: Iterator[XGBLabeledPoint]) = {
-      if (columnIndices.marginId.isDefined) {
+      val dmatrix = if (columnIndices.marginId.isDefined) {
         val trainMargins = new mutable.ArrayBuilder.ofFloat
         val transformedIter = iter.map { labeledPoint =>
           trainMargins += labeledPoint.baseMargin
@@ -276,6 +280,9 @@ private[spark] abstract class XGBoostEstimator[
       } else {
         new DMatrix(iter)
       }
+      featureTypes.foreach(dmatrix.setFeatureTypes)
+      featureNames.foreach(dmatrix.setFeatureNames)
+      dmatrix
     }
 
     getEvalDataset().map { eval =>
