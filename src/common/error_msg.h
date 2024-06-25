@@ -6,7 +6,7 @@
 #ifndef XGBOOST_COMMON_ERROR_MSG_H_
 #define XGBOOST_COMMON_ERROR_MSG_H_
 
-#include <cinttypes>  // for uint64_t
+#include <cstdint>    // for uint64_t
 #include <limits>     // for numeric_limits
 #include <string>     // for string
 
@@ -102,6 +102,12 @@ inline auto NoFederated() { return "XGBoost is not compiled with federated learn
 
 inline auto NoCategorical(std::string name) {
   return name + " doesn't support categorical features.";
+}
+
+inline void NoOnHost(bool on_host) {
+  if (on_host) {
+    LOG(FATAL) << "Caching on host memory is only available for GPU.";
+  }
 }
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

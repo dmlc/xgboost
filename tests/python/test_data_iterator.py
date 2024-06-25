@@ -73,7 +73,9 @@ def run_data_iterator(
     n_batches: int,
     tree_method: str,
     subsample: bool,
+    device: str,
     use_cupy: bool,
+    on_host: bool,
 ) -> None:
     n_rounds = 2
     # The test is more difficult to pass if the subsample rate is smaller as the root_sum
@@ -83,7 +85,8 @@ def run_data_iterator(
 
     it = IteratorForTest(
         *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy),
-        cache="cache"
+        cache="cache",
+        on_host=on_host,
     )
     if n_batches == 0:
         with pytest.raises(ValueError, match="1 batch"):
@@ -98,10 +101,11 @@ def run_data_iterator(
         "tree_method": tree_method,
         "max_depth": 2,
         "subsample": subsample_rate,
+        "device": device,
         "seed": 0,
     }
 
-    if tree_method == "gpu_hist":
+    if device.find("cuda") != -1:
         parameters["sampling_method"] = "gradient_based"
 
     results_from_it: Dict[str, Dict[str, List[float]]] = {}
@@ -167,10 +171,24 @@ def test_data_iterator(
     subsample: bool,
 ) -> None:
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "approx", subsample, False
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "approx",
+        subsample,
+        "cpu",
+        False,
+        False,
     )
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "hist", subsample, False
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "hist",
+        subsample,
+        "cpu",
+        False,
+        False,
     )
 
 
@@ -241,7 +259,7 @@ def test_cat_check() -> None:
         batches.append((X, y))
 
     X, y = list(zip(*batches))
-    it = tm.IteratorForTest(X, y, None, cache=None)
+    it = tm.IteratorForTest(X, y, None, cache=None, on_host=False)
     Xy: xgb.DMatrix = xgb.QuantileDMatrix(it, enable_categorical=True)
 
     with pytest.raises(ValueError, match="categorical features"):
@@ -254,7 +272,7 @@ def test_cat_check() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_path = os.path.join(tmpdir, "cache")
 
-        it = tm.IteratorForTest(X, y, None, cache=cache_path)
+        it = tm.IteratorForTest(X, y, None, cache=cache_path, on_host=False)
         Xy = xgb.DMatrix(it, enable_categorical=True)
         with pytest.raises(ValueError, match="categorical features"):
             xgb.train({"booster": "gblinear"}, Xy)

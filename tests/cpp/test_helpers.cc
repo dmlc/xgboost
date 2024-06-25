@@ -67,4 +67,30 @@ TEST(RandomDataGenerator, GenerateArrayInterfaceBatch) {
   CHECK_EQ(get<Integer>(j_array["shape"][0]), kRows);
   CHECK_EQ(get<Integer>(j_array["shape"][1]), kCols);
 }
+
+TEST(RandomDataGenerator, SparseDMatrix) {
+  bst_idx_t constexpr kCols{100}, kBatches{13};
+  bst_idx_t n_samples{kBatches * 128};
+  dmlc::TemporaryDirectory tmpdir;
+  auto prefix = tmpdir.path + "/cache";
+  auto p_ext_fmat =
+      RandomDataGenerator{n_samples, kCols, 0.0}.Batches(kBatches).GenerateSparsePageDMatrix(prefix,
+                                                                                             true);
+
+  auto p_fmat = RandomDataGenerator{n_samples, kCols, 0.0}.GenerateDMatrix(true);
+
+  SparsePage concat;
+  std::int32_t n_batches{0};
+  for (auto const& page : p_ext_fmat->GetBatches<SparsePage>()) {
+    concat.Push(page);
+    ++n_batches;
+  }
+  ASSERT_EQ(n_batches, kBatches);
+  ASSERT_EQ(concat.Size(), n_samples);
+
+  for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
+    ASSERT_EQ(page.data.ConstHostVector(), concat.data.ConstHostVector());
+    ASSERT_EQ(page.offset.ConstHostVector(), concat.offset.ConstHostVector());
+  }
+}
 }  // namespace xgboost

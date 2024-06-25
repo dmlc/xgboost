@@ -298,13 +298,14 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   auto missing = GetMissing(jconfig);
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
   auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", 0);
+  auto on_host = OptionalArg<Boolean, bool>(jconfig, "on_host", false);
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
   *out = new std::shared_ptr<xgboost::DMatrix>{
-      xgboost::DMatrix::Create(iter, proxy, reset, next, missing, n_threads, cache)};
+      xgboost::DMatrix::Create(iter, proxy, reset, next, missing, n_threads, cache, on_host)};
   API_END();
 }
 

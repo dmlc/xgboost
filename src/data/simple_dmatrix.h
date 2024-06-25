@@ -25,7 +25,7 @@ class SimpleDMatrix : public DMatrix {
                          DataSplitMode data_split_mode = DataSplitMode::kRow);
 
   explicit SimpleDMatrix(dmlc::Stream* in_stream);
-  ~SimpleDMatrix() override = default;
+  ~SimpleDMatrix() noexcept(false) override = default;
 
   void SaveToLocalFile(const std::string& fname);
 
