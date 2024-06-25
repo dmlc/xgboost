@@ -34,6 +34,27 @@ NCCL is now fetched from PyPI
 
 In the previous version, XGBoost statically linked NCCL, which significantly increased the binary size and led to hitting the PyPI repository limit. With the new release, we have made a significant improvement. The new release can now dynamically load NCCL from an external source, reducing the binary size. For the PyPI package, the ``nvidia-nccl-cu12`` package will be fetched during installation. With more downstream packages reusing NCCL, we expect the user environments to be slimmer in the future as well. (#9796, #9804, #10447)
 
+***************************************************
+Parts of the Python package now require glibc 2.28+
+***************************************************
+Starting from 2.1.0, XGBoost Python package will be distributed in two variants:
+
+* ``manylinux_2_28``: for recent Linux distros with glibc 2.28 or newer. This variant comes with all features enabled.
+* ``manylinux2014``: for old Linux distros with glibc older than 2.28. This variant does not support GPU algorithms or federated learning.
+
+The ``pip`` package manager will automatically choose the correct variant depending on your system.
+
+Starting from **May 31, 2025**, we will stop distributing the ``manylinux2014`` variant and exclusively
+distribute the ``manylinux_2_28`` variant. We made this decision so that our CI/CD pipeline won't have
+depend on software components that reached end-of-life (such as CentOS 7). We strongly encourage
+everyone to migrate to recent Linux distros in order to use future versions of XGBoost.
+
+Note. If you want to use GPU algorithms or federated learning on an older Linux distro, you have
+two alternatives:
+
+1. Upgrade to a recent Linux distro with glibc 2.28+.  OR
+2. Build XGBoost from the source.
+
 ************
 Multi-output
 ************
@@ -98,7 +119,7 @@ This section lists some new features that are general to all language bindings. 
 - Change default metric for gamma regression to ``deviance``. (#9757)
 - Normalization for learning to rank is now optional with the introduction of the new ``lambdarank_normalization`` parameter. (#10094)
 - Contribution prediction with ``QuantileDMatrix`` on CPU. (#10043)
-- XGBoost on macos no longer bundles OpenMP runtime. Users can install the latest runtime from their dependency manager of choice. (#10440). Along with which, JVM packages on MacoOS are not built with OpenMP support (#10449).
+- XGBoost on macos no longer bundles OpenMP runtime. Users can install the latest runtime from their dependency manager of choice. (#10440). Along with which, JVM packages on MacoOS are now built with OpenMP support (#10449).
 
 *********
 Bug fixes
