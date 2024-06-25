@@ -134,6 +134,7 @@ def main():
         print("====Creating directories to hold native binaries====")
         for os_ident, arch in [
             ("linux", "x86_64"),
+            ("linux", "aarch64"),
             ("windows", "x86_64"),
             ("macos", "x86_64"),
             ("macos", "aarch64"),
@@ -155,6 +156,10 @@ def main():
         retrieve(
             url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/xgboost4j_{commit_hash}.dll",
             filename="xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll",
+        )
+        retrieve(
+            url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_linux_arm64_{commit_hash}.so",
+            filename="xgboost4j/src/main/resources/lib/linux/aarch64/libxgboost4j.so",
         )
         retrieve(
             url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_{commit_hash}.dylib",
