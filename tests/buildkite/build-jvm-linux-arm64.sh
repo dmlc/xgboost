@@ -14,7 +14,7 @@ $command_wrapper bash -c \
   "cd build && cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && ninja -v"
 ldd lib/libxgboost4j.so
 
-echo "--- Upload libxgboost4j.dylib"
+echo "--- Upload libxgboost4j.so"
 pushd lib
 libname=libxgboost4j_linux_arm64_${BUILDKITE_COMMIT}.so
 mv -v libxgboost4j.so ${libname}
