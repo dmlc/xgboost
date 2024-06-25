@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.Serializable
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{DataFrame, Dataset}
 
 trait XGBoostPlugin extends Serializable {
   /**
@@ -40,5 +40,8 @@ trait XGBoostPlugin extends Serializable {
   def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
       dataset: Dataset[_]): RDD[Watches]
+
+
+  def transform[M <: XGBoostModel[M]](model: XGBoostModel[M], dataset: Dataset[_]): DataFrame
 
 }

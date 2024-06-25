@@ -67,13 +67,7 @@ private[spark] trait NonParamVariables[T <: XGBoostEstimator[T, M], M <: XGBoost
   }
 }
 
-private[spark] trait XGBoostEstimator[
-  Learner <: XGBoostEstimator[Learner, M], M <: XGBoostModel[M]] extends Estimator[M]
-  with XGBoostParams[Learner] with SparkParams[Learner] with ParamUtils[Learner]
-  with NonParamVariables[Learner, M] with ParamMapConversion with DefaultParamsWritable {
-
-  protected val logger = LogFactory.getLog("XGBoostSpark")
-
+private[spark] trait PluginMixin {
   // Find the XGBoostPlugin by ServiceLoader
   private val plugin: Option[XGBoostPlugin] = {
     val classLoader = Option(Thread.currentThread().getContextClassLoader)
@@ -92,11 +86,20 @@ private[spark] trait XGBoostEstimator[
   }
 
   /** Visiable for testing */
-  private[spark] def getPlugin: Option[XGBoostPlugin] = plugin
+  protected[spark] def getPlugin: Option[XGBoostPlugin] = plugin
 
-  private def isPluginEnabled(dataset: Dataset[_]): Boolean = {
+  protected def isPluginEnabled(dataset: Dataset[_]): Boolean = {
     plugin.map(_.isEnabled(dataset)).getOrElse(false)
   }
+}
+
+private[spark] trait XGBoostEstimator[
+  Learner <: XGBoostEstimator[Learner, M], M <: XGBoostModel[M]] extends Estimator[M]
+  with XGBoostParams[Learner] with SparkParams[Learner] with ParamUtils[Learner]
+  with NonParamVariables[Learner, M] with ParamMapConversion with DefaultParamsWritable
+  with PluginMixin {
+
+  protected val logger = LogFactory.getLog("XGBoostSpark")
 
   /**
    * Pre-convert input double data to floats to align with XGBoost's internal float-based
@@ -383,7 +386,7 @@ private[spark] trait XGBoostEstimator[
     validate(dataset)
 
     val rdd = if (isPluginEnabled(dataset)) {
-      plugin.get.buildRddWatches(this, dataset)
+      getPlugin.get.buildRddWatches(this, dataset)
     } else {
       val (input, columnIndexes) = preprocess(dataset)
       toRdd(input, columnIndexes)
@@ -407,6 +410,13 @@ private[spark] trait XGBoostEstimator[
   }
 }
 
+/** Indicate what to be predicted */
+private[spark] case class PredictedColumns(
+    predLeaf: Boolean,
+    predContrib: Boolean,
+    predRaw: Boolean,
+    predTmp: Boolean)
+
 /**
  * XGBoost base model
  *
@@ -416,7 +426,7 @@ private[spark] trait XGBoostEstimator[
  * @tparam the exact model which must extend from XGBoostModel
  */
 private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with MLWritable
-  with XGBoostParams[M] with SparkParams[M] with ParamUtils[M] {
+  with XGBoostParams[M] with SparkParams[M] with ParamUtils[M] with PluginMixin {
 
   protected val TMP_TRANSFORMED_COL = "_tmp_xgb_transformed_col"
 
@@ -436,12 +446,27 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     validateAndTransformSchema(schema, false)
   }
 
-  def postTransform(dataset: Dataset[_]): Dataset[_] = dataset
+  protected[spark] def postTransform(dataset: Dataset[_], pred: PredictedColumns): Dataset[_] = {
+    var output = dataset
+    // Convert leaf/contrib to the vector from array
+    if (pred.predLeaf) {
+      output = output.withColumn(getLeafPredictionCol,
+        array_to_vector(output.col(getLeafPredictionCol)))
+    }
 
-  override def transform(dataset: Dataset[_]): DataFrame = {
+    if (pred.predContrib) {
+      output = output.withColumn(getContribPredictionCol,
+        array_to_vector(output.col(getContribPredictionCol)))
+    }
+    output
+  }
 
-    val spark = dataset.sparkSession
-
+  /**
+   * Preprocess the schema before transforming.
+   *
+   * @return the transformed schema and the
+   */
+  private[spark] def preprocess(dataset: Dataset[_]): (StructType, PredictedColumns) = {
     // Be careful about the order of columns
     var schema = dataset.schema
 
@@ -456,68 +481,77 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
       }
     }
 
-    val hasLeafPredictionCol = addToSchema(leafPredictionCol)
-    val hasContribPredictionCol = addToSchema(contribPredictionCol)
+    val predLeaf = addToSchema(leafPredictionCol)
+    val predContrib = addToSchema(contribPredictionCol)
 
-    var hasRawPredictionCol = false
+    var predRaw = false
     // For classification case, the tranformed col is probability,
     // while for others, it's the prediction value.
-    var hasTransformedCol = false
+    var predTmp = false
     this match {
       case p: XGBProbabilisticClassifierParams[_] => // classification case
-        hasRawPredictionCol = addToSchema(p.rawPredictionCol)
-        hasTransformedCol = addToSchema(p.probabilityCol, Some(TMP_TRANSFORMED_COL))
+        predRaw = addToSchema(p.rawPredictionCol)
+        predTmp = addToSchema(p.probabilityCol, Some(TMP_TRANSFORMED_COL))
 
         if (isDefinedNonEmpty(predictionCol)) {
           // Let's use transformed col to calculate the prediction
-          if (!hasTransformedCol) {
+          if (!predTmp) {
             // Add the transformed col for predition
             schema = schema.add(
               StructField(TMP_TRANSFORMED_COL, ArrayType(FloatType)))
-            hasTransformedCol = true
+            predTmp = true
           }
         }
       case _ =>
         // Rename TMP_TRANSFORMED_COL to prediction in the postTransform.
-        hasTransformedCol = addToSchema(predictionCol, Some(TMP_TRANSFORMED_COL))
+        predTmp = addToSchema(predictionCol, Some(TMP_TRANSFORMED_COL))
+    }
+    (schema, PredictedColumns(predLeaf, predContrib, predRaw, predTmp))
+  }
 
+  /** Predict */
+  private[spark] def predictInternal(booster: Booster, dm: DMatrix, pred: PredictedColumns,
+                                     batchRow: Iterator[Row]): Seq[Row] = {
+    var tmpOut = batchRow.toSeq.map(_.toSeq)
+    val zip = (left: Seq[Seq[_]], right: Array[Array[Float]]) => left.zip(right).map {
+      case (a, b) => a ++ Seq(b)
+    }
+    if (pred.predLeaf) {
+      tmpOut = zip(tmpOut, booster.predictLeaf(dm))
+    }
+    if (pred.predContrib) {
+      tmpOut = zip(tmpOut, booster.predictContrib(dm))
+    }
+    if (pred.predRaw) {
+      tmpOut = zip(tmpOut, booster.predict(dm, outPutMargin = true))
+    }
+    if (pred.predTmp) {
+      tmpOut = zip(tmpOut, booster.predict(dm, outPutMargin = false))
+    }
+    tmpOut.map(Row.fromSeq)
+  }
+
+  override def transform(dataset: Dataset[_]): DataFrame = {
+
+    if (getPlugin.isDefined) {
+      return getPlugin.get.transform(this, dataset)
     }
 
+    val (schema, pred) = preprocess(dataset)
+    val bBooster = dataset.sparkSession.sparkContext.broadcast(nativeBooster)
     // TODO configurable
     val inferBatchSize = 32 << 10
     // Broadcast the booster to each executor.
-    val bBooster = spark.sparkContext.broadcast(nativeBooster)
     val featureName = getFeaturesCol
 
-    var output = dataset.toDF().mapPartitions { rowIter =>
-
+    val output = dataset.toDF().mapPartitions { rowIter =>
       rowIter.grouped(inferBatchSize).flatMap { batchRow =>
         val features = batchRow.iterator.map(row => row.getAs[Vector](
           row.fieldIndex(featureName)))
-
         // DMatrix used to prediction
         val dm = new DMatrix(features.map(_.asXGB))
-
         try {
-          var tmpOut = batchRow.map(_.toSeq)
-
-          val zip = (left: Seq[Seq[_]], right: Array[Array[Float]]) => left.zip(right).map {
-            case (a, b) => a ++ Seq(b)
-          }
-
-          if (hasLeafPredictionCol) {
-            tmpOut = zip(tmpOut, bBooster.value.predictLeaf(dm))
-          }
-          if (hasContribPredictionCol) {
-            tmpOut = zip(tmpOut, bBooster.value.predictContrib(dm))
-          }
-          if (hasRawPredictionCol) {
-            tmpOut = zip(tmpOut, bBooster.value.predict(dm, outPutMargin = true))
-          }
-          if (hasTransformedCol) {
-            tmpOut = zip(tmpOut, bBooster.value.predict(dm, outPutMargin = false))
-          }
-          tmpOut.map(Row.fromSeq)
+          predictInternal(bBooster.value, dm, pred, batchRow.toIterator)
         } finally {
           dm.delete()
         }
@@ -525,19 +559,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
 
     }(Encoders.row(schema))
     bBooster.unpersist(blocking = false)
-
-    // Convert leaf/contrib to the vector from array
-    if (hasLeafPredictionCol) {
-      output = output.withColumn(getLeafPredictionCol,
-        array_to_vector(output.col(getLeafPredictionCol)))
-    }
-
-    if (hasContribPredictionCol) {
-      output = output.withColumn(getContribPredictionCol,
-        array_to_vector(output.col(getContribPredictionCol)))
-    }
-
-    postTransform(output).toDF()
+    postTransform(output, pred).toDF()
   }
 
   override def write: MLWriter = new XGBoostModelWriter[XGBoostModel[_]](this)

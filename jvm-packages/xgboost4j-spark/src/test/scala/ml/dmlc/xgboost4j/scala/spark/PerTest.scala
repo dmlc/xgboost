@@ -108,7 +108,7 @@ trait PerTest extends BeforeAndAfterEach {
     (0.0, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
     (1.0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
     (0.0, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
-    (1.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7)),
+    (1.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
   ))).toDF("label", "margin", "weight", "features")
 
   def smallMultiClassificationVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
@@ -117,7 +117,7 @@ trait PerTest extends BeforeAndAfterEach {
     (2.0, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
     (1.0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
     (0.0, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
-    (2.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7)),
+    (2.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
   ))).toDF("label", "margin", "weight", "features")
 
 
@@ -127,7 +127,7 @@ trait PerTest extends BeforeAndAfterEach {
     (2.0, 1, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
     (1.0, 0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
     (0.0, 2, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
-    (2.0, 2, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7)),
+    (2.0, 2, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
   ))).toDF("label", "group", "margin", "weight", "features")
 
 }

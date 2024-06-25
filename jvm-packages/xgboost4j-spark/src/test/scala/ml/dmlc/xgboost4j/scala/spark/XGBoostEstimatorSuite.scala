@@ -22,8 +22,8 @@ import java.util.Arrays
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.ml.linalg.Vectors
-import org.json4s.jackson.parseJson
 import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.parseJson
 import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.scala.DMatrix
@@ -145,7 +145,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     val dataset = ss.createDataFrame(sc.parallelize(Seq(
       (1.0, 0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0), "a"),
       (0.0, 2, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0), "b"),
-      (2.0, 2, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7), "c"),
+      (2.0, 2, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7), "c")
     ))).toDF("label", "group", "margin", "weight", "features", "other")
 
     val classifier = new XGBoostClassifier()
@@ -187,7 +187,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       (1.0, 0, 0.5, 1.0, Vectors.dense(data(0)), "a"),
       (2.0, 2, -0.5, 0.0, Vectors.dense(data(1)).toSparse, "b"),
       (3.0, 2, -0.5, 0.0, Vectors.dense(data(2)), "b"),
-      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c"),
+      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c")
     ))).toDF("label", "group", "margin", "weight", "features", "other")
 
     val classifier = new XGBoostClassifier()
@@ -224,7 +224,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       (1.0, 0, 0.5, 1.0, Vectors.dense(data(0)), "a"),
       (2.0, 2, -0.5, 0.0, Vectors.dense(data(1)).toSparse, "b"),
       (3.0, 2, -0.5, 0.0, Vectors.dense(data(2)), "b"),
-      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c"),
+      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c")
     ))).toDF("label", "group", "margin", "weight", "features", "other")
 
     val classifier = new XGBoostClassifier()
@@ -260,7 +260,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       (1.0, 0, 0.5, 1.0, Vectors.dense(data(0)), "a"),
       (2.0, 2, -0.5, 0.0, Vectors.dense(data(1)).toSparse, "b"),
       (3.0, 2, -0.5, 0.0, Vectors.dense(data(2)), "b"),
-      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c"),
+      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c")
     ))).toDF("label", "group", "margin", "weight", "features", "other")
 
     val classifier = new XGBoostClassifier()
@@ -300,7 +300,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       (1.0, 0, 0.5, 1.0, Vectors.dense(data(0)), "a"),
       (2.0, 2, -0.5, 0.0, Vectors.dense(data(1)).toSparse, "b"),
       (3.0, 2, -0.5, 0.0, Vectors.dense(data(2)), "b"),
-      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c"),
+      (4.0, 2, -0.4, -2.1, Vectors.dense(data(3)), "c")
     ))).toDF("label", "group", "margin", "weight", "features", "other")
 
     val classifier = new XGBoostClassifier()
@@ -357,7 +357,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       (11.0, 0, 0.15, 11.0, Vectors.dense(trainData(0)), "a"),
       (12.0, 12, -0.15, 10.0, Vectors.dense(trainData(1)).toSparse, "b"),
       (13.0, 12, -0.15, 10.0, Vectors.dense(trainData(2)), "b"),
-      (14.0, 12, -0.14, -12.1, Vectors.dense(trainData(3)), "c"),
+      (14.0, 12, -0.14, -12.1, Vectors.dense(trainData(3)), "c")
     ))).toDF("label", "group", "margin", "weight", "features", "other")
     val evalData = Array(
       Array(1.0, 2.0, 3.0, 4.0, 5.0),
@@ -369,7 +369,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       (1.0, 0, 0.5, 1.0, Vectors.dense(evalData(0)), "a"),
       (2.0, 2, -0.5, 0.0, Vectors.dense(evalData(1)).toSparse, "b"),
       (3.0, 2, -0.5, 0.0, Vectors.dense(evalData(2)), "b"),
-      (4.0, 2, -0.4, -2.1, Vectors.dense(evalData(3)), "c"),
+      (4.0, 2, -0.4, -2.1, Vectors.dense(evalData(3)), "c")
     ))).toDF("label", "group", "margin", "weight", "features", "other")
 
     val classifier = new XGBoostClassifier()

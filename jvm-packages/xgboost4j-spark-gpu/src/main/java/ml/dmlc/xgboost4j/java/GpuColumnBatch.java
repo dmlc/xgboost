@@ -43,15 +43,15 @@ public class GpuColumnBatch implements AutoCloseable {
     }
   }
 
-  public Table slice(int index) {
+  public Table select(int index) {
     if (index < 0) {
       return null;
     }
-    return slice(Arrays.asList(index));
+    return select(Arrays.asList(index));
   }
 
   /** Slice the columns indicated by indices into a Table*/
-  public Table slice(List<Integer> indices) {
+  public Table select(List<Integer> indices) {
     if (indices == null || indices.size() == 0) {
       return null;
     }

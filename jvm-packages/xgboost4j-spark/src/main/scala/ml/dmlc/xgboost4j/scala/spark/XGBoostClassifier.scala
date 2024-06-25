@@ -24,7 +24,7 @@ import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader}
 import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
-import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.{DataFrame, Dataset}
 import org.apache.spark.sql.functions.{col, udf}
 import org.json4s.DefaultFormats
 
@@ -128,23 +128,24 @@ class XGBoostClassificationModel(
 
   def this(uid: String) = this(uid, 0, null)
 
-  override def postTransform(dataset: Dataset[_]): Dataset[_] = {
-    var output = dataset
+  override protected[spark] def postTransform(dataset: Dataset[_],
+                                              pred: PredictedColumns): Dataset[_] = {
+    var output = super.postTransform(dataset, pred)
     // Always use probability col to get the prediction
-    if (isDefinedNonEmpty(predictionCol)) {
+    if (isDefinedNonEmpty(predictionCol) && pred.predTmp) {
       val predCol = udf { probability: mutable.WrappedArray[Float] =>
         probability2prediction(Vectors.dense(probability.map(_.toDouble).toArray))
       }
       output = output.withColumn(getPredictionCol, predCol(col(TMP_TRANSFORMED_COL)))
     }
 
-    if (isDefinedNonEmpty(probabilityCol)) {
+    if (isDefinedNonEmpty(probabilityCol) && pred.predTmp) {
       output = output.withColumn(TMP_TRANSFORMED_COL,
           array_to_vector(output.col(TMP_TRANSFORMED_COL)))
         .withColumnRenamed(TMP_TRANSFORMED_COL, getProbabilityCol)
     }
 
-    if (isDefinedNonEmpty(rawPredictionCol)) {
+    if (pred.predRaw) {
       output = output.withColumn(getRawPredictionCol,
         array_to_vector(output.col(getRawPredictionCol)))
     }

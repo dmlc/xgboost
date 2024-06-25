@@ -1,13 +1,32 @@
+/*
+ Copyright (c) 2024 by Contributors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+ */
+
 package ml.dmlc.xgboost4j.scala.spark
+
+import java.io.File
 
 import scala.collection.mutable.ArrayBuffer
 
+import ai.rapids.cudf.{CSVOptions, DType, Schema, Table}
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.types.{FloatType, StructField, StructType}
 
 import ml.dmlc.xgboost4j.scala.rapids.spark.GpuTestSuite
 
 class GpuXGBoostPluginSuite extends GpuTestSuite {
-
 
   test("isEnabled") {
     def checkIsEnabled(spark: SparkSession, expected: Boolean): Unit = {
@@ -37,7 +56,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         (2.0f, 3.0f, 2.0f, 3.0f, 1.0f, 0.1f),
         (3.0f, 4.0f, 5.0f, 6.0f, 0.0f, 0.1f),
         (4.0f, 5.0f, 6.0f, 7.0f, 0.0f, 0.1f),
-        (5.0f, 6.0f, 7.0f, 8.0f, 0.0f, 0.1f),
+        (5.0f, 6.0f, 7.0f, 8.0f, 0.0f, 0.1f)
       ).toDF("c1", "c2", "weight", "margin", "label", "other")
       val classifier = new XGBoostClassifier()
 
@@ -64,7 +83,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         (2.0f, 3.0f, 2.0f, 3.0f, 1.0f, 0.1f),
         (3.0f, 4.0f, 5.0f, 6.0f, 0.0f, 0.1f),
         (4.0f, 5.0f, 6.0f, 7.0f, 0.0f, 0.1f),
-        (5.0f, 6.0f, 7.0f, 8.0f, 0.0f, 0.1f),
+        (5.0f, 6.0f, 7.0f, 8.0f, 0.0f, 0.1f)
       ).toDF("c1", "c2", "weight", "margin", "label", "other")
         .repartition(5)
 
@@ -114,7 +133,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
             (2.0f, 3.0f, 2.0f, 3.0f, 1.0f, 0.1f),
             (3.0f, data, 5.0f, 6.0f, 0.0f, 0.1f),
             (4.0f, 5.0f, 6.0f, 7.0f, 0.0f, 0.1f),
-            (5.0f, 6.0f, 7.0f, 8.0f, 1.0f, 0.1f),
+            (5.0f, 6.0f, 7.0f, 8.0f, 1.0f, 0.1f)
           ).toDF("c1", "c2", "weight", "margin", "label", "other")
 
           val features = Array("c1", "c2")
@@ -168,7 +187,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
 
       val train = Seq(
         (1.0f, 2.0f, 1.0f, 2.0f, 0.0f, 0.0f),
-        (2.0f, 3.0f, 2.0f, 3.0f, 1.0f, 0.1f),
+        (2.0f, 3.0f, 2.0f, 3.0f, 1.0f, 0.1f)
       ).toDF("c1", "c2", "weight", "margin", "label", "other")
 
       // dataPoint -> (missing, rowNum, nonMissing)
@@ -179,7 +198,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
             (2.0f, 3.0f, 2.0f, 3.0f, 1.0f, 0.1f),
             (3.0f, data, 5.0f, 6.0f, 0.0f, 0.1f),
             (4.0f, 5.0f, 6.0f, 7.0f, 0.0f, 0.1f),
-            (5.0f, 6.0f, 7.0f, 8.0f, 1.0f, 0.1f),
+            (5.0f, 6.0f, 7.0f, 8.0f, 1.0f, 0.1f)
           ).toDF("c1", "c2", "weight", "margin", "label", "other")
 
           val features = Array("c1", "c2")
@@ -224,6 +243,21 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
           //          assert(rowNumber.sum === expectedRowNum)
           assert(nonMissing.sum === expectedNonMissing)
       }
+    }
+  }
+
+
+  test("XGBoost-Spark should match xgboost4j") {
+    withGpuSparkSession() { spark =>
+
+      val cols = Array("c0", "c1", "c2", "c3", "c4", "c5")
+      val label = "label"
+
+      val table = Table.readParquet(new File(getResourcePath("/binary.train.parquet")))
+      val df = spark.read.parquet(getResourcePath("/binary.train.parquet"))
+
+
+      df.show()
     }
   }
 }

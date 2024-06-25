@@ -16,7 +16,6 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import org.apache.spark.sql.functions.lit
 import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.scala.rapids.spark.GpuTestSuite
@@ -41,53 +40,55 @@ class XXXXXSuite extends AnyFunSuite with GpuTestSuite {
 
       var Array(trainDf, validationDf) = df.randomSplit(Array(0.8, 0.2), seed = 1)
 
-//      trainDf = trainDf.withColumn("validation", lit(false))
-//      validationDf = validationDf.withColumn("validationDf", lit(true))
+      //      trainDf = trainDf.withColumn("validation", lit(false))
+      //      validationDf = validationDf.withColumn("validationDf", lit(true))
 
-//      df = trainDf.union(validationDf)
-//
-//      // Assemble the feature columns into a single vector column
-//      val assembler = new VectorAssembler()
-//        .setInputCols(features)
-//        .setOutputCol("features")
-//      val dataset = assembler.transform(df)
+      //      df = trainDf.union(validationDf)
+      //
+      //      // Assemble the feature columns into a single vector column
+      //      val assembler = new VectorAssembler()
+      //        .setInputCols(features)
+      //        .setOutputCol("features")
+      //      val dataset = assembler.transform(df)
 
       //    val arrayInput = df.select(array(features.map(col(_)): _*).as("features"),
       //      col("label"), col("base_margin"))
 
       val est = new XGBoostClassifier()
         .setNumWorkers(1)
-        .setNumRound(2)
-        .setMaxDepth(3)
+        .setNumRound(100)
+        //        .setMaxDepth(3)
         //      .setWeightCol("weight")
         //      .setBaseMarginCol("base_margin")
         .setFeaturesCol(features)
         .setLabelCol(labelCol)
+        .setLeafPredictionCol("leaf")
+        .setContribPredictionCol("contrib")
         .setDevice("cuda")
-        .setEvalDataset(validationDf)
-//        .setValidationIndicatorCol("validation")
-        //      .setPredictionCol("")
-        .setRawPredictionCol("")
-        .setProbabilityCol("xxxx")
+      //        .setEvalDataset(validationDf)
+      //        .setValidationIndicatorCol("validation")
+      //      .setPredictionCol("")
+      //        .setRawPredictionCol("")
+      //        .setProbabilityCol("xxxx")
       //      .setContribPredictionCol("contrb")
       //      .setLeafPredictionCol("leaf")
       //    val est = new XGBoostClassifier().setLabelCol(labelCol)
       //    est.fit(arrayInput)
-      est.write.overwrite().save("/tmp/abcdef")
-      val loadedEst = XGBoostClassifier.load("/tmp/abcdef")
-      println(loadedEst.getNumRound)
-      println(loadedEst.getMaxDepth)
+      //      est.write.overwrite().save("/tmp/abcdef")
+      //      val loadedEst = XGBoostClassifier.load("/tmp/abcdef")
+      //      println(loadedEst.getNumRound)
+      //      println(loadedEst.getMaxDepth)
 
       val model = est.fit(trainDf)
-      println("-----------------------")
-      println(model.getNumRound)
-      println(model.getMaxDepth)
 
-//      model.write.overwrite().save("/tmp/model/")
-//      val loadedModel = XGBoostClassificationModel.load("/tmp/model")
-//      println(loadedModel.getNumRound)
-//      println(loadedModel.getMaxDepth)
-//      model.transform(df).drop(features: _*).show(150, false)
+      val out = model.transform(df)
+      out.printSchema()
+      out.show(150, false)
+      //      model.write.overwrite().save("/tmp/model/")
+      //      val loadedModel = XGBoostClassificationModel.load("/tmp/model")
+      //      println(loadedModel.getNumRound)
+      //      println(loadedModel.getMaxDepth)
+      //      model.transform(df).drop(features: _*).show(150, false)
     }
 
   }

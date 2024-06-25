@@ -17,16 +17,22 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable.ArrayBuffer
-import scala.jdk.CollectionConverters.seqAsJavaListConverter
+import scala.jdk.CollectionConverters.{asScalaIteratorConverter, seqAsJavaListConverter}
 
 import ai.rapids.cudf.Table
-import com.nvidia.spark.rapids.ColumnarRdd
+import com.nvidia.spark.rapids.{ColumnarRdd, GpuColumnVectorUtils}
+import org.apache.commons.logging.LogFactory
+import org.apache.spark.TaskContext
+import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.param.Param
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Column, Dataset}
+import org.apache.spark.sql.{Column, DataFrame, Dataset, Row}
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
+import org.apache.spark.sql.vectorized.ColumnarBatch
 
 import ml.dmlc.xgboost4j.java.{CudfColumnBatch, GpuColumnBatch}
-import ml.dmlc.xgboost4j.scala.QuantileDMatrix
+import ml.dmlc.xgboost4j.scala.{DMatrix, QuantileDMatrix}
 import ml.dmlc.xgboost4j.scala.spark.params.HasGroupCol
 
 /**
@@ -34,6 +40,8 @@ import ml.dmlc.xgboost4j.scala.spark.params.HasGroupCol
  * to accelerate the XGBoost from ETL to train.
  */
 class GpuXGBoostPlugin extends XGBoostPlugin {
+
+  private val logger = LogFactory.getLog("XGBoostSparkGpuPlugin")
 
   /**
    * Whether the plugin is enabled or not, if not enabled, fallback
@@ -115,10 +123,10 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       val colBatchIter = iter.map { table =>
         withResource(new GpuColumnBatch(table, null)) { batch =>
           new CudfColumnBatch(
-            batch.slice(indices.featureIds.get.map(Integer.valueOf).asJava),
-            batch.slice(indices.labelId),
-            batch.slice(indices.weightId.getOrElse(-1)),
-            batch.slice(indices.marginId.getOrElse(-1)));
+            batch.select(indices.featureIds.get.map(Integer.valueOf).asJava),
+            batch.select(indices.labelId),
+            batch.select(indices.weightId.getOrElse(-1)),
+            batch.select(indices.marginId.getOrElse(-1)));
         }
       }
       new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
@@ -150,4 +158,124 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     }
   }
 
+
+  override def transform[M <: XGBoostModel[M]](model: XGBoostModel[M],
+                                               dataset: Dataset[_]): DataFrame = {
+    val sc = dataset.sparkSession.sparkContext
+
+    val (transformedSchema, pred) = model.preprocess(dataset)
+    val bBooster = sc.broadcast(model.nativeBooster)
+    val bOriginalSchema = sc.broadcast(dataset.schema)
+
+    val featureIds = model.getFeaturesCols.distinct.map(dataset.schema.fieldIndex).toList
+    val isLocal = sc.isLocal
+    val missing = model.getMissing
+    val nThread = model.getNthread
+
+    val rdd = ColumnarRdd(dataset.asInstanceOf[DataFrame]).mapPartitions { tableIters =>
+      // booster is visible for all spark tasks in the same executor
+      val booster = bBooster.value
+      val originalSchema = bOriginalSchema.value
+
+      // UnsafeProjection is not serializable so do it on the executor side
+      val toUnsafe = UnsafeProjection.create(originalSchema)
+
+      synchronized {
+        val device = booster.getAttr("device")
+        if (device != null && device.trim.isEmpty) {
+          booster.setAttr("device", "cuda")
+          val gpuId = if (!isLocal) XGBoost.getGPUAddrFromResources else 0
+          booster.setParam("device", s"cuda:$gpuId")
+          logger.info("GPU transform on GPU device: " + gpuId)
+        }
+      }
+
+      // Iterator on Row
+      new Iterator[Row] {
+        // Convert InternalRow to Row
+        private val converter: InternalRow => Row = CatalystTypeConverters
+          .createToScalaConverter(originalSchema)
+          .asInstanceOf[InternalRow => Row]
+
+        // GPU batches read in must be closed by the receiver
+        @transient var currentBatch: ColumnarBatch = null
+
+        // Iterator on Row
+        var iter: Iterator[Row] = null
+
+        TaskContext.get().addTaskCompletionListener[Unit](_ => {
+          closeCurrentBatch() // close the last ColumnarBatch
+        })
+
+        private def closeCurrentBatch(): Unit = {
+          if (currentBatch != null) {
+            currentBatch.close()
+            currentBatch = null
+          }
+        }
+
+        def loadNextBatch(): Unit = {
+          closeCurrentBatch()
+          if (tableIters.hasNext) {
+            val dataTypes = originalSchema.fields.map(x => x.dataType)
+            iter = withResource(tableIters.next()) { table =>
+              val gpuColumnBatch = new GpuColumnBatch(table, originalSchema)
+              // Create DMatrix
+              val featureTable = gpuColumnBatch.select(featureIds.map(Integer.valueOf).asJava)
+              if (featureTable == null) {
+                throw new RuntimeException("Something wrong for feature indices")
+              }
+              try {
+                val cudfColumnBatch = new CudfColumnBatch(featureTable, null, null, null)
+                val dm = new DMatrix(cudfColumnBatch, missing, nThread)
+                if (dm == null) {
+                  Iterator.empty
+                } else {
+                  try {
+                    currentBatch = new ColumnarBatch(
+                      GpuColumnVectorUtils.extractHostColumns(table, dataTypes),
+                      table.getRowCount().toInt)
+                    val rowIterator = currentBatch.rowIterator().asScala.map(toUnsafe)
+                      .map(converter(_))
+                    model.predictInternal(booster, dm, pred, rowIterator).toIterator
+                  } finally {
+                    dm.delete()
+                  }
+                }
+              } finally {
+                featureTable.close()
+              }
+            }
+          } else {
+            iter = null
+          }
+        }
+
+        override def hasNext: Boolean = {
+          val itHasNext = iter != null && iter.hasNext
+          if (!itHasNext) { // Don't have extra Row for current ColumnarBatch
+            loadNextBatch()
+            iter != null && iter.hasNext
+          } else {
+            itHasNext
+          }
+        }
+
+        override def next(): Row = {
+          if (iter == null || !iter.hasNext) {
+            loadNextBatch()
+          }
+          if (iter == null) {
+            throw new NoSuchElementException()
+          }
+          iter.next()
+        }
+      }
+    }
+    bBooster.unpersist(false)
+    bOriginalSchema.unpersist(false)
+
+    val output = dataset.sparkSession.createDataFrame(rdd, transformedSchema)
+    model.postTransform(output, pred).toDF()
+  }
 }
