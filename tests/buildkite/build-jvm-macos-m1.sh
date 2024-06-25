@@ -28,11 +28,12 @@ set +x
 echo "--- Upload libxgboost4j.dylib"
 set -x
 pushd lib
-mv -v libxgboost4j.dylib libxgboost4j_m1_${BUILDKITE_COMMIT}.dylib
-buildkite-agent artifact upload libxgboost4j_m1_${BUILDKITE_COMMIT}.dylib
+libname=libxgboost4j_m1_${BUILDKITE_COMMIT}.dylib
+mv -v libxgboost4j.dylib ${libname}
+buildkite-agent artifact upload ${libname}
 #if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 #then
-  aws s3 cp libxgboost4j_m1_${BUILDKITE_COMMIT}.dylib \
+  aws s3 cp ${libname} \
     s3://xgboost-nightly-builds/${BRANCH_NAME}/libxgboost4j/ \
     --acl public-read --no-progress
 #fi
