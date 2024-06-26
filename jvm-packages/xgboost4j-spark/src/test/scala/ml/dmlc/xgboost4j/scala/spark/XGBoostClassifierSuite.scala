@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
-import org.apache.spark.ml.linalg.{DenseVector}
+import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.sql.DataFrame
 import org.scalatest.funsuite.AnyFunSuite
@@ -216,13 +216,15 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
       5, paramMap, Some("weight"))
   }
 
-  test("XGBoost-Spark multi classification output should match XGBoost4j") {
-    val trainingDM = new DMatrix(MultiClassification.train.iterator)
-    val testDM = new DMatrix(MultiClassification.test.iterator)
-    val trainingDF = buildDataFrame(MultiClassification.train)
-    val testDF = buildDataFrame(MultiClassification.test)
-    val paramMap = Map("objective" -> "multi:softprob", "num_class" -> 6)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, 5, paramMap)
+  Seq("multi:softprob", "multi:softmax").foreach { objective =>
+    test(s"XGBoost-Spark multi classification with $objective output should match XGBoost4j") {
+      val trainingDM = new DMatrix(MultiClassification.train.iterator)
+      val testDM = new DMatrix(MultiClassification.test.iterator)
+      val trainingDF = buildDataFrame(MultiClassification.train)
+      val testDF = buildDataFrame(MultiClassification.test)
+      val paramMap = Map("objective" -> "multi:softprob", "num_class" -> 6)
+      checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF, 5, paramMap)
+    }
   }
 
   test("XGBoost-Spark multi classification output with weight should match XGBoost4j") {
@@ -279,17 +281,34 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
       (row.getAs[Int]("id"), row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))).toMap
     checkEqual(xgb4jContrib, xgbSparkContrib)
 
+    def checkEqualForBinary(left: Array[Array[Float]], right: Map[Int, Array[Float]]) = {
+      assert(left.size === right.size)
+      left.zipWithIndex.foreach { case (leftValue, index) =>
+        assert(leftValue.length === 1)
+        assert(leftValue.length === right(index).length - 1)
+        assert(leftValue(0) === right(index)(1))
+      }
+    }
+
     // Check probability
     val xgb4jProb = xgb4jModel.predict(testDM)
     val xgbSparkProb = rows.map(row =>
       (row.getAs[Int]("id"), row.getAs[DenseVector]("probability").toArray.map(_.toFloat))).toMap
-    checkEqual(xgb4jProb, xgbSparkProb)
+    if (binaryClassificationObjs.contains(classifier.getObjective)) {
+      checkEqualForBinary(xgb4jProb, xgbSparkProb)
+    } else {
+      checkEqual(xgb4jProb, xgbSparkProb)
+    }
 
     // Check rawPrediction
     val xgb4jRawPred = xgb4jModel.predict(testDM, outPutMargin = true)
     val xgbSparkRawPred = rows.map(row =>
       (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction").toArray.map(_.toFloat))).toMap
-    checkEqual(xgb4jRawPred, xgbSparkRawPred)
+    if (binaryClassificationObjs.contains(classifier.getObjective)) {
+      checkEqualForBinary(xgb4jRawPred, xgbSparkRawPred)
+    } else {
+      checkEqual(xgb4jRawPred, xgbSparkRawPred)
+    }
   }
 
 }

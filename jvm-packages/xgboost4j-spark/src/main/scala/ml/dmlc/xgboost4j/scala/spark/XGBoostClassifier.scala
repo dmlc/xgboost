@@ -19,7 +19,6 @@ package ml.dmlc.xgboost4j.scala.spark
 import scala.collection.mutable
 
 import org.apache.spark.ml.classification.{ProbabilisticClassificationModel, ProbabilisticClassifier}
-import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.linalg.{Vector, Vectors}
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader}
@@ -131,23 +130,46 @@ class XGBoostClassificationModel(
   override protected[spark] def postTransform(dataset: Dataset[_],
                                               pred: PredictedColumns): Dataset[_] = {
     var output = super.postTransform(dataset, pred)
+
     // Always use probability col to get the prediction
+
     if (isDefinedNonEmpty(predictionCol) && pred.predTmp) {
-      val predCol = udf { probability: mutable.WrappedArray[Float] =>
-        probability2prediction(Vectors.dense(probability.map(_.toDouble).toArray))
+      if (getObjective == "multi:softmax") {
+        // For objective=multi:softmax scenario, there is no probability predicted from xgboost.
+        // Instead, the probability column will be filled with real prediction
+        val predictUDF = udf { probability: mutable.WrappedArray[Float] =>
+          probability(0)
+        }
+        output = output.withColumn(getPredictionCol, predictUDF(col(TMP_TRANSFORMED_COL)))
+      } else {
+        val predCol = udf { probability: mutable.WrappedArray[Float] =>
+          val prob = probability.map(_.toDouble).toArray
+          val probabilities = if (numClasses == 2) Array(1.0 - prob(0), prob(0)) else prob
+          probability2prediction(Vectors.dense(probabilities))
+        }
+        output = output.withColumn(getPredictionCol, predCol(col(TMP_TRANSFORMED_COL)))
       }
-      output = output.withColumn(getPredictionCol, predCol(col(TMP_TRANSFORMED_COL)))
     }
 
     if (isDefinedNonEmpty(probabilityCol) && pred.predTmp) {
+      val probabilityUDF = udf { probability: mutable.WrappedArray[Float] =>
+        val prob = probability.map(_.toDouble).toArray
+        val probabilities = if (numClasses == 2) Array(1.0 - prob(0), prob(0)) else prob
+        Vectors.dense(probabilities)
+      }
       output = output.withColumn(TMP_TRANSFORMED_COL,
-          array_to_vector(output.col(TMP_TRANSFORMED_COL)))
+          probabilityUDF(output.col(TMP_TRANSFORMED_COL)))
         .withColumnRenamed(TMP_TRANSFORMED_COL, getProbabilityCol)
     }
 
     if (pred.predRaw) {
+      val rawPredictionUDF = udf { raw: mutable.WrappedArray[Float] =>
+        val rawF = raw.map(_.toDouble).toArray
+        val rawPredictions = if (numClasses == 2) Array(-rawF(0), rawF(0)) else rawF
+        Vectors.dense(rawPredictions)
+      }
       output = output.withColumn(getRawPredictionCol,
-        array_to_vector(output.col(getRawPredictionCol)))
+        rawPredictionUDF(output.col(getRawPredictionCol)))
     }
 
     output.drop(TMP_TRANSFORMED_COL)
