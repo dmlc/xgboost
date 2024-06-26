@@ -5,10 +5,10 @@ from threading import Thread
 
 import numpy as np
 import pytest
-
 import xgboost as xgb
 from xgboost import RabitTracker, build_info, federated
 from xgboost import testing as tm
+from xgboost.compat import concat
 
 
 def run_rabit_worker(rabit_env, world_size):
@@ -76,6 +76,84 @@ def test_federated_communicator():
         )
         workers.append(worker)
         worker.start()
+    for worker in workers:
+        worker.join()
+        assert worker.exitcode == 0
+
+
+def run_external_memory(worker_id: int, world_size: int, kwargs: dict) -> None:
+    n_samples_per_batch = 32
+    n_features = 4
+    n_batches = 16
+    use_cupy = False
+
+    n_cpus = multiprocessing.cpu_count()
+    with xgb.collective.CommunicatorContext(dmlc_communicator="rabit", **kwargs):
+        it = tm.IteratorForTest(
+            *tm.make_batches(
+                n_samples_per_batch,
+                n_features,
+                n_batches,
+                use_cupy,
+                random_state=worker_id,
+            ),
+            cache="cache",
+        )
+        Xy = xgb.DMatrix(it, nthread=n_cpus // world_size)
+        results = {}
+        booster = xgb.train(
+            {"tree_method": "hist", "nthread": n_cpus // world_size},
+            Xy,
+            evals=[(Xy, "Train")],
+            num_boost_round=32,
+            evals_result=results,
+        )
+        assert tm.non_increasing(results["Train"]["rmse"])
+
+    lx, ly, lw = [], [], []
+    for i in range(world_size):
+        x, y, w = tm.make_batches(
+            n_samples_per_batch,
+            n_features,
+            n_batches,
+            use_cupy,
+            random_state=i,
+        )
+        lx.extend(x)
+        ly.extend(y)
+        lw.extend(w)
+
+    X = concat(lx)
+    yconcat = concat(ly)
+    wconcat = concat(lw)
+    Xy = xgb.DMatrix(X, yconcat, wconcat, nthread=n_cpus // world_size)
+
+    results_local = {}
+    booster = xgb.train(
+        {"tree_method": "hist", "nthread": n_cpus // world_size},
+        Xy,
+        evals=[(Xy, "Train")],
+        num_boost_round=32,
+        evals_result=results_local,
+    )
+    np.testing.assert_allclose(results["Train"]["rmse"], results_local["Train"]["rmse"], rtol=1e-4)
+
+
+def test_external_memory() -> None:
+    world_size = 3
+
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
+    tracker.start()
+    args = tracker.worker_args()
+    workers = []
+
+    for rank in range(world_size):
+        worker = multiprocessing.Process(
+            target=run_external_memory, args=(rank, world_size, args)
+        )
+        worker.start()
+        workers.append(worker)
+
     for worker in workers:
         worker.join()
         assert worker.exitcode == 0
