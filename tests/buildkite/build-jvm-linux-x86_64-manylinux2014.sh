@@ -20,10 +20,10 @@ pushd lib
 libname=libxgboost4j_linux_x86_64_${BUILDKITE_COMMIT}.so
 mv -v libxgboost4j.so ${libname}
 buildkite-agent artifact upload ${libname}
-#if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-#then
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
   aws s3 cp ${libname} \
     s3://xgboost-nightly-builds/${BRANCH_NAME}/libxgboost4j/ \
     --acl public-read --no-progress
-#fi
+fi
 popd
