@@ -29,7 +29,6 @@ void TestEllpackPageRawFormat() {
     cuts = page.Impl()->CutsShared();
   }
 
-  // cuts->SetDevice(ctx.Device());
   ASSERT_EQ(cuts->cut_values_.Device(), ctx.Device());
   ASSERT_TRUE(cuts->cut_values_.DeviceCanRead());
   policy.SetCuts(cuts, ctx.Device());
