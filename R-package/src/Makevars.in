@@ -72,6 +72,7 @@ OBJECTS= \
     $(PKGROOT)/src/data/gradient_index_page_source.o \
     $(PKGROOT)/src/data/gradient_index_format.o \
     $(PKGROOT)/src/data/sparse_page_dmatrix.o \
+    $(PKGROOT)/src/data/sparse_page_source.o \
     $(PKGROOT)/src/data/proxy_dmatrix.o \
     $(PKGROOT)/src/data/iterative_dmatrix.o \
     $(PKGROOT)/src/predictor/predictor.o \
