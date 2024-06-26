@@ -3,7 +3,7 @@ channels:
 - conda-forge
 dependencies:
 - python=3.8
-- pylint
+- pylint<3.2.4  # https://github.com/pylint-dev/pylint/issues/9751
 - wheel
 - setuptools
 - mypy>=0.981

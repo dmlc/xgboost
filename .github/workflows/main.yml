@@ -186,8 +186,7 @@ jobs:
         architecture: 'x64'
     - name: Install Python packages
       run: |
-        # https://github.com/pylint-dev/pylint/issues/9751
-        python -m pip install wheel setuptools cmakelint cpplint 'pylint<3.2.4'
+        python -m pip install wheel setuptools cmakelint cpplint pylint
     - name: Run lint
       run: |
         python3 tests/ci_build/lint_cpp.py
