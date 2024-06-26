@@ -1,6 +1,6 @@
 FROM quay.io/pypa/manylinux2014_aarch64
 
-RUN yum update -y && yum install -y java-1.8.0-openjdk-devel ninja-build
+RUN yum update -y && yum install -y java-1.8.0-openjdk-devel
 
 # Install lightweight sudo (not bound to TTY)
 ENV GOSU_VERSION 1.10

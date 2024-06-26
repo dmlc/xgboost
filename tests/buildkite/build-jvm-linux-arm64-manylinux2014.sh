@@ -11,7 +11,7 @@ echo "--- Build libxgboost4j.so (targeting glibc 2.17)"
 set -x
 mkdir build
 $command_wrapper bash -c \
-  "cd build && cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && ninja -v"
+  "cd build && cmake .. -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && make -j$(nproc)"
 ldd lib/libxgboost4j.so
 objdump -T libxgboost4j.so | grep GLIBC_ | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 
