@@ -8,7 +8,6 @@ from . import collective, dask
 from .core import (
     Booster,
     DataIter,
-    DeviceQuantileDMatrix,
     DMatrix,
     QuantileDMatrix,
     _py_version,
@@ -38,7 +37,6 @@ __version__ = _py_version()
 __all__ = [
     # core
     "DMatrix",
-    "DeviceQuantileDMatrix",
     "QuantileDMatrix",
     "Booster",
     "DataIter",
