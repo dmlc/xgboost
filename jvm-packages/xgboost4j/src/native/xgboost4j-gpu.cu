@@ -186,11 +186,11 @@ class DataIteratorProxy {
   void StageMetaInfo(Json json_interface) {
     CHECK(!IsA<Null>(json_interface));
     auto json_map = get<Object const>(json_interface);
-    if (json_map.find("label_str") == json_map.cend()) {
+    if (json_map.find("label") == json_map.cend()) {
       LOG(FATAL) << "Must have a label field.";
     }
 
-    Json label = json_interface["label_str"];
+    Json label = json_interface["label"];
     CHECK(!IsA<Null>(label));
     labels_.emplace_back(new dh::device_vector<float>);
     CopyMetaInfo(&label, labels_.back().get(), copy_stream_);
@@ -200,8 +200,8 @@ class DataIteratorProxy {
     Json::Dump(label, &str);
     XGDMatrixSetInfoFromInterface(proxy_, "label", str.c_str());
 
-    if (json_map.find("weight_str") != json_map.cend()) {
-      Json weight = json_interface["weight_str"];
+    if (json_map.find("weight") != json_map.cend()) {
+      Json weight = json_interface["weight"];
       CHECK(!IsA<Null>(weight));
       weights_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&weight, weights_.back().get(), copy_stream_);
@@ -211,8 +211,8 @@ class DataIteratorProxy {
       XGDMatrixSetInfoFromInterface(proxy_, "weight", str.c_str());
     }
 
-    if (json_map.find("basemargin_str") != json_map.cend()) {
-      Json basemargin = json_interface["basemargin_str"];
+    if (json_map.find("baseMargin") != json_map.cend()) {
+      Json basemargin = json_interface["baseMargin"];
       base_margins_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&basemargin, base_margins_.back().get(), copy_stream_);
       margin_interfaces_.emplace_back(basemargin);
@@ -249,11 +249,11 @@ class DataIteratorProxy {
       // batch should be ColumnBatch from jvm
       jobject batch = CheckJvmCall(jenv_->CallObjectMethod(jiter_, next), jenv_);
       jclass batch_class = CheckJvmCall(jenv_->GetObjectClass(batch), jenv_);
-      jmethodID getArrayInterfaceJson = CheckJvmCall(jenv_->GetMethodID(
-        batch_class, "getArrayInterfaceJson", "()Ljava/lang/String;"), jenv_);
+      jmethodID toJson = CheckJvmCall(jenv_->GetMethodID(
+        batch_class, "toJson", "()Ljava/lang/String;"), jenv_);
 
       auto jinterface =
-        static_cast<jstring>(jenv_->CallObjectMethod(batch, getArrayInterfaceJson));
+        static_cast<jstring>(jenv_->CallObjectMethod(batch, toJson));
       CheckJvmCall(jinterface, jenv_);
       char const *c_interface_str =
           CheckJvmCall(jenv_->GetStringUTFChars(jinterface, nullptr), jenv_);
@@ -281,7 +281,7 @@ class DataIteratorProxy {
     CHECK(!IsA<Null>(json_interface));
     StageMetaInfo(json_interface);
 
-    Json features = json_interface["features_str"];
+    Json features = json_interface["features"];
     auto json_columns = get<Array const>(features);
     std::vector<ArrayInterface<1>> interfaces;
 

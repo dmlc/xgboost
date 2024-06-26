@@ -83,7 +83,7 @@ class XXXXXSuite extends AnyFunSuite with GpuTestSuite {
 
       val out = model.transform(df)
       out.printSchema()
-      out.show(150, false)
+      out.show(150)
       //      model.write.overwrite().save("/tmp/model/")
       //      val loadedModel = XGBoostClassificationModel.load("/tmp/model")
       //      println(loadedModel.getNumRound)

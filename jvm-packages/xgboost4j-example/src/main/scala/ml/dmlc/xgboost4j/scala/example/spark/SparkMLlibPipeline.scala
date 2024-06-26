@@ -88,11 +88,9 @@ object SparkMLlibPipeline {
         "max_depth" -> 2,
         "objective" -> "multi:softprob",
         "num_class" -> 3,
-        "num_round" -> 100,
-        "num_workers" -> numWorkers,
         "device" -> device
       )
-    )
+    ).setNumRound(10).setNumWorkers(numWorkers)
     booster.setFeaturesCol("features")
     booster.setLabelCol("classIndex")
     val labelConverter = new IndexToString()

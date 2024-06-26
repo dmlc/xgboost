@@ -23,7 +23,6 @@ import ai.rapids.cudf.Table
 import com.nvidia.spark.rapids.{ColumnarRdd, GpuColumnVectorUtils}
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.TaskContext
-import org.apache.spark.ml.functions.array_to_vector
 import org.apache.spark.ml.param.Param
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Column, DataFrame, Dataset, Row}
@@ -31,12 +30,12 @@ import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
-import ml.dmlc.xgboost4j.java.{CudfColumnBatch, GpuColumnBatch}
+import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.{DMatrix, QuantileDMatrix}
 import ml.dmlc.xgboost4j.scala.spark.params.HasGroupCol
 
 /**
- * GpuXGBoostPlugin is the XGBoost plugin which leverage spark-rapids
+ * GpuXGBoostPlugin is the XGBoost plugin which leverages spark-rapids
  * to accelerate the XGBoost from ETL to train.
  */
 class GpuXGBoostPlugin extends XGBoostPlugin {
@@ -121,9 +120,9 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     /** build QuantilDMatrix on the executor side */
     def buildQuantileDMatrix(iter: Iterator[Table]): QuantileDMatrix = {
       val colBatchIter = iter.map { table =>
-        withResource(new GpuColumnBatch(table, null)) { batch =>
+        withResource(new GpuColumnBatch(table)) { batch =>
           new CudfColumnBatch(
-            batch.select(indices.featureIds.get.map(Integer.valueOf).asJava),
+            batch.select(indices.featureIds.get),
             batch.select(indices.labelId),
             batch.select(indices.weightId.getOrElse(-1)),
             batch.select(indices.marginId.getOrElse(-1)));
@@ -219,9 +218,8 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
           if (tableIters.hasNext) {
             val dataTypes = originalSchema.fields.map(x => x.dataType)
             iter = withResource(tableIters.next()) { table =>
-              val gpuColumnBatch = new GpuColumnBatch(table, originalSchema)
               // Create DMatrix
-              val featureTable = gpuColumnBatch.select(featureIds.map(Integer.valueOf).asJava)
+              val featureTable = new GpuColumnBatch(table).select(featureIds)
               if (featureTable == null) {
                 throw new RuntimeException("Something wrong for feature indices")
               }
@@ -277,5 +275,25 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 
     val output = dataset.sparkSession.createDataFrame(rdd, transformedSchema)
     model.postTransform(output, pred).toDF()
+  }
+}
+
+private class GpuColumnBatch(table: Table) extends AutoCloseable {
+
+  def select(index: Int): Table = {
+    select(Seq(index))
+  }
+
+  def select(indices: Seq[Int]): Table = {
+    if (!indices.forall(index => index < table.getNumberOfColumns && index >= 0)) {
+      return null;
+    }
+    new Table(indices.map(table.getColumn): _*)
+  }
+
+  override def close(): Unit = {
+    if (Option(table).isDefined) {
+      table.close()
+    }
   }
 }

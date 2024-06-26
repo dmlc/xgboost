@@ -16,15 +16,16 @@
 
 package ml.dmlc.xgboost4j.java;
 
-import ai.rapids.cudf.*;
-import junit.framework.TestCase;
-import org.junit.Test;
-
 import java.io.File;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import ai.rapids.cudf.ColumnVector;
+import ai.rapids.cudf.Table;
+import junit.framework.TestCase;
+import org.junit.Test;
 
 /**
  * Tests the BoosterTest trained by DMatrix
@@ -35,27 +36,7 @@ public class BoosterTest {
 
   @Test
   public void testBooster() throws XGBoostError {
-    String trainingDataPath = "../../demo/data/veterans_lung_cancer.csv";
-    Schema schema = Schema.builder()
-      .column(DType.FLOAT32, "A")
-      .column(DType.FLOAT32, "B")
-      .column(DType.FLOAT32, "C")
-      .column(DType.FLOAT32, "D")
-
-      .column(DType.FLOAT32, "E")
-      .column(DType.FLOAT32, "F")
-      .column(DType.FLOAT32, "G")
-      .column(DType.FLOAT32, "H")
-
-      .column(DType.FLOAT32, "I")
-      .column(DType.FLOAT32, "J")
-      .column(DType.FLOAT32, "K")
-      .column(DType.FLOAT32, "L")
-
-      .column(DType.FLOAT32, "label")
-      .build();
-    CSVOptions opts = CSVOptions.builder()
-      .hasHeader().build();
+    String resourcePath = getClass().getResource("/binary.train.parquet").getFile();
 
     int maxBin = 16;
     int round = 10;
@@ -72,33 +53,32 @@ public class BoosterTest {
       }
     };
 
-    try (Table tmpTable = Table.readCSV(schema, opts, new File(trainingDataPath))) {
-      ColumnVector[] df = new ColumnVector[10];
-      // exclude the first two columns, they are label bounds and contain inf.
-      for (int i = 2; i < 12; ++i) {
-        df[i - 2] = tmpTable.getColumn(i);
+    try (Table table = Table.readParquet(new File(resourcePath))) {
+      ColumnVector[] features = new ColumnVector[6];
+      for (int i = 0; i < 6; i++) {
+        features[i] = table.getColumn(i);
       }
-      try (Table X = new Table(df);) {
-        ColumnVector[] labels = new ColumnVector[1];
-        labels[0] = tmpTable.getColumn(12);
 
-        try (Table y = new Table(labels);) {
+      try (Table X = new Table(features)) {
+        ColumnVector[] labels = new ColumnVector[1];
+        labels[0] = table.getColumn(6);
+
+        try (Table y = new Table(labels)) {
 
           CudfColumnBatch batch = new CudfColumnBatch(X, y, null, null);
-          CudfColumn labelColumn = CudfColumn.from(tmpTable.getColumn(12));
+          CudfColumn labelColumn = CudfColumn.from(y.getColumn(0));
 
-          //set watchList
+          // train XGBoost Booster base on DMatrix
           HashMap<String, DMatrix> watches = new HashMap<>();
-
           DMatrix dMatrix1 = new DMatrix(batch, Float.NaN, 1);
           dMatrix1.setLabel(labelColumn);
           watches.put("train", dMatrix1);
           Booster model1 = XGBoost.train(dMatrix1, paramMap, round, watches, null, null);
 
+          // train XGBoost Booster base on QuantileDMatrix
           List<ColumnBatch> tables = new LinkedList<>();
           tables.add(batch);
           DMatrix incrementalDMatrix = new QuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
-          //set watchList
           HashMap<String, DMatrix> watches1 = new HashMap<>();
           watches1.put("train", incrementalDMatrix);
           Booster model2 = XGBoost.train(incrementalDMatrix, paramMap, round, watches1, null, null);
@@ -106,12 +86,11 @@ public class BoosterTest {
           float[][] predicat1 = model1.predict(dMatrix1);
           float[][] predicat2 = model2.predict(dMatrix1);
 
-          for (int i = 0; i < tmpTable.getRowCount(); i++) {
+          for (int i = 0; i < table.getRowCount(); i++) {
             TestCase.assertTrue(predicat1[i][0] - predicat2[i][0] < 1e-6);
           }
         }
       }
     }
   }
-
 }

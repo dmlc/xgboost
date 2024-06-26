@@ -108,7 +108,7 @@ class XGBoostSuite extends AnyFunSuite with PerTest {
       val rdd = df.rdd
 
       val runtimeParams = new XGBoostClassifier(
-        Map("device" -> "cuda", "num_workers" -> 1, "num_round" -> 1))
+        Map("device" -> "cuda")).setNumWorkers(1).setNumRound(1)
         .getRuntimeParameters(true)
       assert(runtimeParams.runOnGpu)
 

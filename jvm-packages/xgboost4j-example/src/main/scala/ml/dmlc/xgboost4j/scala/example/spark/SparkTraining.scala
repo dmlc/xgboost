@@ -80,13 +80,13 @@ private[spark] def run(spark: SparkSession, inputPath: String,
       "max_depth" -> 2,
       "objective" -> "multi:softprob",
       "num_class" -> 3,
-      "num_round" -> 100,
-      "num_workers" -> numWorkers,
-      "device" -> device,
-      "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
+      "device" -> device)
     val xgbClassifier = new XGBoostClassifier(xgbParam).
       setFeaturesCol("features").
       setLabelCol("classIndex")
+      .setNumWorkers(numWorkers)
+      .setNumRound(10)
+      .setEvalDataset(eval1)
     val xgbClassificationModel = xgbClassifier.fit(train)
     xgbClassificationModel.transform(test)
   }

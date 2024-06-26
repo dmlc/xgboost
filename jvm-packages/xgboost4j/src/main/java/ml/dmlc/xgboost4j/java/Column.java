@@ -17,23 +17,17 @@
 package ml.dmlc.xgboost4j.java;
 
 /**
- * The abstracted XGBoost Column to get the cuda array interface which is used to
- * set the information for DMatrix.
+ * This Column abstraction provides an array interface JSON string, which is
+ * used to reconstruct columnar data within the XGBoost library.
  */
 public abstract class Column implements AutoCloseable {
 
   /**
-   * Get the cuda array interface json string for the Column
-   * <p>
-   * This API will be called by
-   * {@link DMatrix#setLabel(Column)}
-   * {@link DMatrix#setWeight(Column)}
-   * {@link DMatrix#setBaseMargin(Column)}
+   * Return array interface json string for this Column
    */
-  public abstract String getArrayInterfaceJson();
+  public abstract String toJson();
 
   @Override
   public void close() throws Exception {
   }
-
 }

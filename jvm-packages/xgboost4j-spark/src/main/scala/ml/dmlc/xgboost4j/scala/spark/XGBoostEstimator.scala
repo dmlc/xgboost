@@ -41,7 +41,6 @@ import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.spark.Utils.MLVectorToXGBLabeledPoint
 import ml.dmlc.xgboost4j.scala.spark.params.{ParamUtils, _}
 
-
 /**
  * Hold the column index
  */
@@ -378,9 +377,7 @@ private[spark] trait XGBoostEstimator[
     } else {
       setNthread(taskCpus)
     }
-
   }
-
 
   def train(dataset: Dataset[_]): M = {
     validate(dataset)
@@ -403,11 +400,6 @@ private[spark] trait XGBoostEstimator[
   }
 
   override def copy(extra: ParamMap): Learner = defaultCopy(extra).asInstanceOf[Learner]
-
-  // Not used in XGBoost
-  override def transformSchema(schema: StructType): StructType = {
-    validateAndTransformSchema(schema, true)
-  }
 }
 
 /** Indicate what to be predicted */
@@ -440,11 +432,6 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
   def nativeBooster: Booster
 
   def summary: Option[XGBoostTrainingSummary]
-
-  // Not used in XGBoost
-  override def transformSchema(schema: StructType): StructType = {
-    validateAndTransformSchema(schema, false)
-  }
 
   protected[spark] def postTransform(dataset: Dataset[_], pred: PredictedColumns): Dataset[_] = {
     var output = dataset

@@ -20,7 +20,6 @@ import scala.collection.mutable
 
 import org.apache.spark.ml.param._
 
-
 private[spark] trait ParamMapConversion extends NonXGBoostParams {
 
   /**
@@ -64,5 +63,3 @@ private[spark] trait ParamMapConversion extends NonXGBoostParams {
     xgboostParams.toMap
   }
 }
-
-

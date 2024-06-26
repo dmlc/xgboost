@@ -42,5 +42,3 @@ private[spark] trait RabitParams extends Params with NonXGBoostParams {
 
   addNonXGBoostParam(rabitTrackerPort, rabitTrackerHostIp, rabitTrackerPort)
 }
-
-

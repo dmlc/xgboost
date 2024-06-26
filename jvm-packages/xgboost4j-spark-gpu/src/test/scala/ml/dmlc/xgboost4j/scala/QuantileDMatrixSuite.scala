@@ -44,8 +44,7 @@ class QuantileDMatrixSuite extends AnyFunSuite {
           withResource(new Table.TestBuilder().column(baseMargin1: _*).build) { m_0 =>
             withResource(new Table.TestBuilder()
               .column(11.2f, 11.2f, 15.2f, 17.2f, 19.2f.asInstanceOf[java.lang.Float])
-              .column(1.2f, 1.4f, null.asInstanceOf[java.lang.Float], 12.6f, 10.10f).build)
-            { X_1 =>
+              .column(1.2f, 1.4f, null.asInstanceOf[java.lang.Float], 12.6f, 10.10f).build) { X_1 =>
               withResource(new Table.TestBuilder().column(label2: _*).build) { y_1 =>
                 withResource(new Table.TestBuilder().column(weight2: _*).build) { w_1 =>
                   withResource(new Table.TestBuilder().column(baseMargin2: _*).build) { m_1 =>

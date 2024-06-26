@@ -20,7 +20,6 @@ import scala.collection.immutable.HashSet
 
 import org.apache.spark.ml.param._
 
-
 /**
  * TreeBoosterParams defines the XGBoost TreeBooster parameters for Spark
  *

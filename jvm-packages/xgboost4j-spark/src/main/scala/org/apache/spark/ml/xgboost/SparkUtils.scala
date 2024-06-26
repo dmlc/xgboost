@@ -90,6 +90,4 @@ object SparkUtils {
                             nullable: Boolean = false): StructType = {
     SchemaUtils.appendColumn(schema, colName, dataType, nullable)
   }
-
-
 }

@@ -18,7 +18,6 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.spark.ml.param._
 
-
 /**
  * Dart booster parameters, more details can be found at
  * https://xgboost.readthedocs.io/en/stable/parameter.html#

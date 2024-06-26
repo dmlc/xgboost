@@ -20,11 +20,9 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.param.shared._
-import org.apache.spark.ml.xgboost.SparkUtils
-import org.apache.spark.sql.types.{DoubleType, StructType}
+import org.apache.spark.sql.types.StructType
 
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
-
 
 trait HasLeafPredictionCol extends Params {
   /**
@@ -231,8 +229,6 @@ private[spark] trait SchemaValidationTrait {
   def validateAndTransformSchema(schema: StructType,
                                  fitting: Boolean): StructType = schema
 }
-
-
 
 /**
  * XGBoost ranking spark-specific parameters

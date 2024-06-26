@@ -41,7 +41,9 @@ trait XGBoostPlugin extends Serializable {
       estimator: XGBoostEstimator[T, M],
       dataset: Dataset[_]): RDD[Watches]
 
-
+  /**
+   * Transform the dataset
+   */
   def transform[M <: XGBoostModel[M]](model: XGBoostModel[M], dataset: Dataset[_]): DataFrame
 
 }

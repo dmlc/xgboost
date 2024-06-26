@@ -20,14 +20,12 @@ import scala.collection.immutable.HashSet
 
 import org.apache.spark.ml.param._
 
-
 /**
  * Specify the learning task and the corresponding learning objective.
  * More details can be found at
  * https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters
  */
 private[spark] trait LearningTaskParams extends Params {
-
 
   final val objective = new Param[String](this, "objective",
     "Objective function used for training",
@@ -122,7 +120,6 @@ private[spark] trait LearningTaskParams extends Params {
   setDefault(objective -> "reg:squarederror", numClass -> 0, seed -> 0, seedPerIteration -> false,
     tweedieVariancePower -> 1.5, huberSlope -> 1, lambdarankPairMethod -> "mean",
     lambdarankUnbiased -> false, lambdarankBiasNorm -> 2, ndcgExpGain -> true)
-
 }
 
 private[spark] object LearningTaskParams {
@@ -141,5 +138,4 @@ private[spark] object LearningTaskParams {
     "pre@n", "ndcg-", "map-", "ndcg@n-", "map@n-", "poisson-nloglik", "gamma-nloglik",
     "cox-nloglik", "gamma-deviance", "tweedie-nloglik", "aft-nloglik",
     "interval-regression-accuracy")
-
 }

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import org.json4s.{DefaultFormats, FullTypeHints, JField, JValue, NoTypeHints, T
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
-// based on org.apache.spark.util copy /paste
 object Utils {
 
   private[spark] implicit class XGBLabeledPointFeatures(
