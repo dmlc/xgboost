@@ -61,9 +61,12 @@ class EllpackFormatPolicy {
   DeviceOrd device_;
 
  public:
+  using FormatT = EllpackPageRawFormat;
+
+ public:
   [[nodiscard]] auto CreatePageFormat() const {
     cuts_->SetDevice(this->device_);
-    std::unique_ptr<EllpackPageRawFormat> fmt{new EllpackPageRawFormat{cuts_, device_}};
+    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_}};
     return fmt;
   }
 

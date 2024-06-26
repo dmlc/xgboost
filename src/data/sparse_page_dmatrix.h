@@ -130,8 +130,9 @@ class SparsePageDMatrix : public DMatrix {
  private:
   // source data pointers.
   std::shared_ptr<SparsePageSource> sparse_page_source_;
+  using EllpackDiskPtr = std::shared_ptr<EllpackPageSource>;
   using EllpackHostPtr = std::shared_ptr<EllpackPageHostSource>;
-  std::variant<std::shared_ptr<EllpackPageSource>, EllpackHostPtr> ellpack_page_source_;
+  std::variant<EllpackDiskPtr, EllpackHostPtr> ellpack_page_source_;
   std::shared_ptr<CSCPageSource> column_source_;
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;

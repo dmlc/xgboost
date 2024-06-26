@@ -218,7 +218,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
 #if !defined(XGBOOST_USE_CUDA)
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const *, const BatchParam &) {
   common::AssertGPUSupport();
-  return BatchSet{BatchIterator<EllpackPage>{this->ellpack_page_source_}};
+  return BatchSet{BatchIterator<EllpackPage>{nullptr}};
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::data

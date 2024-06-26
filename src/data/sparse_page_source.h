@@ -173,8 +173,11 @@ class DefaultFormatStreamPolicy : public F<S> {
 template <typename S>
 class DefaultFormatPolicy {
  public:
+  using FormatT = SparsePageFormat<S>;
+
+ public:
   auto CreatePageFormat() const {
-    std::unique_ptr<SparsePageFormat<S>> fmt{::xgboost::data::CreatePageFormat<S>("raw")};
+    std::unique_ptr<FormatT> fmt{::xgboost::data::CreatePageFormat<S>("raw")};
     return fmt;
   }
 };
@@ -253,10 +256,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         *GlobalConfigThreadLocalStore::Get() = config;
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
-          auto fmt{this->CreatePageFormat()};
+          std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{this->CreatePageFormat()};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
-          auto fi = this->CreateReader(name, offset, length);
+          std::unique_ptr<typename FormatStreamPolicy::ReaderT> fi{
+              this->CreateReader(name, offset, length)};
           CHECK(fmt->Read(page.get(), fi.get()));
         });
         return page;
@@ -283,7 +287,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     auto fmt{this->CreatePageFormat()};
 
     auto name = cache_info_->ShardName();
-    auto fo = this->CreateWriter(StringView{name}, this->Iter());
+    std::unique_ptr<typename FormatStreamPolicy::WriterT> fo{
+        this->CreateWriter(StringView{name}, this->Iter())};
     auto bytes = fmt->Write(*page_, fo.get());
 
     timer.Stop();

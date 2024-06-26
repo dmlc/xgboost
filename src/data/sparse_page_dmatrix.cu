@@ -23,12 +23,13 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
   detail::CheckEmpty(batch_param_, param);
   auto id = MakeCache(this, ".ellpack.page", on_host_, cache_prefix_, &cache_info_);
 
-  size_t row_stride = 0;
+  bst_idx_t row_stride = 0;
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
     this->InitializeSparsePage(ctx);
     // reinitialize the cache
     cache_info_.erase(id);
     MakeCache(this, ".ellpack.page", on_host_, cache_prefix_, &cache_info_);
+    LOG(INFO) << "Generating new a Ellpack page.";
     std::shared_ptr<common::HistogramCuts> cuts;
     if (!param.hess.empty()) {
       cuts = std::make_shared<common::HistogramCuts>(

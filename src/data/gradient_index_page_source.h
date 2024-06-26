@@ -27,8 +27,11 @@ class GHistIndexFormatPolicy {
   common::HistogramCuts cuts_;
 
  public:
+  using FormatT = SparsePageFormat<GHistIndexMatrix>;
+
+ public:
   [[nodiscard]] auto CreatePageFormat() const {
-    std::unique_ptr<SparsePageFormat<GHistIndexMatrix>> fmt{new GHistIndexRawFormat{cuts_}};
+    std::unique_ptr<FormatT> fmt{new GHistIndexRawFormat{cuts_}};
     return fmt;
   }
 

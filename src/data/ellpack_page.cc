@@ -36,7 +36,7 @@ void EllpackPage::SetBaseRowId(std::size_t) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
 }
-size_t EllpackPage::Size() const {
+bst_idx_t EllpackPage::Size() const {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
   return 0;
