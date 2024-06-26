@@ -163,7 +163,7 @@ class HistogramCuts {
     return vals[bin_idx - 1];
   }
 
-  void SetDevice(DeviceOrd d) const {
+  void SetDevice(DeviceOrd d) {
     this->cut_ptrs_.SetDevice(d);
     this->cut_ptrs_.ConstDevicePointer();
 

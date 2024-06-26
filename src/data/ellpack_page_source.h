@@ -73,7 +73,6 @@ class EllpackFormatPolicy {
   void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device) {
     std::swap(cuts_, cuts);
     device_ = device;
-    cuts_->SetDevice(this->device_);
     CHECK(this->device_.IsCUDA());
   }
   [[nodiscard]] auto GetCuts() {
@@ -110,7 +109,7 @@ class EllpackPageSourceImpl : public PageSourceIncMixIn<EllpackPage, F> {
  public:
   EllpackPageSourceImpl(float missing, std::int32_t nthreads, bst_feature_t n_features,
                         std::size_t n_batches, std::shared_ptr<Cache> cache, BatchParam param,
-                        std::shared_ptr<common::HistogramCuts const> cuts, bool is_dense,
+                        std::shared_ptr<common::HistogramCuts> cuts, bool is_dense,
                         bst_idx_t row_stride, common::Span<FeatureType const> feature_types,
                         std::shared_ptr<SparsePageSource> source, DeviceOrd device)
       : Super{missing, nthreads, n_features, n_batches, cache, false},
@@ -119,6 +118,7 @@ class EllpackPageSourceImpl : public PageSourceIncMixIn<EllpackPage, F> {
         param_{std::move(param)},
         feature_types_{feature_types} {
     this->source_ = source;
+    cuts->SetDevice(device);
     this->SetCuts(std::move(cuts), device);
     this->Fetch();
   }
