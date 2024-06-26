@@ -1,6 +1,11 @@
 steps:
   - block: ":rocket: Run this test job"
     if: build.pull_request.id != null || build.branch =~ /^dependabot\//
+  - label: ":macos: Build libxgboost4j.dylib for MacOS M1"
+    command: "tests/buildkite/build-jvm-macos-m1.sh"
+    key: mac-m1-jvm
+    agents:
+      queue: mac-mini-m1
   - label: ":macos: Build and Test XGBoost for MacOS M1 with Clang 11"
     command: "tests/buildkite/test-macos-m1-clang11.sh"
     key: mac-m1-appleclang11
