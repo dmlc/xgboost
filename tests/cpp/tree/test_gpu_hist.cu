@@ -258,7 +258,6 @@ TEST(GpuHist, UniformSampling) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.9999;
-  common::GlobalRandom().seed(1994);
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -274,8 +273,11 @@ TEST(GpuHist, UniformSampling) {
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample, "uniform",
-             kRows);
+  {
+    auto ctx = MakeCUDACtx(0);
+    UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample, "uniform",
+               kRows);
+  }
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -289,7 +291,6 @@ TEST(GpuHist, GradientBasedSampling) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.9999;
-  common::GlobalRandom().seed(1994);
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -306,8 +307,11 @@ TEST(GpuHist, GradientBasedSampling) {
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample,
-             "gradient_based", kRows);
+  {
+    auto ctx = MakeCUDACtx(0);
+    UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample,
+               "gradient_based", kRows);
+  }
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -358,7 +362,6 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   constexpr size_t kPageSize = 1024;
   constexpr float kSubsample = 0.5;
   const std::string kSamplingMethod = "gradient_based";
-  common::GlobalRandom().seed(0);
 
   dmlc::TemporaryDirectory tmpdir;
 
@@ -374,18 +377,19 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
   // Build a tree using the in-memory DMatrix.
-  auto rng = common::GlobalRandom();
-
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
   UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod, kRows);
 
   // Build another tree using multiple ELLPACK pages.
-  common::GlobalRandom() = rng;
+
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, kSubsample,
-             kSamplingMethod, kRows);
+  {
+    Context ctx(MakeCUDACtx(0));
+    UpdateTree(&ctx, &gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, kSubsample,
+               kSamplingMethod, kRows);
+  }
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();

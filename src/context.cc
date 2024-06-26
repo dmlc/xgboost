@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  *
  * \brief Context object used for controlling runtime parameters.
  */
@@ -8,21 +8,27 @@
 #include <algorithm>  // for find_if
 #include <charconv>   // for from_chars
 #include <iterator>   // for distance
+#include <locale>     // for locale
 #include <optional>   // for optional
 #include <regex>      // for regex_replace, regex_match
+#include <sstream>    // for stringstream
 
 #include "common/common.h"     // AssertGPUSupport
 #include "common/error_msg.h"  // WarnDeprecatedGPUId
 #include "common/threading_utils.h"
+#include "xgboost/json.h"  // for Json
 #include "xgboost/string_view.h"
+#include "common/random.h"  // for RandomEngin
 
 namespace xgboost {
-
 DMLC_REGISTER_PARAMETER(Context);
 
 std::int64_t constexpr Context::kDefaultSeed;
 
-Context::Context() : cfs_cpu_count_{common::GetCfsCPUCount()} {}
+Context::Context()
+    : rng_{std::make_shared<common::RandomEngine>()}, cfs_cpu_count_{common::GetCfsCPUCount()} {
+  rng_->seed(kDefaultSeed);
+}
 
 namespace {
 inline constexpr char const* kDevice = "device";
@@ -217,6 +223,24 @@ void Context::Init(Args const& kwargs) {
     ss << "}\n";
     LOG(FATAL) << ss.str();
   }
+}
+
+void Context::SaveConfig(Json* out) const {
+  (*out) = ToJson(*this);
+  std::stringstream ss;
+  ss.imbue(std::locale{"en_US.UTF8"});
+  ss << this->Rng();
+  (*out)["rng"] = ss.str();
+}
+
+void Context::LoadConfig(Json const& in) {
+  FromJson(in, this);
+  std::stringstream ss;
+  ss.imbue(std::locale{"en_US.UTF8"});
+  ss << get<String const>(in["rng"]);
+  ss >> this->Rng();
+  // make sure the GPU ID is valid in new environment before start running configure.
+  this->ConfigureGpuId(false);
 }
 
 void Context::ConfigureGpuId(bool require_gpu) {

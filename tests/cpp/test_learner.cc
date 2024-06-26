@@ -399,7 +399,7 @@ TEST(Learner, ConstantSeed) {
   learner->Configure();  // seed the global random
 
   std::uniform_real_distribution<float> dist;
-  auto& rng = common::GlobalRandom();
+  auto& rng = learner->Ctx()->Rng();
   float v_0 = dist(rng);
 
   learner->SetParam("", "");

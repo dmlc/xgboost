@@ -7,11 +7,8 @@
 #ifndef XGBOOST_COMMON_RANDOM_H_
 #define XGBOOST_COMMON_RANDOM_H_
 
-#include <xgboost/logging.h>
-
 #include <algorithm>
 #include <functional>
-#include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
@@ -19,68 +16,15 @@
 #include <utility>
 #include <vector>
 
-#include "../collective/broadcast.h"  // for Broadcast
-#include "../collective/communicator-inl.h"
-#include "algorithm.h"  // ArgSort
-#include "common.h"
-#include "xgboost/context.h"  // Context
-#include "xgboost/host_device_vector.h"
-#include "xgboost/linalg.h"
+#include "../collective/broadcast.h"     // for Broadcast
+#include "algorithm.h"                   // ArgSort
+#include "xgboost/context.h"             // Context
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/linalg.h"              // for MakeVec
+#include "xgboost/logging.h"
 
 namespace xgboost::common {
-/*!
- * \brief Define mt19937 as default type Random Engine.
- */
-using RandomEngine = std::mt19937;
-
-#if defined(XGBOOST_CUSTOMIZE_GLOBAL_PRNG) && XGBOOST_CUSTOMIZE_GLOBAL_PRNG == 1
-/*!
- * \brief An customized random engine, used to be plugged in PRNG from other systems.
- *  The implementation of this library is not provided by xgboost core library.
- *  Instead the other library can implement this class, which will be used as GlobalRandomEngine
- *  If XGBOOST_RANDOM_CUSTOMIZE = 1, by default this is switched off.
- */
-class CustomGlobalRandomEngine {
- public:
-  /*! \brief The result type */
-  using result_type = uint32_t;
-  /*! \brief The minimum of random numbers generated */
-  inline static constexpr result_type min() {
-    return 0;
-  }
-  /*! \brief The maximum random numbers generated */
-  inline static constexpr result_type max() {
-    return std::numeric_limits<result_type>::max();
-  }
-  /*!
-   * \brief seed function, to be implemented
-   * \param val The value of the seed.
-   */
-  void seed(result_type val);
-  /*!
-   * \return next random number.
-   */
-  result_type operator()();
-};
-
-/*!
- * \brief global random engine
- */
-typedef CustomGlobalRandomEngine GlobalRandomEngine;
-
-#else
-/*!
- * \brief global random engine
- */
-using GlobalRandomEngine = RandomEngine;
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-
-/*!
- * \brief global singleton of a random engine.
- *  This random engine is thread-local and
- *  only visible to current thread.
- */
-GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
+class RandomEngine : public std::mt19937 {};
 
 /*
  * Original paper:
@@ -96,7 +40,7 @@ std::vector<T> WeightedSamplingWithoutReplacement(Context const* ctx, std::vecto
   CHECK_EQ(array.size(), weights.size());
   std::vector<float> keys(weights.size());
   std::uniform_real_distribution<float> dist;
-  auto& rng = GlobalRandom();
+  auto& rng = ctx->Rng();
   for (size_t i = 0; i < array.size(); ++i) {
     auto w = std::max(weights.at(i), kRtEps);
     auto u = dist(rng);
@@ -120,7 +64,7 @@ void SampleFeature(Context const* ctx, bst_feature_t n_features,
                    std::shared_ptr<HostDeviceVector<bst_feature_t>> p_new_features,
                    HostDeviceVector<float> const& feature_weights,
                    HostDeviceVector<float>* weight_buffer,
-                   HostDeviceVector<bst_feature_t>* idx_buffer, GlobalRandomEngine* grng);
+                   HostDeviceVector<bst_feature_t>* idx_buffer, RandomEngine* grng);
 
 void InitFeatureSet(Context const* ctx,
                     std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features);
@@ -140,7 +84,7 @@ class ColumnSampler {
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
-  GlobalRandomEngine rng_;
+  RandomEngine rng_;
   Context const* ctx_;
 
   // Used for weighted sampling.
@@ -230,7 +174,7 @@ class ColumnSampler {
 };
 
 inline auto MakeColumnSampler(Context const* ctx) {
-  std::uint32_t seed = common::GlobalRandomEngine()();
+  std::uint32_t seed = ctx->Rng()();
   auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
   collective::SafeColl(rc);
   auto cs = std::make_shared<common::ColumnSampler>(seed);

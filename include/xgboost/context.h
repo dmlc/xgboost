@@ -15,8 +15,11 @@
 #include <type_traits>  // for invoke_result_t, is_same_v, underlying_type_t
 
 namespace xgboost {
-
+class Json;
 struct CUDAContext;
+namespace common {
+class RandomEngine;
+}  // namespace common
 
 // symbolic names
 struct DeviceSym {
@@ -46,9 +49,7 @@ struct DeviceOrd {
   [[nodiscard]] bool IsSyclDefault() const { return device == kSyclDefault; }
   [[nodiscard]] bool IsSyclCPU() const { return device == kSyclCPU; }
   [[nodiscard]] bool IsSyclGPU() const { return device == kSyclGPU; }
-  [[nodiscard]] bool IsSycl() const { return (IsSyclDefault() ||
-                                              IsSyclCPU() ||
-                                              IsSyclGPU()); }
+  [[nodiscard]] bool IsSycl() const { return (IsSyclDefault() || IsSyclCPU() || IsSyclGPU()); }
 
   constexpr DeviceOrd() = default;
   constexpr DeviceOrd(Type type, bst_d_ordinal_t ord) : device{type}, ordinal{ord} {}
@@ -296,6 +297,11 @@ struct Context : public XGBoostParameter<Context> {
         .describe("Enable checking whether parameters are used or not.");
   }
 
+  [[nodiscard]] auto& Rng() const { return *rng_; }
+
+  void SaveConfig(Json* out) const;
+  void LoadConfig(Json const& in);
+
  private:
   void SetDeviceOrdinal(Args const& kwargs);
   Context& SetDevice(DeviceOrd d) {
@@ -307,6 +313,8 @@ struct Context : public XGBoostParameter<Context> {
   // shared_ptr is used instead of unique_ptr as with unique_ptr it's difficult to define
   // p_impl while trying to hide CUDA code from the host compiler.
   mutable std::shared_ptr<CUDAContext> cuctx_;
+  // mutable for random engine. The rng is shared by child contexts, if there's any.
+  mutable std::shared_ptr<common::RandomEngine> rng_;
   // cached value for CFS CPU limit. (used in containerized env)
   std::int32_t cfs_cpu_count_;  // NOLINT
 };

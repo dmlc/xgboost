@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2023, XGBoost Contributors
+ * Copyright (c) 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
@@ -148,13 +148,12 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     std::string continued_model;
     {
       // Continue the previous training with another kIters
-      std::unique_ptr<dmlc::Stream> fi(
-          dmlc::Stream::Create(fname.c_str(), "r"));
+      std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
       std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
       learner->Load(fi.get());
       learner->Configure();
 
-      // verify the loaded model doesn't change.
+      // Verify the loaded model doesn't change.
       std::string serialised_model_tmp;
       common::MemoryBufferStream mem_out(&serialised_model_tmp);
       learner->Save(&mem_out);
@@ -484,7 +483,7 @@ class LogitSerializationTest : public SerializationTest {
     auto& h_labels = p_dmat->Info().labels.Data()->HostVector();
 
     std::bernoulli_distribution flip(0.5);
-    auto& rnd = common::GlobalRandom();
+    auto& rnd = p_dmat->Ctx()->Rng();
     rnd.seed(0);
 
     for (auto& v : h_labels) { v = flip(rnd); }
@@ -608,7 +607,7 @@ class MultiClassesSerializationTest : public SerializationTest {
     auto &h_labels = p_dmat->Info().labels.Data()->HostVector();
 
     std::uniform_int_distribution<size_t> categorical(0, kClasses - 1);
-    auto& rnd = common::GlobalRandom();
+    auto& rnd = p_dmat->Ctx()->Rng();
     rnd.seed(0);
 
     for (auto& v : h_labels) { v = categorical(rnd); }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_HIST_SAMPLER_H_
 #define XGBOOST_TREE_HIST_SAMPLER_H_
@@ -8,12 +8,12 @@
 #include <cstdint>  // std::uint64_t
 #include <random>   // bernoulli_distribution, linear_congruential_engine
 
-#include "../../common/random.h"  // GlobalRandom
-#include "../param.h"             // TrainParam
-#include "xgboost/base.h"         // GradientPair
-#include "xgboost/context.h"      // Context
-#include "xgboost/data.h"         // MetaInfo
-#include "xgboost/linalg.h"       // TensorView
+#include "../../common/random.h"  // for RandomEngine
+#include "../param.h"             // for TrainParam
+#include "xgboost/base.h"         // for GradientPair
+#include "xgboost/context.h"      // for Context
+#include "xgboost/data.h"         // for MetaInfo
+#include "xgboost/linalg.h"       // for TensorView
 
 namespace xgboost {
 namespace tree {
@@ -55,18 +55,9 @@ inline void SampleGradient(Context const* ctx, TrainParam param,
     return;
   }
   bst_idx_t n_samples = out.Shape(0);
-  auto& rnd = common::GlobalRandom();
+  auto& rng = ctx->Rng();
 
-#if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-  std::bernoulli_distribution coin_flip(param.subsample);
-  CHECK_EQ(out.Shape(1), 1) << "Multi-target with sampling for R is not yet supported.";
-  for (size_t i = 0; i < n_samples; ++i) {
-    if (!(out(i, 0).GetHess() >= 0.0f && coin_flip(rnd)) || out(i, 0).GetGrad() == 0.0f) {
-      out(i, 0) = GradientPair(0);
-    }
-  }
-#else
-  std::uint64_t initial_seed = rnd();
+  std::uint64_t initial_seed = rng();
 
   auto n_threads = static_cast<size_t>(ctx->Threads());
   std::size_t const discard_size = n_samples / n_threads;
@@ -102,7 +93,6 @@ inline void SampleGradient(Context const* ctx, TrainParam param,
     });
   }
   exc.Rethrow();
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 }
 }  // namespace tree
 }  // namespace xgboost

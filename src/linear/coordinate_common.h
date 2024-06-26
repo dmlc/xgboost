@@ -278,13 +278,13 @@ class CyclicFeatureSelector : public FeatureSelector {
 class ShuffleFeatureSelector : public FeatureSelector {
  public:
   using FeatureSelector::FeatureSelector;
-  void Setup(Context const *, const gbm::GBLinearModel &model, const std::vector<GradientPair> &,
+  void Setup(Context const *ctx, const gbm::GBLinearModel &model, const std::vector<GradientPair> &,
              DMatrix *, float, float, int) override {
     if (feat_index_.size() == 0) {
       feat_index_.resize(model.learner_model_param->num_feature);
       std::iota(feat_index_.begin(), feat_index_.end(), 0);
     }
-    std::shuffle(feat_index_.begin(), feat_index_.end(), common::GlobalRandom());
+    std::shuffle(feat_index_.begin(), feat_index_.end(), ctx->Rng());
   }
 
   int NextFeature(Context const *, int iteration, const gbm::GBLinearModel &model, int,
@@ -303,9 +303,9 @@ class ShuffleFeatureSelector : public FeatureSelector {
 class RandomFeatureSelector : public FeatureSelector {
  public:
   using FeatureSelector::FeatureSelector;
-  int NextFeature(Context const *, int, const gbm::GBLinearModel &model, int,
+  int NextFeature(Context const *ctx, int, const gbm::GBLinearModel &model, int,
                   const std::vector<GradientPair> &, DMatrix *, float, float) override {
-    return common::GlobalRandom()() % model.learner_model_param->num_feature;
+    return ctx->Rng()() % model.learner_model_param->num_feature;
   }
 };
 
