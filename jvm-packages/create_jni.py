@@ -135,7 +135,6 @@ def native_build(args):
             run(f'"{sys.executable}" mapfeat.py')
             run(f'"{sys.executable}" mknfold.py machine.txt 1')
 
-    xgboost4j = "xgboost4j-gpu" if cli_args.use_cuda == "ON" else "xgboost4j"
     xgboost4j_spark = (
         "xgboost4j-spark-gpu" if cli_args.use_cuda == "ON" else "xgboost4j-spark"
     )
@@ -155,8 +154,8 @@ def native_build(args):
         "arm64": "aarch64",  # on macOS & Windows ARM 64-bit
         "aarch64": "aarch64",
     }[platform.machine().lower()]
-    output_folder = "{}/src/main/resources/lib/{}/{}".format(
-        xgboost4j, os_folder, arch_folder
+    output_folder = "xgboost4j/src/main/resources/lib/{}/{}".format(
+        os_folder, arch_folder
     )
     maybe_makedirs(output_folder)
     cp("../lib/" + library_name, output_folder)
@@ -172,9 +171,9 @@ def native_build(args):
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "{}/src/test/resources".format(xgboost4j_spark))
 
-    maybe_makedirs("{}/src/test/resources".format(xgboost4j))
+    maybe_makedirs("xgboost4j/src/test/resources")
     for file in glob.glob("../demo/data/agaricus.*"):
-        cp(file, "{}/src/test/resources".format(xgboost4j))
+        cp(file, "xgboost4j/src/test/resources")
 
 
 if __name__ == "__main__":

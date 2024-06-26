@@ -89,7 +89,7 @@ public class RabitTracker implements ITracker {
     this.trackerDaemon = new Thread(() -> {
       try {
         waitFor(0);
-      } catch (XGBoostError ex) {
+      } catch (Exception ex) {
         logger.error(ex);
         return; // exit the thread
       }

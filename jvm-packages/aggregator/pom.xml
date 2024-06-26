@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>ml.dmlc</groupId>
+    <artifactId>xgboost-jvm_2.12</artifactId>
+    <version>2.2.0-SNAPSHOT</version>
+  </parent>
+
+  <name>aggregator</name>
+  <artifactId>aggregator_${scala.binary.version}</artifactId>
+
+  <properties>
+    <maven.compiler.source>8</maven.compiler.source>
+    <maven.compiler.target>8</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>ml.dmlc</groupId>
+      <artifactId>xgboost4j_${scala.binary.version}</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>ml.dmlc</groupId>
+      <artifactId>xgboost4j-spark_${scala.binary.version}</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>xgboost_spark_${scala.binary.version}-${project.version}</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <configuration>
+          <!-- put your configurations here -->
+          <artifactSet>
+            <includes>
+              <include>ml.dmlc:xgboost4j_${scala.binary.version}</include>
+              <include>ml.dmlc:xgboost4j-spark_${scala.binary.version}</include>
+            </includes>
+          </artifactSet>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

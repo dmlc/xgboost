@@ -184,7 +184,7 @@ public class DMatrix {
    */
   public DMatrix(ColumnBatch columnBatch, float missing, int nthread) throws XGBoostError {
     long[] out = new long[1];
-    String json = columnBatch.getFeatureArrayInterface();
+    String json = columnBatch.toFeaturesJson();
     if (json == null || json.isEmpty()) {
       throw new XGBoostError("Expecting non-empty feature columns' array interface");
     }
@@ -201,7 +201,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setLabel(Column column) throws XGBoostError {
-    setXGBDMatrixInfo("label", column.getArrayInterfaceJson());
+    setXGBDMatrixInfo("label", column.toJson());
   }
 
   /**
@@ -212,7 +212,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setWeight(Column column) throws XGBoostError {
-    setXGBDMatrixInfo("weight", column.getArrayInterfaceJson());
+    setXGBDMatrixInfo("weight", column.toJson());
   }
 
   /**
@@ -223,7 +223,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public void setBaseMargin(Column column) throws XGBoostError {
-    setXGBDMatrixInfo("base_margin", column.getArrayInterfaceJson());
+    setXGBDMatrixInfo("base_margin", column.toJson());
   }
 
   private void setXGBDMatrixInfo(String type, String json) throws XGBoostError {
