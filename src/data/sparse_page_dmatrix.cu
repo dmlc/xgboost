@@ -1,8 +1,9 @@
 /**
  * Copyright 2021-2024, XGBoost contributors
  */
-#include <memory>  // for shared_ptr
-#include <variant> // for visit
+#include <memory>   // for shared_ptr
+#include <utility>  // for move
+#include <variant>  // for visit
 
 #include "../common/hist_util.cuh"
 #include "../common/hist_util.h"  // for HistogramCuts

@@ -4,6 +4,7 @@
 #include "sparse_page_source.h"
 
 #include <filesystem>  // for exists
+#include <string>      // for string
 
 namespace xgboost::data {
 void TryDeleteCacheFile(const std::string& file) {

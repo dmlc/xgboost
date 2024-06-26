@@ -36,8 +36,8 @@ class GHistIndexFormatPolicy {
 };
 
 class GradientIndexPageSource
-    : public PageSourceIncMixIn<GHistIndexMatrix,
-                                DefaultFormatStreamPolicy<GHistIndexMatrix, GHistIndexFormatPolicy>> {
+    : public PageSourceIncMixIn<
+          GHistIndexMatrix, DefaultFormatStreamPolicy<GHistIndexMatrix, GHistIndexFormatPolicy>> {
   bool is_dense_;
   std::int32_t max_bin_per_feat_;
   common::Span<FeatureType const> feature_types_;

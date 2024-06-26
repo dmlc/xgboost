@@ -434,7 +434,8 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
 };
 
 // A mixin for advancing the iterator.
-template <typename S, typename FormatCreatePolicy = DefaultFormatStreamPolicy<S, DefaultFormatPolicy>>
+template <typename S,
+          typename FormatCreatePolicy = DefaultFormatStreamPolicy<S, DefaultFormatPolicy>>
 class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
  protected:
   std::shared_ptr<SparsePageSource> source_;
