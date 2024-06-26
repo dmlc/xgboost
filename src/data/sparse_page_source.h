@@ -8,7 +8,6 @@
 #include <algorithm>   // for min
 #include <atomic>      // for atomic
 #include <cstdint>     // for uint64_t
-#include <cstdio>      // for remove
 #include <future>      // for future
 #include <memory>      // for unique_ptr
 #include <mutex>       // for mutex
@@ -303,7 +302,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
  public:
   SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features, bst_idx_t n_batches,
                        std::shared_ptr<Cache> cache)
-      : workers_{2},
+      : workers_{std::max(2, std::min(nthreads, 16))},  // Don't use too many threads.
         missing_{missing},
         nthreads_{nthreads},
         n_features_{n_features},

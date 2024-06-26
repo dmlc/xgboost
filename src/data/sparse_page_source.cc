@@ -5,6 +5,7 @@
 
 #include <filesystem>  // for exists
 #include <string>      // for string
+#include <cstdio>      // for remove
 
 namespace xgboost::data {
 void TryDeleteCacheFile(const std::string& file) {

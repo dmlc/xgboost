@@ -16,7 +16,7 @@ struct EllpackHostCache {
   thrust::host_vector<std::int8_t, common::cuda::pinned_allocator<std::int8_t>> cache;
 
   void Resize(std::size_t n) {
-    dh::DefaultStream().Sync();
+    dh::DefaultStream().Sync();  // Prevent partial copy inside resize.
     cache.resize(n);
   }
 };
