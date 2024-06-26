@@ -56,6 +56,16 @@ steps:
     key: build-jvm-packages
     agents:
       queue: linux-amd64-cpu
+  - label: ":console: Build libxgboost4j.so for Linux ARM64 (targeting glibc 2.17)"
+    command: "tests/buildkite/build-jvm-linux-arm64-manylinux2014.sh"
+    key: build-jvm-linux-arm64-manylinux2014
+    agents:
+      queue: linux-arm64-cpu
+  - label: ":console: Build libxgboost4j.so for Linux x86_64 (targeting glibc 2.17)"
+    command: "tests/buildkite/build-jvm-linux-x86_64-manylinux2014.sh"
+    key: build-jvm-linux-x86_64-manylinux2014
+    agents:
+      queue: linux-amd64-cpu
   - label: ":console: Build JVM package doc"
     command: "tests/buildkite/build-jvm-doc.sh"
     key: build-jvm-doc

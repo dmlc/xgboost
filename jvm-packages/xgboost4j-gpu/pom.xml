@@ -106,6 +106,7 @@
                                 <argument>${use.cuda}</argument>
                             </arguments>
                             <workingDirectory>${user.dir}</workingDirectory>
+                            <skip>${skip.native.build}</skip>
                         </configuration>
                     </execution>
                 </executions>
