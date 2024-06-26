@@ -204,7 +204,7 @@ class IteratorForTest(xgb.core.DataIter):
         y: Sequence,
         w: Optional[Sequence],
         cache: Optional[str],
-        on_host: bool,
+        on_host: bool = False,
     ) -> None:
         assert len(X) == len(y)
         self.X = X
