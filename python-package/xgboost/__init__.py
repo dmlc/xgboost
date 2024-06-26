@@ -5,14 +5,7 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 
 from . import tracker  # noqa
 from . import collective, dask
-from .core import (
-    Booster,
-    DataIter,
-    DMatrix,
-    QuantileDMatrix,
-    _py_version,
-    build_info,
-)
+from .core import Booster, DataIter, DMatrix, QuantileDMatrix, _py_version, build_info
 from .tracker import RabitTracker  # noqa
 from .training import cv, train
 
