@@ -1,0 +1,29 @@
+name: FreeBSD
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: A job to run test in FreeBSD
+    steps:
+    - uses: actions/checkout@v4
+    - name: Test in FreeBSD
+      id: test
+      uses: vmactions/freebsd-vm@v1
+      with:
+        envs: 'MYTOKEN MYTOKEN2'
+        usesh: true
+        prepare: |
+          pkg install -y cmake git ninja-build googletest
+
+        run: |
+          pwd
+          ls -lah
+          whoami
+          env
+          freebsd-version
+          mkdir build
+          cd build
+          cmake .. -GNinja -DGOOGLE_TEST=ON
+          ninja -v
