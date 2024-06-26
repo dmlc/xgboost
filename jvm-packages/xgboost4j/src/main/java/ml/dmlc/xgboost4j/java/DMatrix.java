@@ -44,6 +44,20 @@ public class DMatrix {
    * @throws XGBoostError
    */
   public DMatrix(Iterator<LabeledPoint> iter, String cacheInfo) throws XGBoostError {
+    this(iter, cacheInfo, Float.NaN);
+  }
+
+  /**
+   * Create DMatrix from iterator.
+   *
+   * @param iter The data iterator of mini batch to provide the data.
+   * @param cacheInfo Cache path information, used for external memory setting, can be null.
+   * @param missing the missing value
+   * @throws XGBoostError
+   */
+  public DMatrix(Iterator<LabeledPoint> iter,
+                 String cacheInfo,
+                 float missing) throws XGBoostError {
     if (iter == null) {
       throw new NullPointerException("iter: null");
     }
@@ -51,7 +65,8 @@ public class DMatrix {
     int batchSize = 32 << 10;
     Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter, cacheInfo, out));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter,
+                                                                cacheInfo, missing, out));
     handle = out[0];
   }
 
