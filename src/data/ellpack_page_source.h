@@ -65,7 +65,7 @@ class EllpackFormatPolicy {
 
  public:
   [[nodiscard]] auto CreatePageFormat() const {
-    cuts_->SetDevice(this->device_);
+    CHECK_EQ(cuts_->cut_values_.Device(), device_);
     std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_}};
     return fmt;
   }
@@ -73,6 +73,8 @@ class EllpackFormatPolicy {
   void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device) {
     std::swap(cuts_, cuts);
     device_ = device;
+    cuts_->SetDevice(this->device_);
+    CHECK(this->device_.IsCUDA());
   }
   [[nodiscard]] auto GetCuts() {
     CHECK(cuts_);

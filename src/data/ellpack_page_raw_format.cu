@@ -80,6 +80,7 @@ template <typename T>
 
 [[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page, EllpackHostCacheStream* fi) const {
   auto* impl = page->Impl();
+  CHECK(this->cuts_->cut_values_.DeviceCanRead());
   impl->SetCuts(this->cuts_);
   if (!fi->Read(&impl->n_rows)) {
     return false;
@@ -115,7 +116,7 @@ template <typename T>
 
 [[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
                                                       EllpackHostCacheStream* fo) const {
-  std::size_t bytes{0};
+  bst_idx_t bytes{0};
   auto* impl = page.Impl();
   bytes += fo->Write(impl->n_rows);
   bytes += fo->Write(impl->is_dense);
