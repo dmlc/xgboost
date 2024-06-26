@@ -2650,7 +2650,7 @@ class Booster:
         Parameters
         ----------
         raw_format :
-            Format of output buffer. Can be `json`, `ubj` or `deprecated`.
+            Format of output buffer. Can be `json` or `ubj`.
 
         Returns
         -------

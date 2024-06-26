@@ -75,25 +75,9 @@ class TestBoosterIO:
         from_ubjraw = xgb.Booster()
         from_ubjraw.load_model(ubj_raw)
 
-        if parameters.get("multi_strategy", None) != "multi_output_tree":
-            # Old binary model is not supported for vector leaf.
-            with pytest.warns(Warning, match="Model format is default to UBJSON"):
-                old_from_json = from_jraw.save_raw(raw_format="deprecated")
-                old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
-
-            assert old_from_json == old_from_ubj
-
         raw_json = bst.save_raw(raw_format="json")
         pretty = json.dumps(json.loads(raw_json), indent=2) + "\n\n"
         bst.load_model(bytearray(pretty, encoding="ascii"))
-
-        if parameters.get("multi_strategy", None) != "multi_output_tree":
-            # old binary model is not supported.
-            with pytest.warns(Warning, match="Model format is default to UBJSON"):
-                old_from_json = from_jraw.save_raw(raw_format="deprecated")
-                old_from_ubj = from_ubjraw.save_raw(raw_format="deprecated")
-
-            assert old_from_json == old_from_ubj
 
         rng = np.random.default_rng()
         X = rng.random(size=from_jraw.num_features() * 10).reshape(
@@ -126,11 +110,6 @@ class TestBoosterIO:
         predt_0 = booster.predict(Xy)
 
         with tempfile.TemporaryDirectory() as tempdir:
-            path = os.path.join(tempdir, "model.deprecated")
-            with pytest.raises(ValueError, match=r".*JSON/UBJSON.*"):
-                with pytest.warns(Warning, match="Model format is default to UBJSON"):
-                    booster.save_model(path)
-
             path = os.path.join(tempdir, "model.json")
             booster.save_model(path)
             booster = xgb.Booster(model_file=path)
@@ -180,34 +159,6 @@ class TestBoosterIO:
             for j_obj in j_objectives:
                 objectives_from_schema.add(j_obj["properties"]["name"]["const"])
             assert set(objectives) == objectives_from_schema
-
-    def test_model_binary_io(self) -> None:
-        model_path = "test_model_binary_io.deprecated"
-        parameters = {
-            "tree_method": "hist",
-            "booster": "gbtree",
-            "scale_pos_weight": "0.5",
-        }
-        X = np.random.random((10, 3))
-        y = np.random.random((10,))
-        dtrain = xgb.DMatrix(X, y)
-        bst = xgb.train(parameters, dtrain, num_boost_round=2)
-        with pytest.warns(Warning, match="Model format is default to UBJSON"):
-            bst.save_model(model_path)
-        bst = xgb.Booster(model_file=model_path)
-        os.remove(model_path)
-        config = json.loads(bst.save_config())
-        assert (
-            float(config["learner"]["objective"]["reg_loss_param"]["scale_pos_weight"])
-            == 0.5
-        )
-
-        buf = bst.save_raw()
-        from_raw = xgb.Booster()
-        from_raw.load_model(buf)
-
-        buf_from_raw = from_raw.save_raw()
-        assert buf == buf_from_raw
 
     def test_with_pathlib(self) -> None:
         """Saving and loading model files from paths."""
@@ -269,41 +220,19 @@ class TestBoosterIO:
             os.rename(src, dst)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            path_dep = os.path.join(tmpdir, "model.deprecated")
-            # save into deprecated format
-            with pytest.warns(UserWarning, match="UBJSON"):
-                booster.save_model(path_dep)
-
             path_ubj = os.path.join(tmpdir, "model.ubj")
-            rename(path_dep, path_ubj)
-
-            with pytest.raises(ValueError, match="{"):
-                xgb.Booster(model_file=path_ubj)
-
             path_json = os.path.join(tmpdir, "model.json")
+
+            booster.save_model(path_ubj)
             rename(path_ubj, path_json)
 
             with pytest.raises(ValueError, match="{"):
                 xgb.Booster(model_file=path_json)
 
-            # save into ubj format
-            booster.save_model(path_ubj)
-            rename(path_ubj, path_dep)
-            # deprecated is not a recognized format internally, XGBoost can guess the
-            # right format
-            xgb.Booster(model_file=path_dep)
-            rename(path_dep, path_json)
-            with pytest.raises(ValueError, match="Expecting"):
-                xgb.Booster(model_file=path_json)
-
-            # save into JSON format
             booster.save_model(path_json)
-            rename(path_json, path_dep)
-            # deprecated is not a recognized format internally, XGBoost can guess the
-            # right format
-            xgb.Booster(model_file=path_dep)
-            rename(path_dep, path_ubj)
-            with pytest.raises(ValueError, match="Expecting"):
+            rename(path_json, path_ubj)
+
+            with pytest.raises(ValueError, match="{"):
                 xgb.Booster(model_file=path_ubj)
 
             # save model without file extension
@@ -381,11 +310,6 @@ def save_load_model(model_path: str) -> None:
 def test_sklearn_model() -> None:
     from sklearn.datasets import load_digits
     from sklearn.model_selection import train_test_split
-
-    with tempfile.TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, "digits.deprecated")
-        with pytest.warns(Warning, match="Model format is default to UBJSON"):
-            save_load_model(model_path)
 
     with tempfile.TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, "digits.model.json")
