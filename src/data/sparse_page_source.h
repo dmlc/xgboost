@@ -5,16 +5,15 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 
-#include <algorithm>   // for min
-#include <atomic>      // for atomic
-#include <cstdint>     // for uint64_t
-#include <future>      // for future
-#include <memory>      // for unique_ptr
-#include <mutex>       // for mutex
-#include <numeric>     // for partial_sum
-#include <string>      // for string
-#include <utility>     // for pair, move
-#include <vector>      // for vector
+#include <algorithm>  // for min
+#include <atomic>     // for atomic
+#include <cstdint>    // for uint64_t
+#include <future>     // for future
+#include <memory>     // for unique_ptr
+#include <mutex>      // for mutex
+#include <string>     // for string
+#include <utility>    // for pair, move
+#include <vector>     // for vector
 
 #if !defined(XGBOOST_USE_CUDA)
 #include "../common/common.h"  // for AssertGPUSupport
@@ -26,7 +25,7 @@
 #include "proxy_dmatrix.h"          // for DMatrixProxy
 #include "sparse_page_writer.h"     // for SparsePageFormat
 #include "xgboost/base.h"           // for bst_feature_t
-#include "xgboost/data.h"           // for SparsePage, CSCPage
+#include "xgboost/data.h"           // for SparsePage, CSCPage, SortedCSCPage
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 #include "xgboost/logging.h"        // for CHECK_EQ
 
@@ -78,12 +77,7 @@ struct Cache {
   /**
    * @brief Call this once the write for the cache is complete.
    */
-  void Commit() {
-    if (!written) {
-      std::partial_sum(offset.begin(), offset.end(), offset.begin());
-      written = true;
-    }
-  }
+  void Commit();
 };
 
 // Prevents multi-threaded call to `GetBatches`.
