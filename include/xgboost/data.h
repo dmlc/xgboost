@@ -540,7 +540,7 @@ class DMatrix {
    */
   [[nodiscard]] virtual bool SingleColBlock() const = 0;
 
-  virtual ~DMatrix() noexcept(false);
+  virtual ~DMatrix();
 
   /**
    * @brief Whether the matrix is dense.

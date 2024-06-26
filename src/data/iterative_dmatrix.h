@@ -78,7 +78,7 @@ class IterativeDMatrix : public DMatrix {
                             std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                             XGDMatrixCallbackNext *next, float missing, int nthread,
                             bst_bin_t max_bin);
-  ~IterativeDMatrix() noexcept(false) override = default;
+  ~IterativeDMatrix() override = default;
 
   bool EllpackExists() const override { return static_cast<bool>(ellpack_); }
   bool GHistIndexExists() const override { return static_cast<bool>(ghist_); }

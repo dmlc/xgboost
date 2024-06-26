@@ -86,7 +86,7 @@ class SparsePageDMatrix : public DMatrix {
                              XGDMatrixCallbackNext *next, float missing, int32_t nthreads,
                              std::string cache_prefix, bool on_host = false);
 
-  ~SparsePageDMatrix() noexcept(false) override;
+  ~SparsePageDMatrix() override;
 
   [[nodiscard]] MetaInfo &Info() override;
   [[nodiscard]] const MetaInfo &Info() const override;

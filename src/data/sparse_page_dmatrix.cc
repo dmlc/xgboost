@@ -107,7 +107,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   fmat_ctx_ = ctx;
 }
 
-SparsePageDMatrix::~SparsePageDMatrix() noexcept(false) {
+SparsePageDMatrix::~SparsePageDMatrix() {
   // Clear out all resources before deleting the cache file.
   sparse_page_source_.reset();
   std::visit([](auto &&ptr) { ptr.reset(); }, ellpack_page_source_);

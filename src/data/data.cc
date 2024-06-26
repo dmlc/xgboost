@@ -818,7 +818,7 @@ XGBAPIThreadLocalEntry& DMatrix::GetThreadLocal() const {
   return (*DMatrixThreadLocal::Get())[this];
 }
 
-DMatrix::~DMatrix() noexcept(false) {
+DMatrix::~DMatrix() {
   auto local_map = DMatrixThreadLocal::Get();
   if (local_map->find(this) != local_map->cend()) {
     local_map->erase(this);
