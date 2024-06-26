@@ -13,7 +13,7 @@ mkdir build
 $command_wrapper bash -c \
   "cd build && cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && ninja -v"
 ldd lib/libxgboost4j.so
-objdump -T libxgboost4j.so | grep GLIBC_ | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
+objdump -T lib/libxgboost4j.so | grep GLIBC_ | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 
 echo "--- Upload libxgboost4j.so"
 pushd lib
