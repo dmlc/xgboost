@@ -200,7 +200,7 @@ TEST(EllpackPage, Compact) {
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(FstCU(), page->CutsShared(), page->is_dense, page->row_stride,
+  EllpackPageImpl result(ctx.Device(), page->CutsShared(), page->is_dense, page->row_stride,
                          kCompactedRows);
 
   // Compact batch pages into the result page.
@@ -210,7 +210,7 @@ TEST(EllpackPage, Compact) {
   thrust::device_vector<size_t> row_indexes_d = row_indexes_h;
   common::Span<size_t> row_indexes_span(row_indexes_d.data().get(), kRows);
   for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
-    result.Compact(FstCU(), batch.Impl(), row_indexes_span);
+    result.Compact(&ctx, batch.Impl(), row_indexes_span);
   }
 
   size_t current_row = 0;

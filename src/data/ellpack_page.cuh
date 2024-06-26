@@ -181,11 +181,11 @@ class EllpackPageImpl {
 
   /*! \brief Compact the given ELLPACK page into the current page.
    *
-   * @param device The GPU device to use.
+   * @param context The GPU context.
    * @param page The ELLPACK page to compact from.
    * @param row_indexes Row indexes for the compacted page.
    */
-  void Compact(DeviceOrd device, EllpackPageImpl const* page, common::Span<size_t> row_indexes);
+  void Compact(Context const* ctx, EllpackPageImpl const* page, common::Span<size_t> row_indexes);
 
   /*! \return Number of instances in the page. */
   [[nodiscard]] bst_idx_t Size() const;

@@ -461,15 +461,16 @@ struct CompactPage {
 };
 
 // Compacts the data from the given EllpackPage into the current page.
-void EllpackPageImpl::Compact(DeviceOrd device, EllpackPageImpl const* page,
+void EllpackPageImpl::Compact(Context const* ctx, EllpackPageImpl const* page,
                               common::Span<size_t> row_indexes) {
   monitor_.Start(__func__);
   CHECK_EQ(row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
-  gidx_buffer.SetDevice(device);
-  page->gidx_buffer.SetDevice(device);
-  dh::LaunchN(page->n_rows, dh::DefaultStream(), CompactPage(this, page, row_indexes));
+  gidx_buffer.SetDevice(ctx->Device());
+  page->gidx_buffer.SetDevice(ctx->Device());
+  auto cuctx = ctx->CUDACtx();
+  dh::LaunchN(page->n_rows, cuctx->Stream(), CompactPage(this, page, row_indexes));
   monitor_.Stop(__func__);
 }
 

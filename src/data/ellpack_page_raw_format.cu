@@ -33,7 +33,6 @@ template <typename T>
     return false;
   }
 
-  vec->SetDevice(DeviceOrd::CUDA(0));
   vec->Resize(n);
   auto d_vec = vec->DeviceSpan();
   dh::safe_cuda(
@@ -55,6 +54,7 @@ template <typename T>
   if (!fi->Read(&impl->row_stride)) {
     return false;
   }
+  impl->gidx_buffer.SetDevice(device_);
   if (!ReadDeviceVec(fi, &impl->gidx_buffer)) {
     return false;
   }
@@ -100,9 +100,8 @@ template <typename T>
     impl->gidx_buffer.SetDevice(device_);
     impl->gidx_buffer.Resize(n);
     auto span = impl->gidx_buffer.DeviceSpan();
-    auto rc = fi->Read(span.data(), span.size_bytes());
-    if (!rc) {
-      return rc;
+    if (!fi->Read(span.data(), span.size_bytes())) {
+      return false;
     }
   }
 

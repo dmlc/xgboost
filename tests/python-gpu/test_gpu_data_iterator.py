@@ -47,5 +47,12 @@ def test_gpu_data_iterator(
 def test_cpu_data_iterator() -> None:
     """Make sure CPU algorithm can handle GPU inputs"""
     run_data_iterator(
-        1024, 2, 3, "approx", subsample=False, use_cupy=True, on_host=False
+        1024,
+        2,
+        3,
+        "approx",
+        device="cuda",
+        subsample=False,
+        use_cupy=True,
+        on_host=False,
     )

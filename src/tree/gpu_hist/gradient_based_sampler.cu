@@ -234,7 +234,7 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : batch_iterator) {
-    page_->Compact(ctx->Device(), batch.Impl(), dh::ToSpan(sample_row_index_));
+    page_->Compact(ctx, batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
@@ -307,7 +307,7 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : batch_iterator) {
-    page_->Compact(ctx->Device(), batch.Impl(), dh::ToSpan(sample_row_index_));
+    page_->Compact(ctx, batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};

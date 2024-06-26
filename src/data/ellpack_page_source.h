@@ -29,7 +29,7 @@ class EllpackHostCacheStreamImpl;
 
 // A view onto the actual cache implemented by `EllpackHostCache`.
 class EllpackHostCacheStream {
-  std::unique_ptr<EllpackHostCacheStreamImpl> p_impl_{nullptr};
+  std::unique_ptr<EllpackHostCacheStreamImpl> p_impl_;
 
  public:
   explicit EllpackHostCacheStream(std::shared_ptr<EllpackHostCache> cache);

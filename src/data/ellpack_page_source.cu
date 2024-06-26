@@ -1,22 +1,27 @@
 /**
  * Copyright 2019-2024, XGBoost contributors
  */
-#include <thrust/host_vector.h>
+#include <thrust/host_vector.h>  // for host_vector
 
-#include <memory>
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int8_t, uint64_t, uint32_t
+#include <memory>   // for shared_ptr, make_unique, make_shared
+#include <utility>  // for move
 
-#include "../common/common.h"  // for safe_cuda
-#include "../common/cuda_pinned_allocator.h"
-#include "ellpack_page.cuh"
-#include "ellpack_page.h"  // for EllpackPage
+#include "../common/common.h"                 // for safe_cuda
+#include "../common/cuda_pinned_allocator.h"  // for pinned_allocator
+#include "../common/device_helpers.cuh"       // for CUDAStreamView, DefaultStream
+#include "ellpack_page.cuh"                   // for EllpackPageImpl
+#include "ellpack_page.h"                     // for EllpackPage
 #include "ellpack_page_source.h"
+#include "xgboost/base.h"  // for bst_idx_t
 
 namespace xgboost::data {
 struct EllpackHostCache {
   thrust::host_vector<std::int8_t, common::cuda::pinned_allocator<std::int8_t>> cache;
 
-  void Resize(std::size_t n) {
-    dh::DefaultStream().Sync();  // Prevent partial copy inside resize.
+  void Resize(std::size_t n, dh::CUDAStreamView stream) {
+    stream.Sync();  // Prevent partial copy inside resize.
     cache.resize(n);
   }
 };
@@ -30,10 +35,10 @@ class EllpackHostCacheStreamImpl {
   explicit EllpackHostCacheStreamImpl(std::shared_ptr<EllpackHostCache> cache)
       : cache_{std::move(cache)} {}
 
-  bst_idx_t Write(void const* ptr, bst_idx_t n_bytes) {
+  [[nodiscard]] bst_idx_t Write(void const* ptr, bst_idx_t n_bytes) {
     auto n = cur_ptr_ + n_bytes;
     if (n > cache_->cache.size()) {
-      cache_->Resize(n);
+      cache_->Resize(n, dh::DefaultStream());
     }
     dh::safe_cuda(cudaMemcpyAsync(cache_->cache.data() + cur_ptr_, ptr, n_bytes, cudaMemcpyDefault,
                                   dh::DefaultStream()));
@@ -41,7 +46,7 @@ class EllpackHostCacheStreamImpl {
     return n_bytes;
   }
 
-  bool Read(void* ptr, bst_idx_t n_bytes) {
+  [[nodiscard]] bool Read(void* ptr, bst_idx_t n_bytes) {
     CHECK_LE(cur_ptr_ + n_bytes, bound_);
     dh::safe_cuda(cudaMemcpyAsync(ptr, cache_->cache.data() + cur_ptr_, n_bytes, cudaMemcpyDefault,
                                   dh::DefaultStream()));
@@ -51,7 +56,10 @@ class EllpackHostCacheStreamImpl {
 
   [[nodiscard]] bst_idx_t Tell() const { return cur_ptr_; }
   void Seek(bst_idx_t offset_bytes) { cur_ptr_ = offset_bytes; }
-  void Bound(bst_idx_t offset_bytes) { this->bound_ = offset_bytes; }
+  void Bound(bst_idx_t offset_bytes) {
+    CHECK_LE(offset_bytes, cache_->cache.size());
+    this->bound_ = offset_bytes;
+  }
 };
 
 /**
