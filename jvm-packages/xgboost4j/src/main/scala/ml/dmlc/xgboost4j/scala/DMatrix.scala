@@ -37,10 +37,13 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
     *
     * @param dataIter An iterator of LabeledPoint
     * @param cacheInfo  Cache path information, used for external memory setting, null by default.
+    * @param missing Which value will be treated as the missing value
     * @throws XGBoostError native error
     */
-  def this(dataIter: Iterator[LabeledPoint], cacheInfo: String = null) {
-    this(new JDMatrix(dataIter.asJava, cacheInfo))
+  def this(dataIter: Iterator[LabeledPoint],
+           cacheInfo: String = null,
+           missing: Float = Float.NaN) {
+    this(new JDMatrix(dataIter.asJava, cacheInfo, missing))
   }
 
   /**
