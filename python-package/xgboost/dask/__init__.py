@@ -711,20 +711,6 @@ class DaskQuantileDMatrix(DaskDMatrix):
         return args
 
 
-class DaskDeviceQuantileDMatrix(DaskQuantileDMatrix):
-    """Use `DaskQuantileDMatrix` instead.
-
-    .. deprecated:: 1.7.0
-
-    .. versionadded:: 1.2.0
-
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        warnings.warn("Please use `DaskQuantileDMatrix` instead.", FutureWarning)
-        super().__init__(*args, **kwargs)
-
-
 def _create_quantile_dmatrix(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[Any, List[Any]]],
