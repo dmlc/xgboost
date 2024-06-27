@@ -126,7 +126,7 @@ SparsePageDMatrix::~SparsePageDMatrix() {
 }
 
 void SparsePageDMatrix::InitializeSparsePage(Context const *ctx) {
-  auto id = MakeCache(this, ".row.page", on_host_, cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".row.page", false, cache_prefix_, &cache_info_);
   // Don't use proxy DMatrix once this is already initialized, this allows users to
   // release the iterator and data.
   if (cache_info_.at(id)->written) {
