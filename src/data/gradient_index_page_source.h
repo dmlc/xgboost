@@ -17,19 +17,34 @@
 #include "xgboost/data.h"           // for BatchParam, FeatureType
 #include "xgboost/span.h"           // for Span
 
-namespace xgboost {
-namespace data {
-class GradientIndexPageSource : public PageSourceIncMixIn<GHistIndexMatrix> {
+namespace xgboost::data {
+/**
+ * @brief Policy for creating ghist index format. The storage is default (disk).
+ */
+template <typename S>
+class GHistIndexFormatPolicy {
+ protected:
   common::HistogramCuts cuts_;
+
+ public:
+  using FormatT = SparsePageFormat<GHistIndexMatrix>;
+
+ public:
+  [[nodiscard]] auto CreatePageFormat() const {
+    std::unique_ptr<FormatT> fmt{new GHistIndexRawFormat{cuts_}};
+    return fmt;
+  }
+
+  void SetCuts(common::HistogramCuts cuts) { std::swap(cuts_, cuts); }
+};
+
+class GradientIndexPageSource
+    : public PageSourceIncMixIn<
+          GHistIndexMatrix, DefaultFormatStreamPolicy<GHistIndexMatrix, GHistIndexFormatPolicy>> {
   bool is_dense_;
   std::int32_t max_bin_per_feat_;
   common::Span<FeatureType const> feature_types_;
   double sparse_thresh_;
-
- protected:
-  [[nodiscard]] SparsePageFormat<GHistIndexMatrix>* CreatePageFormat() const override {
-    return new GHistIndexRawFormat{cuts_};
-  }
 
  public:
   GradientIndexPageSource(float missing, std::int32_t nthreads, bst_feature_t n_features,
@@ -39,17 +54,16 @@ class GradientIndexPageSource : public PageSourceIncMixIn<GHistIndexMatrix> {
                           std::shared_ptr<SparsePageSource> source)
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache,
                            std::isnan(param.sparse_thresh)),
-        cuts_{std::move(cuts)},
         is_dense_{is_dense},
         max_bin_per_feat_{param.max_bin},
         feature_types_{feature_types},
         sparse_thresh_{param.sparse_thresh} {
     this->source_ = source;
+    this->SetCuts(std::move(cuts));
     this->Fetch();
   }
 
   void Fetch() final;
 };
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_PAGE_SOURCE_H_

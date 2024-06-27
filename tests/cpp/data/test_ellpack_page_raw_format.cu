@@ -4,15 +4,19 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
-#include "../../../src/common/io.h"  // for PrivateMmapConstStream, AlignedResourceReadStream...
-#include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/ellpack_page.cuh"           // for EllpackPage
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
-#include "../../../src/tree/param.h"                    // TrainParam
+#include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
+#include "../../../src/tree/param.h"                    // for TrainParam
 #include "../filesystem.h"                              // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost::data {
-TEST(EllpackPageRawFormat, IO) {
+namespace {
+template <typename FormatStreamPolicy>
+void TestEllpackPageRawFormat() {
+  FormatStreamPolicy policy;
+
   Context ctx{MakeCUDACtx(0)};
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
 
@@ -21,24 +25,26 @@ TEST(EllpackPageRawFormat, IO) {
   std::string path = tmpdir.path + "/ellpack.page";
 
   std::shared_ptr<common::HistogramCuts const> cuts;
-  for (auto const& page : m->GetBatches<EllpackPage>(&ctx, param)) {
+  for (auto const &page : m->GetBatches<EllpackPage>(&ctx, param)) {
     cuts = page.Impl()->CutsShared();
   }
 
-  cuts->SetDevice(ctx.Device());
-  auto format = std::make_unique<EllpackPageRawFormat>(cuts);
+  ASSERT_EQ(cuts->cut_values_.Device(), ctx.Device());
+  ASSERT_TRUE(cuts->cut_values_.DeviceCanRead());
+  policy.SetCuts(cuts, ctx.Device());
+
+  std::unique_ptr<EllpackPageRawFormat> format{policy.CreatePageFormat()};
 
   std::size_t n_bytes{0};
   {
-    auto fo = std::make_unique<common::AlignedFileWriteStream>(StringView{path}, "wb");
+    auto fo = policy.CreateWriter(StringView{path}, 0);
     for (auto const &ellpack : m->GetBatches<EllpackPage>(&ctx, param)) {
       n_bytes += format->Write(ellpack, fo.get());
     }
   }
 
   EllpackPage page;
-  std::unique_ptr<common::AlignedResourceReadStream> fi{
-      std::make_unique<common::PrivateMmapConstStream>(path.c_str(), 0, n_bytes)};
+  auto fi = policy.CreateReader(StringView{path}, static_cast<bst_idx_t>(0), n_bytes);
   ASSERT_TRUE(format->Read(&page, fi.get()));
 
   for (auto const &ellpack : m->GetBatches<EllpackPage>(&ctx, param)) {
@@ -51,5 +57,14 @@ TEST(EllpackPageRawFormat, IO) {
     ASSERT_EQ(loaded->row_stride, orig->row_stride);
     ASSERT_EQ(loaded->gidx_buffer.HostVector(), orig->gidx_buffer.HostVector());
   }
+}
+}  // anonymous namespace
+
+TEST(EllpackPageRawFormat, DiskIO) {
+  TestEllpackPageRawFormat<DefaultFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>>();
+}
+
+TEST(EllpackPageRawFormat, HostIO) {
+  TestEllpackPageRawFormat<EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>>();
 }
 }  // namespace xgboost::data

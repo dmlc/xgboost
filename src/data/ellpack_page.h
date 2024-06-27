@@ -41,7 +41,7 @@ class EllpackPage {
   EllpackPage(EllpackPage&& that);
 
   /*! \return Number of instances in the page. */
-  [[nodiscard]] size_t Size() const;
+  [[nodiscard]] bst_idx_t Size() const;
 
   /*! \brief Set the base row id for this page. */
   void SetBaseRowId(std::size_t row_id);

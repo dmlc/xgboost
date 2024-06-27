@@ -29,7 +29,7 @@ EllpackPage::~EllpackPage() = default;
 
 EllpackPage::EllpackPage(EllpackPage&& that) { std::swap(impl_, that.impl_); }
 
-size_t EllpackPage::Size() const { return impl_->Size(); }
+[[nodiscard]] bst_idx_t EllpackPage::Size() const { return impl_->Size(); }
 
 void EllpackPage::SetBaseRowId(std::size_t row_id) { impl_->SetBaseRowId(row_id); }
 
@@ -91,13 +91,13 @@ __global__ void CompressBinEllpackKernel(
 // Construct an ELLPACK matrix with the given number of empty rows.
 EllpackPageImpl::EllpackPageImpl(DeviceOrd device,
                                  std::shared_ptr<common::HistogramCuts const> cuts, bool is_dense,
-                                 size_t row_stride, size_t n_rows)
-    : is_dense(is_dense), cuts_(std::move(cuts)), row_stride(row_stride), n_rows(n_rows) {
+                                 bst_idx_t row_stride, bst_idx_t n_rows)
+    : is_dense(is_dense), cuts_(std::move(cuts)), row_stride{row_stride}, n_rows{n_rows} {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
   monitor_.Start("InitCompressedData");
-  InitCompressedData(device);
+  this->InitCompressedData(device);
   monitor_.Stop("InitCompressedData");
 }
 
@@ -403,7 +403,7 @@ struct CopyPage {
 // Copy the data from the given EllpackPage to the current page.
 size_t EllpackPageImpl::Copy(DeviceOrd device, EllpackPageImpl const* page, size_t offset) {
   monitor_.Start("Copy");
-  size_t num_elements = page->n_rows * page->row_stride;
+  bst_idx_t num_elements = page->n_rows * page->row_stride;
   CHECK_EQ(row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_GE(n_rows * row_stride, offset + num_elements);
@@ -461,16 +461,17 @@ struct CompactPage {
 };
 
 // Compacts the data from the given EllpackPage into the current page.
-void EllpackPageImpl::Compact(DeviceOrd device, EllpackPageImpl const* page,
+void EllpackPageImpl::Compact(Context const* ctx, EllpackPageImpl const* page,
                               common::Span<size_t> row_indexes) {
-  monitor_.Start("Compact");
+  monitor_.Start(__func__);
   CHECK_EQ(row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
-  gidx_buffer.SetDevice(device);
-  page->gidx_buffer.SetDevice(device);
-  dh::LaunchN(page->n_rows, CompactPage(this, page, row_indexes));
-  monitor_.Stop("Compact");
+  gidx_buffer.SetDevice(ctx->Device());
+  page->gidx_buffer.SetDevice(ctx->Device());
+  auto cuctx = ctx->CUDACtx();
+  dh::LaunchN(page->n_rows, cuctx->Stream(), CompactPage(this, page, row_indexes));
+  monitor_.Stop(__func__);
 }
 
 // Initialize the buffer to stored compressed features.
@@ -551,7 +552,7 @@ void EllpackPageImpl::CreateHistIndices(DeviceOrd device,
 }
 
 // Return the number of rows contained in this page.
-size_t EllpackPageImpl::Size() const { return n_rows; }
+[[nodiscard]] bst_idx_t EllpackPageImpl::Size() const { return n_rows; }
 
 // Return the memory cost for storing the compressed features.
 size_t EllpackPageImpl::MemCostBytes(size_t num_rows, size_t row_stride,

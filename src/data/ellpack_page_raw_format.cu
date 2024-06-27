@@ -10,6 +10,7 @@
 #include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
 #include "ellpack_page.cuh"               // for EllpackPage
 #include "ellpack_page_raw_format.h"
+#include "ellpack_page_source.h"
 
 namespace xgboost::data {
 DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
@@ -32,7 +33,6 @@ template <typename T>
     return false;
   }
 
-  vec->SetDevice(DeviceOrd::CUDA(0));
   vec->Resize(n);
   auto d_vec = vec->DeviceSpan();
   dh::safe_cuda(
@@ -54,6 +54,7 @@ template <typename T>
   if (!fi->Read(&impl->row_stride)) {
     return false;
   }
+  impl->gidx_buffer.SetDevice(device_);
   if (!ReadDeviceVec(fi, &impl->gidx_buffer)) {
     return false;
   }
@@ -73,6 +74,65 @@ template <typename T>
   CHECK(!impl->gidx_buffer.ConstHostVector().empty());
   bytes += common::WriteVec(fo, impl->gidx_buffer.HostVector());
   bytes += fo->Write(impl->base_rowid);
+  dh::DefaultStream().Sync();
+  return bytes;
+}
+
+[[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page, EllpackHostCacheStream* fi) const {
+  auto* impl = page->Impl();
+  CHECK(this->cuts_->cut_values_.DeviceCanRead());
+  impl->SetCuts(this->cuts_);
+  if (!fi->Read(&impl->n_rows)) {
+    return false;
+  }
+  if (!fi->Read(&impl->is_dense)) {
+    return false;
+  }
+  if (!fi->Read(&impl->row_stride)) {
+    return false;
+  }
+
+  // Read vec
+  bst_idx_t n{0};
+  if (!fi->Read(&n)) {
+    return false;
+  }
+  if (n != 0) {
+    impl->gidx_buffer.SetDevice(device_);
+    impl->gidx_buffer.Resize(n);
+    auto span = impl->gidx_buffer.DeviceSpan();
+    if (!fi->Read(span.data(), span.size_bytes())) {
+      return false;
+    }
+  }
+
+  if (!fi->Read(&impl->base_rowid)) {
+    return false;
+  }
+
+  dh::DefaultStream().Sync();
+  return true;
+}
+
+[[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
+                                                      EllpackHostCacheStream* fo) const {
+  bst_idx_t bytes{0};
+  auto* impl = page.Impl();
+  bytes += fo->Write(impl->n_rows);
+  bytes += fo->Write(impl->is_dense);
+  bytes += fo->Write(impl->row_stride);
+
+  // Write vector
+  bst_idx_t n = impl->gidx_buffer.Size();
+  bytes += fo->Write(n);
+
+  if (!impl->gidx_buffer.Empty()) {
+    auto span = impl->gidx_buffer.ConstDeviceSpan();
+    bytes += fo->Write(span.data(), span.size_bytes());
+  }
+  bytes += fo->Write(impl->base_rowid);
+
+  dh::DefaultStream().Sync();
   return bytes;
 }
 }  // namespace xgboost::data

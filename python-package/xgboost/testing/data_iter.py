@@ -22,7 +22,7 @@ def run_mixed_sparsity(device: str) -> None:
 
         X = [cp.array(batch) for batch in X]
 
-    it = tm.IteratorForTest(X, y, None, None)
+    it = tm.IteratorForTest(X, y, None, None, on_host=False)
     Xy_0 = xgboost.QuantileDMatrix(it)
 
     X_1, y_1 = tm.make_sparse_regression(256, 16, 0.1, True)

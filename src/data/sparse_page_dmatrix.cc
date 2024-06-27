@@ -38,13 +38,17 @@ std::size_t NFeaturesDevice(DMatrixProxy *)  // NOLINT
 #endif
 }  // namespace detail
 
-
 SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy_handle,
-                                     DataIterResetCallback *reset,
-                                     XGDMatrixCallbackNext *next, float missing,
-                                     int32_t nthreads, std::string cache_prefix)
-    : proxy_{proxy_handle}, iter_{iter_handle}, reset_{reset}, next_{next}, missing_{missing},
-      cache_prefix_{std::move(cache_prefix)} {
+                                     DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
+                                     float missing, int32_t nthreads, std::string cache_prefix,
+                                     bool on_host)
+    : proxy_{proxy_handle},
+      iter_{iter_handle},
+      reset_{reset},
+      next_{next},
+      missing_{missing},
+      cache_prefix_{std::move(cache_prefix)},
+      on_host_{on_host} {
   Context ctx;
   ctx.nthread = nthreads;
 
@@ -103,8 +107,26 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   fmat_ctx_ = ctx;
 }
 
+SparsePageDMatrix::~SparsePageDMatrix() {
+  // Clear out all resources before deleting the cache file.
+  sparse_page_source_.reset();
+  std::visit([](auto &&ptr) { ptr.reset(); }, ellpack_page_source_);
+  column_source_.reset();
+  sorted_column_source_.reset();
+  ghist_index_source_.reset();
+
+  for (auto const &kv : cache_info_) {
+    CHECK(kv.second);
+    auto n = kv.second->ShardName();
+    if (kv.second->OnHost()) {
+      continue;
+    }
+    TryDeleteCacheFile(n);
+  }
+}
+
 void SparsePageDMatrix::InitializeSparsePage(Context const *ctx) {
-  auto id = MakeCache(this, ".row.page", cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".row.page", false, cache_prefix_, &cache_info_);
   // Don't use proxy DMatrix once this is already initialized, this allows users to
   // release the iterator and data.
   if (cache_info_.at(id)->written) {
@@ -132,8 +154,9 @@ BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
 }
 
 BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
-  auto id = MakeCache(this, ".col.page", cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".col.page", on_host_, cache_prefix_, &cache_info_);
   CHECK_NE(this->Info().num_col_, 0);
+  error::NoOnHost(on_host_);
   this->InitializeSparsePage(ctx);
   if (!column_source_) {
     column_source_ =
@@ -146,8 +169,9 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
 }
 
 BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const *ctx) {
-  auto id = MakeCache(this, ".sorted.col.page", cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".sorted.col.page", on_host_, cache_prefix_, &cache_info_);
   CHECK_NE(this->Info().num_col_, 0);
+  error::NoOnHost(on_host_);
   this->InitializeSparsePage(ctx);
   if (!sorted_column_source_) {
     sorted_column_source_ = std::make_shared<SortedCSCPageSource>(
@@ -165,11 +189,12 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
     CHECK_GE(param.max_bin, 2);
   }
   detail::CheckEmpty(batch_param_, param);
-  auto id = MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
+  error::NoOnHost(on_host_);
+  auto id = MakeCache(this, ".gradient_index.page", on_host_, cache_prefix_, &cache_info_);
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
     this->InitializeSparsePage(ctx);
     cache_info_.erase(id);
-    MakeCache(this, ".gradient_index.page", cache_prefix_, &cache_info_);
+    MakeCache(this, ".gradient_index.page", on_host_, cache_prefix_, &cache_info_);
     LOG(INFO) << "Generating new Gradient Index.";
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;
@@ -193,7 +218,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
 #if !defined(XGBOOST_USE_CUDA)
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const *, const BatchParam &) {
   common::AssertGPUSupport();
-  return BatchSet{BatchIterator<EllpackPage>{this->ellpack_page_source_}};
+  return BatchSet{BatchIterator<EllpackPage>{nullptr}};
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::data

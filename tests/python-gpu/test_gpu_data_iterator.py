@@ -21,20 +21,38 @@ def test_gpu_single_batch() -> None:
     strategies.integers(0, 8),
     strategies.booleans(),
     strategies.booleans(),
+    strategies.booleans(),
 )
-@settings(deadline=None, max_examples=10, print_blob=True)
+@settings(deadline=None, max_examples=16, print_blob=True)
 def test_gpu_data_iterator(
     n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
     subsample: bool,
     use_cupy: bool,
+    on_host: bool,
 ) -> None:
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "gpu_hist", subsample, use_cupy
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "hist",
+        subsample=subsample,
+        device="cuda",
+        use_cupy=use_cupy,
+        on_host=on_host,
     )
 
 
 def test_cpu_data_iterator() -> None:
     """Make sure CPU algorithm can handle GPU inputs"""
-    run_data_iterator(1024, 2, 3, "approx", False, True)
+    run_data_iterator(
+        1024,
+        2,
+        3,
+        "approx",
+        device="cuda",
+        subsample=False,
+        use_cupy=True,
+        on_host=False,
+    )

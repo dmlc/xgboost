@@ -241,6 +241,7 @@ class RandomDataGenerator {
   bst_bin_t bins_{0};
   std::vector<FeatureType> ft_;
   bst_cat_t max_cat_{32};
+  bool on_host_{false};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
@@ -264,6 +265,10 @@ class RandomDataGenerator {
   }
   RandomDataGenerator& Batches(std::size_t n_batches) {
     n_batches_ = n_batches;
+    return *this;
+  }
+  RandomDataGenerator& OnHost(bool on_host) {
+    on_host_ = on_host;
     return *this;
   }
   RandomDataGenerator& Seed(uint64_t s) {

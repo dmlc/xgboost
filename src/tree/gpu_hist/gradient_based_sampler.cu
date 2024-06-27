@@ -234,7 +234,7 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : batch_iterator) {
-    page_->Compact(ctx->Device(), batch.Impl(), dh::ToSpan(sample_row_index_));
+    page_->Compact(ctx, batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
@@ -252,7 +252,7 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
   auto cuctx = ctx->CUDACtx();
   size_t n_rows = dmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
-      gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
+      ctx, gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 
   auto page = (*dmat->GetBatches<EllpackPage>(ctx, batch_param_).begin()).Impl();
 
@@ -279,21 +279,18 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   auto cuctx = ctx->CUDACtx();
   bst_idx_t n_rows = dmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
-      gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
-
+      ctx, gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
   // Perform Poisson sampling in place.
   thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
                     thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
                     PoissonSampling(dh::ToSpan(threshold_), threshold_index,
                                     RandomWeight(common::GlobalRandom()())));
-
   // Count the sampled rows.
-  size_t sample_rows = thrust::count_if(dh::tbegin(gpair), dh::tend(gpair), IsNonZero());
-
+  size_t sample_rows =
+      thrust::count_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), IsNonZero());
   // Compact gradient pairs.
   gpair_.resize(sample_rows);
   thrust::copy_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), gpair_.begin(), IsNonZero());
-
   // Index the sample rows.
   thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(),
                     IsNonZero());
@@ -301,18 +298,16 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
                          sample_row_index_.begin());
   thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(),
                     sample_row_index_.begin(), ClearEmptyRows());
-
   auto batch_iterator = dmat->GetBatches<EllpackPage>(ctx, batch_param_);
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
-  page_.reset(new EllpackPageImpl(ctx->Device(), first_page->CutsShared(), first_page->is_dense,
+  page_.reset(new EllpackPageImpl(ctx->Device(), first_page->CutsShared(), dmat->IsDense(),
                                   first_page->row_stride, sample_rows));
-
   // Compact the ELLPACK pages into the single sample page.
-  thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
+  thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
   for (auto& batch : batch_iterator) {
-    page_->Compact(ctx->Device(), batch.Impl(), dh::ToSpan(sample_row_index_));
+    page_->Compact(ctx, batch.Impl(), dh::ToSpan(sample_row_index_));
   }
 
   return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
@@ -363,21 +358,24 @@ GradientBasedSample GradientBasedSampler::Sample(Context const* ctx,
   return sample;
 }
 
-size_t GradientBasedSampler::CalculateThresholdIndex(common::Span<GradientPair> gpair,
+size_t GradientBasedSampler::CalculateThresholdIndex(Context const* ctx,
+                                                     common::Span<GradientPair> gpair,
                                                      common::Span<float> threshold,
                                                      common::Span<float> grad_sum,
                                                      size_t sample_rows) {
-  thrust::fill(dh::tend(threshold) - 1, dh::tend(threshold), std::numeric_limits<float>::max());
-  thrust::transform(dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(threshold),
-                    CombineGradientPair());
-  thrust::sort(dh::tbegin(threshold), dh::tend(threshold) - 1);
-  thrust::inclusive_scan(dh::tbegin(threshold), dh::tend(threshold) - 1,
+  auto cuctx = ctx->CUDACtx();
+  thrust::fill(cuctx->CTP(), dh::tend(threshold) - 1, dh::tend(threshold),
+               std::numeric_limits<float>::max());
+  thrust::transform(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair), dh::tbegin(threshold),
+                    CombineGradientPair{});
+  thrust::sort(cuctx->TP(), dh::tbegin(threshold), dh::tend(threshold) - 1);
+  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(threshold), dh::tend(threshold) - 1,
                          dh::tbegin(grad_sum));
-  thrust::transform(dh::tbegin(grad_sum), dh::tend(grad_sum),
+  thrust::transform(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum),
                     thrust::counting_iterator<size_t>(0), dh::tbegin(grad_sum),
                     SampleRateDelta(threshold, gpair.size(), sample_rows));
   thrust::device_ptr<float> min =
-      thrust::min_element(dh::tbegin(grad_sum), dh::tend(grad_sum));
+      thrust::min_element(cuctx->CTP(), dh::tbegin(grad_sum), dh::tend(grad_sum));
   return thrust::distance(dh::tbegin(grad_sum), min) + 1;
 }
 };  // namespace tree

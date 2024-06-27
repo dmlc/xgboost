@@ -901,15 +901,12 @@ DMatrix* DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_p
   return new data::IterativeDMatrix(iter, proxy, ref, reset, next, missing, nthread, max_bin);
 }
 
-template <typename DataIterHandle, typename DMatrixHandle,
-          typename DataIterResetCallback, typename XGDMatrixCallbackNext>
-DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
-                         DataIterResetCallback *reset,
-                         XGDMatrixCallbackNext *next, float missing,
-                         int32_t n_threads,
-                         std::string cache) {
-  return new data::SparsePageDMatrix(iter, proxy, reset, next, missing, n_threads,
-                                     cache);
+template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
+          typename XGDMatrixCallbackNext>
+DMatrix* DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback* reset,
+                         XGDMatrixCallbackNext* next, float missing, int32_t n_threads,
+                         std::string cache, bool on_host) {
+  return new data::SparsePageDMatrix{iter, proxy, reset, next, missing, n_threads, cache, on_host};
 }
 
 template DMatrix* DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback,
@@ -919,10 +916,11 @@ template DMatrix* DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCa
                                                          XGDMatrixCallbackNext* next, float missing,
                                                          int nthread, int max_bin);
 
-template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
-                                  DataIterResetCallback, XGDMatrixCallbackNext>(
-    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
-    XGDMatrixCallbackNext *next, float missing, int32_t n_threads, std::string);
+template DMatrix* DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback,
+                                  XGDMatrixCallbackNext>(DataIterHandle iter, DMatrixHandle proxy,
+                                                         DataIterResetCallback* reset,
+                                                         XGDMatrixCallbackNext* next, float missing,
+                                                         int32_t n_threads, std::string, bool);
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,

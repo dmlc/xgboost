@@ -207,6 +207,7 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     it = tm.IteratorForTest(
         *tm.make_batches(n_samples_per_batch, n_features, n_batches, use_cupy),
         cache="cache",
+        on_host=False,
     )
     Xy: xgb.DMatrix = xgb.DMatrix(it)
     xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)

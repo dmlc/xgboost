@@ -20,15 +20,22 @@ class HistogramCuts;
 }
 
 namespace xgboost::data {
+
+class EllpackHostCacheStream;
+
 class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   std::shared_ptr<common::HistogramCuts const> cuts_;
+  DeviceOrd device_;
 
  public:
-  explicit EllpackPageRawFormat(std::shared_ptr<common::HistogramCuts const> cuts)
-      : cuts_{std::move(cuts)} {}
+  explicit EllpackPageRawFormat(std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device)
+      : cuts_{std::move(cuts)}, device_{device} {}
   [[nodiscard]] bool Read(EllpackPage* page, common::AlignedResourceReadStream* fi) override;
   [[nodiscard]] std::size_t Write(const EllpackPage& page,
                                   common::AlignedFileWriteStream* fo) override;
+
+  [[nodiscard]] bool Read(EllpackPage* page, EllpackHostCacheStream* fi) const;
+  [[nodiscard]] std::size_t Write(const EllpackPage& page, EllpackHostCacheStream* fo) const;
 };
 
 #if !defined(XGBOOST_USE_CUDA)

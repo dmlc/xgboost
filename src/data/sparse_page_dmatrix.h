@@ -7,16 +7,20 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 #define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>
+#include <cstdint>  // for uint32_t, int32_t
+#include <map>      // for map
+#include <memory>   // for shared_ptr
+#include <sstream>  // for stringstream
+#include <string>   // for string
+#include <variant>  // for variant, visit
 
-#include "ellpack_page_source.h"
-#include "gradient_index_page_source.h"
-#include "sparse_page_source.h"
-#include "xgboost/data.h"
+#include "ellpack_page_source.h"         // for EllpackPageSource, EllpackPageHostSource
+#include "gradient_index_page_source.h"  // for GradientIndexPageSource
+#include "sparse_page_source.h"          // for SparsePageSource, Cache
+#include "xgboost/context.h"             // for Context
+#include "xgboost/data.h"                // for DMatrix, MetaInfo
 #include "xgboost/logging.h"
+#include "xgboost/span.h"  // for Span
 
 namespace xgboost::data {
 /**
@@ -70,6 +74,7 @@ class SparsePageDMatrix : public DMatrix {
   float missing_;
   Context fmat_ctx_;
   std::string cache_prefix_;
+  bool on_host_{false};
   std::uint32_t n_batches_{0};
   // sparse page is the source to other page types, we make a special member function.
   void InitializeSparsePage(Context const *ctx);
@@ -79,29 +84,16 @@ class SparsePageDMatrix : public DMatrix {
  public:
   explicit SparsePageDMatrix(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
                              XGDMatrixCallbackNext *next, float missing, int32_t nthreads,
-                             std::string cache_prefix);
+                             std::string cache_prefix, bool on_host = false);
 
-  ~SparsePageDMatrix() override {
-    // Clear out all resources before deleting the cache file.
-    sparse_page_source_.reset();
-    ellpack_page_source_.reset();
-    column_source_.reset();
-    sorted_column_source_.reset();
-    ghist_index_source_.reset();
-
-    for (auto const &kv : cache_info_) {
-      CHECK(kv.second);
-      auto n = kv.second->ShardName();
-      TryDeleteCacheFile(n);
-    }
-  }
+  ~SparsePageDMatrix() override;
 
   [[nodiscard]] MetaInfo &Info() override;
   [[nodiscard]] const MetaInfo &Info() const override;
   [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
   // The only DMatrix implementation that returns false.
   [[nodiscard]] bool SingleColBlock() const override { return false; }
-  DMatrix *Slice(common::Span<int32_t const>) override {
+  DMatrix *Slice(common::Span<std::int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
   }
@@ -111,7 +103,7 @@ class SparsePageDMatrix : public DMatrix {
   }
 
   [[nodiscard]] bool EllpackExists() const override {
-    return static_cast<bool>(ellpack_page_source_);
+    return std::visit([](auto &&ptr) { return static_cast<bool>(ptr); }, ellpack_page_source_);
   }
   [[nodiscard]] bool GHistIndexExists() const override {
     return static_cast<bool>(ghist_index_source_);
@@ -138,7 +130,9 @@ class SparsePageDMatrix : public DMatrix {
  private:
   // source data pointers.
   std::shared_ptr<SparsePageSource> sparse_page_source_;
-  std::shared_ptr<EllpackPageSource> ellpack_page_source_;
+  using EllpackDiskPtr = std::shared_ptr<EllpackPageSource>;
+  using EllpackHostPtr = std::shared_ptr<EllpackPageHostSource>;
+  std::variant<EllpackDiskPtr, EllpackHostPtr> ellpack_page_source_;
   std::shared_ptr<CSCPageSource> column_source_;
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
@@ -153,15 +147,16 @@ class SparsePageDMatrix : public DMatrix {
 /**
  * @brief Make cache if it doesn't exist yet.
  */
-inline std::string MakeCache(SparsePageDMatrix *ptr, std::string format, std::string prefix,
+inline std::string MakeCache(SparsePageDMatrix *ptr, std::string format, bool on_host,
+                             std::string prefix,
                              std::map<std::string, std::shared_ptr<Cache>> *out) {
   auto &cache_info = *out;
   auto name = MakeId(prefix, ptr);
   auto id = name + format;
   auto it = cache_info.find(id);
   if (it == cache_info.cend()) {
-    cache_info[id].reset(new Cache{false, name, format});
-    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName() << std::endl;
+    cache_info[id].reset(new Cache{false, name, format, on_host});
+    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
   }
   return id;
 }
