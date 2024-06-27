@@ -26,7 +26,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
 import org.apache.spark.ml.{Estimator, Model}
 import org.apache.spark.ml.functions.array_to_vector
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vector}
+import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, MLWriter}
 import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
@@ -39,7 +39,7 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, XGBoost => SXGBoost}
 import ml.dmlc.xgboost4j.scala.spark.Utils.MLVectorToXGBLabeledPoint
-import ml.dmlc.xgboost4j.scala.spark.params.{ParamUtils, _}
+import ml.dmlc.xgboost4j.scala.spark.params._
 
 /**
  * Hold the column index
@@ -205,50 +205,15 @@ private[spark] trait XGBoostEstimator[
   /** visible for testing */
   private[spark] def toXGBLabeledPoint(dataset: Dataset[_],
                                        columnIndexes: ColumnIndices): RDD[XGBLabeledPoint] = {
-    val missing = getMissing
-    dataset.toDF().rdd.mapPartitions { input: Iterator[Row] =>
-
-      def isMissing(values: Array[Double]): Boolean = {
-        if (missing.isNaN) {
-          values.exists(_.toFloat.isNaN)
-        } else {
-          values.exists(_.toFloat == missing)
-        }
-      }
-
-      new Iterator[XGBLabeledPoint] {
-        private var tmp: Option[XGBLabeledPoint] = None
-
-        override def hasNext: Boolean = {
-          if (tmp.isDefined) {
-            return true
-          }
-          while (input.hasNext) {
-            val row = input.next()
-            val features = row.getAs[Vector](columnIndexes.featureId.get)
-            if (!isMissing(features.toArray)) {
-              val label = row.getFloat(columnIndexes.labelId)
-              val weight = columnIndexes.weightId.map(row.getFloat).getOrElse(1.0f)
-              val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
-              val group = columnIndexes.groupId.map(row.getFloat).getOrElse(-1.0f)
-              val (size, indices, values) = features match {
-                case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
-                case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
-              }
-              tmp = Some(XGBLabeledPoint(label, size, indices, values, weight,
-                group.toInt, baseMargin))
-              return true
-            }
-          }
-          false
-        }
-
-        override def next(): XGBLabeledPoint = {
-          val xgbLabeledPoint = tmp.get
-          tmp = None
-          xgbLabeledPoint
-        }
-      }
+    dataset.toDF().rdd.map { row =>
+      val features = row.getAs[Vector](columnIndexes.featureId.get)
+      val label = row.getFloat(columnIndexes.labelId)
+      val weight = columnIndexes.weightId.map(row.getFloat).getOrElse(1.0f)
+      val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
+      val group = columnIndexes.groupId.map(row.getFloat).getOrElse(-1.0f)
+      // To make "0" meaningful, we convert sparse vector if possible to dense to create DMatrix.
+      val values = features.toArray.map(_.toFloat)
+      XGBLabeledPoint(label, values.length, null, values, weight, group.toInt, baseMargin)
     }
   }
 
@@ -262,9 +227,10 @@ private[spark] trait XGBoostEstimator[
   private[spark] def toRdd(dataset: Dataset[_], columnIndices: ColumnIndices): RDD[Watches] = {
     val trainRDD = toXGBLabeledPoint(dataset, columnIndices)
 
-    val x: Array[String] = Array.empty
     val featureNames = if (getFeatureNames.isEmpty) None else Some(getFeatureNames)
     val featureTypes = if (getFeatureTypes.isEmpty) None else Some(getFeatureTypes)
+
+    val missing = getMissing
 
     // transform the labeledpoint to get margins and build DMatrix
     // TODO support basemargin for multiclassification
@@ -276,11 +242,11 @@ private[spark] trait XGBoostEstimator[
           trainMargins += labeledPoint.baseMargin
           labeledPoint
         }
-        val dm = new DMatrix(transformedIter)
+        val dm = new DMatrix(transformedIter, null, missing)
         dm.setBaseMargin(trainMargins.result())
         dm
       } else {
-        new DMatrix(iter)
+        new DMatrix(iter, null, missing)
       }
       featureTypes.foreach(dmatrix.setFeatureTypes)
       featureNames.foreach(dmatrix.setFeatureNames)
@@ -402,7 +368,14 @@ private[spark] trait XGBoostEstimator[
   override def copy(extra: ParamMap): Learner = defaultCopy(extra).asInstanceOf[Learner]
 }
 
-/** Indicate what to be predicted */
+/**
+ * Indicate what to be predicted
+ *
+ * @param predLeaf    predicate leaf
+ * @param predContrib predicate contribution
+ * @param predRaw     predicate raw
+ * @param predTmp     predicate probability for classification, and raw for regression
+ */
 private[spark] case class PredictedColumns(
     predLeaf: Boolean,
     predContrib: Boolean,
@@ -411,11 +384,6 @@ private[spark] case class PredictedColumns(
 
 /**
  * XGBoost base model
- *
- * @param uid
- * @param model           xgboost booster
- * @param trainingSummary the training summary
- * @tparam the exact model which must extend from XGBoostModel
  */
 private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with MLWritable
   with XGBoostParams[M] with SparkParams[M] with ParamUtils[M] with PluginMixin {
@@ -530,13 +498,14 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     val inferBatchSize = 32 << 10
     // Broadcast the booster to each executor.
     val featureName = getFeaturesCol
+    val missing = getMissing
 
     val output = dataset.toDF().mapPartitions { rowIter =>
       rowIter.grouped(inferBatchSize).flatMap { batchRow =>
         val features = batchRow.iterator.map(row => row.getAs[Vector](
           row.fieldIndex(featureName)))
         // DMatrix used to prediction
-        val dm = new DMatrix(features.map(_.asXGB))
+        val dm = new DMatrix(features.map(_.asXGB), null, missing)
         try {
           predictInternal(bBooster.value, dm, pred, batchRow.toIterator)
         } finally {
