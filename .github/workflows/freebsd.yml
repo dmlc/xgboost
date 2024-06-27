@@ -27,11 +27,6 @@ jobs:
           pkg install -y cmake git ninja googletest
 
         run: |
-          pwd
-          ls -lah
-          whoami
-          env
-          freebsd-version
           mkdir build
           cd build
           cmake .. -GNinja -DGOOGLE_TEST=ON
