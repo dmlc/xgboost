@@ -65,8 +65,8 @@ public class DMatrix {
     int batchSize = 32 << 10;
     Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter,
-                                                                cacheInfo, missing, out));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(
+      batchIter, cacheInfo, missing, out));
     handle = out[0];
   }
 

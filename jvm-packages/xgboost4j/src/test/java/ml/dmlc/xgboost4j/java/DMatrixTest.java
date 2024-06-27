@@ -39,16 +39,34 @@ import static org.junit.Assert.assertEquals;
  */
 public class DMatrixTest {
 
+
   @Test
   public void testCreateFromDataIteratorWithMissingValue() throws XGBoostError {
     //create DMatrix from DataIterator
-    java.util.List<LabeledPoint> blist = new java.util.LinkedList<LabeledPoint>();
-    blist.add(new LabeledPoint(0.1f, 4, null, new float[]{1, 3, 4, 5}));
-    blist.add(new LabeledPoint(0.1f, 4, null, new float[]{11, 13, 14, 15}));
-    blist.add(new LabeledPoint(0.1f, 4, null, new float[]{21, 23, 24, 25}));
-    DMatrix dmat = new DMatrix(blist.iterator(), null, 15);
+    java.util.List<LabeledPoint> blist = new java.util.LinkedList<>();
+    blist.add(new LabeledPoint(0.1f, 4, null, new float[]{1, 0, 0, 0}));
+    blist.add(new LabeledPoint(0.1f, 4, null, new float[]{Float.NaN, 13, 14, 15}));
+    blist.add(new LabeledPoint(0.1f, 4, null, new float[]{21, 23, 0, 25}));
 
+    // Default missing value: Float.NaN
+    DMatrix dmat = new DMatrix(blist.iterator(), null);
     assert dmat.nonMissingNum() == 11;
+
+    // missing value 0
+    dmat = new DMatrix(blist.iterator(), null, 0.0f);
+    assert dmat.nonMissingNum() == 12 - 4 - 1;
+
+    // missing value 21
+    dmat = new DMatrix(blist.iterator(), null, 21.0f);
+    assert dmat.nonMissingNum() == 12 - 1 - 1;
+
+    // missing value 21
+    dmat = new DMatrix(blist.iterator(), null, 21.0f);
+    assert dmat.nonMissingNum() == 12 - 1 - 1;
+
+    // missing value 101010101010
+    dmat = new DMatrix(blist.iterator(), null, 101010101010.0f);
+    assert dmat.nonMissingNum() == 12 - 1;
   }
 
   @Test
