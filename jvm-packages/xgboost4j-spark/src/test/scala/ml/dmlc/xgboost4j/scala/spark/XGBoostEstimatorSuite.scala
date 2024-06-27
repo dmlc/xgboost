@@ -181,7 +181,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       Array(1.0, 2.0, 3.0, 4.0, 5.0),
       Array(0.0, 0.0, 0.0, 0.0, 2.0),
       Array(12.0, 13.0, 14.0, 14.0, 15.0),
-      Array(20.5, 21.2, 0, 0.0, 2.0)
+      Array(20.5, 21.2, 0.0, 0.0, 2.0)
     )
     val dataset = ss.createDataFrame(sc.parallelize(Seq(
       (1.0, 0, 0.5, 1.0, Vectors.dense(data(0)), "a"),
@@ -202,15 +202,25 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
 
     assert(result.length == data.length)
 
+    def toArray(index: Int): Array[Float] = {
+      val labelPoint = result(index)
+      if (labelPoint.indices != null) {
+        Vectors.sparse(labelPoint.size,
+          labelPoint.indices,
+          labelPoint.values.map(_.toDouble)).toArray.map(_.toFloat)
+      } else {
+        labelPoint.values
+      }
+    }
+
     assert(result(0).label === 1.0f && result(0).baseMargin.isNaN &&
-      result(0).weight === 1.0f && result(0).values === data(0).map(_.toFloat))
+      result(0).weight === 1.0f &&  toArray(0) === data(0).map(_.toFloat))
     assert(result(1).label == 2.0f && result(1).baseMargin.isNaN &&
-      result(1).weight === 0.0f &&
-      result(1).values === Vectors.dense(data(1)).toSparse.values.map(_.toFloat))
+      result(1).weight === 0.0f && toArray(1) === data(1).map(_.toFloat))
     assert(result(2).label === 3.0f && result(2).baseMargin.isNaN &&
-      result(2).weight == 0.0f && result(2).values === data(2).map(_.toFloat))
+      result(2).weight == 0.0f && toArray(2) === data(2).map(_.toFloat))
     assert(result(3).label === 4.0f && result(3).baseMargin.isNaN &&
-      result(3).weight === -2.1f && result(3).values === data(3).map(_.toFloat))
+      result(3).weight === -2.1f && toArray(3) === data(3).map(_.toFloat))
   }
 
   Seq((Float.NaN, 2), (0.0f, 7 + 2), (15.0f, 1 + 2), (10101011.0f, 0 + 2)).foreach {
