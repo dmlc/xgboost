@@ -68,7 +68,7 @@ TEST(ColumnSampler, GPUTest) {
 // Test if different threads using the same seed produce the same result
 TEST(ColumnSampler, ThreadSynchronisation) {
   Context ctx;
-  const int64_t num_threads = 100;
+  const int64_t num_threads = std::thread::hardware_concurrency();
   int n = 128;
   size_t iterations = 10;
   size_t levels = 5;
