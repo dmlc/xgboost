@@ -60,10 +60,6 @@ public class DMatrixTest {
     dmat = new DMatrix(blist.iterator(), null, 21.0f);
     assert dmat.nonMissingNum() == 12 - 1 - 1;
 
-    // missing value 21
-    dmat = new DMatrix(blist.iterator(), null, 21.0f);
-    assert dmat.nonMissingNum() == 12 - 1 - 1;
-
     // missing value 101010101010
     dmat = new DMatrix(blist.iterator(), null, 101010101010.0f);
     assert dmat.nonMissingNum() == 12 - 1;
