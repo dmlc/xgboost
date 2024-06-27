@@ -267,8 +267,14 @@ TEST(Learner, MultiThreadedPredict) {
   learner->Configure();
 
   std::vector<std::thread> threads;
-  for (uint32_t thread_id = 0;
-       thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
+
+#if defined(__linux__)
+  auto n_threads = std::thread::hardware_concurrency() * 4u;
+#else
+  auto n_threads = std::thread::hardware_concurrency();
+#endif
+
+  for (decltype(n_threads) thread_id = 0; thread_id < n_threads; ++thread_id) {
     threads.emplace_back([learner, p_data] {
       size_t constexpr kIters = 10;
       auto &entry = learner->GetThreadLocal().prediction_entry;
