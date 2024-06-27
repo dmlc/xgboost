@@ -77,6 +77,8 @@ namespace utils {
 
 template <typename PollFD>
 int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true) {
+  // For Windows and Linux, negative timeout means infinite timeout. For freebsd,
+  // INFTIM(-1) should be used instead.
 #if defined(_WIN32)
 
 #if IS_MINGW()
@@ -87,7 +89,7 @@ int PollImpl(PollFD* pfd, int nfds, std::chrono::seconds timeout) noexcept(true)
 #endif  // IS_MINGW()
 
 #else
-  return poll(pfd, nfds, std::chrono::milliseconds(timeout).count());
+  return poll(pfd, nfds, timeout.count() < 0 ? -1 : std::chrono::milliseconds(timeout).count());
 #endif  // IS_MINGW()
 }
 
