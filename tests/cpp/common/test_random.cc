@@ -68,11 +68,13 @@ TEST(ColumnSampler, GPUTest) {
 // Test if different threads using the same seed produce the same result
 TEST(ColumnSampler, ThreadSynchronisation) {
   Context ctx;
+  // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores)
 #if defined(__linux__)
   std::int64_t const n_threads = std::thread::hardware_concurrency() * 128;
 #else
   std::int64_t const n_threads = std::thread::hardware_concurrency();
 #endif
+  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
   int n = 128;
   size_t iterations = 10;
   size_t levels = 5;
