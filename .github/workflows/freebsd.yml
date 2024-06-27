@@ -21,7 +21,6 @@ jobs:
       id: test
       uses: vmactions/freebsd-vm@v1
       with:
-        envs: 'MYTOKEN MYTOKEN2'
         usesh: true
         prepare: |
           pkg install -y cmake git ninja googletest
@@ -31,3 +30,4 @@ jobs:
           cd build
           cmake .. -GNinja -DGOOGLE_TEST=ON
           ninja -v
+          ./testxgboost
