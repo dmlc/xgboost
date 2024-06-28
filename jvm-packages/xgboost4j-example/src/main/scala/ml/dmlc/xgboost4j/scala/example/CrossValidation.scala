@@ -40,7 +40,6 @@ object CrossValidation {
     // set additional eval_metrics
     val metrics: Array[String] = null
 
-    val evalHist: Array[String] =
-      XGBoost.crossValidation(trainMat, params.toMap, round, nfold, metrics)
+    XGBoost.crossValidation(trainMat, params.toMap, round, nfold, metrics)
   }
 }

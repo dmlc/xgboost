@@ -29,7 +29,7 @@ private[spark] trait LearningTaskParams extends Params {
 
   final val objective = new Param[String](this, "objective",
     "Objective function used for training",
-    ParamValidators.inArray(LearningTaskParams.supportedObjectives.toArray))
+    ParamValidators.inArray(LearningTaskParams.SUPPORTED_OBJECTIVES.toArray))
 
   final def getObjective: String = $(objective)
 
@@ -50,7 +50,7 @@ private[spark] trait LearningTaskParams extends Params {
     "regression, and logloss for classification, mean average precision for rank:map, etc.)" +
     "User can add multiple evaluation metrics. Python users: remember to pass the metrics in " +
     "as list of parameters pairs instead of map, so that latter eval_metric won't override " +
-    "previous ones", ParamValidators.inArray(LearningTaskParams.supportedEvalMetrics.toArray))
+    "previous ones", ParamValidators.inArray(LearningTaskParams.SUPPORTED_EVAL_METRICS.toArray))
 
   final def getEvalMetric: String = $(evalMetric)
 
@@ -123,17 +123,19 @@ private[spark] trait LearningTaskParams extends Params {
 }
 
 private[spark] object LearningTaskParams {
-
-  val binaryClassificationObjs = HashSet("binary:logistic", "binary:hinge", "binary:logitraw")
-  val multiClassificationObjs = HashSet("multi:softmax", "multi:softprob")
-
-  val supportedObjectives = HashSet("reg:squarederror", "reg:squaredlogerror", "reg:logistic",
+  val SUPPORTED_OBJECTIVES = HashSet("reg:squarederror", "reg:squaredlogerror", "reg:logistic",
     "reg:pseudohubererror", "reg:absoluteerror", "reg:quantileerror", "binary:logistic",
     "binary:logitraw", "binary:hinge", "count:poisson", "survival:cox", "survival:aft",
     "multi:softmax", "multi:softprob", "rank:ndcg", "rank:map", "rank:pairwise", "reg:gamma",
     "reg:tweedie")
 
-  val supportedEvalMetrics = HashSet("rmse", "rmsle", "mae", "mape", "mphe", "logloss", "error",
+  val BINARY_CLASSIFICATION_OBJS = HashSet("binary:logistic", "binary:hinge", "binary:logitraw")
+  val MULTICLASSIFICATION_OBJS = HashSet("multi:softmax", "multi:softprob")
+  val RANKER_OBJS = HashSet("rank:ndcg", "rank:map", "rank:pairwise")
+  val REGRESSION_OBJS = SUPPORTED_OBJECTIVES -- BINARY_CLASSIFICATION_OBJS --
+    MULTICLASSIFICATION_OBJS -- RANKER_OBJS
+
+  val SUPPORTED_EVAL_METRICS = HashSet("rmse", "rmsle", "mae", "mape", "mphe", "logloss", "error",
     "error@t", "merror", "mlogloss", "auc", "aucpr", "pre", "ndcg", "map", "ndcg@n", "map@n",
     "pre@n", "ndcg-", "map-", "ndcg@n-", "map@n-", "poisson-nloglik", "gamma-nloglik",
     "cox-nloglik", "gamma-deviance", "tweedie-nloglik", "aft-nloglik",

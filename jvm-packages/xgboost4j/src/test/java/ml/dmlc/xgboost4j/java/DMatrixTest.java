@@ -457,4 +457,40 @@ public class DMatrixTest {
     String[] retFeatureTypes = dmat.getFeatureTypes();
     assertArrayEquals(featureTypes, retFeatureTypes);
   }
+
+  @Test
+  public void testSetAndGetQueryId() throws XGBoostError {
+    //create DMatrix from 10*5 dense matrix
+    int nrow = 10;
+    int ncol = 5;
+    float[] data0 = new float[nrow * ncol];
+    //put random nums
+    Random random = new Random();
+    for (int i = 0; i < nrow * ncol; i++) {
+      data0[i] = random.nextFloat();
+    }
+
+    //create label
+    float[] label0 = new float[nrow];
+    for (int i = 0; i < nrow; i++) {
+      label0[i] = random.nextFloat();
+    }
+
+    //create two groups
+    int[] qid = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    int[] qidExpected = new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+    DMatrix dmat0 = new DMatrix(data0, nrow, ncol, -0.1f);
+    dmat0.setLabel(label0);
+    dmat0.setQueryId(qid);
+    //check
+    TestCase.assertTrue(Arrays.equals(qidExpected, dmat0.getGroup()));
+
+    //create two groups
+    int[] qid1 = new int[]{10, 10, 10, 20, 60, 60, 80, 80, 90, 100};
+    int[] qidExpected1 = new int[]{0, 3, 4, 6, 8, 9, 10};
+    dmat0.setQueryId(qid1);
+    TestCase.assertTrue(Arrays.equals(qidExpected1, dmat0.getGroup()));
+
+  }
 }

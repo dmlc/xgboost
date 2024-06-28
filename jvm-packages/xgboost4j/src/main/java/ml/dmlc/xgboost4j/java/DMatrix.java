@@ -371,6 +371,16 @@ public class DMatrix {
     return getIntInfo("group_ptr");
   }
 
+  /**
+   * Set query ids (used for ranking)
+   *
+   * @param qid the query ids
+   * @throws XGBoostError native error
+   */
+  public void setQueryId(int[] qid) throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetUIntInfo(handle, "qid", qid));
+  }
+
   private float[] getFloatInfo(String field) throws XGBoostError {
     float[][] infos = new float[1][];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetFloatInfo(handle, field, infos));
