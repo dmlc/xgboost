@@ -22,10 +22,12 @@ public class TrackerProperties {
     InputStream inputStream = null;
 
     try {
-      URL propertiesFileURL =
-          Thread.currentThread().getContextClassLoader().getResource(PROPERTIES_FILENAME);
-      if (propertiesFileURL != null){
-        inputStream = propertiesFileURL.openStream();
+      ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+      if (classLoader != null) {
+        URL propertiesFileURL = classLoader.getResource(PROPERTIES_FILENAME);
+        if (propertiesFileURL != null) {
+          inputStream = propertiesFileURL.openStream();
+        }
       }
     } catch (IOException e) {
       logger.warn("Could not load " + PROPERTIES_FILENAME + " file. ", e);
