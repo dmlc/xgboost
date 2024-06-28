@@ -105,7 +105,7 @@ inline Json MakeTrackerConfig(std::string host, std::int32_t n_workers,
   config["port"] = Integer{0};
   config["n_workers"] = Integer{n_workers};
   config["sortby"] = Integer{static_cast<std::int32_t>(Tracker::SortBy::kHost)};
-  config["timeout"] = timeout.count();
+  config["timeout"] = static_cast<std::int64_t>(timeout.count());
   return config;
 }
 
