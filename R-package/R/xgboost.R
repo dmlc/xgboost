@@ -611,7 +611,7 @@ process.x.and.col.args <- function(
         stop(
           "'monotone_constraints' contains duplicated names: ",
           paste(
-            names(monotone_constraints)[duplicated(names(monotone_constraints))] |> head(),
+            names(monotone_constraints)[duplicated(names(monotone_constraints))] |> utils::head(),
             collapse = ", "
           )
         )
