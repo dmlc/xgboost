@@ -619,7 +619,7 @@ process.x.and.col.args <- function(
       if (NROW(setdiff(names(monotone_constraints), colnames(x)))) {
         stop(
           "'monotone_constraints' contains column names not present in 'x': ",
-          paste(head(names(monotone_constraints)), collapse = ", ")
+          paste(utils::head(names(monotone_constraints)), collapse = ", ")
         )
       }
 
