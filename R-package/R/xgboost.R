@@ -153,7 +153,7 @@ process.y.margin.and.objective <- function(
 
   if (is.character(y)) {
     if (!is.vector(y)) {
-      if (NCOL(y) > 1) {
+      if (NCOL(y) > 1L) {
         stop("Multi-column categorical 'y' is not supported.")
       }
       y <- as.vector(y)
