@@ -69,7 +69,7 @@ process.base.margin <- function(base_margin, nrows, ncols) {
 
   if (ncols == 1L) {
     if (inherits(base_margin, c("matrix", "data.frame"))) {
-      if (ncol(base_margin) != 1) {
+      if (ncol(base_margin) != 1L) {
         stop("'base_margin' should be a 1-d vector for the given objective and data.")
       }
       if (is.data.frame(base_margin)) {
