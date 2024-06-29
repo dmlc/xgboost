@@ -421,7 +421,7 @@ process.y.margin.and.objective <- function(
     )
 
   } else if (is.matrix(y)) {
-    if (ncol(y) == 1) {
+    if (ncol(y) == 1L) {
       return(process.y.margin.and.objective(as.vector(y), base_margin, objective, params))
     }
 
