@@ -574,7 +574,7 @@ process.x.and.col.args <- function(
       if (length(matched) > 0 && length(matched) < length(feature_weights)) {
         stop(
           "'feature_weights' names do not contain all columns of 'x'. Missing: ",
-          head(setdiff(colnames(x), names(feature_weights)))
+          utils::head(setdiff(colnames(x), names(feature_weights)))
         )
       }
       if (length(matched)) {
