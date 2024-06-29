@@ -4,10 +4,9 @@
 #include "xgboost/collective/socket.h"
 
 #include <array>         // for array
-#include <cstddef>       // std::size_t
-#include <cstdint>       // std::int32_t
-#include <cstring>       // std::memcpy, std::memset
-#include <filesystem>    // for path
+#include <cstddef>       // for size_t
+#include <cstdint>       // for int32_t
+#include <cstring>       // for memcpy, memset
 #include <system_error>  // for error_code, system_category
 #include <thread>        // for sleep_for
 
@@ -26,8 +25,7 @@ SockAddress MakeSockAddress(StringView host, in_port_t port) {
   struct addrinfo *res = nullptr;
   int sig = getaddrinfo(host.c_str(), nullptr, &hints, &res);
   if (sig != 0) {
-    LOG(FATAL) << "Failed to get addr info for: " << host
-      << ", error: " << gai_strerror(sig);
+    LOG(FATAL) << "Failed to get addr info for: " << host << ", error: " << gai_strerror(sig);
     return {};
   }
   if (res->ai_family == static_cast<std::int32_t>(SockDomain::kV4)) {
@@ -129,10 +127,9 @@ std::size_t TCPSocket::Send(StringView str) {
   }
 
   Result last_error;
-  auto log_failure = [&host, &last_error, port](Result err, char const *file, std::int32_t line) {
+  auto log_failure = [&host, &last_error, port](Result err) {
     last_error = std::move(err);
-    LOG(WARNING) << std::filesystem::path{file}.filename().string() << "(" << line
-                 << "): Failed to connect to:" << host << ":" << port
+    LOG(WARNING) << "Failed to connect to:" << host << ":" << port
                  << " Error:" << last_error.Report();
   };
 
@@ -149,8 +146,7 @@ std::size_t TCPSocket::Send(StringView str) {
 
     auto errcode = system::LastError();
     if (!system::ErrorWouldBlock(errcode)) {
-      log_failure(Fail("connect failed.", std::error_code{errcode, std::system_category()}),
-                  __FILE__, __LINE__);
+      log_failure(Fail("connect failed.", std::error_code{errcode, std::system_category()}));
       continue;
     }
 
@@ -160,21 +156,16 @@ std::size_t TCPSocket::Send(StringView str) {
     if (!result.OK()) {
       // poll would fail if there's a socket error, we log the root cause instead of the
       // poll failure.
-      auto sockerr = conn.GetSockError();
-      if (!sockerr.OK()) {
-        result = std::move(sockerr);
-      }
-      log_failure(std::move(result), __FILE__, __LINE__);
+      log_failure(std::move(result) + conn.GetSockError());
       continue;
     }
     if (!poll.CheckWrite(conn)) {
-      log_failure(Fail("poll failed.", std::error_code{errcode, std::system_category()}), __FILE__,
-                  __LINE__);
+      log_failure(Fail("poll failed.", std::error_code{errcode, std::system_category()}));
       continue;
     }
     result = conn.GetSockError();
     if (!result.OK()) {
-      log_failure(std::move(result), __FILE__, __LINE__);
+      log_failure(std::move(result));
       continue;
     }
 
