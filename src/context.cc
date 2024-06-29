@@ -192,7 +192,8 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   if (device.IsCUDA()) {
     device = CUDAOrdinal(device, fail_on_invalid_gpu_id);
     if (!device.IsCUDA()) {
-      common::AssertGPUSupport();
+      // We allow loading a GPU-based pickle on a CPU-only machine.
+      LOG(WARNING) << "XGBoost is not compiled with CUDA support.";
     }
   }
   return device;
