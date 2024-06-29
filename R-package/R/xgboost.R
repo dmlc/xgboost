@@ -712,7 +712,7 @@ process.x.and.col.args <- function(
           if (any(idx != floor(idx))) {
             stop(
               "'interaction_constraints' must contain only integer indices. Got non-integer: ",
-              paste(head(idx[which(idx != floor(idx))]), collapse = ", ")
+              paste(utils::head(idx[which(idx != floor(idx))]), collapse = ", ")
             )
           }
         }
