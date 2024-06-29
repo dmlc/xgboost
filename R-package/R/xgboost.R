@@ -694,7 +694,7 @@ process.x.and.col.args <- function(
         if (anyNA(out)) {
           stop(
             "'interaction_constraints' contains column names not present in 'x': ",
-            paste(head(idx[which(is.na(out))]), collapse = ", ")
+            paste(utils::head(idx[which(is.na(out))]), collapse = ", ")
           )
         }
         return(out)
