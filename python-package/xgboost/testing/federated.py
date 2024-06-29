@@ -4,7 +4,9 @@
 import multiprocessing
 import os
 import subprocess
+import tempfile
 import time
+from typing import List, cast
 
 from sklearn.datasets import dump_svmlight_file, load_svmlight_file
 from sklearn.model_selection import train_test_split
@@ -12,6 +14,7 @@ from sklearn.model_selection import train_test_split
 import xgboost as xgb
 import xgboost.federated
 from xgboost import testing as tm
+from xgboost.training import TrainingCallback
 
 SERVER_KEY = "server-key.pem"
 SERVER_CERT = "server-cert.pem"
@@ -75,13 +78,22 @@ def run_worker(
         num_round = 20
 
         # Run training, all the features in training API is available.
+        results: TrainingCallback.EvalsLog = {}
         bst = xgb.train(
-            param, dtrain, num_round, evals=watchlist, early_stopping_rounds=2
+            param,
+            dtrain,
+            num_round,
+            evals=watchlist,
+            early_stopping_rounds=2,
+            evals_result=results,
         )
+        assert tm.non_increasing(cast(List[float], results["train"]["logloss"]))
+        assert tm.non_increasing(cast(List[float], results["eval"]["logloss"]))
 
-        # Save the model, only ask process 0 to save the model.
+        # save the model, only ask process 0 to save the model.
         if xgb.collective.get_rank() == 0:
-            bst.save_model("test.model.json")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                bst.save_model(os.path.join(tmpdir, "model.json"))
             xgb.collective.communicator_print("Finished training\n")
 
 

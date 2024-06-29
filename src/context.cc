@@ -191,8 +191,10 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   }
   if (device.IsCUDA()) {
     device = CUDAOrdinal(device, fail_on_invalid_gpu_id);
+    if (!device.IsCUDA()) {
+      // common::AssertGPUSupport();
+    }
   }
-
   return device;
 }
 }  // namespace

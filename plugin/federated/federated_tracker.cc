@@ -51,7 +51,6 @@ grpc::Status FederatedService::Broadcast(grpc::ServerContext*, BroadcastRequest 
 
 FederatedTracker::FederatedTracker(Json const& config) : Tracker{config} {
   auto is_secure = RequiredArg<Boolean const>(config, "federated_secure", __func__);
-  std::cout << "config:" << config << std::endl;
   if (is_secure) {
     StringView msg{"Empty certificate path."};
     server_key_path_ = RequiredArg<String const>(config, "server_key_path", __func__);
