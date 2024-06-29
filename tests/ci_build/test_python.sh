@@ -70,6 +70,7 @@ case "$suite" in
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/test_distributed/test_gpu_with_dask
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/test_distributed/test_gpu_with_spark
+    pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/test_distributed/test_gpu_federated
     unset_pyspark_envs
     uninstall_xgboost
     set +x
@@ -84,6 +85,7 @@ case "$suite" in
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/test_distributed/test_with_dask
     pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/test_distributed/test_with_spark
+    pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/test_distributed/test_federated
     unset_pyspark_envs
     uninstall_xgboost
     set +x

@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost contributors
+ * Copyright 2023-2024, XGBoost contributors
  */
 #include "federated_comm.h"
 
@@ -11,6 +11,7 @@
 #include <string>   // for string, stoi
 
 #include "../../src/common/common.h"      // for Split
+#include "../../src/common/io.h"          // for ReadAll
 #include "../../src/common/json_utils.h"  // for OptionalArg
 #include "xgboost/json.h"                 // for Json
 #include "xgboost/logging.h"
@@ -46,9 +47,9 @@ void FederatedComm::Init(std::string const& host, std::int32_t port, std::int32_
   } else {
     stub_ = [&] {
       grpc::SslCredentialsOptions options;
-      options.pem_root_certs = server_cert;
-      options.pem_private_key = client_key;
-      options.pem_cert_chain = client_cert;
+      options.pem_root_certs = common::ReadAll(server_cert);
+      options.pem_private_key = common::ReadAll(client_key);
+      options.pem_cert_chain = common::ReadAll(client_cert);
       grpc::ChannelArguments args;
       args.SetMaxReceiveMessageSize(std::numeric_limits<std::int32_t>::max());
       auto channel = grpc::CreateCustomChannel(host + ":" + std::to_string(port),
