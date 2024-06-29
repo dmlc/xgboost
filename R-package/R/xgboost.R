@@ -163,7 +163,7 @@ process.y.margin.and.objective <- function(
 
   if (is.logical(y)) {
     if (!is.vector(y)) {
-      if (NCOL(y) > 1) {
+      if (NCOL(y) > 1L) {
         stop("Multi-column logical/boolean 'y' is not supported.")
       }
       y <- as.vector(y)
