@@ -971,7 +971,7 @@ print.xgboost <- function(x, ...) {
   cat("Number of features: ", xgb.num_feature(x), "\n", sep = "")
 
   printable_head <- function(v) {
-    v_sub <- head(v, 5L)
+    v_sub <- utils::head(v, 5L)
     return(
       sprintf(
         "%s%s",
