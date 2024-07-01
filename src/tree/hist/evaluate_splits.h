@@ -83,6 +83,7 @@ class HistEvaluator {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   TreeEvaluator tree_evaluator_;
   bool is_col_split_{false};
+  bool is_secure_{false};
   FeatureInteractionConstraintHost interaction_constraints_;
   std::vector<NodeEntry> snode_;
 
@@ -322,7 +323,6 @@ class HistEvaluator {
         }
       }
     }
-
     p_best->Update(best);
     return left_sum;
   }
@@ -354,54 +354,63 @@ class HistEvaluator {
     auto evaluator = tree_evaluator_.GetEvaluator();
     auto const &cut_ptrs = cut.Ptrs();
 
-    common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
-      auto tidx = omp_get_thread_num();
-      auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
-      auto best = &entry->split;
-      auto nidx = entry->nid;
-      auto histogram = hist[nidx];
-      auto features_set = features[nidx_in_set]->ConstHostSpan();
-      for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
-        auto fidx = features_set[fidx_in_set];
-        bool is_cat = common::IsCat(feature_types, fidx);
-        if (!interaction_constraints_.Query(nidx, fidx)) {
-          continue;
-        }
-        if (is_cat) {
-          auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
-          if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
-            EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
+    // Under secure vertical setting, only the active party is able to evaluate the split
+    // based on global histogram. Other parties will receive the final best split information
+    // Hence the below computation is not performed by the passive parties
+    if ((!is_secure_) || (collective::GetRank() == 0)) {
+      // Evaluate the splits for each feature
+      common::ParallelFor2d(space, n_threads, [&](size_t nidx_in_set, common::Range1d r) {
+        auto tidx = omp_get_thread_num();
+        auto entry = &tloc_candidates[n_threads * nidx_in_set + tidx];
+        auto best = &entry->split;
+        auto nidx = entry->nid;
+        auto histogram = hist[nidx];
+        auto features_set = features[nidx_in_set]->ConstHostSpan();
+        for (auto fidx_in_set = r.begin(); fidx_in_set < r.end(); fidx_in_set++) {
+          auto fidx = features_set[fidx_in_set];
+          bool is_cat = common::IsCat(feature_types, fidx);
+          if (!interaction_constraints_.Query(nidx, fidx)) {
+            continue;
+          }
+          if (is_cat) {
+            auto n_bins = cut_ptrs.at(fidx + 1) - cut_ptrs[fidx];
+            if (common::UseOneHot(n_bins, param_->max_cat_to_onehot)) {
+              EnumerateOneHot(cut, histogram, fidx, nidx, evaluator, best);
+            } else {
+              std::vector<size_t> sorted_idx(n_bins);
+              std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
+              auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
+              // Sort the histogram to get contiguous partitions.
+              std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](size_t l, size_t r) {
+                auto ret = evaluator.CalcWeightCat(*param_, feat_hist[l]) <
+                           evaluator.CalcWeightCat(*param_, feat_hist[r]);
+                return ret;
+              });
+              EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+              EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
+            }
           } else {
-            std::vector<size_t> sorted_idx(n_bins);
-            std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
-            auto feat_hist = histogram.subspan(cut_ptrs[fidx], n_bins);
-            // Sort the histogram to get contiguous partitions.
-            std::stable_sort(sorted_idx.begin(), sorted_idx.end(), [&](size_t l, size_t r) {
-              auto ret = evaluator.CalcWeightCat(*param_, feat_hist[l]) <
-                         evaluator.CalcWeightCat(*param_, feat_hist[r]);
-              return ret;
-            });
-            EnumeratePart<+1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-            EnumeratePart<-1>(cut, sorted_idx, histogram, fidx, nidx, evaluator, best);
-          }
-        } else {
-          auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
-          if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
-            EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
+            auto grad_stats = EnumerateSplit<+1>(cut, histogram, fidx, nidx, evaluator, best);
+            if (SplitContainsMissingValues(grad_stats, snode_[nidx])) {
+              EnumerateSplit<-1>(cut, histogram, fidx, nidx, evaluator, best);
+            }
           }
         }
-      }
-    });
+      });
 
-    for (unsigned nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
-      for (auto tidx = 0; tidx < n_threads; ++tidx) {
-        entries[nidx_in_set].split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
+      for (unsigned nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
+        for (auto tidx = 0; tidx < n_threads; ++tidx) {
+          entries[nidx_in_set].split.Update(tloc_candidates[n_threads * nidx_in_set + tidx].split);
+        }
       }
     }
 
     if (is_col_split_) {
       // With column-wise data split, we gather the best splits from all the workers and update the
       // expand entries accordingly.
+      // Note that under secure vertical setting, only the label owner is able to evaluate the split
+      // based on the global histogram. The other parties will receive the final best splits
+      // allgather is capable of performing this (0-gain entries for non-label owners),
       auto all_entries = AllgatherColumnSplit(ctx_, entries);
       for (auto worker = 0; worker < collective::GetWorldSize(); ++worker) {
         for (std::size_t nidx_in_set = 0; nidx_in_set < entries.size(); ++nidx_in_set) {
@@ -481,7 +490,8 @@ class HistEvaluator {
         param_{param},
         column_sampler_{std::move(sampler)},
         tree_evaluator_{*param, static_cast<bst_feature_t>(info.num_col_), DeviceOrd::CPU()},
-        is_col_split_{info.IsColumnSplit()} {
+        is_col_split_{info.IsColumnSplit()},
+        is_secure_{info.IsSecure()}{
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,
@@ -497,6 +507,7 @@ class HistMultiEvaluator {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   Context const *ctx_;
   bool is_col_split_{false};
+  bool is_secure_{false};
 
  private:
   static double MultiCalcSplitGain(TrainParam const &param,
@@ -710,7 +721,8 @@ class HistMultiEvaluator {
       : param_{param},
         column_sampler_{std::move(sampler)},
         ctx_{ctx},
-        is_col_split_{info.IsColumnSplit()} {
+        is_col_split_{info.IsColumnSplit()},
+        is_secure_{info.IsSecure()} {
     interaction_constraints_.Configure(*param, info.num_col_);
     column_sampler_->Init(ctx, info.num_col_, info.feature_weights.HostVector(),
                           param_->colsample_bynode, param_->colsample_bylevel,
