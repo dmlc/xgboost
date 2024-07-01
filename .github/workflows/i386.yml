@@ -27,7 +27,7 @@ jobs:
       with:
         driver-opts: network=host
     - name: Build and push container
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: tests/ci_build/Dockerfile.i386
