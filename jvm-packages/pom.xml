@@ -470,7 +470,7 @@
         <plugins>
             <plugin>
                 <artifactId>maven-project-info-reports-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.6.1</version>
             </plugin>
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
