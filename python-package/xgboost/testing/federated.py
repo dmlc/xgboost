@@ -122,7 +122,7 @@ def run_federated(world_size: int, with_ssl: bool, use_gpu: bool) -> None:
     server.terminate()
 
 
-def run_federated_learning(with_ssl: bool, use_gpu: bool) -> None:
+def run_federated_learning(with_ssl: bool, use_gpu: bool, test_path: str) -> None:
     """Run federated learning tests."""
     n_workers = 2
 
@@ -133,8 +133,8 @@ def run_federated_learning(with_ssl: bool, use_gpu: bool) -> None:
         client_key = command.format(part="client").split()
         subprocess.check_call(client_key)
 
-    train_path = os.path.join(tm.data_dir(__file__), "agaricus.txt.train")
-    test_path = os.path.join(tm.data_dir(__file__), "agaricus.txt.test")
+    train_path = os.path.join(tm.data_dir(test_path), "agaricus.txt.train")
+    test_path = os.path.join(tm.data_dir(test_path), "agaricus.txt.test")
 
     X_train, y_train = load_svmlight_file(train_path)
     X_test, y_test = load_svmlight_file(test_path)

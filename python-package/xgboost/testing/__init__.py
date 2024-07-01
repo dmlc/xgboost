@@ -932,7 +932,7 @@ def demo_dir(path: str) -> str:
         if "demo" in subdirs:
             return os.path.join(path, "demo")
         new_path = normpath(os.path.join(path, os.path.pardir))
-        assert new_path != path or path == "/"
+        assert new_path != path
         path = new_path
 
 
