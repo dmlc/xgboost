@@ -193,7 +193,8 @@ def pd_arrow_dtypes() -> Generator:
             # Use np.nan is a baseline
             orig_null = Null if not pd.isna(Null) and Null == 0 else np.nan
             orig = pd.DataFrame(
-                {"f0": [1, 2, orig_null, 3], "f1": [4, 3, orig_null, 1]}, dtype=np.float32
+                {"f0": [1, 2, orig_null, 3], "f1": [4, 3, orig_null, 1]},
+                dtype=np.float32,
             )
 
             df = pd.DataFrame(
