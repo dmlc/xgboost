@@ -458,7 +458,7 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     # combine_chunks takes the most significant amount of time
     chunk: pa.Array = aa.combine_chunks()
     # When there's null value, we have to use copy
-    zero_copy = chunk.null_count == 0
+    zero_copy = chunk.null_count == 0 and not pa.types.is_boolean(chunk.type)
     # Alternately, we can use chunk.buffers(), which returns a list of buffers and
     # we need to concatenate them ourselves.
     # FIXME(jiamingy): Is there a better way to access the arrow buffer along with
@@ -825,37 +825,9 @@ def _arrow_transform(data: DataType) -> Any:
 
     data = cast(pa.Table, data)
 
-    def type_mapper(dtype: pa.DataType) -> Optional[str]:
-        """Maps pyarrow type to pandas arrow extension type."""
-        if pa.types.is_int8(dtype):
-            return pd.ArrowDtype(pa.int8())
-        if pa.types.is_int16(dtype):
-            return pd.ArrowDtype(pa.int16())
-        if pa.types.is_int32(dtype):
-            return pd.ArrowDtype(pa.int32())
-        if pa.types.is_int64(dtype):
-            return pd.ArrowDtype(pa.int64())
-        if pa.types.is_uint8(dtype):
-            return pd.ArrowDtype(pa.uint8())
-        if pa.types.is_uint16(dtype):
-            return pd.ArrowDtype(pa.uint16())
-        if pa.types.is_uint32(dtype):
-            return pd.ArrowDtype(pa.uint32())
-        if pa.types.is_uint64(dtype):
-            return pd.ArrowDtype(pa.uint64())
-        if pa.types.is_float16(dtype):
-            return pd.ArrowDtype(pa.float16())
-        if pa.types.is_float32(dtype):
-            return pd.ArrowDtype(pa.float32())
-        if pa.types.is_float64(dtype):
-            return pd.ArrowDtype(pa.float64())
-        if pa.types.is_boolean(dtype):
-            return pd.ArrowDtype(pa.bool_())
-        return None
-
     # For common cases, this is zero-copy, can check with:
     # pa.total_allocated_bytes()
-    df = data.to_pandas(types_mapper=type_mapper)
+    df = data.to_pandas(types_mapper=pd.ArrowDtype)
     return df
 
 
