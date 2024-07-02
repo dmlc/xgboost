@@ -33,7 +33,7 @@ class ThreadPool {
   template <typename InitFn>
   explicit ThreadPool(std::int32_t n_threads, InitFn&& init_fn) {
     for (std::int32_t i = 0; i < n_threads; ++i) {
-      pool_.emplace_back([&] {
+      pool_.emplace_back([&, init_fn = std::forward<InitFn>(init_fn)] {
         init_fn();
 
         while (true) {

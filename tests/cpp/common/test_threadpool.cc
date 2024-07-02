@@ -17,8 +17,9 @@ TEST(ThreadPool, Basic) {
 
   // Set verbosity to 0 for thread-local variable.
   auto orig = GlobalConfigThreadLocalStore::Get()->verbosity;
-  GlobalConfigThreadLocalStore::Get()->verbosity = 0;
-  // Should not equal to 0 when running tests.
+  GlobalConfigThreadLocalStore::Get()->verbosity = 4;
+  // 4 is an invalid value, it's only possible to set it by bypassing the parameter
+  // validation.
   ASSERT_NE(orig, GlobalConfigThreadLocalStore::Get()->verbosity);
   ThreadPool pool{n_threads, [config = *GlobalConfigThreadLocalStore::Get()] {
                     *GlobalConfigThreadLocalStore::Get() = config;
@@ -27,7 +28,7 @@ TEST(ThreadPool, Basic) {
 
   {
     auto fut = pool.Submit([] { return GlobalConfigThreadLocalStore::Get()->verbosity; });
-    ASSERT_EQ(fut.get(), 0);
+    ASSERT_EQ(fut.get(), 4);
     ASSERT_EQ(GlobalConfigThreadLocalStore::Get()->verbosity, orig);
   }
   {
@@ -60,6 +61,13 @@ TEST(ThreadPool, Basic) {
     for (std::size_t i = 0; i < futures.size(); ++i) {
       ASSERT_EQ(futures[i].get(), i);
     }
+  }
+  {
+    std::int32_t val{0};
+    auto fut = pool.Submit([&] { val = 3; });
+    static_assert(std::is_void_v<decltype(fut.get())>);
+    fut.get();
+    ASSERT_EQ(val, 3);
   }
 }
 }  // namespace xgboost::common
