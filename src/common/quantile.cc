@@ -368,16 +368,32 @@ void SketchContainerImpl<WQSketch>::AllReduce(
 }
 
 template <typename SketchType>
-void AddCutPoint(typename SketchType::SummaryContainer const &summary, int max_bin,
-                 HistogramCuts *cuts) {
-  size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+bool AddCutPoint(Context const *ctx, typename SketchType::SummaryContainer const &summary,
+                 int max_bin, HistogramCuts *cuts, bool secure) {
+  bst_idx_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+  // make a copy of required_cuts for mode selection
+  size_t required_cuts_original = required_cuts;
+  if (secure) {
+    // sync the required_cuts across all workers
+    collective::SafeColl(collective::Allreduce(ctx, &required_cuts, collective::Op::kMax));
+  }
+  // add the cut points
   auto &cut_values = cuts->cut_values_.HostVector();
-  // we use the min_value as the first (0th) element, hence starting from 1.
-  for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary.data[i].value;
-    if (i == 1 || cpt > cut_values.back()) {
-      cut_values.push_back(cpt);
+  // if secure and empty column, fill the cut values with NaN
+  if (secure && (required_cuts_original == 0)) {
+    for (size_t i = 1; i < required_cuts; ++i) {
+      cut_values.push_back(std::numeric_limits<double>::quiet_NaN());
     }
+    return true;
+  } else {
+    // we use the min_value as the first (0th) element, hence starting from 1.
+    for (size_t i = 1; i < required_cuts; ++i) {
+      bst_float cpt = summary.data[i].value;
+      if (i == 1 || cpt > cut_values.back()) {
+        cut_values.push_back(cpt);
+      }
+    }
+    return false;
   }
 }
 
@@ -429,20 +445,31 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
 
   float max_cat{-1.f};
   for (size_t fid = 0; fid < reduced.size(); ++fid) {
-    size_t max_num_bins = std::min(num_cuts[fid], max_bins_);
+    std::int32_t max_num_bins = std::min(num_cuts[fid], max_bins_);
+    // If vertical and secure mode, we need to sync the max_num_bins aross workers
+    // to create the same global number of cut point bins for easier future processing
+    if (info.IsVerticalFederated() && info.IsSecure()) {
+      collective::SafeColl(collective::Allreduce(ctx, &max_num_bins, collective::Op::kMax));
+    }
     typename WQSketch::SummaryContainer const &a = final_summaries[fid];
     if (IsCat(feature_types_, fid)) {
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
-      AddCutPoint<WQSketch>(a, max_num_bins, p_cuts);
-      // push a value that is greater than anything
-      const bst_float cpt =
-          (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
-      // this must be bigger than last value in a scale
-      const bst_float last = cpt + (fabs(cpt) + 1e-5f);
-      p_cuts->cut_values_.HostVector().push_back(last);
+      // use special AddCutPoint scheme for secure vertical federated learning
+      bool is_nan = AddCutPoint<WQSketch>(ctx, a, max_num_bins, p_cuts, info.IsSecure());
+      // push a value that is greater than anything if the feature is not empty
+      // i.e. if the last value is not NaN
+      if (!is_nan) {
+        const bst_float cpt =
+              (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
+        // this must be bigger than last value in a scale
+        const bst_float last = cpt + (fabs(cpt) + 1e-5f);
+        p_cuts->cut_values_.HostVector().push_back(last);
+      } else {
+          // if the feature is empty, push a NaN value
+          p_cuts->cut_values_.HostVector().push_back(std::numeric_limits<double>::quiet_NaN());
+      }
     }
-
     // Ensure that every feature gets at least one quantile point
     CHECK_LE(p_cuts->cut_values_.HostVector().size(), std::numeric_limits<uint32_t>::max());
     auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
