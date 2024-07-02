@@ -111,7 +111,6 @@ TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
       ++it;
     }
     check_ellpack();
-    return;
   }
 }
 

@@ -187,7 +187,6 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
       ++it;
     }
     check_ghist();
-    return;
   }
   {
     BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, true};
