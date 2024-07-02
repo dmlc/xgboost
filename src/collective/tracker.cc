@@ -414,7 +414,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       addresses.emplace_back(SockAddrV6{*ipv6});
     }
   }
-  // If not v4 address is found, we try v6
+  // If no v4 address is found, we try v6
   for (auto const& addr : addresses) {
     if (addr.IsV6()) {
       auto ip = addr.V6().Addr();

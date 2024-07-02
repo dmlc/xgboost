@@ -183,7 +183,7 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle) {
   //
   // - We don't have the first case since we never access the raw pointer.
   //
-  // - We don't hve the second case for most of the scenarios since tracker is an unique
+  // - We don't have the second case for most of the scenarios since tracker is an unique
   //   object, if the free function is called before another function calls, it's likely
   //   to be a bug in the user code. The use_count should only decrease in this function.
   while (ptr->first.use_count() != 1) {
