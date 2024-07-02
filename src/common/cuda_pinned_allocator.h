@@ -61,6 +61,8 @@ class pinned_allocator {
   XGBOOST_DEVICE inline ~pinned_allocator() {} // NOLINT: host/device markup ignored on defaulted functions
   XGBOOST_DEVICE inline pinned_allocator(pinned_allocator const&) {} // NOLINT: host/device markup ignored on defaulted functions
 
+  pinned_allocator& operator=(pinned_allocator const& that) = default;
+  pinned_allocator& operator=(pinned_allocator&& that) = default;
 
   template <typename U>
   XGBOOST_DEVICE inline pinned_allocator(pinned_allocator<U> const&) {} // NOLINT
