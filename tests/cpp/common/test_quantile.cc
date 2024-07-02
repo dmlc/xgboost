@@ -388,20 +388,20 @@ void DoTestColSplitQuantileSecure() {
   }
 }
 
+#if defined(XGBOOST_USE_FEDERATED)
 template <bool use_column>
 void TestColSplitQuantileSecure() {
   auto constexpr kWorkers = 2;
   collective::TestFederatedGlobal(kWorkers, [] { DoTestColSplitQuantileSecure<use_column>(); });
 }
+#endif  // defined(XGBOOST_USE_FEDERATED)
 }  // anonymous namespace
 
-TEST(Quantile, ColSplitSecure) {
-  TestColSplitQuantileSecure<false>();
-}
+#if defined(XGBOOST_USE_FEDERATED)
+TEST(Quantile, ColSplitSecure) { TestColSplitQuantileSecure<false>(); }
 
-TEST(Quantile, ColSplitSecureSorted) {
-  TestColSplitQuantileSecure<true>();
-}
+TEST(Quantile, ColSplitSecureSorted) { TestColSplitQuantileSecure<true>(); }
+#endif  // defined(XGBOOST_USE_FEDERATED)
 
 namespace {
 void TestSameOnAllWorkers() {
