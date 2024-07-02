@@ -41,12 +41,10 @@ class ThreadPool {
           cv_.wait(lock, [this] { return !this->tasks_.empty() || stop_; });
 
           if (this->stop_) {
-            if (!tasks_.empty()) {
-              while (!tasks_.empty()) {
-                auto fn = tasks_.front();
-                tasks_.pop();
-                fn();
-              }
+            while (!tasks_.empty()) {
+              auto fn = tasks_.front();
+              tasks_.pop();
+              fn();
             }
             return;
           }
