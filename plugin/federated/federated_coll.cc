@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost contributors
+ * Copyright 2023-2024, XGBoost contributors
  */
 #include "federated_coll.h"
 
@@ -8,10 +8,14 @@
 
 #include <algorithm>  // for copy_n
 
-#include "../../src/collective/allgather.h"
-#include "../../src/common/common.h"    // for AssertGPUSupport
 #include "federated_comm.h"             // for FederatedComm
 #include "xgboost/collective/result.h"  // for Result
+
+#if !defined(XGBOOST_USE_CUDA)
+
+#include "../../src/common/common.h"  // for AssertGPUSupport
+
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::collective {
 namespace {

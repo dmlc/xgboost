@@ -723,7 +723,7 @@ TEST_P(TestColumnSplit, Objective) {
 INSTANTIATE_TEST_SUITE_P(ColumnSplitObjective, TestColumnSplit,
                          ::testing::ValuesIn(MakeObjNamesForTest()),
                          [](const ::testing::TestParamInfo<TestColumnSplit::ParamType>& info) {
-                           return ObjTestNameGenerator(info);
+                           return ObjTestNameGenerator(info.param);
                          });
 
 namespace {

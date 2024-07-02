@@ -7,8 +7,8 @@
 
 #include <algorithm>  // for min
 #include <atomic>     // for atomic
-#include <cinttypes>  // for uint32_t
 #include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
 #include <memory>     // for make_unique
 #include <vector>
 
