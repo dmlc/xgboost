@@ -345,8 +345,15 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
 
   virtual void Reset() {
     TryLockGuard guard{single_threaded_};
+
     this->at_end_ = false;
+    auto cnt = this->count_;
     this->count_ = 0;
+    if (cnt != 0) {
+      // The last iteration did not get to the end, clear the ring to start from 0.
+      this->ring_ = std::make_unique<Ring>();
+      this->Fetch();
+    }
   }
 };
 
