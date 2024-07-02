@@ -42,7 +42,7 @@ struct Cache {
   std::string name;
   std::string format;
   // offset into binary cache file.
-  std::vector<std::uint64_t> offset;
+  std::vector<bst_idx_t> offset;
 
   Cache(bool w, std::string n, std::string fmt, bool on_host)
       : written{w}, on_host{on_host}, name{std::move(n)}, format{std::move(fmt)} {
@@ -61,7 +61,7 @@ struct Cache {
   /**
    * @brief Record a page with size of n_bytes.
    */
-  void Push(std::size_t n_bytes) { offset.push_back(n_bytes); }
+  void Push(bst_idx_t n_bytes) { offset.push_back(n_bytes); }
   /**
    * @brief Returns the view start and length for the i^th page.
    */
@@ -73,7 +73,7 @@ struct Cache {
   /**
    * @brief Get the number of bytes for the i^th page.
    */
-  [[nodiscard]] std::uint64_t Bytes(std::size_t i) const { return offset.at(i + 1) - offset[i]; }
+  [[nodiscard]] bst_idx_t Bytes(std::size_t i) const { return offset.at(i + 1) - offset[i]; }
   /**
    * @brief Call this once the write for the cache is complete.
    */
@@ -218,7 +218,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   common::Monitor monitor_;
 
   [[nodiscard]] bool ReadCache() {
-    CHECK(!at_end_);
     if (!cache_info_->written) {
       return false;
     }
@@ -264,6 +263,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         << "Sparse DMatrix assumes forward iteration.";
 
     monitor_.Start("Wait");
+    CHECK((*ring_)[count_].valid());
     page_ = (*ring_)[count_].get();
     CHECK(!(*ring_)[count_].valid());
     monitor_.Stop("Wait");
@@ -333,10 +333,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
 
   virtual void Reset() {
     TryLockGuard guard{single_threaded_};
-    at_end_ = false;
-    count_ = 0;
-    // Pre-fetch for the next round of iterations.
-    this->Fetch();
+    this->at_end_ = false;
+    this->count_ = 0;
   }
 };
 
@@ -410,10 +408,10 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
         CHECK_EQ(count_, n_batches_);
       }
       CHECK_GE(count_, 1);
-      proxy_ = nullptr;
-    } else {
-      this->Fetch();
+      this->proxy_ = nullptr;
+      this->count_ = 0;
     }
+    this->Fetch();
     return *this;
   }
 
@@ -462,9 +460,9 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
         CHECK_EQ(this->count_, this->n_batches_);
       }
       CHECK_GE(this->count_, 1);
-    } else {
-      this->Fetch();
+      this->count_ = 0;
     }
+    this->Fetch();
 
     if (sync_) {
       CHECK_EQ(source_->Iter(), this->count_);
