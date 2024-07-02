@@ -39,9 +39,9 @@ class FederatedTracker(RabitTracker):
         n_workers: int,
         port: int,
         secure: bool,
-        server_key_path: str = "",
-        server_cert_path: str = "",
-        client_cert_path: str = "",
+        server_key_path: Optional[str] = None,
+        server_cert_path: Optional[str] = None,
+        client_cert_path: Optional[str] = None,
         timeout: int = 300,
     ) -> None:
         handle = ctypes.c_void_p()
@@ -84,7 +84,13 @@ def run_federated_server(  # pylint: disable=too-many-arguments
         for path in [server_key_path, server_cert_path, client_cert_path]
     )
     tracker = FederatedTracker(
-        n_workers=n_workers, port=port, secure=secure, timeout=timeout
+        n_workers=n_workers,
+        port=port,
+        secure=secure,
+        timeout=timeout,
+        server_key_path=server_key_path,
+        server_cert_path=server_cert_path,
+        client_cert_path=client_cert_path,
     )
     tracker.start()
 
