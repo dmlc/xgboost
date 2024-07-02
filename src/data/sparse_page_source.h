@@ -258,6 +258,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         return page;
       });
     }
+
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
@@ -331,6 +332,17 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     return at_end_;
   }
 
+  // Call this at the last iteration.
+  void EndIter() {
+    CHECK_EQ(this->cache_info_->offset.size(), this->n_batches_ + 1);
+    this->cache_info_->Commit();
+    if (this->n_batches_ != 0) {
+      CHECK_EQ(this->count_, this->n_batches_);
+    }
+    CHECK_GE(this->count_, 1);
+    this->count_ = 0;
+  }
+
   virtual void Reset() {
     TryLockGuard guard{single_threaded_};
     this->at_end_ = false;
@@ -402,15 +414,10 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     CHECK_LE(count_, n_batches_);
 
     if (at_end_) {
-      CHECK_EQ(cache_info_->offset.size(), n_batches_ + 1);
-      cache_info_->Commit();
-      if (n_batches_ != 0) {
-        CHECK_EQ(count_, n_batches_);
-      }
-      CHECK_GE(count_, 1);
+      this->EndIter();
       this->proxy_ = nullptr;
-      this->count_ = 0;
     }
+
     this->Fetch();
     return *this;
   }
@@ -444,36 +451,46 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
   PageSourceIncMixIn(float missing, std::int32_t nthreads, bst_feature_t n_features,
                      bst_idx_t n_batches, std::shared_ptr<Cache> cache, bool sync)
       : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
-
+  // This function always operate on the source first, then the downstream. The downstream
+  // can assume the source to be ready.
   [[nodiscard]] PageSourceIncMixIn& operator++() final {
     TryLockGuard guard{this->single_threaded_};
+    // Increment the source.
     if (sync_) {
       ++(*source_);
     }
-
+    // Increment self.
     ++this->count_;
+    // Set at end.
     this->at_end_ = this->count_ == this->n_batches_;
 
     if (this->at_end_) {
-      this->cache_info_->Commit();
-      if (this->n_batches_ != 0) {
-        CHECK_EQ(this->count_, this->n_batches_);
+      // If this is the first round of iterations, we have just built the binary cache
+      // from soruce. For a non-sync page type, the source hasn't been updated to the end
+      // iteration yet due to skipped increment. We increment the source here and it will
+      // call the `EndIter` method itself.
+      bool src_need_inc = !sync_ && this->source_->Iter() != 0;
+      if (src_need_inc) {
+        CHECK_EQ(this->source_->Iter(), this->count_ - 1);
+        ++(*source_);
       }
-      CHECK_GE(this->count_, 1);
-      this->count_ = 0;
+      this->EndIter();
+
+      if (src_need_inc) {
+        CHECK(this->cache_info_->written);
+      }
     }
     this->Fetch();
 
     if (sync_) {
+      // Sanity check.
       CHECK_EQ(source_->Iter(), this->count_);
     }
     return *this;
   }
 
   void Reset() final {
-    if (sync_) {
-      this->source_->Reset();
-    }
+    this->source_->Reset();
     Super::Reset();
   }
 };

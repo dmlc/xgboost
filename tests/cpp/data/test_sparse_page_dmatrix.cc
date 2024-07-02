@@ -171,12 +171,30 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
     // Restore the batch parameter by passing it in again through check_ghist
     check_ghist();
   }
+
   // half the pages
-  auto it = Xy->GetBatches<SparsePage>(&ctx).begin();
-  for (std::int32_t i = 0; i < 3; ++i) {
-    ++it;
+  {
+    auto it = Xy->GetBatches<SparsePage>(&ctx).begin();
+    for (std::int32_t i = 0; i < 3; ++i) {
+      ++it;
+    }
+    check_ghist();
   }
-  check_ghist();
+  {
+    auto it = Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param).begin();
+    for (std::int32_t i = 0; i < 3; ++i) {
+      ++it;
+    }
+    check_ghist();
+  }
+  {
+    BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, true};
+    auto it = Xy->GetBatches<GHistIndexMatrix>(&ctx, regen).begin();
+    for (std::int32_t i = 0; i < 3; ++i) {
+      ++it;
+    }
+    check_ghist();
+  }
 }
 
 TEST(SparsePageDMatrix, MetaInfo) {
