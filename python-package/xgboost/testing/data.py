@@ -165,10 +165,6 @@ def pd_arrow_dtypes() -> Generator:
 
     # Integer
     dtypes = pandas_pyarrow_mapper
-    Null: Union[float, None, Any] = np.nan
-    orig = pd.DataFrame(
-        {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
-    )
     # Create a dictionary-backed dataframe, enable this when the roundtrip is
     # implemented in pandas/pyarrow
     #
@@ -191,24 +187,33 @@ def pd_arrow_dtypes() -> Generator:
     # pd_catcodes = pd_cat_df["f1"].cat.codes
     # assert pd_catcodes.equals(pa_catcodes)
 
-    for Null in (None, pd.NA):
+    for Null in (None, pd.NA, 0):
         for dtype in dtypes:
             if dtype.startswith("float16") or dtype.startswith("bool"):
                 continue
+            # Use np.nan is a baseline
+            orig_null = Null if not pd.isna(Null) and Null == 0 else np.nan
+            orig = pd.DataFrame(
+                {"f0": [1, 2, orig_null, 3], "f1": [4, 3, orig_null, 1]},
+                dtype=np.float32,
+            )
+
             df = pd.DataFrame(
                 {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
             )
             yield orig, df
 
-    orig = pd.DataFrame(
-        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
-        dtype=pd.BooleanDtype(),
-    )
-    df = pd.DataFrame(
-        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
-        dtype=pd.ArrowDtype(pa.bool_()),
-    )
-    yield orig, df
+    # If Null is `False`, then there's no missing value.
+    for Null in (pd.NA, False):
+        orig = pd.DataFrame(
+            {"f0": [True, False, Null, True], "f1": [False, True, Null, True]},
+            dtype=pd.BooleanDtype(),
+        )
+        df = pd.DataFrame(
+            {"f0": [True, False, Null, True], "f1": [False, True, Null, True]},
+            dtype=pd.ArrowDtype(pa.bool_()),
+        )
+        yield orig, df
 
 
 def check_inf(rng: RNG) -> None:
