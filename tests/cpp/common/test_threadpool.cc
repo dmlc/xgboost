@@ -2,6 +2,7 @@
  * Copyright 2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/global_config.h>  // for GlobalConfigThreadLocalStore
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
@@ -13,7 +14,22 @@
 namespace xgboost::common {
 TEST(ThreadPool, Basic) {
   std::int32_t n_threads = std::thread::hardware_concurrency();
-  ThreadPool pool{n_threads};
+
+  // Set verbosity to 0 for thread-local variable.
+  auto orig = GlobalConfigThreadLocalStore::Get()->verbosity;
+  GlobalConfigThreadLocalStore::Get()->verbosity = 0;
+  // Should not equal to 0 when running tests.
+  ASSERT_NE(orig, GlobalConfigThreadLocalStore::Get()->verbosity);
+  ThreadPool pool{n_threads, [config = *GlobalConfigThreadLocalStore::Get()] {
+                    *GlobalConfigThreadLocalStore::Get() = config;
+                  }};
+  GlobalConfigThreadLocalStore::Get()->verbosity = orig;  // restore
+
+  {
+    auto fut = pool.Submit([] { return GlobalConfigThreadLocalStore::Get()->verbosity; });
+    ASSERT_EQ(fut.get(), 0);
+    ASSERT_EQ(GlobalConfigThreadLocalStore::Get()->verbosity, orig);
+  }
   {
     auto fut = pool.Submit([] { return 3; });
     ASSERT_EQ(fut.get(), 3);
