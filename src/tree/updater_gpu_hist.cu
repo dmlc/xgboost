@@ -162,6 +162,8 @@ struct GPUHistMakerDevice {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   MetaInfo const& info_;
 
+  DeviceHistogramBuilder histogram_;
+
  public:
   EllpackPageImpl const* page{nullptr};
   common::Span<FeatureType const> feature_types;
@@ -256,6 +258,8 @@ struct GPUHistMakerDevice {
     hist.Reset();
 
     this->InitFeatureGroupsOnce();
+
+    this->histogram_.Reset(ctx_, feature_groups->DeviceAccessor(ctx_->Device()), false);
   }
 
   GPUExpandEntry EvaluateRootSplit(GradientPairInt64 root_sum) {
@@ -340,9 +344,9 @@ struct GPUHistMakerDevice {
   void BuildHist(int nidx) {
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    BuildGradientHistogram(ctx_->CUDACtx(), page->GetDeviceAccessor(ctx_->Device()),
-                           feature_groups->DeviceAccessor(ctx_->Device()), gpair, d_ridx,
-                           d_node_hist, *quantiser);
+    this->histogram_.BuildHistogram(ctx_->CUDACtx(), page->GetDeviceAccessor(ctx_->Device()),
+                                    feature_groups->DeviceAccessor(ctx_->Device()), gpair, d_ridx,
+                                    d_node_hist, *quantiser);
   }
 
   // Attempt to do subtraction trick
