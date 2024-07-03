@@ -178,12 +178,12 @@ FederatedPlugin::FederatedPlugin(StringView path, Json config)
   BuildEncryptedHistVert_ = SafeLoad<decltype(BuildEncryptedHistVert_)>(
       plugin_.get(), "FederatedPluginBuildEncryptedHistVert");
   SyncEncryptedHistVert_ = SafeLoad<decltype(SyncEncryptedHistVert_)>(
-      plugin_.get(), "FederatedPluginSyncEnrcyptedHistVert");
+      plugin_.get(), "FederatedPluginSyncEncryptedHistVert");
   // Horizontal
   BuildEncryptedHistHori_ = SafeLoad<decltype(BuildEncryptedHistHori_)>(
       plugin_.get(), "FederatedPluginBuildEncryptedHistHori");
   SyncEncryptedHistHori_ = SafeLoad<decltype(SyncEncryptedHistHori_)>(
-      plugin_.get(), "FederatedPluginSyncEnrcyptedHistHori");
+      plugin_.get(), "FederatedPluginSyncEncryptedHistHori");
 }
 
 FederatedPlugin::~FederatedPlugin() = default;

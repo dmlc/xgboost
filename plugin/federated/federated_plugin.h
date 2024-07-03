@@ -128,7 +128,7 @@ using BuildHistVertFn = int(FederatedPluginHandle handle, uint64_t const **ridx,
 /**
  * @brief Synchronize the histogram after the allgather call for all parties.
  *
- *  Symbol name: `FederatedPluginSyncEnrcyptedHistVert`.
+ *  Symbol name: `FederatedPluginSyncEncryptedHistVert`.
  *
  * @param in_hist Histogram buffer from the allgather call.
  * @param len     The size of the input histogram buffer.
@@ -163,7 +163,7 @@ using BuildHistHoriFn = int(FederatedPluginHandle handle, double const *in_hist,
 /**
  * @brief Reduce the histogram after the allgather call.
  *
- *  Symbol name: `FederatedPluginSyncEnrcyptedHistHori`.
+ *  Symbol name: `FederatedPluginSyncEncryptedHistHori`.
  *
  * @param in_hist  Input histogram from the allgather call.
  * @param len      The length of the input histogram.
