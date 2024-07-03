@@ -17,7 +17,7 @@
 [Documentation](https://xgboost.readthedocs.org) |
 [Resources](demo/README.md) |
 [Contributors](CONTRIBUTORS.md) |
-[Release Notes](NEWS.md)
+[Release Notes](https://xgboost.readthedocs.io/en/latest/changes/index.html)
 
 XGBoost is an optimized distributed gradient boosting library designed to be highly ***efficient***, ***flexible*** and ***portable***.
 It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework.
