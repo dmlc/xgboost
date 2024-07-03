@@ -98,12 +98,12 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
-  for (auto &gp : gpair.HostVector()) {
-    bst_float grad = dist(&gen);
-    bst_float hess = dist(&gen);
-    gp = GradientPair(grad, hess);
+  for (auto& gp : gpair.HostVector()) {
+    float grad = dist(&gen);
+    float hess = dist(&gen);
+    gp = GradientPair{grad, hess};
   }
-  gpair.SetDevice(DeviceOrd::CUDA(0));
+  gpair.SetDevice(ctx.Device());
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
   maker.row_partitioner = std::make_unique<RowPartitioner>(ctx.Device(), kNRows);

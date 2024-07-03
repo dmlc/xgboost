@@ -360,7 +360,7 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx,
                                             EllpackDeviceAccessor const& matrix,
                                             FeatureGroupsAccessor const& feature_groups,
                                             common::Span<GradientPair const> gpair,
-                                            common::Span<const uint32_t> ridx,
+                                            common::Span<const std::uint32_t> ridx,
                                             common::Span<GradientPairInt64> histogram,
                                             GradientQuantiser rounding) {
   this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram, rounding);
