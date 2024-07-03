@@ -185,6 +185,16 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
+   * Set query ids (used for ranking)
+   *
+   * @param qid query ids
+   */
+  @throws(classOf[XGBoostError])
+  def setQueryId(qid: Array[Int]): Unit = {
+    jDMatrix.setQueryId(qid)
+  }
+
+  /**
    * Set label of DMatrix from cuda array interface
    */
   @throws(classOf[XGBoostError])

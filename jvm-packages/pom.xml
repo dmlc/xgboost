@@ -434,6 +434,15 @@
             </goals>
           </execution>
         </executions>
+        <configuration>
+          <scalaVersion>${scala.version}</scalaVersion>
+          <checkMultipleScalaVersions>true</checkMultipleScalaVersions>
+          <failOnMultipleScalaVersions>false</failOnMultipleScalaVersions>
+          <recompileMode>incremental</recompileMode>
+          <args>
+            <arg>-Ywarn-unused:imports,locals,patvars,privates</arg>
+          </args>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

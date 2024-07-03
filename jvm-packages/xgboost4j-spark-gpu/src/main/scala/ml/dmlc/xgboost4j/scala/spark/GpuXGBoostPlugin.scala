@@ -28,6 +28,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Column, DataFrame, Dataset, Row}
 import org.apache.spark.sql.catalyst.{CatalystTypeConverters, InternalRow}
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
+import org.apache.spark.sql.types.{DataType, FloatType, IntegerType}
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
@@ -65,22 +66,23 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     val selectedCols: ArrayBuffer[Column] = ArrayBuffer.empty
     val schema = dataset.schema
 
-    def selectCol(c: Param[String]) = {
+    def selectCol(c: Param[String], targetType: DataType = FloatType) = {
       // TODO support numeric types
       if (estimator.isDefinedNonEmpty(c)) {
-        selectedCols.append(estimator.castToFloatIfNeeded(schema, estimator.getOrDefault(c)))
+        selectedCols.append(estimator.castIfNeeded(schema, estimator.getOrDefault(c), targetType))
       }
     }
 
-    Seq(estimator.labelCol, estimator.weightCol, estimator.baseMarginCol).foreach(selectCol)
+    Seq(estimator.labelCol, estimator.weightCol, estimator.baseMarginCol)
+      .foreach(p => selectCol(p))
     estimator match {
-      case p: HasGroupCol => selectCol(p.groupCol)
+      case p: HasGroupCol => selectCol(p.groupCol, IntegerType)
       case _ =>
     }
 
     // TODO support array/vector feature
     estimator.getFeaturesCols.foreach { name =>
-      val col = estimator.castToFloatIfNeeded(dataset.schema, name)
+      val col = estimator.castIfNeeded(dataset.schema, name)
       selectedCols.append(col)
     }
     val input = dataset.select(selectedCols: _*)

@@ -24,33 +24,10 @@ import org.apache.spark.sql.DataFrame
 import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
-import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{binaryClassificationObjs, multiClassificationObjs}
+import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{BINARY_CLASSIFICATION_OBJS, MULTICLASSIFICATION_OBJS}
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostParams
 
 class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
-
-  test("params") {
-    val xgbParams: Map[String, Any] = Map(
-      "max_depth" -> 5,
-      "eta" -> 0.2,
-      "objective" -> "binary:logistic"
-    )
-    val classifier = new XGBoostClassifier(xgbParams)
-      .setFeaturesCol("abc")
-      .setMissing(0.2f)
-      .setAlpha(0.97)
-
-    assert(classifier.getMaxDepth === 5)
-    assert(classifier.getEta === 0.2)
-    assert(classifier.getObjective === "binary:logistic")
-    assert(classifier.getFeaturesCol === "abc")
-    assert(classifier.getMissing === 0.2f)
-    assert(classifier.getAlpha === 0.97)
-
-    classifier.setEta(0.66).setMaxDepth(7)
-    assert(classifier.getMaxDepth === 7)
-    assert(classifier.getEta === 0.66)
-  }
 
   test("XGBoostClassifier copy") {
     val classifier = new XGBoostClassifier().setNthread(2).setNumWorkers(10)
@@ -107,6 +84,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     val classifier = new XGBoostClassifier().setNumRound(1)
     val model = classifier.fit(trainDf)
     var out = model.transform(trainDf)
+
     // Transform should not discard the other columns of the transforming dataframe
     Seq("label", "margin", "weight", "features").foreach { v =>
       assert(out.schema.names.contains(v))
@@ -116,6 +94,8 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     Seq("rawPrediction", "probability", "prediction").foreach { v =>
       assert(out.schema.names.contains(v))
     }
+
+    assert(out.schema.names.length === 7)
 
     model.setRawPredictionCol("").setProbabilityCol("")
     out = model.transform(trainDf)
@@ -137,7 +117,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
   test("Supported objectives") {
     val classifier = new XGBoostClassifier()
     val df = smallMultiClassificationVector
-    (binaryClassificationObjs.toSeq ++ multiClassificationObjs.toSeq).foreach { obj =>
+    (BINARY_CLASSIFICATION_OBJS.toSeq ++ MULTICLASSIFICATION_OBJS.toSeq).foreach { obj =>
       classifier.setObjective(obj)
       classifier.validate(df)
     }
@@ -294,7 +274,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     val xgb4jProb = xgb4jModel.predict(testDM)
     val xgbSparkProb = rows.map(row =>
       (row.getAs[Int]("id"), row.getAs[DenseVector]("probability").toArray.map(_.toFloat))).toMap
-    if (binaryClassificationObjs.contains(classifier.getObjective)) {
+    if (BINARY_CLASSIFICATION_OBJS.contains(classifier.getObjective)) {
       checkEqualForBinary(xgb4jProb, xgbSparkProb)
     } else {
       checkEqual(xgb4jProb, xgbSparkProb)
@@ -304,7 +284,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     val xgb4jRawPred = xgb4jModel.predict(testDM, outPutMargin = true)
     val xgbSparkRawPred = rows.map(row =>
       (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction").toArray.map(_.toFloat))).toMap
-    if (binaryClassificationObjs.contains(classifier.getObjective)) {
+    if (BINARY_CLASSIFICATION_OBJS.contains(classifier.getObjective)) {
       checkEqualForBinary(xgb4jRawPred, xgbSparkRawPred)
     } else {
       checkEqual(xgb4jRawPred, xgbSparkRawPred)

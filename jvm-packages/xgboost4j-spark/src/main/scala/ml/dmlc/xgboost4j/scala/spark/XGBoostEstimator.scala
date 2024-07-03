@@ -32,8 +32,8 @@ import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, ML
 import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{ArrayType, FloatType, StructField, StructType}
+import org.apache.spark.sql.functions.{col, udf}
+import org.apache.spark.sql.types._
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.java.{Booster => JBooster}
@@ -84,7 +84,7 @@ private[spark] trait PluginMixin {
     }
   }
 
-  /** Visiable for testing */
+  /** Visible for testing */
   protected[spark] def getPlugin: Option[XGBoostPlugin] = plugin
 
   protected def isPluginEnabled(dataset: Dataset[_]): Boolean = {
@@ -101,17 +101,19 @@ private[spark] trait XGBoostEstimator[
   protected val logger = LogFactory.getLog("XGBoostSpark")
 
   /**
-   * Pre-convert input double data to floats to align with XGBoost's internal float-based
-   * operations to save memory usage.
+   * Cast the field in schema to the desired data type.
    *
-   * @param dataset the input dataset
-   * @param name    which column will be casted to float if possible.
+   * @param dataset    the input dataset
+   * @param name       which column will be casted to float if possible.
+   * @param targetType the targetd data type
    * @return Dataset
    */
-  private[spark] def castToFloatIfNeeded(schema: StructType, name: String): Column = {
-    if (!schema(name).dataType.isInstanceOf[FloatType]) {
+  private[spark] def castIfNeeded(schema: StructType,
+                                  name: String,
+                                  targetType: DataType = FloatType): Column = {
+    if (!(schema(name).dataType == targetType)) {
       val meta = schema(name).metadata
-      col(name).as(name, meta).cast(FloatType)
+      col(name).as(name, meta).cast(targetType)
     } else {
       col(name)
     }
@@ -180,20 +182,20 @@ private[spark] trait XGBoostEstimator[
     val selectedCols: ArrayBuffer[Column] = ArrayBuffer.empty
     val schema = dataset.schema
 
-    def selectCol(c: Param[String]) = {
+    def selectCol(c: Param[String], targetType: DataType = FloatType) = {
       if (isDefinedNonEmpty(c)) {
         // Validation col should be a boolean column.
         if (c == featuresCol) {
           selectedCols.append(col($(c)))
         } else {
-          selectedCols.append(castToFloatIfNeeded(schema, $(c)))
+          selectedCols.append(castIfNeeded(schema, $(c), targetType))
         }
       }
     }
 
-    Seq(labelCol, featuresCol, weightCol, baseMarginCol).foreach(selectCol)
+    Seq(labelCol, featuresCol, weightCol, baseMarginCol).foreach(p => selectCol(p, FloatType))
     this match {
-      case p: HasGroupCol => selectCol(p.groupCol)
+      case p: HasGroupCol => selectCol(p.groupCol, IntegerType)
       case _ =>
     }
     val input = repartitionIfNeeded(dataset.select(selectedCols: _*))
@@ -210,10 +212,10 @@ private[spark] trait XGBoostEstimator[
       val label = row.getFloat(columnIndexes.labelId)
       val weight = columnIndexes.weightId.map(row.getFloat).getOrElse(1.0f)
       val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
-      val group = columnIndexes.groupId.map(row.getFloat).getOrElse(-1.0f)
+      val group = columnIndexes.groupId.map(row.getInt).getOrElse(-1)
       // To make "0" meaningful, we convert sparse vector if possible to dense to create DMatrix.
       val values = features.toArray.map(_.toFloat)
-      XGBLabeledPoint(label, values.length, null, values, weight, group.toInt, baseMargin)
+      XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
     }
   }
 
@@ -232,18 +234,57 @@ private[spark] trait XGBoostEstimator[
 
     val missing = getMissing
 
-    // transform the labeledpoint to get margins and build DMatrix
+    // Transform the labeledpoint to get margins/groups and build DMatrix
     // TODO support basemargin for multiclassification
-    // TODO, move it into JNI
+    // TODO and optimization, move it into JNI.
     def buildDMatrix(iter: Iterator[XGBLabeledPoint]) = {
-      val dmatrix = if (columnIndices.marginId.isDefined) {
-        val trainMargins = new mutable.ArrayBuilder.ofFloat
+      val dmatrix = if (columnIndices.marginId.isDefined || columnIndices.groupId.isDefined) {
+        val margins = new mutable.ArrayBuilder.ofFloat
+        val groups = new mutable.ArrayBuilder.ofInt
+        val groupWeights = new mutable.ArrayBuilder.ofFloat
+        var prevGroup = -101010
+        var prevWeight = -1.0f
+        var groupSize = 0
         val transformedIter = iter.map { labeledPoint =>
-          trainMargins += labeledPoint.baseMargin
+          if (columnIndices.marginId.isDefined) {
+            margins += labeledPoint.baseMargin
+          }
+          if (columnIndices.groupId.isDefined) {
+            if (prevGroup != labeledPoint.group) {
+              // starting with new group
+              if (prevGroup != -101010) {
+                // write the previous group
+                groups += groupSize
+                groupWeights += prevWeight
+              }
+              groupSize = 1
+              prevWeight = labeledPoint.weight
+              prevGroup = labeledPoint.group
+            } else {
+              // for the same group
+              if (prevWeight != labeledPoint.weight) {
+                throw new IllegalArgumentException("the instances in the same group have to be" +
+                  s" assigned with the same weight (unexpected weight ${labeledPoint.weight}")
+              }
+              groupSize = groupSize + 1
+            }
+          }
           labeledPoint
         }
         val dm = new DMatrix(transformedIter, null, missing)
-        dm.setBaseMargin(trainMargins.result())
+        columnIndices.marginId.foreach(_ => dm.setBaseMargin(margins.result()))
+        if (columnIndices.groupId.isDefined) {
+          if (prevGroup != -101011) {
+            // write the last group
+            groups += groupSize
+            groupWeights += prevWeight
+          }
+          dm.setGroup(groups.result())
+          // The new DMatrix() will set the weights for each instance. But ranking requires
+          // 1 weight for each group, so need to reset the weight.
+          // This is definitely optimized by moving setting group/base margin into JNI.
+          dm.setWeight(groupWeights.result())
+        }
         dm
       } else {
         new DMatrix(iter, null, missing)
@@ -326,14 +367,6 @@ private[spark] trait XGBoostEstimator[
     if (isDefinedNonEmpty(baseMarginCol)) {
       SparkUtils.checkNumericType(schema, $(baseMarginCol))
     }
-
-    // TODO Move this to XGBoostRanker
-    //    this match {
-    //      case p: HasGroupCol =>
-    //        if (isDefined(p.groupCol) && $(p.groupCol).nonEmpty) {
-    //          SparkUtils.checkNumericType(schema, p.getGroupCol)
-    //        }
-    //    }
 
     val taskCpus = dataset.sparkSession.sparkContext.getConf.getInt("spark.task.cpus", 1)
     if (isDefined(nthread)) {
@@ -519,6 +552,14 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
   }
 
   override def write: MLWriter = new XGBoostModelWriter[XGBoostModel[_]](this)
+
+  protected def predictSingleInstance(features: Vector): Array[Float] = {
+    if (nativeBooster == null) {
+      throw new IllegalArgumentException("The model has not been trained")
+    }
+    val dm = new DMatrix(Iterator(features.asXGB), null, getMissing)
+    nativeBooster.predict(data = dm)(0)
+  }
 }
 
 /**
@@ -559,4 +600,23 @@ private[spark] abstract class XGBoostModelReader[M <: XGBoostModel[M]] extends M
       dataInStream.close()
     }
   }
+}
+
+// Trait for Ranker and Regressor Model
+private[spark] trait RankerRegressorBaseModel[M <: XGBoostModel[M]] extends XGBoostModel[M] {
+
+  override protected[spark] def postTransform(dataset: Dataset[_],
+                                              pred: PredictedColumns): Dataset[_] = {
+    var output = super.postTransform(dataset, pred)
+    if (isDefinedNonEmpty(predictionCol) && pred.predTmp) {
+      val predictUDF = udf { (originalPrediction: mutable.WrappedArray[Float]) =>
+        originalPrediction(0).toDouble
+      }
+      output = output
+        .withColumn($(predictionCol), predictUDF(col(TMP_TRANSFORMED_COL)))
+        .drop(TMP_TRANSFORMED_COL)
+    }
+    output
+  }
+
 }

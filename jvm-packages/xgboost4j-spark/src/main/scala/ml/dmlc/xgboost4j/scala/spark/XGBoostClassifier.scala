@@ -28,7 +28,7 @@ import org.apache.spark.sql.functions.{col, udf}
 import org.json4s.DefaultFormats
 
 import ml.dmlc.xgboost4j.scala.Booster
-import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{binaryClassificationObjs, multiClassificationObjs}
+import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{BINARY_CLASSIFICATION_OBJS, MULTICLASSIFICATION_OBJS}
 
 class XGBoostClassifier(override val uid: String,
                         private[spark] val xgboostParams: Map[String, Any])
@@ -51,7 +51,7 @@ class XGBoostClassifier(override val uid: String,
     // multiClassificationObjs
     val obj = if (isSet(objective)) {
       val tmpObj = getObjective
-      val supportedObjs = binaryClassificationObjs.toSeq ++ multiClassificationObjs.toSeq
+      val supportedObjs = BINARY_CLASSIFICATION_OBJS.toSeq ++ MULTICLASSIFICATION_OBJS.toSeq
       require(supportedObjs.contains(tmpObj),
         s"Wrong objective for XGBoostClassifier, supported objs: ${supportedObjs.mkString(",")}")
       Some(tmpObj)
@@ -72,7 +72,7 @@ class XGBoostClassifier(override val uid: String,
 
     // objective is set explicitly.
     if (obj.isDefined) {
-      if (multiClassificationObjs.contains(getObjective)) {
+      if (MULTICLASSIFICATION_OBJS.contains(getObjective)) {
         numberClasses = inferNumClasses
         setNumClass(numberClasses)
       } else {
@@ -105,18 +105,16 @@ class XGBoostClassifier(override val uid: String,
 
   override protected def createModel(booster: Booster, summary: XGBoostTrainingSummary):
   XGBoostClassificationModel = {
-    new XGBoostClassificationModel(uid, numberClasses, booster, Some(summary))
+    new XGBoostClassificationModel(uid, numberClasses, booster, Option(summary))
   }
 
 }
 
 object XGBoostClassifier extends DefaultParamsReadable[XGBoostClassifier] {
   private val _uid = Identifiable.randomUID("xgbc")
-
-  override def load(path: String): XGBoostClassifier = super.load(path)
 }
 
-class XGBoostClassificationModel(
+class XGBoostClassificationModel private[ml](
     val uid: String,
     val numClasses: Int,
     val nativeBooster: Booster,

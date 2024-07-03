@@ -26,7 +26,7 @@ import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
 import org.json4s.{JObject, JValue}
 
-import ml.dmlc.xgboost4j.scala.spark.params.{NonXGBoostParams, SparkParams}
+import ml.dmlc.xgboost4j.scala.spark.params.NonXGBoostParams
 
 /**
  * XGBoost classification spark-specific parameters which should not be passed

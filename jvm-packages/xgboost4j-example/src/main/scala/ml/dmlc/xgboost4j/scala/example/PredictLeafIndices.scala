@@ -47,7 +47,7 @@ object PredictLeafIndices {
 
     // predict all trees
     val leafIndex2 = booster.predictLeaf(testMat, 0)
-    for (leafs <- leafIndex) {
+    for (leafs <- leafIndex2) {
       println(java.util.Arrays.toString(leafs))
     }
   }

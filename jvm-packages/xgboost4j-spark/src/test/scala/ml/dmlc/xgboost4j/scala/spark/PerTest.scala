@@ -26,6 +26,7 @@ import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import ml.dmlc.xgboost4j.scala.spark.Utils.XGBLabeledPointFeatures
 
 trait PerTest extends BeforeAndAfterEach {
   self: AnyFunSuite =>
@@ -75,14 +76,23 @@ trait PerTest extends BeforeAndAfterEach {
   protected def buildDataFrame(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    import Utils.XGBLabeledPointFeatures
     val it = labeledPoints.iterator.zipWithIndex
       .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
         (id, labeledPoint.label, labeledPoint.features, labeledPoint.weight)
       }
-
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
       .toDF("id", "label", "features", "weight")
+  }
+
+  protected def buildDataFrameWithGroup(
+      labeledPoints: Seq[XGBLabeledPoint],
+      numPartitions: Int = numWorkers): DataFrame = {
+    val it = labeledPoints.iterator.zipWithIndex
+      .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
+        (id, labeledPoint.label, labeledPoint.features, labeledPoint.group, labeledPoint.weight)
+      }
+    ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
+      .toDF("id", "label", "features", "group", "weight")
   }
 
   protected def compareTwoFiles(lhs: String, rhs: String): Boolean = {
@@ -122,12 +132,12 @@ trait PerTest extends BeforeAndAfterEach {
 
 
   def smallGroupVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
-    (1.0, 0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
-    (0.0, 1, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),
-    (2.0, 1, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
-    (1.0, 0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
-    (0.0, 2, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
-    (2.0, 2, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
+    (1.0, 0, 0.5, 2.0, Vectors.dense(1.0, 2.0, 3.0)),
+    (0.0, 1, 0.4, 1.0, Vectors.dense(0.0, 0.0, 0.0)),
+    (0.0, 1, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
+    (1.0, 0, 1.2, 2.0, Vectors.dense(2.0, 0.0, 4.0)),
+    (1.0, 2, -0.5, 3.0, Vectors.dense(0.2, 1.2, 2.0)),
+    (0.0, 2, -0.4, 3.0, Vectors.dense(0.5, 2.2, 1.7))
   ))).toDF("label", "group", "margin", "weight", "features")
 
 }
