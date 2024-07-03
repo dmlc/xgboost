@@ -412,7 +412,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>4.9.1</version>
+                <version>4.9.2</version>
                 <executions>
                     <execution>
                         <id>compile</id>
@@ -475,7 +475,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>4.9.1</version>
+                <version>4.9.2</version>
                 <configuration>
                     <jvmArgs>
                         <jvmArg>-Xms64m</jvmArg>
