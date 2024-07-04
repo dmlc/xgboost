@@ -41,10 +41,10 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   // hardcoded parameter.
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
-  if (ctx.IsCPU()) {
-    this->InitFromCPU(&ctx, p, iter_handle, missing, ref);
-  } else {
+  if (ctx.IsCUDA()) {
     this->InitFromCUDA(&ctx, p, iter_handle, missing, ref);
+  } else {
+    this->InitFromCPU(&ctx, p, iter_handle, missing, ref);
   }
 
   this->fmat_ctx_ = ctx;
@@ -73,10 +73,10 @@ void GetCutsFromRef(Context const* ctx, std::shared_ptr<DMatrix> ref, bst_featur
 
   if (ref->PageExists<GHistIndexMatrix>() && ref->PageExists<EllpackPage>()) {
     // Both exists
-    if (ctx->IsCPU()) {
-      csr();
-    } else {
+    if (ctx->IsCUDA()) {
       ellpack();
+    } else {
+      csr();
     }
   } else if (ref->PageExists<GHistIndexMatrix>()) {
     csr();
@@ -84,10 +84,10 @@ void GetCutsFromRef(Context const* ctx, std::shared_ptr<DMatrix> ref, bst_featur
     ellpack();
   } else {
     // None exist
-    if (ctx->IsCPU()) {
-      csr();
-    } else {
+    if (ctx->IsCUDA()) {
       ellpack();
+    } else {
+      csr();
     }
   }
   CHECK_EQ(ref->Info().num_col_, n_features)
@@ -297,9 +297,9 @@ BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(Context const* ctx
   }
 
   if (!ghist_) {
-    if (ctx->IsCPU()) {
+    if (!ctx->IsCUDA()) {
       ghist_ = std::make_shared<GHistIndexMatrix>(ctx, Info(), *ellpack_, param);
-    } else if (fmat_ctx_.IsCPU()) {
+    } else if (!fmat_ctx_.IsCUDA()) {
       ghist_ = std::make_shared<GHistIndexMatrix>(&fmat_ctx_, Info(), *ellpack_, param);
     } else {
       // Can happen when QDM is initialized on GPU, but a CPU version is queried by a different QDM

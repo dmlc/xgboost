@@ -11,7 +11,7 @@ void DMatrixProxy::FromCudaColumnar(StringView interface_str) {
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
-  if (adapter->Device().IsCPU()) {
+  if (!adapter->Device().IsCUDA()) {
     // empty data
     CHECK_EQ(this->Info().num_row_, 0);
     ctx_ = ctx_.MakeCUDA(dh::CurrentDevice());
@@ -25,7 +25,7 @@ void DMatrixProxy::FromCudaArray(StringView interface_str) {
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
-  if (adapter->Device().IsCPU()) {
+  if (!adapter->Device().IsCUDA()) {
     // empty data
     CHECK_EQ(this->Info().num_row_, 0);
     ctx_ = ctx_.MakeCUDA(dh::CurrentDevice());

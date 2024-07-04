@@ -20,7 +20,7 @@ std::size_t NFeaturesDevice(DMatrixProxy *proxy) {
 
 void DevicePush(DMatrixProxy *proxy, float missing, SparsePage *page) {
   auto device = proxy->Device();
-  if (device.IsCPU()) {
+  if (!device.IsCUDA()) {
     device = DeviceOrd::CUDA(dh::CurrentDevice());
   }
   CHECK(device.IsCUDA());
