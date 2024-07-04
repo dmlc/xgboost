@@ -48,6 +48,11 @@ void Finalize();
 [[nodiscard]] bool IsFederated();
 
 /**
+ * @brief Get if the communicator has an encryption plugin.
+ */
+[[nodiscard]] bool IsEncrypted();
+
+/**
  * @brief Print the message to the communicator.
  *
  * This function can be used to communicate the information of the progress to the user who monitors

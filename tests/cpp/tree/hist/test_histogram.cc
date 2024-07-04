@@ -565,7 +565,7 @@ class OverflowTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {
     CHECK_EQ(Xy->Info().IsColumnSplit(), is_col_split);
 
     hist_builder.Reset(&ctx, n_total_bins, tree.NumTargets(), batch, is_distributed,
-                       Xy->Info().IsColumnSplit(), Xy->Info().IsSecure(), &hist_param);
+                       Xy->Info().IsColumnSplit(), collective::IsEncrypted(), &hist_param);
 
     std::vector<CommonRowPartitioner> partitioners;
     partitioners.emplace_back(&ctx, Xy->Info().num_row_, /*base_rowid=*/0,

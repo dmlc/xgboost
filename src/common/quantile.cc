@@ -389,7 +389,7 @@ bool AddCutPoint(Context const *ctx, typename SketchType::SummaryContainer const
   } else {
     // we use the min_value as the first (0th) element, hence starting from 1.
     for (size_t i = 1; i < required_cuts; ++i) {
-      bst_float cpt = summary.data[i].value;
+      auto cpt = summary.data[i].value;
       if (i == 1 || cpt > cut_values.back()) {
         cut_values.push_back(cpt);
       }
@@ -449,7 +449,7 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
     std::int32_t max_num_bins = std::min(num_cuts[fid], max_bins_);
     // If vertical and secure mode, we need to sync the max_num_bins aross workers
     // to create the same global number of cut point bins for easier future processing
-    if (info.IsVerticalFederated() && info.IsSecure()) {
+    if (info.IsVerticalFederated() && collective::IsEncrypted()) {
       collective::SafeColl(collective::Allreduce(ctx, &max_num_bins, collective::Op::kMax));
     }
     typename WQSketch::SummaryContainer const &a = final_summaries[fid];
@@ -457,18 +457,18 @@ void SketchContainerImpl<WQSketch>::MakeCuts(Context const *ctx, MetaInfo const 
       max_cat = std::max(max_cat, AddCategories(categories_.at(fid), p_cuts));
     } else {
       // use special AddCutPoint scheme for secure vertical federated learning
-      bool is_nan = AddCutPoint<WQSketch>(ctx, a, max_num_bins, p_cuts, info.IsSecure());
+      bool is_nan = AddCutPoint<WQSketch>(ctx, a, max_num_bins, p_cuts, collective::IsEncrypted());
       // push a value that is greater than anything if the feature is not empty
       // i.e. if the last value is not NaN
       if (!is_nan) {
-        const bst_float cpt =
-              (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
+        const float cpt =
+            (a.size > 0) ? a.data[a.size - 1].value : p_cuts->min_vals_.HostVector()[fid];
         // this must be bigger than last value in a scale
-        const bst_float last = cpt + (fabs(cpt) + 1e-5f);
+        const float last = cpt + (fabs(cpt) + 1e-5f);
         p_cuts->cut_values_.HostVector().push_back(last);
       } else {
-          // if the feature is empty, push a NaN value
-          p_cuts->cut_values_.HostVector().push_back(std::numeric_limits<double>::quiet_NaN());
+        // if the feature is empty, push a NaN value
+        p_cuts->cut_values_.HostVector().push_back(std::numeric_limits<double>::quiet_NaN());
       }
     }
     // Ensure that every feature gets at least one quantile point

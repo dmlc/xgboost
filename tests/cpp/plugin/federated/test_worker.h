@@ -83,4 +83,16 @@ void TestFederatedGlobal(std::int32_t n_workers, WorkerFn&& fn) {
     collective::Finalize();
   });
 }
+
+template <typename WorkerFn>
+void TestEncryptedGlobal(std::int32_t n_workers, WorkerFn&& fn) {
+  TestFederatedImpl(n_workers, [&](std::int32_t port, std::int32_t i) {
+    auto config = FederatedTestConfig(n_workers, port, i);
+    config["federated_plugin"] = Object{};
+    config["federated_plugin"]["name"] = String{"mock"};
+    collective::Init(config);
+    fn();
+    collective::Finalize();
+  });
+}
 }  // namespace xgboost::collective

@@ -12,6 +12,10 @@
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"  // for SimpleDMatrix
 #include "../collective/test_worker.h"         // for TestDistributedGlobal
+
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../plugin/federated/test_worker.h"  // for TestEncryptedGlobal
+#endif  // defined(XGBOOST_USE_FEDERATED)
 #include "xgboost/context.h"
 
 namespace xgboost::common {
@@ -310,6 +314,7 @@ void DoTestColSplitQuantileSecure() {
   Context ctx;
   auto const world = collective::GetWorldSize();
   auto const rank = collective::GetRank();
+  ASSERT_TRUE(collective::IsEncrypted());
   size_t cols = 2;
   size_t rows = 3;
 
@@ -336,7 +341,7 @@ void DoTestColSplitQuantileSecure() {
 
   auto const n_bins = 64;
 
-  m->Info().data_split_mode = DataSplitMode::kColSecure;
+  m->Info().data_split_mode = DataSplitMode::kCol;
   // Generate cuts for distributed environment.
   HistogramCuts distributed_cuts;
   {
@@ -392,7 +397,7 @@ void DoTestColSplitQuantileSecure() {
 template <bool use_column>
 void TestColSplitQuantileSecure() {
   auto constexpr kWorkers = 2;
-  collective::TestFederatedGlobal(kWorkers, [] { DoTestColSplitQuantileSecure<use_column>(); });
+  collective::TestEncryptedGlobal(kWorkers, [&] { DoTestColSplitQuantileSecure<use_column>(); });
 }
 #endif  // defined(XGBOOST_USE_FEDERATED)
 }  // anonymous namespace
