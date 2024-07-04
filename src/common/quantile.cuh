@@ -4,12 +4,14 @@
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
 
-#include "xgboost/span.h"
-#include "xgboost/data.h"
+#include <thrust/logical.h>  // for any_of
+
+#include "categorical.h"
 #include "device_helpers.cuh"
 #include "quantile.h"
 #include "timer.h"
-#include "categorical.h"
+#include "xgboost/data.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 namespace common {

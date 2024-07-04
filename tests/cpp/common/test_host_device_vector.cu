@@ -181,4 +181,34 @@ TEST(HostDeviceVector, Empty) {
   ASSERT_FALSE(another.Empty());
   ASSERT_TRUE(vec.Empty());
 }
+
+TEST(HostDeviceVector, Resize) {
+  auto check = [&](HostDeviceVector<float> const& vec) {
+    auto const& h_vec = vec.ConstHostSpan();
+    for (std::size_t i = 0; i < 4; ++i) {
+      ASSERT_EQ(h_vec[i], i + 1);
+    }
+    for (std::size_t i = 4; i < vec.Size(); ++i) {
+      ASSERT_EQ(h_vec[i], 3.0);
+    }
+  };
+  {
+    HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
+    vec.SetDevice(DeviceOrd::CUDA(0));
+    vec.ConstDeviceSpan();
+    ASSERT_TRUE(vec.DeviceCanRead());
+    ASSERT_FALSE(vec.DeviceCanWrite());
+    vec.DeviceSpan();
+    vec.Resize(7, 3.0f);
+    ASSERT_TRUE(vec.DeviceCanWrite());
+    check(vec);
+  }
+  {
+    HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
+    ASSERT_TRUE(vec.HostCanWrite());
+    vec.Resize(7, 3.0f);
+    ASSERT_TRUE(vec.HostCanWrite());
+    check(vec);
+  }
+}
 }  // namespace xgboost::common

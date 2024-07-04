@@ -1,21 +1,32 @@
 /**
  * Copyright 2017-2023 by XGBoost contributors
  */
-#include <thrust/fill.h>
 #include <thrust/device_ptr.h>
+#include <thrust/fill.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <rmm/device_uvector.hpp>
+#include <rmm/exec_policy.hpp>
 
+#include "device_helpers.cuh"
+#include "device_vector.cuh"
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/tree_model.h"
-#include "device_helpers.cuh"
 
 namespace xgboost {
 
 // the handler to call instead of cudaSetDevice; only used for testing
 static void (*cudaSetDeviceHandler)(int) = nullptr;  // NOLINT
+
+template <typename T>
+void InitVectorIfNeeded(std::size_t offset, T const& v, dh::DeviceUVector<T>* out) {
+  auto& data = *out;
+  if (std::remove_reference_t<decltype(data)>::NeedInit()) {
+    thrust::fill(dh::CachingThrustPolicy(), data.begin() + offset, data.end(), v);
+  }
+}
 
 void SetCudaSetDeviceHandler(void (*handler)(int)) {
   cudaSetDeviceHandler = handler;
@@ -28,7 +39,8 @@ class HostDeviceVectorImpl {
     if (device.IsCUDA()) {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_->resize(size, v);
+      data_d_->resize(size, rmm::cuda_stream_per_thread);
+      InitVectorIfNeeded(0, v, data_d_.get());
     } else {
       data_h_.resize(size, v);
     }
@@ -66,22 +78,22 @@ class HostDeviceVectorImpl {
 
   T* DevicePointer() {
     LazySyncDevice(GPUAccess::kWrite);
-    return data_d_->data().get();
+    return thrust::raw_pointer_cast(data_d_->data());
   }
 
   const T* ConstDevicePointer() {
     LazySyncDevice(GPUAccess::kRead);
-    return data_d_->data().get();
+    return thrust::raw_pointer_cast(data_d_->data());
   }
 
   common::Span<T> DeviceSpan() {
     LazySyncDevice(GPUAccess::kWrite);
-    return {data_d_->data().get(), Size()};
+    return {this->DevicePointer(), Size()};
   }
 
   common::Span<const T> ConstDeviceSpan() {
     LazySyncDevice(GPUAccess::kRead);
-    return {data_d_->data().get(), Size()};
+    return {this->ConstDevicePointer(), Size()};
   }
 
   void Fill(T v) {  // NOLINT
@@ -91,7 +103,7 @@ class HostDeviceVectorImpl {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       auto s_data = dh::ToSpan(*data_d_);
-      dh::LaunchN(data_d_->size(),
+      dh::LaunchN(data_d_->size(), dh::DefaultStream(),
                   [=] XGBOOST_DEVICE(size_t i) { s_data[i] = v; });
     }
   }
@@ -138,10 +150,9 @@ class HostDeviceVectorImpl {
       auto ptr = other->ConstDevicePointer();
       SetDevice();
       CHECK_EQ(this->Device(), other->Device());
-      dh::safe_cuda(cudaMemcpyAsync(this->DevicePointer() + ori_size,
-                                    ptr,
-                                    other->Size() * sizeof(T),
-                                    cudaMemcpyDeviceToDevice));
+      dh::safe_cuda(cudaMemcpyAsync(this->DevicePointer() + ori_size, ptr,
+                                    other->Size() * sizeof(T), cudaMemcpyDeviceToDevice,
+                                    dh::DefaultStream()));
     }
   }
 
@@ -171,18 +182,53 @@ class HostDeviceVectorImpl {
     }
   }
 
-  void Resize(size_t new_size, T v) {
-    if (new_size == Size()) { return; }
+  auto ResizeImpl(std::size_t new_size) {
     if ((Size() == 0 && device_.IsCUDA()) || (DeviceCanWrite() && device_.IsCUDA())) {
       // fast on-device resize
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_->resize(new_size, v);
+      auto old_size = data_d_->size();
+      data_d_->resize(new_size, rmm::cuda_stream_per_thread);
+      return std::make_pair(old_size, DeviceOrd::kCUDA);
     } else {
       // resize on host
       LazySyncHost(GPUAccess::kNone);
-      data_h_.resize(new_size, v);
+      auto old_size = data_h_.size();
+      data_h_.resize(new_size);
+      return std::make_pair(old_size, DeviceOrd::kCPU);
     }
+  }
+
+  void Resize(std::size_t new_size, T v) {
+    if (new_size == Size()) {
+      return;
+    }
+    // Track the size of init.
+    auto [old_size, device] = this->ResizeImpl(new_size);
+    if (new_size <= old_size) {
+      return;
+    }
+    switch (device) {
+      case DeviceOrd::kCPU: {
+        std::fill(data_h_.begin() + old_size, data_h_.end(), v);
+        break;
+      }
+      case DeviceOrd::kCUDA: {
+        InitVectorIfNeeded(old_size, v, data_d_.get());
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unexpected device type.";
+        break;
+      }
+    }
+  }
+
+  void Resize(std::size_t new_size) {
+    if (new_size == Size()) {
+      return;
+    }
+    this->ResizeImpl(new_size);
   }
 
   void LazySyncHost(GPUAccess access) {
@@ -195,10 +241,8 @@ class HostDeviceVectorImpl {
     gpu_access_ = access;
     if (data_h_.size() != data_d_->size()) { data_h_.resize(data_d_->size()); }
     SetDevice();
-    dh::safe_cuda(cudaMemcpy(data_h_.data(),
-                             data_d_->data().get(),
-                             data_d_->size() * sizeof(T),
-                             cudaMemcpyDeviceToHost));
+    dh::safe_cuda(cudaMemcpy(data_h_.data(), thrust::raw_pointer_cast(data_d_->data()),
+                             data_d_->size() * sizeof(T), cudaMemcpyDeviceToHost));
   }
 
   void LazySyncDevice(GPUAccess access) {
@@ -211,10 +255,9 @@ class HostDeviceVectorImpl {
     // data is on the host
     LazyResizeDevice(data_h_.size());
     SetDevice();
-    dh::safe_cuda(cudaMemcpyAsync(data_d_->data().get(),
-                                  data_h_.data(),
-                                  data_d_->size() * sizeof(T),
-                                  cudaMemcpyHostToDevice));
+    dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(data_d_->data()), data_h_.data(),
+                                  data_d_->size() * sizeof(T), cudaMemcpyHostToDevice,
+                                  dh::DefaultStream()));
     gpu_access_ = access;
   }
 
@@ -229,7 +272,7 @@ class HostDeviceVectorImpl {
  private:
   DeviceOrd device_{DeviceOrd::CPU()};
   std::vector<T> data_h_{};
-  std::unique_ptr<dh::device_vector<T>> data_d_{};
+  std::unique_ptr<dh::DeviceUVector<T>> data_d_{};
   GPUAccess gpu_access_{GPUAccess::kNone};
 
   void CopyToDevice(HostDeviceVectorImpl* other) {
@@ -239,8 +282,10 @@ class HostDeviceVectorImpl {
       LazyResizeDevice(Size());
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      dh::safe_cuda(cudaMemcpyAsync(data_d_->data().get(), other->data_d_->data().get(),
-                                    data_d_->size() * sizeof(T), cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(data_d_->data()),
+                                    thrust::raw_pointer_cast(other->data_d_->data()),
+                                    data_d_->size() * sizeof(T), cudaMemcpyDefault,
+                                    dh::DefaultStream()));
     }
   }
 
@@ -248,14 +293,15 @@ class HostDeviceVectorImpl {
     LazyResizeDevice(Size());
     gpu_access_ = GPUAccess::kWrite;
     SetDevice();
-    dh::safe_cuda(cudaMemcpyAsync(data_d_->data().get(), begin,
-                                  data_d_->size() * sizeof(T), cudaMemcpyDefault));
+    dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(data_d_->data()), begin,
+                                  data_d_->size() * sizeof(T), cudaMemcpyDefault,
+                                  dh::DefaultStream()));
   }
 
   void LazyResizeDevice(size_t new_size) {
     if (data_d_ && new_size == data_d_->size()) { return; }
     SetDevice();
-    data_d_->resize(new_size);
+    data_d_->resize(new_size, rmm::cuda_stream_per_thread);
   }
 
   void SetDevice() {
@@ -267,7 +313,7 @@ class HostDeviceVectorImpl {
     }
 
     if (!data_d_) {
-      data_d_.reset(new dh::device_vector<T>);
+      data_d_.reset(new dh::DeviceUVector<T>{0});
     }
   }
 };
@@ -394,6 +440,11 @@ GPUAccess HostDeviceVector<T>::DeviceAccess() const {
 template <typename T>
 void HostDeviceVector<T>::SetDevice(DeviceOrd device) const {
   impl_->SetDevice(device);
+}
+
+template <typename T>
+void HostDeviceVector<T>::Resize(std::size_t new_size) {
+  impl_->Resize(new_size);
 }
 
 template <typename T>
