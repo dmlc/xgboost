@@ -3,7 +3,6 @@
  */
 #include <gtest/gtest.h>
 
-#include "../../../src/common/numeric.h"
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
@@ -58,16 +57,16 @@ TEST(Approx, Partitioner) {
       auto elem = partitioner[left_nidx];
       ASSERT_LT(elem.Size(), n_samples);
       ASSERT_GT(elem.Size(), 1);
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = page.cut.Values().at(page.index[*it]);
+      for (auto& it : elem) {
+        auto value = page.cut.Values().at(page.index[it]);
         ASSERT_LE(value, split_value);
       }
 
       auto right_nidx = tree[RegTree::kRoot].RightChild();
       elem = partitioner[right_nidx];
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = page.cut.Values().at(page.index[*it]);
-        ASSERT_GT(value, split_value) << *it;
+      for (auto& it : elem) {
+        auto value = page.cut.Values().at(page.index[it]);
+        ASSERT_GT(value, split_value) << it;
       }
     }
   }
@@ -106,7 +105,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
       ASSERT_GT(elem.Size(), 1);
       auto expected_elem = expected_mid_partitioner[left_nidx];
       ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
+      for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
         ASSERT_EQ(*it, *eit);
       }
 
@@ -114,7 +113,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
       elem = partitioner[right_nidx];
       expected_elem = expected_mid_partitioner[right_nidx];
       ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
+      for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
         ASSERT_EQ(*it, *eit);
       }
     }

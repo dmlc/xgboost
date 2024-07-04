@@ -79,8 +79,8 @@ class HistogramBuilder {
       auto elem = row_set_collection[nidx];
       auto start_of_row_set = std::min(r.begin(), elem.Size());
       auto end_of_row_set = std::min(r.end(), elem.Size());
-      auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
-                                                    elem.begin + end_of_row_set, nidx);
+      auto rid_set = common::RowSetCollection::Elem(elem.begin() + start_of_row_set,
+                                                    elem.begin() + end_of_row_set, nidx);
       auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
       if (rid_set.Size() != 0) {
         common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);

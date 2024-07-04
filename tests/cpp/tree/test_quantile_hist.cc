@@ -5,7 +5,6 @@
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 
-#include <algorithm>
 #include <cstddef>  // for size_t
 #include <string>
 #include <vector>
@@ -74,14 +73,14 @@ void TestPartitioner(bst_target_t n_targets) {
       auto elem = partitioner[left_nidx];
       ASSERT_LT(elem.Size(), n_samples);
       ASSERT_GT(elem.Size(), 1);
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = gmat.cut.Values().at(gmat.index[*it]);
+      for (auto& it : elem) {
+        auto value = gmat.cut.Values().at(gmat.index[it]);
         ASSERT_LE(value, split_value);
       }
       auto right_nidx = tree.RightChild(RegTree::kRoot);
       elem = partitioner[right_nidx];
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = gmat.cut.Values().at(gmat.index[*it]);
+      for (auto& it : elem) {
+        auto value = gmat.cut.Values().at(gmat.index[it]);
         ASSERT_GT(value, split_value);
       }
     }
@@ -143,7 +142,7 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
       ASSERT_GT(elem.Size(), 1);
       auto expected_elem = expected_mid_partitioner[left_nidx];
       ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
+      for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
         ASSERT_EQ(*it, *eit);
       }
 
@@ -151,7 +150,7 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
       elem = partitioner[right_nidx];
       expected_elem = expected_mid_partitioner[right_nidx];
       ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
+      for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
         ASSERT_EQ(*it, *eit);
       }
     }

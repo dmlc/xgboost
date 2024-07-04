@@ -188,14 +188,14 @@ class GHistBuildingManager {
 
 template <bool do_prefetch, class BuildingManager>
 void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
-                             const RowSetCollection::Elem row_indices, const GHistIndexMatrix &gmat,
+                             RowSetCollection::Elem const row_indices, const GHistIndexMatrix &gmat,
                              GHistRow hist) {
   constexpr bool kAnyMissing = BuildingManager::kAnyMissing;
   constexpr bool kFirstPage = BuildingManager::kFirstPage;
   using BinIdxType = typename BuildingManager::BinIdxType;
 
   const size_t size = row_indices.Size();
-  const size_t *rid = row_indices.begin;
+  bst_idx_t const *rid = row_indices.begin();
   auto const *p_gpair = reinterpret_cast<const float *>(gpair.data());
   const BinIdxType *gradient_index = gmat.index.data<BinIdxType>();
 
@@ -218,7 +218,7 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
 
   CHECK_NE(row_indices.Size(), 0);
   const size_t n_features =
-      get_row_ptr(row_indices.begin[0] + 1) - get_row_ptr(row_indices.begin[0]);
+      get_row_ptr(row_indices.begin()[0] + 1) - get_row_ptr(row_indices.begin()[0]);
   auto hist_data = reinterpret_cast<double *>(hist.data());
   const uint32_t two{2};  // Each element from 'gpair' and 'hist' contains
                           // 2 FP values: gradient and hessian.
@@ -271,7 +271,7 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair,
   constexpr bool kFirstPage = BuildingManager::kFirstPage;
   using BinIdxType = typename BuildingManager::BinIdxType;
   const size_t size = row_indices.Size();
-  const size_t *rid = row_indices.begin;
+  bst_idx_t const *rid = row_indices.begin();
   auto const *pgh = reinterpret_cast<const float *>(gpair.data());
   const BinIdxType *gradient_index = gmat.index.data<BinIdxType>();
 
@@ -315,7 +315,7 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair,
 }
 
 template <class BuildingManager>
-void BuildHistDispatch(Span<GradientPair const> gpair, const RowSetCollection::Elem row_indices,
+void BuildHistDispatch(Span<GradientPair const> gpair, RowSetCollection::Elem row_indices,
                        const GHistIndexMatrix &gmat, GHistRow hist) {
   if (BuildingManager::kReadByColumn) {
     ColsWiseBuildHistKernel<BuildingManager>(gpair, row_indices, gmat, hist);
@@ -324,21 +324,21 @@ void BuildHistDispatch(Span<GradientPair const> gpair, const RowSetCollection::E
     const size_t no_prefetch_size = Prefetch::NoPrefetchSize(nrows);
     // if need to work with all rows from bin-matrix (e.g. root node)
     const bool contiguousBlock =
-        (row_indices.begin[nrows - 1] - row_indices.begin[0]) == (nrows - 1);
+        (row_indices.begin()[nrows - 1] - row_indices.begin()[0]) == (nrows - 1);
 
     if (contiguousBlock) {
-      // contiguous memory access, built-in HW prefetching is enough
       if (row_indices.Size() == 0) {
         return;
       }
+      // contiguous memory access, built-in HW prefetching is enough
       RowsWiseBuildHistKernel<false, BuildingManager>(gpair, row_indices, gmat, hist);
     } else {
-      const RowSetCollection::Elem span1(row_indices.begin, row_indices.end - no_prefetch_size);
+      const RowSetCollection::Elem span1(row_indices.begin(), row_indices.end() - no_prefetch_size);
       if (span1.Size() != 0) {
         RowsWiseBuildHistKernel<true, BuildingManager>(gpair, span1, gmat, hist);
       }
       // no prefetching to avoid loading extra memory
-      const RowSetCollection::Elem span2(row_indices.end - no_prefetch_size, row_indices.end);
+      const RowSetCollection::Elem span2(row_indices.end() - no_prefetch_size, row_indices.end());
       if (span2.Size() != 0) {
         RowsWiseBuildHistKernel<false, BuildingManager>(gpair, span2, gmat, hist);
       }

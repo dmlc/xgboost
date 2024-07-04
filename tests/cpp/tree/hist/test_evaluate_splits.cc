@@ -45,7 +45,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
   // dense, no missing values
   GHistIndexMatrix gmat(&ctx, dmat.get(), kMaxBins, 0.5, false);
   common::RowSetCollection row_set_collection;
-  std::vector<size_t> &row_indices = *row_set_collection.Data();
+  std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
