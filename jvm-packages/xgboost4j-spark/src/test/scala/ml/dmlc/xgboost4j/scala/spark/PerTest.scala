@@ -26,7 +26,7 @@ import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-import ml.dmlc.xgboost4j.scala.spark.Utils.XGBLabeledPointFeatures
+import ml.dmlc.xgboost4j.scala.spark.Utils.{withResource, XGBLabeledPointFeatures}
 
 trait PerTest extends BeforeAndAfterEach {
   self: AnyFunSuite =>
@@ -100,15 +100,6 @@ trait PerTest extends BeforeAndAfterEach {
       withResource(new FileInputStream(rhs)) { rfis =>
         IOUtils.contentEquals(lfis, rfis)
       }
-    }
-  }
-
-  /** Executes the provided code block and then closes the resource */
-  protected def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
-    try {
-      block(r)
-    } finally {
-      r.close()
     }
   }
 

@@ -39,18 +39,22 @@ public class CudfColumnBatch extends ColumnBatch {
   private final Table weightTable;
   @JsonIgnore
   private final Table baseMarginTable;
+  @JsonIgnore
+  private final Table qidTable;
 
   private List<CudfColumn> features;
   private List<CudfColumn> label;
   private List<CudfColumn> weight;
   private List<CudfColumn> baseMargin;
+  private List<CudfColumn> qid;
 
   public CudfColumnBatch(Table featureTable, Table labelTable, Table weightTable,
-                         Table baseMarginTable) {
+                         Table baseMarginTable, Table qidTable) {
     this.featureTable = featureTable;
     this.labelTable = labelTable;
     this.weightTable = weightTable;
     this.baseMarginTable = baseMarginTable;
+    this.qidTable = qidTable;
 
     features = initializeCudfColumns(featureTable);
     if (labelTable != null) {
@@ -66,6 +70,11 @@ public class CudfColumnBatch extends ColumnBatch {
     if (baseMarginTable != null) {
       baseMargin = initializeCudfColumns(baseMarginTable);
     }
+
+    if (qidTable != null) {
+      qid = initializeCudfColumns(qidTable);
+    }
+
   }
 
   private List<CudfColumn> initializeCudfColumns(Table table) {
@@ -91,6 +100,10 @@ public class CudfColumnBatch extends ColumnBatch {
 
   public List<CudfColumn> getBaseMargin() {
     return baseMargin;
+  }
+
+  public List<CudfColumn> getQid() {
+    return qid;
   }
 
   public String toJson() {
@@ -119,5 +132,6 @@ public class CudfColumnBatch extends ColumnBatch {
     if (labelTable != null) labelTable.close();
     if (weightTable != null) weightTable.close();
     if (baseMarginTable != null) baseMarginTable.close();
+    if (qidTable != null) qidTable.close();
   }
 }
