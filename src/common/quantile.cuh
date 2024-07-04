@@ -102,9 +102,9 @@ class SketchContainer {
     CHECK(device.IsCUDA());
     // Initialize Sketches for this dmatrix
     this->columns_ptr_.SetDevice(device_);
-    this->columns_ptr_.Resize(num_columns + 1);
+    this->columns_ptr_.Resize(num_columns + 1, 0);
     this->columns_ptr_b_.SetDevice(device_);
-    this->columns_ptr_b_.Resize(num_columns + 1);
+    this->columns_ptr_b_.Resize(num_columns + 1, 0);
 
     this->feature_types_.Resize(feature_types.Size());
     this->feature_types_.Copy(feature_types);
