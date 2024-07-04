@@ -9,11 +9,11 @@
 #include <xgboost/data.h>
 #include <xgboost/objective.h>
 
-#include "../../../src/collective/communicator-inl.h"
-#include "../../../src/common/linalg_op.h"  // for begin, end
-#include "../helpers.h"
-#include "../objective_helpers.h"  // for MakeObjNamesForTest, ObjTestNameGenerator
-#include "federated/test_worker.h"
+#include "../../../../src/collective/communicator-inl.h"
+#include "../../../../src/common/linalg_op.h"  // for begin, end
+#include "../../helpers.h"
+#include "../../objective_helpers.h"  // for MakeObjNamesForTest, ObjTestNameGenerator
+#include "test_worker.h"
 
 namespace xgboost {
 namespace {
