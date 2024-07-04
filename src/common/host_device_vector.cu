@@ -18,14 +18,6 @@ namespace xgboost {
 // the handler to call instead of cudaSetDevice; only used for testing
 static void (*cudaSetDeviceHandler)(int) = nullptr;  // NOLINT
 
-template <typename T>
-void InitVectorIfNeeded(std::size_t offset, T const& v, dh::DeviceUVector<T>* out) {
-  auto& data = *out;
-  if (std::remove_reference_t<decltype(data)>::NeedInit()) {
-    thrust::fill(dh::CachingThrustPolicy(), data.begin() + offset, data.end(), v);
-  }
-}
-
 void SetCudaSetDeviceHandler(void (*handler)(int)) {
   cudaSetDeviceHandler = handler;
 }
@@ -181,6 +173,9 @@ class HostDeviceVectorImpl {
 
   template <typename... U>
   auto ResizeImpl(std::size_t new_size, U&&... args) {
+    if (new_size == Size()) {
+      return;
+    }
     if ((Size() == 0 && device_.IsCUDA()) || (DeviceCanWrite() && device_.IsCUDA())) {
       // fast on-device resize
       gpu_access_ = GPUAccess::kWrite;
@@ -195,19 +190,8 @@ class HostDeviceVectorImpl {
     }
   }
 
-  void Resize(std::size_t new_size, T v) {
-    if (new_size == Size()) {
-      return;
-    }
-    this->ResizeImpl(new_size, v);
-  }
-
-  void Resize(std::size_t new_size) {
-    if (new_size == Size()) {
-      return;
-    }
-    this->ResizeImpl(new_size);
-  }
+  void Resize(std::size_t new_size, T v) { this->ResizeImpl(new_size, v); }
+  void Resize(std::size_t new_size) { this->ResizeImpl(new_size); }
 
   void LazySyncHost(GPUAccess access) {
     if (HostCanAccess(access)) { return; }

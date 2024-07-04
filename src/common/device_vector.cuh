@@ -292,9 +292,6 @@ class DeviceUVector : public rmm::device_uvector<T> {
   using Super = rmm::device_uvector<T>;
 
  public:
-  static constexpr bool NeedInit() { return true; }
-
- public:
   DeviceUVector() : Super{0, rmm::cuda_stream_per_thread, GlobalLoggingResource()} {}
 
   void Resize(std::size_t n) { Super::resize(n, rmm::cuda_stream_per_thread); }
@@ -321,8 +318,6 @@ class DeviceUVector : public thrust::device_vector<T, XGBDeviceAllocator<T>> {
   using Super = thrust::device_vector<T, XGBDeviceAllocator<T>>;
 
  public:
-  static constexpr bool NeedInit() { return false; }
-
   void Resize(std::size_t n) { Super::resize(n); }
   void Resize(std::size_t n, T const &v) { Super::resize(n, v); }
 

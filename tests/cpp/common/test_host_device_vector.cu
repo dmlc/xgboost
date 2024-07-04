@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023 XGBoost contributors
+ * Copyright 2018-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/equal.h>
@@ -199,6 +199,13 @@ TEST(HostDeviceVector, Resize) {
     ASSERT_TRUE(vec.DeviceCanRead());
     ASSERT_FALSE(vec.DeviceCanWrite());
     vec.DeviceSpan();
+    vec.Resize(7, 3.0f);
+    ASSERT_TRUE(vec.DeviceCanWrite());
+    check(vec);
+  }
+  {
+    HostDeviceVector<float> vec{{1.0f, 2.0f, 3.0f, 4.0f}, DeviceOrd::CUDA(0)};
+    ASSERT_TRUE(vec.DeviceCanWrite());
     vec.Resize(7, 3.0f);
     ASSERT_TRUE(vec.DeviceCanWrite());
     check(vec);
