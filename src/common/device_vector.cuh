@@ -8,6 +8,7 @@
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <rmm/device_uvector.hpp>                      // for device_uvector
+#include <rmm/exec_policy.hpp>                         // for exec_policy_nosync
 #include <rmm/mr/device/device_memory_resource.hpp>    // for device_memory_resource
 #include <rmm/mr/device/per_device_resource.hpp>       // for get_current_device_resource
 #include <rmm/mr/device/thrust_allocator_adaptor.hpp>  // for thrust_allocator
@@ -294,8 +295,20 @@ class DeviceUVector : public rmm::device_uvector<T> {
   static constexpr bool NeedInit() { return true; }
 
  public:
-  explicit DeviceUVector(std::size_t n)
-      : Super{n, rmm::cuda_stream_per_thread, GlobalLoggingResource()} {}
+  DeviceUVector() : Super{0, rmm::cuda_stream_per_thread, GlobalLoggingResource()} {}
+
+  void Resize(std::size_t n) { Super::resize(n, rmm::cuda_stream_per_thread); }
+  void Resize(std::size_t n, T const &v) {
+    auto orig = this->size();
+    Super::resize(n, rmm::cuda_stream_per_thread);
+    if (orig < n) {
+      thrust::fill(rmm::exec_policy_nosync{}, this->begin() + orig, this->end(), v);
+    }
+  }
+
+ private:
+  // undefined private, cannot be accessed.
+  void resize(std::size_t n, rmm::cuda_stream_view stream);  // NOLINT
 };
 
 #else
@@ -304,9 +317,18 @@ class DeviceUVector : public rmm::device_uvector<T> {
  * @brief Without RMM, the initialization will happen.
  */
 template <typename T>
-class DeviceUVector : thrust::device_vector<T, XGBDeviceAllocator<T>> {
+class DeviceUVector : public thrust::device_vector<T, XGBDeviceAllocator<T>> {
+  using Super = thrust::device_vector<T, XGBDeviceAllocator<T>>;
+
  public:
   static constexpr bool NeedInit() { return false; }
+
+  void Resize(std::size_t n) { Super::resize(n); }
+  void Resize(std::size_t n, T const &v) { Super::resize(n, v); }
+
+ private:
+  // undefined private, cannot be accessed.
+  void resize(std::size_t n, T const &v = T{});  // NOLINT
 };
 
 #endif  // defined(XGBOOST_USE_RMM)

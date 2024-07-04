@@ -11,7 +11,8 @@ TEST(DeviceUVector, Basic) {
   GlobalMemoryLogger().Clear();
   std::int32_t verbosity{3};
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
-  DeviceUVector<float> uvec{12};
+  DeviceUVector<float> uvec;
+  uvec.Resize(12);
   auto peak = GlobalMemoryLogger().PeakMemory();
   auto n_bytes = sizeof(decltype(uvec)::value_type) * uvec.size();
   ASSERT_EQ(peak, n_bytes);

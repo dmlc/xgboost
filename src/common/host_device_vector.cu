@@ -1,19 +1,17 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
-#include <thrust/device_ptr.h>
 #include <thrust/fill.h>
 
 #include <algorithm>
+#include <cstddef>  // for size_t
 #include <cstdint>
-#include <rmm/device_uvector.hpp>
-#include <rmm/exec_policy.hpp>
 
 #include "device_helpers.cuh"
-#include "device_vector.cuh"
+#include "device_vector.cuh"  // for DeviceUVector
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
-#include "xgboost/tree_model.h"
+#include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost {
 
@@ -39,8 +37,7 @@ class HostDeviceVectorImpl {
     if (device.IsCUDA()) {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_->resize(size, rmm::cuda_stream_per_thread);
-      InitVectorIfNeeded(0, v, data_d_.get());
+      data_d_->Resize(size, v);
     } else {
       data_h_.resize(size, v);
     }
@@ -182,20 +179,19 @@ class HostDeviceVectorImpl {
     }
   }
 
-  auto ResizeImpl(std::size_t new_size) {
+  template <typename... U>
+  auto ResizeImpl(std::size_t new_size, U&&... args) {
     if ((Size() == 0 && device_.IsCUDA()) || (DeviceCanWrite() && device_.IsCUDA())) {
       // fast on-device resize
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       auto old_size = data_d_->size();
-      data_d_->resize(new_size, rmm::cuda_stream_per_thread);
-      return std::make_pair(old_size, DeviceOrd::kCUDA);
+      data_d_->Resize(new_size, std::forward<U>(args)...);
     } else {
       // resize on host
       LazySyncHost(GPUAccess::kNone);
       auto old_size = data_h_.size();
-      data_h_.resize(new_size);
-      return std::make_pair(old_size, DeviceOrd::kCPU);
+      data_h_.resize(new_size, std::forward<U>(args)...);
     }
   }
 
@@ -203,25 +199,7 @@ class HostDeviceVectorImpl {
     if (new_size == Size()) {
       return;
     }
-    // Track the size of init.
-    auto [old_size, device] = this->ResizeImpl(new_size);
-    if (new_size <= old_size) {
-      return;
-    }
-    switch (device) {
-      case DeviceOrd::kCPU: {
-        std::fill(data_h_.begin() + old_size, data_h_.end(), v);
-        break;
-      }
-      case DeviceOrd::kCUDA: {
-        InitVectorIfNeeded(old_size, v, data_d_.get());
-        break;
-      }
-      default: {
-        LOG(FATAL) << "Unexpected device type.";
-        break;
-      }
-    }
+    this->ResizeImpl(new_size, v);
   }
 
   void Resize(std::size_t new_size) {
@@ -301,7 +279,7 @@ class HostDeviceVectorImpl {
   void LazyResizeDevice(size_t new_size) {
     if (data_d_ && new_size == data_d_->size()) { return; }
     SetDevice();
-    data_d_->resize(new_size, rmm::cuda_stream_per_thread);
+    data_d_->Resize(new_size);
   }
 
   void SetDevice() {
@@ -313,7 +291,7 @@ class HostDeviceVectorImpl {
     }
 
     if (!data_d_) {
-      data_d_.reset(new dh::DeviceUVector<T>{0});
+      data_d_.reset(new dh::DeviceUVector<T>{});
     }
   }
 };
@@ -478,5 +456,4 @@ template class HostDeviceVector<RTreeNodeStat>;
  */
 template class HostDeviceVector<std::size_t>;
 #endif  // defined(__APPLE__)
-
 }  // namespace xgboost

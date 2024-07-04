@@ -510,7 +510,7 @@ xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
 
 template <typename T>
 xgboost::common::Span<T> ToSpan(DeviceUVector<T> &vec) {
-  return {vec.data(), vec.size()};
+  return {thrust::raw_pointer_cast(vec.data()), vec.size()};
 }
 
 // thrust begin, similiar to std::begin

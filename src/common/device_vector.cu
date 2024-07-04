@@ -18,8 +18,10 @@ void ThrowOOMError(std::string const &err, size_t bytes) {
 }
 }  // namespace detail
 
+#if defined(XGBOOST_USE_RMM)
 LoggingResource *GlobalLoggingResource() {
   static auto mr{std::make_unique<LoggingResource>()};
   return mr.get();
 }
+#endif  // defined(XGBOOST_USE_RMM)
 }  // namespace dh
