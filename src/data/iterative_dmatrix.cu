@@ -46,7 +46,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   int32_t current_device;
   dh::safe_cuda(cudaGetDevice(&current_device));
   auto get_device = [&]() {
-    auto d = (ctx->IsCPU()) ? DeviceOrd::CUDA(current_device) : ctx->Device();
+    auto d = (ctx->IsCUDA()) ? ctx->Device() : DeviceOrd::CUDA(current_device);
     CHECK(!d.IsCPU());
     return d;
   };

@@ -185,12 +185,12 @@ BatchSet<GHistIndexMatrix> SimpleDMatrix::GetGradientIndex(Context const* ctx,
     CHECK_GE(param.max_bin, 2);
     // Used only by approx.
     auto sorted_sketch = param.regen;
-    if (ctx->IsCPU()) {
+    if (!ctx->IsCUDA()) {
       // The context passed in is on CPU, we pick it first since we prioritize the context
       // in Booster.
       gradient_index_.reset(new GHistIndexMatrix{ctx, this, param.max_bin, param.sparse_thresh,
                                                  sorted_sketch, param.hess});
-    } else if (fmat_ctx_.IsCPU()) {
+    } else if (!fmat_ctx_.IsCUDA()) {
       // DMatrix was initialized on CPU, we use the context from initialization.
       gradient_index_.reset(new GHistIndexMatrix{&fmat_ctx_, this, param.max_bin,
                                                  param.sparse_thresh, sorted_sketch, param.hess});
