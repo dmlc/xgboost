@@ -223,7 +223,12 @@ class RowPartitioner {
   dh::PinnedMemory pinned2_;
 
  public:
-  RowPartitioner(DeviceOrd device_idx, size_t num_rows);
+  /**
+   * @param ctx Context for device ordinal and stream.
+   * @param n_samples The number of samples in each batch.
+   * @param base_rowid The base row index for the current batch.
+   */
+  RowPartitioner(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid);
   ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
   RowPartitioner& operator=(const RowPartitioner&) = delete;
