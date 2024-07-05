@@ -248,7 +248,7 @@ class IteratorForTest(xgb.core.DataIter):
         return X, y, w
 
 
-def make_batches(
+def make_batches(  # pylint: disable=too-many-arguments,too-many-locals
     n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
