@@ -1,19 +1,15 @@
 /**
- * Copyright 2017-2024 XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/iterator/transform_output_iterator.h>
-#include <thrust/sequence.h>
+#include <thrust/sequence.h>  // for sequence
 
-#include <vector>
+#include <vector>  // for vector
 
-#include "../../common/device_helpers.cuh"
-#include "../../common/cuda_context.cuh"  // for CUDAContext
+#include "../../common/cuda_context.cuh"    // for CUDAContext
+#include "../../common/device_helpers.cuh"  // for CopyDeviceSpanToVector, ToSpan
 #include "row_partitioner.cuh"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 RowPartitioner::RowPartitioner(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid)
     : device_idx_(ctx->Device()), ridx_(n_samples), ridx_tmp_(n_samples) {
   dh::safe_cuda(cudaSetDevice(device_idx_.ordinal));
@@ -38,6 +34,4 @@ std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(bst_node_t ni
   dh::CopyDeviceSpanToVector(&rows, span);
   return rows;
 }
-
-};  // namespace tree
-};  // namespace xgboost
+};  // namespace xgboost::tree
