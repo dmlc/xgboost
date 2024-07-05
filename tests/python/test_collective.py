@@ -99,7 +99,7 @@ def run_external_memory(worker_id: int, world_size: int, kwargs: dict) -> None:
             ),
             cache="cache",
         )
-        Xy = xgb.DMatrix(it, nthread=n_cpus // world_size)
+        Xy = xgb.DMatrix(it, nthread=max(n_cpus // world_size, 1))
         results = {}
         booster = xgb.train(
             {"tree_method": "hist", "nthread": n_cpus // world_size},
@@ -126,7 +126,7 @@ def run_external_memory(worker_id: int, world_size: int, kwargs: dict) -> None:
     X = concat(lx)
     yconcat = concat(ly)
     wconcat = concat(lw)
-    Xy = xgb.DMatrix(X, yconcat, wconcat, nthread=n_cpus // world_size)
+    Xy = xgb.DMatrix(X, yconcat, wconcat, nthread=max(n_cpus // world_size, 1))
 
     results_local = {}
     booster = xgb.train(
