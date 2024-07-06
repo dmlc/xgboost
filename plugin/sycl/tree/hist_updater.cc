@@ -8,6 +8,7 @@
 #include <oneapi/dpl/random>
 
 #include "../common/hist_util.h"
+#include "../../src/collective/allreduce.h"
 
 namespace xgboost {
 namespace sycl {
@@ -111,7 +112,6 @@ void HistUpdater<GradientSumT>::InitSampling(
 
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitData(
-                                Context const * ctx,
                                 const common::GHistIndexMatrix& gmat,
                                 const USMVector<GradientPair, MemoryType::on_device> &gpair,
                                 const DMatrix& fmat,
@@ -136,10 +136,7 @@ void HistUpdater<GradientSumT>::InitData(
 
     hist_buffer_.Init(qu_, nbins);
     size_t buffer_size = kBufferSize;
-    if (buffer_size > info.num_row_ / kMinBlockSize + 1) {
-      buffer_size = info.num_row_ / kMinBlockSize + 1;
-    }
-    hist_buffer_.Reset(buffer_size);
+    hist_buffer_.Reset(kBufferSize);
 
     // initialize histogram builder
     hist_builder_ = common::GHistBuilder<GradientSumT>(qu_, nbins);
@@ -215,6 +212,101 @@ void HistUpdater<GradientSumT>::InitData(
       data_layout_ = kSparseData;
     }
   }
+
+  if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+    /* specialized code for dense data:
+       choose the column that has a least positive number of discrete bins.
+       For dense data (with no missing value),
+       the sum of gradient histogram is equal to snode[nid] */
+    const std::vector<uint32_t>& row_ptr = gmat.cut.Ptrs();
+    const auto nfeature = static_cast<bst_uint>(row_ptr.size() - 1);
+    uint32_t min_nbins_per_feature = 0;
+    for (bst_uint i = 0; i < nfeature; ++i) {
+      const uint32_t nbins = row_ptr[i + 1] - row_ptr[i];
+      if (nbins > 0) {
+        if (min_nbins_per_feature == 0 || min_nbins_per_feature > nbins) {
+          min_nbins_per_feature = nbins;
+          fid_least_bins_ = i;
+        }
+      }
+    }
+    CHECK_GT(min_nbins_per_feature, 0U);
+  }
+
+  std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
+  builder_monitor_.Stop("InitData");
+}
+
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::InitNewNode(int nid,
+                                            const common::GHistIndexMatrix& gmat,
+                                            const USMVector<GradientPair,
+                                                            MemoryType::on_device> &gpair,
+                                            const DMatrix& fmat,
+                                            const RegTree& tree) {
+  builder_monitor_.Start("InitNewNode");
+
+  snode_host_.resize(tree.NumNodes(), NodeEntry<GradientSumT>(param_));
+  {
+    if (tree[nid].IsRoot()) {
+      GradStats<GradientSumT> grad_stat;
+      if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
+        const std::vector<uint32_t>& row_ptr = gmat.cut.Ptrs();
+        const uint32_t ibegin = row_ptr[fid_least_bins_];
+        const uint32_t iend = row_ptr[fid_least_bins_ + 1];
+        const auto* hist = reinterpret_cast<GradStats<GradientSumT>*>(hist_[nid].Data());
+
+        std::vector<GradStats<GradientSumT>> ets(iend - ibegin);
+        qu_.memcpy(ets.data(), hist + ibegin,
+                   (iend - ibegin) * sizeof(GradStats<GradientSumT>)).wait_and_throw();
+        for (const auto& et : ets) {
+          grad_stat += et;
+        }
+      } else {
+        const common::RowSetCollection::Elem e = row_set_collection_[nid];
+        const size_t* row_idxs = e.begin;
+        const size_t size = e.Size();
+        const GradientPair* gpair_ptr = gpair.DataConst();
+
+        ::sycl::buffer<GradStats<GradientSumT>> buff(&grad_stat, 1);
+        qu_.submit([&](::sycl::handler& cgh) {
+          auto reduction = ::sycl::reduction(buff, cgh, ::sycl::plus<>());
+          cgh.parallel_for<>(::sycl::range<1>(size), reduction,
+                            [=](::sycl::item<1> pid, auto& sum) {
+            size_t i = pid.get_id(0);
+            size_t row_idx = row_idxs[i];
+            if constexpr (std::is_same<GradientPair::ValueT, GradientSumT>::value) {
+              sum += gpair_ptr[row_idx];
+            } else {
+              sum += GradStats<GradientSumT>(gpair_ptr[row_idx].GetGrad(),
+                                             gpair_ptr[row_idx].GetHess());
+            }
+          });
+        }).wait_and_throw();
+      }
+      auto rc = collective::Allreduce(
+                      ctx_, linalg::MakeVec(reinterpret_cast<GradientSumT*>(&grad_stat), 2),
+                      collective::Op::kSum);
+      SafeColl(rc);
+      snode_host_[nid].stats = grad_stat;
+    } else {
+      int parent_id = tree[nid].Parent();
+      if (tree[nid].IsLeftChild()) {
+        snode_host_[nid].stats = snode_host_[parent_id].best.left_sum;
+      } else {
+        snode_host_[nid].stats = snode_host_[parent_id].best.right_sum;
+      }
+    }
+  }
+
+  // calculating the weights
+  {
+    auto evaluator = tree_evaluator_.GetEvaluator();
+    bst_uint parentid = tree[nid].Parent();
+    snode_host_[nid].weight = evaluator.CalcWeight(parentid, snode_host_[nid].stats);
+    snode_host_[nid].root_gain = evaluator.CalcGain(parentid, snode_host_[nid].stats);
+  }
+  builder_monitor_.Stop("InitNewNode");
 }
 
 template class HistUpdater<float>;

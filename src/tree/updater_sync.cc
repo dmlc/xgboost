@@ -1,14 +1,14 @@
 /**
- * Copyright 2014-2023 by XBGoost Contributors
+ * Copyright 2014-2024, XBGoost Contributors
  * \file updater_sync.cc
  * \brief synchronize the tree in all distributed nodes
  */
 #include <xgboost/tree_updater.h>
 
-#include <limits>
 #include <string>
 #include <vector>
 
+#include "../collective/broadcast.h"
 #include "../collective/communicator-inl.h"
 #include "../common/io.h"
 #include "xgboost/json.h"
@@ -44,7 +44,8 @@ class TreeSyncher : public TreeUpdater {
       }
     }
     fs.Seek(0);
-    collective::Broadcast(&s_model, 0);
+    auto rc = collective::Broadcast(ctx_, linalg::MakeVec(s_model.data(), s_model.size()), 0);
+    SafeColl(rc);
     for (auto tree : trees) {
       tree->Load(&fs);
     }

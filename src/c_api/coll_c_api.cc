@@ -9,10 +9,15 @@
 #include <type_traits>  // for is_same_v, remove_pointer_t
 #include <utility>      // for pair
 
-#include "../collective/comm.h"     // for DefaultTimeoutSec
-#include "../collective/tracker.h"  // for RabitTracker
-#include "../common/timer.h"        // for Timer
-#include "c_api_error.h"            // for API_BEGIN
+#include "../collective/allgather.h"         // for Allgather
+#include "../collective/allreduce.h"         // for Allreduce
+#include "../collective/broadcast.h"         // for Broadcast
+#include "../collective/comm.h"              // for DefaultTimeoutSec
+#include "../collective/comm_group.h"        // for GlobalCommGroup
+#include "../collective/communicator-inl.h"  // for GetProcessorName
+#include "../collective/tracker.h"           // for RabitTracker
+#include "../common/timer.h"                 // for Timer
+#include "c_api_error.h"                     // for API_BEGIN
 #include "xgboost/c_api.h"
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/json.h"               // for Json
@@ -20,9 +25,35 @@
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_tracker.h"  // for FederatedTracker
-#else
-#include "../common/error_msg.h"  // for NoFederated
 #endif
+
+namespace xgboost::collective {
+void Allreduce(void *send_receive_buffer, std::size_t count, std::int32_t data_type, int op) {
+  Context ctx;
+  DispatchDType(static_cast<ArrayInterfaceHandler::Type>(data_type), [&](auto t) {
+    using T = decltype(t);
+    auto data = linalg::MakeTensorView(
+        &ctx, common::Span{static_cast<T *>(send_receive_buffer), count}, count);
+    auto rc = Allreduce(&ctx, *GlobalCommGroup(), data, static_cast<Op>(op));
+    SafeColl(rc);
+  });
+}
+
+void Broadcast(void *send_receive_buffer, std::size_t size, int root) {
+  Context ctx;
+  auto rc = Broadcast(&ctx, *GlobalCommGroup(),
+                      linalg::MakeVec(static_cast<std::int8_t *>(send_receive_buffer), size), root);
+  SafeColl(rc);
+}
+
+void Allgather(void *send_receive_buffer, std::size_t size) {
+  Context ctx;
+  auto const &comm = GlobalCommGroup();
+  auto rc = Allgather(&ctx, *comm,
+                      linalg::MakeVec(reinterpret_cast<std::int8_t *>(send_receive_buffer), size));
+  SafeColl(rc);
+}
+}  // namespace xgboost::collective
 
 using namespace xgboost;  // NOLINT
 
@@ -44,7 +75,11 @@ using CollAPIThreadLocalStore = dmlc::ThreadLocalStore<CollAPIEntry>;
 
 void WaitImpl(TrackerHandleT *ptr, std::chrono::seconds timeout) {
   constexpr std::int64_t kDft{collective::DefaultTimeoutSec()};
-  std::chrono::seconds wait_for{timeout.count() != 0 ? std::min(kDft, timeout.count()) : kDft};
+  std::int64_t timeout_clipped = kDft;
+  if (collective::HasTimeout(timeout)) {
+    timeout_clipped = std::min(kDft, static_cast<std::int64_t>(timeout.count()));
+  }
+  std::chrono::seconds wait_for{timeout_clipped};
 
   common::Timer timer;
   timer.Start();
@@ -62,7 +97,7 @@ void WaitImpl(TrackerHandleT *ptr, std::chrono::seconds timeout) {
       break;
     }
 
-    if (timer.Duration() > timeout && timeout.count() != 0) {
+    if (timer.Duration() > timeout && collective::HasTimeout(timeout)) {
       collective::SafeColl(collective::Fail("Timeout waiting for the tracker."));
     }
   }
@@ -139,9 +174,21 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle) {
   common::Timer timer;
   timer.Start();
   // Make sure no one else is waiting on the tracker.
-  while (!ptr->first.unique()) {
+
+  // Quote from https://en.cppreference.com/w/cpp/memory/shared_ptr/use_count#Notes:
+  //
+  // In multithreaded environment, `use_count() == 1` does not imply that the object is
+  // safe to modify because accesses to the managed object by former shared owners may not
+  // have completed, and because new shared owners may be introduced concurrently.
+  //
+  // - We don't have the first case since we never access the raw pointer.
+  //
+  // - We don't have the second case for most of the scenarios since tracker is an unique
+  //   object, if the free function is called before another function calls, it's likely
+  //   to be a bug in the user code. The use_count should only decrease in this function.
+  while (ptr->first.use_count() != 1) {
     auto ela = timer.Duration().count();
-    if (ela > ptr->first->Timeout().count()) {
+    if (collective::HasTimeout(ptr->first->Timeout()) && ela > ptr->first->Timeout().count()) {
       LOG(WARNING) << "Time out " << ptr->first->Timeout().count()
                    << " seconds reached for TrackerFree, killing the tracker.";
       break;
@@ -150,4 +197,72 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle) {
   }
   delete ptr;
   API_END();
+}
+
+XGB_DLL int XGCommunicatorInit(char const *json_config) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(json_config);
+  Json config{Json::Load(StringView{json_config})};
+  collective::GlobalCommGroupInit(config);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorFinalize(void) {
+  API_BEGIN();
+  collective::GlobalCommGroupFinalize();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetRank(void) {
+  API_BEGIN();
+  return collective::GetRank();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetWorldSize(void) { return collective::GetWorldSize(); }
+
+XGB_DLL int XGCommunicatorIsDistributed(void) { return collective::IsDistributed(); }
+
+XGB_DLL int XGCommunicatorPrint(char const *message) {
+  API_BEGIN();
+  collective::Print(message);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorGetProcessorName(char const **name_str) {
+  API_BEGIN();
+  auto &local = *CollAPIThreadLocalStore::Get();
+  local.ret_str = collective::GetProcessorName();
+  xgboost_CHECK_C_ARG_PTR(name_str);
+  *name_str = local.ret_str.c_str();
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorBroadcast(void *send_receive_buffer, size_t size, int root) {
+  API_BEGIN();
+  collective::Broadcast(send_receive_buffer, size, root);
+  API_END();
+}
+
+XGB_DLL int XGCommunicatorAllreduce(void *send_receive_buffer, size_t count, int enum_dtype,
+                                    int enum_op) {
+  API_BEGIN();
+  collective::Allreduce(send_receive_buffer, count, enum_dtype, enum_op);
+  API_END();
+}
+
+// Not exposed to the public since the previous implementation didn't and we don't want to
+// add unnecessary communicator API to a machine learning library.
+XGB_DLL int XGCommunicatorAllgather(void *send_receive_buffer, size_t count) {
+  API_BEGIN();
+  collective::Allgather(send_receive_buffer, count);
+  API_END();
+}
+
+// Not yet exposed to the public, error recovery is still WIP.
+XGB_DLL int XGCommunicatorSignalError() {
+  API_BEGIN();
+  auto msg = XGBGetLastError();
+  SafeColl(xgboost::collective::GlobalCommGroup()->SignalError(xgboost::collective::Fail(msg)));
+  API_END()
 }

@@ -7,6 +7,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * Collective communicator global class for synchronization.
  *
@@ -30,8 +33,9 @@ public class Communicator {
   }
 
   public enum DataType implements Serializable {
-    INT8(0, 1), UINT8(1, 1), INT32(2, 4), UINT32(3, 4),
-    INT64(4, 8), UINT64(5, 8), FLOAT32(6, 4), FLOAT64(7, 8);
+    FLOAT16(0, 2), FLOAT32(1, 4), FLOAT64(2, 8),
+    INT8(4, 1), INT16(5, 2), INT32(6, 4), INT64(7, 8),
+    UINT8(8, 1), UINT16(9, 2), UINT32(10, 4), UINT64(11, 8);
 
     private final int enumOp;
     private final int size;
@@ -56,30 +60,20 @@ public class Communicator {
     }
   }
 
-  // used as way to test/debug passed communicator init parameters
-  public static Map<String, String> communicatorEnvs;
-  public static List<String> mockList = new LinkedList<>();
-
   /**
    * Initialize the collective communicator on current working thread.
    *
    * @param envs The additional environment variables to pass to the communicator.
    * @throws XGBoostError
    */
-  public static void init(Map<String, String> envs) throws XGBoostError {
-    communicatorEnvs = envs;
-    String[] args = new String[envs.size() * 2 + mockList.size() * 2];
-    int idx = 0;
-    for (java.util.Map.Entry<String, String> e : envs.entrySet()) {
-      args[idx++] = e.getKey();
-      args[idx++] = e.getValue();
+  public static void init(Map<String, Object> envs) throws XGBoostError {
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      String jconfig = mapper.writeValueAsString(envs);
+      checkCall(XGBoostJNI.CommunicatorInit(jconfig));
+    } catch (JsonProcessingException ex) {
+      throw new XGBoostError("Failed to read arguments for the communicator.", ex);
     }
-    // pass list of rabit mock strings eg mock=0,1,0,0
-    for (String mock : mockList) {
-      args[idx++] = "mock";
-      args[idx++] = mock;
-    }
-    checkCall(XGBoostJNI.CommunicatorInit(args));
   }
 
   /**

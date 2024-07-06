@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
@@ -13,16 +13,17 @@
 #include "../../../src/common/common.h"
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
 #include "../../../src/data/ellpack_page.h"    // for EllpackPage
-#include "../../../src/tree/param.h"  // for TrainParam
+#include "../../../src/tree/param.h"           // for TrainParam
 #include "../../../src/tree/updater_gpu_hist.cu"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../collective/test_worker.h"  // for BaseMGPUTest
+#include "../filesystem.h"              // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "../histogram_helpers.h"
 #include "xgboost/context.h"
 #include "xgboost/json.h"
 
 namespace xgboost::tree {
-TEST(GpuHist, DeviceHistogram) {
+TEST(GpuHist, DeviceHistogramStorage) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   dh::safe_cuda(cudaSetDevice(0));
   constexpr size_t kNBins = 128;
@@ -97,17 +98,17 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
-  for (auto &gp : gpair.HostVector()) {
-    bst_float grad = dist(&gen);
-    bst_float hess = dist(&gen);
-    gp = GradientPair(grad, hess);
+  for (auto& gp : gpair.HostVector()) {
+    float grad = dist(&gen);
+    float hess = dist(&gen);
+    gp = GradientPair{grad, hess};
   }
-  gpair.SetDevice(DeviceOrd::CUDA(0));
+  gpair.SetDevice(ctx.Device());
 
-  thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-  maker.row_partitioner = std::make_unique<RowPartitioner>(FstCU(), kNRows);
+  thrust::host_vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
+  maker.row_partitioner = std::make_unique<RowPartitioner>(ctx.Device(), kNRows);
 
-  maker.hist.Init(FstCU(), page->Cuts().TotalBins());
+  maker.hist.Init(ctx.Device(), page->Cuts().TotalBins());
   maker.hist.AllocateHistograms({0});
 
   maker.gpair = gpair.DeviceSpan();
@@ -116,10 +117,13 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   maker.InitFeatureGroupsOnce();
 
-  BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(DeviceOrd::CUDA(0)),
-                         maker.feature_groups->DeviceAccessor(DeviceOrd::CUDA(0)), gpair.DeviceSpan(),
+  DeviceHistogramBuilder builder;
+  builder.Reset(&ctx, maker.feature_groups->DeviceAccessor(ctx.Device()),
+                !use_shared_memory_histograms);
+  builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+                         maker.feature_groups->DeviceAccessor(ctx.Device()), gpair.DeviceSpan(),
                          maker.row_partitioner->GetRows(0), maker.hist.GetNodeHistogram(0),
-                         *maker.quantiser, !use_shared_memory_histograms);
+                         *maker.quantiser);
 
   DeviceHistogramStorage<>& d_hist = maker.hist;
 
@@ -145,13 +149,13 @@ TEST(GpuHist, BuildHistSharedMem) {
   TestBuildHist<GradientPairPrecise>(true);
 }
 
-HistogramCutsWrapper GetHostCutMatrix () {
-  HistogramCutsWrapper cmat;
-  cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
-  cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
+std::shared_ptr<detail::HistogramCutsWrapper> GetHostCutMatrix () {
+  auto cmat = std::make_shared<detail::HistogramCutsWrapper>();
+  cmat->SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
+  cmat->SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
   // 24 cut fields, 3 cut fields for each feature (column).
   // Each row of the cut represents the cuts for a data column.
-  cmat.SetValues({0.30f, 0.67f, 1.64f,
+  cmat->SetValues({0.30f, 0.67f, 1.64f,
               0.32f, 0.77f, 1.95f,
               0.29f, 0.70f, 1.80f,
               0.32f, 0.75f, 1.85f,
@@ -458,9 +462,9 @@ void VerifyHistColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& ex
 }
 }  // anonymous namespace
 
-class MGPUHistTest : public BaseMGPUTest {};
+class MGPUHistTest : public collective::BaseMGPUTest {};
 
-TEST_F(MGPUHistTest, GPUHistColumnSplit) {
+TEST_F(MGPUHistTest, HistColumnSplit) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
@@ -468,7 +472,8 @@ TEST_F(MGPUHistTest, GPUHistColumnSplit) {
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
   RegTree expected_tree = GetHistTree(&ctx, dmat.get());
 
-  DoTest(VerifyHistColumnSplit, kRows, kCols, expected_tree);
+  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, true);
+  this->DoTest([&] { VerifyHistColumnSplit(kRows, kCols, expected_tree); }, false);
 }
 
 namespace {
@@ -508,7 +513,7 @@ void VerifyApproxColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& 
 }
 }  // anonymous namespace
 
-class MGPUApproxTest : public BaseMGPUTest {};
+class MGPUApproxTest : public collective::BaseMGPUTest {};
 
 TEST_F(MGPUApproxTest, GPUApproxColumnSplit) {
   auto constexpr kRows = 32;
@@ -518,6 +523,7 @@ TEST_F(MGPUApproxTest, GPUApproxColumnSplit) {
   auto dmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
   RegTree expected_tree = GetApproxTree(&ctx, dmat.get());
 
-  DoTest(VerifyApproxColumnSplit, kRows, kCols, expected_tree);
+  this->DoTest([&] { VerifyApproxColumnSplit(kRows, kCols, expected_tree); }, true);
+  this->DoTest([&] { VerifyApproxColumnSplit(kRows, kCols, expected_tree); }, false);
 }
 }  // namespace xgboost::tree

@@ -7,7 +7,6 @@
 #include <algorithm>  // for max, copy, transform
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t, int32_t
-#include <exception>  // for exception
 #include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
 #include <ostream>    // for operator<<, basic_ostream, char_traits
 #include <utility>    // for move
@@ -20,7 +19,6 @@
 #include "../common/random.h"                // for ColumnSampler
 #include "../common/threading_utils.h"       // for ParallelFor
 #include "../common/timer.h"                 // for Monitor
-#include "../common/transform_iterator.h"    // for IndexTransformIter
 #include "../data/gradient_index.h"          // for GHistIndexMatrix
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG

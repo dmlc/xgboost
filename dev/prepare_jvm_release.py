@@ -134,6 +134,7 @@ def main():
         print("====Creating directories to hold native binaries====")
         for os_ident, arch in [
             ("linux", "x86_64"),
+            ("linux", "aarch64"),
             ("windows", "x86_64"),
             ("macos", "x86_64"),
             ("macos", "aarch64"),
@@ -157,6 +158,14 @@ def main():
             filename="xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll",
         )
         retrieve(
+            url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_linux_x86_64_{commit_hash}.so",
+            filename="xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
+        )
+        retrieve(
+            url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_linux_arm64_{commit_hash}.so",
+            filename="xgboost4j/src/main/resources/lib/linux/aarch64/libxgboost4j.so",
+        )
+        retrieve(
             url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_{commit_hash}.dylib",
             filename="xgboost4j/src/main/resources/lib/macos/x86_64/libxgboost4j.dylib",
         )
@@ -166,22 +175,6 @@ def main():
         )
 
         with tempfile.TemporaryDirectory() as tempdir:
-            # libxgboost4j.so for Linux x86_64, CPU only
-            zip_path = os.path.join(tempdir, "xgboost4j_2.12.jar")
-            extract_dir = os.path.join(tempdir, "xgboost4j")
-            retrieve(
-                url=f"{maven_repo_prefix}/xgboost4j_2.12/{version}/"
-                f"xgboost4j_2.12-{version}.jar",
-                filename=zip_path,
-            )
-            os.mkdir(extract_dir)
-            with zipfile.ZipFile(zip_path, "r") as t:
-                t.extractall(extract_dir)
-            cp(
-                os.path.join(extract_dir, "lib", "linux", "x86_64", "libxgboost4j.so"),
-                "xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
-            )
-
             # libxgboost4j.so for Linux x86_64, GPU support
             zip_path = os.path.join(tempdir, "xgboost4j-gpu_2.12.jar")
             extract_dir = os.path.join(tempdir, "xgboost4j-gpu")
@@ -216,8 +209,7 @@ def main():
     )
     print(
         "   # Skip native build, since we have all needed native binaries from CI\n"
-        "   export MAVEN_SKIP_NATIVE_BUILD=1\n"
-        "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests"
+        "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests -Dskip.native.build=true"
     )
     print(
         "4. Log into https://oss.sonatype.org/. On the left menu panel, click Staging "
@@ -228,9 +220,8 @@ def main():
     )
     print(
         "5. Remove the Scala 2.12 artifacts and build Scala 2.13 artifacts:\n"
-        "   export MAVEN_SKIP_NATIVE_BUILD=1\n"
         "   python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts\n"
-        "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests"
+        "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests -Dskip.native.build=true"
     )
     print(
         "6. Go to https://oss.sonatype.org/ to release the Scala 2.13 artifacts. "

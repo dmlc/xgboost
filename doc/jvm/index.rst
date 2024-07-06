@@ -37,10 +37,7 @@ Contents
   XGBoost4J-Spark Tutorial <xgboost4j_spark_tutorial>
   XGBoost4J-Spark-GPU Tutorial <xgboost4j_spark_gpu_tutorial>
   Code Examples <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example>
-  XGBoost4J Java API <javadocs/index>
-  XGBoost4J Scala API <scaladocs/xgboost4j/index>
-  XGBoost4J-Spark Scala API <scaladocs/xgboost4j-spark/index>
-  XGBoost4J-Flink Scala API <scaladocs/xgboost4j-flink/index>
+  API docs <api>
 
 .. note::
 

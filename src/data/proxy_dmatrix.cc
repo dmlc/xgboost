@@ -56,7 +56,9 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
                                                 float missing) {
   bool type_error{false};
   std::shared_ptr<DMatrix> p_fmat{nullptr};
-  if (proxy->Ctx()->IsCPU()) {
+  if (proxy->Ctx()->IsCUDA()) {
+    p_fmat = cuda_impl::CreateDMatrixFromProxy(ctx, proxy, missing);
+  } else {
     p_fmat = data::HostAdapterDispatch<false>(
         proxy.get(),
         [&](auto const &adapter) {
@@ -65,8 +67,6 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
           return p_fmat;
         },
         &type_error);
-  } else {
-    p_fmat = cuda_impl::CreateDMatrixFromProxy(ctx, proxy, missing);
   }
 
   CHECK(p_fmat) << "Failed to fallback.";

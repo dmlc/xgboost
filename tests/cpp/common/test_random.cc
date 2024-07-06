@@ -68,14 +68,20 @@ TEST(ColumnSampler, GPUTest) {
 // Test if different threads using the same seed produce the same result
 TEST(ColumnSampler, ThreadSynchronisation) {
   Context ctx;
-  const int64_t num_threads = 100;
+  // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores)
+#if defined(__linux__)
+  std::int64_t const n_threads = std::thread::hardware_concurrency() * 128;
+#else
+  std::int64_t const n_threads = std::thread::hardware_concurrency();
+#endif
+  // NOLINTEND(clang-analyzer-deadcode.DeadStores)
   int n = 128;
   size_t iterations = 10;
   size_t levels = 5;
   std::vector<bst_feature_t> reference_result;
   std::vector<float> feature_weights;
   bool success = true; // Cannot use google test asserts in multithreaded region
-#pragma omp parallel num_threads(num_threads)
+#pragma omp parallel num_threads(n_threads)
   {
     for (auto j = 0ull; j < iterations; j++) {
       ColumnSampler cs(j);

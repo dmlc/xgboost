@@ -23,6 +23,7 @@ CONFIG = {
     "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON",
     "LOG_CAPI_INVOCATION": "OFF",
+    "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
 }
 
 
@@ -50,7 +51,7 @@ def maybe_makedirs(path):
 
 def run(command, **kwargs):
     print(command)
-    subprocess.check_call(command, shell=True, **kwargs)
+    subprocess.run(command, shell=True, check=True, env=os.environ, **kwargs)
 
 
 def cp(source, target):
@@ -84,6 +85,8 @@ def native_build(args):
 
         if sys.platform == "linux":
             maybe_parallel_build = " -- -j $(nproc)"
+        elif sys.platform == "win32":
+            maybe_parallel_build = ' -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"'
         else:
             maybe_parallel_build = ""
 
@@ -96,10 +99,6 @@ def native_build(args):
             CONFIG["USE_DLOPEN_NCCL"] = "OFF"
 
         args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
-
-        # if enviorment set rabit_mock
-        if os.getenv("RABIT_MOCK", None) is not None:
-            args.append("-DRABIT_MOCK:BOOL=ON")
 
         # if enviorment set GPU_ARCH_FLAG
         gpu_arch_flag = os.getenv("GPU_ARCH_FLAG", None)
@@ -162,12 +161,6 @@ def native_build(args):
     maybe_makedirs(output_folder)
     cp("../lib/" + library_name, output_folder)
 
-    print("copying pure-Python tracker")
-    cp(
-        "../python-package/xgboost/tracker.py",
-        "{}/src/main/resources".format(xgboost4j),
-    )
-
     print("copying train/test files")
     maybe_makedirs("{}/src/test/resources".format(xgboost4j_spark))
     with cd("../demo/CLI/regression"):
@@ -185,15 +178,10 @@ def native_build(args):
 
 
 if __name__ == "__main__":
-    if "MAVEN_SKIP_NATIVE_BUILD" in os.environ:
-        print("MAVEN_SKIP_NATIVE_BUILD is set. Skipping native build...")
-    else:
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
-        )
-        parser.add_argument(
-            "--use-cuda", type=str, choices=["ON", "OFF"], default="OFF"
-        )
-        cli_args = parser.parse_args()
-        native_build(cli_args)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
+    )
+    parser.add_argument("--use-cuda", type=str, choices=["ON", "OFF"], default="OFF")
+    cli_args = parser.parse_args()
+    native_build(cli_args)

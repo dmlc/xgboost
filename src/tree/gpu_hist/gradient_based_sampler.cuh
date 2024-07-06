@@ -129,9 +129,8 @@ class GradientBasedSampler {
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);
 
   /*! \brief Calculate the threshold used to normalize sampling probabilities. */
-  static size_t CalculateThresholdIndex(common::Span<GradientPair> gpair,
-                                        common::Span<float> threshold,
-                                        common::Span<float> grad_sum,
+  static size_t CalculateThresholdIndex(Context const* ctx, common::Span<GradientPair> gpair,
+                                        common::Span<float> threshold, common::Span<float> grad_sum,
                                         size_t sample_rows);
 
  private:

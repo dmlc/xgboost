@@ -12,13 +12,11 @@ if ( $is_release_branch -eq 0 ) {
 }
 mkdir build
 cd build
-cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON `
+cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON `
   -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON ${arch_flag}
-$msbuild = -join @(
-  "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current"
-  "\\Bin\\MSBuild.exe"
-)
-& $msbuild xgboost.sln /m /p:Configuration=Release /nodeReuse:false
+if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+cmake --build . --config Release -- /m /nodeReuse:false `
+  "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Build binary wheel"
@@ -29,7 +27,10 @@ conda activate
 & pip wheel --no-deps -v . --wheel-dir dist/
 Get-ChildItem . -Filter dist/*.whl |
 Foreach-Object {
-  & python ../tests/ci_build/rename_whl.py $_.FullName $Env:BUILDKITE_COMMIT win_amd64
+  & python ../tests/ci_build/rename_whl.py `
+    --wheel-path $_.FullName `
+    --commit-hash $Env:BUILDKITE_COMMIT `
+    --platform-tag win_amd64
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 }
 
@@ -44,7 +45,7 @@ if ( $is_release_branch -eq 1 ) {
   Get-ChildItem . -Filter python-package/dist/*.whl |
   Foreach-Object {
     & aws s3 cp python-package/dist/$_ s3://xgboost-nightly-builds/$Env:BUILDKITE_BRANCH/ `
-    --acl public-read --no-progress
+      --acl public-read --no-progress
     if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
   }
 }

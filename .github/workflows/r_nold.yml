@@ -27,7 +27,7 @@ jobs:
       run: |
         apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
 
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
 

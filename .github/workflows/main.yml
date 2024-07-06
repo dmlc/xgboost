@@ -21,9 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-11]
+        os: [macos-12]
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
     - name: Install system packages
@@ -33,7 +33,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
         ninja -v
     - name: Run gtest binary
       run: |
@@ -49,7 +49,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
     - name: Install system packages
@@ -76,16 +76,16 @@ jobs:
         os: [ubuntu-latest]
         python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
-    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-name: linux_sycl_test
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: linux_sycl_test
         environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
-
+        use-mamba: true
     - name: Display Conda env
       run: |
         conda info
@@ -118,15 +118,16 @@ jobs:
         os: ["ubuntu-latest"]
         python-version: ["3.8"]
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
-    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        cache-downloads: true
-        cache-env: true
-        environment-name: cpp_test
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
+        activate-environment: cpp_test
         environment-file: tests/ci_build/conda_env/cpp_test.yml
+        use-mamba: true
     - name: Display Conda env
       run: |
         conda info
@@ -155,8 +156,9 @@ jobs:
     - name: Build and install XGBoost shared library
       run: |
         cd build
-        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja -DPLUGIN_FEDERATED=ON -DGOOGLE_TEST=ON
         ninja -v install
+        ./testxgboost
         cd -
     - name: Build and run C API demo with shared
       run: |
@@ -175,10 +177,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Code linting for C++
     steps:
-    - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
+    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
-    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
+    - uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
       with:
         python-version: "3.8"
         architecture: 'x64'

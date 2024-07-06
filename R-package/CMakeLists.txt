@@ -29,7 +29,6 @@ target_compile_definitions(
   -DDMLC_LOG_BEFORE_THROW=0
   -DDMLC_DISABLE_STDIN=1
   -DDMLC_LOG_CUSTOMIZE=1
-  -DRABIT_STRICT_CXX98_
 )
 
 target_include_directories(
@@ -37,7 +36,6 @@ target_include_directories(
   ${LIBR_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/dmlc-core/include
-  ${PROJECT_SOURCE_DIR}/rabit/include
 )
 
 target_link_libraries(xgboost-r PUBLIC ${LIBR_CORE_LIBRARY})

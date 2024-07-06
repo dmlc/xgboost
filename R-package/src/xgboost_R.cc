@@ -352,7 +352,7 @@ void _DMatrixFinalizer(SEXP ext) {
 
 XGB_DLL SEXP XGBSetGlobalConfig_R(SEXP json_str) {
   R_API_BEGIN();
-  CHECK_CALL(XGBSetGlobalConfig(CHAR(asChar(json_str))));
+  CHECK_CALL(XGBSetGlobalConfig(CHAR(Rf_asChar(json_str))));
   R_API_END();
   return R_NilValue;
 }
@@ -362,7 +362,7 @@ XGB_DLL SEXP XGBGetGlobalConfig_R() {
   R_API_BEGIN();
   CHECK_CALL(XGBGetGlobalConfig(&json_str));
   R_API_END();
-  return mkString(json_str);
+  return Rf_mkString(json_str);
 }
 
 XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent, SEXP data_split_mode) {
@@ -385,7 +385,7 @@ XGB_DLL SEXP XGDMatrixCreateFromURI_R(SEXP uri, SEXP silent, SEXP data_split_mod
 }
 
 XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
-  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  SEXP ret = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
 
   DMatrixHandle handle;
@@ -400,7 +400,7 @@ XGB_DLL SEXP XGDMatrixCreateFromMat_R(SEXP mat, SEXP missing, SEXP n_threads) {
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
@@ -413,8 +413,8 @@ XGB_DLL SEXP XGDMatrixCreateFromDF_R(SEXP df, SEXP missing, SEXP n_threads) {
   {
     const std::string sinterface = MakeArrayInterfaceFromRDataFrame(df);
     xgboost::Json jconfig{xgboost::Object{}};
-    jconfig["missing"] = asReal(missing);
-    jconfig["nthread"] = asInteger(n_threads);
+    jconfig["missing"] = Rf_asReal(missing);
+    jconfig["nthread"] = Rf_asInteger(n_threads);
     std::string sconfig = xgboost::Json::Dump(jconfig);
 
     rc = XGDMatrixCreateFromColumnar(sinterface.c_str(), sconfig.c_str(), &handle);
@@ -446,9 +446,9 @@ void CreateFromSparse(SEXP indptr, SEXP indices, SEXP data, std::string *indptr_
 
 XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_row,
                                       SEXP missing, SEXP n_threads) {
-  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  SEXP ret = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
-  std::int32_t threads = asInteger(n_threads);
+  std::int32_t threads = Rf_asInteger(n_threads);
   DMatrixHandle handle;
 
   int res_code;
@@ -474,15 +474,15 @@ XGB_DLL SEXP XGDMatrixCreateFromCSC_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
 XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP num_col,
                                       SEXP missing, SEXP n_threads) {
-  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  SEXP ret = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
-  std::int32_t threads = asInteger(n_threads);
+  std::int32_t threads = Rf_asInteger(n_threads);
   DMatrixHandle handle;
 
   int res_code;
@@ -508,12 +508,12 @@ XGB_DLL SEXP XGDMatrixCreateFromCSR_R(SEXP indptr, SEXP indices, SEXP data, SEXP
   R_SetExternalPtrAddr(ret, handle);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
 XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset, SEXP allow_groups) {
-  SEXP ret = PROTECT(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
+  SEXP ret = Rf_protect(R_MakeExternalPtr(nullptr, R_NilValue, R_NilValue));
   R_API_BEGIN();
   R_xlen_t len = Rf_xlength(idxset);
   const int *idxset_ = INTEGER(idxset);
@@ -537,22 +537,22 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset, SEXP allow_groups
   R_SetExternalPtrAddr(ret, res);
   R_RegisterCFinalizerEx(ret, _DMatrixFinalizer, TRUE);
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
 XGB_DLL SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent) {
   R_API_BEGIN();
   CHECK_CALL(XGDMatrixSaveBinary(R_ExternalPtrAddr(handle),
-                                 CHAR(asChar(fname)),
-                                 asInteger(silent)));
+                                 CHAR(Rf_asChar(fname)),
+                                 Rf_asInteger(silent)));
   R_API_END();
   return R_NilValue;
 }
 
 XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   R_API_BEGIN();
-  SEXP field_ = PROTECT(Rf_asChar(field));
+  SEXP field_ = Rf_protect(Rf_asChar(field));
   SEXP arr_dim = Rf_getAttrib(array, R_DimSymbol);
   int res_code;
   {
@@ -562,7 +562,7 @@ XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
       R_ExternalPtrAddr(handle), CHAR(field_), array_str.c_str());
   }
   CHECK_CALL(res_code);
-  UNPROTECT(1);
+  Rf_unprotect(1);
   R_API_END();
   return R_NilValue;
 }
@@ -570,11 +570,11 @@ XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
 XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
   R_API_BEGIN();
   size_t len{0};
-  if (!isNull(array)) {
+  if (!Rf_isNull(array)) {
     len = Rf_xlength(array);
   }
 
-  SEXP str_info_holder = PROTECT(Rf_allocVector(VECSXP, len));
+  SEXP str_info_holder = Rf_protect(Rf_allocVector(VECSXP, len));
   if (TYPEOF(array) == STRSXP) {
     for (size_t i = 0; i < len; ++i) {
       SET_VECTOR_ELT(str_info_holder, i, STRING_ELT(array, i));
@@ -585,7 +585,7 @@ XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
     }
   }
 
-  SEXP field_ = PROTECT(Rf_asChar(field));
+  SEXP field_ = Rf_protect(Rf_asChar(field));
   const char *name = CHAR(field_);
   int res_code;
   {
@@ -600,7 +600,7 @@ XGB_DLL SEXP XGDMatrixSetStrFeatureInfo_R(SEXP handle, SEXP field, SEXP array) {
     res_code = XGDMatrixSetStrFeatureInfo(R_ExternalPtrAddr(handle), name, vec.data(), len);
   }
   CHECK_CALL(res_code);
-  UNPROTECT(2);
+  Rf_unprotect(2);
   R_API_END();
   return R_NilValue;
 }
@@ -610,19 +610,19 @@ XGB_DLL SEXP XGDMatrixGetStrFeatureInfo_R(SEXP handle, SEXP field) {
   R_API_BEGIN();
   char const **out_features{nullptr};
   bst_ulong len{0};
-  const char *name = CHAR(asChar(field));
+  const char *name = CHAR(Rf_asChar(field));
   XGDMatrixGetStrFeatureInfo(R_ExternalPtrAddr(handle), name, &len, &out_features);
 
   if (len > 0) {
-    ret = PROTECT(allocVector(STRSXP, len));
+    ret = Rf_protect(Rf_allocVector(STRSXP, len));
     for (size_t i = 0; i < len; ++i) {
-      SET_STRING_ELT(ret, i, mkChar(out_features[i]));
+      SET_STRING_ELT(ret, i, Rf_mkChar(out_features[i]));
     }
   } else {
-    ret = PROTECT(R_NilValue);
+    ret = Rf_protect(R_NilValue);
   }
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
@@ -631,11 +631,11 @@ XGB_DLL SEXP XGDMatrixGetFloatInfo_R(SEXP handle, SEXP field) {
   R_API_BEGIN();
   bst_ulong olen;
   const float *res;
-  CHECK_CALL(XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), &olen, &res));
-  ret = PROTECT(allocVector(REALSXP, olen));
+  CHECK_CALL(XGDMatrixGetFloatInfo(R_ExternalPtrAddr(handle), CHAR(Rf_asChar(field)), &olen, &res));
+  ret = Rf_protect(Rf_allocVector(REALSXP, olen));
   std::copy(res, res + olen, REAL(ret));
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
@@ -644,11 +644,11 @@ XGB_DLL SEXP XGDMatrixGetUIntInfo_R(SEXP handle, SEXP field) {
   R_API_BEGIN();
   bst_ulong olen;
   const unsigned *res;
-  CHECK_CALL(XGDMatrixGetUIntInfo(R_ExternalPtrAddr(handle), CHAR(asChar(field)), &olen, &res));
-  ret = PROTECT(allocVector(INTSXP, olen));
+  CHECK_CALL(XGDMatrixGetUIntInfo(R_ExternalPtrAddr(handle), CHAR(Rf_asChar(field)), &olen, &res));
+  ret = Rf_protect(Rf_allocVector(INTSXP, olen));
   std::copy(res, res + olen, INTEGER(ret));
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
@@ -657,7 +657,7 @@ XGB_DLL SEXP XGDMatrixNumRow_R(SEXP handle) {
   R_API_BEGIN();
   CHECK_CALL(XGDMatrixNumRow(R_ExternalPtrAddr(handle), &nrow));
   R_API_END();
-  return ScalarInteger(static_cast<int>(nrow));
+  return Rf_ScalarInteger(static_cast<int>(nrow));
 }
 
 XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle) {
@@ -665,7 +665,7 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle) {
   R_API_BEGIN();
   CHECK_CALL(XGDMatrixNumCol(R_ExternalPtrAddr(handle), &ncol));
   R_API_END();
-  return ScalarInteger(static_cast<int>(ncol));
+  return Rf_ScalarInteger(static_cast<int>(ncol));
 }
 
 XGB_DLL SEXP XGProxyDMatrixCreate_R() {
@@ -1171,12 +1171,12 @@ XGB_DLL SEXP XGBoosterGetNumFeature_R(SEXP handle) {
 
 XGB_DLL SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
-  SEXP name_ = PROTECT(Rf_asChar(name));
-  SEXP val_ = PROTECT(Rf_asChar(val));
+  SEXP name_ = Rf_protect(Rf_asChar(name));
+  SEXP val_ = Rf_protect(Rf_asChar(val));
   CHECK_CALL(XGBoosterSetParam(R_ExternalPtrAddr(handle),
                                CHAR(name_),
                                CHAR(val_)));
-  UNPROTECT(2);
+  Rf_unprotect(2);
   R_API_END();
   return R_NilValue;
 }
@@ -1193,8 +1193,8 @@ XGB_DLL SEXP XGBoosterUpdateOneIter_R(SEXP handle, SEXP iter, SEXP dtrain) {
 XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP grad, SEXP hess) {
   R_API_BEGIN();
   CHECK_EQ(Rf_xlength(grad), Rf_xlength(hess)) << "gradient and hess must have same length.";
-  SEXP gdim = getAttrib(grad, R_DimSymbol);
-  SEXP hdim = getAttrib(hess, R_DimSymbol);
+  SEXP gdim = Rf_getAttrib(grad, R_DimSymbol);
+  SEXP hdim = Rf_getAttrib(hess, R_DimSymbol);
 
   int res_code;
   {
@@ -1203,7 +1203,7 @@ XGB_DLL SEXP XGBoosterTrainOneIter_R(SEXP handle, SEXP dtrain, SEXP iter, SEXP g
     const std::string s_hess = Rf_isNull(hdim)?
       MakeArrayInterfaceFromRVector(hess) : MakeArrayInterfaceFromRMat(hess);
     res_code = XGBoosterTrainOneIter(R_ExternalPtrAddr(handle), R_ExternalPtrAddr(dtrain),
-                                     asInteger(iter), s_grad.c_str(), s_hess.c_str());
+                                     Rf_asInteger(iter), s_grad.c_str(), s_hess.c_str());
   }
   CHECK_CALL(res_code);
 
@@ -1217,7 +1217,7 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
   CHECK_EQ(Rf_xlength(dmats), Rf_xlength(evnames))
       << "dmats and evnams must have same length";
   R_xlen_t len = Rf_xlength(dmats);
-  SEXP evnames_lst = PROTECT(Rf_allocVector(VECSXP, len));
+  SEXP evnames_lst = Rf_protect(Rf_allocVector(VECSXP, len));
   for (R_xlen_t i = 0; i < len; i++) {
     SET_VECTOR_ELT(evnames_lst, i, Rf_asChar(VECTOR_ELT(evnames, i)));
   }
@@ -1236,15 +1236,15 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
       vec_sptr[i] = vec_names[i].c_str();
     }
     res_code = XGBoosterEvalOneIter(R_ExternalPtrAddr(handle),
-                                    asInteger(iter),
+                                    Rf_asInteger(iter),
                                     BeginPtr(vec_dmats),
                                     BeginPtr(vec_sptr),
                                     len, &ret);
   }
   CHECK_CALL(res_code);
-  UNPROTECT(1);
+  Rf_unprotect(1);
   R_API_END();
-  return mkString(ret);
+  return Rf_mkString(ret);
 }
 
 namespace {
@@ -1303,8 +1303,8 @@ SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
                                     SEXP base_margin) {
   SEXP r_out_shape;
   SEXP r_out_result;
-  SEXP r_out = PROTECT(allocVector(VECSXP, 2));
-  SEXP json_config_ = PROTECT(Rf_asChar(json_config));
+  SEXP r_out = Rf_protect(Rf_allocVector(VECSXP, 2));
+  SEXP json_config_ = Rf_protect(Rf_asChar(json_config));
 
   R_API_BEGIN();
   char const *c_json_config = CHAR(json_config_);
@@ -1386,21 +1386,21 @@ SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
   }
   CHECK_CALL(res_code);
 
-  r_out_shape = PROTECT(allocVector(INTSXP, out_dim));
+  r_out_shape = Rf_protect(Rf_allocVector(INTSXP, out_dim));
   size_t len = 1;
   int *r_out_shape_ = INTEGER(r_out_shape);
   for (size_t i = 0; i < out_dim; ++i) {
     r_out_shape_[i] = out_shape[i];
     len *= out_shape[i];
   }
-  r_out_result = PROTECT(allocVector(REALSXP, len));
+  r_out_result = Rf_protect(Rf_allocVector(REALSXP, len));
   std::copy(out_result, out_result + len, REAL(r_out_result));
 
   SET_VECTOR_ELT(r_out, 0, r_out_shape);
   SET_VECTOR_ELT(r_out, 1, r_out_result);
 
   R_API_END();
-  UNPROTECT(4);
+  Rf_unprotect(4);
 
   return r_out;
 }
@@ -1432,14 +1432,14 @@ XGB_DLL SEXP XGBoosterPredictFromColumnar_R(SEXP handle, SEXP R_df, SEXP missing
 
 XGB_DLL SEXP XGBoosterLoadModel_R(SEXP handle, SEXP fname) {
   R_API_BEGIN();
-  CHECK_CALL(XGBoosterLoadModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname))));
+  CHECK_CALL(XGBoosterLoadModel(R_ExternalPtrAddr(handle), CHAR(Rf_asChar(fname))));
   R_API_END();
   return R_NilValue;
 }
 
 XGB_DLL SEXP XGBoosterSaveModel_R(SEXP handle, SEXP fname) {
   R_API_BEGIN();
-  CHECK_CALL(XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname))));
+  CHECK_CALL(XGBoosterSaveModel(R_ExternalPtrAddr(handle), CHAR(Rf_asChar(fname))));
   R_API_END();
   return R_NilValue;
 }
@@ -1457,15 +1457,15 @@ XGB_DLL SEXP XGBoosterSaveModelToRaw_R(SEXP handle, SEXP json_config) {
   SEXP ret;
   R_API_BEGIN();
   bst_ulong olen;
-  char const *c_json_config = CHAR(asChar(json_config));
+  char const *c_json_config = CHAR(Rf_asChar(json_config));
   char const *raw;
   CHECK_CALL(XGBoosterSaveModelToBuffer(R_ExternalPtrAddr(handle), c_json_config, &olen, &raw))
-  ret = PROTECT(allocVector(RAWSXP, olen));
+  ret = Rf_protect(Rf_allocVector(RAWSXP, olen));
   if (olen != 0) {
     std::memcpy(RAW(ret), raw, olen);
   }
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
@@ -1477,12 +1477,12 @@ XGB_DLL SEXP XGBoosterSaveJsonConfig_R(SEXP handle) {
                                      &len,
                                      &ret));
   R_API_END();
-  return mkString(ret);
+  return Rf_mkString(ret);
 }
 
 XGB_DLL SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value) {
   R_API_BEGIN();
-  CHECK_CALL(XGBoosterLoadJsonConfig(R_ExternalPtrAddr(handle), CHAR(asChar(value))));
+  CHECK_CALL(XGBoosterLoadJsonConfig(R_ExternalPtrAddr(handle), CHAR(Rf_asChar(value))));
   R_API_END();
   return R_NilValue;
 }
@@ -1493,12 +1493,12 @@ XGB_DLL SEXP XGBoosterSerializeToBuffer_R(SEXP handle) {
   bst_ulong out_len;
   const char *raw;
   CHECK_CALL(XGBoosterSerializeToBuffer(R_ExternalPtrAddr(handle), &out_len, &raw));
-  ret = PROTECT(allocVector(RAWSXP, out_len));
+  ret = Rf_protect(Rf_allocVector(RAWSXP, out_len));
   if (out_len != 0) {
     memcpy(RAW(ret), raw, out_len);
   }
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return ret;
 }
 
@@ -1513,19 +1513,19 @@ XGB_DLL SEXP XGBoosterUnserializeFromBuffer_R(SEXP handle, SEXP raw) {
 
 XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats, SEXP dump_format) {
   SEXP out;
-  SEXP continuation_token = PROTECT(R_MakeUnwindCont());
-  SEXP dump_format_ = PROTECT(Rf_asChar(dump_format));
-  SEXP fmap_ = PROTECT(Rf_asChar(fmap));
+  SEXP continuation_token = Rf_protect(R_MakeUnwindCont());
+  SEXP dump_format_ = Rf_protect(Rf_asChar(dump_format));
+  SEXP fmap_ = Rf_protect(Rf_asChar(fmap));
   R_API_BEGIN();
   bst_ulong olen;
   const char **res;
   const char *fmt = CHAR(dump_format_);
   CHECK_CALL(XGBoosterDumpModelEx(R_ExternalPtrAddr(handle),
                                 CHAR(fmap_),
-                                asInteger(with_stats),
+                                Rf_asInteger(with_stats),
                                 fmt,
                                 &olen, &res));
-  out = PROTECT(allocVector(STRSXP, olen));
+  out = Rf_protect(Rf_allocVector(STRSXP, olen));
   try {
     if (!strcmp("json", fmt)) {
       std::stringstream stream;
@@ -1553,7 +1553,7 @@ XGB_DLL SEXP XGBoosterDumpModel_R(SEXP handle, SEXP fmap, SEXP with_stats, SEXP 
     R_ContinueUnwind(continuation_token);
   }
   R_API_END();
-  UNPROTECT(4);
+  Rf_unprotect(4);
   return out;
 }
 
@@ -1563,35 +1563,35 @@ XGB_DLL SEXP XGBoosterGetAttr_R(SEXP handle, SEXP name) {
   int success;
   const char *val;
   CHECK_CALL(XGBoosterGetAttr(R_ExternalPtrAddr(handle),
-                              CHAR(asChar(name)),
+                              CHAR(Rf_asChar(name)),
                               &val,
                               &success));
   if (success) {
-    out = PROTECT(allocVector(STRSXP, 1));
-    SET_STRING_ELT(out, 0, mkChar(val));
+    out = Rf_protect(Rf_allocVector(STRSXP, 1));
+    SET_STRING_ELT(out, 0, Rf_mkChar(val));
   } else {
-    out = PROTECT(R_NilValue);
+    out = Rf_protect(R_NilValue);
   }
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return out;
 }
 
 XGB_DLL SEXP XGBoosterSetAttr_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
   const char *v = nullptr;
-  SEXP name_ = PROTECT(Rf_asChar(name));
+  SEXP name_ = Rf_protect(Rf_asChar(name));
   SEXP val_;
   int n_protected = 1;
   if (!Rf_isNull(val)) {
-    val_ = PROTECT(Rf_asChar(val));
+    val_ = Rf_protect(Rf_asChar(val));
     n_protected++;
     v = CHAR(val_);
   }
 
   CHECK_CALL(XGBoosterSetAttr(R_ExternalPtrAddr(handle),
                               CHAR(name_), v));
-  UNPROTECT(n_protected);
+  Rf_unprotect(n_protected);
   R_API_END();
   return R_NilValue;
 }
@@ -1604,15 +1604,15 @@ XGB_DLL SEXP XGBoosterGetAttrNames_R(SEXP handle) {
   CHECK_CALL(XGBoosterGetAttrNames(R_ExternalPtrAddr(handle),
                                    &len, &res));
   if (len > 0) {
-    out = PROTECT(allocVector(STRSXP, len));
+    out = Rf_protect(Rf_allocVector(STRSXP, len));
     for (size_t i = 0; i < len; ++i) {
-      SET_STRING_ELT(out, i, mkChar(res[i]));
+      SET_STRING_ELT(out, i, Rf_mkChar(res[i]));
     }
   } else {
-    out = PROTECT(R_NilValue);
+    out = Rf_protect(R_NilValue);
   }
   R_API_END();
-  UNPROTECT(1);
+  Rf_unprotect(1);
   return out;
 }
 
@@ -1620,10 +1620,10 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   SEXP out_features_sexp;
   SEXP out_scores_sexp;
   SEXP out_shape_sexp;
-  SEXP r_out = PROTECT(allocVector(VECSXP, 3));
+  SEXP r_out = Rf_protect(Rf_allocVector(VECSXP, 3));
 
   R_API_BEGIN();
-  char const *c_json_config = CHAR(asChar(json_config));
+  char const *c_json_config = CHAR(Rf_asChar(json_config));
   bst_ulong out_n_features;
   char const **out_features;
 
@@ -1634,7 +1634,7 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   CHECK_CALL(XGBoosterFeatureScore(R_ExternalPtrAddr(handle), c_json_config,
                                    &out_n_features, &out_features,
                                    &out_dim, &out_shape, &out_scores));
-  out_shape_sexp = PROTECT(allocVector(INTSXP, out_dim));
+  out_shape_sexp = Rf_protect(Rf_allocVector(INTSXP, out_dim));
   size_t len = 1;
   int *out_shape_sexp_ = INTEGER(out_shape_sexp);
   for (size_t i = 0; i < out_dim; ++i) {
@@ -1642,12 +1642,12 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
     len *= out_shape[i];
   }
 
-  out_features_sexp = PROTECT(allocVector(STRSXP, out_n_features));
+  out_features_sexp = Rf_protect(Rf_allocVector(STRSXP, out_n_features));
   for (size_t i = 0; i < out_n_features; ++i) {
-    SET_STRING_ELT(out_features_sexp, i, mkChar(out_features[i]));
+    SET_STRING_ELT(out_features_sexp, i, Rf_mkChar(out_features[i]));
   }
 
-  out_scores_sexp = PROTECT(allocVector(REALSXP, len));
+  out_scores_sexp = Rf_protect(Rf_allocVector(REALSXP, len));
   std::copy(out_scores, out_scores + len, REAL(out_scores_sexp));
 
   SET_VECTOR_ELT(r_out, 0, out_features_sexp);
@@ -1655,7 +1655,7 @@ XGB_DLL SEXP XGBoosterFeatureScore_R(SEXP handle, SEXP json_config) {
   SET_VECTOR_ELT(r_out, 2, out_scores_sexp);
 
   R_API_END();
-  UNPROTECT(4);
+  Rf_unprotect(4);
 
   return r_out;
 }

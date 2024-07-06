@@ -1,29 +1,28 @@
-FROM quay.io/pypa/manylinux2014_aarch64
+FROM quay.io/pypa/manylinux_2_28_aarch64
 
 SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
-    yum update -y && \
-    yum install -y tar unzip wget xz git centos-release-scl-rh yum-utils && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
-    yum update -y && \
-    yum install -y devtoolset-9 && \
+    dnf -y update && \
+    dnf -y install dnf-plugins-core && \
+    dnf config-manager --set-enabled powertools && \
+    dnf install -y tar unzip wget xz git which ninja-build gcc-toolset-10-gcc gcc-toolset-10-binutils gcc-toolset-10-gcc-c++ && \
     # Python
-    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/22.11.1-2/Mambaforge-22.11.1-2-Linux-aarch64.sh && \
-    bash conda.sh -b -p /opt/mambaforge
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-aarch64.sh && \
+    bash conda.sh -b -p /opt/miniforge
 
-ENV PATH=/opt/mambaforge/bin:$PATH
-ENV CC=/opt/rh/devtoolset-9/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-9/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-9/root/usr/bin/cpp
+ENV PATH=/opt/miniforge/bin:$PATH
+ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
+ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
+ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
 ENV GOSU_VERSION 1.10
 
 # Create new Conda environment
 COPY conda_env/aarch64_test.yml /scripts/
 RUN mamba create -n aarch64_test && \
     mamba env update -n aarch64_test --file=/scripts/aarch64_test.yml && \
-    mamba clean --all
+    mamba clean --all --yes
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

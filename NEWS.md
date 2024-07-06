@@ -1,6 +1,8 @@
 XGBoost Change Log
 ==================
 
+**Starting from 2.1.0, release note is recorded in the documentation.**
+
 This file records the changes in xgboost library in reverse chronological order.
 
 ## 2.0.0 (2023 Aug 16)

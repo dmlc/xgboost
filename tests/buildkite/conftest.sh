@@ -24,8 +24,9 @@ set -x
 
 CUDA_VERSION=11.8.0
 NCCL_VERSION=2.16.5-1
-RAPIDS_VERSION=24.04
-SPARK_VERSION=3.4.0
+RAPIDS_VERSION=24.06
+DEV_RAPIDS_VERSION=24.08
+SPARK_VERSION=3.5.1
 JDK_VERSION=8
 R_VERSION=4.3.2
 
@@ -46,7 +47,7 @@ else
 fi
 export BRANCH_NAME=${BRANCH_NAME//\//-}
 
-if [[ $BRANCH_NAME == "master" || $BRANCH_NAME == "release_"* ]]
+if [[ $BRANCH_NAME == "master" || $BRANCH_NAME == "release_"* || $BRANCH_NAME == "vertical-federated-learning" ]]
 then
   is_release_branch=1
   enforce_daily_budget=0

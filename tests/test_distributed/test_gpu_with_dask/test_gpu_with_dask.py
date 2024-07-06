@@ -230,13 +230,13 @@ class TestDistributedGPU:
         run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
-        check_init_estimation("gpu_hist", local_cuda_client)
+        check_init_estimation("hist", "cuda", local_cuda_client)
 
     def test_uneven_nan(self) -> None:
         n_workers = 2
         with LocalCUDACluster(n_workers=n_workers) as cluster:
             with Client(cluster) as client:
-                check_uneven_nan(client, "gpu_hist", n_workers)
+                check_uneven_nan(client, "hist", "cuda", n_workers)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_dask_dataframe(self, local_cuda_client: Client) -> None:
@@ -248,10 +248,10 @@ class TestDistributedGPU:
         import dask_cudf
 
         X, y = make_categorical(local_cuda_client, 10000, 30, 13)
-        X = dask_cudf.from_dask_dataframe(X)
+        X = X.to_backend("cudf")
 
         X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, True)
-        X_onehot = dask_cudf.from_dask_dataframe(X_onehot)
+        X_onehot = X_onehot.to_backend("cudf")
         run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
 
     @given(
@@ -383,10 +383,10 @@ class TestDistributedGPU:
 
         X_, y_, w_ = generate_array(with_weights=True)
         y_ = (y_ * 10).astype(np.int32)
-        X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
-        y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
-        w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
-        run_dask_classifier(X, y, w, model, "gpu_hist", local_cuda_client, 10)
+        X = dd.from_dask_array(X_).to_backend("cudf")
+        y = dd.from_dask_array(y_).to_backend("cudf")
+        w = dd.from_dask_array(w_).to_backend("cudf")
+        run_dask_classifier(X, y, w, model, "hist", "cuda", local_cuda_client, 10)
 
     def test_empty_dmatrix(self, local_cuda_client: Client) -> None:
         parameters = {

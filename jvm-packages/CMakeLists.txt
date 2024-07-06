@@ -21,7 +21,11 @@ target_include_directories(xgboost4j
   ${JNI_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}/jvm-packages/xgboost4j/src/native
   ${PROJECT_SOURCE_DIR}/include
-  ${PROJECT_SOURCE_DIR}/dmlc-core/include
-  ${PROJECT_SOURCE_DIR}/rabit/include)
+  ${PROJECT_SOURCE_DIR}/dmlc-core/include)
 
 set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
+
+# MacOS: Patch libxgboost4j.dylib to use @rpath/libomp.dylib
+if(USE_OPENMP AND APPLE)
+  patch_openmp_path_macos(xgboost4j libxgboost4j)
+endif()

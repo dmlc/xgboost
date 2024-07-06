@@ -12,9 +12,9 @@
 #include <xgboost/objective.h>
 
 #include <algorithm>
-#include <cinttypes>
 #include <random>
 
+#include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"
 #include "../../src/data/iterative_dmatrix.h"
 #include "../../src/data/simple_dmatrix.h"
@@ -437,9 +437,9 @@ void RandomDataGenerator::GenerateCSR(
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  std::unique_ptr<DMatrix> dmat{
-      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next,
-                      std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), prefix)};
+  std::unique_ptr<DMatrix> dmat{DMatrix::Create(
+      static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next,
+      std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), prefix, on_host_)};
 
   auto row_page_path =
       data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(dmat.get())) + ".row.page";
@@ -520,9 +520,9 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_idx_t n_samples, bst_featur
   CHECK_GE(n_samples, n_batches);
   NumpyArrayIterForTest iter(0, n_samples, n_features, n_batches);
 
-  std::unique_ptr<DMatrix> dmat{
-      DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
-                      std::numeric_limits<float>::quiet_NaN(), omp_get_max_threads(), prefix)};
+  std::unique_ptr<DMatrix> dmat{DMatrix::Create(
+      static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
+      std::numeric_limits<float>::quiet_NaN(), omp_get_max_threads(), prefix, false)};
 
   auto row_page_path =
       data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(dmat.get())) + ".row.page";
@@ -549,7 +549,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
 
   std::unique_ptr<DMatrix> dmat{
       DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
-                      std::numeric_limits<float>::quiet_NaN(), 0, prefix)};
+                      std::numeric_limits<float>::quiet_NaN(), 0, prefix, false)};
   auto row_page_path =
       data::MakeId(prefix,
                    dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) +
@@ -568,9 +568,9 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
   return dmat;
 }
 
-std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
-    size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
-    const dmlc::TemporaryDirectory& tempdir) {
+std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
+                                                       size_t page_size, bool deterministic,
+                                                       const dmlc::TemporaryDirectory& tempdir) {
   if (!n_rows || !n_cols) {
     return nullptr;
   }
@@ -728,7 +728,7 @@ class RMMAllocator {
     for (int i = 0; i < n_gpu; ++i) {
       CHECK_EQ(cudaSetDevice(i), cudaSuccess);
       cuda_mr.push_back(std::make_unique<CUDAMemoryResource>());
-      pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get()));
+      pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get(), 0ul));
     }
     CHECK_EQ(cudaSetDevice(current_device), cudaSuccess);
   }

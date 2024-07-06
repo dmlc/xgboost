@@ -12,7 +12,11 @@
 
 #include <CL/sycl.hpp>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma GCC diagnostic ignored "-W#pragma-messages"
 #include "xgboost/context.h"
+#pragma GCC diagnostic pop
 
 namespace xgboost {
 namespace sycl {

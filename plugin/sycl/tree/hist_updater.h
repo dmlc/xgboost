@@ -26,6 +26,22 @@ namespace xgboost {
 namespace sycl {
 namespace tree {
 
+// data structure
+template<typename GradType>
+struct NodeEntry {
+  /*! \brief statics for node entry */
+  GradStats<GradType> stats;
+  /*! \brief loss of this node, without split */
+  GradType root_gain;
+  /*! \brief weight calculated related to current data */
+  GradType weight;
+  /*! \brief current best solution */
+  SplitEntry<GradType> best;
+  // constructor
+  explicit NodeEntry(const xgboost::tree::TrainParam& param)
+      : root_gain(0.0f), weight(0.0f) {}
+};
+
 template<typename GradientSumT>
 class HistUpdater {
  public:
@@ -33,12 +49,13 @@ class HistUpdater {
   using GHistRowT = common::GHistRow<GradientSumT, memory_type>;
   using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
 
-  explicit HistUpdater(::sycl::queue qu,
-                    const xgboost::tree::TrainParam& param,
-                    std::unique_ptr<TreeUpdater> pruner,
-                    FeatureInteractionConstraintHost int_constraints_,
-                    DMatrix const* fmat)
-    : qu_(qu), param_(param),
+  explicit HistUpdater(const Context* ctx,
+                       ::sycl::queue qu,
+                       const xgboost::tree::TrainParam& param,
+                       std::unique_ptr<TreeUpdater> pruner,
+                       FeatureInteractionConstraintHost int_constraints_,
+                       DMatrix const* fmat)
+    : ctx_(ctx), qu_(qu), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
       pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
@@ -61,8 +78,7 @@ class HistUpdater {
                     USMVector<size_t, MemoryType::on_device>* row_indices);
 
 
-  void InitData(Context const * ctx,
-                const common::GHistIndexMatrix& gmat,
+  void InitData(const common::GHistIndexMatrix& gmat,
                 const USMVector<GradientPair, MemoryType::on_device> &gpair,
                 const DMatrix& fmat,
                 const RegTree& tree);
@@ -78,6 +94,12 @@ class HistUpdater {
                                    data_layout_ != kSparseData, hist_buffer, event_priv);
   }
 
+  void InitNewNode(int nid,
+                   const common::GHistIndexMatrix& gmat,
+                   const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                   const DMatrix& fmat,
+                   const RegTree& tree);
+
   void BuildLocalHistograms(const common::GHistIndexMatrix &gmat,
                             RegTree *p_tree,
                             const USMVector<GradientPair, MemoryType::on_device> &gpair);
@@ -89,6 +111,7 @@ class HistUpdater {
                       const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
   //  --data fields--
+  const Context* ctx_;
   size_t sub_group_size_;
 
   // the internal row sets
@@ -107,14 +130,20 @@ class HistUpdater {
   DataLayout data_layout_;
 
   constexpr static size_t kBufferSize = 2048;
-  constexpr static size_t kMinBlockSize = 128;
   common::GHistBuilder<GradientSumT> hist_builder_;
   common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
   /*! \brief culmulative histogram of gradients. */
   common::HistCollection<GradientSumT, MemoryType::on_device> hist_;
 
+  /*! \brief TreeNode Data: statistics for each constructed node */
+  std::vector<NodeEntry<GradientSumT>> snode_host_;
+
   xgboost::common::Monitor builder_monitor_;
   xgboost::common::Monitor kernel_monitor_;
+
+  /*! \brief feature with least # of bins. to be used for dense specialization
+              of InitNewNode() */
+  uint32_t fid_least_bins_;
 
   uint64_t seed_ = 0;
 

@@ -7,7 +7,6 @@
 
 #include <dmlc/thread_local.h>
 #include "xgboost/global_config.h"
-#include "xgboost/json.h"
 
 namespace xgboost {
 DMLC_REGISTER_PARAMETER(GlobalConfiguration);

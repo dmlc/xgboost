@@ -111,8 +111,6 @@ def no_sklearn() -> PytestSkip:
 
 
 def no_dask() -> PytestSkip:
-    if sys.platform.startswith("win"):
-        return {"reason": "Unsupported platform.", "condition": True}
     return no_mod("dask")
 
 
@@ -193,28 +191,27 @@ def no_multiple(*args: Any) -> PytestSkip:
     return {"condition": condition, "reason": reason}
 
 
-def skip_s390x() -> PytestSkip:
-    condition = platform.machine() == "s390x"
-    reason = "Known to fail on s390x"
-    return {"condition": condition, "reason": reason}
+def skip_win() -> PytestSkip:
+    return {"reason": "Unsupported platform.", "condition": is_windows()}
 
 
 class IteratorForTest(xgb.core.DataIter):
     """Iterator for testing streaming DMatrix. (external memory, quantile)"""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         X: Sequence,
         y: Sequence,
         w: Optional[Sequence],
         cache: Optional[str],
+        on_host: bool = False,
     ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
         self.w = w
         self.it = 0
-        super().__init__(cache_prefix=cache)
+        super().__init__(cache_prefix=cache, on_host=on_host)
 
     def next(self, input_data: Callable) -> int:
         if self.it == len(self.X):
@@ -251,13 +248,14 @@ class IteratorForTest(xgb.core.DataIter):
         return X, y, w
 
 
-def make_batches(
+def make_batches(  # pylint: disable=too-many-arguments,too-many-locals
     n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
     use_cupy: bool = False,
     *,
     vary_size: bool = False,
+    random_state: int = 1994,
 ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
     X = []
     y = []
@@ -265,9 +263,9 @@ def make_batches(
     if use_cupy:
         import cupy
 
-        rng = cupy.random.RandomState(1994)
+        rng = cupy.random.RandomState(random_state)
     else:
-        rng = np.random.RandomState(1994)
+        rng = np.random.RandomState(random_state)
     for i in range(n_batches):
         n_samples = n_samples_per_batch + i * 10 if vary_size else n_samples_per_batch
         _X = rng.randn(n_samples, n_features)
@@ -371,7 +369,11 @@ class TestDataset:
                 weight.append(w)
 
         it = IteratorForTest(
-            predictor, response, weight if weight else None, cache="cache"
+            predictor,
+            response,
+            weight if weight else None,
+            cache="cache",
+            on_host=False,
         )
         return xgb.DMatrix(it)
 
@@ -521,7 +523,6 @@ def make_sparse_regression(
 
     """
     if not hasattr(np.random, "default_rng"):
-        # old version of numpy on s390x
         rng = np.random.RandomState(1994)
         X = sparse.random(
             m=n_samples,
@@ -968,18 +969,18 @@ def run_with_rabit(
             exception_queue.put(e)
 
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
-    tracker.start(world_size)
+    tracker.start()
 
     workers = []
     for _ in range(world_size):
-        worker = threading.Thread(target=run_worker, args=(tracker.worker_envs(),))
+        worker = threading.Thread(target=run_worker, args=(tracker.worker_args(),))
         workers.append(worker)
         worker.start()
     for worker in workers:
         worker.join()
         assert exception_queue.empty(), f"Worker failed: {exception_queue.get()}"
 
-    tracker.join()
+    tracker.wait_for()
 
 
 def column_split_feature_names(

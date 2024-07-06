@@ -28,8 +28,8 @@ TEST(FederatedTrackerTest, Basic) {
   ASSERT_EQ(get<String const>(args["dmlc_tracker_uri"]), host);
 
   rc = tracker->Shutdown();
-  ASSERT_TRUE(rc.OK());
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(rc);
+  SafeColl(fut.get());
   ASSERT_FALSE(tracker->Ready());
 }
 }  // namespace xgboost::collective

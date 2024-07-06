@@ -1,20 +1,18 @@
 /**
- * Copyright 2020-2023, XGBoost contributors
+ * Copyright 2020-2024, XGBoost contributors
  */
 #include <algorithm>
 #include <memory>
-#include <type_traits>
 
+#include "../collective/allreduce.h"
 #include "../common/hist_util.cuh"
 #include "batch_utils.h"  // for RegenGHist
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"
-#include "gradient_index.h"
 #include "iterative_dmatrix.h"
 #include "proxy_dmatrix.cuh"
 #include "proxy_dmatrix.h"
 #include "simple_batch_iterator.h"
-#include "sparse_page_source.h"
 
 namespace xgboost::data {
 void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
@@ -48,7 +46,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   int32_t current_device;
   dh::safe_cuda(cudaGetDevice(&current_device));
   auto get_device = [&]() {
-    auto d = (ctx->IsCPU()) ? DeviceOrd::CUDA(current_device) : ctx->Device();
+    auto d = (ctx->IsCUDA()) ? ctx->Device() : DeviceOrd::CUDA(current_device);
     CHECK(!d.IsCPU());
     return d;
   };
@@ -56,14 +54,15 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   /**
    * Generate quantiles
    */
-  common::HistogramCuts cuts;
+  auto cuts = std::make_shared<common::HistogramCuts>();
   do {
     // We use do while here as the first batch is fetched in ctor
     CHECK_LT(ctx->Ordinal(), common::AllVisibleGPUs());
     dh::safe_cuda(cudaSetDevice(get_device().ordinal));
     if (cols == 0) {
       cols = num_cols();
-      collective::Allreduce<collective::Operation::kMax>(&cols, 1);
+      auto rc = collective::Allreduce(ctx, linalg::MakeVec(&cols, 1), collective::Op::kMax);
+      SafeColl(rc);
       this->info_.num_col_ = cols;
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";
@@ -105,9 +104,9 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     sketch_containers.clear();
     sketch_containers.shrink_to_fit();
 
-    final_sketch.MakeCuts(ctx, &cuts, this->info_.IsColumnSplit());
+    final_sketch.MakeCuts(ctx, cuts.get(), this->info_.IsColumnSplit());
   } else {
-    GetCutsFromRef(ctx, ref, Info().num_col_, p, &cuts);
+    GetCutsFromRef(ctx, ref, Info().num_col_, p, cuts.get());
   }
 
   this->info_.num_row_ = accumulated_rows;

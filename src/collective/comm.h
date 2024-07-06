@@ -20,7 +20,7 @@
 
 namespace xgboost::collective {
 
-inline constexpr std::int64_t DefaultTimeoutSec() { return 300; }  // 5min
+inline constexpr std::int64_t DefaultTimeoutSec() { return 60 * 30; }  // 30min
 inline constexpr std::int32_t DefaultRetry() { return 3; }
 
 // indexing into the ring
@@ -94,7 +94,7 @@ class Comm : public std::enable_shared_from_this<Comm> {
   [[nodiscard]] bool IsDistributed() const noexcept { return world_ != -1; }
   void Submit(Loop::Op op) const {
     CHECK(loop_);
-    loop_->Submit(op);
+    loop_->Submit(std::move(op));
   }
   [[nodiscard]] virtual Result Block() const { return loop_->Block(); }
 

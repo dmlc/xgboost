@@ -65,14 +65,18 @@ The simplest way to train a ranking model is by using the scikit-learn estimator
 .. code-block:: python
 
   ranker = xgb.XGBRanker(tree_method="hist", lambdarank_num_pair_per_sample=8, objective="rank:ndcg", lambdarank_pair_method="topk")
-  ranker.fit(X, y, qid=qid[sorted_idx])
+  ranker.fit(X, y, qid=qid)
 
 Please note that, as of writing, there's no learning-to-rank interface in scikit-learn. As a result, the :py:class:`xgboost.XGBRanker` class does not fully conform the scikit-learn estimator guideline and can not be directly used with some of its utility functions. For instances, the ``auc_score`` and ``ndcg_score`` in scikit-learn don't consider query group information nor the pairwise loss. Most of the metrics are implemented as part of XGBoost, but to use scikit-learn utilities like :py:func:`sklearn.model_selection.cross_validation`, we need to make some adjustments in order to pass the ``qid`` as an additional parameter for :py:meth:`xgboost.XGBRanker.score`. Given a data frame ``X`` (either pandas or cuDF), add the column ``qid`` as follows:
 
 .. code-block:: python
 
+  import pandas as pd
+
+  # `X`, `qid`, and `y` are from the previous snippet, they are all sorted by the `sorted_idx`.
   df = pd.DataFrame(X, columns=[str(i) for i in range(X.shape[1])])
-  df["qid"] = qid[sorted_idx]
+  df["qid"] = qid
+
   ranker.fit(df, y)  # No need to pass qid as a separate argument
 
   from sklearn.model_selection import StratifiedGroupKFold, cross_val_score

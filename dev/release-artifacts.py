@@ -125,6 +125,8 @@ def download_py_packages(
         "win_amd64",
         "manylinux2014_x86_64",
         "manylinux2014_aarch64",
+        "manylinux_2_28_x86_64",
+        "manylinux_2_28_aarch64",
         "macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64",
         "macosx_12_0_arm64",
     ]
@@ -230,7 +232,6 @@ def release_note(
 ) -> None:
     """Generate a note for GitHub release description."""
     r_gpu_linux_url = r_urls["linux"]
-    r_gpu_win64_url = r_urls["win64"]
     src_tarball = (
         f"https://github.com/dmlc/xgboost/releases/download/v{release}/{tarname}"
     )
@@ -251,7 +252,6 @@ echo "<hash> <artifact>" | shasum -a 256 --check
 
 **Experimental binary packages for R with CUDA enabled**
 * xgboost_r_gpu_linux_{release}.tar.gz: [Download]({r_gpu_linux_url})
-* xgboost_r_gpu_win64_{release}.tar.gz: [Download]({r_gpu_win64_url})
 
 **Source tarball**
 * xgboost.tar.gz: [Download]({src_tarball})"""
@@ -297,6 +297,8 @@ def main(args: argparse.Namespace) -> None:
     commit_hash = latest_hash()
 
     outdir = os.path.abspath(args.outdir)
+    if outdir.find(str(ROOT)) != -1:
+        raise ValueError("output dir must be outside of the source tree.")
     if not os.path.exists(outdir):
         os.mkdir(outdir)
 

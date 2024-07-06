@@ -4,15 +4,14 @@
 #include "xgboost/collective/socket.h"
 
 #include <array>         // for array
-#include <cstddef>       // std::size_t
-#include <cstdint>       // std::int32_t
-#include <cstring>       // std::memcpy, std::memset
-#include <filesystem>    // for path
+#include <cstddef>       // for size_t
+#include <cstdint>       // for int32_t
+#include <cstring>       // for memcpy, memset
 #include <system_error>  // for error_code, system_category
 #include <thread>        // for sleep_for
 
-#include "rabit/internal/socket.h"      // for PollHelper
-#include "xgboost/collective/result.h"  // for Result
+#include "xgboost/collective/poll_utils.h"  // for PollHelper
+#include "xgboost/collective/result.h"      // for Result
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>  // getaddrinfo, freeaddrinfo
@@ -22,10 +21,11 @@ namespace xgboost::collective {
 SockAddress MakeSockAddress(StringView host, in_port_t port) {
   struct addrinfo hints;
   std::memset(&hints, 0, sizeof(hints));
-  hints.ai_protocol = SOCK_STREAM;
+  hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;
   int sig = getaddrinfo(host.c_str(), nullptr, &hints, &res);
   if (sig != 0) {
+    LOG(FATAL) << "Failed to get addr info for: " << host << ", error: " << gai_strerror(sig);
     return {};
   }
   if (res->ai_family == static_cast<std::int32_t>(SockDomain::kV4)) {
@@ -60,24 +60,46 @@ std::size_t TCPSocket::Send(StringView str) {
   CHECK(!this->IsClosed());
   CHECK_LT(str.size(), std::numeric_limits<std::int32_t>::max());
   std::int32_t len = static_cast<std::int32_t>(str.size());
-  CHECK_EQ(this->SendAll(&len, sizeof(len)), sizeof(len)) << "Failed to send string length.";
-  auto bytes = this->SendAll(str.c_str(), str.size());
-  CHECK_EQ(bytes, str.size()) << "Failed to send string.";
-  return bytes;
+  std::size_t n_bytes{0};
+  auto rc = Success() << [&] {
+    return this->SendAll(&len, sizeof(len), &n_bytes);
+  } << [&] {
+    if (n_bytes != sizeof(len)) {
+      return Fail("Failed to send string length.");
+    }
+    return Success();
+  } << [&] {
+    return this->SendAll(str.c_str(), str.size(), &n_bytes);
+  } << [&] {
+    if (n_bytes != str.size()) {
+      return Fail("Failed to send string.");
+    }
+    return Success();
+  };
+  SafeColl(rc);
+  return n_bytes;
 }
 
 [[nodiscard]] Result TCPSocket::Recv(std::string *p_str) {
   CHECK(!this->IsClosed());
   std::int32_t len;
-  if (this->RecvAll(&len, sizeof(len)) != sizeof(len)) {
-    return Fail("Failed to recv string length.");
-  }
-  p_str->resize(len);
-  auto bytes = this->RecvAll(&(*p_str)[0], len);
-  if (static_cast<decltype(len)>(bytes) != len) {
-    return Fail("Failed to recv string.");
-  }
-  return Success();
+  std::size_t n_bytes{0};
+  return Success() << [&] {
+    return this->RecvAll(&len, sizeof(len), &n_bytes);
+  } << [&] {
+    if (n_bytes != sizeof(len)) {
+      return Fail("Failed to recv string length.");
+    }
+    return Success();
+  } << [&] {
+    p_str->resize(len);
+    return this->RecvAll(&(*p_str)[0], len, &n_bytes);
+  } << [&] {
+    if (static_cast<std::remove_reference_t<decltype(len)>>(n_bytes) != len) {
+      return Fail("Failed to recv string.");
+    }
+    return Success();
+  };
 }
 
 [[nodiscard]] Result Connect(xgboost::StringView host, std::int32_t port, std::int32_t retry,
@@ -105,10 +127,9 @@ std::size_t TCPSocket::Send(StringView str) {
   }
 
   Result last_error;
-  auto log_failure = [&host, &last_error, port](Result err, char const *file, std::int32_t line) {
+  auto log_failure = [&host, &last_error, port](Result err) {
     last_error = std::move(err);
-    LOG(WARNING) << std::filesystem::path{file}.filename().string() << "(" << line
-                 << "): Failed to connect to:" << host << ":" << port
+    LOG(WARNING) << "Failed to connect to:" << host << ":" << port
                  << " Error:" << last_error.Report();
   };
 
@@ -125,8 +146,7 @@ std::size_t TCPSocket::Send(StringView str) {
 
     auto errcode = system::LastError();
     if (!system::ErrorWouldBlock(errcode)) {
-      log_failure(Fail("connect failed.", std::error_code{errcode, std::system_category()}),
-                  __FILE__, __LINE__);
+      log_failure(Fail("connect failed.", std::error_code{errcode, std::system_category()}));
       continue;
     }
 
@@ -136,21 +156,16 @@ std::size_t TCPSocket::Send(StringView str) {
     if (!result.OK()) {
       // poll would fail if there's a socket error, we log the root cause instead of the
       // poll failure.
-      auto sockerr = conn.GetSockError();
-      if (!sockerr.OK()) {
-        result = std::move(sockerr);
-      }
-      log_failure(std::move(result), __FILE__, __LINE__);
+      log_failure(std::move(result) + conn.GetSockError());
       continue;
     }
     if (!poll.CheckWrite(conn)) {
-      log_failure(Fail("poll failed.", std::error_code{errcode, std::system_category()}), __FILE__,
-                  __LINE__);
+      log_failure(Fail("poll failed.", std::error_code{errcode, std::system_category()}));
       continue;
     }
     result = conn.GetSockError();
     if (!result.OK()) {
-      log_failure(std::move(result), __FILE__, __LINE__);
+      log_failure(std::move(result));
       continue;
     }
 
