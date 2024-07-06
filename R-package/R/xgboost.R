@@ -281,6 +281,12 @@ process.y.margin.and.objective <- function(
       )
     )
 
+    # Note: the 'Surv' object class that is passed as 'y' might have either 2 or 3 columns
+    # depending on the type of censoring, and the last column in both cases is the one that
+    # indicates the observation type (e.g. censored / uncensored).
+    # In the case of interval censoring, the second column will not always have values with
+    # infinites filled in. For more information, see the code behind the 'print.Surv' method.
+
     if (objective == "survival:cox") {
       # Can only get here when using right censoring
       if (y_attr$type != "right") {
