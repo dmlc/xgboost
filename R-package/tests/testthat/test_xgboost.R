@@ -349,7 +349,8 @@ test_that("Process monotone constraints", {
     monotone_constraints = mc_list,
     interaction_constraints = NULL,
     feature_weights = NULL,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$params$monotone_constraints,
@@ -362,7 +363,8 @@ test_that("Process monotone constraints", {
     monotone_constraints = mc_list2,
     interaction_constraints = NULL,
     feature_weights = NULL,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$params$monotone_constraints,
@@ -375,7 +377,8 @@ test_that("Process monotone constraints", {
     monotone_constraints = mc_vec,
     interaction_constraints = NULL,
     feature_weights = NULL,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$params$monotone_constraints,
@@ -389,7 +392,8 @@ test_that("Process monotone constraints", {
     monotone_constraints = mc_named_vec,
     interaction_constraints = NULL,
     feature_weights = NULL,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$params$monotone_constraints,
@@ -403,7 +407,8 @@ test_that("Process monotone constraints", {
     monotone_constraints = mc_named_all,
     interaction_constraints = NULL,
     feature_weights = NULL,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$params$monotone_constraints,
@@ -420,7 +425,8 @@ test_that("Process monotone constraints", {
       ),
       interaction_constraints = NULL,
       feature_weights = NULL,
-      lst_args = list()
+      lst_args = list(),
+      use_qdm = FALSE
     )
   })
 
@@ -430,29 +436,32 @@ test_that("Process monotone constraints", {
       monotone_constraints = rep(0, 6),
       interaction_constraints = NULL,
       feature_weights = NULL,
-      lst_args = list()
+      lst_args = list(),
+      use_qdm = FALSE
     )
   })
 })
 
 test_that("Process interaction_constraints", {
   data(iris)
-  res <- process.x.and.col.args(iris, NULL, list(c(1L, 2L)), NULL, NULL)
+  res <- process.x.and.col.args(iris, NULL, list(c(1L, 2L)), NULL, NULL, FALSE)
   expect_equal(
     res$params$interaction_constraints,
     list(c(0, 1))
   )
-  res <- process.x.and.col.args(iris, NULL, list(c(1.0, 2.0)), NULL, NULL)
+  res <- process.x.and.col.args(iris, NULL, list(c(1.0, 2.0)), NULL, NULL, FALSE)
   expect_equal(
     res$params$interaction_constraints,
     list(c(0, 1))
   )
-  res <- process.x.and.col.args(iris, NULL, list(c(1, 2), c(3, 4)), NULL, NULL)
+  res <- process.x.and.col.args(iris, NULL, list(c(1, 2), c(3, 4)), NULL, NULL, FALSE)
   expect_equal(
     res$params$interaction_constraints,
     list(c(0, 1), c(2, 3))
   )
-  res <- process.x.and.col.args(iris, NULL, list(c("Sepal.Length", "Sepal.Width")), NULL, NULL)
+  res <- process.x.and.col.args(
+    iris, NULL, list(c("Sepal.Length", "Sepal.Width")), NULL, NULL, FALSE
+  )
   expect_equal(
     res$params$interaction_constraints,
     list(c(0, 1))
@@ -462,7 +471,8 @@ test_that("Process interaction_constraints", {
     NULL,
     list(c("Sepal.Length", "Sepal.Width")),
     NULL,
-    NULL
+    NULL,
+    FALSE
   )
   expect_equal(
     res$params$interaction_constraints,
@@ -473,7 +483,8 @@ test_that("Process interaction_constraints", {
     NULL,
     list(c("Sepal.Width", "Petal.Length"), c("Sepal.Length", "Petal.Width", "Species")),
     NULL,
-    NULL
+    NULL,
+    FALSE
   )
   expect_equal(
     res$params$interaction_constraints,
@@ -481,26 +492,42 @@ test_that("Process interaction_constraints", {
   )
 
   expect_error({
-    process.x.and.col.args(iris, NULL, list(c(1L, 20L)), NULL, NULL)
+    process.x.and.col.args(iris, NULL, list(c(1L, 20L)), NULL, NULL, FALSE)
   })
   expect_error({
-    process.x.and.col.args(iris, NULL, list(c(0L, 2L)), NULL, NULL)
+    process.x.and.col.args(iris, NULL, list(c(0L, 2L)), NULL, NULL, FALSE)
   })
   expect_error({
-    process.x.and.col.args(iris, NULL, list(c("1", "2")), NULL, NULL)
+    process.x.and.col.args(iris, NULL, list(c("1", "2")), NULL, NULL, FALSE)
   })
   expect_error({
-    process.x.and.col.args(iris, NULL, list(c("Sepal", "Petal")), NULL, NULL)
+    process.x.and.col.args(iris, NULL, list(c("Sepal", "Petal")), NULL, NULL, FALSE)
   })
   expect_error({
-    process.x.and.col.args(iris, NULL, c(1L, 2L), NULL, NULL)
+    process.x.and.col.args(iris, NULL, c(1L, 2L), NULL, NULL, FALSE)
   })
   expect_error({
-    process.x.and.col.args(iris, NULL, matrix(c(1L, 2L)), NULL, NULL)
+    process.x.and.col.args(iris, NULL, matrix(c(1L, 2L)), NULL, NULL, FALSE)
   })
   expect_error({
-    process.x.and.col.args(iris, NULL, list(c(1, 2.5)), NULL, NULL)
+    process.x.and.col.args(iris, NULL, list(c(1, 2.5)), NULL, NULL, FALSE)
   })
+})
+
+test_that("Sparse matrices are casted to CSR for QDM", {
+  data(agaricus.test, package = "xgboost")
+  x <- agaricus.test$data
+  for (x_in in list(x, methods::as(x, "TsparseMatrix"))) {
+    res <- process.x.and.col.args(
+      x_in,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      TRUE
+    )
+    expect_s4_class(res$dmatrix_args$data, "dgRMatrix")
+  }
 })
 
 test_that("Process feature_weights", {
@@ -511,7 +538,8 @@ test_that("Process feature_weights", {
     monotone_constraints = NULL,
     interaction_constraints = NULL,
     feature_weights = w_vector,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$dmatrix_args$feature_weights,
@@ -525,7 +553,8 @@ test_that("Process feature_weights", {
     monotone_constraints = NULL,
     interaction_constraints = NULL,
     feature_weights = w_named_vector,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$dmatrix_args$feature_weights,
@@ -544,7 +573,8 @@ test_that("Process feature_weights", {
     monotone_constraints = NULL,
     interaction_constraints = NULL,
     feature_weights = w_list,
-    lst_args = list()
+    lst_args = list(),
+    use_qdm = FALSE
   )
   expect_equal(
     res$dmatrix_args$feature_weights,

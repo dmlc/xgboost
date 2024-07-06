@@ -513,9 +513,6 @@ check.nthreads <- function(nthreads) {
 }
 
 check.can.use.qdm <- function(x, params) {
-  if (inherits(x, "sparseMatrix") && !inherits(x, "dgRMatrix")) {
-    return(FALSE)
-  }
   if ("booster" %in% names(params)) {
     if (params$booster == "gblinear") {
       return(FALSE)
@@ -534,7 +531,8 @@ process.x.and.col.args <- function(
   monotone_constraints,
   interaction_constraints,
   feature_weights,
-  lst_args
+  lst_args,
+  use_qdm
 ) {
   if (is.null(x)) {
     stop("'x' cannot be NULL.")
@@ -542,7 +540,7 @@ process.x.and.col.args <- function(
   if (inherits(x, "xgb.DMatrix")) {
     stop("Cannot pass 'xgb.DMatrix' as 'x' to 'xgboost()'. Try 'xgb.train()' instead.")
   }
-  supported_x_types <- c("data.frame", "matrix", "dgCMatrix", "dgRMatrix")
+  supported_x_types <- c("data.frame", "matrix", "dgTMatrix", "dgCMatrix", "dgRMatrix")
   if (!inherits(x, supported_x_types)) {
     stop(
       "'x' must be one of the following classes: ",
@@ -550,6 +548,12 @@ process.x.and.col.args <- function(
       ". Got: ",
       paste(class(x), collapse = ", ")
     )
+  }
+  if (use_qdm && inherits(x, "sparseMatrix") && !inherits(x, "dgRMatrix")) {
+    x <- methods::as(x, "RsparseMatrix")
+    if (!inherits(x, "RsparseMatrix")) {
+      stop("Internal error: casting sparse matrix did not yield 'dgRMatrix'.")
+    }
   }
 
   if (NROW(feature_weights)) {
@@ -630,7 +634,8 @@ process.x.and.col.args <- function(
               as.list(monotone_constraints),
               interaction_constraints,
               feature_weights,
-              lst_args
+              lst_args,
+              use_qdm
             )
           )
         } else {
@@ -719,6 +724,7 @@ process.x.and.col.args <- function(
     })
   }
 
+  lst_args$dmatrix_args$data <- x
   return(lst_args)
 }
 
@@ -916,6 +922,7 @@ xgboost <- function(
 
   params <- prescreen.parameters(params)
   prescreen.objective(objective)
+  use_qdm <- check.can.use.qdm(x, params)
   lst_args <- process.y.margin.and.objective(y, base_margin, objective, params)
   lst_args <- process.row.weights(weights, lst_args)
   lst_args <- process.x.and.col.args(
@@ -923,10 +930,10 @@ xgboost <- function(
     monotone_constraints,
     interaction_constraints,
     feature_weights,
-    lst_args
+    lst_args,
+    use_qdm
   )
 
-  use_qdm <- check.can.use.qdm(x, params)
   if (use_qdm && "max_bin" %in% names(params)) {
     lst_args$dmatrix_args$max_bin <- params$max_bin
   }
@@ -938,7 +945,6 @@ xgboost <- function(
 
   params <- c(lst_args$params, params)
 
-  lst_args$dmatrix_args$data <- x
   fn_dm <- if (use_qdm) xgb.QuantileDMatrix else xgb.DMatrix
   dm <- do.call(fn_dm, lst_args$dmatrix_args)
   model <- xgb.train(
