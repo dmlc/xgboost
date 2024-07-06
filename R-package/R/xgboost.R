@@ -553,12 +553,6 @@ process.x.and.col.args <- function(
     if (!inherits(feature_weights, c("numeric", "integer"))) {
       stop("'feature_weights' must be a numeric vector or named list matching to columns of 'x'.")
     }
-    if (length(feature_weights) != ncol(x)) {
-      stop(
-        "'feature_weights' does not match in length with columns of 'x' (",
-        length(feature_weights), " vs. ", ncol(x), ")."
-      )
-    }
     if (NROW(names(feature_weights)) && NROW(colnames(x))) {
       matched <- match(colnames(x), names(feature_weights))
       matched <- matched[!is.na(matched)]
