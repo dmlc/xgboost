@@ -405,10 +405,7 @@ by not calculating the full matrix, and in R, by making the rows be the last
 dimension and transposing after the fact*)
 
 With all these pieces in place, one can now frame this model into the format
-required for XGBoost's custom objectives - note that in the Python interface,
-even though the result is 2D, it must be returned as a 1D array where the
-data from the 2D matrix is storage in C-contiguous sequence, while in the
-R interface, it must be returned as a 2D matrix:
+required for XGBoost's custom objectives:
 
 .. code-block:: python
     :caption: Python
@@ -421,8 +418,8 @@ R interface, it must be returned as a 2D matrix:
     ) -> Tuple[np.ndarray, np.ndarray]:
         Y = dtrain.get_label().reshape(pred.shape)
         return (
-            dirichlet_grad(pred, Y).reshape(-1, order="C"),
-            dirichlet_diag_upper_bound_expected_hess(pred, Y).reshape(-1, order="C"),
+            dirichlet_grad(pred, Y),
+            dirichlet_diag_upper_bound_expected_hess(pred, Y),
         )
 
 .. code-block:: r
