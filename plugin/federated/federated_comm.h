@@ -11,12 +11,15 @@
 #include <memory>   // for shared_ptr
 #include <string>   // for string
 
-#include "../../src/collective/comm.h"    // for HostComm
+#include "../../src/collective/comm.h"  // for HostComm
+#include "federated_plugin.h"           // for FederatedPlugin
 #include "xgboost/json.h"
 
 namespace xgboost::collective {
 class FederatedComm : public HostComm {
   std::shared_ptr<federated::Federated::Stub> stub_;
+  // Plugin for encryption
+  std::shared_ptr<FederatedPluginBase> plugin_{nullptr};
 
   void Init(std::string const& host, std::int32_t port, std::int32_t world, std::int32_t rank,
             std::string const& server_cert, std::string const& client_key,
@@ -62,6 +65,7 @@ class FederatedComm : public HostComm {
     return Success();
   }
   [[nodiscard]] bool IsFederated() const override { return true; }
+  [[nodiscard]] bool IsEncrypted() const override { return static_cast<bool>(plugin_); }
   [[nodiscard]] federated::Federated::Stub* Handle() const { return stub_.get(); }
 
   [[nodiscard]] Comm* MakeCUDAVar(Context const* ctx, std::shared_ptr<Coll> pimpl) const override;
@@ -73,5 +77,7 @@ class FederatedComm : public HostComm {
     *out = "rank:" + std::to_string(rank);
     return Success();
   };
+
+  auto EncryptionPlugin() const { return plugin_; }
 };
 }  // namespace xgboost::collective

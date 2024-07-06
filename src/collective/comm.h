@@ -102,6 +102,7 @@ class Comm : public std::enable_shared_from_this<Comm> {
     return channels_.at(rank);
   }
   [[nodiscard]] virtual bool IsFederated() const = 0;
+  [[nodiscard]] virtual bool IsEncrypted() const { return false; }
   [[nodiscard]] virtual Result LogTracker(std::string msg) const = 0;
 
   [[nodiscard]] virtual Result SignalError(Result const&) { return Success(); }

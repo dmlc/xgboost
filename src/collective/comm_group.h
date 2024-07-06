@@ -17,7 +17,7 @@ namespace xgboost::collective {
  */
 class CommGroup {
   std::shared_ptr<HostComm> comm_;
-  mutable std::shared_ptr<Comm> gpu_comm_;
+  mutable std::shared_ptr<Comm> gpu_comm_;  // lazy initialization
 
   std::shared_ptr<Coll> backend_;
   mutable std::shared_ptr<Coll> gpu_coll_;  // lazy initialization

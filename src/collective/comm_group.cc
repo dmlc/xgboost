@@ -128,14 +128,18 @@ void Init(Json const& config) { GlobalCommGroupInit(config); }
 
 void Finalize() { GlobalCommGroupFinalize(); }
 
-std::int32_t GetRank() noexcept { return GlobalCommGroup()->Rank(); }
+[[nodiscard]] std::int32_t GetRank() noexcept { return GlobalCommGroup()->Rank(); }
 
-std::int32_t GetWorldSize() noexcept { return GlobalCommGroup()->World(); }
+[[nodiscard]] std::int32_t GetWorldSize() noexcept { return GlobalCommGroup()->World(); }
 
-bool IsDistributed() noexcept { return GlobalCommGroup()->IsDistributed(); }
+[[nodiscard]] bool IsDistributed() noexcept { return GlobalCommGroup()->IsDistributed(); }
 
-[[nodiscard]] bool IsFederated() {
+[[nodiscard]] bool IsFederated() noexcept {
   return GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).IsFederated();
+}
+
+[[nodiscard]] bool IsEncrypted() noexcept {
+  return IsFederated() && GlobalCommGroup()->Ctx(nullptr, DeviceOrd::CPU()).IsEncrypted();
 }
 
 void Print(std::string const& message) {
