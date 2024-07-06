@@ -294,7 +294,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
         make -j$(nproc)
     - name: Install Python package
       run: |
