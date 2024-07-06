@@ -66,6 +66,14 @@ process.base.margin <- function(base_margin, nrows, ncols) {
     )
     base_margin <- as.matrix(base_margin)
   }
+  if (NROW(base_margin) != nrows) {
+    stop(
+      "'base_margin' has incorrect number of rows. Expected: ",
+      nrows,
+      ". Got: ",
+      NROW(base_margin)
+    )
+  }
 
   if (ncols == 1L) {
     if (inherits(base_margin, c("matrix", "data.frame"))) {
@@ -80,14 +88,6 @@ process.base.margin <- function(base_margin, nrows, ncols) {
     }
     if (!is.numeric(base_margin)) {
       base_margin <- as.numeric(base_margin)
-    }
-    if (length(base_margin) != nrows) {
-      stop(
-        "'base_margin' has incorrect number of rows. Expected: ",
-        nrows,
-        ". Got: ",
-        length(base_margin)
-      )
     }
   } else {
     supported_multicol <- c("matrix", "data.frame")
@@ -105,14 +105,6 @@ process.base.margin <- function(base_margin, nrows, ncols) {
         ncols,
         ". Got: ",
         ncol(base_margin)
-      )
-    }
-    if (nrow(base_margin) != nrows) {
-      stop(
-        "'base_margin' has incorrect number of rows. Expected: ",
-        nrows,
-        ". Got: ",
-        nrow(base_margin)
       )
     }
     if (!is.matrix(base_margin)) {
