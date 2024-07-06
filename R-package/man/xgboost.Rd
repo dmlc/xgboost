@@ -106,7 +106,7 @@ rows in `x`.}
 \item{verbosity}{Verbosity of printing messages. Valid values of 0 (silent), 1 (warning),
 2 (info), and 3 (debug).}
 
-\item{nthreads}{Number of parallel threads to use.}
+\item{nthreads}{Number of parallel threads to use. If passing zero, will use all CPU threads.}
 
 \item{seed}{Seed to use for random number generation. If passing `NULL`, will draw a random
 number using R's PRNG system to use as seed.}

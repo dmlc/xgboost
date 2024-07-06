@@ -493,9 +493,9 @@ check.nthreads <- function(nthreads) {
     stop("'nthreads' must be a positive scalar value.")
   }
   if (length(nthreads) > 1L) {
-    nthreads <- head(nthreads, 1L)
+    nthreads <- utils::head(nthreads, 1L)
   }
-  if (is.na(nthreads) || nthreads < 1) {
+  if (is.na(nthreads) || nthreads < 0) {
     stop("Passed invalid 'nthreads': ", nthreads)
   }
   if (is.numeric(nthreads)) {
@@ -817,7 +817,7 @@ process.x.and.col.args <- function(
 #' rows in `x`.
 #' @param verbosity Verbosity of printing messages. Valid values of 0 (silent), 1 (warning),
 #' 2 (info), and 3 (debug).
-#' @param nthreads Number of parallel threads to use.
+#' @param nthreads Number of parallel threads to use. If passing zero, will use all CPU threads.
 #' @param seed Seed to use for random number generation. If passing `NULL`, will draw a random
 #' number using R's PRNG system to use as seed.
 #' @param monotone_constraints Optional monotonicity constraints for features.
