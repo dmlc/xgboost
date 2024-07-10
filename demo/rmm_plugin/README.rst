@@ -47,8 +47,8 @@ the global configuration ``use_rmm``:
   with xgb.config_context(use_rmm=True):
     clf = xgb.XGBClassifier(tree_method="hist", device="cuda")
 
-Depending on the choice of memory pool size or type of allocator, this may have negative
-performance impact.
+Depending on the choice of memory pool size and the type of the allocator, this can add
+more consistency to memory usage but with slightly degraded performance impact.
 
 *******************************
 No Device Ordinal for Multi-GPU
