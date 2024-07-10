@@ -50,10 +50,10 @@ class RowSetCollection {
 
     [[nodiscard]] std::size_t Size() const { return std::distance(begin(), end()); }
 
-    bst_idx_t const* begin() const { return this->begin_; }  // NOLINT
-    bst_idx_t const* end() const { return this->end_; }      // NOLINT
-    bst_idx_t* begin() { return this->begin_; }              // NOLINT
-    bst_idx_t* end() { return this->end_; }                  // NOLINT
+    [[nodiscard]] bst_idx_t const* begin() const { return this->begin_; }  // NOLINT
+    [[nodiscard]] bst_idx_t const* end() const { return this->end_; }      // NOLINT
+    [[nodiscard]] bst_idx_t* begin() { return this->begin_; }              // NOLINT
+    [[nodiscard]] bst_idx_t* end() { return this->end_; }                  // NOLINT
   };
 
   [[nodiscard]] std::vector<Elem>::const_iterator begin() const {  // NOLINT
@@ -63,7 +63,7 @@ class RowSetCollection {
     return elem_of_each_node_.cend();
   }
 
-  [[nodiscard]] std::size_t Size() const { return end() - begin(); }
+  [[nodiscard]] std::size_t Size() const { return std::distance(begin(), end()); }
 
   /** @brief return corresponding element set given the node_id */
   [[nodiscard]] Elem const& operator[](bst_node_t node_id) const {
