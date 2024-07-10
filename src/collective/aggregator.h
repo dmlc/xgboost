@@ -16,6 +16,7 @@
 #include "communicator-inl.h"
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/data.h"               // for MetaINfo
+
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_comm.h"
 #endif  // defined(XGBOOST_USE_FEDERATED)
@@ -180,6 +181,57 @@ T GlobalRatio(Context const* ctx, MetaInfo const& info, T dividend, T divisor) {
     return std::numeric_limits<T>::quiet_NaN();
   } else {
     return dividend / divisor;
+  }
+}
+
+/**
+ * @brief Broadcast the gradient for federated learning.
+ *
+ * We need to handle three different cases here:
+ * - Normal training, handled in the apply with labels.
+ * - Federated non-encrypted, handled in the apply with labels.
+ * - Federated encrypted, need to sync with the plugin.
+ */
+template <typename GradFn>
+void BroadcastGradient(Context const* ctx, MetaInfo const& info, GradFn&& grad_fn,
+                       linalg::Matrix<GradientPair>* out_gpair) {
+  if (info.IsVerticalFederated() && IsEncrypted()) {
+#if defined(XGBOOST_USE_FEDERATED)
+    // Need to encrypt the gradient before broadcasting.
+    common::Span<std::uint8_t> encrypted;
+    auto const& comm = GlobalCommGroup()->Ctx(ctx, ctx->Device());
+    auto const& fed = dynamic_cast<FederatedComm const&>(comm);
+    if (GetRank() == 0) {
+      // Obtain the gradient
+      grad_fn(out_gpair);
+      auto values = out_gpair->HostView().Values();
+      // Encrypt the gradient
+      static_assert(sizeof(GradientPair) == sizeof(float) * 2);
+      auto casted = reinterpret_cast<float const*>(values.data());
+      auto data = common::Span{casted, values.size() * 2};
+
+      encrypted = fed.EncryptionPlugin()->EncryptGradient(data);
+    }
+    // Broadcast the gradient
+    std::uint64_t n_bytes = encrypted.size();
+    HostDeviceVector<std::uint8_t> grad;
+    auto rc = Success() << [&] {
+      return Broadcast(ctx, linalg::MakeVec(&n_bytes, 1), 0);
+    } << [&] {
+      if (GetRank() != 0) {
+        grad.Resize(n_bytes);
+        encrypted = grad.HostSpan();
+      }
+      return Broadcast(ctx, linalg::MakeVec(encrypted), 0);
+    };
+    SafeColl(rc);
+    // Pass the gradient to the plugin
+    fed.EncryptionPlugin()->SyncEncryptedGradient(encrypted);
+#else
+    LOG(FATAL) << error::NoFederated();
+#endif
+  } else {
+    ApplyWithLabels(ctx, info, out_gpair->Data(), [&] { grad_fn(out_gpair); });
   }
 }
 }  // namespace xgboost::collective
