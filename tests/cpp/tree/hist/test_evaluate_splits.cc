@@ -53,7 +53,9 @@ void TestEvaluateSplits(bool force_read_by_column) {
   HistMakerTrainParam hist_param;
   hist.Reset(gmat.cut.Ptrs().back(), hist_param.max_cached_hist_node);
   hist.AllocateHistograms({0});
-  common::BuildHist<false>(row_gpairs, row_set_collection[0], gmat, hist[0], force_read_by_column);
+  auto const &elem = row_set_collection[0];
+  common::BuildHist<false>(row_gpairs, common::Span{elem.begin(), elem.end()}, gmat, hist[0],
+                           force_read_by_column);
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;
