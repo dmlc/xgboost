@@ -78,5 +78,4 @@ class DeviceHistogramBuilder {
                       common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
 };
 }  // namespace xgboost::tree
-
 #endif  // HISTOGRAM_CUH_

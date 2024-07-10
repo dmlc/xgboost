@@ -106,7 +106,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   gpair.SetDevice(ctx.Device());
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
-  maker.row_partitioner = std::make_unique<RowPartitioner>(ctx.Device(), kNRows);
+  maker.row_partitioner = std::make_unique<RowPartitioner>(&ctx, kNRows, 0);
 
   maker.hist.Init(ctx.Device(), page->Cuts().TotalBins());
   maker.hist.AllocateHistograms({0});
