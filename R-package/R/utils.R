@@ -71,7 +71,9 @@ NVL <- function(x, val) {
 
 # Merges booster params with whatever is provided in ...
 # plus runs some checks
-check.booster.params <- function(params, ...) {
+# Note: deprecated params in deprecated_params will be excluded from the
+# final list of merged params
+check.booster.params <- function(params, deprecated_params, ...) {
   if (!identical(class(params), "list"))
     stop("params must be a list")
 
@@ -84,6 +86,7 @@ check.booster.params <- function(params, ...) {
   if (length(intersect(names(params),
                        names(dot_params))) > 0)
     stop("Same parameters in 'params' and in the call are not allowed. Please check your 'params' list.")
+  dot_params <- within(dot_params, rm(list=deprecated_params))  # Exclude deprecated params
   params <- c(params, dot_params)
 
   # providing a parameter multiple times makes sense only for 'eval_metric'
@@ -552,6 +555,7 @@ colnames(depr_par_lut) <- c('old', 'new')
 # Checks the dot-parameters for deprecated names
 # (including partial matching), gives a deprecation warning,
 # and sets new parameters to the old parameters' values within its parent frame.
+# Also returns the list of old parameters that were passed in.
 # WARNING: has side-effects
 check.deprecation <- function(..., env = parent.frame()) {
   pars <- list(...)
@@ -564,6 +568,8 @@ check.deprecation <- function(..., env = parent.frame()) {
   idx_lut <- all_match[idx_pars]
   # which of idx_lut were the exact matches?
   ex_match <- depr_par_lut[idx_lut, 1] %in% names(pars)
+  # List of deprecated parameters, to be returned
+  ret_deprecated_pars <- character(length(idx_pars))
   for (i in seq_along(idx_pars)) {
     pars_par <- names(pars)[idx_pars[i]]
     old_par <- depr_par_lut[idx_lut[i], 1]
@@ -572,6 +578,10 @@ check.deprecation <- function(..., env = parent.frame()) {
       warning("'", pars_par, "' was partially matched to '", old_par, "'")
     }
     .Deprecated(new_par, old = old_par, package = 'xgboost')
-    stop()
+    ret_deprecated_pars[i] <- old_par
+    if (new_par != 'NULL') {
+      assign(new_par, pars[[pars_par]], envir = env)
+    }
   }
+  return(ret_deprecated_pars)
 }

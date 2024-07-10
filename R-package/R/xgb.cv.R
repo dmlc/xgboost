@@ -145,13 +145,13 @@ xgb.cv <- function(params = list(), data, nrounds, nfold,
                    verbose = TRUE, print_every_n = 1L,
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
 
-  check.deprecation(...)
+  deprecated_params <- check.deprecation(...)
   stopifnot(inherits(data, "xgb.DMatrix"))
   if (inherits(data, "xgb.DMatrix") && .Call(XGCheckNullPtr_R, data)) {
     stop("'data' is an invalid 'xgb.DMatrix' object. Must be constructed again.")
   }
 
-  params <- check.booster.params(params, ...)
+  params <- check.booster.params(params, deprecated_params, ...)
   # TODO: should we deprecate the redundant 'metrics' parameter?
   for (m in metrics)
     params <- c(params, list("eval_metric" = m))

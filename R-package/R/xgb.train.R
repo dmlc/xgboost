@@ -346,9 +346,9 @@ xgb.train <- function(params = list(), data, nrounds, evals = list(),
                       save_period = NULL, save_name = "xgboost.model",
                       xgb_model = NULL, callbacks = list(), ...) {
 
-  check.deprecation(...)
+  deprecated_params <- check.deprecation(...)
 
-  params <- check.booster.params(params, ...)
+  params <- check.booster.params(params, deprecated_params, ...)
 
   check.custom.obj()
   check.custom.eval()
