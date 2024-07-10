@@ -1,19 +1,18 @@
 /**
  * Copyright 2023-2024, XGBoost contributors
  *
- * Some other tests for federated learning are in the main test suite (test_learner.cc),
- * gaurded by the `XGBOOST_USE_FEDERATED`.
+ * Some other tests for federated learning are in the main test suite (test_learner.cc).
  */
 #include <dmlc/parameter.h>
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include <xgboost/objective.h>
 
-#include "../../../src/collective/communicator-inl.h"
-#include "../../../src/common/linalg_op.h"  // for begin, end
-#include "../helpers.h"
-#include "../objective_helpers.h"  // for MakeObjNamesForTest, ObjTestNameGenerator
-#include "federated/test_worker.h"
+#include "../../../../src/collective/communicator-inl.h"
+#include "../../../../src/common/linalg_op.h"  // for begin, end
+#include "../../helpers.h"
+#include "../../objective_helpers.h"  // for MakeObjNamesForTest, ObjTestNameGenerator
+#include "test_worker.h"
 
 namespace xgboost {
 namespace {
