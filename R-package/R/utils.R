@@ -86,7 +86,7 @@ check.booster.params <- function(params, deprecated_params, ...) {
   if (length(intersect(names(params),
                        names(dot_params))) > 0)
     stop("Same parameters in 'params' and in the call are not allowed. Please check your 'params' list.")
-  dot_params <- within(dot_params, rm(list=deprecated_params))  # Exclude deprecated params
+  dot_params <- within(dot_params, rm(list = deprecated_params))  # Exclude deprecated params
   params <- c(params, dot_params)
 
   # providing a parameter multiple times makes sense only for 'eval_metric'
