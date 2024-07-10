@@ -641,34 +641,3 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
 
     futures = client.map(run, range(len(workers)), workers=workers)
     client.gather(futures)
-
-
-async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
-    async with Client(scheduler_address, asynchronous=True) as client:
-        import cupy as cp
-
-        X, y, _ = generate_array()
-        X = X.map_blocks(cp.array)  # type: ignore
-        y = y.map_blocks(cp.array)  # type: ignore
-
-        m = await xgb.dask.DaskQuantileDMatrix(client, X, y)
-        output = await xgb.dask.train(
-            client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
-        )
-
-        with_m = await xgb.dask.predict(client, output, m)
-        with_X = await xgb.dask.predict(client, output, X)
-        inplace = await xgb.dask.inplace_predict(client, output, X)
-        assert isinstance(with_m, da.Array)
-        assert isinstance(with_X, da.Array)
-        assert isinstance(inplace, da.Array)
-
-        cp.testing.assert_allclose(
-            await client.compute(with_m), await client.compute(with_X)
-        )
-        cp.testing.assert_allclose(
-            await client.compute(with_m), await client.compute(inplace)
-        )
-
-        client.shutdown()
-        return output

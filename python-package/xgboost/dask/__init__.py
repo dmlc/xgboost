@@ -136,23 +136,6 @@ __all__ = [
 # TODOs:
 #   - CV
 #
-# Note for developers:
-#
-#   As of writing asyncio is still a new feature of Python and in depth documentation is
-#   rare.  Best examples of various asyncio tricks are in dask (luckily).  Classes like
-#   Client, Worker are awaitable.  Some general rules for the implementation here:
-#
-#     - Synchronous world is different from asynchronous one, and they don't mix well.
-#     - Write everything with async, then use distributed Client sync function to do the
-#       switch.
-#     - Use Any for type hint when the return value can be union of Awaitable and plain
-#       value.  This is caused by Client.sync can return both types depending on
-#       context.  Right now there's no good way to silent:
-#
-#         await train(...)
-#
-#       if train returns an Union type.
-
 
 LOGGER = logging.getLogger("[xgboost.dask]")
 
@@ -511,7 +494,7 @@ class DaskDMatrix:
 _MapRetT = TypeVar("_MapRetT")
 
 
-async def map_worker_partitions(
+def map_worker_partitions(
     client: Optional["distributed.Client"],
     func: Callable[..., _MapRetT],
     *refs: Any,
@@ -547,10 +530,9 @@ async def map_worker_partitions(
         return None
 
     bag = db.from_delayed(futures)
-    fut = await bag.reduction(first_valid, first_valid)
-    result = await client.compute(fut).result()
+    fut = client.compute(bag.reduction(first_valid, first_valid))
 
-    return result
+    return fut.result()
 
 
 _DataParts = List[Dict[str, Any]]
@@ -816,7 +798,7 @@ def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
     return _create_dmatrix(**kwargs)
 
 
-async def _get_rabit_args(
+def _get_rabit_args(
     n_workers: int, dconfig: Optional[Dict[str, Any]], client: "distributed.Client"
 ) -> Dict[str, Union[str, int]]:
     """Get rabit context arguments from data distribution in DaskDMatrix."""
@@ -856,9 +838,7 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
-    env = await client.run_on_scheduler(
-        _start_tracker, n_workers, sched_addr, user_addr
-    )
+    env = client.run_on_scheduler(_start_tracker, n_workers, sched_addr, user_addr)
     return env
 
 
@@ -886,16 +866,6 @@ def _get_workers_from_data(
             worker_map = set(e[0].worker_map.keys())
             X_worker_map = X_worker_map.union(worker_map)
     return list(X_worker_map)
-
-
-async def _check_workers_are_alive(
-    workers: List[str], client: "distributed.Client"
-) -> None:
-    info = await client.scheduler.identity()
-    current_workers = info["workers"].keys()
-    missing_workers = set(workers) - current_workers
-    if missing_workers:
-        raise RuntimeError(f"Missing required workers: {missing_workers}")
 
 
 def _get_dmatrices(
@@ -926,25 +896,59 @@ def _get_dmatrices(
     return Xy, evals
 
 
-async def _train_async(
+@_deprecate_positional_args
+def train(  # pylint: disable=unused-argument
     client: "distributed.Client",
-    global_config: Dict[str, Any],
-    dconfig: Optional[Dict[str, Any]],
     params: Dict[str, Any],
     dtrain: DaskDMatrix,
-    num_boost_round: int,
-    evals: Optional[Sequence[Tuple[DaskDMatrix, str]]],
-    obj: Optional[Objective],
-    feval: Optional[Metric],
-    early_stopping_rounds: Optional[int],
-    verbose_eval: Union[int, bool],
-    xgb_model: Optional[Booster],
-    callbacks: Optional[Sequence[TrainingCallback]],
-    custom_metric: Optional[Metric],
-) -> Optional[TrainReturnT]:
+    num_boost_round: int = 10,
+    *,
+    evals: Optional[Sequence[Tuple[DaskDMatrix, str]]] = None,
+    obj: Optional[Objective] = None,
+    feval: Optional[Metric] = None,
+    early_stopping_rounds: Optional[int] = None,
+    xgb_model: Optional[Booster] = None,
+    verbose_eval: Union[int, bool] = True,
+    callbacks: Optional[Sequence[TrainingCallback]] = None,
+    custom_metric: Optional[Metric] = None,
+) -> Any:
+    """Train XGBoost model.
+
+    .. versionadded:: 1.0.0
+
+    .. note::
+
+        Other parameters are the same as :py:func:`xgboost.train` except for
+        `evals_result`, which is returned as part of function return value instead of
+        argument.
+
+    Parameters
+    ----------
+    client :
+        Specify the dask client used for training.  Use default client returned from
+        dask if it's set to None.
+
+    Returns
+    -------
+    results: dict
+        A dictionary containing trained booster and evaluation history.  `history` field
+        is the same as `eval_result` from `xgboost.train`.
+
+        .. code-block:: python
+
+            {'booster': xgboost.Booster,
+             'history': {'train': {'logloss': ['0.48253', '0.35953']},
+                         'eval': {'logloss': ['0.480385', '0.357756']}}}
+
+    """
+    _assert_dask_support()
+    client = _xgb_get_client(client)
+    args = locals()
+    global_config = config.get_config()
+    dconfig = _get_dask_config()
+
     workers = _get_workers_from_data(dtrain, evals)
-    await _check_workers_are_alive(workers, client)
-    _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
+    _rabit_args = _get_rabit_args(len(workers), dconfig, client)
     _check_distributed_params(params)
 
     def dispatched_train(
@@ -999,7 +1003,7 @@ async def _train_async(
             ret = None
         return ret
 
-    async with distributed.MultiLock(workers, client):
+    with distributed.MultiLock(workers, client):
         if evals is not None:
             evals_data = [d for d, n in evals]
             evals_name = [n for d, n in evals]
@@ -1009,7 +1013,7 @@ async def _train_async(
             evals_name = []
             evals_id = []
 
-        result = await map_worker_partitions(
+        result = map_worker_partitions(
             client,
             dispatched_train,
             # extra function parameters
@@ -1023,62 +1027,6 @@ async def _train_async(
             workers=workers,
         )
         return result
-
-
-@_deprecate_positional_args
-def train(  # pylint: disable=unused-argument
-    client: "distributed.Client",
-    params: Dict[str, Any],
-    dtrain: DaskDMatrix,
-    num_boost_round: int = 10,
-    *,
-    evals: Optional[Sequence[Tuple[DaskDMatrix, str]]] = None,
-    obj: Optional[Objective] = None,
-    feval: Optional[Metric] = None,
-    early_stopping_rounds: Optional[int] = None,
-    xgb_model: Optional[Booster] = None,
-    verbose_eval: Union[int, bool] = True,
-    callbacks: Optional[Sequence[TrainingCallback]] = None,
-    custom_metric: Optional[Metric] = None,
-) -> Any:
-    """Train XGBoost model.
-
-    .. versionadded:: 1.0.0
-
-    .. note::
-
-        Other parameters are the same as :py:func:`xgboost.train` except for
-        `evals_result`, which is returned as part of function return value instead of
-        argument.
-
-    Parameters
-    ----------
-    client :
-        Specify the dask client used for training.  Use default client returned from
-        dask if it's set to None.
-
-    Returns
-    -------
-    results: dict
-        A dictionary containing trained booster and evaluation history.  `history` field
-        is the same as `eval_result` from `xgboost.train`.
-
-        .. code-block:: python
-
-            {'booster': xgboost.Booster,
-             'history': {'train': {'logloss': ['0.48253', '0.35953']},
-                         'eval': {'logloss': ['0.480385', '0.357756']}}}
-
-    """
-    _assert_dask_support()
-    client = _xgb_get_client(client)
-    args = locals()
-    return client.sync(
-        _train_async,
-        global_config=config.get_config(),
-        dconfig=_get_dask_config(),
-        **args,
-    )
 
 
 def _can_output_df(is_df: bool, output_shape: Tuple) -> bool:
@@ -1114,7 +1062,7 @@ def _maybe_dataframe(
     return prediction
 
 
-async def _direct_predict_impl(  # pylint: disable=too-many-branches
+def _direct_predict_impl(  # pylint: disable=too-many-branches
     mapped_predict: Callable,
     booster: "distributed.Future",
     data: _DataT,
@@ -1220,15 +1168,16 @@ def _infer_predict_output(
     return test_predt.shape, meta
 
 
-async def _get_model_future(
-    client: "distributed.Client", model: Union[Booster, Dict, "distributed.Future"]
+def _get_model_future(
+    client: "distributed.Client",
+    model: Union[TrainReturnT, Booster, "distributed.Future"],
 ) -> "distributed.Future":
     # See https://github.com/dask/dask/issues/11179#issuecomment-2168094529 for
     # the use of hash.
     if isinstance(model, Booster):
-        booster = await client.scatter(model, broadcast=True, hash=False)
+        booster = client.scatter(model, broadcast=True, hash=False)
     elif isinstance(model, dict):
-        booster = await client.scatter(model["booster"], broadcast=True, hash=False)
+        booster = client.scatter(model["booster"], broadcast=True, hash=False)
     elif isinstance(model, distributed.Future):
         booster = model
         t = booster.type
@@ -1241,23 +1190,59 @@ async def _get_model_future(
     return booster
 
 
-# pylint: disable=too-many-statements
-async def _predict_async(
-    client: "distributed.Client",
-    global_config: Dict[str, Any],
-    model: Union[Booster, Dict, "distributed.Future"],
-    data: _DataT,
-    output_margin: bool,
-    missing: float,
-    pred_leaf: bool,
-    pred_contribs: bool,
-    approx_contribs: bool,
-    pred_interactions: bool,
-    validate_features: bool,
-    iteration_range: IterationRange,
-    strict_shape: bool,
-) -> _DaskCollection:
-    _booster = await _get_model_future(client, model)
+def predict(  # pylint: disable=unused-argument
+    client: Optional["distributed.Client"],
+    model: Union[TrainReturnT, Booster, "distributed.Future"],
+    data: Union[DaskDMatrix, _DataT],
+    output_margin: bool = False,
+    missing: float = numpy.nan,
+    pred_leaf: bool = False,
+    pred_contribs: bool = False,
+    approx_contribs: bool = False,
+    pred_interactions: bool = False,
+    validate_features: bool = True,
+    iteration_range: IterationRange = (0, 0),
+    strict_shape: bool = False,
+) -> Any:
+    """Run prediction with a trained booster.
+
+    .. note::
+
+        Using ``inplace_predict`` might be faster when some features are not needed.
+        See :py:meth:`xgboost.Booster.predict` for details on various parameters.  When
+        output has more than 2 dimensions (shap value, leaf with strict_shape), input
+        should be ``da.Array`` or ``DaskDMatrix``.
+
+    .. versionadded:: 1.0.0
+
+    Parameters
+    ----------
+    client:
+        Specify the dask client used for training.  Use default client
+        returned from dask if it's set to None.
+    model:
+        The trained model.  It can be a distributed.Future so user can
+        pre-scatter it onto all workers.
+    data:
+        Input data used for prediction.  When input is a dataframe object,
+        prediction output is a series.
+    missing:
+        Used when input data is not DaskDMatrix.  Specify the value
+        considered as missing.
+
+    Returns
+    -------
+    prediction: dask.array.Array/dask.dataframe.Series
+        When input data is ``dask.array.Array`` or ``DaskDMatrix``, the return value is
+        an array, when input data is ``dask.dataframe.DataFrame``, return value can be
+        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame``, depending on the output
+        shape.
+
+    """
+    _assert_dask_support()
+    client = _xgb_get_client(client)
+    _booster = _get_model_future(client, model)
+    global_config = config.get_config()
     if not isinstance(data, (DaskDMatrix, da.Array, dd.DataFrame)):
         raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame], type(data)))
 
@@ -1286,31 +1271,11 @@ async def _predict_async(
 
     # Predict on dask collection directly.
     if isinstance(data, (da.Array, dd.DataFrame)):
-        _output_shape, meta = await client.compute(
-            client.submit(
-                _infer_predict_output,
-                _booster,
-                features=data.shape[1],
-                is_df=isinstance(data, dd.DataFrame),
-                inplace=False,
-                output_margin=output_margin,
-                pred_leaf=pred_leaf,
-                pred_contribs=pred_contribs,
-                approx_contribs=approx_contribs,
-                pred_interactions=pred_interactions,
-                strict_shape=strict_shape,
-            )
-        )
-        return await _direct_predict_impl(
-            mapped_predict, _booster, data, None, _output_shape, meta
-        )
-
-    output_shape, _ = await client.compute(
-        client.submit(
+        _output_shape, meta = client.submit(
             _infer_predict_output,
-            booster=_booster,
-            features=data.num_col(),
-            is_df=False,
+            _booster,
+            features=data.shape[1],
+            is_df=isinstance(data, dd.DataFrame),
             inplace=False,
             output_margin=output_margin,
             pred_leaf=pred_leaf,
@@ -1318,8 +1283,24 @@ async def _predict_async(
             approx_contribs=approx_contribs,
             pred_interactions=pred_interactions,
             strict_shape=strict_shape,
+        ).result()
+        return _direct_predict_impl(
+            mapped_predict, _booster, data, None, _output_shape, meta
         )
-    )
+
+    output_shape, _ = client.submit(
+        _infer_predict_output,
+        booster=_booster,
+        features=data.num_col(),
+        is_df=False,
+        inplace=False,
+        output_margin=output_margin,
+        pred_leaf=pred_leaf,
+        pred_contribs=pred_contribs,
+        approx_contribs=approx_contribs,
+        pred_interactions=pred_interactions,
+        strict_shape=strict_shape,
+    ).result()
     # Prediction on dask DMatrix.
     partition_order = data.partition_order
     feature_names = data.feature_names
@@ -1379,7 +1360,7 @@ async def _predict_async(
     # Constructing a dask array from list of numpy arrays
     # See https://docs.dask.org/en/latest/array-creation.html
     arrays = []
-    all_shapes = await client.gather(all_shapes)
+    all_shapes = client.gather(all_shapes)
     for i, rows in enumerate(all_shapes):
         arrays.append(
             da.from_delayed(
@@ -1388,119 +1369,6 @@ async def _predict_async(
         )
     predictions = da.concatenate(arrays, axis=0)
     return predictions
-
-
-def predict(  # pylint: disable=unused-argument
-    client: Optional["distributed.Client"],
-    model: Union[TrainReturnT, Booster, "distributed.Future"],
-    data: Union[DaskDMatrix, _DataT],
-    output_margin: bool = False,
-    missing: float = numpy.nan,
-    pred_leaf: bool = False,
-    pred_contribs: bool = False,
-    approx_contribs: bool = False,
-    pred_interactions: bool = False,
-    validate_features: bool = True,
-    iteration_range: IterationRange = (0, 0),
-    strict_shape: bool = False,
-) -> Any:
-    """Run prediction with a trained booster.
-
-    .. note::
-
-        Using ``inplace_predict`` might be faster when some features are not needed.
-        See :py:meth:`xgboost.Booster.predict` for details on various parameters.  When
-        output has more than 2 dimensions (shap value, leaf with strict_shape), input
-        should be ``da.Array`` or ``DaskDMatrix``.
-
-    .. versionadded:: 1.0.0
-
-    Parameters
-    ----------
-    client:
-        Specify the dask client used for training.  Use default client
-        returned from dask if it's set to None.
-    model:
-        The trained model.  It can be a distributed.Future so user can
-        pre-scatter it onto all workers.
-    data:
-        Input data used for prediction.  When input is a dataframe object,
-        prediction output is a series.
-    missing:
-        Used when input data is not DaskDMatrix.  Specify the value
-        considered as missing.
-
-    Returns
-    -------
-    prediction: dask.array.Array/dask.dataframe.Series
-        When input data is ``dask.array.Array`` or ``DaskDMatrix``, the return value is
-        an array, when input data is ``dask.dataframe.DataFrame``, return value can be
-        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame``, depending on the output
-        shape.
-
-    """
-    _assert_dask_support()
-    client = _xgb_get_client(client)
-    return client.sync(_predict_async, global_config=config.get_config(), **locals())
-
-
-async def _inplace_predict_async(  # pylint: disable=too-many-branches
-    client: "distributed.Client",
-    global_config: Dict[str, Any],
-    model: Union[Booster, Dict, "distributed.Future"],
-    data: _DataT,
-    iteration_range: IterationRange,
-    predict_type: str,
-    missing: float,
-    validate_features: bool,
-    base_margin: Optional[_DaskCollection],
-    strict_shape: bool,
-) -> _DaskCollection:
-    client = _xgb_get_client(client)
-    booster = await _get_model_future(client, model)
-    if not isinstance(data, (da.Array, dd.DataFrame)):
-        raise TypeError(_expect([da.Array, dd.DataFrame], type(data)))
-    if base_margin is not None and not isinstance(
-        data, (da.Array, dd.DataFrame, dd.Series)
-    ):
-        raise TypeError(_expect([da.Array, dd.DataFrame, dd.Series], type(base_margin)))
-
-    def mapped_predict(
-        booster: Booster,
-        partition: Any,
-        is_df: bool,
-        columns: List[int],
-        base_margin: Any,
-    ) -> Any:
-        with config.config_context(**global_config):
-            prediction = booster.inplace_predict(
-                partition,
-                iteration_range=iteration_range,
-                predict_type=predict_type,
-                missing=missing,
-                base_margin=base_margin,
-                validate_features=validate_features,
-                strict_shape=strict_shape,
-            )
-        prediction = _maybe_dataframe(partition, prediction, columns, is_df)
-        return prediction
-
-    # await turns future into value.
-    shape, meta = await client.compute(
-        client.submit(
-            _infer_predict_output,
-            booster,
-            features=data.shape[1],
-            is_df=isinstance(data, dd.DataFrame),
-            inplace=True,
-            predict_type=predict_type,
-            iteration_range=iteration_range,
-            strict_shape=strict_shape,
-        )
-    )
-    return await _direct_predict_impl(
-        mapped_predict, booster, data, base_margin, shape, meta
-    )
 
 
 def inplace_predict(  # pylint: disable=unused-argument
@@ -1556,15 +1424,51 @@ def inplace_predict(  # pylint: disable=unused-argument
     """
     _assert_dask_support()
     client = _xgb_get_client(client)
-    # When used in asynchronous environment, the `client` object should have
-    # `asynchronous` attribute as True.  When invoked by the skl interface, it's
-    # responsible for setting up the client.
-    return client.sync(
-        _inplace_predict_async, global_config=config.get_config(), **locals()
-    )
+    booster = _get_model_future(client, model)
+    if not isinstance(data, (da.Array, dd.DataFrame)):
+        raise TypeError(_expect([da.Array, dd.DataFrame], type(data)))
+    if base_margin is not None and not isinstance(
+        data, (da.Array, dd.DataFrame, dd.Series)
+    ):
+        raise TypeError(_expect([da.Array, dd.DataFrame, dd.Series], type(base_margin)))
+
+    global_config = config.get_config()
+
+    def mapped_predict(
+        booster: Booster,
+        partition: Any,
+        is_df: bool,
+        columns: List[int],
+        base_margin: Any,
+    ) -> Any:
+        with config.config_context(**global_config):
+            prediction = booster.inplace_predict(
+                partition,
+                iteration_range=iteration_range,
+                predict_type=predict_type,
+                missing=missing,
+                base_margin=base_margin,
+                validate_features=validate_features,
+                strict_shape=strict_shape,
+            )
+        prediction = _maybe_dataframe(partition, prediction, columns, is_df)
+        return prediction
+
+    # await turns future into value.
+    shape, meta = client.submit(
+        _infer_predict_output,
+        booster,
+        features=data.shape[1],
+        is_df=isinstance(data, dd.DataFrame),
+        inplace=True,
+        predict_type=predict_type,
+        iteration_range=iteration_range,
+        strict_shape=strict_shape,
+    ).result()
+    return _direct_predict_impl(mapped_predict, booster, data, base_margin, shape, meta)
 
 
-async def _async_wrap_evaluation_matrices(
+def _async_wrap_evaluation_matrices(
     client: Optional["distributed.Client"],
     tree_method: Optional[str],
     max_bin: Optional[int],
@@ -1580,7 +1484,6 @@ async def _async_wrap_evaluation_matrices(
         return DaskDMatrix(client=client, **kwargs)
 
     train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_dispatch, **kwargs)
-    train_dmatrix = await train_dmatrix
     if evals is None:
         return train_dmatrix, evals
     awaited = []
@@ -1588,7 +1491,7 @@ async def _async_wrap_evaluation_matrices(
         if e[0] is train_dmatrix:  # already awaited
             awaited.append(e)
             continue
-        awaited.append((await e[0], e[1]))
+        awaited.append((e[0], e[1]))
     return train_dmatrix, awaited
 
 
@@ -1609,46 +1512,6 @@ class DaskScikitLearnBase(XGBModel):
 
     _client = None
 
-    async def _predict_async(
-        self,
-        data: _DataT,
-        output_margin: bool,
-        validate_features: bool,
-        base_margin: Optional[_DaskCollection],
-        iteration_range: Optional[IterationRange],
-    ) -> Any:
-        iteration_range = self._get_iteration_range(iteration_range)
-        if self._can_use_inplace_predict():
-            predts = await inplace_predict(
-                client=self.client,
-                model=self.get_booster(),
-                data=data,
-                iteration_range=iteration_range,
-                predict_type="margin" if output_margin else "value",
-                missing=self.missing,
-                base_margin=base_margin,
-                validate_features=validate_features,
-            )
-            if isinstance(predts, dd.DataFrame):
-                predts = predts.to_dask_array()
-        else:
-            test_dmatrix = await DaskDMatrix(
-                self.client,
-                data=data,
-                base_margin=base_margin,
-                missing=self.missing,
-                feature_types=self.feature_types,
-            )
-            predts = await predict(
-                self.client,
-                model=self.get_booster(),
-                data=test_dmatrix,
-                output_margin=output_margin,
-                validate_features=validate_features,
-                iteration_range=iteration_range,
-            )
-        return predts
-
     def predict(
         self,
         X: _DataT,
@@ -1658,34 +1521,36 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         _assert_dask_support()
-        return self.client.sync(
-            self._predict_async,
-            X,
-            output_margin=output_margin,
-            validate_features=validate_features,
-            base_margin=base_margin,
-            iteration_range=iteration_range,
-        )
-
-    async def _apply_async(
-        self,
-        X: _DataT,
-        iteration_range: Optional[IterationRange] = None,
-    ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = await DaskDMatrix(
-            self.client,
-            data=X,
-            missing=self.missing,
-            feature_types=self.feature_types,
-        )
-        predts = await predict(
-            self.client,
-            model=self.get_booster(),
-            data=test_dmatrix,
-            pred_leaf=True,
-            iteration_range=iteration_range,
-        )
+        if self._can_use_inplace_predict():
+            predts = inplace_predict(
+                client=self.client,
+                model=self.get_booster(),
+                data=X,
+                iteration_range=iteration_range,
+                predict_type="margin" if output_margin else "value",
+                missing=self.missing,
+                base_margin=base_margin,
+                validate_features=validate_features,
+            )
+            if isinstance(predts, dd.DataFrame):
+                predts = predts.to_dask_array()
+        else:
+            test_dmatrix = DaskDMatrix(
+                self.client,
+                data=X,
+                base_margin=base_margin,
+                missing=self.missing,
+                feature_types=self.feature_types,
+            )
+            predts = predict(
+                self.client,
+                model=self.get_booster(),
+                data=test_dmatrix,
+                output_margin=output_margin,
+                validate_features=validate_features,
+                iteration_range=iteration_range,
+            )
         return predts
 
     def apply(
@@ -1694,14 +1559,21 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         _assert_dask_support()
-        return self.client.sync(self._apply_async, X, iteration_range=iteration_range)
-
-    def __await__(self) -> Awaitable[Any]:
-        # Generate a coroutine wrapper to make this class awaitable.
-        async def _() -> Awaitable[Any]:
-            return self
-
-        return self._client_sync(_).__await__()
+        iteration_range = self._get_iteration_range(iteration_range)
+        test_dmatrix = DaskDMatrix(
+            self.client,
+            data=X,
+            missing=self.missing,
+            feature_types=self.feature_types,
+        )
+        predts = predict(
+            self.client,
+            model=self.get_booster(),
+            data=test_dmatrix,
+            pred_leaf=True,
+            iteration_range=iteration_range,
+        )
+        return predts
 
     def __getstate__(self) -> Dict:
         this = self.__dict__.copy()
@@ -1727,30 +1599,6 @@ class DaskScikitLearnBase(XGBModel):
         self._asynchronous = clt.asynchronous if clt is not None else False
         self._client = clt
 
-    def _client_sync(self, func: Callable, **kwargs: Any) -> Any:
-        """Get the correct client, when method is invoked inside a worker we
-        should use `worker_client' instead of default client.
-
-        """
-
-        if self._client is None:
-            asynchronous = getattr(self, "_asynchronous", False)
-            try:
-                distributed.get_worker()
-                in_worker = True
-            except ValueError:
-                in_worker = False
-            if in_worker:
-                with distributed.worker_client() as client:
-                    with _set_worker_client(self, client) as this:
-                        ret = this.client.sync(
-                            func, **kwargs, asynchronous=asynchronous
-                        )
-                        return ret
-                    return ret
-
-        return self.client.sync(func, **kwargs, asynchronous=self.client.asynchronous)
-
 
 @xgboost_model_doc(
     """Implementation of the Scikit-Learn API for XGBoost.""", ["estimators", "model"]
@@ -1758,21 +1606,25 @@ class DaskScikitLearnBase(XGBModel):
 class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     """dummy doc string to workaround pylint, replaced by the decorator."""
 
-    async def _fit_async(
+    # pylint: disable=missing-docstring, disable=unused-argument
+    @_deprecate_positional_args
+    def fit(
         self,
         X: _DataT,
         y: _DaskCollection,
-        sample_weight: Optional[_DaskCollection],
-        base_margin: Optional[_DaskCollection],
-        eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
-        sample_weight_eval_set: Optional[Sequence[_DaskCollection]],
-        base_margin_eval_set: Optional[Sequence[_DaskCollection]],
-        verbose: Union[int, bool],
-        xgb_model: Optional[Union[Booster, XGBModel]],
-        feature_weights: Optional[_DaskCollection],
-    ) -> _DaskCollection:
+        *,
+        sample_weight: Optional[_DaskCollection] = None,
+        base_margin: Optional[_DaskCollection] = None,
+        eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
+        verbose: Union[int, bool] = True,
+        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
+        feature_weights: Optional[_DaskCollection] = None,
+    ) -> "DaskXGBRegressor":
+        _assert_dask_support()
         params = self.get_xgb_params()
-        dtrain, evals = await _async_wrap_evaluation_matrices(
+        dtrain, evals = _async_wrap_evaluation_matrices(
             client=self.client,
             tree_method=self.tree_method,
             max_bin=self.max_bin,
@@ -1798,12 +1650,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         else:
             obj = None
         model, metric, params = self._configure_fit(xgb_model, params)
-        results = await self.client.sync(
-            _train_async,
-            asynchronous=True,
+        results = train(
             client=self.client,
-            global_config=config.get_config(),
-            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1820,8 +1668,12 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         self._set_evaluation_result(results["history"])
         return self
 
-    # pylint: disable=missing-docstring, disable=unused-argument
-    @_deprecate_positional_args
+
+@xgboost_model_doc(
+    "Implementation of the scikit-learn API for XGBoost classification.",
+    ["estimators", "model"],
+)
+class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     def fit(
         self,
         X: _DataT,
@@ -1835,33 +1687,10 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
-    ) -> "DaskXGBRegressor":
-        _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
-        return self._client_sync(self._fit_async, **args)
-
-
-@xgboost_model_doc(
-    "Implementation of the scikit-learn API for XGBoost classification.",
-    ["estimators", "model"],
-)
-class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
-    # pylint: disable=missing-class-docstring
-    async def _fit_async(
-        self,
-        X: _DataT,
-        y: _DaskCollection,
-        sample_weight: Optional[_DaskCollection],
-        base_margin: Optional[_DaskCollection],
-        eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
-        sample_weight_eval_set: Optional[Sequence[_DaskCollection]],
-        base_margin_eval_set: Optional[Sequence[_DaskCollection]],
-        verbose: Union[int, bool],
-        xgb_model: Optional[Union[Booster, XGBModel]],
-        feature_weights: Optional[_DaskCollection],
     ) -> "DaskXGBClassifier":
+        _assert_dask_support()
         params = self.get_xgb_params()
-        dtrain, evals = await _async_wrap_evaluation_matrices(
+        dtrain, evals = _async_wrap_evaluation_matrices(
             self.client,
             tree_method=self.tree_method,
             max_bin=self.max_bin,
@@ -1884,9 +1713,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
         # pylint: disable=attribute-defined-outside-init
         if isinstance(y, da.Array):
-            self.classes_ = await self.client.compute(da.unique(y))
+            self.classes_ = self.client.compute(da.unique(y)).result()
         else:
-            self.classes_ = await self.client.compute(y.drop_duplicates())
+            self.classes_ = self.client.compute(y.drop_duplicates()).result()
         if _is_cudf_ser(self.classes_):
             self.classes_ = self.classes_.to_cupy()
         if _is_cupy_alike(self.classes_):
@@ -1905,12 +1734,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         else:
             obj = None
         model, metric, params = self._configure_fit(xgb_model, params)
-        results = await self.client.sync(
-            _train_async,
-            asynchronous=True,
+        results = train(
             client=self.client,
-            global_config=config.get_config(),
-            dconfig=_get_dask_config(),
             params=params,
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
@@ -1929,39 +1754,22 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self._set_evaluation_result(results["history"])
         return self
 
-    # pylint: disable=unused-argument
-    def fit(
+    # pylint: disable=missing-function-docstring
+    def predict_proba(
         self,
         X: _DataT,
-        y: _DaskCollection,
-        *,
-        sample_weight: Optional[_DaskCollection] = None,
+        validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None,
-        eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        verbose: Union[int, bool] = True,
-        xgb_model: Optional[Union[Booster, XGBModel]] = None,
-        sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
-        base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
-        feature_weights: Optional[_DaskCollection] = None,
-    ) -> "DaskXGBClassifier":
+        iteration_range: Optional[IterationRange] = None,
+    ) -> Any:
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
-        return self._client_sync(self._fit_async, **args)
-
-    async def _predict_proba_async(
-        self,
-        X: _DataT,
-        validate_features: bool,
-        base_margin: Optional[_DaskCollection],
-        iteration_range: Optional[IterationRange],
-    ) -> _DaskCollection:
         if self.objective == "multi:softmax":
             raise ValueError(
                 "multi:softmax doesn't support `predict_proba`.  "
                 "Switch to `multi:softproba` instead"
             )
-        predts = await super()._predict_async(
-            data=X,
+        predts = super().predict(
+            X=X,
             output_margin=False,
             validate_features=validate_features,
             base_margin=base_margin,
@@ -1972,35 +1780,18 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         )
         return _cls_predict_proba(getattr(self, "n_classes_", 0), predts, vstack)
 
-    # pylint: disable=missing-function-docstring
-    def predict_proba(
-        self,
-        X: _DaskCollection,
-        validate_features: bool = True,
-        base_margin: Optional[_DaskCollection] = None,
-        iteration_range: Optional[IterationRange] = None,
-    ) -> Any:
-        _assert_dask_support()
-        return self._client_sync(
-            self._predict_proba_async,
-            X=X,
-            validate_features=validate_features,
-            base_margin=base_margin,
-            iteration_range=iteration_range,
-        )
-
     predict_proba.__doc__ = XGBClassifier.predict_proba.__doc__
 
-    async def _predict_async(
+    def predict(
         self,
-        data: _DataT,
-        output_margin: bool,
-        validate_features: bool,
-        base_margin: Optional[_DaskCollection],
-        iteration_range: Optional[IterationRange],
+        X: _DataT,
+        output_margin: bool = False,
+        validate_features: bool= True,
+        base_margin: Optional[_DaskCollection] = None,
+        iteration_range: Optional[IterationRange] = None,
     ) -> _DaskCollection:
-        pred_probs = await super()._predict_async(
-            data, output_margin, validate_features, base_margin, iteration_range
+        pred_probs = super().predict(
+            X, output_margin, validate_features, base_margin, iteration_range
         )
         if output_margin:
             return pred_probs
@@ -2040,72 +1831,6 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             raise ValueError("Custom objective function not supported by XGBRanker.")
         super().__init__(objective=objective, **kwargs)
 
-    async def _fit_async(
-        self,
-        X: _DataT,
-        y: _DaskCollection,
-        group: Optional[_DaskCollection],
-        qid: Optional[_DaskCollection],
-        sample_weight: Optional[_DaskCollection],
-        base_margin: Optional[_DaskCollection],
-        eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
-        sample_weight_eval_set: Optional[Sequence[_DaskCollection]],
-        base_margin_eval_set: Optional[Sequence[_DaskCollection]],
-        eval_group: Optional[Sequence[_DaskCollection]],
-        eval_qid: Optional[Sequence[_DaskCollection]],
-        verbose: Union[int, bool],
-        xgb_model: Optional[Union[XGBModel, Booster]],
-        feature_weights: Optional[_DaskCollection],
-    ) -> "DaskXGBRanker":
-        msg = "Use `qid` instead of `group` on dask interface."
-        if not (group is None and eval_group is None):
-            raise ValueError(msg)
-        if qid is None:
-            raise ValueError("`qid` is required for ranking.")
-        params = self.get_xgb_params()
-        dtrain, evals = await _async_wrap_evaluation_matrices(
-            self.client,
-            tree_method=self.tree_method,
-            max_bin=self.max_bin,
-            X=X,
-            y=y,
-            group=None,
-            qid=qid,
-            sample_weight=sample_weight,
-            base_margin=base_margin,
-            feature_weights=feature_weights,
-            eval_set=eval_set,
-            sample_weight_eval_set=sample_weight_eval_set,
-            base_margin_eval_set=base_margin_eval_set,
-            eval_group=None,
-            eval_qid=eval_qid,
-            missing=self.missing,
-            enable_categorical=self.enable_categorical,
-            feature_types=self.feature_types,
-        )
-        model, metric, params = self._configure_fit(xgb_model, params)
-        results = await self.client.sync(
-            _train_async,
-            asynchronous=True,
-            client=self.client,
-            global_config=config.get_config(),
-            dconfig=_get_dask_config(),
-            params=params,
-            dtrain=dtrain,
-            num_boost_round=self.get_num_boosting_rounds(),
-            evals=evals,
-            obj=None,
-            feval=None,
-            custom_metric=metric,
-            verbose_eval=verbose,
-            early_stopping_rounds=self.early_stopping_rounds,
-            callbacks=self.callbacks,
-            xgb_model=model,
-        )
-        self._Booster = results["booster"]
-        self.evals_result_ = results["history"]
-        return self
-
     # pylint: disable=unused-argument, arguments-differ
     @_deprecate_positional_args
     def fit(
@@ -2127,8 +1852,50 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRanker":
         _assert_dask_support()
-        args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
-        return self._client_sync(self._fit_async, **args)
+        msg = "Use `qid` instead of `group` on dask interface."
+        if not (group is None and eval_group is None):
+            raise ValueError(msg)
+        if qid is None:
+            raise ValueError("`qid` is required for ranking.")
+        params = self.get_xgb_params()
+        dtrain, evals = _async_wrap_evaluation_matrices(
+            self.client,
+            tree_method=self.tree_method,
+            max_bin=self.max_bin,
+            X=X,
+            y=y,
+            group=None,
+            qid=qid,
+            sample_weight=sample_weight,
+            base_margin=base_margin,
+            feature_weights=feature_weights,
+            eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=None,
+            eval_qid=eval_qid,
+            missing=self.missing,
+            enable_categorical=self.enable_categorical,
+            feature_types=self.feature_types,
+        )
+        model, metric, params = self._configure_fit(xgb_model, params)
+        results = train(
+            client=self.client,
+            params=params,
+            dtrain=dtrain,
+            num_boost_round=self.get_num_boosting_rounds(),
+            evals=evals,
+            obj=None,
+            feval=None,
+            custom_metric=metric,
+            verbose_eval=verbose,
+            early_stopping_rounds=self.early_stopping_rounds,
+            callbacks=self.callbacks,
+            xgb_model=model,
+        )
+        self._Booster = results["booster"]
+        self.evals_result_ = results["history"]
+        return self
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and
     # qid.
