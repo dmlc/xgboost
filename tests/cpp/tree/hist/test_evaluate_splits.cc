@@ -329,7 +329,9 @@ void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
   HistMakerTrainParam hist_param;
   hist.Reset(gmat.cut.Ptrs().back(), hist_param.max_cached_hist_node);
   hist.AllocateHistograms({0});
-  common::BuildHist<false>(row_gpairs, row_set_collection[0], gmat, hist[0], force_read_by_column);
+  common::BuildHist<false>(row_gpairs,
+                           common::Span{row_set_collection[0].begin(), row_set_collection[0].end()},
+                           gmat, hist[0], force_read_by_column);
 
   // Compute total gradient for all data points
   GradientPairPrecise total_gpair;
@@ -338,9 +340,7 @@ void DoTestEvaluateSplitsSecure(bool force_read_by_column) {
   }
 
   RegTree tree;
-  std::vector<CPUExpandEntry> entries(1);
-  entries.front().nid = 0;
-  entries.front().depth = 0;
+  std::vector<CPUExpandEntry> entries(1, CPUExpandEntry{0, 1});
 
   evaluator.InitRoot(GradStats{total_gpair});
   evaluator.EvaluateSplits(hist, gmat.cut, {}, tree, &entries);
