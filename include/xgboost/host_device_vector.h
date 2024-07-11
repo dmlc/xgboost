@@ -137,7 +137,7 @@ class HostDeviceVector {
 
   void Resize(std::size_t new_size);
   /** @brief Resize and initialize the data if the new size is larger than the old size. */
-  void Resize(size_t new_size, T v);
+  void Resize(std::size_t new_size, T v);
 
   using value_type = T;  // NOLINT
 

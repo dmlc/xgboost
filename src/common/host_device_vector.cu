@@ -129,7 +129,7 @@ class HostDeviceVectorImpl {
 
   void Extend(HostDeviceVectorImpl* other) {
     auto ori_size = this->Size();
-    this->Resize(ori_size + other->Size(), T());
+    this->Resize(ori_size + other->Size(), T{});
     if (HostCanWrite() && other->HostCanRead()) {
       auto& h_vec = this->HostVector();
       auto& other_vec = other->HostVector();
@@ -172,7 +172,7 @@ class HostDeviceVectorImpl {
   }
 
   template <typename... U>
-  auto ResizeImpl(std::size_t new_size, U&&... args) {
+  auto Resize(std::size_t new_size, U&&... args) {
     if (new_size == Size()) {
       return;
     }
@@ -189,9 +189,6 @@ class HostDeviceVectorImpl {
       data_h_.resize(new_size, std::forward<U>(args)...);
     }
   }
-
-  void Resize(std::size_t new_size, T v) { this->ResizeImpl(new_size, v); }
-  void Resize(std::size_t new_size) { this->ResizeImpl(new_size); }
 
   void LazySyncHost(GPUAccess access) {
     if (HostCanAccess(access)) { return; }
@@ -410,7 +407,7 @@ void HostDeviceVector<T>::Resize(std::size_t new_size) {
 }
 
 template <typename T>
-void HostDeviceVector<T>::Resize(size_t new_size, T v) {
+void HostDeviceVector<T>::Resize(std::size_t new_size, T v) {
   impl_->Resize(new_size, v);
 }
 
