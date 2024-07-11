@@ -10,14 +10,14 @@ if(PLUGIN_SYCL)
     target_compile_definitions(plugin_sycl PUBLIC -DXGBOOST_USE_SYCL=1)
     target_link_libraries(plugin_sycl PUBLIC -fsycl)
     set_target_properties(plugin_sycl PROPERTIES
-    COMPILE_FLAGS -fsycl
+    COMPILE_FLAGS "-fsycl -fno-sycl-id-queries-fit-in-int"
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON)
   if(USE_OPENMP)
     find_package(OpenMP REQUIRED)
     set_target_properties(plugin_sycl PROPERTIES
-    COMPILE_FLAGS "-fsycl -qopenmp")
+    COMPILE_FLAGS "-fsycl -fno-sycl-id-queries-fit-in-int -qopenmp")
   endif()
   # Get compilation and link flags of plugin_sycl and propagate to objxgboost
   target_link_libraries(objxgboost PUBLIC plugin_sycl)

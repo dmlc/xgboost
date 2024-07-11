@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
@@ -22,12 +22,8 @@
 #include "xgboost/context.h"
 #include "xgboost/json.h"
 
-#if defined(XGBOOST_USE_FEDERATED)
-#include "../plugin/federated/test_worker.h"  // for TestFederatedGlobal
-#endif  // defined(XGBOOST_USE_FEDERATED)
-
 namespace xgboost::tree {
-TEST(GpuHist, DeviceHistogram) {
+TEST(GpuHist, DeviceHistogramStorage) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   dh::safe_cuda(cudaSetDevice(0));
   constexpr size_t kNBins = 128;
@@ -102,17 +98,17 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
-  for (auto &gp : gpair.HostVector()) {
-    bst_float grad = dist(&gen);
-    bst_float hess = dist(&gen);
-    gp = GradientPair(grad, hess);
+  for (auto& gp : gpair.HostVector()) {
+    float grad = dist(&gen);
+    float hess = dist(&gen);
+    gp = GradientPair{grad, hess};
   }
-  gpair.SetDevice(DeviceOrd::CUDA(0));
+  gpair.SetDevice(ctx.Device());
 
-  thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
-  maker.row_partitioner = std::make_unique<RowPartitioner>(FstCU(), kNRows);
+  thrust::host_vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
+  maker.row_partitioner = std::make_unique<RowPartitioner>(&ctx, kNRows, 0);
 
-  maker.hist.Init(FstCU(), page->Cuts().TotalBins());
+  maker.hist.Init(ctx.Device(), page->Cuts().TotalBins());
   maker.hist.AllocateHistograms({0});
 
   maker.gpair = gpair.DeviceSpan();
@@ -121,10 +117,13 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   maker.InitFeatureGroupsOnce();
 
-  BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(DeviceOrd::CUDA(0)),
-                         maker.feature_groups->DeviceAccessor(DeviceOrd::CUDA(0)), gpair.DeviceSpan(),
+  DeviceHistogramBuilder builder;
+  builder.Reset(&ctx, maker.feature_groups->DeviceAccessor(ctx.Device()),
+                !use_shared_memory_histograms);
+  builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+                         maker.feature_groups->DeviceAccessor(ctx.Device()), gpair.DeviceSpan(),
                          maker.row_partitioner->GetRows(0), maker.hist.GetNodeHistogram(0),
-                         *maker.quantiser, !use_shared_memory_histograms);
+                         *maker.quantiser);
 
   DeviceHistogramStorage<>& d_hist = maker.hist;
 

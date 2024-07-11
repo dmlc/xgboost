@@ -1,5 +1,5 @@
-Using XGBoost with RAPIDS Memory Manager (RMM) plugin (EXPERIMENTAL)
-====================================================================
+Using XGBoost with RAPIDS Memory Manager (RMM) plugin
+=====================================================
 
 `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ library provides a
 collection of efficient memory allocators for NVIDIA GPUs. It is now possible to use
@@ -47,5 +47,15 @@ the global configuration ``use_rmm``:
   with xgb.config_context(use_rmm=True):
     clf = xgb.XGBClassifier(tree_method="hist", device="cuda")
 
-Depending on the choice of memory pool size or type of allocator, this may have negative
-performance impact.
+Depending on the choice of memory pool size and the type of the allocator, this can add
+more consistency to memory usage but with slightly degraded performance impact.
+
+*******************************
+No Device Ordinal for Multi-GPU
+*******************************
+
+Since with RMM the memory pool is pre-allocated on a specific device, changing the CUDA
+device ordinal in XGBoost can result in memory error ``cudaErrorIllegalAddress``. Use the
+``CUDA_VISIBLE_DEVICES`` environment variable instead of the ``device="cuda:1"`` parameter
+for selecting device. For distributed training, the distributed computing frameworks like
+``dask-cuda`` are responsible for device management.

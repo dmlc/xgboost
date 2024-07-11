@@ -66,6 +66,6 @@ Imports:
     data.table (>= 1.9.6),
     jsonlite (>= 1.0)
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Encoding: UTF-8
 SystemRequirements: GNU make, C++17

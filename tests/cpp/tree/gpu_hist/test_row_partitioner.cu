@@ -1,25 +1,22 @@
-/*!
- * Copyright 2019-2022 by XGBoost Contributors
+/**
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/sequence.h>
 
-#include <algorithm>
-#include <vector>
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
+#include <vector>   // for vector
 
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/context.h"
-#include "xgboost/task.h"
-#include "xgboost/tree_model.h"
 
 namespace xgboost::tree {
 void TestUpdatePositionBatch() {
   const int kNumRows = 10;
-  RowPartitioner rp(FstCU(), kNumRows);
+  auto ctx = MakeCUDACtx(0);
+  RowPartitioner rp{&ctx, kNumRows, 0};
   auto rows = rp.GetRowsHost(0);
   EXPECT_EQ(rows.size(), kNumRows);
   for (auto i = 0ull; i < kNumRows; i++) {

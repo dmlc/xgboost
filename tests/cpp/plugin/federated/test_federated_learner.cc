@@ -1,8 +1,7 @@
 /**
  * Copyright 2023-2024, XGBoost contributors
  *
- * Some other tests for federated learning are in the main test suite (test_learner.cc),
- * gaurded by the `XGBOOST_USE_FEDERATED`.
+ * Some other tests for federated learning are in the main test suite (test_learner.cc).
  */
 #include <dmlc/parameter.h>
 #include <gtest/gtest.h>

@@ -131,7 +131,7 @@ class MultiClassMetricsReduction {
                             const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (device.IsCPU()) {
+    if (!device.IsCUDA()) {
       result =
           CpuReduceMetrics(weights, labels, preds, n_class, ctx.Threads());
     }

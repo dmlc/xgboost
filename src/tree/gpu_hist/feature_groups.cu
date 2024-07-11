@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020 by XGBoost Contributors
+/**
+ * Copyright 2020-2024, XGBoost Contributors
  */
 
 #include <xgboost/base.h>
@@ -8,12 +8,9 @@
 
 #include "feature_groups.cuh"
 
-#include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 FeatureGroups::FeatureGroups(const common::HistogramCuts& cuts, bool is_dense,
                              size_t shm_size, size_t bin_size) {
   // Only use a single feature group for sparse matrices.
@@ -59,6 +56,4 @@ void FeatureGroups::InitSingle(const common::HistogramCuts& cuts) {
 
   max_group_bins = cuts.TotalBins();
 }
-
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

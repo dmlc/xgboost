@@ -179,14 +179,14 @@ class ColumnSampler {
 
     feature_set_tree_->SetDevice(ctx->Device());
     feature_set_tree_->Resize(num_col);
-    if (ctx->IsCPU()) {
-      std::iota(feature_set_tree_->HostVector().begin(), feature_set_tree_->HostVector().end(), 0);
-    } else {
+    if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
       cuda_impl::InitFeatureSet(ctx, feature_set_tree_);
 #else
       AssertGPUSupport();
 #endif
+    } else {
+      std::iota(feature_set_tree_->HostVector().begin(), feature_set_tree_->HostVector().end(), 0);
     }
 
     feature_set_tree_ = ColSample(feature_set_tree_, colsample_bytree_);
