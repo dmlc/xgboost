@@ -83,7 +83,7 @@ class ColumnSplitHelper {
     auto missing = make_tloc(this->tloc_missing_, 0);
     for (std::int32_t tidx = 1; tidx < n_threads; ++tidx) {
       decision |= make_tloc(this->tloc_decision_, tidx);
-      missing &= make_tloc(this->tloc_missing_, tidx);
+      missing |= make_tloc(this->tloc_missing_, tidx);
     }
     CHECK_EQ(decision_storage_.size(), decision.NumValues());
     std::copy_n(decision.Data(), decision_storage_.size(), decision_storage_.data());

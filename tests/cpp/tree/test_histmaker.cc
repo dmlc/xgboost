@@ -78,7 +78,6 @@ void VerifyColumnSplit(int32_t rows, bst_feature_t cols, bool categorical,
   linalg::Matrix<GradientPair> gpair({rows}, ctx.Device());
   gpair.Data()->Copy(GenerateRandomGradients(rows));
 
-
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
   std::vector<HostDeviceVector<bst_node_t>> position(1);
