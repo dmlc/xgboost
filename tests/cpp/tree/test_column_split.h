@@ -34,7 +34,7 @@ inline void TestColumnSplit(bst_target_t n_targets, bool categorical, std::strin
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
 
-  RegTree expected_tree{n_targets, kCols};
+  RegTree expected_tree{n_targets, static_cast<bst_feature_t>(kCols)};
   ObjInfo task{ObjInfo::kRegression};
   Context ctx;
   {
@@ -60,7 +60,7 @@ inline void TestColumnSplit(bst_target_t n_targets, bool categorical, std::strin
     std::unique_ptr<DMatrix> sliced{
         p_dmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
 
-    RegTree tree{n_targets, kCols};
+    RegTree tree{n_targets, static_cast<bst_feature_t>(kCols)};
     TrainParam param;
     param.Init(Args{});
     updater->Configure(Args{});
