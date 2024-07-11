@@ -85,8 +85,9 @@ class ColumnSplitHelper {
       decision |= make_tloc(this->tloc_decision_, tidx);
       missing &= make_tloc(this->tloc_missing_, tidx);
     }
-    std::copy_n(decision.Data(), decision.Capacity(), decision_storage_.data());
-    std::copy_n(missing.Data(), missing.Capacity(), missing_storage_.data());
+    CHECK_EQ(decision_storage_.size(), decision.NumValues());
+    std::copy_n(decision.Data(), decision_storage_.size(), decision_storage_.data());
+    std::copy_n(missing.Data(), missing_storage_.size(), missing_storage_.data());
 
     // Then aggregate the bit vectors across all the workers.
     auto rc = collective::Success() << [&] {
