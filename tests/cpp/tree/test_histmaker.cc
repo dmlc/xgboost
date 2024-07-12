@@ -1,32 +1,19 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/tree_model.h>
 #include <xgboost/tree_updater.h>
 
-#include "../../../src/tree/param.h"    // for TrainParam
-#include "../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
+#include "test_column_split.h"  // for GenerateCatDMatrix
 
 namespace xgboost::tree {
-std::shared_ptr<DMatrix> GenerateDMatrix(std::size_t rows, std::size_t cols,
-                                         bool categorical = false) {
-  if (categorical) {
-    std::vector<FeatureType> ft(cols);
-    for (size_t i = 0; i < ft.size(); ++i) {
-      ft[i] = (i % 3 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
-    }
-    return RandomDataGenerator(rows, cols, 0.6f).Seed(3).Type(ft).MaxCategory(17).GenerateDMatrix();
-  } else {
-    return RandomDataGenerator{rows, cols, 0.6f}.Seed(3).GenerateDMatrix();
-  }
-}
-
 TEST(GrowHistMaker, InteractionConstraint) {
   auto constexpr kRows = 32;
   auto constexpr kCols = 16;
-  auto p_dmat = GenerateDMatrix(kRows, kCols);
+  auto p_dmat = GenerateCatDMatrix(kRows, kCols, 0.0, false);
   Context ctx;
 
   linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
@@ -69,62 +56,4 @@ TEST(GrowHistMaker, InteractionConstraint) {
     ASSERT_NE(tree[tree[0].RightChild()].SplitIndex(), 0);
   }
 }
-
-namespace {
-void VerifyColumnSplit(int32_t rows, bst_feature_t cols, bool categorical,
-                       RegTree const& expected_tree) {
-  Context ctx;
-  auto p_dmat = GenerateDMatrix(rows, cols, categorical);
-  linalg::Matrix<GradientPair> gpair({rows}, ctx.Device());
-  gpair.Data()->Copy(GenerateRandomGradients(rows));
-
-
-  ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
-  std::vector<HostDeviceVector<bst_node_t>> position(1);
-
-  std::unique_ptr<DMatrix> sliced{
-      p_dmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-
-  RegTree tree{1u, cols};
-  TrainParam param;
-  param.Init(Args{});
-  updater->Configure(Args{});
-  updater->Update(&param, &gpair, sliced.get(), position, {&tree});
-
-  Json json{Object{}};
-  tree.SaveModel(&json);
-  Json expected_json{Object{}};
-  expected_tree.SaveModel(&expected_json);
-  ASSERT_EQ(json, expected_json);
-}
-
-void TestColumnSplit(bool categorical) {
-  auto constexpr kRows = 32;
-  auto constexpr kCols = 16;
-
-  RegTree expected_tree{1u, kCols};
-  ObjInfo task{ObjInfo::kRegression};
-  {
-    Context ctx;
-    auto p_dmat = GenerateDMatrix(kRows, kCols, categorical);
-    linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
-    gpair.Data()->Copy(GenerateRandomGradients(kRows));
-    std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_histmaker", &ctx, &task)};
-    std::vector<HostDeviceVector<bst_node_t>> position(1);
-    TrainParam param;
-    param.Init(Args{});
-    updater->Configure(Args{});
-    updater->Update(&param, &gpair, p_dmat.get(), position, {&expected_tree});
-  }
-
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(
-      kWorldSize, [&] { VerifyColumnSplit(kRows, kCols, categorical, expected_tree); });
-}
-}  // anonymous namespace
-
-TEST(GrowHistMaker, ColumnSplitNumerical) { TestColumnSplit(false); }
-
-TEST(GrowHistMaker, ColumnSplitCategorical) { TestColumnSplit(true); }
 }  // namespace xgboost::tree
