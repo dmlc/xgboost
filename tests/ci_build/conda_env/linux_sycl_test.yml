@@ -1,7 +1,7 @@
 name: linux_sycl_test
 channels:
 - conda-forge
-- intel
+- https://software.repos.intel.com/python/conda/
 dependencies:
 - python=3.8
 - cmake
