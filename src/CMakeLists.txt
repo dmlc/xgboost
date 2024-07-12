@@ -9,7 +9,6 @@ target_sources(objxgboost PRIVATE ${CPU_SOURCES})
 set_source_files_properties(
   predictor/predictor.cc gbm/gbm.cc tree/tree_updater.cc metric/metric.cc objective/objective.cc
   PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
-target_sources(objxgboost PRIVATE ${RABIT_SOURCES})
 
 if(USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
@@ -23,8 +22,7 @@ endif()
 target_include_directories(objxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include
-  ${xgboost_SOURCE_DIR}/dmlc-core/include
-  ${xgboost_SOURCE_DIR}/rabit/include)
+  ${xgboost_SOURCE_DIR}/dmlc-core/include)
 
 if(LOG_CAPI_INVOCATION)
   target_compile_definitions(objxgboost PRIVATE -DLOG_CAPI_INVOCATION=1)

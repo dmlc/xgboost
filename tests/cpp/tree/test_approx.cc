@@ -6,6 +6,7 @@
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
+#include "test_column_split.h"  // for TestColumnSplit
 #include "test_partitioner.h"
 
 namespace xgboost::tree {
@@ -154,4 +155,26 @@ TEST(Approx, PartitionerColSplit) {
                                mid_partitioner);
   });
 }
+
+namespace {
+class TestApproxColSplit : public ::testing::TestWithParam<std::tuple<bool, float>> {
+ public:
+  void Run() {
+    auto [categorical, sparsity] = GetParam();
+    TestColumnSplit(1u, categorical, "grow_histmaker", sparsity);
+  }
+};
+}  // namespace
+
+TEST_P(TestApproxColSplit, Basic) { this->Run(); }
+
+INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestApproxColSplit, ::testing::ValuesIn([]() {
+                           std::vector<std::tuple<bool, float>> params;
+                           for (auto categorical : {true, false}) {
+                             for (auto sparsity : {0.0f, 0.6f}) {
+                               params.emplace_back(categorical, sparsity);
+                             }
+                           }
+                           return params;
+                         }()));
 }  // namespace xgboost::tree

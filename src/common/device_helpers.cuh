@@ -1,26 +1,21 @@
 /**
- * Copyright 2017-2023 XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #pragma once
-#include <thrust/binary_search.h>  // thrust::upper_bound
-#include <thrust/device_malloc_allocator.h>
-#include <thrust/device_ptr.h>
-#include <thrust/device_vector.h>
+#include <thrust/binary_search.h>                       // thrust::upper_bound
+#include <thrust/device_ptr.h>                          // for device_ptr
+#include <thrust/device_vector.h>                       // for device_vector
 #include <thrust/execution_policy.h>                    // thrust::seq
-#include <thrust/gather.h>                              // gather
-#include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/discard_iterator.h>           // for discard_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // make_transform_output_iterator
-#include <thrust/logical.h>
-#include <thrust/sequence.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
-#include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 
 #include <algorithm>
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
-#include <cub/util_allocator.cuh>
+#include <cub/util_type.cuh>  // for UnitWord
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -28,22 +23,14 @@
 
 #include "../collective/communicator-inl.h"
 #include "common.h"
+#include "device_vector.cuh"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
 
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include "rmm/mr/device/per_device_resource.hpp"
-#include "rmm/mr/device/thrust_allocator_adaptor.hpp"
-#include "rmm/version_config.hpp"
-
-#if !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
-#error "Please use RMM version 0.18 or later"
-#elif RMM_VERSION_MAJOR == 0 && RMM_VERSION_MINOR < 18
-#error "Please use RMM version 0.18 or later"
-#endif  // !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
-
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#if defined(XGBOOST_USE_RMM)
+#include <rmm/exec_policy.hpp>
+#endif  // defined(XGBOOST_USE_RMM)
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
 
@@ -285,91 +272,6 @@ void Iota(Container array, cudaStream_t stream) {
   LaunchN(array.size(), stream, [=] __device__(size_t i) { array[i] = i; });
 }
 
-namespace detail {
-/** \brief Keeps track of global device memory allocations. Thread safe.*/
-class MemoryLogger {
-  // Information for a single device
-  struct DeviceStats {
-    size_t currently_allocated_bytes{ 0 };
-    size_t peak_allocated_bytes{ 0 };
-    size_t num_allocations{ 0 };
-    size_t num_deallocations{ 0 };
-    std::map<void *, size_t> device_allocations;
-    void RegisterAllocation(void *ptr, size_t n) {
-      device_allocations[ptr] = n;
-      currently_allocated_bytes += n;
-      peak_allocated_bytes = std::max(peak_allocated_bytes, currently_allocated_bytes);
-      num_allocations++;
-      CHECK_GT(num_allocations, num_deallocations);
-    }
-    void RegisterDeallocation(void *ptr, size_t n, int current_device) {
-      auto itr = device_allocations.find(ptr);
-      if (itr == device_allocations.end()) {
-        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
-                     << " that was never allocated\n"
-                     << dmlc::StackTrace();
-      } else {
-        num_deallocations++;
-        CHECK_LE(num_deallocations, num_allocations);
-        currently_allocated_bytes -= itr->second;
-        device_allocations.erase(itr);
-      }
-    }
-  };
-  DeviceStats stats_;
-  std::mutex mutex_;
-
-public:
-  void RegisterAllocation(void *ptr, size_t n) {
-    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-      return;
-    }
-    std::lock_guard<std::mutex> guard(mutex_);
-    int current_device;
-    safe_cuda(cudaGetDevice(&current_device));
-    stats_.RegisterAllocation(ptr, n);
-  }
-  void RegisterDeallocation(void *ptr, size_t n) {
-    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-      return;
-    }
-    std::lock_guard<std::mutex> guard(mutex_);
-    int current_device;
-    safe_cuda(cudaGetDevice(&current_device));
-    stats_.RegisterDeallocation(ptr, n, current_device);
-  }
-  size_t PeakMemory() const {
-    return stats_.peak_allocated_bytes;
-  }
-  size_t CurrentlyAllocatedBytes() const {
-    return stats_.currently_allocated_bytes;
-  }
-  void Clear()
-  {
-    stats_ = DeviceStats();
-  }
-
-  void Log() {
-    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-      return;
-    }
-    std::lock_guard<std::mutex> guard(mutex_);
-    int current_device;
-    safe_cuda(cudaGetDevice(&current_device));
-    LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
-      << " ========";
-    LOG(CONSOLE) << "Peak memory usage: "
-      << stats_.peak_allocated_bytes / 1048576 << "MiB";
-    LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
-  }
-};
-}  // namespace detail
-
-inline detail::MemoryLogger &GlobalMemoryLogger() {
-  static detail::MemoryLogger memory_logger;
-  return memory_logger;
-}
-
 // dh::DebugSyncDevice(__FILE__, __LINE__);
 inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
   if (file != "" && line != -1) {
@@ -379,134 +281,6 @@ inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
   safe_cuda(cudaDeviceSynchronize());
   safe_cuda(cudaGetLastError());
 }
-
-namespace detail {
-
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-template <typename T>
-using XGBBaseDeviceAllocator = rmm::mr::thrust_allocator<T>;
-#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-template <typename T>
-using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-
-inline void ThrowOOMError(std::string const& err, size_t bytes) {
-  auto device = CurrentDevice();
-  auto rank = xgboost::collective::GetRank();
-  std::stringstream ss;
-  ss << "Memory allocation error on worker " << rank << ": " << err << "\n"
-     << "- Free memory: " << AvailableMemory(device) << "\n"
-     << "- Requested memory: " << bytes << std::endl;
-  LOG(FATAL) << ss.str();
-}
-
-/**
- * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
- */
-template <class T>
-struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
-  using SuperT = XGBBaseDeviceAllocator<T>;
-  using pointer = thrust::device_ptr<T>;  // NOLINT
-  template<typename U>
-  struct rebind  // NOLINT
-  {
-    using other = XGBDefaultDeviceAllocatorImpl<U>;  // NOLINT
-  };
-  pointer allocate(size_t n) {  // NOLINT
-    pointer ptr;
-    try {
-      ptr = SuperT::allocate(n);
-      dh::safe_cuda(cudaGetLastError());
-    } catch (const std::exception &e) {
-      ThrowOOMError(e.what(), n * sizeof(T));
-    }
-    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
-    return ptr;
-  }
-  void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
-    SuperT::deallocate(ptr, n);
-  }
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  XGBDefaultDeviceAllocatorImpl()
-    : SuperT(rmm::cuda_stream_per_thread, rmm::mr::get_current_device_resource()) {}
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-};
-
-/**
- * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end, unless
- *        RMM pool allocator is enabled. Does not initialise memory on construction.
- */
-template <class T>
-struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
-  using SuperT = XGBBaseDeviceAllocator<T>;
-  using pointer = thrust::device_ptr<T>;  // NOLINT
-  template<typename U>
-  struct rebind  // NOLINT
-  {
-    using other = XGBCachingDeviceAllocatorImpl<U>;  // NOLINT
-  };
-  cub::CachingDeviceAllocator& GetGlobalCachingAllocator() {
-    // Configure allocator with maximum cached bin size of ~1GB and no limit on
-    // maximum cached bytes
-    thread_local std::unique_ptr<cub::CachingDeviceAllocator> allocator{
-        std::make_unique<cub::CachingDeviceAllocator>(2, 9, 29)};
-    return *allocator;
-  }
-  pointer allocate(size_t n) {  // NOLINT
-    pointer thrust_ptr;
-    if (use_cub_allocator_) {
-      T* raw_ptr{nullptr};
-      auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
-                                                              n * sizeof(T));
-      if (errc != cudaSuccess) {
-        ThrowOOMError("Caching allocator", n * sizeof(T));
-      }
-      thrust_ptr = pointer(raw_ptr);
-    } else {
-      try {
-        thrust_ptr = SuperT::allocate(n);
-        dh::safe_cuda(cudaGetLastError());
-      } catch (const std::exception &e) {
-        ThrowOOMError(e.what(), n * sizeof(T));
-      }
-    }
-    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
-    return thrust_ptr;
-  }
-  void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
-    if (use_cub_allocator_) {
-      GetGlobalCachingAllocator().DeviceFree(ptr.get());
-    } else {
-      SuperT::deallocate(ptr, n);
-    }
-  }
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  XGBCachingDeviceAllocatorImpl()
-      : SuperT(rmm::cuda_stream_per_thread, rmm::mr::get_current_device_resource()),
-        use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  XGBOOST_DEVICE void construct(T *) {}  // NOLINT
- private:
-  bool use_cub_allocator_{true};
-};
-}  // namespace detail
-
-// Declare xgboost allocators
-// Replacement of allocator with custom backend should occur here
-template <typename T>
-using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
-/*! Be careful that the initialization constructor is a no-op, which means calling
- *  `vec.resize(n)` won't initialize the memory region to 0. Instead use
- * `vec.resize(n, 0)`*/
-template <typename T>
-using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
-/** \brief Specialisation of thrust device vector using custom allocator. */
-template <typename T>
-using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;  // NOLINT
-template <typename T>
-using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocator<T>>;  // NOLINT
 
 // Faster to instantiate than caching_device_vector and invokes no synchronisation
 // Use this where vector functionality (e.g. resize) is not required
@@ -732,6 +506,11 @@ template <typename T>
 xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
                                 size_t offset, size_t size) {
   return ToSpan(vec, offset, size);
+}
+
+template <typename T>
+xgboost::common::Span<T> ToSpan(DeviceUVector<T> &vec) {
+  return {thrust::raw_pointer_cast(vec.data()), vec.size()};
 }
 
 // thrust begin, similiar to std::begin
@@ -1116,6 +895,15 @@ class CUDAStream {
 
   void Sync() { this->View().Sync(); }
 };
+
+inline auto CachingThrustPolicy() {
+  XGBCachingDeviceAllocator<char> alloc;
+#if THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
+  return thrust::cuda::par_nosync(alloc).on(DefaultStream());
+#else
+  return thrust::cuda::par(alloc).on(DefaultStream());
+#endif  // THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
+}
 
 // Force nvcc to load data as constant
 template <typename T>

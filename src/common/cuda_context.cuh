@@ -18,7 +18,7 @@ struct CUDAContext {
    * \brief Caching thrust policy.
    */
   auto CTP() const {
-#if THRUST_MAJOR_VERSION >= 2
+#if THRUST_MAJOR_VERSION >= 2 || defined(XGBOOST_USE_RMM)
     return thrust::cuda::par_nosync(caching_alloc_).on(dh::DefaultStream());
 #else
     return thrust::cuda::par(caching_alloc_).on(dh::DefaultStream());
