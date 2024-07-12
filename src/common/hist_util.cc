@@ -201,7 +201,7 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
 
   auto const &row_ptr = gmat.row_ptr.data();
   auto base_rowid = gmat.base_rowid;
-  uint32_t const *offsets = gmat.index.Offset();
+  std::uint32_t const *offsets = gmat.index.Offset();
   // There's no feature-based compression if missing value is present.
   if (kAnyMissing) {
     CHECK(!offsets);
@@ -212,8 +212,11 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair,
   auto get_row_ptr = [&](bst_idx_t ridx) {
     return kFirstPage ? row_ptr[ridx] : row_ptr[ridx - base_rowid];
   };
-  auto get_rid = [&](bst_idx_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
+  auto get_rid = [&](bst_idx_t ridx) {
+    return kFirstPage ? ridx : (ridx - base_rowid);
+  };
 
+  CHECK_NE(row_indices.Size(), 0);
   const size_t n_features =
       get_row_ptr(row_indices.begin[0] + 1) - get_row_ptr(row_indices.begin[0]);
   auto hist_data = reinterpret_cast<double *>(hist.data());
@@ -325,16 +328,20 @@ void BuildHistDispatch(Span<GradientPair const> gpair, const RowSetCollection::E
 
     if (contiguousBlock) {
       // contiguous memory access, built-in HW prefetching is enough
+      if (row_indices.Size() == 0) {
+        return;
+      }
       RowsWiseBuildHistKernel<false, BuildingManager>(gpair, row_indices, gmat, hist);
     } else {
-      const RowSetCollection::Elem span1(row_indices.begin,
-                                        row_indices.end - no_prefetch_size);
-      const RowSetCollection::Elem span2(row_indices.end - no_prefetch_size,
-                                        row_indices.end);
-
-      RowsWiseBuildHistKernel<true, BuildingManager>(gpair, span1, gmat, hist);
+      const RowSetCollection::Elem span1(row_indices.begin, row_indices.end - no_prefetch_size);
+      if (span1.Size() != 0) {
+        RowsWiseBuildHistKernel<true, BuildingManager>(gpair, span1, gmat, hist);
+      }
       // no prefetching to avoid loading extra memory
-      RowsWiseBuildHistKernel<false, BuildingManager>(gpair, span2, gmat, hist);
+      const RowSetCollection::Elem span2(row_indices.end - no_prefetch_size, row_indices.end);
+      if (span2.Size() != 0) {
+        RowsWiseBuildHistKernel<false, BuildingManager>(gpair, span2, gmat, hist);
+      }
     }
   }
 }
