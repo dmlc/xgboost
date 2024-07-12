@@ -7,11 +7,13 @@
 #include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 
 #include <algorithm>  // for max
+#include <type_traits>
 #include <vector>     // for vector
 
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
 #include "xgboost/context.h"                // for Context
+#include "xgboost/span.h"
 
 namespace xgboost {
 namespace tree {
@@ -336,9 +338,9 @@ class RowPartitioner {
     constexpr int kBlockSize = 512;
     const int kItemsThread = 8;
     const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
-    common::Span<const RowIndexT> d_ridx(ridx_.data().get(), ridx_.size());
-    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0>>>(
-        dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
+    common::Span<RowIndexT const> d_ridx{thrust::raw_pointer_cast(ridx_.data()), ridx_.size()};
+    FinalisePositionKernel<kBlockSize>
+        <<<grid_size, kBlockSize, 0>>>(dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
   }
 };
 
