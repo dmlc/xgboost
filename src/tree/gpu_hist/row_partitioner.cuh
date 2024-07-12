@@ -7,13 +7,12 @@
 #include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 
 #include <algorithm>  // for max
-#include <type_traits>
 #include <vector>     // for vector
 
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
 #include "xgboost/context.h"                // for Context
-#include "xgboost/span.h"
+#include "xgboost/span.h"                   // for Span
 
 namespace xgboost {
 namespace tree {
