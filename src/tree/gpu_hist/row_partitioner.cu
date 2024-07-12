@@ -11,8 +11,10 @@
 
 namespace xgboost::tree {
 RowPartitioner::RowPartitioner(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid)
-    : device_idx_(ctx->Device()), ridx_(n_samples), ridx_tmp_(n_samples) {
+    : device_idx_{ctx->Device()} {
   dh::safe_cuda(cudaSetDevice(device_idx_.ordinal));
+  ridx_.Resize(n_samples);
+  ridx_tmp_.Resize(n_samples);
   ridx_segments_.emplace_back(NodePositionInfo{Segment(0, n_samples)});
   thrust::sequence(ctx->CUDACtx()->CTP(), ridx_.data(), ridx_.data() + ridx_.size(), base_rowid);
 }

@@ -215,9 +215,9 @@ class RowPartitioner {
    * node id  |    1    |    2   |
    * rows idx | 3, 5, 1 | 13, 31 |
    */
-  dh::TemporaryArray<RowIndexT> ridx_;
+  dh::DeviceUVector<RowIndexT> ridx_;
   // Staging area for sorting ridx
-  dh::TemporaryArray<RowIndexT> ridx_tmp_;
+  dh::DeviceUVector<RowIndexT> ridx_tmp_;
   dh::device_vector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
