@@ -14,6 +14,8 @@ Global Configuration
 
 .. autofunction:: xgboost.get_config
 
+.. autofunction:: xgboost.build_info
+
 Core Data Structure
 -------------------
 .. automodule:: xgboost.core

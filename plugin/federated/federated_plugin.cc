@@ -79,7 +79,7 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
     auto hist_raw = hist_buffer.subspan(i * hist_size, hist_size);
     auto hist =
         common::Span{reinterpret_cast<GradientPairPrecise*>(hist_raw.data()), hist_raw.size() / 2};
-    common::RowSetCollection::Elem row_indices{rowptrs[i], rowptrs[i] + sizes[i], nids[i]};
+    common::Span row_indices{rowptrs[i], rowptrs[i] + sizes[i]};
     if (gmat_.IsDense()) {
       common::BuildHist<false>(gpair, row_indices, gmat_, hist, false);
     } else {

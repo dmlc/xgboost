@@ -9,6 +9,9 @@ void GradientIndexPageSource::Fetch() {
     if (count_ != 0 && !sync_) {
       // source is initialized to be the 0th page during construction, so when count_ is 0
       // there's no need to increment the source.
+      //
+      // The mixin doesn't sync the source if `sync_` is false, we need to sync it
+      // ourselves.
       ++(*source_);
     }
     // This is not read from cache so we still need it to be synced with sparse page source.

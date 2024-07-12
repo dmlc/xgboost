@@ -98,6 +98,7 @@ class LintersPaths:
         "tests/python/test_model_io.py",
         "tests/test_distributed/test_federated/",
         "tests/test_distributed/test_gpu_federated/",
+        "tests/test_distributed/test_with_dask/test_external_memory.py",
         "tests/test_distributed/test_with_spark/test_data.py",
         "tests/test_distributed/test_gpu_with_spark/test_data.py",
         "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",

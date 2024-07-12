@@ -45,17 +45,17 @@ struct EllpackDeviceAccessor {
         n_rows(n_rows),
         gidx_iter(gidx_iter),
         feature_types{feature_types} {
-    if (device.IsCPU()) {
-      gidx_fvalue_map = cuts->cut_values_.ConstHostSpan();
-      feature_segments = cuts->cut_ptrs_.ConstHostSpan();
-      min_fvalue = cuts->min_vals_.ConstHostSpan();
-    } else {
+    if (device.IsCUDA()) {
       cuts->cut_values_.SetDevice(device);
       cuts->cut_ptrs_.SetDevice(device);
       cuts->min_vals_.SetDevice(device);
       gidx_fvalue_map = cuts->cut_values_.ConstDeviceSpan();
       feature_segments = cuts->cut_ptrs_.ConstDeviceSpan();
       min_fvalue = cuts->min_vals_.ConstDeviceSpan();
+    } else {
+      gidx_fvalue_map = cuts->cut_values_.ConstHostSpan();
+      feature_segments = cuts->cut_ptrs_.ConstHostSpan();
+      min_fvalue = cuts->min_vals_.ConstHostSpan();
     }
   }
   // Get a matrix element, uses binary search for look up Return NaN if missing

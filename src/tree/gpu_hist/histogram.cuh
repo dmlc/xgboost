@@ -1,17 +1,18 @@
-/*!
- * Copyright 2020-2021 by XGBoost Contributors
+/**
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #ifndef HISTOGRAM_CUH_
 #define HISTOGRAM_CUH_
-#include <thrust/transform.h>
+#include <memory>  // for unique_ptr
 
-#include "../../common/cuda_context.cuh"
-#include "../../data/ellpack_page.cuh"
-#include "feature_groups.cuh"
+#include "../../common/cuda_context.cuh"  // for CUDAContext
+#include "../../data/ellpack_page.cuh"    // for EllpackDeviceAccessor
+#include "feature_groups.cuh"             // for FeatureGroupsAccessor
+#include "xgboost/base.h"                 // for GradientPair, GradientPairInt64
+#include "xgboost/context.h"              // for Context
+#include "xgboost/span.h"                 // for Span
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 /**
  * \brief An atomicAdd designed for gradient pair with better performance.  For general
  *        int64_t atomicAdd, one can simply cast it to unsigned long long. Exposed for testing.
@@ -32,7 +33,7 @@ XGBOOST_DEV_INLINE void AtomicAdd64As32(int64_t* dst, int64_t src) {
 }
 
 class GradientQuantiser {
-private:
+ private:
   /* Convert gradient to fixed point representation. */
   GradientPairPrecise to_fixed_point_;
   /* Convert fixed point representation back to floating point. */
@@ -59,13 +60,22 @@ private:
   }
 };
 
-void BuildGradientHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
-                            FeatureGroupsAccessor const& feature_groups,
-                            common::Span<GradientPair const> gpair,
-                            common::Span<const uint32_t> ridx,
-                            common::Span<GradientPairInt64> histogram, GradientQuantiser rounding,
-                            bool force_global_memory = false);
-}  // namespace tree
-}  // namespace xgboost
+class DeviceHistogramBuilderImpl;
 
+class DeviceHistogramBuilder {
+  std::unique_ptr<DeviceHistogramBuilderImpl> p_impl_;
+
+ public:
+  DeviceHistogramBuilder();
+  ~DeviceHistogramBuilder();
+
+  void Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
+             bool force_global_memory);
+  void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
+                      FeatureGroupsAccessor const& feature_groups,
+                      common::Span<GradientPair const> gpair,
+                      common::Span<const std::uint32_t> ridx,
+                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
+};
+}  // namespace xgboost::tree
 #endif  // HISTOGRAM_CUH_

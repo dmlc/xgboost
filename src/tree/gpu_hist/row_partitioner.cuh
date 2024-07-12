@@ -1,17 +1,17 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2024, XGBoost contributors
  */
 #pragma once
 #include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
+#include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 
-#include <limits>
-#include <vector>
+#include <algorithm>  // for max
+#include <vector>     // for vector
 
-#include "../../common/device_helpers.cuh"
-#include "xgboost/base.h"
-#include "xgboost/context.h"
-#include "xgboost/task.h"
-#include "xgboost/tree_model.h"
+#include "../../common/device_helpers.cuh"  // for MakeTransformIterator
+#include "xgboost/base.h"                   // for bst_idx_t
+#include "xgboost/context.h"                // for Context
 
 namespace xgboost {
 namespace tree {
@@ -223,7 +223,12 @@ class RowPartitioner {
   dh::PinnedMemory pinned2_;
 
  public:
-  RowPartitioner(DeviceOrd device_idx, size_t num_rows);
+  /**
+   * @param ctx Context for device ordinal and stream.
+   * @param n_samples The number of samples in each batch.
+   * @param base_rowid The base row index for the current batch.
+   */
+  RowPartitioner(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid);
   ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
   RowPartitioner& operator=(const RowPartitioner&) = delete;

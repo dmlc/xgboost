@@ -118,7 +118,8 @@ TEST(SparsePageDMatrix, RetainSparsePage) {
 // Test GHistIndexMatrix can avoid loading sparse page after the initialization.
 TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
   dmlc::TemporaryDirectory tmpdir;
-  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(6).GenerateSparsePageDMatrix(
+  std::size_t n_batches = 6;
+  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(n_batches).GenerateSparsePageDMatrix(
       tmpdir.path + "/", true);
   Context ctx;
   bst_bin_t n_bins{256};
@@ -171,12 +172,30 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
     // Restore the batch parameter by passing it in again through check_ghist
     check_ghist();
   }
+
   // half the pages
-  auto it = Xy->GetBatches<SparsePage>(&ctx).begin();
-  for (std::int32_t i = 0; i < 3; ++i) {
-    ++it;
+  {
+    auto it = Xy->GetBatches<SparsePage>(&ctx).begin();
+    for (std::size_t i = 0; i < n_batches / 2; ++i) {
+      ++it;
+    }
+    check_ghist();
   }
-  check_ghist();
+  {
+    auto it = Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param).begin();
+    for (std::size_t i = 0; i < n_batches / 2; ++i) {
+      ++it;
+    }
+    check_ghist();
+  }
+  {
+    BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, true};
+    auto it = Xy->GetBatches<GHistIndexMatrix>(&ctx, regen).begin();
+    for (std::size_t i = 0; i < n_batches / 2; ++i) {
+      ++it;
+    }
+    check_ghist();
+  }
 }
 
 TEST(SparsePageDMatrix, MetaInfo) {

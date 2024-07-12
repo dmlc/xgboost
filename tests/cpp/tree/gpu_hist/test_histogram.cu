@@ -1,19 +1,20 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/context.h>  // for Context
 
-#include <vector>
+#include <memory>  // for unique_ptr
+#include <vector>  // for vector
 
-#include "../../../../src/common/categorical.h"
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
-#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
-#include "../../../../src/tree/param.h"  // TrainParam
-#include "../../categorical_helpers.h"
+#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for RowPartitioner
+#include "../../../../src/tree/param.h"                       // for TrainParam
+#include "../../categorical_helpers.h"                        // for OneHotEncodeFeature
 #include "../../helpers.h"
 
 namespace xgboost::tree {
-void TestDeterministicHistogram(bool is_dense, int shm_size) {
+void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) {
   Context ctx = MakeCUDACtx(0);
   size_t constexpr kBins = 256, kCols = 120, kRows = 16384, kRounds = 16;
   float constexpr kLower = -1e-2, kUpper = 1e2;
@@ -25,35 +26,37 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
   for (auto const& batch : matrix->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
 
-    tree::RowPartitioner row_partitioner(FstCU(), kRows);
+    tree::RowPartitioner row_partitioner{&ctx, kRows, page->base_rowid};
     auto ridx = row_partitioner.GetRows(0);
 
-    int num_bins = kBins * kCols;
+    bst_bin_t num_bins = kBins * kCols;
     dh::device_vector<GradientPairInt64> histogram(num_bins);
     auto d_histogram = dh::ToSpan(histogram);
     auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
-    gpair.SetDevice(FstCU());
+    gpair.SetDevice(ctx.Device());
 
-    FeatureGroups feature_groups(page->Cuts(), page->is_dense, shm_size,
-                                 sizeof(GradientPairInt64));
+    FeatureGroups feature_groups(page->Cuts(), page->is_dense, shm_size, sizeof(GradientPairInt64));
 
     auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
-    BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(FstCU()),
-                           feature_groups.DeviceAccessor(FstCU()), gpair.DeviceSpan(), ridx,
+    DeviceHistogramBuilder builder;
+    builder.Reset(&ctx, feature_groups.DeviceAccessor(ctx.Device()), force_global);
+    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+                           feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
                            d_histogram, quantiser);
 
     std::vector<GradientPairInt64> histogram_h(num_bins);
     dh::safe_cuda(cudaMemcpy(histogram_h.data(), d_histogram.data(),
-                             num_bins * sizeof(GradientPairInt64),
-                             cudaMemcpyDeviceToHost));
+                             num_bins * sizeof(GradientPairInt64), cudaMemcpyDeviceToHost));
 
-    for (size_t i = 0; i < kRounds; ++i) {
+    for (std::size_t i = 0; i < kRounds; ++i) {
       dh::device_vector<GradientPairInt64> new_histogram(num_bins);
       auto d_new_histogram = dh::ToSpan(new_histogram);
 
       auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
-      BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(FstCU()),
-                             feature_groups.DeviceAccessor(FstCU()), gpair.DeviceSpan(), ridx,
+      DeviceHistogramBuilder builder;
+      builder.Reset(&ctx, feature_groups.DeviceAccessor(ctx.Device()), force_global);
+      builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+                             feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
                              d_new_histogram, quantiser);
 
       std::vector<GradientPairInt64> new_histogram_h(num_bins);
@@ -68,14 +71,16 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
 
     {
       auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
-      gpair.SetDevice(FstCU());
+      gpair.SetDevice(ctx.Device());
 
       // Use a single feature group to compute the baseline.
       FeatureGroups single_group(page->Cuts());
 
       dh::device_vector<GradientPairInt64> baseline(num_bins);
-      BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(FstCU()),
-                             single_group.DeviceAccessor(FstCU()), gpair.DeviceSpan(), ridx,
+      DeviceHistogramBuilder builder;
+      builder.Reset(&ctx, single_group.DeviceAccessor(ctx.Device()), force_global);
+      builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+                             single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
                              dh::ToSpan(baseline), quantiser);
 
       std::vector<GradientPairInt64> baseline_h(num_bins);
@@ -96,7 +101,9 @@ TEST(Histogram, GPUDeterministic) {
   std::vector<int> shm_sizes{48 * 1024, 64 * 1024, 160 * 1024};
   for (bool is_dense : is_dense_array) {
     for (int shm_size : shm_sizes) {
-      TestDeterministicHistogram(is_dense, shm_size);
+      for (bool force_global : {true, false}) {
+        TestDeterministicHistogram(is_dense, shm_size, force_global);
+      }
     }
   }
 }
@@ -124,7 +131,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
   cat_m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
   auto batch_param = BatchParam{kBins, tree::TrainParam::DftSparseThreshold()};
-  tree::RowPartitioner row_partitioner(ctx.Device(), kRows);
+  tree::RowPartitioner row_partitioner{&ctx, kRows, 0};
   auto ridx = row_partitioner.GetRows(0);
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
@@ -136,7 +143,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   for (auto const &batch : cat_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
-    BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+    DeviceHistogramBuilder builder;
+    builder.Reset(&ctx, single_group.DeviceAccessor(ctx.Device()), false);
+    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
                            single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
                            dh::ToSpan(cat_hist), quantiser);
   }
@@ -150,7 +159,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   for (auto const &batch : encode_m->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
     FeatureGroups single_group(page->Cuts());
-    BuildGradientHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+    DeviceHistogramBuilder builder;
+    builder.Reset(&ctx, single_group.DeviceAccessor(ctx.Device()), false);
+    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
                            single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
                            dh::ToSpan(encode_hist), quantiser);
   }
@@ -253,4 +264,105 @@ TEST(Histogram, Quantiser) {
     ASSERT_EQ(gh.GetHess(), 1.0);
   }
 }
+namespace {
+class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<float, bool>> {
+ public:
+  void Run(float sparsity, bool force_global) {
+    bst_idx_t n_samples{512}, n_features{12}, n_batches{3};
+    std::vector<std::unique_ptr<RowPartitioner>> partitioners;
+    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
+                      .Batches(n_batches)
+                      .GenerateSparsePageDMatrix("cache", true);
+    bst_bin_t n_bins = 16;
+    BatchParam p{n_bins, TrainParam::DftSparseThreshold()};
+    auto ctx = MakeCUDACtx(0);
+
+    std::unique_ptr<FeatureGroups> fg;
+    dh::device_vector<GradientPairInt64> single_hist;
+    dh::device_vector<GradientPairInt64> multi_hist;
+
+    auto gpair = GenerateRandomGradients(n_samples);
+    gpair.SetDevice(ctx.Device());
+    auto quantiser = GradientQuantiser{&ctx, gpair.ConstDeviceSpan(), p_fmat->Info()};
+    std::shared_ptr<common::HistogramCuts> cuts;
+
+    {
+      /**
+       * Multi page.
+       */
+      std::int32_t k{0};
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(&ctx, p)) {
+        auto impl = page.Impl();
+        if (k == 0) {
+          // Initialization
+          auto d_matrix = impl->GetDeviceAccessor(ctx.Device());
+          fg = std::make_unique<FeatureGroups>(impl->Cuts());
+          auto init = GradientPairInt64{0, 0};
+          multi_hist = decltype(multi_hist)(impl->Cuts().TotalBins(), init);
+          single_hist = decltype(single_hist)(impl->Cuts().TotalBins(), init);
+          cuts = std::make_shared<common::HistogramCuts>(impl->Cuts());
+        }
+
+        partitioners.emplace_back(
+            std::make_unique<RowPartitioner>(&ctx, impl->Size(), impl->base_rowid));
+
+        auto ridx = partitioners.at(k)->GetRows(0);
+        auto d_histogram = dh::ToSpan(multi_hist);
+        DeviceHistogramBuilder builder;
+        builder.Reset(&ctx, fg->DeviceAccessor(ctx.Device()), force_global);
+        builder.BuildHistogram(ctx.CUDACtx(), impl->GetDeviceAccessor(ctx.Device()),
+                               fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
+                               d_histogram, quantiser);
+        ++k;
+      }
+      ASSERT_EQ(k, n_batches);
+    }
+
+    {
+      /**
+       * Single page.
+       */
+      RowPartitioner partitioner{&ctx, p_fmat->Info().num_row_, 0};
+      SparsePage concat;
+      std::vector<float> hess(p_fmat->Info().num_row_, 1.0f);
+      for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
+        concat.Push(page);
+      }
+      EllpackPageImpl page{
+          ctx.Device(), cuts, concat, p_fmat->IsDense(), p_fmat->Info().num_col_, {}};
+      auto ridx = partitioner.GetRows(0);
+      auto d_histogram = dh::ToSpan(single_hist);
+      DeviceHistogramBuilder builder;
+      builder.Reset(&ctx, fg->DeviceAccessor(ctx.Device()), force_global);
+      builder.BuildHistogram(ctx.CUDACtx(), page.GetDeviceAccessor(ctx.Device()),
+                             fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
+                             d_histogram, quantiser);
+    }
+
+    std::vector<GradientPairInt64> h_single(single_hist.size());
+    thrust::copy(single_hist.begin(), single_hist.end(), h_single.begin());
+    std::vector<GradientPairInt64> h_multi(multi_hist.size());
+    thrust::copy(multi_hist.begin(), multi_hist.end(), h_multi.begin());
+
+    for (std::size_t i = 0; i < single_hist.size(); ++i) {
+      ASSERT_EQ(h_single[i].GetQuantisedGrad(), h_multi[i].GetQuantisedGrad());
+      ASSERT_EQ(h_single[i].GetQuantisedHess(), h_multi[i].GetQuantisedHess());
+    }
+  }
+};
+}  // namespace
+
+TEST_P(HistogramExternalMemoryTest, ExternalMemory) {
+  std::apply(&HistogramExternalMemoryTest::Run, std::tuple_cat(std::make_tuple(this), GetParam()));
+}
+
+INSTANTIATE_TEST_SUITE_P(Histogram, HistogramExternalMemoryTest, ::testing::ValuesIn([]() {
+                           std::vector<std::tuple<float, bool>> params;
+                           for (auto global : {true, false}) {
+                             for (auto sparsity : {0.0f, 0.2f, 0.8f}) {
+                               params.emplace_back(sparsity, global);
+                             }
+                           }
+                           return params;
+                         }()));
 }  // namespace xgboost::tree

@@ -127,7 +127,7 @@ class ElementWiseSurvivalMetricsReduction {
       const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (ctx.IsCPU()) {
+    if (!ctx.IsCUDA()) {
       result = CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound,
                                 preds, ctx.Threads());
     }
