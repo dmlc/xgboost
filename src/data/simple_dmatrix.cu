@@ -19,7 +19,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
                              DataSplitMode data_split_mode) {
   CHECK(data_split_mode != DataSplitMode::kCol)
       << "Column-wise data split is currently not supported on the GPU.";
-  auto device = (adapter->Device().IsCPU() || adapter->NumRows() == 0)
+  auto device = (!adapter->Device().IsCUDA() || adapter->NumRows() == 0)
                     ? DeviceOrd::CUDA(dh::CurrentDevice())
                     : adapter->Device();
   CHECK(device.IsCUDA());

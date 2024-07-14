@@ -76,13 +76,13 @@ class HistogramBuilder {
     common::ParallelFor2d(space, this->n_threads_, [&](size_t nid_in_set, common::Range1d r) {
       const auto tid = static_cast<unsigned>(omp_get_thread_num());
       bst_node_t const nidx = nodes_to_build[nid_in_set];
-      auto elem = row_set_collection[nidx];
+      auto const& elem = row_set_collection[nidx];
       auto start_of_row_set = std::min(r.begin(), elem.Size());
       auto end_of_row_set = std::min(r.end(), elem.Size());
-      auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
-                                                    elem.begin + end_of_row_set, nidx);
+      auto rid_set = common::Span<bst_idx_t const>{elem.begin() + start_of_row_set,
+                                                   elem.begin() + end_of_row_set};
       auto hist = buffer_.GetInitializedHist(tid, nid_in_set);
-      if (rid_set.Size() != 0) {
+      if (rid_set.size() != 0) {
         common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
       }
     });

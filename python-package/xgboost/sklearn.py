@@ -517,6 +517,11 @@ __custom_obj_note = """
                 The value of the gradient for each sample point.
             hess: array_like of shape [n_samples]
                 The value of the second derivative for each sample point
+
+            Note that, if the custom objective produces negative values for
+            the Hessian, these will be clipped. If the objective is non-convex,
+            one might also consider using the expected Hessian (Fisher
+            information) instead.
 """
 
 

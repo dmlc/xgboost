@@ -1,7 +1,8 @@
 /**
  * Copyright 2021-2024, XGBoost Contributors
  */
-#include <thrust/copy.h>  // for copy
+#include <thrust/copy.h>     // for copy
+#include <thrust/logical.h>  // for any_of
 #include <thrust/scan.h>
 
 #include <cassert>

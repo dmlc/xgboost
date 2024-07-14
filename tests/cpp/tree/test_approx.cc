@@ -3,10 +3,10 @@
  */
 #include <gtest/gtest.h>
 
-#include "../../../src/common/numeric.h"
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
+#include "test_column_split.h"  // for TestColumnSplit
 #include "test_partitioner.h"
 
 namespace xgboost::tree {
@@ -54,20 +54,23 @@ TEST(Approx, Partitioner) {
       GetSplit(&tree, split_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
 
-      auto left_nidx = tree[RegTree::kRoot].LeftChild();
-      auto elem = partitioner[left_nidx];
-      ASSERT_LT(elem.Size(), n_samples);
-      ASSERT_GT(elem.Size(), 1);
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = page.cut.Values().at(page.index[*it]);
-        ASSERT_LE(value, split_value);
+      {
+        auto left_nidx = tree[RegTree::kRoot].LeftChild();
+        auto const& elem = partitioner[left_nidx];
+        ASSERT_LT(elem.Size(), n_samples);
+        ASSERT_GT(elem.Size(), 1);
+        for (auto& it : elem) {
+          auto value = page.cut.Values().at(page.index[it]);
+          ASSERT_LE(value, split_value);
+        }
       }
-
-      auto right_nidx = tree[RegTree::kRoot].RightChild();
-      elem = partitioner[right_nidx];
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = page.cut.Values().at(page.index[*it]);
-        ASSERT_GT(value, split_value) << *it;
+      {
+        auto right_nidx = tree[RegTree::kRoot].RightChild();
+        auto const& elem = partitioner[right_nidx];
+        for (auto& it : elem) {
+          auto value = page.cut.Values().at(page.index[it]);
+          ASSERT_GT(value, split_value) << it;
+        }
       }
     }
   }
@@ -99,23 +102,25 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
       RegTree tree;
       GetSplit(&tree, mid_value, &candidates);
       partitioner.UpdatePosition(&ctx, page, candidates, &tree);
-
-      auto left_nidx = tree[RegTree::kRoot].LeftChild();
-      auto elem = partitioner[left_nidx];
-      ASSERT_LT(elem.Size(), n_samples);
-      ASSERT_GT(elem.Size(), 1);
-      auto expected_elem = expected_mid_partitioner[left_nidx];
-      ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
-        ASSERT_EQ(*it, *eit);
+      {
+        auto left_nidx = tree[RegTree::kRoot].LeftChild();
+        auto const& elem = partitioner[left_nidx];
+        ASSERT_LT(elem.Size(), n_samples);
+        ASSERT_GT(elem.Size(), 1);
+        auto const& expected_elem = expected_mid_partitioner[left_nidx];
+        ASSERT_EQ(elem.Size(), expected_elem.Size());
+        for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
+          ASSERT_EQ(*it, *eit);
+        }
       }
-
-      auto right_nidx = tree[RegTree::kRoot].RightChild();
-      elem = partitioner[right_nidx];
-      expected_elem = expected_mid_partitioner[right_nidx];
-      ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
-        ASSERT_EQ(*it, *eit);
+      {
+        auto right_nidx = tree[RegTree::kRoot].RightChild();
+        auto const& elem = partitioner[right_nidx];
+        auto const& expected_elem = expected_mid_partitioner[right_nidx];
+        ASSERT_EQ(elem.Size(), expected_elem.Size());
+        for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
+          ASSERT_EQ(*it, *eit);
+        }
       }
     }
   }
@@ -150,4 +155,26 @@ TEST(Approx, PartitionerColSplit) {
                                mid_partitioner);
   });
 }
+
+namespace {
+class TestApproxColSplit : public ::testing::TestWithParam<std::tuple<bool, float>> {
+ public:
+  void Run() {
+    auto [categorical, sparsity] = GetParam();
+    TestColumnSplit(1u, categorical, "grow_histmaker", sparsity);
+  }
+};
+}  // namespace
+
+TEST_P(TestApproxColSplit, Basic) { this->Run(); }
+
+INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestApproxColSplit, ::testing::ValuesIn([]() {
+                           std::vector<std::tuple<bool, float>> params;
+                           for (auto categorical : {true, false}) {
+                             for (auto sparsity : {0.0f, 0.6f}) {
+                               params.emplace_back(categorical, sparsity);
+                             }
+                           }
+                           return params;
+                         }()));
 }  // namespace xgboost::tree

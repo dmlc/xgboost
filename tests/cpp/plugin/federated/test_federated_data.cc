@@ -1,15 +1,13 @@
-/*!
- * Copyright 2023 XGBoost contributors
+/**
+ * Copyright 2023-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
-#include <thread>
-
-#include "../../../src/collective/communicator-inl.h"
-#include "../filesystem.h"
-#include "../helpers.h"
-#include "federated/test_worker.h"
+#include "../../../../src/collective/communicator-inl.h"
+#include "../../filesystem.h"
+#include "../../helpers.h"
+#include "test_worker.h"
 
 namespace xgboost {
 

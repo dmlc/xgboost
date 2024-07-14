@@ -14,7 +14,6 @@
 #include <algorithm>   // for max
 #include <cstddef>     // for size_t
 #include <cstdint>     // for int32_t, uint32_t
-#include <functional>  // for function
 #include <iterator>    // for back_inserter
 #include <limits>      // for numeric_limits
 #include <memory>      // for shared_ptr, allocator, unique_ptr
@@ -108,7 +107,7 @@ void TestSyncHist(bool is_distributed) {
   common::RowSetCollection row_set_collection;
   {
     row_set_collection.Clear();
-    std::vector<size_t> &row_indices = *row_set_collection.Data();
+    std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
     row_indices.resize(kNRows);
     std::iota(row_indices.begin(), row_indices.end(), 0);
     row_set_collection.Init();
@@ -251,7 +250,7 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
 
   common::RowSetCollection row_set_collection;
   row_set_collection.Clear();
-  std::vector<size_t> &row_indices = *row_set_collection.Data();
+  std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kNRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
@@ -345,7 +344,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
 
   common::RowSetCollection row_set_collection;
   row_set_collection.Clear();
-  std::vector<size_t> &row_indices = *row_set_collection.Data();
+  std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();

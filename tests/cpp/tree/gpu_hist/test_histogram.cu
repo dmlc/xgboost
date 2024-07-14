@@ -2,13 +2,15 @@
  * Copyright 2020-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/context.h>  // for Context
 
-#include <vector>
+#include <memory>  // for unique_ptr
+#include <vector>  // for vector
 
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
-#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
-#include "../../../../src/tree/param.h"  // TrainParam
-#include "../../categorical_helpers.h"
+#include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for RowPartitioner
+#include "../../../../src/tree/param.h"                       // for TrainParam
+#include "../../categorical_helpers.h"                        // for OneHotEncodeFeature
 #include "../../helpers.h"
 
 namespace xgboost::tree {
@@ -24,7 +26,7 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
   for (auto const& batch : matrix->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
 
-    tree::RowPartitioner row_partitioner(ctx.Device(), kRows);
+    tree::RowPartitioner row_partitioner{&ctx, kRows, page->base_rowid};
     auto ridx = row_partitioner.GetRows(0);
 
     bst_bin_t num_bins = kBins * kCols;
@@ -129,7 +131,7 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
   cat_m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
   auto batch_param = BatchParam{kBins, tree::TrainParam::DftSparseThreshold()};
-  tree::RowPartitioner row_partitioner(ctx.Device(), kRows);
+  tree::RowPartitioner row_partitioner{&ctx, kRows, 0};
   auto ridx = row_partitioner.GetRows(0);
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
@@ -262,4 +264,105 @@ TEST(Histogram, Quantiser) {
     ASSERT_EQ(gh.GetHess(), 1.0);
   }
 }
+namespace {
+class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<float, bool>> {
+ public:
+  void Run(float sparsity, bool force_global) {
+    bst_idx_t n_samples{512}, n_features{12}, n_batches{3};
+    std::vector<std::unique_ptr<RowPartitioner>> partitioners;
+    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
+                      .Batches(n_batches)
+                      .GenerateSparsePageDMatrix("cache", true);
+    bst_bin_t n_bins = 16;
+    BatchParam p{n_bins, TrainParam::DftSparseThreshold()};
+    auto ctx = MakeCUDACtx(0);
+
+    std::unique_ptr<FeatureGroups> fg;
+    dh::device_vector<GradientPairInt64> single_hist;
+    dh::device_vector<GradientPairInt64> multi_hist;
+
+    auto gpair = GenerateRandomGradients(n_samples);
+    gpair.SetDevice(ctx.Device());
+    auto quantiser = GradientQuantiser{&ctx, gpair.ConstDeviceSpan(), p_fmat->Info()};
+    std::shared_ptr<common::HistogramCuts> cuts;
+
+    {
+      /**
+       * Multi page.
+       */
+      std::int32_t k{0};
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(&ctx, p)) {
+        auto impl = page.Impl();
+        if (k == 0) {
+          // Initialization
+          auto d_matrix = impl->GetDeviceAccessor(ctx.Device());
+          fg = std::make_unique<FeatureGroups>(impl->Cuts());
+          auto init = GradientPairInt64{0, 0};
+          multi_hist = decltype(multi_hist)(impl->Cuts().TotalBins(), init);
+          single_hist = decltype(single_hist)(impl->Cuts().TotalBins(), init);
+          cuts = std::make_shared<common::HistogramCuts>(impl->Cuts());
+        }
+
+        partitioners.emplace_back(
+            std::make_unique<RowPartitioner>(&ctx, impl->Size(), impl->base_rowid));
+
+        auto ridx = partitioners.at(k)->GetRows(0);
+        auto d_histogram = dh::ToSpan(multi_hist);
+        DeviceHistogramBuilder builder;
+        builder.Reset(&ctx, fg->DeviceAccessor(ctx.Device()), force_global);
+        builder.BuildHistogram(ctx.CUDACtx(), impl->GetDeviceAccessor(ctx.Device()),
+                               fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
+                               d_histogram, quantiser);
+        ++k;
+      }
+      ASSERT_EQ(k, n_batches);
+    }
+
+    {
+      /**
+       * Single page.
+       */
+      RowPartitioner partitioner{&ctx, p_fmat->Info().num_row_, 0};
+      SparsePage concat;
+      std::vector<float> hess(p_fmat->Info().num_row_, 1.0f);
+      for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
+        concat.Push(page);
+      }
+      EllpackPageImpl page{
+          ctx.Device(), cuts, concat, p_fmat->IsDense(), p_fmat->Info().num_col_, {}};
+      auto ridx = partitioner.GetRows(0);
+      auto d_histogram = dh::ToSpan(single_hist);
+      DeviceHistogramBuilder builder;
+      builder.Reset(&ctx, fg->DeviceAccessor(ctx.Device()), force_global);
+      builder.BuildHistogram(ctx.CUDACtx(), page.GetDeviceAccessor(ctx.Device()),
+                             fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
+                             d_histogram, quantiser);
+    }
+
+    std::vector<GradientPairInt64> h_single(single_hist.size());
+    thrust::copy(single_hist.begin(), single_hist.end(), h_single.begin());
+    std::vector<GradientPairInt64> h_multi(multi_hist.size());
+    thrust::copy(multi_hist.begin(), multi_hist.end(), h_multi.begin());
+
+    for (std::size_t i = 0; i < single_hist.size(); ++i) {
+      ASSERT_EQ(h_single[i].GetQuantisedGrad(), h_multi[i].GetQuantisedGrad());
+      ASSERT_EQ(h_single[i].GetQuantisedHess(), h_multi[i].GetQuantisedHess());
+    }
+  }
+};
+}  // namespace
+
+TEST_P(HistogramExternalMemoryTest, ExternalMemory) {
+  std::apply(&HistogramExternalMemoryTest::Run, std::tuple_cat(std::make_tuple(this), GetParam()));
+}
+
+INSTANTIATE_TEST_SUITE_P(Histogram, HistogramExternalMemoryTest, ::testing::ValuesIn([]() {
+                           std::vector<std::tuple<float, bool>> params;
+                           for (auto global : {true, false}) {
+                             for (auto sparsity : {0.0f, 0.2f, 0.8f}) {
+                               params.emplace_back(sparsity, global);
+                             }
+                           }
+                           return params;
+                         }()));
 }  // namespace xgboost::tree

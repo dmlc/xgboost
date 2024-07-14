@@ -18,7 +18,7 @@
 namespace xgboost::common {
 void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
             HostDeviceVector<float> const& weights, linalg::Tensor<float, 1>* out) {
-  if (!ctx->IsCPU()) {
+  if (ctx->IsCUDA()) {
     weights.SetDevice(ctx->Device());
     auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
     auto t_v = t.View(ctx->Device());

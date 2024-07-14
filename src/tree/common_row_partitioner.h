@@ -7,7 +7,7 @@
 #define XGBOOST_TREE_COMMON_ROW_PARTITIONER_H_
 
 #include <algorithm>  // for all_of, fill
-#include <cinttypes>  // for uint32_t
+#include <cstdint>    // for uint32_t, int32_t
 #include <limits>     // for numeric_limits
 #include <vector>     // for vector
 
@@ -18,7 +18,7 @@
 #include "../common/partition_builder.h"  // for PartitionBuilder
 #include "../common/row_set.h"            // for RowSetCollection
 #include "../common/threading_utils.h"    // for ParallelFor2d
-#include "xgboost/base.h"                 // for bst_row_t
+#include "xgboost/base.h"                 // for bst_idx_t
 #include "xgboost/collective/result.h"    // for Success, SafeColl
 #include "xgboost/context.h"              // for Context
 #include "xgboost/linalg.h"               // for TensorView
@@ -36,28 +36,58 @@ class ColumnSplitHelper {
                     common::PartitionBuilder<kPartitionBlockSize>* partition_builder,
                     common::RowSetCollection* row_set_collection)
       : partition_builder_{partition_builder}, row_set_collection_{row_set_collection} {
-    decision_storage_.resize(num_row);
-    decision_bits_ = BitVector(common::Span<BitVector::value_type>(decision_storage_));
-    missing_storage_.resize(num_row);
-    missing_bits_ = BitVector(common::Span<BitVector::value_type>(missing_storage_));
+    auto n_bytes = BitVector::ComputeStorageSize(num_row);
+    decision_storage_.resize(n_bytes);
+    decision_bits_ = BitVector{common::Span<BitVector::value_type>{decision_storage_}};
+    missing_storage_.resize(n_bytes);
+    missing_bits_ = BitVector{common::Span<BitVector::value_type>{missing_storage_}};
   }
 
   template <typename BinIdxType, bool any_missing, bool any_cat, typename ExpandEntry>
   void Partition(Context const* ctx, common::BlockedSpace2d const& space, std::int32_t n_threads,
                  GHistIndexMatrix const& gmat, common::ColumnMatrix const& column_matrix,
                  std::vector<ExpandEntry> const& nodes,
-                 std::vector<int32_t> const& split_conditions, RegTree const* p_tree) {
+                 std::vector<std::int32_t> const& split_conditions, RegTree const* p_tree) {
     // When data is split by column, we don't have all the feature values in the local worker, so
     // we first collect all the decisions and whether the feature is missing into bit vectors.
     std::fill(decision_storage_.begin(), decision_storage_.end(), 0);
     std::fill(missing_storage_.begin(), missing_storage_.end(), 0);
-    common::ParallelFor2d(space, n_threads, [&](size_t node_in_set, common::Range1d r) {
-      const int32_t nid = nodes[node_in_set].nid;
+
+    this->tloc_decision_.resize(decision_storage_.size() * n_threads);
+    this->tloc_missing_.resize(decision_storage_.size() * n_threads);
+    std::fill_n(this->tloc_decision_.data(), this->tloc_decision_.size(), 0);
+    std::fill_n(this->tloc_missing_.data(), this->tloc_missing_.size(), 0);
+
+    // Make thread-local storage.
+    using T = decltype(decision_storage_)::value_type;
+    auto make_tloc = [&](std::vector<T>& storage, std::int32_t tidx) {
+      auto span = common::Span<T>{storage};
+      auto n = decision_storage_.size();
+      auto bitvec = BitVector{span.subspan(n * tidx, n)};
+      return bitvec;
+    };
+
+    common::ParallelFor2d(space, n_threads, [&](std::size_t node_in_set, common::Range1d r) {
+      bst_node_t const nid = nodes[node_in_set].nid;
+      auto tidx = omp_get_thread_num();
+      auto decision = make_tloc(this->tloc_decision_, tidx);
+      auto missing = make_tloc(this->tloc_missing_, tidx);
       bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
       partition_builder_->MaskRows<BinIdxType, any_missing, any_cat>(
           node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
-          (*row_set_collection_)[nid].begin, &decision_bits_, &missing_bits_);
+          (*row_set_collection_)[nid].begin(), &decision, &missing);
     });
+
+    // Reduce thread local
+    auto decision = make_tloc(this->tloc_decision_, 0);
+    auto missing = make_tloc(this->tloc_missing_, 0);
+    for (std::int32_t tidx = 1; tidx < n_threads; ++tidx) {
+      decision |= make_tloc(this->tloc_decision_, tidx);
+      missing |= make_tloc(this->tloc_missing_, tidx);
+    }
+    CHECK_EQ(decision_storage_.size(), decision.NumValues());
+    std::copy_n(decision.Data(), decision_storage_.size(), decision_storage_.data());
+    std::copy_n(missing.Data(), missing_storage_.size(), missing_storage_.data());
 
     // Then aggregate the bit vectors across all the workers.
     auto rc = collective::Success() << [&] {
@@ -74,7 +104,7 @@ class ColumnSplitHelper {
       const size_t task_id = partition_builder_->GetTaskIdx(node_in_set, begin);
       partition_builder_->AllocateForTask(task_id);
       partition_builder_->PartitionByMask(node_in_set, nodes, r, gmat, *p_tree,
-                                          (*row_set_collection_)[nid].begin, decision_bits_,
+                                          (*row_set_collection_)[nid].begin(), decision_bits_,
                                           missing_bits_);
     });
   }
@@ -85,6 +115,10 @@ class ColumnSplitHelper {
   BitVector decision_bits_{};
   std::vector<BitVector::value_type> missing_storage_{};
   BitVector missing_bits_{};
+
+  std::vector<BitVector::value_type> tloc_decision_;
+  std::vector<BitVector::value_type> tloc_missing_;
+
   common::PartitionBuilder<kPartitionBlockSize>* partition_builder_;
   common::RowSetCollection* row_set_collection_;
 };
@@ -98,10 +132,10 @@ class CommonRowPartitioner {
                        bool is_col_split)
       : base_rowid{_base_rowid}, is_col_split_{is_col_split} {
     row_set_collection_.Clear();
-    std::vector<size_t>& row_indices = *row_set_collection_.Data();
+    std::vector<bst_idx_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);
 
-    std::size_t* p_row_indices = row_indices.data();
+    bst_idx_t* p_row_indices = row_indices.data();
     common::Iota(ctx, p_row_indices, p_row_indices + row_indices.size(), base_rowid);
     row_set_collection_.Init();
 
@@ -112,7 +146,7 @@ class CommonRowPartitioner {
 
   template <typename ExpandEntry>
   void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
-                           const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions) {
+                           const GHistIndexMatrix& gmat, std::vector<bst_bin_t>* split_conditions) {
     auto const& ptrs = gmat.cut.Ptrs();
     auto const& vals = gmat.cut.Values();
 
@@ -197,7 +231,7 @@ class CommonRowPartitioner {
     // 1. Find split condition for each split
     size_t n_nodes = nodes.size();
 
-    std::vector<int32_t> split_conditions;
+    std::vector<bst_bin_t> split_conditions;
     if (column_matrix.IsInitialized()) {
       split_conditions.resize(n_nodes);
       FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
@@ -206,8 +240,8 @@ class CommonRowPartitioner {
     // 2.1 Create a blocked space of size SUM(samples in each node)
     common::BlockedSpace2d space(
         n_nodes,
-        [&](size_t node_in_set) {
-          int32_t nid = nodes[node_in_set].nid;
+        [&](std::size_t node_in_set) {
+          auto nid = nodes[node_in_set].nid;
           return row_set_collection_[nid].Size();
         },
         kPartitionBlockSize);
@@ -236,7 +270,7 @@ class CommonRowPartitioner {
         bst_bin_t split_cond = column_matrix.IsInitialized() ? split_conditions[node_in_set] : 0;
         partition_builder_.template Partition<BinIdxType, any_missing, any_cat>(
             node_in_set, nodes, r, split_cond, gmat, column_matrix, *p_tree,
-            row_set_collection_[nid].begin);
+            row_set_collection_[nid].begin());
       });
     }
 
@@ -248,8 +282,7 @@ class CommonRowPartitioner {
     // with updated row-indexes for each tree-node
     common::ParallelFor2d(space, ctx->Threads(), [&](size_t node_in_set, common::Range1d r) {
       const int32_t nid = nodes[node_in_set].nid;
-      partition_builder_.MergeToArray(node_in_set, r.begin(),
-                                      const_cast<size_t*>(row_set_collection_[nid].begin));
+      partition_builder_.MergeToArray(node_in_set, r.begin(), row_set_collection_[nid].begin());
     });
 
     // 5. Add info about splits into row_set_collection_
