@@ -591,7 +591,8 @@ test_that("Whole function works", {
     y,
     monotone_constraints = list(age = -1),
     nthreads = 1L,
-    nrounds = 5L
+    nrounds = 5L,
+    eta = 3
   )
   expect_equal(
     attributes(model)$params$objective,
@@ -604,6 +605,13 @@ test_that("Whole function works", {
   expect_equal(
     attributes(model)$params$monotone_constraints,
     "(0,-1,0,0,0,0,0,0)"
+  )
+  expect_false(
+    "interaction_constraints" %in% names(attributes(model)$params)
+  )
+  expect_equal(
+    attributes(model)$params$eta,
+    3
   )
   txt <- capture.output({
     print(model)

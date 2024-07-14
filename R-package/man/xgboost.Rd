@@ -8,7 +8,6 @@ xgboost(
   x,
   y,
   objective = NULL,
-  params = list(),
   nrounds = 100L,
   weights = NULL,
   verbosity = 0L,
@@ -17,7 +16,8 @@ xgboost(
   monotone_constraints = NULL,
   interaction_constraints = NULL,
   feature_weights = NULL,
-  base_margin = NULL
+  base_margin = NULL,
+  ...
 )
 }
 \arguments{
@@ -81,16 +81,6 @@ Note that not all possible `objective` values supported by the core XGBoost libr
 here - for example, objectives which are a variation of another but with a different default
 prediction type (e.g. `multi:softmax` vs. `multi:softprob`) are not allowed, and neither are
 ranking objectives, nor custom objectives at the moment.}
-
-\item{params}{List of training parameters. See the online documentation
-\href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
-details about possible values and what they do.
-
-Note that not all possible values from the core XGBoost library are allowed as `params` for
-'xgboost()' - in particular, values which are direct arguments to this function (such as
-`objective` or `nthreads`) cannot be passed under `params` (they should be passed as function
-arguments instead). Values which otherwise require an already-fitted booster object (such as
-`process_type`) are also not accepted here.}
 
 \item{nrounds}{Number of boosting iterations / rounds.
 
@@ -167,6 +157,14 @@ the corresponding `y` - `base_margin` should have the same column order that the
 
 If `NULL`, will start from zero, but note that for most objectives, an intercept is usually
 added (controllable through parameter `base_score` instead) when `base_margin` is not passed.}
+
+\item{...}{Other training parameters. See the online documentation
+\href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
+details about possible values and what they do.
+
+Note that not all possible values from the core XGBoost library are allowed as `params` for
+'xgboost()' - in particular, values which require an already-fitted booster object (such as
+`process_type`) are not accepted here.}
 }
 \value{
 A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular

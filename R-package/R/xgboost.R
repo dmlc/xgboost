@@ -17,17 +17,6 @@ prescreen.parameters <- function(params) {
     }
   }
 
-  params_function_args <- c(
-    "objective", "verbose", "verbosity", "nthread", "seed",
-    "monotone_constraints", "interaction_constraints"
-  )
-  if (any(names(params) %in% params_function_args)) {
-    stop(
-      "'xgboost()' function arguments cannot be passed under 'params'. Got: ",
-      paste(intersect(names(params), params_function_args), collapse = ", ")
-    )
-  }
-
   return(params)
 }
 
@@ -809,15 +798,6 @@ process.x.and.col.args <- function(
 #' here - for example, objectives which are a variation of another but with a different default
 #' prediction type (e.g. `multi:softmax` vs. `multi:softprob`) are not allowed, and neither are
 #' ranking objectives, nor custom objectives at the moment.
-#' @param params List of training parameters. See the online documentation
-#' \href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
-#' details about possible values and what they do.
-#'
-#' Note that not all possible values from the core XGBoost library are allowed as `params` for
-#' 'xgboost()' - in particular, values which are direct arguments to this function (such as
-#' `objective` or `nthreads`) cannot be passed under `params` (they should be passed as function
-#' arguments instead). Values which otherwise require an already-fitted booster object (such as
-#' `process_type`) are also not accepted here.
 #' @param nrounds Number of boosting iterations / rounds.
 #'
 #' Note that the number of default boosting rounds here is not automatically tuned, and different
@@ -885,6 +865,13 @@ process.x.and.col.args <- function(
 #'
 #' If `NULL`, will start from zero, but note that for most objectives, an intercept is usually
 #' added (controllable through parameter `base_score` instead) when `base_margin` is not passed.
+#' @param ... Other training parameters. See the online documentation
+#' \href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
+#' details about possible values and what they do.
+#'
+#' Note that not all possible values from the core XGBoost library are allowed as `params` for
+#' 'xgboost()' - in particular, values which require an already-fitted booster object (such as
+#' `process_type`) are not accepted here.
 #' @return A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular
 #' `xgb.Booster` model class produced by \link{xgb.train}, this `xgboost` class will have an
 #' additional attribute `metadata` containing information which is used for formatting prediction
@@ -905,7 +892,6 @@ xgboost <- function(
   x,
   y,
   objective = NULL,
-  params = list(),
   nrounds = 100L,
   weights = NULL,
   verbosity = 0L,
@@ -914,12 +900,11 @@ xgboost <- function(
   monotone_constraints = NULL,
   interaction_constraints = NULL,
   feature_weights = NULL,
-  base_margin = NULL
+  base_margin = NULL,
+  ...
 ) {
-  # Note: some validations on parameter names are performed before passing them to
-  # 'xgb.train', hence this seemingly redundant conversion of names below.
-  names(params) <- gsub(".", "_", names(params), fixed = TRUE)
-
+  # Note: '...' is a workaround, to be removed later by making all parameters be arguments
+  params <- list(...)
   params <- prescreen.parameters(params)
   prescreen.objective(objective)
   use_qdm <- check.can.use.qdm(x, params)
