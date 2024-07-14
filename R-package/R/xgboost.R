@@ -9,7 +9,8 @@ xgboost <- function(data = NULL, label = NULL, missing = NA, weight = NULL,
                     early_stopping_rounds = NULL, maximize = NULL,
                     save_period = NULL, save_name = "xgboost.model",
                     xgb_model = NULL, callbacks = list(), ...) {
-  merged <- check.booster.params(params, ...)
+  deprecated_params <- check.deprecation(...)
+  merged <- check.booster.params(params, deprecated_params, ...)
   dtrain <- xgb.get.DMatrix(
     data = data,
     label = label,
