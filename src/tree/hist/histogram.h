@@ -200,13 +200,12 @@ void BuildSampleHistograms(std::int32_t n_threads, common::BlockedSpace2d const 
   common::ParallelFor2d(space, n_threads, [&](bst_idx_t nid_in_set, common::Range1d r) {
     auto const tid = omp_get_thread_num();
     bst_node_t const nidx = nodes_to_build[nid_in_set];
-    auto elem = row_set_collection[nidx];
+    auto const &elem = row_set_collection[nidx];
     auto start_of_row_set = std::min(r.begin(), elem.Size());
     auto end_of_row_set = std::min(r.end(), elem.Size());
-    auto rid_set = common::RowSetCollection::Elem(elem.begin + start_of_row_set,
-                                                  elem.begin + end_of_row_set, nidx);
+    auto rid_set = common::Span{elem.begin() + start_of_row_set, elem.begin() + end_of_row_set};
     auto hist = buffer->GetInitializedHist(tid, nid_in_set);
-    if (rid_set.Size() != 0) {
+    if (!rid_set.empty()) {
       common::BuildHist<any_missing>(gpair_h, rid_set, gidx, hist, force_read_by_column);
     }
   });
