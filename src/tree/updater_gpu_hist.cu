@@ -841,9 +841,7 @@ class GPUHistMaker : public TreeUpdater {
     out["hist_train_param"] = ToJson(hist_maker_param_);
   }
 
-  ~GPUHistMaker() {  // NOLINT
-    dh::GlobalMemoryLogger().Log();
-  }
+  ~GPUHistMaker() override { dh::GlobalMemoryLogger().Log(); }
 
   void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,

@@ -68,9 +68,8 @@
 #' @examples
 #' data(agaricus.train, package = "xgboost")
 #'
-#' bst <- xgboost(
-#'   data = agaricus.train$data,
-#'   label = agaricus.train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(agaricus.train$data, agaricus.train$label),
 #'   max_depth = 3,
 #'   eta = 1,
 #'   nthread = 2,
