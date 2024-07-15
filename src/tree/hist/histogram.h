@@ -46,7 +46,7 @@ void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &val
 void AssignNodes(RegTree const *p_tree, std::vector<CPUExpandEntry> const &candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub);
 
-constexpr std::size_t SubHistGrain() { return 1024; };
+constexpr std::size_t SubHistGrain() { return 1024; }
 
 constexpr double kHist2F64 = sizeof(GradientPairPrecise) / sizeof(double);
 static_assert(kHist2F64 == 2);
