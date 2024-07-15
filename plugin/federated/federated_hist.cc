@@ -39,7 +39,7 @@ void FederataedHistPolicy::DoBuildLocalHistograms(
     std::vector<bst_node_t> nodes(nodes_to_build.size());
     for (std::size_t i = 0; i < nodes_to_build.size(); ++i) {
       auto nidx = nodes_to_build[i];
-      ptrs[i] = row_set_collection[nidx].begin;
+      ptrs[i] = row_set_collection[nidx].begin();
       sizes[i] = row_set_collection[nidx].Size();
       nodes[i] = nidx;
     }
