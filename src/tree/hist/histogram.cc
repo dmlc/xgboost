@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include "histogram.h"
 
@@ -10,7 +10,7 @@
 
 #include "../../common/transform_iterator.h"  // for MakeIndexTransformIter
 #include "expand_entry.h"                     // for MultiExpandEntry, CPUExpandEntry
-#include "xgboost/logging.h"                  // for CHECK_NE
+#include "xgboost/logging.h"                  // for CHECK_EQ
 #include "xgboost/span.h"                     // for Span
 #include "xgboost/tree_model.h"               // for RegTree
 

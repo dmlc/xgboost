@@ -21,9 +21,7 @@ inline auto MakeObjNamesForTest() {
   return names;
 }
 
-template <typename ParamType>
-inline std::string ObjTestNameGenerator(const ::testing::TestParamInfo<ParamType>& info) {
-  auto name = std::string{info.param};
+inline std::string ObjTestNameGenerator(std::string name) {
   // Name must be a valid c++ symbol
   auto it = std::find(name.cbegin(), name.cend(), ':');
   if (it != name.cend()) {

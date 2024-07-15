@@ -12,6 +12,12 @@
  *   - Build histogram for vertical federated learning.
  *   - Build histogram for horizontal federated learning.
  *
+ * Since we don't require the plugin to have network capability, the synchronization is
+ * performed in XGBoost. As a result, the build procedure is divided into four steps,
+ * first we need to build a local histogram, then encrypt it with the plugin. Afterward,
+ * the control returns to XBGoost, which is responsible for synchronization. Lastly, the
+ * plugin will recieve the synchronization result and return the decrypted histogram.
+ *
  * See below function prototypes for details. All prototypes are for C functions that are
  * suitable for `dlopen`.
  */
