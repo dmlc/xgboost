@@ -29,6 +29,8 @@
 
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../../plugin/federated/federated_hist.h"  // for FederataedHistPolicy
+#else
+#include "../../common/error_msg.h"  // for NoFederated
 #endif
 
 namespace xgboost::tree {
@@ -437,15 +439,15 @@ class MultiHistogramBuilder {
   }
 
   void Reset(Context const *ctx, bst_bin_t total_bins, bst_target_t n_targets, BatchParam const &p,
-             bool is_distributed, bool is_col_split, bool is_secure,
+             bool is_distributed, bool is_col_split, bool is_encrypted,
              HistMakerTrainParam const *param) {
     ctx_ = ctx;
 #if defined(XGBOOST_USE_FEDERATED)
-    if (is_secure && !std::get_if<std::vector<FedHistogramBuilder>>(&target_builders_)) {
+    if (is_encrypted && !std::get_if<std::vector<FedHistogramBuilder>>(&target_builders_)) {
       target_builders_.emplace<std::vector<FedHistogramBuilder>>(n_targets);
     }
 #else
-    CHECK(!is_secure);
+    CHECK(!is_encrypted) << error::NoFederated();
 #endif
 
     std::visit(

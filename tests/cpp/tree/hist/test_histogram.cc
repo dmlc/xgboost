@@ -411,6 +411,7 @@ TEST(CPUHistogram, Categorical) {
     TestHistogramCategorical(n_categories, true);
   }
 }
+
 namespace {
 void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, bool is_approx,
                                  bool force_read_by_column) {
