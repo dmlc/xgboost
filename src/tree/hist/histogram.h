@@ -46,8 +46,39 @@ void AssignNodes(RegTree const *p_tree, std::vector<MultiExpandEntry> const &val
 void AssignNodes(RegTree const *p_tree, std::vector<CPUExpandEntry> const &candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub);
 
+constexpr std::size_t SubHistGrain() { return 1024; };
+
+constexpr double kHist2F64 = sizeof(GradientPairPrecise) / sizeof(double);
+static_assert(kHist2F64 == 2);
+
+// Perform the subtraction trick
+inline void SubtractHistParallel(Context const *ctx, common::BlockedSpace2d const &space,
+                                 RegTree const *p_tree,
+                                 std::vector<bst_node_t> const &nodes_to_build,
+                                 std::vector<bst_node_t> const &nodes_to_trick,
+                                 common::ParallelGHistBuilder *buffer,
+                                 BoundedHistCollection *p_hist) {
+  auto n_total_bins = buffer->TotalBins();
+  auto &hist = *p_hist;
+  common::BlockedSpace2d const &subspace =
+      nodes_to_trick.size() == nodes_to_build.size()
+          ? space
+          : common::BlockedSpace2d{nodes_to_trick.size(), [&](std::size_t) { return n_total_bins; },
+                                   SubHistGrain()};
+  common::ParallelFor2d(subspace, ctx->Threads(), [&](std::size_t nidx_in_set, common::Range1d r) {
+    auto subtraction_nidx = nodes_to_trick[nidx_in_set];
+    auto parent_id = p_tree->Parent(subtraction_nidx);
+    auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
+                                                              : p_tree->LeftChild(parent_id);
+    auto sibling_hist = hist[sibling_nidx];
+    auto parent_hist = hist[parent_id];
+    auto subtract_hist = hist[subtraction_nidx];
+    common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
+  });
+}
+
 /**
- * @brief Policy class container for building histogram.
+ * @brief Policy class container for building histogram for a single target on CPU.
  *
  * This is an algorithm template, it requires the specific policy to fill in the
  * `DoBuildLocalHistograms`, `DoSyncHistogram`, and the `Reset` methods. See the default
@@ -60,7 +91,8 @@ class HistogramPolicyContainer : public BuildPolicy {
   // Histogram buffers for threads.
   common::ParallelGHistBuilder buffer_;
   BatchParam param_;
-  std::int32_t n_threads_{-1};
+  Context const* ctx_{nullptr};
+  bool is_col_split_{false};
 
  public:
   HistogramPolicyContainer() = default;
@@ -78,12 +110,13 @@ class HistogramPolicyContainer : public BuildPolicy {
    */
   void Reset(Context const *ctx, bst_bin_t total_bins, BatchParam const &p, bool is_distributed,
              bool is_col_split, HistMakerTrainParam const *param) {
-    n_threads_ = ctx->Threads();
     param_ = p;
     hist_.Reset(total_bins, param->max_cached_hist_node);
     buffer_.Init(total_bins);
+    ctx_ = ctx;
+    is_col_split_ = is_col_split;
 
-    BuildPolicy::Reset(ctx, is_distributed, is_col_split);
+    BuildPolicy::DoReset(ctx, is_distributed, is_col_split);
   }
 
   /**
@@ -155,7 +188,7 @@ class HistogramPolicyContainer : public BuildPolicy {
         auto const nidx = nodes_to_build[i];
         target_hists[i] = hist_[nidx];
       }
-      buffer_.Reset(this->n_threads_, n_nodes, space, target_hists);
+      buffer_.Reset(this->ctx_->Threads(), n_nodes, space, target_hists);
     }
 
     if (gidx.IsDense()) {
@@ -176,10 +209,15 @@ class HistogramPolicyContainer : public BuildPolicy {
         space, gidx, nodes_to_build, row_set_collection, gpair_h, force_read_by_column, &buffer_);
   }
 
-  void SyncHistogram(Context const *ctx, RegTree const *p_tree,
-                     std::vector<bst_node_t> const &nodes_to_build,
+  void SyncHistogram(RegTree const *p_tree, std::vector<bst_node_t> const &nodes_to_build,
                      std::vector<bst_node_t> const &nodes_to_trick) {
-    BuildPolicy::DoSyncHistogram(ctx, p_tree, nodes_to_build, nodes_to_trick, &buffer_, &hist_);
+    auto n_total_bins = this->buffer_.TotalBins();
+    common::BlockedSpace2d space(
+        nodes_to_build.size(), [&](std::size_t) { return n_total_bins; }, SubHistGrain());
+
+    BuildPolicy::DoSyncHistogram(space, nodes_to_build, nodes_to_trick, &buffer_, &hist_);
+
+    SubtractHistParallel(ctx_, space, p_tree, nodes_to_build, nodes_to_trick, &buffer_, &hist_);
   }
 
  public:
@@ -213,32 +251,6 @@ void BuildSampleHistograms(std::int32_t n_threads, common::BlockedSpace2d const 
   });
 }
 
-// Perform the subtraction trick
-inline void SubtractHistParallel(Context const *ctx, common::BlockedSpace2d const &space,
-                                 RegTree const *p_tree,
-                                 std::vector<bst_node_t> const &nodes_to_build,
-                                 std::vector<bst_node_t> const &nodes_to_trick,
-                                 common::ParallelGHistBuilder *buffer,
-                                 BoundedHistCollection *p_hist) {
-  auto n_total_bins = buffer->TotalBins();
-  auto &hist = *p_hist;
-  common::BlockedSpace2d const &subspace =
-      nodes_to_trick.size() == nodes_to_build.size()
-          ? space
-          : common::BlockedSpace2d{nodes_to_trick.size(), [&](std::size_t) { return n_total_bins; },
-                                   1024};
-  common::ParallelFor2d(subspace, ctx->Threads(), [&](std::size_t nidx_in_set, common::Range1d r) {
-    auto subtraction_nidx = nodes_to_trick[nidx_in_set];
-    auto parent_id = p_tree->Parent(subtraction_nidx);
-    auto sibling_nidx = p_tree->IsLeftChild(subtraction_nidx) ? p_tree->RightChild(parent_id)
-                                                              : p_tree->LeftChild(parent_id);
-    auto sibling_hist = hist[sibling_nidx];
-    auto parent_hist = hist[parent_id];
-    auto subtract_hist = hist[subtraction_nidx];
-    common::SubtractionHist(subtract_hist, parent_hist, sibling_hist, r.begin(), r.end());
-  });
-}
-
 /**
  * @brief Histogram build policy for normal cases.
  */
@@ -246,12 +258,12 @@ class DefaultHistPolicy {
   // Whether XGBoost is running in distributed environment.
   bool is_distributed_{false};
   bool is_col_split_{false};
-  std::int32_t n_threads_{-1};
+  Context const* ctx_{nullptr};
 
  public:
-  void Reset(Context const *ctx, bool is_distributed, bool is_col_split) {
+  void DoReset(Context const *ctx, bool is_distributed, bool is_col_split) {
     this->is_distributed_ = is_distributed;
-    this->n_threads_ = ctx->Threads();
+    this->ctx_ = ctx;
     this->is_col_split_ = is_col_split;
   }
 
@@ -260,23 +272,19 @@ class DefaultHistPolicy {
                               std::vector<bst_node_t> const &nodes_to_build,
                               common::RowSetCollection const &row_set_collection,
                               common::Span<GradientPair const> gpair_h, bool force_read_by_column,
-                              common::ParallelGHistBuilder *buffer) {
-    BuildSampleHistograms<any_missing>(this->n_threads_, space, gidx, nodes_to_build,
-                                       row_set_collection, gpair_h, force_read_by_column, buffer);
+                              common::ParallelGHistBuilder *p_buffer) {
+    BuildSampleHistograms<any_missing>(this->ctx_->Threads(), space, gidx, nodes_to_build,
+                                       row_set_collection, gpair_h, force_read_by_column, p_buffer);
   }
 
-  void DoSyncHistogram(Context const *ctx, RegTree const *p_tree,
+  void DoSyncHistogram(common::BlockedSpace2d const &space,
                        std::vector<bst_node_t> const &nodes_to_build,
                        std::vector<bst_node_t> const &nodes_to_trick,
-                       common::ParallelGHistBuilder *buffer, BoundedHistCollection *p_hist) {
-    auto n_total_bins = buffer->TotalBins();
+                       common::ParallelGHistBuilder *p_buffer, BoundedHistCollection *p_hist) {
     auto &hist = *p_hist;
-
-    auto space = common::BlockedSpace2d{nodes_to_build.size(),
-                                        [&](std::size_t) { return n_total_bins; }, 1024};
-    common::ParallelFor2d(space, ctx->Threads(), [&](size_t node, common::Range1d r) {
+    common::ParallelFor2d(space, this->ctx_->Threads(), [&](std::size_t node, common::Range1d r) {
       // Merging histograms from each thread.
-      buffer->ReduceHist(node, r.begin(), r.end());
+      p_buffer->ReduceHist(node, r.begin(), r.end());
     });
 
     // Aggregate the histogram if it's not column split
@@ -284,14 +292,12 @@ class DefaultHistPolicy {
       // The cache is contiguous, we can perform allreduce for all nodes in one go.
       CHECK(!nodes_to_build.empty());
       auto first_nidx = nodes_to_build.front();
-      std::size_t n = n_total_bins * nodes_to_build.size() * 2;
+      std::size_t n = p_buffer->TotalBins() * nodes_to_build.size() * kHist2F64;
       auto rc = collective::Allreduce(
-          ctx, linalg::MakeVec(reinterpret_cast<double *>(hist[first_nidx].data()), n),
+          ctx_, linalg::MakeVec(reinterpret_cast<double *>(hist[first_nidx].data()), n),
           collective::Op::kSum);
       SafeColl(rc);
     }
-
-    SubtractHistParallel(ctx, space, p_tree, nodes_to_build, nodes_to_trick, buffer, p_hist);
   }
 };
 
@@ -371,7 +377,7 @@ class MultiHistogramBuilder {
           }
 
           for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
-            target_builders[t].SyncHistogram(ctx_, p_tree, nodes, dummy_sub);
+            target_builders[t].SyncHistogram(p_tree, nodes, dummy_sub);
           }
         },
         target_builders_);
@@ -417,7 +423,7 @@ class MultiHistogramBuilder {
           }
 
           for (bst_target_t t = 0; t < p_tree->NumTargets(); ++t) {
-            target_builders[t].SyncHistogram(ctx, p_tree, nodes_to_build, nodes_to_sub);
+            target_builders[t].SyncHistogram(p_tree, nodes_to_build, nodes_to_sub);
           }
         },
         target_builders_);

@@ -32,7 +32,7 @@ class FederataedHistPolicy {
   Context const* ctx_;
 
  public:
-  void Reset(Context const *ctx, bool is_distributed, bool is_col_split) {
+  void DoReset(Context const *ctx, bool is_distributed, bool is_col_split) {
     this->is_distributed_ = is_distributed;
     CHECK(is_distributed);
     this->ctx_ = ctx;
@@ -48,11 +48,11 @@ class FederataedHistPolicy {
                               std::vector<bst_node_t> const &nodes_to_build,
                               common::RowSetCollection const &row_set_collection,
                               common::Span<GradientPair const> gpair_h, bool force_read_by_column,
-                              common::ParallelGHistBuilder *buffer);
+                              common::ParallelGHistBuilder *p_buffer);
 
-  void DoSyncHistogram(Context const *ctx, RegTree const *p_tree,
+  void DoSyncHistogram(common::BlockedSpace2d const &space,
                        std::vector<bst_node_t> const &nodes_to_build,
                        std::vector<bst_node_t> const &nodes_to_trick,
-                       common::ParallelGHistBuilder *buffer, tree::BoundedHistCollection *p_hist);
+                       common::ParallelGHistBuilder *p_buffer, tree::BoundedHistCollection *p_hist);
 };
 }  // namespace xgboost::tree
