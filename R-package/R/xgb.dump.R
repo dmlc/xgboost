@@ -29,8 +29,8 @@
 #' data(agaricus.test, package='xgboost')
 #' train <- agaricus.train
 #' test <- agaricus.test
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' bst <- xgb.train(data = xgb.DMatrix(train$data, label = train$label), max_depth = 2,
+#'                  eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 #' # save the model in file 'xgb.model.dump'
 #' dump_path = file.path(tempdir(), 'model.dump')
 #' xgb.dump(bst, dump_path, with_stats = TRUE)

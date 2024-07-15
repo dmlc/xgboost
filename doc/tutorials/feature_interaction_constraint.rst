@@ -178,9 +178,10 @@ parameter:
 Using feature name instead
 **************************
 
-XGBoost's Python package supports using feature names instead of feature index for
+XGBoost's Python and R packages support using feature names instead of feature index for
 specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]``, the
-feature interaction constraint can be specified as ``[["f0", "f2"]]``.
+feature interaction constraint can be specified as ``[["f0", "f2"]]`` (Python) or
+``list(c("f0", "f2"))`` (R, when passing them to function ``xgboost()``).
 
 **************
 Advanced topic

@@ -182,12 +182,6 @@
 #'        as R attributes, and thus do not get saved when using XGBoost's own serializaters like
 #'        \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
 #' @param ... other parameters to pass to \code{params}.
-#' @param label vector of response values. Should not be provided when data is
-#'        a local data file name or an \code{xgb.DMatrix}.
-#' @param missing by default is set to NA, which means that NA values should be considered as 'missing'
-#'        by the algorithm. Sometimes, 0 or other extreme value might be used to represent missing values.
-#'        This parameter is only used when input is a dense matrix.
-#' @param weight a vector indicating the weight for each row of the input.
 #'
 #' @return
 #' An object of class \code{xgb.Booster}.
@@ -328,12 +322,10 @@
 #'                  early_stopping_rounds = 3)
 #'
 #' ## An 'xgboost' interface example:
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label,
-#'                max_depth = 2, eta = 1, nthread = nthread, nrounds = 2,
-#'                objective = "binary:logistic")
+#' bst <- xgboost(x = agaricus.train$data, y = factor(agaricus.train$label),
+#'                params = list(max_depth = 2, eta = 1), nthread = nthread, nrounds = 2)
 #' pred <- predict(bst, agaricus.test$data)
 #'
-#' @rdname xgb.train
 #' @export
 xgb.train <- function(params = list(), data, nrounds, evals = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,

@@ -173,8 +173,9 @@ Build the model
 The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 ```{r}
-bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 4,
-               eta = 1, nthread = 2, nrounds = 10, objective = "binary:logistic")
+bst <- xgboost(x = sparse_matrix, y = output_vector,
+               params = list(max_depth = 4, eta = 1),
+               nthread = 2, nrounds = 10)
 
 ```
 
@@ -299,28 +300,28 @@ test <- agaricus.test
 
 #Random Forest - 1000 trees
 bst <- xgboost(
-    data = train$data,
-    label = train$label,
-    max_depth = 4,
-    num_parallel_tree = 1000,
-    subsample = 0.5,
-    colsample_bytree = 0.5,
+    x = train$data,
+    y = factor(train$label, levels = c(0, 1)),
+    params = list(
+        max_depth = 4,
+        num_parallel_tree = 1000,
+        subsample = 0.5,
+        colsample_bytree = 0.5
+    ),
     nrounds = 1,
-    objective = "binary:logistic",
     nthread = 2
 )
 
 #Boosting - 3 rounds
 bst <- xgboost(
-    data = train$data,
-    label = train$label,
-    max_depth = 4,
+    x = train$data,
+    y = factor(train$label, levels = c(0, 1)),
+    params = list(max_depth = 4),
     nrounds = 3,
-    objective = "binary:logistic",
     nthread = 2
 )
 ```
 
-> Note that the parameter `round` is set to `1`.
+> Note that the parameter `nrounds` is set to `1`.
 
 > [**Random Forests**](https://www.stat.berkeley.edu/~breiman/RandomForests/cc_papers.htm) is a trademark of Leo Breiman and Adele Cutler and is licensed exclusively to Salford Systems for the commercial release of the software.
