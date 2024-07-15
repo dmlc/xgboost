@@ -277,7 +277,7 @@ class DefaultHistPolicy {
       buffer->ReduceHist(node, r.begin(), r.end());
     });
 
-    // Sync the histogram if it's not column split
+    // Aggregate the histogram if it's not column split
     if (is_distributed_ && !is_col_split_) {
       // The cache is contiguous, we can perform allreduce for all nodes in one go.
       CHECK(!nodes_to_build.empty());

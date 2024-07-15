@@ -25,17 +25,17 @@ class FederataedHistPolicy {
   // fixme: duplicated code
   bool is_col_split_{false};
   bool is_distributed_{false};
-  std::int32_t n_threads_{false};
   decltype(std::declval<collective::FederatedComm>().EncryptionPlugin()) plugin_;
   xgboost::common::Span<std::uint8_t> hist_data_;
-  // only initialize the aggregation context once
-  bool is_aggr_context_initialized_ = false;  // fixme
+  // Only initialize the aggregation context once
+  bool is_gidx_initialized_{false};
+  Context const* ctx_;
 
  public:
   void Reset(Context const *ctx, bool is_distributed, bool is_col_split) {
     this->is_distributed_ = is_distributed;
     CHECK(is_distributed);
-    this->n_threads_ = ctx->Threads();
+    this->ctx_ = ctx;
     this->is_col_split_ = is_col_split;
     auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
     auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);

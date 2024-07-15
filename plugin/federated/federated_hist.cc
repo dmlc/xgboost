@@ -8,6 +8,22 @@
 #include "../../src/tree/hist/histogram.h"  // for SubtractHistParallel, BuildSampleHistograms
 
 namespace xgboost::tree {
+namespace {
+// Copy the bins into a dense matrix.
+auto CopyBinsToDense(Context const *ctx, GHistIndexMatrix const &gidx) {
+  auto n_samples = gidx.Size();
+  auto n_features = gidx.Features();
+  std::vector<bst_bin_t> bins(n_samples * n_features);
+  auto bins_view = linalg::MakeTensorView(ctx, bins, n_samples, n_features);
+  common::ParallelFor(n_samples, ctx->Threads(), [&](auto ridx) {
+    for (bst_feature_t fidx = 0; fidx < n_features; fidx++) {
+      bins_view(ridx, fidx) = gidx.GetGindex(ridx, fidx);
+    }
+  });
+  return bins;
+}
+}  // namespace
+
 template <bool any_missing>
 void FederataedHistPolicy::DoBuildLocalHistograms(
     common::BlockedSpace2d const &space, GHistIndexMatrix const &gidx,
@@ -17,19 +33,13 @@ void FederataedHistPolicy::DoBuildLocalHistograms(
   if (is_col_split_) {
     // Call the interface to transmit gidx information to the secure worker for encrypted
     // histogram computation
-    auto cuts = gidx.Cuts().Ptrs();
-    // fixme: this can be done during reset.
-    if (!is_aggr_context_initialized_) {
-      auto slots = std::vector<int>();
-      auto num_rows = gidx.Size();
-      for (std::size_t row = 0; row < num_rows; row++) {
-        for (std::size_t f = 0; f < cuts.size() - 1; f++) {
-          auto slot = gidx.GetGindex(row, f);
-          slots.push_back(slot);
-        }
-      }
-      plugin_->Reset(cuts, slots);
-      is_aggr_context_initialized_ = true;
+
+    // FIXME: this can be done during reset.
+    if (!is_gidx_initialized_) {
+      auto bins = CopyBinsToDense(ctx_, gidx);
+      auto cuts = gidx.Cuts().Ptrs();
+      plugin_->Reset(cuts, bins);
+      is_gidx_initialized_ = true;
     }
 
     // Further use the row set collection info to
@@ -45,7 +55,7 @@ void FederataedHistPolicy::DoBuildLocalHistograms(
     }
     hist_data_ = this->plugin_->BuildEncryptedHistVert(ptrs, sizes, nodes);
   } else {
-    BuildSampleHistograms<any_missing>(this->n_threads_, space, gidx, nodes_to_build,
+    BuildSampleHistograms<any_missing>(this->ctx_->Threads(), space, gidx, nodes_to_build,
                                        row_set_collection, gpair_h, force_read_by_column, buffer);
   }
 }
@@ -86,7 +96,7 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
     common::Span<double> hist_aggr =
         plugin_->SyncEncryptedHistVert(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
 
-    // Update histogram for label owner
+    // Update histogram for the label owner
     if (collective::GetRank() == 0) {
       // iterator of the beginning of the vector
       bst_node_t n_nodes = nodes_to_build.size();
@@ -105,7 +115,10 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
         auto worker_hist = hist_aggr.subspan(widx * worker_size, worker_size);
         // for each node
         for (bst_node_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
-          auto hist_src = worker_hist.subspan(n_total_bins * 2 * nidx_in_set, n_total_bins * 2);
+          constexpr double kFactor = sizeof(GradientPairPrecise) / sizeof(double);
+          static_assert(kFactor == 2);
+          auto hist_size = n_total_bins * kFactor;  // Histogram size for one node.
+          auto hist_src = worker_hist.subspan(hist_size * nidx_in_set, hist_size);
           auto hist_src_g = common::RestoreType<GradientPairPrecise>(hist_src);
           auto hist_dst = hist[nodes_to_build[nidx_in_set]];
           CHECK_EQ(hist_src_g.size(), hist_dst.size());
@@ -114,12 +127,12 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
       }
     }
   } else {
-    common::ParallelFor2d(space, this->n_threads_, [&](std::size_t node, common::Range1d r) {
+    common::ParallelFor2d(space, this->ctx_->Threads(), [&](std::size_t node, common::Range1d r) {
       // Merging histograms from each thread.
       buffer->ReduceHist(node, r.begin(), r.end());
     });
-    // Secure mode, we need to call interface to perform encryption and decryption
-    // note that the actual aggregation will be performed at server side
+    // Secure mode, we need to call the plugin to perform encryption and decryption. Note
+    // that the actual aggregation is performed at server side
     auto first_nidx = nodes_to_build.front();
     std::size_t n = n_total_bins * nodes_to_build.size() * 2;
     auto hist_to_aggr = std::vector<double>();
@@ -127,7 +140,6 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
       double hist_item = reinterpret_cast<double *>(hist[first_nidx].data())[hist_idx];
       hist_to_aggr.push_back(hist_item);
     }
-    // ProcessHistograms
     auto hist_buf = plugin_->BuildEncryptedHistHori(hist_to_aggr);
 
     // allgather
@@ -139,9 +151,8 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
     auto hist_aggr =
         plugin_->SyncEncryptedHistHori(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
     // Assign the aggregated histogram back to the local histogram
-    for (std::size_t hist_idx = 0; hist_idx < n; hist_idx++) {
-      reinterpret_cast<double *>(hist[first_nidx].data())[hist_idx] = hist_aggr[hist_idx];
-    }
+    auto hist_dst = reinterpret_cast<double *>(hist[first_nidx].data());
+    std::copy_n(hist_aggr.data(), hist_aggr.size(), hist_dst);
   }
 
   SubtractHistParallel(ctx, space, p_tree, nodes_to_build, nodes_to_trick, buffer, p_hist);
