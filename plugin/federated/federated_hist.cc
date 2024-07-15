@@ -22,6 +22,9 @@ auto CopyBinsToDense(Context const *ctx, GHistIndexMatrix const &gidx) {
   });
   return bins;
 }
+
+constexpr double kFactor = sizeof(GradientPairPrecise) / sizeof(double);
+static_assert(kFactor == 2);
 }  // namespace
 
 template <bool any_missing>
@@ -115,8 +118,6 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
         auto worker_hist = hist_aggr.subspan(widx * worker_size, worker_size);
         // for each node
         for (bst_node_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
-          constexpr double kFactor = sizeof(GradientPairPrecise) / sizeof(double);
-          static_assert(kFactor == 2);
           auto hist_size = n_total_bins * kFactor;  // Histogram size for one node.
           auto hist_src = worker_hist.subspan(hist_size * nidx_in_set, hist_size);
           auto hist_src_g = common::RestoreType<GradientPairPrecise>(hist_src);
@@ -134,13 +135,9 @@ void FederataedHistPolicy::DoSyncHistogram(Context const *ctx, RegTree const *p_
     // Secure mode, we need to call the plugin to perform encryption and decryption. Note
     // that the actual aggregation is performed at server side
     auto first_nidx = nodes_to_build.front();
-    std::size_t n = n_total_bins * nodes_to_build.size() * 2;
-    auto hist_to_aggr = std::vector<double>();
-    for (std::size_t hist_idx = 0; hist_idx < n; hist_idx++) {
-      double hist_item = reinterpret_cast<double *>(hist[first_nidx].data())[hist_idx];
-      hist_to_aggr.push_back(hist_item);
-    }
-    auto hist_buf = plugin_->BuildEncryptedHistHori(hist_to_aggr);
+    std::size_t n = n_total_bins * nodes_to_build.size() * kFactor;
+    auto src_hist = common::Span{reinterpret_cast<double const *>(hist[first_nidx].data()), n};
+    auto hist_buf = plugin_->BuildEncryptedHistHori(src_hist);
 
     // allgather
     HostDeviceVector<std::int8_t> hist_entries;
