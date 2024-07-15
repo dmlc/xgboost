@@ -30,6 +30,40 @@ NVL <- function(x, val) {
   return(c('rank:pairwise', 'rank:ndcg', 'rank:map'))
 }
 
+.OBJECTIVES_NON_DEFAULT_MODE <- function() {
+  return(c("reg:logistic", "binary:logitraw", "multi:softmax"))
+}
+
+.BINARY_CLASSIF_OBJECTIVES <- function() {
+  return(c("binary:logistic", "binary:hinge"))
+}
+
+.MULTICLASS_CLASSIF_OBJECTIVES <- function() {
+  return("multi:softprob")
+}
+
+.SURVIVAL_RIGHT_CENSORING_OBJECTIVES <- function() { # nolint
+  return(c("survival:cox", "survival:aft"))
+}
+
+.SURVIVAL_ALL_CENSORING_OBJECTIVES <- function() { # nolint
+  return("survival:aft")
+}
+
+.REGRESSION_OBJECTIVES <- function() {
+  return(c(
+    "reg:squarederror", "reg:squaredlogerror", "reg:logistic", "reg:pseudohubererror",
+    "reg:absoluteerror", "reg:quantileerror", "count:poisson", "reg:gamma", "reg:tweedie"
+  ))
+}
+
+.MULTI_TARGET_OBJECTIVES <- function() {
+  return(c(
+    "reg:squarederror", "reg:squaredlogerror", "reg:logistic", "reg:pseudohubererror",
+    "reg:quantileerror", "reg:gamma"
+  ))
+}
+
 
 #
 # Low-level functions for boosting --------------------------------------------

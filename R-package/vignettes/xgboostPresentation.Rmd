@@ -146,22 +146,19 @@ In a *sparse* matrix, cells containing `0` are not stored in memory. Therefore, 
 
 We will train decision tree model using the following parameters:
 
-* `objective = "binary:logistic"`: we will train a binary classification model ;
+* `objective = "binary:logistic"`: we will train a binary classification model (note that this is set automatically when `y` is a `factor`) ;
 * `max_depth = 2`: the trees won't be deep, because our case is very simple ;
 * `nthread = 2`: the number of CPU threads we are going to use;
 * `nrounds = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
 ```{r trainingSparse, message=F, warning=F}
 bstSparse <- xgboost(
-    data = train$data
-    , label = train$label
-    , params = list(
-        max_depth = 2
-        , eta = 1
-        , nthread = 2
-        , objective = "binary:logistic"
-    )
+    x = train$data
+    , y = factor(train$label, levels = c(0, 1))
+    , objective = "binary:logistic"
+    , params = list(max_depth = 2, eta = 1)
     , nrounds = 2
+    , nthread = 2
 )
 ```
 
@@ -175,15 +172,11 @@ Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** 
 
 ```{r trainingDense, message=F, warning=F}
 bstDense <- xgboost(
-    data = as.matrix(train$data),
-    label = train$label,
-    params = list(
-        max_depth = 2,
-        eta = 1,
-        nthread = 2,
-        objective = "binary:logistic"
-    ),
-    nrounds = 2
+    x = as.matrix(train$data),
+    y = factor(train$label, levels = c(0, 1)),
+    params = list(max_depth = 2, eta = 1),
+    nrounds = 2,
+    nthread = 2
 )
 ```
 
@@ -193,7 +186,7 @@ bstDense <- xgboost(
 
 ```{r trainingDmatrix, message=F, warning=F}
 dtrain <- xgb.DMatrix(data = train$data, label = train$label, nthread = 2)
-bstDMatrix <- xgboost(
+bstDMatrix <- xgb.train(
     data = dtrain,
     params = list(
         max_depth = 2,
@@ -213,7 +206,7 @@ One of the simplest way to see the training progress is to set the `verbose` opt
 
 ```{r trainingVerbose0, message=T, warning=F}
 # verbose = 0, no message
-bst <- xgboost(
+bst <- xgb.train(
     data = dtrain
     , params = list(
         max_depth = 2
@@ -228,7 +221,7 @@ bst <- xgboost(
 
 ```{r trainingVerbose1, message=T, warning=F}
 # verbose = 1, print evaluation metric
-bst <- xgboost(
+bst <- xgb.train(
     data = dtrain
     , params = list(
         max_depth = 2
@@ -243,7 +236,7 @@ bst <- xgboost(
 
 ```{r trainingVerbose2, message=T, warning=F}
 # verbose = 2, also print information about tree
-bst <- xgboost(
+bst <- xgb.train(
     data = dtrain
     , params = list(
         max_depth = 2

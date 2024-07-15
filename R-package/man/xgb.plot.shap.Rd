@@ -135,9 +135,8 @@ nthread <- 1
 data.table::setDTthreads(nthread)
 nrounds <- 20
 
-bst <- xgboost(
-  agaricus.train$data,
-  agaricus.train$label,
+bst <- xgb.train(
+  data = xgb.DMatrix(agaricus.train$data, agaricus.train$label),
   nrounds = nrounds,
   eta = 0.1,
   max_depth = 3,
@@ -161,9 +160,8 @@ x <- as.matrix(iris[, -5])
 set.seed(123)
 is.na(x[sample(nrow(x) * 4, 30)]) <- TRUE # introduce some missing values
 
-mbst <- xgboost(
-  data = x,
-  label = as.numeric(iris$Species) - 1,
+mbst <- xgb.train(
+  data = xgb.DMatrix(x, label = as.numeric(iris$Species) - 1),
   nrounds = nrounds,
   max_depth = 2,
   eta = 0.3,

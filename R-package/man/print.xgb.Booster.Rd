@@ -21,9 +21,8 @@ Print information about \code{xgb.Booster}.
 data(agaricus.train, package = "xgboost")
 train <- agaricus.train
 
-bst <- xgboost(
-  data = train$data,
-  label = train$label,
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label),
   max_depth = 2,
   eta = 1,
   nthread = 2,
