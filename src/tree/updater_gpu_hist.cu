@@ -852,17 +852,13 @@ class GPUHistMaker : public TreeUpdater {
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     auto gpair_hdv = gpair->Data();
     // build tree
-    try {
-      std::size_t t_idx{0};
-      for (xgboost::RegTree* tree : trees) {
-        this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
-        this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
-        ++t_idx;
-      }
-      dh::safe_cuda(cudaGetLastError());
-    } catch (const std::exception& e) {
-      LOG(FATAL) << "Exception in gpu_hist: " << e.what() << std::endl;
+    std::size_t t_idx{0};
+    for (xgboost::RegTree* tree : trees) {
+      this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
+      this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
+      ++t_idx;
     }
+    dh::safe_cuda(cudaGetLastError());
     monitor_.Stop("Update");
   }
 

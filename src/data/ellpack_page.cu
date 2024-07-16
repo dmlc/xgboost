@@ -44,21 +44,19 @@ __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
     const size_t* __restrict__ row_ptrs,           // row offset of input data
-    const Entry* __restrict__ entries,      // One batch of input data
-    const float* __restrict__ cuts,         // HistogramCuts::cut_values_
-    const uint32_t* __restrict__ cut_ptrs,  // HistogramCuts::cut_ptrs_
+    const Entry* __restrict__ entries,             // One batch of input data
+    const float* __restrict__ cuts,                // HistogramCuts::cut_values_
+    const uint32_t* __restrict__ cut_ptrs,         // HistogramCuts::cut_ptrs_
     common::Span<FeatureType const> feature_types,
-    size_t base_row,                        // batch_row_begin
-    size_t n_rows,
-    size_t row_stride,
-    unsigned int null_gidx_value) {
+    size_t base_row,  // batch_row_begin
+    size_t n_rows, size_t row_stride, std::uint32_t null_gidx_value) {
   size_t irow = threadIdx.x + blockIdx.x * blockDim.x;
   int ifeature = threadIdx.y + blockIdx.y * blockDim.y;
   if (irow >= n_rows || ifeature >= row_stride) {
     return;
   }
   int row_length = static_cast<int>(row_ptrs[irow + 1] - row_ptrs[irow]);
-  unsigned int bin = null_gidx_value;
+  std::uint32_t bin = null_gidx_value;
   if (ifeature < row_length) {
     Entry entry = entries[row_ptrs[irow] - row_ptrs[0] + ifeature];
     int feature = entry.index;
@@ -483,7 +481,7 @@ void EllpackPageImpl::CreateHistIndices(DeviceOrd device,
                                         const SparsePage& row_batch,
                                         common::Span<FeatureType const> feature_types) {
   if (row_batch.Size() == 0) return;
-  unsigned int null_gidx_value = NumSymbols() - 1;
+  std::uint32_t null_gidx_value = NumSymbols() - 1;
 
   const auto& offset_vec = row_batch.offset.ConstHostVector();
 
@@ -566,7 +564,7 @@ EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
     common::Span<FeatureType const> feature_types) const {
   h_gidx_buffer->resize(gidx_buffer.size());
   dh::safe_cuda(cudaMemcpyAsync(h_gidx_buffer->data(), gidx_buffer.data(), gidx_buffer.size_bytes(),
-                                cudaMemcpyDefault));
+                                cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
   return {DeviceOrd::CPU(),
           cuts_,
           is_dense,
