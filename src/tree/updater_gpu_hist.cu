@@ -16,7 +16,8 @@
 #include "../collective/broadcast.h"
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
-#include "../common/cuda_context.cuh"  // CUDAContext
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/cuda_rt_utils.h"   // for CheckComputeCapability
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/random.h"  // for ColumnSampler, GlobalRandom
@@ -826,7 +827,7 @@ class GPUHistMaker : public TreeUpdater {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
-    dh::CheckComputeCapability();
+    common::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init("updater_gpu_hist");
@@ -852,17 +853,13 @@ class GPUHistMaker : public TreeUpdater {
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     auto gpair_hdv = gpair->Data();
     // build tree
-    try {
-      std::size_t t_idx{0};
-      for (xgboost::RegTree* tree : trees) {
-        this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
-        this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
-        ++t_idx;
-      }
-      dh::safe_cuda(cudaGetLastError());
-    } catch (const std::exception& e) {
-      LOG(FATAL) << "Exception in gpu_hist: " << e.what() << std::endl;
+    std::size_t t_idx{0};
+    for (xgboost::RegTree* tree : trees) {
+      this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
+      this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
+      ++t_idx;
     }
+    dh::safe_cuda(cudaGetLastError());
     monitor_.Stop("Update");
   }
 
@@ -958,7 +955,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     if (hist_maker_param_.max_cached_hist_node != HistMakerTrainParam::DefaultNodes()) {
       LOG(WARNING) << "The `max_cached_hist_node` is ignored in GPU.";
     }
-    dh::CheckComputeCapability();
+    common::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init(this->Name());

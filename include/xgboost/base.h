@@ -7,6 +7,8 @@
 #define XGBOOST_BASE_H_
 
 #include <dmlc/omp.h>  // for omp_uint, omp_ulong
+// Put the windefs here to guard as many files as possible.
+#include <xgboost/windefs.h>
 
 #include <cstdint>  // for int32_t, uint64_t, int16_t
 #include <ostream>  // for ostream

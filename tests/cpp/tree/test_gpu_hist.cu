@@ -81,6 +81,7 @@ std::vector<GradientPairPrecise> GetHostHistGpair() {
 template <typename GradientSumT>
 void TestBuildHist(bool use_shared_memory_histograms) {
   int const kNRows = 16, kNCols = 8;
+  Context ctx{MakeCUDACtx(0)};
 
   TrainParam param;
   Args args{
@@ -89,9 +90,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   };
   param.Init(args);
 
-  auto page = BuildEllpackPage(kNRows, kNCols);
+  auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
   BatchParam batch_param{};
-  Context ctx{MakeCUDACtx(0)};
   auto cs = std::make_shared<common::ColumnSampler>(0);
   GPUHistMakerDevice maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param, cs, kNCols,
                            batch_param, MetaInfo());
@@ -105,7 +105,6 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   }
   gpair.SetDevice(ctx.Device());
 
-  thrust::host_vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
   maker.row_partitioner = std::make_unique<RowPartitioner>(&ctx, kNRows, 0);
 
   maker.hist.Init(ctx.Device(), page->Cuts().TotalBins());
@@ -198,14 +197,12 @@ void TestHistogramIndexImpl() {
   auto grad = GenerateRandomGradients(kNRows);
   grad.SetDevice(DeviceOrd::CUDA(0));
   maker->Reset(&grad, hist_maker_dmat.get(), kNCols);
-  std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.HostVector());
 
   const auto &maker_ext = hist_maker_ext.maker;
   maker_ext->Reset(&grad, hist_maker_ext_dmat.get(), kNCols);
-  std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.HostVector());
 
   ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());
-  ASSERT_EQ(maker->page->gidx_buffer.Size(), maker_ext->page->gidx_buffer.Size());
+  ASSERT_EQ(maker->page->gidx_buffer.size(), maker_ext->page->gidx_buffer.size());
 }
 
 TEST(GpuHist, TestHistogramIndex) {

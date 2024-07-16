@@ -7,7 +7,11 @@
 #ifndef XGBOOST_COMMON_IO_H_
 #define XGBOOST_COMMON_IO_H_
 
-#include <dmlc/io.h>
+#include <xgboost/windefs.h>
+
+#if defined(xgboost_IS_WIN)
+#include <windows.h>
+#endif  // defined(xgboost_IS_WIN)
 
 #include <algorithm>    // for min, fill_n, copy_n
 #include <array>        // for array
@@ -15,6 +19,7 @@
 #include <cstdlib>      // for malloc, realloc, free
 #include <cstring>      // for memcpy
 #include <fstream>      // for ifstream
+#include <functional>   // for function
 #include <limits>       // for numeric_limits
 #include <memory>       // for unique_ptr
 #include <string>       // for string
@@ -23,6 +28,7 @@
 #include <vector>       // for vector
 
 #include "common.h"               // for DivRoundUp
+#include "dmlc/io.h"              // for SeekStream
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::common {
@@ -224,7 +230,48 @@ inline std::string ReadAll(std::string const &path) {
   return content;
 }
 
-struct MMAPFile;
+/**
+ * @brief A handle to mmap file.
+ */
+struct MMAPFile {
+#if defined(xgboost_IS_WIN)
+  HANDLE fd{INVALID_HANDLE_VALUE};
+  HANDLE file_map{INVALID_HANDLE_VALUE};
+#else
+  std::int32_t fd{0};
+#endif  // defined(xgboost_IS_WIN)
+  std::byte* base_ptr{nullptr};
+  std::size_t base_size{0};
+  std::size_t delta{0};
+  std::string path;
+
+  MMAPFile() = default;
+
+#if defined(xgboost_IS_WIN)
+  MMAPFile(HANDLE fd, HANDLE fm, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
+           std::string path)
+      : fd{fd},
+        file_map{fm},
+        base_ptr{base_ptr},
+        base_size{base_size},
+        delta{delta},
+        path{std::move(path)} {}
+#else
+  MMAPFile(std::int32_t fd, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
+           std::string path)
+      : fd{fd}, base_ptr{base_ptr}, base_size{base_size}, delta{delta}, path{std::move(path)} {}
+#endif  // defined(xgboost_IS_WIN)
+
+  void const* Data() const { return this->base_ptr + this->delta; }
+  void* Data() { return this->base_ptr + this->delta; }
+};
+
+namespace detail {
+// call mmap
+[[nodiscard]] MMAPFile* OpenMmap(std::string path, std::size_t offset, std::size_t length);
+// close the mapped file handle.
+void CloseMmap(MMAPFile* handle);
+}  // namespace detail
 
 /**
  * @brief Handler for one-shot resource. Unlike `std::pmr::*`, the resource handler is
@@ -237,6 +284,8 @@ class ResourceHandler {
   enum Kind : std::uint8_t {
     kMalloc = 0,
     kMmap = 1,
+    kCudaMalloc = 2,
+    kCudaMmap = 3,
   };
 
  private:
@@ -251,6 +300,20 @@ class ResourceHandler {
 
   [[nodiscard]] virtual std::size_t Size() const = 0;
   [[nodiscard]] auto Type() const { return kind_; }
+  [[nodiscard]] StringView TypeName() const {
+    switch (this->Type()) {
+      case kMalloc:
+        return "Malloc";
+      case kMmap:
+        return "Mmap";
+      case kCudaMalloc:
+        return "CudaMalloc";
+      case kCudaMmap:
+        return "CudaMmap";
+    }
+    LOG(FATAL) << "Unreachable.";
+    return {};
+  }
 
   // Allow exceptions for cleaning up resource.
   virtual ~ResourceHandler() noexcept(false);
@@ -339,11 +402,11 @@ class MallocResource : public ResourceHandler {
  * @brief A class for wrapping mmap as a resource for RAII.
  */
 class MmapResource : public ResourceHandler {
-  std::unique_ptr<MMAPFile> handle_;
+  std::unique_ptr<MMAPFile, std::function<void(MMAPFile*)>> handle_;
   std::size_t n_;
 
  public:
-  MmapResource(std::string path, std::size_t offset, std::size_t length);
+  MmapResource(StringView path, std::size_t offset, std::size_t length);
   ~MmapResource() noexcept(false) override;
 
   [[nodiscard]] void* Data() override;
@@ -471,9 +534,9 @@ class PrivateMmapConstStream : public AlignedResourceReadStream {
    * @param offset    See the `offset` parameter of `mmap` for details.
    * @param length    See the `length` parameter of `mmap` for details.
    */
-  explicit PrivateMmapConstStream(std::string path, std::size_t offset, std::size_t length)
+  explicit PrivateMmapConstStream(StringView path, std::size_t offset, std::size_t length)
       : AlignedResourceReadStream{std::shared_ptr<MmapResource>{  // NOLINT
-            new MmapResource{std::move(path), offset, length}}} {}
+            new MmapResource{path, offset, length}}} {}
   ~PrivateMmapConstStream() noexcept(false) override;
 };
 

@@ -1,13 +1,10 @@
-/*!
- * Copyright (c) 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_TESTS_CPP_FILESYSTEM_H
 #define XGBOOST_TESTS_CPP_FILESYSTEM_H
 
-// A macro used inside `windows.h` to avoid conflicts with `winsock2.h`
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif  // WIN32_LEAN_AND_MEAN
+#include <xgboost/windefs.h>
 
 #include "dmlc/filesystem.h"
 
