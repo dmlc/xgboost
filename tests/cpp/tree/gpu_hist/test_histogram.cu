@@ -328,8 +328,7 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
       for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
         concat.Push(page);
       }
-      EllpackPageImpl page{
-          ctx.Device(), cuts, concat, p_fmat->IsDense(), p_fmat->Info().num_col_, {}};
+      EllpackPageImpl page{&ctx, cuts, concat, p_fmat->IsDense(), p_fmat->Info().num_col_, {}};
       auto ridx = partitioner.GetRows(0);
       auto d_histogram = dh::ToSpan(single_hist);
       DeviceHistogramBuilder builder;

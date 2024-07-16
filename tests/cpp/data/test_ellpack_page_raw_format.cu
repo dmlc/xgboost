@@ -55,7 +55,10 @@ void TestEllpackPageRawFormat() {
     ASSERT_EQ(loaded->Cuts().Values(), orig->Cuts().Values());
     ASSERT_EQ(loaded->base_rowid, orig->base_rowid);
     ASSERT_EQ(loaded->row_stride, orig->row_stride);
-    ASSERT_EQ(loaded->gidx_buffer.HostVector(), orig->gidx_buffer.HostVector());
+    std::vector<common::CompressedByteT> h_loaded, h_orig;
+    [[maybe_unused]] auto h_loaded_acc = loaded->GetHostAccessor(&ctx, &h_loaded);
+    [[maybe_unused]] auto h_orig_acc = orig->GetHostAccessor(&ctx, &h_orig);
+    ASSERT_EQ(h_loaded, h_orig);
   }
 }
 }  // anonymous namespace

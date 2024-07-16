@@ -167,7 +167,7 @@ GradientBasedSample ExternalMemoryNoSampling::Sample(Context const* ctx,
     for (auto& batch : dmat->GetBatches<EllpackPage>(ctx, batch_param_)) {
       auto page = batch.Impl();
       if (!page_) {
-        page_ = std::make_unique<EllpackPageImpl>(ctx->Device(), page->CutsShared(), page->is_dense,
+        page_ = std::make_unique<EllpackPageImpl>(ctx, page->CutsShared(), page->is_dense,
                                                   page->row_stride, dmat->Info().num_row_);
       }
       size_t num_elements = page_->Copy(ctx->Device(), page, offset);
@@ -228,11 +228,11 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
-  page_.reset(new EllpackPageImpl(ctx->Device(), first_page->CutsShared(), first_page->is_dense,
+  page_.reset(new EllpackPageImpl(ctx, first_page->CutsShared(), first_page->is_dense,
                                   first_page->row_stride, sample_rows));
 
   // Compact the ELLPACK pages into the single sample page.
-  thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
+  thrust::fill(cuctx->CTP(), page_->gidx_buffer.begin(), page_->gidx_buffer.end(), 0);
   for (auto& batch : batch_iterator) {
     page_->Compact(ctx, batch.Impl(), dh::ToSpan(sample_row_index_));
   }
@@ -302,10 +302,10 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
-  page_.reset(new EllpackPageImpl(ctx->Device(), first_page->CutsShared(), dmat->IsDense(),
+  page_.reset(new EllpackPageImpl(ctx, first_page->CutsShared(), dmat->IsDense(),
                                   first_page->row_stride, sample_rows));
   // Compact the ELLPACK pages into the single sample page.
-  thrust::fill(cuctx->CTP(), dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
+  thrust::fill(cuctx->CTP(), page_->gidx_buffer.begin(), page_->gidx_buffer.end(), 0);
   for (auto& batch : batch_iterator) {
     page_->Compact(ctx, batch.Impl(), dh::ToSpan(sample_row_index_));
   }

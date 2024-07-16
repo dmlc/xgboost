@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -102,19 +102,17 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   EXPECT_EQ(sample.gpair.data(), gpair.DevicePointer());
   EXPECT_EQ(sampled_page->n_rows, kRows);
 
-  std::vector<common::CompressedByteT> buffer(sampled_page->gidx_buffer.HostVector());
-  common::CompressedIterator<common::CompressedByteT>
-      ci(buffer.data(), sampled_page->NumSymbols());
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = sampled_page->GetHostAccessor(&ctx, &h_gidx_buffer);
 
-  size_t offset = 0;
+  std::size_t offset = 0;
   for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     auto page = batch.Impl();
-    std::vector<common::CompressedByteT> page_buffer(page->gidx_buffer.HostVector());
-    common::CompressedIterator<common::CompressedByteT>
-        page_ci(page_buffer.data(), page->NumSymbols());
+    std::vector<common::CompressedByteT> h_page_gidx_buffer;
+    auto page_accessor = page->GetHostAccessor(&ctx, &h_page_gidx_buffer);
     size_t num_elements = page->n_rows * page->row_stride;
     for (size_t i = 0; i < num_elements; i++) {
-      EXPECT_EQ(ci[i + offset], page_ci[i]);
+      EXPECT_EQ(h_accessor.gidx_iter[i + offset], page_accessor.gidx_iter[i]);
     }
     offset += num_elements;
   }

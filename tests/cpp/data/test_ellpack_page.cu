@@ -27,15 +27,15 @@ TEST(EllpackPage, EmptyDMatrix) {
   auto impl = page.Impl();
   ASSERT_EQ(impl->row_stride, 0);
   ASSERT_EQ(impl->Cuts().TotalBins(), 0);
-  ASSERT_EQ(impl->gidx_buffer.Size(), 4);
+  ASSERT_EQ(impl->gidx_buffer.size(), 4);
 }
 
 TEST(EllpackPage, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols);
-
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), page->NumSymbols());
+  auto ctx = MakeCUDACtx(0);
+  auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = page->GetHostAccessor(&ctx, &h_gidx_buffer);
 
   ASSERT_EQ(page->row_stride, kNCols);
 
@@ -58,16 +58,17 @@ TEST(EllpackPage, BuildGidxDense) {
     1, 4, 7, 10, 14, 16, 19, 21,
   };
   for (size_t i = 0; i < kNRows * kNCols; ++i) {
-    ASSERT_EQ(solution[i], gidx[i]);
+    ASSERT_EQ(solution[i], h_accessor.gidx_iter[i]);
   }
 }
 
 TEST(EllpackPage, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols, 0.9f);
+  auto ctx = MakeCUDACtx(0);
+  auto page = BuildEllpackPage(&ctx, kNRows, kNCols, 0.9f);
 
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = page->GetHostAccessor(&ctx, &h_gidx_buffer);
 
   ASSERT_LE(page->row_stride, 3);
 
@@ -78,7 +79,7 @@ TEST(EllpackPage, BuildGidxSparse) {
     24,  7, 14, 16,  4, 24, 24, 24, 24, 24,  9, 24, 24,  1, 24, 24
   };
   for (size_t i = 0; i < kNRows * page->row_stride; ++i) {
-    ASSERT_EQ(solution[i], gidx[i]);
+    ASSERT_EQ(solution[i], h_accessor.gidx_iter[i]);
   }
 }
 
@@ -110,13 +111,11 @@ TEST(EllpackPage, FromCategoricalBasic) {
   ASSERT_EQ(h_cuts_ptr.size(), 2);
   ASSERT_EQ(h_cuts_values.size(), kCats);
 
-  std::vector<common::CompressedByteT> const &h_gidx_buffer =
-      ellpack.Impl()->gidx_buffer.HostVector();
-  auto h_gidx_iter = common::CompressedIterator<uint32_t>(
-      h_gidx_buffer.data(), accessor.NumSymbols());
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = ellpack.Impl()->GetHostAccessor(&ctx, &h_gidx_buffer);
 
   for (size_t i = 0; i < x.size(); ++i) {
-    auto bin = h_gidx_iter[i];
+    auto bin = h_accessor.gidx_iter[i];
     auto bin_value = h_cuts_values.at(bin);
     ASSERT_EQ(AsCat(x[i]), AsCat(bin_value));
   }
@@ -152,7 +151,7 @@ TEST(EllpackPage, Copy) {
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(FstCU(), page->CutsShared(), page->is_dense, page->row_stride, kRows);
+  EllpackPageImpl result(&ctx, page->CutsShared(), page->is_dense, page->row_stride, kRows);
 
   // Copy batch pages into the result page.
   size_t offset = 0;
@@ -200,7 +199,7 @@ TEST(EllpackPage, Compact) {
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(ctx.Device(), page->CutsShared(), page->is_dense, page->row_stride,
+  EllpackPageImpl result(&ctx, page->CutsShared(), page->is_dense, page->row_stride,
                          kCompactedRows);
 
   // Compact batch pages into the result page.
@@ -269,16 +268,13 @@ class EllpackPageTest : public testing::TestWithParam<float> {
       ASSERT_EQ(from_sparse_page->base_rowid, 0);
       ASSERT_EQ(from_sparse_page->base_rowid, from_ghist->base_rowid);
       ASSERT_EQ(from_sparse_page->n_rows, from_ghist->n_rows);
-      ASSERT_EQ(from_sparse_page->gidx_buffer.Size(), from_ghist->gidx_buffer.Size());
-      auto const& h_gidx_from_sparse = from_sparse_page->gidx_buffer.HostVector();
-      auto const& h_gidx_from_ghist = from_ghist->gidx_buffer.HostVector();
+      ASSERT_EQ(from_sparse_page->gidx_buffer.size(), from_ghist->gidx_buffer.size());
+      std::vector<common::CompressedByteT> h_gidx_from_sparse, h_gidx_from_ghist;
+      auto from_ghist_acc = from_ghist->GetHostAccessor(&gpu_ctx, &h_gidx_from_ghist);
+      auto from_sparse_acc = from_sparse_page->GetHostAccessor(&gpu_ctx, &h_gidx_from_sparse);
       ASSERT_EQ(from_sparse_page->NumSymbols(), from_ghist->NumSymbols());
-      common::CompressedIterator<uint32_t> from_ghist_it(h_gidx_from_ghist.data(),
-                                                         from_ghist->NumSymbols());
-      common::CompressedIterator<uint32_t> from_sparse_it(h_gidx_from_sparse.data(),
-                                                          from_sparse_page->NumSymbols());
       for (size_t i = 0; i < from_ghist->n_rows * from_ghist->row_stride; ++i) {
-        EXPECT_EQ(from_ghist_it[i], from_sparse_it[i]);
+        EXPECT_EQ(from_ghist_acc.gidx_iter[i], from_sparse_acc.gidx_iter[i]);
       }
     }
   }

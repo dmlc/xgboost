@@ -1,23 +1,25 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
-
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_CUH_
 #define XGBOOST_DATA_ELLPACK_PAGE_CUH_
 
 #include <thrust/binary_search.h>
-#include <xgboost/data.h>
 
 #include "../common/categorical.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
+#include "../common/ref_resource_view.h"  // for RefResourceView
 #include "ellpack_page.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
-/** \brief Struct for accessing and manipulating an ELLPACK matrix on the
- * device. Does not own underlying memory and may be trivially copied into
- * kernels.*/
+/**
+ * @brief Struct for accessing and manipulating an ELLPACK matrix on the device.
+ *
+ * Does not own underlying memory and may be trivially copied into kernels.
+ */
 struct EllpackDeviceAccessor {
   /*! \brief Whether or not if the matrix is dense. */
   bool is_dense;
@@ -142,12 +144,12 @@ class EllpackPageImpl {
    * This is used in the sampling case. The ELLPACK page is constructed from an existing EllpackInfo
    * and the given number of rows.
    */
-  EllpackPageImpl(DeviceOrd device, std::shared_ptr<common::HistogramCuts const> cuts,
+  EllpackPageImpl(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
                   bool is_dense, bst_idx_t row_stride, bst_idx_t n_rows);
   /*!
    * \brief Constructor used for external memory.
    */
-  EllpackPageImpl(DeviceOrd device, std::shared_ptr<common::HistogramCuts const> cuts,
+  EllpackPageImpl(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
                   const SparsePage& page, bool is_dense, size_t row_stride,
                   common::Span<FeatureType const> feature_types);
 
@@ -160,7 +162,7 @@ class EllpackPageImpl {
   explicit EllpackPageImpl(Context const* ctx, DMatrix* dmat, const BatchParam& parm);
 
   template <typename AdapterBatch>
-  explicit EllpackPageImpl(AdapterBatch batch, float missing, DeviceOrd device, bool is_dense,
+  explicit EllpackPageImpl(Context const* ctx, AdapterBatch batch, float missing, bool is_dense,
                            common::Span<size_t> row_counts_span,
                            common::Span<FeatureType const> feature_types, size_t row_stride,
                            size_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
@@ -210,22 +212,22 @@ class EllpackPageImpl {
   [[nodiscard]] EllpackDeviceAccessor GetDeviceAccessor(
       DeviceOrd device, common::Span<FeatureType const> feature_types = {}) const;
   [[nodiscard]] EllpackDeviceAccessor GetHostAccessor(
+      Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
       common::Span<FeatureType const> feature_types = {}) const;
 
  private:
-  /*!
-   * \brief Compress a single page of CSR data into ELLPACK.
+  /**
+   * @brief Compress a single page of CSR data into ELLPACK.
    *
    * @param device The GPU device to use.
    * @param row_batch The CSR page.
    */
-  void CreateHistIndices(DeviceOrd device,
-                         const SparsePage& row_batch,
+  void CreateHistIndices(DeviceOrd device, const SparsePage& row_batch,
                          common::Span<FeatureType const> feature_types);
-  /*!
-   * \brief Initialize the buffer to store compressed features.
+  /**
+   * @brief Initialize the buffer to store compressed features.
    */
-  void InitCompressedData(DeviceOrd device);
+  void InitCompressedData(Context const* ctx);
 
  public:
   /*! \brief Whether or not if the matrix is dense. */
@@ -233,9 +235,13 @@ class EllpackPageImpl {
   /*! \brief Row length for ELLPACK. */
   bst_idx_t row_stride;
   bst_idx_t base_rowid{0};
-  bst_idx_t n_rows{};
-  /*! \brief global index of histogram, which is stored in ELLPACK format. */
-  HostDeviceVector<common::CompressedByteT> gidx_buffer;
+  bst_idx_t n_rows{0};
+  /**
+   * @brief Index of the gradient histogram, which is stored in ELLPACK format.
+   *
+   * This can be backed by various storage types.
+   */
+  common::RefResourceView<common::CompressedByteT> gidx_buffer;
 
  private:
   std::shared_ptr<common::HistogramCuts const> cuts_;

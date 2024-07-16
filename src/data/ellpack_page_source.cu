@@ -146,8 +146,8 @@ void EllpackPageSourceImpl<F>::Fetch() {
     auto const& csr = this->source_->Page();
     this->page_.reset(new EllpackPage{});
     auto* impl = this->page_->Impl();
-    *impl = EllpackPageImpl{this->Device(), this->GetCuts(), *csr,
-                            is_dense_,      row_stride_,     feature_types_};
+    Context ctx = Context{}.MakeCUDA(this->Device().ordinal);  // FIXME
+    *impl = EllpackPageImpl{&ctx, this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
     this->WriteCache();
   }
