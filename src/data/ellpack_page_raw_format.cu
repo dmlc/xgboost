@@ -4,7 +4,6 @@
 #include <dmlc/registry.h>
 
 #include <cstddef>  // for size_t
-#include <cstdint>  // for uint64_t
 #include <vector>   // for vector
 
 #include "../common/io.h"                   // for AlignedResourceReadStream, AlignedFileWriteStream
@@ -16,33 +15,6 @@
 
 namespace xgboost::data {
 DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
-
-namespace {
-template <typename T>
-[[nodiscard]] bool ReadDeviceVec(common::AlignedResourceReadStream* fi,
-                                 common::RefResourceView<T>* vec) {
-  std::uint64_t n{0};
-  if (!fi->Read(&n)) {
-    return false;
-  }
-  if (n == 0) {
-    return true;
-  }
-
-  auto expected_bytes = sizeof(T) * n;
-
-  auto [ptr, n_bytes] = fi->Consume(expected_bytes);
-  if (n_bytes != expected_bytes) {
-    return false;
-  }
-
-  Context ctx = Context{}.MakeCUDA(0);  // FIXME
-  *vec = common::MakeFixedVecWithCudaMalloc(&ctx, n, static_cast<common::CompressedByteT>(0));
-  auto d_vec = vec->data();
-  dh::safe_cuda(cudaMemcpyAsync(d_vec, ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
-  return true;
-}
-}  // namespace
 
 [[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page,
                                               common::AlignedResourceReadStream* fi) {
