@@ -237,7 +237,7 @@ class ResourceHandler {
   enum Kind : std::uint8_t {
     kMalloc = 0,
     kMmap = 1,
-    kHDV = 2,
+    kCudaMalloc = 2,
   };
 
  private:

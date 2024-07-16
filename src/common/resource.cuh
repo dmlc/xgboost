@@ -1,3 +1,6 @@
+/**
+ * Copyright 2024, XGBoost Contributors
+ */
 #pragma once
 #include <cstddef>  // for size_t
 
@@ -11,7 +14,7 @@ class CudaAllocResource : public ResourceHandler {
   void Clear() noexcept(true) {}
 
  public:
-  explicit CudaAllocResource(std::size_t n_bytes) : ResourceHandler{kMalloc} {
+  explicit CudaAllocResource(std::size_t n_bytes) : ResourceHandler{kCudaMalloc} {
     this->Resize(n_bytes);
   }
   ~CudaAllocResource() noexcept(true) override { this->Clear(); }
