@@ -11,7 +11,7 @@ namespace xgboost::common {
 class CudaAllocResource : public ResourceHandler {
   dh::DeviceUVector<std::byte> storage_;
 
-  void Clear() noexcept(true) {}
+  void Clear() noexcept(true) { this->Resize(0); }
 
  public:
   explicit CudaAllocResource(std::size_t n_bytes) : ResourceHandler{kCudaMalloc} {

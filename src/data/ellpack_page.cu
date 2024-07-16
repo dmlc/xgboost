@@ -473,14 +473,8 @@ void EllpackPageImpl::InitCompressedData(Context const* ctx) {
   // Required buffer size for storing data matrix in ELLPack format.
   std::size_t compressed_size_bytes =
       common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows, num_symbols);
-  // Don't call fill unnecessarily
   auto init = static_cast<common::CompressedByteT>(0);
-  if (gidx_buffer.size() == 0) {
-    gidx_buffer = common::MakeFixedVecWithCudaMalloc(ctx, compressed_size_bytes, init);
-  } else {
-    gidx_buffer = common::MakeFixedVecWithCudaMalloc(ctx, compressed_size_bytes, init);
-    thrust::fill(this->gidx_buffer.begin(), this->gidx_buffer.end(), init);
-  }
+  gidx_buffer = common::MakeFixedVecWithCudaMalloc(ctx, compressed_size_bytes, init);
   monitor_.Stop(__func__);
 }
 
@@ -534,7 +528,7 @@ void EllpackPageImpl::CreateHistIndices(DeviceOrd device,
     const dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                      common::DivRoundUp(row_stride, block3.y), 1);
     auto device_accessor = GetDeviceAccessor(device);
-    dh::LaunchKernel{grid3, block3}(
+    dh::LaunchKernel{grid3, block3}(  // NOLINT
         CompressBinEllpackKernel, common::CompressedBufferWriter(NumSymbols()), gidx_buffer.data(),
         row_ptrs.data().get(), entries_d.data().get(), device_accessor.gidx_fvalue_map.data(),
         device_accessor.feature_segments.data(), feature_types, batch_row_begin, batch_nrows,
