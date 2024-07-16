@@ -131,13 +131,6 @@ def native_build(args):
                 run("cmake .. " + " ".join(args))
             run("cmake --build . --config Release" + maybe_parallel_build)
 
-        with cd("demo/CLI/regression"):
-            run(f'"{sys.executable}" mapfeat.py')
-            run(f'"{sys.executable}" mknfold.py machine.txt 1')
-
-    xgboost4j_spark = (
-        "xgboost4j-spark-gpu" if cli_args.use_cuda == "ON" else "xgboost4j-spark"
-    )
 
     print("copying native library")
     library_name, os_folder = {
@@ -161,19 +154,27 @@ def native_build(args):
     cp("../lib/" + library_name, output_folder)
 
     print("copying train/test files")
-    maybe_makedirs("{}/src/test/resources".format(xgboost4j_spark))
-    with cd("../demo/CLI/regression"):
-        run(f'"{sys.executable}" mapfeat.py')
-        run(f'"{sys.executable}" mknfold.py machine.txt 1')
 
-    for file in glob.glob("../demo/CLI/regression/machine.txt.t*"):
-        cp(file, "{}/src/test/resources".format(xgboost4j_spark))
-    for file in glob.glob("../demo/data/agaricus.*"):
-        cp(file, "{}/src/test/resources".format(xgboost4j_spark))
-
+    # for xgboost4j
     maybe_makedirs("xgboost4j/src/test/resources")
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "xgboost4j/src/test/resources")
+
+    # for xgboost4j-spark
+    maybe_makedirs("xgboost4j-spark/src/test/resources")
+    with cd("../demo/CLI/regression"):
+        run(f'"{sys.executable}" mapfeat.py')
+        run(f'"{sys.executable}" mknfold.py machine.txt 1')
+    for file in glob.glob("../demo/CLI/regression/machine.txt.t*"):
+        cp(file, "xgboost4j-spark/src/test/resources")
+    for file in glob.glob("../demo/data/agaricus.*"):
+        cp(file, "xgboost4j-spark/src/test/resources")
+
+    # for xgboost4j-spark-gpu
+    if cli_args.use_cuda == "ON":
+        maybe_makedirs("xgboost4j-spark-gpu/src/test/resources")
+        for file in glob.glob("../demo/data/veterans_lung_cancer.csv"):
+            cp(file, "xgboost4j-spark-gpu/src/test/resources")
 
 
 if __name__ == "__main__":

@@ -35,7 +35,8 @@ public class BoosterTest {
 
   @Test
   public void testBooster() throws XGBoostError {
-    String trainingDataPath = "../../demo/data/veterans_lung_cancer.csv";
+    String trainingDataPath = getClass().getClassLoader()
+      .getResource("veterans_lung_cancer.csv").getPath();
     Schema schema = Schema.builder()
       .column(DType.FLOAT32, "A")
       .column(DType.FLOAT32, "B")

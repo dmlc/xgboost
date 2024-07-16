@@ -9,8 +9,8 @@
     <version>2.2.0-SNAPSHOT</version>
   </parent>
 
-  <name>aggregator</name>
-  <artifactId>aggregator_${scala.binary.version}</artifactId>
+  <name>aggregator-gpu</name>
+  <artifactId>aggregator-gpu_${scala.binary.version}</artifactId>
 
   <properties>
     <maven.compiler.source>8</maven.compiler.source>
@@ -32,10 +32,17 @@
       <version>${project.version}</version>
       <scope>compile</scope>
     </dependency>
+
+    <dependency>
+      <groupId>ml.dmlc</groupId>
+      <artifactId>xgboost4j-spark-gpu_${scala.binary.version}</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
 
   <build>
-    <finalName>xgboost-spark-${scala.binary.version}-${project.version}</finalName>
+    <finalName>xgboost-spark-gpu_${scala.binary.version}-${project.version}</finalName>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -46,6 +53,7 @@
             <includes>
               <include>ml.dmlc:xgboost4j_${scala.binary.version}</include>
               <include>ml.dmlc:xgboost4j-spark_${scala.binary.version}</include>
+              <include>ml.dmlc:xgboost4j-spark-gpu_${scala.binary.version}</include>
             </includes>
           </artifactSet>
         </configuration>

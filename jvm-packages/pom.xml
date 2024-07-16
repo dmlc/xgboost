@@ -43,7 +43,6 @@
     <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
     <log.capi.invocation>OFF</log.capi.invocation>
     <use.cuda>OFF</use.cuda>
-    <cudf.version>24.04.0</cudf.version>
     <spark.rapids.version>24.04.1</spark.rapids.version>
     <cudf.classifier>cuda12</cudf.classifier>
     <scalatest.version>3.2.18</scalatest.version>
@@ -99,6 +98,7 @@
         <module>xgboost4j</module>
         <module>xgboost4j-spark</module>
         <module>xgboost4j-spark-gpu</module>
+        <module>aggregator-gpu</module>
       </modules>
     </profile>
 
@@ -110,6 +110,8 @@
         <module>xgboost4j-spark</module>
         <module>xgboost4j-flink</module>
         <module>xgboost4j-spark-gpu</module>
+        <module>aggregator</module>
+        <module>aggregator-gpu</module>
       </modules>
       <build>
         <plugins>
@@ -235,6 +237,8 @@
         <module>xgboost4j-spark</module>
         <module>xgboost4j-flink</module>
         <module>xgboost4j-spark-gpu</module>
+        <module>aggregator</module>
+        <module>aggregator-gpu</module>
       </modules>
       <build>
         <plugins>

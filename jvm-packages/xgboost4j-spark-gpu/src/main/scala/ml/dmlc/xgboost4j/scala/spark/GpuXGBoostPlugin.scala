@@ -17,7 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable.ArrayBuffer
-import scala.jdk.CollectionConverters.{asScalaIteratorConverter, seqAsJavaListConverter}
+import scala.jdk.CollectionConverters.asScalaIteratorConverter
 
 import ai.rapids.cudf.Table
 import com.nvidia.spark.rapids.{ColumnarRdd, GpuColumnVectorUtils}
@@ -55,7 +55,13 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     val conf = dataset.sparkSession.conf
     val hasRapidsPlugin = conf.get("spark.sql.extensions", "").split(",").contains(
       "com.nvidia.spark.rapids.SQLExecPlugin")
-    val rapidsEnabled = conf.get("spark.rapids.sql.enabled", "false").toBoolean
+    val rapidsEnabled = try {
+      conf.get("spark.rapids.sql.enabled").toBoolean
+    } catch {
+      // Rapids plugin has default "spark.rapids.sql.enabled" to true
+      case _: NoSuchElementException => true
+      case _: Throwable => false // Any exception will return false
+    }
     hasRapidsPlugin && rapidsEnabled
   }
 
