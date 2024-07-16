@@ -29,7 +29,7 @@ class HostDeviceVectorImpl {
     if (device.IsCUDA()) {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_->Resize(size, v);
+      data_d_->resize(size, v);
     } else {
       data_h_.resize(size, v);
     }
@@ -181,7 +181,7 @@ class HostDeviceVectorImpl {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       auto old_size = data_d_->size();
-      data_d_->Resize(new_size, std::forward<U>(args)...);
+      data_d_->resize(new_size, std::forward<U>(args)...);
     } else {
       // resize on host
       LazySyncHost(GPUAccess::kNone);
@@ -260,7 +260,7 @@ class HostDeviceVectorImpl {
   void LazyResizeDevice(size_t new_size) {
     if (data_d_ && new_size == data_d_->size()) { return; }
     SetDevice();
-    data_d_->Resize(new_size);
+    data_d_->resize(new_size);
   }
 
   void SetDevice() {

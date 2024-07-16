@@ -77,6 +77,7 @@ def run_data_iterator(
     use_cupy: bool,
     on_host: bool,
 ) -> None:
+    print(n_samples_per_batch, "n_features:", n_features, "n_batches:", n_batches, "subsample:", subsample, use_cupy, on_host)
     n_rounds = 2
     # The test is more difficult to pass if the subsample rate is smaller as the root_sum
     # is accumulated in parallel.  Reductions with different number of entries lead to
