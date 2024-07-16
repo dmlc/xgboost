@@ -5,6 +5,7 @@
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for uint64_t
+#include <vector>   // for vector
 
 #include "../common/io.h"                   // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
