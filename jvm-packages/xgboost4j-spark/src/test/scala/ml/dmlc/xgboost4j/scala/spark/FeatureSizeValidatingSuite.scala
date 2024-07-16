@@ -65,6 +65,9 @@ class FeatureSizeValidatingSuite extends AnyFunSuite with PerTest {
         (id, lp.label, lp.features)
     }.toDF("id", "label", "features")
     val xgb = new XGBoostClassifier(paramMap)
-    xgb.fit(repartitioned)
+    val exception = intercept[Exception]{
+      xgb.fit(repartitioned)
+    }
+    assert(exception.getMessage.contains("ml.dmlc.xgboost4j.java.XGBoostError"))
   }
 }

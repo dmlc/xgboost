@@ -72,33 +72,25 @@ object DataUtils extends Serializable {
 
   private def attachPartitionKey(
       row: Row,
-      deterministicPartition: Boolean,
       numWorkers: Int,
-      xgbLp: XGBLabeledPoint): (Int, XGBLabeledPoint) = {
-    if (deterministicPartition) {
-      (math.abs(row.hashCode() % numWorkers), xgbLp)
+      xgbLp: XGBLabeledPoint,
+      group: Option[Int]): (Int, XGBLabeledPoint) = {
+    // If group exists, we must use group as key to make sure instances for a group are
+    // the same partition.
+    if (group.isDefined){
+      (group.get % numWorkers, xgbLp)
+    // If no group exists, we can use row hash as key for the repartition
     } else {
-      (1, xgbLp)
+      (math.abs(row.hashCode() % numWorkers), xgbLp)
     }
   }
 
   private def repartitionRDDs(
-      deterministicPartition: Boolean,
       numWorkers: Int,
       arrayOfRDDs: Array[RDD[(Int, XGBLabeledPoint)]]): Array[RDD[XGBLabeledPoint]] = {
-    if (deterministicPartition) {
       arrayOfRDDs.map {rdd => rdd.partitionBy(new HashPartitioner(numWorkers))}.map {
         rdd => rdd.map(_._2)
       }
-    } else {
-      arrayOfRDDs.map(rdd => {
-        if (rdd.getNumPartitions != numWorkers) {
-          rdd.map(_._2).repartition(numWorkers)
-        } else {
-          rdd.map(_._2)
-        }
-      })
-    }
   }
 
   /** Packed parameters used by [[convertDataFrameToXGBLabeledPointRDDs]] */
@@ -107,8 +99,7 @@ object DataUtils extends Serializable {
     weight: Column,
     baseMargin: Column,
     group: Option[Column],
-    numWorkers: Int,
-    deterministicPartition: Boolean)
+    numWorkers: Int)
 
   /**
    * convertDataFrameToXGBLabeledPointRDDs converts DataFrames to an array of RDD[XGBLabeledPoint]
@@ -122,8 +113,7 @@ object DataUtils extends Serializable {
     dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
 
     packedParams match {
-      case j @ PackedParams(labelCol, featuresCol, weight, baseMargin, group, numWorkers,
-      deterministicPartition) =>
+      case j @ PackedParams(labelCol, featuresCol, weight, baseMargin, group, numWorkers) =>
         val selectedColumns = group.map(groupCol => Seq(labelCol.cast(FloatType),
           featuresCol,
           weight.cast(FloatType),
@@ -141,7 +131,7 @@ object DataUtils extends Serializable {
                 case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
               }
               val xgbLp = XGBLabeledPoint(label, size, indices, values, weight, group, baseMargin)
-              attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
+              attachPartitionKey(row, numWorkers, xgbLp, Some(group))
             case row @ Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
               val (size, indices, values) = features match {
                 case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
@@ -149,10 +139,10 @@ object DataUtils extends Serializable {
               }
               val xgbLp = XGBLabeledPoint(label, size, indices, values, weight,
                 baseMargin = baseMargin)
-              attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
+              attachPartitionKey(row, numWorkers, xgbLp, None)
           }
         }
-        repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
+        repartitionRDDs(numWorkers, arrayOfRDDs)
 
       case _ => throw new IllegalArgumentException("Wrong PackedParams") // never reach here
     }
