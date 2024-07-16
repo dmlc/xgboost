@@ -19,6 +19,7 @@
 #include "../common/cuda_context.cuh"  // CUDAContext
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
+#include "../common/random.h"  // for ColumnSampler, GlobalRandom
 #include "../common/timer.h"
 #include "../data/ellpack_page.cuh"
 #include "../data/ellpack_page.h"
