@@ -20,8 +20,6 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
-import ai.rapids.cudf.ColumnVector;
-import ai.rapids.cudf.ColumnView;
 import ai.rapids.cudf.Table;
 import junit.framework.TestCase;
 import org.junit.Test;
@@ -36,24 +34,29 @@ public class DMatrixTest {
   @Test
   public void testCreateFromArrayInterfaceColumns() {
     Float[] labelFloats = new Float[]{2f, 4f, 6f, 8f, 10f};
+    Integer[] groups = new Integer[]{1, 1, 7, 7, 19, 26};
+    int[] expectedGroup = new int[]{0, 2, 4, 5, 6};
 
     Throwable ex = null;
     try (
       Table X = new Table.TestBuilder().column(1.f, null, 5.f, 7.f, 9.f).build();
       Table y = new Table.TestBuilder().column(labelFloats).build();
       Table w = new Table.TestBuilder().column(labelFloats).build();
+      Table q = new Table.TestBuilder().column(groups).build();
       Table margin = new Table.TestBuilder().column(labelFloats).build();) {
 
-      CudfColumnBatch cudfDataFrame = new CudfColumnBatch(X, y, w, null);
+      CudfColumnBatch cudfDataFrame = new CudfColumnBatch(X, y, w, null, null);
 
       CudfColumn labelColumn = CudfColumn.from(y.getColumn(0));
       CudfColumn weightColumn = CudfColumn.from(w.getColumn(0));
       CudfColumn baseMarginColumn = CudfColumn.from(margin.getColumn(0));
+      CudfColumn qidColumn = CudfColumn.from(q.getColumn(0));
 
       DMatrix dMatrix = new DMatrix(cudfDataFrame, 0, 1);
       dMatrix.setLabel(labelColumn);
       dMatrix.setWeight(weightColumn);
       dMatrix.setBaseMargin(baseMarginColumn);
+      dMatrix.setQueryId(qidColumn);
 
       String[] featureNames = new String[]{"f1"};
       dMatrix.setFeatureNames(featureNames);
@@ -69,10 +72,12 @@ public class DMatrixTest {
       float[] label = dMatrix.getLabel();
       float[] weight = dMatrix.getWeight();
       float[] baseMargin = dMatrix.getBaseMargin();
+      int[] group = dMatrix.getGroup();
 
       TestCase.assertTrue(Arrays.equals(anchor, label));
       TestCase.assertTrue(Arrays.equals(anchor, weight));
       TestCase.assertTrue(Arrays.equals(anchor, baseMargin));
+      TestCase.assertTrue(Arrays.equals(expectedGroup, group));
     } catch (Throwable e) {
       ex = e;
       e.printStackTrace();
@@ -86,10 +91,14 @@ public class DMatrixTest {
     Float[] label1 = {25f, 21f, 22f, 20f, 24f};
     Float[] weight1 = {1.3f, 2.31f, 0.32f, 3.3f, 1.34f};
     Float[] baseMargin1 = {1.2f, 0.2f, 1.3f, 2.4f, 3.5f};
+    Integer[] groups1 = new Integer[]{1, 1, 7, 7, 19, 26};
 
     Float[] label2 = {9f, 5f, 4f, 10f, 12f};
     Float[] weight2 = {3.0f, 1.3f, 3.2f, 0.3f, 1.34f};
     Float[] baseMargin2 = {0.2f, 2.5f, 3.1f, 4.4f, 2.2f};
+    Integer[] groups2 = new Integer[]{30, 30, 30, 40, 40};
+
+    int[] expectedGroup = new int[]{0, 2, 4, 5, 6, 9, 11};
 
     try (
       Table X_0 = new Table.TestBuilder()
@@ -99,18 +108,21 @@ public class DMatrixTest {
       Table y_0 = new Table.TestBuilder().column(label1).build();
       Table w_0 = new Table.TestBuilder().column(weight1).build();
       Table m_0 = new Table.TestBuilder().column(baseMargin1).build();
+      Table q_0 = new Table.TestBuilder().column(groups1).build();
+
       Table X_1 = new Table.TestBuilder().column(11.2f, 11.2f, 15.2f, 17.2f, 19.2f)
         .column(1.2f, 1.4f, null, 12.6f, 10.10f).build();
       Table y_1 = new Table.TestBuilder().column(label2).build();
       Table w_1 = new Table.TestBuilder().column(weight2).build();
       Table m_1 = new Table.TestBuilder().column(baseMargin2).build();) {
+      Table q_1 = new Table.TestBuilder().column(groups2).build();
 
       List<ColumnBatch> tables = new LinkedList<>();
 
-      tables.add(new CudfColumnBatch(X_0, y_0, w_0, m_0));
-      tables.add(new CudfColumnBatch(X_1, y_1, w_1, m_1));
+      tables.add(new CudfColumnBatch(X_0, y_0, w_0, m_0, q_0));
+      tables.add(new CudfColumnBatch(X_1, y_1, w_1, m_1, q_1));
 
-      DMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 8, 1);
+      DMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1);
 
       float[] anchorLabel = convertFloatTofloat(label1, label2);
       float[] anchorWeight = convertFloatTofloat(weight1, weight2);
@@ -119,6 +131,7 @@ public class DMatrixTest {
       TestCase.assertTrue(Arrays.equals(anchorLabel, dmat.getLabel()));
       TestCase.assertTrue(Arrays.equals(anchorWeight, dmat.getWeight()));
       TestCase.assertTrue(Arrays.equals(anchorBaseMargin, dmat.getBaseMargin()));
+      TestCase.assertTrue(Arrays.equals(expectedGroup, dmat.getGroup()));
     }
   }
 
@@ -140,43 +153,43 @@ public class DMatrixTest {
 
   @Test
   public void testMakingDMatrixViaArray() {
-//    Float[][] features1 = {
-//      {1.0f, 12.0f},
-//      {2.0f, 13.0f},
-//      null,
-//      {4.0f, null},
-//      {5.0f, 16.0f}
-//    };
-//
-//    Float[] label1 = {0.0f, 1.0f, 0.0f, 1.0f, 0.0f};
-//
-//    Table X1 = new Table.TestBuilder().column(features1).build();
-//    Table y1 = new Table.TestBuilder().column(label1).build();
-//
-//    ColumnVector t = X1.getColumn(0);
-//    ColumnView cv = t.getChildColumnView(0);
-//    //
-//    System.out.println("----");
-//
-//    Float[][] features2 = {
-//      {6.0f, 17.0f},
-//      {7.0f, 18.0f},
-//    };
-//    Float[] label2 = {0.0f, 1.0f, 0.0f, 1.0f, 0.0f};
-//    Table X2 = new Table.TestBuilder().column(features2).build();
-//    Table y2 = new Table.TestBuilder().column(label2).build();
-//
-//    List<ColumnBatch> tables = new LinkedList<>();
-//    tables.add(new CudfColumnBatch(X1, y1, null, null));
-//    tables.add(new CudfColumnBatch(X2, y2, null, null));
-//
-//    try {
-//      DMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 8, 1);
-//    } catch (XGBoostError e) {
-//      throw new RuntimeException(e);
-//    }
-//
-//    System.out.println("--------------");
+    //    Float[][] features1 = {
+    //      {1.0f, 12.0f},
+    //      {2.0f, 13.0f},
+    //      null,
+    //      {4.0f, null},
+    //      {5.0f, 16.0f}
+    //    };
+    //
+    //    Float[] label1 = {0.0f, 1.0f, 0.0f, 1.0f, 0.0f};
+    //
+    //    Table X1 = new Table.TestBuilder().column(features1).build();
+    //    Table y1 = new Table.TestBuilder().column(label1).build();
+    //
+    //    ColumnVector t = X1.getColumn(0);
+    //    ColumnView cv = t.getChildColumnView(0);
+    //    //
+    //    System.out.println("----");
+    //
+    //    Float[][] features2 = {
+    //      {6.0f, 17.0f},
+    //      {7.0f, 18.0f},
+    //    };
+    //    Float[] label2 = {0.0f, 1.0f, 0.0f, 1.0f, 0.0f};
+    //    Table X2 = new Table.TestBuilder().column(features2).build();
+    //    Table y2 = new Table.TestBuilder().column(label2).build();
+    //
+    //    List<ColumnBatch> tables = new LinkedList<>();
+    //    tables.add(new CudfColumnBatch(X1, y1, null, null));
+    //    tables.add(new CudfColumnBatch(X2, y2, null, null));
+    //
+    //    try {
+    //      DMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 8, 1);
+    //    } catch (XGBoostError e) {
+    //      throw new RuntimeException(e);
+    //    }
+    //
+    //    System.out.println("--------------");
 
   }
 

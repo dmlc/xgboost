@@ -24,9 +24,9 @@ class QuantileDMatrix private[scala](
     private[scala] override val jDMatrix: JQuantileDMatrix) extends DMatrix(jDMatrix) {
 
   /**
-   * Create QuantileDMatrix from iterator based on the cuda array interface
+   * Create QuantileDMatrix from iterator based on the array interface
    *
-   * @param iter    the XGBoost ColumnBatch batch to provide the corresponding cuda array interface
+   * @param iter    the XGBoost ColumnBatch batch to provide the corresponding array interface
    * @param missing the missing value
    * @param maxBin  the max bin
    * @param nthread the parallelism
@@ -84,7 +84,7 @@ class QuantileDMatrix private[scala](
     throw new XGBoostError("QuantileDMatrix does not support setGroup.")
 
   /**
-   * Set label of DMatrix from cuda array interface
+   * Set label of DMatrix from array interface
    */
   @throws(classOf[XGBoostError])
   override def setLabel(column: Column): Unit =
@@ -103,5 +103,10 @@ class QuantileDMatrix private[scala](
   @throws(classOf[XGBoostError])
   override def setBaseMargin(column: Column): Unit =
     throw new XGBoostError("QuantileDMatrix does not support setBaseMargin.")
+
+  @throws(classOf[XGBoostError])
+  override def setQueryId(column: Column): Unit = {
+    throw new XGBoostError("QuantileDMatrix does not support setQueryId.")
+  }
 
 }

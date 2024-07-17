@@ -33,6 +33,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch
 
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.{DMatrix, QuantileDMatrix}
+import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 import ml.dmlc.xgboost4j.scala.spark.params.HasGroupCol
 
 /**
@@ -119,7 +120,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     val nthread = estimator.getNthread
     val missing = estimator.getMissing
 
-    /** build QuantilDMatrix on the executor side */
+    /** build QuantileDMatrix on the executor side */
     def buildQuantileDMatrix(iter: Iterator[Table]): QuantileDMatrix = {
       val colBatchIter = iter.map { table =>
         withResource(new GpuColumnBatch(table)) { batch =>
@@ -127,7 +128,8 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
             batch.select(indices.featureIds.get),
             batch.select(indices.labelId),
             batch.select(indices.weightId.getOrElse(-1)),
-            batch.select(indices.marginId.getOrElse(-1)));
+            batch.select(indices.marginId.getOrElse(-1)),
+            batch.select(indices.groupId.getOrElse(-1)));
         }
       }
       new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
@@ -149,16 +151,6 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       }
     )
   }
-
-  /** Executes the provided code block and then closes the resource */
-  def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
-    try {
-      block(r)
-    } finally {
-      r.close()
-    }
-  }
-
 
   override def transform[M <: XGBoostModel[M]](model: XGBoostModel[M],
                                                dataset: Dataset[_]): DataFrame = {
@@ -226,7 +218,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
                 throw new RuntimeException("Something wrong for feature indices")
               }
               try {
-                val cudfColumnBatch = new CudfColumnBatch(featureTable, null, null, null)
+                val cudfColumnBatch = new CudfColumnBatch(featureTable, null, null, null, null)
                 val dm = new DMatrix(cudfColumnBatch, missing, nThread)
                 if (dm == null) {
                   Iterator.empty

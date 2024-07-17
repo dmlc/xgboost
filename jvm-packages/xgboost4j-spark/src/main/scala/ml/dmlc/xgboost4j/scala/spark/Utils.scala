@@ -22,7 +22,7 @@ import org.json4s.{DefaultFormats, FullTypeHints, JField, JValue, NoTypeHints, T
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 
-object Utils {
+private[scala] object Utils {
 
   private[spark] implicit class XGBLabeledPointFeatures(
       val labeledPoint: XGBLabeledPoint
@@ -111,4 +111,14 @@ object Utils {
 
   val TRAIN_NAME = "train"
   val VALIDATION_NAME = "eval"
+
+
+  /** Executes the provided code block and then closes the resource */
+  def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
+    try {
+      block(r)
+    } finally {
+      r.close()
+    }
+  }
 }

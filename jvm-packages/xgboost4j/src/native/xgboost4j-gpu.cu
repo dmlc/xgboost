@@ -104,7 +104,8 @@ void CopyInterface(std::vector<xgboost::ArrayInterface<1>> &interface_arr,
   }
 }
 
-void CopyMetaInfo(Json *p_interface, dh::device_vector<float> *out, cudaStream_t stream) {
+template <typename T>
+void CopyMetaInfo(Json *p_interface, dh::device_vector<T> *out, cudaStream_t stream) {
   auto &j_interface = *p_interface;
   CHECK_EQ(get<Array const>(j_interface).size(), 1);
   auto object = get<Object>(get<Array>(j_interface)[0]);
@@ -151,9 +152,11 @@ class DataIteratorProxy {
   std::vector<std::unique_ptr<dh::device_vector<float>>> labels_;
   std::vector<std::unique_ptr<dh::device_vector<float>>> weights_;
   std::vector<std::unique_ptr<dh::device_vector<float>>> base_margins_;
+  std::vector<std::unique_ptr<dh::device_vector<int>>> qids_;
   std::vector<Json> label_interfaces_;
   std::vector<Json> weight_interfaces_;
   std::vector<Json> margin_interfaces_;
+  std::vector<Json> qid_interfaces_;
 
   size_t it_{0};
   size_t n_batches_{0};
@@ -219,6 +222,16 @@ class DataIteratorProxy {
 
       Json::Dump(basemargin, &str);
       XGDMatrixSetInfoFromInterface(proxy_, "base_margin", str.c_str());
+    }
+
+    if (json_map.find("qid") != json_map.cend()) {
+      Json qid = json_interface["qid"];
+      qids_.emplace_back(new dh::device_vector<int>);
+      CopyMetaInfo(&qid, qids_.back().get(), copy_stream_);
+      qid_interfaces_.emplace_back(qid);
+
+      Json::Dump(qid, &str);
+      XGDMatrixSetInfoFromInterface(proxy_, "qid", str.c_str());
     }
   }
 
@@ -335,6 +348,12 @@ class DataIteratorProxy {
       auto const &base_margin = this->margin_interfaces_.at(it_);
       Json::Dump(base_margin, &str);
       XGDMatrixSetInfoFromInterface(proxy_, "base_margin", str.c_str());
+    }
+
+    if (n_batches_ == this->qid_interfaces_.size()) {
+      auto const &qid = this->qid_interfaces_.at(it_);
+      Json::Dump(qid, &str);
+      XGDMatrixSetInfoFromInterface(proxy_, "qid", str.c_str());
     }
 
     // Data

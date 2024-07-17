@@ -112,6 +112,13 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
 
     assert(out.schema.names.contains("leaf"))
     assert(out.schema.names.contains("contrib"))
+
+    val out1 = classifier.setLeafPredictionCol("leaf1")
+      .setContribPredictionCol("contrib1")
+      .train(trainDf).transform(trainDf)
+
+    assert(out1.schema.names.contains("leaf1"))
+    assert(out1.schema.names.contains("contrib1"))
   }
 
   test("Supported objectives") {
