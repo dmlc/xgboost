@@ -29,7 +29,7 @@ class HostDeviceVectorImpl {
     if (device.IsCUDA()) {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_->Resize(size, v);
+      data_d_->resize(size, v);
     } else {
       data_h_.resize(size, v);
     }
@@ -67,12 +67,12 @@ class HostDeviceVectorImpl {
 
   T* DevicePointer() {
     LazySyncDevice(GPUAccess::kWrite);
-    return thrust::raw_pointer_cast(data_d_->data());
+    return data_d_->data();
   }
 
   const T* ConstDevicePointer() {
     LazySyncDevice(GPUAccess::kRead);
-    return thrust::raw_pointer_cast(data_d_->data());
+    return data_d_->data();
   }
 
   common::Span<T> DeviceSpan() {
@@ -181,7 +181,7 @@ class HostDeviceVectorImpl {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
       auto old_size = data_d_->size();
-      data_d_->Resize(new_size, std::forward<U>(args)...);
+      data_d_->resize(new_size, std::forward<U>(args)...);
     } else {
       // resize on host
       LazySyncHost(GPUAccess::kNone);
@@ -200,8 +200,8 @@ class HostDeviceVectorImpl {
     gpu_access_ = access;
     if (data_h_.size() != data_d_->size()) { data_h_.resize(data_d_->size()); }
     SetDevice();
-    dh::safe_cuda(cudaMemcpy(data_h_.data(), thrust::raw_pointer_cast(data_d_->data()),
-                             data_d_->size() * sizeof(T), cudaMemcpyDeviceToHost));
+    dh::safe_cuda(cudaMemcpy(data_h_.data(), data_d_->data(), data_d_->size() * sizeof(T),
+                             cudaMemcpyDeviceToHost));
   }
 
   void LazySyncDevice(GPUAccess access) {
@@ -214,9 +214,8 @@ class HostDeviceVectorImpl {
     // data is on the host
     LazyResizeDevice(data_h_.size());
     SetDevice();
-    dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(data_d_->data()), data_h_.data(),
-                                  data_d_->size() * sizeof(T), cudaMemcpyHostToDevice,
-                                  dh::DefaultStream()));
+    dh::safe_cuda(cudaMemcpyAsync(data_d_->data(), data_h_.data(), data_d_->size() * sizeof(T),
+                                  cudaMemcpyHostToDevice, dh::DefaultStream()));
     gpu_access_ = access;
   }
 
@@ -241,8 +240,7 @@ class HostDeviceVectorImpl {
       LazyResizeDevice(Size());
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(data_d_->data()),
-                                    thrust::raw_pointer_cast(other->data_d_->data()),
+      dh::safe_cuda(cudaMemcpyAsync(data_d_->data(), other->data_d_->data(),
                                     data_d_->size() * sizeof(T), cudaMemcpyDefault,
                                     dh::DefaultStream()));
     }
@@ -252,15 +250,14 @@ class HostDeviceVectorImpl {
     LazyResizeDevice(Size());
     gpu_access_ = GPUAccess::kWrite;
     SetDevice();
-    dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(data_d_->data()), begin,
-                                  data_d_->size() * sizeof(T), cudaMemcpyDefault,
-                                  dh::DefaultStream()));
+    dh::safe_cuda(cudaMemcpyAsync(data_d_->data(), begin, data_d_->size() * sizeof(T),
+                                  cudaMemcpyDefault, dh::DefaultStream()));
   }
 
   void LazyResizeDevice(size_t new_size) {
     if (data_d_ && new_size == data_d_->size()) { return; }
     SetDevice();
-    data_d_->Resize(new_size);
+    data_d_->resize(new_size);
   }
 
   void SetDevice() {
