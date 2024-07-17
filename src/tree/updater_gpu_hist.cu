@@ -43,6 +43,9 @@
 #include "xgboost/task.h"  // for ObjInfo
 #include "xgboost/tree_model.h"
 
+#include "../collective/communicator-inl.h"
+#include "../collective/allgather.h"         // for AllgatherV
+
 namespace xgboost::tree {
 #if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
@@ -665,7 +668,47 @@ struct GPUHistMakerDevice {
     // Reduce all in one go
     // This gives much better latency in a distributed setting
     // when processing a large batch
-    this->AllReduceHist(hist_nidx.at(0), hist_nidx.size());
+    // If secure horizontal, perform AllReduce by calling the encryption plugin
+    if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
+        // Get encryption plugin
+        decltype(std::declval<collective::FederatedComm>().EncryptionPlugin()) plugin_;
+        auto const &comm = collective::GlobalCommGroup()->Ctx(ctx_, DeviceOrd::CPU());
+        auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
+
+        plugin_ = fed.EncryptionPlugin();
+
+        // Get the histogram data
+        std::size_t n = page->Cuts().TotalBins() * 2 * hist_nidx.size();
+        auto d_node_hist = hist.GetNodeHistogram(hist_nidx.at(0)).data();
+        using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
+        auto hist_vec = linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist), n, ctx_->Device());
+
+        // copy the histogram out of GPU memory
+        common::Span<std::int8_t> erased = common::EraseType(hist_vec.Values());
+        std::vector<std::int8_t> h_data(erased.size());
+        cudaMemcpy(h_data.data(), erased.data(), erased.size(), cudaMemcpyDeviceToHost);
+
+        // call the encryption plugin
+        auto src_hist = common::Span{reinterpret_cast<double const *>(h_data.data()), n};
+        auto hist_buf = plugin_->BuildEncryptedHistHori(src_hist);
+
+        // allgather
+        HostDeviceVector<std::int8_t> hist_entries;
+        std::vector<std::int64_t> recv_segments;
+        auto rc =
+            collective::AllgatherV(ctx_, linalg::MakeVec(hist_buf), &recv_segments, &hist_entries);
+        collective::SafeColl(rc);
+
+        // call the encryption plugin to aggregate the histograms
+        auto hist_aggr =
+                plugin_->SyncEncryptedHistHori(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
+
+        // copy the aggregated histogram back to GPU memory
+        cudaMemcpy(erased.data(), hist_aggr.data(), erased.size(), cudaMemcpyHostToDevice);
+    }
+    else {
+      this->AllReduceHist(hist_nidx.at(0), hist_nidx.size());
+    }
 
     for (size_t i = 0; i < subtraction_nidx.size(); i++) {
       auto build_hist_nidx = hist_nidx.at(i);
