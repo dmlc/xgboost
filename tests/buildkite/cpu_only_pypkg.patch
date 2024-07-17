@@ -1,0 +1,23 @@
+diff --git python-package/pyproject.toml python-package/pyproject.toml
+index a273d8c13..fcd93c9eb 100644
+--- python-package/pyproject.toml
++++ python-package/pyproject.toml
+@@ -6,7 +6,7 @@ backend-path = ["."]
+ build-backend = "packager.pep517"
+ 
+ [project]
+-name = "xgboost"
++name = "xgboost-cpu"
+ version = "2.2.0-dev"
+ authors = [
+     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
+@@ -30,8 +30,7 @@ classifiers = [
+ ]
+ dependencies = [
+     "numpy",
+-    "scipy",
+-    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'"
++    "scipy"
+ ]
+ 
+ [project.urls]
