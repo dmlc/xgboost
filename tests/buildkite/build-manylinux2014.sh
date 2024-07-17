@@ -2,10 +2,17 @@
 
 set -euo pipefail
 
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 {x86_64,aarch64}"
+  exit 1
+fi
+
+arch=$1
+
 source tests/buildkite/conftest.sh
 
-WHEEL_TAG=manylinux2014_aarch64
-command_wrapper="tests/ci_build/ci_build.sh manylinux2014_aarch64"
+WHEEL_TAG="manylinux2014_${arch}"
+command_wrapper="tests/ci_build/ci_build.sh ${WHEEL_TAG}"
 python_bin="/opt/python/cp310-cp310/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG}"
