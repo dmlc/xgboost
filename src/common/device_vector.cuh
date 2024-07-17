@@ -284,47 +284,64 @@ class LoggingResource : public rmm::mr::device_memory_resource {
 
 LoggingResource *GlobalLoggingResource();
 
+#endif  // defined(XGBOOST_USE_RMM)
+
 /**
- * @brief Container class that doesn't initialize the data.
+ * @brief Container class that doesn't initialize the data when RMM is used.
  */
 template <typename T>
-class DeviceUVector : public rmm::device_uvector<T> {
-  using Super = rmm::device_uvector<T>;
+class DeviceUVector {
+ private:
+#if defined(XGBOOST_USE_RMM)
+  rmm::device_uvector<T> data_{0, rmm::cuda_stream_per_thread, GlobalLoggingResource()};
+#else
+  ::dh::device_vector<T> data_;
+#endif  // defined(XGBOOST_USE_RMM)
 
  public:
-  DeviceUVector() : Super{0, rmm::cuda_stream_per_thread, GlobalLoggingResource()} {}
+  using value_type = T;                        // NOLINT
+  using pointer = value_type *;                // NOLINT
+  using const_pointer = value_type const *;    // NOLINT
+  using reference = value_type &;              // NOLINT
+  using const_reference = value_type const &;  // NOLINT
 
-  void Resize(std::size_t n) { Super::resize(n, rmm::cuda_stream_per_thread); }
-  void Resize(std::size_t n, T const &v) {
+ public:
+  DeviceUVector() = default;
+  DeviceUVector(DeviceUVector const &that) = delete;
+  DeviceUVector &operator=(DeviceUVector const &that) = delete;
+  DeviceUVector(DeviceUVector &&that) = default;
+  DeviceUVector &operator=(DeviceUVector &&that) = default;
+
+  void resize(std::size_t n) {  // NOLINT
+#if defined(XGBOOST_USE_RMM)
+    data_.resize(n, rmm::cuda_stream_per_thread);
+#else
+    data_.resize(n);
+#endif
+  }
+  void resize(std::size_t n, T const &v) {         // NOLINT
+#if defined(XGBOOST_USE_RMM)
     auto orig = this->size();
-    Super::resize(n, rmm::cuda_stream_per_thread);
+    data_.resize(n, rmm::cuda_stream_per_thread);
     if (orig < n) {
       thrust::fill(rmm::exec_policy_nosync{}, this->begin() + orig, this->end(), v);
     }
-  }
-
- private:
-  // undefined private, cannot be accessed.
-  void resize(std::size_t n, rmm::cuda_stream_view stream);  // NOLINT
-};
-
 #else
+    data_.resize(n, v);
+#endif
+  }
+  [[nodiscard]] std::size_t size() const { return data_.size(); }  // NOLINT
 
-/**
- * @brief Without RMM, the initialization will happen.
- */
-template <typename T>
-class DeviceUVector : public thrust::device_vector<T, XGBDeviceAllocator<T>> {
-  using Super = thrust::device_vector<T, XGBDeviceAllocator<T>>;
+  [[nodiscard]] auto begin() { return data_.begin(); }  // NOLINT
+  [[nodiscard]] auto end() { return data_.end(); }      // NOLINT
 
- public:
-  void Resize(std::size_t n) { Super::resize(n); }
-  void Resize(std::size_t n, T const &v) { Super::resize(n, v); }
+  [[nodiscard]] auto begin() const { return this->cbegin(); }  // NOLINT
+  [[nodiscard]] auto end() const { return this->cend(); }      // NOLINT
 
- private:
-  // undefined private, cannot be accessed.
-  void resize(std::size_t n, T const &v = T{});  // NOLINT
+  [[nodiscard]] auto cbegin() const { return data_.cbegin(); }  // NOLINT
+  [[nodiscard]] auto cend() const { return data_.cend(); }      // NOLINT
+
+  [[nodiscard]] auto data() { return thrust::raw_pointer_cast(data_.data()); }        // NOLINT
+  [[nodiscard]] auto data() const { return thrust::raw_pointer_cast(data_.data()); }  // NOLINT
 };
-
-#endif  // defined(XGBOOST_USE_RMM)
 }  // namespace dh
