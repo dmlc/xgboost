@@ -37,12 +37,12 @@ $command_wrapper bash -c \
   "cd python-package && ${python_bin} -m pip wheel --no-deps -vvv . --wheel-dir dist/"
 git checkout python-package/pyproject.toml  # discard the patch
 
-$command_wrapper auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
+$command_wrapper auditwheel repair --plat ${WHEEL_TAG} python-package/dist/xgboost_cpu-*.whl
 $command_wrapper ${python_bin} tests/ci_build/rename_whl.py  \
-  --wheel-path wheelhouse/*.whl  \
+  --wheel-path wheelhouse/xgboost_cpu-*.whl  \
   --commit-hash ${BUILDKITE_COMMIT}  \
   --platform-tag ${WHEEL_TAG}
-mv -v wheelhouse/*.whl python-package/dist/
+mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
 
 echo "--- Upload Python wheel"
 buildkite-agent artifact upload python-package/dist/*.whl
