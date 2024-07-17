@@ -46,6 +46,7 @@
 #include "../collective/communicator-inl.h"
 #include "../collective/allgather.h"         // for AllgatherV
 
+#include <stdio.h>
 namespace xgboost::tree {
 #if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
@@ -623,15 +624,65 @@ struct GPUHistMakerDevice {
   // num histograms is the number of contiguous histograms in memory to reduce over
   void AllReduceHist(int nidx, int num_histograms) {
     monitor.Start("AllReduce");
+    std::size_t n = page->Cuts().TotalBins() * 2 * num_histograms;
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
+    auto hist_vec = linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist), n, ctx_->Device());
+
+    // print out the first histogram with iterator
+    //std::vector<int64_t> entry(hist_vec.Values().size());
+    //dh::CopyDeviceSpanToVector(&entry, hist_vec.Values());
+    //printf("Non-enc: Rank %d Before AllReduce: %ld\n", collective::GetRank(), entry[0]);
+
     auto rc = collective::GlobalSum(
-        ctx_, info_,
-        linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist),
-                        page->Cuts().TotalBins() * 2 * num_histograms, ctx_->Device()));
+        ctx_, info_, hist_vec);
     SafeColl(rc);
 
+    // print out the first histogram with iterator
+    //dh::CopyDeviceSpanToVector(&entry, hist_vec.Values());
+    //printf("Non-enc: Rank %d After AllReduce: %ld\n", collective::GetRank(), entry[0]);
+
     monitor.Stop("AllReduce");
+  }
+
+  void AllReduceHistEncrypted(int nidx, int num_histograms) {
+      monitor.Start("AllReduceEncrypted");
+      // Get encryption plugin
+      decltype(std::declval<collective::FederatedComm>().EncryptionPlugin()) plugin;
+      auto const &comm = collective::GlobalCommGroup()->Ctx(ctx_, DeviceOrd::CPU());
+      auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
+      plugin = fed.EncryptionPlugin();
+
+      // Get the histogram data
+      std::size_t n = page->Cuts().TotalBins() * 2 * num_histograms;
+      auto d_node_hist = hist.GetNodeHistogram(nidx).data();
+      using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
+      auto hist_vec = linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist), n, ctx_->Device());
+
+      // copy the histogram out of GPU memory
+      common::Span<std::int8_t> erased = common::EraseType(hist_vec.Values());
+      std::vector<std::int8_t> h_data(erased.size());
+      cudaMemcpy(h_data.data(), erased.data(), erased.size(), cudaMemcpyDeviceToHost);
+
+      // call the encryption plugin
+      auto src_hist = common::Span{reinterpret_cast<double const *>(h_data.data()), n};
+      auto hist_buf = plugin->BuildEncryptedHistHori(src_hist);
+
+      // allgather
+      HostDeviceVector<std::int8_t> hist_entries;
+      std::vector<std::int64_t> recv_segments;
+      auto rc =
+              collective::AllgatherV(ctx_, linalg::MakeVec(hist_buf), &recv_segments, &hist_entries);
+      collective::SafeColl(rc);
+
+      // call the encryption plugin to aggregate the histograms
+      auto hist_aggr =
+              plugin->SyncEncryptedHistHori(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
+
+      // copy the aggregated histogram back to GPU memory
+      cudaMemcpy(erased.data(), hist_aggr.data(), erased.size(), cudaMemcpyHostToDevice);
+
+      monitor.Stop("AllReduceEncrypted");
   }
 
   /**
@@ -670,41 +721,7 @@ struct GPUHistMakerDevice {
     // when processing a large batch
     // If secure horizontal, perform AllReduce by calling the encryption plugin
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
-        // Get encryption plugin
-        decltype(std::declval<collective::FederatedComm>().EncryptionPlugin()) plugin_;
-        auto const &comm = collective::GlobalCommGroup()->Ctx(ctx_, DeviceOrd::CPU());
-        auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
-
-        plugin_ = fed.EncryptionPlugin();
-
-        // Get the histogram data
-        std::size_t n = page->Cuts().TotalBins() * 2 * hist_nidx.size();
-        auto d_node_hist = hist.GetNodeHistogram(hist_nidx.at(0)).data();
-        using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
-        auto hist_vec = linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist), n, ctx_->Device());
-
-        // copy the histogram out of GPU memory
-        common::Span<std::int8_t> erased = common::EraseType(hist_vec.Values());
-        std::vector<std::int8_t> h_data(erased.size());
-        cudaMemcpy(h_data.data(), erased.data(), erased.size(), cudaMemcpyDeviceToHost);
-
-        // call the encryption plugin
-        auto src_hist = common::Span{reinterpret_cast<double const *>(h_data.data()), n};
-        auto hist_buf = plugin_->BuildEncryptedHistHori(src_hist);
-
-        // allgather
-        HostDeviceVector<std::int8_t> hist_entries;
-        std::vector<std::int64_t> recv_segments;
-        auto rc =
-            collective::AllgatherV(ctx_, linalg::MakeVec(hist_buf), &recv_segments, &hist_entries);
-        collective::SafeColl(rc);
-
-        // call the encryption plugin to aggregate the histograms
-        auto hist_aggr =
-                plugin_->SyncEncryptedHistHori(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
-
-        // copy the aggregated histogram back to GPU memory
-        cudaMemcpy(erased.data(), hist_aggr.data(), erased.size(), cudaMemcpyHostToDevice);
+      this->AllReduceHistEncrypted(hist_nidx.at(0), hist_nidx.size());
     }
     else {
       this->AllReduceHist(hist_nidx.at(0), hist_nidx.size());
@@ -718,7 +735,12 @@ struct GPUHistMakerDevice {
       if (!this->SubtractionTrick(parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
         // Calculate other histogram manually
         this->BuildHist(subtraction_trick_nidx);
-        this->AllReduceHist(subtraction_trick_nidx, 1);
+        if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
+          this->AllReduceHistEncrypted(subtraction_trick_nidx, 1);
+        }
+        else {
+          this->AllReduceHist(subtraction_trick_nidx, 1);
+        }
       }
     }
   }
@@ -792,7 +814,12 @@ struct GPUHistMakerDevice {
 
     hist.AllocateHistograms({kRootNIdx});
     this->BuildHist(kRootNIdx);
-    this->AllReduceHist(kRootNIdx, 1);
+    if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
+      this->AllReduceHistEncrypted(kRootNIdx, 1);
+    }
+    else {
+      this->AllReduceHist(kRootNIdx, 1);
+    }
 
     // Remember root stats
     auto root_sum = quantiser.ToFloatingPoint(root_sum_quantised);
