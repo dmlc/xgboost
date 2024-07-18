@@ -23,7 +23,7 @@ jobs:
       with:
         submodules: 'true'
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v3.4.0
       with:
         driver-opts: network=host
     - name: Build and push container
