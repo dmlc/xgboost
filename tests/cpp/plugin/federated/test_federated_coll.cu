@@ -6,7 +6,7 @@
 #include <xgboost/collective/result.h>  // for Result
 
 #include "../../../../src/collective/allreduce.h"
-#include "../../../../src/common/common.h"            // for AllVisibleGPUs
+#include "../../../../src/common/cuda_rt_utils.h"     // for AllVisibleGPUs
 #include "../../../../src/common/device_helpers.cuh"  // for device_vector
 #include "../../../../src/common/type.h"              // for EraseType
 #include "../../collective/test_worker.h"             // for SocketTest

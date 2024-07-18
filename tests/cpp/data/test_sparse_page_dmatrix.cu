@@ -154,13 +154,18 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
   for (auto it = begin; it != end; ++it) {
     iterators.push_back(it.Page());
     gidx_buffers.emplace_back();
-    gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.Size());
-    gidx_buffers.back().Copy((*it).Impl()->gidx_buffer);
+    gidx_buffers.back().SetDevice(ctx.Device());
+    gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.size());
+    auto d_dst = gidx_buffers.back().DevicePointer();
+    auto const& d_src = (*it).Impl()->gidx_buffer;
+    dh::safe_cuda(cudaMemcpyAsync(d_dst, d_src.data(), d_src.size_bytes(), cudaMemcpyDefault));
   }
   ASSERT_GE(iterators.size(), 2);
 
   for (size_t i = 0; i < iterators.size(); ++i) {
-    ASSERT_EQ((*iterators[i]).Impl()->gidx_buffer.HostVector(), gidx_buffers.at(i).HostVector());
+    std::vector<common::CompressedByteT> h_buf;
+    [[maybe_unused]] auto h_acc = (*iterators[i]).Impl()->GetHostAccessor(&ctx, &h_buf);
+    ASSERT_EQ(h_buf, gidx_buffers.at(i).HostVector());
     ASSERT_EQ(iterators[i].use_count(), 1);
   }
 
@@ -210,11 +215,11 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     size_t offset = 0;
     for (auto& batch : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       if (!impl_ext) {
-        impl_ext = std::make_unique<EllpackPageImpl>(
-            batch.Impl()->gidx_buffer.Device(), batch.Impl()->CutsShared(), batch.Impl()->is_dense,
-            batch.Impl()->row_stride, kRows);
+        impl_ext = std::make_unique<EllpackPageImpl>(&ctx, batch.Impl()->CutsShared(),
+                                                     batch.Impl()->is_dense,
+                                                     batch.Impl()->row_stride, kRows);
       }
-      auto n_elems = impl_ext->Copy(ctx.Device(), batch.Impl(), offset);
+      auto n_elems = impl_ext->Copy(&ctx, batch.Impl(), offset);
       offset += n_elems;
     }
     ASSERT_EQ(impl_ext->base_rowid, 0);
@@ -223,8 +228,10 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     ASSERT_EQ(impl_ext->row_stride, 2);
     ASSERT_EQ(impl_ext->Cuts().TotalBins(), 4);
 
-    std::vector<common::CompressedByteT> buffer(impl->gidx_buffer.HostVector());
-    std::vector<common::CompressedByteT> buffer_ext(impl_ext->gidx_buffer.HostVector());
+    std::vector<common::CompressedByteT> buffer;
+    [[maybe_unused]] auto h_acc = impl->GetHostAccessor(&ctx, &buffer);
+    std::vector<common::CompressedByteT> buffer_ext;
+    [[maybe_unused]] auto h_ext_acc = impl_ext->GetHostAccessor(&ctx, &buffer_ext);
     ASSERT_EQ(buffer, buffer_ext);
   }
 };

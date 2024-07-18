@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023, XGBoost contributors
+ * Copyright 2020-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 
@@ -21,10 +21,10 @@ void TestEquivalent(float sparsity) {
   std::size_t offset = 0;
   auto first = (*m.GetEllpackBatches(&ctx, {}).begin()).Impl();
   std::unique_ptr<EllpackPageImpl> page_concatenated{new EllpackPageImpl(
-      ctx.Device(), first->CutsShared(), first->is_dense, first->row_stride, 1000 * 100)};
+      &ctx, first->CutsShared(), first->is_dense, first->row_stride, 1000 * 100)};
   for (auto& batch : m.GetBatches<EllpackPage>(&ctx, {})) {
     auto page = batch.Impl();
-    size_t num_elements = page_concatenated->Copy(ctx.Device(), page, offset);
+    size_t num_elements = page_concatenated->Copy(&ctx, page, offset);
     offset += num_elements;
   }
   auto from_iter = page_concatenated->GetDeviceAccessor(ctx.Device());
@@ -66,18 +66,15 @@ void TestEquivalent(float sparsity) {
       ASSERT_EQ(cut_ptrs_iter[i], cut_ptrs_data[i]);
     }
 
-    auto const& buffer_from_iter = page_concatenated->gidx_buffer;
-    auto const& buffer_from_data = ellpack.Impl()->gidx_buffer;
-    ASSERT_NE(buffer_from_data.Size(), 0);
-
-    common::CompressedIterator<uint32_t> data_buf{
-        buffer_from_data.ConstHostPointer(), from_data.NumSymbols()};
-    common::CompressedIterator<uint32_t> data_iter{
-        buffer_from_iter.ConstHostPointer(), from_iter.NumSymbols()};
+    std::vector<common::CompressedByteT> buffer_from_iter, buffer_from_data;
+    auto data_iter = page_concatenated->GetHostAccessor(&ctx, &buffer_from_iter);
+    auto data_buf = ellpack.Impl()->GetHostAccessor(&ctx, &buffer_from_data);
+    ASSERT_NE(buffer_from_data.size(), 0);
+    ASSERT_NE(buffer_from_iter.size(), 0);
     CHECK_EQ(from_data.NumSymbols(), from_iter.NumSymbols());
     CHECK_EQ(from_data.n_rows * from_data.row_stride, from_data.n_rows * from_iter.row_stride);
     for (size_t i = 0; i < from_data.n_rows * from_data.row_stride; ++i) {
-      CHECK_EQ(data_buf[i], data_iter[i]);
+      CHECK_EQ(data_buf.gidx_iter[i], data_iter.gidx_iter[i]);
     }
   }
 }
@@ -97,8 +94,8 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
   for (auto& ellpack : m.GetBatches<EllpackPage>(&ctx, {})) {
     n_batches ++;
     auto impl = ellpack.Impl();
-    common::CompressedIterator<uint32_t> iterator(
-        impl->gidx_buffer.HostVector().data(), impl->NumSymbols());
+    std::vector<common::CompressedByteT> h_gidx;
+    auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx);
     auto cols = CudaArrayIterForTest::Cols();
     auto rows = CudaArrayIterForTest::Rows();
 
@@ -111,7 +108,7 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
 
     for(auto i = 0ull; i < rows * cols; i++) {
       int column_idx = i % cols;
-      EXPECT_EQ(impl->Cuts().SearchBin(h_data[i], column_idx), iterator[i]);
+      EXPECT_EQ(impl->Cuts().SearchBin(h_data[i], column_idx), h_accessor.gidx_iter[i]);
     }
     EXPECT_EQ(m.Info().num_col_, cols);
     EXPECT_EQ(m.Info().num_row_, rows);
@@ -147,12 +144,12 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
       *m.GetBatches<EllpackPage>(&ctx, BatchParam{256, tree::TrainParam::DftSparseThreshold()})
            .begin();
   auto impl = ellpack.Impl();
-  common::CompressedIterator<uint32_t> iterator(
-      impl->gidx_buffer.HostVector().data(), impl->NumSymbols());
-  EXPECT_EQ(iterator[1], impl->GetDeviceAccessor(ctx.Device()).NullValue());
-  EXPECT_EQ(iterator[5], impl->GetDeviceAccessor(ctx.Device()).NullValue());
+  std::vector<common::CompressedByteT> h_gidx;
+  auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx);
+  EXPECT_EQ(h_accessor.gidx_iter[1], impl->GetDeviceAccessor(ctx.Device()).NullValue());
+  EXPECT_EQ(h_accessor.gidx_iter[5], impl->GetDeviceAccessor(ctx.Device()).NullValue());
   // null values get placed after valid values in a row
-  EXPECT_EQ(iterator[7], impl->GetDeviceAccessor(ctx.Device()).NullValue());
+  EXPECT_EQ(h_accessor.gidx_iter[7], impl->GetDeviceAccessor(ctx.Device()).NullValue());
   EXPECT_EQ(m.Info().num_col_, cols);
   EXPECT_EQ(m.Info().num_row_, rows);
   EXPECT_EQ(m.Info().num_nonzero_, rows* cols - 3);

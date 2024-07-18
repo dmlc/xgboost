@@ -4,11 +4,12 @@
 #include <dmlc/registry.h>
 
 #include <cstddef>  // for size_t
-#include <cstdint>  // for uint64_t
+#include <vector>   // for vector
 
-#include "../common/io.h"                 // for AlignedResourceReadStream, AlignedFileWriteStream
-#include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
-#include "ellpack_page.cuh"               // for EllpackPage
+#include "../common/io.h"                   // for AlignedResourceReadStream, AlignedFileWriteStream
+#include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
+#include "../common/ref_resource_view.h"    // for ReadVec, WriteVec
+#include "ellpack_page.cuh"                 // for EllpackPage
 #include "ellpack_page_raw_format.h"
 #include "ellpack_page_source.h"
 
@@ -16,8 +17,10 @@ namespace xgboost::data {
 DMLC_REGISTRY_FILE_TAG(ellpack_page_raw_format);
 
 namespace {
+// Function to support system without HMM or ATS
 template <typename T>
-[[nodiscard]] bool ReadDeviceVec(common::AlignedResourceReadStream* fi, HostDeviceVector<T>* vec) {
+[[nodiscard]] bool ReadDeviceVec(common::AlignedResourceReadStream* fi,
+                                 common::RefResourceView<T>* vec) {
   std::uint64_t n{0};
   if (!fi->Read(&n)) {
     return false;
@@ -33,34 +36,34 @@ template <typename T>
     return false;
   }
 
-  vec->Resize(n);
-  auto d_vec = vec->DeviceSpan();
-  dh::safe_cuda(
-      cudaMemcpyAsync(d_vec.data(), ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
+  auto ctx = Context{}.MakeCUDA(common::CurrentDevice());
+  *vec = common::MakeFixedVecWithCudaMalloc(&ctx, n, static_cast<T>(0));
+  dh::safe_cuda(cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
   return true;
 }
 }  // namespace
 
+#define RET_IF_NOT(expr) \
+  if (!(expr)) {         \
+    return false;        \
+  }
+
 [[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page,
                                               common::AlignedResourceReadStream* fi) {
   auto* impl = page->Impl();
+
   impl->SetCuts(this->cuts_);
-  if (!fi->Read(&impl->n_rows)) {
-    return false;
+  RET_IF_NOT(fi->Read(&impl->n_rows));
+  RET_IF_NOT(fi->Read(&impl->is_dense));
+  RET_IF_NOT(fi->Read(&impl->row_stride));
+
+  if (has_hmm_ats_) {
+    RET_IF_NOT(common::ReadVec(fi, &impl->gidx_buffer));
+  } else {
+    RET_IF_NOT(ReadDeviceVec(fi, &impl->gidx_buffer));
   }
-  if (!fi->Read(&impl->is_dense)) {
-    return false;
-  }
-  if (!fi->Read(&impl->row_stride)) {
-    return false;
-  }
-  impl->gidx_buffer.SetDevice(device_);
-  if (!ReadDeviceVec(fi, &impl->gidx_buffer)) {
-    return false;
-  }
-  if (!fi->Read(&impl->base_rowid)) {
-    return false;
-  }
+  RET_IF_NOT(fi->Read(&impl->base_rowid));
+  dh::DefaultStream().Sync();
   return true;
 }
 
@@ -71,8 +74,10 @@ template <typename T>
   bytes += fo->Write(impl->n_rows);
   bytes += fo->Write(impl->is_dense);
   bytes += fo->Write(impl->row_stride);
-  CHECK(!impl->gidx_buffer.ConstHostVector().empty());
-  bytes += common::WriteVec(fo, impl->gidx_buffer.HostVector());
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
+  [[maybe_unused]] auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx_buffer);
+  bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);
   dh::DefaultStream().Sync();
   return bytes;
@@ -82,33 +87,20 @@ template <typename T>
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
   impl->SetCuts(this->cuts_);
-  if (!fi->Read(&impl->n_rows)) {
-    return false;
-  }
-  if (!fi->Read(&impl->is_dense)) {
-    return false;
-  }
-  if (!fi->Read(&impl->row_stride)) {
-    return false;
-  }
+  RET_IF_NOT(fi->Read(&impl->n_rows));
+  RET_IF_NOT(fi->Read(&impl->is_dense));
+  RET_IF_NOT(fi->Read(&impl->row_stride));
 
   // Read vec
+  Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
   bst_idx_t n{0};
-  if (!fi->Read(&n)) {
-    return false;
-  }
+  RET_IF_NOT(fi->Read(&n));
   if (n != 0) {
-    impl->gidx_buffer.SetDevice(device_);
-    impl->gidx_buffer.Resize(n);
-    auto span = impl->gidx_buffer.DeviceSpan();
-    if (!fi->Read(span.data(), span.size_bytes())) {
-      return false;
-    }
+    impl->gidx_buffer =
+        common::MakeFixedVecWithCudaMalloc(&ctx, n, static_cast<common::CompressedByteT>(0));
+    RET_IF_NOT(fi->Read(impl->gidx_buffer.data(), impl->gidx_buffer.size_bytes()));
   }
-
-  if (!fi->Read(&impl->base_rowid)) {
-    return false;
-  }
+  RET_IF_NOT(fi->Read(&impl->base_rowid));
 
   dh::DefaultStream().Sync();
   return true;
@@ -123,16 +115,17 @@ template <typename T>
   bytes += fo->Write(impl->row_stride);
 
   // Write vector
-  bst_idx_t n = impl->gidx_buffer.Size();
+  bst_idx_t n = impl->gidx_buffer.size();
   bytes += fo->Write(n);
 
-  if (!impl->gidx_buffer.Empty()) {
-    auto span = impl->gidx_buffer.ConstDeviceSpan();
-    bytes += fo->Write(span.data(), span.size_bytes());
+  if (!impl->gidx_buffer.empty()) {
+    bytes += fo->Write(impl->gidx_buffer.data(), impl->gidx_buffer.size_bytes());
   }
   bytes += fo->Write(impl->base_rowid);
 
   dh::DefaultStream().Sync();
   return bytes;
 }
+
+#undef RET_IF_NOT
 }  // namespace xgboost::data

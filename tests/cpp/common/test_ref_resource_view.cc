@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -16,17 +16,16 @@ TEST(RefResourceView, Basic) {
   std::size_t n_bytes = 1024;
   auto mem = std::make_shared<MallocResource>(n_bytes);
   {
-    RefResourceView view{reinterpret_cast<float*>(mem->Data()), mem->Size() / sizeof(float), mem};
+    RefResourceView view{static_cast<float*>(mem->Data()), mem->Size() / sizeof(float), mem};
 
-    RefResourceView kview{reinterpret_cast<float const*>(mem->Data()), mem->Size() / sizeof(float),
-                          mem};
+    RefResourceView kview{static_cast<float const*>(mem->Data()), mem->Size() / sizeof(float), mem};
     ASSERT_EQ(mem.use_count(), 3);
     ASSERT_EQ(view.size(), n_bytes / sizeof(1024));
     ASSERT_EQ(kview.size(), n_bytes / sizeof(1024));
   }
   {
-    RefResourceView view{reinterpret_cast<float*>(mem->Data()), mem->Size() / sizeof(float), mem,
-                         1.5f};
+    RefResourceView view{static_cast<float*>(mem->Data()), mem->Size() / sizeof(float), mem};
+    std::fill_n(static_cast<float*>(mem->Data()), mem->Size() / sizeof(float), 1.5f);
     for (auto v : view) {
       ASSERT_EQ(v, 1.5f);
     }
