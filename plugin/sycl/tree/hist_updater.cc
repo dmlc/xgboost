@@ -7,6 +7,8 @@
 
 #include <oneapi/dpl/random>
 
+#include <functional>
+
 #include "../common/hist_util.h"
 #include "../../src/collective/allreduce.h"
 
