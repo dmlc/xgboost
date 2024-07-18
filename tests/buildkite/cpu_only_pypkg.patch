@@ -1,5 +1,5 @@
 diff --git python-package/pyproject.toml python-package/pyproject.toml
-index 8835def25..42400a78a 100644
+index 8835def25..c5dc908d9 100644
 --- python-package/pyproject.toml
 +++ python-package/pyproject.toml
 @@ -6,7 +6,7 @@ backend-path = ["."]
@@ -21,14 +21,10 @@ index 8835def25..42400a78a 100644
  ]
  
  [project.urls]
-@@ -48,6 +47,10 @@ pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
+@@ -83,3 +82,6 @@ class-attribute-naming-style = "snake_case"
  
- [tool.hatch.build.targets.wheel.hooks.custom]
- 
+ # Allow single-letter variables
+ variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
 +
 +[tool.hatch.build.targets.wheel]
 +packages = ["xgboost/"]
-+
- [tool.isort]
- profile = "black"
- 
