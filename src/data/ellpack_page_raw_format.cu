@@ -37,7 +37,7 @@ template <typename T>
   }
 
   auto ctx = Context{}.MakeCUDA(common::CurrentDevice());
-  *vec = common::MakeFixedVecWithCudaMalloc(&ctx, n, static_cast<T>(0));
+  *vec = common::MakeFixedVecWithCudaMalloc<T>(&ctx, n);
   dh::safe_cuda(cudaMemcpyAsync(vec->data(), ptr, n_bytes, cudaMemcpyDefault, dh::DefaultStream()));
   return true;
 }
@@ -87,19 +87,24 @@ template <typename T>
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
   impl->SetCuts(this->cuts_);
+
+  // Read vector
+  Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
+  auto read_vec = [&] {
+    bst_idx_t n{0};
+    RET_IF_NOT(fi->Read(&n));
+    if (n == 0) {
+      return true;
+    }
+    impl->gidx_buffer = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(&ctx, n);
+    RET_IF_NOT(fi->Read(impl->gidx_buffer.data(), impl->gidx_buffer.size_bytes()));
+    return true;
+  };
+  RET_IF_NOT(read_vec());
+
   RET_IF_NOT(fi->Read(&impl->n_rows));
   RET_IF_NOT(fi->Read(&impl->is_dense));
   RET_IF_NOT(fi->Read(&impl->row_stride));
-
-  // Read vec
-  Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
-  bst_idx_t n{0};
-  RET_IF_NOT(fi->Read(&n));
-  if (n != 0) {
-    impl->gidx_buffer =
-        common::MakeFixedVecWithCudaMalloc(&ctx, n, static_cast<common::CompressedByteT>(0));
-    RET_IF_NOT(fi->Read(impl->gidx_buffer.data(), impl->gidx_buffer.size_bytes()));
-  }
   RET_IF_NOT(fi->Read(&impl->base_rowid));
 
   dh::DefaultStream().Sync();
@@ -108,19 +113,27 @@ template <typename T>
 
 [[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
                                                       EllpackHostCacheStream* fo) const {
+  auto nvtxid = nvtxRangeStartA(__func__);
   bst_idx_t bytes{0};
   auto* impl = page.Impl();
+
+  // Write vector
+  auto write_vec = [&] {
+    auto wv_nvtx = nvtxRangeStartA("write_vec");
+    bst_idx_t n = impl->gidx_buffer.size();
+    bytes += fo->Write(n);
+
+    if (!impl->gidx_buffer.empty()) {
+      bytes += fo->Write(impl->gidx_buffer.data(), impl->gidx_buffer.size_bytes());
+    }
+    nvtxRangeEnd(wv_nvtx);
+  };
+
+  write_vec();
+
   bytes += fo->Write(impl->n_rows);
   bytes += fo->Write(impl->is_dense);
   bytes += fo->Write(impl->row_stride);
-
-  // Write vector
-  bst_idx_t n = impl->gidx_buffer.size();
-  bytes += fo->Write(n);
-
-  if (!impl->gidx_buffer.empty()) {
-    bytes += fo->Write(impl->gidx_buffer.data(), impl->gidx_buffer.size_bytes());
-  }
   bytes += fo->Write(impl->base_rowid);
 
   dh::DefaultStream().Sync();
