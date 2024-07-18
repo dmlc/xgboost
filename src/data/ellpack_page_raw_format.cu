@@ -113,20 +113,17 @@ template <typename T>
 
 [[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
                                                       EllpackHostCacheStream* fo) const {
-  auto nvtxid = nvtxRangeStartA(__func__);
   bst_idx_t bytes{0};
   auto* impl = page.Impl();
 
   // Write vector
   auto write_vec = [&] {
-    auto wv_nvtx = nvtxRangeStartA("write_vec");
     bst_idx_t n = impl->gidx_buffer.size();
     bytes += fo->Write(n);
 
     if (!impl->gidx_buffer.empty()) {
       bytes += fo->Write(impl->gidx_buffer.data(), impl->gidx_buffer.size_bytes());
     }
-    nvtxRangeEnd(wv_nvtx);
   };
 
   write_vec();
