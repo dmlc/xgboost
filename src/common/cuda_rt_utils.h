@@ -29,14 +29,14 @@ struct NvtxDomain {
 };
 
 #if defined(XGBOOST_USE_NVTX)
-using ScopedRange = ::nvtx3::scoped_range_in<NvtxDomain>;
+using NvtxScopedRange = ::nvtx3::scoped_range_in<NvtxDomain>;
 using NvtxEventAttr = ::nvtx3::event_attributes;
-using NvtxRgb = nvtx3::rgb;
+using NvtxRgb = ::nvtx3::rgb;
 #else
-class ScopedRange {
+class NvtxScopedRange {
  public:
   template <typename... Args>
-  explicit ScopedRange(Args &&...) {}
+  explicit NvtxScopedRange(Args &&...) {}
 };
 class NvtxEventAttr {
  public:

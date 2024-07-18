@@ -99,7 +99,7 @@ template <typename T>
   // Read vector
   Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
   auto read_vec = [&] {
-    common::ScopedRange range{common::NvtxEventAttr{"read-vec", common::NvtxRgb{127, 255, 0}}};
+    common::NvtxScopedRange range{common::NvtxEventAttr{"read-vec", common::NvtxRgb{127, 255, 0}}};
     bst_idx_t n{0};
     RET_IF_NOT(fi->Read(&n));
     if (n == 0) {
@@ -129,7 +129,7 @@ template <typename T>
 
   // Write vector
   auto write_vec = [&] {
-    common::ScopedRange range{common::NvtxEventAttr{"write-vec", common::NvtxRgb{127, 255, 0}}};
+    common::NvtxScopedRange range{common::NvtxEventAttr{"write-vec", common::NvtxRgb{127, 255, 0}}};
     bst_idx_t n = impl->gidx_buffer.size();
     bytes += fo->Write(n);
 
