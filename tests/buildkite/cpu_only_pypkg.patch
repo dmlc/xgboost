@@ -11,17 +11,7 @@ index 8835def25..c5dc908d9 100644
  description = "XGBoost Python Package"
  readme = { file = "README.rst", content-type = "text/x-rst" }
  authors = [
-@@ -30,8 +30,7 @@ classifiers = [
- ]
- dependencies = [
-     "numpy",
--    "scipy",
--    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'"
-+    "scipy"
- ]
- 
- [project.urls]
-@@ -83,3 +82,6 @@ class-attribute-naming-style = "snake_case"
+@@ -82,3 +82,6 @@ class-attribute-naming-style = "snake_case"
  
  # Allow single-letter variables
  variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
