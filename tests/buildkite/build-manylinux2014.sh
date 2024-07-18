@@ -19,7 +19,7 @@ echo "--- Build binary wheel for ${WHEEL_TAG}"
 # Patch to add warning about manylinux2014 variant
 patch -p0 < tests/buildkite/manylinux2014_warning.patch
 $command_wrapper bash -c \
-  "cd python-package && ${python_bin} -m pip wheel --no-deps -vvv . --wheel-dir dist/"
+  "cd python-package && ${python_bin} -m pip wheel --no-deps -v . --wheel-dir dist/"
 git checkout python-package/pyproject.toml python-package/xgboost/core.py  # discard the patch
 
 $command_wrapper auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
@@ -34,7 +34,7 @@ mv -v wheelhouse/*.whl python-package/dist/
 echo "--- Build binary wheel for ${WHEEL_TAG} (CPU only)"
 patch -p0 < tests/buildkite/cpu_only_pypkg.patch
 $command_wrapper bash -c \
-  "cd python-package && ${python_bin} -m pip wheel --no-deps -vvv . --wheel-dir dist/"
+  "cd python-package && ${python_bin} -m pip wheel --no-deps -v . --wheel-dir dist/"
 git checkout python-package/pyproject.toml  # discard the patch
 
 $command_wrapper auditwheel repair --plat ${WHEEL_TAG} python-package/dist/xgboost_cpu-*.whl
@@ -42,6 +42,7 @@ $command_wrapper ${python_bin} tests/ci_build/rename_whl.py  \
   --wheel-path wheelhouse/xgboost_cpu-*.whl  \
   --commit-hash ${BUILDKITE_COMMIT}  \
   --platform-tag ${WHEEL_TAG}
+rm -v python-package/dist/xgboost_cpu-*.whl
 mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
 
 echo "--- Upload Python wheel"
