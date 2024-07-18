@@ -45,7 +45,10 @@ $command_wrapper ${python_bin} tests/ci_build/rename_whl.py  \
 mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
 
 echo "--- Upload Python wheel"
-buildkite-agent artifact upload python-package/dist/*.whl
+for wheel in python-package/dist/*.whl
+do
+  buildkite-agent artifact upload "${wheel}"
+done
 # if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 # then
   for wheel in python-package/dist/*.whl
