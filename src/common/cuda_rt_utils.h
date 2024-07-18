@@ -54,5 +54,5 @@ class NvtxRgb {
 #if defined(XGBOOST_USE_NVTX)
 #define xgboost_NVTX_FN_RANGE() NVTX3_FUNC_RANGE_IN(::xgboost::common::NvtxDomain)
 #else
-#define xgboost_FUNC_RANGE()
+#define xgboost_NVTX_FN_RANGE()
 #endif  // defined(XGBOOST_USE_NVTX)
