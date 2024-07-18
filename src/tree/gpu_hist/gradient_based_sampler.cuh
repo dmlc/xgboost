@@ -1,20 +1,19 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #pragma once
-#include <xgboost/base.h>
-#include <xgboost/data.h>
-#include <xgboost/span.h>
+#include <cstddef>  // for size_t
 
-#include "../../common/device_helpers.cuh"
-#include "../../data/ellpack_page.cuh"
+#include "../../common/device_vector.cuh"  // for device_vector, caching_device_vector
+#include "../../data/ellpack_page.cuh"     // for EllpackPageImpl
+#include "xgboost/base.h"                  // for GradientPair
+#include "xgboost/data.h"                  // for BatchParam
+#include "xgboost/span.h"                  // for Span
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 struct GradientBasedSample {
   /*!\brief Number of sampled rows. */
-  size_t sample_rows;
+  std::size_t sample_rows;
   /*!\brief Sampled rows in ELLPACK format. */
   EllpackPageImpl const* page;
   /*!\brief Gradient pairs for the sampled rows. */
@@ -137,5 +136,4 @@ class GradientBasedSampler {
   common::Monitor monitor_;
   std::unique_ptr<SamplingStrategy> strategy_;
 };
-};  // namespace tree
-};  // namespace xgboost
+};  // namespace xgboost::tree

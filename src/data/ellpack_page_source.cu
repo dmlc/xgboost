@@ -11,6 +11,7 @@
 #include "../common/common.h"                 // for safe_cuda
 #include "../common/cuda_pinned_allocator.h"  // for pinned_allocator
 #include "../common/device_helpers.cuh"       // for CUDAStreamView, DefaultStream
+#include "../common/resource.cuh"             // for PrivateCudaMmapConstStream
 #include "ellpack_page.cuh"                   // for EllpackPageImpl
 #include "ellpack_page.h"                     // for EllpackPage
 #include "ellpack_page_source.h"
@@ -86,16 +87,16 @@ void EllpackHostCacheStream::Seek(bst_idx_t offset_bytes) { this->p_impl_->Seek(
 void EllpackHostCacheStream::Bound(bst_idx_t offset_bytes) { this->p_impl_->Bound(offset_bytes); }
 
 /**
- * EllpackFormatType
+ * EllpackCacheStreamPolicy
  */
 
 template <typename S, template <typename> typename F>
-EllpackFormatStreamPolicy<S, F>::EllpackFormatStreamPolicy()
+EllpackCacheStreamPolicy<S, F>::EllpackCacheStreamPolicy()
     : p_cache_{std::make_shared<EllpackHostCache>()} {}
 
 template <typename S, template <typename> typename F>
-[[nodiscard]] std::unique_ptr<typename EllpackFormatStreamPolicy<S, F>::WriterT>
-EllpackFormatStreamPolicy<S, F>::CreateWriter(StringView, std::uint32_t iter) {
+[[nodiscard]] std::unique_ptr<typename EllpackCacheStreamPolicy<S, F>::WriterT>
+EllpackCacheStreamPolicy<S, F>::CreateWriter(StringView, std::uint32_t iter) {
   auto fo = std::make_unique<EllpackHostCacheStream>(this->p_cache_);
   if (iter == 0) {
     CHECK(this->p_cache_->cache.empty());
@@ -106,9 +107,8 @@ EllpackFormatStreamPolicy<S, F>::CreateWriter(StringView, std::uint32_t iter) {
 }
 
 template <typename S, template <typename> typename F>
-[[nodiscard]] std::unique_ptr<typename EllpackFormatStreamPolicy<S, F>::ReaderT>
-EllpackFormatStreamPolicy<S, F>::CreateReader(StringView, bst_idx_t offset,
-                                              bst_idx_t length) const {
+[[nodiscard]] std::unique_ptr<typename EllpackCacheStreamPolicy<S, F>::ReaderT>
+EllpackCacheStreamPolicy<S, F>::CreateReader(StringView, bst_idx_t offset, bst_idx_t length) const {
   auto fi = std::make_unique<ReaderT>(this->p_cache_);
   fi->Seek(offset);
   fi->Bound(offset + length);
@@ -117,17 +117,39 @@ EllpackFormatStreamPolicy<S, F>::CreateReader(StringView, bst_idx_t offset,
 }
 
 // Instantiation
-template EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>::EllpackFormatStreamPolicy();
+template EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::EllpackCacheStreamPolicy();
 
 template std::unique_ptr<
-    typename EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>::WriterT>
-EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateWriter(StringView name,
-                                                                          std::uint32_t iter);
+    typename EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::WriterT>
+EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateWriter(StringView name,
+                                                                         std::uint32_t iter);
 
 template std::unique_ptr<
-    typename EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>::ReaderT>
-EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(
+    typename EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::ReaderT>
+EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(
     StringView name, std::uint64_t offset, std::uint64_t length) const;
+
+/**
+ * EllpackMmapStreamPolicy
+ */
+
+template <typename S, template <typename> typename F>
+[[nodiscard]] std::unique_ptr<typename EllpackMmapStreamPolicy<S, F>::ReaderT>
+EllpackMmapStreamPolicy<S, F>::CreateReader(StringView name, bst_idx_t offset,
+                                            bst_idx_t length) const {
+  if (has_hmm_) {
+    return std::make_unique<common::PrivateCudaMmapConstStream>(name, offset, length);
+  } else {
+    return std::make_unique<common::PrivateMmapConstStream>(name, offset, length);
+  }
+}
+
+// Instantiation
+template std::unique_ptr<
+    typename EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::ReaderT>
+EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringView name,
+                                                                        bst_idx_t offset,
+                                                                        bst_idx_t length) const;
 
 /**
  * EllpackPageSourceImpl
@@ -146,8 +168,8 @@ void EllpackPageSourceImpl<F>::Fetch() {
     auto const& csr = this->source_->Page();
     this->page_.reset(new EllpackPage{});
     auto* impl = this->page_->Impl();
-    *impl = EllpackPageImpl{this->Device(), this->GetCuts(), *csr,
-                            is_dense_,      row_stride_,     feature_types_};
+    Context ctx = Context{}.MakeCUDA(this->Device().ordinal);
+    *impl = EllpackPageImpl{&ctx, this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
     this->WriteCache();
   }
@@ -157,5 +179,7 @@ void EllpackPageSourceImpl<F>::Fetch() {
 template void
 EllpackPageSourceImpl<DefaultFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
 template void
-EllpackPageSourceImpl<EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+EllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+template void
+EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
 }  // namespace xgboost::data

@@ -4,29 +4,26 @@
  * \brief The command line interface program of xgboost.
  *  This file is not included in dynamic library.
  */
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif  // !defined(NOMINMAX)
-
 #include <dmlc/timer.h>
-
-#include <xgboost/learner.h>
+#include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/json.h>
+#include <xgboost/learner.h>
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
 
-#include <iomanip>
-#include <ctime>
-#include <string>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
+#include <iomanip>
+#include <string>
 #include <vector>
+
+#include "c_api/c_api_utils.h"
 #include "common/common.h"
 #include "common/config.h"
 #include "common/io.h"
 #include "common/version.h"
-#include "c_api/c_api_utils.h"
 
 namespace xgboost {
 enum CLITask {

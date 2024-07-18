@@ -1,11 +1,11 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/json.h>  // for Json
 
 #include "../../../../src/collective/comm_group.h"
-#include "../../helpers.h"
+#include "../../../../src/common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "test_worker.h"
 
 namespace xgboost::collective {

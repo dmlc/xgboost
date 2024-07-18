@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  */
 #include "common.h"
 
@@ -54,9 +54,4 @@ void EscapeU8(std::string const &string, std::string *p_buffer) {
     }
   }
 }
-
-#if !defined(XGBOOST_USE_CUDA)
-int AllVisibleGPUs() { return 0; }
-#endif  // !defined(XGBOOST_USE_CUDA)
-
 }  // namespace xgboost::common

@@ -21,14 +21,11 @@
 
 #if defined(__CUDACC__)
 #include "../../src/collective/communicator-inl.h"  // for GetRank
-#include "../../src/common/common.h"                // for AllVisibleGPUs
+#include "../../src/common/cuda_rt_utils.h"         // for AllVisibleGPUs
 #endif  // defined(__CUDACC__)
 
 #include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/linalg.h"
-#if !defined(_OPENMP)
-#include <thread>
-#endif
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name

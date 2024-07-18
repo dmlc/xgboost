@@ -7,11 +7,10 @@
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
 #endif                   // defined(__unix__) || defined(__APPLE__)
 
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif  // !defined(NOMINMAX)
-
 #if defined(_WIN32)
+// Guard the include
+#include <xgboost/windefs.h>
+// Socket API
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #endif  // defined(_WIN32)

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors 
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <memory>
@@ -10,7 +10,6 @@
 #include "xgboost/objective.h"
 #include "xgboost/logging.h"
 #include "../helpers.h"
-#include "../../../src/common/survival_util.h"
 
 namespace xgboost::common {
 TEST(Objective, DeclareUnifiedTest(AFTObjConfiguration)) {

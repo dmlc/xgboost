@@ -3,9 +3,6 @@
  *
  * @brief Utilities for estimating initial score.
  */
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif                                          // !defined(NOMINMAX)
 #include <thrust/execution_policy.h>            // cuda::par
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
 

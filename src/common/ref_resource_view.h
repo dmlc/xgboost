@@ -43,24 +43,16 @@ class RefResourceView {
   }
 
  public:
-  RefResourceView(value_type* ptr, size_type n, std::shared_ptr<common::ResourceHandler> mem)
-      : ptr_{ptr}, size_{n}, mem_{std::move(mem)} {
-    CHECK_GE(mem_->Size(), n);
-  }
   /**
    * @brief Construct a view on ptr with length n. The ptr is held by the mem resource.
    *
    * @param ptr  The pointer to view.
    * @param n    The length of the view.
    * @param mem  The owner of the pointer.
-   * @param init Initialize the view with this value.
    */
-  RefResourceView(value_type* ptr, size_type n, std::shared_ptr<common::ResourceHandler> mem,
-                  T const& init)
-      : RefResourceView{ptr, n, mem} {
-    if (n != 0) {
-      std::fill_n(ptr_, n, init);
-    }
+  RefResourceView(value_type* ptr, size_type n, std::shared_ptr<common::ResourceHandler> mem)
+      : ptr_{ptr}, size_{n}, mem_{std::move(mem)} {
+    CHECK_GE(mem_->Size(), n);
   }
 
   ~RefResourceView() = default;
@@ -159,7 +151,9 @@ template <typename Vec>
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithMalloc(std::size_t n_elements, T const& init) {
   auto resource = std::make_shared<common::MallocResource>(n_elements * sizeof(T));
-  return RefResourceView{resource->DataAs<T>(), n_elements, resource, init};
+  auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
+  std::fill_n(ref.data(), ref.size(), init);
+  return ref;
 }
 
 template <typename T>

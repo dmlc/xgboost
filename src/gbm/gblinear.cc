@@ -10,12 +10,12 @@
 
 #include <algorithm>
 #include <numeric>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #include "../common/common.h"
-#include "../common/error_msg.h"  // NoCategorical, DeprecatedFunc
+#include "../common/cuda_rt_utils.h"  // for AllVisibleGPUs
+#include "../common/error_msg.h"      // NoCategorical, DeprecatedFunc
 #include "../common/threading_utils.h"
 #include "../common/timer.h"
 #include "gblinear_model.h"
