@@ -6,6 +6,7 @@
 #include <cstddef>  // for size_t
 #include <vector>   // for vector
 
+#include "../common/cuda_rt_utils.h"
 #include "../common/io.h"                   // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
 #include "../common/ref_resource_view.h"    // for ReadVec, WriteVec
@@ -21,6 +22,8 @@ namespace {
 template <typename T>
 [[nodiscard]] bool ReadDeviceVec(common::AlignedResourceReadStream* fi,
                                  common::RefResourceView<T>* vec) {
+  xgboost_NVTX_FN_RANGE();
+
   std::uint64_t n{0};
   if (!fi->Read(&n)) {
     return false;
@@ -50,6 +53,7 @@ template <typename T>
 
 [[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page,
                                               common::AlignedResourceReadStream* fi) {
+  xgboost_NVTX_FN_RANGE();
   auto* impl = page->Impl();
 
   impl->SetCuts(this->cuts_);
@@ -69,6 +73,8 @@ template <typename T>
 
 [[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
                                                       common::AlignedFileWriteStream* fo) {
+  xgboost_NVTX_FN_RANGE();
+
   std::size_t bytes{0};
   auto* impl = page.Impl();
   bytes += fo->Write(impl->n_rows);
@@ -84,6 +90,8 @@ template <typename T>
 }
 
 [[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page, EllpackHostCacheStream* fi) const {
+  xgboost_NVTX_FN_RANGE();
+
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
   impl->SetCuts(this->cuts_);
@@ -91,6 +99,7 @@ template <typename T>
   // Read vector
   Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
   auto read_vec = [&] {
+    common::ScopedRange range{common::NvtxEventAttr{"read-vec", common::NvtxRgb{127, 255, 0}}};
     bst_idx_t n{0};
     RET_IF_NOT(fi->Read(&n));
     if (n == 0) {
@@ -113,11 +122,14 @@ template <typename T>
 
 [[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
                                                       EllpackHostCacheStream* fo) const {
+  xgboost_NVTX_FN_RANGE();
+
   bst_idx_t bytes{0};
   auto* impl = page.Impl();
 
   // Write vector
   auto write_vec = [&] {
+    common::ScopedRange range{common::NvtxEventAttr{"write-vec", common::NvtxRgb{127, 255, 0}}};
     bst_idx_t n = impl->gidx_buffer.size();
     bytes += fo->Write(n);
 
