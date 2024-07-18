@@ -16,7 +16,7 @@ namespace xgboost::common {
  * @brief Make a fixed size `RefResourceView` with cudaMalloc resource.
  */
 template <typename T>
-[[nodiscard]] RefResourceView<T> MakeFixedVecWithCudaMalloc(Context const* ctx,
+[[nodiscard]] RefResourceView<T> MakeFixedVecWithCudaMalloc(Context const*,
                                                             std::size_t n_elements) {
   auto resource = std::make_shared<common::CudaMallocResource>(n_elements * sizeof(T));
   auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};

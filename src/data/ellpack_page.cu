@@ -404,7 +404,7 @@ size_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page, bs
     LOG(FATAL) << "Concatenating the same Ellpack.";
     return this->n_rows * this->row_stride;
   }
-  dh::LaunchN(num_elements, CopyPage{this, page, offset});
+  dh::LaunchN(num_elements, ctx->CUDACtx()->Stream(), CopyPage{this, page, offset});
   monitor_.Stop(__func__);
   return num_elements;
 }
