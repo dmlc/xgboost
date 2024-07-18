@@ -36,7 +36,5 @@ dependencies:
 - pyarrow
 - pyspark>=3.4.0
 - cloudpickle
-- setuptools
 - pip:
   - sphinx_rtd_theme
-  - py-ubjson
