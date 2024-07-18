@@ -763,4 +763,6 @@ void DeleteRMMResource(RMMAllocator*) {}
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, DeleteRMMResource}; }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
+
+std::int32_t DistGpuIdx() { return common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank(); }
 } // namespace xgboost

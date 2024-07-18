@@ -6,7 +6,6 @@
 #include <thrust/host_vector.h>
 #include <xgboost/base.h>
 
-#include <random>
 #include <string>
 #include <vector>
 
@@ -23,46 +22,6 @@
 #include "xgboost/json.h"
 
 namespace xgboost::tree {
-TEST(GpuHist, DeviceHistogramStorage) {
-  // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
-  dh::safe_cuda(cudaSetDevice(0));
-  constexpr size_t kNBins = 128;
-  constexpr int kNNodes = 4;
-  constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
-  DeviceHistogramStorage<kStopGrowing> histogram;
-  histogram.Init(FstCU(), kNBins);
-  for (int i = 0; i < kNNodes; ++i) {
-    histogram.AllocateHistograms({i});
-  }
-  histogram.Reset();
-  ASSERT_EQ(histogram.Data().size(), kStopGrowing);
-
-  // Use allocated memory but do not erase nidx_map.
-  for (int i = 0; i < kNNodes; ++i) {
-    histogram.AllocateHistograms({i});
-  }
-  for (int i = 0; i < kNNodes; ++i) {
-    ASSERT_TRUE(histogram.HistogramExists(i));
-  }
-
-  // Add two new nodes
-  histogram.AllocateHistograms({kNNodes});
-  histogram.AllocateHistograms({kNNodes + 1});
-
-  // Old cached nodes should still exist
-  for (int i = 0; i < kNNodes; ++i) {
-    ASSERT_TRUE(histogram.HistogramExists(i));
-  }
-
-  // Should be deleted
-  ASSERT_FALSE(histogram.HistogramExists(kNNodes));
-  // Most recent node should exist
-  ASSERT_TRUE(histogram.HistogramExists(kNNodes + 1));
-
-  // Add same node again - should fail
-  EXPECT_ANY_THROW(histogram.AllocateHistograms({kNNodes + 1}););
-}
-
 std::vector<GradientPairPrecise> GetHostHistGpair() {
   // 24 bins, 3 bins for each feature (column).
   std::vector<GradientPairPrecise> hist_gpair = {
@@ -108,7 +67,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.row_partitioner = std::make_unique<RowPartitioner>(&ctx, kNRows, 0);
 
   maker.hist.Init(ctx.Device(), page->Cuts().TotalBins());
-  maker.hist.AllocateHistograms({0});
+  maker.hist.AllocateHistograms(&ctx, {0});
 
   maker.gpair = gpair.DeviceSpan();
   maker.quantiser = std::make_unique<GradientQuantiser>(&ctx, maker.gpair, MetaInfo());
@@ -425,8 +384,8 @@ TEST(GpuHist, MaxDepth) {
 namespace {
 RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   ObjInfo task{ObjInfo::kRegression};
-  GPUHistMaker hist_maker{ctx, &task};
-  hist_maker.Configure(Args{});
+  std::unique_ptr<TreeUpdater> hist_maker {TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
+  hist_maker->Configure(Args{});
 
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
@@ -436,8 +395,8 @@ RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   RegTree tree;
-  hist_maker.Update(&param, &gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
-                    {&tree});
+  hist_maker->Update(&param, &gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
+                     {&tree});
   return tree;
 }
 
@@ -476,8 +435,8 @@ TEST_F(MGPUHistTest, HistColumnSplit) {
 namespace {
 RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
   ObjInfo task{ObjInfo::kRegression};
-  GPUGlobalApproxMaker approx_maker{ctx, &task};
-  approx_maker.Configure(Args{});
+  std::unique_ptr<TreeUpdater> approx_maker{TreeUpdater::Create("grow_gpu_approx", ctx, &task)};
+  approx_maker->Configure(Args{});
 
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
@@ -487,13 +446,13 @@ RegTree GetApproxTree(Context const* ctx, DMatrix* dmat) {
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   RegTree tree;
-  approx_maker.Update(&param, &gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
-                      {&tree});
+  approx_maker->Update(&param, &gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
+                       {&tree});
   return tree;
 }
 
 void VerifyApproxColumnSplit(bst_idx_t rows, bst_feature_t cols, RegTree const& expected_tree) {
-  Context ctx(MakeCUDACtx(GPUIDX));
+  auto ctx = MakeCUDACtx(DistGpuIdx());
 
   auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
   auto const world_size = collective::GetWorldSize();
