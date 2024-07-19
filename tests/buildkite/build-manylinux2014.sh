@@ -53,11 +53,11 @@ for wheel in python-package/dist/*.whl
 do
   buildkite-agent artifact upload "${wheel}"
 done
-# if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-# then
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
   for wheel in python-package/dist/*.whl
   do
     aws s3 cp "${wheel}" s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
       --acl public-read --no-progress
   done
-# fi
+fi
