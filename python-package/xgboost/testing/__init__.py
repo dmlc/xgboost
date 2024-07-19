@@ -161,7 +161,16 @@ def no_cudf() -> PytestSkip:
 
 
 def no_cupy() -> PytestSkip:
-    return no_mod("cupy")
+    skip_cupy = no_mod("cupy")
+    if not skip_cupy["condition"] and system() == "Windows":
+        import cupy as cp
+
+        # Cupy might run into issue on Windows due to missing compiler
+        try:
+            cp.array([1, 2, 3]).sum()
+        except Exception:  # pylint: disable=broad-except
+            skip_cupy["condition"] = True
+    return skip_cupy
 
 
 def no_dask_cudf() -> PytestSkip:
