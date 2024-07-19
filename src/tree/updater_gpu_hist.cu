@@ -46,7 +46,6 @@
 #include "../collective/communicator-inl.h"
 #include "../collective/allgather.h"         // for AllgatherV
 
-#include <stdio.h>
 namespace xgboost::tree {
 #if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
@@ -660,14 +659,17 @@ struct GPUHistMakerDevice {
     // allgather
     HostDeviceVector<std::int8_t> hist_entries;
     std::vector<std::int64_t> recv_segments;
-    auto rc = collective::AllgatherV(ctx_, linalg::MakeVec(hist_buf), &recv_segments, &hist_entries);
+    auto rc = collective::AllgatherV(ctx_, linalg::MakeVec(hist_buf),
+                                     &recv_segments, &hist_entries);
     collective::SafeColl(rc);
 
     // call the encryption plugin to decode the histograms
-    auto hist_aggr = plugin->SyncEncryptedHistHori(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
+    auto hist_aggr = plugin->SyncEncryptedHistHori(
+            common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
 
     // reinterpret the aggregated histogram as a int64_t and aggregate
-    auto hist_aggr_64 = common::Span{reinterpret_cast<std::int64_t *>(hist_aggr.data()), hist_aggr.size()};
+    auto hist_aggr_64 = common::Span{
+        reinterpret_cast<std::int64_t *>(hist_aggr.data()), hist_aggr.size()};
     int num_ranks = collective::GlobalCommGroup()->World();
     for (size_t i = 0; i < n; i++) {
       for (int j = 1; j < num_ranks; j++) {
@@ -718,8 +720,7 @@ struct GPUHistMakerDevice {
     // If secure horizontal, perform AllReduce by calling the encryption plugin
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
       this->AllReduceHistEncrypted(hist_nidx.at(0), hist_nidx.size());
-    }
-    else {
+    } else {
       this->AllReduceHist(hist_nidx.at(0), hist_nidx.size());
     }
 
@@ -733,8 +734,7 @@ struct GPUHistMakerDevice {
         this->BuildHist(subtraction_trick_nidx);
         if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
           this->AllReduceHistEncrypted(subtraction_trick_nidx, 1);
-        }
-        else {
+        } else {
           this->AllReduceHist(subtraction_trick_nidx, 1);
         }
       }
@@ -812,8 +812,7 @@ struct GPUHistMakerDevice {
     this->BuildHist(kRootNIdx);
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
       this->AllReduceHistEncrypted(kRootNIdx, 1);
-    }
-    else {
+    } else {
       this->AllReduceHist(kRootNIdx, 1);
     }
 
