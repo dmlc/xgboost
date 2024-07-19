@@ -516,11 +516,12 @@ def make_batches(  # pylint: disable=too-many-arguments,too-many-locals
     vary_size: bool = False,
     random_state: int = 1994,
 ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    """Make batches of dense data."""
     X = []
     y = []
     w = []
     if use_cupy:
-        import cupy
+        import cupy  # pylint: disable=import-error
 
         rng = cupy.random.RandomState(random_state)
     else:
