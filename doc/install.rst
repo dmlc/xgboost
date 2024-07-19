@@ -76,6 +76,19 @@ Capabilities of binary wheels for each platform:
 | Windows             | |tick|  |  |cross|             |
 +---------------------+---------+----------------------+
 
+Minimal installation (CPU-only)
+*******************************
+The default installation with ``pip`` will install the full XGBoost package, including the support for the GPU algorithms and federated learning.
+
+You may choose to reduce the size of the installed package and save the disk space, by opting to install ``xgboost-cpu`` instead:
+
+.. code-block:: bash
+
+  pip install xgboost-cpu
+
+The ``xgboost-cpu`` variant will have drastically smaller disk footprint, but does not provide some features, such as the GPU algorithms and
+federated learning.
+
 Conda
 *****
 
