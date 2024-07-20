@@ -37,4 +37,5 @@ dependencies:
 - pyspark>=3.4.0
 - cloudpickle
 - pip:
+  - setuptools
   - sphinx_rtd_theme

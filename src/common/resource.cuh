@@ -24,11 +24,9 @@ class CudaMallocResource : public ResourceHandler {
   }
   ~CudaMallocResource() noexcept(true) override { this->Clear(); }
 
-  void* Data() override { return storage_.data(); }
+  [[nodiscard]] void* Data() override { return storage_.data(); }
   [[nodiscard]] std::size_t Size() const override { return storage_.size(); }
-  void Resize(std::size_t n_bytes, std::byte init = std::byte{0}) {
-    this->storage_.resize(n_bytes, init);
-  }
+  void Resize(std::size_t n_bytes) { this->storage_.resize(n_bytes); }
 };
 
 class CudaMmapResource : public ResourceHandler {
