@@ -23,6 +23,18 @@ struct Pair {
 __host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
 }
+
+XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackDeviceAccessor const& matrix,
+                                     RowPartitioner::RowIndexT ridx, FeatureGroup const& group,
+                                     bst_idx_t idx, std::int32_t feature_stride) {
+  // ridx_local = ridx - base_rowid  <== Row index local to each batch
+  // entry_idx = ridx_local * row_stride <== Starting entry index for this row in the matrix
+  // entry_idx += start_feature  <== Inside a row, first column inside this feature group
+  // idx % feature_stride <== The feaature index local to the current feature group
+  // entry_idx += idx % feature_stride <== Final index.
+  return (ridx - matrix.base_rowid) * matrix.row_stride + group.start_feature +
+         idx % feature_stride;
+}
 }  // anonymous namespace
 
 struct Clip : public thrust::unary_function<GradientPair, Pair> {
@@ -159,15 +171,16 @@ class HistogramAgent {
          idx < std::min(offset + kBlockThreads * kItemsPerTile, n_elements_);
          idx += kBlockThreads) {
       Idx ridx = d_ridx_[idx / feature_stride_];
-      Idx midx = (ridx - matrix_.base_rowid) * matrix_.row_stride + group_.start_feature +
-                  idx % feature_stride_;
-      bst_bin_t gidx = matrix_.gidx_iter[midx] - group_.start_bin;
-      if (matrix_.is_dense || gidx != matrix_.NumBins()) {
+      bst_bin_t gidx = matrix_.gidx_iter[IterIdx(matrix_, ridx, group_, idx, feature_stride_)];
+      if (matrix_.is_dense || gidx != matrix_.NullValue()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
-        AtomicAddGpairShared(smem_arr_ + gidx, adjusted);
+        // Subtract start_bin to write to group-local histogram. If this is not a dense
+        // matrix, then start_bin is 0 since featuregrouping doesn't support sparse data.
+        AtomicAddGpairShared(smem_arr_ + gidx - group_.start_bin, adjusted);
       }
     }
   }
+
   // Instruction level parallelism by loop unrolling
   // Allows the kernel to pipeline many operations while waiting for global memory
   // Increases the throughput of this kernel significantly
@@ -187,12 +200,11 @@ class HistogramAgent {
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
       gpair[i] = d_gpair_[ridx[i]];
-      gidx[i] = matrix_.gidx_iter[(ridx[i] - matrix_.base_rowid) * matrix_.row_stride +
-                                  group_.start_feature + idx[i] % feature_stride_];
+      gidx[i] = matrix_.gidx_iter[IterIdx(matrix_, ridx[i], group_, idx[i], feature_stride_)];
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
-      if ((matrix_.is_dense || gidx[i] != matrix_.NumBins())) {
+      if ((matrix_.is_dense || gidx[i] != matrix_.NullValue())) {
         auto adjusted = rounding_.ToFixedPoint(gpair[i]);
         AtomicAddGpairShared(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
       }
@@ -219,9 +231,8 @@ class HistogramAgent {
   __device__ void BuildHistogramWithGlobal() {
     for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), n_elements_)) {
       Idx ridx = d_ridx_[idx / feature_stride_];
-      bst_bin_t gidx = matrix_.gidx_iter[(ridx - matrix_.base_rowid) * matrix_.row_stride +
-                                         group_.start_feature + idx % feature_stride_];
-      if (matrix_.is_dense || gidx != matrix_.NumBins()) {
+      bst_bin_t gidx = matrix_.gidx_iter[IterIdx(matrix_, ridx, group_, idx, feature_stride_)];
+      if (matrix_.is_dense || gidx != matrix_.NullValue()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
         AtomicAddGpairGlobal(d_node_hist_ + gidx, adjusted);
       }
