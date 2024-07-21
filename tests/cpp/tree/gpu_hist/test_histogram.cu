@@ -14,6 +14,46 @@
 #include "../../helpers.h"
 
 namespace xgboost::tree {
+TEST(Histogram, DeviceHistogramStorage) {
+  // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
+  auto ctx = MakeCUDACtx(0);
+  constexpr size_t kNBins = 128;
+  constexpr int kNNodes = 4;
+  constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
+  DeviceHistogramStorage<kStopGrowing> histogram;
+  histogram.Init(FstCU(), kNBins);
+  for (int i = 0; i < kNNodes; ++i) {
+    histogram.AllocateHistograms(&ctx, {i});
+  }
+  histogram.Reset(&ctx);
+  ASSERT_EQ(histogram.Data().size(), kStopGrowing);
+
+  // Use allocated memory but do not erase nidx_map.
+  for (int i = 0; i < kNNodes; ++i) {
+    histogram.AllocateHistograms(&ctx, {i});
+  }
+  for (int i = 0; i < kNNodes; ++i) {
+    ASSERT_TRUE(histogram.HistogramExists(i));
+  }
+
+  // Add two new nodes
+  histogram.AllocateHistograms(&ctx, {kNNodes});
+  histogram.AllocateHistograms(&ctx, {kNNodes + 1});
+
+  // Old cached nodes should still exist
+  for (int i = 0; i < kNNodes; ++i) {
+    ASSERT_TRUE(histogram.HistogramExists(i));
+  }
+
+  // Should be deleted
+  ASSERT_FALSE(histogram.HistogramExists(kNNodes));
+  // Most recent node should exist
+  ASSERT_TRUE(histogram.HistogramExists(kNNodes + 1));
+
+  // Add same node again - should fail
+  EXPECT_ANY_THROW(histogram.AllocateHistograms(&ctx, {kNNodes + 1}););
+}
+
 void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) {
   Context ctx = MakeCUDACtx(0);
   size_t constexpr kBins = 256, kCols = 120, kRows = 16384, kRounds = 16;

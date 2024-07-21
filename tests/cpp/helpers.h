@@ -526,6 +526,9 @@ inline std::int32_t AllThreadsForTest() { return Context{}.Threads(); }
 
 inline DeviceOrd FstCU() { return DeviceOrd::CUDA(0); }
 
+// GPU device ordinal for distributed tests
+std::int32_t DistGpuIdx();
+
 inline auto GMockThrow(StringView msg) {
   return ::testing::ThrowsMessage<dmlc::Error>(::testing::HasSubstr(msg));
 }
