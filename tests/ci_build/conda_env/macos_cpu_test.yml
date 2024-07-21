@@ -38,4 +38,3 @@ dependencies:
 - cloudpickle
 - pip:
   - sphinx_rtd_theme
-  - py-ubjson
