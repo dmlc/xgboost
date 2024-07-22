@@ -66,7 +66,8 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
   for (auto const& batch : matrix->GetBatches<EllpackPage>(&ctx, batch_param)) {
     auto* page = batch.Impl();
 
-    tree::RowPartitioner row_partitioner{&ctx, kRows, page->base_rowid};
+    tree::RowPartitioner row_partitioner;
+    row_partitioner.Reset(&ctx, kRows, page->base_rowid);
     auto ridx = row_partitioner.GetRows(0);
 
     bst_bin_t num_bins = kBins * kCols;
@@ -171,7 +172,8 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
   cat_m->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
   auto batch_param = BatchParam{kBins, tree::TrainParam::DftSparseThreshold()};
-  tree::RowPartitioner row_partitioner{&ctx, kRows, 0};
+  tree::RowPartitioner row_partitioner;
+  row_partitioner.Reset(&ctx, kRows, 0);
   auto ridx = row_partitioner.GetRows(0);
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
@@ -343,8 +345,8 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
           cuts = std::make_shared<common::HistogramCuts>(impl->Cuts());
         }
 
-        partitioners.emplace_back(
-            std::make_unique<RowPartitioner>(&ctx, impl->Size(), impl->base_rowid));
+        partitioners.emplace_back(std::make_unique<RowPartitioner>());
+        partitioners.back()->Reset(&ctx, impl->Size(), impl->base_rowid);
 
         auto ridx = partitioners.at(k)->GetRows(0);
         auto d_histogram = dh::ToSpan(multi_hist);
@@ -362,7 +364,9 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
       /**
        * Single page.
        */
-      RowPartitioner partitioner{&ctx, p_fmat->Info().num_row_, 0};
+      RowPartitioner partitioner;
+      partitioner.Reset(&ctx, p_fmat->Info().num_row_, 0);
+
       SparsePage concat;
       std::vector<float> hess(p_fmat->Info().num_row_, 1.0f);
       for (auto const& page : p_fmat->GetBatches<SparsePage>()) {

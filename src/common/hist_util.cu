@@ -227,7 +227,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
                        });
     detail::SortByWeight(&entry_weight, &sorted_entries);
   } else {
-    thrust::sort(cuctx->CTP(), sorted_entries.begin(), sorted_entries.end(),
+    thrust::sort(cuctx->TP(), sorted_entries.begin(), sorted_entries.end(),
                  detail::EntryCompareOp());
   }
 

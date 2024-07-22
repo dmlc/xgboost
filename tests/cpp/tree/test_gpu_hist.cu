@@ -64,7 +64,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   }
   gpair.SetDevice(ctx.Device());
 
-  maker.row_partitioner = std::make_unique<RowPartitioner>(&ctx, kNRows, 0);
+  maker.row_partitioner = std::make_unique<RowPartitioner>();
+  maker.row_partitioner->Reset(&ctx, kNRows, 0);
 
   maker.hist.Init(ctx.Device(), page->Cuts().TotalBins());
   maker.hist.AllocateHistograms(&ctx, {0});
