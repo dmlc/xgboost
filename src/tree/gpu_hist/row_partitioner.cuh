@@ -298,8 +298,8 @@ class RowPartitioner {
                                   cudaMemcpyDefault));
 
     // Temporary arrays
-    auto h_counts = pinned_.GetSpan<cuda_impl::RowIndexT>(nidx.size(), 0);
-    dh::TemporaryArray<cuda_impl::RowIndexT> d_counts(nidx.size(), 0);
+    auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size(), 0);
+    dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
     // Partition the rows according to the operator
     SortPositionBatch<RowIndexT, UpdatePositionOpT, OpDataT>(
@@ -349,7 +349,7 @@ class RowPartitioner {
     constexpr int kBlockSize = 512;
     const int kItemsThread = 8;
     const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
-    common::Span<RowIndexT const> d_ridx{thrust::raw_pointer_cast(ridx_.data()), ridx_.size()};
+    common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
     FinalisePositionKernel<kBlockSize>
         <<<grid_size, kBlockSize, 0>>>(dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
   }
