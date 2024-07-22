@@ -224,7 +224,7 @@ if(USE_CUDA)
   find_package(CUDAToolkit REQUIRED)
 
   if(BUILD_WITH_EXTERNAL_CCCL)
-    find_package(CCCL REQUIRED CONFIG COMPONENTS cub)
+    find_package(CCCL REQUIRED CONFIG)
   endif()
 endif()
 
@@ -433,7 +433,7 @@ else()
   endif()
 endif()
 if(BUILD_WITH_EXTERNAL_CCCL)
-  list(APPEND INSTALL_TARGETS _CUB_CUB _CUB_libcudacxx)
+  list(APPEND INSTALL_TARGETS _CUB_CUB _CUB_libcudacxx _Thrust_libcudacxx)
 endif()
 
 install(TARGETS ${INSTALL_TARGETS}
