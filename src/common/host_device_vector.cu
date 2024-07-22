@@ -29,7 +29,7 @@ class HostDeviceVectorImpl {
     if (device.IsCUDA()) {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_->Resize(size, v);
+      data_d_->resize(size, v);
     } else {
       data_h_.resize(size, v);
     }
