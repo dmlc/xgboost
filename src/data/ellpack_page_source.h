@@ -9,6 +9,7 @@
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
 
+#include "../common/cuda_rt_utils.h"  // for SupportsPageableMem
 #include "../common/hist_util.h"      // for HistogramCuts
 #include "ellpack_page.h"             // for EllpackPage
 #include "ellpack_page_raw_format.h"  // for EllpackPageRawFormat
@@ -59,14 +60,19 @@ template <typename S>
 class EllpackFormatPolicy {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
   DeviceOrd device_;
+  bool has_hmm_{common::SupportsPageableMem()};
 
  public:
   using FormatT = EllpackPageRawFormat;
 
  public:
+  EllpackFormatPolicy() = default;
+  // For testing with the HMM flag.
+  explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}
+
   [[nodiscard]] auto CreatePageFormat() const {
     CHECK_EQ(cuts_->cut_values_.Device(), device_);
-    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_}};
+    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_, has_hmm_}};
     return fmt;
   }
 
@@ -83,7 +89,7 @@ class EllpackFormatPolicy {
 };
 
 template <typename S, template <typename> typename F>
-class EllpackFormatStreamPolicy : public F<S> {
+class EllpackCacheStreamPolicy : public F<S> {
   std::shared_ptr<EllpackHostCache> p_cache_;
 
  public:
@@ -91,8 +97,37 @@ class EllpackFormatStreamPolicy : public F<S> {
   using ReaderT = EllpackHostCacheStream;
 
  public:
-  EllpackFormatStreamPolicy();
+  EllpackCacheStreamPolicy();
   [[nodiscard]] std::unique_ptr<WriterT> CreateWriter(StringView name, std::uint32_t iter);
+
+  [[nodiscard]] std::unique_ptr<ReaderT> CreateReader(StringView name, bst_idx_t offset,
+                                                      bst_idx_t length) const;
+};
+
+template <typename S, template <typename> typename F>
+class EllpackMmapStreamPolicy : public F<S> {
+  bool has_hmm_{common::SupportsPageableMem()};
+
+ public:
+  using WriterT = common::AlignedFileWriteStream;
+  using ReaderT = common::AlignedResourceReadStream;
+
+ public:
+  EllpackMmapStreamPolicy() = default;
+  // For testing with the HMM flag.
+  template <
+      typename std::enable_if_t<std::is_same_v<F<S>, EllpackFormatPolicy<EllpackPage>>>* = nullptr>
+  explicit EllpackMmapStreamPolicy(bool has_hmm) : F<S>{has_hmm}, has_hmm_{has_hmm} {}
+
+  [[nodiscard]] std::unique_ptr<WriterT> CreateWriter(StringView name, std::uint32_t iter) {
+    std::unique_ptr<common::AlignedFileWriteStream> fo;
+    if (iter == 0) {
+      fo = std::make_unique<common::AlignedFileWriteStream>(name, "wb");
+    } else {
+      fo = std::make_unique<common::AlignedFileWriteStream>(name, "ab");
+    }
+    return fo;
+  }
 
   [[nodiscard]] std::unique_ptr<ReaderT> CreateReader(StringView name, bst_idx_t offset,
                                                       bst_idx_t length) const;
@@ -128,11 +163,11 @@ class EllpackPageSourceImpl : public PageSourceIncMixIn<EllpackPage, F> {
 
 // Cache to host
 using EllpackPageHostSource =
-    EllpackPageSourceImpl<EllpackFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
+    EllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
 
 // Cache to disk
 using EllpackPageSource =
-    EllpackPageSourceImpl<DefaultFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
+    EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
 
 #if !defined(XGBOOST_USE_CUDA)
 template <typename F>

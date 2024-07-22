@@ -4,9 +4,10 @@
 #include <gtest/gtest.h>
 #include <thrust/equal.h>
 #include <thrust/iterator/counting_iterator.h>
-
-#include "../../../src/common/device_helpers.cuh"
 #include <xgboost/host_device_vector.h>
+
+#include "../../../src/common/cuda_rt_utils.h"  // for SetDevice
+#include "../../../src/common/device_helpers.cuh"
 
 namespace xgboost::common {
 namespace {

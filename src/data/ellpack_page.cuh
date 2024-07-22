@@ -1,23 +1,25 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
-
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_CUH_
 #define XGBOOST_DATA_ELLPACK_PAGE_CUH_
 
 #include <thrust/binary_search.h>
-#include <xgboost/data.h>
 
 #include "../common/categorical.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
+#include "../common/ref_resource_view.h"  // for RefResourceView
 #include "ellpack_page.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
-/** \brief Struct for accessing and manipulating an ELLPACK matrix on the
- * device. Does not own underlying memory and may be trivially copied into
- * kernels.*/
+/**
+ * @brief Struct for accessing and manipulating an ELLPACK matrix on the device.
+ *
+ * Does not own underlying memory and may be trivially copied into kernels.
+ */
 struct EllpackDeviceAccessor {
   /*! \brief Whether or not if the matrix is dense. */
   bool is_dense;
@@ -128,31 +130,31 @@ class GHistIndexMatrix;
 
 class EllpackPageImpl {
  public:
-  /*!
-   * \brief Default constructor.
+  /**
+   * @brief Default constructor.
    *
    * This is used in the external memory case. An empty ELLPACK page is constructed with its content
    * set later by the reader.
    */
   EllpackPageImpl() = default;
 
-  /*!
-   * \brief Constructor from an existing EllpackInfo.
+  /**
+   * @brief Constructor from an existing EllpackInfo.
    *
-   * This is used in the sampling case. The ELLPACK page is constructed from an existing EllpackInfo
-   * and the given number of rows.
+   * This is used in the sampling case. The ELLPACK page is constructed from an existing
+   * Ellpack page and the given number of rows.
    */
-  EllpackPageImpl(DeviceOrd device, std::shared_ptr<common::HistogramCuts const> cuts,
+  EllpackPageImpl(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
                   bool is_dense, bst_idx_t row_stride, bst_idx_t n_rows);
-  /*!
-   * \brief Constructor used for external memory.
+  /**
+   * @brief Constructor used for external memory.
    */
-  EllpackPageImpl(DeviceOrd device, std::shared_ptr<common::HistogramCuts const> cuts,
+  EllpackPageImpl(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
                   const SparsePage& page, bool is_dense, size_t row_stride,
                   common::Span<FeatureType const> feature_types);
 
-  /*!
-   * \brief Constructor from an existing DMatrix.
+  /**
+   * @brief Constructor from an existing DMatrix.
    *
    * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
    * in CSR format.
@@ -160,37 +162,39 @@ class EllpackPageImpl {
   explicit EllpackPageImpl(Context const* ctx, DMatrix* dmat, const BatchParam& parm);
 
   template <typename AdapterBatch>
-  explicit EllpackPageImpl(AdapterBatch batch, float missing, DeviceOrd device, bool is_dense,
+  explicit EllpackPageImpl(Context const* ctx, AdapterBatch batch, float missing, bool is_dense,
                            common::Span<size_t> row_counts_span,
                            common::Span<FeatureType const> feature_types, size_t row_stride,
                            size_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
   /**
-   * \brief Constructor from an existing CPU gradient index.
+   * @brief Constructor from an existing CPU gradient index.
    */
   explicit EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
                            common::Span<FeatureType const> ft);
 
-  /*! \brief Copy the elements of the given ELLPACK page into this page.
+  /**
+   * @brief Copy the elements of the given ELLPACK page into this page.
    *
-   * @param device The GPU device to use.
+   * @param ctx The GPU context.
    * @param page The ELLPACK page to copy from.
    * @param offset The number of elements to skip before copying.
    * @returns The number of elements copied.
    */
-  size_t Copy(DeviceOrd device, EllpackPageImpl const *page, size_t offset);
+  bst_idx_t Copy(Context const* ctx, EllpackPageImpl const* page, bst_idx_t offset);
 
-  /*! \brief Compact the given ELLPACK page into the current page.
+  /**
+   * @brief Compact the given ELLPACK page into the current page.
    *
-   * @param context The GPU context.
+   * @param ctx The GPU context.
    * @param page The ELLPACK page to compact from.
    * @param row_indexes Row indexes for the compacted page.
    */
   void Compact(Context const* ctx, EllpackPageImpl const* page, common::Span<size_t> row_indexes);
 
-  /*! \return Number of instances in the page. */
+  /** @return Number of instances in the page. */
   [[nodiscard]] bst_idx_t Size() const;
 
-  /*! \brief Set the base row id for this page. */
+  /** @brief Set the base row id for this page. */
   void SetBaseRowId(std::size_t row_id) {
     base_rowid = row_id;
   }
@@ -199,43 +203,54 @@ class EllpackPageImpl {
   [[nodiscard]] std::shared_ptr<common::HistogramCuts const> CutsShared() const { return cuts_; }
   void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts) { cuts_ = cuts; }
 
-  /*! \return Estimation of memory cost of this page. */
+  /** @return Estimation of memory cost of this page. */
   static size_t MemCostBytes(size_t num_rows, size_t row_stride, const common::HistogramCuts&cuts) ;
 
 
-  /*! \brief Return the total number of symbols (total number of bins plus 1 for
-   * not found). */
+  /**
+   * @brief Return the total number of symbols (total number of bins plus 1 for not
+   *        found).
+   */
   [[nodiscard]] std::size_t NumSymbols() const { return cuts_->TotalBins() + 1; }
-
+  /**
+   * @brief Get an accessor that can be passed into CUDA kernels.
+   */
   [[nodiscard]] EllpackDeviceAccessor GetDeviceAccessor(
       DeviceOrd device, common::Span<FeatureType const> feature_types = {}) const;
+  /**
+   * @brief Get an accessor for host code.
+   */
   [[nodiscard]] EllpackDeviceAccessor GetHostAccessor(
+      Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
       common::Span<FeatureType const> feature_types = {}) const;
 
  private:
-  /*!
-   * \brief Compress a single page of CSR data into ELLPACK.
+  /**
+   * @brief Compress a single page of CSR data into ELLPACK.
    *
    * @param device The GPU device to use.
    * @param row_batch The CSR page.
    */
-  void CreateHistIndices(DeviceOrd device,
-                         const SparsePage& row_batch,
+  void CreateHistIndices(DeviceOrd device, const SparsePage& row_batch,
                          common::Span<FeatureType const> feature_types);
-  /*!
-   * \brief Initialize the buffer to store compressed features.
+  /**
+   * @brief Initialize the buffer to store compressed features.
    */
-  void InitCompressedData(DeviceOrd device);
+  void InitCompressedData(Context const* ctx);
 
  public:
-  /*! \brief Whether or not if the matrix is dense. */
+  /** @brief Whether or not if the matrix is dense. */
   bool is_dense;
-  /*! \brief Row length for ELLPACK. */
+  /** @brief Row length for ELLPACK. */
   bst_idx_t row_stride;
   bst_idx_t base_rowid{0};
-  bst_idx_t n_rows{};
-  /*! \brief global index of histogram, which is stored in ELLPACK format. */
-  HostDeviceVector<common::CompressedByteT> gidx_buffer;
+  bst_idx_t n_rows{0};
+  /**
+   * @brief Index of the gradient histogram, which is stored in ELLPACK format.
+   *
+   * This can be backed by various storage types.
+   */
+  common::RefResourceView<common::CompressedByteT> gidx_buffer;
 
  private:
   std::shared_ptr<common::HistogramCuts const> cuts_;

@@ -72,12 +72,12 @@ steps:
     agents:
       queue: linux-amd64-cpu
   - label: ":console: Build manylinux2014_x86_64 wheel"
-    command: "tests/buildkite/build-manylinux2014-x86_64.sh"
+    command: "tests/buildkite/build-manylinux2014.sh x86_64"
     key: build-manylinux2014-x86_64
     agents:
       queue: linux-amd64-cpu
   - label: ":console: Build manylinux2014_aarch64 wheel"
-    command: "tests/buildkite/build-manylinux2014-aarch64.sh"
+    command: "tests/buildkite/build-manylinux2014.sh aarch64"
     key: build-manylinux2014-aarch64
     agents:
       queue: linux-arm64-cpu

@@ -226,7 +226,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    std::int32_t kPrefetches = 3;
+    std::int32_t constexpr kPrefetches = 3;
     std::int32_t n_prefetches = std::min(nthreads_, kPrefetches);
     n_prefetches = std::max(n_prefetches, 1);
     std::int32_t n_prefetch_batches = std::min(static_cast<bst_idx_t>(n_prefetches), n_batches_);

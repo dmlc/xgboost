@@ -15,7 +15,7 @@
 #include "../../../src/collective/comm.h"
 #include "../../../src/collective/communicator-inl.h"  // for Init, Finalize
 #include "../../../src/collective/tracker.h"           // for GetHostAddress
-#include "../../../src/common/common.h"                // for AllVisibleGPUs
+#include "../../../src/common/cuda_rt_utils.h"         // for AllVisibleGPUs
 #include "../helpers.h"                                // for FileExists
 
 #if defined(XGBOOST_USE_FEDERATED)

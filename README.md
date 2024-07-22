@@ -4,8 +4,8 @@
 [![Build Status](https://badge.buildkite.com/aca47f40a32735c00a8550540c5eeff6a4c1d246a580cae9b0.svg?branch=master)](https://buildkite.com/xgboost/xgboost-ci)
 [![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost-CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
-[![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
-[![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
+[![GitHub license](https://dmlc.github.io/img/apache2.svg)](./LICENSE)
+[![CRAN Status Badge](https://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
 [![Conda version](https://img.shields.io/conda/vn/conda-forge/py-xgboost.svg)](https://anaconda.org/conda-forge/py-xgboost)
 [![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
@@ -35,7 +35,7 @@ Checkout the [Community Page](https://xgboost.ai/community).
 
 Reference
 ---------
-- Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](http://arxiv.org/abs/1603.02754). In 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016
+- Tianqi Chen and Carlos Guestrin. [XGBoost: A Scalable Tree Boosting System](https://arxiv.org/abs/1603.02754). In 22nd SIGKDD Conference on Knowledge Discovery and Data Mining, 2016
 - XGBoost originates from research project at University of Washington.
 
 Sponsors
