@@ -221,7 +221,7 @@ if(USE_CUDA)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   find_package(CUDAToolkit REQUIRED)
-  find_package(CCCL)
+  find_package(CCCL CONFIG)
   if(NOT CCCL_FOUND)
     message(STATUS "Standalone CCCL not found. Attempting to use CCCL from CTK...")
     find_package(CCCL REQUIRED CONFIG
