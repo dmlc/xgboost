@@ -10,9 +10,7 @@
 #include "row_partitioner.cuh"
 
 namespace xgboost::tree {
-RowPartitioner::RowPartitioner(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid)
-    : device_idx_{ctx->Device()} {
-  dh::safe_cuda(cudaSetDevice(device_idx_.ordinal));
+void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid) {
   ridx_.resize(n_samples);
   ridx_tmp_.resize(n_samples);
   CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());

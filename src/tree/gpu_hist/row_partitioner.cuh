@@ -208,7 +208,6 @@ class RowPartitioner {
   static constexpr bst_node_t kIgnoredTreePosition = -1;
 
  private:
-  DeviceOrd device_idx_;
   /**
    * In here if you want to find the rows belong to a node nid, first you need to get the
    * indices segment from ridx_segments[nid], then get the row index that represents
@@ -240,7 +239,9 @@ class RowPartitioner {
    * @param n_samples The number of samples in each batch.
    * @param base_rowid The base row index for the current batch.
    */
-  RowPartitioner(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid);
+  RowPartitioner() = default;
+  void Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t base_rowid);
+
   ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
   RowPartitioner& operator=(const RowPartitioner&) = delete;

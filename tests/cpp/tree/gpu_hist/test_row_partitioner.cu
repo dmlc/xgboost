@@ -16,7 +16,8 @@ namespace xgboost::tree {
 void TestUpdatePositionBatch() {
   const int kNumRows = 10;
   auto ctx = MakeCUDACtx(0);
-  RowPartitioner rp{&ctx, kNumRows, 0};
+  RowPartitioner rp;
+  rp.Reset(&ctx, kNumRows, 0);
   auto rows = rp.GetRowsHost(0);
   EXPECT_EQ(rows.size(), kNumRows);
   for (auto i = 0ull; i < kNumRows; i++) {
