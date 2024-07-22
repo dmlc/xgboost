@@ -180,18 +180,18 @@ details.
 
 \section{The Higgs Boson competition}
 
-We have made a demo for \href{http://www.kaggle.com/c/higgs-boson}{the Higgs
+We have made a demo for \href{https://www.kaggle.com/c/higgs-boson}{the Higgs
 Boson Machine Learning Challenge}.
 
 Here are the instructions to make a submission
 \begin{enumerate}
-    \item Download the \href{http://www.kaggle.com/c/higgs-boson/data}{datasets}
+    \item Download the \href{https://www.kaggle.com/c/higgs-boson/data}{datasets}
     and extract them to \verb@data/@.
     \item Run scripts under \verb@xgboost/demo/kaggle-higgs/@:
     \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-train.R}{higgs-train.R}
     and \href{https://github.com/tqchen/xgboost/blob/master/demo/kaggle-higgs/higgs-pred.R}{higgs-pred.R}.
     The computation will take less than a minute on Intel i7.
-    \item Go to the \href{http://www.kaggle.com/c/higgs-boson/submissions/attach}{submission page}
+    \item Go to the \href{https://www.kaggle.com/c/higgs-boson/submissions/attach}{submission page}
     and submit your result.
 \end{enumerate}
 
@@ -205,9 +205,9 @@ than \verb@gbm@. When we limited \verb@xgboost@ to use only one thread, it was
 still about two times faster than \verb@gbm@.
 
 Meanwhile, the result from \verb@xgboost@ reaches
-\href{http://www.kaggle.com/c/higgs-boson/details/evaluation}{3.60@AMS} with a
+\href{https://www.kaggle.com/c/higgs-boson/details/evaluation}{3.60@AMS} with a
 single model. This results stands in the
-\href{http://www.kaggle.com/c/higgs-boson/leaderboard}{top 30\%} of the
+\href{https://www.kaggle.com/c/higgs-boson/leaderboard}{top 30\%} of the
 competition.
 
 \bibliographystyle{jss}
