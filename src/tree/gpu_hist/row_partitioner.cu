@@ -15,11 +15,13 @@ RowPartitioner::RowPartitioner(Context const* ctx, bst_idx_t n_samples, bst_idx_
   dh::safe_cuda(cudaSetDevice(device_idx_.ordinal));
   ridx_.resize(n_samples);
   ridx_tmp_.resize(n_samples);
-  ridx_segments_.emplace_back(NodePositionInfo{Segment(0, n_samples)});
+  CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
+  ridx_segments_.emplace_back(
+      NodePositionInfo{Segment{0, static_cast<cuda_impl::RowIndexT>(n_samples)}});
   thrust::sequence(ctx->CUDACtx()->CTP(), ridx_.data(), ridx_.data() + ridx_.size(), base_rowid);
 }
 
-RowPartitioner::~RowPartitioner() { dh::safe_cuda(cudaSetDevice(device_idx_.ordinal)); }
+RowPartitioner::~RowPartitioner() = default;
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t nidx) {
   auto segment = ridx_segments_.at(nidx).segment;
