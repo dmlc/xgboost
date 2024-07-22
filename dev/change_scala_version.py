@@ -62,6 +62,17 @@ def main(args):
                     )
                     if nsubs > 0:
                         replaced_scala_binver = True
+                # Replace the final name of shaded jar
+                if "<finalName>" in line:
+                    for artifact in [
+                        "xgboost-spark",
+                        "xgboost-spark-gpu",
+                    ]:
+                        line = re.sub(
+                            f"<finalName>{artifact}_[0-9\\.]*",
+                            f"<finalName>{artifact}_{scala_ver}",
+                            line,
+                        )
                 f.write(line)
 
 

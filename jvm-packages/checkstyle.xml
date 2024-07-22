@@ -133,7 +133,7 @@
             <property name="braceAdjustment" value="0"/>
             <property name="caseIndent" value="2"/>
             <property name="throwsIndent" value="4"/>
-            <property name="lineWrappingIndentation" value="4"/>
+            <property name="lineWrappingIndentation" value="2"/>
             <property name="arrayInitIndent" value="2"/>
         </module>
         <module name="ImportOrder">

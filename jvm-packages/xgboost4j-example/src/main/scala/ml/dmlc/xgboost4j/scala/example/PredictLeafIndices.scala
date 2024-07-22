@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,11 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala.example
 
-import java.util
-
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
+import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost}
 
 object PredictLeafIndices {
 
@@ -49,7 +47,7 @@ object PredictLeafIndices {
 
     // predict all trees
     val leafIndex2 = booster.predictLeaf(testMat, 0)
-    for (leafs <- leafIndex) {
+    for (leafs <- leafIndex2) {
       println(java.util.Arrays.toString(leafs))
     }
   }
