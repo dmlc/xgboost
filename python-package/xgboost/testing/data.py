@@ -9,6 +9,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    List,
     NamedTuple,
     Optional,
     Tuple,
@@ -504,6 +505,36 @@ def get_mq2008(
         y_valid,
         qid_valid,
     )
+
+
+def make_batches(  # pylint: disable=too-many-arguments,too-many-locals
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    use_cupy: bool = False,
+    *,
+    vary_size: bool = False,
+    random_state: int = 1994,
+) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    """Make batches of dense data."""
+    X = []
+    y = []
+    w = []
+    if use_cupy:
+        import cupy  # pylint: disable=import-error
+
+        rng = cupy.random.RandomState(random_state)
+    else:
+        rng = np.random.RandomState(random_state)
+    for i in range(n_batches):
+        n_samples = n_samples_per_batch + i * 10 if vary_size else n_samples_per_batch
+        _X = rng.randn(n_samples, n_features)
+        _y = rng.randn(n_samples)
+        _w = rng.uniform(low=0, high=1, size=n_samples)
+        X.append(_X)
+        y.append(_y)
+        w.append(_w)
+    return X, y, w
 
 
 RelData = Tuple[sparse.csr_matrix, npt.NDArray[np.int32], npt.NDArray[np.int32]]

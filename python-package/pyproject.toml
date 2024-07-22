@@ -7,13 +7,13 @@ build-backend = "packager.pep517"
 
 [project]
 name = "xgboost"
-version = "2.2.0-dev"
+description = "XGBoost Python Package"
+readme = { file = "README.rst", content-type = "text/x-rst" }
 authors = [
     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
     { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
 ]
-description = "XGBoost Python Package"
-readme = { file = "README.rst", content-type = "text/x-rst" }
+version = "2.2.0-dev"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
 classifiers = [

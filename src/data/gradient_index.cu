@@ -16,7 +16,8 @@ template <typename BinT, typename CompressOffset>
 void SetIndexData(Context const* ctx, EllpackPageImpl const* page,
                   std::vector<size_t>* p_hit_count_tloc, CompressOffset&& get_offset,
                   GHistIndexMatrix* out) {
-  auto accessor = page->GetHostAccessor();
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto accessor = page->GetHostAccessor(ctx, &h_gidx_buffer);
   auto const kNull = static_cast<bst_bin_t>(accessor.NullValue());
 
   common::Span<BinT> index_data_span = {out->index.data<BinT>(), out->index.Size()};
@@ -47,7 +48,8 @@ void GetRowPtrFromEllpack(Context const* ctx, EllpackPageImpl const* page,
   if (page->is_dense) {
     std::fill(row_ptr.begin() + 1, row_ptr.end(), page->row_stride);
   } else {
-    auto accessor = page->GetHostAccessor();
+    std::vector<common::CompressedByteT> h_gidx_buffer;
+    auto accessor = page->GetHostAccessor(ctx, &h_gidx_buffer);
     auto const kNull = static_cast<bst_bin_t>(accessor.NullValue());
 
     common::ParallelFor(page->Size(), ctx->Threads(), [&](auto i) {

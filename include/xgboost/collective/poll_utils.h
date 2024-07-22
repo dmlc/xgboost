@@ -4,13 +4,14 @@
  * \author Tianqi Chen
  */
 #pragma once
-#include "xgboost/collective/result.h"
-#include "xgboost/collective/socket.h"
+#include <xgboost/collective/result.h>
+#include <xgboost/collective/socket.h>
 
 #if defined(_WIN32)
+#include <xgboost/windefs.h>
+// Socket API
 #include <winsock2.h>
 #include <ws2tcpip.h>
-
 #else
 
 #include <arpa/inet.h>

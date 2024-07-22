@@ -157,18 +157,6 @@ inline size_t MaxSharedMemoryOptin(int device_idx) {
   return static_cast<std::size_t>(max_shared_memory);
 }
 
-inline void CheckComputeCapability() {
-  for (int d_idx = 0; d_idx < xgboost::common::AllVisibleGPUs(); ++d_idx) {
-    cudaDeviceProp prop;
-    safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
-    std::ostringstream oss;
-    oss << "CUDA Capability Major/Minor version number: " << prop.major << "."
-        << prop.minor << " is insufficient.  Need >=3.5";
-    int failed = prop.major < 3 || (prop.major == 3 && prop.minor < 5);
-    if (failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
-  }
-}
-
 XGBOOST_DEV_INLINE void AtomicOrByte(unsigned int *__restrict__ buffer,
                                      size_t ibyte, unsigned char b) {
   atomicOr(&buffer[ibyte / sizeof(unsigned int)],
@@ -273,13 +261,15 @@ void Iota(Container array, cudaStream_t stream) {
 }
 
 // dh::DebugSyncDevice(__FILE__, __LINE__);
-inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
-  if (file != "" && line != -1) {
-    auto rank = xgboost::collective::GetRank();
-    LOG(DEBUG) << "R:" << rank << ": " << file << ":" << line;
+inline void DebugSyncDevice(char const *file = __builtin_FILE(), int32_t line = __builtin_LINE()) {
+  {
+    auto err = cudaDeviceSynchronize();
+    ThrowOnCudaError(err, file, line);
   }
-  safe_cuda(cudaDeviceSynchronize());
-  safe_cuda(cudaGetLastError());
+  {
+    auto err = cudaGetLastError();
+    ThrowOnCudaError(err, file, line);
+  }
 }
 
 // Faster to instantiate than caching_device_vector and invokes no synchronisation
@@ -510,7 +500,7 @@ xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
 
 template <typename T>
 xgboost::common::Span<T> ToSpan(DeviceUVector<T> &vec) {
-  return {thrust::raw_pointer_cast(vec.data()), vec.size()};
+  return {vec.data(), vec.size()};
 }
 
 // thrust begin, similiar to std::begin
