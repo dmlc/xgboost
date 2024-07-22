@@ -433,9 +433,6 @@ else()
     set(INSTALL_TARGETS xgboost)
   endif()
 endif()
-if(USE_CUDA)
-  list(APPEND INSTALL_TARGETS _CUB_CUB _CUB_libcudacxx _Thrust_libcudacxx)
-endif()
 
 install(TARGETS ${INSTALL_TARGETS}
   EXPORT XGBoostTargets
