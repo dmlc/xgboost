@@ -74,17 +74,26 @@ std::int32_t GetCGroupV2Count(std::filesystem::path const& bandwidth_path) noexc
 
 std::int32_t GetCfsCPUCount() noexcept {
   namespace fs = std::filesystem;
-  fs::path const bandwidth_path{"/sys/fs/cgroup/cpu.max"};
-  auto has_v2 = fs::exists(bandwidth_path);
-  if (has_v2) {
-    return GetCGroupV2Count(bandwidth_path);
+
+  try {
+    fs::path const bandwidth_path{"/sys/fs/cgroup/cpu.max"};
+    auto has_v2 = fs::exists(bandwidth_path);
+    if (has_v2) {
+      return GetCGroupV2Count(bandwidth_path);
+    }
+  } catch (std::exception const&) {
+    return -1;
   }
 
-  fs::path const quota_path{"/sys/fs/cgroup/cpu/cpu.cfs_quota_us"};
-  fs::path const peroid_path{"/sys/fs/cgroup/cpu/cpu.cfs_period_us"};
-  auto has_v1 = fs::exists(quota_path) && fs::exists(peroid_path);
-  if (has_v1) {
-    return GetCGroupV1Count(quota_path, peroid_path);
+  try {
+    fs::path const quota_path{"/sys/fs/cgroup/cpu/cpu.cfs_quota_us"};
+    fs::path const peroid_path{"/sys/fs/cgroup/cpu/cpu.cfs_period_us"};
+    auto has_v1 = fs::exists(quota_path) && fs::exists(peroid_path);
+    if (has_v1) {
+      return GetCGroupV1Count(quota_path, peroid_path);
+    }
+  } catch (std::exception const&) {
+    return -1;
   }
 
   return -1;
