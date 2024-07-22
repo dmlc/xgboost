@@ -31,11 +31,12 @@ FeatureGroups::FeatureGroups(const common::HistogramCuts& cuts, bool is_dense,
 
   for (size_t i = 2; i < cut_ptrs.size(); ++i) {
     int last_start = bin_segments_h.back();
+    // Push a new group whenever the size of required bin storage is greater than the
+    // shared memory size.
     if (cut_ptrs[i] - last_start > max_shmem_bins) {
       feature_segments_h.push_back(i - 1);
       bin_segments_h.push_back(cut_ptrs[i - 1]);
-      max_group_bins = std::max(max_group_bins,
-                                bin_segments_h.back() - last_start);
+      max_group_bins = std::max(max_group_bins, bin_segments_h.back() - last_start);
     }
   }
   feature_segments_h.push_back(cut_ptrs.size() - 1);

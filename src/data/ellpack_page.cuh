@@ -24,7 +24,7 @@ struct EllpackDeviceAccessor {
   /*! \brief Whether or not if the matrix is dense. */
   bool is_dense;
   /*! \brief Row length for ELLPACK, equal to number of features. */
-  size_t row_stride;
+  bst_idx_t row_stride;
   bst_idx_t base_rowid{0};
   bst_idx_t n_rows{0};
   common::CompressedIterator<std::uint32_t> gidx_iter;
@@ -118,7 +118,7 @@ struct EllpackDeviceAccessor {
    * not found). */
   [[nodiscard]] XGBOOST_DEVICE size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
 
-  [[nodiscard]] XGBOOST_DEVICE size_t NullValue() const { return gidx_fvalue_map.size(); }
+  [[nodiscard]] XGBOOST_DEVICE size_t NullValue() const { return this->NumBins(); }
 
   [[nodiscard]] XGBOOST_DEVICE size_t NumBins() const { return gidx_fvalue_map.size(); }
 
