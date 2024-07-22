@@ -139,6 +139,17 @@ class USMVector {
     }
   }
 
+  /* Resize without keeping the data*/
+  void ResizeNoCopy(::sycl::queue* qu, size_t size_new) {
+    if (size_new <= capacity_) {
+      size_ = size_new;
+    } else {
+      size_ = size_new;
+      capacity_ = size_new;
+      data_ = allocate_memory_(qu, size_);
+    }
+  }
+
   void Resize(::sycl::queue* qu, size_t size_new, T v) {
     if (size_new <= size_) {
       size_ = size_new;

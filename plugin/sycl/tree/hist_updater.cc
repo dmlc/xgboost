@@ -7,12 +7,18 @@
 
 #include <oneapi/dpl/random>
 
+#include <functional>
+
 #include "../common/hist_util.h"
 #include "../../src/collective/allreduce.h"
 
 namespace xgboost {
 namespace sycl {
 namespace tree {
+
+using ::sycl::ext::oneapi::plus;
+using ::sycl::ext::oneapi::minimum;
+using ::sycl::ext::oneapi::maximum;
 
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::SetHistSynchronizer(
@@ -126,6 +132,10 @@ void HistUpdater<GradientSumT>::InitData(
   builder_monitor_.Start("InitData");
   const auto& info = fmat.Info();
 
+  if (!column_sampler_) {
+    column_sampler_ = xgboost::common::MakeColumnSampler(ctx_);
+  }
+
   // initialize the row set
   {
     row_set_collection_.Clear();
@@ -213,6 +223,9 @@ void HistUpdater<GradientSumT>::InitData(
     }
   }
 
+  column_sampler_->Init(ctx_, info.num_col_, info.feature_weights.ConstHostVector(),
+                        param_.colsample_bynode, param_.colsample_bylevel,
+                        param_.colsample_bytree);
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
@@ -307,6 +320,148 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
     snode_host_[nid].root_gain = evaluator.CalcGain(parentid, snode_host_[nid].stats);
   }
   builder_monitor_.Stop("InitNewNode");
+}
+
+// nodes_set - set of nodes to be processed in parallel
+template<typename GradientSumT>
+void HistUpdater<GradientSumT>::EvaluateSplits(
+                        const std::vector<ExpandEntry>& nodes_set,
+                        const common::GHistIndexMatrix& gmat,
+                        const RegTree& tree) {
+  builder_monitor_.Start("EvaluateSplits");
+
+  const size_t n_nodes_in_set = nodes_set.size();
+
+  using FeatureSetType = std::shared_ptr<HostDeviceVector<bst_feature_t>>;
+
+  // Generate feature set for each tree node
+  size_t pos = 0;
+  for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
+    const bst_node_t nid = nodes_set[nid_in_set].nid;
+    FeatureSetType features_set = column_sampler_->GetFeatureSet(tree.GetDepth(nid));
+    for (size_t idx = 0; idx < features_set->Size(); idx++) {
+      const size_t fid = features_set->ConstHostVector()[idx];
+      if (interaction_constraints_.Query(nid, fid)) {
+        auto this_hist = hist_[nid].DataConst();
+        if (pos < split_queries_host_.size()) {
+          split_queries_host_[pos] = SplitQuery{nid, fid, this_hist};
+        } else {
+          split_queries_host_.push_back({nid, fid, this_hist});
+        }
+        ++pos;
+      }
+    }
+  }
+  const size_t total_features = pos;
+
+  split_queries_device_.Resize(&qu_, total_features);
+  auto event = qu_.memcpy(split_queries_device_.Data(), split_queries_host_.data(),
+                          total_features * sizeof(SplitQuery));
+
+  auto evaluator = tree_evaluator_.GetEvaluator();
+  SplitQuery* split_queries_device = split_queries_device_.Data();
+  const uint32_t* cut_ptr = gmat.cut_device.Ptrs().DataConst();
+  const bst_float* cut_val = gmat.cut_device.Values().DataConst();
+  const bst_float* cut_minval = gmat.cut_device.MinValues().DataConst();
+
+  snode_device_.ResizeNoCopy(&qu_, snode_host_.size());
+  event = qu_.memcpy(snode_device_.Data(), snode_host_.data(),
+                     snode_host_.size() * sizeof(NodeEntry<GradientSumT>), event);
+  const NodeEntry<GradientSumT>* snode = snode_device_.Data();
+
+  const float min_child_weight = param_.min_child_weight;
+
+  best_splits_device_.ResizeNoCopy(&qu_, total_features);
+  if (best_splits_host_.size() < total_features) best_splits_host_.resize(total_features);
+  SplitEntry<GradientSumT>* best_splits = best_splits_device_.Data();
+
+  event = qu_.submit([&](::sycl::handler& cgh) {
+    cgh.depends_on(event);
+    cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(total_features, sub_group_size_),
+                                           ::sycl::range<2>(1, sub_group_size_)),
+                       [=](::sycl::nd_item<2> pid) {
+      int i = pid.get_global_id(0);
+      auto sg = pid.get_sub_group();
+      int nid = split_queries_device[i].nid;
+      int fid = split_queries_device[i].fid;
+      const GradientPairT* hist_data = split_queries_device[i].hist;
+
+      best_splits[i] = snode[nid].best;
+      EnumerateSplit(sg, cut_ptr, cut_val, hist_data, snode[nid],
+                     &(best_splits[i]), fid, nid, evaluator, min_child_weight);
+    });
+  });
+  event = qu_.memcpy(best_splits_host_.data(), best_splits,
+                     total_features * sizeof(SplitEntry<GradientSumT>), event);
+
+  qu_.wait();
+  for (size_t i = 0; i < total_features; i++) {
+    int nid = split_queries_host_[i].nid;
+    snode_host_[nid].best.Update(best_splits_host_[i]);
+  }
+
+  builder_monitor_.Stop("EvaluateSplits");
+}
+
+// Enumerate the split values of specific feature.
+// Returns the sum of gradients corresponding to the data points that contains a non-missing value
+// for the particular feature fid.
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::EnumerateSplit(
+    const ::sycl::sub_group& sg,
+    const uint32_t* cut_ptr,
+    const bst_float* cut_val,
+    const GradientPairT* hist_data,
+    const NodeEntry<GradientSumT>& snode,
+    SplitEntry<GradientSumT>* p_best,
+    bst_uint fid,
+    bst_uint nodeID,
+    typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
+    float min_child_weight) {
+  SplitEntry<GradientSumT> best;
+
+  int32_t ibegin = static_cast<int32_t>(cut_ptr[fid]);
+  int32_t iend = static_cast<int32_t>(cut_ptr[fid + 1]);
+
+  GradStats<GradientSumT> sum(0, 0);
+
+  int32_t sub_group_size = sg.get_local_range().size();
+  const size_t local_id = sg.get_local_id()[0];
+
+  /* TODO(razdoburdin)
+   * Currently the first additions are fast and the last are slow.
+   * Maybe calculating of reduce overgroup in seprate kernel and reusing it here can be faster
+   */
+  for (int32_t i = ibegin + local_id; i < iend; i += sub_group_size) {
+    sum.Add(::sycl::inclusive_scan_over_group(sg, hist_data[i].GetGrad(), std::plus<>()),
+            ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetHess(), std::plus<>()));
+
+    if (sum.GetHess() >= min_child_weight) {
+      GradStats<GradientSumT> c = snode.stats - sum;
+      if (c.GetHess() >= min_child_weight) {
+        bst_float loss_chg = evaluator.CalcSplitGain(nodeID, fid, sum, c) - snode.root_gain;
+        bst_float split_pt = cut_val[i];
+        best.Update(loss_chg, fid, split_pt, false, sum, c);
+      }
+    }
+
+    const bool last_iter = i + sub_group_size >= iend;
+    if (!last_iter) {
+      size_t end = i - local_id + sub_group_size;
+      if (end > iend) end = iend;
+      for (size_t j = i + 1; j < end; ++j) {
+        sum.Add(hist_data[j].GetGrad(), hist_data[j].GetHess());
+      }
+    }
+  }
+
+  bst_float total_loss_chg = ::sycl::reduce_over_group(sg, best.loss_chg, maximum<>());
+  bst_feature_t total_split_index = ::sycl::reduce_over_group(sg,
+                                                              best.loss_chg == total_loss_chg ?
+                                                              best.SplitIndex() :
+                                                              (1U << 31) - 1U, minimum<>());
+  if (best.loss_chg == total_loss_chg &&
+      best.SplitIndex() == total_split_index) p_best->Update(best);
 }
 
 template class HistUpdater<float>;
