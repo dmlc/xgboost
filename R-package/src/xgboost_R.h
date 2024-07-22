@@ -7,6 +7,9 @@
 #ifndef XGBOOST_R_H_ // NOLINT(*)
 #define XGBOOST_R_H_ // NOLINT(*)
 
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
 
 #include <Rinternals.h>
 #include <R_ext/Random.h>
