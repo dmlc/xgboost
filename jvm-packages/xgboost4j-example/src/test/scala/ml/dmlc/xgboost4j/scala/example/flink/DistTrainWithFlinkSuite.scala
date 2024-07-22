@@ -15,13 +15,14 @@
  */
 package ml.dmlc.xgboost4j.scala.example.flink
 
+import java.nio.file.Paths
+
+import scala.jdk.CollectionConverters._
+
 import org.apache.flink.api.java.ExecutionEnvironment
 import org.scalatest.Inspectors._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers._
-
-import java.nio.file.Paths
-import scala.jdk.CollectionConverters._
 
 class DistTrainWithFlinkSuite extends AnyFunSuite {
   private val parentPath = Paths.get("../../").resolve("demo").resolve("data")

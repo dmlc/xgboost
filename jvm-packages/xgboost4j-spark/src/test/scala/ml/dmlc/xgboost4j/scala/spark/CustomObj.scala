@@ -16,10 +16,12 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import scala.collection.mutable.ListBuffer
+
+import org.apache.commons.logging.LogFactory
+
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, ObjectiveTrait}
-import org.apache.commons.logging.LogFactory
-import scala.collection.mutable.ListBuffer
 
 
 /**
@@ -37,7 +39,7 @@ class CustomObj(val customParameter: Int = 0) extends ObjectiveTrait {
    * @return List with two float array, correspond to first order grad and second order grad
    */
   override def getGradient(predicts: Array[Array[Float]], dtrain: DMatrix)
-      : List[Array[Float]] = {
+  : List[Array[Float]] = {
     val nrow = predicts.length
     val gradients = new ListBuffer[Array[Float]]
     var labels: Array[Float] = null

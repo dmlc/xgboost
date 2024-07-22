@@ -22,17 +22,17 @@ class XGBoostTrainingSummary private(
 
   override def toString: String = {
     val train = trainObjectiveHistory.mkString(",")
-    val vaidationObjectiveHistoryString = {
+    val validationObjectiveHistoryString = {
       validationObjectiveHistory.map {
         case (name, metrics) =>
           s"${name}ObjectiveHistory=${metrics.mkString(",")}"
       }.mkString(";")
     }
-    s"XGBoostTrainingSummary(trainObjectiveHistory=$train; $vaidationObjectiveHistoryString)"
+    s"XGBoostTrainingSummary(trainObjectiveHistory=$train; $validationObjectiveHistoryString)"
   }
 }
 
-private[xgboost4j] object XGBoostTrainingSummary {
+private[spark] object XGBoostTrainingSummary {
   def apply(metrics: Map[String, Array[Float]]): XGBoostTrainingSummary = {
     new XGBoostTrainingSummary(
       trainObjectiveHistory = metrics("train"),

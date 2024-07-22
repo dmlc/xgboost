@@ -253,7 +253,9 @@ XGB_DLL int XGDMatrixCreateFromURI(const char *config, DMatrixHandle *out) {
 XGB_DLL int XGDMatrixCreateFromDataIter(
     void *data_handle,                  // a Java iterator
     XGBCallbackDataIterNext *callback,  // C++ callback defined in xgboost4j.cpp
-    const char *cache_info, DMatrixHandle *out) {
+    const char *cache_info,
+    float missing,
+    DMatrixHandle *out) {
   API_BEGIN();
 
   std::string scache;
@@ -264,10 +266,7 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
       data_handle, callback);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix> {
-    DMatrix::Create(
-        &adapter, std::numeric_limits<float>::quiet_NaN(),
-        1, scache
-    )
+    DMatrix::Create(&adapter, missing, 1, scache)
   };
   API_END();
 }

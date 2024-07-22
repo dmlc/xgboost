@@ -402,6 +402,7 @@ XGB_EXTERN_C typedef int XGBCallbackDataIterNext(  // NOLINT(*)
  * \param data_handle The handle to the data.
  * \param callback The callback to get the data.
  * \param cache_info Additional information about cache file, can be null.
+ * \param missing Which value to represent missing value.
  * \param out The created DMatrix
  * \return 0 when success, -1 when failure happens.
  */
@@ -409,6 +410,7 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
     DataIterHandle data_handle,
     XGBCallbackDataIterNext* callback,
     const char* cache_info,
+    float missing,
     DMatrixHandle *out);
 
 /**

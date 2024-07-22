@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2023 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import scala.collection.mutable
 
 import ml.dmlc.xgboost4j.java.{DMatrix => JDMatrix}
 import ml.dmlc.xgboost4j.java.example.util.DataLoader
-import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
+import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost}
 
 object BasicWalkThrough {
   def saveDumpModel(modelPath: String, modelInfos: Array[String]): Unit = {

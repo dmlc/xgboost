@@ -16,10 +16,12 @@
 
 package ml.dmlc.xgboost4j.scala.example.spark
 
-import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
 import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
+
+import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
+
 
 // this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
 object SparkTraining {
@@ -64,7 +66,7 @@ private[spark] def run(spark: SparkSession, inputPath: String,
     val xgbInput = vectorAssembler.transform(labelTransformed).select("features",
       "classIndex")
 
-    val Array(train, eval1, eval2, test) = xgbInput.randomSplit(Array(0.6, 0.2, 0.1, 0.1))
+    val Array(train, eval1, _, test) = xgbInput.randomSplit(Array(0.6, 0.2, 0.1, 0.1))
 
     /**
      * setup spark.scheduler.barrier.maxConcurrentTasksCheck.interval and
@@ -78,13 +80,13 @@ private[spark] def run(spark: SparkSession, inputPath: String,
       "max_depth" -> 2,
       "objective" -> "multi:softprob",
       "num_class" -> 3,
-      "num_round" -> 100,
-      "num_workers" -> numWorkers,
-      "device" -> device,
-      "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
+      "device" -> device)
     val xgbClassifier = new XGBoostClassifier(xgbParam).
       setFeaturesCol("features").
       setLabelCol("classIndex")
+      .setNumWorkers(numWorkers)
+      .setNumRound(10)
+      .setEvalDataset(eval1)
     val xgbClassificationModel = xgbClassifier.fit(train)
     xgbClassificationModel.transform(test)
   }

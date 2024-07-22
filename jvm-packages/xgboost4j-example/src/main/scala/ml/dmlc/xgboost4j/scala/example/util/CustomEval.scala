@@ -15,9 +15,10 @@
  */
 package ml.dmlc.xgboost4j.scala.example.util
 
+import org.apache.commons.logging.{Log, LogFactory}
+
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
-import org.apache.commons.logging.{Log, LogFactory}
 
 class CustomEval extends EvalTrait {
   private val logger: Log = LogFactory.getLog(classOf[CustomEval])

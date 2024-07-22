@@ -22,6 +22,7 @@ import org.apache.spark.ml.feature._
 import org.apache.spark.ml.tuning._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.types._
+
 import ml.dmlc.xgboost4j.scala.spark.{XGBoostClassificationModel, XGBoostClassifier}
 
 // this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
@@ -87,11 +88,9 @@ object SparkMLlibPipeline {
         "max_depth" -> 2,
         "objective" -> "multi:softprob",
         "num_class" -> 3,
-        "num_round" -> 100,
-        "num_workers" -> numWorkers,
         "device" -> device
       )
-    )
+    ).setNumRound(10).setNumWorkers(numWorkers)
     booster.setFeaturesCol("features")
     booster.setLabelCol("classIndex")
     val labelConverter = new IndexToString()

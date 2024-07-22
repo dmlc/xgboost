@@ -16,22 +16,20 @@
 
 package ml.dmlc.xgboost4j.scala.spark.params
 
-import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
-import ml.dmlc.xgboost4j.scala.spark.TrackerConf
-import ml.dmlc.xgboost4j.scala.spark.util.Utils
-
 import org.apache.spark.ml.param.{Param, ParamPair, Params}
-import org.json4s.{DefaultFormats, Extraction, NoTypeHints}
+import org.json4s.{DefaultFormats, Extraction}
 import org.json4s.jackson.JsonMethods.{compact, parse, render}
 import org.json4s.jackson.Serialization
+
+import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
+import ml.dmlc.xgboost4j.scala.spark.Utils
 
 /**
  * General spark parameter that includes TypeHints for (de)serialization using json4s.
  */
-class CustomGeneralParam[T: Manifest](
-    parent: Params,
-    name: String,
-    doc: String) extends Param[T](parent, name, doc) {
+class CustomGeneralParam[T: Manifest](parent: Params,
+                                      name: String,
+                                      doc: String) extends Param[T](parent, name, doc) {
 
   /** Creates a param pair with the given value (for Java). */
   override def w(value: T): ParamPair[T] = super.w(value)
@@ -52,33 +50,10 @@ class CustomGeneralParam[T: Manifest](
   }
 }
 
-class CustomEvalParam(
-    parent: Params,
-    name: String,
-    doc: String) extends CustomGeneralParam[EvalTrait](parent, name, doc)
+class CustomEvalParam(parent: Params,
+                      name: String,
+                      doc: String) extends CustomGeneralParam[EvalTrait](parent, name, doc)
 
-class CustomObjParam(
-    parent: Params,
-    name: String,
-    doc: String) extends CustomGeneralParam[ObjectiveTrait](parent, name, doc)
-
-class TrackerConfParam(
-    parent: Params,
-    name: String,
-    doc: String) extends Param[TrackerConf](parent, name, doc) {
-
-  /** Creates a param pair with the given value (for Java). */
-  override def w(value: TrackerConf): ParamPair[TrackerConf] = super.w(value)
-
-  override def jsonEncode(value: TrackerConf): String = {
-    import org.json4s.jackson.Serialization
-    implicit val formats = Serialization.formats(NoTypeHints)
-    compact(render(Extraction.decompose(value)))
-  }
-
-  override def jsonDecode(json: String): TrackerConf = {
-    implicit val formats = DefaultFormats
-    val parsedValue = parse(json)
-    parsedValue.extract[TrackerConf]
-  }
-}
+class CustomObjParam(parent: Params,
+                     name: String,
+                     doc: String) extends CustomGeneralParam[ObjectiveTrait](parent, name, doc)

@@ -16,9 +16,10 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import org.apache.commons.logging.LogFactory
+
 import ml.dmlc.xgboost4j.java.XGBoostError
 import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait}
-import org.apache.commons.logging.LogFactory
 
 class EvalError extends EvalTrait {
 

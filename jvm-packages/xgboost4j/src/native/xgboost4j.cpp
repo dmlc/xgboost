@@ -214,7 +214,7 @@ JNIEXPORT jstring JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetLastError
  * Signature: (Ljava/util/Iterator;Ljava/lang/String;[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromDataIter
-  (JNIEnv *jenv, jclass jcls, jobject jiter, jstring jcache_info, jlongArray jout) {
+  (JNIEnv *jenv, jclass jcls, jobject jiter, jstring jcache_info, jfloat jmissing, jlongArray jout) {
   DMatrixHandle result;
   std::unique_ptr<char const, Deleter<char const>> cache_info;
   if (jcache_info != nullptr) {
@@ -222,8 +222,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
                     jenv->ReleaseStringUTFChars(jcache_info, ptr);
                   }};
   }
+  auto missing = static_cast<float>(jmissing);
   int ret =
-      XGDMatrixCreateFromDataIter(jiter, XGBoost4jCallbackDataIterNext, cache_info.get(), &result);
+      XGDMatrixCreateFromDataIter(jiter, XGBoost4jCallbackDataIterNext, cache_info.get(),
+                                  missing,&result);
   JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.java.{ExternalCheckpointManager => JavaECM}
 import org.apache.hadoop.fs.FileSystem
+
+import ml.dmlc.xgboost4j.java.{ExternalCheckpointManager => JavaECM}
 
 class ExternalCheckpointManager(checkpointPath: String, fs: FileSystem)
   extends JavaECM(checkpointPath, fs) {

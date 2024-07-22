@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 - 2023 by Contributors
+ Copyright (c) 2014 - 2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@ package ml.dmlc.xgboost4j.scala.example.flink
 
 import java.lang.{Double => JDouble, Long => JLong}
 import java.nio.file.{Path, Paths}
-import org.apache.flink.api.java.tuple.{Tuple13, Tuple2}
-import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
-import org.apache.flink.ml.linalg.{Vector, Vectors}
-import ml.dmlc.xgboost4j.java.flink.{XGBoost, XGBoostModel}
+
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
+import org.apache.flink.api.java.{DataSet, ExecutionEnvironment}
+import org.apache.flink.api.java.tuple.{Tuple13, Tuple2}
 import org.apache.flink.api.java.utils.DataSetUtils
+import org.apache.flink.ml.linalg.{Vector, Vectors}
+
+import ml.dmlc.xgboost4j.java.flink.{XGBoost, XGBoostModel}
 
 
 object DistTrainWithFlink {
