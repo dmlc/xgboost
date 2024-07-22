@@ -75,6 +75,7 @@ option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 # This is specifically designed for PyPI binary release and should be disabled for most of the cases.
 option(USE_DLOPEN_NCCL "Whether to load nccl dynamically." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
+option(BUILD_WITH_EXTERNAL_CCCL "Build with external CCCL instead of one from CTK" OFF)
 
 if(USE_CUDA)
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
@@ -221,6 +222,10 @@ if(USE_CUDA)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   find_package(CUDAToolkit REQUIRED)
+
+  if(BUILD_WITH_EXTERNAL_CCCL)
+    find_package(CCCL REQUIRED CONFIG COMPONENTS cub)
+  endif()
 endif()
 
 if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
@@ -426,6 +431,9 @@ else()
   else()
     set(INSTALL_TARGETS xgboost)
   endif()
+endif()
+if(BUILD_WITH_EXTERNAL_CCCL)
+  list(APPEND INSTALL_TARGETS _CUB_CUB _CUB_libcudacxx)
 endif()
 
 install(TARGETS ${INSTALL_TARGETS}

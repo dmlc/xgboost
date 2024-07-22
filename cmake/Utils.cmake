@@ -104,6 +104,11 @@ function(xgboost_set_cuda_flags target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
   endif()
 
+  if(BUILD_WITH_EXTERNAL_CCCL)
+    target_compile_definitions(${target} PRIVATE -DTHRUST_IGNORE_CUB_VERSION_CHECK=1)
+    target_link_libraries(${target} PRIVATE CCCL::CUB)
+  endif()
+
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
     ${target} PRIVATE
