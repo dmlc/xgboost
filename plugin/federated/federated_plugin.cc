@@ -188,15 +188,17 @@ FederatedPlugin::FederatedPlugin(StringView path, Json config)
 
 FederatedPlugin::~FederatedPlugin() = default;
 
-[[nodiscard]] FederatedPluginBase* CreateFederatedPlugin(Json config) {
+[[nodiscard]] std::shared_ptr<FederatedPluginBase> CreateFederatedPlugin(Json config) {
   auto plugin = OptionalArg<Object>(config, "federated_plugin", Object::Map{});
   if (!plugin.empty()) {
     auto name_it = plugin.find("name");
     if (name_it != plugin.cend() && get<String const>(name_it->second) == "mock") {
-      return new FederatedPluginMock{};
+      return std::dynamic_pointer_cast<FederatedPluginBase>(
+          std::make_shared<FederatedPluginMock>());
     }
     auto path = get<String>(plugin["path"]);
-    return new FederatedPlugin{path, config};
+    return std::dynamic_pointer_cast<FederatedPluginBase>(
+        std::make_shared<FederatedPlugin>(path, config));
   }
   return nullptr;
 }

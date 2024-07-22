@@ -72,19 +72,34 @@ template void FederataedHistPolicy::DoBuildLocalHistograms<false>(
     bool force_read_by_column, common::ParallelGHistBuilder *buffer);
 
 namespace {
+void InitializeHist(std::vector<bst_node_t> const &nodes_to_build,
+                    tree::BoundedHistCollection *p_hist) {
+  auto &hist = *p_hist;
+  // Initialize histogram. For the normal case, this is done by the parallel hist
+  // buffer. We should try to unify the code paths.
+  for (auto nidx : nodes_to_build) {
+    auto hist_dst = hist[nidx];
+    std::fill_n(hist_dst.data(), hist_dst.size(), GradientPairPrecise{});
+  }
+}
+
 // The label owner needs to gather the result from all workers.
 void GatherWorkerHist(common::Span<double> hist_aggr, std::int32_t n_workers,
                       std::vector<bst_node_t> const &nodes_to_build, bst_bin_t n_total_bins,
                       tree::BoundedHistCollection *p_hist) {
+  InitializeHist(nodes_to_build, p_hist);
   bst_idx_t worker_size = hist_aggr.size() / n_workers;
   bst_node_t n_nodes = nodes_to_build.size();
   auto &hist = *p_hist;
+
   // for each worker
   for (auto widx = 0; widx < n_workers; ++widx) {
     auto worker_hist = hist_aggr.subspan(widx * worker_size, worker_size);
     // for each node
     for (bst_node_t nidx_in_set = 0; nidx_in_set < n_nodes; ++nidx_in_set) {
-      auto hist_size = n_total_bins * kHist2F64;  // Histogram size for one node.
+      // Histogram size for one node.
+      auto hist_size = n_total_bins * static_cast<bst_bin_t>(kHist2F64);
+      CHECK_EQ(worker_hist.size() % hist_size, 0);
       auto hist_src = worker_hist.subspan(hist_size * nidx_in_set, hist_size);
       auto hist_src_g = common::RestoreType<GradientPairPrecise>(hist_src);
       auto hist_dst = hist[nodes_to_build[nidx_in_set]];
@@ -101,6 +116,7 @@ void FederataedHistPolicy::DoSyncHistogram(common::BlockedSpace2d const &space,
                                            common::ParallelGHistBuilder *p_buffer,
                                            tree::BoundedHistCollection *p_hist) {
   auto n_total_bins = p_buffer->TotalBins();
+  std::int32_t n_workers = collective::GetWorldSize();
   CHECK(!nodes_to_build.empty());
 
   auto &hist = *p_hist;
@@ -121,14 +137,7 @@ void FederataedHistPolicy::DoSyncHistogram(common::BlockedSpace2d const &space,
 
     // Update histogram for the label owner
     if (collective::GetRank() == 0) {
-      std::int32_t n_workers = collective::GetWorldSize();
       CHECK_EQ(hist_aggr.size() % n_workers, 0);
-      // Initialize histogram. For the normal case, this is done by the parallel hist
-      // buffer. We should try to unify the code paths.
-      for (auto nidx : nodes_to_build) {
-        auto hist_dst = hist[nidx];
-        std::fill_n(hist_dst.data(), hist_dst.size(), GradientPairPrecise{});
-      }
       GatherWorkerHist(hist_aggr, n_workers, nodes_to_build, n_total_bins, p_hist);
     }
   } else {
@@ -148,12 +157,14 @@ void FederataedHistPolicy::DoSyncHistogram(common::BlockedSpace2d const &space,
     auto rc =
         collective::AllgatherV(ctx_, linalg::MakeVec(hist_buf), &recv_segments, &hist_entries);
     collective::SafeColl(rc);
+    CHECK_EQ(hist_entries.Size(), hist_buf.size() * n_workers);
 
     auto hist_aggr =
         plugin_->SyncEncryptedHistHori(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
-    // Assign the aggregated histogram back to the local histogram
-    auto hist_dst = reinterpret_cast<double *>(hist[first_nidx].data());
-    std::copy_n(hist_aggr.data(), hist_aggr.size(), hist_dst);
+
+    CHECK_EQ(hist_aggr.size(), src_hist.size() * n_workers);
+    CHECK_EQ(hist_aggr.size(), n_workers * nodes_to_build.size() * n_total_bins * kHist2F64);
+    GatherWorkerHist(hist_aggr, n_workers, nodes_to_build, n_total_bins, p_hist);
   }
 }
 }  // namespace xgboost::tree
