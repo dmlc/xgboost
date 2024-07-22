@@ -145,9 +145,11 @@ struct GPUHistMakerDevice {
 
     quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, dmat->Info());
 
-    row_partitioner.reset();  // Release the device memory first before reallocating
+    if (!row_partitioner) {
+      row_partitioner = std::make_unique<RowPartitioner>();
+    }
+    row_partitioner->Reset(ctx_, sample.sample_rows, page->base_rowid);
     CHECK_EQ(page->base_rowid, 0);
-    row_partitioner = std::make_unique<RowPartitioner>(ctx_, sample.sample_rows, page->base_rowid);
 
     // Init histogram
     hist.Init(ctx_->Device(), page->Cuts().TotalBins());
