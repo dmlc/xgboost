@@ -37,7 +37,7 @@
         <junit.version>4.13.2</junit.version>
         <spark.version>3.5.1</spark.version>
         <spark.version.gpu>3.5.1</spark.version.gpu>
-        <fasterxml.jackson.version>2.17.2</fasterxml.jackson.version>
+        <fasterxml.jackson.version>2.15.0</fasterxml.jackson.version>
         <scala.version>2.12.18</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>3.4.0</hadoop.version>
@@ -105,7 +105,7 @@
                <use.cuda>ON</use.cuda>
             </properties>
             <modules>
-                <module>xgboost4j-gpu</module>
+                <module>xgboost4j</module>
                 <module>xgboost4j-spark-gpu</module>
             </modules>
         </profile>
@@ -117,7 +117,6 @@
                 <module>xgboost4j-example</module>
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
-                <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
             </modules>
             <build>
