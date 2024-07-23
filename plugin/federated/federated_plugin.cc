@@ -125,7 +125,7 @@ FederatedPlugin::FederatedPlugin(StringView path, Json config)
   plugin_handle_ = decltype(plugin_handle_)(
       [&] {
         // Initialize the parameters
-        auto const& obj = get<Object>(config);
+        auto const& obj = OptionalArg<Object>(config, "federated_plugin", Object::Map{});
         std::vector<std::string> kwargs;
         for (auto const& kv : obj) {
           std::string value;
