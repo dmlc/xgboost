@@ -225,12 +225,15 @@ if(USE_CUDA)
   if(NOT CCCL_FOUND)
     message(STATUS "Standalone CCCL not found. Attempting to use CCCL from CUDA Toolkit...")
     find_package(CCCL CONFIG
-      PATHS ${CUDAToolkit_LIBRARY_DIR}/cmake/cccl)
+      HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
     if(NOT CCCL_FOUND)
       message(STATUS "Could not locate CCCL from CUDA Toolkit. Using Thrust and CUB from CUDA Toolkit...")
-      find_package(Thrust CONFIG REQUIRED)
-      find_package(CUB CONFIG REQUIRED)
-      find_package(libcudacxx CONFIG REQUIRED)
+      find_package(Thrust CONFIG REQUIRED
+        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+      find_package(CUB CONFIG REQUIRED
+        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+      find_package(libcudacxx CONFIG REQUIRED
+        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
       add_library(CCCL::CCCL INTERFACE IMPORTED GLOBAL)
       target_link_libraries(CCCL::CCCL INTERFACE Thrust::Thrust CUB::CUB libcudacxx::libcudacxx)
     endif()
