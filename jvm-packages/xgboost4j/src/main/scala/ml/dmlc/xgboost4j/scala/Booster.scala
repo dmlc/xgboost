@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,12 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import com.esotericsoftware.kryo.io.{Output, Input}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import ml.dmlc.xgboost4j.java.{Booster => JBooster}
-import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
+
+import ml.dmlc.xgboost4j.java.{Booster => JBooster}
+import ml.dmlc.xgboost4j.java.XGBoostError
 
 /**
   * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model

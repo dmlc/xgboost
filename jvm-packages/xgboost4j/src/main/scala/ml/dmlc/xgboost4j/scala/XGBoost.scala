@@ -17,11 +17,13 @@
 package ml.dmlc.xgboost4j.scala
 
 import java.io.InputStream
-import ml.dmlc.xgboost4j.java.{XGBoostError, XGBoost => JXGBoost}
 
 import scala.jdk.CollectionConverters._
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+
+import ml.dmlc.xgboost4j.java.{XGBoost => JXGBoost, XGBoostError}
 
 /**
   * XGBoost Scala Training function.
