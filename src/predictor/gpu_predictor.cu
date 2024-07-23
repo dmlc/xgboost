@@ -16,6 +16,7 @@
 #include "../common/categorical.h"
 #include "../common/common.h"
 #include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"  // for InplacePredictProxy
 #include "../data/device_adapter.cuh"

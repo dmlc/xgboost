@@ -190,6 +190,8 @@ class FederatedPluginBase {
   std::vector<double> hist_plain_;
 
  public:
+  virtual ~FederatedPluginBase() = default;
+
   [[nodiscard]] virtual common::Span<std::uint8_t> EncryptGradient(
       common::Span<float const> data) = 0;
   virtual void SyncEncryptedGradient(common::Span<std::uint8_t const>) = 0;
@@ -223,7 +225,7 @@ class FederatedPluginMock : public FederatedPluginBase {
   GHistIndexMatrix gmat_;
 
  public:
-  ~FederatedPluginMock() = default;
+  ~FederatedPluginMock() override = default;
 
   [[nodiscard]] common::Span<std::uint8_t> EncryptGradient(
       common::Span<float const> data) override {
@@ -298,7 +300,7 @@ class FederatedPlugin : public FederatedPluginBase {
 
  public:
   explicit FederatedPlugin(StringView path, Json config);
-  ~FederatedPlugin();
+  ~FederatedPlugin() override;
   // Gradient
   [[nodiscard]] common::Span<std::uint8_t> EncryptGradient(
       common::Span<float const> data) override {
@@ -363,5 +365,5 @@ class FederatedPlugin : public FederatedPluginBase {
   }
 };
 
-[[nodiscard]] FederatedPluginBase *CreateFederatedPlugin(Json config);
+[[nodiscard]] std::shared_ptr<FederatedPluginBase> CreateFederatedPlugin(Json config);
 }  // namespace xgboost::collective

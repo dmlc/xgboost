@@ -129,7 +129,8 @@ FederatedComm::FederatedComm(std::int32_t retry, std::chrono::seconds timeout, s
   /**
    * Hist encryption plugin.
    */
-  this->plugin_.reset(CreateFederatedPlugin(config));
+  this->plugin_.reset();
+  this->plugin_ = CreateFederatedPlugin(config);
 
   this->Init(parsed[0], std::stoi(parsed[1]), world_size, rank, server_cert, client_key,
              client_cert);

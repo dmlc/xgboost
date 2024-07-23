@@ -23,9 +23,13 @@ inline std::shared_ptr<DMatrix> GenerateCatDMatrix(std::size_t rows, std::size_t
     for (size_t i = 0; i < ft.size(); ++i) {
       ft[i] = (i % 3 == 0) ? FeatureType::kNumerical : FeatureType::kCategorical;
     }
-    return RandomDataGenerator(rows, cols, 0.6f).Seed(3).Type(ft).MaxCategory(17).GenerateDMatrix();
+    return RandomDataGenerator(rows, cols, sparsity)
+        .Seed(3)
+        .Type(ft)
+        .MaxCategory(17)
+        .GenerateDMatrix();
   } else {
-    return RandomDataGenerator{rows, cols, 0.6f}.Seed(3).GenerateDMatrix();
+    return RandomDataGenerator{rows, cols, sparsity}.Seed(3).GenerateDMatrix();
   }
 }
 

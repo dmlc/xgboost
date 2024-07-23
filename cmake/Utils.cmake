@@ -80,12 +80,8 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
-
-  if(USE_PER_THREAD_DEFAULT_STREAM)
-    target_compile_options(${target} PRIVATE
-            $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
-  endif()
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>
+    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
 
   if(FORCE_COLORED_OUTPUT)
     if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND

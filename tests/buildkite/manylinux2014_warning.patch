@@ -1,17 +1,3 @@
-diff --git python-package/pyproject.toml python-package/pyproject.toml
-index a273d8c13..dee49686a 100644
---- python-package/pyproject.toml
-+++ python-package/pyproject.toml
-@@ -30,8 +30,7 @@ classifiers = [
- ]
- dependencies = [
-     "numpy",
--    "scipy",
--    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'"
-+    "scipy"
- ]
- 
- [project.urls]
 diff --git python-package/xgboost/core.py python-package/xgboost/core.py
 index e8bc735e6..030972ef2 100644
 --- python-package/xgboost/core.py

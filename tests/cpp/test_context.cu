@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>  // for Args
@@ -8,7 +8,7 @@
 
 #include <string>  // for string, to_string
 
-#include "../../src/common/common.h"  // for AllVisibleGPUs
+#include "../../src/common/cuda_rt_utils.h"  // for AllVisibleGPUs
 
 namespace xgboost {
 namespace {

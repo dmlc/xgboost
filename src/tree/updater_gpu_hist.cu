@@ -16,7 +16,8 @@
 #include "../collective/broadcast.h"
 #include "../common/bitfield.h"
 #include "../common/categorical.h"
-#include "../common/cuda_context.cuh"  // CUDAContext
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/cuda_rt_utils.h"   // for CheckComputeCapability
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/random.h"  // for ColumnSampler, GlobalRandom
@@ -50,113 +51,6 @@ namespace xgboost::tree {
 #if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 #endif  // !defined(GTEST_TEST)
-
-/**
- * \struct  DeviceHistogramStorage
- *
- * \summary Data storage for node histograms on device. Automatically expands.
- *
- * \tparam GradientSumT      histogram entry type.
- * \tparam kStopGrowingSize  Do not grow beyond this size
- *
- * \author  Rory
- * \date    28/07/2018
- */
-template <size_t kStopGrowingSize = 1 << 28>
-class DeviceHistogramStorage {
- private:
-  using GradientSumT = GradientPairInt64;
-  /*! \brief Map nidx to starting index of its histogram. */
-  std::map<int, size_t> nidx_map_;
-  // Large buffer of zeroed memory, caches histograms
-  dh::device_vector<typename GradientSumT::ValueT> data_;
-  // If we run out of storage allocate one histogram at a time
-  // in overflow. Not cached, overwritten when a new histogram
-  // is requested
-  dh::device_vector<typename GradientSumT::ValueT> overflow_;
-  std::map<int, size_t> overflow_nidx_map_;
-  int n_bins_;
-  DeviceOrd device_id_;
-  static constexpr size_t kNumItemsInGradientSum =
-      sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT);
-  static_assert(kNumItemsInGradientSum == 2, "Number of items in gradient type should be 2.");
-
- public:
-  // Start with about 16mb
-  DeviceHistogramStorage() { data_.reserve(1 << 22); }
-  void Init(DeviceOrd device_id, int n_bins) {
-    this->n_bins_ = n_bins;
-    this->device_id_ = device_id;
-  }
-
-  void Reset() {
-    auto d_data = data_.data().get();
-    dh::LaunchN(data_.size(), [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
-    nidx_map_.clear();
-    overflow_nidx_map_.clear();
-  }
-  [[nodiscard]] bool HistogramExists(int nidx) const {
-    return nidx_map_.find(nidx) != nidx_map_.cend() ||
-           overflow_nidx_map_.find(nidx) != overflow_nidx_map_.cend();
-  }
-  [[nodiscard]] int Bins() const { return n_bins_; }
-  [[nodiscard]] size_t HistogramSize() const { return n_bins_ * kNumItemsInGradientSum; }
-  dh::device_vector<typename GradientSumT::ValueT>& Data() { return data_; }
-
-  void AllocateHistograms(const std::vector<int>& new_nidxs) {
-    for (int nidx : new_nidxs) {
-      CHECK(!HistogramExists(nidx));
-    }
-    // Number of items currently used in data
-    const size_t used_size = nidx_map_.size() * HistogramSize();
-    const size_t new_used_size = used_size + HistogramSize() * new_nidxs.size();
-    if (used_size >= kStopGrowingSize) {
-      // Use overflow
-      // Delete previous entries
-      overflow_nidx_map_.clear();
-      overflow_.resize(HistogramSize() * new_nidxs.size());
-      // Zero memory
-      auto d_data = overflow_.data().get();
-      dh::LaunchN(overflow_.size(),
-                  [=] __device__(size_t idx) { d_data[idx] = 0.0; });
-      // Append new histograms
-      for (int nidx : new_nidxs) {
-        overflow_nidx_map_[nidx] = overflow_nidx_map_.size() * HistogramSize();
-      }
-    } else {
-      CHECK_GE(data_.size(), used_size);
-      // Expand if necessary
-      if (data_.size() < new_used_size) {
-        data_.resize(std::max(data_.size() * 2, new_used_size));
-      }
-      // Append new histograms
-      for (int nidx : new_nidxs) {
-        nidx_map_[nidx] = nidx_map_.size() * HistogramSize();
-      }
-    }
-
-    CHECK_GE(data_.size(), nidx_map_.size() * HistogramSize());
-  }
-
-  /**
-   * \summary   Return pointer to histogram memory for a given node.
-   * \param nidx    Tree node index.
-   * \return    hist pointer.
-   */
-  common::Span<GradientSumT> GetNodeHistogram(int nidx) {
-    CHECK(this->HistogramExists(nidx));
-
-    if (nidx_map_.find(nidx) != nidx_map_.cend()) {
-      // Fetch from normal cache
-      auto ptr = data_.data().get() + nidx_map_.at(nidx);
-      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
-    } else {
-      // Fetch from overflow
-      auto ptr = overflow_.data().get() + overflow_nidx_map_.at(nidx);
-      return {reinterpret_cast<GradientSumT*>(ptr), static_cast<std::size_t>(n_bins_)};
-    }
-  }
-};
 
 // Manage memory for a single GPU
 struct GPUHistMakerDevice {
@@ -260,7 +154,7 @@ struct GPUHistMakerDevice {
 
     // Init histogram
     hist.Init(ctx_->Device(), page->Cuts().TotalBins());
-    hist.Reset();
+    hist.Reset(ctx_);
 
     this->InitFeatureGroupsOnce();
 
@@ -708,7 +602,7 @@ struct GPUHistMakerDevice {
     all_new.insert(all_new.end(), subtraction_nidx.begin(), subtraction_nidx.end());
     // Allocate the histograms
     // Guaranteed contiguous memory
-    hist.AllocateHistograms(all_new);
+    hist.AllocateHistograms(ctx_, all_new);
 
     for (auto nidx : hist_nidx) {
       this->BuildHist(nidx);
@@ -808,7 +702,7 @@ struct GPUHistMakerDevice {
         ctx_, info_, linalg::MakeVec(reinterpret_cast<ReduceT*>(&root_sum_quantised), 2));
     collective::SafeColl(rc);
 
-    hist.AllocateHistograms({kRootNIdx});
+    hist.AllocateHistograms(ctx_, {kRootNIdx});
     this->BuildHist(kRootNIdx);
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
       this->AllReduceHistEncrypted(kRootNIdx, 1);
@@ -891,7 +785,7 @@ class GPUHistMaker : public TreeUpdater {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
-    dh::CheckComputeCapability();
+    common::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init("updater_gpu_hist");
@@ -917,17 +811,13 @@ class GPUHistMaker : public TreeUpdater {
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     auto gpair_hdv = gpair->Data();
     // build tree
-    try {
-      std::size_t t_idx{0};
-      for (xgboost::RegTree* tree : trees) {
-        this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
-        this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
-        ++t_idx;
-      }
-      dh::safe_cuda(cudaGetLastError());
-    } catch (const std::exception& e) {
-      LOG(FATAL) << "Exception in gpu_hist: " << e.what() << std::endl;
+    std::size_t t_idx{0};
+    for (xgboost::RegTree* tree : trees) {
+      this->UpdateTree(param, gpair_hdv, dmat, tree, &out_position[t_idx]);
+      this->hist_maker_param_.CheckTreesSynchronized(ctx_, tree);
+      ++t_idx;
     }
+    dh::safe_cuda(cudaGetLastError());
     monitor_.Stop("Update");
   }
 
@@ -1023,7 +913,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     if (hist_maker_param_.max_cached_hist_node != HistMakerTrainParam::DefaultNodes()) {
       LOG(WARNING) << "The `max_cached_hist_node` is ignored in GPU.";
     }
-    dh::CheckComputeCapability();
+    common::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init(this->Name());

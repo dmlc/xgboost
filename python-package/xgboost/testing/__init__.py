@@ -45,6 +45,7 @@ from xgboost.testing.data import (
     get_cancer,
     get_digits,
     get_sparse,
+    make_batches,
     memory,
 )
 
@@ -161,7 +162,16 @@ def no_cudf() -> PytestSkip:
 
 
 def no_cupy() -> PytestSkip:
-    return no_mod("cupy")
+    skip_cupy = no_mod("cupy")
+    if not skip_cupy["condition"] and system() == "Windows":
+        import cupy as cp
+
+        # Cupy might run into issue on Windows due to missing compiler
+        try:
+            cp.array([1, 2, 3]).sum()
+        except Exception:  # pylint: disable=broad-except
+            skip_cupy["condition"] = True
+    return skip_cupy
 
 
 def no_dask_cudf() -> PytestSkip:
@@ -246,35 +256,6 @@ class IteratorForTest(xgb.core.DataIter):
         else:
             w = None
         return X, y, w
-
-
-def make_batches(  # pylint: disable=too-many-arguments,too-many-locals
-    n_samples_per_batch: int,
-    n_features: int,
-    n_batches: int,
-    use_cupy: bool = False,
-    *,
-    vary_size: bool = False,
-    random_state: int = 1994,
-) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
-    X = []
-    y = []
-    w = []
-    if use_cupy:
-        import cupy
-
-        rng = cupy.random.RandomState(random_state)
-    else:
-        rng = np.random.RandomState(random_state)
-    for i in range(n_batches):
-        n_samples = n_samples_per_batch + i * 10 if vary_size else n_samples_per_batch
-        _X = rng.randn(n_samples, n_features)
-        _y = rng.randn(n_samples)
-        _w = rng.uniform(low=0, high=1, size=n_samples)
-        X.append(_X)
-        y.append(_y)
-        w.append(_w)
-    return X, y, w
 
 
 def make_regression(

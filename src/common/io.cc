@@ -1,26 +1,21 @@
 /**
- * Copyright 2019-2023, by XGBoost Contributors
+ * Copyright 2019-2024, by XGBoost Contributors
  */
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif  // !defined(NOMINMAX)
-
-#if !defined(xgboost_IS_WIN)
-
-#if defined(_MSC_VER) || defined(__MINGW32__)
-#define xgboost_IS_WIN 1
-#endif  // defined(_MSC_VER) || defined(__MINGW32__)
-
-#endif  // !defined(xgboost_IS_WIN)
-
 #if defined(__unix__) || defined(__APPLE__)
+
 #include <fcntl.h>     // for open, O_RDONLY
-#include <sys/mman.h>  // for mmap, mmap64, munmap
+#include <sys/mman.h>  // for mmap, mmap64, munmap, madvise
 #include <unistd.h>    // for close, getpagesize
-#elif defined(xgboost_IS_WIN)
-#define WIN32_LEAN_AND_MEAN
+
+#else
+
+#include <xgboost/windefs.h>
+
+#if defined(xgboost_IS_WIN)
 #include <windows.h>
-#endif  // defined(__unix__)
+#endif  // defined(xgboost_IS_WIN)
+
+#endif  // defined(__unix__) || defined(__APPLE__)
 
 #include <algorithm>     // for copy, transform
 #include <cctype>        // for tolower
@@ -31,8 +26,7 @@
 #include <filesystem>    // for filesystem, weakly_canonical
 #include <fstream>       // for ifstream
 #include <iterator>      // for distance
-#include <limits>        // for numeric_limits
-#include <memory>        // for unique_ptr
+#include <memory>        // for unique_ptr, make_unique
 #include <string>        // for string
 #include <system_error>  // for error_code, system_category
 #include <utility>       // for move
@@ -40,7 +34,12 @@
 
 #include "io.h"
 #include "xgboost/collective/socket.h"  // for LastError
-#include "xgboost/logging.h"
+#include "xgboost/logging.h"            // for CHECK_LE
+#include "xgboost/string_view.h"        // for StringView
+
+#if !defined(__linux__) && !defined(__GLIBC__) && !defined(xgboost_IS_WIN)
+#include <limits>  // for numeric_limits
+#endif
 
 namespace xgboost::common {
 size_t PeekableInStream::Read(void* dptr, size_t size) {
@@ -182,39 +181,9 @@ std::string FileExtension(std::string fname, bool lower) {
 // NVCC 11.8 doesn't allow `noexcept(false) = default` altogether.
 ResourceHandler::~ResourceHandler() noexcept(false) {}  // NOLINT
 
-struct MMAPFile {
-#if defined(xgboost_IS_WIN)
-  HANDLE fd{INVALID_HANDLE_VALUE};
-  HANDLE file_map{INVALID_HANDLE_VALUE};
-#else
-  std::int32_t fd{0};
-#endif
-  std::byte* base_ptr{nullptr};
-  std::size_t base_size{0};
-  std::size_t delta{0};
-  std::string path;
-
-  MMAPFile() = default;
-
-#if defined(xgboost_IS_WIN)
-  MMAPFile(HANDLE fd, HANDLE fm, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
-           std::string path)
-      : fd{fd},
-        file_map{fm},
-        base_ptr{base_ptr},
-        base_size{base_size},
-        delta{delta},
-        path{std::move(path)} {}
-#else
-  MMAPFile(std::int32_t fd, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
-           std::string path)
-      : fd{fd}, base_ptr{base_ptr}, base_size{base_size}, delta{delta}, path{std::move(path)} {}
-#endif
-};
-
-std::unique_ptr<MMAPFile> Open(std::string path, std::size_t offset, std::size_t length) {
+MMAPFile* detail::OpenMmap(std::string path, std::size_t offset, std::size_t length) {
   if (length == 0) {
-    return std::make_unique<MMAPFile>();
+    return new MMAPFile{};
   }
 
 #if defined(xgboost_IS_WIN)
@@ -234,10 +203,8 @@ std::unique_ptr<MMAPFile> Open(std::string path, std::size_t offset, std::size_t
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
   ptr = reinterpret_cast<std::byte*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
-  madvise(ptr, view_size, MADV_WILLNEED);
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  auto handle =
-      std::make_unique<MMAPFile>(fd, ptr, view_size, offset - view_start, std::move(path));
+  auto handle = new MMAPFile{fd, ptr, view_size, offset - view_start, std::move(path)};
 #elif defined(xgboost_IS_WIN)
   auto file_size = GetFileSize(fd, nullptr);
   DWORD access = PAGE_READONLY;
@@ -248,55 +215,62 @@ std::unique_ptr<MMAPFile> Open(std::string path, std::size_t offset, std::size_t
   CHECK(map_file) << "Failed to map: " << path << ". " << SystemErrorMsg();
   ptr = reinterpret_cast<std::byte*>(MapViewOfFile(map_file, access, hoff, loff, view_size));
   CHECK_NE(ptr, nullptr) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  auto handle = std::make_unique<MMAPFile>(fd, map_file, ptr, view_size, offset - view_start,
-                                           std::move(path));
+  auto handle = new MMAPFile{fd, map_file, ptr, view_size, offset - view_start, std::move(path)};
 #else
   CHECK_LE(offset, std::numeric_limits<off_t>::max())
       << "File size has exceeded the limit on the current system.";
   int prot{PROT_READ};
   ptr = reinterpret_cast<std::byte*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
-  auto handle =
-      std::make_unique<MMAPFile>(fd, ptr, view_size, offset - view_start, std::move(path));
-#endif  // defined(__linux__)
+  auto handle = new MMAPFile{fd, ptr, view_size, offset - view_start, std::move(path)};
+#endif  // defined(__linux__) || defined(__GLIBC__)
 
   return handle;
 }
 
-MmapResource::MmapResource(std::string path, std::size_t offset, std::size_t length)
-    : ResourceHandler{kMmap}, handle_{Open(std::move(path), offset, length)}, n_{length} {}
-
-MmapResource::~MmapResource() noexcept(false) {
-  if (!handle_) {
+void detail::CloseMmap(MMAPFile* handle) {
+  if (!handle) {
     return;
   }
 #if defined(xgboost_IS_WIN)
-  if (handle_->base_ptr) {
-    CHECK(UnmapViewOfFile(handle_->base_ptr)) "Faled to call munmap: " << SystemErrorMsg();
+  if (handle->base_ptr) {
+    CHECK(UnmapViewOfFile(handle->base_ptr)) "Faled to call munmap: " << SystemErrorMsg();
   }
-  if (handle_->fd != INVALID_HANDLE_VALUE) {
-    CHECK(CloseHandle(handle_->fd)) << "Failed to close handle: " << SystemErrorMsg();
+  if (handle->fd != INVALID_HANDLE_VALUE) {
+    CHECK(CloseHandle(handle->fd)) << "Failed to close handle: " << SystemErrorMsg();
   }
-  if (handle_->file_map != INVALID_HANDLE_VALUE) {
-    CHECK(CloseHandle(handle_->file_map)) << "Failed to close mapping object: " << SystemErrorMsg();
+  if (handle->file_map != INVALID_HANDLE_VALUE) {
+    CHECK(CloseHandle(handle->file_map)) << "Failed to close mapping object: " << SystemErrorMsg();
   }
 #else
-  if (handle_->base_ptr) {
-    CHECK_NE(munmap(handle_->base_ptr, handle_->base_size), -1)
-        << "Faled to call munmap: " << handle_->path << ". " << SystemErrorMsg();
+  if (handle->base_ptr) {
+    CHECK_NE(munmap(handle->base_ptr, handle->base_size), -1)
+        << "Faled to call munmap: `" << handle->path << "`. " << SystemErrorMsg();
   }
-  if (handle_->fd != 0) {
-    CHECK_NE(close(handle_->fd), -1)
-        << "Faled to close: " << handle_->path << ". " << SystemErrorMsg();
+  if (handle->fd != 0) {
+    CHECK_NE(close(handle->fd), -1)
+        << "Faled to close: `" << handle->path << "`. " << SystemErrorMsg();
   }
 #endif
+  delete handle;
 }
+
+MmapResource::MmapResource(StringView path, std::size_t offset, std::size_t length)
+    : ResourceHandler{kMmap},
+      handle_{detail::OpenMmap(std::string{path}, offset, length), detail::CloseMmap},
+      n_{length} {
+#if defined(__unix__) || defined(__APPLE__)
+  madvise(handle_->base_ptr, handle_->base_size, MADV_WILLNEED);
+#endif  // defined(__unix__) || defined(__APPLE__)
+}
+
+MmapResource::~MmapResource() noexcept(false) = default;
 
 [[nodiscard]] void* MmapResource::Data() {
   if (!handle_) {
     return nullptr;
   }
-  return handle_->base_ptr + handle_->delta;
+  return this->handle_->Data();
 }
 
 [[nodiscard]] std::size_t MmapResource::Size() const { return n_; }
@@ -329,7 +303,3 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
   return this->pimpl_->Tell();
 }
 }  // namespace xgboost::common
-
-#if defined(xgboost_IS_WIN)
-#undef xgboost_IS_WIN
-#endif  // defined(xgboost_IS_WIN)
