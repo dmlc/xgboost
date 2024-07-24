@@ -104,7 +104,9 @@ function(xgboost_set_cuda_flags target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
   endif()
 
-  target_link_libraries(${target} PRIVATE CCCL::CCCL)
+  target_link_libraries(${target}
+    INTERFACE CCCL::CCCL
+    PUBLIC CUDA::cudart_static)
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
     ${target} PRIVATE
@@ -235,7 +237,6 @@ macro(xgboost_target_link_libraries target)
 
   if(USE_CUDA)
     xgboost_set_cuda_flags(${target})
-    target_link_libraries(${target} PUBLIC CUDA::cudart_static)
   endif()
 
   if(PLUGIN_RMM)
