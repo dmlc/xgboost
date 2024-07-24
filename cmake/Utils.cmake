@@ -105,8 +105,7 @@ function(xgboost_set_cuda_flags target)
   endif()
 
   target_link_libraries(${target}
-    INTERFACE CCCL::CCCL
-    PUBLIC CUDA::cudart_static)
+    PRIVATE CCCL::CCCL CUDA::cudart_static)
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
     ${target} PRIVATE
