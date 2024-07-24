@@ -101,6 +101,12 @@ class HistUpdater {
       typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
       float min_child_weight);
 
+  void ApplySplit(std::vector<ExpandEntry> nodes,
+                      const common::GHistIndexMatrix& gmat,
+                      RegTree* p_tree);
+
+  void AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes, RegTree* p_tree);
+
   void InitData(const common::GHistIndexMatrix& gmat,
                 const USMVector<GradientPair, MemoryType::on_device> &gpair,
                 const DMatrix& fmat,
@@ -178,6 +184,8 @@ class HistUpdater {
   uint32_t fid_least_bins_;
 
   uint64_t seed_ = 0;
+
+  common::PartitionBuilder partition_builder_;
 
   // key is the node id which should be calculated by Subtraction Trick, value is the node which
   // provides the evidence for substracts

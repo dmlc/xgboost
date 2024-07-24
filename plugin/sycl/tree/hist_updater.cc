@@ -9,6 +9,8 @@
 
 #include <functional>
 
+#include "../../src/tree/common_row_partitioner.h"
+
 #include "../common/hist_util.h"
 #include "../../src/collective/allreduce.h"
 
@@ -248,6 +250,55 @@ void HistUpdater<GradientSumT>::InitData(
 
   std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
   builder_monitor_.Stop("InitData");
+}
+
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::AddSplitsToRowSet(
+                                                const std::vector<ExpandEntry>& nodes,
+                                                RegTree* p_tree) {
+  const size_t n_nodes = nodes.size();
+  for (size_t i = 0; i < n_nodes; ++i) {
+    const int32_t nid = nodes[i].nid;
+    const size_t n_left = partition_builder_.GetNLeftElems(i);
+    const size_t n_right = partition_builder_.GetNRightElems(i);
+
+    row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(),
+        (*p_tree)[nid].RightChild(), n_left, n_right);
+  }
+}
+
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::ApplySplit(
+                      const std::vector<ExpandEntry> nodes,
+                      const common::GHistIndexMatrix& gmat,
+                      RegTree* p_tree) {
+  using CommonRowPartitioner = xgboost::tree::CommonRowPartitioner;
+  builder_monitor_.Start("ApplySplit");
+
+  const size_t n_nodes = nodes.size();
+  std::vector<int32_t> split_conditions(n_nodes);
+  CommonRowPartitioner::FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
+
+  partition_builder_.Init(&qu_, n_nodes, [&](size_t node_in_set) {
+    const int32_t nid = nodes[node_in_set].nid;
+    return row_set_collection_[nid].Size();
+  });
+
+  ::sycl::event event;
+  partition_builder_.Partition(gmat, nodes, row_set_collection_,
+                               split_conditions, p_tree, &event);
+  qu_.wait_and_throw();
+
+  for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
+    const int32_t nid = nodes[node_in_set].nid;
+    size_t* data_result = const_cast<size_t*>(row_set_collection_[nid].begin);
+    partition_builder_.MergeToArray(node_in_set, data_result, &event);
+  }
+  qu_.wait_and_throw();
+
+  AddSplitsToRowSet(nodes, p_tree);
+
+  builder_monitor_.Stop("ApplySplit");
 }
 
 template <typename GradientSumT>
