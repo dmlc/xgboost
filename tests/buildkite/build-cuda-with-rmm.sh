@@ -22,7 +22,7 @@ command_wrapper="tests/ci_build/ci_build.sh gpu_build_rockylinux8 --build-arg "`
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh \
-		 -DCMAKE_PREFIX_PATH="/opt/grpc;/opt/rmm" \
+		 -DCMAKE_PREFIX_PATH="/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake" \
 		 -DUSE_CUDA=ON \
 		 -DUSE_OPENMP=ON \
 		 -DHIDE_CXX_SYMBOLS=ON \

@@ -104,11 +104,11 @@ function(xgboost_set_cuda_flags target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
   endif()
 
+  target_link_libraries(${target} PRIVATE CCCL::CCCL)
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
     ${target} PRIVATE
-    ${xgboost_SOURCE_DIR}/gputreeshap
-    ${CUDAToolkit_INCLUDE_DIRS})
+    ${xgboost_SOURCE_DIR}/gputreeshap)
 
   if(MSVC)
     target_compile_options(${target} PRIVATE
