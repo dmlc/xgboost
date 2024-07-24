@@ -33,7 +33,6 @@ def main(args):
                 for artifact in [
                     "xgboost-jvm",
                     "xgboost4j",
-                    "xgboost4j-gpu",
                     "xgboost4j-spark",
                     "xgboost4j-spark-gpu",
                     "xgboost4j-flink",
