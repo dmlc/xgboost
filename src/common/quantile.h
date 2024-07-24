@@ -71,14 +71,6 @@ struct WQSummary {
          << "value: " << e.value;
       return os;
     }
-
-    XGBOOST_DEVICE inline bool operator==(Entry const& rhs) const {
-      return (rmin == rhs.rmin) && (rmax == rhs.rmax)
-             && (wmin == rhs.wmin) && (value == rhs.value);
-    }
-    XGBOOST_DEVICE inline bool operator!=(Entry const& rhs) const {
-      return !operator==(rhs);
-    }
   };
   /*! \brief input data queue before entering the summary */
   struct Queue {
