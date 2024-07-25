@@ -1,4 +1,4 @@
-"""Copyright 2019-2022 XGBoost contributors"""
+"""Copyright 2019-2024, XGBoost contributors"""
 
 import asyncio
 import json
@@ -7,12 +7,24 @@ import pickle
 import socket
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from copy import copy
 from functools import partial
 from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, Generator, Literal, Optional, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import hypothesis
 import numpy as np
@@ -136,6 +148,21 @@ def generate_array(
 Margin = TypeVar("Margin", dd.DataFrame, dd.Series, None)
 
 
+def deterministic_repartition(
+    client: Client,
+    X: dd.DataFrame,
+    y: dd.Series,
+    m: Margin,
+    divisions,
+) -> Tuple[dd.DataFrame, dd.Series, Margin]:
+    X, y, margin = (
+        dd.repartition(X, divisions=divisions, force=True),
+        dd.repartition(y, divisions=divisions, force=True),
+        dd.repartition(m, divisions=divisions, force=True) if m is not None else None,
+    )
+    return X, y, margin
+
+
 @pytest.mark.parametrize("to_frame", [True, False])
 def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client"):
     X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
@@ -159,10 +186,10 @@ def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client"):
 def test_from_dask_dataframe() -> None:
     with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            X, y, _ = generate_array()
+            X_, y_, _ = generate_array()
 
-            X = dd.from_dask_array(X)
-            y = dd.from_dask_array(y)
+            X = dd.from_dask_array(X_)
+            y = dd.from_dask_array(y_)
 
             dtrain = DaskDMatrix(client, X, y)
             booster = xgb.dask.train(client, {}, dtrain, num_boost_round=2)["booster"]
@@ -397,6 +424,7 @@ def run_boost_from_prediction_multi_class(
     tree_method: str,
     device: str,
     client: "Client",
+    divisions: List[int],
 ) -> None:
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
@@ -405,6 +433,7 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
+    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_0.fit(X=X, y=y)
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
@@ -418,6 +447,7 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
+    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     model_1.fit(X=X, y=y, base_margin=margin)
     predictions_1 = xgb.dask.predict(
         client,
@@ -433,6 +463,7 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
+    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_2.fit(X=X, y=y)
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
@@ -455,6 +486,7 @@ def run_boost_from_prediction(
     tree_method: str,
     device: str,
     client: "Client",
+    divisions: List[int],
 ) -> None:
     X, y = client.persist([X, y])
 
@@ -465,6 +497,7 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
+    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_0.fit(X=X, y=y)
     margin: dd.Series = model_0.predict(X, output_margin=True)
 
@@ -475,7 +508,9 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
+    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     model_1.fit(X=X, y=y, base_margin=margin)
+    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
     model_2 = xgb.dask.DaskXGBClassifier(
@@ -485,6 +520,7 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
+    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_2.fit(X=X, y=y)
     predictions_2: dd.Series = model_2.predict(X)
 
@@ -497,11 +533,13 @@ def run_boost_from_prediction(
     np.testing.assert_allclose(predt_1, predt_2, atol=1e-5)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
+    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     margined.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
 
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
+    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
     margined_res = margined.evals_result()["validation_0"]["logloss"]
@@ -518,12 +556,14 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
 
     X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=X_.shape[0]), dd.from_array(y_, chunksize=y_.shape[0])
-    run_boost_from_prediction(X, y, tree_method, "cpu", client)
+    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+    divisions = copy(X.divisions)
+    run_boost_from_prediction(X, y, tree_method, "cpu", client, divisions)
 
     X_, y_ = load_digits(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=X_.shape[0]), dd.from_array(y_, chunksize=y_.shape[0])
-    run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
+    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+    divisions = copy(X.divisions)
+    run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client, divisions)
 
 
 def test_inplace_predict(client: "Client") -> None:
@@ -1526,6 +1566,10 @@ class TestWithDask:
     def test_empty_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 2, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
+        divisions = copy(X_valid.divisions)
+        X_valid, y_valid, _ = deterministic_repartition(
+            client, X_valid, y_valid, None, divisions
+        )
 
         Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = xgb.dask.DaskQuantileDMatrix(
