@@ -530,10 +530,9 @@ struct GPUHistMakerDevice {
   void AllReduceHistEncrypted(int nidx, int num_histograms) {
     monitor.Start("AllReduceEncrypted");
     // Get encryption plugin
-    decltype(std::declval<collective::FederatedComm>().EncryptionPlugin()) plugin;
     auto const &comm = collective::GlobalCommGroup()->Ctx(ctx_, DeviceOrd::CPU());
     auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
-    plugin = fed.EncryptionPlugin();
+    auto plugin = fed.EncryptionPlugin();
 
     // Get the histogram data
     std::size_t n = page->Cuts().TotalBins() * 2 * num_histograms;
