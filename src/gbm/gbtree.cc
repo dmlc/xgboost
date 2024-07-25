@@ -237,9 +237,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
     }
   } else if (model_.learner_model_param->OutputLength() == 1u) {
     TreesOneGroup ret;
-      //std::cout << "BoostNewTrees" << std::endl;
     BoostNewTrees(in_gpair, p_fmat, 0, &node_position, &ret);
-      //std::cout << "UpdateTreeLeaf" << std::endl;
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
@@ -314,11 +312,7 @@ void GBTree::BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
 
   // update the trees
   auto n_out = model_.learner_model_param->OutputLength() * p_fmat->Info().num_row_;
-
-    //std::cout << "Num_rows: " << p_fmat->Info().num_row_ << " and n_out: " << n_out << std::endl;
-
-
-    StringView msg{
+  StringView msg{
       "Mismatching size between number of rows from input data and size of gradient vector."};
   if (!model_.learner_model_param->IsVectorLeaf() && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(n_out % gpair->Size(), 0) << msg;
@@ -331,18 +325,11 @@ void GBTree::BoostNewTrees(linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
   // Rescale learning rate according to the size of trees
   auto lr = tree_param_.learning_rate;
   tree_param_.learning_rate /= static_cast<float>(new_trees.size());
-
-    //std::cout << "Update for Rank " << collective::GetRank() << " with gpair size " << gpair->Size() << " and device " << gpair->Device() << std::endl;
-
-
-    for (auto& up : updaters_) {
+  for (auto& up : updaters_) {
     up->Update(&tree_param_, gpair, p_fmat,
                common::Span<HostDeviceVector<bst_node_t>>{*out_position}, new_trees);
   }
   tree_param_.learning_rate = lr;
-
-    //std::cout << "Update done" << std::endl;
-
 }
 
 void GBTree::CommitModel(TreesOneIter&& new_trees) {
