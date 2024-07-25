@@ -18,25 +18,27 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.spark.ml.param._
 
-private[spark] trait RabitParams extends Params {
-  /**
-   * Rabit parameters passed through Rabit.Init into native layer
-   * rabit_ring_reduce_threshold - minimal threshold to enable ring based allreduce operation
-   * rabit_timeout - wait interval before exit after rabit observed failures set -1 to disable
-   * dmlc_worker_connect_retry - number of retrys to tracker
-   * dmlc_worker_stop_process_on_error - exit process when rabit see assert/error
-   */
-  final val rabitRingReduceThreshold = new IntParam(this, "rabitRingReduceThreshold",
-    "threshold count to enable allreduce/broadcast with ring based topology",
-          ParamValidators.gtEq(1))
-  setDefault(rabitRingReduceThreshold, (32 << 10))
+private[spark] trait RabitParams extends Params with NonXGBoostParams {
 
-  final def rabitTimeout: IntParam = new IntParam(this, "rabitTimeout",
-  "timeout threshold after rabit observed failures")
-  setDefault(rabitTimeout, -1)
+  final val rabitTrackerTimeout = new IntParam(this, "rabitTrackerTimeout", "The number of " +
+    "seconds before timeout waiting for workers to connect. and for the tracker to shutdown.",
+    ParamValidators.gtEq(0))
 
-  final def rabitConnectRetry: IntParam = new IntParam(this, "dmlcWorkerConnectRetry",
-    "number of retry worker do before fail", ParamValidators.gtEq(1))
-  setDefault(rabitConnectRetry, 5)
+  final def getRabitTrackerTimeout: Int = $(rabitTrackerTimeout)
 
+  final val rabitTrackerHostIp = new Param[String](this, "rabitTrackerHostIp", "The Rabit " +
+    "Tracker host IP address. This is only needed if the host IP cannot be automatically " +
+    "guessed.")
+
+  final def getRabitTrackerHostIp: String = $(rabitTrackerHostIp)
+
+  final val rabitTrackerPort = new IntParam(this, "rabitTrackerPort", "The port number for the " +
+    "tracker to listen to. Use a system allocated one by default.",
+    ParamValidators.gtEq(0))
+
+  final def getRabitTrackerPort: Int = $(rabitTrackerPort)
+
+  setDefault(rabitTrackerTimeout -> 0, rabitTrackerHostIp -> "", rabitTrackerPort -> 0)
+
+  addNonXGBoostParam(rabitTrackerPort, rabitTrackerHostIp, rabitTrackerPort)
 }

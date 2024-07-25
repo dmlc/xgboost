@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2023 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -20,15 +20,15 @@ import java.nio.file.{Files, Path}
 import java.sql.{Date, Timestamp}
 import java.util.{Locale, TimeZone}
 
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.funsuite.AnyFunSuite
-
 import org.apache.spark.{GpuTestUtils, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.JavaUtils
 import org.apache.spark.sql.{Row, SparkSession}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.funsuite.AnyFunSuite
 
 trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
+
   import SparkSessionHolder.withSparkSession
 
   protected def getResourcePath(resource: String): String = {
@@ -57,10 +57,10 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
   }
 
   def compareResults(
-      sort: Boolean,
-      floatEpsilon: Double,
-      fromLeft: Array[Row],
-      fromRight: Array[Row]): Boolean = {
+    sort: Boolean,
+    floatEpsilon: Double,
+    fromLeft: Array[Row],
+    fromRight: Array[Row]): Boolean = {
     if (sort) {
       val left = fromLeft.map(_.toSeq).sortWith(seqLt)
       val right = fromRight.map(_.toSeq).sortWith(seqLt)
@@ -94,7 +94,7 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
             return true
           } else if (i1 > i2) {
             return false
-          }// else equal go on
+          } // else equal go on
           case (i1: Long, i2: Long) => if (i1 < i2) {
             return true
           } else if (i1 > i2) {
@@ -159,6 +159,7 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
         ("SUCCESS", true)
       }
     }
+
     (expected, actual) match {
       case (a: Float, b: Float) if a.isNaN && b.isNaN => true
       case (a: Double, b: Double) if a.isNaN && b.isNaN => true
@@ -201,7 +202,8 @@ trait GpuTestSuite extends AnyFunSuite with TmpFolderSuite {
 
 }
 
-trait TmpFolderSuite extends BeforeAndAfterAll { self: AnyFunSuite =>
+trait TmpFolderSuite extends BeforeAndAfterAll {
+  self: AnyFunSuite =>
   protected var tempDir: Path = _
 
   override def beforeAll(): Unit = {
@@ -244,6 +246,7 @@ object SparkSessionHolder extends Logging {
       .config("spark.sql.adaptive.enabled", "false")
       .config("spark.rapids.sql.enabled", "false")
       .config("spark.rapids.sql.test.enabled", "false")
+      .config("spark.stage.maxConsecutiveAttempts", "1")
       .config("spark.plugins", "com.nvidia.spark.SQLPlugin")
       .config("spark.rapids.memory.gpu.pooling.enabled", "false") // Disable RMM for unit tests.
       .config("spark.sql.files.maxPartitionBytes", "1000")
