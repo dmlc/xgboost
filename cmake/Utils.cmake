@@ -104,7 +104,20 @@ function(xgboost_set_cuda_flags target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
   endif()
 
-  target_link_libraries(${target} PRIVATE CCCL::CCCL)
+  # Use CCCL we find before CUDA Toolkit to make sure we get newer headers as intended
+  # The CUDA Toolkit includes its own copy of CCCL that often lags the latest releases
+  # (and would be picked up otherwise)
+  if(BUILD_STATIC_LIB)
+    # If the downstream user is statically linking with libxgboost, it needs to
+    # explicitly link with CCCL and CUDA runtime.
+    target_link_libraries(${target}
+      PUBLIC CCCL::CCCL CUDA::cudart_static)
+  else()
+    # If the downstream user is dynamically linking with libxgboost, it does not
+    # need to link with CCCL and CUDA runtime.
+    target_link_libraries(${target}
+      PRIVATE CCCL::CCCL CUDA::cudart_static)
+  endif()
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
     ${target} PRIVATE
@@ -235,7 +248,6 @@ macro(xgboost_target_link_libraries target)
 
   if(USE_CUDA)
     xgboost_set_cuda_flags(${target})
-    target_link_libraries(${target} PUBLIC CUDA::cudart_static)
   endif()
 
   if(PLUGIN_RMM)
