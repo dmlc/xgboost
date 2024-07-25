@@ -175,6 +175,7 @@ def native_build(args):
         maybe_makedirs("xgboost4j-spark-gpu/src/test/resources")
         for file in glob.glob("../demo/data/veterans_lung_cancer.csv"):
             cp(file, "xgboost4j-spark-gpu/src/test/resources")
+        cp("xgboost4j-spark/src/test/resources/rank.train.csv", "xgboost4j-spark-gpu/src/test/resources")
 
 
 if __name__ == "__main__":
