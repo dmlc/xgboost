@@ -17,14 +17,12 @@
 package ml.dmlc.xgboost4j.scala.rapids.spark
 
 import scala.collection.JavaConverters._
-
-import ml.dmlc.xgboost4j.gpu.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.java.nvidia.spark.GpuColumnBatch
+import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix, QuantileDMatrix}
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostEstimatorCommon
 import ml.dmlc.xgboost4j.scala.spark.{PreXGBoost, PreXGBoostProvider, Watches, XGBoost, XGBoostClassificationModel, XGBoostClassifier, XGBoostExecutionParams, XGBoostRegressionModel, XGBoostRegressor}
 import org.apache.commons.logging.LogFactory
-
 import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.ml.{Estimator, Model}
 import org.apache.spark.rdd.RDD
@@ -325,7 +323,7 @@ object GpuPreXGBoost extends PreXGBoostProvider {
                   throw new RuntimeException("Something wrong for feature indices")
                 }
                 try {
-                  val cudfColumnBatch = new CudfColumnBatch(feaTable, null, null, null)
+                  val cudfColumnBatch = new CudfColumnBatch(feaTable, null, null, null, null)
                   val dm = new DMatrix(cudfColumnBatch, missing, 1)
                   if (dm == null) {
                     Iterator.empty
@@ -586,7 +584,8 @@ object GpuPreXGBoost extends PreXGBoostProvider {
           gpuColumnBatch.slice(GpuUtils.seqIntToSeqInteger(indices.featureIds).asJava),
           gpuColumnBatch.slice(GpuUtils.seqIntToSeqInteger(Seq(indices.labelId)).asJava),
           gpuColumnBatch.slice(GpuUtils.seqIntToSeqInteger(weights).asJava),
-          gpuColumnBatch.slice(GpuUtils.seqIntToSeqInteger(margins).asJava));
+          gpuColumnBatch.slice(GpuUtils.seqIntToSeqInteger(margins).asJava),
+          null);
       }
     }
   }

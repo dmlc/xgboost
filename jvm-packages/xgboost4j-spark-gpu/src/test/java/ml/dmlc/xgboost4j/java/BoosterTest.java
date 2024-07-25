@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  limitations under the License.
  */
 
-package ml.dmlc.xgboost4j.gpu.java;
+package ml.dmlc.xgboost4j.java;
 
 import java.io.File;
 import java.util.HashMap;
@@ -22,31 +22,21 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import ai.rapids.cudf.*;
 import junit.framework.TestCase;
-
 import org.junit.Test;
-
-import ai.rapids.cudf.DType;
-import ai.rapids.cudf.Schema;
-import ai.rapids.cudf.Table;
-import ai.rapids.cudf.ColumnVector;
-import ai.rapids.cudf.CSVOptions;
-import ml.dmlc.xgboost4j.java.Booster;
-import ml.dmlc.xgboost4j.java.ColumnBatch;
-import ml.dmlc.xgboost4j.java.DMatrix;
-import ml.dmlc.xgboost4j.java.QuantileDMatrix;
-import ml.dmlc.xgboost4j.java.XGBoost;
-import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
  * Tests the BoosterTest trained by DMatrix
+ *
  * @throws XGBoostError
  */
 public class BoosterTest {
 
   @Test
   public void testBooster() throws XGBoostError {
-    String trainingDataPath = "../../demo/data/veterans_lung_cancer.csv";
+    String trainingDataPath = getClass().getClassLoader()
+      .getResource("veterans_lung_cancer.csv").getPath();
     Schema schema = Schema.builder()
       .column(DType.FLOAT32, "A")
       .column(DType.FLOAT32, "B")
@@ -78,7 +68,7 @@ public class BoosterTest {
         put("num_round", round);
         put("num_workers", 1);
         put("tree_method", "hist");
-	put("device", "cuda");
+        put("device", "cuda");
         put("max_bin", maxBin);
       }
     };
@@ -95,7 +85,7 @@ public class BoosterTest {
 
         try (Table y = new Table(labels);) {
 
-          CudfColumnBatch batch = new CudfColumnBatch(X, y, null, null);
+          CudfColumnBatch batch = new CudfColumnBatch(X, y, null, null, null);
           CudfColumn labelColumn = CudfColumn.from(tmpTable.getColumn(12));
 
           //set watchList

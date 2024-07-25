@@ -104,7 +104,8 @@ void CopyInterface(std::vector<xgboost::ArrayInterface<1>> &interface_arr,
   }
 }
 
-void CopyMetaInfo(Json *p_interface, dh::device_vector<float> *out, cudaStream_t stream) {
+template <typename T>
+void CopyMetaInfo(Json *p_interface, dh::device_vector<T> *out, cudaStream_t stream) {
   auto &j_interface = *p_interface;
   CHECK_EQ(get<Array const>(j_interface).size(), 1);
   auto object = get<Object>(get<Array>(j_interface)[0]);
@@ -151,9 +152,11 @@ class DataIteratorProxy {
   std::vector<std::unique_ptr<dh::device_vector<float>>> labels_;
   std::vector<std::unique_ptr<dh::device_vector<float>>> weights_;
   std::vector<std::unique_ptr<dh::device_vector<float>>> base_margins_;
+  std::vector<std::unique_ptr<dh::device_vector<int>>> qids_;
   std::vector<Json> label_interfaces_;
   std::vector<Json> weight_interfaces_;
   std::vector<Json> margin_interfaces_;
+  std::vector<Json> qid_interfaces_;
 
   size_t it_{0};
   size_t n_batches_{0};
@@ -186,11 +189,11 @@ class DataIteratorProxy {
   void StageMetaInfo(Json json_interface) {
     CHECK(!IsA<Null>(json_interface));
     auto json_map = get<Object const>(json_interface);
-    if (json_map.find("label_str") == json_map.cend()) {
+    if (json_map.find("label") == json_map.cend()) {
       LOG(FATAL) << "Must have a label field.";
     }
 
-    Json label = json_interface["label_str"];
+    Json label = json_interface["label"];
     CHECK(!IsA<Null>(label));
     labels_.emplace_back(new dh::device_vector<float>);
     CopyMetaInfo(&label, labels_.back().get(), copy_stream_);
@@ -200,8 +203,8 @@ class DataIteratorProxy {
     Json::Dump(label, &str);
     XGDMatrixSetInfoFromInterface(proxy_, "label", str.c_str());
 
-    if (json_map.find("weight_str") != json_map.cend()) {
-      Json weight = json_interface["weight_str"];
+    if (json_map.find("weight") != json_map.cend()) {
+      Json weight = json_interface["weight"];
       CHECK(!IsA<Null>(weight));
       weights_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&weight, weights_.back().get(), copy_stream_);
@@ -211,14 +214,24 @@ class DataIteratorProxy {
       XGDMatrixSetInfoFromInterface(proxy_, "weight", str.c_str());
     }
 
-    if (json_map.find("basemargin_str") != json_map.cend()) {
-      Json basemargin = json_interface["basemargin_str"];
+    if (json_map.find("baseMargin") != json_map.cend()) {
+      Json basemargin = json_interface["baseMargin"];
       base_margins_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&basemargin, base_margins_.back().get(), copy_stream_);
       margin_interfaces_.emplace_back(basemargin);
 
       Json::Dump(basemargin, &str);
       XGDMatrixSetInfoFromInterface(proxy_, "base_margin", str.c_str());
+    }
+
+    if (json_map.find("qid") != json_map.cend()) {
+      Json qid = json_interface["qid"];
+      qids_.emplace_back(new dh::device_vector<int>);
+      CopyMetaInfo(&qid, qids_.back().get(), copy_stream_);
+      qid_interfaces_.emplace_back(qid);
+
+      Json::Dump(qid, &str);
+      XGDMatrixSetInfoFromInterface(proxy_, "qid", str.c_str());
     }
   }
 
@@ -249,11 +262,11 @@ class DataIteratorProxy {
       // batch should be ColumnBatch from jvm
       jobject batch = CheckJvmCall(jenv_->CallObjectMethod(jiter_, next), jenv_);
       jclass batch_class = CheckJvmCall(jenv_->GetObjectClass(batch), jenv_);
-      jmethodID getArrayInterfaceJson = CheckJvmCall(jenv_->GetMethodID(
-        batch_class, "getArrayInterfaceJson", "()Ljava/lang/String;"), jenv_);
+      jmethodID toJson = CheckJvmCall(jenv_->GetMethodID(
+        batch_class, "toJson", "()Ljava/lang/String;"), jenv_);
 
       auto jinterface =
-        static_cast<jstring>(jenv_->CallObjectMethod(batch, getArrayInterfaceJson));
+        static_cast<jstring>(jenv_->CallObjectMethod(batch, toJson));
       CheckJvmCall(jinterface, jenv_);
       char const *c_interface_str =
           CheckJvmCall(jenv_->GetStringUTFChars(jinterface, nullptr), jenv_);
@@ -281,7 +294,7 @@ class DataIteratorProxy {
     CHECK(!IsA<Null>(json_interface));
     StageMetaInfo(json_interface);
 
-    Json features = json_interface["features_str"];
+    Json features = json_interface["features"];
     auto json_columns = get<Array const>(features);
     std::vector<ArrayInterface<1>> interfaces;
 
@@ -335,6 +348,12 @@ class DataIteratorProxy {
       auto const &base_margin = this->margin_interfaces_.at(it_);
       Json::Dump(base_margin, &str);
       XGDMatrixSetInfoFromInterface(proxy_, "base_margin", str.c_str());
+    }
+
+    if (n_batches_ == this->qid_interfaces_.size()) {
+      auto const &qid = this->qid_interfaces_.at(it_);
+      Json::Dump(qid, &str);
+      XGDMatrixSetInfoFromInterface(proxy_, "qid", str.c_str());
     }
 
     // Data
