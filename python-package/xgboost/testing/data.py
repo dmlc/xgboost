@@ -525,7 +525,7 @@ def make_batches(  # pylint: disable=too-many-arguments,too-many-locals
     if use_cupy:
         import cupy  # pylint: disable=import-error
 
-        rng = cupy.random.RandomState(random_state)
+        rng = cupy.random.RandomState(np.uint64(random_state))
     else:
         rng = np.random.RandomState(random_state)
     for i in range(n_batches):
