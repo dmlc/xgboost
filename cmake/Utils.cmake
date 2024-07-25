@@ -104,6 +104,8 @@ function(xgboost_set_cuda_flags target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
   endif()
 
+  # Use CCCL we find before CUDA Toolkit to make sure we get newer headers as intended
+  # The CUDA Toolkit includes its own copy of CCCL that often lags the latest releases (and would be picked up otherwise)
   target_link_libraries(${target}
     PRIVATE CCCL::CCCL CUDA::cudart_static)
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
