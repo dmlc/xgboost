@@ -1567,9 +1567,6 @@ class TestWithDask:
         X, y = make_categorical(client, 2, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
         divisions = copy(X_valid.divisions)
-        X_valid, y_valid, _ = deterministic_repartition(
-            client, X_valid, y_valid, None, divisions
-        )
 
         Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = xgb.dask.DaskQuantileDMatrix(
