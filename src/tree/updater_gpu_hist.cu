@@ -573,7 +573,7 @@ struct GPUHistMakerDevice {
     // copy the aggregated histogram back to GPU memory
     cudaMemcpy(erased.data(), hist_aggr_64.data(), erased.size(), cudaMemcpyHostToDevice);
 
-    monitor.Stop("AllReduceEncrypted");
+    monitor.Stop(__func__);
   }
 
   /**
