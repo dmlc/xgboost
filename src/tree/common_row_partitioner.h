@@ -145,9 +145,10 @@ class CommonRowPartitioner {
   }
 
   /* Making GHistIndexMatrix_t a templete parameter allows reuse this function for sycl-plugin */
-  template <typename ExpandEntry, typename GHistIndexMatrix_t>
+  template <typename ExpandEntry, typename GHistIndexMatrixT>
   static void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
-                        const GHistIndexMatrix_t& gmat, std::vector<int32_t>* split_conditions) {
+                                  GHistIndexMatrixT const& gmat,
+                                  std::vector<int32_t>* split_conditions) {
     auto const& ptrs = gmat.cut.Ptrs();
     auto const& vals = gmat.cut.Values();
 
