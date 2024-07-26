@@ -46,6 +46,7 @@
 
 #include "../collective/communicator-inl.h"
 #include "../collective/allgather.h"         // for AllgatherV
+#include "../../plugin/federated/federated_comm.h"  // for FederatedComm
 
 namespace xgboost::tree {
 #if !defined(GTEST_TEST)
