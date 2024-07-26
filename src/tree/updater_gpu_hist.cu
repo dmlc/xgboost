@@ -46,7 +46,12 @@
 
 #include "../collective/communicator-inl.h"
 #include "../collective/allgather.h"         // for AllgatherV
+
+#if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_comm.h"  // for FederatedComm
+#else
+#include "../../common/error_msg.h"  // for NoFederated
+#endif
 
 namespace xgboost::tree {
 #if !defined(GTEST_TEST)
@@ -528,6 +533,7 @@ struct GPUHistMakerDevice {
     monitor.Stop("AllReduce");
   }
 
+#if defined(XGBOOST_USE_FEDERATED)
   void AllReduceHistEncrypted(int nidx, int num_histograms) {
     monitor.Start(__func__);
     // Get encryption plugin
@@ -576,6 +582,7 @@ struct GPUHistMakerDevice {
 
     monitor.Stop(__func__);
   }
+#endif
 
   /**
    * \brief Build GPU local histograms for the left and right child of some parent node
@@ -613,7 +620,9 @@ struct GPUHistMakerDevice {
     // when processing a large batch
     // If secure horizontal, perform AllReduce by calling the encryption plugin
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
-      this->AllReduceHistEncrypted(hist_nidx.at(0), hist_nidx.size());
+      #if defined(XGBOOST_USE_FEDERATED)
+        this->AllReduceHistEncrypted(hist_nidx.at(0), hist_nidx.size());
+      #endif
     } else {
       this->AllReduceHist(hist_nidx.at(0), hist_nidx.size());
     }
@@ -627,7 +636,9 @@ struct GPUHistMakerDevice {
         // Calculate other histogram manually
         this->BuildHist(subtraction_trick_nidx);
         if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
-          this->AllReduceHistEncrypted(subtraction_trick_nidx, 1);
+          #if defined(XGBOOST_USE_FEDERATED)
+            this->AllReduceHistEncrypted(subtraction_trick_nidx, 1);
+          #endif
         } else {
           this->AllReduceHist(subtraction_trick_nidx, 1);
         }
@@ -705,7 +716,9 @@ struct GPUHistMakerDevice {
     hist.AllocateHistograms(ctx_, {kRootNIdx});
     this->BuildHist(kRootNIdx);
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
-      this->AllReduceHistEncrypted(kRootNIdx, 1);
+      #if defined(XGBOOST_USE_FEDERATED)
+        this->AllReduceHistEncrypted(kRootNIdx, 1);
+      #endif
     } else {
       this->AllReduceHist(kRootNIdx, 1);
     }
