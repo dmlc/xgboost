@@ -8,6 +8,8 @@
 #include "../../../plugin/sycl/tree/hist_updater.h"
 #include "../../../plugin/sycl/device_manager.h"
 
+#include "../../../src/tree/common_row_partitioner.h"
+
 #include "../helpers.h"
 
 namespace xgboost::sycl::tree {
@@ -60,6 +62,12 @@ class TestHistUpdater : public HistUpdater<GradientSumT> {
                           const RegTree& tree) {
     HistUpdater<GradientSumT>::EvaluateSplits(nodes_set, gmat, tree);
     return HistUpdater<GradientSumT>::snode_host_;
+  }
+
+  void TestApplySplit(const std::vector<ExpandEntry> nodes,
+                      const common::GHistIndexMatrix& gmat,
+                      RegTree* p_tree) {
+    HistUpdater<GradientSumT>::ApplySplit(nodes, gmat, p_tree);
   }
 };
 
@@ -131,7 +139,6 @@ void TestHistUpdaterSampling(const xgboost::tree::TrainParam& param) {
 
     ASSERT_NE(num_diffs, 0);
   }
-
 }
 
 template <typename GradientSumT>
@@ -392,6 +399,95 @@ void TestHistUpdaterEvaluateSplits(const xgboost::tree::TrainParam& param) {
   ASSERT_NEAR(best_loss_chg_des[0], best_loss_chg, 1e-6);
 }
 
+template <typename GradientSumT>
+void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float sparsity, int max_bins) {
+  const size_t num_rows = 1024;
+  const size_t num_columns = 2;
+
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+
+  DeviceManager device_manager;
+  auto qu = device_manager.GetQueue(ctx.Device());
+
+  ObjInfo task{ObjInfo::kRegression}; 
+
+  auto p_fmat = RandomDataGenerator{num_rows, num_columns, sparsity}.GenerateDMatrix();
+  sycl::DeviceMatrix dmat;
+  dmat.Init(qu, p_fmat.get());
+
+  common::GHistIndexMatrix gmat;
+  gmat.Init(qu, &ctx, dmat, max_bins);
+
+  RegTree tree;
+  tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
+
+  std::vector<tree::ExpandEntry> nodes;
+  nodes.emplace_back(tree::ExpandEntry(0, tree.GetDepth(0)));
+
+  FeatureInteractionConstraintHost int_constraints;
+  std::unique_ptr<TreeUpdater> pruner{TreeUpdater::Create("prune", &ctx, &task)};
+  TestHistUpdater<GradientSumT> updater(&ctx, qu, param, std::move(pruner), int_constraints, p_fmat.get());
+  USMVector<GradientPair, MemoryType::on_device> gpair(&qu, num_rows);
+  GenerateRandomGPairs(&qu, gpair.Data(), num_rows, false);
+
+  auto* row_set_collection = updater.TestInitData(gmat, gpair, *p_fmat, tree);
+  updater.TestApplySplit(nodes, gmat, &tree);
+
+  // Copy indexes to host
+  std::vector<size_t> row_indices_host(num_rows);
+  qu.memcpy(row_indices_host.data(), row_set_collection->Data().Data(), sizeof(size_t)*num_rows).wait();
+
+  // Reference Implementation
+  std::vector<size_t> row_indices_desired_host(num_rows);
+  size_t n_left, n_right;
+  {
+    std::unique_ptr<TreeUpdater> pruner4verification{TreeUpdater::Create("prune", &ctx, &task)};
+    TestHistUpdater<GradientSumT> updater4verification(&ctx, qu, param, std::move(pruner4verification), int_constraints, p_fmat.get());
+    auto* row_set_collection4verification = updater4verification.TestInitData(gmat, gpair, *p_fmat, tree);
+
+    size_t n_nodes = nodes.size();
+    std::vector<int32_t> split_conditions(n_nodes);
+    xgboost::tree::CommonRowPartitioner::FindSplitConditions(nodes, tree, gmat, &split_conditions);
+
+    common::PartitionBuilder partition_builder;
+    partition_builder.Init(&qu, n_nodes, [&](size_t node_in_set) {
+      const int32_t nid = nodes[node_in_set].nid;
+      return (*row_set_collection4verification)[nid].Size();
+    });
+
+    ::sycl::event event;
+    partition_builder.Partition(gmat, nodes, (*row_set_collection4verification),
+                                split_conditions, &tree, &event);
+    qu.wait_and_throw();
+
+    for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
+      const int32_t nid = nodes[node_in_set].nid;
+      size_t* data_result = const_cast<size_t*>((*row_set_collection4verification)[nid].begin);
+      partition_builder.MergeToArray(node_in_set, data_result, &event);
+    }
+    qu.wait_and_throw();
+
+    const int32_t nid = nodes[0].nid;
+    n_left = partition_builder.GetNLeftElems(0);
+    n_right = partition_builder.GetNRightElems(0);
+
+    row_set_collection4verification->AddSplit(nid, tree[nid].LeftChild(),
+        tree[nid].RightChild(), n_left, n_right);
+
+    qu.memcpy(row_indices_desired_host.data(), row_set_collection4verification->Data().Data(), sizeof(size_t)*num_rows).wait();
+  }
+
+  std::sort(row_indices_desired_host.begin(), row_indices_desired_host.begin() + n_left);
+  std::sort(row_indices_host.begin(), row_indices_host.begin() + n_left);
+  std::sort(row_indices_desired_host.begin() + n_left, row_indices_desired_host.end());
+  std::sort(row_indices_host.begin() + n_left, row_indices_host.end());
+
+  for (size_t row = 0; row < num_rows; ++row) {
+    ASSERT_EQ(row_indices_desired_host[row], row_indices_host[row]);
+  }
+}
+
 TEST(SyclHistUpdater, Sampling) {
   xgboost::tree::TrainParam param;
   param.UpdateAllowUnknown(Args{{"subsample", "0.7"}});
@@ -437,6 +533,26 @@ TEST(SyclHistUpdater, EvaluateSplits) {
 
   TestHistUpdaterEvaluateSplits<float>(param);
   TestHistUpdaterEvaluateSplits<double>(param);
+}
+
+TEST(SyclHistUpdater, ApplySplitSparce) {
+  xgboost::tree::TrainParam param;
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
+
+  TestHistUpdaterApplySplit<float>(param, 0.3, 256);
+  TestHistUpdaterApplySplit<double>(param, 0.3, 256);
+}
+
+TEST(SyclHistUpdater, ApplySplitDence) {
+  xgboost::tree::TrainParam param;
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
+
+  TestHistUpdaterApplySplit<float>(param, 0.0, 256);
+  TestHistUpdaterApplySplit<float>(param, 0.0, 256+1);
+  TestHistUpdaterApplySplit<float>(param, 0.0, (1u << 16) + 1);
+  TestHistUpdaterApplySplit<double>(param, 0.0, 256);
+  TestHistUpdaterApplySplit<double>(param, 0.0, 256+1);
+  TestHistUpdaterApplySplit<double>(param, 0.0, (1u << 16) + 1);
 }
 
 }  // namespace xgboost::sycl::tree
