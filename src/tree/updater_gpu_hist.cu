@@ -543,7 +543,7 @@ struct GPUHistMakerDevice {
     // copy the histogram out of GPU memory
     common::Span<std::int8_t> erased = common::EraseType(hist_vec.Values());
     std::vector<std::int8_t> h_data(erased.size());
-    cudaMemcpy(h_data.data(), erased.data(), erased.size(), cudaMemcpyDeviceToHost);
+    dh::safe_cuda(cudaMemcpy(h_data.data(), erased.data(), erased.size(), cudaMemcpyDeviceToHost));
 
     // call the encryption plugin
     auto src_hist = common::Span{reinterpret_cast<double const *>(h_data.data()), n};
