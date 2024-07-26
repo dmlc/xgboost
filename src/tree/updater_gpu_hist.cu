@@ -582,6 +582,8 @@ struct GPUHistMakerDevice {
 
     monitor.Stop(__func__);
   }
+#else
+  LOG(FATAL) << error::NoFederated();
 #endif
 
   /**
@@ -622,6 +624,8 @@ struct GPUHistMakerDevice {
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
       #if defined(XGBOOST_USE_FEDERATED)
         this->AllReduceHistEncrypted(hist_nidx.at(0), hist_nidx.size());
+      #else
+        LOG(FATAL) << error::NoFederated();
       #endif
     } else {
       this->AllReduceHist(hist_nidx.at(0), hist_nidx.size());
@@ -638,6 +642,8 @@ struct GPUHistMakerDevice {
         if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
           #if defined(XGBOOST_USE_FEDERATED)
             this->AllReduceHistEncrypted(subtraction_trick_nidx, 1);
+          #else
+            LOG(FATAL) << error::NoFederated();
           #endif
         } else {
           this->AllReduceHist(subtraction_trick_nidx, 1);
@@ -718,6 +724,8 @@ struct GPUHistMakerDevice {
     if (collective::IsDistributed() && info_.IsRowSplit() && collective::IsEncrypted()) {
       #if defined(XGBOOST_USE_FEDERATED)
         this->AllReduceHistEncrypted(kRootNIdx, 1);
+      #else
+        LOG(FATAL) << error::NoFederated();
       #endif
     } else {
       this->AllReduceHist(kRootNIdx, 1);
