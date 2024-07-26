@@ -18,5 +18,5 @@ dependencies:
 - python-graphviz
 - pip
 - py-ubjson
-- cffi
+- loky
 - pyarrow

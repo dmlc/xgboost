@@ -33,7 +33,7 @@ dependencies:
 - boto3
 - awscli
 - py-ubjson
-- cffi
+- loky
 - pyarrow
 - protobuf
 - cloudpickle

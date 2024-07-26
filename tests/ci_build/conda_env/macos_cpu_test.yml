@@ -32,7 +32,7 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
-- cffi
+- loky
 - pyarrow
 - pyspark>=3.4.0
 - cloudpickle

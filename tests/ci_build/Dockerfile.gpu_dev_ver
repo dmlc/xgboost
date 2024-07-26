@@ -30,7 +30,8 @@ RUN \
         "nccl>=${NCCL_SHORT_VER}" \
         dask \
         "dask-cuda=$RAPIDS_VERSION_ARG.*" "dask-cudf=$RAPIDS_VERSION_ARG.*" cupy \
-        numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis \
+        numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel \
+        python-kubernetes urllib3 graphviz hypothesis loky \
         "pyspark>=3.4.0" cloudpickle cuda-python && \
     mamba clean --all --yes && \
     conda run --no-capture-output -n gpu_test pip install buildkite-test-collector
