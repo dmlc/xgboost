@@ -528,7 +528,7 @@ struct GPUHistMakerDevice {
   }
 
   void AllReduceHistEncrypted(int nidx, int num_histograms) {
-    monitor.Start("AllReduceEncrypted");
+    monitor.Start(__func__);
     // Get encryption plugin
     auto const &comm = collective::GlobalCommGroup()->Ctx(ctx_, DeviceOrd::CPU());
     auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
