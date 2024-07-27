@@ -4,7 +4,7 @@ from threading import Thread
 
 import numpy as np
 import pytest
-from loky import ProcessPoolExecutor, get_reusable_executor
+from loky import get_reusable_executor
 
 import xgboost as xgb
 from xgboost import RabitTracker, build_info, federated
@@ -23,6 +23,7 @@ def run_rabit_worker(rabit_env: dict, world_size: int) -> int:
     return 0
 
 
+@pytest.mark.skipif(**tm.no_loky())
 def test_rabit_communicator() -> None:
     world_size = 2
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
@@ -57,6 +58,7 @@ def run_federated_worker(port: int, world_size: int, rank: int) -> int:
 
 
 @pytest.mark.skipif(**tm.skip_win())
+@pytest.mark.skipif(**tm.no_loky())
 def test_federated_communicator():
     if not build_info()["USE_FEDERATED"]:
         pytest.skip("XGBoost not built with federated learning enabled")
@@ -67,7 +69,7 @@ def test_federated_communicator():
         kwargs={"port": port, "n_workers": world_size, "blocking": False}
         tracker = pool.submit(federated.run_federated_server, **kwargs)
         if not tracker.running():
-            raise Exception("Error starting Federated Learning server")
+            raise RuntimeError("Error starting Federated Learning server")
 
         workers = []
         for rank in range(world_size):

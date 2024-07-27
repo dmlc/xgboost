@@ -114,6 +114,10 @@ def no_dask() -> PytestSkip:
     return no_mod("dask")
 
 
+def no_loky() -> PytestSkip:
+    return no_mod("loky")
+
+
 def no_dask_ml() -> PytestSkip:
     if sys.platform.startswith("win"):
         return {"reason": "Unsupported platform.", "condition": True}
