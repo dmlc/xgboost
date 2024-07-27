@@ -138,6 +138,9 @@ def locate_or_build_libxgboost(
             sys_prefix / "Library",
             sys_prefix / "Library" / "bin",
             sys_prefix / "Library" / "lib",
+            sys_prefix / "Library" / "mingw-w64",
+            sys_prefix / "Library" / "mingw-w64" / "bin",
+            sys_prefix / "Library" / "mingw-w64" / "lib",
         ]
         sys_prefix_candidates = [
             p.expanduser().resolve() for p in sys_prefix_candidates
