@@ -157,28 +157,37 @@ class GHistIndexMatrix {
 
   ~GHistIndexMatrix();
   /**
-   * \brief Constrcutor for SimpleDMatrix.
+   * @brief Constrcutor for SimpleDMatrix.
    */
   GHistIndexMatrix(Context const* ctx, DMatrix* x, bst_bin_t max_bins_per_feat,
                    double sparse_thresh, bool sorted_sketch, common::Span<float const> hess = {});
   /**
-   * \brief Constructor for Iterative DMatrix. Initialize basic information and prepare
+   * @brief Constructor for Quantile DMatrix. Initialize basic information and prepare
    *        for push batch.
    */
-  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts, bst_bin_t max_bin_per_feat);
+  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts,
+                   bst_bin_t max_bin_per_feat);
+
   /**
-   * \brief Constructor fro Iterative DMatrix where we might copy an existing ellpack page
+   * @brief Constructor for the external memory Quantile DMatrix. Initialize basic
+   *        information and prepare for push batch.
+   */
+  GHistIndexMatrix(bst_idx_t n_samples, bst_idx_t base_rowid, common::HistogramCuts&& cuts,
+                   bst_bin_t max_bin_per_feat, bool is_dense);
+
+  /**
+   * @brief Constructor fro Quantile DMatrix where we might copy an existing ellpack page
    *        to host gradient index.
    */
   GHistIndexMatrix(Context const* ctx, MetaInfo const& info, EllpackPage const& page,
                    BatchParam const& p);
 
   /**
-   * \brief Constructor for external memory.
+   * @brief Constructor for external memory.
    */
   GHistIndexMatrix(SparsePage const& page, common::Span<FeatureType const> ft,
                    common::HistogramCuts cuts, int32_t max_bins_per_feat, bool is_dense,
-                   double sparse_thresh, int32_t n_threads);
+                   double sparse_thresh, std::int32_t n_threads);
   GHistIndexMatrix();  // also for ext mem, empty ctor so that we can read the cache back.
 
   template <typename Batch>

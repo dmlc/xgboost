@@ -1,6 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost Contributors
- * \file proxy_dmatrix.cc
+ * Copyright 2021-2024, XGBoost Contributors
  */
 
 #include "proxy_dmatrix.h"

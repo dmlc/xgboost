@@ -7,7 +7,7 @@
 #include "../collective/allreduce.h"
 #include "../common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "../common/hist_util.cuh"
-#include "batch_utils.h"  // for RegenGHist
+#include "batch_utils.h"  // for RegenGHist, CheckParam
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"
 #include "iterative_dmatrix.h"
@@ -179,7 +179,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
 BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
                                                           BatchParam const& param) {
   if (param.Initialized()) {
-    CheckParam(param);
+    detail::CheckParam(this->batch_, param);
     CHECK(!detail::RegenGHist(param, batch_)) << error::InconsistentMaxBin();
   }
   if (!ellpack_ && !ghist_) {
@@ -208,9 +208,5 @@ BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
   CHECK(ellpack_);
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(begin_iter);
-}
-
-void GetCutsFromEllpack(EllpackPage const& page, common::HistogramCuts* cuts) {
-  *cuts = page.Impl()->Cuts();
 }
 }  // namespace xgboost::data
