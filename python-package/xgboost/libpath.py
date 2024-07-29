@@ -38,6 +38,9 @@ def find_lib_path() -> List[str]:
                 os.path.join(sys.base_prefix, "Library"),
                 os.path.join(sys.base_prefix, "Library", "bin"),
                 os.path.join(sys.base_prefix, "Library", "lib"),
+                os.path.join(sys.base_prefix, "Library", "mingw-w64"),
+                os.path.join(sys.base_prefix, "Library", "mingw-w64", "bin"),
+                os.path.join(sys.base_prefix, "Library", "mingw-w64", "lib"),
             ]
         )
         dll_path = [os.path.join(p, "xgboost.dll") for p in dll_path]
