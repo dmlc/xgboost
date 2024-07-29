@@ -50,7 +50,7 @@
 #if defined(XGBOOST_USE_FEDERATED)
 #include "../../plugin/federated/federated_comm.h"  // for FederatedComm
 #else
-#include "../../common/error_msg.h"  // for NoFederated
+#include "../common/error_msg.h"  // for NoFederated
 #endif
 
 namespace xgboost::tree {
@@ -582,8 +582,6 @@ struct GPUHistMakerDevice {
 
     monitor.Stop(__func__);
   }
-#else
-  LOG(FATAL) << error::NoFederated();
 #endif
 
   /**
