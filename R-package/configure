@@ -3129,11 +3129,11 @@ printf "%s\n" "$ac_cv_c_bigendian" >&6; }
    yes)
      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: big endian" >&5
 printf "%s\n" "big endian" >&6; }
-     ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN:BOOL=0";; #(
+     ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=0";; #(
    no)
      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: little endian" >&5
 printf "%s\n" "little endian" >&6; }
-     ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN:BOOL=1" ;; #(
+     ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=1" ;; #(
    universal)
 
 printf "%s\n" "#define AC_APPLE_UNIVERSAL_BUILD 1" >>confdefs.h
@@ -3151,7 +3151,7 @@ else $as_nop
 
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: Forcing endianness to: ${USE_LITTLE_ENDIAN}" >&5
 printf "%s\n" "$as_me: Forcing endianness to: ${USE_LITTLE_ENDIAN}" >&6;}
-  ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN:BOOL=${USE_LITTLE_ENDIAN}"
+  ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=${USE_LITTLE_ENDIAN}"
 
 fi
 
