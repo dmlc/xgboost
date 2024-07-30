@@ -41,3 +41,8 @@ jobs:
           -e CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move' \
           localhost:5000/xgboost/build-32bit:latest \
           tests/ci_build/build_via_cmake.sh
+    - name: Run Google Test (C++)
+      run: |
+        docker run --rm -v $PWD:/workspace -w /workspace \
+          localhost:5000/xgboost/build-32bit:latest \
+          build/testxgboost
