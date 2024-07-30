@@ -1,8 +1,9 @@
-"""Copyright 2019-2023, XGBoost contributors"""
+"""Copyright 2019-2024, XGBoost contributors"""
 
 import asyncio
 import json
 from collections import OrderedDict
+from copy import copy
 from inspect import signature
 from typing import Any, Dict, Type, TypeVar
 
@@ -53,15 +54,13 @@ except ImportError:
 
 def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
+    import dask_cudf
 
     cp.cuda.runtime.setDevice(0)
     _X, _y, _ = generate_array()
 
-    X = dd.from_dask_array(_X)
-    y = dd.from_dask_array(_y)
-
-    X = X.map_partitions(cudf.from_pandas)
-    y = y.map_partitions(cudf.from_pandas)
+    X = dd.from_dask_array(_X).to_backend("cudf")
+    y = dd.from_dask_array(_y).to_backend("cudf")
 
     dtrain = DMatrixT(client, X, y)
     out = dxgb.train(
@@ -216,18 +215,22 @@ def test_tree_stats() -> None:
 class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cudf())
     def test_boost_from_prediction(self, local_cuda_client: Client) -> None:
-        import cudf
+        import dask_cudf
         from sklearn.datasets import load_breast_cancer, load_iris
 
         X_, y_ = load_breast_cancer(return_X_y=True)
-        X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
-        y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
+        X = dd.from_array(X_, chunksize=100).to_backend("cudf")
+        y = dd.from_array(y_, chunksize=100).to_backend("cudf")
+        divisions = copy(X.divisions)
+        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client, divisions)
 
         X_, y_ = load_iris(return_X_y=True)
-        X = dd.from_array(X_, chunksize=50).map_partitions(cudf.from_pandas)
-        y = dd.from_array(y_, chunksize=50).map_partitions(cudf.from_pandas)
-        run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
+        X = dd.from_array(X_, chunksize=50).to_backend("cudf")
+        y = dd.from_array(y_, chunksize=50).to_backend("cudf")
+        divisions = copy(X.divisions)
+        run_boost_from_prediction_multi_class(
+            X, y, "hist", "cuda", local_cuda_client, divisions
+        )
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
         check_init_estimation("hist", "cuda", local_cuda_client)

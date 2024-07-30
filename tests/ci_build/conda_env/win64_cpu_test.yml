@@ -2,7 +2,7 @@ name: win64_env
 channels:
 - conda-forge
 dependencies:
-- python=3.8
+- python=3.10
 - wheel
 - numpy
 - scipy
@@ -18,5 +18,5 @@ dependencies:
 - python-graphviz
 - pip
 - py-ubjson
-- cffi
+- loky
 - pyarrow

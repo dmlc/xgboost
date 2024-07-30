@@ -20,7 +20,7 @@ class TestQuantileDMatrix:
     def test_dmatrix_feature_weights(self) -> None:
         import cupy as cp
 
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
         data = rng.randn(5, 5)
         m = xgb.DMatrix(data)
 
@@ -146,7 +146,7 @@ class TestQuantileDMatrix:
     def test_metainfo(self) -> None:
         import cupy as cp
 
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
 
         rows = 10
         cols = 3
@@ -170,7 +170,7 @@ class TestQuantileDMatrix:
     def test_ref_dmatrix(self) -> None:
         import cupy as cp
 
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
         self.cputest.run_ref_dmatrix(rng, "gpu_hist", False)
 
     @given(

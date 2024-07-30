@@ -226,7 +226,7 @@ class TestGPUPredict:
         cols = 10
         missing = 11  # set to integer for testing
 
-        cp_rng = cp.random.RandomState(1994)
+        cp_rng = cp.random.RandomState(np.uint64(1994))
         cp.random.set_random_state(cp_rng)
 
         X = cp.random.randn(rows, cols)
@@ -546,7 +546,7 @@ class TestGPUPredict:
 
         rows = 1000
         cols = 10
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
         orig = rng.randint(low=0, high=127, size=rows * cols).reshape(rows, cols)
         y = rng.randint(low=0, high=127, size=rows)
         dtrain = xgb.DMatrix(orig, label=y)
@@ -576,10 +576,10 @@ class TestGPUPredict:
         # boolean
         orig = cp.random.binomial(1, 0.5, size=rows * cols).reshape(rows, cols)
         predt_orig = booster.inplace_predict(orig)
-        for dtype in [cp.bool8, cp.bool_]:
-            X = cp.array(orig, dtype=dtype)
-            predt = booster.inplace_predict(X)
-            cp.testing.assert_allclose(predt, predt_orig)
+
+        X = cp.array(orig, dtype=cp.bool_)
+        predt = booster.inplace_predict(X)
+        cp.testing.assert_allclose(predt, predt_orig)
 
         # unsupported types
         for dtype in [

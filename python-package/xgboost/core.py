@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from enum import IntEnum, unique
 from functools import wraps
 from inspect import Parameter, signature
+from types import EllipsisType
 from typing import (
     Any,
     Callable,
@@ -1826,7 +1827,7 @@ class Booster:
             state["handle"] = handle
         self.__dict__.update(state)
 
-    def __getitem__(self, val: Union[Integer, tuple, slice]) -> "Booster":
+    def __getitem__(self, val: Union[Integer, tuple, slice, EllipsisType]) -> "Booster":
         """Get a slice of the tree-based model.
 
         .. versionadded:: 1.3.0
@@ -1835,21 +1836,20 @@ class Booster:
         # convert to slice for all other types
         if isinstance(val, (np.integer, int)):
             val = slice(int(val), int(val + 1))
-        if isinstance(val, type(Ellipsis)):
+        if isinstance(val, EllipsisType):
             val = slice(0, 0)
         if isinstance(val, tuple):
             raise ValueError("Only supports slicing through 1 dimension.")
         # All supported types are now slice
-        # FIXME(jiamingy): Use `types.EllipsisType` once Python 3.10 is used.
         if not isinstance(val, slice):
-            msg = _expect((int, slice, np.integer, type(Ellipsis)), type(val))
+            msg = _expect((int, slice, np.integer, EllipsisType), type(val))
             raise TypeError(msg)
 
-        if isinstance(val.start, type(Ellipsis)) or val.start is None:
+        if isinstance(val.start, EllipsisType) or val.start is None:
             start = 0
         else:
             start = val.start
-        if isinstance(val.stop, type(Ellipsis)) or val.stop is None:
+        if isinstance(val.stop, EllipsisType) or val.stop is None:
             stop = 0
         else:
             stop = val.stop

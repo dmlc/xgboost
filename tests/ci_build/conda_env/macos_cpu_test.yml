@@ -2,7 +2,7 @@ name: macos_test
 channels:
 - conda-forge
 dependencies:
-- python=3.8
+- python=3.10
 - pip
 - wheel
 - pyyaml
@@ -32,7 +32,7 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
-- cffi
+- loky
 - pyarrow
 - pyspark>=3.4.0
 - cloudpickle
