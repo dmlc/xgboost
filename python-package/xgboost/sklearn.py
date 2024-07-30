@@ -804,7 +804,7 @@ class XGBModel(XGBModelBase):
     @property
     def _doc_link_template(self) -> str:
         ver = _py_version()
-        (major, minor, patch), post = _parse_version(ver)
+        (major, minor, _), post = _parse_version(ver)
 
         if post == "dev":
             rel = "latest"
