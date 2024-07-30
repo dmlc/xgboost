@@ -14,6 +14,13 @@
 #include "row_partitioner.cuh"
 #include "xgboost/base.h"
 
+#include "../../common/device_helpers.cuh"
+#if defined(XGBOOST_USE_FEDERATED)
+#include "../../../plugin/federated/federated_hist.h"  // for FederataedHistPolicy
+#else
+#include "../../common/error_msg.h"  // for NoFederated
+#endif
+
 namespace xgboost::tree {
 namespace {
 struct Pair {
@@ -309,6 +316,21 @@ class DeviceHistogramBuilderImpl {
              bool force_global_memory) {
     this->kernel_ = std::make_unique<HistogramKernel<>>(ctx, feature_groups, force_global_memory);
     this->force_global_memory_ = force_global_memory;
+
+
+    std::cout << "Reset DeviceHistogramBuilderImpl" << std::endl;
+
+    // Reset federated plugin
+    // start of every round, transmit the matrix to plugin
+    #if defined(XGBOOST_USE_FEDERATED)
+      // Get encryption plugin
+      auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
+      auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
+      auto plugin = fed.EncryptionPlugin();
+      // Reset plugin
+      //plugin->Reset();
+    #endif
+
   }
 
   void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
@@ -354,13 +376,64 @@ void DeviceHistogramBuilder::Reset(Context const* ctx, FeatureGroupsAccessor con
   this->p_impl_->Reset(ctx, feature_groups, force_global_memory);
 }
 
-void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx,
+void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
                                             EllpackDeviceAccessor const& matrix,
                                             FeatureGroupsAccessor const& feature_groups,
                                             common::Span<GradientPair const> gpair,
                                             common::Span<const std::uint32_t> ridx,
                                             common::Span<GradientPairInt64> histogram,
-                                            GradientQuantiser rounding) {
-  this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram, rounding);
+                                            GradientQuantiser rounding, MetaInfo const& info) {
+
+  auto IsSecureVertical = !info.IsRowSplit() && collective::IsDistributed() && collective::IsEncrypted();
+  if (!IsSecureVertical) {
+    // Regular training, build histogram locally
+    this->p_impl_->BuildHistogram(ctx->CUDACtx(), matrix, feature_groups, gpair, ridx, histogram, rounding);
+  } else {
+    // Encrypted vertical, build histogram using federated plugin
+    auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
+    auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
+    auto plugin = fed.EncryptionPlugin();
+    // Transmit matrix to plugin
+    //plugin->TransmitMatrix(matrix);
+    // Transmit row indices to plugin
+    //plugin->TransmitRowIndices(ridx);
+
+    // !!!Temporarily turn on regular histogram building for testing
+    // encrypted vertical
+    this->p_impl_->BuildHistogram(ctx->CUDACtx(), matrix, feature_groups, gpair, ridx, histogram, rounding);
+
+    // Further histogram sync process - simulated
+    // only the last stage is needed under plugin system
+
+    // copy histogram data to host
+    std::vector<GradientPairInt64> host_histogram(histogram.size());
+    dh::CopyDeviceSpanToVector(&host_histogram, histogram);
+    // convert to regular vector
+    std::vector<std::int64_t> host_histogram_64(histogram.size() * 2);
+    for (auto i = 0; i < host_histogram.size(); i++) {
+        host_histogram_64[i * 2] = host_histogram[i].GetQuantisedGrad();
+        host_histogram_64[i * 2 + 1] = host_histogram[i].GetQuantisedHess();
+    }
+    // aggregate histograms in float
+    auto rc = collective::Allreduce(ctx, &host_histogram_64, collective::Op::kSum);
+    SafeColl(rc);
+    // convert back to GradientPairInt64
+    // only copy to Rank 0, clear other ranks to simulate the plugin scenario
+    for (auto i = 0; i < host_histogram.size(); i++) {
+      GradientPairInt64 hist_item(host_histogram_64[i * 2], host_histogram_64[i * 2 + 1]);
+      GradientPairInt64 hist_item_empty(0, 0);
+      if (collective::GetRank() != 0) {
+        hist_item = hist_item_empty;
+      } else {
+        host_histogram[i] = hist_item;
+      }
+    }
+    // copy the aggregated histogram back to GPU memory
+    // at this point, the histogram contains full information from all parties
+    dh::safe_cuda(cudaMemcpyAsync(histogram.data(), host_histogram.data(),
+                                  histogram.size() * sizeof(GradientPairPrecise),
+                                  cudaMemcpyHostToDevice));
+
+  }
 }
 }  // namespace xgboost::tree

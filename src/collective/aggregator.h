@@ -230,6 +230,10 @@ void BroadcastGradient(Context const* ctx, MetaInfo const& info, GradFn&& grad_f
 #else
     LOG(FATAL) << error::NoFederated();
 #endif
+
+    // !!!Temporarily turn on regular gradient broadcasting for testing
+    // encrypted vertical
+    ApplyWithLabels(ctx, info, out_gpair->Data(), [&] { grad_fn(out_gpair); });
   } else {
     ApplyWithLabels(ctx, info, out_gpair->Data(), [&] { grad_fn(out_gpair); });
   }
