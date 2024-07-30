@@ -199,7 +199,7 @@ void BroadcastGradient(Context const* ctx, MetaInfo const& info, GradFn&& grad_f
 #if defined(XGBOOST_USE_FEDERATED)
     // Need to encrypt the gradient before broadcasting.
     common::Span<std::uint8_t> encrypted;
-    auto const& comm = GlobalCommGroup()->Ctx(ctx, ctx->Device());
+    auto const& comm = GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
     auto const& fed = dynamic_cast<FederatedComm const&>(comm);
     if (GetRank() == 0) {
       // Obtain the gradient
