@@ -1,28 +1,26 @@
-## Build Python package and gtest with GPU enabled
+## Build Python package xgboost-cpu (minimal install)
 
 $ErrorActionPreference = "Stop"
 
 . tests/buildkite/conftest.ps1
 
-Write-Host "--- Build libxgboost on Windows with CUDA"
+Write-Host "--- Build libxgboost on Windows (minimal)"
 
-nvcc --version
-if ( $is_release_branch -eq 0 ) {
-  $arch_flag = "-DGPU_COMPUTE_VER=75"
-} else {
-  $arch_flag = ""
-}
 mkdir build
 cd build
-cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON `
-  -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON ${arch_flag}
+cmake .. -G"Visual Studio 17 2022" -A x64
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 cmake --build . --config Release -- /m /nodeReuse:false `
   "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Build binary wheel"
-cd ../python-package
+cd ..
+# Patch to rename pkg to xgboost-cpu
+patch -p0 < tests/buildkite/remove_nccl_dep.patch
+patch -p0 < tests/buildkite/cpu_only_pypkg.patch
+
+cd python-package
 conda activate
 & pip install --user -v "pip>=23"
 & pip --version
@@ -43,15 +41,11 @@ Foreach-Object {
   & buildkite-agent artifact upload python-package/dist/$_
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 }
-if ( $is_release_branch -eq 1 ) {
+# if ( $is_release_branch -eq 1 ) {
   Get-ChildItem . -Filter python-package/dist/*.whl |
   Foreach-Object {
     & aws s3 cp python-package/dist/$_ s3://xgboost-nightly-builds/$Env:BUILDKITE_BRANCH/ `
       --acl public-read --no-progress
     if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
   }
-}
-
-Write-Host "--- Stash C++ test executables"
-& buildkite-agent artifact upload build/testxgboost.exe
-& buildkite-agent artifact upload xgboost.exe
+#}
