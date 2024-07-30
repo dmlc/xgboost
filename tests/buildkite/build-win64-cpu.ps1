@@ -17,8 +17,8 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Build binary wheel"
 cd ..
 # Patch to rename pkg to xgboost-cpu
-patch -p0 < tests/buildkite/remove_nccl_dep.patch
-patch -p0 < tests/buildkite/cpu_only_pypkg.patch
+Get-Content tests/buildkite/remove_nccl_dep.patch | patch -p0
+Get-Content tests/buildkite/cpu_only_pypkg.patch | patch -p0
 
 cd python-package
 conda activate
