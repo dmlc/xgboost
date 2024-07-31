@@ -118,7 +118,7 @@ void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                 linalg::VectorView<float> d_out);
 
 void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
-                        linalg::VectorView<float const> d_w, linalg::VectorView<float> d_out);
+                        common::Span<float const> d_w, linalg::VectorView<float> d_out);
 
 #if !defined(XGBOOST_USE_CUDA)
 inline void Median(Context const*, linalg::TensorView<float const, 2>, OptionalWeights,
@@ -134,9 +134,10 @@ inline void SampleMean(Context const*, linalg::MatrixView<float const>, linalg::
 }
 
 inline void WeightedSampleMean(Context const*, linalg::MatrixView<float const>,
-                               linalg::VectorView<float const>, linalg::VectorView<float>) {
+                               common::Span<float const>, linalg::VectorView<float>) {
   common::AssertGPUSupport();
 }
+
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
@@ -166,7 +167,7 @@ void WeightedMean(Context const* ctx,
  *        equal to or greater than zero.
  */
 void WeightedSampleMean(Context const* ctx, linalg::Matrix<float> const& v,
-                        linalg::Vector<float> const& w, linalg::Vector<float>* out);
+                        HostDeviceVector<float> const& w, linalg::Vector<float>* out);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_STATS_H_
