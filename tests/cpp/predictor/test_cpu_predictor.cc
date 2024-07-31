@@ -1,11 +1,8 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
-
-#include <cstdint>
-#include <thread>
 
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"
