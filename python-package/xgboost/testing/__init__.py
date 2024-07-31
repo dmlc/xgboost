@@ -37,6 +37,7 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost import RabitTracker
 from xgboost.core import ArrayLike
+from xgboost.data import is_pd_cat_dtype
 from xgboost.sklearn import SklObjective
 from xgboost.testing.data import (
     get_california_housing,
@@ -403,7 +404,6 @@ def make_categorical(
     X, y
     """
     import pandas as pd
-    from pandas.api.types import is_categorical_dtype
 
     rng = np.random.RandomState(1994)
 
@@ -431,8 +431,8 @@ def make_categorical(
                 low=0, high=n_samples - 1, size=int(n_samples * sparsity)
             )
             df.iloc[index, i] = np.nan
-            if is_categorical_dtype(df.dtypes[i]):
-                assert n_categories == np.unique(df.dtypes[i].categories).size
+            if is_pd_cat_dtype(df.dtypes.iloc[i]):
+                assert n_categories == np.unique(df.dtypes.iloc[i].categories).size
 
     if onehot:
         df = pd.get_dummies(df)
