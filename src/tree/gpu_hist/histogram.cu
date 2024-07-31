@@ -396,25 +396,35 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
 
 
       //common::Span<std::int32_t const> bin_idx
+      //*********************************************
       //plugin->Reset(h_cuts_ptr, bin_idx);
+      //*********************************************
       is_aggr_context_initialized_ = true;
     }
 
-    std::cout << "Transmitting row indices to plugin" << std::endl;
-    // print a few samples of ridx
+
+    // get row indices from device
     std::vector<uint32_t> h_ridx(ridx.size());
     dh::CopyDeviceSpanToVector(&h_ridx, ridx);
-    std::cout << "ridx.size() = " << h_ridx.size() << std::endl;
-    for (int i = 0; i < 5; i++) {
-      std::cout << h_ridx[i] << " ";
-    }
-    std::cout << std::endl;
+
+    // wrap info following plugin expectations
+    std::vector<std::uint64_t const *> ptrs(1);
+    std::vector<std::size_t> sizes(1);
+    std::vector<bst_node_t> nodes(1);
+    ptrs[0] = reinterpret_cast<std::uint64_t const *>(h_ridx.data());
+    sizes[0] = h_ridx.size();
+    nodes[0] = 0;
 
     // Transmit row indices to plugin and get encrypted histogram
-    //hist_data_ = this->plugin_->BuildEncryptedHistVert(ptrs, sizes, nodes);
+    std::cout << "Building encrypted histograms with row indices " << std::endl;
+      //*********************************************
+    //auto hist_data = plugin->BuildEncryptedHistVert(ptrs, sizes, nodes);
+//*********************************************
 
     // Perform AllGather
     std::cout << "Allgather histograms" << std::endl;
+
+    //*********************************************
     /*
     HostDeviceVector<std::int8_t> hist_entries;
     std::vector<std::int64_t> recv_segments;
@@ -426,7 +436,7 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
     common::Span<double> hist_aggr =
             plugin_->SyncEncryptedHistVert(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
 */
-
+    //*********************************************
 
 
 

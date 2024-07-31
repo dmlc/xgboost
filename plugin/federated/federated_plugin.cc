@@ -85,9 +85,15 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
   std::fill_n(hist_buffer.data(), hist_buffer.size(), 0.0);
 
   // print some contents of rowptrs
+
     std::cout << "rowptrs.size() = " << rowptrs.size() << std::endl;
     for (int i = 0; i < rowptrs.size(); i++) {
-        std::cout << rowptrs[i] << " ";
+        std::cout << sizes[i] << std::endl;
+        common::Span row_indices{rowptrs[i], rowptrs[i] + sizes[i]};
+        for (int j = 0; j < 5; j++) {
+            std::cout << row_indices[j] << " ";
+        }
+        std::cout << std::endl;
     }
     std::cout << std::endl;
 
