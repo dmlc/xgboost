@@ -46,7 +46,7 @@ void FitInterceptGlmLike::InitEstimation(MetaInfo const& info,
     CheckInitInputs(info);
   }
   linalg::Vector<float> out;
-  if (!info.weights_.Size()) {
+  if (info.weights_.Empty()) {
     common::SampleMean(this->ctx_, info.labels, &out);
   } else {
     common::WeightedSampleMean(this->ctx_, info.labels, info.weights_, &out);

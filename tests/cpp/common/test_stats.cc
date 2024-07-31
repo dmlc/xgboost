@@ -176,20 +176,21 @@ TEST(Stats, SampleMean) {
   TestSampleMean(&ctx);
 }
 
-#if defined(XGBOOST_USE_CUDA)
-TEST(Stats, GpuSampleMean) {
-  auto ctx = MakeCUDACtx(0);
-  TestSampleMean(&ctx);
-}
-#endif  // defined(XGBOOST_USE_CUDA)
 
 TEST(Stats, WeightedSampleMean) {
   Context ctx;
   TestWeightedSampleMean(&ctx);
 }
 
+#if defined(XGBOOST_USE_CUDA)
+TEST(Stats, GpuSampleMean) {
+  auto ctx = MakeCUDACtx(0);
+  TestSampleMean(&ctx);
+}
+
 TEST(Stats, GpuWeightedSampleMean) {
   auto ctx = MakeCUDACtx(0);
   TestWeightedSampleMean(&ctx);
 }
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::common
