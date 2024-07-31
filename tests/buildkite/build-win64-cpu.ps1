@@ -41,11 +41,11 @@ Foreach-Object {
   & buildkite-agent artifact upload python-package/dist/$_
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 }
-# if ( $is_release_branch -eq 1 ) {
+if ( $is_release_branch -eq 1 ) {
   Get-ChildItem . -Filter python-package/dist/*.whl |
   Foreach-Object {
     & aws s3 cp python-package/dist/$_ s3://xgboost-nightly-builds/$Env:BUILDKITE_BRANCH/ `
       --acl public-read --no-progress
     if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
   }
-#}
+}
