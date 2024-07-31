@@ -120,8 +120,6 @@ class AFTObj : public ObjFunction {
     return std::log(base_score);
   }
 
-  float InvLinkZero() const override { return 1.0f; }
-
   const char* DefaultEvalMetric() const override {
     return "aft-nloglik";
   }
