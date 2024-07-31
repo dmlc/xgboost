@@ -21,6 +21,20 @@
 namespace xgboost::collective {
 void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
                                 common::Span<std::int32_t const> bin_idx) {
+
+    //print some contents of cutptrs and bin_idx
+    std::cout << "cutptrs.size() = " << cutptrs.size() << std::endl;
+    for (int i = 0; i < cutptrs.size(); i++) {
+        std::cout << cutptrs[i] << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "bin_idx.size() = " << bin_idx.size() << std::endl;
+    for (int i = 0; i < 3; i++) {
+        std::cout << bin_idx[i] << " ";
+    }
+    std::cout << std::endl;
+
   this->cuts_.resize(cutptrs.size());
   std::copy_n(cutptrs.data(), cutptrs.size(), this->cuts_.data());
 
@@ -69,6 +83,13 @@ void FederatedPluginMock::Reset(common::Span<std::uint32_t const> cutptrs,
   hist_plain_.resize(hist_size * nids.size());
   auto hist_buffer = common::Span<double>{hist_plain_};
   std::fill_n(hist_buffer.data(), hist_buffer.size(), 0.0);
+
+  // print some contents of rowptrs
+    std::cout << "rowptrs.size() = " << rowptrs.size() << std::endl;
+    for (int i = 0; i < rowptrs.size(); i++) {
+        std::cout << rowptrs[i] << " ";
+    }
+    std::cout << std::endl;
 
   CHECK_EQ(rowptrs.size(), sizes.size());
   CHECK_EQ(nids.size(), sizes.size());

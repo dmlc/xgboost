@@ -316,21 +316,6 @@ class DeviceHistogramBuilderImpl {
              bool force_global_memory) {
     this->kernel_ = std::make_unique<HistogramKernel<>>(ctx, feature_groups, force_global_memory);
     this->force_global_memory_ = force_global_memory;
-
-
-    std::cout << "Reset DeviceHistogramBuilderImpl" << std::endl;
-
-    // Reset federated plugin
-    // start of every round, transmit the matrix to plugin
-    #if defined(XGBOOST_USE_FEDERATED)
-      // Get encryption plugin
-      auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
-      auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
-      auto plugin = fed.EncryptionPlugin();
-      // Reset plugin
-      //plugin->Reset();
-    #endif
-
   }
 
   void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
@@ -394,17 +379,65 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
     auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
     auto plugin = fed.EncryptionPlugin();
     // Transmit matrix to plugin
-    //plugin->TransmitMatrix(matrix);
-    // Transmit row indices to plugin
-    //plugin->TransmitRowIndices(ridx);
+    if(!is_aggr_context_initialized_){
+      std::cout << "Initialized Plugin Context" << std::endl;
+      // Get cutptrs
+      std::vector<uint32_t> h_cuts_ptr(matrix.feature_segments.size());
+      dh::CopyDeviceSpanToVector(&h_cuts_ptr, matrix.feature_segments);
+      common::Span<std::uint32_t const> cutptrs = common::Span<std::uint32_t const>(h_cuts_ptr.data(), h_cuts_ptr.size());
+      std::cout << "cutptrs.size() = " << h_cuts_ptr.size() << std::endl;
+      for (int i = 0; i < h_cuts_ptr.size(); i++) {
+        std::cout << h_cuts_ptr[i] << " ";
+      }
+      std::cout << std::endl;
+
+      // Get bin_idx matrix
+
+
+
+      //common::Span<std::int32_t const> bin_idx
+      //plugin->Reset(h_cuts_ptr, bin_idx);
+      is_aggr_context_initialized_ = true;
+    }
+
+    std::cout << "Transmitting row indices to plugin" << std::endl;
+    // print a few samples of ridx
+    std::vector<uint32_t> h_ridx(ridx.size());
+    dh::CopyDeviceSpanToVector(&h_ridx, ridx);
+    std::cout << "ridx.size() = " << h_ridx.size() << std::endl;
+    for (int i = 0; i < 5; i++) {
+      std::cout << h_ridx[i] << " ";
+    }
+    std::cout << std::endl;
+
+    // Transmit row indices to plugin and get encrypted histogram
+    //hist_data_ = this->plugin_->BuildEncryptedHistVert(ptrs, sizes, nodes);
+
+    // Perform AllGather
+    std::cout << "Allgather histograms" << std::endl;
+    /*
+    HostDeviceVector<std::int8_t> hist_entries;
+    std::vector<std::int64_t> recv_segments;
+    collective::SafeColl(
+              collective::AllgatherV(ctx_, linalg::MakeVec(hist_data_), &recv_segments, &hist_entries));
+
+    // Call the plugin here to get the resulting histogram. Histogram from all workers are
+    // gathered to the label owner.
+    common::Span<double> hist_aggr =
+            plugin_->SyncEncryptedHistVert(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
+*/
+
+
+
+
+
+
 
     // !!!Temporarily turn on regular histogram building for testing
-    // encrypted vertical
+    // compute local histograms
     this->p_impl_->BuildHistogram(ctx->CUDACtx(), matrix, feature_groups, gpair, ridx, histogram, rounding);
 
-    // Further histogram sync process - simulated
-    // only the last stage is needed under plugin system
-
+    // Further histogram sync process - simulated with allreduce
     // copy histogram data to host
     std::vector<GradientPairInt64> host_histogram(histogram.size());
     dh::CopyDeviceSpanToVector(&host_histogram, histogram);
