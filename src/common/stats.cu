@@ -4,16 +4,17 @@
 
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
 
-#include <cstddef>                              // size_t
+#include <cstddef>  // size_t
 
-#include "cuda_context.cuh"                     // CUDAContext
-#include "device_helpers.cuh"                   // dh::MakeTransformIterator, tcbegin, tcend
-#include "optional_weight.h"                    // common::OptionalWeights
-#include "stats.cuh"          // common::SegmentedQuantile, common::SegmentedWeightedQuantile
-#include "xgboost/base.h"     // XGBOOST_DEVICE
-#include "xgboost/context.h"  // Context
-#include "xgboost/host_device_vector.h"  // HostDeviceVector
-#include "xgboost/linalg.h"              // linalg::TensorView, UnravelIndex, Apply
+#include "cuda_context.cuh"    // CUDAContext
+#include "device_helpers.cuh"  // dh::MakeTransformIterator, tcbegin, tcend
+#include "linalg_op.cuh"       // for tcbegin, tcend
+#include "optional_weight.h"   // common::OptionalWeights
+#include "stats.cuh"           // common::SegmentedQuantile, common::SegmentedWeightedQuantile
+#include "xgboost/base.h"      // for XGBOOST_DEVICE
+#include "xgboost/context.h"   // for Context
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/linalg.h"              // for TensorView, UnravelIndex, Apply
 
 namespace xgboost::common::cuda_impl {
 void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
@@ -61,8 +62,6 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
 
 void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                 linalg::VectorView<float> d_out) {
-  CHECK(d_v.CContiguous());
-  CHECK_EQ(d_out.Shape(0), d_v.Shape(1));
   auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
                                                             auto cidx = i / d_v.Shape(0);
@@ -76,8 +75,28 @@ void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                                                    return d_v(ridx, cidx) / n_rows_f32;
                                                  });
   auto cuctx = ctx->CUDACtx();
-  dh::device_vector<std::size_t> key_out(d_v.Shape(1), 0);
-  thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it, key_out.begin(),
-                        d_out.Values().data());
+  thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
+                        thrust::make_discard_iterator(), d_out.Values().data());
+}
+
+void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
+                        linalg::VectorView<float const> d_w, linalg::VectorView<float> d_out) {
+  CHECK(d_v.CContiguous());
+  auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
+                                                          [=] XGBOOST_DEVICE(std::size_t i) {
+                                                            auto cidx = i / d_v.Shape(0);
+                                                            return cidx;
+                                                          });
+  auto cuctx = ctx->CUDACtx();
+  auto sum_w = dh::Reduce(cuctx->CTP(), linalg::tcbegin(d_w), linalg::tcend(d_w), 0.0f,
+                          thrust::plus<float>{});
+  auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
+                                                 [=] XGBOOST_DEVICE(std::size_t i) {
+                                                   auto cidx = i / d_v.Shape(0);
+                                                   auto ridx = i % d_v.Shape(0);
+                                                   return d_v(ridx, cidx) * d_w(ridx) / sum_w;
+                                                 });
+  thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
+                        thrust::make_discard_iterator(), d_out.Values().data());
 }
 }  // namespace xgboost::common::cuda_impl

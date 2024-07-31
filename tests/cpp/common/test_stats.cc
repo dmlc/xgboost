@@ -142,6 +142,33 @@ void TestSampleMean(Context const* ctx) {
     ASSERT_EQ(mean(i), mean(i - 1) + 1.0f);
   }
 }
+
+void TestWeightedSampleMean(Context const* ctx) {
+  std::size_t m{32}, n{16};
+  {
+    auto data = linalg::Constant(ctx, 1.0f, m, n);
+    linalg::Vector<float> w({m}, ctx->Device());
+    auto h_w = w.HostView();
+    std::iota(linalg::begin(h_w), linalg::end(h_w), 1.0f);
+    linalg::Vector<float> mean;
+    WeightedSampleMean(ctx, data, w, &mean);
+    for (auto v : mean.HostView()) {
+      ASSERT_FLOAT_EQ(v, 1.0f);
+    }
+  }
+  {
+    linalg::Matrix<float> data({m, n}, ctx->Device());
+    auto h_data = data.HostView();
+    std::iota(linalg::begin(h_data), linalg::end(h_data), .0f);
+    auto w = linalg::Constant(ctx, 1.0f, m);
+    linalg::Vector<float> mean;
+    WeightedSampleMean(ctx, data, w, &mean);
+    ASSERT_FLOAT_EQ(mean(0), 248.0f);
+    for (std::size_t i = 1; i < mean.Size(); ++i) {
+      ASSERT_EQ(mean(i), mean(i - 1) + 1.0f);
+    }
+  }
+}
 }  // namespace
 
 TEST(Stats, SampleMean) {
@@ -155,4 +182,14 @@ TEST(Stats, GpuSampleMean) {
   TestSampleMean(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(Stats, WeightedSampleMean) {
+  Context ctx;
+  TestWeightedSampleMean(&ctx);
+}
+
+TEST(Stats, GpuWeightedSampleMean) {
+  auto ctx = MakeCUDACtx(0);
+  TestWeightedSampleMean(&ctx);
+}
 }  // namespace xgboost::common
