@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
@@ -8,7 +8,6 @@
 
 #include "cuda_context.cuh"    // CUDAContext
 #include "device_helpers.cuh"  // dh::MakeTransformIterator, tcbegin, tcend
-#include "linalg_op.cuh"       // for tcbegin, tcend
 #include "optional_weight.h"   // common::OptionalWeights
 #include "stats.cuh"           // common::SegmentedQuantile, common::SegmentedWeightedQuantile
 #include "xgboost/base.h"      // for XGBOOST_DEVICE
@@ -80,7 +79,7 @@ void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
 }
 
 void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
-                        linalg::VectorView<float const> d_w, linalg::VectorView<float> d_out) {
+                        common::Span<float const> d_w, linalg::VectorView<float> d_out) {
   CHECK(d_v.CContiguous());
   auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
@@ -88,8 +87,8 @@ void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                                                             return cidx;
                                                           });
   auto cuctx = ctx->CUDACtx();
-  auto sum_w = dh::Reduce(cuctx->CTP(), linalg::tcbegin(d_w), linalg::tcend(d_w), 0.0f,
-                          thrust::plus<float>{});
+  auto sum_w =
+      dh::Reduce(cuctx->CTP(), d_w.data(), d_w.data() + d_w.size(), 0.0f, thrust::plus<float>{});
   auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                  [=] XGBOOST_DEVICE(std::size_t i) {
                                                    auto cidx = i / d_v.Shape(0);
