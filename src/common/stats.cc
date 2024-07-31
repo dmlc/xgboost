@@ -62,6 +62,28 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
   }
 }
 
+void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vector<float>* out) {
+  *out = linalg::Zeros<float>(ctx, v.Shape(1));
+  if (ctx->IsCPU()) {
+    auto h_v = v.HostView();
+    CHECK(h_v.CContiguous());
+    auto n_rows_f32 = static_cast<float>(v.Shape(0));
+    auto n_columns = v.Shape(1);
+    auto h_out = out->HostView();
+    for (std::size_t j = 0; j < n_columns; ++j) {
+      MemStackAllocator<float, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0f);
+      ParallelFor(v.Shape(0), ctx->Threads(),
+                  [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) / n_rows_f32); });
+      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0f);
+      h_out(j) = mean;
+    }
+  } else {
+    auto d_v = v.View(ctx->Device());
+    auto d_out = out->View(ctx->Device());
+    cuda_impl::SampleMean(ctx, d_v, d_out);
+  }
+}
+
 void WeightedMean(Context const* ctx,
                   const std::vector<float> &v,
                   const std::vector<float> &w,

@@ -112,6 +112,9 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t, OptionalWe
 
 void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorView<float> out);
 
+void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
+                linalg::VectorView<float> d_out);
+
 #if !defined(XGBOOST_USE_CUDA)
 inline void Median(Context const*, linalg::TensorView<float const, 2>, OptionalWeights,
                    linalg::Tensor<float, 1>*) {
@@ -120,16 +123,28 @@ inline void Median(Context const*, linalg::TensorView<float const, 2>, OptionalW
 inline void Mean(Context const*, linalg::VectorView<float const>, linalg::VectorView<float>) {
   common::AssertGPUSupport();
 }
+
+inline void SampleMean(Context const*, linalg::MatrixView<float const>, linalg::VectorView<float>) {
+  common::AssertGPUSupport();
+}
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
 /**
- * \brief Calculate medians for each column of the input matrix.
+ * @brief Calculate medians for each column of the input matrix.
  */
 void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
             HostDeviceVector<float> const& weights, linalg::Tensor<float, 1>* out);
 
+/**
+ * @brief Calculate the mean value of a vector.
+ */
 void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<float>* out);
+
+/**
+ * @brief Calculate the mean value for the first axis.
+ */
+void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vector<float>* out);
 
 void WeightedMean(Context const* ctx,
                   const std::vector<float> &v,
