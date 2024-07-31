@@ -61,16 +61,17 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
 
 void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                 linalg::VectorView<float> d_out) {
+  auto n_rows = d_v.Shape(0);
   auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
-                                                            auto cidx = i / d_v.Shape(0);
+                                                            auto cidx = i / n_rows;
                                                             return cidx;
                                                           });
   auto n_rows_f32 = static_cast<float>(d_v.Shape(0));
   auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                  [=] XGBOOST_DEVICE(std::size_t i) {
-                                                   auto cidx = i / d_v.Shape(0);
-                                                   auto ridx = i % d_v.Shape(0);
+                                                   auto cidx = i / n_rows;
+                                                   auto ridx = i % n_rows;
                                                    return d_v(ridx, cidx) / n_rows_f32;
                                                  });
   auto cuctx = ctx->CUDACtx();
@@ -81,9 +82,10 @@ void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
 void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                         common::Span<float const> d_w, linalg::VectorView<float> d_out) {
   CHECK(d_v.CContiguous());
+  auto n_rows = d_v.Shape(0);
   auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
-                                                            auto cidx = i / d_v.Shape(0);
+                                                            auto cidx = i / n_rows;
                                                             return cidx;
                                                           });
   auto cuctx = ctx->CUDACtx();
@@ -91,8 +93,8 @@ void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
       dh::Reduce(cuctx->CTP(), d_w.data(), d_w.data() + d_w.size(), 0.0f, thrust::plus<float>{});
   auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                  [=] XGBOOST_DEVICE(std::size_t i) {
-                                                   auto cidx = i / d_v.Shape(0);
-                                                   auto ridx = i % d_v.Shape(0);
+                                                   auto cidx = i / n_rows;
+                                                   auto ridx = i % n_rows;
                                                    return d_v(ridx, cidx) * d_w(ridx) / sum_w;
                                                  });
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,

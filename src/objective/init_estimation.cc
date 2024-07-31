@@ -52,5 +52,6 @@ void FitInterceptGlmLike::InitEstimation(MetaInfo const& info,
     common::WeightedSampleMean(this->ctx_, info.labels, info.weights_, &out);
   }
   common::Mean(this->ctx_, out, base_score);
+  CHECK_EQ(base_score->Size(), 1);
 }
 }  // namespace xgboost::obj
