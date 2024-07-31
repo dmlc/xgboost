@@ -13,6 +13,11 @@ steps:
     key: build-win64-gpu
     agents:
       queue: windows-cpu
+  - label: ":windows: Build XGBoost for Windows (minimal)"
+    command: "tests/buildkite/build-win64-cpu.ps1"
+    key: build-win64-cpu
+    agents:
+      queue: windows-cpu
 
   - wait
 
