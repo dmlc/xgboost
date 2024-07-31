@@ -227,13 +227,16 @@ void BroadcastGradient(Context const* ctx, MetaInfo const& info, GradFn&& grad_f
     SafeColl(rc);
     // Pass the gradient to the plugin
     fed.EncryptionPlugin()->SyncEncryptedGradient(encrypted);
+
+    // !!!Temporarily solution
+    // This step is needed for memory allocation in the case of vertical secure GPU
+    // make out_gpair data value to all zero to avoid information leak
+    auto gpair_data = out_gpair->Data();
+    gpair_data->Fill(GradientPair{0.0f, 0.0f});
+    ApplyWithLabels(ctx, info, gpair_data, [&] { grad_fn(out_gpair); });
 #else
     LOG(FATAL) << error::NoFederated();
 #endif
-
-    // !!!Temporarily turn on regular gradient broadcasting for testing
-    // encrypted vertical
-    ApplyWithLabels(ctx, info, out_gpair->Data(), [&] { grad_fn(out_gpair); });
   } else {
     ApplyWithLabels(ctx, info, out_gpair->Data(), [&] { grad_fn(out_gpair); });
   }
