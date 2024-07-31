@@ -58,4 +58,26 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
   dh::TemporaryArray<char> temp{bytes};
   cub::DeviceReduce::Sum(temp.data().get(), bytes, it, out.Values().data(), v.Size(), s);
 }
+
+void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
+                linalg::VectorView<float> d_out) {
+  CHECK(d_v.CContiguous());
+  CHECK_EQ(d_out.Shape(0), d_v.Shape(1));
+  auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
+                                                          [=] XGBOOST_DEVICE(std::size_t i) {
+                                                            auto cidx = i / d_v.Shape(0);
+                                                            return cidx;
+                                                          });
+  auto n_rows_f32 = static_cast<float>(d_v.Shape(0));
+  auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
+                                                 [=] XGBOOST_DEVICE(std::size_t i) {
+                                                   auto cidx = i / d_v.Shape(0);
+                                                   auto ridx = i % d_v.Shape(0);
+                                                   return d_v(ridx, cidx) / n_rows_f32;
+                                                 });
+  auto cuctx = ctx->CUDACtx();
+  dh::device_vector<std::size_t> key_out(d_v.Shape(1), 0);
+  thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it, key_out.begin(),
+                        d_out.Values().data());
+}
 }  // namespace xgboost::common::cuda_impl
