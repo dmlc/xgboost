@@ -160,7 +160,7 @@ void TestWeightedSampleMean(Context const* ctx) {
     linalg::Matrix<float> data({m, n}, ctx->Device());
     auto h_data = data.HostView();
     std::iota(linalg::begin(h_data), linalg::end(h_data), .0f);
-    HostDeviceVector<float> w{m, 0.0f, ctx->Device()};
+    HostDeviceVector<float> w{m, 1.0f, ctx->Device()};
     linalg::Vector<float> mean;
     WeightedSampleMean(ctx, data, w, &mean);
     ASSERT_FLOAT_EQ(mean(0), 248.0f);
