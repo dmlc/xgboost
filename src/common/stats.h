@@ -157,11 +157,6 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
  */
 void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vector<float>* out);
 
-void WeightedMean(Context const* ctx,
-                  const std::vector<float> &v,
-                  const std::vector<float> &w,
-                  linalg::Vector<float>* out);
-
 /**
  * @brief Calculate the weighted mean value for the first axis, weights are assumed to be
  *        equal to or greater than zero.
