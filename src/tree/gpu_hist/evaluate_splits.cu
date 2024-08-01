@@ -406,7 +406,8 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(d_inputs.size());
   auto out_splits = dh::ToSpan(splits_out_storage);
 
-  bool is_passive_party = is_column_split_ && collective::IsEncrypted() && collective::GetRank() != 0;
+  bool is_passive_party = is_column_split_ && collective::IsEncrypted()
+          && collective::GetRank() != 0;
   bool is_active_party = !is_passive_party;
   // Under secure vertical setting, only the active party is able to evaluate the split
   // based on global histogram. Other parties will receive the final best split information
@@ -421,7 +422,8 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
       // With regular column-wise data split, we gather the split candidates from
       // all the workers and find the global best candidates.
       auto const world_size = collective::GetWorldSize();
-      dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(out_splits.size() * world_size);
+      dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(
+              out_splits.size() * world_size);
       auto all_candidates = dh::ToSpan(all_candidate_storage);
       auto current_rank =
               all_candidates.subspan(collective::GetRank() * out_splits.size(), out_splits.size());

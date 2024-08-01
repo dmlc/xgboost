@@ -79,10 +79,10 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   DeviceHistogramBuilder builder;
   builder.Reset(&ctx, maker.feature_groups->DeviceAccessor(ctx.Device()),
                 !use_shared_memory_histograms);
-  builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+  builder.BuildHistogram(&ctx, page->GetDeviceAccessor(ctx.Device()),
                          maker.feature_groups->DeviceAccessor(ctx.Device()), gpair.DeviceSpan(),
                          maker.row_partitioner->GetRows(0), maker.hist.GetNodeHistogram(0),
-                         *maker.quantiser);
+                         *maker.quantiser, MetaInfo());
 
   DeviceHistogramStorage<>& d_hist = maker.hist;
 

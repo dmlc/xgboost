@@ -388,11 +388,12 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
                                             common::Span<const std::uint32_t> ridx,
                                             common::Span<GradientPairInt64> histogram,
                                             GradientQuantiser rounding, MetaInfo const& info) {
-
-  auto IsSecureVertical = !info.IsRowSplit() && collective::IsDistributed() && collective::IsEncrypted();
+  auto IsSecureVertical = !info.IsRowSplit() && collective::IsDistributed()
+          && collective::IsEncrypted();
   if (!IsSecureVertical) {
     // Regular training, build histogram locally
-    this->p_impl_->BuildHistogram(ctx->CUDACtx(), matrix, feature_groups, gpair, ridx, histogram, rounding);
+    this->p_impl_->BuildHistogram(ctx->CUDACtx(), matrix, feature_groups,
+                                  gpair, ridx, histogram, rounding);
   } else {
     // Encrypted vertical, build histogram using federated plugin
     auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
@@ -400,11 +401,12 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
     auto plugin = fed.EncryptionPlugin();
 
     // Transmit matrix to plugin
-    if(!is_aggr_context_initialized_){
+    if (!is_aggr_context_initialized_) {
       // Get cutptrs
       std::vector<uint32_t> h_cuts_ptr(matrix.feature_segments.size());
       dh::CopyDeviceSpanToVector(&h_cuts_ptr, matrix.feature_segments);
-      common::Span<std::uint32_t const> cutptrs = common::Span<std::uint32_t const>(h_cuts_ptr.data(), h_cuts_ptr.size());
+      common::Span<std::uint32_t const> cutptrs =
+              common::Span<std::uint32_t const>(h_cuts_ptr.data(), h_cuts_ptr.size());
 
       // Get bin_idx matrix
       auto kRows = matrix.n_rows;
@@ -414,7 +416,8 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
       thrust::device_vector<bst_float> matrix_d(kRows * kCols);
       dh::LaunchN(kRows * kCols, ReadMatrixFunction(matrix, kCols, matrix_d.data().get()));
       thrust::copy(matrix_d.begin(), matrix_d.end(), h_bin_idx.begin());
-      common::Span<std::int32_t const> bin_idx = common::Span<std::int32_t const>(h_bin_idx.data(), h_bin_idx.size());
+      common::Span<std::int32_t const> bin_idx =
+              common::Span<std::int32_t const>(h_bin_idx.data(), h_bin_idx.size());
 
       // Initialize plugin context
       plugin->Reset(h_cuts_ptr, h_bin_idx);
@@ -443,12 +446,14 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
     HostDeviceVector<std::int8_t> hist_entries;
     std::vector<std::int64_t> recv_segments;
     collective::SafeColl(
-              collective::AllgatherV(ctx, linalg::MakeVec(hist_data), &recv_segments, &hist_entries));
+              collective::AllgatherV(ctx, linalg::MakeVec(hist_data),
+                                     &recv_segments, &hist_entries));
 
     // Call the plugin here to get the resulting histogram. Histogram from all workers are
     // gathered to the label owner.
     common::Span<double> hist_aggr =
-            plugin->SyncEncryptedHistVert(common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
+            plugin->SyncEncryptedHistVert(
+                    common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
 
     // Post process the AllGathered data
     auto world_size = collective::GetWorldSize();
