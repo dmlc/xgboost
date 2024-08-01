@@ -3,10 +3,11 @@ channels:
 - conda-forge
 dependencies:
 - python=3.10
-- pylint<3.2.4  # https://github.com/pylint-dev/pylint/issues/9751
+- pylint
 - wheel
 - setuptools
-- mypy
+# https://github.com/python/mypy/issues/17617
+- mypy !=1.11.0,!=1.11.1
 - numpy
 - scipy
 - pandas
