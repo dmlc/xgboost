@@ -7,7 +7,7 @@
 # https://xgboost.readthedocs.io/en/latest/gpu/index.html
 #
 
-library('xgboost')
+library("xgboost")
 
 # Simulate N x p random matrix with some binomial response dependent on pp columns
 set.seed(111)
@@ -25,21 +25,40 @@ dtrain <- xgb.DMatrix(X[tr, ], label = y[tr])
 dtest <- xgb.DMatrix(X[-tr, ], label = y[-tr])
 evals <- list(train = dtrain, test = dtest)
 
-# An example of running 'gpu_hist' algorithm
+# An example of running gpu-accelerated 'hist' algorithm
 # which is
 # - similar to the 'hist'
 # - the fastest option for moderately large datasets
 # - current limitations: max_depth < 16, does not implement guided loss
-# You can use tree_method = 'gpu_hist' for another GPU accelerated algorithm,
-# which is slower, more memory-hungry, but does not use binning.
-param <- list(objective = 'reg:logistic', eval_metric = 'auc', subsample = 0.5, nthread = 4,
-              max_bin = 64, tree_method = 'gpu_hist')
 pt <- proc.time()
-bst_gpu <- xgb.train(param, dtrain, evals = evals, nrounds = 50)
+bst_gpu <- xgb.train(
+    data = dtrain,
+    watchlist = list(train = dtrain, test = dtest),
+    objective = "reg:logistic",
+    eval_metric = "auc",
+    subsample = 0.5,
+    nthread = 4,
+    nround = 50,
+    print_every_n = 50,
+    max_bin = 64,
+    tree_method = "hist",
+    deivce = "cuda"
+)
 proc.time() - pt
 
 # Compare to the 'hist' algorithm:
-param$tree_method <- 'hist'
+
 pt <- proc.time()
-bst_hist <- xgb.train(param, dtrain, evals = evals, nrounds = 50)
+bst_hist <- xgb.train(
+    data = dtrain,
+    watchlist = list(train = dtrain, test = dtest),
+    objective = "reg:logistic",
+    eval_metric = "auc",
+    subsample = 0.5,
+    nthread = 4,
+    nround = 50,
+    print_every_n = 50,
+    tree_method = "hist",
+    max_bin = 64
+)
 proc.time() - pt
