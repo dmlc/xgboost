@@ -395,6 +395,7 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
     this->p_impl_->BuildHistogram(ctx->CUDACtx(), matrix, feature_groups,
                                   gpair, ridx, histogram, rounding);
   } else {
+  #if defined(XGBOOST_USE_FEDERATED)
     // Encrypted vertical, build histogram using federated plugin
     auto const &comm = collective::GlobalCommGroup()->Ctx(ctx, DeviceOrd::CPU());
     auto const &fed = dynamic_cast<collective::FederatedComm const &>(comm);
@@ -480,6 +481,9 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
     dh::safe_cuda(cudaMemcpyAsync(histogram.data(), host_histogram.data(),
                                   histogram.size() * sizeof(GradientPairInt64),
                                   cudaMemcpyHostToDevice));
+  #else
+    LOG(FATAL) << error::NoFederated();
+  #endif
   }
 }
 }  // namespace xgboost::tree
