@@ -182,10 +182,12 @@ def check_cut(
 
 def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     """Check with optional cupy."""
+    import pandas as pd
+
     n_samples = 1024
     n_features = 14
     max_bin = 16
-    dtypes = [np.float32] * n_features
+    dtypes = pd.Series([np.float32] * n_features)
 
     # numerical
     X, y, w = tm.make_regression(n_samples, n_features, use_cupy=use_cupy)
