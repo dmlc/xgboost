@@ -451,7 +451,7 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
                                      &recv_segments, &hist_entries));
 
     // Call the plugin here to get the resulting histogram. Histogram from all workers are
-    // gathered to the label owner. 
+    // gathered to the label owner
     common::Span<double> hist_aggr =
             plugin->SyncEncryptedHistVert(
                     common::RestoreType<std::uint8_t>(hist_entries.HostSpan()));
