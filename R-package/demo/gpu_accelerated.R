@@ -30,6 +30,8 @@ evals <- list(train = dtrain, test = dtest)
 # - similar to the 'hist'
 # - the fastest option for moderately large datasets
 # - current limitations: max_depth < 16, does not implement guided loss
+
+
 pt <- proc.time()
 bst_gpu <- xgb.train(
     data = dtrain,
@@ -41,8 +43,8 @@ bst_gpu <- xgb.train(
     nround = 50,
     print_every_n = 50,
     max_bin = 64,
-    tree_method = "hist",
-    deivce = "cuda"
+    tree_method = "hist", # or "gpu_hist" for xgboost < 2.0.0
+    device = "cuda" # Since xgboost 2.0.0 the device argument is introduced
 )
 proc.time() - pt
 
