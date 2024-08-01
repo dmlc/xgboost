@@ -155,6 +155,10 @@ def deterministic_repartition(
     m: Margin,
     divisions,
 ) -> Tuple[dd.DataFrame, dd.Series, Margin]:
+    """Try to partition the dataframes according to divisions, this doesn't guarantee
+    the reproducibiliy.
+
+    """
     X, y, margin = (
         dd.repartition(X, divisions=divisions, force=True),
         dd.repartition(y, divisions=divisions, force=True),
@@ -494,7 +498,7 @@ def run_boost_from_prediction(
 
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
@@ -505,7 +509,7 @@ def run_boost_from_prediction(
 
     model_1 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
@@ -519,7 +523,7 @@ def run_boost_from_prediction(
 
     model_2 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=8,
+        n_estimators=6,
         tree_method=tree_method,
         max_bin=512,
         device=device,
