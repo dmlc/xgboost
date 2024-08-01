@@ -452,11 +452,11 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
                                    &recv_segments, &hist_entries));
 
   if (collective::GetRank() != 0) {
-    // This is only needed for lable owner
+    // Below is only needed for lable owner
     return;
   }
 
-  // Call the plugin here to get the resulting histogram. Histogram from all workers are
+  // Call the plugin to get the resulting histogram. Histogram from all workers are
   // gathered to the label owner.
   common::Span<double> hist_aggr =
           plugin->SyncEncryptedHistVert(
@@ -474,12 +474,7 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
       hess += hist_aggr[idx * 2 + 1];
     }
     GradientPairPrecise hist_item(grad, hess);
-    GradientPairPrecise hist_item_empty(0.0, 0.0);
-    if (collective::GetRank() != 0) {
-      host_histogram[i] = rounding.ToFixedPoint(hist_item_empty);
-    } else {
-      host_histogram[i] = rounding.ToFixedPoint(hist_item);
-    }
+    host_histogram[i] = rounding.ToFixedPoint(hist_item);
   }
 
   // copy the aggregated histogram back to GPU memory
@@ -490,6 +485,5 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
 #else
   LOG(FATAL) << error::NoFederated();
 #endif
-
 }
 }  // namespace xgboost::tree
