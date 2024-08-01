@@ -434,7 +434,7 @@ def run_boost_from_prediction_multi_class(
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
     )
@@ -448,7 +448,7 @@ def run_boost_from_prediction_multi_class(
         device=device,
     )
     X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
-    model_1.fit(X=X, y=y, base_margin=margin)
+    model_1.fit(X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin])
     predictions_1 = xgb.dask.predict(
         client,
         model_1.get_booster(),
@@ -464,7 +464,7 @@ def run_boost_from_prediction_multi_class(
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
     )
@@ -498,7 +498,7 @@ def run_boost_from_prediction(
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin: dd.Series = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.dask.DaskXGBClassifier(
@@ -509,7 +509,7 @@ def run_boost_from_prediction(
         device=device,
     )
     X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
-    model_1.fit(X=X, y=y, base_margin=margin)
+    model_1.fit(X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin])
     X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
@@ -521,7 +521,7 @@ def run_boost_from_prediction(
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2: dd.Series = model_2.predict(X)
 
     predt_1 = predictions_1.compute()
