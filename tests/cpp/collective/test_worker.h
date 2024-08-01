@@ -186,6 +186,12 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
   system::SocketFinalize();
 }
 
+inline std::int32_t GetWorkerLocalThreads(std::int32_t n_workers) {
+  std::int32_t n_total_threads = std::thread::hardware_concurrency();
+  auto n_threads = std::max(n_total_threads / n_workers, 1);
+  return n_threads;
+}
+
 class BaseMGPUTest : public ::testing::Test {
  public:
   /**

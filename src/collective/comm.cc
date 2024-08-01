@@ -372,7 +372,7 @@ RabitComm::~RabitComm() noexcept(false) {
   // Tell the error hanlding thread that we are shutting down.
   TCPSocket err_client;
 
-  return Success() << [&] {
+  auto rc = Success() << [&] {
     return ConnectTrackerImpl(tracker_, timeout_, retry_, task_id_, &tracker, Rank(), World());
   } << [&] {
     return this->Block();
@@ -403,6 +403,10 @@ RabitComm::~RabitComm() noexcept(false) {
     // the previous more important steps.
     return proto::Error{}.SignalShutdown(&err_client);
   };
+  if (!rc.OK()) {
+    return Fail("Failed to shutdown.", std::move(rc));
+  }
+  return rc;
 }
 
 [[nodiscard]] Result RabitComm::LogTracker(std::string msg) const {

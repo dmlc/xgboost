@@ -2,6 +2,11 @@
  * Copyright 2021-2024, XGBoost contributors.
  */
 #include <gtest/gtest.h>
+#include <xgboost/tree_updater.h>  // for TreeUpdater
+
+#include <algorithm>  // for transform
+#include <memory>     // for unique_ptr
+#include <vector>     // for vector
 
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/param.h"    // for TrainParam

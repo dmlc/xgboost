@@ -662,13 +662,15 @@ TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 class TestColumnSplit : public ::testing::TestWithParam<std::string> {
   void TestBaseScore(std::string objective, float expected_base_score, Json expected_model) {
     auto const world_size = collective::GetWorldSize();
+    auto n_threads = collective::GetWorkerLocalThreads(world_size);
     auto const rank = collective::GetRank();
 
     auto p_fmat = MakeFmatForObjTest(objective, 10, 10);
     std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
-    learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", objective);
+    learner->SetParams(Args{{"nthread", std::to_string(n_threads)},
+                            {"tree_method", "approx"},
+                            {"objective", objective}});
     if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
     }
@@ -707,7 +709,9 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     learner->SaveModel(&model);
 
     auto constexpr kWorldSize{3};
-    auto call = [this, &objective](auto&... args) { TestBaseScore(objective, args...); };
+    auto call = [this, &objective](auto&... args) {
+      this->TestBaseScore(objective, args...);
+    };
     auto score = GetBaseScore(config);
     collective::TestDistributedGlobal(kWorldSize, [&] {
       call(score, model);
@@ -730,8 +734,10 @@ namespace {
 Json GetModelWithArgs(std::shared_ptr<DMatrix> dmat, std::string const& tree_method,
                       std::string const& device, Args const& args) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  auto n_threads = collective::GetWorkerLocalThreads(collective::GetWorldSize());
   learner->SetParam("tree_method", tree_method);
   learner->SetParam("device", device);
+  learner->SetParam("nthread", std::to_string(n_threads));
   learner->SetParam("objective", "reg:logistic");
   learner->SetParams(args);
   learner->UpdateOneIter(0, dmat);
