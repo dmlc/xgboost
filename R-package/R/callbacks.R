@@ -5,7 +5,7 @@
 #' Constructor for defining the structure of callback functions that can be executed
 #' at different stages of model training (before / after training, before / after each boosting
 #' iteration).
-#' 
+#'
 #' @details
 #' Arguments that will be passed to the supplied functions are as follows:
 #' - env The same environment that is passed under argument `env`.
@@ -151,9 +151,8 @@
 #'   under the name supplied for parameter `cb_name` imn the case of [xgb.train()]; or a part
 #'   of the named elements in the result of [xgb.cv()].
 #' @return An `xgb.Callback` object, which can be passed to [xgb.train()] or [xgb.cv()].
-
-#' @seealso 
-#' Built-in callbacks:
+#'
+#' @seealso Built-in callbacks:
 #' - [xgb.cb.print.evaluation]
 #' - [xgb.cb.evaluation.log]
 #' - [xgb.cb.reset.parameters]
@@ -450,13 +449,13 @@ xgb.cb.print.evaluation <- function(period = 1, showsd = TRUE) {
 }
 
 #' Callback for logging the evaluation history
-#' 
+#'
 #' @details This callback creates a table with per-iteration evaluation metrics (see parameters
 #' `evals` and `feval` in [xgb.train()]).
-#' 
+#'
 #' Note: in the column names of the final data.table, the dash '-' character is replaced with
 #' the underscore '_' in order to make the column names more like regular R identifiers.
-#' 
+#'
 #' @return An `xgb.Callback` object, which can be passed to [xgb.train()] or [xgb.cv()].
 #' @seealso [xgb.cb.print.evaluation]
 #' @export
@@ -595,7 +594,7 @@ xgb.cb.reset.parameters <- function(new_params) {
 #' - `best_score` the evaluation score at the best iteration
 #' - `best_iteration` at which boosting iteration the best score has occurred
 #' (0-based index for interoperability of binary models)
-#' 
+#'
 #' The same values are also stored as R attributes as a result of the callback, plus an additional
 #' attribute `stopped_by_max_rounds` which indicates whether an early stopping by the `stopping_rounds`
 #' condition occurred. Note that the `best_iteration` that is stored under R attributes will follow
@@ -605,7 +604,7 @@ xgb.cb.reset.parameters <- function(new_params) {
 #' At least one dataset is required in `evals` for early stopping to work.
 #'
 #' @param stopping_rounds The number of rounds with no improvement in
-#'        the evaluation metric in order to stop the training.
+#'   the evaluation metric in order to stop the training.
 #' @param maximize Whether to maximize the evaluation metric.
 #' @param metric_name The name of an evaluation column to use as a criteria for early
 #'   stopping. If not set, the last column would be used.
@@ -911,7 +910,7 @@ xgb.cb.cv.predict <- function(save_models = FALSE, outputmargin = FALSE) {
 }
 
 #' Callback for collecting coefficients history of a gblinear booster
-#' 
+#'
 #' @details
 #' To keep things fast and simple, gblinear booster does not internally store the history of linear
 #' model coefficients at each boosting iteration. This callback provides a workaround for storing

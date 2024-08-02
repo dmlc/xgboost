@@ -1,7 +1,7 @@
 #' Plot boosted trees
 #'
 #' Read a tree model text dump and plot the model.
-#' 
+#'
 #' @details
 #' When using `style="xgboost"`, the content of each node is visualized as follows:
 #' - For non-terminal nodes, it will display the split condition (number or name if

@@ -1,7 +1,7 @@
 #' Feature importance
 #'
 #' Creates a `data.table` of feature importances.
-#' 
+#'
 #' @details
 #' This function works for both linear and tree models.
 #'

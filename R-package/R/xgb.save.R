@@ -15,7 +15,7 @@
 #'     default to UBJ.
 #'
 #' @details
-#' 
+#'
 #' This methods allows to save a model in an XGBoost-internal binary or text format which is universal
 #' among the various xgboost interfaces. In R, the saved model file could be read later
 #' using either the [xgb.load()] function or the `xgb_model` parameter of [xgb.train()].

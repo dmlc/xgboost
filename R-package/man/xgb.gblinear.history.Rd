@@ -2,7 +2,7 @@
 % Please edit documentation in R/callbacks.R
 \name{xgb.gblinear.history}
 \alias{xgb.gblinear.history}
-\title{Extract gblinear coefficients history.}
+\title{Extract gblinear coefficients history}
 \usage{
 xgb.gblinear.history(model, class_index = NULL)
 }

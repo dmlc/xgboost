@@ -139,7 +139,7 @@ xgb.get.handle <- function(object) {
 #'   Note that, if `newdata` is an `xgb.DMatrix` object, this argument will
 #'   be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
 #'   an argument in its constructor, or by calling [setinfo.xgb.DMatrix()].
-#' @param validate_features When `TRUE`, validate that the Booster's and newdata's 
+#' @param validate_features When `TRUE`, validate that the Booster's and newdata's
 #'   feature_names match (only applicable when both `object` and `newdata` have feature names).
 #'
 #'   If the column names differ and `newdata` is not an `xgb.DMatrix`, will try to reorder

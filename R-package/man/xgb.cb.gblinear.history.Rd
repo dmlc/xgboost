@@ -40,7 +40,7 @@ one coefficient per feature) the names will be composed as 'column name' + ':' +
 With \code{\link[=xgb.train]{xgb.train()}}, the output is either a dense or a sparse matrix.
 With with \code{\link[=xgb.cv]{xgb.cv()}}, it is a list (one element per each fold) of such matrices.
 
-Function \link{xgb.gblinear.history} function provides an easy way to retrieve the
+Function \link{xgb.gblinear.history} provides an easy way to retrieve the
 outputs from this callback.
 }
 \examples{

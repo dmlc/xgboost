@@ -2,7 +2,7 @@
 #'
 #' May improve the learning by adding new features to the training data based on the
 #' decision trees from a previously learned model.
-#' 
+#'
 #' @details
 #' This is the function inspired from the paragraph 3.1 of the paper:
 #'

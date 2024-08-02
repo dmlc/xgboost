@@ -3,7 +3,7 @@
 #' Represents previously calculated feature importance as a bar graph.
 #' - `xgb.plot.importance()` uses base R graphics, while
 #' - `xgb.ggplot.importance()` uses "ggplot".
-#' 
+#'
 #' @details
 #' The graph represents each feature as a horizontal bar of length proportional to the
 #' importance of a feature. Features are sorted by decreasing importance.

@@ -2,7 +2,7 @@
 % Please edit documentation in R/callbacks.R
 \name{xgb.cb.cv.predict}
 \alias{xgb.cb.cv.predict}
-\title{Callback for returning cross-validation based predictions.}
+\title{Callback for returning cross-validation based predictions}
 \usage{
 xgb.cb.cv.predict(save_models = FALSE, outputmargin = FALSE)
 }
