@@ -155,6 +155,10 @@ def deterministic_repartition(
     m: Margin,
     divisions,
 ) -> Tuple[dd.DataFrame, dd.Series, Margin]:
+    """Try to partition the dataframes according to divisions, this doesn't guarantee
+    the reproducibiliy.
+
+    """
     X, y, margin = (
         dd.repartition(X, divisions=divisions, force=True),
         dd.repartition(y, divisions=divisions, force=True),
@@ -434,7 +438,7 @@ def run_boost_from_prediction_multi_class(
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
     )
@@ -448,7 +452,9 @@ def run_boost_from_prediction_multi_class(
         device=device,
     )
     X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
-    model_1.fit(X=X, y=y, base_margin=margin)
+    model_1.fit(
+        X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
+    )
     predictions_1 = xgb.dask.predict(
         client,
         model_1.get_booster(),
@@ -464,7 +470,7 @@ def run_boost_from_prediction_multi_class(
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
     )
@@ -492,45 +498,46 @@ def run_boost_from_prediction(
 
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin: dd.Series = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
     X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
-    model_1.fit(X=X, y=y, base_margin=margin)
+    model_1.fit(
+        X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
+    )
     X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
     model_2 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=8,
+        n_estimators=6,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
     X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2: dd.Series = model_2.predict(X)
 
-    predt_1 = predictions_1.compute()
-    predt_2 = predictions_2.compute()
-    if hasattr(predt_1, "to_numpy"):
-        predt_1 = predt_1.to_numpy()
-    if hasattr(predt_2, "to_numpy"):
-        predt_2 = predt_2.to_numpy()
-    np.testing.assert_allclose(predt_1, predt_2, atol=1e-5)
+    logloss_concat = (
+        model_0.evals_result()["validation_0"]["logloss"]
+        + model_1.evals_result()["validation_0"]["logloss"]
+    )
+    logloss_2 = model_2.evals_result()["validation_0"]["logloss"]
+    np.testing.assert_allclose(logloss_concat, logloss_2, rtol=1e-4)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
     X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
