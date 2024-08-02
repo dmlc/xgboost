@@ -2,6 +2,7 @@ env:
   DOCKER_CACHE_ECR_ID: "492475357299"
   DOCKER_CACHE_ECR_REGION: "us-west-2"
 steps:
+  - timeout_in_minutes: 30
   - label: ":moneybag: Enforce daily budget"
     command: "tests/buildkite/enforce_daily_budget.sh"
     key: enforce-daily-budget

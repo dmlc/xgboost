@@ -1,4 +1,5 @@
 steps:
+  - timeout_in_minutes: 30
   - block: ":rocket: Run this test job"
     if: build.pull_request.id != null || build.branch =~ /^dependabot\//
   - label: ":macos: Build libxgboost4j.dylib for MacOS M1"

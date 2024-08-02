@@ -10,6 +10,7 @@ env:
     # Use dev versions of RAPIDS and other dependencies
 steps:
   #### -------- CONTAINER BUILD --------
+  - timeout_in_minutes: 30
   - label: ":docker: Build containers"
     commands:
       - "tests/buildkite/build-containers.sh gpu_build_rockylinux8"
