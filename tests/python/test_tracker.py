@@ -34,41 +34,43 @@ def test_socket_error():
         tracker.free()
 
 
-def run_rabit_ops(pool, n_workers: int) -> None:
-    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=n_workers)
-    tracker.start()
-    args = tracker.worker_args()
+def run_rabit_ops(client, n_workers):
+    from xgboost.dask import CommunicatorContext, _get_dask_config, _get_rabit_args
 
+    workers = tm.get_client_workers(client)
+    rabit_args = client.sync(_get_rabit_args, len(workers), _get_dask_config(), client)
     assert not collective.is_distributed()
+    n_workers_from_dask = len(workers)
+    assert n_workers == n_workers_from_dask
 
-    def local_test(worker_id: int, rabit_args: Dict[str, Union[str, int]]) -> int:
-        with collective.CommunicatorContext(**rabit_args):
+    def local_test(worker_id):
+        with CommunicatorContext(**rabit_args):
             a = 1
             assert collective.is_distributed()
-            array = np.array([a])
-            reduced = collective.allreduce(array, collective.Op.SUM)
+            a = np.array([a])
+            reduced = collective.allreduce(a, collective.Op.SUM)
             assert reduced[0] == n_workers
 
-            id_array = np.array([worker_id])
-            reduced = collective.allreduce(id_array, collective.Op.MAX)
+            worker_id = np.array([worker_id])
+            reduced = collective.allreduce(worker_id, collective.Op.MAX)
             assert reduced == n_workers - 1
 
             return 1
 
-    fn = update_wrapper(partial(local_test, rabit_args=args), local_test)
-    results = pool.map(fn, range(n_workers))
+    futures = client.map(local_test, range(len(workers)), workers=workers)
+    results = client.gather(futures)
     assert sum(results) == n_workers
 
 
-@pytest.mark.skipif(**tm.no_loky())
+@pytest.mark.skipif(**tm.no_dask())
 def test_rabit_ops():
-    from loky import get_reusable_executor
+    from distributed import Client, LocalCluster
 
     n_workers = 3
-    n_trials = 2
-    for _ in range(n_trials):
-        with get_reusable_executor(max_workers=n_workers) as pool:
-            run_rabit_ops(pool, n_workers)
+    with LocalCluster(n_workers=n_workers) as cluster:
+        with Client(cluster) as client:
+            run_rabit_ops(client, n_workers)
+
 
 
 def run_allreduce(pool, n_workers: int) -> None:
