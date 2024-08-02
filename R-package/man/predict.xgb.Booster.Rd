@@ -28,35 +28,36 @@
 \item{newdata}{Takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
 local data file, or \code{xgb.DMatrix}.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   For single-row predictions on sparse data, it's recommended to use CSR format. If passing
-   a sparse vector, it will take it as a row vector.
+For single-row predictions on sparse data, it is recommended to use CSR format. If passing
+a sparse vector, it will take it as a row vector.
 
-   Note that, for repeated predictions on the same data, one might want to create a DMatrix to
-   pass here instead of passing R types like matrices or data frames, as predictions will be
-   faster on DMatrix.
+Note that, for repeated predictions on the same data, one might want to create a DMatrix to
+pass here instead of passing R types like matrices or data frames, as predictions will be
+faster on DMatrix.
 
-   If `newdata` is a `data.frame`, be aware that:\\itemize\{
-   \\item Columns will be converted to numeric if they aren't already, which could potentially make
-         the operation slower than in an equivalent `matrix` object.
-   \\item The order of the columns must match with that of the data from which the model was fitted
-         (i.e. columns will not be referenced by their names, just by their order in the data).
-   \\item If the model was fitted to data with categorical columns, these columns must be of
-         `factor` type here, and must use the same encoding (i.e. have the same levels).
-   \\item If `newdata` contains any `factor` columns, they will be converted to base-0
-         encoding (same as during DMatrix creation) - hence, one should not pass a `factor`
-         under a column which during training had a different type.
-   \}
-}\if{html}{\out{</div>}}}
+If \code{newdata} is a \code{data.frame}, be aware that:
+\itemize{
+\item Columns will be converted to numeric if they aren't already, which could potentially make
+the operation slower than in an equivalent \code{matrix} object.
+\item The order of the columns must match with that of the data from which the model was fitted
+(i.e. columns will not be referenced by their names, just by their order in the data).
+\item If the model was fitted to data with categorical columns, these columns must be of
+\code{factor} type here, and must use the same encoding (i.e. have the same levels).
+\item If \code{newdata} contains any \code{factor} columns, they will be converted to base-0
+encoding (same as during DMatrix creation) - hence, one should not pass a \code{factor}
+under a column which during training had a different type.
+}}
 
-\item{missing}{Float value that represents missing values in data (e.g., 0 or some other extreme value).
+\item{missing}{Float value that represents missing values in data
+(e.g., 0 or some other extreme value).
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   This parameter is not used when `newdata` is an `xgb.DMatrix` - in such cases, should pass
-   this as an argument to the DMatrix constructor instead.
-}\if{html}{\out{</div>}}}
+This parameter is not used when \code{newdata} is an \code{xgb.DMatrix} - in such cases,
+should pass this as an argument to the DMatrix constructor instead.}
 
-\item{outputmargin}{Whether the prediction should be returned in the form of original untransformed
-sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
-logistic regression would return log-odds instead of probabilities.}
+\item{outputmargin}{Whether the prediction should be returned in the form of
+original untransformed sum of predictions from boosting iterations' results.
+E.g., setting \code{outputmargin = TRUE} for logistic regression would return log-odds
+instead of probabilities.}
 
 \item{predleaf}{Whether to predict per-tree leaf indices.}
 
@@ -64,54 +65,54 @@ logistic regression would return log-odds instead of probabilities.}
 
 \item{approxcontrib}{Whether to use a fast approximation for feature contributions (see Details).}
 
-\item{predinteraction}{Whether to return contributions of feature interactions to individual predictions (see Details).}
+\item{predinteraction}{Whether to return contributions of feature interactions to
+individual predictions (see Details).}
 
-\item{reshape}{Whether to reshape the vector of predictions to matrix form when there are several
-prediction outputs per case. No effect if \code{predleaf}, \code{predcontrib},
+\item{reshape}{Whether to reshape the vector of predictions to matrix form when there
+are several prediction outputs per case. No effect if \code{predleaf}, \code{predcontrib},
 or \code{predinteraction} is \code{TRUE}.}
 
 \item{training}{Whether the prediction result is used for training. For dart booster,
 training predicting will perform dropout.}
 
-\item{iterationrange}{Sequence of rounds/iterations from the model to use for prediction, specified by passing
-a two-dimensional vector with the start and end numbers in the sequence (same format as R's \code{seq} - i.e.
-base-1 indexing, and inclusive of both ends).
+\item{iterationrange}{Sequence of rounds/iterations from the model to use for
+prediction, specified by passing a two-dimensional vector with the start and end
+numbers in the sequence (same format as R's \code{seq} - i.e. base-1 indexing, and
+inclusive of both ends).
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   For example, passing `c(1,20)` will predict using the first twenty iterations, while passing `c(1,1)` will
-   predict using only the first one.
+For example, passing \code{c(1, 20)} will predict using the first twenty iterations,
+while passing \code{c(1, 1)} will predict using only the first one.
 
-   If passing `NULL`, will either stop at the best iteration if the model used early stopping, or use all
-   of the iterations (rounds) otherwise.
+If passing \code{NULL}, will either stop at the best iteration if the model used early
+stopping, or use all of the iterations (rounds) otherwise.
 
-   If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.
-}\if{html}{\out{</div>}}}
+If passing "all", will use all of the rounds regardless of whether the model had
+early stopping or not.}
 
-\item{strict_shape}{Default is \code{FALSE}. When set to \code{TRUE}, the output
-type and shape of predictions are invariant to the model type.}
+\item{strict_shape}{Default is \code{FALSE}. When set to \code{TRUE}, the output type and shape
+of predictions are invariant to the model type.}
 
-\item{validate_features}{When \code{TRUE}, validate that the Booster's and newdata's feature_names
-match (only applicable when both \code{object} and \code{newdata} have feature names).
+\item{validate_features}{When \code{TRUE}, validate that the Booster's and newdata's
+feature_names match (only applicable when both \code{object} and \code{newdata} have feature names).
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   If the column names differ and `newdata` is not an `xgb.DMatrix`, will try to reorder
-   the columns in `newdata` to match with the booster's.
+If the column names differ and \code{newdata} is not an \code{xgb.DMatrix}, will try to reorder
+the columns in \code{newdata} to match with the booster's.
 
-   If the booster has feature types and `newdata` is either an `xgb.DMatrix` or `data.frame`,
-   will additionally verify that categorical columns are of the correct type in `newdata`,
-   throwing an error if they do not match.
+If the booster has feature types and \code{newdata} is either an \code{xgb.DMatrix} or
+\code{data.frame}, will additionally verify that categorical columns are of the
+correct type in \code{newdata}, throwing an error if they do not match.
 
-   If passing `FALSE`, it is assumed that the feature names and types are the same,
-   and come in the same order as in the training data.
+If passing \code{FALSE}, it is assumed that the feature names and types are the same,
+and come in the same order as in the training data.
 
-   Note that this check might add some sizable latency to the predictions, so it's
-   recommended to disable it for performance-sensitive applications.
-}\if{html}{\out{</div>}}}
+Note that this check might add some sizable latency to the predictions, so it's
+recommended to disable it for performance-sensitive applications.}
 
 \item{base_margin}{Base margin used for boosting from existing model.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that, if `newdata` is an `xgb.DMatrix` object, this argument will
-   be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
-   an argument in its constructor, or by calling \link{setinfo.xgb.DMatrix}).
-}\if{html}{\out{</div>}}}
+Note that, if \code{newdata} is an \code{xgb.DMatrix} object, this argument will
+be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
+an argument in its constructor, or by calling \code{\link[=setinfo.xgb.DMatrix]{setinfo.xgb.DMatrix()}}.}
 
 \item{...}{Not used.}
 }
@@ -144,7 +145,7 @@ When \code{strict_shape = TRUE}, the output is always an array:
 }
 }
 \description{
-Predict values on data based on xgboost model.
+Predict values on data based on XGBoost model.
 }
 \details{
 Note that \code{iterationrange} would currently do nothing for predictions from "gblinear",

@@ -2,23 +2,22 @@
 % Please edit documentation in R/callbacks.R
 \name{xgb.cb.save.model}
 \alias{xgb.cb.save.model}
-\title{Callback for saving a model file.}
+\title{Callback for saving a model file}
 \usage{
 xgb.cb.save.model(save_period = 0, save_name = "xgboost.ubj")
 }
 \arguments{
-\item{save_period}{Save the model to disk after every
-\code{save_period} iterations; 0 means save the model at the end.}
+\item{save_period}{Save the model to disk after every \code{save_period} iterations;
+0 means save the model at the end.}
 
 \item{save_name}{The name or path for the saved model file.
-It can contain a \code{\link[base]{sprintf}} formatting specifier
-to include the integer iteration number in the file name.
-E.g., with \code{save_name} = 'xgboost_\%04d.model',
+It can contain a \code{\link[=sprintf]{sprintf()}} formatting specifier to include the integer
+iteration number in the file name. E.g., with \code{save_name = 'xgboost_\%04d.model'},
 the file saved at iteration 50 would be named "xgboost_0050.model".}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \link{xgb.train},
-but \bold{not} to \link{xgb.cv}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}},
+but \strong{not} to \code{\link[=xgb.cv]{xgb.cv()}}.
 }
 \description{
 This callback function allows to save an xgb-model file, either periodically
