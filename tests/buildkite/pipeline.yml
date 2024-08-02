@@ -52,6 +52,7 @@ steps:
     agents:
       queue: linux-amd64-cpu
   - label: ":console: Build JVM packages"
+    timeout_in_minutes: 30
     command: "tests/buildkite/build-jvm-packages.sh"
     key: build-jvm-packages
     agents:
