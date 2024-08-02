@@ -45,15 +45,13 @@ so it doesn't make sense to assign weights to individual data points.}
 
 \item{base_margin}{Base margin used for boosting from existing model.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   In the case of multi-output models, one can also pass multi-dimensional base_margin.
-}\if{html}{\out{</div>}}}
+In the case of multi-output models, one can also pass multi-dimensional base_margin.}
 
 \item{feature_names}{Set names for features. Overrides column names in data
 frame and matrix.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note: columns are not referenced by name when calling `predict`, so the column order there
-   must be the same as in the DMatrix construction, regardless of the column names.
-}\if{html}{\out{</div>}}}
+Note: columns are not referenced by name when calling \code{predict}, so the column order there
+must be the same as in the DMatrix construction, regardless of the column names.}
 
 \item{feature_types}{Set types for features.
 
