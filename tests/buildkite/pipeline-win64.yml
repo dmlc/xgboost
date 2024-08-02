@@ -1,5 +1,4 @@
 steps:
-  - timeout_in_minutes: 30
   - label: ":moneybag: Enforce daily budget"
     command: "tests/buildkite/enforce_daily_budget.sh"
     key: enforce-daily-budget
