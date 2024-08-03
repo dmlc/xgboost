@@ -809,9 +809,9 @@ class XGBModel(XGBModelBase):
         if post == "dev":
             rel = "latest"
         else:
-            # RTD tracks the release branch, we don't have different branch patch
-            # release.
-            rel = f"{major}.{minor}.0"
+            # RTD tracks the release branch. We don't have independent branches for
+            # patch releases.
+            rel = f"release_{major}.{minor}.0"
 
         module = self.__class__.__module__
         # All sklearn estimators are forwarded to the top level module in both source
