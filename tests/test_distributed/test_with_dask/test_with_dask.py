@@ -406,7 +406,6 @@ def run_boost_from_prediction_multi_class(
     tree_method: str,
     device: str,
     client: "Client",
-    divisions: List[int],
 ) -> None:
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
@@ -467,7 +466,6 @@ def run_boost_from_prediction(
     tree_method: str,
     device: str,
     client: "Client",
-    divisions: List[int],
 ) -> None:
     X, y = client.persist([X, y])
 
@@ -545,15 +543,11 @@ def test_boost_from_prediction(tree_method: str) -> None:
         with Client(cluster) as client:
             X_, y_ = load_breast_cancer(return_X_y=True)
             X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-            divisions = copy(X.divisions)
-            run_boost_from_prediction(X, y, tree_method, "cpu", client, divisions)
+            run_boost_from_prediction(X, y, tree_method, "cpu", client)
 
             X_, y_ = load_digits(return_X_y=True)
             X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-            divisions = copy(X.divisions)
-            run_boost_from_prediction_multi_class(
-                X, y, tree_method, "cpu", client, divisions
-            )
+            run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
 
 
 def test_inplace_predict(client: "Client") -> None:
@@ -1556,7 +1550,6 @@ class TestWithDask:
     def test_empty_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 2, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
-        divisions = copy(X_valid.divisions)
 
         Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = xgb.dask.DaskQuantileDMatrix(

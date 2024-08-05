@@ -221,16 +221,12 @@ class TestDistributedGPU:
         X_, y_ = load_breast_cancer(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).to_backend("cudf")
         y = dd.from_array(y_, chunksize=100).to_backend("cudf")
-        divisions = copy(X.divisions)
-        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client, divisions)
+        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
 
         X_, y_ = load_iris(return_X_y=True)
         X = dd.from_array(X_, chunksize=50).to_backend("cudf")
         y = dd.from_array(y_, chunksize=50).to_backend("cudf")
-        divisions = copy(X.divisions)
-        run_boost_from_prediction_multi_class(
-            X, y, "hist", "cuda", local_cuda_client, divisions
-        )
+        run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
         check_init_estimation("hist", "cuda", local_cuda_client)
