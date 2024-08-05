@@ -533,10 +533,10 @@ def test_boost_from_prediction(tree_method: str) -> None:
 
     n_threads = os.cpu_count()
     assert n_threads is not None
-    # Test test has strict requirements on reproducibiliy but Dask can move partitions
-    # between workers and change partition sizes during the test. There's no good way to
-    # control the partitioning logic. As a result, only a single worker is used for this
-    # test.
+    # This test has strict requirements on reproducibiliy. However, Dask is freed to
+    # move partitions between workers and change partition sizes during the
+    # test. There's no good way to control the partitioning logic. As a result, only a
+    # single worker is used.
     n_workers = 1
 
     with LocalCluster(
