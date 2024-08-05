@@ -49,7 +49,7 @@ pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_dask())]
 import dask
 import dask.array as da
 import dask.dataframe as dd
-from distributed import Client, LocalCluster, Nanny, Worker
+from distributed import Client, LocalCluster, Nanny, Worker, wait
 from distributed.utils_test import async_poll_for, gen_cluster
 from toolz import sliding_window  # dependency of dask
 
@@ -164,6 +164,12 @@ def deterministic_repartition(
         dd.repartition(y, divisions=divisions, force=True),
         dd.repartition(m, divisions=divisions, force=True) if m is not None else None,
     )
+    if margin is not None:
+        X, y, margin = client.persist([X, y, margin])
+        wait([X, y, m])
+    else:
+        X, y = client.persist([X, y])
+        wait([X, y])
     return X, y, margin
 
 
