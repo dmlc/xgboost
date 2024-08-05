@@ -559,18 +559,29 @@ def run_boost_from_prediction(
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
+def test_boost_from_prediction(tree_method: str) -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
 
-    X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-    divisions = copy(X.divisions)
-    run_boost_from_prediction(X, y, tree_method, "cpu", client, divisions)
+    n_threads = os.cpu_count()
+    assert n_threads is not None
+    n_workers = 2
 
-    X_, y_ = load_digits(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    divisions = copy(X.divisions)
-    run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client, divisions)
+    # Avoid the module fixture to make the test more deterministic.
+    with LocalCluster(
+        n_workers=n_workers, threads_per_worker=n_threads // n_workers
+    ) as cluster:
+        with Client(cluster) as client:
+            X_, y_ = load_breast_cancer(return_X_y=True)
+            X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+            divisions = copy(X.divisions)
+            run_boost_from_prediction(X, y, tree_method, "cpu", client, divisions)
+
+            X_, y_ = load_digits(return_X_y=True)
+            X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+            divisions = copy(X.divisions)
+            run_boost_from_prediction_multi_class(
+                X, y, tree_method, "cpu", client, divisions
+            )
 
 
 def test_inplace_predict(client: "Client") -> None:
