@@ -145,34 +145,6 @@ def generate_array(
     return X, y, None
 
 
-Margin = TypeVar("Margin", dd.DataFrame, dd.Series, None)
-
-
-def deterministic_repartition(
-    client: Client,
-    X: dd.DataFrame,
-    y: dd.Series,
-    m: Margin,
-    divisions,
-) -> Tuple[dd.DataFrame, dd.Series, Margin]:
-    """Try to partition the dataframes according to divisions, this doesn't guarantee
-    the reproducibiliy.
-
-    """
-    X, y, margin = (
-        dd.repartition(X, divisions=divisions),
-        dd.repartition(y, divisions=divisions),
-        dd.repartition(m, divisions=divisions) if m is not None else None,
-    )
-    if margin is not None:
-        X, y, margin = client.persist([X, y, margin])
-        wait([X, y, m])
-    else:
-        X, y = client.persist([X, y])
-        wait([X, y])
-    return X, y, margin
-
-
 @pytest.mark.parametrize("to_frame", [True, False])
 def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client"):
     X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
@@ -443,7 +415,6 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
@@ -457,7 +428,6 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     model_1.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
@@ -475,7 +445,6 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
@@ -509,7 +478,6 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin: dd.Series = model_0.predict(X, output_margin=True)
 
@@ -520,11 +488,9 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     model_1.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
     model_2 = xgb.dask.DaskXGBClassifier(
@@ -534,7 +500,6 @@ def run_boost_from_prediction(
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
     model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2: dd.Series = model_2.predict(X)
 
@@ -546,13 +511,11 @@ def run_boost_from_prediction(
     np.testing.assert_allclose(logloss_concat, logloss_2, rtol=1e-4)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     margined.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
 
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
     margined_res = margined.evals_result()["validation_0"]["logloss"]
@@ -570,9 +533,12 @@ def test_boost_from_prediction(tree_method: str) -> None:
 
     n_threads = os.cpu_count()
     assert n_threads is not None
-    n_workers = 2
+    # Test test has strict requirements on reproducibiliy but Dask can move partitions
+    # between workers and change partition sizes during the test. There's no good way to
+    # control the partitioning logic. As a result, only a single worker is used for this
+    # test.
+    n_workers = 1
 
-    # Avoid the module fixture to make the test more deterministic.
     with LocalCluster(
         n_workers=n_workers, threads_per_worker=n_threads // n_workers
     ) as cluster:
