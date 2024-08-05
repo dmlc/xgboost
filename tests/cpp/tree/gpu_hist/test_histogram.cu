@@ -70,7 +70,6 @@ std::vector<GradientPairPrecise> GetHostHistGpair() {
   return hist_gpair;
 }
 
-template <typename GradientSumT>
 void TestBuildHist(bool use_shared_memory_histograms) {
   int const kNRows = 16, kNCols = 8;
   Context ctx{MakeCUDACtx(0)};
@@ -126,11 +125,11 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 }
 
 TEST(Histogram, BuildHistGlobalMem) {
-  TestBuildHist<GradientPairPrecise>(false);
+  TestBuildHist(false);
 }
 
 TEST(Histogram, BuildHistSharedMem) {
-  TestBuildHist<GradientPairPrecise>(true);
+  TestBuildHist(true);
 }
 
 void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) {
