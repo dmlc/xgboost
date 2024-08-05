@@ -160,9 +160,9 @@ def deterministic_repartition(
 
     """
     X, y, margin = (
-        dd.repartition(X, divisions=divisions, force=True),
-        dd.repartition(y, divisions=divisions, force=True),
-        dd.repartition(m, divisions=divisions, force=True) if m is not None else None,
+        dd.repartition(X, divisions=divisions),
+        dd.repartition(y, divisions=divisions),
+        dd.repartition(m, divisions=divisions) if m is not None else None,
     )
     if margin is not None:
         X, y, margin = client.persist([X, y, margin])
