@@ -45,9 +45,7 @@
 #include "xgboost/tree_model.h"
 
 namespace xgboost::tree {
-#if !defined(GTEST_TEST)
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
-#endif  // !defined(GTEST_TEST)
 
 // Manage memory for a single GPU
 struct GPUHistMakerDevice {
@@ -831,13 +829,11 @@ class GPUHistMaker : public TreeUpdater {
   std::shared_ptr<common::ColumnSampler> column_sampler_;
 };
 
-#if !defined(GTEST_TEST)
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
     .set_body([](Context const* ctx, ObjInfo const* task) {
       return new GPUHistMaker(ctx, task);
     });
-#endif  // !defined(GTEST_TEST)
 
 class GPUGlobalApproxMaker : public TreeUpdater {
  public:
@@ -960,11 +956,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   common::Monitor monitor_;
 };
 
-#if !defined(GTEST_TEST)
 XGBOOST_REGISTER_TREE_UPDATER(GPUApproxMaker, "grow_gpu_approx")
     .describe("Grow tree with GPU.")
     .set_body([](Context const* ctx, ObjInfo const* task) {
       return new GPUGlobalApproxMaker(ctx, task);
     });
-#endif  // !defined(GTEST_TEST)
 }  // namespace xgboost::tree
