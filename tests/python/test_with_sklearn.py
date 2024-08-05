@@ -1484,3 +1484,16 @@ def test_tags() -> None:
 
     tags = xgb.XGBRanker()._more_tags()
     assert "multioutput" not in tags
+
+
+def test_doc_link() -> None:
+    for est in [
+        xgb.XGBRegressor(),
+        xgb.XGBClassifier(),
+        xgb.XGBRanker(),
+        xgb.XGBRFRegressor(),
+        xgb.XGBRFClassifier(),
+    ]:
+        name = est.__class__.__name__
+        link = est._get_doc_link()
+        assert f"xgboost.{name}" in link

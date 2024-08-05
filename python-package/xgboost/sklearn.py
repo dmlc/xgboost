@@ -40,6 +40,8 @@ from .core import (
     XGBoostError,
     _deprecate_positional_args,
     _parse_eval_str,
+    _parse_version,
+    _py_version,
 )
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
@@ -794,6 +796,32 @@ class XGBModel(XGBModelBase):
 
     def __sklearn_is_fitted__(self) -> bool:
         return hasattr(self, "_Booster")
+
+    @property
+    def _doc_link_module(self) -> str:
+        return "xgboost"
+
+    @property
+    def _doc_link_template(self) -> str:
+        ver = _py_version()
+        (major, minor, _), post = _parse_version(ver)
+
+        if post == "dev":
+            rel = "latest"
+        else:
+            # RTD tracks the release branch. We don't have independent branches for
+            # patch releases.
+            rel = f"release_{major}.{minor}.0"
+
+        module = self.__class__.__module__
+        # All sklearn estimators are forwarded to the top level module in both source
+        # code and sphinx api doc.
+        if module == "xgboost.sklearn":
+            module = module.split(".")[0]
+        name = self.__class__.__name__
+
+        base = "https://xgboost.readthedocs.io/en"
+        return f"{base}/{rel}/python/python_api.html#{module}.{name}"
 
     def get_booster(self) -> Booster:
         """Get the underlying xgboost Booster of this model.
