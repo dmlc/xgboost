@@ -10,9 +10,7 @@
 #include "../../filesystem.h"            // dmlc::TemporaryDirectory
 #include "../../helpers.h"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 void VerifySampling(size_t page_size,
                     float subsample,
                     int sampling_method,
@@ -151,6 +149,4 @@ TEST(GradientBasedSampler, GradientBasedSamplingExternalMemory) {
   constexpr bool kFixedSizeSampling = false;
   VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
-
-};  // namespace tree
-};  // namespace xgboost
+};  // namespace xgboost::tree
