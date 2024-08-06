@@ -1,5 +1,6 @@
 /**
  * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2024 FUJITSU LIMITED
  * \file hist_util.cc
  */
 #include "hist_util.h"
@@ -14,6 +15,10 @@
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for SparsePage, SortedCSCPage
+
+#if defined(SVE_SUPPORT_DETECTED)
+#include <arm_sve.h>  // to leverage sve intrinsics
+#endif
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
@@ -252,13 +257,52 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
 
     // The trick with pgh_t buffer helps the compiler to generate faster binary.
     const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
-    for (size_t j = 0; j < row_size; ++j) {
-      const uint32_t idx_bin =
-          two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
-      auto hist_local = hist_data + idx_bin;
-      *(hist_local) += pgh_t[0];
-      *(hist_local + 1) += pgh_t[1];
-    }
+    #if defined(SVE_SUPPORT_DETECTED)
+      svfloat64_t pgh_t0_vec = svdup_n_f64(pgh_t[0]);
+      svfloat64_t pgh_t1_vec = svdup_n_f64(pgh_t[1]);
+
+      for (size_t j = 0; j < row_size; j+=svcntw()) {
+          svbool_t pg32 = svwhilelt_b32(j, row_size);
+          svbool_t pg64 = svwhilelt_b64(j, row_size);
+          svuint32_t gr_index_vec =
+              svld1ub_u32(pg32, reinterpret_cast<const uint8_t *> (&gr_index_local[j]));
+          svuint32_t offsets_vec = svld1(pg32, &offsets[j]);
+          svuint32_t idx_bin_vec;
+          if (kAnyMissing) {
+              idx_bin_vec = svmul_n_u32_x(pg32, gr_index_vec, two);
+            } else {
+              svuint32_t temp = svadd_u32_m(pg32, gr_index_vec, offsets_vec);
+              idx_bin_vec = svmul_n_u32_x(pg32, temp, two);
+          }
+          svuint64_t idx_bin_vec0_0 = svunpklo_u64(idx_bin_vec);
+          svuint64_t idx_bin_vec0_1 = svunpkhi_u64(idx_bin_vec);
+          svuint64_t idx_bin_vec1_0 = svadd_n_u64_m(pg64, idx_bin_vec0_0, 1);
+          svuint64_t idx_bin_vec1_1 = svadd_n_u64_m(pg64, idx_bin_vec0_1, 1);
+
+          svfloat64_t hist0_vec0 = svld1_gather_index(pg64, hist_data, idx_bin_vec0_0);
+          svfloat64_t hist0_vec1 = svld1_gather_index(pg64, hist_data, idx_bin_vec0_1);
+          svfloat64_t hist1_vec0 = svld1_gather_index(pg64, hist_data, idx_bin_vec1_0);
+          svfloat64_t hist1_vec1 = svld1_gather_index(pg64, hist_data, idx_bin_vec1_1);
+
+          hist0_vec0 = svadd_f64_m(pg64, hist0_vec0, pgh_t0_vec);
+          hist0_vec1 = svadd_f64_m(pg64, hist0_vec1, pgh_t0_vec);
+          hist1_vec0 = svadd_f64_m(pg64, hist1_vec0, pgh_t1_vec);
+          hist1_vec1 = svadd_f64_m(pg64, hist1_vec1, pgh_t1_vec);
+
+          svst1_scatter_index(pg64, hist_data, idx_bin_vec0_0, hist0_vec0);
+          svst1_scatter_index(pg64, hist_data, idx_bin_vec0_1, hist0_vec1);
+          svst1_scatter_index(pg64, hist_data, idx_bin_vec1_0, hist1_vec0);
+          svst1_scatter_index(pg64, hist_data, idx_bin_vec1_1, hist1_vec1);
+      }
+    #else
+      for (size_t j = 0; j < row_size; ++j) {
+        const uint32_t idx_bin =
+            two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
+        auto hist_local = hist_data + idx_bin;
+        *(hist_local) += pgh_t[0];
+        *(hist_local + 1) += pgh_t[1];
+      }
+    #endif
   }
 }
 
