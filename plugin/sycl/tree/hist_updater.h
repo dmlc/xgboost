@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 #include <memory>
+#include <queue>
 
 #include "../common/partition_builder.h"
 #include "split_evaluator.h"
