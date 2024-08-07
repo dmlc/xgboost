@@ -11,6 +11,10 @@
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // for StringView
 
+#if !defined(XGBOOST_USE_CUDA)
+#include "../common/common.h"  // for AssertGPUSupport
+#endif
+
 namespace xgboost::data {
 void DMatrixProxy::SetColumnarData(StringView interface_str) {
   std::shared_ptr<ColumnarAdapter> adapter{new ColumnarAdapter{interface_str}};
@@ -46,6 +50,15 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
 std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *, std::shared_ptr<DMatrixProxy>,
                                                 float) {
   return nullptr;
+}
+
+[[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const *) {
+  common::AssertGPUSupport();
+  return 0;
+}
+[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const *) {
+  common::AssertGPUSupport();
+  return 0;
 }
 #endif  // XGBOOST_USE_CUDA
 }  // namespace cuda_impl

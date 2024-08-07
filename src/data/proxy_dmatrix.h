@@ -4,11 +4,12 @@
 #ifndef XGBOOST_DATA_PROXY_DMATRIX_H_
 #define XGBOOST_DATA_PROXY_DMATRIX_H_
 
-#include <algorithm>  // for none_of
-#include <any>        // for any, any_cast
-#include <memory>
-#include <type_traits>  // for invoke_result_t
-#include <utility>
+#include <algorithm>    // for none_of
+#include <any>          // for any, any_cast
+#include <cstdint>      // for uint32_t
+#include <memory>       // for shared_ptr
+#include <type_traits>  // for invoke_result_t, declval
+#include <vector>       // for vector
 
 #include "adapter.h"
 #include "xgboost/c_api.h"
@@ -230,27 +231,11 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
                                                 std::shared_ptr<DMatrixProxy> proxy, float missing);
 
 namespace cuda_impl {
-bst_idx_t BatchSamples(DMatrixProxy*)  // NOLINT
-#if defined(XGBOOST_USE_CUDA)
-    ;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-  return 0;
-}
-#endif
-bst_idx_t BatchColumns(DMatrixProxy*)  // NOLINT
-#if defined(XGBOOST_USE_CUDA)
-    ;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-  return 0;
-}
-#endif
+[[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
+[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
 }  // namespace cuda_impl
 
-inline bst_idx_t BatchSamples(DMatrixProxy* proxy) {
+[[nodiscard]] inline bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_samples =
       HostAdapterDispatch(proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
@@ -260,7 +245,7 @@ inline bst_idx_t BatchSamples(DMatrixProxy* proxy) {
   return n_samples;
 }
 
-inline bst_feature_t BatchColumns(DMatrixProxy* proxy) {
+[[nodiscard]] inline bst_feature_t BatchColumns(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_features =
       HostAdapterDispatch(proxy, [](auto const& value) { return value.NumCols(); }, &type_error);

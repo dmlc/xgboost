@@ -8,6 +8,7 @@
 #include <cstdint>  // for int32_t
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../common/hist_util.h"    // for HistogramCuts
 #include "gradient_index.h"         // for GHistIndexMatrix

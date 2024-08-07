@@ -28,6 +28,8 @@ TEST(ExtMemQuantileDMatrix, Basic) {
     base_cnt += n_samples / n_batches;
   }
   ASSERT_EQ(n_batches, batch_cnt);
+  ASSERT_EQ(p_fmat->Info().num_row_, n_samples);
+  ASSERT_EQ(p_fmat->Info().num_col_, n_features);
 
   // Compare against the sparse page DMatrix
   auto p_sparse = RandomDataGenerator{n_samples, n_features, 0.0f}

@@ -3,6 +3,11 @@
  */
 #include "extmem_quantile_dmatrix.h"
 
+#include <memory>   // for shared_ptr
+#include <utility>  // for move
+#include <vector>   // for vector
+#include <string>   // for string
+
 #include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
 #include "batch_utils.h"            // for CheckParam, RegenGHist
 #include "proxy_dmatrix.h"          // for DataIterProxy, HostAdapterDispatch

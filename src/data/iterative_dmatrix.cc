@@ -6,6 +6,7 @@
 #include <algorithm>  // for copy
 #include <cstddef>    // for size_t
 #include <memory>     // for shared_ptr
+#include <utility>    // for move
 #include <vector>     // for vector
 
 #include "../common/categorical.h"  // common::IsCat
@@ -212,10 +213,6 @@ inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const*,
   common::AssertGPUSupport();
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
-}
-
-inline void GetCutsFromEllpack(EllpackPage const&, common::HistogramCuts*) {
-  common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::data

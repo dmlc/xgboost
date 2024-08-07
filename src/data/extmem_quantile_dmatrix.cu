@@ -1,6 +1,9 @@
 /**
  * Copyright 2024, XGBoost Contributors
  */
+#include <memory>   // for shared_ptr
+#include <variant>  // for visit
+
 #include "extmem_quantile_dmatrix.h"
 
 namespace xgboost::data {

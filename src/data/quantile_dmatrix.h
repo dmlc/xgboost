@@ -3,6 +3,8 @@
  */
 #pragma once
 #include <cstdint>  // for int32_t
+#include <memory>   // for shared_ptr
+#include <vector>   // for vector
 
 #include "proxy_dmatrix.h"  // for DataIterProxy
 #include "xgboost/data.h"   // for DMatrix, BatchIterator, SparsePage

@@ -56,6 +56,12 @@ void GetCutsFromRef(Context const* ctx, std::shared_ptr<DMatrix> ref, bst_featur
       << "Invalid ref DMatrix, different number of features.";
 }
 
+#if !defined(XGBOOST_USE_CUDA)
+void GetCutsFromEllpack(EllpackPage const&, common::HistogramCuts*) {
+  common::AssertGPUSupport();
+}
+#endif
+
 namespace cpu_impl {
 // Synchronize feature type in case of empty DMatrix
 void SyncFeatureType(Context const* ctx, std::vector<FeatureType>* p_h_ft) {

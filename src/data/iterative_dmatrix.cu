@@ -1,8 +1,10 @@
 /**
  * Copyright 2020-2024, XGBoost contributors
  */
-#include <algorithm>
-#include <memory>
+#include <algorithm>  // for max
+#include <memory>     // for shared_ptr
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../collective/allreduce.h"
 #include "../common/cuda_rt_utils.h"  // for AllVisibleGPUs
