@@ -26,27 +26,40 @@ TEST(ExtMemQuantileDMatrix, Basic) {
     ASSERT_EQ(page.base_rowid, base_cnt);
     ++batch_cnt;
     base_cnt += n_samples / n_batches;
+    ASSERT_TRUE(page.IsDense());
   }
   ASSERT_EQ(n_batches, batch_cnt);
   ASSERT_EQ(p_fmat->Info().num_row_, n_samples);
   ASSERT_EQ(p_fmat->Info().num_col_, n_features);
+  ASSERT_EQ(p_fmat->Info().num_nonzero_, n_samples * n_features);
 
   // Compare against the sparse page DMatrix
   auto p_sparse = RandomDataGenerator{n_samples, n_features, 0.0f}
                       .Bins(max_bin)
                       .Batches(n_batches)
-                      .GenerateExtMemQuantileDMatrix("temp", false);
+                      .GenerateSparsePageDMatrix("temp", false);
   auto it = p_fmat->GetBatches<GHistIndexMatrix>(&ctx, p).begin();
+  std::int32_t k = 0;
   for (auto const& page : p_sparse->GetBatches<GHistIndexMatrix>(&ctx, p)) {
     auto orig = it.Page();
 
+    auto orig_cuts = it.Page()->Cuts();
+    auto sparse_cuts = page.Cuts();
+    ASSERT_EQ(orig_cuts.Values(), sparse_cuts.Values());
+    ASSERT_EQ(orig_cuts.MinValues(), sparse_cuts.MinValues());
+    ASSERT_EQ(orig_cuts.Ptrs(), sparse_cuts.Ptrs());
+
     auto orig_ptr = orig->data.data();
     auto sparse_ptr = page.data.data();
-
     ASSERT_EQ(orig->data.size(), page.data.size());
+
+    for (std::size_t i = 0; i < orig->index.Size(); ++i) {
+      ASSERT_EQ(orig->index[i], page.index[i]) << i << " k:" << k;
+    }
     auto equal = std::equal(orig_ptr, orig_ptr + orig->data.size(), sparse_ptr);
     ASSERT_TRUE(equal);
     ++it;
+    ++k;
   }
 }
 }  // namespace xgboost::data

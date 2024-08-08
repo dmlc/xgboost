@@ -53,10 +53,10 @@ class GHistIndexMatrix {
   }
 
   /**
-   * \brief Push a page into index matrix, the function is only necessary because hist has
-   *        partial support for external memory.
+   * @brief Push a sparse page into the index matrix.
    */
-  void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft, int32_t n_threads);
+  void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft,
+                 std::int32_t n_threads);
 
   template <typename Batch, typename BinIdxType, typename GetOffset, typename IsValid>
   void SetIndexData(common::Span<BinIdxType> index_data_span, size_t rbegin,
@@ -190,10 +190,16 @@ class GHistIndexMatrix {
                    double sparse_thresh, std::int32_t n_threads);
   GHistIndexMatrix();  // also for ext mem, empty ctor so that we can read the cache back.
 
+  /**
+   * @brief Push a single batch into the gradient index.
+   *
+   * @param n_samples_total The total number of rows for all batches, create a column
+   *        matrix once all batches are pushed.
+   */
   template <typename Batch>
-  void PushAdapterBatch(Context const* ctx, size_t rbegin, size_t prev_sum, Batch const& batch,
-                        float missing, common::Span<FeatureType const> ft, double sparse_thresh,
-                        size_t n_samples_total) {
+  void PushAdapterBatch(Context const* ctx, bst_idx_t rbegin, bst_idx_t prev_sum,
+                        Batch const& batch, float missing, common::Span<FeatureType const> ft,
+                        double sparse_thresh, bst_idx_t n_samples_total) {
     auto n_bins_total = cut.TotalBins();
     hit_count_tloc_.clear();
     hit_count_tloc_.resize(ctx->Threads() * n_bins_total, 0);
