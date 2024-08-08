@@ -132,6 +132,11 @@ INSTANTIATION_PUSH(data::SparsePageAdapterBatch)
 INSTANTIATION_PUSH(data::ColumnarAdapterBatch)
 #undef INSTANTIATION_PUSH
 
+void GHistIndexMatrix::ResizeColumns(double sparse_thresh) {
+  CHECK(!std::isnan(sparse_thresh));
+  this->columns_ = std::make_unique<common::ColumnMatrix>(*this, sparse_thresh);
+}
+
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
   auto make_index = [this, n_index](auto t, common::BinTypeSize t_size) {
     // Must resize instead of allocating a new one. This function is called everytime a

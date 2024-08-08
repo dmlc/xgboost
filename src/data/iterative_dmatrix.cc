@@ -10,12 +10,11 @@
 #include <vector>     // for vector
 
 #include "../common/categorical.h"  // common::IsCat
-#include "../common/column_matrix.h"
-#include "../common/hist_util.h"  // for HistogramCuts
-#include "../tree/param.h"        // FIXME(jiamingy): Find a better way to share this parameter.
-#include "batch_utils.h"          // for RegenGHist
-#include "gradient_index.h"
-#include "proxy_dmatrix.h"
+#include "../common/hist_util.h"    // for HistogramCuts
+#include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
+#include "batch_utils.h"            // for RegenGHist
+#include "gradient_index.h"         // for GHistIndexMatrix
+#include "proxy_dmatrix.h"          // for DataIterProxy
 #include "quantile_dmatrix.h"       // for GetCutsFromRef
 #include "quantile_dmatrix.h"       // for GetDataShape, MakeSketches
 #include "simple_batch_iterator.h"  // for SimpleBatchIteratorImpl

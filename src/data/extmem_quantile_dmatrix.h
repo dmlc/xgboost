@@ -28,10 +28,6 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
                         std::string cache, bst_bin_t max_bin);
   ~ExtMemQuantileDMatrix() override;
 
-  BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, BatchParam const &param) override;
-
-  BatchSet<EllpackPage> GetEllpackBatches(Context const *ctx, const BatchParam &param) override;
-
   [[nodiscard]] bool SingleColBlock() const override { return false; }
 
  private:
@@ -43,6 +39,11 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
       Context const *ctx,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
       DMatrixHandle proxy_handle, BatchParam const &p, float missing, std::shared_ptr<DMatrix> ref);
+
+  BatchSet<GHistIndexMatrix> GetGradientIndexImpl();
+  BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, BatchParam const &param) override;
+
+  BatchSet<EllpackPage> GetEllpackBatches(Context const *ctx, const BatchParam &param) override;
 
   [[nodiscard]] bool EllpackExists() const override {
     return std::visit([](auto &&v) { return static_cast<bool>(v); }, ellpack_page_source_);

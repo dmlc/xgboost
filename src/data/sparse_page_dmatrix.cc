@@ -16,28 +16,6 @@ MetaInfo &SparsePageDMatrix::Info() { return info_; }
 
 const MetaInfo &SparsePageDMatrix::Info() const { return info_; }
 
-namespace detail {
-// Use device dispatch
-std::size_t NSamplesDevice(DMatrixProxy *)  // NOLINT
-#if defined(XGBOOST_USE_CUDA)
-;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-  return 0;
-}
-#endif
-std::size_t NFeaturesDevice(DMatrixProxy *)  // NOLINT
-#if defined(XGBOOST_USE_CUDA)
-;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-  return 0;
-}
-#endif
-}  // namespace detail
-
 SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy_handle,
                                      DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
                                      float missing, int32_t nthreads, std::string cache_prefix,

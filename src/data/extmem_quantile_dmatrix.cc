@@ -85,15 +85,32 @@ void ExtMemQuantileDMatrix::InitFromCPU(
                          &h_ft);
 
   /**
-   * Generate gradient index.
+   * Generate gradient index
    */
   auto id = MakeCache(this, ".gradient_index.page", false, cache_prefix_, &cache_info_);
   this->ghist_index_source_ = std::make_unique<ExtGradientIndexPageSource>(
       ctx, missing, &this->Info(), ext_info.n_batches, cache_info_.at(id), p, cuts, iter, proxy,
-      std::move(ext_info.base_rows));
+      ext_info.base_rows);
+
+  /**
+   * Force initialize the cache and do some sanity checks along the way
+   */
+  bst_idx_t batch_cnt = 0, k = 0;
+  bst_idx_t n_total_samples = 0;
+  for (auto const &page : this->GetGradientIndexImpl()) {
+    n_total_samples += page.Size();
+    CHECK_EQ(page.base_rowid, ext_info.base_rows[k]);
+    ++k, ++batch_cnt;
+  }
+  CHECK_EQ(batch_cnt, ext_info.n_batches);
+  CHECK_EQ(n_total_samples, ext_info.accumulated_rows);
 }
 
-BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndex(Context const *ctx,
+BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndexImpl() {
+  return BatchSet{BatchIterator<GHistIndexMatrix>{this->ghist_index_source_}};
+}
+
+BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndex(Context const *,
                                                                    BatchParam const &param) {
   if (param.Initialized()) {
     detail::CheckParam(this->batch_, param);
@@ -109,8 +126,7 @@ BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndex(Context const
                     "of `DMatrix`.";
   }
 
-  // check empty
-  return BatchSet{BatchIterator<GHistIndexMatrix>{this->ghist_index_source_}};
+  return this->GetGradientIndexImpl();
 }
 
 #if !defined(XGBOOST_USE_CUDA)

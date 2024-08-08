@@ -2,10 +2,13 @@
  * Copyright 2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/data.h>  // for BatchParam
 
-#include "../../../src/tree/param.h"  // for TrainParam
-#include "../../../src/data/gradient_index.h"
-#include "../helpers.h"
+#include <algorithm>  // for equal
+
+#include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
+#include "../../../src/tree/param.h"           // for TrainParam
+#include "../helpers.h"                        // for RandomDataGenerator
 
 namespace xgboost::data {
 TEST(ExtMemQuantileDMatrix, Basic) {
@@ -39,7 +42,6 @@ TEST(ExtMemQuantileDMatrix, Basic) {
                       .Batches(n_batches)
                       .GenerateSparsePageDMatrix("temp", false);
   auto it = p_fmat->GetBatches<GHistIndexMatrix>(&ctx, p).begin();
-  std::int32_t k = 0;
   for (auto const& page : p_sparse->GetBatches<GHistIndexMatrix>(&ctx, p)) {
     auto orig = it.Page();
 
@@ -53,13 +55,9 @@ TEST(ExtMemQuantileDMatrix, Basic) {
     auto sparse_ptr = page.data.data();
     ASSERT_EQ(orig->data.size(), page.data.size());
 
-    for (std::size_t i = 0; i < orig->index.Size(); ++i) {
-      ASSERT_EQ(orig->index[i], page.index[i]) << i << " k:" << k;
-    }
     auto equal = std::equal(orig_ptr, orig_ptr + orig->data.size(), sparse_ptr);
     ASSERT_TRUE(equal);
     ++it;
-    ++k;
   }
 }
 }  // namespace xgboost::data

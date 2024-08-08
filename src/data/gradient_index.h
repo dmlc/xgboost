@@ -7,8 +7,8 @@
 
 #include <algorithm>  // for min
 #include <atomic>     // for atomic
-#include <cinttypes>  // for uint32_t
 #include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
 #include <memory>     // for make_unique
 #include <vector>
 
@@ -215,10 +215,11 @@ class GHistIndexMatrix {
 
     if (rbegin + batch.Size() == n_samples_total) {
       // finished
-      CHECK(!std::isnan(sparse_thresh));
-      this->columns_ = std::make_unique<common::ColumnMatrix>(*this, sparse_thresh);
+      this->ResizeColumns(sparse_thresh);
     }
   }
+  // The function is only created to avoid using the column matrix in the header.
+  void ResizeColumns(double sparse_thresh);
 
   // Call ColumnMatrix::PushBatch
   template <typename Batch>
