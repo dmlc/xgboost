@@ -14,7 +14,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
 }
 
 BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
-                                                               const BatchParam &param) {
+                                                               const BatchParam &) {
   LOG(FATAL) << "Not implemented.";
   auto batch_set =
       std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },

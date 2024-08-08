@@ -23,16 +23,20 @@ TEST(ExtMemQuantileDMatrix, Basic) {
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
   Context ctx;
 
+  // Loop over the batches and count the number of pages
   bst_idx_t batch_cnt = 0;
   bst_idx_t base_cnt = 0;
+  bst_idx_t row_cnt = 0;
   for (auto const& page : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, p)) {
     ASSERT_EQ(page.base_rowid, base_cnt);
     ++batch_cnt;
     base_cnt += n_samples / n_batches;
+    row_cnt += page.Size();
     ASSERT_TRUE(page.IsDense());
   }
   ASSERT_EQ(n_batches, batch_cnt);
   ASSERT_EQ(p_fmat->Info().num_row_, n_samples);
+  EXPECT_EQ(p_fmat->Info().num_row_, row_cnt);
   ASSERT_EQ(p_fmat->Info().num_col_, n_features);
   ASSERT_EQ(p_fmat->Info().num_nonzero_, n_samples * n_features);
 

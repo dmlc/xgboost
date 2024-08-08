@@ -54,7 +54,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
                                                       BatchParam const &param) override;
 
   std::map<std::string, std::shared_ptr<Cache>> cache_info_;
-  std::string cache_prefix_;  // fixme
+  std::string cache_prefix_;
   BatchParam batch_;
 
   using EllpackDiskPtr = std::shared_ptr<EllpackPageSource>;

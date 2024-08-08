@@ -51,8 +51,7 @@ ExtMemQuantileDMatrix::~ExtMemQuantileDMatrix() {
   DeleteCacheFiles(cache_info_);
 }
 
-BatchSet<ExtSparsePage> ExtMemQuantileDMatrix::GetExtBatches(Context const *ctx,
-                                                             BatchParam const &param) {
+BatchSet<ExtSparsePage> ExtMemQuantileDMatrix::GetExtBatches(Context const *, BatchParam const &) {
   LOG(FATAL) << "Not implemented";
   auto begin_iter =
       BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(nullptr));
@@ -100,6 +99,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   for (auto const &page : this->GetGradientIndexImpl()) {
     n_total_samples += page.Size();
     CHECK_EQ(page.base_rowid, ext_info.base_rows[k]);
+    CHECK_EQ(page.Features(), this->Info().num_col_);
     ++k, ++batch_cnt;
   }
   CHECK_EQ(batch_cnt, ext_info.n_batches);
@@ -136,8 +136,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   LOG(FATAL) << "Not implemented.";
 }
 
-BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *ctx,
-                                                               const BatchParam &param) {
+BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
+                                                               const BatchParam &) {
   LOG(FATAL) << "Not implemented.";
   auto batch_set =
       std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },

@@ -487,20 +487,6 @@ void RandomDataGenerator::GenerateCSR(
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
                       std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix)};
 
-  // Loop over the batches and count the number of pages
-  bst_idx_t batch_count = 0;
-  bst_idx_t row_count = 0;
-  Context ctx;
-  BatchParam p{this->bins_, tree::TrainParam::DftSparseThreshold()};
-  for (const auto& batch : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, p)) {
-    batch_count++;
-    row_count += batch.Size();
-    CHECK_NE(batch.data.size(), 0);
-  }
-
-  EXPECT_EQ(batch_count, n_batches_);
-  EXPECT_EQ(row_count, p_fmat->Info().num_row_);
-
   auto page_path = data::MakeId(prefix, p_fmat.get()) + ".gradient_index.page";
   EXPECT_TRUE(FileExists(page_path)) << page_path;
 
