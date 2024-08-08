@@ -135,6 +135,9 @@ class GHistIndexMatrix {
     this->GatherHitCount(n_threads, n_bins_total);
   }
 
+  // The function is only created to avoid using the column matrix in the header.
+  void ResizeColumns(double sparse_thresh);
+
  public:
   /** @brief row pointer to rows by element position */
   common::RefResourceView<std::size_t> row_ptr;
@@ -218,8 +221,6 @@ class GHistIndexMatrix {
       this->ResizeColumns(sparse_thresh);
     }
   }
-  // The function is only created to avoid using the column matrix in the header.
-  void ResizeColumns(double sparse_thresh);
 
   // Call ColumnMatrix::PushBatch
   template <typename Batch>
