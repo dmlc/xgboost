@@ -113,14 +113,14 @@ class ExtGradientIndexPageSource
 
   Context const* ctx_;
   DMatrixProxy* proxy_;
-  MetaInfo const* info_;
+  MetaInfo* info_;
 
   common::Span<FeatureType const> feature_types_;
   std::vector<bst_idx_t> base_rows_;
 
  public:
   ExtGradientIndexPageSource(
-      Context const* ctx, float missing, MetaInfo const* info, bst_idx_t n_batches,
+      Context const* ctx, float missing, MetaInfo* info, bst_idx_t n_batches,
       std::shared_ptr<Cache> cache, BatchParam param, common::HistogramCuts cuts,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
       DMatrixProxy* proxy, std::vector<bst_idx_t> base_rows)

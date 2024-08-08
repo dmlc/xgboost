@@ -37,6 +37,10 @@ void ExtGradientIndexPageSource::Fetch() {
     CHECK_GE(source_->Iter(), 1);
     CHECK_NE(cuts_.Values().size(), 0);
     HostAdapterDispatch(proxy_, [this](auto const& value) {
+      // This does three things:
+      // - Generate CSR matrix for gradient index.
+      // - Generate the column matrix for gradient index.
+      // - Concatenate the meta info.
       common::HistogramCuts cuts{this->cuts_};
       this->page_.reset();
       // The external iterator has the data when the `next` method is called. Therefore,
@@ -54,8 +58,8 @@ void ExtGradientIndexPageSource::Fetch() {
       // `IterativeDMatrix`, external memory doesn't concatenate the pages.
       this->page_->PushAdapterBatch(ctx_, rbegin, prev_sum, value, this->missing_,
                                     this->feature_types_, this->p_.sparse_thresh, value.NumRows());
-
       this->page_->PushAdapterBatchColumns(ctx_, value, this->missing_, rbegin);
+      this->info_->Extend(proxy_->Info(), false, false);
     });
     this->WriteCache();
   }
