@@ -200,7 +200,7 @@ class GHistIndexMatrix {
    *        matrix once all batches are pushed.
    */
   template <typename Batch>
-  void PushAdapterBatch(Context const* ctx, bst_idx_t rbegin, bst_idx_t prev_sum,
+  void PushAdapterBatch(Context const* ctx, std::size_t rbegin, std::size_t prev_sum,
                         Batch const& batch, float missing, common::Span<FeatureType const> ft,
                         double sparse_thresh, bst_idx_t n_samples_total) {
     auto n_bins_total = cut.TotalBins();
