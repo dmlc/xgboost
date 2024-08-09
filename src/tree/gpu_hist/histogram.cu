@@ -365,16 +365,16 @@ void DeviceHistogramBuilder::Reset(Context const* ctx, FeatureGroupsAccessor con
 
 struct ReadMatrixFunction {
   EllpackDeviceAccessor matrix;
-  int kCols;
+  int k_cols;
   bst_float* matrix_data_d;
-  ReadMatrixFunction(EllpackDeviceAccessor matrix, int kCols, bst_float* matrix_data_d)
-    : matrix(std::move(matrix)), kCols(kCols), matrix_data_d(matrix_data_d) {}
+  ReadMatrixFunction(EllpackDeviceAccessor matrix, int k_cols, bst_float* matrix_data_d)
+    : matrix(std::move(matrix)), k_cols(k_cols), matrix_data_d(matrix_data_d) {}
 
   __device__ void operator()(size_t global_idx) {
-    auto row = global_idx / kCols;
-    auto col = global_idx % kCols;
+    auto row = global_idx / k_cols;
+    auto col = global_idx % k_cols;
     auto value = matrix.GetBinIndex(row, col);
-    if (isnan(value)) {
+    if (isnan(float(value))) {
       value = -1;
     }
     matrix_data_d[global_idx] = value;
@@ -403,7 +403,7 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
   auto plugin = fed.EncryptionPlugin();
 
   // Transmit matrix to plugin
-  if (!is_aggr_context_initialized_) {
+  if (!is_aggr_context_initialized) {
     // Get cutptrs
     std::vector<uint32_t> h_cuts_ptr(matrix.feature_segments.size());
     dh::CopyDeviceSpanToVector(&h_cuts_ptr, matrix.feature_segments);
@@ -423,7 +423,7 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx,
 
     // Initialize plugin context
     plugin->Reset(h_cuts_ptr, h_bin_idx);
-    is_aggr_context_initialized_ = true;
+    is_aggr_context_initialized = true;
   }
 
   // get row indices from device

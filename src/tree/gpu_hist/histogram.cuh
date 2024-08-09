@@ -176,7 +176,7 @@ class DeviceHistogramBuilder {
   DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
   // Whether to secure aggregation context has been initialized
-  bool is_aggr_context_initialized_{false};
+  bool is_aggr_context_initialized{false};
   void Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
              bool force_global_memory);
   void BuildHistogram(Context const* ctx, EllpackDeviceAccessor const& matrix,
