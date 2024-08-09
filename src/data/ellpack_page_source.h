@@ -8,6 +8,7 @@
 #include <cstdint>  // for int32_t
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../common/cuda_rt_utils.h"  // for SupportsPageableMem
 #include "../common/hist_util.h"      // for HistogramCuts
@@ -169,12 +170,62 @@ using EllpackPageHostSource =
 using EllpackPageSource =
     EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
 
+template <typename FormatCreatePolicy>
+class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, FormatCreatePolicy> {
+  using Super = ExtQantileSourceMixin<EllpackPage, FormatCreatePolicy>;
+
+  Context const* ctx_;
+  BatchParam p_;
+  DMatrixProxy* proxy_;
+  MetaInfo* info_;
+  ExternalDataInfo ext_info_;
+
+  std::vector<bst_idx_t> base_rows_;
+
+ public:
+  ExtEllpackPageSourceImpl(
+      Context const* ctx, float missing, MetaInfo* info, ExternalDataInfo ext_info,
+      std::shared_ptr<Cache> cache, BatchParam param, std::shared_ptr<common::HistogramCuts> cuts,
+      std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
+      DMatrixProxy* proxy, std::vector<bst_idx_t> base_rows)
+      : Super{missing,
+              ctx->Threads(),
+              static_cast<bst_feature_t>(info->num_col_),
+              ext_info.n_batches,
+              source,
+              cache},
+        ctx_{ctx},
+        p_{std::move(param)},
+        proxy_{proxy},
+        info_{info},
+        ext_info_{std::move(ext_info)},
+        base_rows_{std::move(base_rows)} {
+    this->SetCuts(std::move(cuts), ctx->Device());
+    this->Fetch();
+  }
+
+  void Fetch() final;
+};
+
+// Cache to host
+using ExtEllpackPageHostSource =
+    ExtEllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
+
+// Cache to disk
+using ExtEllpackPageSource =
+    ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
+
 #if !defined(XGBOOST_USE_CUDA)
 template <typename F>
 inline void EllpackPageSourceImpl<F>::Fetch() {
   // silent the warning about unused variables.
   (void)(row_stride_);
   (void)(is_dense_);
+  common::AssertGPUSupport();
+}
+
+template <typename F>
+inline void ExtEllpackPageSourceImpl<F>::Fetch() {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

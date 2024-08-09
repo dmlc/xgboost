@@ -242,6 +242,7 @@ class GHistIndexMatrix {
 
   [[nodiscard]] bool IsDense() const { return isDense_; }
   void SetDense(bool is_dense) { isDense_ = is_dense; }
+  [[nodiscard]] bst_idx_t BaseRowId() const { return base_rowid; }
   /**
    * @brief Get the local row index.
    */

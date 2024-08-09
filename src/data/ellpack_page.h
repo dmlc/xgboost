@@ -42,6 +42,7 @@ class EllpackPage {
 
   /*! \return Number of instances in the page. */
   [[nodiscard]] bst_idx_t Size() const;
+  [[nodiscard]] bool IsDense() const;
 
   /*! \brief Set the base row id for this page. */
   void SetBaseRowId(std::size_t row_id);
@@ -50,6 +51,7 @@ class EllpackPage {
   EllpackPageImpl* Impl() { return impl_.get(); }
 
   [[nodiscard]] common::HistogramCuts const& Cuts() const;
+  [[nodiscard]] bst_idx_t BaseRowId() const;
 
  private:
   std::unique_ptr<EllpackPageImpl> impl_;

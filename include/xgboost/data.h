@@ -641,7 +641,7 @@ class DMatrix {
             typename XGDMatrixCallbackNext>
   static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
                          DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
-                         std::int32_t nthread, bst_bin_t max_bin, std::string cache);
+                         std::int32_t nthread, bst_bin_t max_bin, std::string cache, bool on_host);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
 

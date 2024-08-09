@@ -63,13 +63,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, iter, missing, &ext_info);
-
-  // From here on Info() has the correct data shape
-  this->Info().num_row_ = ext_info.accumulated_rows;
-  this->Info().num_col_ = ext_info.n_features;
-  this->Info().num_nonzero_ = ext_info.nnz;
-  this->Info().SynchronizeNumberOfColumns(ctx);
-  ext_info.Validate();
+  ext_info.SetInfo(ctx, &this->info_);
 
   /**
    * Generate quantiles
