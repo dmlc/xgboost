@@ -16,11 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import scala.collection.mutable.ArrayBuffer
+
 import ai.rapids.cudf.Table
-import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import org.scalatest.funsuite.AnyFunSuite
 
-import scala.collection.mutable.ArrayBuffer
+import ml.dmlc.xgboost4j.java.CudfColumnBatch
+import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 
 class QuantileDMatrixSuite extends AnyFunSuite {
 
@@ -71,15 +73,6 @@ class QuantileDMatrixSuite extends AnyFunSuite {
           }
         }
       }
-    }
-  }
-
-  /** Executes the provided code block and then closes the resource */
-  private def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
-    try {
-      block(r)
-    } finally {
-      r.close()
     }
   }
 }
