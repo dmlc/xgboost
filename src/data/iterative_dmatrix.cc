@@ -63,7 +63,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, iter, missing, &ext_info);
-  ext_info.SetInfo(ctx, &this->Info());
+  ext_info.SetInfo(ctx, &this->info_);
 
   /**
    * Generate quantiles

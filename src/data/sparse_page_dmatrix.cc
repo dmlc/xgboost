@@ -54,7 +54,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   iter.Reset();
 
   this->n_batches_ = ext_info.n_batches;
-  ext_info.SetInfo(&ctx, &this->Info());
+  ext_info.SetInfo(&ctx, &this->info_);
 
   fmat_ctx_ = ctx;
 }

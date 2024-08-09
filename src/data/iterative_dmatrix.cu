@@ -43,7 +43,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, &iter, proxy, ref, p, missing, cuts, this->Info(), &ext_info);
-  ext_info.SetInfo(ctx, &this->Info());
+  ext_info.SetInfo(ctx, &this->info_);
 
   auto init_page = [this, &cuts, &ext_info]() {
     if (!ellpack_) {

@@ -26,7 +26,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, missing, cuts, this->Info(), &ext_info);
-  ext_info.SetInfo(ctx, &this->Info());
+  ext_info.SetInfo(ctx, &this->info_);
 
   /**
    * Generate gradient index
