@@ -60,17 +60,17 @@
 #' so it doesn't make sense to assign weights to individual data points.
 #' @param base_margin Base margin used for boosting from existing model.
 #'
-#'        In the case of multi-output models, one can also pass multi-dimensional base_margin.
+#'   In the case of multi-output models, one can also pass multi-dimensional base_margin.
 #' @param missing A float value to represents missing values in data (not used when creating DMatrix
-#'        from text files).
-#'        It is useful to change when a zero, infinite, or some other extreme value represents missing
-#'        values in data.
+#'   from text files).
+#'   It is useful to change when a zero, infinite, or some other extreme value represents missing
+#'   values in data.
 #' @param silent whether to suppress printing an informational message after loading from a file.
 #' @param feature_names Set names for features. Overrides column names in data
-#'        frame and matrix.
+#'   frame and matrix.
 #'
-#'        Note: columns are not referenced by name when calling `predict`, so the column order there
-#'        must be the same as in the DMatrix construction, regardless of the column names.
+#'   Note: columns are not referenced by name when calling `predict`, so the column order there
+#'   must be the same as in the DMatrix construction, regardless of the column names.
 #' @param feature_types Set types for features.
 #'
 #' If `data` is a `data.frame` and passing `feature_types` is not supplied, feature types will be deduced

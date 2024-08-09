@@ -7,14 +7,14 @@
 xgb.cb.evaluation.log()
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
 }
 \description{
 Callback for logging the evaluation history
 }
 \details{
 This callback creates a table with per-iteration evaluation metrics (see parameters
-\code{evals} and \code{feval} in \link{xgb.train}).
+\code{evals} and \code{feval} in \code{\link[=xgb.train]{xgb.train()}}).
 
 Note: in the column names of the final data.table, the dash '-' character is replaced with
 the underscore '_' in order to make the column names more like regular R identifiers.

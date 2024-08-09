@@ -7,17 +7,18 @@
 xgb.create.features(model, data, ...)
 }
 \arguments{
-\item{model}{decision tree boosting model learned on the original data}
+\item{model}{Decision tree boosting model learned on the original data.}
 
-\item{data}{original data (usually provided as a \code{dgCMatrix} matrix)}
+\item{data}{Original data (usually provided as a \code{dgCMatrix} matrix).}
 
-\item{...}{currently not used}
+\item{...}{Currently not used.}
 }
 \value{
-\code{dgCMatrix} matrix including both the original data and the new features.
+A \code{dgCMatrix} matrix including both the original data and the new features.
 }
 \description{
-May improve the learning by adding new features to the training data based on the decision trees from a previously learned model.
+May improve the learning by adding new features to the training data based on the
+decision trees from a previously learned model.
 }
 \details{
 This is the function inspired from the paragraph 3.1 of the paper:
@@ -44,11 +45,11 @@ For example, consider the boosted tree model in Figure 1 with 2 subtrees,
 where the first subtree has 3 leafs and the second 2 leafs. If an
 instance ends up in leaf 2 in the first subtree and leaf 1 in
 second subtree, the overall input to the linear classifier will
-be the binary vector \code{[0, 1, 0, 1, 0]}, where the first 3 entries
+be the binary vector \verb{[0, 1, 0, 1, 0]}, where the first 3 entries
 correspond to the leaves of the first subtree and last 2 to
 those of the second subtree.
 
-\link{...}
+...
 
 We can understand boosted decision tree
 based transformation as a supervised feature encoding that
@@ -57,15 +58,16 @@ vector. A traversal from root node to a leaf node represents
 a rule on certain features."
 }
 \examples{
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = "xgboost")
+data(agaricus.test, package = "xgboost")
+
 dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
 
-param <- list(max_depth=2, eta=1, objective='binary:logistic')
+param <- list(max_depth = 2, eta = 1, objective = 'binary:logistic')
 nrounds = 4
 
-bst = xgb.train(params = param, data = dtrain, nrounds = nrounds, nthread = 2)
+bst <- xgb.train(params = param, data = dtrain, nrounds = nrounds, nthread = 2)
 
 # Model accuracy without new features
 accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) /

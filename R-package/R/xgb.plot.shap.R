@@ -4,42 +4,41 @@
 #'
 #' @param data The data to explain as a `matrix` or `dgCMatrix`.
 #' @param shap_contrib Matrix of SHAP contributions of `data`.
-#'        The default (`NULL`) computes it from `model` and `data`.
-#' @param features Vector of column indices or feature names to plot.
-#'        When `NULL` (default), the `top_n` most important features are selected
-#'        by [xgb.importance()].
+#'   The default (`NULL`) computes it from `model` and `data`.
+#' @param features Vector of column indices or feature names to plot. When `NULL`
+#'   (default), the `top_n` most important features are selected by [xgb.importance()].
 #' @param top_n How many of the most important features (<= 100) should be selected?
-#'        By default 1 for SHAP dependence and 10 for SHAP summary).
-#'        Only used when `features = NULL`.
+#'   By default 1 for SHAP dependence and 10 for SHAP summary.
+#'   Only used when `features = NULL`.
 #' @param model An `xgb.Booster` model. Only required when `shap_contrib = NULL` or
-#'        `features = NULL`.
+#'   `features = NULL`.
 #' @param trees Passed to [xgb.importance()] when `features = NULL`.
 #' @param target_class Only relevant for multiclass models. The default (`NULL`)
-#'        averages the SHAP values over all classes. Pass a (0-based) class index
-#'        to show only SHAP values of that class.
+#'   averages the SHAP values over all classes. Pass a (0-based) class index
+#'   to show only SHAP values of that class.
 #' @param approxcontrib Passed to `predict()` when `shap_contrib = NULL`.
 #' @param subsample Fraction of data points randomly picked for plotting.
-#'        The default (`NULL`) will use up to 100k data points.
+#'   The default (`NULL`) will use up to 100k data points.
 #' @param n_col Number of columns in a grid of plots.
 #' @param col Color of the scatterplot markers.
 #' @param pch Scatterplot marker.
 #' @param discrete_n_uniq Maximal number of unique feature values to consider the
-#'        feature as discrete.
+#'   feature as discrete.
 #' @param discrete_jitter Jitter amount added to the values of discrete features.
 #' @param ylab The y-axis label in 1D plots.
 #' @param plot_NA Should contributions of cases with missing values be plotted?
-#'        Default is `TRUE`.
+#'   Default is `TRUE`.
 #' @param col_NA Color of marker for missing value contributions.
 #' @param pch_NA Marker type for `NA` values.
 #' @param pos_NA Relative position of the x-location where `NA` values are shown:
-#'        `min(x) + (max(x) - min(x)) * pos_NA`.
+#'   `min(x) + (max(x) - min(x)) * pos_NA`.
 #' @param plot_loess Should loess-smoothed curves be plotted? (Default is `TRUE`).
-#'        The smoothing is only done for features with more than 5 distinct values.
+#'   The smoothing is only done for features with more than 5 distinct values.
 #' @param col_loess Color of loess curves.
 #' @param span_loess The `span` parameter of [stats::loess()].
 #' @param which Whether to do univariate or bivariate plotting. Currently, only "1d" is implemented.
 #' @param plot Should the plot be drawn? (Default is `TRUE`).
-#'        If `FALSE`, only a list of matrices is returned.
+#'   If `FALSE`, only a list of matrices is returned.
 #' @param ... Other parameters passed to [graphics::plot()].
 #'
 #' @details
@@ -120,6 +119,7 @@
 #' )
 #' trees0 <- seq(from = 0, by = nclass, length.out = nrounds)
 #' col <- rgb(0, 0, 1, 0.5)
+#'
 #' xgb.plot.shap(
 #'   x,
 #'   model = mbst,

@@ -2,12 +2,12 @@
 % Please edit documentation in R/callbacks.R
 \name{xgb.cb.reset.parameters}
 \alias{xgb.cb.reset.parameters}
-\title{Callback for resetting the booster's parameters at each iteration.}
+\title{Callback for resetting booster parameters at each iteration}
 \usage{
 xgb.cb.reset.parameters(new_params)
 }
 \arguments{
-\item{new_params}{a list where each element corresponds to a parameter that needs to be reset.
+\item{new_params}{List of parameters needed to be reset.
 Each element's value must be either a vector of values of length \code{nrounds}
 to be set at each iteration,
 or a function of two parameters \code{learning_rates(iteration, nrounds)}
@@ -15,10 +15,10 @@ which returns a new parameter value by using the current iteration number
 and the total number of boosting rounds.}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
 }
 \description{
-Callback for resetting the booster's parameters at each iteration.
+Callback for resetting booster parameters at each iteration
 }
 \details{
 Note that when training is resumed from some previous model, and a function is used to

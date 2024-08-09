@@ -13,13 +13,13 @@ xgb.get.num.boosted.rounds(model)
 \item{model, x}{A fitted \code{xgb.Booster} model.}
 }
 \value{
-The number of rounds saved in the model, as an integer.
+The number of rounds saved in the model as an integer.
 }
 \description{
 Get number of boosting in a fitted booster
 }
 \details{
 Note that setting booster parameters related to training
-continuation / updates through \link{xgb.parameters<-} will reset the
+continuation / updates through \code{\link[=xgb.parameters<-]{xgb.parameters<-()}} will reset the
 number of rounds to zero.
 }

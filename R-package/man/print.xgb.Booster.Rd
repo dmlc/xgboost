@@ -4,7 +4,7 @@
 \alias{print.xgb.Booster}
 \title{Print xgb.Booster}
 \usage{
-\method{print}{xgb.Booster}(x, ...)
+print.xgb.Booster(x, ...)
 }
 \arguments{
 \item{x}{An \code{xgb.Booster} object.}

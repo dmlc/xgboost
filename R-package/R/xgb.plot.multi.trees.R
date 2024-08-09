@@ -2,12 +2,7 @@
 #'
 #' Visualization of the ensemble of trees as a single collective unit.
 #'
-#' @inheritParams xgb.plot.tree
-#' @param features_keep Number of features to keep in each position of the multi trees,
-#'        by default 5.
-#'
 #' @details
-#'
 #' This function tries to capture the complexity of a gradient boosted tree model
 #' in a cohesive way by compressing an ensemble of trees into a single tree-graph representation.
 #' The goal is to improve the interpretability of a model generally seen as black box.
@@ -25,6 +20,9 @@
 #' This function is inspired by this blog post:
 #' <https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/>
 #'
+#' @inheritParams xgb.plot.tree
+#' @param features_keep Number of features to keep in each position of the multi trees,
+#'   by default 5.
 #' @inherit xgb.plot.tree return
 #'
 #' @examples

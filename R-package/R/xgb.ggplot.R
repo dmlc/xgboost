@@ -1,6 +1,5 @@
 # ggplot backend for the xgboost plotting facilities
 
-
 #' @rdname xgb.plot.importance
 #' @export
 xgb.ggplot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL,
@@ -135,8 +134,7 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
 #' @param data_list The result of `xgb.shap.data()`.
 #' @param normalize Whether to standardize feature values to mean 0 and
 #'   standard deviation 1. This is useful for comparing multiple features on the same
-#'   plot. Default is \code{FALSE}.
-#'
+#'   plot. Default is `FALSE`.
 #' @return A `data.table` containing the observation ID, the feature name, the
 #'   feature value (normalized if specified), and the SHAP contribution value.
 #' @noRd
@@ -167,7 +165,6 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
 #' Useful to compare multiple features on the same plot.
 #'
 #' @param x Numeric vector.
-#'
 #' @return Numeric vector with mean 0 and standard deviation 1.
 #' @noRd
 #' @keywords internal
