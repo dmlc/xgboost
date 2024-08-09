@@ -292,6 +292,9 @@ private[spark] trait XGBoostParams[T <: Params] extends TreeBoosterParams
 
   def setNumParallelTree(value: Int): T = set(numParallelTree, value).asInstanceOf[T]
 
+  def setInteractionConstraints(value: String): T =
+    set(interactionConstraints, value).asInstanceOf[T]
+
   def setMaxCachedHistNode(value: Int): T = set(maxCachedHistNode, value).asInstanceOf[T]
 
   // Setters for LearningTaskParams

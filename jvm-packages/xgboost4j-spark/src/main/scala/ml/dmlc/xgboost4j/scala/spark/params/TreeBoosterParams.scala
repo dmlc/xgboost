@@ -205,6 +205,16 @@ private[spark] trait TreeBoosterParams extends Params {
 
   final def getMonotoneConstraints: Array[Int] = $(monotoneConstraints)
 
+  final val interactionConstraints = new Param[String](this,
+    name = "interaction_constraints",
+    doc = "Constraints for interaction representing permitted interactions. The constraints" +
+      " must be specified in the form of a nest list, e.g. [[0, 1], [2, 3, 4]]," +
+      " where each inner list is a group of indices of features that are allowed to interact" +
+      " with each other. See tutorial for more information")
+
+  final def getInteractionConstraints: String = $(interactionConstraints)
+
+
   final val maxCachedHistNode = new IntParam(this, "max_cached_hist_node", "Maximum number of " +
     "cached nodes for CPU histogram.",
     ParamValidators.gt(0))

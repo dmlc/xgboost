@@ -2,7 +2,7 @@
 Migration Guide: How to migrate from XGBoost Spark 3.x
 ######################################################
 
-XGBoost Spark underwent significant modifications beginning with version 3.0,
+XGBoost Spark underwent significant modifications in version 3.0,
 which may cause compatibility issues with existing user code.
 
 This guide will walk you through the process of updating your code to ensure
@@ -15,21 +15,45 @@ XGBoost Spark Packages
 XGBoost Spark 3.0 introduced a single uber package named xgboost-spark_2.12-3.0.0.jar, which bundles 
 both xgboost4j and xgboost4j-spark. This means you can now simply use `xgboost-spark`` for your application.
 
-.. code-block:: xml
+* For CPU
 
-  <dependency>
-      <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost-spark_${scala.binary.version}</artifactId>
-      <version>3.0.0</version>
-  </dependency>
+  .. code-block:: xml
+
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost-spark_${scala.binary.version}</artifactId>
+        <version>3.0.0</version>
+    </dependency>
+
+* For GPU
+
+  .. code-block:: xml
+
+    <dependency>
+        <groupId>ml.dmlc</groupId>
+        <artifactId>xgboost-spark-gpu_${scala.binary.version}</artifactId>
+        <version>3.0.0</version>
+    </dependency>
+
 
 When submitting the XGBoost application to the Spark cluster, you only need to specify the single `xgboost-spark` package.
 
-.. code-block:: bash
+* For CPU
 
-  spark-submit \
-    --jars xgboost-spark_2.12-3.0.0.jar \
-    ... \
+  .. code-block:: bash
+
+    spark-submit \
+      --jars xgboost-spark_2.12-3.0.0.jar \
+      ... \
+
+
+* For GPU
+
+  .. code-block:: bash
+
+    spark-submit \
+      --jars xgboost-spark_2.12-3.0.0.jar \
+      ... \
 
 **************
 XGBoost Ranking
@@ -94,11 +118,11 @@ can be set both during construction and through the estimator's setter methods.
     .setMaxDepth(6)
     .setObjective("binary:logistic")
 
-*****************
-Unused Parameters
-*****************
+******************
+Removed Parameters
+******************
 
-Starting from 3.0, below parameters are not used anymore.
+Starting from 3.0, below parameters are removed.
 
 - cacheTrainingSet
 
@@ -136,5 +160,4 @@ Starting from 3.0, below parameters are not used anymore.
 - rabitConnectRetry
 - singlePrecisionHistogram
 - lambdaBias
-- interactionConstraints
 - objectiveType
