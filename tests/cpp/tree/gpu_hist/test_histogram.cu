@@ -12,6 +12,7 @@
 #include "../../../../src/tree/param.h"                       // for TrainParam
 #include "../../categorical_helpers.h"                        // for OneHotEncodeFeature
 #include "../../helpers.h"
+#include "../../histogram_helpers.h"  // for BuildEllpackPage
 
 namespace xgboost::tree {
 TEST(Histogram, DeviceHistogramStorage) {
@@ -52,6 +53,83 @@ TEST(Histogram, DeviceHistogramStorage) {
 
   // Add same node again - should fail
   EXPECT_ANY_THROW(histogram.AllocateHistograms(&ctx, {kNNodes + 1}););
+}
+
+std::vector<GradientPairPrecise> GetHostHistGpair() {
+  // 24 bins, 3 bins for each feature (column).
+  std::vector<GradientPairPrecise> hist_gpair = {
+    {0.8314f, 0.7147f}, {1.7989f, 3.7312f}, {3.3846f, 3.4598f},
+    {2.9277f, 3.5886f}, {1.8429f, 2.4152f}, {1.2443f, 1.9019f},
+    {1.6380f, 2.9174f}, {1.5657f, 2.5107f}, {2.8111f, 2.4776f},
+    {2.1322f, 3.0651f}, {3.2927f, 3.8540f}, {0.5899f, 0.9866f},
+    {1.5185f, 1.6263f}, {2.0686f, 3.1844f}, {2.4278f, 3.0950f},
+    {1.5105f, 2.1403f}, {2.6922f, 4.2217f}, {1.8122f, 1.5437f},
+    {0.0000f, 0.0000f}, {4.3245f, 5.7955f}, {1.6903f, 2.1103f},
+    {2.4012f, 4.4754f}, {3.6136f, 3.4303f}, {0.0000f, 0.0000f}
+  };
+  return hist_gpair;
+}
+
+void TestBuildHist(bool use_shared_memory_histograms) {
+  int const kNRows = 16, kNCols = 8;
+  Context ctx{MakeCUDACtx(0)};
+
+  TrainParam param;
+  Args args{
+      {"max_depth", "6"},
+      {"max_leaves", "0"},
+  };
+  param.Init(args);
+
+  auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
+  BatchParam batch_param{};
+
+  xgboost::SimpleLCG gen;
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+  HostDeviceVector<GradientPair> gpair(kNRows);
+  for (auto& gp : gpair.HostVector()) {
+    float grad = dist(&gen);
+    float hess = dist(&gen);
+    gp = GradientPair{grad, hess};
+  }
+  gpair.SetDevice(ctx.Device());
+
+  auto row_partitioner = std::make_unique<RowPartitioner>();
+  row_partitioner->Reset(&ctx, kNRows, 0);
+
+  auto quantiser = std::make_unique<GradientQuantiser>(&ctx, gpair.ConstDeviceSpan(), MetaInfo());
+  auto shm_size = use_shared_memory_histograms ? dh::MaxSharedMemoryOptin(ctx.Ordinal()) : 0;
+  FeatureGroups feature_groups(page->Cuts(), page->is_dense, shm_size, sizeof(GradientPairInt64));
+
+  DeviceHistogramStorage hist;
+  hist.Init(ctx.Device(), page->Cuts().TotalBins());
+  hist.AllocateHistograms(&ctx, {0});
+
+  DeviceHistogramBuilder builder;
+  builder.Reset(&ctx, feature_groups.DeviceAccessor(ctx.Device()), !use_shared_memory_histograms);
+  builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+                         feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(),
+                         row_partitioner->GetRows(0), hist.GetNodeHistogram(0), *quantiser);
+
+  auto node_histogram = hist.GetNodeHistogram(0);
+
+  std::vector<GradientPairInt64> h_result(node_histogram.size());
+  dh::CopyDeviceSpanToVector(&h_result, node_histogram);
+
+  std::vector<GradientPairPrecise> solution = GetHostHistGpair();
+  for (size_t i = 0; i < h_result.size(); ++i) {
+    auto result = quantiser->ToFloatingPoint(h_result[i]);
+    ASSERT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
+    ASSERT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
+  }
+}
+
+TEST(Histogram, BuildHistGlobalMem) {
+  TestBuildHist(false);
+}
+
+TEST(Histogram, BuildHistSharedMem) {
+  TestBuildHist(true);
 }
 
 void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) {

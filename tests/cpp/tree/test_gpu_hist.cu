@@ -2,173 +2,26 @@
  * Copyright 2017-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <xgboost/base.h>
+#include <xgboost/base.h>                // for Args
+#include <xgboost/context.h>             // for Context
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+#include <xgboost/json.h>                // for Jons
+#include <xgboost/task.h>                // for ObjInfo
+#include <xgboost/tree_model.h>          // for RegTree
+#include <xgboost/tree_updater.h>        // for TreeUpdater
 
-#include <string>
-#include <vector>
+#include <memory>  // for unique_ptr
+#include <string>  // for string
+#include <vector>  // for vector
 
-#include "../../../src/common/common.h"
-#include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
-#include "../../../src/data/ellpack_page.h"    // for EllpackPage
-#include "../../../src/tree/param.h"           // for TrainParam
-#include "../../../src/tree/updater_gpu_hist.cu"
-#include "../collective/test_worker.h"  // for BaseMGPUTest
-#include "../filesystem.h"              // dmlc::TemporaryDirectory
+#include "../../../src/common/random.h"      // for GlobalRandom
+#include "../../../src/data/ellpack_page.h"  // for EllpackPage
+#include "../../../src/tree/param.h"         // for TrainParam
+#include "../collective/test_worker.h"       // for BaseMGPUTest
+#include "../filesystem.h"                   // dmlc::TemporaryDirectory
 #include "../helpers.h"
-#include "../histogram_helpers.h"
-#include "xgboost/context.h"
-#include "xgboost/json.h"
 
 namespace xgboost::tree {
-std::vector<GradientPairPrecise> GetHostHistGpair() {
-  // 24 bins, 3 bins for each feature (column).
-  std::vector<GradientPairPrecise> hist_gpair = {
-    {0.8314f, 0.7147f}, {1.7989f, 3.7312f}, {3.3846f, 3.4598f},
-    {2.9277f, 3.5886f}, {1.8429f, 2.4152f}, {1.2443f, 1.9019f},
-    {1.6380f, 2.9174f}, {1.5657f, 2.5107f}, {2.8111f, 2.4776f},
-    {2.1322f, 3.0651f}, {3.2927f, 3.8540f}, {0.5899f, 0.9866f},
-    {1.5185f, 1.6263f}, {2.0686f, 3.1844f}, {2.4278f, 3.0950f},
-    {1.5105f, 2.1403f}, {2.6922f, 4.2217f}, {1.8122f, 1.5437f},
-    {0.0000f, 0.0000f}, {4.3245f, 5.7955f}, {1.6903f, 2.1103f},
-    {2.4012f, 4.4754f}, {3.6136f, 3.4303f}, {0.0000f, 0.0000f}
-  };
-  return hist_gpair;
-}
-
-template <typename GradientSumT>
-void TestBuildHist(bool use_shared_memory_histograms) {
-  int const kNRows = 16, kNCols = 8;
-  Context ctx{MakeCUDACtx(0)};
-
-  TrainParam param;
-  Args args{
-      {"max_depth", "6"},
-      {"max_leaves", "0"},
-  };
-  param.Init(args);
-
-  auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
-  BatchParam batch_param{};
-  auto cs = std::make_shared<common::ColumnSampler>(0);
-  GPUHistMakerDevice maker(&ctx, /*is_external_memory=*/false, {}, kNRows, param, cs, kNCols,
-                           batch_param, MetaInfo());
-  xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  HostDeviceVector<GradientPair> gpair(kNRows);
-  for (auto& gp : gpair.HostVector()) {
-    float grad = dist(&gen);
-    float hess = dist(&gen);
-    gp = GradientPair{grad, hess};
-  }
-  gpair.SetDevice(ctx.Device());
-
-  maker.row_partitioner = std::make_unique<RowPartitioner>();
-  maker.row_partitioner->Reset(&ctx, kNRows, 0);
-
-  maker.hist.Init(ctx.Device(), page->Cuts().TotalBins());
-  maker.hist.AllocateHistograms(&ctx, {0});
-
-  maker.gpair = gpair.DeviceSpan();
-  maker.quantiser = std::make_unique<GradientQuantiser>(&ctx, maker.gpair, MetaInfo());
-  maker.page = page.get();
-
-  maker.InitFeatureGroupsOnce();
-
-  DeviceHistogramBuilder builder;
-  builder.Reset(&ctx, maker.feature_groups->DeviceAccessor(ctx.Device()),
-                !use_shared_memory_histograms);
-  builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
-                         maker.feature_groups->DeviceAccessor(ctx.Device()), gpair.DeviceSpan(),
-                         maker.row_partitioner->GetRows(0), maker.hist.GetNodeHistogram(0),
-                         *maker.quantiser);
-
-  DeviceHistogramStorage<>& d_hist = maker.hist;
-
-  auto node_histogram = d_hist.GetNodeHistogram(0);
-  // d_hist.data stored in float, not gradient pair
-  thrust::host_vector<GradientPairInt64> h_result (node_histogram.size());
-  dh::safe_cuda(cudaMemcpy(h_result.data(), node_histogram.data(), node_histogram.size_bytes(),
-                           cudaMemcpyDeviceToHost));
-
-  std::vector<GradientPairPrecise> solution = GetHostHistGpair();
-  for (size_t i = 0; i < h_result.size(); ++i) {
-    auto result = maker.quantiser->ToFloatingPoint(h_result[i]);
-    ASSERT_NEAR(result.GetGrad(), solution[i].GetGrad(), 0.01f);
-    ASSERT_NEAR(result.GetHess(), solution[i].GetHess(), 0.01f);
-  }
-}
-
-TEST(GpuHist, BuildHistGlobalMem) {
-  TestBuildHist<GradientPairPrecise>(false);
-}
-
-TEST(GpuHist, BuildHistSharedMem) {
-  TestBuildHist<GradientPairPrecise>(true);
-}
-
-std::shared_ptr<detail::HistogramCutsWrapper> GetHostCutMatrix () {
-  auto cmat = std::make_shared<detail::HistogramCutsWrapper>();
-  cmat->SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
-  cmat->SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
-  // 24 cut fields, 3 cut fields for each feature (column).
-  // Each row of the cut represents the cuts for a data column.
-  cmat->SetValues({0.30f, 0.67f, 1.64f,
-              0.32f, 0.77f, 1.95f,
-              0.29f, 0.70f, 1.80f,
-              0.32f, 0.75f, 1.85f,
-              0.18f, 0.59f, 1.69f,
-              0.25f, 0.74f, 2.00f,
-              0.26f, 0.74f, 1.98f,
-              0.26f, 0.71f, 1.83f});
-  return cmat;
-}
-
-void TestHistogramIndexImpl() {
-  // Test if the compressed histogram index matches when using a sparse
-  // dmatrix with and without using external memory
-
-  int constexpr kNRows = 1000, kNCols = 10;
-
-  // Build 2 matrices and build a histogram maker with that
-  Context ctx(MakeCUDACtx(0));
-  ObjInfo task{ObjInfo::kRegression};
-  tree::GPUHistMaker hist_maker{&ctx, &task}, hist_maker_ext{&ctx, &task};
-  std::unique_ptr<DMatrix> hist_maker_dmat(
-    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 0, true));
-
-  dmlc::TemporaryDirectory tempdir;
-  std::unique_ptr<DMatrix> hist_maker_ext_dmat(
-    CreateSparsePageDMatrixWithRC(kNRows, kNCols, 128UL, true, tempdir));
-
-  Args training_params = {{"max_depth", "10"}, {"max_leaves", "0"}};
-  TrainParam param;
-  param.UpdateAllowUnknown(training_params);
-
-  hist_maker.Configure(training_params);
-  hist_maker.InitDataOnce(&param, hist_maker_dmat.get());
-  hist_maker_ext.Configure(training_params);
-  hist_maker_ext.InitDataOnce(&param, hist_maker_ext_dmat.get());
-
-  // Extract the device maker from the histogram makers and from that its compressed
-  // histogram index
-  const auto &maker = hist_maker.maker;
-  auto grad = GenerateRandomGradients(kNRows);
-  grad.SetDevice(DeviceOrd::CUDA(0));
-  maker->Reset(&grad, hist_maker_dmat.get(), kNCols);
-
-  const auto &maker_ext = hist_maker_ext.maker;
-  maker_ext->Reset(&grad, hist_maker_ext_dmat.get(), kNCols);
-
-  ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());
-  ASSERT_EQ(maker->page->gidx_buffer.size(), maker_ext->page->gidx_buffer.size());
-}
-
-TEST(GpuHist, TestHistogramIndex) {
-  TestHistogramIndexImpl();
-}
-
 void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
                 size_t gpu_page_size, RegTree* tree, HostDeviceVector<bst_float>* preds,
                 float subsample = 1.0f, const std::string& sampling_method = "uniform",
@@ -200,14 +53,14 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
   param.UpdateAllowUnknown(args);
 
   ObjInfo task{ObjInfo::kRegression};
-  tree::GPUHistMaker hist_maker{ctx, &task};
-  hist_maker.Configure(Args{});
+  std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
+  hist_maker->Configure(Args{});
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
-  hist_maker.Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
-                    {tree});
+  hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
+                     {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
-  hist_maker.UpdatePredictionCache(dmat, cache);
+  hist_maker->UpdatePredictionCache(dmat, cache);
 }
 
 TEST(GpuHist, UniformSampling) {
