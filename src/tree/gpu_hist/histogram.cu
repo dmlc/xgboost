@@ -374,7 +374,7 @@ struct ReadMatrixFunction {
     auto row = global_idx / k_cols;
     auto col = global_idx % k_cols;
     auto value = matrix.GetBinIndex(row, col);
-    if (isnan(float(value))) {
+    if (isnan(static_cast<float>(value))) {
       value = -1;
     }
     matrix_data_d[global_idx] = value;
