@@ -104,4 +104,12 @@ void MakeSketches(Context const *ctx,
                   common::HistogramCuts *cuts, BatchParam const &p, MetaInfo const &info,
                   ExternalDataInfo const &ext_info, std::vector<FeatureType> *p_h_ft);
 }  // namespace cpu_impl
+
+namespace cuda_impl {
+void MakeSketches(Context const *ctx,
+                  DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> *iter,
+                  DMatrixProxy *proxy, std::shared_ptr<DMatrix> ref, BatchParam const &p,
+                  float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const &info,
+                  ExternalDataInfo *p_ext_info);
+}  // namespace cuda_impl
 }  // namespace xgboost::data

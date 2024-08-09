@@ -487,7 +487,8 @@ void RandomDataGenerator::GenerateCSR(
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
                       std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix)};
 
-  auto page_path = data::MakeId(prefix, p_fmat.get()) + ".gradient_index.page";
+  auto page_path = data::MakeId(prefix, p_fmat.get());
+  page_path += device_.IsCPU() ? ".gradient_index.page" : ".ellpack.page";
   EXPECT_TRUE(FileExists(page_path)) << page_path;
 
   if (with_label) {

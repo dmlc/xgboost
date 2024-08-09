@@ -397,7 +397,7 @@ struct CopyPage {
 size_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page, bst_idx_t offset) {
   monitor_.Start(__func__);
   bst_idx_t num_elements = page->n_rows * page->row_stride;
-  CHECK_EQ(row_stride, page->row_stride);
+  CHECK_EQ(this->row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_GE(n_rows * row_stride, offset + num_elements);
   if (page == this) {

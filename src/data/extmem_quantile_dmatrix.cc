@@ -72,13 +72,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, *iter, missing, &ext_info);
-
-  // From here on Info() has the correct data shape
-  this->Info().num_row_ = ext_info.accumulated_rows;
-  this->Info().num_col_ = ext_info.n_features;
-  this->Info().num_nonzero_ = ext_info.nnz;
-  this->Info().SynchronizeNumberOfColumns(ctx);
-  ext_info.Validate();
+  ext_info.SetInfo(ctx, &this->Info());
 
   /**
    * Generate quantiles
@@ -110,7 +104,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   CHECK_EQ(n_total_samples, ext_info.accumulated_rows);
 }
 
-BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndexImpl() {
+[[nodiscard]] BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndexImpl() {
   return BatchSet{BatchIterator<GHistIndexMatrix>{this->ghist_index_source_}};
 }
 
@@ -142,6 +136,14 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
 
 BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
                                                                const BatchParam &) {
+  common::AssertGPUSupport();
+  auto batch_set =
+      std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
+                 this->ellpack_page_source_);
+  return batch_set;
+}
+
+BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl(Context const *) {
   common::AssertGPUSupport();
   auto batch_set =
       std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
