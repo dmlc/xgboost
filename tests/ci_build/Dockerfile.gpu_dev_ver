@@ -8,7 +8,7 @@ ARG RAPIDS_VERSION_ARG
 ARG NCCL_VERSION_ARG
 
 # Environment
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
@@ -36,8 +36,8 @@ RUN \
     mamba clean --all --yes && \
     conda run --no-capture-output -n gpu_test pip install buildkite-test-collector
 
-ENV GOSU_VERSION 1.10
-ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
+ENV GOSU_VERSION=1.10
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \
