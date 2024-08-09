@@ -9,6 +9,12 @@
 
 namespace xgboost::obj {
 class FitIntercept : public ObjFunction {
+ public:
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
+};
+
+class FitInterceptGlmLike : public ObjFunction {
+ public:
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
 };
 

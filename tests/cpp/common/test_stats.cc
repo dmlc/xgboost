@@ -1,10 +1,11 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/linalg.h>  // Tensor,Vector
 
+#include "../../../src/common/linalg_op.h"  // for begin, end
 #include "../../../src/common/stats.h"
 #include "../../../src/common/transform_iterator.h"  // common::MakeIndexTransformIter
 #include "../helpers.h"
@@ -122,9 +123,74 @@ TEST(Stats, Mean) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST(Stats, GPUMean) {
+TEST(Stats, GpuMean) {
   auto ctx = MakeCUDACtx(0);
   TestMean(&ctx);
+}
+#endif  // defined(XGBOOST_USE_CUDA)
+
+namespace {
+void TestSampleMean(Context const* ctx) {
+  std::size_t m{32}, n{16};
+  linalg::Matrix<float> data({m, n}, ctx->Device());
+  auto h_data = data.HostView();
+  std::iota(linalg::begin(h_data), linalg::end(h_data), .0f);
+  linalg::Vector<float> mean;
+  SampleMean(ctx, data, &mean);
+  ASSERT_FLOAT_EQ(mean(0), 248.0f);
+  for (std::size_t i = 1; i < mean.Size(); ++i) {
+    ASSERT_EQ(mean(i), mean(i - 1) + 1.0f);
+  }
+}
+
+void TestWeightedSampleMean(Context const* ctx) {
+  std::size_t m{32}, n{16};
+  {
+    auto data = linalg::Constant(ctx, 1.0f, m, n);
+    HostDeviceVector<float> w{m, 0.0f, ctx->Device()};
+    auto h_w = w.HostSpan();
+    std::iota(h_w.data(), h_w.data() + h_w.size(), 1.0f);
+    linalg::Vector<float> mean;
+    WeightedSampleMean(ctx, data, w, &mean);
+    for (auto v : mean.HostView()) {
+      ASSERT_FLOAT_EQ(v, 1.0f);
+    }
+  }
+  {
+    linalg::Matrix<float> data({m, n}, ctx->Device());
+    auto h_data = data.HostView();
+    std::iota(linalg::begin(h_data), linalg::end(h_data), .0f);
+    HostDeviceVector<float> w{m, 1.0f, ctx->Device()};
+    linalg::Vector<float> mean;
+    WeightedSampleMean(ctx, data, w, &mean);
+    ASSERT_FLOAT_EQ(mean(0), 248.0f);
+    for (std::size_t i = 1; i < mean.Size(); ++i) {
+      ASSERT_EQ(mean(i), mean(i - 1) + 1.0f);
+    }
+  }
+}
+}  // namespace
+
+TEST(Stats, SampleMean) {
+  Context ctx;
+  TestSampleMean(&ctx);
+}
+
+
+TEST(Stats, WeightedSampleMean) {
+  Context ctx;
+  TestWeightedSampleMean(&ctx);
+}
+
+#if defined(XGBOOST_USE_CUDA)
+TEST(Stats, GpuSampleMean) {
+  auto ctx = MakeCUDACtx(0);
+  TestSampleMean(&ctx);
+}
+
+TEST(Stats, GpuWeightedSampleMean) {
+  auto ctx = MakeCUDACtx(0);
+  TestWeightedSampleMean(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::common

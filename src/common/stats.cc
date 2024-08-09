@@ -61,4 +61,51 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
     out->HostView()(0) = ret;
   }
 }
+
+void SampleMean(Context const* ctx, linalg::Matrix<float> const& v, linalg::Vector<float>* out) {
+  *out = linalg::Zeros<float>(ctx, v.Shape(1));
+  if (ctx->IsCPU()) {
+    auto h_v = v.HostView();
+    CHECK(h_v.CContiguous());
+    auto n_rows_f32 = static_cast<float>(v.Shape(0));
+    auto n_columns = v.Shape(1);
+    auto h_out = out->HostView();
+    for (std::size_t j = 0; j < n_columns; ++j) {
+      MemStackAllocator<float, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0f);
+      ParallelFor(v.Shape(0), ctx->Threads(),
+                  [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) / n_rows_f32); });
+      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0f);
+      h_out(j) = mean;
+    }
+  } else {
+    auto d_v = v.View(ctx->Device());
+    auto d_out = out->View(ctx->Device());
+    cuda_impl::SampleMean(ctx, d_v, d_out);
+  }
+}
+
+void WeightedSampleMean(Context const* ctx, linalg::Matrix<float> const& v,
+                        HostDeviceVector<float> const& w, linalg::Vector<float>* out) {
+  *out = linalg::Zeros<float>(ctx, v.Shape(1));
+  CHECK_EQ(v.Shape(0), w.Size());
+  if (ctx->IsCPU()) {
+    auto h_v = v.HostView();
+    auto h_w = w.ConstHostSpan();
+    auto sum_w = std::accumulate(h_w.data(), h_w.data() + h_w.size(), 0.0f);
+    auto h_out = out->HostView();
+    for (std::size_t j = 0; j < v.Shape(1); ++j) {
+      MemStackAllocator<float, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0f);
+      ParallelFor(v.Shape(0), ctx->Threads(),
+                  [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) * h_w(i) / sum_w); });
+      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0f);
+      h_out(j) = mean;
+    }
+  } else {
+    auto d_v = v.View(ctx->Device());
+    w.SetDevice(ctx->Device());
+    auto d_w = w.ConstDeviceSpan();
+    auto d_out = out->View(ctx->Device());
+    cuda_impl::WeightedSampleMean(ctx, d_v, d_w, d_out);
+  }
+}
 }  // namespace xgboost::common
