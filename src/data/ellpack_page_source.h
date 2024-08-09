@@ -8,6 +8,7 @@
 #include <cstdint>  // for int32_t
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../common/cuda_rt_utils.h"  // for SupportsPageableMem
 #include "../common/hist_util.h"      // for HistogramCuts
