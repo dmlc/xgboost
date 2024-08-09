@@ -3,7 +3,7 @@ ARG JDK_VERSION=8
 ARG SPARK_VERSION=3.5.1
 
 # Environment
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all basic requirements
 RUN \
@@ -34,7 +34,7 @@ ENV PATH=/opt/miniforge/bin:/opt/spark/bin:/opt/maven/bin:$PATH
 # Install Python packages
 RUN pip install numpy scipy pandas scikit-learn
 
-ENV GOSU_VERSION 1.10
+ENV GOSU_VERSION=1.10
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

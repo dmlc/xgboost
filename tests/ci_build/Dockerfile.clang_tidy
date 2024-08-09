@@ -3,7 +3,7 @@ FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu22.04
 ARG CUDA_VERSION_ARG
 
 # Environment
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all basic requirements
 RUN \
@@ -26,7 +26,7 @@ RUN \
 RUN \
     pip3 install pyyaml
 
-ENV GOSU_VERSION 1.10
+ENV GOSU_VERSION=1.10
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

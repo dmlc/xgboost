@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 
 # Environment
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
@@ -20,8 +20,8 @@ ENV CC=gcc-10
 ENV CXX=g++-10
 ENV CPP=cpp-10
 
-ENV GOSU_VERSION 1.10
-ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
+ENV GOSU_VERSION=1.10
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
 
 # Install gRPC
 RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \

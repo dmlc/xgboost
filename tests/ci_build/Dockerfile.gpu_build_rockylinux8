@@ -34,7 +34,7 @@ ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
 ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
 ENV CUDAHOSTCXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
 
-ENV GOSU_VERSION 1.10
+ENV GOSU_VERSION=1.10
 
 # Install RMM (Patch out -Werror)
 RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
