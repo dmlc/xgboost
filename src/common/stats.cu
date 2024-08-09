@@ -83,6 +83,11 @@ void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                         common::Span<float const> d_w, linalg::VectorView<float> d_out) {
   CHECK(d_v.CContiguous());
   auto n_rows = d_v.Shape(0);
+  // The use of `cidx = i / n_rows` does not imply the input is column-major, it simply
+  // states the order of the reduction operator, and we want to reduce over the first
+  // dimension (rows). `thrust::reduce_by_key` requires all keys within the same reduction
+  // segment to be next to each other. `array(ridx, cidx)` can be used with any memory
+  // layout.
   auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
                                                             auto cidx = i / n_rows;
