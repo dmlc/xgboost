@@ -321,6 +321,9 @@ class RandomDataGenerator {
   [[nodiscard]] std::shared_ptr<DMatrix> GenerateSparsePageDMatrix(std::string prefix,
                                                                    bool with_label) const;
 
+  [[nodiscard]] std::shared_ptr<DMatrix> GenerateExtMemQuantileDMatrix(std::string prefix,
+                                                                       bool with_label) const;
+
 #if defined(XGBOOST_USE_CUDA)
   std::shared_ptr<DMatrix> GenerateDeviceDMatrix(bool with_label);
 #endif

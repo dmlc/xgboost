@@ -566,7 +566,7 @@ EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
   CHECK_EQ(h_gidx_buffer->size(), gidx_buffer.size());
   CHECK_NE(gidx_buffer.size(), 0);
   dh::safe_cuda(cudaMemcpyAsync(h_gidx_buffer->data(), gidx_buffer.data(), gidx_buffer.size_bytes(),
-                                cudaMemcpyDefault, dh::DefaultStream()));
+                                cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
   return {DeviceOrd::CPU(),
           cuts_,
           is_dense,

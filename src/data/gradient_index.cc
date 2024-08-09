@@ -62,7 +62,17 @@ GHistIndexMatrix::GHistIndexMatrix(MetaInfo const &info, common::HistogramCuts &
       hit_count{common::MakeFixedVecWithMalloc(cuts.TotalBins(), std::size_t{0})},
       cut{std::forward<common::HistogramCuts>(cuts)},
       max_numeric_bins_per_feat(max_bin_per_feat),
-      isDense_{info.num_col_ * info.num_row_ == info.num_nonzero_} {}
+      isDense_{info.IsDense()} {}
+
+GHistIndexMatrix::GHistIndexMatrix(bst_idx_t n_samples, bst_idx_t base_rowid,
+                                   common::HistogramCuts &&cuts, bst_bin_t max_bin_per_feat,
+                                   bool is_dense)
+    : row_ptr{common::MakeFixedVecWithMalloc(n_samples + 1, std::size_t{0})},
+      hit_count{common::MakeFixedVecWithMalloc(cuts.TotalBins(), std::size_t{0})},
+      cut{std::forward<common::HistogramCuts>(cuts)},
+      max_numeric_bins_per_feat(max_bin_per_feat),
+      base_rowid{base_rowid},
+      isDense_{is_dense} {}
 
 #if !defined(XGBOOST_USE_CUDA)
 GHistIndexMatrix::GHistIndexMatrix(Context const *, MetaInfo const &, EllpackPage const &,
@@ -121,6 +131,11 @@ INSTANTIATION_PUSH(data::ArrayAdapterBatch)
 INSTANTIATION_PUSH(data::SparsePageAdapterBatch)
 INSTANTIATION_PUSH(data::ColumnarAdapterBatch)
 #undef INSTANTIATION_PUSH
+
+void GHistIndexMatrix::ResizeColumns(double sparse_thresh) {
+  CHECK(!std::isnan(sparse_thresh));
+  this->columns_ = std::make_unique<common::ColumnMatrix>(*this, sparse_thresh);
+}
 
 void GHistIndexMatrix::ResizeIndex(const size_t n_index, const bool isDense) {
   auto make_index = [this, n_index](auto t, common::BinTypeSize t_size) {

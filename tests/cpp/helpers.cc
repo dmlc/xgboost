@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2024 by XGBoost contributors
+ * Copyright 2016-2024, XGBoost contributors
  */
 #include "helpers.h"
 
@@ -12,6 +12,7 @@
 #include <xgboost/objective.h>
 
 #include <algorithm>
+#include <limits>  // for numeric_limits
 #include <random>
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
@@ -20,13 +21,13 @@
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
-#include "filesystem.h"  // dmlc::TemporaryDirectory
+#include "../../src/tree/param.h"  // for TrainParam
+#include "filesystem.h"            // dmlc::TemporaryDirectory
 #include "xgboost/c_api.h"
 #include "xgboost/predictor.h"
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>
-#include <numeric>
 #include <vector>
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/cuda_memory_resource.hpp"
@@ -466,6 +467,38 @@ void RandomDataGenerator::GenerateCSR(
   return dmat;
 }
 
+[[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateExtMemQuantileDMatrix(
+    std::string prefix, bool with_label) const {
+  CHECK_GE(this->rows_, this->n_batches_);
+  CHECK_GE(this->n_batches_, 1)
+      << "Must set the n_batches before generating an external memory DMatrix.";
+  // The iterator should be freed after construction of the DMatrix.
+  std::unique_ptr<ArrayIterForTest> iter;
+  if (device_.IsCPU()) {
+    iter = std::make_unique<NumpyArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
+  } else {
+#if defined(XGBOOST_USE_CUDA)
+    iter = std::make_unique<CudaArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
+  CHECK(iter);
+
+  std::shared_ptr<DMatrix> p_fmat{
+      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
+                      std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix)};
+
+  auto page_path = data::MakeId(prefix, p_fmat.get()) + ".gradient_index.page";
+  EXPECT_TRUE(FileExists(page_path)) << page_path;
+
+  if (with_label) {
+    RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}
+        .GenerateDense(p_fmat->Info().labels.Data());
+    CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
+    p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
+  }
+  return p_fmat;
+}
+
 std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_label) {
   NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
   auto m = std::make_shared<data::IterativeDMatrix>(
@@ -747,7 +780,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
     }
   }
   if (!use_rmm_pool) {
-    return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+    return {nullptr, DeleteRMMResource};
   }
   LOG(INFO) << "Using RMM memory pool";
   auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
