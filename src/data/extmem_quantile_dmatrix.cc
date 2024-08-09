@@ -143,7 +143,7 @@ BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
   return batch_set;
 }
 
-BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl(Context const *) {
+BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl() {
   common::AssertGPUSupport();
   auto batch_set =
       std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
