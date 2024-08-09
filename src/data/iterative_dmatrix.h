@@ -27,8 +27,7 @@ namespace data {
  *
  * During initializaion, it walks through the data multiple times iteratively in order to
  * perform quantilization. This design helps us reduce memory usage significantly by
- * avoiding data concatenation along with removing the CSR matrix `SparsePage`. However,
- * it has its limitation (can be fixed if needed):
+ * avoiding data concatenation along with removing the CSR matrix `SparsePage`.
  */
 class IterativeDMatrix : public QuantileDMatrix {
   std::shared_ptr<EllpackPage> ellpack_;

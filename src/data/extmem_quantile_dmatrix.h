@@ -19,6 +19,11 @@
 namespace xgboost::data {
 /**
  * @brief A DMatrix class for building a `QuantileDMatrix` from external memory iterator.
+ *
+ * This is a combination of `IterativeDMatrix` and the `SparsePageDMatrix` . It builds
+ * gradient index directly from iterator inputs without going through the `SparsePage`,
+ * similar to how the `IterativeDMatrix` works. Also, simlar to the `SparsePageDMatrix`,
+ * it caches the gradient index and fetch them in batches on demand.
  */
 class ExtMemQuantileDMatrix : public QuantileDMatrix {
  public:
