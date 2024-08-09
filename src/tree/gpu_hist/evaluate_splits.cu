@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "../../collective/allgather.h"
+#include "../../collective/broadcast.h"
 #include "../../common/categorical.h"
 #include "../../data/ellpack_page.cuh"
 #include "evaluate_splits.cuh"
@@ -404,34 +405,50 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
 
   dh::TemporaryArray<DeviceSplitCandidate> splits_out_storage(d_inputs.size());
   auto out_splits = dh::ToSpan(splits_out_storage);
-  this->LaunchEvaluateSplits(max_active_features, d_inputs, shared_inputs,
-                             evaluator, out_splits);
 
-  if (is_column_split_) {
-    // With column-wise data split, we gather the split candidates from all the workers and find the
-    // global best candidates.
-    auto const world_size = collective::GetWorldSize();
-    dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(out_splits.size() * world_size);
-    auto all_candidates = dh::ToSpan(all_candidate_storage);
-    auto current_rank =
-        all_candidates.subspan(collective::GetRank() * out_splits.size(), out_splits.size());
-    dh::safe_cuda(cudaMemcpyAsync(current_rank.data(), out_splits.data(),
-                                  out_splits.size() * sizeof(DeviceSplitCandidate),
-                                  cudaMemcpyDeviceToDevice));
-    auto rc = collective::Allgather(
-        ctx, linalg::MakeVec(all_candidates.data(), all_candidates.size(), ctx->Device()));
-    collective::SafeColl(rc);
-
-    // Reduce to get the best candidate from all workers.
-    dh::LaunchN(out_splits.size(), ctx->CUDACtx()->Stream(),
-                [world_size, all_candidates, out_splits] __device__(size_t i) {
-                  out_splits[i] = all_candidates[i];
-                  for (auto rank = 1; rank < world_size; rank++) {
-                    out_splits[i] = out_splits[i] + all_candidates[rank * out_splits.size() + i];
-                  }
-                });
+  bool is_passive_party = is_column_split_ && collective::IsEncrypted()
+          && collective::GetRank() != 0;
+  bool is_active_party = !is_passive_party;
+  // Under secure vertical setting, only the active party is able to evaluate the split
+  // based on global histogram. Other parties will receive the final best split information
+  // Hence the below computation is not performed by the passive parties
+  if (is_active_party) {
+    this->LaunchEvaluateSplits(max_active_features, d_inputs, shared_inputs,
+                               evaluator, out_splits);
   }
 
+  if (is_column_split_) {
+    if (!collective::IsEncrypted()) {
+      // With regular column-wise data split, we gather the split candidates from
+      // all the workers and find the global best candidates.
+      auto const world_size = collective::GetWorldSize();
+      dh::TemporaryArray<DeviceSplitCandidate> all_candidate_storage(
+              out_splits.size() * world_size);
+      auto all_candidates = dh::ToSpan(all_candidate_storage);
+      auto current_rank =
+              all_candidates.subspan(collective::GetRank() * out_splits.size(), out_splits.size());
+      dh::safe_cuda(cudaMemcpyAsync(current_rank.data(), out_splits.data(),
+                                    out_splits.size() * sizeof(DeviceSplitCandidate),
+                                    cudaMemcpyDeviceToDevice));
+      auto rc = collective::Allgather(
+              ctx, linalg::MakeVec(all_candidates.data(), all_candidates.size(), ctx->Device()));
+      collective::SafeColl(rc);
+      // Reduce to get the best candidate from all workers.
+      dh::LaunchN(out_splits.size(), ctx->CUDACtx()->Stream(),
+                  [world_size, all_candidates, out_splits] __device__(size_t i) {
+        out_splits[i] = all_candidates[i];
+        for (auto rank = 1; rank < world_size; rank++) {
+          out_splits[i] = out_splits[i] + all_candidates[rank * out_splits.size() + i];
+        }
+      });
+    } else {
+      // With encrypted column-wise data split, we distribute the best split candidates
+      // from Rank 0 to all other workers
+      auto rc = collective::Broadcast(
+              ctx, linalg::MakeVec(out_splits.data(), out_splits.size(), ctx->Device()), 0);
+      collective::SafeColl(rc);
+    }
+  }
   auto d_sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
   auto d_entries = out_entries;
   auto device_cats_accessor = this->DeviceCatStorage(nidx);

@@ -249,9 +249,9 @@ struct GPUHistMakerDevice {
   void BuildHist(int nidx) {
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    this->histogram_.BuildHistogram(ctx_->CUDACtx(), page->GetDeviceAccessor(ctx_->Device()),
+    this->histogram_.BuildHistogram(ctx_, page->GetDeviceAccessor(ctx_->Device()),
                                     feature_groups->DeviceAccessor(ctx_->Device()), gpair, d_ridx,
-                                    d_node_hist, *quantiser);
+                                    d_node_hist, *quantiser, info_);
   }
 
   // Attempt to do subtraction trick

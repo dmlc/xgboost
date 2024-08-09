@@ -175,14 +175,16 @@ class DeviceHistogramBuilder {
  public:
   DeviceHistogramBuilder();
   ~DeviceHistogramBuilder();
-
+  // Whether to secure aggregation context has been initialized
+  bool is_aggr_context_initialized{false};
   void Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
              bool force_global_memory);
-  void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
+  void BuildHistogram(Context const* ctx, EllpackDeviceAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const std::uint32_t> ridx,
-                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding);
+                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding,
+                      MetaInfo const& info);
 };
 }  // namespace xgboost::tree
 #endif  // HISTOGRAM_CUH_

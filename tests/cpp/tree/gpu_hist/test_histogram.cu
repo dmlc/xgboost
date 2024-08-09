@@ -80,9 +80,9 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
     auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, feature_groups.DeviceAccessor(ctx.Device()), force_global);
-    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+    builder.BuildHistogram(&ctx, page->GetDeviceAccessor(ctx.Device()),
                            feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                           d_histogram, quantiser);
+                           d_histogram, quantiser, MetaInfo());
 
     std::vector<GradientPairInt64> histogram_h(num_bins);
     dh::safe_cuda(cudaMemcpy(histogram_h.data(), d_histogram.data(),
@@ -95,9 +95,9 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
       auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
       DeviceHistogramBuilder builder;
       builder.Reset(&ctx, feature_groups.DeviceAccessor(ctx.Device()), force_global);
-      builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+      builder.BuildHistogram(&ctx, page->GetDeviceAccessor(ctx.Device()),
                              feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                             d_new_histogram, quantiser);
+                             d_new_histogram, quantiser, MetaInfo());
 
       std::vector<GradientPairInt64> new_histogram_h(num_bins);
       dh::safe_cuda(cudaMemcpy(new_histogram_h.data(), d_new_histogram.data(),
@@ -119,9 +119,9 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
       dh::device_vector<GradientPairInt64> baseline(num_bins);
       DeviceHistogramBuilder builder;
       builder.Reset(&ctx, single_group.DeviceAccessor(ctx.Device()), force_global);
-      builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+      builder.BuildHistogram(&ctx, page->GetDeviceAccessor(ctx.Device()),
                              single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                             dh::ToSpan(baseline), quantiser);
+                             dh::ToSpan(baseline), quantiser, MetaInfo());
 
       std::vector<GradientPairInt64> baseline_h(num_bins);
       dh::safe_cuda(cudaMemcpy(baseline_h.data(), baseline.data().get(),
@@ -185,9 +185,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     FeatureGroups single_group(page->Cuts());
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, single_group.DeviceAccessor(ctx.Device()), false);
-    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+    builder.BuildHistogram(&ctx, page->GetDeviceAccessor(ctx.Device()),
                            single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                           dh::ToSpan(cat_hist), quantiser);
+                           dh::ToSpan(cat_hist), quantiser, MetaInfo());
   }
 
   /**
@@ -201,9 +201,9 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     FeatureGroups single_group(page->Cuts());
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, single_group.DeviceAccessor(ctx.Device()), false);
-    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(ctx.Device()),
+    builder.BuildHistogram(&ctx, page->GetDeviceAccessor(ctx.Device()),
                            single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                           dh::ToSpan(encode_hist), quantiser);
+                           dh::ToSpan(encode_hist), quantiser, MetaInfo());
   }
 
   std::vector<GradientPairInt64> h_cat_hist(cat_hist.size());
@@ -350,9 +350,9 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
         auto d_histogram = dh::ToSpan(multi_hist);
         DeviceHistogramBuilder builder;
         builder.Reset(&ctx, fg->DeviceAccessor(ctx.Device()), force_global);
-        builder.BuildHistogram(ctx.CUDACtx(), impl->GetDeviceAccessor(ctx.Device()),
+        builder.BuildHistogram(&ctx, impl->GetDeviceAccessor(ctx.Device()),
                                fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
-                               d_histogram, quantiser);
+                               d_histogram, quantiser, MetaInfo());
         ++k;
       }
       ASSERT_EQ(k, n_batches);
@@ -373,9 +373,9 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
       auto d_histogram = dh::ToSpan(single_hist);
       DeviceHistogramBuilder builder;
       builder.Reset(&ctx, fg->DeviceAccessor(ctx.Device()), force_global);
-      builder.BuildHistogram(ctx.CUDACtx(), page.GetDeviceAccessor(ctx.Device()),
+      builder.BuildHistogram(&ctx, page.GetDeviceAccessor(ctx.Device()),
                              fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
-                             d_histogram, quantiser);
+                             d_histogram, quantiser, MetaInfo());
     }
 
     std::vector<GradientPairInt64> h_single(single_hist.size());
