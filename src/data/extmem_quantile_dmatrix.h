@@ -33,7 +33,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
                         std::string cache, bst_bin_t max_bin);
   ~ExtMemQuantileDMatrix() override;
 
-  [[nodiscard]] bool SingleColBlock() const override { return false; }
+  [[nodiscard]] std::int32_t NumBatches() const override { return n_batches_; }
 
  private:
   void InitFromCPU(
@@ -61,6 +61,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
   std::map<std::string, std::shared_ptr<Cache>> cache_info_;
   std::string cache_prefix_;
   BatchParam batch_;
+  bst_idx_t n_batches_{0};
 
   using EllpackDiskPtr = std::shared_ptr<EllpackPageSource>;
   using EllpackHostPtr = std::shared_ptr<EllpackPageHostSource>;

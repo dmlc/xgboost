@@ -94,7 +94,6 @@ class DMatrixProxy : public DMatrix {
   MetaInfo const& Info() const override { return info_; }
   Context const* Ctx() const override { return &ctx_; }
 
-  bool SingleColBlock() const override { return false; }
   bool EllpackExists() const override { return false; }
   bool GHistIndexExists() const override { return false; }
   bool SparsePageExists() const override { return false; }
