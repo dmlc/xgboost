@@ -104,7 +104,7 @@ check.booster.params <- function(params, ...) {
 
   # for multiclass, expect num_class to be set
   if (typeof(params[['objective']]) == "character" &&
-      substr(NVL(params[['objective']], 'x'), 1, 6) == 'multi:' &&
+      startsWith(NVL(params[['objective']], 'x'), 'multi:') &&
       as.numeric(NVL(params[['num_class']], 0)) < 2) {
         stop("'num_class' > 1 parameter must be set for multiclass classification")
   }

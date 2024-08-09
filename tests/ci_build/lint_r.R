@@ -43,6 +43,7 @@ my_linters <- list(
   spaces_inside_linter = lintr::spaces_inside_linter(),
   spaces_left_parentheses_linter = lintr::spaces_left_parentheses_linter(),
   sprintf = lintr::sprintf_linter(),
+  string_boundary = lintr::string_boundary_linter(),
   trailing_blank_lines_linter = lintr::trailing_blank_lines_linter(),
   trailing_whitespace_linter = lintr::trailing_whitespace_linter(),
   true_false = lintr::T_and_F_symbol_linter(),
