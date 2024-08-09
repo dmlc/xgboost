@@ -129,6 +129,36 @@ class HistUpdater {
                    const USMVector<GradientPair, MemoryType::on_device> &gpair,
                    const RegTree& tree);
 
+  // Split nodes to 2 sets depending on amount of rows in each node
+  // Histograms for small nodes will be built explicitly
+  // Histograms for big nodes will be built by 'Subtraction Trick'
+  void SplitSiblings(const std::vector<ExpandEntry>& nodes,
+                  std::vector<ExpandEntry>* small_siblings,
+                  std::vector<ExpandEntry>* big_siblings,
+                  RegTree *p_tree);
+
+  void BuildNodeStats(const common::GHistIndexMatrix &gmat,
+                      RegTree *p_tree,
+                      const USMVector<GradientPair, MemoryType::on_device> &gpair);
+
+  void EvaluateAndApplySplits(const common::GHistIndexMatrix &gmat,
+                              RegTree *p_tree,
+                              int *num_leaves,
+                              int depth,
+                              std::vector<ExpandEntry> *temp_qexpand_depth);
+
+  void AddSplitsToTree(
+            const common::GHistIndexMatrix &gmat,
+            RegTree *p_tree,
+            int *num_leaves,
+            int depth,
+            std::vector<ExpandEntry>* nodes_for_apply_split,
+            std::vector<ExpandEntry>* temp_qexpand_depth);
+
+  void ExpandWithDepthWise(const common::GHistIndexMatrix &gmat,
+                            RegTree *p_tree,
+                            const USMVector<GradientPair, MemoryType::on_device> &gpair);
+
   void BuildLocalHistograms(const common::GHistIndexMatrix &gmat,
                             RegTree *p_tree,
                             const USMVector<GradientPair, MemoryType::on_device> &gpair);
@@ -180,6 +210,7 @@ class HistUpdater {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
 
   std::unique_ptr<ExpandQueue> qexpand_loss_guided_;
+  std::vector<ExpandEntry> qexpand_depth_wise_;
 
   enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
   DataLayout data_layout_;
