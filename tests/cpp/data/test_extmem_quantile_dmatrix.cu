@@ -4,22 +4,34 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for BatchParam
 
-#include "../helpers.h"  // for RandomDataGenerator
+#include <vector>  // for vector
+
+#include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
+#include "../helpers.h"                        // for RandomDataGenerator
+#include "test_extmem_quantile_dmatrix.h"      // for TestExtMemQdmBasic
 
 namespace xgboost::data {
 class ExtMemQuantileDMatrixGpu : public ::testing::TestWithParam<float> {
  public:
   void Run(float sparsity) {
-    bst_idx_t n_samples = 256, n_features = 16, n_batches = 4;
-    bst_bin_t max_bin = 64;
-    bst_target_t n_targets = 3;
+    auto equal = [](Context const* ctx, EllpackPage const& orig, EllpackPage const& sparse) {
+      auto const& orig_cuts = orig.Cuts();
+      auto const& sparse_cuts = sparse.Cuts();
+      ASSERT_EQ(orig_cuts.Values(), sparse_cuts.Values());
+      ASSERT_EQ(orig_cuts.MinValues(), sparse_cuts.MinValues());
+      ASSERT_EQ(orig_cuts.Ptrs(), sparse_cuts.Ptrs());
+
+      std::vector<common::CompressedByteT> h_orig, h_sparse;
+      auto orig_acc = orig.Impl()->GetHostAccessor(ctx, &h_orig, {});
+      auto sparse_acc = sparse.Impl()->GetHostAccessor(ctx, &h_sparse, {});
+      ASSERT_EQ(h_orig.size(), h_sparse.size());
+
+      auto equal = std::equal(h_orig.cbegin(), h_orig.cend(), h_sparse.cbegin());
+      ASSERT_TRUE(equal);
+    };
+
     auto ctx = MakeCUDACtx(0);
-    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
-                      .Bins(max_bin)
-                      .Batches(n_batches)
-                      .Targets(n_targets)
-                      .Device(ctx.Device())
-                      .GenerateExtMemQuantileDMatrix("temp", true);
+    TestExtMemQdmBasic<EllpackPage>(&ctx, sparsity, equal);
   }
 };
 
