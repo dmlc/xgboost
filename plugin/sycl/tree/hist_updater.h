@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 #include <memory>
+#include <queue>
 
 #include "../common/partition_builder.h"
 #include "split_evaluator.h"
@@ -126,7 +127,6 @@ class HistUpdater {
   void InitNewNode(int nid,
                    const common::GHistIndexMatrix& gmat,
                    const USMVector<GradientPair, MemoryType::on_device> &gpair,
-                   const DMatrix& fmat,
                    const RegTree& tree);
 
   void BuildLocalHistograms(const common::GHistIndexMatrix &gmat,
@@ -138,6 +138,18 @@ class HistUpdater {
                       const common::GHistIndexMatrix &gmat,
                       RegTree *p_tree,
                       const USMVector<GradientPair, MemoryType::on_device> &gpair);
+
+  void ExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
+                           RegTree* p_tree,
+                           const USMVector<GradientPair, MemoryType::on_device>& gpair);
+
+  inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
+    if (lhs.GetLossChange() == rhs.GetLossChange()) {
+      return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
+    } else {
+      return lhs.GetLossChange() < rhs.GetLossChange();  // favor large loss_chg
+    }
+  }
 
   //  --data fields--
   const Context* ctx_;
@@ -162,6 +174,12 @@ class HistUpdater {
   // back pointers to tree and data matrix
   const RegTree* p_last_tree_;
   DMatrix const* const p_last_fmat_;
+
+  using ExpandQueue =
+      std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
+                          std::function<bool(ExpandEntry, ExpandEntry)>>;
+
+  std::unique_ptr<ExpandQueue> qexpand_loss_guided_;
 
   enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
   DataLayout data_layout_;

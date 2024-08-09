@@ -80,6 +80,78 @@ void HistUpdater<GradientSumT>::BuildLocalHistograms(
 }
 
 template<typename GradientSumT>
+void HistUpdater<GradientSumT>::ExpandWithLossGuide(
+    const common::GHistIndexMatrix& gmat,
+    RegTree* p_tree,
+    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+  builder_monitor_.Start("ExpandWithLossGuide");
+  int num_leaves = 0;
+  const auto lr = param_.learning_rate;
+
+  ExpandEntry node(ExpandEntry::kRootNid, p_tree->GetDepth(ExpandEntry::kRootNid));
+  BuildHistogramsLossGuide(node, gmat, p_tree, gpair);
+
+  this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair, *p_tree);
+
+  this->EvaluateSplits({node}, gmat, *p_tree);
+  node.split.loss_chg = snode_host_[ExpandEntry::kRootNid].best.loss_chg;
+
+  qexpand_loss_guided_->push(node);
+  ++num_leaves;
+
+  while (!qexpand_loss_guided_->empty()) {
+    const ExpandEntry candidate = qexpand_loss_guided_->top();
+    const int nid = candidate.nid;
+    qexpand_loss_guided_->pop();
+    if (!candidate.IsValid(param_, num_leaves)) {
+      (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
+    } else {
+      auto evaluator = tree_evaluator_.GetEvaluator();
+      NodeEntry<GradientSumT>& e = snode_host_[nid];
+      bst_float left_leaf_weight =
+          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
+      bst_float right_leaf_weight =
+          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum}) * lr;
+      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
+                         e.best.DefaultLeft(), e.weight, left_leaf_weight,
+                         right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
+                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
+
+      this->ApplySplit({candidate}, gmat, p_tree);
+
+      const int cleft = (*p_tree)[nid].LeftChild();
+      const int cright = (*p_tree)[nid].RightChild();
+
+      ExpandEntry left_node(cleft, p_tree->GetDepth(cleft));
+      ExpandEntry right_node(cright, p_tree->GetDepth(cright));
+
+      if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+        BuildHistogramsLossGuide(left_node, gmat, p_tree, gpair);
+      } else {
+        BuildHistogramsLossGuide(right_node, gmat, p_tree, gpair);
+      }
+
+      this->InitNewNode(cleft, gmat, gpair, *p_tree);
+      this->InitNewNode(cright, gmat, gpair, *p_tree);
+      bst_uint featureid = snode_host_[nid].best.SplitIndex();
+      tree_evaluator_.AddSplit(nid, cleft, cright, featureid,
+                               snode_host_[cleft].weight, snode_host_[cright].weight);
+      interaction_constraints_.Split(nid, featureid, cleft, cright);
+
+      this->EvaluateSplits({left_node, right_node}, gmat, *p_tree);
+      left_node.split.loss_chg = snode_host_[cleft].best.loss_chg;
+      right_node.split.loss_chg = snode_host_[cright].best.loss_chg;
+
+      qexpand_loss_guided_->push(left_node);
+      qexpand_loss_guided_->push(right_node);
+
+      ++num_leaves;  // give two and take one, as parent is no longer a leaf
+    }
+  }
+  builder_monitor_.Stop("ExpandWithLossGuide");
+}
+
+template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitSampling(
       const USMVector<GradientPair, MemoryType::on_device> &gpair,
       USMVector<size_t, MemoryType::on_device>* row_indices) {
@@ -249,6 +321,14 @@ void HistUpdater<GradientSumT>::InitData(
   }
 
   std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
+
+  {
+    if (param_.grow_policy == xgboost::tree::TrainParam::kLossGuide) {
+      qexpand_loss_guided_.reset(new ExpandQueue(LossGuide));
+    } else {
+      LOG(WARNING) << "Depth-wise building is not yet implemented";
+    }
+  }
   builder_monitor_.Stop("InitData");
 }
 
@@ -305,8 +385,7 @@ template <typename GradientSumT>
 void HistUpdater<GradientSumT>::InitNewNode(int nid,
                                             const common::GHistIndexMatrix& gmat,
                                             const USMVector<GradientPair,
-                                                            MemoryType::on_device> &gpair,
-                                            const DMatrix& fmat,
+                                            MemoryType::on_device> &gpair,
                                             const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
 
