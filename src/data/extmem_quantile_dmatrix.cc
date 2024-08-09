@@ -24,8 +24,8 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
                                              DataIterResetCallback *reset,
                                              XGDMatrixCallbackNext *next, float missing,
                                              std::int32_t n_threads, std::string cache,
-                                             bst_bin_t max_bin)
-    : cache_prefix_{std::move(cache)} {
+                                             bst_bin_t max_bin, bool on_host)
+    : cache_prefix_{std::move(cache)}, on_host_{on_host} {
   auto iter = std::make_shared<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>>(
       iter_handle, reset, next);
   iter->Reset();

@@ -31,7 +31,8 @@ class ExtMemQuantileDMatrixGpu : public ::testing::TestWithParam<float> {
     };
 
     auto ctx = MakeCUDACtx(0);
-    TestExtMemQdmBasic<EllpackPage>(&ctx, sparsity, equal);
+    TestExtMemQdmBasic<EllpackPage>(&ctx, true, sparsity, equal);
+    TestExtMemQdmBasic<EllpackPage>(&ctx, false, sparsity, equal);
   }
 };
 

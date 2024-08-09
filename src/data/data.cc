@@ -914,9 +914,9 @@ template <typename DataIterHandle, typename DMatrixHandle, typename DataIterRese
           typename XGDMatrixCallbackNext>
 DMatrix* DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
                          DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
-                         std::int32_t nthread, bst_bin_t max_bin, std::string cache) {
+                         std::int32_t nthread, bst_bin_t max_bin, std::string cache, bool on_host) {
   return new data::ExtMemQuantileDMatrix{
-      iter, proxy, ref, reset, next, missing, nthread, std::move(cache), max_bin};
+      iter, proxy, ref, reset, next, missing, nthread, std::move(cache), max_bin, on_host};
 }
 
 template DMatrix* DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback,
@@ -935,7 +935,7 @@ template DMatrix* DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCa
 template DMatrix*
 DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback, XGDMatrixCallbackNext>(
     DataIterHandle, DMatrixHandle, std::shared_ptr<DMatrix>, DataIterResetCallback*,
-    XGDMatrixCallbackNext*, float, std::int32_t, bst_bin_t, std::string);
+    XGDMatrixCallbackNext*, float, std::int32_t, bst_bin_t, std::string, bool);
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,

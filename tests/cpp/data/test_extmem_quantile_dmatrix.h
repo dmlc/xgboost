@@ -9,7 +9,7 @@
 
 namespace xgboost::data {
 template <typename Page, typename Equal>
-void TestExtMemQdmBasic(Context const* ctx, float sparsity, Equal&& check_equal) {
+void TestExtMemQdmBasic(Context const* ctx, bool on_host, float sparsity, Equal&& check_equal) {
   bst_idx_t n_samples = 256, n_features = 16, n_batches = 4;
   bst_bin_t max_bin = 64;
   bst_target_t n_targets = 3;
@@ -20,6 +20,7 @@ void TestExtMemQdmBasic(Context const* ctx, float sparsity, Equal&& check_equal)
                     .Batches(n_batches)
                     .Targets(n_targets)
                     .Device(ctx->Device())
+                    .OnHost(on_host)
                     .GenerateExtMemQuantileDMatrix("temp", true);
   ASSERT_FALSE(p_fmat->SingleColBlock());
 
@@ -50,6 +51,8 @@ void TestExtMemQdmBasic(Context const* ctx, float sparsity, Equal&& check_equal)
                       .Bins(max_bin)
                       .Batches(n_batches)
                       .Targets(n_targets)
+                      .Device(ctx->Device())
+                      .OnHost(on_host)
                       .GenerateSparsePageDMatrix("temp", true);
   auto it = p_fmat->GetBatches<Page>(ctx, p).begin();
   for (auto const& page : p_sparse->GetBatches<Page>(ctx, p)) {

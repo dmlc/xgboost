@@ -30,7 +30,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
   ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                         std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                         XGDMatrixCallbackNext *next, float missing, std::int32_t n_threads,
-                        std::string cache, bst_bin_t max_bin);
+                        std::string cache, bst_bin_t max_bin, bool on_host);
   ~ExtMemQuantileDMatrix() override;
 
   [[nodiscard]] bool SingleColBlock() const override { return false; }
@@ -61,6 +61,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
 
   std::map<std::string, std::shared_ptr<Cache>> cache_info_;
   std::string cache_prefix_;
+  bool on_host_;
   BatchParam batch_;
 
   using EllpackDiskPtr = std::shared_ptr<ExtEllpackPageSource>;

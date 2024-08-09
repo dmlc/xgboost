@@ -32,7 +32,6 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
    * Generate gradient index
    */
   auto id = MakeCache(this, ".ellpack.page", false, cache_prefix_, &cache_info_);
-  bool on_host_ = false;  // fixme
   if (on_host_ && std::get_if<EllpackHostPtr>(&ellpack_page_source_) == nullptr) {
     ellpack_page_source_.emplace<EllpackHostPtr>(nullptr);
   }
