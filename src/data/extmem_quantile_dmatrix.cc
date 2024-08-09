@@ -4,15 +4,19 @@
 #include "extmem_quantile_dmatrix.h"
 
 #include <memory>   // for shared_ptr
+#include <string>   // for string
 #include <utility>  // for move
 #include <vector>   // for vector
-#include <string>   // for string
 
 #include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
 #include "batch_utils.h"            // for CheckParam, RegenGHist
 #include "proxy_dmatrix.h"          // for DataIterProxy, HostAdapterDispatch
 #include "quantile_dmatrix.h"       // for GetDataShape, MakeSketches
 #include "simple_batch_iterator.h"  // for SimpleBatchIteratorImpl
+
+#if !defined(XGBOOST_USE_CUDA)
+#include "../common/common.h"  // for AssertGPUSupport
+#endif
 
 namespace xgboost::data {
 ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
@@ -133,12 +137,12 @@ BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndex(Context const
 void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *, std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>>,
     DMatrixHandle, BatchParam const &, float, std::shared_ptr<DMatrix>) {
-  LOG(FATAL) << "Not implemented.";
+  common::AssertGPUSupport();
 }
 
 BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
                                                                const BatchParam &) {
-  LOG(FATAL) << "Not implemented.";
+  common::AssertGPUSupport();
   auto batch_set =
       std::visit([this](auto &&ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
                  this->ellpack_page_source_);
