@@ -90,8 +90,7 @@ class SparsePageDMatrix : public DMatrix {
   [[nodiscard]] MetaInfo &Info() override;
   [[nodiscard]] const MetaInfo &Info() const override;
   [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
-  // The only DMatrix implementation that returns false.
-  [[nodiscard]] bool SingleColBlock() const override { return false; }
+  [[nodiscard]] std::int32_t NumBatches() const override { return n_batches_; }
   DMatrix *Slice(common::Span<std::int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;

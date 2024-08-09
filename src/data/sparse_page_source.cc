@@ -3,10 +3,10 @@
  */
 #include "sparse_page_source.h"
 
-#include <filesystem>  // for exists
-#include <string>      // for string
 #include <cstdio>      // for remove
+#include <filesystem>  // for exists
 #include <numeric>     // for partial_sum
+#include <string>      // for string
 
 namespace xgboost::data {
 void Cache::Commit() {
@@ -27,4 +27,8 @@ void TryDeleteCacheFile(const std::string& file) {
                  << "; you may want to remove it manually";
   }
 }
+
+#if !defined(XGBOOST_USE_CUDA)
+void InitNewThread::operator()() const { *GlobalConfigThreadLocalStore::Get() = config; }
+#endif
 }  // namespace xgboost::data

@@ -80,6 +80,8 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   this->Info().SynchronizeNumberOfColumns(ctx);
   ext_info.Validate();
 
+  this->n_batches_ = ext_info.n_batches;
+
   /**
    * Generate quantiles
    */

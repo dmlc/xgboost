@@ -456,6 +456,7 @@ void RandomDataGenerator::GenerateCSR(
   }
 
   EXPECT_EQ(batch_count, n_batches_);
+  EXPECT_EQ(dmat->NumBatches(), n_batches_);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   if (with_label) {
@@ -486,7 +487,7 @@ void RandomDataGenerator::GenerateCSR(
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
                       std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix)};
-
+  EXPECT_EQ(p_fmat->NumBatches(), n_batches_);
   auto page_path = data::MakeId(prefix, p_fmat.get()) + ".gradient_index.page";
   EXPECT_TRUE(FileExists(page_path)) << page_path;
 

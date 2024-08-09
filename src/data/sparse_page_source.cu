@@ -18,4 +18,9 @@ void DevicePush(DMatrixProxy *proxy, float missing, SparsePage *page) {
   cuda_impl::Dispatch(proxy,
                       [&](auto const &value) { CopyToSparsePage(value, device, missing, page); });
 }
+
+void InitNewThread::operator()() const {
+  *GlobalConfigThreadLocalStore::Get() = config;
+  dh::DefaultStream().Sync();  // Force initialize the global CUDA ctx
+}
 }  // namespace xgboost::data
