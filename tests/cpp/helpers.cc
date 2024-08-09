@@ -21,7 +21,6 @@
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
-#include "../../src/tree/param.h"  // for TrainParam
 #include "filesystem.h"            // dmlc::TemporaryDirectory
 #include "xgboost/c_api.h"
 #include "xgboost/predictor.h"
@@ -456,6 +455,7 @@ void RandomDataGenerator::GenerateCSR(
   }
 
   EXPECT_EQ(batch_count, n_batches_);
+  EXPECT_EQ(dmat->NumBatches(), n_batches_);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   if (with_label) {

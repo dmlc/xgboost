@@ -402,7 +402,8 @@ namespace {
 void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, bool is_approx,
                                  bool force_read_by_column) {
   size_t constexpr kEntries = 1 << 16;
-  auto m = CreateSparsePageDMatrix(kEntries, "cache");
+  auto m =
+      RandomDataGenerator{kEntries / 8, 8, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
 
   std::vector<float> hess(m->Info().num_row_, 1.0);
   if (is_approx) {
