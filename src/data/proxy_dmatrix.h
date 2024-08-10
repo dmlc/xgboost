@@ -142,13 +142,14 @@ inline DMatrixProxy* MakeProxy(DMatrixHandle proxy) {
  * @brief Shape and basic information for data fetched from an external data iterator.
  */
 struct ExternalDataInfo {
-  std::uint64_t n_features = 0;         // The number of columns
+  bst_idx_t n_features = 0;             // The number of columns
   bst_idx_t n_batches = 0;              // The number of batches
   bst_idx_t accumulated_rows = 0;       // The total number of rows
   bst_idx_t nnz = 0;                    // The number of non-missing values
   std::vector<bst_idx_t> column_sizes;  // The nnz for each column
   std::vector<bst_idx_t> batch_nnz;     // nnz for each batch
   std::vector<bst_idx_t> base_rows{0};  // base_rowid
+  bst_idx_t row_stride{0};              // Used by ellpack
 
   void Validate() const {
     CHECK(std::none_of(this->column_sizes.cbegin(), this->column_sizes.cend(), [&](auto f) {
@@ -156,6 +157,16 @@ struct ExternalDataInfo {
     })) << "Something went wrong during iteration.";
 
     CHECK_GE(this->n_features, 1) << "Data must has at least 1 column.";
+  }
+
+  void SetInfo(Context const* ctx, MetaInfo* p_info) {
+    // From here on Info() has the correct data shape
+    auto& info = *p_info;
+    info.num_row_ = this->accumulated_rows;
+    info.num_col_ = this->n_features;
+    info.num_nonzero_ = this->nnz;
+    info.SynchronizeNumberOfColumns(ctx);
+    this->Validate();
   }
 };
 

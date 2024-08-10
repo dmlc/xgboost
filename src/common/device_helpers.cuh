@@ -116,6 +116,13 @@ inline int32_t CurrentDevice() {
   return device;
 }
 
+// Helper function to get a device from a potentially CPU context.
+inline auto GetDevice(xgboost::Context const *ctx) {
+  auto d = (ctx->IsCUDA()) ? ctx->Device() : xgboost::DeviceOrd::CUDA(dh::CurrentDevice());
+  CHECK(!d.IsCPU());
+  return d;
+}
+
 inline size_t TotalMemory(int device_idx) {
   size_t device_free = 0;
   size_t device_total = 0;

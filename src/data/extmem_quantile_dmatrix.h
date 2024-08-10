@@ -30,7 +30,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
   ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                         std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                         XGDMatrixCallbackNext *next, float missing, std::int32_t n_threads,
-                        std::string cache, bst_bin_t max_bin);
+                        std::string cache, bst_bin_t max_bin, bool on_host);
   ~ExtMemQuantileDMatrix() override;
 
   [[nodiscard]] bool SingleColBlock() const override { return false; }
@@ -45,9 +45,10 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
       DMatrixHandle proxy_handle, BatchParam const &p, float missing, std::shared_ptr<DMatrix> ref);
 
-  BatchSet<GHistIndexMatrix> GetGradientIndexImpl();
+  [[nodiscard]] BatchSet<GHistIndexMatrix> GetGradientIndexImpl();
   BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, BatchParam const &param) override;
 
+  [[nodiscard]] BatchSet<EllpackPage> GetEllpackPageImpl();
   BatchSet<EllpackPage> GetEllpackBatches(Context const *ctx, const BatchParam &param) override;
 
   [[nodiscard]] bool EllpackExists() const override {
@@ -60,10 +61,11 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
 
   std::map<std::string, std::shared_ptr<Cache>> cache_info_;
   std::string cache_prefix_;
+  bool on_host_;
   BatchParam batch_;
 
-  using EllpackDiskPtr = std::shared_ptr<EllpackPageSource>;
-  using EllpackHostPtr = std::shared_ptr<EllpackPageHostSource>;
+  using EllpackDiskPtr = std::shared_ptr<ExtEllpackPageSource>;
+  using EllpackHostPtr = std::shared_ptr<ExtEllpackPageHostSource>;
   std::variant<EllpackDiskPtr, EllpackHostPtr> ellpack_page_source_;
   std::shared_ptr<ExtGradientIndexPageSource> ghist_index_source_;
 };

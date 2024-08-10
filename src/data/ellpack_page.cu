@@ -39,6 +39,9 @@ void EllpackPage::SetBaseRowId(std::size_t row_id) { impl_->SetBaseRowId(row_id)
   return impl_->Cuts();
 }
 
+[[nodiscard]] bst_idx_t EllpackPage::BaseRowId() const { return this->Impl()->base_rowid; }
+[[nodiscard]] bool EllpackPage::IsDense() const { return this->Impl()->IsDense(); }
+
 // Bin each input data entry, store the bin indices in compressed form.
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
@@ -397,7 +400,7 @@ struct CopyPage {
 size_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page, bst_idx_t offset) {
   monitor_.Start(__func__);
   bst_idx_t num_elements = page->n_rows * page->row_stride;
-  CHECK_EQ(row_stride, page->row_stride);
+  CHECK_EQ(this->row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_GE(n_rows * row_stride, offset + num_elements);
   if (page == this) {

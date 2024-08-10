@@ -483,12 +483,15 @@ void RandomDataGenerator::GenerateCSR(
   }
   CHECK(iter);
 
-  std::shared_ptr<DMatrix> p_fmat{
-      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
-                      std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix)};
+  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(
+      static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
+      std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix, this->on_host_)};
 
-  auto page_path = data::MakeId(prefix, p_fmat.get()) + ".gradient_index.page";
-  EXPECT_TRUE(FileExists(page_path)) << page_path;
+  auto page_path = data::MakeId(prefix, p_fmat.get());
+  page_path += device_.IsCPU() ? ".gradient_index.page" : ".ellpack.page";
+  if (!this->on_host_) {
+    EXPECT_TRUE(FileExists(page_path)) << page_path;
+  }
 
   if (with_label) {
     RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}

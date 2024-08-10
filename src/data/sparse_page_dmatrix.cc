@@ -38,30 +38,23 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
       iter_, reset_, next_};
 
-  std::uint32_t n_batches = 0;
-  bst_feature_t n_features = 0;
-  bst_idx_t n_samples = 0;
-  bst_idx_t nnz = 0;
+  ExternalDataInfo ext_info;
 
   // The proxy is iterated together with the sparse page source so we can obtain all
   // information in 1 pass.
   for (auto const &page : this->GetRowBatchesImpl(&ctx)) {
     this->info_.Extend(std::move(proxy->Info()), false, false);
-    n_features = std::max(n_features, BatchColumns(proxy));
-    n_samples += BatchSamples(proxy);
-    nnz += page.data.Size();
-    n_batches++;
+    ext_info.n_features =
+        std::max(static_cast<bst_feature_t>(ext_info.n_features), BatchColumns(proxy));
+    ext_info.accumulated_rows += BatchSamples(proxy);
+    ext_info.nnz += page.data.Size();
+    ext_info.n_batches++;
   }
 
   iter.Reset();
 
-  this->n_batches_ = n_batches;
-  this->info_.num_row_ = n_samples;
-  this->info_.num_col_ = n_features;
-  this->info_.num_nonzero_ = nnz;
-
-  info_.SynchronizeNumberOfColumns(&ctx);
-  CHECK_NE(info_.num_col_, 0);
+  this->n_batches_ = ext_info.n_batches;
+  ext_info.SetInfo(&ctx, &this->info_);
 
   fmat_ctx_ = ctx;
 }

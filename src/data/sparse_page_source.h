@@ -585,5 +585,50 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
     this->Fetch();
   }
 };
+
+/**
+ * @brief operator++ implementation for QDM.
+ */
+template <typename S,
+          typename FormatCreatePolicy = DefaultFormatStreamPolicy<S, DefaultFormatPolicy>>
+class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy> {
+ protected:
+  std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source_;
+  using Super = SparsePageSourceImpl<S, FormatCreatePolicy>;
+
+ public:
+  ExtQantileSourceMixin(
+      float missing, std::int32_t nthreads, bst_feature_t n_features, bst_idx_t n_batches,
+      std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
+      std::shared_ptr<Cache> cache)
+      : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache},
+        source_{std::move(source)} {}
+  // This function always operate on the source first, then the downstream. The downstream
+  // can assume the source to be ready.
+  [[nodiscard]] ExtQantileSourceMixin& operator++() final {
+    TryLockGuard guard{this->single_threaded_};
+    // Increment self.
+    ++this->count_;
+    // Set at end.
+    this->at_end_ = this->count_ == this->n_batches_;
+
+    if (this->at_end_) {
+      this->EndIter();
+
+      CHECK(this->cache_info_->written);
+      source_ = nullptr;  // release the source
+    }
+    this->Fetch();
+
+    return *this;
+  }
+
+  void Reset() final {
+    if (this->source_) {
+      this->source_->Reset();
+    }
+    Super::Reset();
+  }
+};
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
