@@ -8,6 +8,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import check_inf
 from xgboost.testing.data_iter import run_mixed_sparsity
+from xgboost.testing.quantile_dmatrix import check_ref_quantile_cut
 
 sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
@@ -141,6 +142,9 @@ class TestQuantileDMatrix:
             xgb.train(
                 {"tree_method": "approx", "max_bin": max_bin}, Xy, num_boost_round=4
             )
+
+    def test_ref_quantile_cut(self) -> None:
+        check_ref_quantile_cut("cuda")
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_metainfo(self) -> None:

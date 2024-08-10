@@ -1534,6 +1534,20 @@ class QuantileDMatrix(DMatrix):
         as a reference means that the same quantisation applied to the training data is
         applied to the validation/test data
 
+    Examples
+    --------
+
+    .. code-block::
+
+        from sklearn.datasets import make_regression
+        from sklearn.model_selection import train_test_split
+
+        X, y = make_regression()
+        X_train, X_test, y_train, y_test = train_test_split(X, y)
+        Xy_train = xgb.QuantileDMatrix(X_train, y_train)
+        # It's necessary to have the training DMatrix as a reference for valid quantiles.
+        Xy_test = xgb.QuantileDMatrix(X_test, y_test, ref=Xy_train)
+
     """
 
     @_deprecate_positional_args
