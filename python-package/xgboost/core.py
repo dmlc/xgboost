@@ -1522,18 +1522,6 @@ class QuantileDMatrix(DMatrix):
 
     .. versionadded:: 1.7.0
 
-    Parameters
-    ----------
-    max_bin :
-        The number of histogram bin, should be consistent with the training parameter
-        ``max_bin``.
-
-    ref :
-        The training dataset that provides quantile information, needed when creating
-        validation/test dataset with ``QuantileDMatrix``. Supplying the training DMatrix
-        as a reference means that the same quantisation applied to the training data is
-        applied to the validation/test data
-
     Examples
     --------
 
@@ -1547,6 +1535,18 @@ class QuantileDMatrix(DMatrix):
         Xy_train = xgb.QuantileDMatrix(X_train, y_train)
         # It's necessary to have the training DMatrix as a reference for valid quantiles.
         Xy_test = xgb.QuantileDMatrix(X_test, y_test, ref=Xy_train)
+
+    Parameters
+    ----------
+    max_bin :
+        The number of histogram bin, should be consistent with the training parameter
+        ``max_bin``.
+
+    ref :
+        The training dataset that provides quantile information, needed when creating
+        validation/test dataset with ``QuantileDMatrix``. Supplying the training DMatrix
+        as a reference means that the same quantisation applied to the training data is
+        applied to the validation/test data
 
     """
 
