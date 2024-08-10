@@ -10,7 +10,7 @@ from .data import make_batches
 
 def check_ref_quantile_cut(device: str) -> None:
     """Check obtaining the same cut values given a reference."""
-    X, y, w = (
+    X, y, _ = (
         data[0]
         for data in make_batches(
             n_samples_per_batch=8192,
