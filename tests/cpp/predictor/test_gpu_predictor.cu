@@ -149,9 +149,10 @@ TEST(GPUPredictor, EllpackTraining) {
 
 namespace {
 template <typename Create>
-void TestDecisionStumpExternalMemory(Context const* ctx, Create create_fn) {
+void TestDecisionStumpExternalMemory(Context const* ctx, bst_feature_t n_features,
+                                     Create create_fn) {
   std::int32_t n_classes = 3;
-  LearnerModelParam mparam{MakeMP(5, .5, n_classes, ctx->Device())};
+  LearnerModelParam mparam{MakeMP(n_features, .5, n_classes, ctx->Device())};
   auto model = CreateTestModel(&mparam, ctx, n_classes);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", ctx));
@@ -179,14 +180,14 @@ TEST(GPUPredictor, ExternalMemory) {
   bst_bin_t max_bin = 128;
   bst_feature_t n_features = 32;
 
-  TestDecisionStumpExternalMemory(&ctx, [&](bst_idx_t n_samples) {
+  TestDecisionStumpExternalMemory(&ctx, n_features, [&](bst_idx_t n_samples) {
     return RandomDataGenerator{n_samples, n_features, 0.0f}
         .Batches(4)
         .Device(ctx.Device())
         .Bins(max_bin)
         .GenerateSparsePageDMatrix("temp", false);
   });
-  TestDecisionStumpExternalMemory(&ctx, [&](bst_idx_t n_samples) {
+  TestDecisionStumpExternalMemory(&ctx, n_features, [&](bst_idx_t n_samples) {
     return RandomDataGenerator{n_samples, n_features, 0.0f}
         .Batches(4)
         .Device(ctx.Device())
