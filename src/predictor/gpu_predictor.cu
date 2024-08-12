@@ -788,7 +788,7 @@ class ColumnSplitHelper {
       SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
 
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      dh::LaunchKernel{grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
           MaskBitVectorKernel, data, model.nodes.ConstDeviceSpan(),
           model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
@@ -863,7 +863,7 @@ class GPUPredictor : public xgboost::Predictor {
     SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                         num_features);
     auto const kernel = [&](auto predict_fn) {
-      dh::LaunchKernel{GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+      dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
           predict_fn, data, model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
           model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
@@ -887,7 +887,7 @@ class GPUPredictor : public xgboost::Predictor {
     DeviceModel d_model;
 
     bool use_shared = false;
-    dh::LaunchKernel{GRID_SIZE, BLOCK_THREADS}(
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS}(
         PredictKernel<EllpackLoader, EllpackDeviceAccessor>, batch, model.nodes.ConstDeviceSpan(),
         out_preds->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
         model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
@@ -987,7 +987,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     bool use_shared = shared_memory_bytes != 0;
 
-    dh::LaunchKernel{GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
         PredictKernel<Loader, typename Loader::BatchT>, m->Value(), d_model.nodes.ConstDeviceSpan(),
         out_preds->predictions.DeviceSpan(), d_model.tree_segments.ConstDeviceSpan(),
         d_model.tree_group.ConstDeviceSpan(), d_model.split_types.ConstDeviceSpan(),
