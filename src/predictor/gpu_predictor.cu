@@ -913,6 +913,7 @@ class GPUPredictor : public xgboost::Predictor {
       return;
     }
 
+    CHECK_EQ(dmat->Info().num_col_, model.learner_model_param->num_feature);
     if (dmat->PageExists<SparsePage>()) {
       bst_idx_t batch_offset = 0;
       for (auto& batch : dmat->GetBatches<SparsePage>()) {
