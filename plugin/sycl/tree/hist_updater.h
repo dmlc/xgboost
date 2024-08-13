@@ -72,6 +72,18 @@ class HistUpdater {
     sub_group_size_ = sub_group_sizes.back();
   }
 
+  // update one tree, growing
+  void Update(xgboost::tree::TrainParam const *param,
+              const common::GHistIndexMatrix &gmat,
+              linalg::Matrix<GradientPair> *gpair,
+              const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+              DMatrix *p_fmat,
+              xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
+              RegTree *p_tree);
+
+  bool UpdatePredictionCache(const DMatrix* data,
+                              linalg::MatrixView<float> p_out_preds);
+
   void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
   void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
 
@@ -244,6 +256,9 @@ class HistUpdater {
 
   std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
   std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;
+
+  USMVector<bst_float, MemoryType::on_device> out_preds_buf_;
+  bst_float* out_pred_ptr = nullptr;
 
   ::sycl::queue qu_;
 };
