@@ -34,7 +34,8 @@
 #include "gpu_hist/row_partitioner.cuh"
 #include "hist/param.h"
 #include "param.h"
-#include "updater_gpu_common.cuh"
+#include "sample_position.h"       // for SamplePosition
+#include "updater_gpu_common.cuh"  // for HistBatch
 #include "xgboost/base.h"
 #include "xgboost/context.h"
 #include "xgboost/data.h"
@@ -43,11 +44,15 @@
 #include "xgboost/span.h"
 #include "xgboost/task.h"  // for ObjInfo
 #include "xgboost/tree_model.h"
+#include "xgboost/tree_updater.h"
 
 namespace xgboost::tree {
 DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
-// Manage memory for a single GPU
+using cuda_impl::ApproxBatch;
+using cuda_impl::HistBatch;
+
+// GPU tree updater implementation.
 struct GPUHistMakerDevice {
  private:
   GPUHistEvaluator evaluator_;
@@ -56,6 +61,8 @@ struct GPUHistMakerDevice {
   MetaInfo const& info_;
 
   DeviceHistogramBuilder histogram_;
+  // node idx for each sample
+  dh::device_vector<bst_node_t> positions_;
 
  public:
   EllpackPageImpl const* page{nullptr};
@@ -68,8 +75,6 @@ struct GPUHistMakerDevice {
   common::Span<GradientPair> gpair;
 
   dh::device_vector<int> monotone_constraints;
-  // node idx for each sample
-  dh::device_vector<bst_node_t> positions;
 
   TrainParam param;
 
@@ -323,8 +328,8 @@ struct GPUHistMakerDevice {
 
     row_partitioner->UpdatePositionBatch(
         nidx, left_nidx, right_nidx, split_data,
-        [=] __device__(bst_uint ridx, int split_index, NodeSplitData const& data) {
-          auto const index = ridx * num_candidates + split_index;
+        [=] __device__(bst_uint ridx, int nidx_in_batch, NodeSplitData const& data) {
+          auto const index = ridx * num_candidates + nidx_in_batch;
           bool go_left;
           if (missing_bits.Check(index)) {
             go_left = data.split_node.DefaultLeft();
@@ -339,6 +344,8 @@ struct GPUHistMakerDevice {
     if (candidates.empty()) {
       return;
     }
+
+    monitor.Start(__func__);
 
     std::vector<bst_node_t> nidx(candidates.size());
     std::vector<bst_node_t> left_nidx(candidates.size());
@@ -361,12 +368,13 @@ struct GPUHistMakerDevice {
 
     if (info_.IsColumnSplit()) {
       UpdatePositionColumnSplit(d_matrix, split_data, nidx, left_nidx, right_nidx);
+      monitor.Stop(__func__);
       return;
     }
 
     row_partitioner->UpdatePositionBatch(
         nidx, left_nidx, right_nidx, split_data,
-        [=] __device__(bst_uint ridx, int split_index, const NodeSplitData& data) {
+        [=] __device__(bst_uint ridx, int /*nidx_in_batch*/, const NodeSplitData& data) {
           // given a row index, returns the node id it belongs to
           float cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
           // Missing value
@@ -382,12 +390,14 @@ struct GPUHistMakerDevice {
           }
           return go_left;
         });
+
+    monitor.Stop(__func__);
   }
 
   // After tree update is finished, update the position of all training
   // instances to their final leaf. This information is used later to update the
   // prediction cache
-  void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat, ObjInfo task,
+  void FinalisePosition(DMatrix* p_fmat, ObjInfo task,
                         HostDeviceVector<bst_node_t>* p_out_position) {
     // Prediction cache will not be used with external memory
     if (!p_fmat->SingleColBlock()) {
@@ -395,95 +405,35 @@ struct GPUHistMakerDevice {
         LOG(FATAL) << "Current objective function can not be used with external memory.";
       }
       p_out_position->Resize(0);
-      positions.clear();
+      positions_.clear();
       return;
     }
 
-    dh::TemporaryArray<RegTree::Node> d_nodes(p_tree->GetNodes().size());
-    dh::safe_cuda(cudaMemcpyAsync(d_nodes.data().get(), p_tree->GetNodes().data(),
-                                  d_nodes.size() * sizeof(RegTree::Node),
-                                  cudaMemcpyHostToDevice));
-    auto const& h_split_types = p_tree->GetSplitTypes();
-    auto const& categories = p_tree->GetSplitCategories();
-    auto const& categories_segments = p_tree->GetSplitCategoriesPtr();
+    monitor.Start(__func__);
 
-    dh::caching_device_vector<FeatureType> d_split_types;
-    dh::caching_device_vector<uint32_t> d_categories;
-    dh::caching_device_vector<RegTree::CategoricalSplitMatrix::Segment> d_categories_segments;
-
-    if (!categories.empty()) {
-      dh::CopyToD(h_split_types, &d_split_types);
-      dh::CopyToD(categories, &d_categories);
-      dh::CopyToD(categories_segments, &d_categories_segments);
-    }
-
-    FinalisePositionInPage(page, dh::ToSpan(d_nodes), dh::ToSpan(d_split_types),
-                           dh::ToSpan(d_categories), dh::ToSpan(d_categories_segments),
-                           p_out_position);
-  }
-
-  void FinalisePositionInPage(
-      EllpackPageImpl const* page, const common::Span<RegTree::Node> d_nodes,
-      common::Span<FeatureType const> d_feature_types, common::Span<uint32_t const> categories,
-      common::Span<RegTree::CategoricalSplitMatrix::Segment> categories_segments,
-      HostDeviceVector<bst_node_t>* p_out_position) {
-    auto d_matrix = page->GetDeviceAccessor(ctx_->Device());
     auto d_gpair = this->gpair;
     p_out_position->SetDevice(ctx_->Device());
     p_out_position->Resize(row_partitioner->GetRows().size());
 
-    auto new_position_op = [=] __device__(size_t row_id, int position) {
-      // What happens if user prune the tree?
-      if (!d_matrix.IsInRange(row_id)) {
-        return RowPartitioner::kIgnoredTreePosition;
-      }
-      auto node = d_nodes[position];
-
-      while (!node.IsLeaf()) {
-        bst_float element = d_matrix.GetFvalue(row_id, node.SplitIndex());
-        // Missing value
-        if (isnan(element)) {
-          position = node.DefaultChild();
-        } else {
-          bool go_left = true;
-          if (common::IsCat(d_feature_types, position)) {
-            auto node_cats = categories.subspan(categories_segments[position].beg,
-                                                categories_segments[position].size);
-            go_left = common::Decision(node_cats, element);
-          } else {
-            go_left = element <= node.SplitCond();
-          }
-          if (go_left) {
-            position = node.LeftChild();
-          } else {
-            position = node.RightChild();
-          }
-        }
-
-        node = d_nodes[position];
-      }
-
-      return position;
-    };  // NOLINT
-
     auto d_out_position = p_out_position->DeviceSpan();
-    row_partitioner->FinalisePosition(d_out_position, new_position_op);
+    row_partitioner->FinalisePosition(d_out_position,
+                                      [d_gpair] __device__(bst_idx_t ridx, bst_node_t nidx) {
+                                        bool is_invalid = d_gpair[ridx].GetHess() - .0f == 0.f;
+                                        return SamplePosition::Encode(nidx, !is_invalid);
+                                      });
 
+    // Copy into this
     auto s_position = p_out_position->ConstDeviceSpan();
-    positions.resize(s_position.size());
-    dh::safe_cuda(cudaMemcpyAsync(positions.data().get(), s_position.data(),
+    this->positions_.resize(s_position.size());
+    dh::safe_cuda(cudaMemcpyAsync(positions_.data().get(), s_position.data(),
                                   s_position.size_bytes(), cudaMemcpyDeviceToDevice,
                                   ctx_->CUDACtx()->Stream()));
 
-    dh::LaunchN(row_partitioner->GetRows().size(), [=] __device__(size_t idx) {
-      bst_node_t position = d_out_position[idx];
-      bool is_row_sampled = d_gpair[idx].GetHess() - .0f == 0.f;
-      d_out_position[idx] = is_row_sampled ? ~position : position;
-    });
+    monitor.Stop(__func__);
   }
 
   bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d, RegTree const* p_tree) {
-    if (positions.empty()) {
+    if (positions_.empty()) {
       return false;
     }
 
@@ -492,7 +442,7 @@ struct GPUHistMakerDevice {
     CHECK_EQ(out_preds_d.Device().ordinal, ctx_->Ordinal());
 
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
-    auto d_position = dh::ToSpan(positions);
+    auto d_position = dh::ToSpan(positions_);
     CHECK_EQ(out_preds_d.Size(), d_position.size());
 
     auto const& h_nodes = p_tree->GetNodes();
@@ -505,6 +455,7 @@ struct GPUHistMakerDevice {
     dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),
                 [=] XGBOOST_DEVICE(std::size_t idx) mutable {
                   bst_node_t nidx = d_position[idx];
+                  nidx = SamplePosition::Decode(nidx);
                   auto weight = d_nodes[nidx].LeafValue();
                   out_preds_d(idx, 0) += weight;
                 });
@@ -512,7 +463,7 @@ struct GPUHistMakerDevice {
   }
 
   // num histograms is the number of contiguous histograms in memory to reduce over
-  void AllReduceHist(int nidx, int num_histograms) {
+  void AllReduceHist(bst_node_t nidx, int num_histograms) {
     monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     using ReduceT = typename std::remove_pointer<decltype(d_node_hist)>::type::ValueT;
@@ -686,12 +637,7 @@ struct GPUHistMakerDevice {
       auto new_candidates =
           pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry());
 
-      monitor.Start("UpdatePosition");
-      // Update position is only run when child is valid, instead of right after apply
-      // split (as in approx tree method).  Hense we have the finalise position call
-      // in GPU Hist.
-      this->UpdatePosition(filtered_expand_set, p_tree);
-      monitor.Stop("UpdatePosition");
+      this->UpdatePosition(expand_set, p_tree);
 
       monitor.Start("BuildHist");
       this->BuildHistLeftRight(filtered_expand_set, tree);
@@ -705,9 +651,7 @@ struct GPUHistMakerDevice {
       expand_set = driver.Pop();
     }
 
-    monitor.Start("FinalisePosition");
-    this->FinalisePosition(p_tree, p_fmat, *task, p_out_position);
-    monitor.Stop("FinalisePosition");
+    this->FinalisePosition(p_fmat, *task, p_out_position);
   }
 };
 
@@ -767,12 +711,11 @@ class GPUHistMaker : public TreeUpdater {
     SafeColl(rc);
     this->column_sampler_ = std::make_shared<common::ColumnSampler>(column_sampling_seed);
 
-    auto batch_param = BatchParam{param->max_bin, TrainParam::DftSparseThreshold()};
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     info_->feature_types.SetDevice(ctx_->Device());
     maker = std::make_unique<GPUHistMakerDevice>(
         ctx_, !dmat->SingleColBlock(), info_->feature_types.ConstDeviceSpan(), info_->num_row_,
-        *param, column_sampler_, info_->num_col_, batch_param, dmat->Info());
+        *param, column_sampler_, info_->num_col_, HistBatch(*param), dmat->Info());
 
     p_last_fmat_ = dmat;
     initialised_ = true;
@@ -798,14 +741,13 @@ class GPUHistMaker : public TreeUpdater {
     maker->UpdateTree(gpair, p_fmat, task_, p_tree, p_out_position);
   }
 
-  bool UpdatePredictionCache(const DMatrix* data,
-                             linalg::MatrixView<bst_float> p_out_preds) override {
+  bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {
     if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
-    monitor_.Start("UpdatePredictionCache");
+    monitor_.Start(__func__);
     bool result = maker->UpdatePredictionCache(p_out_preds, p_last_tree_);
-    monitor_.Stop("UpdatePredictionCache");
+    monitor_.Stop(__func__);
     return result;
   }
 
@@ -881,10 +823,9 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     auto const& info = p_fmat->Info();
     info.feature_types.SetDevice(ctx_->Device());
-    auto batch = BatchParam{param->max_bin, hess, !task_->const_hess};
     maker_ = std::make_unique<GPUHistMakerDevice>(
         ctx_, !p_fmat->SingleColBlock(), info.feature_types.ConstDeviceSpan(), info.num_row_,
-        *param, column_sampler_, info.num_col_, batch, p_fmat->Info());
+        *param, column_sampler_, info.num_col_, ApproxBatch(*param, hess, *task_), p_fmat->Info());
 
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {
@@ -927,14 +868,13 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     maker_->UpdateTree(gpair, p_fmat, task_, p_tree, p_out_position);
   }
 
-  bool UpdatePredictionCache(const DMatrix* data,
-                             linalg::MatrixView<bst_float> p_out_preds) override {
+  bool UpdatePredictionCache(const DMatrix* data, linalg::MatrixView<float> p_out_preds) override {
     if (maker_ == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
-    monitor_.Start("UpdatePredictionCache");
+    monitor_.Start(__func__);
     bool result = maker_->UpdatePredictionCache(p_out_preds, p_last_tree_);
-    monitor_.Stop("UpdatePredictionCache");
+    monitor_.Stop(__func__);
     return result;
   }
 

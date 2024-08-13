@@ -6,6 +6,8 @@
 
 #include <thrust/binary_search.h>
 
+#include <limits>  // for numeric_limits
+
 #include "../common/categorical.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
@@ -21,22 +23,26 @@ namespace xgboost {
  * Does not own underlying memory and may be trivially copied into kernels.
  */
 struct EllpackDeviceAccessor {
-  /*! \brief Whether or not if the matrix is dense. */
+  /** @brief Whether or not if the matrix is dense. */
   bool is_dense;
-  /*! \brief Row length for ELLPACK, equal to number of features. */
+  /** @brief Row length for ELLPACK, equal to number of features when the data is dense. */
   bst_idx_t row_stride;
-  bst_idx_t base_rowid{0};
-  bst_idx_t n_rows{0};
+  /** @brief Starting index of the rows. Used for external memory. */
+  bst_idx_t base_rowid;
+  /** @brief Number of rows in this batch. */
+  bst_idx_t n_rows;
+  /** @brief Acessor for the gradient index. */
   common::CompressedIterator<std::uint32_t> gidx_iter;
-  /*! \brief Minimum value for each feature. Size equals to number of features. */
+  /** @brief Minimum value for each feature. Size equals to number of features. */
   common::Span<const float> min_fvalue;
-  /*! \brief Histogram cut pointers. Size equals to (number of features + 1). */
+  /** @brief Histogram cut pointers. Size equals to (number of features + 1). */
   common::Span<const std::uint32_t> feature_segments;
-  /*! \brief Histogram cut values. Size equals to (bins per feature * number of features). */
+  /** @brief Histogram cut values. Size equals to (bins per feature * number of features). */
   common::Span<const float> gidx_fvalue_map;
-
+  /** @brief Type of each feature, categorical or numerical. */
   common::Span<const FeatureType> feature_types;
 
+  EllpackDeviceAccessor() = delete;
   EllpackDeviceAccessor(DeviceOrd device, std::shared_ptr<const common::HistogramCuts> cuts,
                         bool is_dense, size_t row_stride, size_t base_rowid, size_t n_rows,
                         common::CompressedIterator<uint32_t> gidx_iter,
@@ -108,10 +114,10 @@ struct EllpackDeviceAccessor {
     return idx;
   }
 
-  [[nodiscard]] __device__ bst_float GetFvalue(size_t ridx, size_t fidx) const {
+  [[nodiscard]] __device__ float GetFvalue(size_t ridx, size_t fidx) const {
     auto gidx = GetBinIndex(ridx, fidx);
     if (gidx == -1) {
-      return nan("");
+      return std::numeric_limits<float>::quiet_NaN();
     }
     return gidx_fvalue_map[gidx];
   }

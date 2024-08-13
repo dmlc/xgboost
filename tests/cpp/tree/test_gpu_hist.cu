@@ -14,30 +14,31 @@
 #include <string>  // for string
 #include <vector>  // for vector
 
-#include "../../../src/common/random.h"      // for GlobalRandom
-#include "../../../src/data/ellpack_page.h"  // for EllpackPage
-#include "../../../src/tree/param.h"         // for TrainParam
-#include "../collective/test_worker.h"       // for BaseMGPUTest
-#include "../filesystem.h"                   // dmlc::TemporaryDirectory
+#include "../../../src/common/random.h"              // for GlobalRandom
+#include "../../../src/data/ellpack_page.h"          // for EllpackPage
+#include "../../../src/tree/param.h"                 // for TrainParam
+#include "../../../src/tree/updater_gpu_common.cuh"  // for HistBatch
+#include "../collective/test_worker.h"               // for BaseMGPUTest
+#include "../filesystem.h"                           // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost::tree {
+namespace {
 void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
                 size_t gpu_page_size, RegTree* tree, HostDeviceVector<bst_float>* preds,
                 float subsample = 1.0f, const std::string& sampling_method = "uniform",
                 int max_bin = 2) {
   if (gpu_page_size > 0) {
     // Loop over the batches and count the records
-    int64_t batch_count = 0;
-    int64_t row_count = 0;
-    for (const auto& batch : dmat->GetBatches<EllpackPage>(
-             ctx, BatchParam{max_bin, TrainParam::DftSparseThreshold()})) {
-      EXPECT_LT(batch.Size(), dmat->Info().num_row_);
+    bst_idx_t batch_count = 0;
+    bst_idx_t row_count = 0;
+    for (const auto& batch : dmat->GetBatches<EllpackPage>(ctx, cuda_impl::HistBatch(max_bin))) {
+      ASSERT_LT(batch.Size(), dmat->Info().num_row_);
       batch_count++;
       row_count += batch.Size();
     }
-    EXPECT_GE(batch_count, 2);
-    EXPECT_EQ(row_count, dmat->Info().num_row_);
+    ASSERT_GE(batch_count, 2);
+    ASSERT_EQ(row_count, dmat->Info().num_row_);
   }
 
   Args args{
@@ -61,7 +62,9 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
   hist_maker->UpdatePredictionCache(dmat, cache);
+  // ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, cache));
 }
+}  // anonymous namespace
 
 TEST(GpuHist, UniformSampling) {
   constexpr size_t kRows = 4096;
