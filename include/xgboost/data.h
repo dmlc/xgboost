@@ -72,7 +72,7 @@ class MetaInfo {
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from.
    */
-  linalg::Tensor<float, 2> base_margin_;  // NOLINT
+  linalg::Matrix<float> base_margin_;  // NOLINT
   /*!
    * \brief lower bound of the label, to be used for survival analysis (censored regression)
    */

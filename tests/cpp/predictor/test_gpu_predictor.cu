@@ -147,38 +147,53 @@ TEST(GPUPredictor, EllpackTraining) {
   TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_ellpack);
 }
 
-TEST(GPUPredictor, ExternalMemoryTest) {
-  auto lparam = MakeCUDACtx(0);
+namespace {
+template <typename Create>
+void TestDecisionStumpExternalMemory(Context const* ctx, bst_feature_t n_features,
+                                     Create create_fn) {
+  std::int32_t n_classes = 3;
+  LearnerModelParam mparam{MakeMP(n_features, .5, n_classes, ctx->Device())};
+  auto model = CreateTestModel(&mparam, ctx, n_classes);
   std::unique_ptr<Predictor> gpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", ctx));
   gpu_predictor->Configure({});
 
-  const int n_classes = 3;
-  Context ctx = MakeCUDACtx(0);
-  LearnerModelParam mparam{MakeMP(5, .5, n_classes, ctx.Device())};
-
-  gbm::GBTreeModel model = CreateTestModel(&mparam, &ctx, n_classes);
-  std::vector<std::unique_ptr<DMatrix>> dmats;
-
-  dmats.push_back(CreateSparsePageDMatrix(400));
-  dmats.push_back(CreateSparsePageDMatrix(800));
-  dmats.push_back(CreateSparsePageDMatrix(8000));
-
-  for (const auto& dmat: dmats) {
-    dmat->Info().base_margin_ = decltype(dmat->Info().base_margin_){
-        {dmat->Info().num_row_, static_cast<size_t>(n_classes)}, DeviceOrd::CUDA(0)};
-    dmat->Info().base_margin_.Data()->Fill(0.5);
+  for (auto p_fmat : {create_fn(400), create_fn(800), create_fn(2048)}) {
+    p_fmat->Info().base_margin_ = linalg::Constant(ctx, 0.5f, p_fmat->Info().num_row_, n_classes);
     PredictionCacheEntry out_predictions;
-    gpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
-    gpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-    EXPECT_EQ(out_predictions.predictions.Size(), dmat->Info().num_row_ * n_classes);
-    const std::vector<float> &host_vector = out_predictions.predictions.ConstHostVector();
-    for (size_t i = 0; i < host_vector.size() / n_classes; i++) {
-      ASSERT_EQ(host_vector[i * n_classes], 2.0);
-      ASSERT_EQ(host_vector[i * n_classes + 1], 0.5);
-      ASSERT_EQ(host_vector[i * n_classes + 2], 0.5);
+    gpu_predictor->InitOutPredictions(p_fmat->Info(), &out_predictions.predictions, model);
+    gpu_predictor->PredictBatch(p_fmat.get(), &out_predictions, model, 0);
+    ASSERT_EQ(out_predictions.predictions.Size(), p_fmat->Info().num_row_ * n_classes);
+    auto const& h_predt = out_predictions.predictions.ConstHostVector();
+    for (size_t i = 0; i < h_predt.size() / n_classes; i++) {
+      ASSERT_EQ(h_predt[i * n_classes], 2.0);
+      ASSERT_EQ(h_predt[i * n_classes + 1], 0.5);
+      ASSERT_EQ(h_predt[i * n_classes + 2], 0.5);
     }
   }
+}
+}  // namespace
+
+TEST(GPUPredictor, ExternalMemory) {
+  auto ctx = MakeCUDACtx(0);
+
+  bst_bin_t max_bin = 128;
+  bst_feature_t n_features = 32;
+
+  TestDecisionStumpExternalMemory(&ctx, n_features, [&](bst_idx_t n_samples) {
+    return RandomDataGenerator{n_samples, n_features, 0.0f}
+        .Batches(4)
+        .Device(ctx.Device())
+        .Bins(max_bin)
+        .GenerateSparsePageDMatrix("temp", false);
+  });
+  TestDecisionStumpExternalMemory(&ctx, n_features, [&](bst_idx_t n_samples) {
+    return RandomDataGenerator{n_samples, n_features, 0.0f}
+        .Batches(4)
+        .Device(ctx.Device())
+        .Bins(max_bin)
+        .GenerateExtMemQuantileDMatrix("temp", false);
+  });
 }
 
 TEST(GPUPredictor, InplacePredictCupy) {
