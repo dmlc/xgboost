@@ -3,6 +3,8 @@
  * \file updater_quantile_hist.cc
  */
 #include <vector>
+#include <memory>
+#include <utility>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"

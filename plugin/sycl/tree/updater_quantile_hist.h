@@ -9,6 +9,7 @@
 #include <xgboost/tree_updater.h>
 
 #include <vector>
+#include <memory>
 
 #include "../data/gradient_index.h"
 #include "../common/hist_util.h"
