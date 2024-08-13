@@ -322,23 +322,49 @@ void HistUpdater<GradientSumT>::InitSampling(
     ::sycl::buffer<uint64_t, 1> flag_buf(&num_samples, 1);
     uint64_t seed = seed_;
     seed_ += num_rows;
-    event = qu_.submit([&](::sycl::handler& cgh) {
-      auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
-      cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
-                                          [=](::sycl::item<1> pid) {
-        uint64_t i = pid.get_id(0);
 
-        // Create minstd_rand engine
-        oneapi::dpl::minstd_rand engine(seed, i);
-        oneapi::dpl::bernoulli_distribution coin_flip(subsample);
+   /*
+    * oneDLP bernoulli_distribution implicitly uses double.
+    * In this case the device doesn't have fp64 support,
+    * we generate bernoulli distributed random values from uniform distribution
+    */
+    if (has_fp64_support_) {
+      // Use oneDPL bernoulli_distribution for better perf
+      event = qu_.submit([&](::sycl::handler& cgh) {
+        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
+                                            [=](::sycl::item<1> pid) {
+          uint64_t i = pid.get_id(0);
+          // Create minstd_rand engine
+          oneapi::dpl::minstd_rand engine(seed, i);
+          oneapi::dpl::bernoulli_distribution coin_flip(subsample);
+          auto bernoulli_rnd = coin_flip(engine);
 
-        auto rnd = coin_flip(engine);
-        if (gpair_ptr[i].GetHess() >= 0.0f && rnd) {
-          AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
-          row_idx[num_samples_ref++] = i;
-        }
+          if (gpair_ptr[i].GetHess() >= 0.0f && bernoulli_rnd) {
+            AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
+            row_idx[num_samples_ref++] = i;
+          }
+        });
       });
-    });
+    } else {
+      // Use oneDPL uniform, as far as bernoulli_distribution uses fp64
+      event = qu_.submit([&](::sycl::handler& cgh) {
+        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
+                                            [=](::sycl::item<1> pid) {
+          uint64_t i = pid.get_id(0);
+          oneapi::dpl::minstd_rand engine(seed, i);
+          oneapi::dpl::uniform_real_distribution<float> distr;
+          const float rnd = distr(engine);
+          const bool bernoulli_rnd = rnd < subsample ? 1 : 0;
+
+          if (gpair_ptr[i].GetHess() >= 0.0f && bernoulli_rnd) {
+            AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
+            row_idx[num_samples_ref++] = i;
+          }
+        });
+      });
+    }
     /* After calling a destructor for flag_buf,  content will be copyed to num_samples */
   }
 
