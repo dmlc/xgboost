@@ -61,8 +61,7 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
-  hist_maker->UpdatePredictionCache(dmat, cache);
-  // ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, cache));
+  ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, cache));
 }
 }  // anonymous namespace
 

@@ -187,7 +187,10 @@ struct GPUHistMakerDevice {
 
   void EvaluateSplits(const std::vector<GPUExpandEntry>& candidates, const RegTree& tree,
                                common::Span<GPUExpandEntry> pinned_candidates_out) {
-    if (candidates.empty()) return;
+    if (candidates.empty()) {
+      return;
+    }
+    this->monitor.Start(__func__);
     dh::TemporaryArray<EvaluateSplitInputs> d_node_inputs(2 * candidates.size());
     dh::TemporaryArray<DeviceSplitCandidate> splits_out(2 * candidates.size());
     std::vector<bst_node_t> nidx(2 * candidates.size());
@@ -239,7 +242,7 @@ struct GPUHistMakerDevice {
     dh::safe_cuda(cudaMemcpyAsync(pinned_candidates_out.data(),
                                   entries.data().get(), sizeof(GPUExpandEntry) * entries.size(),
                                   cudaMemcpyDeviceToHost));
-    dh::DefaultStream().Sync();
+    this->monitor.Stop(__func__);
   }
 
   void BuildHist(int nidx) {
@@ -343,7 +346,7 @@ struct GPUHistMakerDevice {
   struct GoLeftOp {
     EllpackDeviceAccessor d_matrix;
 
-    __device__ bool operator()(cuda_impl::RowIndexT ridx, const NodeSplitData& data) const {
+    __device__ bool operator()(cuda_impl::RowIndexT ridx, NodeSplitData const& data) const {
       RegTree::Node const& node = data.split_node;
       // given a row index, returns the node id it belongs to
       float cut_value = d_matrix.GetFvalue(ridx, node.SplitIndex());
@@ -407,14 +410,8 @@ struct GPUHistMakerDevice {
   // prediction cache
   void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat, ObjInfo task,
                         HostDeviceVector<bst_node_t>* p_out_position) {
-    // Prediction cache is handled by update position.
-    if (!p_fmat->SingleColBlock()) {
-      if (task.UpdateTreeLeaf()) {
-        LOG(FATAL) << "Current objective function can not be used with external memory.";
-      }
-      p_out_position->Resize(0);
-      positions_.clear();
-      return;
+    if (!p_fmat->SingleColBlock() && task.UpdateTreeLeaf()) {
+      LOG(FATAL) << "Current objective function can not be used with external memory.";
     }
 
     p_out_position->SetDevice(ctx_->Device());
@@ -427,16 +424,17 @@ struct GPUHistMakerDevice {
       return SamplePosition::Encode(nidx, !is_invalid);
     };
 
-    if (row_partitioner->GetSegments().size() == p_tree->NumNodes()) {
+    if (row_partitioner->GetNumNodes() == p_tree->NumNodes()) {
+      CHECK(!p_fmat->SingleColBlock());  // This is external memory.
       row_partitioner->FinalisePosition(d_out_position, encode_op);
-      dh::CopyTo(p_out_position->ConstDeviceSpan(), &positions_);
+      dh::CopyTo(d_out_position, &positions_);
       return;
     }
 
     dh::caching_device_vector<uint32_t> d_categories;
 
     auto const& categories = p_tree->GetSplitCategories();
-    auto const& categories_segments = p_tree->GetSplitCategoriesPtr();
+    auto const& cat_segments = p_tree->GetSplitCategoriesPtr();
     dh::CopyToD(categories, &d_categories);
 
     auto d_matrix = page->GetDeviceAccessor(ctx_->Device());
@@ -445,7 +443,7 @@ struct GPUHistMakerDevice {
     for (std::size_t i = 0; i < split_data.size(); ++i) {
       RegTree::Node split_node = (*p_tree)[i];
       auto split_type = p_tree->NodeSplitType(i);
-      auto node_cats = common::GetNodeCats(dh::ToSpan(d_categories), categories_segments[i]);
+      auto node_cats = common::GetNodeCats(dh::ToSpan(d_categories), cat_segments[i]);
       split_data[i] = NodeSplitData{split_node, split_type, node_cats};
     }
 
@@ -465,8 +463,7 @@ struct GPUHistMakerDevice {
                                         }
                                         return encode_op(row_id, nidx);
                                       });
-
-    dh::CopyTo(p_out_position->ConstDeviceSpan(), &positions_);
+    dh::CopyTo(d_out_position, &positions_);
   }
 
   bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d, RegTree const* p_tree) {
@@ -517,7 +514,10 @@ struct GPUHistMakerDevice {
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
   void BuildHistLeftRight(std::vector<GPUExpandEntry> const& candidates, const RegTree& tree) {
-    if (candidates.empty()) return;
+    if (candidates.empty()) {
+      return;
+    }
+    this->monitor.Start(__func__);
     // Some nodes we will manually compute histograms
     // others we will do by subtraction
     std::vector<int> hist_nidx;
@@ -560,6 +560,7 @@ struct GPUHistMakerDevice {
         this->AllReduceHist(subtraction_trick_nidx, 1);
       }
     }
+    this->monitor.Stop(__func__);
   }
 
   void ApplySplit(const GPUExpandEntry& candidate, RegTree* p_tree) {
@@ -647,6 +648,8 @@ struct GPUHistMakerDevice {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const* task,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
+    bool is_single_block = p_fmat->SingleColBlock();
+
     auto& tree = *p_tree;
     // Process maximum 32 nodes at a time
     Driver<GPUExpandEntry> driver(param, 32);
@@ -673,21 +676,21 @@ struct GPUHistMakerDevice {
 
       auto new_candidates =
           pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry());
+      // Update all the nodes if working with external memory, this saves us from working
+      // with the finalize position call, which adds an additional iteration and requires
+      // special handling for row index.
+      this->UpdatePosition(is_single_block ? filtered_expand_set : expand_set, p_tree);
 
-      this->UpdatePosition(expand_set, p_tree);
-
-      monitor.Start("BuildHist");
       this->BuildHistLeftRight(filtered_expand_set, tree);
-      monitor.Stop("BuildHist");
 
-      monitor.Start("EvaluateSplits");
       this->EvaluateSplits(filtered_expand_set, *p_tree, new_candidates);
-      monitor.Stop("EvaluateSplits");
       dh::DefaultStream().Sync();
+
       driver.Push(new_candidates.begin(), new_candidates.end());
       expand_set = driver.Pop();
     }
 
+    CHECK_EQ(!is_single_block, p_tree->NumNodes() == this->row_partitioner->GetNumNodes());
     this->FinalisePosition(p_tree, p_fmat, *task, p_out_position);
   }
 };

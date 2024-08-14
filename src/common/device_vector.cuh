@@ -331,6 +331,15 @@ class DeviceUVector {
     data_.resize(n, v);
 #endif
   }
+
+  void clear() {  // NOLINT
+#if defined(XGBOOST_USE_RMM)
+    this->data_.resize(0, rmm::cuda_stream_per_thread);
+#else
+    this->data_.clear();
+#endif  // defined(XGBOOST_USE_RMM)
+  }
+
   [[nodiscard]] std::size_t size() const { return data_.size(); }  // NOLINT
 
   [[nodiscard]] auto begin() { return data_.begin(); }  // NOLINT

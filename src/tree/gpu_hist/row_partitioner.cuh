@@ -267,7 +267,12 @@ class RowPartitioner {
   /**
    * @brief Get information about each node.
    */
-  common::Span<const NodePositionInfo> GetSegments() const { return {ridx_segments_}; }
+  [[nodiscard]] common::Span<const NodePositionInfo> GetSegments() const {
+    return {ridx_segments_};
+  }
+  [[nodiscard]] bst_node_t GetNumNodes() const {
+    return static_cast<bst_node_t>(GetSegments().size());
+  }
 
   /**
    * \brief Convenience method for testing
