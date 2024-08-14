@@ -303,7 +303,7 @@ struct GPUHistMakerDevice {
       for (auto i = 0; i < num_candidates; i++) {
         auto const& data = d_split_data[i];
         auto const cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
-        if (std::isnan(cut_value)) {
+        if (isnan(cut_value)) {
           missing_bits.Set(ridx * num_candidates + i);
         } else {
           bool go_left;
