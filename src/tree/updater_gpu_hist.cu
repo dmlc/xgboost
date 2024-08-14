@@ -74,10 +74,6 @@ struct GPUHistMakerDevice {
   };
   static_assert(std::is_trivially_copyable_v<NodeSplitData>);
 
- private:
-  // Split data used in update position.
-  dh::DeviceUVector<NodeSplitData> d_split_data_;
-
  public:
   EllpackPageImpl const* page{nullptr};
   common::Span<FeatureType const> feature_types;
@@ -458,8 +454,9 @@ struct GPUHistMakerDevice {
     }
 
     auto go_left_op = GoLeftOp{d_matrix};
-    dh::CopyToD(split_data, &d_split_data_);
-    auto s_split_data = dh::ToSpan(d_split_data_);
+    dh::caching_device_vector<NodeSplitData> d_split_data;
+    dh::CopyToD(split_data, &d_split_data);
+    auto s_split_data = dh::ToSpan(d_split_data);
 
     row_partitioner_->FinalisePosition(d_out_position,
                                       [=] __device__(bst_idx_t row_id, bst_node_t nidx) {
