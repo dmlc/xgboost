@@ -15,6 +15,7 @@ void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t ba
   ridx_.resize(n_samples);
   ridx_tmp_.resize(n_samples);
   tmp_.clear();
+  n_nodes_ = 1;  // Root
 
   CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
   ridx_segments_.emplace_back(

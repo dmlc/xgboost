@@ -214,7 +214,6 @@ __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
 class RowPartitioner {
  public:
   using RowIndexT = cuda_impl::RowIndexT;
-  static constexpr bst_node_t kIgnoredTreePosition = -1;
 
  private:
   /**
@@ -241,6 +240,7 @@ class RowPartitioner {
   dh::device_vector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
+  bst_node_t n_nodes_{0};  // Counter for internal checks.
 
  public:
   /**
@@ -264,15 +264,7 @@ class RowPartitioner {
    * \brief Gets all training rows in the set.
    */
   common::Span<const RowIndexT> GetRows();
-  /**
-   * @brief Get information about each node.
-   */
-  [[nodiscard]] common::Span<const NodePositionInfo> GetSegments() const {
-    return {ridx_segments_};
-  }
-  [[nodiscard]] bst_node_t GetNumNodes() const {
-    return static_cast<bst_node_t>(GetSegments().size());
-  }
+  [[nodiscard]] bst_node_t GetNumNodes() const { return n_nodes_; }
 
   /**
    * \brief Convenience method for testing
@@ -298,10 +290,14 @@ class RowPartitioner {
                            const std::vector<bst_node_t>& left_nidx,
                            const std::vector<bst_node_t>& right_nidx,
                            const std::vector<OpDataT>& op_data, UpdatePositionOpT op) {
-    if (nidx.empty()) return;
+    if (nidx.empty()) {
+      return;
+    }
+
     CHECK_EQ(nidx.size(), left_nidx.size());
     CHECK_EQ(nidx.size(), right_nidx.size());
     CHECK_EQ(nidx.size(), op_data.size());
+    this->n_nodes_ += (left_nidx.size() + right_nidx.size());
 
     auto h_batch_info = pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
     dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
