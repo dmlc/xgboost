@@ -11,13 +11,16 @@ RUN \
     apt-get update && \
     apt-get install -y wget git python3 python3-pip software-properties-common \
                        apt-transport-https ca-certificates gnupg-agent && \
-    apt-get install -y llvm-15 clang-tidy-15 clang-15 libomp-15-dev && \
+    apt-add-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" && \
+    wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
+    apt-get update && \
+    apt-get install -y llvm-18 clang-tidy-18 clang-18 libomp-18-dev && \
     apt-get install -y cmake
 
 # Set default clang-tidy version
 RUN \
-    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-15 100 && \
-    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-18 100 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
 
 RUN \
     apt-get install libgtest-dev libgmock-dev -y
