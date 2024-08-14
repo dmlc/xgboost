@@ -75,8 +75,7 @@ struct GPUHistMakerDevice {
   static_assert(std::is_trivially_copyable_v<NodeSplitData>);
 
  private:
-  // Split data used in update position and prediction cache. This caches the last tree in
-  // GPU.
+  // Split data used in update position.
   dh::DeviceUVector<NodeSplitData> d_split_data_;
 
  public:
@@ -488,13 +487,17 @@ struct GPUHistMakerDevice {
     auto d_position = dh::ToSpan(positions_);
     CHECK_EQ(out_preds_d.Size(), d_position.size());
 
-    auto d_nodes = dh::ToSpan(d_split_data_);
+    // Use the nodes from tree, the leaf value might be changed by the objective since the
+    // last update tree call.
+    dh::caching_device_vector<RegTree::Node> nodes;
+    dh::CopyTo(p_tree->GetNodes(), &nodes);
+    common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
     CHECK_EQ(out_preds_d.Shape(1), 1);
     dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),
                 [=] XGBOOST_DEVICE(std::size_t idx) mutable {
                   bst_node_t nidx = d_position[idx];
                   nidx = SamplePosition::Decode(nidx);
-                  auto weight = d_nodes[nidx].split_node.LeafValue();
+                  auto weight = d_nodes[nidx].LeafValue();
                   out_preds_d(idx, 0) += weight;
                 });
     return true;

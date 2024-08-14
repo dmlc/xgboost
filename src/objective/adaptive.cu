@@ -31,7 +31,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
   // sort row index according to node index
   thrust::stable_sort_by_key(cuctx->TP(), sorted_position.begin(),
                              sorted_position.begin() + n_samples, p_ridx->begin());
-  // Find the first one that's not sampled (nidx being negated).
+  // Find the first one that's not sampled (nidx not been negated).
   size_t beg_pos = thrust::find_if(cuctx->CTP(), sorted_position.cbegin(), sorted_position.cend(),
                                    [] XGBOOST_DEVICE(bst_node_t nidx) {
                                      return tree::SamplePosition::IsValid(nidx);

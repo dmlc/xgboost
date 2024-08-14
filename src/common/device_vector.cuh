@@ -341,6 +341,7 @@ class DeviceUVector {
   }
 
   [[nodiscard]] std::size_t size() const { return data_.size(); }  // NOLINT
+  [[nodiscard]] bool empty() const { return this->size() == 0; }   // NOLINT
 
   [[nodiscard]] auto begin() { return data_.begin(); }  // NOLINT
   [[nodiscard]] auto end() { return data_.end(); }      // NOLINT
