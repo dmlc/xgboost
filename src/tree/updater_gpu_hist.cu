@@ -424,8 +424,10 @@ struct GPUHistMakerDevice {
       return SamplePosition::Encode(nidx, !is_invalid);
     };
 
-    if (row_partitioner->GetNumNodes() == p_tree->NumNodes()) {
-      CHECK(!p_fmat->SingleColBlock());  // This is external memory.
+    if (row_partitioner->GetNumNodes() == p_tree->NumNodes() || p_tree->NumNodes() == 1) {
+      if (p_tree->NumNodes() > 1) {
+        CHECK(!p_fmat->SingleColBlock());  // This is external memory.
+      }
       row_partitioner->FinalisePosition(d_out_position, encode_op);
       dh::CopyTo(d_out_position, &positions_);
       return;
@@ -690,7 +692,8 @@ struct GPUHistMakerDevice {
       expand_set = driver.Pop();
     }
 
-    CHECK_EQ(!is_single_block, p_tree->NumNodes() == this->row_partitioner->GetNumNodes());
+    CHECK_EQ(!is_single_block || p_tree->NumNodes() == 1,
+             p_tree->NumNodes() == this->row_partitioner->GetNumNodes());
     this->FinalisePosition(p_tree, p_fmat, *task, p_out_position);
   }
 };
