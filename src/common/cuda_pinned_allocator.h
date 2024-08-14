@@ -23,7 +23,7 @@ namespace cuda {
 //
 //  \see https://en.cppreference.com/w/cpp/memory/allocator
 template <typename T>
-class pinned_allocator;
+class pinned_allocator;  // NOLINT(readability-identifier-naming)
 
 template <>
 class pinned_allocator<void> {

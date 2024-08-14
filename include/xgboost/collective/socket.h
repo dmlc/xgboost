@@ -58,6 +58,13 @@ using ssize_t = int;
 #define HOST_NAME_MAX 256  // macos
 #endif
 
+// Disable BlockInCriticalSection check from clang-tidy
+// Clang-tidy generates a false positive warning because
+// it erroreously assumes that all recv() calls are blocking.
+// Here, we will trust users to set NonBlocking() flag to
+// the socket before using Recv() in a critical section.
+// NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
+
 namespace xgboost {
 
 #if defined(xgboost_IS_MINGW)
@@ -827,5 +834,7 @@ Result INetNToP(H const &host, std::string *p_out) {
 }
 }  // namespace collective
 }  // namespace xgboost
+
+// NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
 
 #undef xgboost_CHECK_SYS_CALL
