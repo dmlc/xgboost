@@ -307,6 +307,7 @@ class DeviceUVector {
 
  public:
   DeviceUVector() = default;
+  explicit DeviceUVector(std::size_t n) { this->resize(n); }
   DeviceUVector(DeviceUVector const &that) = delete;
   DeviceUVector &operator=(DeviceUVector const &that) = delete;
   DeviceUVector(DeviceUVector &&that) = default;

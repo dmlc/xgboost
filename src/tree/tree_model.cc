@@ -8,15 +8,14 @@
 #include <xgboost/json.h>
 #include <xgboost/tree_model.h>
 
-#include <array>  // for array
 #include <cmath>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <type_traits>
 
-#include "../common/categorical.h"
-#include "../common/common.h"    // for EscapeU8
+#include "../common/categorical.h"  // for GetNodeCats
+#include "../common/common.h"       // for EscapeU8
 #include "../predictor/predict_fn.h"
 #include "io_utils.h"  // for GetElem
 #include "param.h"
@@ -1038,9 +1037,8 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
       categories_nodes.GetArray().emplace_back(i);
       auto begin = categories.Size();
       categories_segments.GetArray().emplace_back(begin);
-      auto segment = split_categories_segments_[i];
-      auto node_categories = this->GetSplitCategories().subspan(segment.beg, segment.size);
-      common::KCatBitField const cat_bits(node_categories);
+      auto segment = this->split_categories_segments_[i];
+      auto cat_bits = common::GetNodeCats(this->GetSplitCategories(), segment);
       for (size_t i = 0; i < cat_bits.Capacity(); ++i) {
         if (cat_bits.Check(i)) {
           categories.GetArray().emplace_back(i);

@@ -264,6 +264,10 @@ class RowPartitioner {
    * \brief Gets all training rows in the set.
    */
   common::Span<const RowIndexT> GetRows();
+  /**
+   * @brief Get information about each node.
+   */
+  common::Span<const NodePositionInfo> GetSegments() const { return {ridx_segments_}; }
 
   /**
    * \brief Convenience method for testing
