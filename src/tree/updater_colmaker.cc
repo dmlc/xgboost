@@ -10,6 +10,7 @@
 
 #include "../common/error_msg.h"  // for NoCategorical
 #include "../common/random.h"
+#include "sample_position.h"  // for SamplePosition
 #include "constraints.h"
 #include "param.h"
 #include "split_evaluator.h"
@@ -515,7 +516,7 @@ class ColMaker: public TreeUpdater {
       common::ParallelFor(p_fmat->Info().num_row_, this->ctx_->Threads(), [&](auto ridx) {
         CHECK_LT(ridx, position_.size()) << "ridx exceed bound "
                                          << "ridx=" << ridx << " pos=" << position_.size();
-        const int nid = this->DecodePosition(ridx);
+        const int nid = SamplePosition::Decode(position_[ridx]);
         if (tree[nid].IsLeaf()) {
           // mark finish when it is not a fresh leaf
           if (tree[nid].RightChild() == -1) {
@@ -560,14 +561,14 @@ class ColMaker: public TreeUpdater {
           auto col = page[fid];
           common::ParallelFor(col.size(), this->ctx_->Threads(), [&](auto j) {
             const bst_uint ridx = col[j].index;
-            const int nid = this->DecodePosition(ridx);
+            bst_node_t nidx = SamplePosition::Decode(position_[ridx]);
             const bst_float fvalue = col[j].fvalue;
             // go back to parent, correct those who are not default
-            if (!tree[nid].IsLeaf() && tree[nid].SplitIndex() == fid) {
-              if (fvalue < tree[nid].SplitCond()) {
-                this->SetEncodePosition(ridx, tree[nid].LeftChild());
+            if (!tree[nidx].IsLeaf() && tree[nidx].SplitIndex() == fid) {
+              if (fvalue < tree[nidx].SplitCond()) {
+                this->SetEncodePosition(ridx, tree[nidx].LeftChild());
               } else {
-                this->SetEncodePosition(ridx, tree[nid].RightChild());
+                this->SetEncodePosition(ridx, tree[nidx].RightChild());
               }
             }
           });
@@ -576,17 +577,10 @@ class ColMaker: public TreeUpdater {
     }
     // utils to get/set position, with encoded format
     // return decoded position
-    inline int DecodePosition(bst_uint ridx) const {
-      const int pid = position_[ridx];
-      return pid < 0 ? ~pid : pid;
-    }
     // encode the encoded position value for ridx
-    inline void SetEncodePosition(bst_uint ridx, int nid) {
-      if (position_[ridx] < 0) {
-        position_[ridx] = ~nid;
-      } else {
-        position_[ridx] = nid;
-      }
+    void SetEncodePosition(bst_idx_t ridx, bst_node_t nidx) {
+      bool is_invalid = position_[ridx] < 0;
+      position_[ridx] = SamplePosition::Encode(nidx, !is_invalid);
     }
     //  --data fields--
     const TrainParam& param_;

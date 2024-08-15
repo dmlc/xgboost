@@ -5,7 +5,7 @@
 #include <xgboost/base.h>                // for Args
 #include <xgboost/context.h>             // for Context
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
-#include <xgboost/json.h>                // for Jons
+#include <xgboost/json.h>                // for Json
 #include <xgboost/task.h>                // for ObjInfo
 #include <xgboost/tree_model.h>          // for RegTree
 #include <xgboost/tree_updater.h>        // for TreeUpdater
@@ -14,32 +14,17 @@
 #include <string>  // for string
 #include <vector>  // for vector
 
-#include "../../../src/common/random.h"      // for GlobalRandom
-#include "../../../src/data/ellpack_page.h"  // for EllpackPage
-#include "../../../src/tree/param.h"         // for TrainParam
-#include "../collective/test_worker.h"       // for BaseMGPUTest
-#include "../filesystem.h"                   // dmlc::TemporaryDirectory
+#include "../../../src/common/random.h"  // for GlobalRandom
+#include "../../../src/tree/param.h"     // for TrainParam
+#include "../collective/test_worker.h"   // for BaseMGPUTest
+#include "../filesystem.h"               // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost::tree {
-void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
-                size_t gpu_page_size, RegTree* tree, HostDeviceVector<bst_float>* preds,
-                float subsample = 1.0f, const std::string& sampling_method = "uniform",
-                int max_bin = 2) {
-  if (gpu_page_size > 0) {
-    // Loop over the batches and count the records
-    int64_t batch_count = 0;
-    int64_t row_count = 0;
-    for (const auto& batch : dmat->GetBatches<EllpackPage>(
-             ctx, BatchParam{max_bin, TrainParam::DftSparseThreshold()})) {
-      EXPECT_LT(batch.Size(), dmat->Info().num_row_);
-      batch_count++;
-      row_count += batch.Size();
-    }
-    EXPECT_GE(batch_count, 2);
-    EXPECT_EQ(row_count, dmat->Info().num_row_);
-  }
-
+namespace {
+void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat, bool is_ext,
+                RegTree* tree, HostDeviceVector<bst_float>* preds, float subsample,
+                const std::string& sampling_method, bst_bin_t max_bin) {
   Args args{
       {"max_depth", "2"},
       {"max_bin", std::to_string(max_bin)},
@@ -60,8 +45,13 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
-  hist_maker->UpdatePredictionCache(dmat, cache);
+  if (subsample < 1.0 && is_ext) {
+    ASSERT_FALSE(hist_maker->UpdatePredictionCache(dmat, cache));
+  } else {
+    ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, cache));
+  }
 }
+}  // anonymous namespace
 
 TEST(GpuHist, UniformSampling) {
   constexpr size_t kRows = 4096;
@@ -79,11 +69,11 @@ TEST(GpuHist, UniformSampling) {
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
   Context ctx(MakeCUDACtx(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, dmat.get(), false, &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample, "uniform",
+  UpdateTree(&ctx, &gpair, dmat.get(), false, &tree_sampling, &preds_sampling, kSubsample, "uniform",
              kRows);
 
   // Make sure the predictions are the same.
@@ -110,12 +100,12 @@ TEST(GpuHist, GradientBasedSampling) {
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
   Context ctx(MakeCUDACtx(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, dmat.get(), false, &tree, &preds, 1.0, "uniform", kRows);
 
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample,
+  UpdateTree(&ctx, &gpair, dmat.get(), false, &tree_sampling, &preds_sampling, kSubsample,
              "gradient_based", kRows);
 
   // Make sure the predictions are the same.
@@ -147,11 +137,11 @@ TEST(GpuHist, ExternalMemory) {
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, dmat.get(), false, &tree, &preds, 1.0, "uniform", kRows);
   // Build another tree using multiple ELLPACK pages.
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, dmat_ext.get(), true, &tree_ext, &preds_ext, 1.0, "uniform", kRows);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -162,23 +152,26 @@ TEST(GpuHist, ExternalMemory) {
 }
 
 TEST(GpuHist, ExternalMemoryWithSampling) {
-  constexpr size_t kRows = 4096;
-  constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1024;
+  constexpr size_t kRows = 4096, kCols = 2;
   constexpr float kSubsample = 0.5;
   const std::string kSamplingMethod = "gradient_based";
   common::GlobalRandom().seed(0);
 
   dmlc::TemporaryDirectory tmpdir;
+  Context ctx(MakeCUDACtx(0));
 
   // Create a single batch DMatrix.
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(kRows, kCols, 1, tmpdir.path + "/cache"));
+  auto p_fmat = RandomDataGenerator{kRows, kCols, 0.0f}
+                    .Device(ctx.Device())
+                    .Batches(1)
+                    .GenerateSparsePageDMatrix("temp", true);
 
   // Create a DMatrix with multiple batches.
-  std::unique_ptr<DMatrix> dmat_ext(
-      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
+  auto p_fmat_ext = RandomDataGenerator{kRows, kCols, 0.0f}
+                        .Device(ctx.Device())
+                        .Batches(4)
+                        .GenerateSparsePageDMatrix("temp", true);
 
-  Context ctx(MakeCUDACtx(0));
   linalg::Matrix<GradientPair> gpair({kRows}, ctx.Device());
   gpair.Data()->Copy(GenerateRandomGradients(kRows));
 
@@ -187,13 +180,13 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
 
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod, kRows);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), true, &tree, &preds, kSubsample, kSamplingMethod, kRows);
 
   // Build another tree using multiple ELLPACK pages.
   common::GlobalRandom() = rng;
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, DeviceOrd::CUDA(0));
-  UpdateTree(&ctx, &gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, kSubsample,
+  UpdateTree(&ctx, &gpair, p_fmat_ext.get(), true, &tree_ext, &preds_ext, kSubsample,
              kSamplingMethod, kRows);
 
   // Make sure the predictions are the same.

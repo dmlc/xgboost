@@ -307,6 +307,7 @@ class DeviceUVector {
 
  public:
   DeviceUVector() = default;
+  explicit DeviceUVector(std::size_t n) { this->resize(n); }
   DeviceUVector(DeviceUVector const &that) = delete;
   DeviceUVector &operator=(DeviceUVector const &that) = delete;
   DeviceUVector(DeviceUVector &&that) = default;
@@ -330,7 +331,17 @@ class DeviceUVector {
     data_.resize(n, v);
 #endif
   }
+
+  void clear() {  // NOLINT
+#if defined(XGBOOST_USE_RMM)
+    this->data_.resize(0, rmm::cuda_stream_per_thread);
+#else
+    this->data_.clear();
+#endif  // defined(XGBOOST_USE_RMM)
+  }
+
   [[nodiscard]] std::size_t size() const { return data_.size(); }  // NOLINT
+  [[nodiscard]] bool empty() const { return this->size() == 0; }   // NOLINT
 
   [[nodiscard]] auto begin() { return data_.begin(); }  // NOLINT
   [[nodiscard]] auto end() { return data_.end(); }      // NOLINT
