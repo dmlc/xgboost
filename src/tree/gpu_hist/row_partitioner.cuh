@@ -114,7 +114,6 @@ struct WriteResultsFunctor {
     }
     ridx_out[scatter_address] = ridx_in[x.idx];
 
-    // FIXME: We can write out the node position here since we know the nidx within batch.
     if (x.idx == (segment.end - 1)) {
       // Write out counts
       counts[x.batch_idx] = x.flag_scan;

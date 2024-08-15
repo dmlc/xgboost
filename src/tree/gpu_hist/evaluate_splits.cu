@@ -1,13 +1,12 @@
 /**
  * Copyright 2020-2024, XGBoost Contributors
  */
-#include <algorithm>  // std::max
-#include <vector>
-#include <limits>
+#include <algorithm>  // for :max
+#include <limits>     // for numeric_limits
 
 #include "../../collective/allgather.h"
+#include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "../../common/categorical.h"
-#include "../../data/ellpack_page.cuh"
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
 

@@ -16,12 +16,9 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord
-#include <sstream>
-#include <string>
 #include <tuple>
 #include <vector>
 
-#include "../collective/communicator-inl.h"
 #include "common.h"
 #include "device_vector.cuh"
 #include "xgboost/host_device_vector.h"
@@ -382,12 +379,12 @@ void CopyTo(Src const &src, Dst *dst) {
     return;
   }
   dst->resize(src.size());
-  using HVT = std::remove_cv_t<typename Src::value_type>;
+  using SVT = std::remove_cv_t<typename Src::value_type>;
   using DVT = std::remove_cv_t<typename Dst::value_type>;
-  static_assert(std::is_same<HVT, DVT>::value,
+  static_assert(std::is_same<SVT, DVT>::value,
                 "Host and device containers must have same value type.");
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
-                                src.size() * sizeof(HVT), cudaMemcpyDefault));
+                                src.size() * sizeof(SVT), cudaMemcpyDefault));
 }
 
 template <class HContainer, class DContainer>
