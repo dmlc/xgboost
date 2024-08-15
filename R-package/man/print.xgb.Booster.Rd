@@ -4,7 +4,7 @@
 \alias{print.xgb.Booster}
 \title{Print xgb.Booster}
 \usage{
-print.xgb.Booster(x, ...)
+\method{print}{xgb.Booster}(x, ...)
 }
 \arguments{
 \item{x}{An \code{xgb.Booster} object.}
@@ -33,5 +33,4 @@ bst <- xgb.train(
 attr(bst, "myattr") <- "memo"
 
 print(bst)
-
 }

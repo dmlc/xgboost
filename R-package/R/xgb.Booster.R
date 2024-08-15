@@ -1272,7 +1272,7 @@ xgb.is.same.Booster <- function(obj1, obj2) {
 #' attr(bst, "myattr") <- "memo"
 #'
 #' print(bst)
-#'
+#' @method print xgb.Booster
 #' @export
 print.xgb.Booster <- function(x, ...) {
   # this lets it error out when the object comes from an earlier R XGBoost version
