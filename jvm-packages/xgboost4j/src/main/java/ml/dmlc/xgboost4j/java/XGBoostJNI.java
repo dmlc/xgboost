@@ -177,6 +177,9 @@ class XGBoostJNI {
   public final static native int XGDMatrixCreateFromArrayInterfaceColumns(
     String featureJson, float missing, int nthread, long[] out);
 
+  public final static native int XGDMatrixGetQuantileCut(long handle, long[][] outIndptr,
+      float[][] outValues);
+
   public final static native int XGBoosterSetStrFeatureInfo(long handle, String field, String[] features);
 
   public final static native int XGBoosterGetStrFeatureInfo(long handle, String field, String[] out);

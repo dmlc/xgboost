@@ -1,10 +1,13 @@
+/**
+ * Copyright 2021-2024, XGBoost Contributors
+ */
 #include <jni.h>
+#include <xgboost/c_api.h>
 
-#include "../../../../src/common/device_helpers.cuh"
 #include "../../../../src/common/cuda_pinned_allocator.h"
+#include "../../../../src/common/device_vector.cuh"  // for device_vector
 #include "../../../../src/data/array_interface.h"
 #include "jvm_utils.h"
-#include <xgboost/c_api.h>
 
 namespace xgboost {
 namespace jni {

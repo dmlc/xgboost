@@ -447,6 +447,22 @@ public class DMatrix {
     setBaseMargin(flatten(baseMargin));
   }
 
+  public class QuantileCut {
+    long[] indptr;
+    float[] values;
+
+    QuantileCut(long[] indptr, float[] values) {
+      this.indptr = indptr;
+      this.values = values;
+    }
+  }
+
+  public QuantileCut getQuantileCut() throws XGBoostError {
+    long[][] indptr = new long[1][];
+    float[][] values = new float[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetQuantileCut(this.handle, indptr, values));
+    return new QuantileCut(indptr[0], values[0]);
+  }
   /**
    * Slice the DMatrix and return a new DMatrix that only contains `rowIndex`.
    *

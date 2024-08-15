@@ -211,6 +211,7 @@ class BaseMGPUTest : public ::testing::Test {
       TestFederatedGlobal(n_gpus, fn);
 #else
       GTEST_SKIP_("Not compiled with federated learning.");
+      (void)emulate_if_single;
 #endif  // defined(XGBOOST_USE_FEDERATED)
     } else {
 #if defined(XGBOOST_USE_NCCL)
