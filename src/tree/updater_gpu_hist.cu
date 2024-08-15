@@ -679,7 +679,7 @@ struct GPUHistMakerDevice {
                    [&](const auto& e) { return driver.IsChildValid(e); });
 
       auto new_candidates =
-          pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry());
+          pinned.GetSpan<GPUExpandEntry>(filtered_expand_set.size() * 2, GPUExpandEntry{});
       // Update all the nodes if working with external memory, this saves us from working
       // with the finalize position call, which adds an additional iteration and requires
       // special handling for row index.
@@ -693,9 +693,14 @@ struct GPUHistMakerDevice {
       driver.Push(new_candidates.begin(), new_candidates.end());
       expand_set = driver.Pop();
     }
-
-    CHECK_EQ((!is_single_block || p_tree->NumNodes() == 1),
-             (p_tree->NumNodes() == this->row_partitioner_->GetNumNodes()));
+    // Row partitioner can have lesser nodes than the tree since we skip some leaf
+    // nodes. These nodes are handled in the `FinalisePosition` call. However, a leaf can
+    // be spliable before evaluation but invalid after evaluation as we have more
+    // restrictions like min loss change after evalaution. Therefore, the check condition
+    // is greater than or equal to.
+    if (is_single_block) {
+      CHECK_GE(p_tree->NumNodes(), this->row_partitioner_->GetNumNodes());
+    }
     this->FinalisePosition(p_tree, p_fmat, *task, p_out_position);
   }
 };
