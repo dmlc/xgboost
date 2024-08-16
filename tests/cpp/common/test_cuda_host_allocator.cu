@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
+#include <xgboost/windefs.h>  // for xgboost_is_WIN
 
 #include <vector>
 
@@ -27,8 +28,10 @@ TEST(CudaHostMalloc, Pinned) {
 TEST(CudaHostMalloc, Managed) {
   std::vector<float, common::cuda_impl::managed_allocator<float>> vec;
   vec.resize(10);
+#if !defined(xgboost_is_WIN)
   dh::safe_cuda(
       cudaMemPrefetchAsync(vec.data(), vec.size() * sizeof(float), 0, dh::DefaultStream()));
+#endif
   dh::DefaultStream().Sync();
 }
 }  // namespace xgboost
