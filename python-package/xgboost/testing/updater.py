@@ -250,10 +250,10 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     check_cut(n_entries, indptr, data, X.dtypes)
 
 
-def check_get_quantile_cut(tree_method: str) -> None:
+def check_get_quantile_cut(tree_method: str, device: str) -> None:
     """Check the quantile cut getter."""
 
-    use_cupy = tree_method == "gpu_hist"
+    use_cupy = device.startswith("cuda")
     check_get_quantile_cut_device(tree_method, False)
     if use_cupy:
         check_get_quantile_cut_device(tree_method, True)
