@@ -1,3 +1,8 @@
+/**
+ * Copyright 2021-2024 by XGBoost contributors.
+ */
+#pragma once
+
 #include <gtest/gtest.h>
 
 #include <xgboost/host_device_vector.h>
