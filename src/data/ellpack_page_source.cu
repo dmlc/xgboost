@@ -20,7 +20,7 @@
 
 namespace xgboost::data {
 struct EllpackHostCache {
-  thrust::host_vector<std::int8_t, common::cuda::pinned_allocator<std::int8_t>> cache;
+  thrust::host_vector<std::int8_t, common::cuda_impl::pinned_allocator<std::int8_t>> cache;
 
   void Resize(std::size_t n, dh::CUDAStreamView stream) {
     stream.Sync();  // Prevent partial copy inside resize.
