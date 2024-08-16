@@ -117,24 +117,15 @@ TEST(Learner, CheckGroup) {
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 }
 
-TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
-  // Create sufficiently large data to make two row pages
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/big.libsvm";
-  CreateBigTestData(tmp_file, 50000);
-  std::shared_ptr<DMatrix> dmat(
-      xgboost::DMatrix::Load(tmp_file + "?format=libsvm" + "#" + tmp_file + ".cache"));
-  EXPECT_FALSE(dmat->SingleColBlock());
-  size_t num_row = dmat->Info().num_row_;
-  std::vector<bst_float> labels(num_row);
-  for (size_t i = 0; i < num_row; ++i) {
-    labels[i] = i % 2;
-  }
-  dmat->SetInfo("label", Make1dInterfaceTest(labels.data(), num_row));
-  std::vector<std::shared_ptr<DMatrix>> mat{dmat};
+TEST(Learner, CheckMultiBatch) {
+  auto p_fmat =
+      RandomDataGenerator{512, 128, 0.8}.Batches(4).GenerateSparsePageDMatrix("temp", true);
+  ASSERT_FALSE(p_fmat->SingleColBlock());
+
+  std::vector<std::shared_ptr<DMatrix>> mat{p_fmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"objective", "binary:logistic"}});
-  learner->UpdateOneIter(0, dmat);
+  learner->UpdateOneIter(0, p_fmat);
 }
 
 TEST(Learner, Configuration) {

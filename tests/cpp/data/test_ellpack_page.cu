@@ -140,13 +140,11 @@ struct ReadRowFunction {
 TEST(EllpackPage, Copy) {
   constexpr size_t kRows = 1024;
   constexpr size_t kCols = 16;
-  constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  Context ctx{MakeCUDACtx(0)};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
+  auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
@@ -187,14 +185,12 @@ TEST(EllpackPage, Copy) {
 TEST(EllpackPage, Compact) {
   constexpr size_t kRows = 16;
   constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1;
   constexpr size_t kCompactedRows = 8;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(
-      CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  Context ctx{MakeCUDACtx(0)};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(2).GenerateSparsePageDMatrix("temp", true);
+  auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 

@@ -210,6 +210,12 @@ class DefaultFormatPolicy {
   }
 };
 
+struct InitNewThread {
+  GlobalConfiguration config = *GlobalConfigThreadLocalStore::Get();
+
+  void operator()() const;
+};
+
 /**
  * @brief Base class for all page sources. Handles fetching, writing, and iteration.
  *
@@ -330,10 +336,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
  public:
   SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features, bst_idx_t n_batches,
                        std::shared_ptr<Cache> cache)
-      : workers_{std::max(2, std::min(nthreads, 16)),
-                 [config = *GlobalConfigThreadLocalStore::Get()] {
-                   *GlobalConfigThreadLocalStore::Get() = config;
-                 }},
+      : workers_{std::max(2, std::min(nthreads, 16)), InitNewThread{}},
         missing_{missing},
         nthreads_{nthreads},
         n_features_{n_features},

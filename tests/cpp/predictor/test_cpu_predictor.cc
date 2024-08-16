@@ -10,12 +10,10 @@
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "test_predictor.h"
 
 namespace xgboost {
-
 TEST(CpuPredictor, Basic) {
   Context ctx;
   size_t constexpr kRows = 5;
@@ -56,9 +54,10 @@ TEST(CpuPredictor, IterationRangeColmnSplit) {
 
 TEST(CpuPredictor, ExternalMemory) {
   Context ctx;
-  size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries);
+  bst_idx_t constexpr kRows{64};
+  bst_feature_t constexpr kCols{12};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.5f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
   TestBasic(dmat.get(), &ctx);
 }
 

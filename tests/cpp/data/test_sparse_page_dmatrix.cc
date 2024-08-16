@@ -214,15 +214,15 @@ TEST(SparsePageDMatrix, MetaInfo) {
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
-  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix(24);
+  auto dmat = RandomDataGenerator{12, 6, 0.8f}.Batches(2).GenerateSparsePageDMatrix("temp", false);
 
   // Test the data read into the first row
   auto &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
   auto page = batch.GetView();
   auto first_row = page[0];
-  ASSERT_EQ(first_row.size(), 3ul);
-  EXPECT_EQ(first_row[2].index, 2u);
-  EXPECT_NEAR(first_row[2].fvalue, 0.986566, 1e-4);
+  ASSERT_EQ(first_row.size(), 1ul);
+  EXPECT_EQ(first_row[0].index, 5u);
+  EXPECT_NEAR(first_row[0].fvalue, 0.1805125, 1e-4);
 }
 
 TEST(SparsePageDMatrix, ColAccess) {
@@ -268,11 +268,10 @@ TEST(SparsePageDMatrix, ColAccess) {
 }
 
 TEST(SparsePageDMatrix, ThreadSafetyException) {
-  size_t constexpr kEntriesPerCol = 3;
-  size_t constexpr kEntries = 64 * kEntriesPerCol * 2;
   Context ctx;
 
-  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix(kEntries);
+  auto dmat =
+      RandomDataGenerator{4096, 12, 0.0f}.Batches(8).GenerateSparsePageDMatrix("temp", true);
 
   int threads = 1000;
 
@@ -304,10 +303,9 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
 // Multi-batches access
 TEST(SparsePageDMatrix, ColAccessBatches) {
-  size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
   // Create multiple sparse pages
-  std::unique_ptr<xgboost::DMatrix> dmat{xgboost::CreateSparsePageDMatrix(kEntries)};
+  auto dmat =
+      RandomDataGenerator{1024, 32, 0.4f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
   ASSERT_EQ(dmat->Ctx()->Threads(), AllThreadsForTest());
   Context ctx;
   for (auto const &page : dmat->GetBatches<xgboost::CSCPage>(&ctx)) {
