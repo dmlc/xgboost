@@ -1472,11 +1472,12 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetQuanti
 
   // Cut ptr
   auto j_indptr_array = jenv->NewLongArray(indptr.Shape(0));
-  std::vector<jlong> j_indptr_tmp(indptr.Shape(0));
   CHECK_EQ(indptr.type, ArrayInterfaceHandler::Type::kU8);
-  std::copy_n(static_cast<std::uint64_t const *>(indptr.data), indptr.Shape(0),
-              j_indptr_tmp.data());
-  jenv->SetLongArrayRegion(j_indptr_array, 0, j_indptr_tmp.size(), j_indptr_tmp.data());
+  CHECK_LT(indptr(indptr.Shape(0) - 1),
+           static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()));
+  static_assert(sizeof(jlong) == sizeof(std::uint64_t));
+  jenv->SetLongArrayRegion(j_indptr_array, 0, indptr.Shape(0),
+                           static_cast<jlong const *>(indptr.data));
   jenv->SetObjectArrayElement(j_indptr, 0, j_indptr_array);
 
   // Cut values
