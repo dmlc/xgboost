@@ -356,7 +356,6 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
     : is_dense{page.IsDense()},
       base_rowid{page.base_rowid},
       n_rows{page.Size()},
-      // This makes a copy of the cut values.
       cuts_{std::make_shared<common::HistogramCuts>(page.cut)} {
   auto it = common::MakeIndexTransformIter(
       [&](size_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
@@ -540,15 +539,7 @@ void EllpackPageImpl::CreateHistIndices(DeviceOrd device,
 // Return the number of rows contained in this page.
 [[nodiscard]] bst_idx_t EllpackPageImpl::Size() const { return n_rows; }
 
-// Return the memory cost for storing the compressed features.
-size_t EllpackPageImpl::MemCostBytes(size_t num_rows, size_t row_stride,
-                                     const common::HistogramCuts& cuts) {
-  // Required buffer size for storing data matrix in EtoLLPack format.
-  size_t compressed_size_bytes =
-      common::CompressedBufferWriter::CalculateBufferSize(row_stride * num_rows,
-                                                          cuts.TotalBins() + 1);
-  return compressed_size_bytes;
-}
+std::size_t EllpackPageImpl::MemCostBytes() const { return this->gidx_buffer.size_bytes(); }
 
 EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
     DeviceOrd device, common::Span<FeatureType const> feature_types) const {
