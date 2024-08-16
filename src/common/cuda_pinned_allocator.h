@@ -8,8 +8,8 @@
 
 #include <cuda_runtime.h>
 
-#include <cstddef>
-#include <limits>
+#include <cstddef>  // for size_t
+#include <limits>   // for numeric_limits
 
 #include "common.h"
 
@@ -30,7 +30,7 @@ struct PinnedAllocPolicy {
   using value_type = T;            // NOLINT: The type of the elements in the allocator
 
   size_type max_size() const {  // NOLINT
-    return (std::numeric_limits<size_type>::max)() / sizeof(value_type);
+    return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
   pointer allocate(size_type cnt, const_pointer = nullptr) {  // NOLINT
@@ -54,7 +54,7 @@ struct ManagedAllocPolicy {
   using value_type = T;            // NOLINT: The type of the elements in the allocator
 
   size_type max_size() const {  // NOLINT
-    return (std::numeric_limits<size_type>::max)() / sizeof(value_type);
+    return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
   pointer allocate(size_type cnt, const_pointer = nullptr) {  // NOLINT
