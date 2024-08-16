@@ -715,7 +715,7 @@ TEST(GBTree, InplacePredictionError) {
       p_fmat = rng.GenerateQuantileDMatrix(true);
     } else {
 #if defined(XGBOOST_USE_CUDA)
-      p_fmat = rng.GenerateDeviceDMatrix(true);
+      p_fmat = rng.Device(ctx->Device()).GenerateQuantileDMatrix(true);
 #else
       CHECK(p_fmat);
 #endif  // defined(XGBOOST_USE_CUDA)
