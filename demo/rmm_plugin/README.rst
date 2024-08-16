@@ -73,5 +73,5 @@ The newer NVIDIA platforms like `Grace-Hopper
 <https://www.nvidia.com/en-us/data-center/nvlink-c2c/>`__, which allows the CPU and GPU to
 have a coherent memory model. Users can use the `SamHeadroomMemoryResource` in the latest
 RMM to utilize system memory for storing data. This can help XGBoost utilize memory from
-the host for GPU computation, but it may reduce performance due to page migration
-overhead.
+the host for GPU computation, but it may reduce performance due to slower CPU memory speed
+and page migration overhead.
