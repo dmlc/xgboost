@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023, XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -17,7 +17,6 @@
 #include "test_predictor.h"
 
 namespace xgboost::predictor {
-
 TEST(GPUPredictor, Basic) {
   auto cpu_lparam = MakeCUDACtx(-1);
   auto gpu_lparam = MakeCUDACtx(0);
@@ -269,10 +268,9 @@ TEST(GPUPredictor, Shap) {
   trees[0]->ExpandNode(0, 0, 0.5, true, 1.0, -1.0, 1.0, 0.0, 5.0, 2.0, 3.0);
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto gpu_lparam = MakeCUDACtx(0);
   auto cpu_lparam = MakeCUDACtx(-1);
-  std::unique_ptr<Predictor> gpu_predictor = std::unique_ptr<Predictor>(
-      Predictor::Create("gpu_predictor", &gpu_lparam));
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
   std::unique_ptr<Predictor> cpu_predictor = std::unique_ptr<Predictor>(
       Predictor::Create("cpu_predictor", &cpu_lparam));
   gpu_predictor->Configure({});
@@ -288,6 +286,22 @@ TEST(GPUPredictor, Shap) {
     EXPECT_NEAR(cpu_phis[i], phis[i], 1e-3);
   }
 }
+
+TEST_P(ShapExternalMemoryTest, GPUPredictor) {
+  auto ctx = MakeCUDACtx(0);
+  auto [is_qdm, is_interaction] = this->GetParam();
+  this->Run(&ctx, is_qdm, is_interaction);
+}
+
+INSTANTIATE_TEST_SUITE_P(ShapExternalMemory, ShapExternalMemoryTest, ::testing::ValuesIn([] {
+                           std::vector<std::pair<bool, bool>> params{};
+                           for (auto is_qdm : {true, false}) {
+                             for (auto is_int : {true, false}) {
+                               params.emplace_back(is_qdm, is_int);
+                             }
+                           }
+                           return params;
+                         }()));
 
 TEST(GPUPredictor, IterationRange) {
   auto ctx = MakeCUDACtx(0);
