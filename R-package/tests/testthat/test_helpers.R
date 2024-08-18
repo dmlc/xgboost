@@ -132,31 +132,31 @@ test_that("predict feature contributions works", {
                tolerance = float_tolerance)
 
   # gbtree multiclass
-  pred <- predict(mbst.Tree, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred <- predict(mbst.Tree, as.matrix(iris[, -5]), outputmargin = TRUE)
   pred_contr <- predict(mbst.Tree, as.matrix(iris[, -5]), predcontrib = TRUE)
-  expect_is(pred_contr, "list")
-  expect_length(pred_contr, 3)
-  for (g in seq_along(pred_contr)) {
-    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "(Intercept)"))
-    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 1e-5)
+  expect_is(pred_contr, "array")
+  expect_length(dim(pred_contr), 3)
+  for (g in seq_len(dim(pred_contr)[2])) {
+    expect_equal(colnames(pred_contr[, g, ]), c(colnames(iris[, -5]), "(Intercept)"))
+    expect_lt(max(abs(rowSums(pred_contr[, g, ]) - pred[, g])), 1e-5)
   }
 
   # gblinear multiclass (set base_score = 0, which is base margin in multiclass)
-  pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE)
   pred_contr <- predict(mbst.GLM, as.matrix(iris[, -5]), predcontrib = TRUE)
-  expect_length(pred_contr, 3)
+  expect_length(dim(pred_contr), 3)
   coefs_all <- matrix(
     data = as.numeric(xgb.dump(mbst.GLM)[-c(1, 2, 6)]),
     ncol = 3,
     byrow = TRUE
   )
-  for (g in seq_along(pred_contr)) {
-    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "(Intercept)"))
-    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), float_tolerance)
+  for (g in seq_along(dim(pred_contr)[2])) {
+    expect_equal(colnames(pred_contr[, g, ]), c(colnames(iris[, -5]), "(Intercept)"))
+    expect_lt(max(abs(rowSums(pred_contr[, g, ]) - pred[, g])), float_tolerance)
     # manual calculation of linear terms
     coefs <- c(coefs_all[-1, g], coefs_all[1, g]) # intercept needs to be the last
     pred_contr_manual <- sweep(as.matrix(cbind(iris[, -5], 1)), 2, coefs, FUN = "*")
-    expect_equal(as.numeric(pred_contr[[g]]), as.numeric(pred_contr_manual),
+    expect_equal(as.numeric(pred_contr[, g, ]), as.numeric(pred_contr_manual),
                  tolerance = float_tolerance)
   }
 })

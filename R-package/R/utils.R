@@ -199,8 +199,7 @@ xgb.iter.update <- function(bst, dtrain, iter, obj) {
       bst,
       dtrain,
       outputmargin = TRUE,
-      training = TRUE,
-      reshape = TRUE
+      training = TRUE
     )
     gpair <- obj(pred, dtrain)
     n_samples <- dim(dtrain)[1]
@@ -246,7 +245,7 @@ xgb.iter.eval <- function(bst, evals, iter, feval) {
     res <- sapply(seq_along(evals), function(j) {
       w <- evals[[j]]
       ## predict using all trees
-      preds <- predict(bst, w, outputmargin = TRUE, reshape = TRUE, iterationrange = "all")
+      preds <- predict(bst, w, outputmargin = TRUE, iterationrange = "all")
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)

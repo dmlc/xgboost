@@ -294,8 +294,10 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   if (is.null(features) && (is.null(model) || !inherits(model, "xgb.Booster")))
     stop("when features are not provided, one must provide an xgb.Booster model to rank the features")
 
+  last_dim <- function(v) dim(v)[length(dim(v))]
+
   if (!is.null(shap_contrib) &&
-      (!is.matrix(shap_contrib) || nrow(shap_contrib) != nrow(data) || ncol(shap_contrib) != ncol(data) + 1))
+      (!is.array(shap_contrib) || nrow(shap_contrib) != nrow(data) || last_dim(shap_contrib) != ncol(data) + 1))
     stop("shap_contrib is not compatible with the provided data")
 
   if (is.character(features) && is.null(colnames(data)))
@@ -318,19 +320,39 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     colnames(data) <- paste0("X", seq_len(ncol(data)))
   }
 
-  if (!is.null(shap_contrib)) {
-    if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
-      shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
+  reshape_3d_shap_contrib <- function(shap_contrib, target_class) {
+    # multiclass: either choose a class or merge
+    if (is.list(shap_contrib)) {
+      if (!is.null(target_class)) {
+        shap_contrib <- shap_contrib[[target_class + 1]]
+      } else {
+        shap_contrib <- Reduce("+", lapply(shap_contrib, abs))
+      }
+    } else if (length(dim(shap_contrib)) > 2) {
+      if (!is.null(target_class)) {
+        orig_shape <- dim(shap_contrib)
+        shap_contrib <- shap_contrib[, target_class + 1, , drop = TRUE]
+        if (!is.matrix(shap_contrib)) {
+          shap_contrib <- matrix(shap_contrib, orig_shape[c(1L, 3L)])
+        }
+      } else {
+        shap_contrib <- apply(abs(shap_contrib), c(1L, 3L), sum)
+      }
     }
-    shap_contrib <- shap_contrib[idx, ]
-    if (is.null(colnames(shap_contrib))) {
-      colnames(shap_contrib) <- paste0("X", seq_len(ncol(data)))
-    }
-  } else {
-    shap_contrib <- predict(model, newdata = data, predcontrib = TRUE, approxcontrib = approxcontrib)
-    if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
-      shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
-    }
+    return(shap_contrib)
+  }
+
+  if (is.null(shap_contrib)) {
+    shap_contrib <- predict(
+      model,
+      newdata = data,
+      predcontrib = TRUE,
+      approxcontrib = approxcontrib
+    )
+  }
+  shap_contrib <- reshape_3d_shap_contrib(shap_contrib, target_class)
+  if (is.null(colnames(shap_contrib))) {
+    colnames(shap_contrib) <- paste0("X", seq_len(ncol(data)))
   }
 
   if (is.null(features)) {
