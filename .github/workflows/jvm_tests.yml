@@ -12,6 +12,7 @@ concurrency:
 jobs:
   test-with-jvm:
     name: Test JVM on OS ${{ matrix.os }}
+    timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

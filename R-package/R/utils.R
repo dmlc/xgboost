@@ -104,7 +104,7 @@ check.booster.params <- function(params, ...) {
 
   # for multiclass, expect num_class to be set
   if (typeof(params[['objective']]) == "character" &&
-      substr(NVL(params[['objective']], 'x'), 1, 6) == 'multi:' &&
+      startsWith(NVL(params[['objective']], 'x'), 'multi:') &&
       as.numeric(NVL(params[['num_class']], 0)) < 2) {
         stop("'num_class' > 1 parameter must be set for multiclass classification")
   }
@@ -199,8 +199,7 @@ xgb.iter.update <- function(bst, dtrain, iter, obj) {
       bst,
       dtrain,
       outputmargin = TRUE,
-      training = TRUE,
-      reshape = TRUE
+      training = TRUE
     )
     gpair <- obj(pred, dtrain)
     n_samples <- dim(dtrain)[1]
@@ -246,7 +245,7 @@ xgb.iter.eval <- function(bst, evals, iter, feval) {
     res <- sapply(seq_along(evals), function(j) {
       w <- evals[[j]]
       ## predict using all trees
-      preds <- predict(bst, w, outputmargin = TRUE, reshape = TRUE, iterationrange = "all")
+      preds <- predict(bst, w, outputmargin = TRUE, iterationrange = "all")
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)

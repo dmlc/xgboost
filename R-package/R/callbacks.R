@@ -858,8 +858,7 @@ xgb.cb.cv.predict <- function(save_models = FALSE, outputmargin = FALSE) {
         pr <- predict(
           fd$bst,
           fd$evals[[2L]],
-          outputmargin = env$outputmargin,
-          reshape = TRUE
+          outputmargin = env$outputmargin
         )
         if (is.null(pred)) {
           if (NCOL(pr) > 1L) {

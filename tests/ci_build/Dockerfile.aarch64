@@ -16,7 +16,7 @@ ENV PATH=/opt/miniforge/bin:$PATH
 ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
 ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
 ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
-ENV GOSU_VERSION 1.10
+ENV GOSU_VERSION=1.10
 
 # Create new Conda environment
 COPY conda_env/aarch64_test.yml /scripts/

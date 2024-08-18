@@ -141,7 +141,7 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
 
   for (std::int32_t r = (comm.Rank() + 1); r < comm.World(); ++r) {
     auto const& peer = peers[r];
-    std::shared_ptr<TCPSocket> worker{TCPSocket::CreatePtr(comm.Domain())};
+    auto worker = std::make_shared<TCPSocket>();
     rc = std::move(rc)
          << [&] { return Connect(peer.host, peer.port, retry, timeout, worker.get()); }
          << [&] { return worker->RecvTimeout(timeout); };
@@ -161,7 +161,7 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   }
 
   for (std::int32_t r = 0; r < comm.Rank(); ++r) {
-    auto peer = std::shared_ptr<TCPSocket>(TCPSocket::CreatePtr(comm.Domain()));
+    auto peer = std::make_shared<TCPSocket>();
     rc = std::move(rc) << [&] {
       SockAddress addr;
       return listener->Accept(peer.get(), &addr);

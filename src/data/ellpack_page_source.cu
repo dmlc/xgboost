@@ -15,11 +15,12 @@
 #include "ellpack_page.cuh"                   // for EllpackPageImpl
 #include "ellpack_page.h"                     // for EllpackPage
 #include "ellpack_page_source.h"
-#include "xgboost/base.h"  // for bst_idx_t
+#include "proxy_dmatrix.cuh"  // for Dispatch
+#include "xgboost/base.h"     // for bst_idx_t
 
 namespace xgboost::data {
 struct EllpackHostCache {
-  thrust::host_vector<std::int8_t, common::cuda::pinned_allocator<std::int8_t>> cache;
+  thrust::host_vector<std::int8_t, common::cuda_impl::pinned_allocator<std::int8_t>> cache;
 
   void Resize(std::size_t n, dh::CUDAStreamView stream) {
     stream.Sync();  // Prevent partial copy inside resize.
@@ -171,6 +172,8 @@ void EllpackPageSourceImpl<F>::Fetch() {
     Context ctx = Context{}.MakeCUDA(this->Device().ordinal);
     *impl = EllpackPageImpl{&ctx, this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
+    LOG(INFO) << "Generated an Ellpack page with size: " << impl->MemCostBytes()
+              << " from a SparsePage with size:" << csr->MemCostBytes();
     this->WriteCache();
   }
 }
@@ -182,4 +185,51 @@ template void
 EllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
 template void
 EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+
+/**
+ * ExtEllpackPageSourceImpl
+ */
+template <typename F>
+void ExtEllpackPageSourceImpl<F>::Fetch() {
+  dh::safe_cuda(cudaSetDevice(this->Device().ordinal));
+  if (!this->ReadCache()) {
+    auto iter = this->source_->Iter();
+    CHECK_EQ(this->count_, iter);
+    ++(*this->source_);
+    CHECK_GE(this->source_->Iter(), 1);
+    cuda_impl::Dispatch(proxy_, [this](auto const& value) {
+      proxy_->Info().feature_types.SetDevice(dh::GetDevice(this->ctx_));
+      auto d_feature_types = proxy_->Info().feature_types.ConstDeviceSpan();
+      auto n_samples = value.NumRows();
+
+      dh::device_vector<size_t> row_counts(n_samples + 1, 0);
+      common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
+      cuda_impl::Dispatch(proxy_, [=](auto const& value) {
+        return GetRowCounts(value, row_counts_span, dh::GetDevice(this->ctx_), this->missing_);
+      });
+
+      this->page_.reset(new EllpackPage{});
+      *this->page_->Impl() = EllpackPageImpl{this->ctx_,
+                                             value,
+                                             this->missing_,
+                                             this->info_->IsDense(),
+                                             row_counts_span,
+                                             d_feature_types,
+                                             this->ext_info_.row_stride,
+                                             n_samples,
+                                             this->GetCuts()};
+      this->info_->Extend(proxy_->Info(), false, true);
+    });
+    this->page_->SetBaseRowId(this->ext_info_.base_rows.at(iter));
+    this->WriteCache();
+  }
+}
+
+// Instantiation
+template void
+ExtEllpackPageSourceImpl<DefaultFormatStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+template void
+ExtEllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+template void
+ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
 }  // namespace xgboost::data

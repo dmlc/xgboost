@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2024 by XGBoost contributors
+ * Copyright 2016-2024, XGBoost contributors
  */
 #include "helpers.h"
 
@@ -12,7 +12,7 @@
 #include <xgboost/objective.h>
 
 #include <algorithm>
-#include <random>
+#include <limits>  // for numeric_limits
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"
@@ -20,13 +20,11 @@
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
-#include "filesystem.h"  // dmlc::TemporaryDirectory
 #include "xgboost/c_api.h"
 #include "xgboost/predictor.h"
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>
-#include <numeric>
 #include <vector>
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/cuda_memory_resource.hpp"
@@ -455,6 +453,7 @@ void RandomDataGenerator::GenerateCSR(
   }
 
   EXPECT_EQ(batch_count, n_batches_);
+  EXPECT_EQ(dmat->NumBatches(), n_batches_);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   if (with_label) {
@@ -466,14 +465,60 @@ void RandomDataGenerator::GenerateCSR(
   return dmat;
 }
 
-std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_label) {
-  NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-  auto m = std::make_shared<data::IterativeDMatrix>(
-      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, bins_);
-  if (with_label) {
-    this->GenerateLabels(m);
+[[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateExtMemQuantileDMatrix(
+    std::string prefix, bool with_label) const {
+  CHECK_GE(this->rows_, this->n_batches_);
+  CHECK_GE(this->n_batches_, 1)
+      << "Must set the n_batches before generating an external memory DMatrix.";
+  // The iterator should be freed after construction of the DMatrix.
+  std::unique_ptr<ArrayIterForTest> iter;
+  if (device_.IsCPU()) {
+    iter = std::make_unique<NumpyArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
+  } else {
+#if defined(XGBOOST_USE_CUDA)
+    iter = std::make_unique<CudaArrayIterForTest>(this->sparsity_, rows_, cols_, n_batches_);
+#endif  // defined(XGBOOST_USE_CUDA)
   }
-  return m;
+  CHECK(iter);
+
+  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(
+      static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
+      std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix, this->on_host_)};
+
+  auto page_path = data::MakeId(prefix, p_fmat.get());
+  page_path += device_.IsCPU() ? ".gradient_index.page" : ".ellpack.page";
+  if (!this->on_host_) {
+    EXPECT_TRUE(FileExists(page_path)) << page_path;
+  }
+
+  if (with_label) {
+    RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}
+        .GenerateDense(p_fmat->Info().labels.Data());
+    CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
+    p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
+  }
+  return p_fmat;
+}
+
+std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_label) {
+  std::shared_ptr<data::IterativeDMatrix> p_fmat;
+
+  if (this->device_.IsCPU()) {
+    NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
+    p_fmat =
+        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
+                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+  } else {
+    CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
+    p_fmat =
+        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
+                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+  }
+
+  if (with_label) {
+    this->GenerateLabels(p_fmat);
+  }
+  return p_fmat;
 }
 
 #if !defined(XGBOOST_USE_CUDA)
@@ -513,125 +558,6 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
   CHECK_EQ(p_fmat->Info().num_row_, num_rows);
   CHECK_EQ(p_fmat->Info().num_col_, num_columns);
   return p_fmat;
-}
-
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(bst_idx_t n_samples, bst_feature_t n_features,
-                                                 size_t n_batches, std::string prefix) {
-  CHECK_GE(n_samples, n_batches);
-  NumpyArrayIterForTest iter(0, n_samples, n_features, n_batches);
-
-  std::unique_ptr<DMatrix> dmat{DMatrix::Create(
-      static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), omp_get_max_threads(), prefix, false)};
-
-  auto row_page_path =
-      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(dmat.get())) + ".row.page";
-  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
-
-  // Loop over the batches and count the number of pages
-  int64_t batch_count = 0;
-  int64_t row_count = 0;
-  for (const auto& batch : dmat->GetBatches<xgboost::SparsePage>()) {
-    batch_count++;
-    row_count += batch.Size();
-  }
-
-  EXPECT_GE(batch_count, n_batches);
-  EXPECT_EQ(row_count, dmat->Info().num_row_);
-  return dmat;
-}
-
-std::unique_ptr<DMatrix> CreateSparsePageDMatrix(size_t n_entries,
-                                                 std::string prefix) {
-  size_t n_columns = 3;
-  size_t n_rows = n_entries / n_columns;
-  NumpyArrayIterForTest iter(0, n_rows, n_columns, 2);
-
-  std::unique_ptr<DMatrix> dmat{
-      DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next,
-                      std::numeric_limits<float>::quiet_NaN(), 0, prefix, false)};
-  auto row_page_path =
-      data::MakeId(prefix,
-                   dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) +
-      ".row.page";
-  EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
-
-  // Loop over the batches and count the records
-  int64_t batch_count = 0;
-  int64_t row_count = 0;
-  for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
-    batch_count++;
-    row_count += batch.Size();
-  }
-  EXPECT_GE(batch_count, 2);
-  EXPECT_EQ(row_count, dmat->Info().num_row_);
-  return dmat;
-}
-
-std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
-                                                       size_t page_size, bool deterministic,
-                                                       const dmlc::TemporaryDirectory& tempdir) {
-  if (!n_rows || !n_cols) {
-    return nullptr;
-  }
-
-  // Create the svm file in a temp dir
-  const std::string tmp_file = tempdir.path + "/big.libsvm";
-
-  std::ofstream fo(tmp_file.c_str());
-  size_t cols_per_row = ((std::max(n_rows, n_cols) - 1) / std::min(n_rows, n_cols)) + 1;
-  int64_t rem_cols = n_cols;
-  size_t col_idx = 0;
-
-  // Random feature id generator
-  std::random_device rdev;
-  std::unique_ptr<std::mt19937> gen;
-  if (deterministic) {
-     // Seed it with a constant value for this configuration - without getting too fancy
-     // like ordered pairing functions and its likes to make it truely unique
-     gen.reset(new std::mt19937(n_rows * n_cols));
-  } else {
-     gen.reset(new std::mt19937(rdev()));
-  }
-  std::uniform_int_distribution<size_t> label(0, 1);
-  std::uniform_int_distribution<size_t> dis(1, n_cols);
-
-  for (size_t i = 0; i < n_rows; ++i) {
-    // Make sure that all cols are slotted in the first few rows; randomly distribute the
-    // rest
-    std::stringstream row_data;
-    size_t j = 0;
-    if (rem_cols > 0) {
-      for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
-        row_data << label(*gen) << " " << (col_idx + j) << ":"
-                 << (col_idx + j + 1) * 10 * i;
-      }
-      rem_cols -= cols_per_row;
-    } else {
-      // Take some random number of colums in [1, n_cols] and slot them here
-      std::vector<size_t> random_columns;
-      size_t ncols = dis(*gen);
-      for (; j < ncols; ++j) {
-        size_t fid = (col_idx + j) % n_cols;
-        random_columns.push_back(fid);
-      }
-      std::sort(random_columns.begin(), random_columns.end());
-      for (auto fid : random_columns) {
-        row_data << label(*gen) << " " << fid << ":" << (fid + 1) * 10 * i;
-      }
-    }
-    col_idx += j;
-
-    fo << row_data.str() << "\n";
-  }
-  fo.close();
-
-  std::string uri = tmp_file + "?format=libsvm";
-  if (page_size > 0) {
-    uri += "#" + tmp_file + ".cache";
-  }
-  std::unique_ptr<DMatrix> dmat(DMatrix::Load(uri));
-  return dmat;
 }
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
@@ -747,7 +673,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
     }
   }
   if (!use_rmm_pool) {
-    return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+    return {nullptr, DeleteRMMResource};
   }
   LOG(INFO) << "Using RMM memory pool";
   auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);

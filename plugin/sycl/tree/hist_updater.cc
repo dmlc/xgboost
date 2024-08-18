@@ -80,6 +80,234 @@ void HistUpdater<GradientSumT>::BuildLocalHistograms(
 }
 
 template<typename GradientSumT>
+void HistUpdater<GradientSumT>::BuildNodeStats(
+    const common::GHistIndexMatrix &gmat,
+    RegTree *p_tree,
+    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+  builder_monitor_.Start("BuildNodeStats");
+  for (auto const& entry : qexpand_depth_wise_) {
+    int nid = entry.nid;
+    this->InitNewNode(nid, gmat, gpair, *p_tree);
+    // add constraints
+    if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
+      // it's a right child
+      auto parent_id = (*p_tree)[nid].Parent();
+      auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
+      auto parent_split_feature_id = snode_host_[parent_id].best.SplitIndex();
+      tree_evaluator_.AddSplit(
+          parent_id, left_sibling_id, nid, parent_split_feature_id,
+          snode_host_[left_sibling_id].weight, snode_host_[nid].weight);
+      interaction_constraints_.Split(parent_id, parent_split_feature_id,
+                                     left_sibling_id, nid);
+    }
+  }
+  builder_monitor_.Stop("BuildNodeStats");
+}
+
+template<typename GradientSumT>
+void HistUpdater<GradientSumT>::AddSplitsToTree(
+    const common::GHistIndexMatrix &gmat,
+    RegTree *p_tree,
+    int *num_leaves,
+    int depth,
+    std::vector<ExpandEntry>* nodes_for_apply_split,
+    std::vector<ExpandEntry>* temp_qexpand_depth) {
+  builder_monitor_.Start("AddSplitsToTree");
+  auto evaluator = tree_evaluator_.GetEvaluator();
+  for (auto const& entry : qexpand_depth_wise_) {
+    const auto lr = param_.learning_rate;
+    int nid = entry.nid;
+
+    if (snode_host_[nid].best.loss_chg < kRtEps ||
+        (param_.max_depth > 0 && depth == param_.max_depth) ||
+        (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
+      (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
+    } else {
+      nodes_for_apply_split->push_back(entry);
+
+      NodeEntry<GradientSumT>& e = snode_host_[nid];
+      bst_float left_leaf_weight =
+          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
+      bst_float right_leaf_weight =
+          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum}) * lr;
+      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
+                         e.best.DefaultLeft(), e.weight, left_leaf_weight,
+                         right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
+                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
+
+      int left_id = (*p_tree)[nid].LeftChild();
+      int right_id = (*p_tree)[nid].RightChild();
+      temp_qexpand_depth->push_back(ExpandEntry(left_id,  p_tree->GetDepth(left_id)));
+      temp_qexpand_depth->push_back(ExpandEntry(right_id, p_tree->GetDepth(right_id)));
+      // - 1 parent + 2 new children
+      (*num_leaves)++;
+    }
+  }
+  builder_monitor_.Stop("AddSplitsToTree");
+}
+
+
+template<typename GradientSumT>
+void HistUpdater<GradientSumT>::EvaluateAndApplySplits(
+    const common::GHistIndexMatrix &gmat,
+    RegTree *p_tree,
+    int *num_leaves,
+    int depth,
+    std::vector<ExpandEntry> *temp_qexpand_depth) {
+  EvaluateSplits(qexpand_depth_wise_, gmat, *p_tree);
+
+  std::vector<ExpandEntry> nodes_for_apply_split;
+  AddSplitsToTree(gmat, p_tree, num_leaves, depth,
+                  &nodes_for_apply_split, temp_qexpand_depth);
+  ApplySplit(nodes_for_apply_split, gmat, p_tree);
+}
+
+// Split nodes to 2 sets depending on amount of rows in each node
+// Histograms for small nodes will be built explicitly
+// Histograms for big nodes will be built by 'Subtraction Trick'
+// Exception: in distributed setting, we always build the histogram for the left child node
+//    and use 'Subtraction Trick' to built the histogram for the right child node.
+//    This ensures that the workers operate on the same set of tree nodes.
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::SplitSiblings(
+    const std::vector<ExpandEntry> &nodes,
+    std::vector<ExpandEntry> *small_siblings,
+    std::vector<ExpandEntry> *big_siblings,
+    RegTree *p_tree) {
+  builder_monitor_.Start("SplitSiblings");
+  for (auto const& entry : nodes) {
+    int nid = entry.nid;
+    RegTree::Node &node = (*p_tree)[nid];
+    if (node.IsRoot()) {
+      small_siblings->push_back(entry);
+    } else {
+      const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
+      const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
+
+      if (nid == left_id && row_set_collection_[left_id ].Size() <
+                            row_set_collection_[right_id].Size()) {
+        small_siblings->push_back(entry);
+      } else if (nid == right_id && row_set_collection_[right_id].Size() <=
+                                    row_set_collection_[left_id ].Size()) {
+        small_siblings->push_back(entry);
+      } else {
+        big_siblings->push_back(entry);
+      }
+    }
+  }
+  builder_monitor_.Stop("SplitSiblings");
+}
+
+template<typename GradientSumT>
+void HistUpdater<GradientSumT>::ExpandWithDepthWise(
+    const common::GHistIndexMatrix &gmat,
+    RegTree *p_tree,
+    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+  int num_leaves = 0;
+
+  // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
+  qexpand_depth_wise_.emplace_back(ExpandEntry::kRootNid,
+                                   p_tree->GetDepth(ExpandEntry::kRootNid));
+  ++num_leaves;
+  for (int depth = 0; depth < param_.max_depth + 1; depth++) {
+    std::vector<int> sync_ids;
+    std::vector<ExpandEntry> temp_qexpand_depth;
+    SplitSiblings(qexpand_depth_wise_, &nodes_for_explicit_hist_build_,
+                  &nodes_for_subtraction_trick_, p_tree);
+    hist_rows_adder_->AddHistRows(this, &sync_ids, p_tree);
+    BuildLocalHistograms(gmat, p_tree, gpair);
+    hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
+    BuildNodeStats(gmat, p_tree, gpair);
+
+    EvaluateAndApplySplits(gmat, p_tree, &num_leaves, depth,
+                   &temp_qexpand_depth);
+
+    // clean up
+    qexpand_depth_wise_.clear();
+    nodes_for_subtraction_trick_.clear();
+    nodes_for_explicit_hist_build_.clear();
+    if (temp_qexpand_depth.empty()) {
+      break;
+    } else {
+      qexpand_depth_wise_ = temp_qexpand_depth;
+      temp_qexpand_depth.clear();
+    }
+  }
+}
+
+template<typename GradientSumT>
+void HistUpdater<GradientSumT>::ExpandWithLossGuide(
+    const common::GHistIndexMatrix& gmat,
+    RegTree* p_tree,
+    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+  builder_monitor_.Start("ExpandWithLossGuide");
+  int num_leaves = 0;
+  const auto lr = param_.learning_rate;
+
+  ExpandEntry node(ExpandEntry::kRootNid, p_tree->GetDepth(ExpandEntry::kRootNid));
+  BuildHistogramsLossGuide(node, gmat, p_tree, gpair);
+
+  this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair, *p_tree);
+
+  this->EvaluateSplits({node}, gmat, *p_tree);
+  node.split.loss_chg = snode_host_[ExpandEntry::kRootNid].best.loss_chg;
+
+  qexpand_loss_guided_->push(node);
+  ++num_leaves;
+
+  while (!qexpand_loss_guided_->empty()) {
+    const ExpandEntry candidate = qexpand_loss_guided_->top();
+    const int nid = candidate.nid;
+    qexpand_loss_guided_->pop();
+    if (!candidate.IsValid(param_, num_leaves)) {
+      (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
+    } else {
+      auto evaluator = tree_evaluator_.GetEvaluator();
+      NodeEntry<GradientSumT>& e = snode_host_[nid];
+      bst_float left_leaf_weight =
+          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
+      bst_float right_leaf_weight =
+          evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.right_sum}) * lr;
+      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
+                         e.best.DefaultLeft(), e.weight, left_leaf_weight,
+                         right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
+                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
+
+      this->ApplySplit({candidate}, gmat, p_tree);
+
+      const int cleft = (*p_tree)[nid].LeftChild();
+      const int cright = (*p_tree)[nid].RightChild();
+
+      ExpandEntry left_node(cleft, p_tree->GetDepth(cleft));
+      ExpandEntry right_node(cright, p_tree->GetDepth(cright));
+
+      if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+        BuildHistogramsLossGuide(left_node, gmat, p_tree, gpair);
+      } else {
+        BuildHistogramsLossGuide(right_node, gmat, p_tree, gpair);
+      }
+
+      this->InitNewNode(cleft, gmat, gpair, *p_tree);
+      this->InitNewNode(cright, gmat, gpair, *p_tree);
+      bst_uint featureid = snode_host_[nid].best.SplitIndex();
+      tree_evaluator_.AddSplit(nid, cleft, cright, featureid,
+                               snode_host_[cleft].weight, snode_host_[cright].weight);
+      interaction_constraints_.Split(nid, featureid, cleft, cright);
+
+      this->EvaluateSplits({left_node, right_node}, gmat, *p_tree);
+      left_node.split.loss_chg = snode_host_[cleft].best.loss_chg;
+      right_node.split.loss_chg = snode_host_[cright].best.loss_chg;
+
+      qexpand_loss_guided_->push(left_node);
+      qexpand_loss_guided_->push(right_node);
+
+      ++num_leaves;  // give two and take one, as parent is no longer a leaf
+    }
+  }
+  builder_monitor_.Stop("ExpandWithLossGuide");
+}
+
+template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitSampling(
       const USMVector<GradientPair, MemoryType::on_device> &gpair,
       USMVector<size_t, MemoryType::on_device>* row_indices) {
@@ -94,23 +322,49 @@ void HistUpdater<GradientSumT>::InitSampling(
     ::sycl::buffer<uint64_t, 1> flag_buf(&num_samples, 1);
     uint64_t seed = seed_;
     seed_ += num_rows;
-    event = qu_.submit([&](::sycl::handler& cgh) {
-      auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
-      cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
-                                          [=](::sycl::item<1> pid) {
-        uint64_t i = pid.get_id(0);
 
-        // Create minstd_rand engine
-        oneapi::dpl::minstd_rand engine(seed, i);
-        oneapi::dpl::bernoulli_distribution coin_flip(subsample);
+   /*
+    * oneDLP bernoulli_distribution implicitly uses double.
+    * In this case the device doesn't have fp64 support,
+    * we generate bernoulli distributed random values from uniform distribution
+    */
+    if (has_fp64_support_) {
+      // Use oneDPL bernoulli_distribution for better perf
+      event = qu_.submit([&](::sycl::handler& cgh) {
+        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
+                                            [=](::sycl::item<1> pid) {
+          uint64_t i = pid.get_id(0);
+          // Create minstd_rand engine
+          oneapi::dpl::minstd_rand engine(seed, i);
+          oneapi::dpl::bernoulli_distribution coin_flip(subsample);
+          auto bernoulli_rnd = coin_flip(engine);
 
-        auto rnd = coin_flip(engine);
-        if (gpair_ptr[i].GetHess() >= 0.0f && rnd) {
-          AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
-          row_idx[num_samples_ref++] = i;
-        }
+          if (gpair_ptr[i].GetHess() >= 0.0f && bernoulli_rnd) {
+            AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
+            row_idx[num_samples_ref++] = i;
+          }
+        });
       });
-    });
+    } else {
+      // Use oneDPL uniform, as far as bernoulli_distribution uses fp64
+      event = qu_.submit([&](::sycl::handler& cgh) {
+        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
+                                            [=](::sycl::item<1> pid) {
+          uint64_t i = pid.get_id(0);
+          oneapi::dpl::minstd_rand engine(seed, i);
+          oneapi::dpl::uniform_real_distribution<float> distr;
+          const float rnd = distr(engine);
+          const bool bernoulli_rnd = rnd < subsample ? 1 : 0;
+
+          if (gpair_ptr[i].GetHess() >= 0.0f && bernoulli_rnd) {
+            AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
+            row_idx[num_samples_ref++] = i;
+          }
+        });
+      });
+    }
     /* After calling a destructor for flag_buf,  content will be copyed to num_samples */
   }
 
@@ -249,6 +503,14 @@ void HistUpdater<GradientSumT>::InitData(
   }
 
   std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
+
+  {
+    if (param_.grow_policy == xgboost::tree::TrainParam::kLossGuide) {
+      qexpand_loss_guided_.reset(new ExpandQueue(LossGuide));
+    } else {
+      qexpand_depth_wise_.clear();
+    }
+  }
   builder_monitor_.Stop("InitData");
 }
 
@@ -305,8 +567,7 @@ template <typename GradientSumT>
 void HistUpdater<GradientSumT>::InitNewNode(int nid,
                                             const common::GHistIndexMatrix& gmat,
                                             const USMVector<GradientPair,
-                                                            MemoryType::on_device> &gpair,
-                                            const DMatrix& fmat,
+                                            MemoryType::on_device> &gpair,
                                             const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
 

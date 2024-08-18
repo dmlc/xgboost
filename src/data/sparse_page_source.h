@@ -9,6 +9,7 @@
 #include <atomic>     // for atomic
 #include <cstdint>    // for uint64_t
 #include <future>     // for future
+#include <map>        // for map
 #include <memory>     // for unique_ptr
 #include <mutex>      // for mutex
 #include <string>     // for string
@@ -79,6 +80,40 @@ struct Cache {
    */
   void Commit();
 };
+
+inline void DeleteCacheFiles(std::map<std::string, std::shared_ptr<Cache>> const& cache_info) {
+  for (auto const& kv : cache_info) {
+    CHECK(kv.second);
+    auto n = kv.second->ShardName();
+    if (kv.second->OnHost()) {
+      continue;
+    }
+    TryDeleteCacheFile(n);
+  }
+}
+
+[[nodiscard]] inline std::string MakeId(std::string prefix, void const* ptr) {
+  std::stringstream ss;
+  ss << ptr;
+  return prefix + "-" + ss.str();
+}
+
+/**
+ * @brief Make cache if it doesn't exist yet.
+ */
+[[nodiscard]] inline std::string MakeCache(void const* ptr, std::string format, bool on_host,
+                                           std::string prefix,
+                                           std::map<std::string, std::shared_ptr<Cache>>* out) {
+  auto& cache_info = *out;
+  auto name = MakeId(prefix, ptr);
+  auto id = name + format;
+  auto it = cache_info.find(id);
+  if (it == cache_info.cend()) {
+    cache_info[id].reset(new Cache{false, name, format, on_host});
+    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
+  }
+  return id;
+}
 
 // Prevents multi-threaded call to `GetBatches`.
 class TryLockGuard {
@@ -173,6 +208,12 @@ class DefaultFormatPolicy {
     std::unique_ptr<FormatT> fmt{::xgboost::data::CreatePageFormat<S>("raw")};
     return fmt;
   }
+};
+
+struct InitNewThread {
+  GlobalConfiguration config = *GlobalConfigThreadLocalStore::Get();
+
+  void operator()() const;
 };
 
 /**
@@ -295,10 +336,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
  public:
   SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features, bst_idx_t n_batches,
                        std::shared_ptr<Cache> cache)
-      : workers_{std::max(2, std::min(nthreads, 16)),
-                 [config = *GlobalConfigThreadLocalStore::Get()] {
-                   *GlobalConfigThreadLocalStore::Get() = config;
-                 }},
+      : workers_{std::max(2, std::min(nthreads, 16)), InitNewThread{}},
         missing_{missing},
         nthreads_{nthreads},
         n_features_{n_features},
@@ -548,6 +586,51 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache, true) {
     this->source_ = source;
     this->Fetch();
+  }
+};
+
+/**
+ * @brief operator++ implementation for QDM.
+ */
+template <typename S,
+          typename FormatCreatePolicy = DefaultFormatStreamPolicy<S, DefaultFormatPolicy>>
+class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy> {
+ protected:
+  std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source_;
+  using Super = SparsePageSourceImpl<S, FormatCreatePolicy>;
+
+ public:
+  ExtQantileSourceMixin(
+      float missing, std::int32_t nthreads, bst_feature_t n_features, bst_idx_t n_batches,
+      std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
+      std::shared_ptr<Cache> cache)
+      : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache},
+        source_{std::move(source)} {}
+  // This function always operate on the source first, then the downstream. The downstream
+  // can assume the source to be ready.
+  [[nodiscard]] ExtQantileSourceMixin& operator++() final {
+    TryLockGuard guard{this->single_threaded_};
+    // Increment self.
+    ++this->count_;
+    // Set at end.
+    this->at_end_ = this->count_ == this->n_batches_;
+
+    if (this->at_end_) {
+      this->EndIter();
+
+      CHECK(this->cache_info_->written);
+      source_ = nullptr;  // release the source
+    }
+    this->Fetch();
+
+    return *this;
+  }
+
+  void Reset() final {
+    if (this->source_) {
+      this->source_->Reset();
+    }
+    Super::Reset();
   }
 };
 }  // namespace xgboost::data

@@ -16,28 +16,6 @@ MetaInfo &SparsePageDMatrix::Info() { return info_; }
 
 const MetaInfo &SparsePageDMatrix::Info() const { return info_; }
 
-namespace detail {
-// Use device dispatch
-std::size_t NSamplesDevice(DMatrixProxy *)  // NOLINT
-#if defined(XGBOOST_USE_CUDA)
-;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-  return 0;
-}
-#endif
-std::size_t NFeaturesDevice(DMatrixProxy *)  // NOLINT
-#if defined(XGBOOST_USE_CUDA)
-;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-  return 0;
-}
-#endif
-}  // namespace detail
-
 SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy_handle,
                                      DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
                                      float missing, int32_t nthreads, std::string cache_prefix,
@@ -60,49 +38,23 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
       iter_, reset_, next_};
 
-  std::uint32_t n_batches = 0;
-  bst_feature_t n_features = 0;
-  bst_idx_t n_samples = 0;
-  bst_idx_t nnz = 0;
+  ExternalDataInfo ext_info;
 
-  auto num_rows = [&]() {
-    bool type_error {false};
-    size_t n_samples = HostAdapterDispatch(
-        proxy, [](auto const &value) { return value.NumRows(); }, &type_error);
-    if (type_error) {
-      n_samples = detail::NSamplesDevice(proxy);
-    }
-    return n_samples;
-  };
-  auto num_cols = [&]() {
-    bool type_error {false};
-    bst_feature_t n_features = HostAdapterDispatch(
-        proxy, [](auto const &value) { return value.NumCols(); }, &type_error);
-    if (type_error) {
-      n_features = detail::NFeaturesDevice(proxy);
-    }
-    return n_features;
-  };
-
-  // the proxy is iterated together with the sparse page source so we can obtain all
+  // The proxy is iterated together with the sparse page source so we can obtain all
   // information in 1 pass.
   for (auto const &page : this->GetRowBatchesImpl(&ctx)) {
     this->info_.Extend(std::move(proxy->Info()), false, false);
-    n_features = std::max(n_features, num_cols());
-    n_samples += num_rows();
-    nnz += page.data.Size();
-    n_batches++;
+    ext_info.n_features =
+        std::max(static_cast<bst_feature_t>(ext_info.n_features), BatchColumns(proxy));
+    ext_info.accumulated_rows += BatchSamples(proxy);
+    ext_info.nnz += page.data.Size();
+    ext_info.n_batches++;
   }
 
   iter.Reset();
 
-  this->n_batches_ = n_batches;
-  this->info_.num_row_ = n_samples;
-  this->info_.num_col_ = n_features;
-  this->info_.num_nonzero_ = nnz;
-
-  info_.SynchronizeNumberOfColumns(&ctx);
-  CHECK_NE(info_.num_col_, 0);
+  this->n_batches_ = ext_info.n_batches;
+  ext_info.SetInfo(&ctx, &this->info_);
 
   fmat_ctx_ = ctx;
 }
@@ -115,14 +67,7 @@ SparsePageDMatrix::~SparsePageDMatrix() {
   sorted_column_source_.reset();
   ghist_index_source_.reset();
 
-  for (auto const &kv : cache_info_) {
-    CHECK(kv.second);
-    auto n = kv.second->ShardName();
-    if (kv.second->OnHost()) {
-      continue;
-    }
-    TryDeleteCacheFile(n);
-  }
+  DeleteCacheFiles(cache_info_);
 }
 
 void SparsePageDMatrix::InitializeSparsePage(Context const *ctx) {
@@ -194,7 +139,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
     this->InitializeSparsePage(ctx);
     cache_info_.erase(id);
-    MakeCache(this, ".gradient_index.page", on_host_, cache_prefix_, &cache_info_);
+    id = MakeCache(this, ".gradient_index.page", on_host_, cache_prefix_, &cache_info_);
     LOG(INFO) << "Generating new Gradient Index.";
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;

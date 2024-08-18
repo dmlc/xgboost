@@ -35,6 +35,7 @@ from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
+from xgboost import dask as dxgb
 from xgboost import testing as tm
 from xgboost.data import _is_cudf_df
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
@@ -49,7 +50,7 @@ pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_dask())]
 import dask
 import dask.array as da
 import dask.dataframe as dd
-from distributed import Client, LocalCluster, Nanny, Worker
+from distributed import Client, LocalCluster, Nanny, Worker, wait
 from distributed.utils_test import async_poll_for, gen_cluster
 from toolz import sliding_window  # dependency of dask
 
@@ -143,24 +144,6 @@ def generate_array(
         w = rng.random_sample(kRows, chunks=chunk_size)
         return X, y, w
     return X, y, None
-
-
-Margin = TypeVar("Margin", dd.DataFrame, dd.Series, None)
-
-
-def deterministic_repartition(
-    client: Client,
-    X: dd.DataFrame,
-    y: dd.Series,
-    m: Margin,
-    divisions,
-) -> Tuple[dd.DataFrame, dd.Series, Margin]:
-    X, y, margin = (
-        dd.repartition(X, divisions=divisions, force=True),
-        dd.repartition(y, divisions=divisions, force=True),
-        dd.repartition(m, divisions=divisions, force=True) if m is not None else None,
-    )
-    return X, y, margin
 
 
 @pytest.mark.parametrize("to_frame", [True, False])
@@ -424,7 +407,6 @@ def run_boost_from_prediction_multi_class(
     tree_method: str,
     device: str,
     client: "Client",
-    divisions: List[int],
 ) -> None:
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
@@ -433,8 +415,7 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
     )
@@ -447,8 +428,9 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
-    model_1.fit(X=X, y=y, base_margin=margin)
+    model_1.fit(
+        X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
+    )
     predictions_1 = xgb.dask.predict(
         client,
         model_1.get_booster(),
@@ -463,8 +445,7 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
     )
@@ -486,60 +467,54 @@ def run_boost_from_prediction(
     tree_method: str,
     device: str,
     client: "Client",
-    divisions: List[int],
 ) -> None:
     X, y = client.persist([X, y])
 
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin: dd.Series = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
-    model_1.fit(X=X, y=y, base_margin=margin)
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
+    model_1.fit(
+        X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
+    )
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
     model_2 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=8,
+        n_estimators=6,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None, divisions)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2: dd.Series = model_2.predict(X)
 
-    predt_1 = predictions_1.compute()
-    predt_2 = predictions_2.compute()
-    if hasattr(predt_1, "to_numpy"):
-        predt_1 = predt_1.to_numpy()
-    if hasattr(predt_2, "to_numpy"):
-        predt_2 = predt_2.to_numpy()
-    np.testing.assert_allclose(predt_1, predt_2, atol=1e-5)
+    logloss_concat = (
+        model_0.evals_result()["validation_0"]["logloss"]
+        + model_1.evals_result()["validation_0"]["logloss"]
+    )
+    logloss_2 = model_2.evals_result()["validation_0"]["logloss"]
+    np.testing.assert_allclose(logloss_concat, logloss_2, rtol=1e-4)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     margined.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
 
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin, divisions)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
     margined_res = margined.evals_result()["validation_0"]["logloss"]
@@ -552,18 +527,28 @@ def run_boost_from_prediction(
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
+def test_boost_from_prediction(tree_method: str) -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
 
-    X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-    divisions = copy(X.divisions)
-    run_boost_from_prediction(X, y, tree_method, "cpu", client, divisions)
+    n_threads = os.cpu_count()
+    assert n_threads is not None
+    # This test has strict reproducibility requirements. However, Dask is freed to move
+    # partitions between workers and modify the partitions' size during the test. Given
+    # the lack of control over the partitioning logic, here we use a single worker as a
+    # workaround.
+    n_workers = 1
 
-    X_, y_ = load_digits(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    divisions = copy(X.divisions)
-    run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client, divisions)
+    with LocalCluster(
+        n_workers=n_workers, threads_per_worker=n_threads // n_workers
+    ) as cluster:
+        with Client(cluster) as client:
+            X_, y_ = load_breast_cancer(return_X_y=True)
+            X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+            run_boost_from_prediction(X, y, tree_method, "cpu", client)
+
+            X_, y_ = load_digits(return_X_y=True)
+            X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+            run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
 
 
 def test_inplace_predict(client: "Client") -> None:
@@ -1566,7 +1551,6 @@ class TestWithDask:
     def test_empty_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 2, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
-        divisions = copy(X_valid.divisions)
 
         Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = xgb.dask.DaskQuantileDMatrix(
@@ -2317,3 +2301,16 @@ async def test_worker_restarted(c, s, a, b):
             d_train,
             evals=[(d_train, "train")],
         )
+
+
+def test_doc_link() -> None:
+    for est in [
+        dxgb.DaskXGBRegressor(),
+        dxgb.DaskXGBClassifier(),
+        dxgb.DaskXGBRanker(),
+        dxgb.DaskXGBRFRegressor(),
+        dxgb.DaskXGBRFClassifier(),
+    ]:
+        name = est.__class__.__name__
+        link = est._get_doc_link()
+        assert f"xgboost.dask.{name}" in link

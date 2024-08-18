@@ -8,6 +8,7 @@
 #include <cstdint>  // for int32_t
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../common/hist_util.h"    // for HistogramCuts
 #include "gradient_index.h"         // for GHistIndexMatrix
@@ -59,6 +60,39 @@ class GradientIndexPageSource
         feature_types_{feature_types},
         sparse_thresh_{param.sparse_thresh} {
     this->source_ = source;
+    this->SetCuts(std::move(cuts));
+    this->Fetch();
+  }
+
+  void Fetch() final;
+};
+
+class ExtGradientIndexPageSource
+    : public ExtQantileSourceMixin<
+          GHistIndexMatrix, DefaultFormatStreamPolicy<GHistIndexMatrix, GHistIndexFormatPolicy>> {
+  BatchParam p_;
+
+  Context const* ctx_;
+  DMatrixProxy* proxy_;
+  MetaInfo* info_;
+
+  common::Span<FeatureType const> feature_types_;
+  std::vector<bst_idx_t> base_rows_;
+
+ public:
+  ExtGradientIndexPageSource(
+      Context const* ctx, float missing, MetaInfo* info, bst_idx_t n_batches,
+      std::shared_ptr<Cache> cache, BatchParam param, common::HistogramCuts cuts,
+      std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
+      DMatrixProxy* proxy, std::vector<bst_idx_t> base_rows)
+      : ExtQantileSourceMixin{missing,   ctx->Threads(), static_cast<bst_feature_t>(info->num_col_),
+                              n_batches, source,         cache},
+        p_{std::move(param)},
+        ctx_{ctx},
+        proxy_{proxy},
+        info_{info},
+        feature_types_{info_->feature_types.ConstHostSpan()},
+        base_rows_{std::move(base_rows)} {
     this->SetCuts(std::move(cuts));
     this->Fetch();
   }

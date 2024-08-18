@@ -400,12 +400,10 @@ test_that("xgb.DMatrix: can take multi-dimensional 'base_margin'", {
     ),
     nround = 1
   )
-  pred_only_x <- predict(model, x, nthread = n_threads, reshape = TRUE)
+  pred_only_x <- predict(model, x)
   pred_w_base <- predict(
     model,
-    xgb.DMatrix(data = x, base_margin = b, nthread = n_threads),
-    nthread = n_threads,
-    reshape = TRUE
+    xgb.DMatrix(data = x, base_margin = b)
   )
   expect_equal(pred_only_x, pred_w_base - b, tolerance = 1e-5)
 })
