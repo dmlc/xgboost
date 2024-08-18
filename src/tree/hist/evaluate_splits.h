@@ -739,7 +739,7 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
       if (!tree[nidx].IsDeleted() && tree[nidx].IsLeaf()) {
         auto const &rowset = part[nidx];
         auto leaf_value = tree[nidx].LeafValue();
-        for (const size_t *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
+        for (auto const *it = rowset.begin() + r.begin(); it < rowset.begin() + r.end(); ++it) {
           out_preds(*it) += leaf_value;
         }
       }
@@ -774,7 +774,8 @@ void UpdatePredictionCacheImpl(Context const *ctx, RegTree const *p_last_tree,
       if (tree.IsLeaf(nidx)) {
         auto const &rowset = part[nidx];
         auto leaf_value = mttree->LeafValue(nidx);
-        for (std::size_t const *it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
+        for (bst_idx_t const *it = rowset.begin() + r.begin(); it < rowset.begin() + r.end();
+             ++it) {
           for (std::size_t i = 0; i < n_targets; ++i) {
             out_preds(*it, i) += leaf_value(i);
           }

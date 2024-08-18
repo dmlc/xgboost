@@ -29,5 +29,10 @@ inline bool RegenGHist(BatchParam old, BatchParam p) {
   }
   return p.regen || old.ParamNotEqual(p);
 }
+
+/**
+ * @brief Validate the batch parameter from the caller
+ */
+void CheckParam(BatchParam const& init, BatchParam const& param);
 }  // namespace xgboost::data::detail
 #endif  // XGBOOST_DATA_BATCH_UTILS_H_

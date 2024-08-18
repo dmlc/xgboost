@@ -8,6 +8,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import check_inf
 from xgboost.testing.data_iter import run_mixed_sparsity
+from xgboost.testing.quantile_dmatrix import check_ref_quantile_cut
 
 sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
@@ -20,7 +21,7 @@ class TestQuantileDMatrix:
     def test_dmatrix_feature_weights(self) -> None:
         import cupy as cp
 
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
         data = rng.randn(5, 5)
         m = xgb.DMatrix(data)
 
@@ -142,11 +143,14 @@ class TestQuantileDMatrix:
                 {"tree_method": "approx", "max_bin": max_bin}, Xy, num_boost_round=4
             )
 
+    def test_ref_quantile_cut(self) -> None:
+        check_ref_quantile_cut("cuda")
+
     @pytest.mark.skipif(**tm.no_cupy())
     def test_metainfo(self) -> None:
         import cupy as cp
 
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
 
         rows = 10
         cols = 3
@@ -170,7 +174,7 @@ class TestQuantileDMatrix:
     def test_ref_dmatrix(self) -> None:
         import cupy as cp
 
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
         self.cputest.run_ref_dmatrix(rng, "gpu_hist", False)
 
     @given(

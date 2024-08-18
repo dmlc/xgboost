@@ -14,7 +14,6 @@
 #include <algorithm>   // for max
 #include <cstddef>     // for size_t
 #include <cstdint>     // for int32_t, uint32_t
-#include <functional>  // for function
 #include <iterator>    // for back_inserter
 #include <limits>      // for numeric_limits
 #include <memory>      // for shared_ptr, allocator, unique_ptr
@@ -108,7 +107,7 @@ void TestSyncHist(bool is_distributed) {
   common::RowSetCollection row_set_collection;
   {
     row_set_collection.Clear();
-    std::vector<size_t> &row_indices = *row_set_collection.Data();
+    std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
     row_indices.resize(kNRows);
     std::iota(row_indices.begin(), row_indices.end(), 0);
     row_set_collection.Init();
@@ -223,10 +222,9 @@ TEST(CPUHistogram, SyncHist) {
   TestSyncHist(false);
 }
 
-void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_col_split) {
+void TestBuildHistogram(Context const* ctx, bool is_distributed, bool force_read_by_column, bool is_col_split) {
   size_t constexpr kNRows = 8, kNCols = 16;
   int32_t constexpr kMaxBins = 4;
-  Context ctx;
   auto p_fmat =
       RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
   if (is_col_split) {
@@ -234,7 +232,7 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
         p_fmat->SliceCol(collective::GetWorldSize(), collective::GetRank())};
   }
   auto const &gmat =
-      *(p_fmat->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{kMaxBins, 0.5}).begin());
+      *(p_fmat->GetBatches<GHistIndexMatrix>(ctx, BatchParam{kMaxBins, 0.5}).begin());
   uint32_t total_bins = gmat.cut.Ptrs().back();
 
   static double constexpr kEps = 1e-6;
@@ -245,13 +243,13 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
   bst_node_t nid = 0;
   HistogramBuilder histogram;
   HistMakerTrainParam hist_param;
-  histogram.Reset(&ctx, total_bins, {kMaxBins, 0.5}, is_distributed, is_col_split, &hist_param);
+  histogram.Reset(ctx, total_bins, {kMaxBins, 0.5}, is_distributed, is_col_split, &hist_param);
 
   RegTree tree;
 
   common::RowSetCollection row_set_collection;
   row_set_collection.Clear();
-  std::vector<size_t> &row_indices = *row_set_collection.Data();
+  std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kNRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
@@ -263,11 +261,11 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
   histogram.AddHistRows(&tree, &nodes_to_build, &dummy_sub, false);
   common::BlockedSpace2d space{
       1, [&](std::size_t nidx_in_set) { return row_set_collection[nidx_in_set].Size(); }, 256};
-  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, {kMaxBins, 0.5})) {
+  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(ctx, {kMaxBins, 0.5})) {
     histogram.BuildHist(0, space, gidx, row_set_collection, nodes_to_build,
-                        linalg::MakeTensorView(&ctx, gpair, gpair.size()), force_read_by_column);
+                        linalg::MakeTensorView(ctx, gpair, gpair.size()), force_read_by_column);
   }
-  histogram.SyncHistogram(&ctx, &tree, nodes_to_build, {});
+  histogram.SyncHistogram(ctx, &tree, nodes_to_build, {});
 
   // Check if number of histogram bins is correct
   ASSERT_EQ(histogram.Histogram()[nid].size(), gmat.cut.Ptrs().back());
@@ -293,16 +291,21 @@ void TestBuildHistogram(bool is_distributed, bool force_read_by_column, bool is_
 }
 
 TEST(CPUHistogram, BuildHist) {
-  TestBuildHistogram(true, false, false);
-  TestBuildHistogram(false, false, false);
-  TestBuildHistogram(true, true, false);
-  TestBuildHistogram(false, true, false);
+  Context ctx;
+  TestBuildHistogram(&ctx, true, false, false);
+  TestBuildHistogram(&ctx, false, false, false);
+  TestBuildHistogram(&ctx, true, true, false);
+  TestBuildHistogram(&ctx, false, true, false);
 }
 
-TEST(CPUHistogram, BuildHistColSplit) {
+TEST(CPUHistogram, BuildHistColumnSplit) {
   auto constexpr kWorkers = 4;
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, true, true); });
-  collective::TestDistributedGlobal(kWorkers, [] { TestBuildHistogram(true, false, true); });
+  Context ctx;
+  std::int32_t n_total_threads = std::thread::hardware_concurrency();
+  auto n_threads = std::max(n_total_threads / kWorkers, 1);
+  ctx.UpdateAllowUnknown(Args{{"nthread", std::to_string(n_threads)}});
+  collective::TestDistributedGlobal(kWorkers, [&] { TestBuildHistogram(&ctx, true, true, true); });
+  collective::TestDistributedGlobal(kWorkers, [&] { TestBuildHistogram(&ctx, true, false, true); });
 }
 
 namespace {
@@ -345,7 +348,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
 
   common::RowSetCollection row_set_collection;
   row_set_collection.Clear();
-  std::vector<size_t> &row_indices = *row_set_collection.Data();
+  std::vector<bst_idx_t> &row_indices = *row_set_collection.Data();
   row_indices.resize(kRows);
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
@@ -403,7 +406,8 @@ namespace {
 void TestHistogramExternalMemory(Context const *ctx, BatchParam batch_param, bool is_approx,
                                  bool force_read_by_column) {
   size_t constexpr kEntries = 1 << 16;
-  auto m = CreateSparsePageDMatrix(kEntries, "cache");
+  auto m =
+      RandomDataGenerator{kEntries / 8, 8, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
 
   std::vector<float> hess(m->Info().num_row_, 1.0);
   if (is_approx) {

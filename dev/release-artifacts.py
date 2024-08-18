@@ -2,6 +2,7 @@
 
 tqdm, sh are required to run this script.
 """
+
 import argparse
 import os
 import shutil
@@ -106,6 +107,15 @@ def make_pysrc_wheel(
     if not os.path.exists(dist):
         os.mkdir(dist)
 
+    # Apply patch to remove NCCL dependency
+    # Save the original content of pyproject.toml so that we can restore it later
+    with DirectoryExcursion(ROOT):
+        with open("python-package/pyproject.toml", "r") as f:
+            orig_pyproj_lines = f.read()
+        with open("tests/buildkite/remove_nccl_dep.patch", "r") as f:
+            patch_lines = f.read()
+        subprocess.run(["patch", "-p0"], input=patch_lines, text=True)
+
     with DirectoryExcursion(os.path.join(ROOT, "python-package")):
         subprocess.check_call(["python", "-m", "build", "--sdist"])
         if rc is not None:
@@ -117,30 +127,42 @@ def make_pysrc_wheel(
         target = os.path.join(dist, name)
         shutil.move(src, target)
 
+    with DirectoryExcursion(ROOT):
+        with open("python-package/pyproject.toml", "w") as f:
+            print(orig_pyproj_lines, file=f, end="")
+
 
 def download_py_packages(
     branch: str, major: int, minor: int, commit_hash: str, outdir: str
 ) -> None:
-    platforms = [
+    # List of platforms for full package and minimal package
+    full_platforms = [
         "win_amd64",
         "manylinux2014_x86_64",
         "manylinux2014_aarch64",
+        "manylinux_2_28_x86_64",
+        "manylinux_2_28_aarch64",
         "macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64",
         "macosx_12_0_arm64",
+    ]
+    minimal_platforms = [
+        "win_amd64",
+        "manylinux2014_x86_64",
+        "manylinux2014_aarch64",
     ]
 
     branch = branch.split("_")[1]  # release_x.y.z
     dir_URL = PREFIX + branch + "/"
-    src_filename_prefix = "xgboost-" + args.release + "%2B" + commit_hash + "-py3-none-"
-    target_filename_prefix = "xgboost-" + args.release + "-py3-none-"
+    wheels = []
 
-    if not os.path.exists(DIST):
-        os.mkdir(DIST)
-
-    filenames = download_wheels(
-        platforms, dir_URL, src_filename_prefix, target_filename_prefix, outdir
-    )
-    print("List of downloaded wheels:", filenames)
+    for pkg_name, platforms in [("xgboost", full_platforms), ("xgboost_cpu", minimal_platforms)]:
+        src_filename_prefix = f"{pkg_name}-{args.release}%2B{commit_hash}-py3-none-"
+        target_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
+        wheels_partial = download_wheels(
+            platforms, dir_URL, src_filename_prefix, target_filename_prefix, outdir
+        )
+        wheels.extend(wheels_partial)
+    print("List of downloaded wheels:", wheels)
     print(
         """
 Following steps should be done manually:

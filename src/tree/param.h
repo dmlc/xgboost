@@ -10,14 +10,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <limits>
 #include <string>
 #include <vector>
 
-#include "../common/categorical.h"
 #include "../common/linalg_op.h"
 #include "../common/math.h"
-#include "xgboost/data.h"
 #include "xgboost/linalg.h"
 #include "xgboost/parameter.h"
 

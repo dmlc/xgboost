@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2023 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -15,15 +15,17 @@
  */
 package ml.dmlc.xgboost4j.scala.example.spark
 
+
+import java.io.File
+import java.nio.file.{Files, StandardOpenOption}
+
+import scala.jdk.CollectionConverters._
+import scala.util.{Random, Try}
+
 import org.apache.spark.sql.SparkSession
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.slf4j.LoggerFactory
-
-import java.io.File
-import java.nio.file.{Files, StandardOpenOption}
-import scala.jdk.CollectionConverters._
-import scala.util.{Random, Try}
 
 class SparkExamplesTest extends AnyFunSuite with BeforeAndAfterAll {
   private val logger = LoggerFactory.getLogger(classOf[SparkExamplesTest])
@@ -53,7 +55,7 @@ class SparkExamplesTest extends AnyFunSuite with BeforeAndAfterAll {
     }
 
     if (spark == null) {
-       spark = SparkSession
+      spark = SparkSession
         .builder()
         .appName("XGBoost4J-Spark Pipeline Example")
         .master(s"local[${numWorkers}]")
@@ -92,7 +94,7 @@ class SparkExamplesTest extends AnyFunSuite with BeforeAndAfterAll {
             e
           )
           true
-    }
+      }
   }
 
   private def cleanExternalCache(prefix: String): Unit = {

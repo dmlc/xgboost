@@ -102,6 +102,18 @@
 #'            It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be
 #'            \href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.}
 #'   }
+#'
+#'  For custom objectives, one should pass a function taking as input the current predictions (as a numeric
+#'  vector or matrix) and the training data (as an `xgb.DMatrix` object) that will return a list with elements
+#'  `grad` and `hess`, which should be numeric vectors or matrices with number of rows matching to the numbers
+#'  of rows in the training data (same shape as the predictions that are passed as input to the function).
+#'  For multi-valued custom objectives, should have shape `[nrows, ntargets]`. Note that negative values of
+#'  the Hessian will be clipped, so one might consider using the expected Hessian (Fisher information) if the
+#'  objective is non-convex.
+#'
+#'  See the tutorials \href{https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html}{
+#'  Custom Objective and Evaluation Metric} and \href{https://xgboost.readthedocs.io/en/stable/tutorials/advanced_custom_obj}{
+#'  Advanced Usage of Custom Objectives} for more information about custom objectives.
 #'  }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
 #'   \item{ \code{eval_metric} evaluation metrics for validation data.
@@ -170,12 +182,6 @@
 #'        as R attributes, and thus do not get saved when using XGBoost's own serializaters like
 #'        \link{xgb.save} (but are kept when using R serializers like \link{saveRDS}).
 #' @param ... other parameters to pass to \code{params}.
-#' @param label vector of response values. Should not be provided when data is
-#'        a local data file name or an \code{xgb.DMatrix}.
-#' @param missing by default is set to NA, which means that NA values should be considered as 'missing'
-#'        by the algorithm. Sometimes, 0 or other extreme value might be used to represent missing values.
-#'        This parameter is only used when input is a dense matrix.
-#' @param weight a vector indicating the weight for each row of the input.
 #'
 #' @return
 #' An object of class \code{xgb.Booster}.
@@ -316,12 +322,10 @@
 #'                  early_stopping_rounds = 3)
 #'
 #' ## An 'xgboost' interface example:
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label,
-#'                max_depth = 2, eta = 1, nthread = nthread, nrounds = 2,
-#'                objective = "binary:logistic")
+#' bst <- xgboost(x = agaricus.train$data, y = factor(agaricus.train$label),
+#'                params = list(max_depth = 2, eta = 1), nthread = nthread, nrounds = 2)
 #' pred <- predict(bst, agaricus.test$data)
 #'
-#' @rdname xgb.train
 #' @export
 xgb.train <- function(params = list(), data, nrounds, evals = list(),
                       obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,

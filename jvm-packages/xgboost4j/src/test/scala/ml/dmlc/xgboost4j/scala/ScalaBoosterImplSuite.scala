@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import java.io.{FileOutputStream, FileInputStream, File}
+import java.io.{File, FileInputStream, FileOutputStream}
 
 import junit.framework.TestCase
 import org.apache.commons.logging.LogFactory
@@ -169,7 +169,6 @@ class ScalaBoosterImplSuite extends AnyFunSuite {
 
   test("test with quantile histo lossguide with max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
     val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
@@ -180,7 +179,6 @@ class ScalaBoosterImplSuite extends AnyFunSuite {
 
   test("test with quantile histo depthwidth with max depth") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_leaves" -> "8", "max_depth" -> "2",
@@ -191,7 +189,6 @@ class ScalaBoosterImplSuite extends AnyFunSuite {
 
   test("test with quantile histo depthwidth with max depth and max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
     val paramMap = List("max_depth" -> "0", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "depthwise", "max_depth" -> "2", "max_bin" -> "2",

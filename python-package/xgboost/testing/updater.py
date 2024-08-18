@@ -8,6 +8,7 @@ import numpy as np
 
 import xgboost as xgb
 import xgboost.testing as tm
+from xgboost.data import is_pd_cat_dtype
 
 
 def get_basescore(model: xgb.XGBModel) -> float:
@@ -166,8 +167,6 @@ def check_cut(
     n_entries: int, indptr: np.ndarray, data: np.ndarray, dtypes: Any
 ) -> None:
     """Check the cut values."""
-    from pandas.api.types import is_categorical_dtype
-
     assert data.shape[0] == indptr[-1]
     assert data.shape[0] == n_entries
 
@@ -177,18 +176,18 @@ def check_cut(
         end = int(indptr[i])
         for j in range(beg + 1, end):
             assert data[j] > data[j - 1]
-            if is_categorical_dtype(dtypes[i - 1]):
+            if is_pd_cat_dtype(dtypes.iloc[i - 1]):
                 assert data[j] == data[j - 1] + 1
 
 
 def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     """Check with optional cupy."""
-    from pandas.api.types import is_categorical_dtype
+    import pandas as pd
 
     n_samples = 1024
     n_features = 14
     max_bin = 16
-    dtypes = [np.float32] * n_features
+    dtypes = pd.Series([np.float32] * n_features)
 
     # numerical
     X, y, w = tm.make_regression(n_samples, n_features, use_cupy=use_cupy)
@@ -207,6 +206,7 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     it = tm.IteratorForTest(
         *tm.make_batches(n_samples_per_batch, n_features, n_batches, use_cupy),
         cache="cache",
+        on_host=False,
     )
     Xy: xgb.DMatrix = xgb.DMatrix(it)
     xgb.train({"tree_method": tree_method, "max_bin": max_bin}, Xyw)
@@ -236,7 +236,7 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     X, y = tm.make_categorical(
         n_samples, n_features, n_categories, False, sparsity=0.8, cat_ratio=0.5
     )
-    n_cat_features = len([0 for dtype in X.dtypes if is_categorical_dtype(dtype)])
+    n_cat_features = len([0 for dtype in X.dtypes if is_pd_cat_dtype(dtype)])
     n_num_features = n_features - n_cat_features
     n_entries = n_categories * n_cat_features + (max_bin + 1) * n_num_features
     # - qdm
@@ -250,10 +250,10 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     check_cut(n_entries, indptr, data, X.dtypes)
 
 
-def check_get_quantile_cut(tree_method: str) -> None:
+def check_get_quantile_cut(tree_method: str, device: str) -> None:
     """Check the quantile cut getter."""
 
-    use_cupy = tree_method == "gpu_hist"
+    use_cupy = device.startswith("cuda")
     check_get_quantile_cut_device(tree_method, False)
     if use_cupy:
         check_get_quantile_cut_device(tree_method, True)

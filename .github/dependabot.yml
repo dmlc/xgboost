@@ -12,7 +12,7 @@ updates:
   - package-ecosystem: "maven"
     directory: "/jvm-packages/xgboost4j"
     schedule:
-      interval: "daily"
+      interval: "monthly"
   - package-ecosystem: "maven"
     directory: "/jvm-packages/xgboost4j-gpu"
     schedule:
@@ -24,7 +24,7 @@ updates:
   - package-ecosystem: "maven"
     directory: "/jvm-packages/xgboost4j-spark"
     schedule:
-      interval: "daily"
+      interval: "monthly"
   - package-ecosystem: "maven"
     directory: "/jvm-packages/xgboost4j-spark-gpu"
     schedule:

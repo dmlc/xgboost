@@ -14,6 +14,7 @@
 
 #include "../collective/allgather.h"
 #include "../collective/allreduce.h"
+#include "../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "categorical.h"
 #include "common.h"
 #include "device_helpers.cuh"

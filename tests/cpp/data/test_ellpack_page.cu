@@ -27,15 +27,15 @@ TEST(EllpackPage, EmptyDMatrix) {
   auto impl = page.Impl();
   ASSERT_EQ(impl->row_stride, 0);
   ASSERT_EQ(impl->Cuts().TotalBins(), 0);
-  ASSERT_EQ(impl->gidx_buffer.Size(), 4);
+  ASSERT_EQ(impl->gidx_buffer.size(), 4);
 }
 
 TEST(EllpackPage, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols);
-
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), page->NumSymbols());
+  auto ctx = MakeCUDACtx(0);
+  auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = page->GetHostAccessor(&ctx, &h_gidx_buffer);
 
   ASSERT_EQ(page->row_stride, kNCols);
 
@@ -58,16 +58,17 @@ TEST(EllpackPage, BuildGidxDense) {
     1, 4, 7, 10, 14, 16, 19, 21,
   };
   for (size_t i = 0; i < kNRows * kNCols; ++i) {
-    ASSERT_EQ(solution[i], gidx[i]);
+    ASSERT_EQ(solution[i], h_accessor.gidx_iter[i]);
   }
 }
 
 TEST(EllpackPage, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
-  auto page = BuildEllpackPage(kNRows, kNCols, 0.9f);
+  auto ctx = MakeCUDACtx(0);
+  auto page = BuildEllpackPage(&ctx, kNRows, kNCols, 0.9f);
 
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = page->GetHostAccessor(&ctx, &h_gidx_buffer);
 
   ASSERT_LE(page->row_stride, 3);
 
@@ -78,7 +79,7 @@ TEST(EllpackPage, BuildGidxSparse) {
     24,  7, 14, 16,  4, 24, 24, 24, 24, 24,  9, 24, 24,  1, 24, 24
   };
   for (size_t i = 0; i < kNRows * page->row_stride; ++i) {
-    ASSERT_EQ(solution[i], gidx[i]);
+    ASSERT_EQ(solution[i], h_accessor.gidx_iter[i]);
   }
 }
 
@@ -94,7 +95,7 @@ TEST(EllpackPage, FromCategoricalBasic) {
   Context ctx{MakeCUDACtx(0)};
   auto p = BatchParam{max_bins, tree::TrainParam::DftSparseThreshold()};
   auto ellpack = EllpackPage(&ctx, m.get(), p);
-  auto accessor = ellpack.Impl()->GetDeviceAccessor(FstCU());
+  auto accessor = ellpack.Impl()->GetDeviceAccessor(ctx.Device());
   ASSERT_EQ(kCats, accessor.NumBins());
 
   auto x_copy = x;
@@ -110,13 +111,11 @@ TEST(EllpackPage, FromCategoricalBasic) {
   ASSERT_EQ(h_cuts_ptr.size(), 2);
   ASSERT_EQ(h_cuts_values.size(), kCats);
 
-  std::vector<common::CompressedByteT> const &h_gidx_buffer =
-      ellpack.Impl()->gidx_buffer.HostVector();
-  auto h_gidx_iter = common::CompressedIterator<uint32_t>(
-      h_gidx_buffer.data(), accessor.NumSymbols());
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = ellpack.Impl()->GetHostAccessor(&ctx, &h_gidx_buffer);
 
   for (size_t i = 0; i < x.size(); ++i) {
-    auto bin = h_gidx_iter[i];
+    auto bin = h_accessor.gidx_iter[i];
     auto bin_value = h_cuts_values.at(bin);
     ASSERT_EQ(AsCat(x[i]), AsCat(bin_value));
   }
@@ -141,23 +140,21 @@ struct ReadRowFunction {
 TEST(EllpackPage, Copy) {
   constexpr size_t kRows = 1024;
   constexpr size_t kCols = 16;
-  constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  Context ctx{MakeCUDACtx(0)};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
+  auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(FstCU(), page->Cuts(), page->is_dense, page->row_stride, kRows);
+  EllpackPageImpl result(&ctx, page->CutsShared(), page->is_dense, page->row_stride, kRows);
 
   // Copy batch pages into the result page.
   size_t offset = 0;
   for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
-    size_t num_elements = result.Copy(FstCU(), batch.Impl(), offset);
+    size_t num_elements = result.Copy(&ctx, batch.Impl(), offset);
     offset += num_elements;
   }
 
@@ -171,11 +168,11 @@ TEST(EllpackPage, Copy) {
     EXPECT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
-      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(FstCU()), current_row,
+      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(ctx.Device()), current_row,
                                          row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(FstCU()), current_row,
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(ctx.Device()), current_row,
                                          row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
@@ -188,19 +185,18 @@ TEST(EllpackPage, Copy) {
 TEST(EllpackPage, Compact) {
   constexpr size_t kRows = 16;
   constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1;
   constexpr size_t kCompactedRows = 8;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(
-      CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  Context ctx{MakeCUDACtx(0)};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(2).GenerateSparsePageDMatrix("temp", true);
+  auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(FstCU(), page->Cuts(), page->is_dense, page->row_stride, kCompactedRows);
+  EllpackPageImpl result(&ctx, page->CutsShared(), page->is_dense, page->row_stride,
+                         kCompactedRows);
 
   // Compact batch pages into the result page.
   std::vector<size_t> row_indexes_h {
@@ -209,7 +205,7 @@ TEST(EllpackPage, Compact) {
   thrust::device_vector<size_t> row_indexes_d = row_indexes_h;
   common::Span<size_t> row_indexes_span(row_indexes_d.data().get(), kRows);
   for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
-    result.Compact(FstCU(), batch.Impl(), row_indexes_span);
+    result.Compact(&ctx, batch.Impl(), row_indexes_span);
   }
 
   size_t current_row = 0;
@@ -228,14 +224,13 @@ TEST(EllpackPage, Compact) {
         continue;
       }
 
-      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(FstCU()),
-                                         current_row, row_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(ctx.Device()), current_row,
+                                         row_d.data().get()));
       dh::safe_cuda(cudaDeviceSynchronize());
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(kCols,
-                  ReadRowFunction(result.GetDeviceAccessor(FstCU()), compacted_row,
-                                  row_result_d.data().get()));
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(ctx.Device()), compacted_row,
+                                         row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
       EXPECT_EQ(row, row_result);
@@ -268,16 +263,13 @@ class EllpackPageTest : public testing::TestWithParam<float> {
       ASSERT_EQ(from_sparse_page->base_rowid, 0);
       ASSERT_EQ(from_sparse_page->base_rowid, from_ghist->base_rowid);
       ASSERT_EQ(from_sparse_page->n_rows, from_ghist->n_rows);
-      ASSERT_EQ(from_sparse_page->gidx_buffer.Size(), from_ghist->gidx_buffer.Size());
-      auto const& h_gidx_from_sparse = from_sparse_page->gidx_buffer.HostVector();
-      auto const& h_gidx_from_ghist = from_ghist->gidx_buffer.HostVector();
+      ASSERT_EQ(from_sparse_page->gidx_buffer.size(), from_ghist->gidx_buffer.size());
+      std::vector<common::CompressedByteT> h_gidx_from_sparse, h_gidx_from_ghist;
+      auto from_ghist_acc = from_ghist->GetHostAccessor(&gpu_ctx, &h_gidx_from_ghist);
+      auto from_sparse_acc = from_sparse_page->GetHostAccessor(&gpu_ctx, &h_gidx_from_sparse);
       ASSERT_EQ(from_sparse_page->NumSymbols(), from_ghist->NumSymbols());
-      common::CompressedIterator<uint32_t> from_ghist_it(h_gidx_from_ghist.data(),
-                                                         from_ghist->NumSymbols());
-      common::CompressedIterator<uint32_t> from_sparse_it(h_gidx_from_sparse.data(),
-                                                          from_sparse_page->NumSymbols());
       for (size_t i = 0; i < from_ghist->n_rows * from_ghist->row_stride; ++i) {
-        EXPECT_EQ(from_ghist_it[i], from_sparse_it[i]);
+        EXPECT_EQ(from_ghist_acc.gidx_iter[i], from_sparse_acc.gidx_iter[i]);
       }
     }
   }

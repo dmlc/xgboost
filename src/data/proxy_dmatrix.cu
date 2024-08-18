@@ -11,7 +11,7 @@ void DMatrixProxy::FromCudaColumnar(StringView interface_str) {
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
-  if (adapter->Device().IsCPU()) {
+  if (!adapter->Device().IsCUDA()) {
     // empty data
     CHECK_EQ(this->Info().num_row_, 0);
     ctx_ = ctx_.MakeCUDA(dh::CurrentDevice());
@@ -25,7 +25,7 @@ void DMatrixProxy::FromCudaArray(StringView interface_str) {
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
-  if (adapter->Device().IsCPU()) {
+  if (!adapter->Device().IsCUDA()) {
     // empty data
     CHECK_EQ(this->Info().num_row_, 0);
     ctx_ = ctx_.MakeCUDA(dh::CurrentDevice());
@@ -42,6 +42,14 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
     auto p_fmat = std::shared_ptr<DMatrix>{DMatrix::Create(adapter.get(), missing, ctx->Threads())};
     return p_fmat;
   });
+}
+
+[[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
+  return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumRows(); });
+}
+
+[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const* proxy) {
+  return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::data

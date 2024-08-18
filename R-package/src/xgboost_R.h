@@ -8,6 +8,9 @@
 #define XGBOOST_R_H_ // NOLINT(*)
 
 
+#ifndef R_NO_REMAP
+#  define R_NO_REMAP
+#endif
 #include <R.h>
 #include <Rinternals.h>
 #include <R_ext/Altrep.h>

@@ -30,6 +30,40 @@ NVL <- function(x, val) {
   return(c('rank:pairwise', 'rank:ndcg', 'rank:map'))
 }
 
+.OBJECTIVES_NON_DEFAULT_MODE <- function() {
+  return(c("reg:logistic", "binary:logitraw", "multi:softmax"))
+}
+
+.BINARY_CLASSIF_OBJECTIVES <- function() {
+  return(c("binary:logistic", "binary:hinge"))
+}
+
+.MULTICLASS_CLASSIF_OBJECTIVES <- function() {
+  return("multi:softprob")
+}
+
+.SURVIVAL_RIGHT_CENSORING_OBJECTIVES <- function() { # nolint
+  return(c("survival:cox", "survival:aft"))
+}
+
+.SURVIVAL_ALL_CENSORING_OBJECTIVES <- function() { # nolint
+  return("survival:aft")
+}
+
+.REGRESSION_OBJECTIVES <- function() {
+  return(c(
+    "reg:squarederror", "reg:squaredlogerror", "reg:logistic", "reg:pseudohubererror",
+    "reg:absoluteerror", "reg:quantileerror", "count:poisson", "reg:gamma", "reg:tweedie"
+  ))
+}
+
+.MULTI_TARGET_OBJECTIVES <- function() {
+  return(c(
+    "reg:squarederror", "reg:squaredlogerror", "reg:logistic", "reg:pseudohubererror",
+    "reg:quantileerror", "reg:gamma"
+  ))
+}
+
 
 #
 # Low-level functions for boosting --------------------------------------------
@@ -70,7 +104,7 @@ check.booster.params <- function(params, ...) {
 
   # for multiclass, expect num_class to be set
   if (typeof(params[['objective']]) == "character" &&
-      substr(NVL(params[['objective']], 'x'), 1, 6) == 'multi:' &&
+      startsWith(NVL(params[['objective']], 'x'), 'multi:') &&
       as.numeric(NVL(params[['num_class']], 0)) < 2) {
         stop("'num_class' > 1 parameter must be set for multiclass classification")
   }

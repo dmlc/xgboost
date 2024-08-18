@@ -1,6 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost Contributors
- * \file proxy_dmatrix.cc
+ * Copyright 2021-2024, XGBoost Contributors
  */
 
 #include "proxy_dmatrix.h"
@@ -11,6 +10,10 @@
 #include "xgboost/data.h"     // for DMatrix
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // for StringView
+
+#if !defined(XGBOOST_USE_CUDA)
+#include "../common/common.h"  // for AssertGPUSupport
+#endif
 
 namespace xgboost::data {
 void DMatrixProxy::SetColumnarData(StringView interface_str) {
@@ -48,6 +51,15 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *, std::shared_ptr
                                                 float) {
   return nullptr;
 }
+
+[[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const *) {
+  common::AssertGPUSupport();
+  return 0;
+}
+[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const *) {
+  common::AssertGPUSupport();
+  return 0;
+}
 #endif  // XGBOOST_USE_CUDA
 }  // namespace cuda_impl
 
@@ -56,7 +68,9 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
                                                 float missing) {
   bool type_error{false};
   std::shared_ptr<DMatrix> p_fmat{nullptr};
-  if (proxy->Ctx()->IsCPU()) {
+  if (proxy->Ctx()->IsCUDA()) {
+    p_fmat = cuda_impl::CreateDMatrixFromProxy(ctx, proxy, missing);
+  } else {
     p_fmat = data::HostAdapterDispatch<false>(
         proxy.get(),
         [&](auto const &adapter) {
@@ -65,8 +79,6 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
           return p_fmat;
         },
         &type_error);
-  } else {
-    p_fmat = cuda_impl::CreateDMatrixFromProxy(ctx, proxy, missing);
   }
 
   CHECK(p_fmat) << "Failed to fallback.";

@@ -47,6 +47,6 @@ TEST_F(CommTest, Channel) {
     w.join();
   }
 
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(fut.get());
 }
 }  // namespace xgboost::collective

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #ifndef FEATURE_GROUPS_CUH_
 #define FEATURE_GROUPS_CUH_
@@ -29,22 +29,23 @@ struct FeatureGroup {
   /** The number of features in the group. */
   int num_features;
   /** The first bin in the group. */
-  int start_bin;
+  bst_bin_t start_bin;
   /** The number of bins in the group. */
-  int num_bins;
+  bst_bin_t num_bins;
 };
 
 /** \brief FeatureGroupsAccessor is a non-owning accessor for FeatureGroups. */
 struct FeatureGroupsAccessor {
   FeatureGroupsAccessor(common::Span<const int> feature_segments_,
-                       common::Span<const int> bin_segments_, int max_group_bins_) :
-    feature_segments(feature_segments_), bin_segments(bin_segments_),
-    max_group_bins(max_group_bins_) {}
-  
+                        common::Span<const int> bin_segments_, int max_group_bins_)
+      : feature_segments(feature_segments_),
+        bin_segments(bin_segments_),
+        max_group_bins(max_group_bins_) {}
+
   common::Span<const int> feature_segments;
   common::Span<const int> bin_segments;
   int max_group_bins;
-  
+
   /** \brief Gets the number of feature groups. */
   __host__ __device__ int NumGroups() const {
     return feature_segments.size() - 1;
@@ -84,7 +85,7 @@ struct FeatureGroups {
   /** Maximum number of bins in a group. Useful to compute the amount of dynamic
       shared memory when launching a kernel. */
   int max_group_bins;
-  
+
   /** Creates feature groups by splitting features into groups.
       \param cuts Histogram cuts that given the number of bins per feature.
       \param is_dense Whether the data matrix is dense.
@@ -110,7 +111,7 @@ struct FeatureGroups {
 
 private:
   void InitSingle(const common::HistogramCuts& cuts);
-}; 
+};
 
 }  // namespace tree
 }  // namespace xgboost

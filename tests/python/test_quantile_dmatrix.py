@@ -17,6 +17,7 @@ from xgboost.testing import (
 )
 from xgboost.testing.data import check_inf, np_dtypes
 from xgboost.testing.data_iter import run_mixed_sparsity
+from xgboost.testing.quantile_dmatrix import check_ref_quantile_cut
 
 
 class TestQuantileDMatrix:
@@ -265,6 +266,9 @@ class TestQuantileDMatrix:
         np.testing.assert_allclose(
             dm_results["dvalid"]["rmse"], qdm_results["valid"]["rmse"]
         )
+
+    def test_ref_quantile_cut(self) -> None:
+        check_ref_quantile_cut("cpu")
 
     def test_ref_dmatrix(self) -> None:
         rng = np.random.RandomState(1994)

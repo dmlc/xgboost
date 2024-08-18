@@ -6,8 +6,9 @@
 #include <federated.grpc.pb.h>
 #include <federated.pb.h>
 
+#include <chrono>   // for seconds
 #include <cstdint>  // for int32_t
-#include <memory>   // for unique_ptr
+#include <memory>   // for shared_ptr
 #include <string>   // for string
 
 #include "../../src/collective/comm.h"    // for HostComm
@@ -46,10 +47,6 @@ class FederatedComm : public HostComm {
    */
   explicit FederatedComm(std::int32_t retry, std::chrono::seconds timeout, std::string task_id,
                          Json const& config);
-  explicit FederatedComm(std::string const& host, std::int32_t port, std::int32_t world,
-                         std::int32_t rank) {
-    this->Init(host, port, world, rank, {}, {}, {});
-  }
   [[nodiscard]] Result Shutdown() final {
     this->ResetState();
     return Success();

@@ -16,10 +16,12 @@
 
 package ml.dmlc.xgboost4j.scala.example.spark
 
-import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
 import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
+
+import ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
+
 
 // this example works with Iris dataset (https://archive.ics.uci.edu/ml/datasets/iris)
 object SparkTraining {
@@ -78,13 +80,13 @@ private[spark] def run(spark: SparkSession, inputPath: String,
       "max_depth" -> 2,
       "objective" -> "multi:softprob",
       "num_class" -> 3,
-      "num_round" -> 100,
-      "num_workers" -> numWorkers,
-      "device" -> device,
-      "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
+      "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2),
+      "device" -> device)
     val xgbClassifier = new XGBoostClassifier(xgbParam).
       setFeaturesCol("features").
       setLabelCol("classIndex")
+      .setNumWorkers(numWorkers)
+      .setNumRound(10)
     val xgbClassificationModel = xgbClassifier.fit(train)
     xgbClassificationModel.transform(test)
   }

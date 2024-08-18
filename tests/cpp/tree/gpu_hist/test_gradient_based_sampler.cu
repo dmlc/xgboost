@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -7,24 +7,18 @@
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
 #include "../../../../src/tree/param.h"
 #include "../../../../src/tree/param.h"  // TrainParam
-#include "../../filesystem.h"            // dmlc::TemporaryDirectory
 #include "../../helpers.h"
 
-namespace xgboost {
-namespace tree {
-
-void VerifySampling(size_t page_size,
-                    float subsample,
-                    int sampling_method,
-                    bool fixed_size_sampling = true,
-                    bool check_sum = true) {
+namespace xgboost::tree {
+void VerifySampling(size_t page_size, float subsample, int sampling_method,
+                    bool fixed_size_sampling = true, bool check_sum = true) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 1;
-  size_t sample_rows = kRows * subsample;
+  bst_idx_t sample_rows = kRows * subsample;
+  bst_idx_t n_batches = fixed_size_sampling ? 1 : 4;
 
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(
-      kRows, kCols, kRows / (page_size == 0 ? kRows : page_size), tmpdir.path + "/cache"));
+  auto dmat = RandomDataGenerator{kRows, kCols, 0.0f}.Batches(n_batches).GenerateSparsePageDMatrix(
+      "temp", true);
   auto gpair = GenerateRandomGradients(kRows);
   GradientPair sum_gpair{};
   for (const auto& gp : gpair.ConstHostVector()) {
@@ -80,14 +74,12 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   constexpr size_t kRows = 2048;
   constexpr size_t kCols = 1;
   constexpr float kSubsample = 1.0f;
-  constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(
-      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
   auto gpair = GenerateRandomGradients(kRows);
-  Context ctx{MakeCUDACtx(0)};
+  auto ctx = MakeCUDACtx(0);
   gpair.SetDevice(ctx.Device());
 
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
@@ -102,19 +94,17 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   EXPECT_EQ(sample.gpair.data(), gpair.DevicePointer());
   EXPECT_EQ(sampled_page->n_rows, kRows);
 
-  std::vector<common::CompressedByteT> buffer(sampled_page->gidx_buffer.HostVector());
-  common::CompressedIterator<common::CompressedByteT>
-      ci(buffer.data(), sampled_page->NumSymbols());
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto h_accessor = sampled_page->GetHostAccessor(&ctx, &h_gidx_buffer);
 
-  size_t offset = 0;
+  std::size_t offset = 0;
   for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     auto page = batch.Impl();
-    std::vector<common::CompressedByteT> page_buffer(page->gidx_buffer.HostVector());
-    common::CompressedIterator<common::CompressedByteT>
-        page_ci(page_buffer.data(), page->NumSymbols());
+    std::vector<common::CompressedByteT> h_page_gidx_buffer;
+    auto page_accessor = page->GetHostAccessor(&ctx, &h_page_gidx_buffer);
     size_t num_elements = page->n_rows * page->row_stride;
     for (size_t i = 0; i < num_elements; i++) {
-      EXPECT_EQ(ci[i + offset], page_ci[i]);
+      EXPECT_EQ(h_accessor.gidx_iter[i + offset], page_accessor.gidx_iter[i]);
     }
     offset += num_elements;
   }
@@ -153,6 +143,4 @@ TEST(GradientBasedSampler, GradientBasedSamplingExternalMemory) {
   constexpr bool kFixedSizeSampling = false;
   VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
-
-};  // namespace tree
-};  // namespace xgboost
+};  // namespace xgboost::tree

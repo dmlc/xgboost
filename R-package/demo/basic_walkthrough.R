@@ -16,29 +16,28 @@ class(train$data)
 # note: we are putting in sparse matrix here, xgboost naturally handles sparse input
 # use sparse matrix when your feature is sparse(e.g. when you are using one-hot encoding vector)
 print("Training xgboost with sparseMatrix")
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2, eta = 1, nrounds = 2,
-               nthread = 2, objective = "binary:logistic")
+bst <- xgboost(x = train$data, y = factor(train$label, c(0, 1)),
+               params = list(max_depth = 2, eta = 1),
+               nrounds = 2, nthread = 2)
 # alternatively, you can put in dense matrix, i.e. basic R-matrix
 print("Training xgboost with Matrix")
-bst <- xgboost(data = as.matrix(train$data), label = train$label, max_depth = 2, eta = 1, nrounds = 2,
-               nthread = 2, objective = "binary:logistic")
+bst <- xgboost(x = as.matrix(train$data), y = factor(train$label, c(0, 1)),
+               params = list(max_depth = 2, eta = 1),
+               nrounds = 2, nthread = 2)
 
 # you can also put in xgb.DMatrix object, which stores label, data and other meta datas needed for advanced features
 print("Training xgboost with xgb.DMatrix")
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, nthread = 2,
-               objective = "binary:logistic")
+params <- list(max_depth = 2, eta = 1, nthread = 2, objective = "binary:logistic")
+bst <- xgb.train(data = dtrain, params = params, nrounds = 2)
 
 # Verbose = 0,1,2
 print("Train xgboost with verbose 0, no message")
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nrounds = 2,
-               nthread = 2, objective = "binary:logistic", verbose = 0)
+bst <- xgb.train(data = dtrain, params = params, nrounds = 2, verbose = 0)
 print("Train xgboost with verbose 1, print evaluation metric")
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nrounds = 2,
-               nthread = 2, objective = "binary:logistic", verbose = 1)
+bst <- xgb.train(data = dtrain, params = params, nrounds = 2, verbose = 1)
 print("Train xgboost with verbose 2, also print information about tree")
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nrounds = 2,
-               nthread = 2, objective = "binary:logistic", verbose = 2)
+bst <- xgb.train(data = dtrain, params = params, nrounds = 2, verbose = 2)
 
 # you can also specify data as file path to a LIBSVM format input
 # since we do not have this file with us, the following line is just for illustration

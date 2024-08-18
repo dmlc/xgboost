@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package ml.dmlc.xgboost4j.scala.example
 
 import scala.collection.mutable
 
-import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix}
+import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost}
 import ml.dmlc.xgboost4j.scala.example.util.CustomEval
 
 
@@ -51,7 +51,6 @@ object GeneralizedLinearModel {
     watches += "train" -> trainMat
     watches += "test" -> testMat
 
-    val round = 4
     val booster = XGBoost.train(trainMat, params.toMap, 1, watches.toMap)
     val predicts = booster.predict(testMat)
     val eval = new CustomEval

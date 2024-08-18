@@ -2,11 +2,12 @@ name: python_lint
 channels:
 - conda-forge
 dependencies:
-- python=3.8
+- python=3.10
 - pylint
 - wheel
 - setuptools
-- mypy>=0.981
+# https://github.com/python/mypy/issues/17617
+- mypy !=1.11.0,!=1.11.1
 - numpy
 - scipy
 - pandas

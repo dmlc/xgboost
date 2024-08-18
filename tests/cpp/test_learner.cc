@@ -117,24 +117,15 @@ TEST(Learner, CheckGroup) {
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 }
 
-TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
-  // Create sufficiently large data to make two row pages
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/big.libsvm";
-  CreateBigTestData(tmp_file, 50000);
-  std::shared_ptr<DMatrix> dmat(
-      xgboost::DMatrix::Load(tmp_file + "?format=libsvm" + "#" + tmp_file + ".cache"));
-  EXPECT_FALSE(dmat->SingleColBlock());
-  size_t num_row = dmat->Info().num_row_;
-  std::vector<bst_float> labels(num_row);
-  for (size_t i = 0; i < num_row; ++i) {
-    labels[i] = i % 2;
-  }
-  dmat->SetInfo("label", Make1dInterfaceTest(labels.data(), num_row));
-  std::vector<std::shared_ptr<DMatrix>> mat{dmat};
+TEST(Learner, CheckMultiBatch) {
+  auto p_fmat =
+      RandomDataGenerator{512, 128, 0.8}.Batches(4).GenerateSparsePageDMatrix("temp", true);
+  ASSERT_FALSE(p_fmat->SingleColBlock());
+
+  std::vector<std::shared_ptr<DMatrix>> mat{p_fmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"objective", "binary:logistic"}});
-  learner->UpdateOneIter(0, dmat);
+  learner->UpdateOneIter(0, p_fmat);
 }
 
 TEST(Learner, Configuration) {
@@ -267,8 +258,14 @@ TEST(Learner, MultiThreadedPredict) {
   learner->Configure();
 
   std::vector<std::thread> threads;
-  for (uint32_t thread_id = 0;
-       thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
+
+#if defined(__linux__)
+  auto n_threads = std::thread::hardware_concurrency() * 4u;
+#else
+  auto n_threads = std::thread::hardware_concurrency();
+#endif
+
+  for (decltype(n_threads) thread_id = 0; thread_id < n_threads; ++thread_id) {
     threads.emplace_back([learner, p_data] {
       size_t constexpr kIters = 10;
       auto &entry = learner->GetThreadLocal().prediction_entry;
@@ -656,13 +653,15 @@ TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 class TestColumnSplit : public ::testing::TestWithParam<std::string> {
   void TestBaseScore(std::string objective, float expected_base_score, Json expected_model) {
     auto const world_size = collective::GetWorldSize();
+    auto n_threads = collective::GetWorkerLocalThreads(world_size);
     auto const rank = collective::GetRank();
 
     auto p_fmat = MakeFmatForObjTest(objective, 10, 10);
     std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
-    learner->SetParam("tree_method", "approx");
-    learner->SetParam("objective", objective);
+    learner->SetParams(Args{{"nthread", std::to_string(n_threads)},
+                            {"tree_method", "approx"},
+                            {"objective", objective}});
     if (objective.find("quantile") != std::string::npos) {
       learner->SetParam("quantile_alpha", "0.5");
     }
@@ -701,7 +700,9 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     learner->SaveModel(&model);
 
     auto constexpr kWorldSize{3};
-    auto call = [this, &objective](auto&... args) { TestBaseScore(objective, args...); };
+    auto call = [this, &objective](auto&... args) {
+      this->TestBaseScore(objective, args...);
+    };
     auto score = GetBaseScore(config);
     collective::TestDistributedGlobal(kWorldSize, [&] {
       call(score, model);
@@ -724,8 +725,10 @@ namespace {
 Json GetModelWithArgs(std::shared_ptr<DMatrix> dmat, std::string const& tree_method,
                       std::string const& device, Args const& args) {
   std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  auto n_threads = collective::GetWorkerLocalThreads(collective::GetWorldSize());
   learner->SetParam("tree_method", tree_method);
   learner->SetParam("device", device);
+  learner->SetParam("nthread", std::to_string(n_threads));
   learner->SetParam("objective", "reg:logistic");
   learner->SetParams(args);
   learner->UpdateOneIter(0, dmat);

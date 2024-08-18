@@ -511,15 +511,20 @@ void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
   if (use_gpu) {
     ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : rank);
   }
+  auto n_threads = collective::GetWorkerLocalThreads(world_size);
+  ctx.UpdateAllowUnknown(
+      Args{{"nthread", std::to_string(n_threads)}, {"device", ctx.DeviceName()}});
+
   auto dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatrix(true, true, classes);
   std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};
 
   std::unique_ptr<Learner> learner{Learner::Create({Xy})};
-  learner->SetParam("device", ctx.DeviceName());
+  auto args = Args{{"device", ctx.DeviceName()}, {"nthread", std::to_string(ctx.Threads())}};
+  learner->SetParams(args);
   learner->LoadModel(ranged_model);
 
   std::unique_ptr<Learner> sliced{Learner::Create({Xy})};
-  sliced->SetParam("device", ctx.DeviceName());
+  sliced->SetParams(args);
   sliced->LoadModel(sliced_model);
 
   HostDeviceVector<float> out_predt_sliced;

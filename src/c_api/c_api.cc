@@ -253,7 +253,9 @@ XGB_DLL int XGDMatrixCreateFromURI(const char *config, DMatrixHandle *out) {
 XGB_DLL int XGDMatrixCreateFromDataIter(
     void *data_handle,                  // a Java iterator
     XGBCallbackDataIterNext *callback,  // C++ callback defined in xgboost4j.cpp
-    const char *cache_info, DMatrixHandle *out) {
+    const char *cache_info,
+    float missing,
+    DMatrixHandle *out) {
   API_BEGIN();
 
   std::string scache;
@@ -264,10 +266,7 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
       data_handle, callback);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new std::shared_ptr<DMatrix> {
-    DMatrix::Create(
-        &adapter, std::numeric_limits<float>::quiet_NaN(),
-        1, scache
-    )
+    DMatrix::Create(&adapter, missing, 1, scache)
   };
   API_END();
 }
@@ -298,13 +297,14 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   auto missing = GetMissing(jconfig);
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
   auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", 0);
+  auto on_host = OptionalArg<Boolean, bool>(jconfig, "on_host", false);
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
   *out = new std::shared_ptr<xgboost::DMatrix>{
-      xgboost::DMatrix::Create(iter, proxy, reset, next, missing, n_threads, cache)};
+      xgboost::DMatrix::Create(iter, proxy, reset, next, missing, n_threads, cache, on_host)};
   API_END();
 }
 

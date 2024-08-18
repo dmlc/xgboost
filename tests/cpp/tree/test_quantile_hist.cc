@@ -5,16 +5,15 @@
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 
-#include <algorithm>
 #include <cstddef>  // for size_t
 #include <string>
 #include <vector>
 
 #include "../../../src/tree/common_row_partitioner.h"
 #include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
-#include "../../../src/tree/param.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
 #include "../helpers.h"
+#include "test_column_split.h"  // for TestColumnSplit
 #include "test_partitioner.h"
 #include "xgboost/data.h"
 
@@ -68,21 +67,24 @@ void TestPartitioner(bst_target_t n_targets) {
       } else {
         GetMultiSplitForTest(&tree, split_value, &candidates);
       }
-      auto left_nidx = tree.LeftChild(RegTree::kRoot);
       partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
-
-      auto elem = partitioner[left_nidx];
-      ASSERT_LT(elem.Size(), n_samples);
-      ASSERT_GT(elem.Size(), 1);
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = gmat.cut.Values().at(gmat.index[*it]);
-        ASSERT_LE(value, split_value);
+      {
+        auto left_nidx = tree.LeftChild(RegTree::kRoot);
+        auto const& elem = partitioner[left_nidx];
+        ASSERT_LT(elem.Size(), n_samples);
+        ASSERT_GT(elem.Size(), 1);
+        for (auto& it : elem) {
+          auto value = gmat.cut.Values().at(gmat.index[it]);
+          ASSERT_LE(value, split_value);
+        }
       }
-      auto right_nidx = tree.RightChild(RegTree::kRoot);
-      elem = partitioner[right_nidx];
-      for (auto it = elem.begin; it != elem.end; ++it) {
-        auto value = gmat.cut.Values().at(gmat.index[*it]);
-        ASSERT_GT(value, split_value);
+      {
+        auto right_nidx = tree.RightChild(RegTree::kRoot);
+        auto const& elem = partitioner[right_nidx];
+        for (auto& it : elem) {
+          auto value = gmat.cut.Values().at(gmat.index[it]);
+          ASSERT_GT(value, split_value);
+        }
       }
     }
   }
@@ -138,21 +140,24 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
       auto left_nidx = tree.LeftChild(RegTree::kRoot);
       partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates, &tree);
 
-      auto elem = partitioner[left_nidx];
-      ASSERT_LT(elem.Size(), n_samples);
-      ASSERT_GT(elem.Size(), 1);
-      auto expected_elem = expected_mid_partitioner[left_nidx];
-      ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
-        ASSERT_EQ(*it, *eit);
+      {
+        auto const& elem = partitioner[left_nidx];
+        ASSERT_LT(elem.Size(), n_samples);
+        ASSERT_GT(elem.Size(), 1);
+        auto const& expected_elem = expected_mid_partitioner[left_nidx];
+        ASSERT_EQ(elem.Size(), expected_elem.Size());
+        for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
+          ASSERT_EQ(*it, *eit);
+        }
       }
-
-      auto right_nidx = tree.RightChild(RegTree::kRoot);
-      elem = partitioner[right_nidx];
-      expected_elem = expected_mid_partitioner[right_nidx];
-      ASSERT_EQ(elem.Size(), expected_elem.Size());
-      for (auto it = elem.begin, eit = expected_elem.begin; it != elem.end; ++it, ++eit) {
-        ASSERT_EQ(*it, *eit);
+      {
+        auto right_nidx = tree.RightChild(RegTree::kRoot);
+        auto const& elem = partitioner[right_nidx];
+        auto const& expected_elem = expected_mid_partitioner[right_nidx];
+        ASSERT_EQ(elem.Size(), expected_elem.Size());
+        for (auto it = elem.begin(), eit = expected_elem.begin(); it != elem.end(); ++it, ++eit) {
+          ASSERT_EQ(*it, *eit);
+        }
       }
     }
   }
@@ -203,57 +208,26 @@ TEST(QuantileHist, PartitionerColSplit) { TestColumnSplitPartitioner<CPUExpandEn
 TEST(QuantileHist, MultiPartitionerColSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
 
 namespace {
-void VerifyColumnSplit(Context const* ctx, bst_idx_t rows, bst_feature_t cols, bst_target_t n_targets,
-                       RegTree const& expected_tree) {
-  auto Xy = RandomDataGenerator{rows, cols, 0}.GenerateDMatrix(true);
-  linalg::Matrix<GradientPair> gpair = GenerateRandomGradients(ctx, rows, n_targets);
-
-  ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create("grow_quantile_histmaker", ctx, &task)};
-  std::vector<HostDeviceVector<bst_node_t>> position(1);
-
-  std::unique_ptr<DMatrix> sliced{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
-
-  RegTree tree{n_targets, cols};
-  TrainParam param;
-  param.Init(Args{});
-  updater->Configure(Args{});
-  updater->Update(&param, &gpair, sliced.get(), position, {&tree});
-
-  Json json{Object{}};
-  tree.SaveModel(&json);
-  Json expected_json{Object{}};
-  expected_tree.SaveModel(&expected_json);
-  ASSERT_EQ(json, expected_json);
-}
-
-void TestColumnSplit(bst_target_t n_targets) {
-  auto constexpr kRows = 32;
-  auto constexpr kCols = 16;
-
-  RegTree expected_tree{n_targets, kCols};
-  ObjInfo task{ObjInfo::kRegression};
-  Context ctx;
-  {
-    auto Xy = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
-    auto gpair = GenerateRandomGradients(&ctx, kRows, n_targets);
-    std::unique_ptr<TreeUpdater> updater{
-        TreeUpdater::Create("grow_quantile_histmaker", &ctx, &task)};
-    std::vector<HostDeviceVector<bst_node_t>> position(1);
-    TrainParam param;
-    param.Init(Args{});
-    updater->Configure(Args{});
-    updater->Update(&param, &gpair, Xy.get(), position, {&expected_tree});
+class TestHistColSplit : public ::testing::TestWithParam<std::tuple<bst_target_t, bool, float>> {
+ public:
+  void Run() {
+    auto [n_targets, categorical, sparsity] = GetParam();
+    TestColumnSplit(n_targets, categorical, "grow_quantile_histmaker", sparsity);
   }
-
-  auto constexpr kWorldSize = 2;
-  collective::TestDistributedGlobal(kWorldSize, [&] {
-    VerifyColumnSplit(&ctx, kRows, kCols, n_targets, std::cref(expected_tree));
-  });
-}
+};
 }  // anonymous namespace
 
-TEST(QuantileHist, ColumnSplit) { TestColumnSplit(1); }
+TEST_P(TestHistColSplit, Basic) { this->Run(); }
 
-TEST(QuantileHist, ColumnSplitMultiTarget) { TestColumnSplit(3); }
+INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestHistColSplit, ::testing::ValuesIn([]() {
+                           std::vector<std::tuple<bst_target_t, bool, float>> params;
+                           for (auto categorical : {true, false}) {
+                             for (auto sparsity : {0.0f, 0.6f}) {
+                               for (bst_target_t n_targets : {1u, 3u}) {
+                                 params.emplace_back(n_targets, categorical, sparsity);
+                               }
+                             }
+                           }
+                           return params;
+                         }()));
 }  // namespace xgboost::tree

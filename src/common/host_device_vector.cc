@@ -115,6 +115,11 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 }
 
 template <typename T>
+void HostDeviceVector<T>::Resize(size_t new_size) {
+  impl_->Vec().resize(new_size, T{});
+}
+
+template <typename T>
 void HostDeviceVector<T>::Fill(T v) {
   std::fill(HostVector().begin(), HostVector().end(), v);
 }

@@ -1,25 +1,23 @@
-/*!
- * Copyright 2019-2022 by XGBoost Contributors
+/**
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/sequence.h>
 
-#include <algorithm>
-#include <vector>
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
+#include <vector>   // for vector
 
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/context.h"
-#include "xgboost/task.h"
-#include "xgboost/tree_model.h"
 
 namespace xgboost::tree {
 void TestUpdatePositionBatch() {
   const int kNumRows = 10;
-  RowPartitioner rp(FstCU(), kNumRows);
+  auto ctx = MakeCUDACtx(0);
+  RowPartitioner rp;
+  rp.Reset(&ctx, kNumRows, 0);
   auto rows = rp.GetRowsHost(0);
   EXPECT_EQ(rows.size(), kNumRows);
   for (auto i = 0ull; i < kNumRows; i++) {
@@ -69,9 +67,9 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
                                 h_batch_info.size() * sizeof(PerNodeData<int>), cudaMemcpyDefault,
                                 nullptr));
   dh::device_vector<int8_t> tmp;
-  SortPositionBatch<uint32_t, decltype(op), int>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx),
-                                                 dh::ToSpan(ridx_tmp), dh::ToSpan(counts),
-                                                 total_rows, op, &tmp);
+  SortPositionBatch<decltype(op), int>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx),
+                                       dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows, op,
+                                       &tmp);
 
   auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
   for (size_t i = 0; i < segments.size(); i++) {

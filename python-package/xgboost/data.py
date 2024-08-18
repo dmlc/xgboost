@@ -5,7 +5,17 @@ import ctypes
 import json
 import os
 import warnings
-from typing import Any, Callable, List, Optional, Sequence, Tuple, cast
+from typing import (
+    Any,
+    Callable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeGuard,
+    Union,
+    cast,
+)
 
 import numpy as np
 
@@ -212,7 +222,7 @@ def is_scipy_coo(data: DataType) -> bool:
     return is_array or is_matrix
 
 
-def _is_np_array_like(data: DataType) -> bool:
+def _is_np_array_like(data: DataType) -> TypeGuard[np.ndarray]:
     return hasattr(data, "__array_interface__")
 
 
@@ -241,7 +251,7 @@ def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
 
 
 def _from_numpy_array(
-    data: DataType,
+    data: np.ndarray,
     missing: FloatCompatible,
     nthread: int,
     feature_names: Optional[FeatureNames],
@@ -266,7 +276,7 @@ def _from_numpy_array(
     return handle, feature_names, feature_types
 
 
-def _is_pandas_df(data: DataType) -> bool:
+def _is_pandas_df(data: DataType) -> TypeGuard[DataFrame]:
     try:
         import pandas as pd
     except ImportError:
@@ -458,7 +468,7 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     # combine_chunks takes the most significant amount of time
     chunk: pa.Array = aa.combine_chunks()
     # When there's null value, we have to use copy
-    zero_copy = chunk.null_count == 0
+    zero_copy = chunk.null_count == 0 and not pa.types.is_boolean(chunk.type)
     # Alternately, we can use chunk.buffers(), which returns a list of buffers and
     # we need to concatenate them ourselves.
     # FIXME(jiamingy): Is there a better way to access the arrow buffer along with
@@ -825,37 +835,9 @@ def _arrow_transform(data: DataType) -> Any:
 
     data = cast(pa.Table, data)
 
-    def type_mapper(dtype: pa.DataType) -> Optional[str]:
-        """Maps pyarrow type to pandas arrow extension type."""
-        if pa.types.is_int8(dtype):
-            return pd.ArrowDtype(pa.int8())
-        if pa.types.is_int16(dtype):
-            return pd.ArrowDtype(pa.int16())
-        if pa.types.is_int32(dtype):
-            return pd.ArrowDtype(pa.int32())
-        if pa.types.is_int64(dtype):
-            return pd.ArrowDtype(pa.int64())
-        if pa.types.is_uint8(dtype):
-            return pd.ArrowDtype(pa.uint8())
-        if pa.types.is_uint16(dtype):
-            return pd.ArrowDtype(pa.uint16())
-        if pa.types.is_uint32(dtype):
-            return pd.ArrowDtype(pa.uint32())
-        if pa.types.is_uint64(dtype):
-            return pd.ArrowDtype(pa.uint64())
-        if pa.types.is_float16(dtype):
-            return pd.ArrowDtype(pa.float16())
-        if pa.types.is_float32(dtype):
-            return pd.ArrowDtype(pa.float32())
-        if pa.types.is_float64(dtype):
-            return pd.ArrowDtype(pa.float64())
-        if pa.types.is_boolean(dtype):
-            return pd.ArrowDtype(pa.bool_())
-        return None
-
     # For common cases, this is zero-copy, can check with:
     # pa.total_allocated_bytes()
-    df = data.to_pandas(types_mapper=type_mapper)
+    df = data.to_pandas(types_mapper=pd.ArrowDtype)
     return df
 
 
@@ -1085,12 +1067,12 @@ def _from_dlpack(
     return _from_cupy_array(data, missing, nthread, feature_names, feature_types)
 
 
-def _is_uri(data: DataType) -> bool:
+def _is_uri(data: DataType) -> TypeGuard[Union[str, os.PathLike]]:
     return isinstance(data, (str, os.PathLike))
 
 
 def _from_uri(
-    data: DataType,
+    data: Union[str, os.PathLike],
     missing: Optional[FloatCompatible],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
@@ -1108,7 +1090,7 @@ def _from_uri(
     return handle, feature_names, feature_types
 
 
-def _is_list(data: DataType) -> bool:
+def _is_list(data: DataType) -> TypeGuard[list]:
     return isinstance(data, list)
 
 
@@ -1127,7 +1109,7 @@ def _from_list(
     )
 
 
-def _is_tuple(data: DataType) -> bool:
+def _is_tuple(data: DataType) -> TypeGuard[tuple]:
     return isinstance(data, tuple)
 
 
@@ -1144,7 +1126,7 @@ def _from_tuple(
     )
 
 
-def _is_iter(data: DataType) -> bool:
+def _is_iter(data: DataType) -> TypeGuard[DataIter]:
     return isinstance(data, DataIter)
 
 

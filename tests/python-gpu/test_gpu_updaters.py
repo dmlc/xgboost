@@ -321,4 +321,4 @@ class TestGPUUpdaters:
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_get_quantile_cut(self) -> None:
-        check_get_quantile_cut("gpu_hist")
+        check_get_quantile_cut("hist", "cuda")

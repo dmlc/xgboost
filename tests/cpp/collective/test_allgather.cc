@@ -117,7 +117,7 @@ class Worker : public WorkerForTest {
                            common::Span{sizes.data(), sizes.size()},
                            common::Span{recv_segments.data(), recv_segments.size()},
                            common::EraseType(s_recv), AllgatherVAlgo::kBcast);
-    ASSERT_TRUE(rc.OK());
+    SafeColl(rc);
     CheckV(s_recv);
 
     // Test inplace
@@ -130,7 +130,7 @@ class Worker : public WorkerForTest {
                              common::Span{sizes.data(), sizes.size()},
                              common::Span{recv_segments.data(), recv_segments.size()},
                              common::EraseType(s_recv), algo);
-      ASSERT_TRUE(rc.OK());
+      SafeColl(rc);
       CheckV(s_recv);
     };
 

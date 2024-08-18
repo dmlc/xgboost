@@ -1,7 +1,7 @@
 FROM i386/debian:sid
 
-ENV DEBIAN_FRONTEND noninteractive
-SHELL ["/bin/bash", "-c"]   # Use Bash as shell
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
 
 RUN \
     apt-get update && \

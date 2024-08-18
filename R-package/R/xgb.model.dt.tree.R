@@ -43,9 +43,8 @@
 #' nthread <- 1
 #' data.table::setDTthreads(nthread)
 #'
-#' bst <- xgboost(
-#'   data = agaricus.train$data,
-#'   label = agaricus.train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
 #'   max_depth = 2,
 #'   eta = 1,
 #'   nthread = nthread,
@@ -110,7 +109,7 @@ xgb.model.dt.tree <- function(model = NULL, text = NULL,
   } else {
     trees <- trees[trees >= 0 & trees <= max(td$Tree)]
   }
-  td <- td[Tree %in% trees & !grepl('^booster', t)]
+  td <- td[Tree %in% trees & !is.na(t) & !startsWith(t, 'booster')]
 
   td[, Node := as.integer(sub("^([0-9]+):.*", "\\1", t))]
   if (!use_int_id) td[, ID := add.tree.id(Node, Tree)]

@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from enum import IntEnum, unique
 from functools import wraps
 from inspect import Parameter, signature
+from types import EllipsisType
 from typing import (
     Any,
     Callable,
@@ -189,6 +190,27 @@ def _register_log_callback(lib: ctypes.CDLL) -> None:
         raise XGBoostError(lib.XGBGetLastError())
 
 
+def _parse_version(ver: str) -> Tuple[Tuple[int, int, int], str]:
+    """Avoid dependency on packaging (PEP 440)."""
+    # 2.0.0-dev, 2.0.0, 2.0.0.post1, or 2.0.0rc1
+    if ver.find("post") != -1:
+        major, minor, patch = ver.split(".")[:-1]
+        postfix = ver.split(".")[-1]
+    elif "-dev" in ver:
+        major, minor, patch = ver.split("-")[0].split(".")
+        postfix = "dev"
+    else:
+        major, minor, patch = ver.split(".")
+        rc = patch.find("rc")
+        if rc != -1:
+            postfix = patch[rc:]
+            patch = patch[:rc]
+        else:
+            postfix = ""
+
+    return (int(major), int(minor), int(patch)), postfix
+
+
 def _load_lib() -> ctypes.CDLL:
     """Load xgboost Library."""
     lib_paths = find_lib_path()
@@ -236,17 +258,8 @@ Error message(s): {os_error_list}
         )
     _register_log_callback(lib)
 
-    def parse(ver: str) -> Tuple[int, int, int]:
-        """Avoid dependency on packaging (PEP 440)."""
-        # 2.0.0-dev, 2.0.0, or 2.0.0rc1
-        major, minor, patch = ver.split("-")[0].split(".")
-        rc = patch.find("rc")
-        if rc != -1:
-            patch = patch[:rc]
-        return int(major), int(minor), int(patch)
-
     libver = _lib_version(lib)
-    pyver = parse(_py_version())
+    pyver, _ = _parse_version(_py_version())
 
     # verify that we are loading the correct binary.
     if pyver != libver:
@@ -503,18 +516,29 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     ----------
     cache_prefix :
         Prefix to the cache files, only used in external memory.
+
     release_data :
         Whether the iterator should release the data during iteration. Set it to True if
         the data transformation (converting data to np.float32 type) is memory
         intensive. Otherwise, if the transformation is computation intensive then we can
         keep the cache.
 
+    on_host :
+        Whether the data should be cached on host memory instead of harddrive when using
+        GPU with external memory. If set to true, then the "external memory" would
+        simply be CPU (host) memory. This is still working in progress, not ready for
+        test yet.
+
     """
 
     def __init__(
-        self, cache_prefix: Optional[str] = None, release_data: bool = True
+        self,
+        cache_prefix: Optional[str] = None,
+        release_data: bool = True,
+        on_host: bool = False,
     ) -> None:
         self.cache_prefix = cache_prefix
+        self.on_host = on_host
 
         self._handle = _ProxyDMatrix()
         self._exception: Optional[Exception] = None
@@ -905,12 +929,12 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
     def _init_from_iter(self, iterator: DataIter, enable_categorical: bool) -> None:
         it = iterator
-        args = {
-            "missing": self.missing,
-            "nthread": self.nthread,
-            "cache_prefix": it.cache_prefix if it.cache_prefix else "",
-        }
-        args_cstr = from_pystr_to_cstr(json.dumps(args))
+        args = make_jcargs(
+            missing=self.missing,
+            nthread=self.nthread,
+            cache_prefix=it.cache_prefix if it.cache_prefix else "",
+            on_host=it.on_host,
+        )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)
         ret = _LIB.XGDMatrixCreateFromCallback(
@@ -918,7 +942,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             it.proxy.handle,
             reset_callback,
             next_callback,
-            args_cstr,
+            args,
             ctypes.byref(handle),
         )
         it.reraise()
@@ -1486,7 +1510,7 @@ class QuantileDMatrix(DMatrix):
     by avoiding intermediate storage. Set ``max_bin`` to control the number of bins
     during quantisation, which should be consistent with the training parameter
     ``max_bin``. When ``QuantileDMatrix`` is used for validation/test dataset, ``ref``
-    should be another ``QuantileDMatrix``(or ``DMatrix``, but not recommended as it
+    should be another ``QuantileDMatrix`` or ``DMatrix``, but not recommended as it
     defeats the purpose of saving memory) constructed from training dataset.  See
     :py:obj:`xgboost.DMatrix` for documents on meta info.
 
@@ -1497,6 +1521,20 @@ class QuantileDMatrix(DMatrix):
         information may be lost in quantisation.
 
     .. versionadded:: 1.7.0
+
+    Examples
+    --------
+
+    .. code-block::
+
+        from sklearn.datasets import make_regression
+        from sklearn.model_selection import train_test_split
+
+        X, y = make_regression()
+        X_train, X_test, y_train, y_test = train_test_split(X, y)
+        Xy_train = xgb.QuantileDMatrix(X_train, y_train)
+        # It's necessary to have the training DMatrix as a reference for valid quantiles.
+        Xy_test = xgb.QuantileDMatrix(X_test, y_test, ref=Xy_train)
 
     Parameters
     ----------
@@ -1633,20 +1671,6 @@ class QuantileDMatrix(DMatrix):
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
-
-
-class DeviceQuantileDMatrix(QuantileDMatrix):
-    """Use `QuantileDMatrix` instead.
-
-    .. deprecated:: 1.7.0
-
-    .. versionadded:: 1.1.0
-
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        warnings.warn("Please use `QuantileDMatrix` instead.", FutureWarning)
-        super().__init__(*args, **kwargs)
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
@@ -1829,7 +1853,7 @@ class Booster:
             state["handle"] = handle
         self.__dict__.update(state)
 
-    def __getitem__(self, val: Union[Integer, tuple, slice]) -> "Booster":
+    def __getitem__(self, val: Union[Integer, tuple, slice, EllipsisType]) -> "Booster":
         """Get a slice of the tree-based model.
 
         .. versionadded:: 1.3.0
@@ -1838,21 +1862,20 @@ class Booster:
         # convert to slice for all other types
         if isinstance(val, (np.integer, int)):
             val = slice(int(val), int(val + 1))
-        if isinstance(val, type(Ellipsis)):
+        if isinstance(val, EllipsisType):
             val = slice(0, 0)
         if isinstance(val, tuple):
             raise ValueError("Only supports slicing through 1 dimension.")
         # All supported types are now slice
-        # FIXME(jiamingy): Use `types.EllipsisType` once Python 3.10 is used.
         if not isinstance(val, slice):
-            msg = _expect((int, slice, np.integer, type(Ellipsis)), type(val))
+            msg = _expect((int, slice, np.integer, EllipsisType), type(val))
             raise TypeError(msg)
 
-        if isinstance(val.start, type(Ellipsis)) or val.start is None:
+        if isinstance(val.start, EllipsisType) or val.start is None:
             start = 0
         else:
             start = val.start
-        if isinstance(val.stop, type(Ellipsis)) or val.stop is None:
+        if isinstance(val.stop, EllipsisType) or val.stop is None:
             stop = 0
         else:
             stop = val.stop
@@ -2650,7 +2673,7 @@ class Booster:
         Parameters
         ----------
         raw_format :
-            Format of output buffer. Can be `json`, `ubj` or `deprecated`.
+            Format of output buffer. Can be `json` or `ubj`.
 
         Returns
         -------

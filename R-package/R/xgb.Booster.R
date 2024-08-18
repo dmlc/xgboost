@@ -634,9 +634,8 @@ validate.features <- function(bst, newdata) {
 #' data(agaricus.train, package = "xgboost")
 #' train <- agaricus.train
 #'
-#' bst <- xgboost(
-#'   data = train$data,
-#'   label = train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(train$data, label = train$label),
 #'   max_depth = 2,
 #'   eta = 1,
 #'   nthread = 2,
@@ -738,9 +737,8 @@ xgb.attributes <- function(object) {
 #' data.table::setDTthreads(nthread)
 #' train <- agaricus.train
 #'
-#' bst <- xgboost(
-#'   data = train$data,
-#'   label = train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(train$data, label = train$label),
 #'   max_depth = 2,
 #'   eta = 1,
 #'   nthread = nthread,
@@ -788,9 +786,8 @@ xgb.config <- function(object) {
 #' data(agaricus.train, package = "xgboost")
 #' train <- agaricus.train
 #'
-#' bst <- xgboost(
-#'   data = train$data,
-#'   label = train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(train$data, label = train$label),
 #'   max_depth = 2,
 #'   eta = 1,
 #'   nthread = 2,
@@ -1201,9 +1198,8 @@ xgb.is.same.Booster <- function(obj1, obj2) {
 #' data(agaricus.train, package = "xgboost")
 #' train <- agaricus.train
 #'
-#' bst <- xgboost(
-#'   data = train$data,
-#'   label = train$label,
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(train$data, label = train$label),
 #'   max_depth = 2,
 #'   eta = 1,
 #'   nthread = 2,

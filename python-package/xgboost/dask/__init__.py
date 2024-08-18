@@ -292,7 +292,7 @@ class DaskDMatrix:
     @_deprecate_positional_args
     def __init__(
         self,
-        client: "distributed.Client",
+        client: Optional["distributed.Client"],
         data: _DataT,
         label: Optional[_DaskCollection] = None,
         *,
@@ -663,7 +663,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
     @_deprecate_positional_args
     def __init__(
         self,
-        client: "distributed.Client",
+        client: Optional["distributed.Client"],
         data: _DataT,
         label: Optional[_DaskCollection] = None,
         *,
@@ -674,7 +674,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
         feature_names: Optional[FeatureNames] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
         max_bin: Optional[int] = None,
-        ref: Optional[DMatrix] = None,
+        ref: Optional[DaskDMatrix] = None,
         group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
@@ -709,20 +709,6 @@ class DaskQuantileDMatrix(DaskDMatrix):
         if self._ref is not None:
             args["ref"] = self._ref
         return args
-
-
-class DaskDeviceQuantileDMatrix(DaskQuantileDMatrix):
-    """Use `DaskQuantileDMatrix` instead.
-
-    .. deprecated:: 1.7.0
-
-    .. versionadded:: 1.2.0
-
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        warnings.warn("Please use `DaskQuantileDMatrix` instead.", FutureWarning)
-        super().__init__(*args, **kwargs)
 
 
 def _create_quantile_dmatrix(
@@ -1237,10 +1223,14 @@ def _infer_predict_output(
 async def _get_model_future(
     client: "distributed.Client", model: Union[Booster, Dict, "distributed.Future"]
 ) -> "distributed.Future":
+    # See https://github.com/dask/dask/issues/11179#issuecomment-2168094529 for the use
+    # of hash.
+    # https://github.com/dask/distributed/pull/8796 Don't use broadcast in the `scatter`
+    # call, otherwise, the predict function might hang.
     if isinstance(model, Booster):
-        booster = await client.scatter(model, broadcast=True)
+        booster = await client.scatter(model, hash=False)
     elif isinstance(model, dict):
-        booster = await client.scatter(model["booster"], broadcast=True)
+        booster = await client.scatter(model["booster"], hash=False)
     elif isinstance(model, distributed.Future):
         booster = model
         t = booster.type
@@ -1842,8 +1832,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        verbose: Union[int, bool] = True,
-        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        verbose: Optional[Union[int, bool]] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
@@ -1950,8 +1940,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        verbose: Union[int, bool] = True,
-        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        verbose: Optional[Union[int, bool]] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
@@ -2132,8 +2122,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
         eval_group: Optional[Sequence[_DaskCollection]] = None,
         eval_qid: Optional[Sequence[_DaskCollection]] = None,
-        verbose: Union[int, bool] = False,
-        xgb_model: Optional[Union[XGBModel, Booster]] = None,
+        verbose: Optional[Union[int, bool]] = False,
+        xgb_model: Optional[Union[XGBModel, str, Booster]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
@@ -2195,8 +2185,8 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        verbose: Union[int, bool] = True,
-        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        verbose: Optional[Union[int, bool]] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
@@ -2256,8 +2246,8 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        verbose: Union[int, bool] = True,
-        xgb_model: Optional[Union[Booster, XGBModel]] = None,
+        verbose: Optional[Union[int, bool]] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
         sample_weight_eval_set: Optional[Sequence[_DaskCollection]] = None,
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,

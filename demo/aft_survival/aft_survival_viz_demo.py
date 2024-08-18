@@ -106,8 +106,8 @@ plt.figure(figsize=(12, 13))
 bst = xgb.train(
     params,
     dmat,
-    15,
-    [(dmat, "train")],
+    num_boost_round=15,
+    evals=[(dmat, "train")],
     evals_result=res,
     callbacks=[PlotIntermediateModel()],
 )

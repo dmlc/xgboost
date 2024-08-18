@@ -59,7 +59,11 @@ TEST(DMatrixCache, MultiThread) {
   std::size_t constexpr kRows = 2, kCols = 1, kCacheSize = 3;
   auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto n = std::thread::hardware_concurrency() * 128u;
+#if defined(__linux__)
+  auto const n = std::thread::hardware_concurrency() * 128;
+#else
+  auto const n = std::thread::hardware_concurrency();
+#endif
   CHECK_NE(n, 0);
   std::vector<std::shared_ptr<CacheForTest>> results(n);
 

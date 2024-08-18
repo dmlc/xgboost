@@ -7,14 +7,14 @@ build-backend = "packager.pep517"
 
 [project]
 name = "xgboost"
-version = "2.1.0-dev"
+description = "XGBoost Python Package"
+readme = { file = "README.rst", content-type = "text/x-rst" }
 authors = [
     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
     { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
 ]
-description = "XGBoost Python Package"
-readme = { file = "README.rst", content-type = "text/x-rst" }
-requires-python = ">=3.8"
+version = "2.2.0-dev"
+requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -22,10 +22,9 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11"
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
     "numpy",
@@ -38,7 +37,7 @@ documentation = "https://xgboost.readthedocs.io/en/stable/"
 repository = "https://github.com/dmlc/xgboost"
 
 [project.optional-dependencies]
-pandas = ["pandas"]
+pandas = ["pandas>=1.2"]
 scikit-learn = ["scikit-learn"]
 dask = ["dask", "pandas", "distributed"]
 datatable = ["datatable"]

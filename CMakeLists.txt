@@ -1,12 +1,10 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 if(PLUGIN_SYCL)
-  set(CMAKE_CXX_COMPILER  "g++")
-  set(CMAKE_C_COMPILER  "gcc")
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 2.1.0)
+project(xgboost LANGUAGES CXX C VERSION 2.2.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -73,7 +71,6 @@ option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 option(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR "Output build artifacts in CMake binary dir" OFF)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
-option(USE_PER_THREAD_DEFAULT_STREAM "Build with per-thread default stream" ON)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 # This is specifically designed for PyPI binary release and should be disabled for most of the cases.
 option(USE_DLOPEN_NCCL "Whether to load nccl dynamically." OFF)
@@ -224,6 +221,24 @@ if(USE_CUDA)
   add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   find_package(CUDAToolkit REQUIRED)
+  find_package(CCCL CONFIG)
+  if(NOT CCCL_FOUND)
+    message(STATUS "Standalone CCCL not found. Attempting to use CCCL from CUDA Toolkit...")
+    find_package(CCCL CONFIG
+      HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+    if(NOT CCCL_FOUND)
+      message(STATUS "Could not locate CCCL from CUDA Toolkit. Using Thrust and CUB from CUDA Toolkit...")
+      find_package(libcudacxx CONFIG REQUIRED
+        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+      find_package(CUB CONFIG REQUIRED
+        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+      find_package(Thrust CONFIG REQUIRED
+        HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+      thrust_create_target(Thrust HOST CPP DEVICE CUDA)
+      add_library(CCCL::CCCL INTERFACE IMPORTED GLOBAL)
+      target_link_libraries(CCCL::CCCL INTERFACE libcudacxx::libcudacxx CUB::CUB Thrust)
+    endif()
+  endif()
 endif()
 
 if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
@@ -234,28 +249,17 @@ endif()
 
 find_package(Threads REQUIRED)
 
+# -- OpenMP
+include(cmake/FindOpenMPMacOS.cmake)
 if(USE_OPENMP)
   if(APPLE)
-    find_package(OpenMP)
-    if(NOT OpenMP_FOUND)
-      # Try again with extra path info; required for libomp 15+ from Homebrew
-      execute_process(COMMAND brew --prefix libomp
-                      OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
-                      OUTPUT_STRIP_TRAILING_WHITESPACE)
-      set(OpenMP_C_FLAGS
-        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
-      set(OpenMP_CXX_FLAGS
-        "-Xpreprocessor -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
-      set(OpenMP_C_LIB_NAMES omp)
-      set(OpenMP_CXX_LIB_NAMES omp)
-      set(OpenMP_omp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
-      find_package(OpenMP REQUIRED)
-    endif()
+    find_openmp_macos()
   else()
     find_package(OpenMP REQUIRED)
   endif()
 endif()
-#Add for IBM i
+
+# Add for IBM i
 if(${CMAKE_SYSTEM_NAME} MATCHES "OS400")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
   set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X64 qc <TARGET> <OBJECTS>")
@@ -265,11 +269,18 @@ if(USE_NCCL)
   find_package(Nccl REQUIRED)
 endif()
 
-# dmlc-core
-msvc_use_static_runtime()
-if(FORCE_SHARED_CRT)
-  set(DMLC_FORCE_SHARED_CRT ON)
+if(MSVC)
+  if(FORCE_SHARED_CRT)
+    message(STATUS "XGBoost: Using dynamically linked MSVC runtime...")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  else()
+    message(STATUS "XGBoost: Using statically linked MSVC runtime...")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  endif()
 endif()
+
+# dmlc-core
+set(DMLC_FORCE_SHARED_CRT ${FORCE_SHARED_CRT})
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
 
 if(MSVC)
@@ -371,6 +382,10 @@ if(JVM_BINDINGS)
   xgboost_target_properties(xgboost4j)
   xgboost_target_link_libraries(xgboost4j)
   xgboost_target_defs(xgboost4j)
+endif()
+
+if(USE_OPENMP AND APPLE)
+  patch_openmp_path_macos(xgboost libxgboost)
 endif()
 
 if(KEEP_BUILD_ARTIFACTS_IN_BINARY_DIR)
@@ -488,11 +503,6 @@ if(GOOGLE_TEST)
       PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
   endif()
 endif()
-
-# For MSVC: Call msvc_use_static_runtime() once again to completely
-# replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
-# for issues caused by mixing of /MD and /MT flags
-msvc_use_static_runtime()
 
 # Add xgboost.pc
 if(ADD_PKGCONFIG)
