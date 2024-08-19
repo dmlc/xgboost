@@ -59,8 +59,7 @@ When submitting the XGBoost application to the Spark cluster, you only need to s
 XGBoost Ranking
 **************
 
-The ability to handle ranking problems using XGBoostRegressor has been discontinued.
-As an alternative, we have introduced XGBoostRanker, which is specifically designed
+Learning to rank using XGBoostRegressor has been replaced by a dedicated `XGBoostRanker`, which is specifically designed
 to support ranking algorithms.
 
 .. code-block:: scala
