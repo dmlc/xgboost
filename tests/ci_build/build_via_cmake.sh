@@ -25,5 +25,5 @@ rm -rf build
 # Disable CMAKE_COMPILE_WARNING_AS_ERROR option temporarily until
 # https://github.com/dmlc/xgboost/issues/10400 is fixed
 cmake -B build -S . ${cmake_args} -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_ALL_WARNINGS=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF -GNinja ${cmake_prefix_flag} -DHIDE_CXX_SYMBOLS=ON -DBUILD_DEPRECATED_CLI=ON
-ninja clean
+ninja -C build clean
 time cmake --build build -v
