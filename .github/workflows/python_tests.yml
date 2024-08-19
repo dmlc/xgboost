@@ -193,7 +193,7 @@ jobs:
 
     - name: Build XGBoost on Windows
       run: |
-        cmake -B build -S . -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DBUILD_DEPRECATED_CLI=ON
+        cmake -B build_msvc -S . -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DBUILD_DEPRECATED_CLI=ON
         cmake --build build_msvc --config Release --parallel $(nproc)
 
     - name: Install Python package
