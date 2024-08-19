@@ -13,11 +13,8 @@ commit_hash="$1"
 python tests/ci_build/test_r_package.py --task=pack
 mv xgboost/ xgboost_rpack/
 
-mkdir build
-cd build
-cmake .. -GNinja -DUSE_CUDA=ON -DR_LIB=ON
-ninja
-cd ..
+cmake -B build -S . -GNinja -DUSE_CUDA=ON -DR_LIB=ON
+cmake --build build
 
 # This super wacky hack is found in cmake/RPackageInstall.cmake.in and
 # cmake/RPackageInstallTargetSetup.cmake. This hack lets us bypass the normal build process of R

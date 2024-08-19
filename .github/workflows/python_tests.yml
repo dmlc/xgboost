@@ -145,13 +145,11 @@ jobs:
       run: |
         brew install ninja
 
-        mkdir build
-        cd build
         # Set prefix, to use OpenMP library from Conda env
         # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
         # to learn why we don't use libomp from Homebrew.
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
-        ninja
+        cmake -B build -S . -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
+        cmake --build build
 
     - name: Install Python package
       run: |
@@ -195,10 +193,8 @@ jobs:
 
     - name: Build XGBoost on Windows
       run: |
-        mkdir build_msvc
-        cd build_msvc
-        cmake .. -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DBUILD_DEPRECATED_CLI=ON
-        cmake --build . --config Release --parallel $(nproc)
+        cmake -B build -S . -G"Visual Studio 17 2022" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DBUILD_DEPRECATED_CLI=ON
+        cmake --build build_msvc --config Release --parallel $(nproc)
 
     - name: Install Python package
       run: |
@@ -240,10 +236,8 @@ jobs:
 
     - name: Build XGBoost on Ubuntu
       run: |
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
-        ninja
+        cmake -B build -S . -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
+        cmake --build build
 
     - name: Install Python package
       run: |
@@ -292,10 +286,8 @@ jobs:
         conda list
     - name: Build XGBoost on Ubuntu
       run: |
-        mkdir build
-        cd build
-        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        make -j$(nproc)
+        cmake -B build -S . -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        cmake --build build -j$(nproc)
     - name: Install Python package
       run: |
         cd python-package
@@ -329,10 +321,8 @@ jobs:
 
       - name: Build XGBoost on Ubuntu
         run: |
-          mkdir build
-          cd build
-          cmake .. -GNinja
-          ninja
+          cmake -B build -S . -GNinja
+          cmake --build build
 
       - name: Copy lib to system lib
         run: |

@@ -9,9 +9,9 @@ command_wrapper="tests/ci_build/ci_build.sh jvm_manylinux2014_x86_64"
 # Build XGBoost4J binary
 echo "--- Build libxgboost4j.so (targeting glibc 2.17)"
 set -x
-mkdir build
 $command_wrapper bash -c \
-  "cd build && cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && ninja -v"
+  "cmake -B build -S . -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && cmake --build -v"
+cd build
 ldd lib/libxgboost4j.so
 objdump -T lib/libxgboost4j.so | grep GLIBC_ | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
 

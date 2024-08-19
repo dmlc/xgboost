@@ -10,17 +10,15 @@ if ( $is_release_branch -eq 0 ) {
 } else {
   $arch_flag = ""
 }
-mkdir build
-cd build
-cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON `
+cmake -B build -S . -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON `
   -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON ${arch_flag}
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-cmake --build . --config Release -- /m /nodeReuse:false `
+cmake --build build --config Release -- /m /nodeReuse:false `
   "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Build binary wheel"
-cd ../python-package
+cd ./python-package
 conda activate
 & pip install --user -v "pip>=23"
 & pip --version

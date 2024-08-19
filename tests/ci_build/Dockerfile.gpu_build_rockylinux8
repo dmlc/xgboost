@@ -40,11 +40,8 @@ ENV GOSU_VERSION=1.10
 RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
     pushd rmm && \
     find . -name CMakeLists.txt -print0 | xargs -0 sed -i 's/-Werror//g' && \
-    mkdir build && \
-    pushd build && \
-    cmake .. -GNinja -DCMAKE_INSTALL_PREFIX=/opt/rmm -DCUDA_STATIC_RUNTIME=ON && \
-    cmake --build . --target install && \
-    popd && \
+    cmake -B build -S . -GNinja -DCMAKE_INSTALL_PREFIX=/opt/rmm -DCUDA_STATIC_RUNTIME=ON && \
+    cmake --build build --target install && \
     popd && \
     rm -rf rmm
 

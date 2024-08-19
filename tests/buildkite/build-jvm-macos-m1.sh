@@ -15,12 +15,9 @@ set +x
 # Build XGBoost4J binary
 echo "--- Build libxgboost4j.dylib"
 set -x
-mkdir build
-pushd build
 export JAVA_HOME=$(/usr/libexec/java_home)
-cmake .. -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
-ninja -v
-popd
+cmake -B build -S . -GNinja -DJVM_BINDINGS=ON -DUSE_OPENMP=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+cmake --build build -v
 rm -rf build
 otool -L lib/libxgboost.dylib
 set +x

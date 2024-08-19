@@ -26,8 +26,6 @@ jobs:
           pkg install -y cmake git ninja googletest
 
         run: |
-          mkdir build
-          cd build
-          cmake .. -GNinja -DGOOGLE_TEST=ON
-          ninja -v
-          ./testxgboost
+          cmake -B build -S . -GNinja -DGOOGLE_TEST=ON
+          cmake --build build -v
+          ./build/testxgboost

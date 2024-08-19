@@ -68,10 +68,8 @@ After obtaining the source code, one builds XGBoost by running CMake:
 .. code-block:: bash
 
   cd xgboost
-  mkdir build
-  cd build
-  cmake ..
-  make -j$(nproc)
+  cmake -B build -S .
+  cmake --build build -j$(nproc)
 
 Building on MacOS
 =================
@@ -94,12 +92,10 @@ following from the root of the XGBoost directory:
 
 .. code-block:: bash
 
-  mkdir build
-  cd build
-  cmake .. -G"Visual Studio 14 2015 Win64"
-  # for VS15: cmake .. -G"Visual Studio 15 2017" -A x64
-  # for VS16: cmake .. -G"Visual Studio 16 2019" -A x64
-  cmake --build . --config Release
+  cmake -B build -S . -G"Visual Studio 14 2015 Win64"
+  # for VS15: cmake -B build -S . -G"Visual Studio 15 2017" -A x64
+  # for VS16: cmake -B build -S . -G"Visual Studio 16 2019" -A x64
+  cmake --build build --config Release
 
 This specifies an out of source build using the Visual Studio 64 bit generator. (Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.)
 
@@ -127,10 +123,8 @@ From the command line on Linux starting from the XGBoost directory:
 
 .. code-block:: bash
 
-  mkdir build
-  cd build
-  cmake .. -DUSE_CUDA=ON
-  make -j4
+  cmake -B build -S . -DUSE_CUDA=ON
+  cmake --build build -j4
 
 .. note:: Specifying compute capability
 
@@ -142,10 +136,8 @@ From the command line on Linux starting from the XGBoost directory:
 
   .. code-block:: bash
 
-    mkdir build
-    cd build
-    cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT=/path/to/nccl2
-    make -j4
+    cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT=/path/to/nccl2
+    cmake --build build -j4
 
 Some additional flags are available for NCCL, ``BUILD_WITH_SHARED_NCCL`` enables building XGBoost with NCCL as a shared library, while ``USE_DLOPEN_NCCL`` enables XGBoost  to load NCCL at runtime using ``dlopen``.
 
@@ -153,9 +145,7 @@ On Windows, run CMake as follows:
 
 .. code-block:: bash
 
-  mkdir build
-  cd build
-  cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON
+  cmake -B build -S . -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON
 
 (Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.)
 
@@ -163,7 +153,7 @@ The above cmake configuration run will create an ``xgboost.sln`` solution file i
 
 .. code-block:: bash
 
-  cmake --build . --target xgboost --config Release
+  cmake --buildbuild. --target xgboost --config Release
 
 To speed up compilation, run multiple jobs in parallel by appending option ``-- /MP``.
 
@@ -250,14 +240,11 @@ There are several ways to build and install the package from source:
 
   .. code-block:: bash
 
-    # Under xgboost source directory
-    mkdir build
-    cd build
     # Build shared library libxgboost.so
-    cmake .. -GNinja
-    ninja
+    cmake -B build -S . -GNinja
+    cmake --build build
     # Install as editable installation
-    cd ../python-package
+    cd ./python-package
     pip install -e .
 
 4. Use ``libxgboost.so`` on system path.
@@ -336,11 +323,8 @@ above snippet can be replaced by:
 
 .. code-block:: bash
 
-  mkdir build
-  cd build
-  cmake .. -DR_LIB=ON
-  make -j$(nproc)
-  make install
+  cmake -B build -S . -DR_LIB=ON
+  cmake --build build --target install -j$(nproc)
 
 
 Installing the development version with Visual Studio (Windows)
@@ -368,10 +352,8 @@ Open the Command Prompt and navigate to the XGBoost directory, and then run the 
 .. code-block:: bash
 
   cd C:\path\to\xgboost
-  mkdir build
-  cd build
-  cmake .. -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON -DR_VERSION=4.0.0
-  cmake --build . --target install --config Release
+  cmake -B build -S . -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON -DR_VERSION=4.0.0
+  cmake --build build --target install --config Release
 
 
 .. _r_gpu_support:
@@ -385,10 +367,8 @@ On Linux, starting from the XGBoost directory type:
 
 .. code-block:: bash
 
-  mkdir build
-  cd build
-  cmake .. -DUSE_CUDA=ON -DR_LIB=ON
-  make install -j$(nproc)
+  cmake -B build -S . -DUSE_CUDA=ON -DR_LIB=ON
+  cmake --build build --target install -j$(nproc)
 
 When default target is used, an R package shared library would be built in the ``build`` area.
 The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package`` and runs ``R CMD INSTALL``.
@@ -413,10 +393,8 @@ Open the Command Prompt and navigate to the XGBoost directory, and then run the 
 .. code-block:: bash
 
   cd C:\path\to\xgboost
-  mkdir build
-  cd build
-  cmake .. -G"Visual Studio 16 2019" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DR_VERSION=4.0.0
-  cmake --build . --target install --config Release
+  cmake -B build -S . -G"Visual Studio 16 2019" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DR_VERSION=4.0.0
+  cmake --build build --target install --config Release
 
 If CMake can't find your R during the configuration step, you might provide the location of R to CMake like this: ``-DLIBR_HOME="C:\Program Files\R\R-4.0.0"``.
 

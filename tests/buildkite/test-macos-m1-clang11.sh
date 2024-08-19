@@ -16,10 +16,9 @@ set +x
 echo "--- Build and Test XGBoost with MacOS M1, Clang 11"
 set -x
 LLVM11_PATH=$(brew --prefix llvm\@11)
-mkdir build
-pushd build
-cmake .. -GNinja -DCMAKE_C_COMPILER=${LLVM11_PATH}/bin/clang \
+cmake -B build -S . -GNinja -DCMAKE_C_COMPILER=${LLVM11_PATH}/bin/clang \
   -DCMAKE_CXX_COMPILER=${LLVM11_PATH}/bin/clang++ -DGOOGLE_TEST=ON \
   -DUSE_DMLC_GTEST=ON
-ninja -v
+cmake --build build -v
+cd build
 ./testxgboost
