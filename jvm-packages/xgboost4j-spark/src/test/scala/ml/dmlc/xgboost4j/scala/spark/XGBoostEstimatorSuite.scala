@@ -21,7 +21,8 @@ import java.util.Arrays
 
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.ml.linalg.Vectors
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
+import org.apache.spark.SparkException
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.parseJson
 import org.scalatest.funsuite.AnyFunSuite
@@ -96,6 +97,50 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       Map("device" -> "cuda", "tree_method" -> "gpu_hist")).setNumWorkers(1).setNumRound(1)
       .getRuntimeParameters(true)
     assert(runtimeParams.runOnGpu)
+  }
+
+  test("missing value exception for sparse vector") {
+    val sparse1 = Vectors.dense(0.0, 0.0, 0.0).toSparse
+    assert(sparse1.isInstanceOf[SparseVector])
+    val sparse2 = Vectors.dense(0.5, 2.2, 1.7).toSparse
+    assert(sparse2.isInstanceOf[SparseVector])
+
+    val sparseInput = ss.createDataFrame(sc.parallelize(Seq(
+      (1.0, sparse1),
+      (2.0, sparse2)
+    ))).toDF("label", "features")
+
+    val classifier = new XGBoostClassifier()
+    val (input, columnIndexes) = classifier.preprocess(sparseInput)
+    val rdd = classifier.toXGBLabeledPoint(input, columnIndexes)
+
+    val exception = intercept[SparkException] {
+      rdd.collect()
+    }
+    assert(exception.getMessage.contains("We've detected sparse vectors in the dataset " +
+      "that need conversion to dense format"))
+
+    // explicitly set missing value, no exception
+    classifier.setMissing(Float.NaN)
+    val rdd1 = classifier.toXGBLabeledPoint(input, columnIndexes)
+    rdd1.collect()
+  }
+
+  test("missing value for dense vector no need to set missing explicitly") {
+    val dense1 = Vectors.dense(0.0, 0.0, 0.0)
+    assert(dense1.isInstanceOf[DenseVector])
+    val dense2 = Vectors.dense(0.5, 2.2, 1.7)
+    assert(dense2.isInstanceOf[DenseVector])
+
+    val sparseInput = ss.createDataFrame(sc.parallelize(Seq(
+      (1.0, dense1),
+      (2.0, dense2)
+    ))).toDF("label", "features")
+
+    val classifier = new XGBoostClassifier()
+    val (input, columnIndexes) = classifier.preprocess(sparseInput)
+    val rdd = classifier.toXGBLabeledPoint(input, columnIndexes)
+    rdd.collect()
   }
 
   test("test persistence of XGBoostClassifier and XGBoostClassificationModel " +
@@ -233,6 +278,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       .setFeaturesCol("features")
       .setWeightCol("weight")
       .setNumWorkers(2)
+      .setMissing(Float.NaN)
 
     val (df, indices) = classifier.preprocess(dataset)
     val rdd = classifier.toXGBLabeledPoint(df, indices)
@@ -359,6 +405,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       .setBaseMarginCol("margin")
       .setEvalDataset(evalDataset)
       .setNumWorkers(2)
+      .setMissing(Float.NaN)
 
     val (df, indices) = classifier.preprocess(trainDataset)
     val rdd = classifier.toRdd(df, indices)

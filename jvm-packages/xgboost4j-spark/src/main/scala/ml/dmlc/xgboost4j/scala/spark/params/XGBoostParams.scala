@@ -185,7 +185,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
-    forceRepartition, missing, featuresCols, customEval, customObj, featureTypes, featureNames)
+    forceRepartition, featuresCols, customEval, customObj, featureTypes, featureNames)
 
   final def getNumWorkers: Int = $(numWorkers)
 

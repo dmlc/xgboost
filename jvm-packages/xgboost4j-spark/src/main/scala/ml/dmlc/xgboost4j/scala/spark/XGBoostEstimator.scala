@@ -26,7 +26,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.Path
 import org.apache.spark.ml.{Estimator, Model}
 import org.apache.spark.ml.functions.array_to_vector
-import org.apache.spark.ml.linalg.Vector
+import org.apache.spark.ml.linalg.{SparseVector, Vector}
 import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, MLWriter}
 import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
@@ -207,6 +207,7 @@ private[spark] trait XGBoostEstimator[
   /** visible for testing */
   private[spark] def toXGBLabeledPoint(dataset: Dataset[_],
                                        columnIndexes: ColumnIndices): RDD[XGBLabeledPoint] = {
+    val isSetMissing = isSet(missing)
     dataset.toDF().rdd.map { row =>
       val features = row.getAs[Vector](columnIndexes.featureId.get)
       val label = row.getFloat(columnIndexes.labelId)
@@ -214,6 +215,15 @@ private[spark] trait XGBoostEstimator[
       val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
       val group = columnIndexes.groupId.map(row.getInt).getOrElse(-1)
       // To make "0" meaningful, we convert sparse vector if possible to dense to create DMatrix.
+      features match {
+        case _: SparseVector => if (!isSetMissing) {
+          throw new IllegalArgumentException("We've detected sparse vectors in the dataset that " +
+            "need conversion to dense format. However, we can't assume 0 for missing values as " +
+            "it may be meaningful. Please specify the missing value explicitly to ensure " +
+            "accurate data representation for analysis.")
+        }
+        case _ =>
+      }
       val values = features.toArray.map(_.toFloat)
       XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
     }
