@@ -110,8 +110,15 @@ class MetaInfo {
    * @brief Validate all metainfo.
    */
   void Validate(DeviceOrd device) const;
-
-  MetaInfo Slice(common::Span<int32_t const> ridxs) const;
+  /**
+   * @brief Slice the meta info.
+   *
+   * The device of ridxs is specified by the ctx object.
+   *
+   * @param ridxs Index of selected rows.
+   * @param nnz   The number of non-missing values.
+   */
+  MetaInfo Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs, bst_idx_t nnz) const;
 
   MetaInfo Copy() const;
   /**

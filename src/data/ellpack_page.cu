@@ -1,12 +1,13 @@
 /**
  * Copyright 2019-2024, XGBoost contributors
  */
+#include <cuda/functional>  // for proclaim_return_type
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
 
-#include <algorithm>  // for copy
-#include <utility>    // for move
-#include <vector>     // for vector
+#include <algorithm>        // for copy
+#include <utility>          // for move
+#include <vector>           // for vector
 
 #include "../common/categorical.h"
 #include "../common/cuda_context.cuh"
@@ -575,5 +576,19 @@ EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
           n_rows,
           common::CompressedIterator<uint32_t>(h_gidx_buffer->data(), NumSymbols()),
           feature_types};
+}
+
+[[nodiscard]] bst_idx_t EllpackPageImpl::NumNonMissing(
+    Context const* ctx, common::Span<FeatureType const> feature_types) const {
+  auto d_acc = this->GetDeviceAccessor(ctx->Device(), feature_types);
+  auto it = thrust::make_transform_iterator(
+      thrust::make_counting_iterator(0ull),
+      [=] XGBOOST_DEVICE(std::size_t i) { return d_acc.gidx_iter[i]; });
+  auto nnz = thrust::count_if(
+      it, it + d_acc.row_stride * d_acc.n_rows,
+      cuda::proclaim_return_type<bool>([=] __device__(typename decltype(it)::value_type gidx) {
+        return gidx != d_acc.NullValue();
+      }));
+  return nnz;
 }
 }  // namespace xgboost
