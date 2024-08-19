@@ -127,7 +127,8 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     val missing = estimator.getMissing
 
     /** build QuantileDMatrix on the executor side */
-    def buildQuantileDMatrix(iter: Iterator[Table]): QuantileDMatrix = {
+    def buildQuantileDMatrix(iter: Iterator[Table],
+                             ref: Option[QuantileDMatrix] = None): QuantileDMatrix = {
       val colBatchIter = iter.map { table =>
         withResource(new GpuColumnBatch(table)) { batch =>
           new CudfColumnBatch(
@@ -138,7 +139,9 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
             batch.select(indices.groupId.getOrElse(-1)));
         }
       }
-      new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
+      ref.map(r => new QuantileDMatrix(colBatchIter, r, missing, maxBin, nthread)).getOrElse(
+        new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
+      )
     }
 
     estimator.getEvalDataset().map { evalDs =>

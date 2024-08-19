@@ -16,9 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import _root_.scala.collection.JavaConverters._
+import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, XGBoostError, QuantileDMatrix => JQuantileDMatrix}
 
-import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, QuantileDMatrix => JQuantileDMatrix, XGBoostError}
+import scala.collection.JavaConverters._
 
 class QuantileDMatrix private[scala](
     private[scala] override val jDMatrix: JQuantileDMatrix) extends DMatrix(jDMatrix) {
@@ -34,6 +34,27 @@ class QuantileDMatrix private[scala](
    */
   def this(iter: Iterator[ColumnBatch], missing: Float, maxBin: Int, nthread: Int) {
     this(new JQuantileDMatrix(iter.asJava, missing, maxBin, nthread))
+  }
+
+  /**
+   * Create QuantileDMatrix from iterator based on the array interface
+   *
+   * @param iter       the XGBoost ColumnBatch batch to provide the corresponding array interface
+   * @param refDMatrix The training dataset that provides quantile information, needed
+   *                   when creating validation/test dataset with QuantileDMatrix. Supplying the
+   *                   training DMatrix as a reference means that the same quantisation applied
+   *                   to the training data is applied to the validation/test data
+   * @param missing    the missing value
+   * @param maxBin     the max bin
+   * @param nthread    the parallelism
+   * @throws XGBoostError
+   */
+  def this(iter: Iterator[ColumnBatch],
+           ref: QuantileDMatrix,
+           missing: Float,
+           maxBin: Int,
+           nthread: Int) {
+    this(new JQuantileDMatrix(iter.asJava, ref.jDMatrix, missing, maxBin, nthread))
   }
 
   /**
