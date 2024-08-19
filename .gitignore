@@ -84,6 +84,7 @@ target
 *.gcov
 *.gcda
 *.gcno
+*.ubj
 build_tests
 /tests/cpp/xgboost_test
 
