@@ -4,7 +4,6 @@
  */
 #include <vector>
 #include <memory>
-#include <utility>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
@@ -29,12 +28,6 @@ void QuantileHistMaker::Configure(const Args& args) {
   const DeviceOrd device_spec = ctx_->Device();
   qu_ = device_manager.GetQueue(device_spec);
 
-  // initialize pruner
-  if (!pruner_) {
-    pruner_.reset(TreeUpdater::Create("prune", ctx_, task_));
-  }
-  pruner_->Configure(args);
-
   param_.UpdateAllowUnknown(args);
   hist_maker_param_.UpdateAllowUnknown(args);
 
@@ -56,7 +49,6 @@ void QuantileHistMaker::SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>* pim
                 ctx_,
                 qu_,
                 param_,
-                std::move(pruner_),
                 int_constraint_, dmat));
   if (collective::IsDistributed()) {
     LOG(FATAL) << "Distributed mode is not yet upstreamed for sycl";
@@ -80,7 +72,7 @@ void QuantileHistMaker::CallUpdate(
   qu_.wait();
 
   for (auto tree : trees) {
-    pimpl->Update(param, gmat_, gpair, gpair_device_, dmat, out_position, tree);
+    pimpl->Update(param, gmat_, gpair_device_, dmat, out_position, tree);
   }
 }
 

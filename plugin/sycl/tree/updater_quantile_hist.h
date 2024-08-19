@@ -103,7 +103,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<HistUpdater<float>> pimpl_fp32;
   std::unique_ptr<HistUpdater<double>> pimpl_fp64;
 
-  std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost int_constraint_;
 
   ::sycl::queue qu_;

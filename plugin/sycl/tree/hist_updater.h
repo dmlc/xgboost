@@ -11,7 +11,6 @@
 #include <xgboost/tree_updater.h>
 #pragma GCC diagnostic pop
 
-#include <utility>
 #include <vector>
 #include <memory>
 #include <queue>
@@ -54,12 +53,10 @@ class HistUpdater {
   explicit HistUpdater(const Context* ctx,
                        ::sycl::queue qu,
                        const xgboost::tree::TrainParam& param,
-                       std::unique_ptr<TreeUpdater> pruner,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
     : ctx_(ctx), qu_(qu), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
-      pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
       p_last_tree_(nullptr), p_last_fmat_(fmat) {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
@@ -75,8 +72,7 @@ class HistUpdater {
   // update one tree, growing
   void Update(xgboost::tree::TrainParam const *param,
               const common::GHistIndexMatrix &gmat,
-              linalg::Matrix<GradientPair> *gpair,
-              const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+              const USMVector<GradientPair, MemoryType::on_device>& gpair,
               DMatrix *p_fmat,
               xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
               RegTree *p_tree);
@@ -210,7 +206,6 @@ class HistUpdater {
   std::vector<SplitEntry<GradientSumT>> best_splits_host_;
 
   TreeEvaluator<GradientSumT> tree_evaluator_;
-  std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost interaction_constraints_;
 
   // back pointers to tree and data matrix

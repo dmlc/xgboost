@@ -311,8 +311,7 @@ template <typename GradientSumT>
 void HistUpdater<GradientSumT>::Update(
     xgboost::tree::TrainParam const *param,
     const common::GHistIndexMatrix &gmat,
-    linalg::Matrix<GradientPair> *gpair,
-    const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+    const USMVector<GradientPair, MemoryType::on_device>& gpair,
     DMatrix *p_fmat,
     xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
     RegTree *p_tree) {
@@ -321,11 +320,11 @@ void HistUpdater<GradientSumT>::Update(
   tree_evaluator_.Reset(qu_, param_, p_fmat->Info().num_col_);
   interaction_constraints_.Reset();
 
-  this->InitData(gmat, gpair_device, *p_fmat, *p_tree);
+  this->InitData(gmat, gpair, *p_fmat, *p_tree);
   if (param_.grow_policy == xgboost::tree::TrainParam::kLossGuide) {
-    ExpandWithLossGuide(gmat, p_tree, gpair_device);
+    ExpandWithLossGuide(gmat, p_tree, gpair);
   } else {
-    ExpandWithDepthWise(gmat, p_tree, gpair_device);
+    ExpandWithDepthWise(gmat, p_tree, gpair);
   }
 
   for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
