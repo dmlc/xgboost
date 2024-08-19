@@ -1,6 +1,6 @@
-######################################################
-Migration Guide: How to migrate from XGBoost Spark 3.x
-######################################################
+####################################################
+Migration Guide: How to migrate to XGBoost Spark 3.x
+####################################################
 
 XGBoost Spark underwent significant modifications in version 3.0,
 which may cause compatibility issues with existing user code.

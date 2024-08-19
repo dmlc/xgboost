@@ -20,9 +20,11 @@ import ai.rapids.cudf.Table
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.{DMatrix, QuantileDMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.scala.rapids.spark.GpuTestSuite
+import ml.dmlc.xgboost4j.scala.rapids.spark.SparkSessionHolder.withSparkSession
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 import org.apache.spark.ml.linalg.DenseVector
 import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.SparkConf
 
 import java.io.File
 import scala.collection.mutable.ArrayBuffer
@@ -89,15 +91,19 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       assert(classifier.getPlugin.get.isEnabled(df) === expected)
     }
 
+    // spark.rapids.sql.enabled is not set explicitly, default to true
+    withSparkSession(new SparkConf(), spark => {checkIsEnabled(spark, true)})
+
+    // set spark.rapids.sql.enabled to false
     withCpuSparkSession() { spark =>
       checkIsEnabled(spark, false)
     }
 
+    // set spark.rapids.sql.enabled to true
     withGpuSparkSession() { spark =>
       checkIsEnabled(spark, true)
     }
   }
-
 
   test("parameter validation") {
     withGpuSparkSession() { spark =>

@@ -244,7 +244,6 @@ object SparkSessionHolder extends Logging {
     val builder = SparkSession.builder()
       .master("local[2]")
       .config("spark.sql.adaptive.enabled", "false")
-      .config("spark.rapids.sql.enabled", "false")
       .config("spark.rapids.sql.test.enabled", "false")
       .config("spark.stage.maxConsecutiveAttempts", "1")
       .config("spark.plugins", "com.nvidia.spark.SQLPlugin")
