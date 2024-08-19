@@ -49,9 +49,9 @@ void TestUpdatePositionBatch() {
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
 
 void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
-  thrust::device_vector<uint32_t> ridx = ridx_in;
-  thrust::device_vector<uint32_t> ridx_tmp(ridx_in.size());
-  thrust::device_vector<bst_uint> counts(segments.size());
+  thrust::device_vector<cuda_impl::RowIndexT> ridx = ridx_in;
+  thrust::device_vector<cuda_impl::RowIndexT> ridx_tmp(ridx_in.size());
+  thrust::device_vector<cuda_impl::RowIndexT> counts(segments.size());
 
   auto op = [=] __device__(auto ridx, int split_index, int data) { return ridx % 2 == 0; };
   std::vector<int> op_data(segments.size());

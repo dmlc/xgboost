@@ -150,14 +150,16 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
                               go_left};
       });
   std::size_t temp_bytes = 0;
+  // Restriction imposed by cub.
+  CHECK_LE(total_rows, static_cast<bst_idx_t>(std::numeric_limits<std::int32_t>::max()));
   if (tmp->empty()) {
-    cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
-                                   IndexFlagOp{}, total_rows);
+    dh::safe_cuda(cub::DeviceScan::InclusiveScan(
+        nullptr, temp_bytes, input_iterator, discard_write_iterator, IndexFlagOp{}, total_rows));
     tmp->resize(temp_bytes);
   }
   temp_bytes = tmp->size();
-  cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
-                                 discard_write_iterator, IndexFlagOp{}, total_rows);
+  dh::safe_cuda(cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
+                                               discard_write_iterator, IndexFlagOp{}, total_rows));
 
   constexpr int kBlockSize = 256;
 
