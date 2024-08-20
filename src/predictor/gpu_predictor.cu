@@ -1200,7 +1200,7 @@ class GPUPredictor : public xgboost::Predictor {
     bst_feature_t num_features = info.num_col_;
 
     auto launch = [&](auto fn, std::uint32_t grid, auto data, bst_idx_t batch_offset) {
-      dh::LaunchKernel{grid, kBlockThreads, shared_memory_bytes}(
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes}(
           fn, data, d_model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
 
