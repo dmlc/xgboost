@@ -375,7 +375,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
   auto accessor = this->GetDeviceAccessor(ctx->Device(), ft);
   auto null = accessor.NullValue();
   this->monitor_.Start("CopyGHistToEllpack");
-  CopyGHistToEllpack(page, d_row_ptr, row_stride, d_compressed_buffer, null);
+  CopyGHistToEllpack(ctx, page, d_row_ptr, row_stride, d_compressed_buffer, null);
   this->monitor_.Stop("CopyGHistToEllpack");
 }
 
