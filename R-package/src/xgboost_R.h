@@ -35,6 +35,14 @@ XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle);
 XGB_DLL SEXP XGSetArrayDimNamesInplace_R(SEXP arr, SEXP dim_names);
 
 /*!
+ * \brief set the names of a vector in-place
+ * \param arr
+ * \param names names for the dimensions to set
+ * \return NULL value
+ */
+XGB_DLL SEXP XGSetVectorNamesInplace_R(SEXP arr, SEXP names);
+
+/*!
  * \brief Set global configuration
  * \param json_str a JSON string representing the list of key-value pairs
  * \return R_NilValue

@@ -354,6 +354,11 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       " Should be passed as argument to 'xgb.DMatrix' constructor."
     )
   }
+  if (is_dmatrix) {
+    rnames <- NULL
+  } else {
+    rnames <- row.names(newdata)
+  }
 
   use_as_df <- FALSE
   use_as_dense_matrix <- FALSE
@@ -499,6 +504,19 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     dim_names[[1L]] <- cnames
     if (predinteraction) dim_names[[2L]] <- cnames
     .Call(XGSetArrayDimNamesInplace_R, arr, dim_names)
+  }
+
+  if (NROW(rnames)) {
+    if (is.null(dim(arr))) {
+      .Call(XGSetVectorNamesInplace_R, arr, rnames)
+    } else {
+      dim_names <- dimnames(arr)
+      if (is.null(dim_names)) {
+        dim_names <- vector(mode = "list", length = length(dim(arr)))
+      }
+      dim_names[[length(dim_names)]] <- rnames
+      .Call(XGSetArrayDimNamesInplace_R, arr, dim_names)
+    }
   }
 
   if (!avoid_transpose && is.array(arr)) {

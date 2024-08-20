@@ -493,6 +493,7 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
     nrounds = 5
   )
   pred <- predict(model, x)
+  pred <- unname(pred)
 
   iterator_env <- as.environment(
     list(
@@ -538,7 +539,7 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
   )
 
   pred_model1_edm <- predict(model, edm)
-  pred_model2_mat <- predict(model_ext, x)
+  pred_model2_mat <- predict(model_ext, x) |> unname()
   pred_model2_edm <- predict(model_ext, edm)
 
   expect_equal(pred_model1_edm, pred)
@@ -567,6 +568,7 @@ test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
     nrounds = 5
   )
   pred <- predict(model, x)
+  pred <- unname(pred)
 
   iterator_env <- as.environment(
     list(
@@ -616,7 +618,7 @@ test_that("xgb.DMatrix: External QDM produces same results as regular QDM", {
   )
 
   pred_model1_qdm <- predict(model, qdm)
-  pred_model2_mat <- predict(model_ext, x)
+  pred_model2_mat <- predict(model_ext, x) |> unname()
   pred_model2_qdm <- predict(model_ext, qdm)
 
   expect_equal(pred_model1_qdm, pred)
