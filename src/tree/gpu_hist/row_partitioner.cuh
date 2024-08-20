@@ -132,7 +132,7 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
                        common::Span<cuda_impl::RowIndexT> ridx,
                        common::Span<cuda_impl::RowIndexT> ridx_tmp,
                        common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
-                       dh::device_vector<int8_t>* tmp) {
+                       dh::DeviceUVector<int8_t>* tmp) {
   dh::LDGIterator<PerNodeData<OpDataT>> batch_info_itr(d_batch_info.data());
   WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
                                              d_counts.data()};
@@ -150,14 +150,16 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
                               go_left};
       });
   std::size_t temp_bytes = 0;
+  // Restriction imposed by cub.
+  CHECK_LE(total_rows, static_cast<bst_idx_t>(std::numeric_limits<std::int32_t>::max()));
   if (tmp->empty()) {
-    cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
-                                   IndexFlagOp{}, total_rows);
+    dh::safe_cuda(cub::DeviceScan::InclusiveScan(
+        nullptr, temp_bytes, input_iterator, discard_write_iterator, IndexFlagOp{}, total_rows));
     tmp->resize(temp_bytes);
   }
   temp_bytes = tmp->size();
-  cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
-                                 discard_write_iterator, IndexFlagOp{}, total_rows);
+  dh::safe_cuda(cub::DeviceScan::InclusiveScan(tmp->data(), temp_bytes, input_iterator,
+                                               discard_write_iterator, IndexFlagOp{}, total_rows));
 
   constexpr int kBlockSize = 256;
 
@@ -236,7 +238,7 @@ class RowPartitioner {
   dh::DeviceUVector<RowIndexT> ridx_;
   // Staging area for sorting ridx
   dh::DeviceUVector<RowIndexT> ridx_tmp_;
-  dh::device_vector<int8_t> tmp_;
+  dh::DeviceUVector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
   bst_node_t n_nodes_{0};  // Counter for internal checks.

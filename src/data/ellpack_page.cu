@@ -309,9 +309,9 @@ ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
 
 namespace {
-void CopyGHistToEllpack(GHistIndexMatrix const& page, common::Span<size_t const> d_row_ptr,
-                        size_t row_stride, common::CompressedByteT* d_compressed_buffer,
-                        size_t null) {
+void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
+                        common::Span<size_t const> d_row_ptr, size_t row_stride,
+                        common::CompressedByteT* d_compressed_buffer, size_t null) {
   dh::device_vector<uint8_t> data(page.index.begin(), page.index.end());
   auto d_data = dh::ToSpan(data);
 
@@ -323,7 +323,8 @@ void CopyGHistToEllpack(GHistIndexMatrix const& page, common::Span<size_t const>
   common::CompressedBufferWriter writer{page.cut.TotalBins() +
                                         static_cast<std::size_t>(1)};  // +1 for null value
 
-  dh::LaunchN(row_stride * page.Size(), [=] __device__(size_t idx) mutable {
+  auto cuctx = ctx->CUDACtx();
+  dh::LaunchN(row_stride * page.Size(), cuctx->Stream(), [=] __device__(bst_idx_t idx) mutable {
     auto ridx = idx / row_stride;
     auto ifeature = idx % row_stride;
 
@@ -336,7 +337,7 @@ void CopyGHistToEllpack(GHistIndexMatrix const& page, common::Span<size_t const>
       return;
     }
 
-    size_t offset = 0;
+    bst_idx_t offset = 0;
     if (!d_csc_indptr.empty()) {
       // is dense, ifeature is the actual feature index.
       offset = d_csc_indptr[ifeature];
@@ -362,7 +363,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
   row_stride = *std::max_element(it, it + page.Size());
 
   CHECK(ctx->IsCUDA());
-  InitCompressedData(ctx);
+  this->InitCompressedData(ctx);
 
   // copy gidx
   common::CompressedByteT* d_compressed_buffer = gidx_buffer.data();
@@ -373,7 +374,9 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
 
   auto accessor = this->GetDeviceAccessor(ctx->Device(), ft);
   auto null = accessor.NullValue();
-  CopyGHistToEllpack(page, d_row_ptr, row_stride, d_compressed_buffer, null);
+  this->monitor_.Start("CopyGHistToEllpack");
+  CopyGHistToEllpack(ctx, page, d_row_ptr, row_stride, d_compressed_buffer, null);
+  this->monitor_.Stop("CopyGHistToEllpack");
 }
 
 // A functor that copies the data from one EllpackPage to another.
