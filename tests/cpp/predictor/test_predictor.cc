@@ -895,4 +895,7 @@ void ShapExternalMemoryTest::Run(Context const *ctx, bool is_qdm, bool is_intera
     ASSERT_EQ(h_contrib[i], h_contrib_ext[i]);
   }
 }
+
+INSTANTIATE_TEST_SUITE_P(Predictor, ShapExternalMemoryTest,
+                         ::testing::Combine(::testing::Bool(), ::testing::Bool()));
 }  // namespace xgboost

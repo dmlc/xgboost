@@ -293,16 +293,6 @@ TEST_P(ShapExternalMemoryTest, GPUPredictor) {
   this->Run(&ctx, is_qdm, is_interaction);
 }
 
-INSTANTIATE_TEST_SUITE_P(ShapExternalMemory, ShapExternalMemoryTest, ::testing::ValuesIn([] {
-                           std::vector<std::pair<bool, bool>> params{};
-                           for (auto is_qdm : {true, false}) {
-                             for (auto is_int : {true, false}) {
-                               params.emplace_back(is_qdm, is_int);
-                             }
-                           }
-                           return params;
-                         }()));
-
 TEST(GPUPredictor, IterationRange) {
   auto ctx = MakeCUDACtx(0);
   TestIterationRange(&ctx);
