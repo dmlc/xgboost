@@ -1,36 +1,44 @@
-#' Dump an xgboost model in text format.
+#' Dump an XGBoost model in text format.
 #'
-#' Dump an xgboost model in text format.
+#' Dump an XGBoost model in text format.
 #'
-#' @param model the model object.
-#' @param fname the name of the text file where to save the model text dump.
-#'        If not provided or set to \code{NULL}, the model is returned as a \code{character} vector.
-#' @param fmap feature map file representing feature types.
-#'        See demo/ for walkthrough example in R, and
-#'        \url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt}
-#'        for example Format.
-#' @param with_stats whether to dump some additional statistics about the splits.
-#'        When this option is on, the model dump contains two additional values:
-#'        gain is the approximate loss function gain we get in each split;
-#'        cover is the sum of second order gradient in each node.
-#' @param dump_format either 'text', 'json', or 'dot' (graphviz) format could be specified.
+#' @param model The model object.
+#' @param fname The name of the text file where to save the model text dump.
+#'   If not provided or set to `NULL`, the model is returned as a character vector.
+#' @param fmap Feature map file representing feature types. See demo/ for a walkthrough
+#'   example in R, and \url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt}
+#'   to see an example of the value.
+#' @param with_stats Whether to dump some additional statistics about the splits.
+#'   When this option is on, the model dump contains two additional values:
+#'   gain is the approximate loss function gain we get in each split;
+#'   cover is the sum of second order gradient in each node.
+#' @param dump_format Either 'text', 'json', or 'dot' (graphviz) format could be specified.
 #'
-#' Format 'dot' for a single tree can be passed directly to packages that consume this format
-#' for graph visualization, such as function [DiagrammeR::grViz()]
-#' @param ... currently not used
+#'   Format 'dot' for a single tree can be passed directly to packages that consume this format
+#'   for graph visualization, such as function `DiagrammeR::grViz()`
+#' @param ... Currently not used
 #'
 #' @return
-#' If fname is not provided or set to \code{NULL} the function will return the model
-#' as a \code{character} vector. Otherwise it will return \code{TRUE}.
+#' If fname is not provided or set to `NULL` the function will return the model
+#' as a character vector. Otherwise it will return `TRUE`.
 #'
 #' @examples
 #' \dontshow{RhpcBLASctl::omp_set_num_threads(1)}
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#' data(agaricus.test, package = "xgboost")
+#'
 #' train <- agaricus.train
 #' test <- agaricus.test
-#' bst <- xgb.train(data = xgb.DMatrix(train$data, label = train$label), max_depth = 2,
-#'                  eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#'
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   max_depth = 2,
+#'   eta = 1,
+#'   nthread = 2,
+#'   nrounds = 2,
+#'   objective = "binary:logistic"
+#' )
+#'
 #' # save the model in file 'xgb.model.dump'
 #' dump_path = file.path(tempdir(), 'model.dump')
 #' xgb.dump(bst, dump_path, with_stats = TRUE)
@@ -39,7 +47,7 @@
 #' print(xgb.dump(bst, with_stats = TRUE))
 #'
 #' # print in JSON format:
-#' cat(xgb.dump(bst, with_stats = TRUE, dump_format='json'))
+#' cat(xgb.dump(bst, with_stats = TRUE, dump_format = "json"))
 #'
 #' # plot first tree leveraging the 'dot' format
 #' if (requireNamespace('DiagrammeR', quietly = TRUE)) {

@@ -10,12 +10,12 @@ xgb.config(object)
 xgb.config(object) <- value
 }
 \arguments{
-\item{object}{Object of class \code{xgb.Booster}. \bold{Will be modified in-place} when assigning to it.}
+\item{object}{Object of class \code{xgb.Booster}.\strong{Will be modified in-place} when assigning to it.}
 
-\item{value}{An R list.}
+\item{value}{A list.}
 }
 \value{
-\code{xgb.config} will return the parameters as an R list.
+Parameters as a list.
 }
 \description{
 Accessors for model parameters as JSON string
@@ -25,7 +25,7 @@ Note that assignment is performed in-place on the booster C object, which unlike
 of R attributes, doesn't follow typical copy-on-write semantics for assignment - i.e. all references
 to the same booster will also get updated.
 
-See \link{xgb.copy.Booster} for an example of this behavior.
+See \code{\link[=xgb.copy.Booster]{xgb.copy.Booster()}} for an example of this behavior.
 }
 \examples{
 data(agaricus.train, package = "xgboost")

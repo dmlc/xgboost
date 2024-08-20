@@ -18,10 +18,9 @@ xgb.slice.Booster(
 \item{model, x}{A fitted \code{xgb.Booster} object, which is to be sliced by taking only a subset
 of its rounds / iterations.}
 
-\item{start}{Start of the slice (base-1 and inclusive, like R's \link{seq}).}
+\item{start}{Start of the slice (base-1 and inclusive, like R's \code{\link[=seq]{seq()}}).}
 
-\item{end}{End of the slice (base-1 and inclusive, like R's \link{seq}).
-
+\item{end}{End of the slice (base-1 and inclusive, like R's \code{\link[=seq]{seq()}}).
 Passing a value of zero here is equivalent to passing the full number of rounds in the
 booster object.}
 
@@ -43,8 +42,10 @@ the resulting object.
 }
 \examples{
 data(mtcars)
+
 y <- mtcars$mpg
 x <- as.matrix(mtcars[, -1])
+
 dm <- xgb.DMatrix(x, label = y, nthread = 1)
 model <- xgb.train(data = dm, params = list(nthread = 1), nrounds = 5)
 model_slice <- xgb.slice.Booster(model, 1, 3)

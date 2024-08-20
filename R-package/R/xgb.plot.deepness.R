@@ -4,7 +4,8 @@
 #' - `xgb.plot.deepness()` uses base R graphics, while
 #' - `xgb.ggplot.deepness()` uses "ggplot2".
 #'
-#' @param model Either an `xgb.Booster` model, or the "data.table" returned by [xgb.model.dt.tree()].
+#' @param model Either an `xgb.Booster` model, or the "data.table" returned
+#'   by [xgb.model.dt.tree()].
 #' @param which Which distribution to plot (see details).
 #' @param plot Should the plot be shown? Default is `TRUE`.
 #' @param ... Other parameters passed to [graphics::barplot()] or [graphics::plot()].

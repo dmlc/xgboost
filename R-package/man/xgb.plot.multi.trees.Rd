@@ -21,11 +21,11 @@ xgb.plot.multi.trees(
 by default 5.}
 
 \item{plot_width, plot_height}{Width and height of the graph in pixels.
-The values are passed to \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.}
+The values are passed to \code{DiagrammeR::render_graph()}.}
 
 \item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
 
-\item{...}{currently not used.}
+\item{...}{Currently not used.}
 }
 \value{
 The value depends on the \code{render} parameter:
@@ -35,7 +35,7 @@ class \code{grViz}. Similar to "ggplot" objects, it needs to be printed when not
 running from the command line.
 \item If \code{render = FALSE}: Graph object which is of DiagrammeR's class \code{dgr_graph}.
 This could be useful if one wants to modify some of the graph attributes
-before rendering the graph with \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.
+before rendering the graph with \code{DiagrammeR::render_graph()}.
 }
 }
 \description{

@@ -12,11 +12,12 @@
 \item{...}{Not used.}
 }
 \value{
-The extracted coefficients:\itemize{
-\item If there's only one coefficient per column in the data, will be returned as a
+The extracted coefficients:
+\itemize{
+\item If there is only one coefficient per column in the data, will be returned as a
 vector, potentially containing the feature names if available, with the intercept
 as first column.
-\item If there's more than one coefficient per column in the data (e.g. when using
+\item If there is more than one coefficient per column in the data (e.g. when using
 \code{objective="multi:softmax"}), will be returned as a matrix with dimensions equal
 to \verb{[num_features, num_cols]}, with the intercepts as first row. Note that the column
 (classes in multi-class classification) dimension will not be named.
@@ -33,16 +34,19 @@ coefficients as used by \link{predict.xgb.Booster}.
 }
 \description{
 Extracts the coefficients from a 'gblinear' booster object,
-as produced by \code{xgb.train} when using parameter \code{booster="gblinear"}.
+as produced by \code{\link[=xgb.train]{xgb.train()}} when using parameter \code{booster="gblinear"}.
 
 Note: this function will error out if passing a booster model
 which is not of "gblinear" type.
 }
 \examples{
 library(xgboost)
+
 data(mtcars)
+
 y <- mtcars[, 1]
 x <- as.matrix(mtcars[, -1])
+
 dm <- xgb.DMatrix(data = x, label = y, nthread = 1)
 params <- list(booster = "gblinear", nthread = 1)
 model <- xgb.train(data = dm, params = params, nrounds = 2)

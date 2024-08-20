@@ -18,7 +18,8 @@ xgb.plot.deepness(
 )
 }
 \arguments{
-\item{model}{Either an \code{xgb.Booster} model, or the "data.table" returned by \code{\link[=xgb.model.dt.tree]{xgb.model.dt.tree()}}.}
+\item{model}{Either an \code{xgb.Booster} model, or the "data.table" returned
+by \code{\link[=xgb.model.dt.tree]{xgb.model.dt.tree()}}.}
 
 \item{which}{Which distribution to plot (see details).}
 

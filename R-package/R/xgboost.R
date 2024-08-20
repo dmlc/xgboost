@@ -944,6 +944,7 @@ xgboost <- function(
   return(model)
 }
 
+#' @method print xgboost
 #' @export
 print.xgboost <- function(x, ...) {
   cat("XGBoost model object\n")

@@ -33,5 +33,4 @@ bst <- xgb.train(
 attr(bst, "myattr") <- "memo"
 
 print(bst)
-
 }
