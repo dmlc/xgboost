@@ -66,7 +66,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                 h_batch_info.size() * sizeof(PerNodeData<int>), cudaMemcpyDefault,
                                 nullptr));
-  dh::device_vector<int8_t> tmp;
+  dh::DeviceUVector<int8_t> tmp;
   SortPositionBatch<decltype(op), int>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx),
                                        dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows, op,
                                        &tmp);
@@ -91,5 +91,4 @@ TEST(GpuHist, SortPositionBatch) {
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{3, 6}, {0, 2}});
 }
-
 }  // namespace xgboost::tree
