@@ -41,7 +41,7 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
 template <int kBlockSize>
 class EvaluateSplitAgent {
  public:
-  using ArgMaxT = cub::KeyValuePair<int, float>;
+  using ArgMaxT = cub::KeyValuePair<std::uint32_t, float>;
   using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockSize>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
   using SumReduceT = cub::WarpReduce<GradientPairInt64>;

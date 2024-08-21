@@ -1,12 +1,11 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 
-#include <algorithm>
 #include <string>
 #include <set>
 

@@ -19,7 +19,7 @@ def call(args: list[str]) -> tuple[int, int, str, list[str]]:
     # `workspace` is a name used in the CI container.  Normally we should keep the dir
     # as `xgboost`.
     matched = re.search(
-        "(workspace|xgboost)/.*(src|tests|include)/.*(warning|error):", error_msg, re.MULTILINE
+        "(workspace|xgboost)/.*(src|tests|include)/.*warning:", error_msg, re.MULTILINE
     )
 
     if matched is None:
@@ -83,6 +83,7 @@ class ClangTidy:
             "-GNinja",  # prevents cmake from using --option-files for include path.
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             "-DGOOGLE_TEST=ON",
+            "-DCMAKE_CXX_FLAGS='-Wno-clang-diagnostic-deprecated-declarations'"
         ]
         if self.use_dmlc_gtest:
             cmake_args.append("-DUSE_DMLC_GTEST=ON")
@@ -114,7 +115,7 @@ class ClangTidy:
                 continue
             elif components[i] == "-fuse-ld=lld":
                 continue
-            elif components[i] == "--default-stream per-thread":
+            elif components[i].find("--default-stream") != -1:
                 continue
             elif components[i] == "-rdynamic":
                 continue
