@@ -31,8 +31,10 @@ jobs:
         brew install ninja libomp
     - name: Build gtest binary
       run: |
-        cmake -B build -S . -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
-        cmake --build build -v
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        ninja -v
     - name: Run gtest binary
       run: |
         cd build
@@ -56,8 +58,10 @@ jobs:
     - name: Build and install XGBoost
       shell: bash -l {0}
       run: |
-        cmake -B build -S . -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF -DBUILD_DEPRECATED_CLI=ON
-        cmake --build build
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF -DBUILD_DEPRECATED_CLI=ON
+        ninja -v
     - name: Run gtest binary
       run: |
         cd build
@@ -89,8 +93,10 @@ jobs:
     - name: Build and install XGBoost
       shell: bash -l {0}
       run: |
-        cmake -B build -S . -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
-        cmake --build build -j$(nproc)
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
+        make -j$(nproc)
     - name: Run gtest binary for SYCL
       run: |
         cd build
@@ -129,14 +135,19 @@ jobs:
 
     - name: Build and install XGBoost static library
       run: |
-        cmake -B build -S . -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
-        cmake --build build --target install -v
+        mkdir build
+        cd build
+        cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        ninja -v install
+        cd -
     - name: Build and run C API demo with static
       run: |
         pushd .
         cd demo/c-api/
-        cmake -B build -S . -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        cmake --build build -v
+        mkdir build
+        cd build
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        ninja -v
         ctest
         cd ..
         rm -rf ./build
@@ -144,18 +155,19 @@ jobs:
 
     - name: Build and install XGBoost shared library
       run: |
-        cmake -B build -S . -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja -DPLUGIN_FEDERATED=ON -DGOOGLE_TEST=ON
-        cmake --build build --target install -v
         cd build
+        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja -DPLUGIN_FEDERATED=ON -DGOOGLE_TEST=ON
+        ninja -v install
         ./testxgboost
         cd -
     - name: Build and run C API demo with shared
       run: |
         pushd .
         cd demo/c-api/
-        cmake -B build -S . -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        cmake --build build -v
+        mkdir build
         cd build
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        ninja -v
         ctest
         popd
         ./tests/ci_build/verify_link.sh ./demo/c-api/build/basic/api-demo
