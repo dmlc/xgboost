@@ -686,8 +686,11 @@ class TCPSocket {
    * \return size of data actually received return -1 if error occurs
    */
   auto Recv(void *buf, std::size_t len, std::int32_t flags = 0) {
-    char *_buf = reinterpret_cast<char *>(buf);
+    char *_buf = static_cast<char *>(buf);
+    // See https://github.com/llvm/llvm-project/issues/104241 for skipped tidy analysis
+    // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
     return recv(handle_, _buf, len, flags);
+    // NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
   }
   /**
    * \brief Send string, format is matched with the Python socket wrapper in RABIT.

@@ -43,14 +43,10 @@ XGBOOST_DEVICE inline double Sigmoid(double x) {
  */
 template <typename T, typename U>
 XGBOOST_DEVICE constexpr bool CloseTo(T a, U b) {
-  using Casted =
-      typename std::conditional<
-        std::is_floating_point<T>::value || std::is_floating_point<U>::value,
-          double,
-          typename std::conditional<
-            std::is_signed<T>::value || std::is_signed<U>::value,
-            int64_t,
-            uint64_t>::type>::type;
+  using Casted = typename std::conditional_t<
+      std::is_floating_point_v<T> || std::is_floating_point_v<U>, double,
+      typename std::conditional_t<std::is_signed_v<T> || std::is_signed_v<U>, std::int64_t,
+                                  std::uint64_t>>;
   return std::is_floating_point<Casted>::value ?
       std::abs(static_cast<Casted>(a) -static_cast<Casted>(b)) < 1e-6 : a == b;
 }
@@ -65,11 +61,10 @@ XGBOOST_DEVICE constexpr bool CloseTo(T a, U b) {
  */
 template <typename Iterator>
 XGBOOST_DEVICE inline void Softmax(Iterator start, Iterator end) {
-  static_assert(std::is_same<bst_float,
-                typename std::remove_reference<
-                  decltype(std::declval<Iterator>().operator*())>::type
-                >::value,
-                "Values should be of type bst_float");
+  static_assert(
+      std::is_same_v<
+          float, typename std::remove_reference_t<decltype(std::declval<Iterator>().operator*())>>,
+      "Values should be of type bst_float");
   bst_float wmax = *start;
   for (Iterator i = start+1; i != end; ++i) {
     wmax = fmaxf(*i, wmax);
