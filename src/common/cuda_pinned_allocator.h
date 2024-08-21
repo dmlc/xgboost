@@ -23,7 +23,6 @@ namespace xgboost::common::cuda_impl {
 //  \see https://en.cppreference.com/w/cpp/memory/allocator
 
 template <typename T>
-
 struct PinnedAllocPolicy {
   using pointer = T*;              // NOLINT: The type returned by address() / allocate()
   using const_pointer = const T*;  // NOLINT: The type returned by address()
