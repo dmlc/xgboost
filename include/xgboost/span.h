@@ -303,7 +303,7 @@ struct IsAllowedExtentConversion : public std::integral_constant<
 
 template <class From, class To>
 struct IsAllowedElementTypeConversion
-    : public std::integral_constant<bool, std::is_convertible_v<From (*)[], To (*)[]>> {};
+    : public std::integral_constant<bool, std::is_convertible_v<From (*)[], To (*)[]>> {}; // NOLINT
 
 template <class T>
 struct IsSpanOracle : std::false_type {};

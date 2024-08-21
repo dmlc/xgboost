@@ -1,3 +1,6 @@
+/**
+ * Copyright 2020-2024, XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/intrusive_ptr.h>
 
@@ -12,10 +15,8 @@ class NotCopyConstructible {
   NotCopyConstructible &operator=(NotCopyConstructible const &that) = delete;
   NotCopyConstructible(NotCopyConstructible&& that) = default;
 };
-static_assert(
-    !std::is_trivially_copy_constructible<NotCopyConstructible>::value);
-static_assert(
-    !std::is_trivially_copy_assignable<NotCopyConstructible>::value);
+static_assert(!std::is_trivially_copy_constructible_v<NotCopyConstructible>);
+static_assert(!std::is_trivially_copy_assignable_v<NotCopyConstructible>);
 
 class ForIntrusivePtrTest {
  public:

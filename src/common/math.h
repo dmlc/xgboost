@@ -12,7 +12,7 @@
 #include <algorithm>    // for max
 #include <cmath>        // for exp, abs, log, lgamma
 #include <limits>       // for numeric_limits
-#include <type_traits>  // for is_floating_point, conditional, is_signed, is_same, declval, enable_if
+#include <type_traits>  // for is_floating_point_v, conditional, is_signed, is_same, declval
 #include <utility>      // for pair
 
 namespace xgboost {
@@ -47,7 +47,7 @@ XGBOOST_DEVICE constexpr bool CloseTo(T a, U b) {
       std::is_floating_point_v<T> || std::is_floating_point_v<U>, double,
       typename std::conditional_t<std::is_signed_v<T> || std::is_signed_v<U>, std::int64_t,
                                   std::uint64_t>>;
-  return std::is_floating_point<Casted>::value ?
+  return std::is_floating_point_v<Casted> ?
       std::abs(static_cast<Casted>(a) -static_cast<Casted>(b)) < 1e-6 : a == b;
 }
 
@@ -132,9 +132,7 @@ inline float LogSum(Iterator begin, Iterator end) {
 // Redefined here to workaround a VC bug that doesn't support overloading for integer
 // types.
 template <typename T>
-XGBOOST_DEVICE typename std::enable_if<
-  std::numeric_limits<T>::is_integer, bool>::type
-CheckNAN(T) {
+XGBOOST_DEVICE typename std::enable_if_t<std::numeric_limits<T>::is_integer, bool> CheckNAN(T) {
   return false;
 }
 

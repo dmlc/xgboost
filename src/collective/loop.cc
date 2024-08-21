@@ -94,8 +94,7 @@ Result Loop::ProcessQueue(std::queue<Op>* p_queue) const {
       switch (op.code) {
         case Op::kRead: {
           if (poll.CheckRead(*op.sock)) {
-            n_bytes_done = op.sock->Recv(op.ptr + op.off, op.n - op.off);  // NOLINT
-
+            n_bytes_done = op.sock->Recv(op.ptr + op.off, op.n - op.off);
             if (n_bytes_done == 0) {
               error(op);
               return Fail("Encountered EOF. The other end is likely closed.",
