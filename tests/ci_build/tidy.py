@@ -83,7 +83,7 @@ class ClangTidy:
             "-GNinja",  # prevents cmake from using --option-files for include path.
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             "-DGOOGLE_TEST=ON",
-            "-DCMAKE_CXX_FLAGS='-Wno-clang-diagnostic-deprecated-declarations'"
+            "-DCMAKE_CXX_FLAGS='-Wno-clang-diagnostic-deprecated-declarations'",
         ]
         if self.use_dmlc_gtest:
             cmake_args.append("-DUSE_DMLC_GTEST=ON")
