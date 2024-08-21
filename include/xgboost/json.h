@@ -222,6 +222,14 @@ class JsonObject : public Value {
   ~JsonObject() override = default;
 };
 
+namespace detail {
+template <typename T, typename U>
+using IsSameT = std::enable_if_t<std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<U>>>;
+
+template <typename T>
+using IsF64T = std::enable_if_t<std::is_same_v<T, double>>;
+}  // namespace detail
+
 class JsonNumber : public Value {
  public:
   using Float = float;
@@ -231,11 +239,9 @@ class JsonNumber : public Value {
 
  public:
   JsonNumber() : Value(ValueKind::kNumber) {}
-  template <typename FloatT, typename = std::enable_if_t<std::is_same_v<FloatT, Float>>>
-  JsonNumber(FloatT value) : Value(ValueKind::kNumber) {  // NOLINT
-    number_ = value;
-  }
-  template <typename FloatT, typename std::enable_if_t<std::is_same_v<FloatT, double>>* = nullptr>
+  template <typename FloatT, typename detail::IsSameT<FloatT, Float>* = nullptr>
+  JsonNumber(FloatT value) : Value(ValueKind::kNumber), number_{value} {}  // NOLINT
+  template <typename FloatT, typename detail::IsF64T<FloatT>* = nullptr>
   JsonNumber(FloatT value)  // NOLINT
       : Value{ValueKind::kNumber}, number_{static_cast<Float>(value)} {}
   JsonNumber(JsonNumber const& that) = delete;
@@ -255,6 +261,13 @@ class JsonNumber : public Value {
   }
 };
 
+namespace detail {
+template <typename IntT>
+using Not32SizeT = std::enable_if_t<std::is_same_v<IntT, std::uint32_t> &&
+                                    !std::is_same_v<std::size_t, std::uint32_t>>;
+}
+
+
 class JsonInteger : public Value {
  public:
   using Int = int64_t;
@@ -264,17 +277,16 @@ class JsonInteger : public Value {
 
  public:
   JsonInteger() : Value(ValueKind::kInteger) {}  // NOLINT
-  template <typename IntT, typename std::enable_if_t<std::is_same_v<IntT, Int>>* = nullptr>
+  template <typename IntT, typename detail::IsSameT<IntT, Int>* = nullptr>
   JsonInteger(IntT value) : Value(ValueKind::kInteger), integer_{value} {}  // NOLINT
-  template <typename IntT, typename std::enable_if_t<std::is_same_v<IntT, size_t>>* = nullptr>
+  template <typename IntT, typename detail::IsSameT<IntT, std::size_t>* = nullptr>
   JsonInteger(IntT value)  // NOLINT
       : Value(ValueKind::kInteger), integer_{static_cast<Int>(value)} {}
-  template <typename IntT, typename std::enable_if_t<std::is_same_v<IntT, int32_t>>* = nullptr>
+  template <typename IntT, typename detail::IsSameT<IntT, std::int32_t>* = nullptr>
   JsonInteger(IntT value)  // NOLINT
       : Value(ValueKind::kInteger), integer_{static_cast<Int>(value)} {}
   template <typename IntT,
-            typename std::enable_if_t<std::is_same_v<IntT, std::uint32_t> &&
-                                      !std::is_same_v<std::size_t, std::uint32_t>>* = nullptr>
+            typename detail::Not32SizeT<IntT>* = nullptr>
   JsonInteger(IntT value)  // NOLINT
       : Value(ValueKind::kInteger), integer_{static_cast<Int>(value)} {}
 
@@ -317,8 +329,7 @@ class JsonBoolean : public Value {
  public:
   JsonBoolean() : Value(ValueKind::kBoolean) {}  // NOLINT
   // Ambigious with JsonNumber.
-  template <typename Bool, typename std::enable_if_t<std::is_same_v<Bool, bool> ||
-                                                     std::is_same_v<Bool, bool const>>* = nullptr>
+  template <typename Bool, typename detail::IsSameT<std::remove_cv_t<Bool>, bool>* = nullptr>
   JsonBoolean(Bool value) : Value(ValueKind::kBoolean), boolean_{value} {}  // NOLINT
   JsonBoolean(JsonBoolean&& value) noexcept:  // NOLINT
       Value(ValueKind::kBoolean), boolean_{value.boolean_} {}
