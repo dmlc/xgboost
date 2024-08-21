@@ -159,18 +159,16 @@ class ClangTidy:
         return command
 
     def _configure_flags(self, path: str, command: str) -> list[list[str]]:
-        src = os.path.join(self.root_path, "src")
-        src = src.replace("/", "\\/")
-        include = os.path.join(self.root_path, "include")
-        include = include.replace("/", "\\/")
+        src = os.path.join(self.root_path, "src").replace("/", "\\/")
+        include = os.path.join(self.root_path, "include").replace("/", "\\/")
 
         header_filter = "(" + src + "|" + include + ")"
         common_args = [
             self.exe,
+            path,
             "--header-filter=" + header_filter,
             "--config-file=" + self.tidy_file,
         ]
-        common_args.append(path)
         common_args.append("--")
         command = self.convert_nvcc_command_to_clang(command)
 
