@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023, XGBoost contributors
+ * Copyright 2017-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -17,7 +17,6 @@
 #include "test_predictor.h"
 
 namespace xgboost::predictor {
-
 TEST(GPUPredictor, Basic) {
   auto cpu_lparam = MakeCUDACtx(-1);
   auto gpu_lparam = MakeCUDACtx(0);
@@ -123,8 +122,8 @@ TEST(GPUPredictor, EllpackBasic) {
     size_t rows = bins * 16;
     auto p_m = RandomDataGenerator{rows, kCols, 0.0}
                    .Bins(bins)
-                   .Device(DeviceOrd::CUDA(0))
-                   .GenerateDeviceDMatrix(false);
+                   .Device(ctx.Device())
+                   .GenerateQuantileDMatrix(false);
     ASSERT_FALSE(p_m->PageExists<SparsePage>());
     TestPredictionFromGradientIndex<EllpackPage>(&ctx, rows, kCols, p_m);
     TestPredictionFromGradientIndex<EllpackPage>(&ctx, bins, kCols, p_m);
@@ -137,7 +136,7 @@ TEST(GPUPredictor, EllpackTraining) {
   auto p_ellpack = RandomDataGenerator{kRows, kCols, 0.0}
                        .Bins(kBins)
                        .Device(ctx.Device())
-                       .GenerateDeviceDMatrix(false);
+                       .GenerateQuantileDMatrix(false);
   HostDeviceVector<float> storage(kRows * kCols);
   auto columnar =
       RandomDataGenerator{kRows, kCols, 0.0}.Device(ctx.Device()).GenerateArrayInterface(&storage);
@@ -269,10 +268,9 @@ TEST(GPUPredictor, Shap) {
   trees[0]->ExpandNode(0, 0, 0.5, true, 1.0, -1.0, 1.0, 0.0, 5.0, 2.0, 3.0);
   model.CommitModelGroup(std::move(trees), 0);
 
-  auto gpu_lparam = MakeCUDACtx(0);
   auto cpu_lparam = MakeCUDACtx(-1);
-  std::unique_ptr<Predictor> gpu_predictor = std::unique_ptr<Predictor>(
-      Predictor::Create("gpu_predictor", &gpu_lparam));
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &ctx));
   std::unique_ptr<Predictor> cpu_predictor = std::unique_ptr<Predictor>(
       Predictor::Create("cpu_predictor", &cpu_lparam));
   gpu_predictor->Configure({});
@@ -287,6 +285,12 @@ TEST(GPUPredictor, Shap) {
   for (auto i = 0ull; i < phis.size(); i++) {
     EXPECT_NEAR(cpu_phis[i], phis[i], 1e-3);
   }
+}
+
+TEST_P(ShapExternalMemoryTest, GPUPredictor) {
+  auto ctx = MakeCUDACtx(0);
+  auto [is_qdm, is_interaction] = this->GetParam();
+  this->Run(&ctx, is_qdm, is_interaction);
 }
 
 TEST(GPUPredictor, IterationRange) {

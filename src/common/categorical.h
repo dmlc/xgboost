@@ -1,20 +1,17 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  * \file categorical.h
  */
 #ifndef XGBOOST_COMMON_CATEGORICAL_H_
 #define XGBOOST_COMMON_CATEGORICAL_H_
 
-#include <limits>
-
 #include "bitfield.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/span.h"
+#include "xgboost/tree_model.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 using CatBitField = LBitField32;
 using KCatBitField = CLBitField32;
 
@@ -94,7 +91,12 @@ XGBOOST_DEVICE inline bool UseOneHot(uint32_t n_cats, uint32_t max_cat_to_onehot
 struct IsCatOp {
   XGBOOST_DEVICE bool operator()(FeatureType ft) { return ft == FeatureType::kCategorical; }
 };
-}  // namespace common
-}  // namespace xgboost
+
+inline auto GetNodeCats(common::Span<CatBitField::value_type const> categories,
+                        RegTree::CategoricalSplitMatrix::Segment seg) {
+  KCatBitField node_cats{categories.subspan(seg.beg, seg.size)};
+  return node_cats;
+}
+}  // namespace xgboost::common
 
 #endif  // XGBOOST_COMMON_CATEGORICAL_H_

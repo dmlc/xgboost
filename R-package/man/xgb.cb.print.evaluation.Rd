@@ -7,12 +7,12 @@
 xgb.cb.print.evaluation(period = 1, showsd = TRUE)
 }
 \arguments{
-\item{period}{results would be printed every number of periods}
+\item{period}{Results would be printed every number of periods.}
 
-\item{showsd}{whether standard deviations should be printed (when available)}
+\item{showsd}{Whether standard deviations should be printed (when available).}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
 }
 \description{
 The callback function prints the result of evaluation at every \code{period} iterations.

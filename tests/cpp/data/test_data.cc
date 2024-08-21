@@ -63,26 +63,27 @@ TEST(SparsePage, PushCSC) {
 }
 
 TEST(SparsePage, PushCSCAfterTranspose) {
-  size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries);
+  bst_idx_t constexpr kRows = 1024, kCols = 21;
+
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
   const int ncols = dmat->Info().num_col_;
-  SparsePage page; // Consolidated sparse page
-  for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
+  SparsePage page;  // Consolidated sparse page
+  for (const auto& batch : dmat->GetBatches<xgboost::SparsePage>()) {
     // Transpose each batch and push
     SparsePage tmp = batch.GetTranspose(ncols, AllThreadsForTest());
     page.PushCSC(tmp);
   }
 
   // Make sure that the final sparse page has the right number of entries
-  ASSERT_EQ(kEntries, page.data.Size());
+  ASSERT_EQ(kRows * kCols, page.data.Size());
 
   page.SortRows(AllThreadsForTest());
   auto v = page.GetView();
   for (size_t i = 0; i < v.Size(); ++i) {
     auto column = v[i];
     for (size_t j = 1; j < column.size(); ++j) {
-      ASSERT_GE(column[j].fvalue, column[j-1].fvalue);
+      ASSERT_GE(column[j].fvalue, column[j - 1].fvalue);
     }
   }
 }

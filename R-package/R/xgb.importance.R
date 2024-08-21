@@ -2,27 +2,25 @@
 #'
 #' Creates a `data.table` of feature importances.
 #'
-#' @param feature_names Character vector used to overwrite the feature names
-#'        of the model. The default is `NULL` (use original feature names).
-#' @param model Object of class `xgb.Booster`.
-#' @param trees An integer vector of tree indices that should be included
-#'        into the importance calculation (only for the "gbtree" booster).
-#'        The default (`NULL`) parses all trees.
-#'        It could be useful, e.g., in multiclass classification to get feature importances
-#'        for each class separately. *Important*: the tree index in XGBoost models
-#'        is zero-based (e.g., use `trees = 0:4` for the first five trees).
-#' @param data Deprecated.
-#' @param label Deprecated.
-#' @param target Deprecated.
-#'
 #' @details
-#'
 #' This function works for both linear and tree models.
 #'
 #' For linear models, the importance is the absolute magnitude of linear coefficients.
 #' To obtain a meaningful ranking by importance for linear models, the features need to
 #' be on the same scale (which is also recommended when using L1 or L2 regularization).
 #'
+#' @param feature_names Character vector used to overwrite the feature names
+#'   of the model. The default is `NULL` (use original feature names).
+#' @param model Object of class `xgb.Booster`.
+#' @param trees An integer vector of tree indices that should be included
+#'   into the importance calculation (only for the "gbtree" booster).
+#'   The default (`NULL`) parses all trees.
+#'   It could be useful, e.g., in multiclass classification to get feature importances
+#'   for each class separately. *Important*: the tree index in XGBoost models
+#'   is zero-based (e.g., use `trees = 0:4` for the first five trees).
+#' @param data Deprecated.
+#' @param label Deprecated.
+#' @param target Deprecated.
 #' @return A `data.table` with the following columns:
 #'
 #' For a tree model:

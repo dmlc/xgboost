@@ -50,6 +50,11 @@ Multi-node Multi-GPU Training
 
 XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_, ``Spark`` and ``PySpark``. For getting started with Dask see our tutorial :doc:`/tutorials/dask` and worked examples :doc:`/python/dask-examples/index`, also Python documentation :ref:`dask_api` for complete reference. For usage with ``Spark`` using Scala see :doc:`/jvm/xgboost4j_spark_gpu_tutorial`. Lastly for distributed GPU training with ``PySpark``, see :doc:`/tutorials/spark_estimator`.
 
+RMM integration
+===============
+
+XGBoost provides optional support for RMM integration. See :doc:`/python/rmm-examples/index` for more info.
+
 
 Memory usage
 ============

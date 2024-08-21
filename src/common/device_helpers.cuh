@@ -16,12 +16,9 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord
-#include <sstream>
-#include <string>
 #include <tuple>
 #include <vector>
 
-#include "../collective/communicator-inl.h"
 #include "common.h"
 #include "device_vector.cuh"
 #include "xgboost/host_device_vector.h"
@@ -84,8 +81,8 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 
 // atomicAdd is not defined for size_t.
 template <typename T = size_t,
-          std::enable_if_t<std::is_same<size_t, T>::value &&
-                           !std::is_same<size_t, unsigned long long>::value> * =  // NOLINT
+          std::enable_if_t<std::is_same_v<size_t, T> &&
+                           !std::is_same_v<size_t, unsigned long long>> * =  // NOLINT
               nullptr>
 XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
@@ -375,19 +372,24 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
                                 cudaMemcpyDeviceToHost));
 }
 
-template <class HContainer, class DContainer>
-void CopyToD(HContainer const &h, DContainer *d) {
-  if (h.empty()) {
-    d->clear();
+template <class Src, class Dst>
+void CopyTo(Src const &src, Dst *dst) {
+  if (src.empty()) {
+    dst->clear();
     return;
   }
-  d->resize(h.size());
-  using HVT = std::remove_cv_t<typename HContainer::value_type>;
-  using DVT = std::remove_cv_t<typename DContainer::value_type>;
-  static_assert(std::is_same<HVT, DVT>::value,
+  dst->resize(src.size());
+  using SVT = std::remove_cv_t<typename Src::value_type>;
+  using DVT = std::remove_cv_t<typename Dst::value_type>;
+  static_assert(std::is_same_v<SVT, DVT>,
                 "Host and device containers must have same value type.");
-  dh::safe_cuda(cudaMemcpyAsync(d->data().get(), h.data(), h.size() * sizeof(HVT),
-                                cudaMemcpyHostToDevice));
+  dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
+                                src.size() * sizeof(SVT), cudaMemcpyDefault));
+}
+
+template <class HContainer, class DContainer>
+void CopyToD(HContainer const &h, DContainer *d) {
+  CopyTo(h, d);
 }
 
 // Keep track of pinned memory allocation
@@ -484,24 +486,20 @@ class TypedDiscard : public thrust::discard_iterator<T> {
 } // namespace detail
 
 template <typename T>
-using TypedDiscard =
-    std::conditional_t<HasThrustMinorVer<12>(), detail::TypedDiscardCTK114<T>,
-                       detail::TypedDiscard<T>>;
+using TypedDiscard = std::conditional_t<HasThrustMinorVer<12>(), detail::TypedDiscardCTK114<T>,
+                                        detail::TypedDiscard<T>>;
 
 template <typename VectorT, typename T = typename VectorT::value_type,
-  typename IndexT = typename xgboost::common::Span<T>::index_type>
-xgboost::common::Span<T> ToSpan(
-    VectorT &vec,
-    IndexT offset = 0,
-    IndexT size = std::numeric_limits<size_t>::max()) {
+          typename IndexT = typename xgboost::common::Span<T>::index_type>
+xgboost::common::Span<T> ToSpan(VectorT &vec, IndexT offset = 0,
+                                IndexT size = std::numeric_limits<size_t>::max()) {
   size = size == std::numeric_limits<size_t>::max() ? vec.size() : size;
   CHECK_LE(offset + size, vec.size());
-  return {vec.data().get() + offset, size};
+  return {thrust::raw_pointer_cast(vec.data()) + offset, size};
 }
 
 template <typename T>
-xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
-                                size_t offset, size_t size) {
+xgboost::common::Span<T> ToSpan(thrust::device_vector<T> &vec, size_t offset, size_t size) {
   return ToSpan(vec, offset, size);
 }
 
@@ -872,13 +870,7 @@ inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
 
 // Changing this has effect on prediction return, where we need to pass the pointer to
 // third-party libraries like cuPy
-inline CUDAStreamView DefaultStream() {
-#ifdef CUDA_API_PER_THREAD_DEFAULT_STREAM
-  return CUDAStreamView{cudaStreamPerThread};
-#else
-  return CUDAStreamView{cudaStreamLegacy};
-#endif
-}
+inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamPerThread}; }
 
 class CUDAStream {
   cudaStream_t stream_;

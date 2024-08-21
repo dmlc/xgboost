@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -463,7 +463,7 @@ INSTANTIATE_TEST_SUITE_P(PredictorTypes, Dart, testing::Values("CPU"));
 
 std::pair<Json, Json> TestModelSlice(std::string booster) {
   size_t constexpr kRows = 1000, kCols = 100, kForest = 2, kClasses = 3;
-  auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true, false, kClasses);
+  auto m = RandomDataGenerator{kRows, kCols, 0}.Classes(kClasses).GenerateDMatrix(true);
 
   int32_t kIters = 10;
   std::unique_ptr<Learner> learner {
@@ -592,7 +592,7 @@ TEST(Dart, Slice) {
 
 TEST(GBTree, FeatureScore) {
   size_t n_samples = 1000, n_features = 10, n_classes = 4;
-  auto m = RandomDataGenerator{n_samples, n_features, 0.5}.GenerateDMatrix(true, false, n_classes);
+  auto m = RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
 
   std::unique_ptr<Learner> learner{ Learner::Create({m}) };
   learner->SetParam("num_class", std::to_string(n_classes));
@@ -629,7 +629,7 @@ TEST(GBTree, FeatureScore) {
 
 TEST(GBTree, PredictRange) {
   size_t n_samples = 1000, n_features = 10, n_classes = 4;
-  auto m = RandomDataGenerator{n_samples, n_features, 0.5}.GenerateDMatrix(true, false, n_classes);
+  auto m = RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
 
   std::unique_ptr<Learner> learner{Learner::Create({m})};
   learner->SetParam("num_class", std::to_string(n_classes));
@@ -642,7 +642,7 @@ TEST(GBTree, PredictRange) {
   ASSERT_THROW(learner->Predict(m, false, &out_predt, 0, 3), dmlc::Error);
 
   auto m_1 =
-      RandomDataGenerator{n_samples, n_features, 0.5}.GenerateDMatrix(true, false, n_classes);
+      RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
   HostDeviceVector<float> out_predt_full;
   learner->Predict(m_1, false, &out_predt_full, 0, 0);
   ASSERT_TRUE(std::equal(out_predt.HostVector().begin(), out_predt.HostVector().end(),
@@ -715,7 +715,7 @@ TEST(GBTree, InplacePredictionError) {
       p_fmat = rng.GenerateQuantileDMatrix(true);
     } else {
 #if defined(XGBOOST_USE_CUDA)
-      p_fmat = rng.GenerateDeviceDMatrix(true);
+      p_fmat = rng.Device(ctx->Device()).GenerateQuantileDMatrix(true);
 #else
       CHECK(p_fmat);
 #endif  // defined(XGBOOST_USE_CUDA)

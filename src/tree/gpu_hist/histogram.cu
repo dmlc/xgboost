@@ -325,7 +325,7 @@ class DeviceHistogramBuilderImpl {
   void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
-                      common::Span<const std::uint32_t> d_ridx,
+                      common::Span<const cuda_impl::RowIndexT> d_ridx,
                       common::Span<GradientPairInt64> histogram, GradientQuantiser rounding) {
     CHECK(kernel_);
     // Otherwise launch blocks such that each block has a minimum amount of work to do
@@ -369,7 +369,7 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx,
                                             EllpackDeviceAccessor const& matrix,
                                             FeatureGroupsAccessor const& feature_groups,
                                             common::Span<GradientPair const> gpair,
-                                            common::Span<const std::uint32_t> ridx,
+                                            common::Span<const cuda_impl::RowIndexT> ridx,
                                             common::Span<GradientPairInt64> histogram,
                                             GradientQuantiser rounding) {
   this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram, rounding);

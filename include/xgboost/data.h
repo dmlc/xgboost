@@ -541,9 +541,12 @@ class DMatrix {
   [[nodiscard]] bool PageExists() const;
 
   /**
-   * @return Whether the data columns single column block.
+   * @return Whether the contains a single batch.
+   *
+   * The naming is legacy.
    */
-  [[nodiscard]] virtual bool SingleColBlock() const = 0;
+  [[nodiscard]] bool SingleColBlock() const { return this->NumBatches() == 1; }
+  [[nodiscard]] virtual std::int32_t NumBatches() const { return 1; }
 
   virtual ~DMatrix();
 

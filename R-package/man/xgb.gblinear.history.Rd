@@ -2,24 +2,24 @@
 % Please edit documentation in R/callbacks.R
 \name{xgb.gblinear.history}
 \alias{xgb.gblinear.history}
-\title{Extract gblinear coefficients history.}
+\title{Extract gblinear coefficients history}
 \usage{
 xgb.gblinear.history(model, class_index = NULL)
 }
 \arguments{
-\item{model}{either an \code{xgb.Booster} or a result of \code{xgb.cv()}, trained
-using the \link{xgb.cb.gblinear.history} callback, but \bold{not} a booster
-loaded from \link{xgb.load} or \link{xgb.load.raw}.}
+\item{model}{Either an \code{xgb.Booster} or a result of \code{\link[=xgb.cv]{xgb.cv()}}, trained
+using the \link{xgb.cb.gblinear.history} callback, but \strong{not} a booster
+loaded from \code{\link[=xgb.load]{xgb.load()}} or \code{\link[=xgb.load.raw]{xgb.load.raw()}}.}
 
 \item{class_index}{zero-based class index to extract the coefficients for only that
-specific class in a multinomial multiclass model. When it is NULL, all the
+specific class in a multinomial multiclass model. When it is \code{NULL}, all the
 coefficients are returned. Has no effect in non-multiclass models.}
 }
 \value{
-For an \link{xgb.train} result, a matrix (either dense or sparse) with the columns
+For an \code{\link[=xgb.train]{xgb.train()}} result, a matrix (either dense or sparse) with the columns
 corresponding to iteration's coefficients and the rows corresponding to boosting iterations.
 
-For an \link{xgb.cv} result, a list of such matrices is returned with the elements
+For an \code{\link[=xgb.cv]{xgb.cv()}} result, a list of such matrices is returned with the elements
 corresponding to CV folds.
 
 When there is more than one coefficient per feature (e.g. multi-class classification)
@@ -31,15 +31,15 @@ coefficients N+1 through 2N for the second class, and so on).
 \description{
 A helper function to extract the matrix of linear coefficients' history
 from a gblinear model created while using the \link{xgb.cb.gblinear.history}
-callback (which must be added manually as by default it's not used).
+callback (which must be added manually as by default it is not used).
 }
 \details{
 Note that this is an R-specific function that relies on R attributes that
-are not saved when using xgboost's own serialization functions like \link{xgb.load}
-or \link{xgb.load.raw}.
+are not saved when using XGBoost's own serialization functions like \code{\link[=xgb.load]{xgb.load()}}
+or \code{\link[=xgb.load.raw]{xgb.load.raw()}}.
 
 In order for a serialized model to be accepted by this function, one must use R
-serializers such as \link{saveRDS}.
+serializers such as \code{\link[=saveRDS]{saveRDS()}}.
 }
 \seealso{
 \link{xgb.cb.gblinear.history}, \link{coef.xgb.Booster}.

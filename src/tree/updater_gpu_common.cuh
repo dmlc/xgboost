@@ -6,8 +6,9 @@
 #include <ostream>  // for ostream
 
 #include "gpu_hist/histogram.cuh"
-#include "param.h"
+#include "param.h"  // for TrainParam
 #include "xgboost/base.h"
+#include "xgboost/task.h"  // for ObjInfo
 
 namespace xgboost::tree {
 struct GPUTrainingParam {
@@ -116,6 +117,21 @@ struct DeviceSplitCandidate {
     return os;
   }
 };
+
+namespace cuda_impl {
+inline BatchParam HistBatch(TrainParam const& param) {
+  return {param.max_bin, TrainParam::DftSparseThreshold()};
+}
+
+inline BatchParam HistBatch(bst_bin_t max_bin) {
+  return {max_bin, TrainParam::DftSparseThreshold()};
+}
+
+inline BatchParam ApproxBatch(TrainParam const& p, common::Span<float const> hess,
+                              ObjInfo const& task) {
+  return BatchParam{p.max_bin, hess, !task.const_hess};
+}
+}  // namespace cuda_impl
 
 template <typename T>
 struct SumCallbackOp {

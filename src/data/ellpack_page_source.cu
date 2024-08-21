@@ -20,7 +20,7 @@
 
 namespace xgboost::data {
 struct EllpackHostCache {
-  thrust::host_vector<std::int8_t, common::cuda::pinned_allocator<std::int8_t>> cache;
+  thrust::host_vector<std::int8_t, common::cuda_impl::pinned_allocator<std::int8_t>> cache;
 
   void Resize(std::size_t n, dh::CUDAStreamView stream) {
     stream.Sync();  // Prevent partial copy inside resize.
@@ -172,6 +172,8 @@ void EllpackPageSourceImpl<F>::Fetch() {
     Context ctx = Context{}.MakeCUDA(this->Device().ordinal);
     *impl = EllpackPageImpl{&ctx, this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
+    LOG(INFO) << "Generated an Ellpack page with size: " << impl->MemCostBytes()
+              << " from a SparsePage with size:" << csr->MemCostBytes();
     this->WriteCache();
   }
 }

@@ -130,10 +130,9 @@ To build and run C++ unit tests enable tests while running CMake:
 
 .. code-block:: bash
 
-  mkdir build
-  cd build
-  cmake -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DUSE_CUDA=ON -DUSE_NCCL=ON ..
-  ninja
+  cmake -B build -S . -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DUSE_CUDA=ON -DUSE_NCCL=ON
+  cmake --build build
+  cd ./build
   ./testxgboost
 
 Flags like ``USE_CUDA``, ``USE_DMLC_GTEST`` are optional. For more info about how to build

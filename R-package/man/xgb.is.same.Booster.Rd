@@ -12,30 +12,33 @@ xgb.is.same.Booster(obj1, obj2)
 \item{obj2}{Booster model to compare with \code{obj1}.}
 }
 \value{
-Either \code{TRUE} or \code{FALSE} according to whether the two boosters share
-the underlying C object.
+Either \code{TRUE} or \code{FALSE} according to whether the two boosters share the
+underlying C object.
 }
 \description{
 Checks whether two booster objects refer to the same underlying C object.
 }
 \details{
-As booster objects (as returned by e.g. \link{xgb.train}) contain an R 'externalptr'
+As booster objects (as returned by e.g. \code{\link[=xgb.train]{xgb.train()}}) contain an R 'externalptr'
 object, they don't follow typical copy-on-write semantics of other R objects - that is, if
 one assigns a booster to a different variable and modifies that new variable through in-place
-methods like \link{xgb.attr<-}, the modification will be applied to both the old and the new
+methods like \code{\link[=xgb.attr<-]{xgb.attr<-()}}, the modification will be applied to both the old and the new
 variable, unlike typical R assignments which would only modify the latter.
 
 This function allows checking whether two booster objects share the same 'externalptr',
 regardless of the R attributes that they might have.
 
 In order to duplicate a booster in such a way that the copy wouldn't share the same
-'externalptr', one can use function \link{xgb.copy.Booster}.
+'externalptr', one can use function \code{\link[=xgb.copy.Booster]{xgb.copy.Booster()}}.
 }
 \examples{
 library(xgboost)
+
 data(mtcars)
+
 y <- mtcars$mpg
 x <- as.matrix(mtcars[, -1])
+
 model <- xgb.train(
   params = list(nthread = 1),
   data = xgb.DMatrix(x, label = y, nthread = 1),
@@ -55,5 +58,5 @@ xgb.attr(model, "my_attr") # gets modified
 xgb.attr(model_deep_copy, "my_attr") # doesn't get modified
 }
 \seealso{
-\link{xgb.copy.Booster}
+\code{\link[=xgb.copy.Booster]{xgb.copy.Booster()}}
 }

@@ -57,8 +57,6 @@ class IterativeDMatrix : public QuantileDMatrix {
 
   BatchSet<EllpackPage> GetEllpackBatches(Context const *ctx, const BatchParam &param) override;
   BatchSet<ExtSparsePage> GetExtBatches(Context const *ctx, BatchParam const &param) override;
-
-  bool SingleColBlock() const override { return true; }
 };
 }  // namespace data
 }  // namespace xgboost

@@ -18,8 +18,8 @@ run CMake with option ``-DPLUGIN_RMM=ON`` (``-DUSE_CUDA=ON`` also required):
 
 .. code-block:: sh
 
-  cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON
-  make -j$(nproc)
+  cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON
+  cmake --build build -j$(nproc)
 
 CMake will attempt to locate the RMM library in your build environment. You may choose to build
 RMM from the source, or install it using the Conda package manager. If CMake cannot find RMM, you
@@ -28,9 +28,9 @@ should specify the location of RMM with the CMake prefix:
 .. code-block:: sh
 
   # If using Conda:
-  cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+  cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
   # If using RMM installed with a custom location
-  cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=/path/to/rmm
+  cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=/path/to/rmm
 
 ********************************
 Informing XGBoost about RMM pool
@@ -59,3 +59,19 @@ device ordinal in XGBoost can result in memory error ``cudaErrorIllegalAddress``
 ``CUDA_VISIBLE_DEVICES`` environment variable instead of the ``device="cuda:1"`` parameter
 for selecting device. For distributed training, the distributed computing frameworks like
 ``dask-cuda`` are responsible for device management.
+
+************************
+Memory Over-Subscription
+************************
+
+.. warning::
+
+   This feature is still experimental and is under active development.
+
+The newer NVIDIA platforms like `Grace-Hopper
+<https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/>`__ use `NVLink-C2C
+<https://www.nvidia.com/en-us/data-center/nvlink-c2c/>`__, which allows the CPU and GPU to
+have a coherent memory model. Users can use the `SamHeadroomMemoryResource` in the latest
+RMM to utilize system memory for storing data. This can help XGBoost utilize memory from
+the host for GPU computation, but it may reduce performance due to slower CPU memory speed
+and page migration overhead.

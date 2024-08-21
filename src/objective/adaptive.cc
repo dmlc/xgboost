@@ -3,18 +3,18 @@
  */
 #include "adaptive.h"
 
-#include <algorithm>                       // std::transform,std::find_if,std::copy,std::unique
-#include <cmath>                           // std::isnan
-#include <cstddef>                         // std::size_t
-#include <iterator>                        // std::distance
-#include <vector>                          // std::vector
+#include <algorithm>  // std::transform,std::find_if,std::copy,std::unique
+#include <cmath>      // std::isnan
+#include <cstddef>    // std::size_t
+#include <iterator>   // std::distance
+#include <vector>     // std::vector
 
 #include "../common/algorithm.h"           // ArgSort
-#include "../common/common.h"              // AssertGPUSupport
 #include "../common/numeric.h"             // RunLengthEncode
 #include "../common/stats.h"               // Quantile,WeightedQuantile
 #include "../common/threading_utils.h"     // ParallelFor
 #include "../common/transform_iterator.h"  // MakeIndexTransformIter
+#include "../tree/sample_position.h"       // for SamplePosition
 #include "xgboost/base.h"                  // bst_node_t
 #include "xgboost/context.h"               // Context
 #include "xgboost/data.h"                  // MetaInfo
@@ -22,6 +22,10 @@
 #include "xgboost/linalg.h"                // MakeTensorView
 #include "xgboost/span.h"                  // Span
 #include "xgboost/tree_model.h"            // RegTree
+
+#if !defined(XGBOOST_USE_CUDA)
+#include "../common/common.h"  // AssertGPUSupport
+#endif                         // !defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::obj::detail {
 void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
@@ -37,9 +41,10 @@ void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
     sorted_pos[i] = position[ridx[i]];
   }
   // find the first non-sampled row
-  size_t begin_pos =
-      std::distance(sorted_pos.cbegin(), std::find_if(sorted_pos.cbegin(), sorted_pos.cend(),
-                                                      [](bst_node_t nidx) { return nidx >= 0; }));
+  size_t begin_pos = std::distance(
+      sorted_pos.cbegin(),
+      std::find_if(sorted_pos.cbegin(), sorted_pos.cend(),
+                   [](bst_node_t nidx) { return tree::SamplePosition::IsValid(nidx); }));
   CHECK_LE(begin_pos, sorted_pos.size());
 
   std::vector<bst_node_t> leaf;
