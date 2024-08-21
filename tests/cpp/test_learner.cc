@@ -672,7 +672,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     Json config{Object{}};
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_FLOAT_EQ(base_score, expected_base_score);
+    ASSERT_EQ(base_score, expected_base_score);
 
     Json model{Object{}};
     learner->SaveModel(&model);

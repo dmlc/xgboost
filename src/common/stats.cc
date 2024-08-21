@@ -76,10 +76,10 @@ void SampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> 
 
     auto n_rows_f64 = static_cast<double>(n_samples);
     for (std::size_t j = 0; j < n_columns; ++j) {
-      MemStackAllocator<float, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0f);
+      MemStackAllocator<double, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0f);
       ParallelFor(v.Shape(0), ctx->Threads(),
                   [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) / n_rows_f64); });
-      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0f);
+      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
       h_out(j) = mean;
     }
     SafeColl(collective::GlobalSum(ctx, is_column_split, h_out));
@@ -97,14 +97,14 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix
   if (ctx->IsCPU()) {
     auto h_v = v.HostView();
     auto h_w = w.ConstHostSpan();
-    auto sum_w = std::accumulate(h_w.data(), h_w.data() + h_w.size(), 0.0f);
+    auto sum_w = std::accumulate(h_w.data(), h_w.data() + h_w.size(), 0.0);
     SafeColl(collective::GlobalSum(ctx, is_column_split, linalg::MakeVec(&sum_w, 1)));
     auto h_out = out->HostView();
     for (std::size_t j = 0; j < v.Shape(1); ++j) {
-      MemStackAllocator<float, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0f);
+      MemStackAllocator<double, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0f);
       ParallelFor(v.Shape(0), ctx->Threads(),
                   [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) * h_w(i) / sum_w); });
-      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0f);
+      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
       h_out(j) = mean;
     }
     SafeColl(collective::GlobalSum(ctx, is_column_split, h_out));
