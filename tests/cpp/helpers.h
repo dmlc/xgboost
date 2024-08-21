@@ -229,6 +229,7 @@ class RandomDataGenerator {
   float upper_{1.0f};
 
   bst_target_t n_targets_{1};
+  bst_target_t n_classes_{0};
 
   DeviceOrd device_{DeviceOrd::CPU()};
   std::size_t n_batches_{0};
@@ -291,6 +292,10 @@ class RandomDataGenerator {
     n_targets_ = n_targets;
     return *this;
   }
+  RandomDataGenerator& Classes(bst_target_t n_classes) {
+    n_classes_ = n_classes;
+    return *this;
+  }
 
   void GenerateDense(HostDeviceVector<float>* out) const;
 
@@ -315,8 +320,7 @@ class RandomDataGenerator {
                    HostDeviceVector<bst_feature_t>* columns) const;
 
   [[nodiscard]] std::shared_ptr<DMatrix> GenerateDMatrix(
-      bool with_label = false, bool float_label = true, size_t classes = 1,
-      DataSplitMode data_split_mode = DataSplitMode::kRow) const;
+      bool with_label = false, DataSplitMode data_split_mode = DataSplitMode::kRow) const;
 
   [[nodiscard]] std::shared_ptr<DMatrix> GenerateSparsePageDMatrix(std::string prefix,
                                                                    bool with_label) const;

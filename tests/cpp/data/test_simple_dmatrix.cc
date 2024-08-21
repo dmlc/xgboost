@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2023 by XGBoost Contributors
+ * Copyright 2016-2024, XGBoost Contributors
  */
 #include <xgboost/data.h>
 
@@ -434,12 +434,11 @@ namespace {
 void VerifyColumnSplit() {
   size_t constexpr kRows {16};
   size_t constexpr kCols {8};
-  auto dmat =
-      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(false, false, 1, DataSplitMode::kCol);
+  auto p_fmat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(false, DataSplitMode::kCol);
 
-  ASSERT_EQ(dmat->Info().num_col_, kCols * collective::GetWorldSize());
-  ASSERT_EQ(dmat->Info().num_row_, kRows);
-  ASSERT_EQ(dmat->Info().data_split_mode, DataSplitMode::kCol);
+  ASSERT_EQ(p_fmat->Info().num_col_, kCols * collective::GetWorldSize());
+  ASSERT_EQ(p_fmat->Info().num_row_, kRows);
+  ASSERT_EQ(p_fmat->Info().data_split_mode, DataSplitMode::kCol);
 }
 }  // anonymous namespace
 

@@ -209,7 +209,7 @@ TEST(Learner, ConfigIO) {
   bst_idx_t n_samples = 128;
   bst_feature_t n_features = 12;
   std::shared_ptr<DMatrix> p_fmat{
-      RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true, false, 2)};
+      RandomDataGenerator{n_samples, n_features, 0}.Classes(2).GenerateDMatrix(true)};
 
   auto serialised_model_tmp = std::string{};
   std::string eval_res_0;

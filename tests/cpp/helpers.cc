@@ -376,8 +376,33 @@ void RandomDataGenerator::GenerateCSR(
   CHECK_EQ(columns->Size(), value->Size());
 }
 
+namespace {
+void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
+                bst_target_t n_targets, std::shared_ptr<DMatrix> out) {
+  RandomDataGenerator gen{n_samples, n_targets, 0.0f};
+  if (n_classes != 0) {
+    gen.Lower(0).Upper(n_classes).GenerateDense(out->Info().labels.Data());
+    out->Info().labels.Reshape(n_samples, n_targets);
+    auto& h_labels = out->Info().labels.Data()->HostVector();
+    for (auto& v : h_labels) {
+      v = static_cast<float>(static_cast<uint32_t>(v));
+    }
+  } else {
+    gen.GenerateDense(out->Info().labels.Data());
+    CHECK_EQ(out->Info().labels.Size(), n_samples * n_targets);
+    out->Info().labels.Reshape(n_samples, n_targets);
+  }
+  if (device.IsCUDA()) {
+    out->Info().labels.Data()->SetDevice(device);
+    out->Info().labels.Data()->ConstDevicePointer();
+    out->Info().feature_types.SetDevice(device);
+    out->Info().feature_types.ConstDevicePointer();
+  }
+}
+}  // namespace
+
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(
-    bool with_label, bool float_label, size_t classes, DataSplitMode data_split_mode) const {
+    bool with_label, DataSplitMode data_split_mode) const {
   HostDeviceVector<float> data;
   HostDeviceVector<std::size_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;
@@ -388,19 +413,7 @@ void RandomDataGenerator::GenerateCSR(
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1, "", data_split_mode)};
 
   if (with_label) {
-    RandomDataGenerator gen{rows_, n_targets_, 0.0f};
-    if (!float_label) {
-      gen.Lower(0).Upper(classes).GenerateDense(out->Info().labels.Data());
-      out->Info().labels.Reshape(this->rows_, this->n_targets_);
-      auto& h_labels = out->Info().labels.Data()->HostVector();
-      for (auto& v : h_labels) {
-        v = static_cast<float>(static_cast<uint32_t>(v));
-      }
-    } else {
-      gen.GenerateDense(out->Info().labels.Data());
-      CHECK_EQ(out->Info().labels.Size(), this->rows_ * this->n_targets_);
-      out->Info().labels.Reshape(this->rows_, this->n_targets_);
-    }
+    MakeLabels(this->device_, this->rows_, this->n_classes_, this->n_targets_, out);
   }
   if (device_.IsCUDA()) {
     out->Info().labels.SetDevice(device_);
@@ -435,34 +448,31 @@ void RandomDataGenerator::GenerateCSR(
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  std::unique_ptr<DMatrix> dmat{DMatrix::Create(
+  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(
       static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next,
       std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), prefix, on_host_)};
 
   auto row_page_path =
-      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(dmat.get())) + ".row.page";
+      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(p_fmat.get())) + ".row.page";
   EXPECT_TRUE(FileExists(row_page_path)) << row_page_path;
 
   // Loop over the batches and count the number of pages
   std::size_t batch_count = 0;
   bst_idx_t row_count = 0;
-  for (const auto& batch : dmat->GetBatches<xgboost::SparsePage>()) {
+  for (const auto& batch : p_fmat->GetBatches<xgboost::SparsePage>()) {
     batch_count++;
     row_count += batch.Size();
     CHECK_NE(batch.data.Size(), 0);
   }
 
   EXPECT_EQ(batch_count, n_batches_);
-  EXPECT_EQ(dmat->NumBatches(), n_batches_);
-  EXPECT_EQ(row_count, dmat->Info().num_row_);
+  EXPECT_EQ(p_fmat->NumBatches(), n_batches_);
+  EXPECT_EQ(row_count, p_fmat->Info().num_row_);
 
   if (with_label) {
-    RandomDataGenerator{static_cast<bst_idx_t>(dmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
-        dmat->Info().labels.Data());
-    CHECK_EQ(dmat->Info().labels.Size(), this->rows_ * this->n_targets_);
-    dmat->Info().labels.Reshape(this->rows_, this->n_targets_);
+    MakeLabels(this->device_, this->rows_, this->n_classes_, this->n_targets_, p_fmat);
   }
-  return dmat;
+  return p_fmat;
 }
 
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateExtMemQuantileDMatrix(
@@ -492,10 +502,7 @@ void RandomDataGenerator::GenerateCSR(
   }
 
   if (with_label) {
-    RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}
-        .GenerateDense(p_fmat->Info().labels.Data());
-    CHECK_EQ(p_fmat->Info().labels.Size(), this->rows_ * this->n_targets_);
-    p_fmat->Info().labels.Reshape(this->rows_, this->n_targets_);
+    MakeLabels(this->device_, this->rows_, this->n_classes_, this->n_targets_, p_fmat);
   }
   return p_fmat;
 }

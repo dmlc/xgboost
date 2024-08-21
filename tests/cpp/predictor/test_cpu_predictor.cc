@@ -61,6 +61,12 @@ TEST(CpuPredictor, ExternalMemory) {
   TestBasic(dmat.get(), &ctx);
 }
 
+TEST_P(ShapExternalMemoryTest, CPUPredictor) {
+  Context ctx;
+  auto [is_qdm, is_interaction] = this->GetParam();
+  this->Run(&ctx, is_qdm, is_interaction);
+}
+
 TEST(CpuPredictor, InplacePredict) {
   bst_idx_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
@@ -110,7 +116,7 @@ void TestUpdatePredictionCache(bool use_subsampling) {
   }
   gbm->Configure(args);
 
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).Classes(kClasses).GenerateDMatrix(true);
 
   linalg::Matrix<GradientPair> gpair({kRows, kClasses}, ctx.Device());
   auto h_gpair = gpair.HostView();
@@ -145,7 +151,7 @@ TEST(CPUPredictor, GHistIndexTraining) {
   auto adapter = data::ArrayAdapter(columnar.c_str());
   std::shared_ptr<DMatrix> p_full{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
-  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist, true);
+  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {
