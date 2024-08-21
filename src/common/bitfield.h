@@ -108,9 +108,11 @@ struct BitFieldContainer {
 #if defined(__CUDA_ARCH__)
   __device__ BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-    size_t min_size = min(NumValues(), rhs.NumValues());
+    std::size_t min_size = std::min(this->Capacity(), rhs.Capacity());
     if (tid < min_size) {
-      Data()[tid] |= rhs.Data()[tid];
+      if (this->Check(tid) || rhs.Check(tid)) {
+        this->Set(tid);
+      }
     }
     return *this;
   }
@@ -126,16 +128,20 @@ struct BitFieldContainer {
 
 #if defined(__CUDA_ARCH__)
   __device__ BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
-    size_t min_size = min(NumValues(), rhs.NumValues());
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+    std::size_t min_size = std::min(this->Capacity(), rhs.Capacity());
     if (tid < min_size) {
-      Data()[tid] &= rhs.Data()[tid];
+      if (this->Check(tid) && rhs.Check(tid)) {
+        this->Set(tid);
+      } else {
+        this->Clear(tid);
+      }
     }
     return *this;
   }
 #else
   BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
-    size_t min_size = std::min(NumValues(), rhs.NumValues());
+    std::size_t min_size = std::min(NumValues(), rhs.NumValues());
     for (size_t i = 0; i < min_size; ++i) {
       Data()[i] &= rhs.Data()[i];
     }
