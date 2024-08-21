@@ -49,7 +49,7 @@ void TestSparseDMatrixLoadFile(Context const* ctx) {
                              1};
   Page out;
   for (auto const &page : m.GetBatches<Page>(ctx)) {
-    if (std::is_same<Page, SparsePage>::value) {
+    if (std::is_same_v<Page, SparsePage>) {
       out.Push(page);
     } else {
       out.PushCSC(page);
@@ -89,7 +89,7 @@ void TestRetainPage() {
   for (auto it = begin; it != end; ++it) {
     iterators.push_back(it.Page());
     pages.emplace_back(Page{});
-    if (std::is_same<Page, SparsePage>::value) {
+    if (std::is_same_v<Page, SparsePage>) {
       pages.back().Push(*it);
     } else {
       pages.back().PushCSC(*it);
@@ -105,7 +105,7 @@ void TestRetainPage() {
 
   // make sure it's const and the caller can not modify the content of page.
   for (auto &page : p_fmat->GetBatches<Page>({&ctx})) {
-    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value);
+    static_assert(std::is_const_v<std::remove_reference_t<decltype(page)>>);
   }
 }
 

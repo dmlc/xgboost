@@ -81,8 +81,8 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 
 // atomicAdd is not defined for size_t.
 template <typename T = size_t,
-          std::enable_if_t<std::is_same<size_t, T>::value &&
-                           !std::is_same<size_t, unsigned long long>::value> * =  // NOLINT
+          std::enable_if_t<std::is_same_v<size_t, T> &&
+                           !std::is_same_v<size_t, unsigned long long>> * =  // NOLINT
               nullptr>
 XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
@@ -381,7 +381,7 @@ void CopyTo(Src const &src, Dst *dst) {
   dst->resize(src.size());
   using SVT = std::remove_cv_t<typename Src::value_type>;
   using DVT = std::remove_cv_t<typename Dst::value_type>;
-  static_assert(std::is_same<SVT, DVT>::value,
+  static_assert(std::is_same_v<SVT, DVT>,
                 "Host and device containers must have same value type.");
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
                                 src.size() * sizeof(SVT), cudaMemcpyDefault));

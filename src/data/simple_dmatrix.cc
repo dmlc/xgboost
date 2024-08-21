@@ -294,16 +294,14 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
         IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
     // If AdapterT is either IteratorAdapter or FileAdapter type, use the total batch size to
     // determine the correct number of rows, as offset_vec may be too short
-    if (std::is_same<AdapterT, IteratorAdapterT>::value ||
-        std::is_same<AdapterT, FileAdapter>::value) {
+    if (std::is_same_v<AdapterT, IteratorAdapterT> || std::is_same_v<AdapterT, FileAdapter>) {
       info_.num_row_ = total_batch_size;
       // Ensure offset_vec.size() - 1 == [number of rows]
       while (offset_vec.size() - 1 < total_batch_size) {
         offset_vec.emplace_back(offset_vec.back());
       }
     } else {
-      CHECK((std::is_same<AdapterT, CSCAdapter>::value ||
-             std::is_same<AdapterT, CSCArrayAdapter>::value))
+      CHECK((std::is_same_v<AdapterT, CSCAdapter> || std::is_same_v<AdapterT, CSCArrayAdapter>))
           << "Expecting CSCAdapter";
       info_.num_row_ = offset_vec.size() - 1;
     }

@@ -82,7 +82,7 @@ class AllreduceFunctor {
   }
 
  private:
-  template <class T, std::enable_if_t<std::is_integral<T>::value>* = nullptr>
+  template <class T, std::enable_if_t<std::is_integral_v<T>>* = nullptr>
   void AccumulateBitwise(T* buffer, T const* input, std::size_t size, Op reduce_operation) const {
     switch (reduce_operation) {
       case Op::kBitwiseAND:
@@ -99,7 +99,7 @@ class AllreduceFunctor {
     }
   }
 
-  template <class T, std::enable_if_t<std::is_floating_point<T>::value>* = nullptr>
+  template <class T, std::enable_if_t<std::is_floating_point_v<T>>* = nullptr>
   void AccumulateBitwise(T*, T const*, std::size_t, Op) const {
     LOG(FATAL) << "Floating point types do not support bitwise operations.";
   }

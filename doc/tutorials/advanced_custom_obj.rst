@@ -360,7 +360,7 @@ point, which means it will be a minimum rather than a maximum or saddle point).
 
 But note that this is still not usable for XGBoost, since the expected
 Hessian, just like the true Hessian, has shape ``[nrows, k, k]``, while
-XGBoost requires something with shape ``[k, k]``.
+XGBoost requires something with shape ``[nrows, k]``.
 
 One may use the diagonal of the expected Hessian for each row, but it's
 possible to do better: one can use instead an upper bound with diagonal

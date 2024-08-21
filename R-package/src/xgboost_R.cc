@@ -335,6 +335,11 @@ XGB_DLL SEXP XGSetArrayDimNamesInplace_R(SEXP arr, SEXP dim_names) {
   return R_NilValue;
 }
 
+XGB_DLL SEXP XGSetVectorNamesInplace_R(SEXP arr, SEXP names) {
+  Rf_setAttrib(arr, R_NamesSymbol, names);
+  return R_NilValue;
+}
+
 namespace {
 void _DMatrixFinalizer(SEXP ext) {
   R_API_BEGIN();

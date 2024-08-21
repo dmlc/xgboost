@@ -11,10 +11,10 @@
 #include <xgboost/tree_updater.h>
 #pragma GCC diagnostic pop
 
-#include <utility>
 #include <vector>
 #include <memory>
 #include <queue>
+#include <utility>
 
 #include "../common/partition_builder.h"
 #include "split_evaluator.h"
@@ -54,12 +54,10 @@ class HistUpdater {
   explicit HistUpdater(const Context* ctx,
                        ::sycl::queue qu,
                        const xgboost::tree::TrainParam& param,
-                       std::unique_ptr<TreeUpdater> pruner,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
     : ctx_(ctx), qu_(qu), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
-      pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
       p_last_tree_(nullptr), p_last_fmat_(fmat) {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
@@ -72,6 +70,17 @@ class HistUpdater {
       qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
     sub_group_size_ = sub_group_sizes.back();
   }
+
+  // update one tree, growing
+  void Update(xgboost::tree::TrainParam const *param,
+              const common::GHistIndexMatrix &gmat,
+              const USMVector<GradientPair, MemoryType::on_device>& gpair,
+              DMatrix *p_fmat,
+              xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
+              RegTree *p_tree);
+
+  bool UpdatePredictionCache(const DMatrix* data,
+                              linalg::MatrixView<float> p_out_preds);
 
   void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
   void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
@@ -200,7 +209,6 @@ class HistUpdater {
   std::vector<SplitEntry<GradientSumT>> best_splits_host_;
 
   TreeEvaluator<GradientSumT> tree_evaluator_;
-  std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost interaction_constraints_;
 
   // back pointers to tree and data matrix
@@ -246,6 +254,9 @@ class HistUpdater {
 
   std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
   std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;
+
+  USMVector<bst_float, MemoryType::on_device> out_preds_buf_;
+  bst_float* out_pred_ptr = nullptr;
 
   ::sycl::queue qu_;
 };

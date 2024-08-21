@@ -18,8 +18,8 @@ run CMake with option ``-DPLUGIN_RMM=ON`` (``-DUSE_CUDA=ON`` also required):
 
 .. code-block:: sh
 
-  cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON
-  make -j$(nproc)
+  cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON
+  cmake --build build -j$(nproc)
 
 CMake will attempt to locate the RMM library in your build environment. You may choose to build
 RMM from the source, or install it using the Conda package manager. If CMake cannot find RMM, you
@@ -28,9 +28,9 @@ should specify the location of RMM with the CMake prefix:
 .. code-block:: sh
 
   # If using Conda:
-  cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+  cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
   # If using RMM installed with a custom location
-  cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=/path/to/rmm
+  cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=/path/to/rmm
 
 ********************************
 Informing XGBoost about RMM pool

@@ -15,7 +15,7 @@
 #include <cstddef>                                 // std::size_t
 #include <iterator>                                // std::distance
 #include <limits>                                  // std::numeric_limits
-#include <type_traits>                             // std::is_floating_point,std::iterator_traits
+#include <type_traits>                             // std::is_floating_point_v,std::iterator_traits
 
 #include "algorithm.cuh"                           // SegmentedArgMergeSort
 #include "cuda_context.cuh"                        // CUDAContext
@@ -37,9 +37,9 @@ struct QuantileSegmentOp {
   AlphaIt alpha_it;
   Span<float> d_results;
 
-  static_assert(std::is_floating_point<typename std::iterator_traits<ValIt>::value_type>::value,
+  static_assert(std::is_floating_point_v<typename std::iterator_traits<ValIt>::value_type>,
                 "Invalid value for quantile.");
-  static_assert(std::is_floating_point<typename std::iterator_traits<ValIt>::value_type>::value,
+  static_assert(std::is_floating_point_v<typename std::iterator_traits<ValIt>::value_type>,
                 "Invalid alpha.");
 
   XGBOOST_DEVICE void operator()(std::size_t seg_idx) {
@@ -102,9 +102,9 @@ struct WeightedQuantileSegOp {
   Span<float const> d_weight_cdf;
   Span<std::size_t const> d_sorted_idx;
   Span<float> d_results;
-  static_assert(std::is_floating_point<typename std::iterator_traits<AlphaIt>::value_type>::value,
+  static_assert(std::is_floating_point_v<typename std::iterator_traits<AlphaIt>::value_type>,
                 "Invalid alpha.");
-  static_assert(std::is_floating_point<typename std::iterator_traits<ValIt>::value_type>::value,
+  static_assert(std::is_floating_point_v<typename std::iterator_traits<ValIt>::value_type>,
                 "Invalid value for quantile.");
 
   XGBOOST_DEVICE void operator()(std::size_t seg_idx) {
@@ -146,7 +146,7 @@ auto MakeWQSegOp(SegIt seg_it, ValIt val_it, AlphaIt alpha_it, Span<float const>
  *    std::distance(seg_begin, seg_end) should be equal to n_segments + 1
  */
 template <typename SegIt, typename ValIt, typename AlphaIt,
-          std::enable_if_t<!std::is_floating_point<AlphaIt>::value>* = nullptr>
+          std::enable_if_t<!std::is_floating_point_v<AlphaIt>>* = nullptr>
 void SegmentedQuantile(Context const* ctx, AlphaIt alpha_it, SegIt seg_begin, SegIt seg_end,
                        ValIt val_begin, ValIt val_end, HostDeviceVector<float>* quantiles) {
   dh::device_vector<std::size_t> sorted_idx;
@@ -197,8 +197,8 @@ void SegmentedQuantile(Context const* ctx, double alpha, SegIt seg_begin, SegIt 
  * @param w_begin  Iterator for weight for each input element
  */
 template <typename SegIt, typename ValIt, typename AlphaIt, typename WIter,
-          typename std::enable_if_t<!std::is_same<
-              typename std::iterator_traits<AlphaIt>::value_type, void>::value>* = nullptr>
+          typename std::enable_if_t<
+              !std::is_same_v<typename std::iterator_traits<AlphaIt>::value_type, void>>* = nullptr>
 void SegmentedWeightedQuantile(Context const* ctx, AlphaIt alpha_it, SegIt seg_beg, SegIt seg_end,
                                ValIt val_begin, ValIt val_end, WIter w_begin, WIter w_end,
                                HostDeviceVector<float>* quantiles) {

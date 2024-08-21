@@ -678,7 +678,7 @@ test_that("Can predict on data.frame objects", {
 
   pred_mat <- predict(model, xgb.DMatrix(x_mat))
   pred_df <- predict(model, x_df)
-  expect_equal(pred_mat, pred_df)
+  expect_equal(pred_mat, unname(pred_df))
 })
 
 test_that("'base_margin' gives the same result in DMatrix as in inplace_predict", {
@@ -702,7 +702,7 @@ test_that("'base_margin' gives the same result in DMatrix as in inplace_predict"
   pred_from_dm <- predict(model, dm_w_base)
   pred_from_mat <- predict(model, x, base_margin = base_margin)
 
-  expect_equal(pred_from_dm, pred_from_mat)
+  expect_equal(pred_from_dm, unname(pred_from_mat))
 })
 
 test_that("Coefficients from gblinear have the expected shape and names", {
@@ -725,7 +725,7 @@ test_that("Coefficients from gblinear have the expected shape and names", {
   expect_equal(names(coefs), c("(Intercept)", colnames(x)))
   pred_auto <- predict(model, x)
   pred_manual <- as.numeric(mm %*% coefs)
-  expect_equal(pred_manual, pred_auto, tolerance = 1e-5)
+  expect_equal(pred_manual, unname(pred_auto), tolerance = 1e-5)
 
   # Multi-column coefficients
   data(iris)
@@ -948,4 +948,48 @@ test_that("xgb.cv works for ranking", {
     stratified = FALSE
   )
   expect_equal(length(res$folds), 2L)
+})
+
+test_that("Row names are preserved in outputs", {
+  data(iris)
+  x <- iris[, -5]
+  y <- as.numeric(iris$Species) - 1
+  dm <- xgb.DMatrix(x, label = y, nthread = 1)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      objective = "multi:softprob",
+      num_class = 3,
+      max_depth = 2,
+      nthread = 1
+    ),
+    nrounds = 3
+  )
+  row.names(x) <- paste0("r", seq(1, nrow(x)))
+  pred <- predict(model, x)
+  expect_equal(row.names(pred), row.names(x))
+  pred <- predict(model, x, avoid_transpose = TRUE)
+  expect_equal(colnames(pred), row.names(x))
+
+  data(mtcars)
+  y <- mtcars[, 1]
+  x <- as.matrix(mtcars[, -1])
+  dm <- xgb.DMatrix(data = x, label = y)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      max_depth = 2,
+      nthread = 1
+    ),
+    nrounds = 3
+  )
+  row.names(x) <- paste0("r", seq(1, nrow(x)))
+  pred <- predict(model, x)
+  expect_equal(names(pred), row.names(x))
+  pred <- predict(model, x, avoid_transpose = TRUE)
+  expect_equal(names(pred), row.names(x))
+  pred <- predict(model, x, predleaf = TRUE)
+  expect_equal(row.names(pred), row.names(x))
+  pred <- predict(model, x, predleaf = TRUE, avoid_transpose = TRUE)
+  expect_equal(colnames(pred), row.names(x))
 })

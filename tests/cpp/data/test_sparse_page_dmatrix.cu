@@ -166,7 +166,7 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
 
   // make sure it's const and the caller can not modify the content of page.
   for (auto& page : m->GetBatches<EllpackPage>(&ctx, param)) {
-    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value);
+    static_assert(std::is_const_v<std::remove_reference_t<decltype(page)>>);
   }
 
   // The above iteration clears out all references inside DMatrix.
