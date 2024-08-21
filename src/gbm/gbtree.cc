@@ -52,7 +52,8 @@ std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) 
     case TreeMethod::kAuto:  // Use hist as default in 2.0
     case TreeMethod::kHist: {
       return ctx->DispatchDevice([] { return "grow_quantile_histmaker"; },
-                                 [] { return "grow_gpu_hist"; });
+                                 [] { return "grow_gpu_hist"; },
+                                 [] { return "grow_quantile_histmaker_sycl"; });
     }
     case TreeMethod::kApprox: {
       return ctx->DispatchDevice([] { return "grow_histmaker"; }, [] { return "grow_gpu_approx"; });

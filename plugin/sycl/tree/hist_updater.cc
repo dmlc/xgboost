@@ -307,6 +307,99 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
   builder_monitor_.Stop("ExpandWithLossGuide");
 }
 
+template <typename GradientSumT>
+void HistUpdater<GradientSumT>::Update(
+    xgboost::tree::TrainParam const *param,
+    const common::GHistIndexMatrix &gmat,
+    const USMVector<GradientPair, MemoryType::on_device>& gpair,
+    DMatrix *p_fmat,
+    xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
+    RegTree *p_tree) {
+  builder_monitor_.Start("Update");
+
+  tree_evaluator_.Reset(qu_, param_, p_fmat->Info().num_col_);
+  interaction_constraints_.Reset();
+
+  this->InitData(gmat, gpair, *p_fmat, *p_tree);
+  if (param_.grow_policy == xgboost::tree::TrainParam::kLossGuide) {
+    ExpandWithLossGuide(gmat, p_tree, gpair);
+  } else {
+    ExpandWithDepthWise(gmat, p_tree, gpair);
+  }
+
+  for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
+    p_tree->Stat(nid).loss_chg = snode_host_[nid].best.loss_chg;
+    p_tree->Stat(nid).base_weight = snode_host_[nid].weight;
+    p_tree->Stat(nid).sum_hess = static_cast<float>(snode_host_[nid].stats.GetHess());
+  }
+
+  builder_monitor_.Stop("Update");
+}
+
+template<typename GradientSumT>
+bool HistUpdater<GradientSumT>::UpdatePredictionCache(
+    const DMatrix* data,
+    linalg::MatrixView<float> out_preds) {
+  // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
+  // conjunction with Update().
+  if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
+    return false;
+  }
+  builder_monitor_.Start("UpdatePredictionCache");
+  CHECK_GT(out_preds.Size(), 0U);
+
+  const size_t stride = out_preds.Stride(0);
+  const bool is_first_group = (out_pred_ptr == nullptr);
+  const size_t gid = out_pred_ptr == nullptr ? 0 : &out_preds(0) - out_pred_ptr;
+  const bool is_last_group = (gid + 1 == stride);
+
+  const int buffer_size = out_preds.Size() *stride;
+  if (buffer_size == 0) return true;
+
+  ::sycl::event event;
+  if (is_first_group) {
+    out_preds_buf_.ResizeNoCopy(&qu_, buffer_size);
+    out_pred_ptr = &out_preds(0);
+    event = qu_.memcpy(out_preds_buf_.Data(), out_pred_ptr, buffer_size * sizeof(bst_float), event);
+  }
+  auto* out_preds_buf_ptr = out_preds_buf_.Data();
+
+  size_t n_nodes = row_set_collection_.Size();
+  std::vector<::sycl::event> events(n_nodes);
+  for (size_t node = 0; node < n_nodes; node++) {
+    const common::RowSetCollection::Elem& rowset = row_set_collection_[node];
+    if (rowset.begin != nullptr && rowset.end != nullptr && rowset.Size() != 0) {
+      int nid = rowset.node_id;
+      // if a node is marked as deleted by the pruner, traverse upward to locate
+      // a non-deleted leaf.
+      if ((*p_last_tree_)[nid].IsDeleted()) {
+        while ((*p_last_tree_)[nid].IsDeleted()) {
+          nid = (*p_last_tree_)[nid].Parent();
+        }
+        CHECK((*p_last_tree_)[nid].IsLeaf());
+      }
+      bst_float leaf_value = (*p_last_tree_)[nid].LeafValue();
+      const size_t* rid = rowset.begin;
+      const size_t num_rows = rowset.Size();
+
+      events[node] = qu_.submit([&](::sycl::handler& cgh) {
+        cgh.depends_on(event);
+        cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::item<1> pid) {
+          out_preds_buf_ptr[rid[pid.get_id(0)]*stride + gid] += leaf_value;
+        });
+      });
+    }
+  }
+  if (is_last_group) {
+    qu_.memcpy(out_pred_ptr, out_preds_buf_ptr, buffer_size * sizeof(bst_float), events);
+    out_pred_ptr = nullptr;
+  }
+  qu_.wait();
+
+  builder_monitor_.Stop("UpdatePredictionCache");
+  return true;
+}
+
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitSampling(
       const USMVector<GradientPair, MemoryType::on_device> &gpair,
@@ -479,6 +572,8 @@ void HistUpdater<GradientSumT>::InitData(
     }
   }
 
+  // store a pointer to the tree
+  p_last_tree_ = &tree;
   column_sampler_->Init(ctx_, info.num_col_, info.feature_weights.ConstHostVector(),
                         param_.colsample_bynode, param_.colsample_bylevel,
                         param_.colsample_bytree);

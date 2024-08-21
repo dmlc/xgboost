@@ -9,6 +9,7 @@
 #include <xgboost/tree_updater.h>
 
 #include <vector>
+#include <memory>
 
 #include "../data/gradient_index.h"
 #include "../common/hist_util.h"
@@ -16,8 +17,9 @@
 #include "../common/partition_builder.h"
 #include "split_evaluator.h"
 #include "../device_manager.h"
-
+#include "hist_updater.h"
 #include "xgboost/data.h"
+
 #include "xgboost/json.h"
 #include "../../src/tree/constraints.h"
 #include "../../src/common/random.h"
@@ -75,12 +77,39 @@ class QuantileHistMaker: public TreeUpdater {
   HistMakerTrainParam hist_maker_param_;
   // training parameter
   xgboost::tree::TrainParam param_;
+  // quantized data matrix
+  common::GHistIndexMatrix gmat_;
+  // (optional) data matrix with feature grouping
+  // column accessor
+  DMatrix const* p_last_dmat_ {nullptr};
+  bool is_gmat_initialized_ {false};
 
   xgboost::common::Monitor updater_monitor_;
+
+  template<typename GradientSumT>
+  void SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>*, DMatrix *dmat);
+
+  template<typename GradientSumT>
+  void CallUpdate(const std::unique_ptr<HistUpdater<GradientSumT>>& builder,
+                  xgboost::tree::TrainParam const *param,
+                  linalg::Matrix<GradientPair> *gpair,
+                  DMatrix *dmat,
+                  xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
+                  const std::vector<RegTree *> &trees);
+
+  enum class HistPrecision {fp32, fp64};
+  HistPrecision hist_precision_;
+
+  std::unique_ptr<HistUpdater<float>> pimpl_fp32;
+  std::unique_ptr<HistUpdater<double>> pimpl_fp64;
+
+  FeatureInteractionConstraintHost int_constraint_;
 
   ::sycl::queue qu_;
   DeviceManager device_manager;
   ObjInfo const *task_{nullptr};
+
+  USMVector<GradientPair, MemoryType::on_device> gpair_device_;
 };
 
 
