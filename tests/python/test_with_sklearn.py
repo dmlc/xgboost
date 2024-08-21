@@ -336,6 +336,36 @@ def test_feature_importances_weight():
         cls.feature_importances_
 
 
+def test_feature_importances_weight_vector_leaf() -> None:
+    from sklearn.datasets import make_multilabel_classification
+
+    X, y = make_multilabel_classification(random_state=1994)
+    with pytest.raises(ValueError, match="gain/total_gain"):
+        clf = xgb.XGBClassifier(multi_strategy="multi_output_tree")
+        clf.fit(X, y)
+        clf.feature_importances_
+
+    with pytest.raises(ValueError, match="cover/total_cover"):
+        clf = xgb.XGBClassifier(
+            multi_strategy="multi_output_tree", importance_type="cover"
+        )
+        clf.fit(X, y)
+        clf.feature_importances_
+
+    clf = xgb.XGBClassifier(
+        multi_strategy="multi_output_tree",
+        importance_type="weight",
+        colsample_bynode=0.2,
+    )
+    clf.fit(X, y, feature_weights=np.arange(0, X.shape[1]))
+    fi = clf.feature_importances_
+    assert fi[0] == 0.0
+    assert fi[-1] > fi[1] * 5
+
+    w = np.polynomial.Polynomial.fit(np.arange(0, X.shape[1]), fi, deg=1)
+    assert w.coef[1] > 0.03
+
+
 @pytest.mark.skipif(**tm.no_pandas())
 def test_feature_importances_gain():
     from sklearn.datasets import load_digits
