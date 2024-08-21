@@ -11,7 +11,8 @@ RUN \
     apt-get update && \
     apt-get install -y wget git python3 python3-pip software-properties-common \
                        apt-transport-https ca-certificates gnupg-agent && \
-    apt-get install -y llvm-15 clang-tidy-15 clang-15 libomp-15-dev
+    apt-get install -y llvm-15 clang-tidy-15 clang-15 libomp-15-dev && \
+    apt-get install -y cmake
 
 # Set default clang-tidy version
 RUN \
@@ -23,7 +24,7 @@ RUN \
 
 # Install Python packages
 RUN \
-    pip3 install pyyaml cmake
+    pip3 install pyyaml
 
 ENV GOSU_VERSION=1.10
 
