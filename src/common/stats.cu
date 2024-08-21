@@ -72,15 +72,16 @@ void SampleMean(Context const* ctx, bool is_column_split, linalg::MatrixView<flo
                                                             return cidx;
                                                           });
   auto n_rows_f64 = static_cast<double>(n_total_samples);
-  auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                 [=] XGBOOST_DEVICE(std::size_t i) {
-                                                   auto cidx = i / n_samples;
-                                                   auto ridx = i % n_samples;
-                                                   return d_v(ridx, cidx) / n_rows_f64;
-                                                 });
+  auto val_it = dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul),
+                                                  [=] XGBOOST_DEVICE(std::size_t i) -> double {
+                                                    auto cidx = i / n_samples;
+                                                    auto ridx = i % n_samples;
+                                                    return d_v(ridx, cidx) / n_rows_f64;
+                                                  });
   auto cuctx = ctx->CUDACtx();
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
-                        thrust::make_discard_iterator(), d_out.Values().data());
+                        thrust::make_discard_iterator(), d_out.Values().data(),
+                        thrust::equal_to<>{}, thrust::plus<double>{});
   SafeColl(collective::GlobalSum(ctx, is_column_split, d_out));
 }
 
@@ -101,17 +102,18 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split,
                                                           });
   auto cuctx = ctx->CUDACtx();
   auto sum_w =
-      dh::Reduce(cuctx->CTP(), d_w.data(), d_w.data() + d_w.size(), 0.0f, thrust::plus<float>{});
+      dh::Reduce(cuctx->CTP(), d_w.data(), d_w.data() + d_w.size(), 0.0, thrust::plus<double>{});
   auto cpu = ctx->MakeCPU();
   SafeColl(collective::GlobalSum(&cpu, is_column_split, linalg::MakeVec(&sum_w, 1)));
-  auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                 [=] XGBOOST_DEVICE(std::size_t i) {
-                                                   auto cidx = i / n_rows;
-                                                   auto ridx = i % n_rows;
-                                                   return d_v(ridx, cidx) * d_w(ridx) / sum_w;
-                                                 });
+  auto val_it = dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul),
+                                                  [=] XGBOOST_DEVICE(std::size_t i) -> double {
+                                                    auto cidx = i / n_rows;
+                                                    auto ridx = i % n_rows;
+                                                    return d_v(ridx, cidx) * d_w(ridx) / sum_w;
+                                                  });
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
-                        thrust::make_discard_iterator(), d_out.Values().data());
+                        thrust::make_discard_iterator(), d_out.Values().data(),
+                        thrust::equal_to<>{}, thrust::plus<double>{});
   SafeColl(collective::GlobalSum(ctx, is_column_split, d_out));
 }
 }  // namespace xgboost::common::cuda_impl
