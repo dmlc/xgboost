@@ -47,9 +47,9 @@ void FitInterceptGlmLike::InitEstimation(MetaInfo const& info,
   }
   linalg::Vector<float> out;
   if (info.weights_.Empty()) {
-    common::SampleMean(this->ctx_, info.labels, &out);
+    common::SampleMean(this->ctx_, info.IsColumnSplit(), info.labels, &out);
   } else {
-    common::WeightedSampleMean(this->ctx_, info.labels, info.weights_, &out);
+    common::WeightedSampleMean(this->ctx_, info.IsColumnSplit(), info.labels, info.weights_, &out);
   }
   common::Mean(this->ctx_, out, base_score);
   CHECK_EQ(base_score->Size(), 1);

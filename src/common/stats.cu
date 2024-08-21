@@ -6,12 +6,13 @@
 
 #include <cstddef>  // size_t
 
-#include "cuda_context.cuh"    // CUDAContext
-#include "device_helpers.cuh"  // dh::MakeTransformIterator, tcbegin, tcend
-#include "optional_weight.h"   // common::OptionalWeights
-#include "stats.cuh"           // common::SegmentedQuantile, common::SegmentedWeightedQuantile
-#include "xgboost/base.h"      // for XGBOOST_DEVICE
-#include "xgboost/context.h"   // for Context
+#include "../collective/aggregator.h"  // for GlobalSum
+#include "cuda_context.cuh"            // CUDAContext
+#include "device_helpers.cuh"          // dh::MakeTransformIterator, tcbegin, tcend
+#include "optional_weight.h"           // common::OptionalWeights
+#include "stats.cuh"          // common::SegmentedQuantile, common::SegmentedWeightedQuantile
+#include "xgboost/base.h"     // for XGBOOST_DEVICE
+#include "xgboost/context.h"  // for Context
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/linalg.h"              // for TensorView, UnravelIndex, Apply
 
@@ -59,28 +60,33 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
   cub::DeviceReduce::Sum(temp.data().get(), bytes, it, out.Values().data(), v.Size(), s);
 }
 
-void SampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
+void SampleMean(Context const* ctx, bool is_column_split, linalg::MatrixView<float const> d_v,
                 linalg::VectorView<float> d_out) {
-  auto n_rows = d_v.Shape(0);
+  auto n_samples = d_v.Shape(0);
+  auto n_total_samples = n_samples;
+  auto cpu = ctx->MakeCPU();
+  SafeColl(collective::GlobalSum(&cpu, is_column_split, linalg::MakeVec(&n_total_samples, 1)));
   auto column_it = dh::MakeTransformIterator<std::size_t>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
-                                                            auto cidx = i / n_rows;
+                                                            auto cidx = i / n_samples;
                                                             return cidx;
                                                           });
-  auto n_rows_f32 = static_cast<float>(d_v.Shape(0));
+  auto n_rows_f64 = static_cast<double>(n_total_samples);
   auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                  [=] XGBOOST_DEVICE(std::size_t i) {
-                                                   auto cidx = i / n_rows;
-                                                   auto ridx = i % n_rows;
-                                                   return d_v(ridx, cidx) / n_rows_f32;
+                                                   auto cidx = i / n_samples;
+                                                   auto ridx = i % n_samples;
+                                                   return d_v(ridx, cidx) / n_rows_f64;
                                                  });
   auto cuctx = ctx->CUDACtx();
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
                         thrust::make_discard_iterator(), d_out.Values().data());
+  SafeColl(collective::GlobalSum(ctx, is_column_split, d_out));
 }
 
-void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
-                        common::Span<float const> d_w, linalg::VectorView<float> d_out) {
+void WeightedSampleMean(Context const* ctx, bool is_column_split,
+                        linalg::MatrixView<float const> d_v, common::Span<float const> d_w,
+                        linalg::VectorView<float> d_out) {
   CHECK(d_v.CContiguous());
   auto n_rows = d_v.Shape(0);
   // The use of `cidx = i / n_rows` does not imply the input is column-major, it simply
@@ -96,6 +102,8 @@ void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
   auto cuctx = ctx->CUDACtx();
   auto sum_w =
       dh::Reduce(cuctx->CTP(), d_w.data(), d_w.data() + d_w.size(), 0.0f, thrust::plus<float>{});
+  auto cpu = ctx->MakeCPU();
+  SafeColl(collective::GlobalSum(&cpu, is_column_split, linalg::MakeVec(&sum_w, 1)));
   auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                  [=] XGBOOST_DEVICE(std::size_t i) {
                                                    auto cidx = i / n_rows;
@@ -104,5 +112,6 @@ void WeightedSampleMean(Context const* ctx, linalg::MatrixView<float const> d_v,
                                                  });
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
                         thrust::make_discard_iterator(), d_out.Values().data());
+  SafeColl(collective::GlobalSum(ctx, is_column_split, d_out));
 }
 }  // namespace xgboost::common::cuda_impl
