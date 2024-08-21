@@ -11,20 +11,28 @@ RUN \
     apt-get update && \
     apt-get install -y wget git python3 python3-pip software-properties-common \
                        apt-transport-https ca-certificates gnupg-agent && \
-    apt-get install -y llvm-15 clang-tidy-15 clang-15 libomp-15-dev && \
-    apt-get install -y cmake
+    apt-get install -y ninja-build
+
+# Install clang-tidy: https://apt.llvm.org/
+RUN \
+    apt-add-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main" && \
+    wget -O llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key && \
+    apt-key add ./llvm-snapshot.gpg.key && \
+    rm llvm-snapshot.gpg.key && \
+    apt-get update && \
+    apt-get install -y clang-tidy-19 clang-19 libomp-19-dev
 
 # Set default clang-tidy version
 RUN \
-    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-15 100 && \
-    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-19 100 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-19 100
 
 RUN \
     apt-get install libgtest-dev libgmock-dev -y
 
 # Install Python packages
 RUN \
-    pip3 install pyyaml
+    pip3 install cmake
 
 ENV GOSU_VERSION=1.10
 

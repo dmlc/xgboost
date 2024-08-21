@@ -8,8 +8,9 @@
 #include <thrust/transform_scan.h>
 #include <thrust/unique.h>
 
-#include <limits>   // std::numeric_limits
-#include <numeric>  // for partial_sum
+#include <limits>       // for numeric_limits
+#include <numeric>      // for partial_sum
+#include <type_traits>  // for is_same_v
 #include <utility>
 
 #include "../collective/allgather.h"
@@ -108,7 +109,7 @@ void PruneImpl(common::Span<SketchContainer::OffsetT const> cuts_ptr,
 template <typename T, typename U>
 void CopyTo(Span<T> out, Span<U> src) {
   CHECK_EQ(out.size(), src.size());
-  static_assert(std::is_same<std::remove_cv_t<T>, std::remove_cv_t<T>>::value);
+  static_assert(std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<T>>);
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(),
                                 out.size_bytes(),
                                 cudaMemcpyDefault));

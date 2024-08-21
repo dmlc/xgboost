@@ -12,7 +12,7 @@
 #include <iomanip>
 #include <limits>
 #include <sstream>
-#include <type_traits>
+#include <type_traits>  // for is_floating_point_v
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
@@ -35,7 +35,7 @@ namespace {
 template <typename Float>
 std::enable_if_t<std::is_floating_point_v<Float>, std::string> ToStr(Float value) {
   int32_t constexpr kFloatMaxPrecision = std::numeric_limits<float>::max_digits10;
-  static_assert(std::is_floating_point<Float>::value,
+  static_assert(std::is_floating_point_v<Float>,
                 "Use std::to_string instead for non-floating point values.");
   std::stringstream ss;
   ss << std::setprecision(kFloatMaxPrecision) << value;
@@ -45,7 +45,7 @@ std::enable_if_t<std::is_floating_point_v<Float>, std::string> ToStr(Float value
 template <typename Float>
 std::string ToStr(linalg::VectorView<Float> value, bst_target_t limit) {
   int32_t constexpr kFloatMaxPrecision = std::numeric_limits<float>::max_digits10;
-  static_assert(std::is_floating_point<Float>::value,
+  static_assert(std::is_floating_point_v<Float>,
                 "Use std::to_string instead for non-floating point values.");
   std::stringstream ss;
   ss << std::setprecision(kFloatMaxPrecision);
@@ -1091,8 +1091,8 @@ void LoadModelImpl(Json const& in, TreeParam const& param, std::vector<RTreeNode
   stats = std::remove_reference_t<decltype(stats)>(n_nodes);
   nodes = std::remove_reference_t<decltype(nodes)>(n_nodes);
 
-  static_assert(std::is_integral<decltype(GetElem<Integer>(lefts, 0))>::value);
-  static_assert(std::is_floating_point<decltype(GetElem<Number>(loss_changes, 0))>::value);
+  static_assert(std::is_integral_v<decltype(GetElem<Integer>(lefts, 0))>);
+  static_assert(std::is_floating_point_v<decltype(GetElem<Number>(loss_changes, 0))>);
 
   // Set node
   for (int32_t i = 0; i < n_nodes; ++i) {

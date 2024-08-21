@@ -43,9 +43,9 @@ namespace detail {
 struct ArrayInterfaceHandler {
   template <typename T>
   static constexpr char TypeChar() {
-    return (std::is_floating_point<T>::value
+    return (std::is_floating_point_v<T>
                 ? 'f'
-                : (std::is_integral<T>::value ? (std::is_signed<T>::value ? 'i' : 'u') : '\0'));
+                : (std::is_integral_v<T> ? (std::is_signed_v<T> ? 'i' : 'u') : '\0'));
   }
 };
 
@@ -93,7 +93,7 @@ struct RangeTag {
  */
 template <typename T>
 constexpr int32_t CalcSliceDim() {
-  return std::is_same<T, IntTag>::value ? 0 : 1;
+  return std::is_same_v<T, IntTag> ? 0 : 1;
 }
 
 template <typename T, typename... S>
@@ -114,7 +114,7 @@ template <typename S>
 using RemoveCRType = std::remove_const_t<std::remove_reference_t<S>>;
 
 template <typename S>
-using IndexToTag = std::conditional_t<std::is_integral<RemoveCRType<S>>::value, IntTag, S>;
+using IndexToTag = std::conditional_t<std::is_integral_v<RemoveCRType<S>>, IntTag, S>;
 
 template <int32_t n, typename Fn>
 LINALG_HD constexpr auto UnrollLoop(Fn fn) {
@@ -159,7 +159,7 @@ inline LINALG_HD int Popc(uint64_t v) {
 
 template <std::size_t D, typename Head>
 LINALG_HD void IndexToArr(std::size_t (&arr)[D], Head head) {
-  static_assert(std::is_integral<std::remove_reference_t<Head>>::value, "Invalid index type.");
+  static_assert(std::is_integral_v<std::remove_reference_t<Head>>, "Invalid index type.");
   arr[D - 1] = head;
 }
 
@@ -169,7 +169,7 @@ LINALG_HD void IndexToArr(std::size_t (&arr)[D], Head head) {
 template <std::size_t D, typename Head, typename... Rest>
 LINALG_HD void IndexToArr(std::size_t (&arr)[D], Head head, Rest &&...index) {
   static_assert(sizeof...(Rest) < D, "Index overflow.");
-  static_assert(std::is_integral<std::remove_reference_t<Head>>::value, "Invalid index type.");
+  static_assert(std::is_integral_v<std::remove_reference_t<Head>>, "Invalid index type.");
   arr[D - sizeof...(Rest) - 1] = head;
   IndexToArr(arr, std::forward<Rest>(index)...);
 }
@@ -193,7 +193,7 @@ constexpr auto ArrToTuple(T (&arr)[N]) {
 template <typename I, std::int32_t D>
 LINALG_HD auto UnravelImpl(I idx, common::Span<size_t const, D> shape) {
   std::size_t index[D]{0};
-  static_assert(std::is_signed<decltype(D)>::value,
+  static_assert(std::is_signed_v<decltype(D)>,
                 "Don't change the type without changing the for loop.");
   auto const sptr = shape.data();
   for (int32_t dim = D; --dim > 0;) {
@@ -379,7 +379,7 @@ class TensorView {
    * \brief Slice dimension for Index tag.
    */
   template <size_t old_dim, size_t new_dim, int32_t D, typename Index, typename... S>
-  LINALG_HD std::enable_if_t<std::is_integral<Index>::value, size_t> MakeSliceDim(
+  LINALG_HD std::enable_if_t<std::is_integral_v<Index>, size_t> MakeSliceDim(
       size_t new_shape[D], size_t new_stride[D], Index i, S &&...slices) const {
     static_assert(old_dim < kDim);
     auto offset = stride_[old_dim] * i;
@@ -547,7 +547,7 @@ class TensorView {
    */
   [[nodiscard]] LINALG_HD bool CContiguous() const {
     StrideT stride;
-    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value);
+    static_assert(std::is_same_v<decltype(stride), decltype(stride_)>);
     // It's contiguous if the stride can be calculated from shape.
     detail::CalcStride(shape_, stride);
     return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
@@ -557,7 +557,7 @@ class TensorView {
    */
   [[nodiscard]] LINALG_HD bool FContiguous() const {
     StrideT stride;
-    static_assert(std::is_same<decltype(stride), decltype(stride_)>::value);
+    static_assert(std::is_same_v<decltype(stride), decltype(stride_)>);
     // It's contiguous if the stride can be calculated from shape.
     detail::CalcStride<kDim, true>(shape_, stride);
     return common::Span<size_t const, kDim>{stride_} == common::Span<size_t const, kDim>{stride};
