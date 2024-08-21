@@ -350,7 +350,9 @@ class TestGPUPredict:
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
-        test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+        test_dmat = xgb.DMatrix(
+            dataset.X, dataset.y, weight=dataset.w, base_margin=dataset.margin
+        )
         bst.set_param({"device": "gpu:0"})
         shap = bst.predict(test_dmat, pred_contribs=True)
         margin = bst.predict(test_dmat, output_margin=True)
@@ -377,7 +379,9 @@ class TestGPUPredict:
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
 
-        test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+        test_dmat = xgb.DMatrix(
+            dataset.X, dataset.y, weight=dataset.w, base_margin=dataset.margin
+        )
         bst.set_param({"device": "cuda:0"})
         shap = bst.predict(test_dmat, pred_interactions=True)
         margin = bst.predict(test_dmat, output_margin=True)
