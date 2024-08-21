@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023, XGBoost contributors
+ * Copyright 2018-2024, XGBoost contributors
  * \brief span class based on ISO++20 span
  *
  * About NOLINTs in this file:
@@ -129,8 +129,8 @@ namespace detail {
  *   represent ptrdiff_t, which is just int64_t. So we make it deterministic
  *   here.
  */
-using ptrdiff_t = typename std::conditional<  // NOLINT
-    std::is_same_v<std::ptrdiff_t, std::int64_t>, std::ptrdiff_t, std::int64_t>::type;
+using ptrdiff_t = typename std::conditional_t<  // NOLINT
+    std::is_same_v<std::ptrdiff_t, std::int64_t>, std::ptrdiff_t, std::int64_t>;
 }  // namespace detail
 
 #if defined(_MSC_VER) && _MSC_VER < 1910
