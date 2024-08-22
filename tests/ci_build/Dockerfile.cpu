@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 # Environment
 ENV DEBIAN_FRONTEND=noninteractive
-SHELL ["/bin/bash", "-c"]   # Use Bash as shell
+SHELL ["/bin/bash", "-c"]
 
 # Install all basic requirements
 RUN \
@@ -24,9 +24,14 @@ ENV GOSU_VERSION=1.10
 ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
 
 # Install gRPC
-RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
-      --recurse-submodules --depth 1 --shallow-submodules && \
+# Patch Abseil to apply https://github.com/abseil/abseil-cpp/issues/1629
+RUN git clone -b v1.65.4 https://github.com/grpc/grpc.git \
+      --recurse-submodules --depth 1 && \
     pushd grpc && \
+    pushd third_party/abseil-cpp && \
+    git fetch origin master && \
+    git cherry-pick -n cfde5f74e276049727f9556f13473a59fe77d9eb && \
+    popd && \
     cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
     cmake --build build --target install && \
     popd && \

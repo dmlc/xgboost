@@ -36,26 +36,37 @@ ENV CUDAHOSTCXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
 
 ENV GOSU_VERSION=1.10
 
-# Install RMM (Patch out -Werror)
+# Install gRPC
+# Patch Abseil to apply https://github.com/abseil/abseil-cpp/issues/1629
+RUN git clone -b v1.65.4 https://github.com/grpc/grpc.git \
+      --recurse-submodules --depth 1 && \
+    pushd grpc && \
+    pushd third_party/abseil-cpp && \
+    git fetch origin master && \
+    git cherry-pick -n cfde5f74e276049727f9556f13473a59fe77d9eb && \
+    popd && \
+    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
+    cmake --build build --target install && \
+    popd && \
+    rm -rf grpc
+
+# Install RMM
+# Patch out -Werror
+# Patch CCCL 2.5.0 to apply https://github.com/NVIDIA/cccl/pull/1957
 RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
     pushd rmm && \
     find . -name CMakeLists.txt -print0 | xargs -0 sed -i 's/-Werror//g' && \
     mkdir build && \
     pushd build && \
     cmake .. -GNinja -DCMAKE_INSTALL_PREFIX=/opt/rmm -DCUDA_STATIC_RUNTIME=ON && \
+    pushd _deps/cccl-src/ && \
+    git fetch origin main && \
+    git cherry-pick -n 9fcb32c228865f21f2b002b29d38a06b4c6fbd73 && \
+    popd && \
     cmake --build . --target install && \
     popd && \
     popd && \
     rm -rf rmm
-
-# Install gRPC
-RUN git clone -b v1.49.1 https://github.com/grpc/grpc.git \
-      --recurse-submodules --depth 1 && \
-    pushd grpc && \
-    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
-    cmake --build build --target install && \
-    popd && \
-    rm -rf grpc
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

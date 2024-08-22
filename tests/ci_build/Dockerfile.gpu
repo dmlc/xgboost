@@ -6,7 +6,7 @@ ARG NCCL_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND=noninteractive
-SHELL ["/bin/bash", "-c"]   # Use Bash as shell
+SHELL ["/bin/bash", "-c"]
 
 # Install all basic requirements
 RUN \
@@ -22,8 +22,9 @@ ENV PATH=/opt/miniforge/bin:$PATH
 # Create new Conda environment with cuDF, Dask, and cuPy
 RUN \
     export NCCL_SHORT_VER=$(echo "$NCCL_VERSION_ARG" | cut -d "-" -f 1) && \
+    export CUDA_SHORT_VER=$(echo "$CUDA_VERSION_ARG" | grep -o -E '[0-9]+\.[0-9]') && \
     mamba create -y -n gpu_test -c rapidsai -c conda-forge -c nvidia \
-        python=3.10 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG \
+        python=3.10 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cuda-version=$CUDA_SHORT_VER \
         "nccl>=${NCCL_SHORT_VER}" \
         dask \
         dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
