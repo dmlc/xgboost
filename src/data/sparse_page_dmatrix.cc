@@ -7,6 +7,12 @@
  */
 #include "sparse_page_dmatrix.h"
 
+#include <algorithm>  // for max
+#include <memory>     // for make_shared
+#include <string>     // for string
+#include <utility>    // for move
+#include <variant>    // for visit
+
 #include "../collective/communicator-inl.h"
 #include "batch_utils.h"  // for RegenGHist
 #include "gradient_index.h"
