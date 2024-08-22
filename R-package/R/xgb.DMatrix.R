@@ -964,7 +964,7 @@ dimnames.xgb.DMatrix <- function(x) {
 #' [xgb.copy.Booster()] for an idea of this in-place assignment works.
 #' @examples
 #' data(agaricus.train, package = "xgboost")
-#' 
+#'
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
 #' labels <- getinfo(dtrain, "label")
@@ -1023,7 +1023,7 @@ getinfo.xgb.DMatrix <- function(object, name) {
 #' (which correspond to arguments in that function).
 #'
 #' Note that the following fields are allowed in the construction of an `xgb.DMatrix`
-#' but **are not** allowed here: 
+#' but **are not** allowed here:
 #' - data
 #' - missing
 #' - silent
@@ -1241,7 +1241,7 @@ xgb.get.DMatrix.data <- function(dmat) {
 #'
 #' @examples
 #' data(agaricus.train, package = "xgboost")
-#' 
+#'
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
 #' dsub <- xgb.slice.DMatrix(dtrain, 1:42)
@@ -1303,10 +1303,10 @@ xgb.slice.DMatrix <- function(object, idxset, allow_groups = FALSE) {
 #'
 #' @examples
 #' data(agaricus.train, package = "xgboost")
-#' 
+#'
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #' dtrain
-#' 
+#'
 #' print(dtrain, verbose = TRUE)
 #'
 #' @method print xgb.DMatrix

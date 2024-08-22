@@ -73,7 +73,7 @@
 #'       hazard function `h(t) = h0(t) * HR)`.
 #'     - `survival:aft`: Accelerated failure time model for censored survival time data. See
 #'       \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
-#'       for details. 
+#'       for details.
 #'       The parameter `aft_loss_distribution` specifies the Probability Density Function
 #'       used by `survival:aft` and the `aft-nloglik` metric.
 #'     - `multi:softmax`: Set xgboost to do multiclass classification using the softmax objective.

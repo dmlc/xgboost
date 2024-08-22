@@ -1,12 +1,12 @@
 #' Set and get global configuration
-#' 
+#'
 #' Global configuration consists of a collection of parameters that can be applied in the global
 #' scope. See \url{https://xgboost.readthedocs.io/en/stable/parameter.html} for the full list of
 #' parameters supported in the global configuration. Use `xgb.set.config()` to update the
 #' values of one or more global-scope parameters. Use `xgb.get.config()` to fetch the current
 #' values of all global-scope parameters (listed in
 #' \url{https://xgboost.readthedocs.io/en/stable/parameter.html}).
-#' 
+#'
 #' @details
 #' Note that serialization-related functions might use a globally-configured number of threads,
 #' which is managed by the system's OpenMP (OMP) configuration instead. Typically, XGBoost methods
