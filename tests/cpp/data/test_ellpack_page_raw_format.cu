@@ -77,7 +77,50 @@ TEST(EllpackPageRawFormat, DiskIOHmm) {
 }
 
 TEST(EllpackPageRawFormat, HostIO) {
-  EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy> policy;
-  TestEllpackPageRawFormat(&policy);
+  {
+    EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy> policy;
+    TestEllpackPageRawFormat(&policy);
+  }
+  {
+    auto ctx = MakeCUDACtx(0);
+    auto param = BatchParam{32, tree::TrainParam::DftSparseThreshold()};
+    EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy> policy;
+    std::unique_ptr<EllpackPageRawFormat> format{};
+    Cache cache{false, "name", "ellpack", true};
+    for (std::size_t i = 0; i < 3; ++i) {
+      auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
+      for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+        if (!format) {
+          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device());
+          format = policy.CreatePageFormat();
+        }
+        auto writer = policy.CreateWriter({}, i);
+        auto n_bytes = format->Write(page, writer.get());
+        ASSERT_EQ(n_bytes, page.Impl()->MemCostBytes());
+        cache.Push(n_bytes);
+      }
+    }
+    cache.Commit();
+
+    for (std::size_t i = 0; i < 3; ++i) {
+      auto reader = policy.CreateReader({}, cache.offset[i], cache.Bytes(i));
+      EllpackPage page;
+      ASSERT_TRUE(format->Read(&page, reader.get()));
+      ASSERT_EQ(page.Impl()->MemCostBytes(), cache.Bytes(i));
+      auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
+      for (auto const &orig : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+        std::vector<common::CompressedByteT> h_orig;
+        auto h_acc_orig = orig.Impl()->GetHostAccessor(&ctx, &h_orig, {});
+        std::vector<common::CompressedByteT> h_page;
+        auto h_acc = page.Impl()->GetHostAccessor(&ctx, &h_page, {});
+        ASSERT_EQ(h_orig, h_page);
+        ASSERT_EQ(h_acc_orig.NumFeatures(), h_acc.NumFeatures());
+        ASSERT_EQ(h_acc_orig.row_stride, h_acc.row_stride);
+        ASSERT_EQ(h_acc_orig.n_rows, h_acc.n_rows);
+        ASSERT_EQ(h_acc_orig.base_rowid, h_acc.base_rowid);
+        ASSERT_EQ(h_acc_orig.is_dense, h_acc.is_dense);
+      }
+    }
+  }
 }
 }  // namespace xgboost::data

@@ -66,6 +66,7 @@ struct EllpackDeviceAccessor {
       min_fvalue = cuts->min_vals_.ConstHostSpan();
     }
   }
+
   /**
    * @brief Given a row index and a feature index, returns the corresponding cut value.
    *
@@ -75,7 +76,7 @@ struct EllpackDeviceAccessor {
    *                     local to the current batch.
    */
   template <bool global_ridx = true>
-  [[nodiscard]] __device__ bst_bin_t GetBinIndex(size_t ridx, size_t fidx) const {
+  [[nodiscard]] __device__ bst_bin_t GetBinIndex(bst_idx_t ridx, size_t fidx) const {
     if (global_ridx) {
       ridx -= base_rowid;
     }
@@ -114,7 +115,7 @@ struct EllpackDeviceAccessor {
     return idx;
   }
 
-  [[nodiscard]] __device__ float GetFvalue(size_t ridx, size_t fidx) const {
+  [[nodiscard]] __device__ float GetFvalue(bst_idx_t ridx, size_t fidx) const {
     auto gidx = GetBinIndex(ridx, fidx);
     if (gidx == -1) {
       return std::numeric_limits<float>::quiet_NaN();

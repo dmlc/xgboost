@@ -21,7 +21,6 @@ namespace xgboost::common::cuda_impl {
 // that Thrust used to provide.
 //
 //  \see https://en.cppreference.com/w/cpp/memory/allocator
-
 template <typename T>
 struct PinnedAllocPolicy {
   using pointer = T*;              // NOLINT: The type returned by address() / allocate()
@@ -33,7 +32,7 @@ struct PinnedAllocPolicy {
     return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
-  pointer allocate(size_type cnt, const_pointer = nullptr) {  // NOLINT
+  [[nodiscard]] pointer allocate(size_type cnt, const_pointer = nullptr) const {  // NOLINT
     if (cnt > this->max_size()) {
       throw std::bad_alloc{};
     }  // end if
@@ -57,7 +56,7 @@ struct ManagedAllocPolicy {
     return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
-  pointer allocate(size_type cnt, const_pointer = nullptr) {  // NOLINT
+  [[nodiscard]] pointer allocate(size_type cnt, const_pointer = nullptr) const {  // NOLINT
     if (cnt > this->max_size()) {
       throw std::bad_alloc{};
     }  // end if
@@ -70,16 +69,49 @@ struct ManagedAllocPolicy {
   void deallocate(pointer p, size_type) { dh::safe_cuda(cudaFree(p)); }  // NOLINT
 };
 
-template <typename T, template <typename> typename Policy>
-class CudaHostAllocatorImpl : public Policy<T> {  // NOLINT
- public:
-  using value_type = typename Policy<T>::value_type;        // NOLINT
-  using pointer = typename Policy<T>::pointer;              // NOLINT
-  using const_pointer = typename Policy<T>::const_pointer;  // NOLINT
-  using size_type = typename Policy<T>::size_type;          // NOLINT
+// This is actually a pinned memory allocator in disguise. We utilize HMM or ATS for
+// efficient tracked memory allocation.
+template <typename T>
+struct SamAllocPolicy {
+  using pointer = T*;              // NOLINT: The type returned by address() / allocate()
+  using const_pointer = const T*;  // NOLINT: The type returned by address()
+  using size_type = std::size_t;   // NOLINT: The type used for the size of the allocation
+  using value_type = T;            // NOLINT: The type of the elements in the allocator
 
-  using reference = T&;              // NOLINT: The parameter type for address()
-  using const_reference = const T&;  // NOLINT: The parameter type for address()
+  size_type max_size() const {  // NOLINT
+    return std::numeric_limits<size_type>::max() / sizeof(value_type);
+  }
+
+  [[nodiscard]] pointer allocate(size_type cnt, const_pointer = nullptr) const {  // NOLINT
+    if (cnt > this->max_size()) {
+      throw std::bad_alloc{};
+    }  // end if
+
+    size_type n_bytes = cnt * sizeof(value_type);
+    pointer result = reinterpret_cast<pointer>(std::malloc(n_bytes));
+    if (!result) {
+      throw std::bad_alloc{};
+    }
+    dh::safe_cuda(cudaHostRegister(result, n_bytes, cudaHostRegisterDefault));
+    return result;
+  }
+
+  void deallocate(pointer p, size_type) {  // NOLINT
+    dh::safe_cuda(cudaHostUnregister(p));
+    std::free(p);
+  }
+};
+
+template <typename T, template <typename> typename Policy>
+class CudaHostAllocatorImpl : public Policy<T> {
+ public:
+  using typename Policy<T>::value_type;
+  using typename Policy<T>::pointer;
+  using typename Policy<T>::const_pointer;
+  using typename Policy<T>::size_type;
+
+  using reference = value_type&;              // NOLINT: The parameter type for address()
+  using const_reference = const value_type&;  // NOLINT: The parameter type for address()
 
   using difference_type = std::ptrdiff_t;  // NOLINT: The type of the distance between two pointers
 
@@ -101,14 +133,17 @@ class CudaHostAllocatorImpl : public Policy<T> {  // NOLINT
   pointer address(reference r) { return &r; }              // NOLINT
   const_pointer address(const_reference r) { return &r; }  // NOLINT
 
-  bool operator==(CudaHostAllocatorImpl const& x) const { return true; }
+  bool operator==(CudaHostAllocatorImpl const&) const { return true; }
 
   bool operator!=(CudaHostAllocatorImpl const& x) const { return !operator==(x); }
 };
 
 template <typename T>
-using pinned_allocator = CudaHostAllocatorImpl<T, PinnedAllocPolicy>;  // NOLINT
+using PinnedAllocator = CudaHostAllocatorImpl<T, PinnedAllocPolicy>;  // NOLINT
 
 template <typename T>
-using managed_allocator = CudaHostAllocatorImpl<T, ManagedAllocPolicy>;  // NOLINT
+using ManagedAllocator = CudaHostAllocatorImpl<T, ManagedAllocPolicy>;  // NOLINT
+
+template <typename T>
+using SamAllocator = CudaHostAllocatorImpl<T, SamAllocPolicy>;
 }  // namespace xgboost::common::cuda_impl
