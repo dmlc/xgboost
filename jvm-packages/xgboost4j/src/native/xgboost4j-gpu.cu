@@ -132,7 +132,7 @@ class DataIteratorProxy {
   bool cache_on_host_{true}; // TODO(Bobby): Make this optional.
 
   template <typename T>
-  using Alloc = xgboost::common::cuda_impl::pinned_allocator<T>;
+  using Alloc = xgboost::common::cuda_impl::PinnedAllocator<T>;
   template <typename U>
   using HostVector = std::vector<U, Alloc<U>>;
 
