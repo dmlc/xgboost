@@ -12,7 +12,7 @@
 
 namespace xgboost {
 TEST(CudaHostMalloc, Pinned) {
-  std::vector<float, common::cuda_impl::pinned_allocator<float>> vec;
+  std::vector<float, common::cuda_impl::PinnedAllocator<float>> vec;
   vec.resize(10);
   ASSERT_EQ(vec.size(), 10);
   Context ctx;
@@ -25,7 +25,7 @@ TEST(CudaHostMalloc, Pinned) {
 }
 
 TEST(CudaHostMalloc, Managed) {
-  std::vector<float, common::cuda_impl::managed_allocator<float>> vec;
+  std::vector<float, common::cuda_impl::ManagedAllocator<float>> vec;
   vec.resize(10);
 #if defined(__linux__)
   dh::safe_cuda(

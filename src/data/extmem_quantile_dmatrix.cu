@@ -4,8 +4,9 @@
 #include <memory>   // for shared_ptr
 #include <variant>  // for visit
 
-#include "batch_utils.h"     // for CheckParam, RegenGHist
-#include "ellpack_page.cuh"  // for EllpackPage
+#include "../common/cuda_rt_utils.h"  // for xgboost_NVTX_FN_RANGE
+#include "batch_utils.h"              // for CheckParam, RegenGHist
+#include "ellpack_page.cuh"           // for EllpackPage
 #include "extmem_quantile_dmatrix.h"
 #include "proxy_dmatrix.h"    // for DataIterProxy
 #include "xgboost/context.h"  // for Context
@@ -16,6 +17,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *ctx,
     std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
     DMatrixHandle proxy_handle, BatchParam const &p, float missing, std::shared_ptr<DMatrix> ref) {
+  xgboost_NVTX_FN_RANGE();
+
   // A handle passed to external iterator.
   auto proxy = MakeProxy(proxy_handle);
   CHECK(proxy);
@@ -31,10 +34,11 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   /**
    * Generate gradient index
    */
-  auto id = MakeCache(this, ".ellpack.page", false, cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".ellpack.page", this->on_host_, cache_prefix_, &cache_info_);
   if (on_host_ && std::get_if<EllpackHostPtr>(&ellpack_page_source_) == nullptr) {
     ellpack_page_source_.emplace<EllpackHostPtr>(nullptr);
   }
+
   std::visit(
       [&](auto &&ptr) {
         using SourceT = typename std::remove_reference_t<decltype(ptr)>::element_type;
@@ -56,6 +60,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   }
   CHECK_EQ(batch_cnt, ext_info.n_batches);
   CHECK_EQ(n_total_samples, ext_info.accumulated_rows);
+  this->n_batches_ = ext_info.n_batches;
 }
 
 [[nodiscard]] BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl() {

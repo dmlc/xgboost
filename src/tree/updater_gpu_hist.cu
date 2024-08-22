@@ -735,7 +735,7 @@ class GPUHistMaker : public TreeUpdater {
   void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
-    monitor_.Start("Update");
+    monitor_.Start(__func__);
 
     CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
     auto gpair_hdv = gpair->Data();
@@ -747,7 +747,7 @@ class GPUHistMaker : public TreeUpdater {
       ++t_idx;
     }
     dh::safe_cuda(cudaGetLastError());
-    monitor_.Stop("Update");
+    monitor_.Stop(__func__);
   }
 
   void InitDataOnce(TrainParam const* param, DMatrix* dmat) {
@@ -858,7 +858,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
   void Update(TrainParam const* param, linalg::Matrix<GradientPair>* gpair, DMatrix* p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> out_position,
               const std::vector<RegTree*>& trees) override {
-    monitor_.Start("Update");
+    monitor_.Start(__func__);
 
     this->InitDataOnce(p_fmat);
     // build tree
@@ -884,7 +884,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
       ++t_idx;
     }
 
-    monitor_.Stop("Update");
+    monitor_.Stop(__func__);
   }
 
   void InitDataOnce(DMatrix* p_fmat) {

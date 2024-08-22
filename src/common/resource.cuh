@@ -5,9 +5,10 @@
 #include <cstddef>     // for size_t
 #include <functional>  // for function
 
-#include "device_vector.cuh"      // for DeviceUVector
-#include "io.h"                   // for ResourceHandler, MMAPFile
-#include "xgboost/string_view.h"  // for StringView
+#include "cuda_pinned_allocator.h"  // for SamAllocator
+#include "device_vector.cuh"        // for DeviceUVector
+#include "io.h"                     // for ResourceHandler, MMAPFile
+#include "xgboost/string_view.h"    // for StringView
 
 namespace xgboost::common {
 /**
@@ -23,6 +24,22 @@ class CudaMallocResource : public ResourceHandler {
     this->Resize(n_bytes);
   }
   ~CudaMallocResource() noexcept(true) override { this->Clear(); }
+
+  [[nodiscard]] void* Data() override { return storage_.data(); }
+  [[nodiscard]] std::size_t Size() const override { return storage_.size(); }
+  void Resize(std::size_t n_bytes) { this->storage_.resize(n_bytes); }
+};
+
+class CudaPinnedResource : public ResourceHandler {
+  std::vector<std::byte, cuda_impl::SamAllocator<std::byte>> storage_;
+
+  void Clear() noexcept(true) { this->Resize(0); }
+
+ public:
+  explicit CudaPinnedResource(std::size_t n_bytes) : ResourceHandler{kCudaHostCache} {
+    this->Resize(n_bytes);
+  }
+  ~CudaPinnedResource() noexcept(true) override { this->Clear(); }
 
   [[nodiscard]] void* Data() override { return storage_.data(); }
   [[nodiscard]] std::size_t Size() const override { return storage_.size(); }

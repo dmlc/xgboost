@@ -404,7 +404,7 @@ size_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page, bs
   bst_idx_t num_elements = page->n_rows * page->row_stride;
   CHECK_EQ(this->row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
-  CHECK_GE(n_rows * row_stride, offset + num_elements);
+  CHECK_GE(this->n_rows * this->row_stride, offset + num_elements);
   if (page == this) {
     LOG(FATAL) << "Concatenating the same Ellpack.";
     return this->n_rows * this->row_stride;
@@ -542,7 +542,10 @@ void EllpackPageImpl::CreateHistIndices(DeviceOrd device,
 // Return the number of rows contained in this page.
 [[nodiscard]] bst_idx_t EllpackPageImpl::Size() const { return n_rows; }
 
-std::size_t EllpackPageImpl::MemCostBytes() const { return this->gidx_buffer.size_bytes(); }
+std::size_t EllpackPageImpl::MemCostBytes() const {
+  return this->gidx_buffer.size_bytes() + sizeof(this->n_rows) + sizeof(this->is_dense) +
+         sizeof(this->row_stride) + sizeof(this->base_rowid);
+}
 
 EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
     DeviceOrd device, common::Span<FeatureType const> feature_types) const {

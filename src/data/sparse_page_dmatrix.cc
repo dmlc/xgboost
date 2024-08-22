@@ -1,11 +1,17 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  * \file sparse_page_dmatrix.cc
  *
  * \brief The external memory version of Page Iterator.
  * \author Tianqi Chen
  */
-#include "./sparse_page_dmatrix.h"
+#include "sparse_page_dmatrix.h"
+
+#include <algorithm>  // for max
+#include <memory>     // for make_shared
+#include <string>     // for string
+#include <utility>    // for move
+#include <variant>    // for visit
 
 #include "../collective/communicator-inl.h"
 #include "batch_utils.h"  // for RegenGHist

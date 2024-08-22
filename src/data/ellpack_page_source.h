@@ -22,10 +22,22 @@
 
 namespace xgboost::data {
 // We need to decouple the storage and the view of the storage so that we can implement
-// concurrent read.
+// concurrent read. As a result, there are two classes, one for cache storage, another one
+// for stream.
+struct EllpackHostCache {
+  std::vector<std::shared_ptr<EllpackPageImpl>> pages;
 
-// Dummy type to hide CUDA calls from the host compiler.
-struct EllpackHostCache;
+  EllpackHostCache();
+  ~EllpackHostCache();
+
+  [[nodiscard]] std::size_t Size() const;
+
+  bool Empty() const { return this->Size() == 0; }
+
+  void Push(std::unique_ptr<EllpackPageImpl> page);
+  EllpackPageImpl const* Get(std::int32_t k);
+};
+
 // Pimpl to hide CUDA calls from the host compiler.
 class EllpackHostCacheStreamImpl;
 
@@ -37,24 +49,12 @@ class EllpackHostCacheStream {
   explicit EllpackHostCacheStream(std::shared_ptr<EllpackHostCache> cache);
   ~EllpackHostCacheStream();
 
-  [[nodiscard]] bst_idx_t Write(void const* ptr, bst_idx_t n_bytes);
-  template <typename T>
-  [[nodiscard]] std::enable_if_t<std::is_pod_v<T>, bst_idx_t> Write(T const& v) {
-    return this->Write(&v, sizeof(T));
-  }
+  std::shared_ptr<EllpackHostCache> Share();
 
-  [[nodiscard]] bool Read(void* ptr, bst_idx_t n_bytes);
-
-  template <typename T>
-  [[nodiscard]] auto Read(T* ptr) -> std::enable_if_t<std::is_pod_v<T>, bool> {
-    return this->Read(ptr, sizeof(T));
-  }
-
-  [[nodiscard]] bst_idx_t Tell() const;
   void Seek(bst_idx_t offset_bytes);
-  // Limit the size of read. offset_bytes is the maximum offset that this stream can read
-  // to. An error is raised if the limited is exceeded.
-  void Bound(bst_idx_t offset_bytes);
+
+  void Read(EllpackPage* page) const;
+  void Write(EllpackPage const& page);
 };
 
 template <typename S>
@@ -86,6 +86,7 @@ class EllpackFormatPolicy {
     CHECK(cuts_);
     return cuts_;
   }
+
   [[nodiscard]] auto Device() const { return device_; }
 };
 
