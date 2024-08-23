@@ -178,7 +178,7 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
       fut.get();
     });
 
-    std::string name = "test-worker-" + std::to_string(i);
+    std::string name = "tw-" + std::to_string(i);
     common::NameThread(&workers.back(), name.c_str());
   }
 
