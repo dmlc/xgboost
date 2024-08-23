@@ -126,7 +126,7 @@ void NameThread(std::thread* t, StringView name) {
   if (ret != 0) {
     LOG(WARNING) << "Failed to get the name from thread";
   }
-  auto new_name = std::string{old} + ">" + name.c_str();
+  auto new_name = std::string{old} + ">" + name.c_str();  // NOLINT
   if (new_name.size() > 15) {
     new_name = new_name.substr(new_name.size() - 15);
   }

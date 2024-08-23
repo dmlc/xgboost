@@ -9,13 +9,14 @@
 #include <memory>              // for make_shared
 #include <mutex>               // for mutex, unique_lock
 #include <queue>               // for queue
+#include <string>              // for string
 #include <thread>              // for thread
 #include <type_traits>         // for invoke_result_t
 #include <utility>             // for move
 #include <vector>              // for vector
 
-#include "xgboost/string_view.h"  // for StringView
 #include "threading_utils.h"      // for NameThread
+#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::common {
 /**
@@ -59,7 +60,7 @@ class ThreadPool {
           fn();
         }
       });
-      std::string name_i = name.c_str() + std::string{"-"} + std::to_string(i);
+      std::string name_i = name.c_str() + std::string{"-"} + std::to_string(i);  // NOLINT
       NameThread(&pool_.back(), name_i);
     }
   }
