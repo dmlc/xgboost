@@ -604,7 +604,7 @@ validate.features <- function(bst, newdata) {
 #' change the value of that parameter for a model.
 #' Use [xgb.parameters<-()] to set or change model parameters.
 #'
-#' The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
+#' The `xgb.attributes<-` setter either updates the existing or adds one or several attributes,
 #' but it doesn't delete the other existing attributes.
 #'
 #' Important: since this modifies the booster's C object, semantics for assignment here
