@@ -199,7 +199,7 @@ class BaseMGPUTest : public ::testing::Test {
    *                          available.
    */
   template <typename Fn>
-  auto DoTest(Fn&& fn, bool is_federated, bool emulate_if_single = false) const {
+  auto DoTest(Fn&& fn, bool is_federated, [[maybe_unused]] bool emulate_if_single = false) const {
     auto n_gpus = common::AllVisibleGPUs();
     if (is_federated) {
 #if defined(XGBOOST_USE_FEDERATED)
