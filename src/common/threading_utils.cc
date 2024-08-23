@@ -10,7 +10,6 @@
 #include <string>      // for string
 
 #include "common.h"           // for DivRoundUp
-#include "xgboost/windefs.h"  // for xgboost_IS_WIN
 
 #if defined(xgboost_IS_WIN)
 #include <processthreadsapi.h>
@@ -122,13 +121,8 @@ std::int32_t OmpGetNumThreads(std::int32_t n_threads) {
 }
 
 void NameThread(std::thread* t, StringView name) {
+#if defined(__linux__)
   auto handle = t->native_handle();
-#if defined(xgboost_IS_WIN)
-  HRESULT ret = SetThreadDescription(handle, name.c_str());
-  if (FAILED(ret)) {
-    LOG(WARNING) << "Failed to name thread:" << ret;
-  }
-#else
   char old[16];
   auto ret = pthread_getname_np(handle, old, 16);
   if (ret != 0) {
@@ -142,6 +136,9 @@ void NameThread(std::thread* t, StringView name) {
   if (ret != 0) {
     LOG(WARNING) << "Failed to name thread:" << ret << " :" << new_name;
   }
+#else
+  (void)name;
+  (void)t;
 #endif
 }
 }  // namespace xgboost::common

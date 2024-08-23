@@ -311,7 +311,7 @@ class MemStackAllocator {
 std::int32_t constexpr DefaultMaxThreads() { return 128; }
 
 /**
- * @brief Give the thread a name.
+ * @brief Give the thread a name. Supports only pthread on linux.
  */
 void NameThread(std::thread* t, StringView name);
 }  // namespace xgboost::common
