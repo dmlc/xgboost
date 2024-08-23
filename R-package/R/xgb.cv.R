@@ -3,7 +3,7 @@
 #' The cross validation function of xgboost.
 #'
 #' @param params The list of parameters. The complete list of parameters is available in the
-#'   \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}.
+#'   [online documentation](http://xgboost.readthedocs.io/en/latest/parameter.html).
 #'   Below is a shorter summary:
 #'   - `objective`: Objective function, common ones are
 #'      - `reg:squarederror`: Regression with squared loss.

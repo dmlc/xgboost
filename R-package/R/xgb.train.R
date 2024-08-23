@@ -4,7 +4,7 @@
 #' The [xgboost()] function is a simpler wrapper for `xgb.train()`.
 #'
 #' @param params the list of parameters. The complete list of parameters is
-#'   available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}.
+#'   available in the [online documentation](http://xgboost.readthedocs.io/en/latest/parameter.html).
 #'   Below is a shorter summary:
 #'
 #'   **1. General Parameters**
@@ -56,7 +56,7 @@
 #'
 #'   - `objective`: Specifies the learning task and the corresponding learning objective.
 #'     users can pass a self-defined function to it. The default objective options are below:
-#'     - `reg:squarederror`:` Regression with squared loss (default).
+#'     - `reg:squarederror`: Regression with squared loss (default).
 #'     - `reg:squaredlogerror`: Regression with squared log loss \eqn{1/2 \cdot (\log(pred + 1) - \log(label + 1))^2}.
 #'       All inputs are required to be greater than -1.
 #'       Also, see metric rmsle for possible issue with this objective.
@@ -70,9 +70,9 @@
 #'       (used to safeguard optimization).
 #'     - `survival:cox`: Cox regression for right censored survival time data (negative values are considered right censored).
 #'       Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional
-#'       hazard function `h(t) = h0(t) * HR)`.
+#'       hazard function \eqn{h(t) = h_0(t) \cdot HR}.
 #'     - `survival:aft`: Accelerated failure time model for censored survival time data. See
-#'       \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
+#'       [Survival Analysis with Accelerated Failure Time](https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html)
 #'       for details.
 #'       The parameter `aft_loss_distribution` specifies the Probability Density Function
 #'       used by `survival:aft` and the `aft-nloglik` metric.
@@ -83,16 +83,16 @@
 #'       to each class.
 #'     - `rank:pairwise`: Set XGBoost to do ranking task by minimizing the pairwise loss.
 #'     - `rank:ndcg`: Use LambdaMART to perform list-wise ranking where
-#'       \href{https://en.wikipedia.org/wiki/Discounted_cumulative_gain}{Normalized Discounted Cumulative Gain (NDCG)} is maximized.
+#'       [Normalized Discounted Cumulative Gain (NDCG)](https://en.wikipedia.org/wiki/Discounted_cumulative_gain) is maximized.
 #'     - `rank:map`: Use LambdaMART to perform list-wise ranking where
-#'       \href{https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision}{Mean Average Precision (MAP)}
+#'       [Mean Average Precision (MAP)](https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision)
 #'       is maximized.
 #'     - `reg:gamma`: Gamma regression with log-link. Output is a mean of gamma distribution.
 #'       It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be
-#'       \href{https://en.wikipedia.org/wiki/Gamma_distribution#Applications}{gamma-distributed}.
+#'       [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Applications).
 #'     - `reg:tweedie`: Tweedie regression with log-link.
 #'       It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be
-#'       \href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.
+#'       [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Applications).
 #'
 #'      For custom objectives, one should pass a function taking as input the current predictions (as a numeric
 #'      vector or matrix) and the training data (as an `xgb.DMatrix` object) that will return a list with elements
@@ -102,9 +102,9 @@
 #'      the Hessian will be clipped, so one might consider using the expected Hessian (Fisher information) if the
 #'      objective is non-convex.
 #'
-#'      See the tutorials \href{https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html}{
-#'      Custom Objective and Evaluation Metric} and \href{https://xgboost.readthedocs.io/en/stable/tutorials/advanced_custom_obj}{
-#'      Advanced Usage of Custom Objectives} for more information about custom objectives.
+#'      See the tutorials [Custom Objective and Evaluation Metric](https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html)
+#'      and [Advanced Usage of Custom Objectives](https://xgboost.readthedocs.io/en/stable/tutorials/advanced_custom_obj)
+#'      for more information about custom objectives.
 #'
 #'   - `base_score`: The initial prediction score of all instances, global bias. Default: 0.5.
 #'   - `eval_metric`: Evaluation metrics for validation data.
@@ -192,9 +192,9 @@
 #' User may set one or several `eval_metric` parameters.
 #' Note that when using a customized metric, only this single metric can be used.
 #' The following is the list of built-in metrics for which XGBoost provides optimized implementation:
-#' - `rmse`: root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
-#' - `logloss`: negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
-#' - `mlogloss`: multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
+#' - `rmse`: Root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
+#' - `logloss`: Negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
+#' - `mlogloss`: Multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
 #' - `error`: Binary classification error rate. It is calculated as `(# wrong cases) / (# all cases)`.
 #'     By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
 #'     Different threshold (e.g., 0.) could be specified as `error@0`.

@@ -64,8 +64,8 @@ set as the last level.}
 
 \item{objective}{Optimization objective to minimize based on the supplied data, to be passed
 by name as a string / character (e.g. \code{reg:absoluteerror}). See the
-\href{https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{
-Learning Task Parameters} page for more detailed information on allowed values.
+\href{https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{Learning Task Parameters}
+page for more detailed information on allowed values.
 
 If \code{NULL} (the default), will be automatically determined from \code{y} according to the following
 logic:
@@ -118,8 +118,8 @@ The input for \code{monotone_constraints} can be a subset of the columns of \cod
 case the columns that are not referred to in \code{monotone_constraints} will be assumed to have
 a value of zero (no constraint imposed on the model for those features).
 
-See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/monotonic.html}{
-Monotonic Constraints} for a more detailed explanation.}
+See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/monotonic.html}{Monotonic Constraints}
+for a more detailed explanation.}
 
 \item{interaction_constraints}{Constraints for interaction representing permitted interactions.
 The constraints must be specified in the form of a list of vectors referencing columns in the
@@ -129,9 +129,8 @@ starting at 1 - i.e. the first sublist references the first and second columns) 
 columns by names), where each vector is a group of indices of features that are allowed to
 interact with each other.
 
-See the tutorial
-\href{https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html}{
-Feature Interaction Constraints} for more information.}
+See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html}{Feature Interaction Constraints}
+for more information.}
 
 \item{feature_weights}{Feature weights for column sampling.
 
@@ -179,8 +178,8 @@ outputs, such as class names for classification problems.
 \description{
 Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 
-See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{
-Introduction to Boosted Trees} for a longer explanation of what XGBoost does.
+See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{Introduction to Boosted Trees}
+for a longer explanation of what XGBoost does.
 
 This function is intended to provide a more user-friendly interface for XGBoost that follows
 R's conventions for model fitting and predictions, but which doesn't expose all of the

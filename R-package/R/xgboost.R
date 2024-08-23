@@ -723,8 +723,8 @@ process.x.and.col.args <- function(
 #' @description
 #' Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 #'
-#' See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{
-#' Introduction to Boosted Trees} for a longer explanation of what XGBoost does.
+#' See the tutorial [Introduction to Boosted Trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html)
+#' for a longer explanation of what XGBoost does.
 #'
 #' This function is intended to provide a more user-friendly interface for XGBoost that follows
 #' R's conventions for model fitting and predictions, but which doesn't expose all of the
@@ -777,8 +777,8 @@ process.x.and.col.args <- function(
 #'   set as the last level.
 #' @param objective Optimization objective to minimize based on the supplied data, to be passed
 #'   by name as a string / character (e.g. `reg:absoluteerror`). See the
-#'   \href{https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{
-#'   Learning Task Parameters} page for more detailed information on allowed values.
+#'   [Learning Task Parameters](https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters)
+#'   page for more detailed information on allowed values.
 #'
 #'   If `NULL` (the default), will be automatically determined from `y` according to the following
 #'   logic:
@@ -823,8 +823,8 @@ process.x.and.col.args <- function(
 #'   case the columns that are not referred to in `monotone_constraints` will be assumed to have
 #'   a value of zero (no constraint imposed on the model for those features).
 #'
-#'   See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/monotonic.html}{
-#'   Monotonic Constraints} for a more detailed explanation.
+#'   See the tutorial [Monotonic Constraints](https://xgboost.readthedocs.io/en/stable/tutorials/monotonic.html)
+#'   for a more detailed explanation.
 #' @param interaction_constraints Constraints for interaction representing permitted interactions.
 #'   The constraints must be specified in the form of a list of vectors referencing columns in the
 #'   data, e.g. `list(c(1, 2), c(3, 4, 5))` (with these numbers being column indices, numeration
@@ -833,9 +833,8 @@ process.x.and.col.args <- function(
 #'   columns by names), where each vector is a group of indices of features that are allowed to
 #'   interact with each other.
 #'
-#'   See the tutorial
-#'   \href{https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html}{
-#'   Feature Interaction Constraints} for more information.
+#'   See the tutorial [Feature Interaction Constraints](https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html)
+#'   for more information.
 #' @param feature_weights Feature weights for column sampling.
 #'
 #'   Can be passed either as a vector with length matching to columns of `x`, or as a named
@@ -863,7 +862,7 @@ process.x.and.col.args <- function(
 #'   If `NULL`, will start from zero, but note that for most objectives, an intercept is usually
 #'   added (controllable through parameter `base_score` instead) when `base_margin` is not passed.
 #' @param ... Other training parameters. See the online documentation
-#'   \href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
+#'   [XGBoost Parameters](https://xgboost.readthedocs.io/en/stable/parameter.html) for
 #'   details about possible values and what they do.
 #'
 #'   Note that not all possible values from the core XGBoost library are allowed as `params` for

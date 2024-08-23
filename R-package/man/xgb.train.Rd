@@ -81,7 +81,7 @@ Leave argument unspecified for no interaction constraints.
 \item \code{objective}: Specifies the learning task and the corresponding learning objective.
 users can pass a self-defined function to it. The default objective options are below:
 \itemize{
-\item \code{reg:squarederror}:` Regression with squared loss (default).
+\item \code{reg:squarederror}: Regression with squared loss (default).
 \item \code{reg:squaredlogerror}: Regression with squared log loss \eqn{1/2 \cdot (\log(pred + 1) - \log(label + 1))^2}.
 All inputs are required to be greater than -1.
 Also, see metric rmsle for possible issue with this objective.
@@ -95,7 +95,7 @@ The parameter \code{max_delta_step} is set to 0.7 by default in poisson regressi
 (used to safeguard optimization).
 \item \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored).
 Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional
-hazard function \verb{h(t) = h0(t) * HR)}.
+hazard function \eqn{h(t) = h_0(t) \cdot HR}.
 \item \code{survival:aft}: Accelerated failure time model for censored survival time data. See
 \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
 for details.
@@ -128,9 +128,9 @@ For multi-valued custom objectives, should have shape \verb{[nrows, ntargets]}. 
 the Hessian will be clipped, so one might consider using the expected Hessian (Fisher information) if the
 objective is non-convex.
 
-See the tutorials \href{https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html}{
-Custom Objective and Evaluation Metric} and \href{https://xgboost.readthedocs.io/en/stable/tutorials/advanced_custom_obj}{
-Advanced Usage of Custom Objectives} for more information about custom objectives.
+See the tutorials \href{https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html}{Custom Objective and Evaluation Metric}
+and \href{https://xgboost.readthedocs.io/en/stable/tutorials/advanced_custom_obj}{Advanced Usage of Custom Objectives}
+for more information about custom objectives.
 \item \code{base_score}: The initial prediction score of all instances, global bias. Default: 0.5.
 \item \code{eval_metric}: Evaluation metrics for validation data.
 Users can pass a self-defined function to it.
@@ -238,9 +238,9 @@ User may set one or several \code{eval_metric} parameters.
 Note that when using a customized metric, only this single metric can be used.
 The following is the list of built-in metrics for which XGBoost provides optimized implementation:
 \itemize{
-\item \code{rmse}: root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
-\item \code{logloss}: negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
-\item \code{mlogloss}: multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
+\item \code{rmse}: Root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
+\item \code{logloss}: Negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
+\item \code{mlogloss}: Multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
 \item \code{error}: Binary classification error rate. It is calculated as \verb{(# wrong cases) / (# all cases)}.
 By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
 Different threshold (e.g., 0.) could be specified as \verb{error@0}.
