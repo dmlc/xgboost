@@ -11,9 +11,7 @@
 
 #include "common.h"           // for DivRoundUp
 
-#if defined(xgboost_IS_WIN)
-#include <processthreadsapi.h>
-#else
+#if defined(__linux__)
 #include <pthread.h>
 #endif
 
