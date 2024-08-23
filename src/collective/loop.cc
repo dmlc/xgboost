@@ -271,5 +271,11 @@ Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {
   worker_ = std::thread{[this] {
     this->Process();
   }};
+#if defined(__linux__)
+  auto ret = pthread_setname_np(worker_.native_handle(), "loop-worker");
+  if (ret != 0) {
+    LOG(WARNING) << "Failed to name thread:" << ret;
+  }
+#endif
 }
 }  // namespace xgboost::collective

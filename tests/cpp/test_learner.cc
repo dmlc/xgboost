@@ -781,7 +781,8 @@ void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args 
     }
 #endif  //  defined(XGBOOST_USE_NCCL)
     collective::TestDistributedGlobal(
-        world_size, [&] { VerifyColumnSplitWithArgs(tree_method, use_gpu, args, model); });
+        world_size, [&] { VerifyColumnSplitWithArgs(tree_method, use_gpu, args, model); }, true,
+        std::chrono::seconds{3000});
   }
 }
 

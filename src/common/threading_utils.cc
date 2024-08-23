@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include "threading_utils.h"
 
@@ -9,7 +9,14 @@
 #include <fstream>     // for ifstream
 #include <string>      // for string
 
-#include "common.h"  // for DivRoundUp
+#include "common.h"           // for DivRoundUp
+#include "xgboost/windefs.h"  // for xgboost_IS_WIN
+
+#if defined(xgboost_IS_WIN)
+#include <processthreadsapi.h>
+#else
+#include <pthread.h>
+#endif
 
 namespace xgboost::common {
 /**
@@ -112,5 +119,20 @@ std::int32_t OmpGetNumThreads(std::int32_t n_threads) {
   n_threads = std::min(n_threads, OmpGetThreadLimit());
   n_threads = std::max(n_threads, 1);
   return n_threads;
+}
+
+void NameThread(std::thread* t, StringView name) {
+  auto handle = t->native_handle();
+#if defined(xgboost_IS_WIN)
+  HRESULT ret = SetThreadDescription(handle, name.c_str());
+  if (FAILED(ret)) {
+    LOG(WARNING) << "Failed to name thread:" << ret;
+  }
+#else
+  auto ret = pthread_setname_np(handle, name.c_str());
+  if (ret != 0) {
+    LOG(WARNING) << "Failed to name thread:" << ret;
+  }
+#endif
 }
 }  // namespace xgboost::common
