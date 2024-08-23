@@ -1,7 +1,7 @@
 /**
  * Copyright 2021-2024, XGBoost contributors
  */
-#include "../common/device_helpers.cuh"  // for CurrentDevice
+#include "../common/device_helpers.cuh"  // for CurrentDevice, DefaultStream
 #include "proxy_dmatrix.cuh"             // for Dispatch, DMatrixProxy
 #include "simple_dmatrix.cuh"            // for CopyToSparsePage
 #include "sparse_page_source.h"
@@ -26,6 +26,6 @@ void InitNewThread::operator()() const {
   // action might cause an insufficient driver version error for some reason. Lastly, it
   // should work with CUDA 12.5 without any action being taken.
 
-  // dh::DefaultStream().Sync();
+  dh::DefaultStream().Sync();  // Force initialize the global CUDA ctx
 }
 }  // namespace xgboost::data

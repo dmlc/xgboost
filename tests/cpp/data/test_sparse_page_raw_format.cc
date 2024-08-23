@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost contributors
+ * Copyright 2021-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for CSCPage, SortedCSCPage, SparsePage
@@ -11,8 +11,6 @@
 #include "../../../src/data/sparse_page_writer.h"  // for CreatePageFormat
 #include "../helpers.h"                            // for RandomDataGenerator
 #include "dmlc/filesystem.h"                       // for TemporaryDirectory
-#include "dmlc/io.h"                               // for Stream
-#include "gtest/gtest_pred_impl.h"                 // for Test, AssertionResult, ASSERT_EQ, TEST
 #include "xgboost/context.h"                       // for Context
 
 namespace xgboost::data {
