@@ -7,6 +7,17 @@
 #include <sys/mman.h>  // for mmap, mmap64, munmap, madvise
 #include <unistd.h>    // for close, getpagesize
 
+#define _GNU_SOURCE
+#include <features.h>
+#ifndef __USE_GNU
+    #define __MUSL__ 
+#endif
+#undef _GNU_SOURCE
+
+#ifdef __MUSL__
+#define mmap64 mmap
+#endif
+
 #else
 
 #include <xgboost/windefs.h>
