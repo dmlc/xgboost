@@ -114,9 +114,7 @@ This is not supported when \code{data} has \code{group} field.}
 
 \item{print_every_n}{Print each nth iteration evaluation messages when \code{verbose > 0}.
 Default is 1 which means all messages are printed. This parameter is passed to the
-[xgb.cb.print.evaluation)] callback.
-
-[xgb.cb.print.evaluation)]: R:xgb.cb.print.evaluation)}
+\code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
 
 \item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance
