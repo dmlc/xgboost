@@ -487,6 +487,15 @@ test_that("check.deprecation works", {
     res <- ttt(a = 1, dumm = 22, z = 3)
   , "\'dumm\' was partially matched to \'dummy\'")
   expect_equal(res, list(a = 1, DUMMY = 22))
+  
+  # More complex object to be assigned
+  dm <- xgb.DMatrix(cbind(x1 = 1:2, x2 = 2:3), label = 2:3)
+  expect_warning(
+    xgb.train(
+      data = dm, watchlist = list(valid = dm), nrounds = 2, nthread = 2, verbose = 0
+    ),
+    "watchlist"
+  )
 })
 
 test_that('convert.labels works', {
