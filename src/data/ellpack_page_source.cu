@@ -199,7 +199,6 @@ EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringVi
  */
 template <typename F>
 void EllpackPageSourceImpl<F>::Fetch() {
-  nvtxMark(__func__);
   dh::safe_cuda(cudaSetDevice(this->Device().ordinal));
   if (!this->ReadCache()) {
     if (this->count_ != 0 && !this->sync_) {
