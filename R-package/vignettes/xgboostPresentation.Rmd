@@ -6,7 +6,7 @@ output:
     number_sections: yes
     toc: yes
 bibliography: xgboost.bib
-author: Tianqi Chen, Tong He, Michaël Benesty
+author: Tianqi Chen, Tong He, Michaël Benesty, David Cortes
 vignette: >
   %\VignetteIndexEntry{XGBoost presentation}
   %\VignetteEngine{knitr::rmarkdown}
@@ -25,50 +25,34 @@ The purpose of this Vignette is to show you how to use **XGBoost** to build a mo
 
 It is an efficient and scalable implementation of gradient boosting framework by @friedman2000additive and @friedman2001greedy. Two solvers are included:
 
+- *tree learning* algorithm (in different varieties).
 - *linear* model ;
-- *tree learning* algorithm.
 
-It supports various objective functions, including *regression*, *classification* and *ranking*. The package is made to be extendible, so that users are also allowed to define their own objective functions easily.
+It supports various objective functions, including *regression*, *classification* (binary and multi-class) and *ranking*. The package is made to be extensible, so that users are also allowed to define their own objective functions easily.
 
 It has been [used](https://github.com/dmlc/xgboost) to win several [Kaggle](http://www.kaggle.com) competitions.
 
 It has several features:
 
-* Speed: it can automatically do parallel computation on *Windows* and *Linux*, with *OpenMP*. It is generally over 10 times faster than the classical `gbm`.
+* Speed: it can automatically do parallel computations with *OpenMP*. It is generally over 10 times faster than the classical `gbm`.
 * Input Type: it takes several types of input data:
     * *Dense* Matrix: *R*'s *dense* matrix, i.e. `matrix` ;
     * *Sparse* Matrix: *R*'s *sparse* matrix, i.e. `Matrix::dgCMatrix` ;
     * Data File: local data files ;
-    * `xgb.DMatrix`: its own class (recommended).
-* Sparsity: it accepts *sparse* input for both *tree booster*  and *linear booster*, and is optimized for *sparse* input ;
+    * Data frames (class `data.frame` and sub-classes from it such as `data.table`), taking
+    both numeric and categorical (factor) features.
+    * `xgb.DMatrix`: its own class (recommended, also supporting numeric and categorical features).
 * Customization: it supports customized objective functions and evaluation functions.
 
 ## Installation
 
-
-### GitHub version
-
-
-For weekly updated version (highly recommended), install from *GitHub*:
-
-```{r installGithub, eval=FALSE}
-install.packages("drat", repos = "https://cran.rstudio.com")
-drat:::addRepo("dmlc")
-install.packages("xgboost", repos = "http://dmlc.ml/drat/", type = "source")
-```
-
-> *Windows* user will need to install [Rtools](https://cran.r-project.org/bin/windows/Rtools/) first.
-
-### CRAN version
-
-
-The version 0.4-2 is on CRAN, and you can install it by:
+Package can be easily installed from CRAN:
 
 ```{r, eval=FALSE}
 install.packages("xgboost")
 ```
 
-Formerly available versions can be obtained from the CRAN [archive](https://cran.r-project.org/src/contrib/Archive/xgboost/)
+For the development version, see the [GitHub page](https://github.com/dmlc/xgboost) and the [installation docs](https://xgboost.readthedocs.io/en/latest/install.html) for further instructions.
 
 ## Learning
 
@@ -124,7 +108,7 @@ dim(train$data)
 dim(test$data)
 ```
 
-This dataset is very small to not make the **R** package too heavy, however **XGBoost** is built to manage huge dataset very efficiently.
+This dataset is very small to not make the **R** package too heavy, however **XGBoost** is built to manage huge datasets very efficiently.
 
 As seen below, the `data` are stored in a `dgCMatrix` which is a *sparse* matrix and `label` vector is a `numeric` vector (`{0,1}`):
 
@@ -144,7 +128,7 @@ We are using the `train` data. As explained above, both `data` and `label` are s
 
 In a *sparse* matrix, cells containing `0` are not stored in memory. Therefore, in a dataset mainly made of `0`, memory size is reduced. It is very usual to have such dataset.
 
-We will train decision tree model using the following parameters:
+We will train a decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model (note that this is set automatically when `y` is a `factor`) ;
 * `max_depth = 2`: the trees won't be deep, because our case is very simple ;
@@ -156,11 +140,35 @@ bstSparse <- xgboost(
     x = train$data
     , y = factor(train$label, levels = c(0, 1))
     , objective = "binary:logistic"
-    , params = list(max_depth = 2, eta = 1)
+    , max_depth = 2
+    , eta = 1
     , nrounds = 2
     , nthread = 2
 )
 ```
+
+Note that, while the R function `xgboost()` follows typical R idioms for statistical modeling packages
+such as an x/y division and having those as first arguments, it also offers a more flexible `xgb.train`
+interface which is more consistent across different language bindings (e.g. arguments are the same as
+in the Python XGBoost library) and which exposes some additional functionalities. The `xgb.train`
+interface uses XGBoost's own DMatrix class to pass data to it, and accepts the model parameters instead
+as a named list:
+
+```{r}
+bstTrInterface <- xgb.train(
+    data = xgb.DMatrix(train$data, label = train$label, nthread = 1)
+    , params = list(
+        objective = "binary:logistic"
+        , max_depth = 2
+        , eta = 1
+        , nrounds = 2
+    )
+    , nthread = 2
+)
+```
+
+For the rest of this tutorial, we'll nevertheless be using the `xgboost()` interface which will be
+more familiar to users of packages such as GLMNET or Ranger.
 
 > More complex the relationship between your features and your `label` is, more passes you need.
 
@@ -174,33 +182,34 @@ Alternatively, you can put your dataset in a *dense* matrix, i.e. a basic **R** 
 bstDense <- xgboost(
     x = as.matrix(train$data),
     y = factor(train$label, levels = c(0, 1)),
-    params = list(max_depth = 2, eta = 1),
-    nrounds = 2,
-    nthread = 2
-)
-```
-
-##### xgb.DMatrix
-
-**XGBoost** offers a way to group them in a `xgb.DMatrix`. You can even add other meta data in it. It will be useful for the most advanced features we will discover later.
-
-```{r trainingDmatrix, message=F, warning=F}
-dtrain <- xgb.DMatrix(data = train$data, label = train$label, nthread = 2)
-bstDMatrix <- xgb.train(
-    data = dtrain,
-    params = list(
-        max_depth = 2,
-        eta = 1,
-        nthread = 2,
-        objective = "binary:logistic"
-    ),
+    max_depth = 2,
+    eta = 1,
+    nthread = 2,
     nrounds = 2
 )
 ```
 
-##### Verbose option
+##### Data frame
 
-**XGBoost** has several features to help you to view how the learning progress internally. The purpose is to help you to set the best parameters, which is the key of your model quality.
+As another alternative, XGBoost will also accept `data.frame` objects, from which it can
+use numeric, integer and factor columns:
+
+```{r}
+df_train <- as.data.frame(as.matrix(train$data))
+bstDF <- xgboost(
+    x = df_train,
+    y = factor(train$label, levels = c(0, 1)),
+    max_depth = 2,
+    eta = 1,
+    nthread = 2,
+    nrounds = 2
+)
+```
+
+##### Evals and verbose options
+
+**XGBoost** has several features to help you to view how the learning progress internally - and what's more,
+it also supports passing . The purpose is to help you to set the best parameters, which is the key of your model quality.
 
 One of the simplest way to see the training progress is to set the `verbose` option (see below for more advanced techniques).
 
