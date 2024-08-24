@@ -35,7 +35,18 @@
 
 #if !defined(_WIN32)
 
+#define _GNU_SOURCE
+#include <features.h>
+#ifndef __USE_GNU
+    #define __MUSL__
+#endif
+#undef _GNU_SOURCE
+
+#ifdef __MUSL__
+#include <poll.h>
+#else
 #include <sys/poll.h>
+#endif
 
 using SOCKET = int;
 using sock_size_t = size_t;  // NOLINT
