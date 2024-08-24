@@ -163,6 +163,37 @@ def check_quantile_loss(tree_method: str, weighted: bool) -> None:
         np.testing.assert_allclose(predts[:, i], predt_multi[:, i])
 
 
+def check_quantile_loss_extmem(
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    tree_method: str,
+    device: str,
+) -> None:
+    """Check external memory with the quantile objective."""
+    it = tm.IteratorForTest(
+        *tm.make_batches(n_samples_per_batch, n_features, n_batches, device != "cpu"),
+        cache="cache",
+        on_host=False,
+    )
+    Xy_it = xgb.DMatrix(it)
+    params = {
+        "tree_method": tree_method,
+        "objective": "reg:quantileerror",
+        "device": device,
+        "quantile_alpha": [0.2, 0.8],
+    }
+    booster_it = xgb.train(params, Xy_it)
+    X, y, w = it.as_arrays()
+    Xy = xgb.DMatrix(X, y, weight=w)
+    booster = xgb.train(params, Xy)
+
+    predt_it = booster_it.predict(Xy_it)
+    predt = booster.predict(Xy)
+
+    np.testing.assert_allclose(predt, predt_it)
+
+
 def check_cut(
     n_entries: int, indptr: np.ndarray, data: np.ndarray, dtypes: Any
 ) -> None:
