@@ -35,13 +35,7 @@
 
 #if !defined(_WIN32)
 
-#define _GNU_SOURCE
-#include <features.h>
-#ifndef __USE_GNU
-    #define __MUSL__
-#endif
-#undef _GNU_SOURCE
-
+#include "xgboost/unixdefs.h"
 #ifdef __MUSL__
 #include <poll.h>
 #else
