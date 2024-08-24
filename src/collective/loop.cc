@@ -14,6 +14,7 @@
 #include <thread>     // for thread
 #include <utility>    // for move
 
+#include "../common/threading_utils.h"      // for NameThread
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Fail, Success
 #include "xgboost/collective/socket.h"      // for FailWithCode
@@ -271,5 +272,6 @@ Loop::Loop(std::chrono::seconds timeout) : timeout_{timeout} {
   worker_ = std::thread{[this] {
     this->Process();
   }};
+  common::NameThread(&worker_, "lw");
 }
 }  // namespace xgboost::collective

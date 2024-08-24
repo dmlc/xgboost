@@ -12,10 +12,11 @@
 #include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../../../src/collective/comm.h"
+#include "../../../src/collective/comm.h"              // for RabitComm
 #include "../../../src/collective/communicator-inl.h"  // for Init, Finalize
 #include "../../../src/collective/tracker.h"           // for GetHostAddress
 #include "../../../src/common/cuda_rt_utils.h"         // for AllVisibleGPUs
+#include "../../../src/common/threading_utils.h"       // for NameThread
 #include "../helpers.h"                                // for FileExists
 
 #if defined(XGBOOST_USE_FEDERATED)
@@ -176,6 +177,9 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
       CHECK(status == std::future_status::ready) << "Test timeout";
       fut.get();
     });
+
+    std::string name = "tw-" + std::to_string(i);
+    common::NameThread(&workers.back(), name.c_str());
   }
 
   for (auto& t : workers) {
@@ -199,7 +203,7 @@ class BaseMGPUTest : public ::testing::Test {
    *                          available.
    */
   template <typename Fn>
-  auto DoTest(Fn&& fn, bool is_federated, bool emulate_if_single = false) const {
+  auto DoTest(Fn&& fn, bool is_federated, [[maybe_unused]] bool emulate_if_single = false) const {
     auto n_gpus = common::AllVisibleGPUs();
     if (is_federated) {
 #if defined(XGBOOST_USE_FEDERATED)
