@@ -18,7 +18,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
   template <typename FormatStreamPolicy>
   void Run(FormatStreamPolicy *p_policy, bool prefetch_copy) {
     auto &policy = *p_policy;
-    Context ctx{MakeCUDACtx(0)};
+    auto ctx = MakeCUDACtx(0);
     auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
     param.prefetch_copy = prefetch_copy;
 
