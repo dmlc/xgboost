@@ -102,6 +102,20 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
 #' @export
 xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, top_n = 10, model = NULL,
                                     trees = NULL, target_class = NULL, approxcontrib = FALSE, subsample = NULL) {
+  has_categ <- FALSE
+  if (inherits(data, "data.frame")) {
+    has_categ <- any(sapply(data, function(x) is.factor(x) || is.character(x)))
+  } else if (inherits(data, "xgb.DMatrix")) {
+    ftypes <- getinfo(data, "feature_type")
+    if (NROW(ftypes)) {
+      if ("c" %in% ftypes) {
+        has_categ <- TRUE
+      }
+    }
+  }
+  if (has_categ) {
+    stop("Function 'xgb.ggplot.shap.summary' is not available for data with categorical features.")
+  }
   data_list <- xgb.shap.data(
     data = data,
     shap_contrib = shap_contrib,
@@ -134,7 +148,8 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
 #' @param data_list The result of `xgb.shap.data()`.
 #' @param normalize Whether to standardize feature values to mean 0 and
 #'   standard deviation 1. This is useful for comparing multiple features on the same
-#'   plot. Default is `FALSE`.
+#'   plot. Default is `FALSE`. Note that it cannot be used when the data contains
+#'   categorical features.
 #' @return A `data.table` containing the observation ID, the feature name, the
 #'   feature value (normalized if specified), and the SHAP contribution value.
 #' @noRd
