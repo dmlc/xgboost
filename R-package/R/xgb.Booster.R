@@ -1109,17 +1109,25 @@ coef.xgb.Booster <- function(object, ...) {
   if (n_cols == 1L) {
     out <- c(intercepts, coefs)
     if (add_names) {
-      names(out) <- feature_names
+      .Call(XGSetVectorNamesInplace_R, out, feature_names)
     }
   } else {
     coefs <- matrix(coefs, nrow = num_feature, byrow = TRUE)
     dim(intercepts) <- c(1L, n_cols)
     out <- rbind(intercepts, coefs)
+    out_names <- vector(mode = "list", length = 2)
     if (add_names) {
-      row.names(out) <- feature_names
+      out_names[[1L]] <- feature_names
     }
-    # TODO: if a class names attributes is added,
-    # should use those names here.
+    if (inherits(object, "xgboost")) {
+      metadata <- attributes(object)$metadata
+      if (NROW(metadata$y_levels)) {
+        out_names[[2L]] <- metadata$y_levels
+      } else if (NROW(metadata$y_names)) {
+        out_names[[2L]] <- metadata$y_names
+      }
+    }
+    .Call(XGSetArrayDimNamesInplace_R, out, out_names)
   }
   return(out)
 }
