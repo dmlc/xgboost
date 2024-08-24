@@ -71,7 +71,7 @@
 #' @param verbose Logical flag. Should statistics be printed during the process?
 #' @param print_every_n Print each nth iteration evaluation messages when `verbose > 0`.
 #'   Default is 1 which means all messages are printed. This parameter is passed to the
-#'   [xgb.cb.print.evaluation)] callback.
+#'   [xgb.cb.print.evaluation()] callback.
 #' @param early_stopping_rounds If `NULL`, the early stopping function is not triggered.
 #'   If set to an integer `k`, training with a validation set will stop if the performance
 #'   doesn't improve for `k` rounds.
