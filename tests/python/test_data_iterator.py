@@ -12,6 +12,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
+from xgboost.testing.updater import check_quantile_loss_extmem
 
 pytestmark = tm.timeout(30)
 
@@ -276,3 +277,28 @@ def test_cat_check() -> None:
         Xy = xgb.DMatrix(it, enable_categorical=True)
         with pytest.raises(ValueError, match="categorical features"):
             xgb.train({"booster": "gblinear"}, Xy)
+
+
+@given(
+    strategies.integers(1, 64),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_quantile_objective(
+    n_samples_per_batch: int, n_features: int, n_batches: int
+) -> None:
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "hist",
+        "cpu",
+    )
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "approx",
+        "cpu",
+    )
