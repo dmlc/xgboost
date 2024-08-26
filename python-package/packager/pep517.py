@@ -70,7 +70,6 @@ def build_wheel(
         logger.info("Copying project files to temporary directory %s", str(workspace))
 
         copy_with_logging(TOPLEVEL_DIR / "pyproject.toml", workspace, logger=logger)
-        copy_with_logging(TOPLEVEL_DIR / "hatch_build.py", workspace, logger=logger)
         copy_with_logging(TOPLEVEL_DIR / "README.rst", workspace, logger=logger)
 
         pkg_path = workspace / "xgboost"
@@ -116,7 +115,6 @@ def build_sdist(
         logger.info("Copying project files to temporary directory %s", str(workspace))
 
         copy_with_logging(TOPLEVEL_DIR / "pyproject.toml", workspace, logger=logger)
-        copy_with_logging(TOPLEVEL_DIR / "hatch_build.py", workspace, logger=logger)
         copy_with_logging(TOPLEVEL_DIR / "README.rst", workspace, logger=logger)
 
         copytree_with_logging(

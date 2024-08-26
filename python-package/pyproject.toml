@@ -44,8 +44,6 @@ datatable = ["datatable"]
 plotting = ["graphviz", "matplotlib"]
 pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
 
-[tool.hatch.build.targets.wheel.hooks.custom]
-
 [tool.isort]
 profile = "black"
 
