@@ -270,51 +270,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "OS400")
   set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X64 qc <TARGET> <OBJECTS>")
 endif()
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-  include(CheckCSourceCompiles)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8-a+sve")
-  check_c_source_compiles("
-  #if defined(__aarch64__) && defined(__ARM_FEATURE_SVE)
-  #include <arm_sve.h>
-  int main() {
-    svfloat64_t a;
-    a = svdup_n_f64(0);
-    return 0;
-  }
-  #endif
-  " COMPILER_HAS_ARM_SVE)
-
-  if(COMPILER_HAS_ARM_SVE)
-    message(STATUS "ARM SVE compiler support detected")
-    set(SOURCE_CODE "
-    #include <sys/prctl.h>
-    int main() {
-      int ret = prctl(PR_SVE_GET_VL);
-      return ret >= 0 ? 0 : 1;
-    }
-    ")
-    file(WRITE ${CMAKE_BINARY_DIR}/check_sve_support.c "${SOURCE_CODE}")
-    try_run(RUN_RESULT COMPILE_RESULT
-      ${CMAKE_BINARY_DIR}/check_sve_support_output
-      ${CMAKE_BINARY_DIR}/check_sve_support.c
-    )
-
-    if(RUN_RESULT EQUAL 0)
-      message(STATUS "ARM SVE hardware support detected")
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+sve")
-      string(APPEND CMAKE_CXX_FLAGS " -DSVE_SUPPORT_DETECTED")
-    else()
-      message(STATUS "ARM SVE hardware support not detected")
-    endif()
-  else()
-    message(STATUS "ARM SVE compiler support not detected")
-  endif()
-
-  set(CMAKE_C_FLAGS "${ORIGINAL_CMAKE_C_FLAGS}")
-else()
-  message(STATUS "Not an aarch64 architecture")
-endif()
-
 if(USE_NCCL)
   find_package(Nccl REQUIRED)
 endif()
@@ -398,6 +353,13 @@ target_include_directories(xgboost
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 #-- End shared library
+
+include(${xgboost_SOURCE_DIR}/cmake/CheckSVEsupport.cmake)
+check_xgboost_sve_support()
+if(XGBOOST_ARM_SVE_HARDWARE_SUPPORT)
+    target_compile_definitions(objxgboost PUBLIC XGBOOST_SVE_SUPPORT_DETECTED)
+    target_compile_options(objxgboost PRIVATE ${XGBOOST_SVE_FLAGS})
+endif()
 
 #-- CLI for xgboost
 if(BUILD_DEPRECATED_CLI)
