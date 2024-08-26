@@ -53,7 +53,7 @@ class EllpackHostCacheStream {
 
   void Seek(bst_idx_t offset_bytes);
 
-  void Read(EllpackPage* page) const;
+  void Read(EllpackPage* page, bool prefetch_copy) const;
   void Write(EllpackPage const& page);
 };
 
@@ -71,9 +71,9 @@ class EllpackFormatPolicy {
   // For testing with the HMM flag.
   explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}
 
-  [[nodiscard]] auto CreatePageFormat() const {
+  [[nodiscard]] auto CreatePageFormat(BatchParam const& param) const {
     CHECK_EQ(cuts_->cut_values_.Device(), device_);
-    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_, has_hmm_}};
+    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_, param, has_hmm_}};
     return fmt;
   }
 

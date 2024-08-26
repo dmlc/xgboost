@@ -66,6 +66,8 @@ void ExtMemQuantileDMatrix::InitFromCPU(
     Context const *ctx,
     std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
     DMatrixHandle proxy_handle, BatchParam const &p, float missing, std::shared_ptr<DMatrix> ref) {
+  xgboost_NVTX_FN_RANGE();
+
   auto proxy = MakeProxy(proxy_handle);
   CHECK(proxy);
 
@@ -118,7 +120,7 @@ BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndex(Context const
   }
 
   CHECK(this->ghist_index_source_);
-  this->ghist_index_source_->Reset();
+  this->ghist_index_source_->Reset(param);
 
   if (!std::isnan(param.sparse_thresh) &&
       param.sparse_thresh != tree::TrainParam::DftSparseThreshold()) {

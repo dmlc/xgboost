@@ -60,7 +60,7 @@ template <typename T>
   RET_IF_NOT(fi->Read(&impl->is_dense));
   RET_IF_NOT(fi->Read(&impl->row_stride));
 
-  if (has_hmm_ats_) {
+  if (has_hmm_ats_ && !this->param_.prefetch_copy) {
     RET_IF_NOT(common::ReadVec(fi, &impl->gidx_buffer));
   } else {
     RET_IF_NOT(ReadDeviceVec(fi, &impl->gidx_buffer));
@@ -95,7 +95,7 @@ template <typename T>
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
   impl->SetCuts(this->cuts_);
 
-  fi->Read(page);
+  fi->Read(page, this->param_.prefetch_copy);
   dh::DefaultStream().Sync();
 
   return true;
