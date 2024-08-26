@@ -119,8 +119,11 @@ struct DeviceSplitCandidate {
 };
 
 namespace cuda_impl {
-inline BatchParam HistBatch(TrainParam const& param) {
-  return {param.max_bin, TrainParam::DftSparseThreshold()};
+inline BatchParam HistBatch(TrainParam const& param, bool prefetch_copy = true) {
+  auto p = BatchParam{param.max_bin, TrainParam::DftSparseThreshold()};
+  p.prefetch_copy = prefetch_copy;
+  p.n_prefetch_batches = 1;
+  return p;
 }
 
 inline BatchParam HistBatch(bst_bin_t max_bin) {

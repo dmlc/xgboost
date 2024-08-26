@@ -745,8 +745,7 @@ void VerifyColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Arg
   std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
   std::string device = "cpu";
   if (use_gpu) {
-    auto gpu_id = common::AllVisibleGPUs() == 1 ? 0 : rank;
-    device = "cuda:" + std::to_string(gpu_id);
+    device = MakeCUDACtx(DistGpuIdx()).DeviceName();
   }
   auto model = GetModelWithArgs(sliced, tree_method, device, args);
   ASSERT_EQ(model, expected_model);
@@ -807,44 +806,32 @@ class ColumnSplitTrainingTest
   }
 };
 
-auto MakeParamsForTest() {
-  std::vector<std::tuple<std::string, bool, bool>> configs;
-  for (auto tm : {"hist", "approx"}) {
-#if defined(XGBOOST_USE_CUDA)
-    std::array<bool, 2> use_gpu{true, false};
-#else
-    std::array<bool, 1> use_gpu{false};
-#endif
-    for (auto i : use_gpu) {
+auto WithFed() {
 #if defined(XGBOOST_USE_FEDERATED)
-      std::array<bool, 2> fed{true, false};
+  return ::testing::Bool();
 #else
-      std::array<bool, 1> fed{false};
+  return ::testing::Values(false);
 #endif
-      for (auto j : fed) {
-        configs.emplace_back(tm, i, j);
-      }
-    }
-  }
-  return configs;
 }
 }  // anonymous namespace
 
 TEST_P(ColumnSplitTrainingTest, ColumnSampler) {
-  auto param = GetParam();
-  std::apply(TestColumnSplitColumnSampler, param);
+  std::apply(TestColumnSplitColumnSampler, GetParam());
 }
 
 TEST_P(ColumnSplitTrainingTest, InteractionConstraints) {
-  auto param = GetParam();
-  std::apply(TestColumnSplitInteractionConstraints, param);
+  std::apply(TestColumnSplitInteractionConstraints, GetParam());
 }
 
 TEST_P(ColumnSplitTrainingTest, MonotoneConstraints) {
-  auto param = GetParam();
-  std::apply(TestColumnSplitMonotoneConstraints, param);
+  std::apply(TestColumnSplitMonotoneConstraints, GetParam());
 }
 
-INSTANTIATE_TEST_SUITE_P(ColumnSplit, ColumnSplitTrainingTest,
-                         ::testing::ValuesIn(MakeParamsForTest()));
+INSTANTIATE_TEST_SUITE_P(Cpu, ColumnSplitTrainingTest,
+                         ::testing::Combine(::testing::Values("hist", "approx"),
+                                            ::testing::Values(false), WithFed()));
+
+INSTANTIATE_TEST_SUITE_P(MGPU, ColumnSplitTrainingTest,
+                         ::testing::Combine(::testing::Values("hist", "approx"),
+                                            ::testing::Values(true), WithFed()));
 }  // namespace xgboost

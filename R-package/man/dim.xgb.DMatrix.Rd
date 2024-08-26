@@ -13,13 +13,14 @@
 Returns a vector of numbers of rows and of columns in an \code{xgb.DMatrix}.
 }
 \details{
-Note: since \code{nrow} and \code{ncol} internally use \code{dim}, they can also
+Note: since \code{\link[=nrow]{nrow()}} and \code{\link[=ncol]{ncol()}} internally use \code{\link[=dim]{dim()}}, they can also
 be directly used with an \code{xgb.DMatrix} object.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label, nthread = 2)
+dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = 2)
 
 stopifnot(nrow(dtrain) == nrow(train$data))
 stopifnot(ncol(dtrain) == ncol(train$data))

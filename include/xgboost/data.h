@@ -239,42 +239,52 @@ struct Entry {
 };
 
 /**
- * \brief Parameters for constructing histogram index batches.
+ * @brief Parameters for constructing histogram index batches.
  */
 struct BatchParam {
   /**
-   * \brief Maximum number of bins per feature for histograms.
+   * @brief Maximum number of bins per feature for histograms.
    */
   bst_bin_t max_bin{0};
   /**
-   * \brief Hessian, used for sketching with future approx implementation.
+   * @brief Hessian, used for sketching with future approx implementation.
    */
   common::Span<float const> hess;
   /**
-   * \brief Whether should we force DMatrix to regenerate the batch.  Only used for
+   * @brief Whether should we force DMatrix to regenerate the batch.  Only used for
    *        GHistIndex.
    */
   bool regen{false};
   /**
-   * \brief Forbid regenerating the gradient index. Used for internal validation.
+   * @brief Forbid regenerating the gradient index. Used for internal validation.
    */
   bool forbid_regen{false};
   /**
-   * \brief Parameter used to generate column matrix for hist.
+   * @brief Parameter used to generate column matrix for hist.
    */
   double sparse_thresh{std::numeric_limits<double>::quiet_NaN()};
+  /**
+   * @brief Used for GPU external memory. Whether to copy the data into device.
+   *
+   * This affects only the current round of iteration.
+   */
+  bool prefetch_copy{true};
+  /**
+   * @brief The number of batches to pre-fetch for external memory.
+   */
+  std::int32_t n_prefetch_batches{3};
 
   /**
-   * \brief Exact or others that don't need histogram.
+   * @brief Exact or others that don't need histogram.
    */
   BatchParam() = default;
   /**
-   * \brief Used by the hist tree method.
+   * @brief Used by the hist tree method.
    */
   BatchParam(bst_bin_t max_bin, double sparse_thresh)
       : max_bin{max_bin}, sparse_thresh{sparse_thresh} {}
   /**
-   * \brief Used by the approx tree method.
+   * @brief Used by the approx tree method.
    *
    *   Get batch with sketch weighted by hessian.  The batch will be regenerated if the
    *   span is changed, so caller should keep the span for each iteration.
@@ -295,7 +305,7 @@ struct BatchParam {
   }
   [[nodiscard]] bool Initialized() const { return max_bin != 0; }
   /**
-   * \brief Make a copy of self for DMatrix to describe how its existing index was generated.
+   * @brief Make a copy of self for DMatrix to describe how its existing index was generated.
    */
   [[nodiscard]] BatchParam MakeCache() const {
     auto p = *this;

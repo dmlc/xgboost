@@ -28,7 +28,7 @@
 #' This function uses [GraphViz](https://www.graphviz.org/) as DiagrammeR backend.
 #'
 #' @param model Object of class `xgb.Booster`. If it contains feature names (they can be set through
-#'   \link{setinfo}), they will be used in the output from this function.
+#'   [setinfo()], they will be used in the output from this function.
 #' @param trees An integer vector of tree indices that should be used.
 #'   The default (`NULL`) uses all trees.
 #'   Useful, e.g., in multiclass classification to get only

@@ -21,7 +21,7 @@ TEST(ThreadPool, Basic) {
   // 4 is an invalid value, it's only possible to set it by bypassing the parameter
   // validation.
   ASSERT_NE(orig, GlobalConfigThreadLocalStore::Get()->verbosity);
-  ThreadPool pool{n_threads, [config = *GlobalConfigThreadLocalStore::Get()] {
+  ThreadPool pool{StringView{"test"}, n_threads, [config = *GlobalConfigThreadLocalStore::Get()] {
                     *GlobalConfigThreadLocalStore::Get() = config;
                   }};
   GlobalConfigThreadLocalStore::Get()->verbosity = orig;  // restore
