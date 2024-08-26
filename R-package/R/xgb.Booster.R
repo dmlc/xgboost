@@ -222,12 +222,11 @@ xgb.get.handle <- function(object) {
 #' For multi-class and multi-target, will be a 4D array with dimensions `[nrows, ngroups, nfeats+1, nfeats+1]`
 #' }
 #'
-#' If passing `strict_shape=FALSE`, the result is always an array:\itemize{
-#' \item For normal predictions, the dimension is `[nrows, ngroups]`.
-#' \item For `predcontrib=TRUE`, the dimension is `[nrows, ngroups, nfeats+1]`.
-#' \item For `predinteraction=TRUE`, the dimension is `[nrows, ngroups, nfeats+1, nfeats+1]`.
-#' \item For `predleaf=TRUE`, the dimension is `[nrows, niter, ngroups, num_parallel_tree]`.
-#' }
+#' If passing `strict_shape=FALSE`, the result is always an array:
+#' - For normal predictions, the dimension is `[nrows, ngroups]`.
+#' - For `predcontrib=TRUE`, the dimension is `[nrows, ngroups, nfeats+1]`.
+#' - For `predinteraction=TRUE`, the dimension is `[nrows, ngroups, nfeats+1, nfeats+1]`.
+#' - For `predleaf=TRUE`, the dimension is `[nrows, niter, ngroups, num_parallel_tree]`.
 #'
 #' If passing `avoid_transpose=TRUE`, then the dimensions in all cases will be in reverse order - for
 #' example, for `predinteraction`, they will be `[nfeats+1, nfeats+1, ngroups, nrows]`
@@ -623,7 +622,7 @@ validate.features <- function(bst, newdata) {
 #' change the value of that parameter for a model.
 #' Use [xgb.parameters<-()] to set or change model parameters.
 #'
-#' The [xgb.attributes<-()] setter either updates the existing or adds one or several attributes,
+#' The `xgb.attributes<-` setter either updates the existing or adds one or several attributes,
 #' but it doesn't delete the other existing attributes.
 #'
 #' Important: since this modifies the booster's C object, semantics for assignment here
@@ -635,11 +634,11 @@ validate.features <- function(bst, newdata) {
 #' @param object Object of class `xgb.Booster`. **Will be modified in-place** when assigning to it.
 #' @param name A non-empty character string specifying which attribute is to be accessed.
 #' @param value For `xgb.attr<-`, a value of an attribute; for `xgb.attributes<-`,
-#'        it is a list (or an object coercible to a list) with the names of attributes to set
-#'        and the elements corresponding to attribute values.
-#'        Non-character values are converted to character.
-#'        When an attribute value is not a scalar, only the first index is used.
-#'        Use `NULL` to remove an attribute.
+#'   it is a list (or an object coercible to a list) with the names of attributes to set
+#'   and the elements corresponding to attribute values.
+#'   Non-character values are converted to character.
+#'   When an attribute value is not a scalar, only the first index is used.
+#'   Use `NULL` to remove an attribute.
 #' @return
 #' - `xgb.attr()` returns either a string value of an attribute
 #'   or `NULL` if an attribute wasn't stored in a model.

@@ -2,7 +2,7 @@
 #'
 #' Save XGBoost model to a file in binary or JSON format.
 #'
-#' @param model Model object of \code{xgb.Booster} class.
+#' @param model Model object of `xgb.Booster` class.
 #' @param fname Name of the file to write. Its extension determines the serialization format:
 #'   - ".ubj": Use the universal binary JSON format (recommended).
 #'     This format uses binary types for e.g. floating point numbers, thereby preventing any loss
