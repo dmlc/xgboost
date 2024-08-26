@@ -750,6 +750,19 @@ test_that("Coefficients from gblinear have the expected shape and names", {
   pred_auto <- predict(model, x, outputmargin = TRUE)
   pred_manual <- unname(mm %*% coefs)
   expect_equal(pred_manual, pred_auto, tolerance = 1e-7)
+
+  # xgboost() with additional metadata
+  model <- xgboost(
+    iris[, -5],
+    iris$Species,
+    booster = "gblinear",
+    objective = "multi:softprob",
+    nrounds = 3,
+    nthread = 1
+  )
+  coefs <- coef(model)
+  expect_equal(row.names(coefs), c("(Intercept)", colnames(x)))
+  expect_equal(colnames(coefs), levels(iris$Species))
 })
 
 test_that("Deep copies work as expected", {

@@ -17,7 +17,7 @@ xgb.plot.tree(
 }
 \arguments{
 \item{model}{Object of class \code{xgb.Booster}. If it contains feature names (they can be set through
-\link{setinfo}), they will be used in the output from this function.}
+\code{\link[=setinfo]{setinfo()}}, they will be used in the output from this function.}
 
 \item{trees}{An integer vector of tree indices that should be used.
 The default (\code{NULL}) uses all trees.

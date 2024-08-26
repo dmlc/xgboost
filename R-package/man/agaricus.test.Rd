@@ -16,11 +16,10 @@ This data set is originally from the Mushroom data set,
 UCI Machine Learning Repository.
 }
 \details{
-This data set includes the following fields:
-
+It includes the following fields:
 \itemize{
-\item \code{label} the label for each record
-\item \code{data} a sparse Matrix of \code{dgCMatrix} class, with 126 columns.
+\item \code{label}: The label for each record.
+\item \code{data}: A sparse Matrix of 'dgCMatrix' class with 126 columns.
 }
 }
 \references{

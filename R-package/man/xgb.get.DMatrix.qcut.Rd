@@ -7,15 +7,14 @@
 xgb.get.DMatrix.qcut(dmat, output = c("list", "arrays"))
 }
 \arguments{
-\item{dmat}{An \code{xgb.DMatrix} object, as returned by \link{xgb.DMatrix}.}
+\item{dmat}{An \code{xgb.DMatrix} object, as returned by \code{\link[=xgb.DMatrix]{xgb.DMatrix()}}.}
 
-\item{output}{Output format for the quantile cuts. Possible options are:\itemize{
-\item \code{"list"} will return the output as a list with one entry per column, where
-each column will have a numeric vector with the cuts. The list will be named if
-\code{dmat} has column names assigned to it.
+\item{output}{Output format for the quantile cuts. Possible options are:
+\itemize{
+\item "list"\verb{will return the output as a list with one entry per column, where each column will have a numeric vector with the cuts. The list will be named if}dmat` has column names assigned to it.
 \item \code{"arrays"} will return a list with entries \code{indptr} (base-0 indexing) and
 \code{data}. Here, the cuts for column 'i' are obtained by slicing 'data' from entries
-\code{indptr[i]+1} to \code{indptr[i+1]}.
+\code{   indptr[i]+1} to \code{indptr[i+1]}.
 }}
 }
 \value{
@@ -23,7 +22,7 @@ The quantile cuts, in the format specified by parameter \code{output}.
 }
 \description{
 Get the quantile cuts (a.k.a. borders) from an \code{xgb.DMatrix}
-that has been quantized for the histogram method (\code{tree_method="hist"}).
+that has been quantized for the histogram method (\code{tree_method = "hist"}).
 
 These cuts are used in order to assign observations to bins - i.e. these are ordered
 boundaries which are used to determine assignment condition \verb{border_low < x < border_high}.
@@ -36,8 +35,8 @@ which will be output in sorted order from lowest to highest.
 Different columns can have different numbers of bins according to their range.
 }
 \examples{
-library(xgboost)
 data(mtcars)
+
 y <- mtcars$mpg
 x <- as.matrix(mtcars[, -1])
 dm <- xgb.DMatrix(x, label = y, nthread = 1)
@@ -45,11 +44,7 @@ dm <- xgb.DMatrix(x, label = y, nthread = 1)
 # DMatrix is not quantized right away, but will be once a hist model is generated
 model <- xgb.train(
   data = dm,
-  params = list(
-    tree_method = "hist",
-    max_bin = 8,
-    nthread = 1
-  ),
+  params = list(tree_method = "hist", max_bin = 8, nthread = 1),
   nrounds = 3
 )
 
