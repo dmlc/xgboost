@@ -47,6 +47,7 @@ std::int32_t ShiftRight(std::int32_t rank, std::int32_t world, std::int32_t root
 }  // namespace
 
 Result Broadcast(Comm const& comm, common::Span<std::int8_t> data, std::int32_t root) {
+  common::ScopedLog logger{__func__};
   // Binomial tree broadcast
   // * Wiki
   // https://en.wikipedia.org/wiki/Broadcast_(parallel_pattern)#Binomial_Tree_Broadcast

@@ -72,6 +72,7 @@ void RunBitwiseAllreduce(dh::CUDAStreamView stream, common::Span<std::int8_t> ou
 
 [[nodiscard]] Result BitwiseAllReduce(NCCLComm const* pcomm, ncclComm_t handle,
                                       common::Span<std::int8_t> data, Op op) {
+  common::ScopedLog logger{__PRETTY_FUNCTION__};
   dh::device_vector<std::int8_t> buffer(data.size() * pcomm->World());
   auto* device_buffer = buffer.data().get();
   auto stub = pcomm->Stub();
@@ -125,6 +126,7 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
 [[nodiscard]] Result NCCLColl::Allreduce(Comm const& comm, common::Span<std::int8_t> data,
                                          ArrayInterfaceHandler::Type type, Op op) {
+  common::ScopedLog logger{__PRETTY_FUNCTION__};
   if (!comm.IsDistributed()) {
     return Success();
   }
@@ -148,6 +150,7 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
 [[nodiscard]] Result NCCLColl::Broadcast(Comm const& comm, common::Span<std::int8_t> data,
                                          std::int32_t root) {
+  common::ScopedLog logger{__PRETTY_FUNCTION__};
   if (!comm.IsDistributed()) {
     return Success();
   }
@@ -162,6 +165,7 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 }
 
 [[nodiscard]] Result NCCLColl::Allgather(Comm const& comm, common::Span<std::int8_t> data) {
+  common::ScopedLog logger{__PRETTY_FUNCTION__};
   if (!comm.IsDistributed()) {
     return Success();
   }
@@ -185,6 +189,7 @@ namespace cuda_impl {
  */
 Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const> data,
                            common::Span<std::int64_t const> sizes, common::Span<std::int8_t> recv) {
+  common::ScopedLog logger{__PRETTY_FUNCTION__};
   auto stub = comm->Stub();
   return Success() << [&stub] { return stub->GroupStart(); } << [&] {
     std::size_t offset = 0;
@@ -206,6 +211,7 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
                                           common::Span<std::int64_t const> sizes,
                                           common::Span<std::int64_t> recv_segments,
                                           common::Span<std::int8_t> recv, AllgatherVAlgo algo) {
+  common::ScopedLog logger{__PRETTY_FUNCTION__};
   auto nccl = dynamic_cast<NCCLComm const*>(&comm);
   CHECK(nccl);
   if (!comm.IsDistributed()) {

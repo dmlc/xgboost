@@ -49,9 +49,7 @@ void ConsoleLogger::Configure(Args const& args) {
   param.UpdateAllowUnknown(args);
 }
 
-ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {
-  return LogVerbosity::kWarning;
-}
+ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() { return LogVerbosity::kDebug; }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::GlobalVerbosity() {
   LogVerbosity global_verbosity { LogVerbosity::kWarning };

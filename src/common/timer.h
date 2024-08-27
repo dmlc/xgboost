@@ -79,4 +79,12 @@ struct Monitor {
   void Start(const std::string &name);
   void Stop(const std::string &name);
 };
+
+class ScopedLog {
+  std::string name_;
+
+ public:
+  explicit ScopedLog(std::string name);
+  ~ScopedLog();
+};
 }  // namespace xgboost::common
