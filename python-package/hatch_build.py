@@ -6,7 +6,7 @@ Here, we customize the tag of the generated wheels.
 from typing import Any, Dict
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-from pip._vendor.packaging.tags import platform_tags
+from packaging.tags import platform_tags
 
 
 def get_tag() -> str:
