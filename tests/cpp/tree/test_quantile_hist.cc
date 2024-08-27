@@ -198,12 +198,12 @@ void TestColumnSplitPartitioner(bst_target_t n_targets) {
 }
 }  // anonymous namespace
 
-TEST(QuantileHist, PartitionerColSplit) { TestColumnSplitPartitioner<CPUExpandEntry>(1); }
+TEST(QuantileHist, PartitionerColumnSplit) { TestColumnSplitPartitioner<CPUExpandEntry>(1); }
 
-TEST(QuantileHist, MultiPartitionerColSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
+TEST(QuantileHist, MultiPartitionerColumnSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
 
 namespace {
-class TestHistColSplit : public ::testing::TestWithParam<std::tuple<bst_target_t, bool, float>> {
+class TestHistColumnSplit : public ::testing::TestWithParam<std::tuple<bst_target_t, bool, float>> {
  public:
   void Run() {
     auto [n_targets, categorical, sparsity] = GetParam();
@@ -212,9 +212,9 @@ class TestHistColSplit : public ::testing::TestWithParam<std::tuple<bst_target_t
 };
 }  // anonymous namespace
 
-TEST_P(TestHistColSplit, Basic) { this->Run(); }
+TEST_P(TestHistColumnSplit, Basic) { this->Run(); }
 
-INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestHistColSplit, ::testing::ValuesIn([]() {
+INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestHistColumnSplit, ::testing::ValuesIn([]() {
                            std::vector<std::tuple<bst_target_t, bool, float>> params;
                            for (auto categorical : {true, false}) {
                              for (auto sparsity : {0.0f, 0.6f}) {

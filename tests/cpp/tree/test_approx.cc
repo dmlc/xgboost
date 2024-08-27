@@ -123,7 +123,7 @@ void TestColumnSplitPartitioner(size_t n_samples, size_t base_rowid, std::shared
 }
 }  // anonymous namespace
 
-TEST(Approx, PartitionerColSplit) {
+TEST(Approx, PartitionerColumnSplit) {
   size_t n_samples = 1024, n_features = 16, base_rowid = 0;
   auto const Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   auto hess = GenerateHess(n_samples);
@@ -153,7 +153,7 @@ TEST(Approx, PartitionerColSplit) {
 }
 
 namespace {
-class TestApproxColSplit : public ::testing::TestWithParam<std::tuple<bool, float>> {
+class TestApproxColumnSplit : public ::testing::TestWithParam<std::tuple<bool, float>> {
  public:
   void Run() {
     auto [categorical, sparsity] = GetParam();
@@ -162,9 +162,9 @@ class TestApproxColSplit : public ::testing::TestWithParam<std::tuple<bool, floa
 };
 }  // namespace
 
-TEST_P(TestApproxColSplit, Basic) { this->Run(); }
+TEST_P(TestApproxColumnSplit, Basic) { this->Run(); }
 
-INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestApproxColSplit, ::testing::ValuesIn([]() {
+INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestApproxColumnSplit, ::testing::ValuesIn([]() {
                            std::vector<std::tuple<bool, float>> params;
                            for (auto categorical : {true, false}) {
                              for (auto sparsity : {0.0f, 0.6f}) {
