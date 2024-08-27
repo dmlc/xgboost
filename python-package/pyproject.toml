@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "hatchling>=1.12.1"
+    "hatchling>=1.12.1",
 ]
 backend-path = ["."]
 build-backend = "packager.pep517"
@@ -29,7 +29,7 @@ classifiers = [
 dependencies = [
     "numpy",
     "scipy",
-    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'"
+    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'",
 ]
 
 [project.urls]
