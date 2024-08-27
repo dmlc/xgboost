@@ -351,8 +351,10 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   this->has_categorical_ = LoadFeatureType(feature_type_names, &feature_types.HostVector());
 }
 
+namespace {
 template <typename T>
-std::vector<T> Gather(const std::vector<T> &in, common::Span<int const> ridxs, size_t stride = 1) {
+std::vector<T> Gather(const std::vector<T>& in, common::Span<bst_idx_t const> ridxs,
+                      size_t stride = 1) {
   if (in.empty()) {
     return {};
   }
@@ -361,16 +363,56 @@ std::vector<T> Gather(const std::vector<T> &in, common::Span<int const> ridxs, s
   for (auto i = 0ull; i < size; i++) {
     auto ridx = ridxs[i];
     for (size_t j = 0; j < stride; ++j) {
-      out[i * stride +j] = in[ridx * stride + j];
+      out[i * stride + j] = in[ridx * stride + j];
     }
   }
   return out;
 }
+}  // namespace
 
-MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
+namespace cuda_impl {
+void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_idx_t const> ridx,
+                   MetaInfo* p_out);
+#if !defined(XGBOOST_USE_CUDA)
+void SliceMetaInfo(Context const*, MetaInfo const&, common::Span<bst_idx_t const>, MetaInfo*) {
+  common::AssertGPUSupport();
+}
+#endif
+}  // namespace cuda_impl
+
+MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs,
+                         bst_idx_t nnz) const {
+  /**
+   * Shape
+   */
   MetaInfo out;
   out.num_row_ = ridxs.size();
   out.num_col_ = this->num_col_;
+  out.num_nonzero_ = nnz;
+
+  /**
+   * Feature Info
+   */
+  out.feature_weights.SetDevice(ctx->Device());
+  out.feature_weights.Resize(this->feature_weights.Size());
+  out.feature_weights.Copy(this->feature_weights);
+
+  out.feature_names = this->feature_names;
+
+  out.feature_types.SetDevice(ctx->Device());
+  out.feature_types.Resize(this->feature_types.Size());
+  out.feature_types.Copy(this->feature_types);
+
+  out.feature_type_names = this->feature_type_names;
+
+  /**
+   * Sample Info
+   */
+  if (ctx->IsCUDA()) {
+    cuda_impl::SliceMetaInfo(ctx, *this, ridxs, &out);
+    return out;
+  }
+
   // Groups is maintained by a higher level Python function.  We should aim at deprecating
   // the slice function.
   if (this->labels.Size() != this->num_row_) {
@@ -386,13 +428,11 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
     });
   }
 
-  out.labels_upper_bound_.HostVector() =
-      Gather(this->labels_upper_bound_.HostVector(), ridxs);
-  out.labels_lower_bound_.HostVector() =
-      Gather(this->labels_lower_bound_.HostVector(), ridxs);
+  out.labels_upper_bound_.HostVector() = Gather(this->labels_upper_bound_.HostVector(), ridxs);
+  out.labels_lower_bound_.HostVector() = Gather(this->labels_lower_bound_.HostVector(), ridxs);
   // weights
   if (this->weights_.Size() + 1 == this->group_ptr_.size()) {
-    auto& h_weights =  out.weights_.HostVector();
+    auto& h_weights = out.weights_.HostVector();
     // Assuming all groups are available.
     out.weights_.HostVector() = h_weights;
   } else {
@@ -413,14 +453,6 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
       shape[1] = 1;
     });
   }
-
-  out.feature_weights.Resize(this->feature_weights.Size());
-  out.feature_weights.Copy(this->feature_weights);
-
-  out.feature_names = this->feature_names;
-  out.feature_types.Resize(this->feature_types.Size());
-  out.feature_types.Copy(this->feature_types);
-  out.feature_type_names = this->feature_type_names;
 
   return out;
 }

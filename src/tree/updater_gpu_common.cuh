@@ -119,9 +119,9 @@ struct DeviceSplitCandidate {
 };
 
 namespace cuda_impl {
-inline BatchParam HistBatch(TrainParam const& param, bool prefetch_copy = true) {
+inline BatchParam HistBatch(TrainParam const& param) {
   auto p = BatchParam{param.max_bin, TrainParam::DftSparseThreshold()};
-  p.prefetch_copy = prefetch_copy;
+  p.prefetch_copy = true;
   p.n_prefetch_batches = 1;
   return p;
 }
@@ -133,6 +133,14 @@ inline BatchParam HistBatch(bst_bin_t max_bin) {
 inline BatchParam ApproxBatch(TrainParam const& p, common::Span<float const> hess,
                               ObjInfo const& task) {
   return BatchParam{p.max_bin, hess, !task.const_hess};
+}
+
+// Empty parameter to prevent regen, only used to control external memory prefetching.
+inline BatchParam StaticBatch(bool prefetch_copy) {
+  BatchParam p;
+  p.prefetch_copy = prefetch_copy;
+  p.n_prefetch_batches = 1;
+  return p;
 }
 }  // namespace cuda_impl
 

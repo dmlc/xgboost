@@ -508,6 +508,11 @@ xgboost::common::Span<T> ToSpan(DeviceUVector<T> &vec) {
   return {vec.data(), vec.size()};
 }
 
+template <typename T>
+xgboost::common::Span<std::add_const_t<T>> ToSpan(DeviceUVector<T> const &vec) {
+  return {vec.data(), vec.size()};
+}
+
 // thrust begin, similiar to std::begin
 template <typename T>
 thrust::device_ptr<T> tbegin(xgboost::HostDeviceVector<T>& vector) {  // NOLINT
