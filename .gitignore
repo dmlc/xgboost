@@ -63,6 +63,7 @@ java/xgboost4j-demo/data/
 java/xgboost4j-demo/tmp/
 java/xgboost4j-demo/model/
 nb-configuration*
+
 # Eclipse
 .project
 .cproject
@@ -154,3 +155,6 @@ model*.json
 *.rds
 Rplots.pdf
 *.zip
+
+# nsys
+*.nsys-rep
