@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2022 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  *
  * \file data.cu
  * \brief Handles setting metainfo from array interface.
