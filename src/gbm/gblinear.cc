@@ -37,7 +37,7 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
   size_t max_row_perbatch;
 
   void CheckGPUSupport() {
-    auto n_gpus = common::AllVisibleGPUs();
+    auto n_gpus = curt::AllVisibleGPUs();
     if (n_gpus == 0 && this->updater == "gpu_coord_descent") {
       common::AssertGPUSupport();
       this->UpdateAllowUnknown(Args{{"updater", "coord_descent"}});

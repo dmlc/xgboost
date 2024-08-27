@@ -299,7 +299,7 @@ TEST(GPUPredictor, IterationRange) {
 }
 
 TEST_F(MGPUPredictorTest, IterationRangeColumnSplit) {
-  TestIterationRangeColumnSplit(common::AllVisibleGPUs(), true);
+  TestIterationRangeColumnSplit(curt::AllVisibleGPUs(), true);
 }
 
 TEST(GPUPredictor, CategoricalPrediction) {
@@ -312,7 +312,7 @@ TEST_F(MGPUPredictorTest, CategoricalPredictionColumnSplit) {
 }
 
 TEST(GPUPredictor, CategoricalPredictLeaf) {
-  auto ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
+  auto ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
   TestCategoricalPredictLeaf(&ctx, false);
 }
 
@@ -358,7 +358,7 @@ TEST(GPUPredictor, Sparse) {
 }
 
 TEST_F(MGPUPredictorTest, SparseColumnSplit) {
-  TestSparsePredictionColumnSplit(common::AllVisibleGPUs(), true, 0.2);
-  TestSparsePredictionColumnSplit(common::AllVisibleGPUs(), true, 0.8);
+  TestSparsePredictionColumnSplit(curt::AllVisibleGPUs(), true, 0.2);
+  TestSparsePredictionColumnSplit(curt::AllVisibleGPUs(), true, 0.8);
 }
 }  // namespace xgboost::predictor

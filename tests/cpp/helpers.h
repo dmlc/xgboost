@@ -34,7 +34,7 @@
 #endif
 
 #if defined(__CUDACC__)
-#define GPUIDX (common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank())
+#define GPUIDX (curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank())
 #else
 #define GPUIDX (-1)
 #endif

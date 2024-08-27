@@ -337,7 +337,7 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
                                   int num_cuts_per_feature, bool is_ranking, float missing,
                                   size_t columns, size_t begin, size_t end,
                                   SketchContainer* sketch_container) {
-  SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   info.weights_.SetDevice(ctx->Device());
   auto weights = info.weights_.ConstDeviceSpan();
 

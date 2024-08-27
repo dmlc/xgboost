@@ -9,10 +9,12 @@
 #include <fstream>     // for ifstream
 #include <string>      // for string
 
-#include "common.h"           // for DivRoundUp
+#include "common.h"  // for DivRoundUp
 
 #if defined(__linux__)
 #include <pthread.h>
+#include <sys/syscall.h>  // for SYS_getcpu
+#include <unistd.h>       // for syscall
 #endif
 
 namespace xgboost::common {
@@ -116,6 +118,14 @@ std::int32_t OmpGetNumThreads(std::int32_t n_threads) {
   n_threads = std::min(n_threads, OmpGetThreadLimit());
   n_threads = std::max(n_threads, 1);
   return n_threads;
+}
+
+[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa) {
+#ifdef SYS_getcpu
+  return syscall(SYS_getcpu, cpu, numa, NULL) == 0;
+#else
+  return false;
+#endif
 }
 
 void NameThread(std::thread* t, StringView name) {

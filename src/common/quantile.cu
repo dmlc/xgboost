@@ -309,7 +309,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
 
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
                            common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {
-  common::SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   Span<SketchEntry> out;
   dh::device_vector<SketchEntry> cuts;
   bool first_window = this->Current().empty();
@@ -369,7 +369,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
    * pruning or merging. We preserve the first type and remove the second type.
    */
   timer_.Start(__func__);
-  SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   CHECK_EQ(d_columns_ptr_in.size(), num_columns_ + 1);
 
   auto key_it = dh::MakeTransformIterator<size_t>(
@@ -408,7 +408,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
 
 void SketchContainer::Prune(Context const* ctx, std::size_t to) {
   timer_.Start(__func__);
-  SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
 
   OffsetT to_total = 0;
   auto& h_columns_ptr = columns_ptr_b_.HostVector();
@@ -443,7 +443,7 @@ void SketchContainer::Prune(Context const* ctx, std::size_t to) {
 
 void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_columns_ptr,
                             Span<SketchEntry const> that) {
-  SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   auto self = dh::ToSpan(this->Current());
   LOG(DEBUG) << "Merge: self:" << HumanMemUnit(self.size_bytes()) << ". "
              << "That:" << HumanMemUnit(that.size_bytes()) << ". "
@@ -507,7 +507,7 @@ void SketchContainer::FixError() {
 }
 
 void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
-  SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   auto world = collective::GetWorldSize();
   if (world == 1 || is_column_split) {
     return;
@@ -596,7 +596,7 @@ struct InvalidCatOp {
 
 void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool is_column_split) {
   timer_.Start(__func__);
-  SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.

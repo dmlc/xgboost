@@ -11,7 +11,7 @@
 
 namespace xgboost::collective {
 TEST(CommGroup, FederatedGPU) {
-  std::int32_t n_workers = common::AllVisibleGPUs();
+  std::int32_t n_workers = curt::AllVisibleGPUs();
   TestFederatedGroup(n_workers, [&](std::shared_ptr<CommGroup> comm_group, std::int32_t r) {
     Context ctx = MakeCUDACtx(0);
     auto const& comm = comm_group->Ctx(&ctx, DeviceOrd::CUDA(0));

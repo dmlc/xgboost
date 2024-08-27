@@ -85,7 +85,7 @@ template <typename T>
   bytes += fo->Write(impl->is_dense);
   bytes += fo->Write(impl->row_stride);
   std::vector<common::CompressedByteT> h_gidx_buffer;
-  Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
+  Context ctx = Context{}.MakeCUDA(curt::CurrentDevice());
   [[maybe_unused]] auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx_buffer);
   bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);

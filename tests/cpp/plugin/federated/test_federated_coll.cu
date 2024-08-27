@@ -102,14 +102,14 @@ void TestAllgatherV(std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
 }  // namespace
 
 TEST_F(FederatedCollTestGPU, Allreduce) {
-  std::int32_t n_workers = common::AllVisibleGPUs();
+  std::int32_t n_workers = curt::AllVisibleGPUs();
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
     TestAllreduce(comm, rank, n_workers);
   });
 }
 
 TEST(FederatedCollGPUGlobal, Allreduce) {
-  std::int32_t n_workers = common::AllVisibleGPUs();
+  std::int32_t n_workers = curt::AllVisibleGPUs();
   TestFederatedGlobal(n_workers, [&] {
     auto r = collective::GetRank();
     auto world = collective::GetWorldSize();
@@ -135,14 +135,14 @@ TEST(FederatedCollGPUGlobal, Allreduce) {
 }
 
 TEST_F(FederatedCollTestGPU, Broadcast) {
-  std::int32_t n_workers = common::AllVisibleGPUs();
+  std::int32_t n_workers = curt::AllVisibleGPUs();
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
     TestBroadcast(comm, rank);
   });
 }
 
 TEST_F(FederatedCollTestGPU, Allgather) {
-  std::int32_t n_workers = common::AllVisibleGPUs();
+  std::int32_t n_workers = curt::AllVisibleGPUs();
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t rank) {
     TestAllgather(comm, rank, n_workers);
   });
@@ -150,7 +150,7 @@ TEST_F(FederatedCollTestGPU, Allgather) {
 
 TEST_F(FederatedCollTestGPU, AllgatherV) {
   std::int32_t n_workers = 2;
-  if (common::AllVisibleGPUs() < n_workers) {
+  if (curt::AllVisibleGPUs() < n_workers) {
     GTEST_SKIP_("At least 2 GPUs are required for the test.");
   }
   TestFederated(n_workers, [=](std::shared_ptr<FederatedComm> comm, std::int32_t rank) {

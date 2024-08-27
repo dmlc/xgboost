@@ -3,6 +3,9 @@
  */
 #include <gtest/gtest.h>
 
+#include <numeric>                     // for iota
+#include <thrust/detail/sequence.inl>  // for sequence
+
 #include "../../../src/common/device_vector.cuh"
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 
@@ -18,4 +21,66 @@ TEST(DeviceUVector, Basic) {
   ASSERT_EQ(peak, n_bytes);
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
 }
+
+namespace {
+class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
+ public:
+  void Run() {
+    auto type = this->GetParam();
+    detail::GrowOnlyVirtualMemVec vec{type};
+    auto prop = xgboost::cudr::MakeAllocProp(type);
+    auto gran = xgboost::cudr::GetAllocGranularity(&prop);
+    ASSERT_GE(gran, 2);
+    auto data = vec.GetSpan<std::int32_t>(32);  // should be smaller than granularity
+    ASSERT_EQ(data.size(), 32);
+    static_assert(std::is_same_v<typename decltype(data)::value_type, std::int32_t>);
+
+    std::vector<std::int32_t> h_data(data.size());
+    auto check = [&] {
+      for (std::size_t i = 0; i < h_data.size(); ++i) {
+        ASSERT_EQ(h_data[i], i);
+      }
+    };
+    auto fill = [&](std::int32_t n_orig, xgboost::common::Span<std::int32_t> data) {
+      if (type == CU_MEM_LOCATION_TYPE_DEVICE) {
+        thrust::sequence(thrust::cuda::par_nosync, data.data() + n_orig, data.data() + data.size(),
+                         n_orig);
+        dh::safe_cuda(cudaMemcpy(h_data.data(), data.data(), data.size_bytes(), cudaMemcpyDefault));
+      } else {
+        std::iota(data.data() + n_orig, data.data() + data.size(), n_orig);
+        std::copy_n(data.data(), data.size(), h_data.data());
+      }
+    };
+
+    fill(0, data);
+    check();
+
+    auto n_orig = data.size();
+    // Should be greater than granularity since we are using i32.
+    data = vec.GetSpan<std::int32_t>(gran);
+    h_data.resize(data.size());
+    fill(n_orig, data);
+
+    check();
+  }
+};
+}  // anonymous namespace
+
+TEST_P(TestVirtualMem, Alloc) { this->Run(); }
+
+INSTANTIATE_TEST_SUITE_P(
+    Basic, TestVirtualMem,
+    ::testing::Values(CU_MEM_LOCATION_TYPE_DEVICE, CU_MEM_LOCATION_TYPE_HOST_NUMA),
+    [](::testing::TestParamInfo<TestVirtualMem::ParamType> const& info) -> char const* {
+      auto type = info.param;
+      switch (type) {
+        case CU_MEM_LOCATION_TYPE_DEVICE:
+          return "device";
+        case CU_MEM_LOCATION_TYPE_HOST_NUMA:
+          return "host_numa";
+        default:
+          LOG(FATAL) << "unreachable";
+      }
+      return nullptr;
+    });
 }  // namespace dh

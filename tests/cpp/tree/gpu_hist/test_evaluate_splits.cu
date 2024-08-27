@@ -595,7 +595,7 @@ void VerifyColumnSplitEvaluateSingleSplit(bool is_categorical) {
 }  // anonymous namespace
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleSplit) {
-  if (common::AllVisibleGPUs() > 1) {
+  if (curt::AllVisibleGPUs() > 1) {
     // We can't emulate multiple GPUs with NCCL.
     this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(false); }, false, true);
   }
@@ -603,7 +603,7 @@ TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleSplit) {
 }
 
 TEST_F(MGPUHistTest, ColumnSplitEvaluateSingleCategoricalSplit) {
-  if (common::AllVisibleGPUs() > 1) {
+  if (curt::AllVisibleGPUs() > 1) {
     // We can't emulate multiple GPUs with NCCL.
     this->DoTest([] { VerifyColumnSplitEvaluateSingleSplit(true); }, false, true);
   }

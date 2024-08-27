@@ -482,7 +482,7 @@ void ExtractPaths(Context const* ctx,
                   dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>>* paths,
                   DeviceModel* model, dh::device_vector<uint32_t>* path_categories,
                   DeviceOrd device) {
-  common::SetDevice(device.ordinal);
+  curt::SetDevice(device.ordinal);
   auto& device_model = *model;
 
   dh::caching_device_vector<PathInfo> info(device_model.nodes.Size());
@@ -937,7 +937,7 @@ class GPUPredictor : public xgboost::Predictor {
       : Predictor::Predictor{ctx}, column_split_helper_{ctx} {}
 
   ~GPUPredictor() override {
-    if (ctx_->IsCUDA() && ctx_->Ordinal() < common::AllVisibleGPUs()) {
+    if (ctx_->IsCUDA() && ctx_->Ordinal() < curt::AllVisibleGPUs()) {
       dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     }
   }

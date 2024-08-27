@@ -202,7 +202,7 @@ EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringVi
  */
 template <typename F>
 void EllpackPageSourceImpl<F>::Fetch() {
-  common::SetDevice(this->Device().ordinal);
+  curt::SetDevice(this->Device().ordinal);
   if (!this->ReadCache()) {
     if (this->count_ != 0 && !this->sync_) {
       // source is initialized to be the 0th page during construction, so when count_ is 0
@@ -236,7 +236,7 @@ EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>
  */
 template <typename F>
 void ExtEllpackPageSourceImpl<F>::Fetch() {
-  common::SetDevice(this->Device().ordinal);
+  curt::SetDevice(this->Device().ordinal);
   if (!this->ReadCache()) {
     auto iter = this->source_->Iter();
     CHECK_EQ(this->count_, iter);

@@ -206,7 +206,7 @@ class SketchContainer {
   template <typename KeyComp = thrust::equal_to<size_t>>
   size_t Unique(Context const* ctx, KeyComp key_comp = thrust::equal_to<size_t>{}) {
     timer_.Start(__func__);
-    SetDevice(ctx->Ordinal());
+    curt::SetDevice(ctx->Ordinal());
     this->columns_ptr_.SetDevice(ctx->Device());
     Span<OffsetT> d_column_scan = this->columns_ptr_.DeviceSpan();
     CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
