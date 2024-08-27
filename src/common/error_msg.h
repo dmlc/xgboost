@@ -41,6 +41,8 @@ constexpr StringView InconsistentMaxBin() {
          "and consistent with the Booster being trained.";
 }
 
+constexpr StringView InvalidMaxBin() { return "`max_bin` must be equal to or greater than 2."; }
+
 constexpr StringView UnknownDevice() { return "Unknown device type."; }
 
 inline void MaxFeatureSize(std::uint64_t n_features) {
