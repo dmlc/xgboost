@@ -393,7 +393,6 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
   /**
    * Feature Info
    */
-
   out.feature_weights.SetDevice(ctx->Device());
   out.feature_weights.Resize(this->feature_weights.Size());
   out.feature_weights.Copy(this->feature_weights);

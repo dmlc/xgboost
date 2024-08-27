@@ -188,7 +188,7 @@ void Gather(Context const* ctx, linalg::MatrixView<float const> in,
                                                   return (ridx[r] * in.Shape(1)) + c;
                                                 });
   CHECK_NE(in.Shape(1), 0);
-  thrust::gather(cuctx->TP(), map_it, map_it + (ridx.size() * in.Shape(1)), linalg::tcbegin(in),
+  thrust::gather(cuctx->TP(), map_it, map_it + out.Size(), linalg::tcbegin(in),
                  linalg::tbegin(d_out));
 }
 
