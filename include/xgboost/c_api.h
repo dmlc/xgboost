@@ -507,6 +507,8 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
 /**
  * @brief Create a Quantile DMatrix backed by external memory.
  *
+ * @since 3.0.0
+ *
  * @note This is still under development, not ready for test yet.
  *
  * @param iter     A handle to external data iterator.

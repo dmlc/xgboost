@@ -528,6 +528,8 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         GPU with external memory. If set to true, then the "external memory" would
         simply be CPU (host) memory.
 
+        .. versionadded:: 3.0.0
+
         .. warning::
 
             This is still working in progress, not ready for test yet.
@@ -1681,6 +1683,8 @@ class ExtMemQuantileDMatrix(DMatrix):
     .. warning::
 
         This is still working in progress, not ready for test yet.
+
+    .. versionadded:: 3.0.0
 
     """
 
