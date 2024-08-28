@@ -81,8 +81,6 @@ struct GPUHistMakerDevice {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
 
  public:
-  common::Span<FeatureType const> feature_types;
-
   DeviceHistogramStorage<> hist{};
 
   dh::device_vector<GradientPair> d_gpair;  // storage for gpair;
@@ -110,7 +108,6 @@ struct GPUHistMakerDevice {
                      std::shared_ptr<common::HistogramCuts const> cuts)
       : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
         ctx_(ctx),
-        feature_types{info.feature_types.ConstDeviceSpan()},
         param(std::move(_param)),
         column_sampler_(std::move(column_sampler)),
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
@@ -158,13 +155,15 @@ struct GPUHistMakerDevice {
     bool is_concat = p_fmat->Info().num_row_ == this->batch_ptr_.back();
     for (std::int32_t k = 0; k < p_fmat->NumBatches(); ++k) {
       if (partitioners_.size() != static_cast<std::size_t>(p_fmat->NumBatches())) {
+        // First run.
         partitioners_.emplace_back(std::make_unique<RowPartitioner>());
       }
-      auto n_samples = this->batch_ptr_.at(k + 1) - this->batch_ptr_[k];
       if (is_concat) {
         partitioners_[k]->Reset(ctx_, p_fmat->Info().num_row_, 0);
       } else {
-        partitioners_[k]->Reset(ctx_, n_samples, this->batch_ptr_[k]);
+        auto base_ridx = this->batch_ptr_[k];
+        auto n_samples = this->batch_ptr_.at(k + 1) - base_ridx;
+        partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
       }
     }
     CHECK_EQ(partitioners_.size(), p_fmat->NumBatches());
@@ -173,8 +172,9 @@ struct GPUHistMakerDevice {
       CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);
     }
 
-    this->evaluator_.Reset(*cuts_, feature_types, p_fmat->Info().num_col_, param,
-                           p_fmat->Info().IsColumnSplit(), ctx_->Device());
+    this->evaluator_.Reset(*cuts_, p_fmat->Info().feature_types.ConstDeviceSpan(),
+                           p_fmat->Info().num_col_, this->param, p_fmat->Info().IsColumnSplit(),
+                           this->ctx_->Device());
 
     quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, p_fmat->Info());
 
@@ -198,7 +198,7 @@ struct GPUHistMakerDevice {
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{gpu_param,
                                             *quantiser,
-                                            feature_types,
+                                            p_fmat->Info().feature_types.ConstDeviceSpan(),
                                             cuts_->cut_ptrs_.ConstDeviceSpan(),
                                             cuts_->cut_values_.ConstDeviceSpan(),
                                             cuts_->min_vals_.ConstDeviceSpan(),
@@ -218,8 +218,9 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> nidx(2 * candidates.size());
     auto h_node_inputs = pinned2.GetSpan<EvaluateSplitInputs>(2 * candidates.size());
     EvaluateSplitSharedInputs shared_inputs{
-        GPUTrainingParam{param}, *quantiser, feature_types, cuts_->cut_ptrs_.ConstDeviceSpan(),
-        cuts_->cut_values_.ConstDeviceSpan(), cuts_->min_vals_.ConstDeviceSpan(),
+        GPUTrainingParam{param}, *quantiser, p_fmat->Info().feature_types.ConstDeviceSpan(),
+        cuts_->cut_ptrs_.ConstDeviceSpan(), cuts_->cut_values_.ConstDeviceSpan(),
+        cuts_->min_vals_.ConstDeviceSpan(),
         // is_dense represents the local data
         p_fmat->IsDense() && !collective::IsDistributed()};
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
