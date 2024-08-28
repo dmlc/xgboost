@@ -194,6 +194,38 @@ def check_quantile_loss_extmem(
     np.testing.assert_allclose(predt, predt_it)
 
 
+def check_extmem_qdm(
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    device: str,
+    on_host: bool,
+) -> None:
+    """Basic test for the `ExtMemQuantileDMatrix`."""
+    it = tm.IteratorForTest(
+        *tm.make_batches(
+            n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
+        ),
+        cache="cache",
+        on_host=on_host,
+    )
+    Xy_it = xgb.core.ExtMemQuantileDMatrix(it)
+    booster_it = xgb.train({"device": device}, Xy_it, num_boost_round=8)
+
+    X, y, w = it.as_arrays()
+    Xy = xgb.QuantileDMatrix(X, y, weight=w)
+    booster = xgb.train({"device": device}, Xy, num_boost_round=8)
+
+    cut_it = Xy_it.get_quantile_cut()
+    cut = Xy.get_quantile_cut()
+    np.testing.assert_allclose(cut_it[0], cut[0])
+    np.testing.assert_allclose(cut_it[1], cut[1])
+
+    predt_it = booster_it.predict(Xy_it)
+    predt = booster.predict(Xy)
+    np.testing.assert_allclose(predt_it, predt)
+
+
 def check_cut(
     n_entries: int, indptr: np.ndarray, data: np.ndarray, dtypes: Any
 ) -> None:

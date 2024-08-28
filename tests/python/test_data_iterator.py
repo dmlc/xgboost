@@ -12,7 +12,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
-from xgboost.testing.updater import check_quantile_loss_extmem
+from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
 
 pytestmark = tm.timeout(30)
 
@@ -302,3 +302,13 @@ def test_quantile_objective(
         "approx",
         "cpu",
     )
+
+
+@given(
+    strategies.integers(1, 4096),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_extmem_qdm(n_samples_per_batch: int, n_features: int, n_batches: int) -> None:
+    check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cpu", False)
