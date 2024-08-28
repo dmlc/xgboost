@@ -308,6 +308,19 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   API_END();
 }
 
+
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
+                                                      DataIterResetCallback *reset,
+                                                      XGDMatrixCallbackNext *next, float missing,
+                                                      int nthread, int max_bin,
+                                                      DMatrixHandle *out) {
+  API_BEGIN();
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "1.7.0", "XGQuantileDMatrixCreateFromCallback");
+  *out = new std::shared_ptr<xgboost::DMatrix>{
+      xgboost::DMatrix::Create(iter, proxy, nullptr, reset, next, missing, nthread, max_bin)};
+  API_END();
+}
+
 namespace {
 std::shared_ptr<DMatrix> GetRefDMatrix(DataIterHandle ref) {
   std::shared_ptr<DMatrix> _ref{nullptr};
