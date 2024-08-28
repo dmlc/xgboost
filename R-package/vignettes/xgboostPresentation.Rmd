@@ -52,7 +52,7 @@ Package can be easily installed from CRAN:
 install.packages("xgboost")
 ```
 
-For the development version, see the [GitHub page](https://github.com/dmlc/xgboost) and the [installation docs](https://xgboost.readthedocs.io/en/latest/install.html) for further instructions.
+For the development version, see the [GitHub page](https://github.com/dmlc/xgboost) and the [installation docs](https://xgboost.readthedocs.io/en/stable/install.html) for further instructions.
 
 ## Learning
 
