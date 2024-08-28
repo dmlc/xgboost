@@ -5,6 +5,7 @@ from functools import partial, update_wrapper
 from typing import Any, Dict, List
 
 import numpy as np
+import pytest
 
 import xgboost as xgb
 import xgboost.testing as tm
@@ -202,6 +203,7 @@ def check_extmem_qdm(
     on_host: bool,
 ) -> None:
     """Basic test for the `ExtMemQuantileDMatrix`."""
+
     it = tm.IteratorForTest(
         *tm.make_batches(
             n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
@@ -209,9 +211,13 @@ def check_extmem_qdm(
         cache="cache",
         on_host=on_host,
     )
-    Xy_it = xgb.core.ExtMemQuantileDMatrix(it)
-    booster_it = xgb.train({"device": device}, Xy_it, num_boost_round=8)
+    Xy_it = xgb.ExtMemQuantileDMatrix(it)
+    with pytest.raises(ValueError, match="Only the `hist`"):
+        booster_it = xgb.train(
+            {"device": device, "tree_method": "approx"}, Xy_it, num_boost_round=8
+        )
 
+    booster_it = xgb.train({"device": device}, Xy_it, num_boost_round=8)
     X, y, w = it.as_arrays()
     Xy = xgb.QuantileDMatrix(X, y, weight=w)
     booster = xgb.train({"device": device}, Xy, num_boost_round=8)
