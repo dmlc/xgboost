@@ -722,6 +722,24 @@ struct GPUHistMakerDevice {
   }
 };
 
+std::shared_ptr<common::HistogramCuts const> InitBatchCuts(Context const* ctx, DMatrix* p_fmat,
+                                                           BatchParam batch,
+                                                           std::vector<bst_idx_t>* p_batch_ptr) {
+  std::vector<bst_idx_t>& batch_ptr = *p_batch_ptr;
+  batch_ptr = {0};
+  std::shared_ptr<common::HistogramCuts const> cuts;
+
+  for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx, batch)) {
+    batch_ptr.push_back(page.Size());
+    cuts = page.Impl()->CutsShared();
+    CHECK(cuts->cut_values_.DeviceCanRead());
+  }
+  CHECK(cuts);
+  CHECK_EQ(p_fmat->NumBatches(), batch_ptr.size() - 1);
+  std::partial_sum(batch_ptr.cbegin(), batch_ptr.cend(), batch_ptr.begin());
+  return cuts;
+}
+
 class GPUHistMaker : public TreeUpdater {
   using GradientSumT = GradientPairPrecise;
 
@@ -779,19 +797,13 @@ class GPUHistMaker : public TreeUpdater {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
-    std::vector<bst_idx_t> batch_ptr{0};
-    std::shared_ptr<common::HistogramCuts const> cuts_;
+    std::vector<bst_idx_t> batch_ptr;
+    auto batch = HistBatch(*param);
+    std::shared_ptr<common::HistogramCuts const> cuts =
+        InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
 
-    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, HistBatch(*param))) {
-      batch_ptr.push_back(page.Size());
-      cuts_ = page.Impl()->CutsShared();
-      CHECK(cuts_->cut_values_.DeviceCanRead());
-    }
-    CHECK(cuts_);
-    std::partial_sum(batch_ptr.cbegin(), batch_ptr.cend(), batch_ptr.begin());
-
-    this->maker = std::make_unique<GPUHistMakerDevice>(
-        ctx_, *param, column_sampler_, HistBatch(*param), p_fmat->Info(), batch_ptr, cuts_);
+    this->maker = std::make_unique<GPUHistMakerDevice>(ctx_, *param, column_sampler_, batch,
+                                                       p_fmat->Info(), batch_ptr, cuts);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
@@ -898,16 +910,10 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     auto const& info = p_fmat->Info();
     info.feature_types.SetDevice(ctx_->Device());
 
+    std::vector<bst_idx_t> batch_ptr;
     auto batch = ApproxBatch(*param, hess, *task_);
-
-    std::vector<bst_idx_t> batch_ptr{0};
-    std::shared_ptr<common::HistogramCuts const> cuts;
-    for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, batch)) {
-      batch_ptr.push_back(page.Size());
-      cuts = page.Impl()->CutsShared();
-    }
-    CHECK(cuts);
-    std::partial_sum(batch_ptr.cbegin(), batch_ptr.cend(), batch_ptr.begin());
+    std::shared_ptr<common::HistogramCuts const> cuts =
+        InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
     batch.regen = false;  // Regen only at the beginning of the iteration.
 
     this->maker_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, column_sampler_, batch,
