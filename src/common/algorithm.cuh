@@ -17,7 +17,8 @@
 
 #include "common.h"            // safe_cuda
 #include "cuda_context.cuh"    // CUDAContext
-#include "device_helpers.cuh"  // TemporaryArray,SegmentId,LaunchN,Iota,device_vector
+#include "device_helpers.cuh"  // TemporaryArray,SegmentId,LaunchN,Iota
+#include "device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"      // XGBOOST_DEVICE
 #include "xgboost/context.h"   // Context
 #include "xgboost/logging.h"   // CHECK
