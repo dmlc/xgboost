@@ -12,7 +12,7 @@ from test_data_iterator import test_single_batch as cpu_single_batch
 
 
 def test_gpu_single_batch() -> None:
-    cpu_single_batch("gpu_hist")
+    cpu_single_batch("hist", "cuda")
 
 
 @pytest.mark.skipif(**no_cupy())
