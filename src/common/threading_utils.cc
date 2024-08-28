@@ -124,7 +124,7 @@ void NameThread(std::thread* t, StringView name) {
   char old[16];
   auto ret = pthread_getname_np(handle, old, 16);
   if (ret != 0) {
-    LOG(WARNING) << "Failed to get the name from thread";
+    LOG(DEBUG) << "Failed to get the name from thread";
   }
   auto new_name = std::string{old} + ">" + name.c_str();  // NOLINT
   if (new_name.size() > 15) {
@@ -132,7 +132,7 @@ void NameThread(std::thread* t, StringView name) {
   }
   ret = pthread_setname_np(handle, new_name.c_str());
   if (ret != 0) {
-    LOG(WARNING) << "Failed to name thread:" << ret << " :" << new_name;
+    LOG(DEBUG) << "Failed to name thread:" << ret << " :" << new_name;
   }
 #else
   (void)name;

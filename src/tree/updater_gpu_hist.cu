@@ -146,35 +146,39 @@ struct GPUHistMakerDevice {
 
     this->interaction_constraints.Reset();
 
+    // Sampling
     dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair);  // backup the gradient
     auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
     this->gpair = sample.gpair;
     p_fmat = sample.p_fmat;  // Update p_fmat before allocating partitioners
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-
-    CHECK_GE(p_fmat->NumBatches(), 1);
-    bool is_concat = p_fmat->Info().num_row_ != this->batch_ptr_.back();
-    for (std::int32_t k = 0; k < p_fmat->NumBatches(); ++k) {
-      if (partitioners_.size() != static_cast<std::size_t>(p_fmat->NumBatches())) {
+    std::size_t n_batches = p_fmat->NumBatches();
+    bool is_concat = (n_batches + 1) != this->batch_ptr_.size();
+    std::vector<bst_idx_t> batch_ptr{batch_ptr_};
+    if (is_concat) {
+      // Concatenate the batch ptrs as well.
+      batch_ptr = {static_cast<bst_idx_t>(0), p_fmat->Info().num_row_};
+    }
+    // Initialize partitions
+    if (!partitioners_.empty()) {
+      CHECK_EQ(partitioners_.size(), n_batches);
+    }
+    for (std::size_t k = 0; k < n_batches; ++k) {
+      if (partitioners_.size() != n_batches) {
         // First run.
         partitioners_.emplace_back(std::make_unique<RowPartitioner>());
       }
-      if (is_concat) {
-        CHECK_EQ(partitioners_.size(), 1);
-        partitioners_[k]->Reset(ctx_, p_fmat->Info().num_row_, 0);
-      } else {
-        CHECK_EQ(p_fmat->NumBatches() + 1, this->batch_ptr_.size());
-        auto base_ridx = this->batch_ptr_[k];
-        auto n_samples = this->batch_ptr_.at(k + 1) - base_ridx;
-        partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
-      }
+      auto base_ridx = batch_ptr[k];
+      auto n_samples = batch_ptr.at(k + 1) - base_ridx;
+      partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
     }
-    CHECK_EQ(partitioners_.size(), p_fmat->NumBatches());
+    CHECK_EQ(partitioners_.size(), n_batches);
     if (is_concat) {
       CHECK_EQ(partitioners_.size(), 1);
       CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);
     }
 
+    // Other initializations
     this->evaluator_.Reset(*cuts_, p_fmat->Info().feature_types.ConstDeviceSpan(),
                            p_fmat->Info().num_col_, this->param, p_fmat->Info().IsColumnSplit(),
                            this->ctx_->Device());
@@ -434,7 +438,7 @@ struct GPUHistMakerDevice {
       LOG(FATAL) << "Current objective function can not be used with external memory.";
     }
     if (p_fmat->Info().num_row_ != n_samples) {
-      // Subsampling with external memory. Not supported.
+      // External memory with concatenation. Not supported.
       p_out_position->Resize(0);
       positions_.clear();
       return;
