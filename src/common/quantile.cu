@@ -182,7 +182,8 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
       merge_path.data(), [=] XGBOOST_DEVICE(Tuple const &t) -> Tuple {
         auto ind = get_ind(t);  // == 0 if element is from x
         // x_counter, y_counter
-        return thrust::tuple<std::uint64_t, std::uint64_t>{!ind, ind};
+        return thrust::make_tuple(static_cast<std::uint64_t>(!ind),
+                                  static_cast<std::uint64_t>(ind));
       });
 
   // Compute the index for both x and y (which of the element in a and b are used in each
