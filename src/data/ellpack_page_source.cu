@@ -11,7 +11,6 @@
 
 #include "../common/common.h"                 // for safe_cuda
 #include "../common/ref_resource_view.cuh"
-#include "../common/cuda_pinned_allocator.h"  // for pinned_allocator
 #include "../common/device_helpers.cuh"       // for CUDAStreamView, DefaultStream
 #include "../common/resource.cuh"             // for PrivateCudaMmapConstStream
 #include "ellpack_page.cuh"                   // for EllpackPageImpl
@@ -19,7 +18,6 @@
 #include "ellpack_page_source.h"
 #include "proxy_dmatrix.cuh"  // for Dispatch
 #include "xgboost/base.h"     // for bst_idx_t
-#include "../common/cuda_rt_utils.h"  // for NvtxScopedRange
 #include "../common/transform_iterator.h"  // for MakeIndexTransformIter
 
 namespace xgboost::data {
@@ -91,14 +89,20 @@ class EllpackHostCacheStreamImpl {
     ptr_ += 1;
   }
 
-  void Read(EllpackPage* out) const {
+  void Read(EllpackPage* out, bool prefetch_copy) const {
     auto page = this->cache_->Get(ptr_);
 
     auto impl = out->Impl();
-    impl->gidx_buffer =
-        common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(page->gidx_buffer.size());
-    dh::safe_cuda(cudaMemcpyAsync(impl->gidx_buffer.data(), page->gidx_buffer.data(),
-                                  page->gidx_buffer.size_bytes(), cudaMemcpyDefault));
+    if (prefetch_copy) {
+      impl->gidx_buffer =
+          common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(page->gidx_buffer.size());
+      dh::safe_cuda(cudaMemcpyAsync(impl->gidx_buffer.data(), page->gidx_buffer.data(),
+                                    page->gidx_buffer.size_bytes(), cudaMemcpyDefault));
+    } else {
+      auto res = page->gidx_buffer.Resource();
+      impl->gidx_buffer = common::RefResourceView<common::CompressedByteT>{
+          res->DataAs<common::CompressedByteT>(), page->gidx_buffer.size(), res};
+    }
 
     impl->n_rows = page->Size();
     impl->is_dense = page->IsDense();
@@ -120,7 +124,9 @@ std::shared_ptr<EllpackHostCache> EllpackHostCacheStream::Share() { return p_imp
 
 void EllpackHostCacheStream::Seek(bst_idx_t offset_bytes) { this->p_impl_->Seek(offset_bytes); }
 
-void EllpackHostCacheStream::Read(EllpackPage* page) const { this->p_impl_->Read(page); }
+void EllpackHostCacheStream::Read(EllpackPage* page, bool prefetch_copy) const {
+  this->p_impl_->Read(page, prefetch_copy);
+}
 
 void EllpackHostCacheStream::Write(EllpackPage const& page) { this->p_impl_->Write(page); }
 
@@ -162,8 +168,9 @@ EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateWriter(StringV
 
 template std::unique_ptr<
     typename EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::ReaderT>
-EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(
-    StringView name, std::uint64_t offset, std::uint64_t length) const;
+EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringView name,
+                                                                         bst_idx_t offset,
+                                                                         bst_idx_t length) const;
 
 /**
  * EllpackMmapStreamPolicy
@@ -233,6 +240,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
     ++(*this->source_);
     CHECK_GE(this->source_->Iter(), 1);
     cuda_impl::Dispatch(proxy_, [this](auto const& value) {
+      CHECK(this->proxy_->Ctx()->IsCUDA()) << "All batches must use the same device type.";
       proxy_->Info().feature_types.SetDevice(dh::GetDevice(this->ctx_));
       auto d_feature_types = proxy_->Info().feature_types.ConstDeviceSpan();
       auto n_samples = value.NumRows();

@@ -7,21 +7,22 @@
 \method{print}{xgb.DMatrix}(x, verbose = FALSE, ...)
 }
 \arguments{
-\item{x}{an xgb.DMatrix object}
+\item{x}{An xgb.DMatrix object.}
 
-\item{verbose}{whether to print colnames (when present)}
+\item{verbose}{Whether to print colnames (when present).}
 
-\item{...}{not currently used}
+\item{...}{Not currently used.}
 }
 \description{
 Print information about xgb.DMatrix.
 Currently it displays dimensions and presence of info-fields and colnames.
 }
 \examples{
-data(agaricus.train, package='xgboost')
-dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
+data(agaricus.train, package = "xgboost")
 
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 dtrain
-print(dtrain, verbose=TRUE)
+
+print(dtrain, verbose = TRUE)
 
 }

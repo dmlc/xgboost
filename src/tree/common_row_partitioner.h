@@ -301,34 +301,37 @@ class CommonRowPartitioner {
   auto const& operator[](bst_node_t nidx) const { return row_set_collection_[nidx]; }
 
   void LeafPartition(Context const* ctx, RegTree const& tree, common::Span<float const> hess,
-                     std::vector<bst_node_t>* p_out_position) const {
-    partition_builder_.LeafPartition(ctx, tree, this->Partitions(), p_out_position,
-                                     [&](size_t idx) -> bool { return hess[idx] - .0f == .0f; });
+                     common::Span<bst_node_t> out_position) const {
+    partition_builder_.LeafPartition(
+        ctx, tree, this->Partitions(), out_position,
+        [&](size_t idx) -> bool { return hess[idx - this->base_rowid] - .0f == .0f; });
   }
 
   void LeafPartition(Context const* ctx, RegTree const& tree,
                      linalg::TensorView<GradientPair const, 2> gpair,
-                     std::vector<bst_node_t>* p_out_position) const {
+                     common::Span<bst_node_t> out_position) const {
     if (gpair.Shape(1) > 1) {
       partition_builder_.LeafPartition(
-          ctx, tree, this->Partitions(), p_out_position, [&](std::size_t idx) -> bool {
-            auto sample = gpair.Slice(idx, linalg::All());
+          ctx, tree, this->Partitions(), out_position, [&](std::size_t idx) -> bool {
+            auto sample = gpair.Slice(idx - this->base_rowid, linalg::All());
             return std::all_of(linalg::cbegin(sample), linalg::cend(sample),
                                [](GradientPair const& g) { return g.GetHess() - .0f == .0f; });
           });
     } else {
       auto s = gpair.Slice(linalg::All(), 0);
-      partition_builder_.LeafPartition(
-          ctx, tree, this->Partitions(), p_out_position,
-          [&](std::size_t idx) -> bool { return s(idx).GetHess() - .0f == .0f; });
+      partition_builder_.LeafPartition(ctx, tree, this->Partitions(), out_position,
+                                       [&](std::size_t idx) -> bool {
+                                         return s(idx - this->base_rowid).GetHess() - .0f == .0f;
+                                       });
     }
   }
   void LeafPartition(Context const* ctx, RegTree const& tree,
                      common::Span<GradientPair const> gpair,
-                     std::vector<bst_node_t>* p_out_position) const {
-    partition_builder_.LeafPartition(
-        ctx, tree, this->Partitions(), p_out_position,
-        [&](std::size_t idx) -> bool { return gpair[idx].GetHess() - .0f == .0f; });
+                     common::Span<bst_node_t> out_position) const {
+    partition_builder_.LeafPartition(ctx, tree, this->Partitions(), out_position,
+                                     [&](std::size_t idx) -> bool {
+                                       return gpair[idx - this->base_rowid].GetHess() - .0f == .0f;
+                                     });
   }
 
  private:

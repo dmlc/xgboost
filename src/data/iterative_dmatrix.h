@@ -48,6 +48,11 @@ class IterativeDMatrix : public QuantileDMatrix {
                             std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                             XGDMatrixCallbackNext *next, float missing, int nthread,
                             bst_bin_t max_bin);
+  /**
+   * @param Directly construct a QDM from an existing one.
+   */
+  IterativeDMatrix(std::shared_ptr<EllpackPage> ellpack, MetaInfo const &info, BatchParam batch);
+
   ~IterativeDMatrix() override = default;
 
   bool EllpackExists() const override { return static_cast<bool>(ellpack_); }

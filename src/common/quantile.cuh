@@ -8,6 +8,7 @@
 
 #include "categorical.h"
 #include "device_helpers.cuh"
+#include "error_msg.h"  // for InvalidMaxBin
 #include "quantile.h"
 #include "timer.h"
 #include "xgboost/data.h"
@@ -96,7 +97,7 @@ class SketchContainer {
    * \param num_rows    Total number of rows in known dataset (typically the rows in current worker).
    * \param device      GPU ID.
    */
-  SketchContainer(HostDeviceVector<FeatureType> const& feature_types, int32_t max_bin,
+  SketchContainer(HostDeviceVector<FeatureType> const& feature_types, bst_bin_t max_bin,
                   bst_feature_t num_columns, bst_idx_t num_rows, DeviceOrd device)
       : num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
     CHECK(device.IsCUDA());
@@ -117,6 +118,7 @@ class SketchContainer {
     has_categorical_ =
         !d_feature_types.empty() &&
         thrust::any_of(dh::tbegin(d_feature_types), dh::tend(d_feature_types), common::IsCatOp{});
+    CHECK_GE(max_bin, 2) << error::InvalidMaxBin();
 
     timer_.Init(__func__);
   }

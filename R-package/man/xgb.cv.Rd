@@ -26,141 +26,136 @@ xgb.cv(
 )
 }
 \arguments{
-\item{params}{the list of parameters. The complete list of parameters is
-available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
-is a shorter summary:
+\item{params}{The list of parameters. The complete list of parameters is available in the
+\href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}.
+Below is a shorter summary:
 \itemize{
-\item \code{objective} objective function, common ones are
+\item \code{objective}: Objective function, common ones are
 \itemize{
-\item \code{reg:squarederror} Regression with squared loss.
-\item \code{binary:logistic} logistic regression for classification.
-\item See \code{\link[=xgb.train]{xgb.train}()} for complete list of objectives.
-}
-\item \code{eta} step size of each boosting step
-\item \code{max_depth} maximum depth of the tree
-\item \code{nthread} number of thread used in training, if not set, all threads are used
+\item \code{reg:squarederror}: Regression with squared loss.
+\item \code{binary:logistic}: Logistic regression for classification.
 }
 
-See \code{\link{xgb.train}} for further details.
-See also demo/ for walkthrough example in R.
+See \code{\link[=xgb.train]{xgb.train()}} for complete list of objectives.
+\item \code{eta}: Step size of each boosting step
+\item \code{max_depth}: Maximum depth of the tree
+\item \code{nthread}: Number of threads used in training. If not set, all threads are used
+}
+
+See \code{\link[=xgb.train]{xgb.train()}} for further details.
+See also demo for walkthrough example in R.
 
 Note that, while \code{params} accepts a \code{seed} entry and will use such parameter for model training if
 supplied, this seed is not used for creation of train-test splits, which instead rely on R's own RNG
-system - thus, for reproducible results, one needs to call the \code{set.seed} function beforehand.}
+system - thus, for reproducible results, one needs to call the \code{\link[=set.seed]{set.seed()}} function beforehand.}
 
 \item{data}{An \code{xgb.DMatrix} object, with corresponding fields like \code{label} or bounds as required
 for model training by the objective.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note that only the basic `xgb.DMatrix` class is supported - variants such as `xgb.QuantileDMatrix`
-   or `xgb.ExternalDMatrix` are not supported here.
-}\if{html}{\out{</div>}}}
+Note that only the basic \code{xgb.DMatrix} class is supported - variants such as \code{xgb.QuantileDMatrix}
+or \code{xgb.ExternalDMatrix} are not supported here.}
 
-\item{nrounds}{the max number of iterations}
+\item{nrounds}{The max number of iterations.}
 
-\item{nfold}{the original dataset is randomly partitioned into \code{nfold} equal size subsamples.}
+\item{nfold}{The original dataset is randomly partitioned into \code{nfold} equal size subsamples.}
 
 \item{prediction}{A logical value indicating whether to return the test fold predictions
-from each CV model. This parameter engages the \code{\link{xgb.cb.cv.predict}} callback.}
+from each CV model. This parameter engages the \code{\link[=xgb.cb.cv.predict]{xgb.cb.cv.predict()}} callback.}
 
-\item{showsd}{\code{boolean}, whether to show standard deviation of cross validation}
+\item{showsd}{Logical value whether to show standard deviation of cross validation.}
 
-\item{metrics, }{list of evaluation metrics to be used in cross validation,
+\item{metrics}{List of evaluation metrics to be used in cross validation,
 when it is not specified, the evaluation metric is chosen according to objective function.
 Possible options are:
 \itemize{
-\item \code{error} binary classification error rate
-\item \code{rmse} Rooted mean square error
-\item \code{logloss} negative log-likelihood function
-\item \code{mae} Mean absolute error
-\item \code{mape} Mean absolute percentage error
-\item \code{auc} Area under curve
-\item \code{aucpr} Area under PR curve
-\item \code{merror} Exact matching error, used to evaluate multi-class classification
+\item \code{error}: Binary classification error rate
+\item \code{rmse}: Root mean square error
+\item \code{logloss}: Negative log-likelihood function
+\item \code{mae}: Mean absolute error
+\item \code{mape}: Mean absolute percentage error
+\item \code{auc}: Area under curve
+\item \code{aucpr}: Area under PR curve
+\item \code{merror}: Exact matching error used to evaluate multi-class classification
 }}
 
-\item{obj}{customized objective function. Returns gradient and second order
+\item{obj}{Customized objective function. Returns gradient and second order
 gradient with given prediction and dtrain.}
 
-\item{feval}{customized evaluation function. Returns
-\code{list(metric='metric-name', value='metric-value')} with given
-prediction and dtrain.}
+\item{feval}{Customized evaluation function. Returns
+\code{list(metric='metric-name', value='metric-value')} with given prediction and dtrain.}
 
-\item{stratified}{A \code{boolean} indicating whether sampling of folds should be stratified
+\item{stratified}{Logical flag indicating whether sampling of folds should be stratified
 by the values of outcome labels. For real-valued labels in regression objectives,
 stratification will be done by discretizing the labels into up to 5 buckets beforehand.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   If passing "auto", will be set to `TRUE` if the objective in `params` is a classification
-   objective (from XGBoost's built-in objectives, doesn't apply to custom ones), and to
-   `FALSE` otherwise.
+If passing "auto", will be set to \code{TRUE} if the objective in \code{params} is a classification
+objective (from XGBoost's built-in objectives, doesn't apply to custom ones), and to
+\code{FALSE} otherwise.
 
-   This parameter is ignored when `data` has a `group` field - in such case, the splitting
-   will be based on whole groups (note that this might make the folds have different sizes).
+This parameter is ignored when \code{data} has a \code{group} field - in such case, the splitting
+will be based on whole groups (note that this might make the folds have different sizes).
 
-   Value `TRUE` here is \\bold\{not\} supported for custom objectives.
-}\if{html}{\out{</div>}}}
+Value \code{TRUE} here is \strong{not} supported for custom objectives.}
 
-\item{folds}{\code{list} provides a possibility to use a list of pre-defined CV folds
-(each element must be a vector of test fold's indices). When folds are supplied,
-the \code{nfold} and \code{stratified} parameters are ignored.
+\item{folds}{List with pre-defined CV folds (each element must be a vector of test fold's indices).
+When folds are supplied, the \code{nfold} and \code{stratified} parameters are ignored.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   If `data` has a `group` field and the objective requires this field, each fold (list element)
-   must additionally have two attributes (retrievable through \link{attributes}) named `group_test`
-   and `group_train`, which should hold the `group` to assign through \link{setinfo.xgb.DMatrix} to
-   the resulting DMatrices.
-}\if{html}{\out{</div>}}}
+If \code{data} has a \code{group} field and the objective requires this field, each fold (list element)
+must additionally have two attributes (retrievable through \code{attributes}) named \code{group_test}
+and \code{group_train}, which should hold the \code{group} to assign through \code{\link[=setinfo.xgb.DMatrix]{setinfo.xgb.DMatrix()}} to
+the resulting DMatrices.}
 
-\item{train_folds}{\code{list} list specifying which indicies to use for training. If \code{NULL}
+\item{train_folds}{List specifying which indices to use for training. If \code{NULL}
 (the default) all indices not specified in \code{folds} will be used for training.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   This is not supported when `data` has `group` field.
-}\if{html}{\out{</div>}}}
+This is not supported when \code{data} has \code{group} field.}
 
-\item{verbose}{\code{boolean}, print the statistics during the process}
+\item{verbose}{Logical flag. Should statistics be printed during the process?}
 
-\item{print_every_n}{Print each n-th iteration evaluation messages when \code{verbose>0}.
+\item{print_every_n}{Print each nth iteration evaluation messages when \code{verbose > 0}.
 Default is 1 which means all messages are printed. This parameter is passed to the
-\code{\link{xgb.cb.print.evaluation}} callback.}
+\code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
 
 \item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance
 doesn't improve for \code{k} rounds.
-Setting this parameter engages the \code{\link{xgb.cb.early.stop}} callback.}
+Setting this parameter engages the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
 
 \item{maximize}{If \code{feval} and \code{early_stopping_rounds} are set,
 then this parameter must be set as well.
 When it is \code{TRUE}, it means the larger the evaluation score the better.
-This parameter is passed to the \code{\link{xgb.cb.early.stop}} callback.}
+This parameter is passed to the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
 
-\item{callbacks}{a list of callback functions to perform various task during boosting.
-See \code{\link{xgb.Callback}}. Some of the callbacks are automatically created depending on the
+\item{callbacks}{A list of callback functions to perform various task during boosting.
+See \code{\link[=xgb.Callback]{xgb.Callback()}}. Some of the callbacks are automatically created depending on the
 parameters' values. User can provide either existing or their own callback methods in order
 to customize the training process.}
 
-\item{...}{other parameters to pass to \code{params}.}
+\item{...}{Other parameters to pass to \code{params}.}
 }
 \value{
-An object of class \code{xgb.cv.synchronous} with the following elements:
+An object of class 'xgb.cv.synchronous' with the following elements:
 \itemize{
-\item \code{call} a function call.
-\item \code{params} parameters that were passed to the xgboost library. Note that it does not
-capture parameters changed by the \code{\link{xgb.cb.reset.parameters}} callback.
-\item \code{evaluation_log} evaluation history stored as a \code{data.table} with the
+\item \code{call}: Function call.
+\item \code{params}: Parameters that were passed to the xgboost library. Note that it does not
+capture parameters changed by the \code{\link[=xgb.cb.reset.parameters]{xgb.cb.reset.parameters()}} callback.
+\item \code{evaluation_log}: Evaluation history stored as a \code{data.table} with the
 first column corresponding to iteration number and the rest corresponding to the
 CV-based evaluation means and standard deviations for the training and test CV-sets.
-It is created by the \code{\link{xgb.cb.evaluation.log}} callback.
-\item \code{niter} number of boosting iterations.
-\item \code{nfeatures} number of features in training data.
-\item \code{folds} the list of CV folds' indices - either those passed through the \code{folds}
+It is created by the \code{\link[=xgb.cb.evaluation.log]{xgb.cb.evaluation.log()}} callback.
+\item \code{niter}: Number of boosting iterations.
+\item \code{nfeatures}: Number of features in training data.
+\item \code{folds}: The list of CV folds' indices - either those passed through the \code{folds}
 parameter or randomly generated.
-\item \code{best_iteration} iteration number with the best evaluation metric value
+\item \code{best_iteration}: Iteration number with the best evaluation metric value
 (only available with early stopping).
 }
 
 Plus other potential elements that are the result of callbacks, such as a list \code{cv_predict} with
-a sub-element \code{pred} when passing \code{prediction = TRUE}, which is added by the \link{xgb.cb.cv.predict}
+a sub-element \code{pred} when passing \code{prediction = TRUE}, which is added by the \code{\link[=xgb.cb.cv.predict]{xgb.cb.cv.predict()}}
 callback (note that one can also pass it manually under \code{callbacks} with different settings,
 such as saving also the models created during cross validation); or a list \code{early_stop} which
-will contain elements such as \code{best_iteration} when using the early stopping callback (\link{xgb.cb.early.stop}).
+will contain elements such as \code{best_iteration} when using the early stopping callback (\code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}}).
 }
 \description{
 The cross validation function of xgboost.
@@ -179,11 +174,20 @@ All observations are used for both training and validation.
 Adapted from \url{https://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29}
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
-cv <- xgb.cv(data = dtrain, nrounds = 3, nthread = 2, nfold = 5, metrics = list("rmse","auc"),
-             max_depth = 3, eta = 1, objective = "binary:logistic")
+
+cv <- xgb.cv(
+  data = dtrain,
+  nrounds = 3,
+  nthread = 2,
+  nfold = 5,
+  metrics = list("rmse","auc"),
+  max_depth = 3,
+  eta = 1,objective = "binary:logistic"
+)
 print(cv)
-print(cv, verbose=TRUE)
+print(cv, verbose = TRUE)
 
 }

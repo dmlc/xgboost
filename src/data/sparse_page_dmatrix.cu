@@ -61,7 +61,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
         ellpack_page_source_);
   } else {
     CHECK(sparse_page_source_);
-    std::visit([&](auto&& ptr) { ptr->Reset(); }, this->ellpack_page_source_);
+    std::visit([&](auto&& ptr) { ptr->Reset(param); }, this->ellpack_page_source_);
   }
 
   auto batch_set =

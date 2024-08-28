@@ -45,7 +45,6 @@ def pack_rpackage() -> Path:
         )
 
     shutil.copytree("R-package", dest)
-    os.remove(dest / "demo" / "runall.R")
     # core
     shutil.copytree("src", dest / "src" / "src")
     shutil.copytree("include", dest / "src" / "include")
@@ -221,7 +220,6 @@ def test_with_autotools() -> None:
     subprocess.check_call(
         ["R.exe", "-q", "-e", "library(testthat); setwd('tests'); source('testthat.R')"]
     )
-    subprocess.check_call(["R.exe", "-q", "-e", "demo(runall, package = 'xgboost')"])
 
 
 @record_time
@@ -296,7 +294,6 @@ def test_with_cmake(args: argparse.Namespace) -> None:
                 "library(testthat); setwd('tests'); source('testthat.R')",
             ]
         )
-        subprocess.check_call([R, "-q", "-e", "demo(runall, package = 'xgboost')"])
 
 
 @record_time
