@@ -22,34 +22,34 @@ setinfo(object, name, info)
 \method{setinfo}{xgb.DMatrix}(object, name, info)
 }
 \arguments{
-\item{object}{Object of class \code{xgb.DMatrix} of \code{xgb.Booster}.}
+\item{object}{Object of class \code{xgb.DMatrix} or \code{xgb.Booster}.}
 
-\item{name}{the name of the information field to get (see details)}
+\item{name}{The name of the information field to get (see details).}
 
-\item{info}{the specific field of information to set}
+\item{info}{The specific field of information to set.}
 }
 \value{
-For \code{getinfo}, will return the requested field. For \code{setinfo}, will always return value \code{TRUE}
-if it succeeds.
+For \code{getinfo()}, will return the requested field. For \code{setinfo()},
+will always return value \code{TRUE} if it succeeds.
 }
 \description{
 Get or set information of xgb.DMatrix and xgb.Booster objects
 }
 \details{
 The \code{name} field can be one of the following for \code{xgb.DMatrix}:
-
 \itemize{
-\item \code{label}
-\item \code{weight}
-\item \code{base_margin}
-\item \code{label_lower_bound}
-\item \code{label_upper_bound}
-\item \code{group}
-\item \code{feature_type}
-\item \code{feature_name}
-\item \code{nrow}
+\item label
+\item weight
+\item base_margin
+\item label_lower_bound
+\item label_upper_bound
+\item group
+\item feature_type
+\item feature_name
+\item nrow
 }
-See the documentation for \link{xgb.DMatrix} for more information about these fields.
+
+See the documentation for \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} for more information about these fields.
 
 For \code{xgb.Booster}, can be one of the following:
 \itemize{
@@ -57,17 +57,18 @@ For \code{xgb.Booster}, can be one of the following:
 \item \code{feature_name}
 }
 
-Note that, while 'qid' cannot be retrieved, it's possible to get the equivalent 'group'
+Note that, while 'qid' cannot be retrieved, it is possible to get the equivalent 'group'
 for a DMatrix that had 'qid' assigned.
 
-\bold{Important}: when calling \code{setinfo}, the objects are modified in-place. See
-\link{xgb.copy.Booster} for an idea of this in-place assignment works.
+\strong{Important}: when calling \code{\link[=setinfo]{setinfo()}}, the objects are modified in-place. See
+\code{\link[=xgb.copy.Booster]{xgb.copy.Booster()}} for an idea of this in-place assignment works.
 
-See the documentation for \link{xgb.DMatrix} for possible fields that can be set
+See the documentation for \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} for possible fields that can be set
 (which correspond to arguments in that function).
 
 Note that the following fields are allowed in the construction of an \code{xgb.DMatrix}
-but \bold{aren't} allowed here:\itemize{
+but \strong{are not} allowed here:
+\itemize{
 \item data
 \item missing
 \item silent
@@ -75,19 +76,22 @@ but \bold{aren't} allowed here:\itemize{
 }
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 
-labels <- getinfo(dtrain, 'label')
-setinfo(dtrain, 'label', 1-labels)
+labels <- getinfo(dtrain, "label")
+setinfo(dtrain, "label", 1 - labels)
 
-labels2 <- getinfo(dtrain, 'label')
-stopifnot(all(labels2 == 1-labels))
-data(agaricus.train, package='xgboost')
+labels2 <- getinfo(dtrain, "label")
+stopifnot(all(labels2 == 1 - labels))
+data(agaricus.train, package = "xgboost")
+
 dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 
-labels <- getinfo(dtrain, 'label')
-setinfo(dtrain, 'label', 1-labels)
-labels2 <- getinfo(dtrain, 'label')
-stopifnot(all.equal(labels2, 1-labels))
+labels <- getinfo(dtrain, "label")
+setinfo(dtrain, "label", 1 - labels)
+
+labels2 <- getinfo(dtrain, "label")
+stopifnot(all.equal(labels2, 1 - labels))
 }

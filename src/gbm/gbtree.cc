@@ -218,7 +218,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
                                     model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
 
-  if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf()) {
+  if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf() && this->ctx_->IsCUDA()) {
     LOG(FATAL) << "Current objective doesn't support external memory.";
   }
 

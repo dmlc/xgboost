@@ -13,14 +13,15 @@ used to keep track of variables to determine how to handle the batches.
 For example, one might want to keep track of an iteration number in this environment in order
 to know which part of the data to pass next.}
 
-\item{f_next}{\verb{function(env)} which is responsible for:\itemize{
+\item{f_next}{\verb{function(env)} which is responsible for:
+\itemize{
 \item Accessing or retrieving the next batch of data in the iterator.
-\item Supplying this data by calling function \link{xgb.DataBatch} on it and returning the result.
+\item Supplying this data by calling function \code{\link[=xgb.DataBatch]{xgb.DataBatch()}} on it and returning the result.
 \item Keeping track of where in the iterator batch it is or will go next, which can for example
 be done by modifiying variables in the \code{env} variable that is passed here.
 \item Signaling whether there are more batches to be consumed or not, by returning \code{NULL}
 when the stream of data ends (all batches in the iterator have been consumed), or the result from
-calling \link{xgb.DataBatch} when there are more batches in the line to be consumed.
+calling \code{\link[=xgb.DataBatch]{xgb.DataBatch()}} when there are more batches in the line to be consumed.
 }}
 
 \item{f_reset}{\verb{function(env)} which is responsible for reseting the data iterator
@@ -32,7 +33,7 @@ Note that, after resetting the iterator, the batches will be accessed again, so 
 }
 \value{
 An \code{xgb.DataIter} object, containing the same inputs supplied here, which can then
-be passed to \link{xgb.ExternalDMatrix}.
+be passed to \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
 }
 \description{
 Interface to create a custom data iterator in order to construct a DMatrix
@@ -41,11 +42,11 @@ from external memory.
 This function is responsible for generating an R object structure containing callback
 functions and an environment shared with them.
 
-The output structure from this function is then meant to be passed to \link{xgb.ExternalDMatrix},
+The output structure from this function is then meant to be passed to \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}},
 which will consume the data and create a DMatrix from it by executing the callback functions.
 
-For more information, and for a usage example, see the documentation for \link{xgb.ExternalDMatrix}.
+For more information, and for a usage example, see the documentation for \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
 }
 \seealso{
-\link{xgb.ExternalDMatrix}, \link{xgb.DataBatch}.
+\code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}, \code{\link[=xgb.DataBatch]{xgb.DataBatch()}}.
 }

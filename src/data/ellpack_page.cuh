@@ -236,6 +236,11 @@ class EllpackPageImpl {
   [[nodiscard]] EllpackDeviceAccessor GetHostAccessor(
       Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
       common::Span<FeatureType const> feature_types = {}) const;
+  /**
+   * @brief Calculate the number of non-missing values.
+   */
+  [[nodiscard]] bst_idx_t NumNonMissing(Context const* ctx,
+                                        common::Span<FeatureType const> feature_types) const;
 
  private:
   /**

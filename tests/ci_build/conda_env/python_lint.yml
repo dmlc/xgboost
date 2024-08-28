@@ -6,8 +6,7 @@ dependencies:
 - pylint
 - wheel
 - setuptools
-# https://github.com/python/mypy/issues/17617
-- mypy !=1.11.0,!=1.11.1
+- mypy
 - numpy
 - scipy
 - pandas

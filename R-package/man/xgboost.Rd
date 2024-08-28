@@ -21,65 +21,69 @@ xgboost(
 )
 }
 \arguments{
-\item{x}{The features / covariates. Can be passed as:\itemize{
-\item A numeric or integer `matrix`.
-\item A `data.frame`, in which all columns are one of the following types:\itemize{
-  \item `numeric`
-  \item `integer`
-  \item `logical`
-  \item `factor`
+\item{x}{The features / covariates. Can be passed as:
+\itemize{
+\item A numeric or integer \code{matrix}.
+\item A \code{data.frame}, in which all columns are one of the following types:
+\itemize{
+\item \code{numeric}
+\item \code{integer}
+\item \code{logical}
+\item \code{factor}
 }
 
-Columns of `factor` type will be assumed to be categorical, while other column types will
+Columns of \code{factor} type will be assumed to be categorical, while other column types will
 be assumed to be numeric.
-\item A sparse matrix from the `Matrix` package, either as `dgCMatrix` or `dgRMatrix` class.
+\item A sparse matrix from the \code{Matrix} package, either as \code{dgCMatrix} or \code{dgRMatrix} class.
 }
 
-Note that categorical features are only supported for `data.frame` inputs, and are automatically
-determined based on their types. See \link{xgb.train} with \link{xgb.DMatrix} for more flexible
+Note that categorical features are only supported for \code{data.frame} inputs, and are automatically
+determined based on their types. See \code{\link[=xgb.train]{xgb.train()}} with \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} for more flexible
 variants that would allow something like categorical features on sparse matrices.}
 
-\item{y}{The response variable. Allowed values are:\itemize{
+\item{y}{The response variable. Allowed values are:
+\itemize{
 \item A numeric or integer vector (for regression tasks).
 \item A factor or character vector (for binary and multi-class classification tasks).
 \item A logical (boolean) vector (for binary classification tasks).
-\item A numeric or integer matrix or `data.frame` with numeric/integer columns
+\item A numeric or integer matrix or \code{data.frame} with numeric/integer columns
 (for multi-task regression tasks).
-\item A `Surv` object from the `survival` package (for survival tasks).
+\item A \code{Surv} object from the 'survival' package (for survival tasks).
 }
 
-If `objective` is `NULL`, the right task will be determined automatically based on
-the class of `y`.
+If \code{objective} is \code{NULL}, the right task will be determined automatically based on
+the class of \code{y}.
 
-If `objective` is not `NULL`, it must match with the type of `y` - e.g. `factor` types of `y`
+If \code{objective} is not \code{NULL}, it must match with the type of \code{y} - e.g. \code{factor} types of \code{y}
 can only be used with classification objectives and vice-versa.
 
-For binary classification, the last factor level of `y` will be used as the "positive"
-class - that is, the numbers from `predict` will reflect the probabilities of belonging to this
-class instead of to the first factor level. If `y` is a `logical` vector, then `TRUE` will be
+For binary classification, the last factor level of \code{y} will be used as the "positive"
+class - that is, the numbers from \code{predict} will reflect the probabilities of belonging to this
+class instead of to the first factor level. If \code{y} is a \code{logical} vector, then \code{TRUE} will be
 set as the last level.}
 
 \item{objective}{Optimization objective to minimize based on the supplied data, to be passed
-by name as a string / character (e.g. `reg:absoluteerror`). See the
-\href{https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{
-Learning Task Parameters} page for more detailed information on allowed values.
+by name as a string / character (e.g. \code{reg:absoluteerror}). See the
+\href{https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{Learning Task Parameters}
+page for more detailed information on allowed values.
 
-If `NULL` (the default), will be automatically determined from `y` according to the following
-logic:\itemize{
-\item If `y` is a factor with 2 levels, will use `binary:logistic`.
-\item If `y` is a factor with more than 2 levels, will use `multi:softprob` (number of classes
-will be determined automatically, should not be passed under `params`).
-\item If `y` is a `Surv` object from the `survival` package, will use `survival:aft` (note that
+If \code{NULL} (the default), will be automatically determined from \code{y} according to the following
+logic:
+\itemize{
+\item If \code{y} is a factor with 2 levels, will use \code{binary:logistic}.
+\item If \code{y} is a factor with more than 2 levels, will use \code{multi:softprob} (number of classes
+will be determined automatically, should not be passed under \code{params}).
+\item If \code{y} is a \code{Surv} object from the \code{survival} package, will use \code{survival:aft} (note that
 the only types supported are left / right / interval censored).
-\item Otherwise, will use `reg:squarederror`.
+\item Otherwise, will use \code{reg:squarederror}.
 }
 
-If `objective` is not `NULL`, it must match with the type of `y` - e.g. `factor` types of `y`
+If \code{objective} is not \code{NULL}, it must match with the type of \code{y} - e.g. \code{factor} types of \code{y}
 can only be used with classification objectives and vice-versa.
 
-Note that not all possible `objective` values supported by the core XGBoost library are allowed
+Note that not all possible \code{objective} values supported by the core XGBoost library are allowed
 here - for example, objectives which are a variation of another but with a different default
-prediction type (e.g. `multi:softmax` vs. `multi:softprob`) are not allowed, and neither are
+prediction type (e.g. \code{multi:softmax} vs. \code{multi:softprob}) are not allowed, and neither are
 ranking objectives, nor custom objectives at the moment.}
 
 \item{nrounds}{Number of boosting iterations / rounds.
@@ -87,56 +91,54 @@ ranking objectives, nor custom objectives at the moment.}
 Note that the number of default boosting rounds here is not automatically tuned, and different
 problems will have vastly different optimal numbers of boosting rounds.}
 
-\item{weights}{Sample weights for each row in `x` and `y`. If `NULL` (the default), each row
+\item{weights}{Sample weights for each row in \code{x} and \code{y}. If \code{NULL} (the default), each row
 will have the same weight.
 
-If not `NULL`, should be passed as a numeric vector with length matching to the number of
-rows in `x`.}
+If not \code{NULL}, should be passed as a numeric vector with length matching to the number of rows in \code{x}.}
 
 \item{verbosity}{Verbosity of printing messages. Valid values of 0 (silent), 1 (warning),
 2 (info), and 3 (debug).}
 
 \item{nthreads}{Number of parallel threads to use. If passing zero, will use all CPU threads.}
 
-\item{seed}{Seed to use for random number generation. If passing `NULL`, will draw a random
+\item{seed}{Seed to use for random number generation. If passing \code{NULL}, will draw a random
 number using R's PRNG system to use as seed.}
 
 \item{monotone_constraints}{Optional monotonicity constraints for features.
 
-Can be passed either as a named list (when `x` has column names), or as a vector. If passed
-as a vector and `x` has column names, will try to match the elements by name.
+Can be passed either as a named list (when \code{x} has column names), or as a vector. If passed
+as a vector and \code{x} has column names, will try to match the elements by name.
 
-A value of `+1` for a given feature makes the model predictions / scores constrained to be
+A value of \code{+1} for a given feature makes the model predictions / scores constrained to be
 a monotonically increasing function of that feature (that is, as the value of the feature
-increases, the model prediction cannot decrease), while a value of `-1` makes it a monotonically
+increases, the model prediction cannot decrease), while a value of \code{-1} makes it a monotonically
 decreasing function. A value of zero imposes no constraint.
 
-The input for `monotone_constraints` can be a subset of the columns of `x` if named, in which
-case the columns that are not referred to in `monotone_constraints` will be assumed to have
+The input for \code{monotone_constraints} can be a subset of the columns of \code{x} if named, in which
+case the columns that are not referred to in \code{monotone_constraints} will be assumed to have
 a value of zero (no constraint imposed on the model for those features).
 
-See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/monotonic.html}{
-Monotonic Constraints} for a more detailed explanation.}
+See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/monotonic.html}{Monotonic Constraints}
+for a more detailed explanation.}
 
 \item{interaction_constraints}{Constraints for interaction representing permitted interactions.
 The constraints must be specified in the form of a list of vectors referencing columns in the
-data, e.g. `list(c(1, 2), c(3, 4, 5))` (with these numbers being column indices, numeration
+data, e.g. \code{list(c(1, 2), c(3, 4, 5))} (with these numbers being column indices, numeration
 starting at 1 - i.e. the first sublist references the first and second columns) or
-`list(c("Sepal.Length", "Sepal.Width"), c("Petal.Length", "Petal.Width"))` (references
+\code{list(c("Sepal.Length", "Sepal.Width"), c("Petal.Length", "Petal.Width"))} (references
 columns by names), where each vector is a group of indices of features that are allowed to
 interact with each other.
 
-See the tutorial
-\href{https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html}{
-Feature Interaction Constraints} for more information.}
+See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/feature_interaction_constraint.html}{Feature Interaction Constraints}
+for more information.}
 
 \item{feature_weights}{Feature weights for column sampling.
 
-Can be passed either as a vector with length matching to columns of `x`, or as a named
-list (only if `x` has column names) with names matching to columns of 'x'. If it is a
-named vector, will try to match the entries to column names of `x` by name.
+Can be passed either as a vector with length matching to columns of \code{x}, or as a named
+list (only if \code{x} has column names) with names matching to columns of 'x'. If it is a
+named vector, will try to match the entries to column names of \code{x} by name.
 
-If `NULL` (the default), all columns will have the same weight.}
+If \code{NULL} (the default), all columns will have the same weight.}
 
 \item{base_margin}{Base margin used for boosting from existing model.
 
@@ -145,53 +147,53 @@ here - for example, one can pass the raw scores from a previous model, or some p
 offset, or similar.
 
 Should be either a numeric vector or numeric matrix (for multi-class and multi-target objectives)
-with the same number of rows as `x` and number of columns corresponding to number of optimization
-targets, and should be in the untransformed scale (for example, for objective `binary:logistic`,
-it should have log-odds, not probabilities; and for objective `multi:softprob`, should have
+with the same number of rows as \code{x} and number of columns corresponding to number of optimization
+targets, and should be in the untransformed scale (for example, for objective \code{binary:logistic},
+it should have log-odds, not probabilities; and for objective \code{multi:softprob}, should have
 number of columns matching to number of classes in the data).
 
 Note that, if it contains more than one column, then columns will not be matched by name to
-the corresponding `y` - `base_margin` should have the same column order that the model will use
-(for example, for objective `multi:softprob`, columns of `base_margin` will be matched against
-`levels(y)` by their position, regardless of what `colnames(base_margin)` returns).
+the corresponding \code{y} - \code{base_margin} should have the same column order that the model will use
+(for example, for objective \code{multi:softprob}, columns of \code{base_margin} will be matched against
+\code{levels(y)} by their position, regardless of what \code{colnames(base_margin)} returns).
 
-If `NULL`, will start from zero, but note that for most objectives, an intercept is usually
-added (controllable through parameter `base_score` instead) when `base_margin` is not passed.}
+If \code{NULL}, will start from zero, but note that for most objectives, an intercept is usually
+added (controllable through parameter \code{base_score} instead) when \code{base_margin} is not passed.}
 
 \item{...}{Other training parameters. See the online documentation
 \href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
 details about possible values and what they do.
 
-Note that not all possible values from the core XGBoost library are allowed as `params` for
+Note that not all possible values from the core XGBoost library are allowed as \code{params} for
 'xgboost()' - in particular, values which require an already-fitted booster object (such as
-`process_type`) are not accepted here.}
+\code{process_type}) are not accepted here.}
 }
 \value{
-A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular
-`xgb.Booster` model class produced by \link{xgb.train}, this `xgboost` class will have an
-additional attribute `metadata` containing information which is used for formatting prediction
+A model object, inheriting from both \code{xgboost} and \code{xgb.Booster}. Compared to the regular
+\code{xgb.Booster} model class produced by \code{\link[=xgb.train]{xgb.train()}}, this \code{xgboost} class will have an
+
+additional attribute \code{metadata} containing information which is used for formatting prediction
 outputs, such as class names for classification problems.
 }
 \description{
 Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 
-See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{
-Introduction to Boosted Trees} for a longer explanation of what XGBoost does.
+See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{Introduction to Boosted Trees}
+for a longer explanation of what XGBoost does.
 
 This function is intended to provide a more user-friendly interface for XGBoost that follows
 R's conventions for model fitting and predictions, but which doesn't expose all of the
 possible functionalities of the core XGBoost library.
 
-See \link{xgb.train} for a more flexible low-level alternative which is similar across different
+See \code{\link[=xgb.train]{xgb.train()}} for a more flexible low-level alternative which is similar across different
 language bindings of XGBoost and which exposes the full library's functionalities.
 }
 \details{
-For package authors using `xgboost` as a dependency, it is highly recommended to use
-\link{xgb.train} in package code instead of `xgboost()`, since it has a more stable interface
+For package authors using 'xgboost' as a dependency, it is highly recommended to use
+\code{\link[=xgb.train]{xgb.train()}} in package code instead of \code{\link[=xgboost]{xgboost()}}, since it has a more stable interface
 and performs fewer data conversions and copies along the way.
 }
 \examples{
-library(xgboost)
 data(mtcars)
 
 # Fit a small regression model on the mtcars data

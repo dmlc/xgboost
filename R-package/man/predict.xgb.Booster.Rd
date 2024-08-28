@@ -157,7 +157,8 @@ dimension should produce practically the same result as \code{predcontrib = TRUE
 For multi-class and multi-target, will be a 4D array with dimensions \verb{[nrows, ngroups, nfeats+1, nfeats+1]}
 }
 
-If passing \code{strict_shape=FALSE}, the result is always an array:\itemize{
+If passing \code{strict_shape=FALSE}, the result is always an array:
+\itemize{
 \item For normal predictions, the dimension is \verb{[nrows, ngroups]}.
 \item For \code{predcontrib=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1]}.
 \item For \code{predinteraction=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1, nfeats+1]}.

@@ -11,6 +11,7 @@
 #include "proxy_dmatrix.h"    // for DataIterProxy
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for BatchParam
+#include "../common/cuda_rt_utils.h"
 
 namespace xgboost::data {
 void ExtMemQuantileDMatrix::InitFromCUDA(
@@ -78,9 +79,9 @@ BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
   }
 
   std::visit(
-      [this](auto &&ptr) {
+      [this, param](auto &&ptr) {
         CHECK(ptr);
-        ptr->Reset();
+        ptr->Reset(param);
       },
       this->ellpack_page_source_);
 
