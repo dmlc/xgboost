@@ -115,7 +115,7 @@ struct GPUHistMakerDevice {
         cuts_{std::move(cuts)} {
     sampler =
         std::make_unique<GradientBasedSampler>(ctx, info.num_row_, batch_param, param.subsample,
-                                               param.sampling_method, batch_ptr.size() > 2);
+                                               param.sampling_method, batch_ptr_.size() > 2);
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
@@ -146,21 +146,24 @@ struct GPUHistMakerDevice {
 
     this->interaction_constraints.Reset();
 
-    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair);
+    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair);  // backup the gradient
     auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
     this->gpair = sample.gpair;
     p_fmat = sample.p_fmat;  // Update p_fmat before allocating partitioners
+    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
-    CHECK_NE(p_fmat->NumBatches(), 0);
-    bool is_concat = p_fmat->Info().num_row_ == this->batch_ptr_.back();
+    CHECK_GE(p_fmat->NumBatches(), 1);
+    bool is_concat = p_fmat->Info().num_row_ != this->batch_ptr_.back();
     for (std::int32_t k = 0; k < p_fmat->NumBatches(); ++k) {
       if (partitioners_.size() != static_cast<std::size_t>(p_fmat->NumBatches())) {
         // First run.
         partitioners_.emplace_back(std::make_unique<RowPartitioner>());
       }
       if (is_concat) {
+        CHECK_EQ(partitioners_.size(), 1);
         partitioners_[k]->Reset(ctx_, p_fmat->Info().num_row_, 0);
       } else {
+        CHECK_EQ(p_fmat->NumBatches() + 1, this->batch_ptr_.size());
         auto base_ridx = this->batch_ptr_[k];
         auto n_samples = this->batch_ptr_.at(k + 1) - base_ridx;
         partitioners_[k]->Reset(ctx_, n_samples, base_ridx);
@@ -403,6 +406,7 @@ struct GPUHistMakerDevice {
       CHECK_EQ(split_type == FeatureType::kCategorical, e.split.is_cat);
     }
 
+    CHECK_EQ(p_fmat->NumBatches(), 1);
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
       auto d_matrix = page.Impl()->GetDeviceAccessor(ctx_->Device());
 
@@ -809,8 +813,7 @@ class GPUHistMaker : public TreeUpdater {
 
     std::vector<bst_idx_t> batch_ptr;
     auto batch = HistBatch(*param);
-    std::shared_ptr<common::HistogramCuts const> cuts =
-        InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
+    auto cuts = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
 
     this->maker = std::make_unique<GPUHistMakerDevice>(ctx_, *param, column_sampler_, batch,
                                                        p_fmat->Info(), batch_ptr, cuts);
@@ -922,8 +925,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     std::vector<bst_idx_t> batch_ptr;
     auto batch = ApproxBatch(*param, hess, *task_);
-    std::shared_ptr<common::HistogramCuts const> cuts =
-        InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
+    auto cuts = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
     batch.regen = false;  // Regen only at the beginning of the iteration.
 
     this->maker_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, column_sampler_, batch,
