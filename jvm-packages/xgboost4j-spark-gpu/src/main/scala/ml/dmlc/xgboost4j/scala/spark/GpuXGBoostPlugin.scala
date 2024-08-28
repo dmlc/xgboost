@@ -149,7 +149,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       ColumnarRdd(train.toDF()).zipPartitions(ColumnarRdd(evalProcessed.toDF())) {
         (trainIter, evalIter) =>
           val trainDM = buildQuantileDMatrix(trainIter)
-          val evalDM = buildQuantileDMatrix(evalIter)
+          val evalDM = buildQuantileDMatrix(evalIter, Some(trainDM))
           Iterator.single(new Watches(Array(trainDM, evalDM),
             Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None))
       }
@@ -182,13 +182,14 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       // UnsafeProjection is not serializable so do it on the executor side
       val toUnsafe = UnsafeProjection.create(originalSchema)
 
-      synchronized {
-        val device = booster.getAttr("device")
-        if (device != null && device.trim.isEmpty) {
-          booster.setAttr("device", "cuda")
-          val gpuId = if (!isLocal) XGBoost.getGPUAddrFromResources else 0
-          booster.setParam("device", s"cuda:$gpuId")
-          logger.info("GPU transform on GPU device: " + gpuId)
+      if (!booster.deviceIsSet) {
+        booster.deviceIsSet.synchronized {
+          if (!booster.deviceIsSet) {
+            booster.deviceIsSet = true
+            val gpuId = if (!isLocal) XGBoost.getGPUAddrFromResources else 0
+            booster.setParam("device", s"cuda:$gpuId")
+            logger.info("GPU transform on GPU device: cuda:" + gpuId)
+          }
         }
       }
 

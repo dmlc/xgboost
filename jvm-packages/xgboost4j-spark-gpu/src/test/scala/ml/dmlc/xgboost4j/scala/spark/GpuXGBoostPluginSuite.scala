@@ -52,7 +52,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         .setAlpha(0.97)
         .setLeafPredictionCol("leaf")
         .setContribPredictionCol("contrib")
-        .setNumRound(1)
+        .setNumRound(3)
         .setDevice("cuda")
 
       assert(estimator.getMaxDepth === 5)
@@ -62,6 +62,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       assert(estimator.getMissing === 0.2f)
       assert(estimator.getAlpha === 0.97)
       assert(estimator.getDevice === "cuda")
+      assert(estimator.getNumRound === 3)
 
       estimator.setEta(0.66).setMaxDepth(7)
       assert(estimator.getMaxDepth === 7)
@@ -77,6 +78,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       assert(model.getLeafPredictionCol === "leaf")
       assert(model.getContribPredictionCol === "contrib")
       assert(model.getDevice === "cuda")
+      assert(model.getNumRound === 3)
     }
   }
 
