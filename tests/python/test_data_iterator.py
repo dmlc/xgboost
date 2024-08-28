@@ -17,7 +17,7 @@ from xgboost.testing.updater import check_quantile_loss_extmem
 pytestmark = tm.timeout(30)
 
 
-def test_single_batch(tree_method: str = "approx") -> None:
+def test_single_batch(tree_method: str = "approx", device: str = "cpu") -> None:
     from sklearn.datasets import load_breast_cancer
 
     n_rounds = 10
@@ -25,17 +25,19 @@ def test_single_batch(tree_method: str = "approx") -> None:
     X = X.astype(np.float32)
     y = y.astype(np.float32)
 
+    params = {"tree_method": tree_method, "device": device}
+
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
-    from_it = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_it = xgb.train(params, Xy, num_boost_round=n_rounds)
 
     Xy = xgb.DMatrix(X, y)
-    from_dmat = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_dmat = xgb.train(params, Xy, num_boost_round=n_rounds)
     assert from_it.get_dump() == from_dmat.get_dump()
 
     X, y = load_breast_cancer(return_X_y=True, as_frame=True)
     X = X.astype(np.float32)
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
-    from_pd = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_pd = xgb.train(params, Xy, num_boost_round=n_rounds)
     # remove feature info to generate exact same text representation.
     from_pd.feature_names = None
     from_pd.feature_types = None
@@ -45,11 +47,11 @@ def test_single_batch(tree_method: str = "approx") -> None:
     X, y = load_breast_cancer(return_X_y=True)
     X = csr_matrix(X)
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
-    from_it = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_it = xgb.train(params, Xy, num_boost_round=n_rounds)
 
     X, y = load_breast_cancer(return_X_y=True)
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y), missing=0.0)
-    from_np = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_np = xgb.train(params, Xy, num_boost_round=n_rounds)
     assert from_np.get_dump() == from_it.get_dump()
 
 

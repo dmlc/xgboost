@@ -12,11 +12,9 @@
 
 namespace xgboost::tree {
 struct GradientBasedSample {
-  /*!\brief Number of sampled rows. */
-  bst_idx_t sample_rows;
-  /*!\brief Sampled rows in ELLPACK format. */
+  /** @brief Sampled rows in ELLPACK format. */
   DMatrix* p_fmat;
-  /*!\brief Gradient pairs for the sampled rows. */
+  /** @brief Gradient pairs for the sampled rows. */
   common::Span<GradientPair const> gpair;
 };
 

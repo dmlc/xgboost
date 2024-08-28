@@ -387,11 +387,6 @@ void CopyTo(Src const &src, Dst *dst) {
                                 src.size() * sizeof(SVT), cudaMemcpyDefault));
 }
 
-template <class HContainer, class DContainer>
-void CopyToD(HContainer const &h, DContainer *d) {
-  CopyTo(h, d);
-}
-
 // Keep track of pinned memory allocation
 struct PinnedMemory {
   void *temp_storage{nullptr};

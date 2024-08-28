@@ -152,7 +152,7 @@ NoSampling::NoSampling(BatchParam batch_param) : batch_param_(std::move(batch_pa
 
 GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair> gpair,
                                        DMatrix* dmat) {
-  return {dmat->Info().num_row_, dmat, gpair};
+  return {dmat, gpair};
 }
 
 ExternalMemoryNoSampling::ExternalMemoryNoSampling(BatchParam batch_param)
@@ -179,7 +179,7 @@ GradientBasedSample ExternalMemoryNoSampling::Sample(Context const* ctx,
     this->p_fmat_new_ =
         std::make_unique<data::IterativeDMatrix>(new_page, p_fmat->Info(), batch_param_);
   }
-  return {p_fmat->Info().num_row_, this->p_fmat_new_.get(), gpair};
+  return {this->p_fmat_new_.get(), gpair};
 }
 
 UniformSampling::UniformSampling(BatchParam batch_param, float subsample)
@@ -192,7 +192,7 @@ GradientBasedSample UniformSampling::Sample(Context const* ctx, common::Span<Gra
   thrust::replace_if(cuctx->CTP(), dh::tbegin(gpair), dh::tend(gpair),
                      thrust::counting_iterator<std::size_t>(0),
                      BernoulliTrial(common::GlobalRandom()(), subsample_), GradientPair());
-  return {p_fmat->Info().num_row_, p_fmat, gpair};
+  return {p_fmat, gpair};
 }
 
 ExternalMemoryUniformSampling::ExternalMemoryUniformSampling(size_t n_rows,
@@ -252,7 +252,8 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   // Create the new DMatrix
   this->p_fmat_new_ = std::make_unique<data::IterativeDMatrix>(
       new_page, dmat->Info().Slice(ctx, dh::ToSpan(compact_row_index_), nnz), batch_param_);
-  return {sample_rows, this->p_fmat_new_.get(), dh::ToSpan(gpair_)};
+  CHECK_EQ(sample_rows, this->p_fmat_new_->Info().num_row_);
+  return {this->p_fmat_new_.get(), dh::ToSpan(gpair_)};
 }
 
 GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batch_param,
@@ -274,7 +275,7 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
                     thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
                     PoissonSampling(dh::ToSpan(threshold_), threshold_index,
                                     RandomWeight(common::GlobalRandom()())));
-  return {n_rows, dmat, gpair};
+  return {dmat, gpair};
 }
 
 ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(size_t n_rows,
@@ -334,7 +335,8 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   // Create the new DMatrix
   this->p_fmat_new_ = std::make_unique<data::IterativeDMatrix>(
       new_page, dmat->Info().Slice(ctx, dh::ToSpan(compact_row_index_), nnz), batch_param_);
-  return {sample_rows, this->p_fmat_new_.get(), dh::ToSpan(gpair_)};
+  CHECK_EQ(sample_rows, this->p_fmat_new_->Info().num_row_);
+  return {this->p_fmat_new_.get(), dh::ToSpan(gpair_)};
 }
 
 GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows,
