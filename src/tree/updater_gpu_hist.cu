@@ -155,14 +155,23 @@ struct GPUHistMakerDevice {
     p_fmat = sample.p_fmat;  // Update p_fmat before allocating partitioners
 
     CHECK_NE(p_fmat->NumBatches(), 0);
+    bool is_concat = p_fmat->Info().num_row_ == this->batch_ptr_.back();
     for (std::int32_t k = 0; k < p_fmat->NumBatches(); ++k) {
       if (partitioners_.size() != static_cast<std::size_t>(p_fmat->NumBatches())) {
         partitioners_.emplace_back(std::make_unique<RowPartitioner>());
       }
       auto n_samples = this->batch_ptr_.at(k + 1) - this->batch_ptr_[k];
-      partitioners_[k]->Reset(ctx_, n_samples, this->batch_ptr_[k]);
+      if (is_concat) {
+        partitioners_[k]->Reset(ctx_, p_fmat->Info().num_row_, 0);
+      } else {
+        partitioners_[k]->Reset(ctx_, n_samples, this->batch_ptr_[k]);
+      }
     }
     CHECK_EQ(partitioners_.size(), p_fmat->NumBatches());
+    if (is_concat) {
+      CHECK_EQ(partitioners_.size(), 1);
+      CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);
+    }
 
     this->evaluator_.Reset(*cuts_, feature_types, p_fmat->Info().num_col_, param,
                            p_fmat->Info().IsColumnSplit(), ctx_->Device());
