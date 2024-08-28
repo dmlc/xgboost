@@ -4,6 +4,7 @@ import pytest
 from hypothesis import given, settings, strategies
 
 from xgboost.testing import no_cupy
+from xgboost.testing.updater import check_quantile_loss_extmem
 
 sys.path.append("tests/python")
 from test_data_iterator import run_data_iterator
@@ -11,7 +12,7 @@ from test_data_iterator import test_single_batch as cpu_single_batch
 
 
 def test_gpu_single_batch() -> None:
-    cpu_single_batch("gpu_hist")
+    cpu_single_batch("hist", "cuda")
 
 
 @pytest.mark.skipif(**no_cupy())
@@ -56,3 +57,8 @@ def test_cpu_data_iterator() -> None:
         use_cupy=True,
         on_host=False,
     )
+
+
+def test_quantile_objective() -> None:
+    with pytest.raises(ValueError, match="external memory"):
+        check_quantile_loss_extmem(2, 2, 2, "hist", "cuda")

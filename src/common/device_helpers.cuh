@@ -387,11 +387,6 @@ void CopyTo(Src const &src, Dst *dst) {
                                 src.size() * sizeof(SVT), cudaMemcpyDefault));
 }
 
-template <class HContainer, class DContainer>
-void CopyToD(HContainer const &h, DContainer *d) {
-  CopyTo(h, d);
-}
-
 // Keep track of pinned memory allocation
 struct PinnedMemory {
   void *temp_storage{nullptr};
@@ -505,6 +500,11 @@ xgboost::common::Span<T> ToSpan(thrust::device_vector<T> &vec, size_t offset, si
 
 template <typename T>
 xgboost::common::Span<T> ToSpan(DeviceUVector<T> &vec) {
+  return {vec.data(), vec.size()};
+}
+
+template <typename T>
+xgboost::common::Span<std::add_const_t<T>> ToSpan(DeviceUVector<T> const &vec) {
   return {vec.data(), vec.size()};
 }
 

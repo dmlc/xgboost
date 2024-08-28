@@ -31,6 +31,9 @@ const MetaInfo& SimpleDMatrix::Info() const { return info_; }
 DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   auto out = new SimpleDMatrix;
   SparsePage& out_page = *out->sparse_page_;
+  // Convert to uint64 to avoid a breaking change in the C API. The performance impact is
+  // small since we have to iteratve through the sparse page.
+  std::vector<bst_idx_t> h_ridx(ridxs.data(), ridxs.data() + ridxs.size());
   for (auto const& page : this->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
     auto& h_data = out_page.data.HostVector();
@@ -42,8 +45,8 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
       std::copy(inst.begin(), inst.end(), std::back_inserter(h_data));
       h_offset.emplace_back(rptr);
     }
-    out->Info() = this->Info().Slice(ridxs);
-    out->Info().num_nonzero_ = h_offset.back();
+    auto ctx = this->fmat_ctx_.MakeCPU();
+    out->Info() = this->Info().Slice(&ctx, h_ridx, h_offset.back());
   }
   out->fmat_ctx_ = this->fmat_ctx_;
   return out;

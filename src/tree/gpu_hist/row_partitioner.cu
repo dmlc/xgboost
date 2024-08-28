@@ -31,7 +31,7 @@ common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t
   return dh::ToSpan(ridx_).subspan(segment.begin, segment.Size());
 }
 
-common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() {
+common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() const {
   return dh::ToSpan(ridx_);
 }
 

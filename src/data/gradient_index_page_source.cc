@@ -37,6 +37,7 @@ void ExtGradientIndexPageSource::Fetch() {
     CHECK_GE(source_->Iter(), 1);
     CHECK_NE(cuts_.Values().size(), 0);
     HostAdapterDispatch(proxy_, [this](auto const& value) {
+      CHECK(this->proxy_->Ctx()->IsCPU()) << "All batches must use the same device type.";
       // This does three things:
       // - Generate CSR matrix for gradient index.
       // - Generate the column matrix for gradient index.

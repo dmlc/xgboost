@@ -82,7 +82,7 @@ void SparsePageDMatrix::InitializeSparsePage(Context const *ctx) {
   // release the iterator and data.
   if (cache_info_.at(id)->written) {
     CHECK(sparse_page_source_);
-    sparse_page_source_->Reset();
+    sparse_page_source_->Reset({});
     return;
   }
 
@@ -114,7 +114,7 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
         std::make_shared<CSCPageSource>(this->missing_, ctx->Threads(), this->Info().num_col_,
                                         this->n_batches_, cache_info_.at(id), sparse_page_source_);
   } else {
-    column_source_->Reset();
+    column_source_->Reset({});
   }
   return BatchSet{BatchIterator<CSCPage>{this->column_source_}};
 }
@@ -129,7 +129,7 @@ BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const 
         this->missing_, ctx->Threads(), this->Info().num_col_, this->n_batches_, cache_info_.at(id),
         sparse_page_source_);
   } else {
-    sorted_column_source_->Reset();
+    sorted_column_source_->Reset({});
   }
   return BatchSet{BatchIterator<SortedCSCPage>{this->sorted_column_source_}};
 }
@@ -161,7 +161,7 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
         param, std::move(cuts), this->IsDense(), ft, sparse_page_source_));
   } else {
     CHECK(ghist_index_source_);
-    ghist_index_source_->Reset();
+    ghist_index_source_->Reset(param);
   }
   return BatchSet{BatchIterator<GHistIndexMatrix>{this->ghist_index_source_}};
 }

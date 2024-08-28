@@ -56,7 +56,7 @@
 #'   It should match with argument `nrounds` passed to [xgb.train()] or [xgb.cv()].
 #'
 #'   Note that boosting might be interrupted before reaching this last iteration, for
-#'   example by using the early stopping callback \link{xgb.cb.early.stop}.
+#'   example by using the early stopping callback [xgb.cb.early.stop()].
 #' - iteration Index of the iteration number that is being executed (first iteration
 #'   will be the same as parameter `begin_iteration`, then next one will add +1, and so on).
 #'

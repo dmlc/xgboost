@@ -1,14 +1,12 @@
 diff --git python-package/pyproject.toml python-package/pyproject.toml
-index 8835def25..46c1451c2 100644
+index 20d3f9974..953087ff4 100644
 --- python-package/pyproject.toml
 +++ python-package/pyproject.toml
-@@ -30,8 +30,7 @@ classifiers = [
- ]
+@@ -30,7 +30,6 @@ classifiers = [
  dependencies = [
      "numpy",
--    "scipy",
--    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'"
-+    "scipy"
+     "scipy",
+-    "nvidia-nccl-cu12 ; platform_system == 'Linux' and platform_machine != 'aarch64'",
  ]
  
  [project.urls]
