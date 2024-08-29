@@ -39,16 +39,17 @@ void TestSketchUnique(float sparsity) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [kRows, kCols, sparsity](std::int32_t seed, bst_bin_t n_bins,
                                                       MetaInfo const& info) {
+    auto ctx = MakeCUDACtx(0);
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch(ft, n_bins, kCols, kRows, FstCU());
+    SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
 
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, sparsity}
                                     .Seed(seed)
-                                    .Device(FstCU())
+                                    .Device(ctx.Device())
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins, info,
+    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch);
     auto n_cuts = detail::RequiredSampleCutsPerColumn(n_bins, kRows);
 
@@ -60,8 +61,9 @@ void TestSketchUnique(float sparsity) {
         thrust::make_counting_iterator(0llu),
         [=] __device__(size_t idx) { return batch.GetElement(idx); });
     auto end = kCols * kRows;
-    detail::GetColumnSizesScan(FstCU(), kCols, n_cuts, IterSpan{batch_iter, end}, is_valid,
-                               &cut_sizes_scan, &column_sizes_scan);
+    detail::GetColumnSizesScan(ctx.CUDACtx(), ctx.Device(), kCols, n_cuts,
+                               IterSpan{batch_iter, end}, is_valid, &cut_sizes_scan,
+                               &column_sizes_scan);
     auto const& cut_sizes = cut_sizes_scan.HostVector();
     ASSERT_LE(sketch.Data().size(), cut_sizes.back());
 
@@ -124,15 +126,17 @@ void TestQuantileElemRank(DeviceOrd device, Span<SketchEntry const> in,
 TEST(GPUQuantile, Prune) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
+    auto ctx = MakeCUDACtx(0);
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch(ft, n_bins, kCols, kRows, FstCU());
+    SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
 
     HostDeviceVector<float> storage;
-    std::string interface_str =
-        RandomDataGenerator{kRows, kCols, 0}.Device(FstCU()).Seed(seed).GenerateArrayInterface(
-            &storage);
+    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
+                                    .Device(ctx.Device())
+                                    .Seed(seed)
+                                    .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins, info,
+    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch);
     auto n_cuts = detail::RequiredSampleCutsPerColumn(n_bins, kRows);
     // LE because kRows * kCols is pushed into sketch, after removing
@@ -146,22 +150,22 @@ TEST(GPUQuantile, Prune) {
     ASSERT_TRUE(thrust::is_sorted(thrust::device, sketch.Data().data(),
                                   sketch.Data().data() + sketch.Data().size(),
                                   detail::SketchUnique{}));
-    TestQuantileElemRank(FstCU(), sketch.Data(), sketch.ColumnsPtr());
+    TestQuantileElemRank(ctx.Device(), sketch.Data(), sketch.ColumnsPtr());
   });
 }
 
 TEST(GPUQuantile, MergeEmpty) {
   constexpr size_t kRows = 1000, kCols = 100;
   size_t n_bins = 10;
+  auto ctx = MakeCUDACtx(0);
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_0(ft, n_bins, kCols, kRows, FstCU());
+  SketchContainer sketch_0(ft, n_bins, kCols, kRows, ctx.Device());
   HostDeviceVector<float> storage_0;
   std::string interface_str_0 =
-      RandomDataGenerator{kRows, kCols, 0}.Device(FstCU()).GenerateArrayInterface(
-          &storage_0);
+      RandomDataGenerator{kRows, kCols, 0}.Device(ctx.Device()).GenerateArrayInterface(&storage_0);
   data::CupyAdapter adapter_0(interface_str_0);
   MetaInfo info;
-  AdapterDeviceSketch(adapter_0.Value(), n_bins, info,
+  AdapterDeviceSketch(&ctx, adapter_0.Value(), n_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
   std::vector<SketchEntry> entries_before(sketch_0.Data().size());
@@ -193,34 +197,36 @@ TEST(GPUQuantile, MergeEmpty) {
 TEST(GPUQuantile, MergeBasic) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
+    auto ctx = MakeCUDACtx(0);
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_0(ft, n_bins, kCols, kRows, FstCU());
+    SketchContainer sketch_0(ft, n_bins, kCols, kRows, ctx.Device());
     HostDeviceVector<float> storage_0;
     std::string interface_str_0 = RandomDataGenerator{kRows, kCols, 0}
-                                  .Device(FstCU())
+                                      .Device(ctx.Device())
                                       .Seed(seed)
                                       .GenerateArrayInterface(&storage_0);
     data::CupyAdapter adapter_0(interface_str_0);
-    AdapterDeviceSketch(adapter_0.Value(), n_bins, info,
+    AdapterDeviceSketch(&ctx, adapter_0.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
-    SketchContainer sketch_1(ft, n_bins, kCols, kRows * kRows, FstCU());
+    SketchContainer sketch_1(ft, n_bins, kCols, kRows * kRows, ctx.Device());
     HostDeviceVector<float> storage_1;
-    std::string interface_str_1 =
-        RandomDataGenerator{kRows, kCols, 0}.Device(FstCU()).Seed(seed).GenerateArrayInterface(
-            &storage_1);
+    std::string interface_str_1 = RandomDataGenerator{kRows, kCols, 0}
+                                      .Device(ctx.Device())
+                                      .Seed(seed)
+                                      .GenerateArrayInterface(&storage_1);
     data::CupyAdapter adapter_1(interface_str_1);
-    AdapterDeviceSketch(adapter_1.Value(), n_bins, info, std::numeric_limits<float>::quiet_NaN(),
-                        &sketch_1);
+    AdapterDeviceSketch(&ctx, adapter_1.Value(), n_bins, info,
+                        std::numeric_limits<float>::quiet_NaN(), &sketch_1);
 
     size_t size_before_merge = sketch_0.Data().size();
     sketch_0.Merge(sketch_1.ColumnsPtr(), sketch_1.Data());
     if (info.weights_.Size() != 0) {
-      TestQuantileElemRank(FstCU(), sketch_0.Data(), sketch_0.ColumnsPtr(), true);
+      TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr(), true);
       sketch_0.FixError();
-      TestQuantileElemRank(FstCU(), sketch_0.Data(), sketch_0.ColumnsPtr(), false);
+      TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr(), false);
     } else {
-      TestQuantileElemRank(FstCU(), sketch_0.Data(), sketch_0.ColumnsPtr());
+      TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
     }
 
     auto columns_ptr = sketch_0.ColumnsPtr();
@@ -237,25 +243,27 @@ TEST(GPUQuantile, MergeBasic) {
 }
 
 void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
+  auto ctx = MakeCUDACtx(0);
   MetaInfo info;
   int32_t seed = 0;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch_0(ft, n_bins, cols, rows, FstCU());
+  SketchContainer sketch_0(ft, n_bins, cols, rows, ctx.Device());
   HostDeviceVector<float> storage_0;
-  std::string interface_str_0 =
-      RandomDataGenerator{rows, cols, 0}.Device(FstCU()).Seed(seed).GenerateArrayInterface(
-          &storage_0);
+  std::string interface_str_0 = RandomDataGenerator{rows, cols, 0}
+                                    .Device(ctx.Device())
+                                    .Seed(seed)
+                                    .GenerateArrayInterface(&storage_0);
   data::CupyAdapter adapter_0(interface_str_0);
-  AdapterDeviceSketch(adapter_0.Value(), n_bins, info,
-                      std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_0);
+  AdapterDeviceSketch(&ctx, adapter_0.Value(), n_bins, info,
+                      std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
   size_t f_rows = rows * frac;
-  SketchContainer sketch_1(ft, n_bins, cols, f_rows, FstCU());
+  SketchContainer sketch_1(ft, n_bins, cols, f_rows, ctx.Device());
   HostDeviceVector<float> storage_1;
-  std::string interface_str_1 =
-      RandomDataGenerator{f_rows, cols, 0}.Device(FstCU()).Seed(seed).GenerateArrayInterface(
-          &storage_1);
+  std::string interface_str_1 = RandomDataGenerator{f_rows, cols, 0}
+                                    .Device(ctx.Device())
+                                    .Seed(seed)
+                                    .GenerateArrayInterface(&storage_1);
   auto data_1 = storage_1.DeviceSpan();
   auto tuple_it = thrust::make_tuple(
       thrust::make_counting_iterator<size_t>(0ul), data_1.data());
@@ -271,13 +279,12 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
                       }
                     });
   data::CupyAdapter adapter_1(interface_str_1);
-  AdapterDeviceSketch(adapter_1.Value(), n_bins, info,
-                      std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_1);
+  AdapterDeviceSketch(&ctx, adapter_1.Value(), n_bins, info,
+                      std::numeric_limits<float>::quiet_NaN(), &sketch_1);
 
   size_t size_before_merge = sketch_0.Data().size();
   sketch_0.Merge(sketch_1.ColumnsPtr(), sketch_1.Data());
-  TestQuantileElemRank(FstCU(), sketch_0.Data(), sketch_0.ColumnsPtr());
+  TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
 
   auto columns_ptr = sketch_0.ColumnsPtr();
   std::vector<bst_idx_t> h_columns_ptr(columns_ptr.size());
@@ -311,7 +318,8 @@ TEST(GPUQuantile, MultiMerge) {
   RunWithSeedsAndBins(kRows, [=](std::int32_t seed, bst_bin_t n_bins, MetaInfo const& info) {
     // Set up single node version
     HostDeviceVector<FeatureType> ft;
-    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, FstCU());
+    auto ctx = MakeCUDACtx(0);
+    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, ctx.Device());
 
     size_t intermediate_num_cuts = std::min(
         kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
@@ -319,25 +327,26 @@ TEST(GPUQuantile, MultiMerge) {
     for (auto rank = 0; rank < world; ++rank) {
       HostDeviceVector<float> storage;
       std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
-                                      .Device(FstCU())
+                                      .Device(ctx.Device())
                                       .Seed(rank + seed)
                                       .GenerateArrayInterface(&storage);
       data::CupyAdapter adapter(interface_str);
       HostDeviceVector<FeatureType> ft;
-      containers.emplace_back(ft, n_bins, kCols, kRows, FstCU());
-      AdapterDeviceSketch(adapter.Value(), n_bins, info,
-                          std::numeric_limits<float>::quiet_NaN(),
-                          &containers.back());
+      containers.emplace_back(ft, n_bins, kCols, kRows, ctx.Device());
+      AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
+                          std::numeric_limits<float>::quiet_NaN(), &containers.back());
     }
     for (auto &sketch : containers) {
       sketch.Prune(intermediate_num_cuts);
       sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
       sketch_on_single_node.FixError();
     }
-    TestQuantileElemRank(FstCU(), sketch_on_single_node.Data(), sketch_on_single_node.ColumnsPtr());
+    TestQuantileElemRank(ctx.Device(), sketch_on_single_node.Data(),
+                         sketch_on_single_node.ColumnsPtr());
 
     sketch_on_single_node.Unique();
-    TestQuantileElemRank(FstCU(), sketch_on_single_node.Data(), sketch_on_single_node.ColumnsPtr());
+    TestQuantileElemRank(ctx.Device(), sketch_on_single_node.Data(),
+                         sketch_on_single_node.ColumnsPtr());
   });
 }
 
@@ -392,8 +401,8 @@ void TestAllReduceBasic() {
       data::CupyAdapter adapter(interface_str);
       HostDeviceVector<FeatureType> ft({}, device);
       containers.emplace_back(ft, n_bins, kCols, kRows, device);
-      AdapterDeviceSketch(adapter.Value(), n_bins, info, std::numeric_limits<float>::quiet_NaN(),
-                          &containers.back());
+      AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
+                          std::numeric_limits<float>::quiet_NaN(), &containers.back());
     }
     for (auto& sketch : containers) {
       sketch.Prune(intermediate_num_cuts);
@@ -416,8 +425,8 @@ void TestAllReduceBasic() {
                                     .Seed(rank + seed)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins, info, std::numeric_limits<float>::quiet_NaN(),
-                        &sketch_distributed);
+    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
+                        std::numeric_limits<float>::quiet_NaN(), &sketch_distributed);
     if (world == 1) {
       auto n_samples_global = kRows * world;
       intermediate_num_cuts =
@@ -535,9 +544,8 @@ void TestSameOnAllWorkers() {
                                     .Seed(rank + seed)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins, info,
-                        std::numeric_limits<float>::quiet_NaN(),
-                        &sketch_distributed);
+    AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
+                        std::numeric_limits<float>::quiet_NaN(), &sketch_distributed);
     sketch_distributed.AllReduce(&ctx, false);
     sketch_distributed.Unique();
     TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
@@ -547,16 +555,13 @@ void TestSameOnAllWorkers() {
     auto rc = collective::Allreduce(&ctx, linalg::MakeVec(&n_data, 1), collective::Op::kMax);
     SafeColl(rc);
     ASSERT_EQ(n_data, sketch_distributed.Data().size());
-    size_t size_as_float =
-        sketch_distributed.Data().size_bytes() / sizeof(float);
+    size_t size_as_float = sketch_distributed.Data().size_bytes() / sizeof(float);
     auto local_data = Span<float const>{
-        reinterpret_cast<float const *>(sketch_distributed.Data().data()),
-        size_as_float};
+        reinterpret_cast<float const*>(sketch_distributed.Data().data()), size_as_float};
 
     dh::caching_device_vector<float> all_workers(size_as_float * world);
     thrust::fill(all_workers.begin(), all_workers.end(), 0);
-    thrust::copy(thrust::device, local_data.data(),
-                 local_data.data() + local_data.size(),
+    thrust::copy(thrust::device, local_data.data(), local_data.data() + local_data.size(),
                  all_workers.begin() + local_data.size() * rank);
     rc = collective::Allreduce(
         &ctx, linalg::MakeVec(all_workers.data().get(), all_workers.size(), ctx.Device()),

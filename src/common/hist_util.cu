@@ -106,17 +106,17 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements, bst_idx_t num_ro
   return std::min(sketch_batch_num_elements, kIntMax);
 }
 
-void SortByWeight(dh::device_vector<float>* weights, dh::device_vector<Entry>* sorted_entries) {
+void SortByWeight(Context const* ctx, dh::device_vector<float>* weights,
+                  dh::device_vector<Entry>* sorted_entries) {
   // Sort both entries and wegihts.
-  dh::XGBDeviceAllocator<char> alloc;
+  auto cuctx = ctx->CUDACtx();
   CHECK_EQ(weights->size(), sorted_entries->size());
-  thrust::sort_by_key(thrust::cuda::par(alloc), sorted_entries->begin(), sorted_entries->end(),
-                      weights->begin(), detail::EntryCompareOp());
+  thrust::sort_by_key(cuctx->TP(), sorted_entries->begin(), sorted_entries->end(), weights->begin(),
+                      detail::EntryCompareOp());
 
   // Scan weights
-  dh::XGBCachingDeviceAllocator<char> caching;
   thrust::inclusive_scan_by_key(
-      thrust::cuda::par(caching), sorted_entries->begin(), sorted_entries->end(), weights->begin(),
+      cuctx->CTP(), sorted_entries->begin(), sorted_entries->end(), weights->begin(),
       weights->begin(),
       [=] __device__(const Entry& a, const Entry& b) { return a.index == b.index; });
 }
@@ -225,7 +225,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
                          std::size_t ridx = dh::SegmentId(row_ptrs, element_idx);
                          d_temp_weight[idx] = sample_weight[ridx + base_rowid];
                        });
-    detail::SortByWeight(&entry_weight, &sorted_entries);
+    detail::SortByWeight(ctx, &entry_weight, &sorted_entries);
   } else {
     thrust::sort(cuctx->TP(), sorted_entries.begin(), sorted_entries.end(),
                  detail::EntryCompareOp());
@@ -238,7 +238,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
       sorted_entries.data().get(), [] __device__(Entry const& e) -> data::COOTuple {
         return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
       });
-  detail::GetColumnSizesScan(ctx->Device(), info.num_col_, num_cuts_per_feature,
+  detail::GetColumnSizesScan(ctx->CUDACtx(), ctx->Device(), info.num_col_, num_cuts_per_feature,
                              IterSpan{batch_it, sorted_entries.size()}, dummy_is_valid, &cuts_ptr,
                              &column_sizes_scan);
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
