@@ -232,12 +232,12 @@ Parameters for Tree Booster
 
 * ``max_cached_hist_node``, [default = 65536]
 
-  Maximum number of cached nodes for CPU histogram.
+  Maximum number of cached nodes for histogram.
 
   .. versionadded:: 2.0.0
 
-  - For most of the cases this parameter should not be set except for growing deep trees
-    on CPU.
+  - For most of the cases this parameter should not be set except for growing deep
+    trees. After 3.0, this parameter affects GPU algorithms as well.
 
 .. _cat-param:
 

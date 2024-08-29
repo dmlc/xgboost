@@ -5,10 +5,10 @@
 #include <limits>   // for numeric_limits
 #include <ostream>  // for ostream
 
-#include "gpu_hist/histogram.cuh"
-#include "param.h"  // for TrainParam
-#include "xgboost/base.h"
-#include "xgboost/task.h"  // for ObjInfo
+#include "gpu_hist/quantiser.cuh"  // for GradientQuantiser
+#include "param.h"                 // for TrainParam
+#include "xgboost/base.h"          // for bst_bin_t
+#include "xgboost/task.h"          // for ObjInfo
 
 namespace xgboost::tree {
 struct GPUTrainingParam {
