@@ -356,13 +356,17 @@ class DeviceHistogramBuilderImpl {
 };
 
 DeviceHistogramBuilder::DeviceHistogramBuilder()
-    : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {}
+    : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {
+  monitor_.Init(__func__);
+}
 
 DeviceHistogramBuilder::~DeviceHistogramBuilder() = default;
 
-void DeviceHistogramBuilder::Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
-                                   bool force_global_memory) {
+void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
+                                   FeatureGroupsAccessor const& feature_groups,
+                                   bst_bin_t n_total_bins, bool force_global_memory) {
   this->p_impl_->Reset(ctx, feature_groups, force_global_memory);
+  this->hist_.Reset(ctx, n_total_bins, max_cached_hist_nodes);
 }
 
 void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx,
@@ -373,5 +377,18 @@ void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx,
                                             common::Span<GradientPairInt64> histogram,
                                             GradientQuantiser rounding) {
   this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram, rounding);
+}
+
+void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, MetaInfo const& info,
+                                           bst_node_t nidx, std::size_t num_histograms) {
+  monitor_.Start(__func__);
+  auto d_node_hist = hist_.GetNodeHistogram(nidx);
+  using ReduceT = typename std::remove_pointer<decltype(d_node_hist.data())>::type::ValueT;
+  auto rc = collective::GlobalSum(
+      ctx, info,
+      linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist.data()),
+                      d_node_hist.size() * 2 * num_histograms, ctx->Device()));
+  SafeColl(rc);
+  monitor_.Stop(__func__);
 }
 }  // namespace xgboost::tree

@@ -56,8 +56,9 @@ class TestPartitionBasedSplit : public ::testing::Test {
 
     cuts_.min_vals_.Resize(1);
 
+    Context ctx;
     HistMakerTrainParam hist_param;
-    hist_.Reset(cuts_.TotalBins(), hist_param.max_cached_hist_node);
+    hist_.Reset(cuts_.TotalBins(), hist_param.MaxCachedHistNodes(ctx.Device()));
     hist_.AllocateHistograms({0});
     auto node_hist = hist_[0];
 

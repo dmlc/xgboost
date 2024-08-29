@@ -522,6 +522,7 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  *   - max_bin (optional): Maximum number of bins for building histogram. Must be consistent with
                            the corresponding booster training parameter.
+ *   - on_host (optional): Whether the data should be placed on host memory. Used by GPU inputs.
  * @param out      The created Quantile DMatrix.
  *
  * @return 0 when success, -1 when failure happens
