@@ -260,7 +260,7 @@ void ArgSort(xgboost::Context const *ctx, xgboost::common::Span<U> keys,
 }
 
 template <typename InIt, typename OutIt, typename Predicate>
-void CopyIf(xgboost::CUDAContext const *cuctx, InIt in_first, InIt in_second, OutIt out_first,
+void CopyIf(CUDAContext const *cuctx, InIt in_first, InIt in_second, OutIt out_first,
             Predicate pred) {
   // We loop over batches because thrust::copy_if can't deal with sizes > 2^31
   // See thrust issue #1302, XGBoost #6822

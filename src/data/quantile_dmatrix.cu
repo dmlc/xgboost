@@ -63,8 +63,7 @@ void MakeSketches(Context const* ctx,
           new_ctx.UpdateAllowUnknown(Args{{"device", dh::GetDevice(ctx).Name()}});
           p_ctx = &new_ctx;
         }
-        common::AdapterDeviceSketch(&new_ctx, value, p.max_bin, proxy->Info(), missing,
-                                    sketch.get());
+        common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing, sketch.get());
       });
     }
     auto batch_rows = data::BatchSamples(proxy);
