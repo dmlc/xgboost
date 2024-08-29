@@ -221,8 +221,8 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   thrust::sort_by_key(sorted_entries.begin(), sorted_entries.end(), weight.begin(),
                       detail::EntryCompareOp());
 
-  detail::RemoveDuplicatedCategories(ctx.Device(), info, cuts_ptr.DeviceSpan(), &sorted_entries,
-                                     &weight, &columns_ptr);
+  detail::RemoveDuplicatedCategories(&ctx, info, cuts_ptr.DeviceSpan(), &sorted_entries, &weight,
+                                     &columns_ptr);
 
   auto const& h_cptr = cuts_ptr.ConstHostVector();
   ASSERT_EQ(h_cptr.back(), n_samples * 2 + n_categories);

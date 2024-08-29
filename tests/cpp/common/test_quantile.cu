@@ -24,14 +24,15 @@ namespace common {
 class MGPUQuantileTest : public collective::BaseMGPUTest {};
 
 TEST(GPUQuantile, Basic) {
+  auto ctx = MakeCUDACtx(0);
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch(ft, kBins, kCols, kRows, FstCU());
+  SketchContainer sketch(ft, kBins, kCols, kRows, ctx.Device());
   dh::caching_device_vector<Entry> entries;
   dh::device_vector<bst_idx_t> cuts_ptr(kCols+1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
-  sketch.Push(dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
+  sketch.Push(&ctx, dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
@@ -71,7 +72,7 @@ void TestSketchUnique(float sparsity) {
     dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch.ColumnsPtr());
     ASSERT_EQ(sketch.Data().size(), h_columns_ptr.back());
 
-    sketch.Unique();
+    sketch.Unique(&ctx);
 
     std::vector<SketchEntry> h_data(sketch.Data().size());
     thrust::copy(dh::tcbegin(sketch.Data()), dh::tcend(sketch.Data()), h_data.begin());
@@ -143,7 +144,7 @@ TEST(GPUQuantile, Prune) {
     // duplicated entries we might not have that much inputs for prune.
     ASSERT_LE(sketch.Data().size(), n_cuts * kCols);
 
-    sketch.Prune(n_bins);
+    sketch.Prune(&ctx, n_bins);
     ASSERT_LE(sketch.Data().size(), kRows * kCols);
     // This is not necessarily true for all inputs without calling unique after
     // prune.
@@ -174,7 +175,7 @@ TEST(GPUQuantile, MergeEmpty) {
   dh::CopyDeviceSpanToVector(&ptrs_before, sketch_0.ColumnsPtr());
   thrust::device_vector<size_t> columns_ptr(kCols + 1);
   // Merge an empty sketch
-  sketch_0.Merge(dh::ToSpan(columns_ptr), Span<SketchEntry>{});
+  sketch_0.Merge(&ctx, dh::ToSpan(columns_ptr), Span<SketchEntry>{});
 
   std::vector<SketchEntry> entries_after(sketch_0.Data().size());
   dh::CopyDeviceSpanToVector(&entries_after, sketch_0.Data());
@@ -220,7 +221,7 @@ TEST(GPUQuantile, MergeBasic) {
                         std::numeric_limits<float>::quiet_NaN(), &sketch_1);
 
     size_t size_before_merge = sketch_0.Data().size();
-    sketch_0.Merge(sketch_1.ColumnsPtr(), sketch_1.Data());
+    sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
     if (info.weights_.Size() != 0) {
       TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr(), true);
       sketch_0.FixError();
@@ -234,7 +235,7 @@ TEST(GPUQuantile, MergeBasic) {
     dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
     ASSERT_EQ(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
 
-    sketch_0.Unique();
+    sketch_0.Unique(&ctx);
     ASSERT_TRUE(
         thrust::is_sorted(thrust::device, sketch_0.Data().data(),
                           sketch_0.Data().data() + sketch_0.Data().size(),
@@ -283,7 +284,7 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
                       std::numeric_limits<float>::quiet_NaN(), &sketch_1);
 
   size_t size_before_merge = sketch_0.Data().size();
-  sketch_0.Merge(sketch_1.ColumnsPtr(), sketch_1.Data());
+  sketch_0.Merge(&ctx, sketch_1.ColumnsPtr(), sketch_1.Data());
   TestQuantileElemRank(ctx.Device(), sketch_0.Data(), sketch_0.ColumnsPtr());
 
   auto columns_ptr = sketch_0.ColumnsPtr();
@@ -291,7 +292,7 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
   ASSERT_EQ(h_columns_ptr.back(), sketch_1.Data().size() + size_before_merge);
 
-  sketch_0.Unique();
+  sketch_0.Unique(&ctx);
   columns_ptr = sketch_0.ColumnsPtr();
   dh::CopyDeviceSpanToVector(&h_columns_ptr, columns_ptr);
 
@@ -337,14 +338,14 @@ TEST(GPUQuantile, MultiMerge) {
                           std::numeric_limits<float>::quiet_NaN(), &containers.back());
     }
     for (auto &sketch : containers) {
-      sketch.Prune(intermediate_num_cuts);
-      sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
+      sketch.Prune(&ctx, intermediate_num_cuts);
+      sketch_on_single_node.Merge(&ctx, sketch.ColumnsPtr(), sketch.Data());
       sketch_on_single_node.FixError();
     }
     TestQuantileElemRank(ctx.Device(), sketch_on_single_node.Data(),
                          sketch_on_single_node.ColumnsPtr());
 
-    sketch_on_single_node.Unique();
+    sketch_on_single_node.Unique(&ctx);
     TestQuantileElemRank(ctx.Device(), sketch_on_single_node.Data(),
                          sketch_on_single_node.ColumnsPtr());
   });
@@ -405,11 +406,11 @@ void TestAllReduceBasic() {
                           std::numeric_limits<float>::quiet_NaN(), &containers.back());
     }
     for (auto& sketch : containers) {
-      sketch.Prune(intermediate_num_cuts);
-      sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
+      sketch.Prune(&ctx, intermediate_num_cuts);
+      sketch_on_single_node.Merge(&ctx, sketch.ColumnsPtr(), sketch.Data());
       sketch_on_single_node.FixError();
     }
-    sketch_on_single_node.Unique();
+    sketch_on_single_node.Unique(&ctx);
     TestQuantileElemRank(device, sketch_on_single_node.Data(), sketch_on_single_node.ColumnsPtr(),
                          true);
 
@@ -431,10 +432,10 @@ void TestAllReduceBasic() {
       auto n_samples_global = kRows * world;
       intermediate_num_cuts =
           std::min(n_samples_global, static_cast<size_t>(n_bins * SketchContainer::kFactor));
-      sketch_distributed.Prune(intermediate_num_cuts);
+      sketch_distributed.Prune(&ctx, intermediate_num_cuts);
     }
     sketch_distributed.AllReduce(&ctx, false);
-    sketch_distributed.Unique();
+    sketch_distributed.Unique(&ctx);
 
     ASSERT_EQ(sketch_distributed.ColumnsPtr().size(), sketch_on_single_node.ColumnsPtr().size());
     ASSERT_EQ(sketch_distributed.Data().size(), sketch_on_single_node.Data().size());
@@ -547,7 +548,7 @@ void TestSameOnAllWorkers() {
     AdapterDeviceSketch(&ctx, adapter.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch_distributed);
     sketch_distributed.AllReduce(&ctx, false);
-    sketch_distributed.Unique();
+    sketch_distributed.Unique(&ctx);
     TestQuantileElemRank(device, sketch_distributed.Data(), sketch_distributed.ColumnsPtr(), true);
 
     // Test for all workers having the same sketch.
@@ -595,6 +596,7 @@ TEST_F(MGPUQuantileTest, SameOnAllWorkers) {
 TEST(GPUQuantile, Push) {
   size_t constexpr kRows = 100;
   std::vector<float> data(kRows);
+  auto ctx = MakeCUDACtx(0);
 
   std::fill(data.begin(), data.begin() + (data.size() / 2), 0.3f);
   std::fill(data.begin() + (data.size() / 2), data.end(), 0.5f);
@@ -613,8 +615,8 @@ TEST(GPUQuantile, Push) {
   columns_ptr[1] = kRows;
 
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch(ft, n_bins, kCols, kRows, FstCU());
-  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows, {});
+  SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
+  sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows, {});
 
   auto sketch_data = sketch.Data();
 
@@ -638,9 +640,9 @@ TEST(GPUQuantile, Push) {
 TEST(GPUQuantile, MultiColPush) {
   size_t constexpr kRows = 100, kCols = 4;
   std::vector<float> data(kRows * kCols);
-
   std::fill(data.begin(), data.begin() + (data.size() / 2), 0.3f);
 
+  auto ctx = MakeCUDACtx(0);
   std::vector<Entry> entries(kRows * kCols);
 
   for (bst_feature_t c = 0; c < kCols; ++c) {
@@ -653,7 +655,7 @@ TEST(GPUQuantile, MultiColPush) {
 
   int32_t n_bins = 16;
   HostDeviceVector<FeatureType> ft;
-  SketchContainer sketch(ft, n_bins, kCols, kRows, FstCU());
+  SketchContainer sketch(ft, n_bins, kCols, kRows, ctx.Device());
   dh::device_vector<Entry> d_entries {entries};
 
   dh::device_vector<size_t> columns_ptr(kCols + 1, 0);
@@ -664,8 +666,8 @@ TEST(GPUQuantile, MultiColPush) {
                          columns_ptr.begin());
   dh::device_vector<size_t> cuts_ptr(columns_ptr);
 
-  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr),
-              dh::ToSpan(cuts_ptr), kRows * kCols, {});
+  sketch.Push(&ctx, dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(cuts_ptr),
+              kRows * kCols, {});
 
   auto sketch_data = sketch.Data();
   ASSERT_EQ(sketch_data.size(), kCols * 2);

@@ -121,11 +121,12 @@ void SortByWeight(Context const* ctx, dh::device_vector<float>* weights,
       [=] __device__(const Entry& a, const Entry& b) { return a.index == b.index; });
 }
 
-void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst_idx_t> d_cuts_ptr,
+void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
+                                Span<bst_idx_t> d_cuts_ptr,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan) {
-  info.feature_types.SetDevice(device);
+  info.feature_types.SetDevice(ctx->Device());
   auto d_feature_types = info.feature_types.ConstDeviceSpan();
   CHECK(!d_feature_types.empty());
   auto& column_sizes_scan = *p_column_sizes_scan;
@@ -142,30 +143,32 @@ void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst
     auto d_sorted_weights = dh::ToSpan(*p_sorted_weights);
     auto val_in_it = thrust::make_zip_iterator(d_sorted_entries.data(), d_sorted_weights.data());
     auto val_out_it = thrust::make_zip_iterator(d_sorted_entries.data(), d_sorted_weights.data());
-    n_uniques = dh::SegmentedUnique(
-        column_sizes_scan.data().get(), column_sizes_scan.data().get() + column_sizes_scan.size(),
-        val_in_it, val_in_it + sorted_entries.size(), new_column_scan.data().get(), val_out_it,
-        [=] __device__(Pair const& l, Pair const& r) {
-          Entry const& le = thrust::get<0>(l);
-          Entry const& re = thrust::get<0>(r);
-          if (le.index == re.index && IsCat(d_feature_types, le.index)) {
-            return le.fvalue == re.fvalue;
-          }
-          return false;
-        });
+    n_uniques =
+        dh::SegmentedUnique(ctx->CUDACtx()->CTP(), column_sizes_scan.data().get(),
+                            column_sizes_scan.data().get() + column_sizes_scan.size(), val_in_it,
+                            val_in_it + sorted_entries.size(), new_column_scan.data().get(),
+                            val_out_it, [=] __device__(Pair const& l, Pair const& r) {
+                              Entry const& le = thrust::get<0>(l);
+                              Entry const& re = thrust::get<0>(r);
+                              if (le.index == re.index && IsCat(d_feature_types, le.index)) {
+                                return le.fvalue == re.fvalue;
+                              }
+                              return false;
+                            });
     p_sorted_weights->resize(n_uniques);
   } else {
-    n_uniques = dh::SegmentedUnique(
-        column_sizes_scan.data().get(), column_sizes_scan.data().get() + column_sizes_scan.size(),
-        sorted_entries.begin(), sorted_entries.end(), new_column_scan.data().get(),
-        sorted_entries.begin(), [=] __device__(Entry const& l, Entry const& r) {
-          if (l.index == r.index) {
-            if (IsCat(d_feature_types, l.index)) {
-              return l.fvalue == r.fvalue;
-            }
-          }
-          return false;
-        });
+    n_uniques = dh::SegmentedUnique(ctx->CUDACtx()->CTP(), column_sizes_scan.data().get(),
+                                    column_sizes_scan.data().get() + column_sizes_scan.size(),
+                                    sorted_entries.begin(), sorted_entries.end(),
+                                    new_column_scan.data().get(), sorted_entries.begin(),
+                                    [=] __device__(Entry const& l, Entry const& r) {
+                                      if (l.index == r.index) {
+                                        if (IsCat(d_feature_types, l.index)) {
+                                          return l.fvalue == r.fvalue;
+                                        }
+                                      }
+                                      return false;
+                                    });
   }
   sorted_entries.resize(n_uniques);
 
@@ -189,7 +192,7 @@ void RemoveDuplicatedCategories(DeviceOrd device, MetaInfo const& info, Span<bst
                 }
               });
   // Turn size into ptr.
-  thrust::exclusive_scan(thrust::device, new_cuts_size.cbegin(), new_cuts_size.cend(),
+  thrust::exclusive_scan(ctx->CUDACtx()->CTP(), new_cuts_size.cbegin(), new_cuts_size.cend(),
                          d_cuts_ptr.data());
 }
 }  // namespace detail
@@ -244,7 +247,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   if (sketch_container->HasCategorical()) {
     auto p_weight = entry_weight.empty() ? nullptr : &entry_weight;
-    detail::RemoveDuplicatedCategories(ctx->Device(), info, d_cuts_ptr, &sorted_entries, p_weight,
+    detail::RemoveDuplicatedCategories(ctx, info, d_cuts_ptr, &sorted_entries, p_weight,
                                        &column_sizes_scan);
   }
 
@@ -252,7 +255,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
 
   // Add cuts into sketches
-  sketch_container->Push(dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
+  sketch_container->Push(ctx, dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
                          h_cuts_ptr.back(), dh::ToSpan(entry_weight));
 
   sorted_entries.clear();

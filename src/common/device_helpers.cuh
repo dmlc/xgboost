@@ -637,12 +637,11 @@ struct SegmentedUniqueReduceOp {
  * \return Number of unique values in total.
  */
 template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
-          typename ValOutIt, typename CompValue, typename CompKey>
-size_t
-SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
-                KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
-                ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
-                CompValue comp, CompKey comp_key=thrust::equal_to<size_t>{}) {
+          typename ValOutIt, typename CompValue, typename CompKey = thrust::equal_to<size_t>>
+size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                       KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
+                       ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
+                       CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
   using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
@@ -674,16 +673,6 @@ SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec
   thrust::exclusive_scan(exec, key_segments_out,
                          key_segments_out + segments_len, key_segments_out, 0);
   return n_uniques;
-}
-
-template <typename... Inputs,
-          std::enable_if_t<std::tuple_size<std::tuple<Inputs...>>::value == 7>
-              * = nullptr>
-size_t SegmentedUnique(Inputs &&...inputs) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  return SegmentedUnique(thrust::cuda::par(alloc),
-                         std::forward<Inputs &&>(inputs)...,
-                         thrust::equal_to<size_t>{});
 }
 
 /**
