@@ -74,6 +74,8 @@ constexpr double ExtMemPrefetchThresh() { return 4.0; }
   auto const& tree = *p_tree;
   std::size_t nidx_in_set{0};
   double total{0.0}, smaller{0.0};
+  auto p_build_nidx = nodes_to_build.data();
+  auto p_sub_nidx = nodes_to_sub.data();
   for (auto& e : candidates) {
     // Decide whether to build the left histogram or right histogram Use sum of Hessian as
     // a heuristic to select node with fewest training instances This optimization is for
@@ -84,12 +86,12 @@ constexpr double ExtMemPrefetchThresh() { return 4.0; }
     bool fewer_right = right_sum.GetHess() < left_sum.GetHess();
     total += left_sum.GetHess() + right_sum.GetHess();
     if (fewer_right) {
-      nodes_to_build[nidx_in_set] = tree[e.nid].RightChild();
-      nodes_to_sub[nidx_in_set] = tree[e.nid].LeftChild();
+      p_build_nidx[nidx_in_set] = tree[e.nid].RightChild();
+      p_sub_nidx[nidx_in_set] = tree[e.nid].LeftChild();
       smaller += right_sum.GetHess();
     } else {
-      nodes_to_build[nidx_in_set] = tree[e.nid].LeftChild();
-      nodes_to_sub[nidx_in_set] = tree[e.nid].RightChild();
+      p_build_nidx[nidx_in_set] = tree[e.nid].LeftChild();
+      p_sub_nidx[nidx_in_set] = tree[e.nid].RightChild();
       smaller += left_sum.GetHess();
     }
     ++nidx_in_set;
@@ -125,14 +127,14 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> right_nidx(candidates.size());
     std::vector<NodeSplitData> split_data(candidates.size());
 
-    for (size_t i = 0; i < candidates.size(); i++) {
+    for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
       RegTree::Node split_node = (*p_tree)[e.nid];
       auto split_type = p_tree->NodeSplitType(e.nid);
       nidx.at(i) = e.nid;
-      left_nidx.at(i) = split_node.LeftChild();
-      right_nidx.at(i) = split_node.RightChild();
-      split_data.at(i) =
+      left_nidx[i] = split_node.LeftChild();
+      right_nidx[i] = split_node.RightChild();
+      split_data[i] =
           NodeSplitData{split_node, split_type, this->evaluator_.GetDeviceNodeCats(e.nid)};
 
       CHECK_EQ(split_type == FeatureType::kCategorical, e.split.is_cat);
