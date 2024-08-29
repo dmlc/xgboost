@@ -28,6 +28,7 @@ TEST(Histogram, DeviceHistogramStorage) {
     histogram.AllocateHistograms(&ctx, {i});
   }
   ASSERT_EQ(histogram.Data().size(), kStopGrowing);
+  histogram.Reset(&ctx, kNBins, kNNodes);
 
   // Use allocated memory but do not erase nidx_map.
   for (int i = 0; i < kNNodes; ++i) {
