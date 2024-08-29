@@ -43,8 +43,8 @@ public class QuantileDMatrix extends DMatrix {
    *
    * @param iter       the XGBoost ColumnBatch batch to provide the corresponding cuda array
    *                   interface
-   * @param refDMatrix The training dataset that provides quantile information, needed when
-   *                   creating validation/test dataset with QuantileDMatrix. Supplying the
+   * @param refDMatrix The reference QuantileDMatrix that provides quantile information, needed
+   *                   when creating validation/test dataset with QuantileDMatrix. Supplying the
    *                   training DMatrix as a reference means that the same quantisation
    *                   applied to the training data is applied to the validation/test data
    * @param missing    the missing value

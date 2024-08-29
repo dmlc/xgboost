@@ -1,8 +1,8 @@
-####################################################
-Migration Guide: How to migrate to XGBoost Spark 3.x
-####################################################
+########################################################
+Migration Guide: How to migrate to XGBoost-Spark jvm 3.x
+########################################################
 
-XGBoost Spark underwent significant modifications in version 3.0,
+XGBoost-Spark jvm packages underwent significant modifications in version 3.0,
 which may cause compatibility issues with existing user code.
 
 This guide will walk you through the process of updating your code to ensure
@@ -12,7 +12,7 @@ it's compatible with XGBoost Spark 3.0 and later versions.
 XGBoost Spark Packages
 **********************
 
-XGBoost Spark 3.0 introduced a single uber package named xgboost-spark_2.12-3.0.0.jar, which bundles 
+XGBoost-Spark 3.0 introduced a single uber package named xgboost-spark_2.12-3.0.0.jar, which bundles
 both xgboost4j and xgboost4j-spark. This means you can now simply use `xgboost-spark`` for your application.
 
 * For CPU

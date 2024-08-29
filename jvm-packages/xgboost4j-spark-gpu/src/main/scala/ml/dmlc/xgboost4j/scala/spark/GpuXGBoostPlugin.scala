@@ -96,7 +96,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     estimator.repartitionIfNeeded(input)
   }
 
-  // visiable for testing
+  // visible for testing
   private[spark] def validate[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
       dataset: Dataset[_]): Unit = {
@@ -225,7 +225,9 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
               // Create DMatrix
               val featureTable = new GpuColumnBatch(table).select(featureIds)
               if (featureTable == null) {
-                throw new RuntimeException("Something wrong for feature indices")
+                val msg = featureIds.mkString(",")
+                throw new RuntimeException(s"Couldn't create feature table for the " +
+                  s"feature indices $msg")
               }
               try {
                 val cudfColumnBatch = new CudfColumnBatch(featureTable, null, null, null, null)
