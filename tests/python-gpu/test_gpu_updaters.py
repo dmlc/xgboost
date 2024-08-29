@@ -79,7 +79,13 @@ class TestGPUUpdaters:
             params: Dict[str, Any] = {"tree_method": tree_method, "device": "cuda"}
             params["max_cached_hist_node"] = cache_size
             evals_result: Dict[str, Dict[str, list]] = {}
-            xgb.train(params, Xy, num_boost_round=4, evals=[(Xy, "Train")], evals_result=evals_result)
+            xgb.train(
+                params,
+                Xy,
+                num_boost_round=4,
+                evals=[(Xy, "Train")],
+                evals_result=evals_result,
+            )
             results.append(evals_result["Train"]["rmse"])
         for i in range(1, len(results)):
             np.testing.assert_allclose(results[0], results[i])
