@@ -65,9 +65,6 @@ class DeviceHistogramStorage {
   static_assert(kNumItemsInGradientSum == 2, "Number of items in gradient type should be 2.");
 
  public:
-  /**
-   * @param kStopGrowingSize  Do not grow beyond this size, calculated as the number of int64.
-   */
   explicit DeviceHistogramStorage() { data_.reserve(cuda_impl::DftReserveSize()); }
 
   void Reset(Context const* ctx, bst_bin_t n_total_bins, std::size_t max_cached_nodes) {
@@ -98,7 +95,7 @@ class DeviceHistogramStorage {
     // Number of items currently used in data
     const size_t used_size = nidx_map_.size() * HistogramSize();
     const size_t new_used_size = used_size + HistogramSize() * new_nidxs.size();
-    CHECK_GE(this->stop_growing_size_, 1);
+    CHECK_GE(this->stop_growing_size_, kNumItemsInGradientSum);
     if (used_size >= this->stop_growing_size_) {
       // Use overflow
       // Delete previous entries
@@ -210,11 +207,13 @@ class DeviceHistogramBuilder {
 
   void AllocateHistograms(Context const* ctx, std::vector<bst_node_t> const& nodes_to_build,
                           std::vector<bst_node_t> const& nodes_to_sub) {
+    this->monitor_.Start(__func__);
     std::vector<bst_node_t> all_new = nodes_to_build;
     all_new.insert(all_new.end(), nodes_to_sub.cbegin(), nodes_to_sub.cend());
     // Allocate the histograms
     // Guaranteed contiguous memory
     this->AllocateHistograms(ctx, all_new);
+    this->monitor_.Stop(__func__);
   }
 
   void AllocateHistograms(Context const* ctx, std::vector<int> const& new_nidxs) {

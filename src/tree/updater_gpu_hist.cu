@@ -64,6 +64,7 @@ struct NodeSplitData {
 };
 static_assert(std::is_trivially_copyable_v<NodeSplitData>);
 
+// To be tuned.
 constexpr double ExtMemPrefetchThresh() { return 4.0; }
 
 // Some nodes we will manually compute histograms, others we will do by subtraction
