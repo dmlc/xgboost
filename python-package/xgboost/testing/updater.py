@@ -222,10 +222,12 @@ def check_extmem_qdm(
     Xy = xgb.QuantileDMatrix(X, y, weight=w)
     booster = xgb.train({"device": device}, Xy, num_boost_round=8)
 
-    cut_it = Xy_it.get_quantile_cut()
-    cut = Xy.get_quantile_cut()
-    np.testing.assert_allclose(cut_it[0], cut[0])
-    np.testing.assert_allclose(cut_it[1], cut[1])
+    if device == "cpu":
+        # Get cuts from ellpack without CPU-GPU interpolation is not yet supported.
+        cut_it = Xy_it.get_quantile_cut()
+        cut = Xy.get_quantile_cut()
+        np.testing.assert_allclose(cut_it[0], cut[0])
+        np.testing.assert_allclose(cut_it[1], cut[1])
 
     predt_it = booster_it.predict(Xy_it)
     predt = booster.predict(Xy)

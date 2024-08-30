@@ -158,28 +158,10 @@ GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair
 ExternalMemoryNoSampling::ExternalMemoryNoSampling(BatchParam batch_param)
     : batch_param_{std::move(batch_param)} {}
 
-GradientBasedSample ExternalMemoryNoSampling::Sample(Context const* ctx,
+GradientBasedSample ExternalMemoryNoSampling::Sample(Context const*,
                                                      common::Span<GradientPair> gpair,
                                                      DMatrix* p_fmat) {
-  std::shared_ptr<EllpackPage> new_page;
-  if (!page_concatenated_) {
-    // Concatenate all the external memory ELLPACK pages into a single in-memory page.
-    bst_idx_t offset = 0;
-    for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx, batch_param_)) {
-      auto page = batch.Impl();
-      if (!new_page) {
-        new_page = std::make_shared<EllpackPage>();
-        *new_page->Impl() = EllpackPageImpl(ctx, page->CutsShared(), page->is_dense,
-                                            page->row_stride, p_fmat->Info().num_row_);
-      }
-      bst_idx_t num_elements = new_page->Impl()->Copy(ctx, page, offset);
-      offset += num_elements;
-    }
-    page_concatenated_ = true;
-    this->p_fmat_new_ =
-        std::make_unique<data::IterativeDMatrix>(new_page, p_fmat->Info(), batch_param_);
-  }
-  return {this->p_fmat_new_.get(), gpair};
+  return {p_fmat, gpair};
 }
 
 UniformSampling::UniformSampling(BatchParam batch_param, float subsample)

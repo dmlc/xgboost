@@ -46,8 +46,6 @@ class ExternalMemoryNoSampling : public SamplingStrategy {
 
  private:
   BatchParam batch_param_;
-  std::unique_ptr<DMatrix> p_fmat_new_{nullptr};
-  bool page_concatenated_{false};
 };
 
 /*! \brief Uniform sampling in in-memory mode. */
