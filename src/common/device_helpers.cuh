@@ -637,12 +637,11 @@ struct SegmentedUniqueReduceOp {
  * \return Number of unique values in total.
  */
 template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
-          typename ValOutIt, typename CompValue, typename CompKey>
-size_t
-SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
-                KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
-                ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
-                CompValue comp, CompKey comp_key=thrust::equal_to<size_t>{}) {
+          typename ValOutIt, typename CompValue, typename CompKey = thrust::equal_to<size_t>>
+size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                       KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
+                       ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
+                       CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
   using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
@@ -674,16 +673,6 @@ SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec
   thrust::exclusive_scan(exec, key_segments_out,
                          key_segments_out + segments_len, key_segments_out, 0);
   return n_uniques;
-}
-
-template <typename... Inputs,
-          std::enable_if_t<std::tuple_size<std::tuple<Inputs...>>::value == 7>
-              * = nullptr>
-size_t SegmentedUnique(Inputs &&...inputs) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  return SegmentedUnique(thrust::cuda::par(alloc),
-                         std::forward<Inputs &&>(inputs)...,
-                         thrust::equal_to<size_t>{});
 }
 
 /**
@@ -791,21 +780,6 @@ void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
                                            d_out, scan_op, cub::NullType(),
                                            num_items, nullptr, false)));
 #endif
-}
-
-template <typename InIt, typename OutIt, typename Predicate>
-void CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
-  // We loop over batches because thrust::copy_if can't deal with sizes > 2^31
-  // See thrust issue #1302, XGBoost #6822
-  size_t constexpr kMaxCopySize = std::numeric_limits<int>::max() / 2;
-  size_t length = std::distance(in_first, in_second);
-  XGBCachingDeviceAllocator<char> alloc;
-  for (size_t offset = 0; offset < length; offset += kMaxCopySize) {
-    auto begin_input = in_first + offset;
-    auto end_input = in_first + std::min(offset + kMaxCopySize, length);
-    out_first = thrust::copy_if(thrust::cuda::par(alloc), begin_input,
-                                end_input, out_first, pred);
-  }
 }
 
 template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>

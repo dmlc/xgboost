@@ -30,14 +30,13 @@ void MakeSketches(Context const* ctx,
                   ExternalDataInfo* p_ext_info) {
   xgboost_NVTX_FN_RANGE();
 
-  CUDAContext const* cuctx = ctx->CUDACtx();
   std::unique_ptr<common::SketchContainer> sketch;
   auto& ext_info = *p_ext_info;
 
   do {
     // We use do while here as the first batch is fetched in ctor
     CHECK_LT(ctx->Ordinal(), common::AllVisibleGPUs());
-    dh::safe_cuda(cudaSetDevice(dh::GetDevice(ctx).ordinal));
+    common::SetDevice(dh::GetDevice(ctx).ordinal);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
       auto rc = collective::Allreduce(ctx, linalg::MakeVec(&ext_info.n_features, 1),
@@ -55,7 +54,16 @@ void MakeSketches(Context const* ctx,
       }
       proxy->Info().weights_.SetDevice(dh::GetDevice(ctx));
       cuda_impl::Dispatch(proxy, [&](auto const& value) {
-        common::AdapterDeviceSketch(value, p.max_bin, proxy->Info(), missing, sketch.get());
+        // Workaround empty input with CPU ctx.
+        Context new_ctx;
+        Context const* p_ctx;
+        if (ctx->IsCUDA()) {
+          p_ctx = ctx;
+        } else {
+          new_ctx.UpdateAllowUnknown(Args{{"device", dh::GetDevice(ctx).Name()}});
+          p_ctx = &new_ctx;
+        }
+        common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing, sketch.get());
       });
     }
     auto batch_rows = data::BatchSamples(proxy);
@@ -66,7 +74,7 @@ void MakeSketches(Context const* ctx,
         std::max(ext_info.row_stride, cuda_impl::Dispatch(proxy, [=](auto const& value) {
                    return GetRowCounts(value, row_counts_span, dh::GetDevice(ctx), missing);
                  }));
-    ext_info.nnz += thrust::reduce(cuctx->CTP(), row_counts.begin(), row_counts.end());
+    ext_info.nnz += thrust::reduce(ctx->CUDACtx()->CTP(), row_counts.begin(), row_counts.end());
     ext_info.n_batches++;
     ext_info.base_rows.push_back(batch_rows);
   } while (iter->Next());
@@ -77,7 +85,7 @@ void MakeSketches(Context const* ctx,
                    ext_info.base_rows.begin());
 
   // Get reference
-  dh::safe_cuda(cudaSetDevice(dh::GetDevice(ctx).ordinal));
+  common::SetDevice(dh::GetDevice(ctx).ordinal);
   if (!ref) {
     sketch->MakeCuts(ctx, cuts.get(), info.IsColumnSplit());
   } else {
