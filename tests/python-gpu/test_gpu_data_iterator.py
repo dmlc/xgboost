@@ -4,7 +4,7 @@ import pytest
 from hypothesis import given, settings, strategies
 
 from xgboost.testing import no_cupy
-from xgboost.testing.updater import check_quantile_loss_extmem
+from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
 
 sys.path.append("tests/python")
 from test_data_iterator import run_data_iterator
@@ -59,6 +59,14 @@ def test_cpu_data_iterator() -> None:
     )
 
 
-def test_quantile_objective() -> None:
-    with pytest.raises(ValueError, match="external memory"):
-        check_quantile_loss_extmem(2, 2, 2, "hist", "cuda")
+@given(
+    strategies.integers(1, 2048),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+    strategies.booleans(),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_extmem_qdm(
+    n_samples_per_batch: int, n_features: int, n_batches: int, on_host: bool
+) -> None:
+    check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cuda", on_host)
