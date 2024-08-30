@@ -360,6 +360,11 @@ struct GPUHistMakerDevice {
     this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), build_nidx.at(0), build_nidx.size());
     // Perform subtraction for sibiling nodes
     auto need_build = this->histogram_.SubtractHist(candidates, build_nidx, subtraction_nidx);
+    if (need_build.empty()) {
+      this->monitor.Stop(__func__);
+      return;
+    }
+
     // Build the nodes that can not obtain the histogram using subtraction. This is the slow path.
     std::int32_t k = 0;
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
