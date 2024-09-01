@@ -9,7 +9,8 @@ When it comes to serializing XGBoost models, it's possible to use R serializers 
 its own serializers with better compatibility guarantees, which allow loading
 said models in other language bindings of XGBoost.
 
-Note that an \code{xgb.Booster} object, outside of its core components, might also keep:
+Note that an \code{xgb.Booster} object (\strong{as produced by \code{\link[=xgb.train]{xgb.train()}}}, see rest of the doc
+for objects produced by \code{\link[=xgboost]{xgboost()}}), outside of its core components, might also keep:
 \itemize{
 \item Additional model configuration (accessible through \code{\link[=xgb.config]{xgb.config()}}), which includes
 model fitting parameters like \code{max_depth} and runtime parameters like \code{nthread}.
@@ -33,6 +34,16 @@ only used for informational purposes, such as keeping track of evaluation metric
 the model was fit, or saving the R call that produced the model, but are otherwise
 not used for prediction / importance / plotting / etc.
 These R attributes are only preserved when using R's serializers.
+
+In addition to the regular \code{xgb.Booster} objects producted by \code{\link[=xgb.train]{xgb.train()}}, the
+function \code{\link[=xgboost]{xgboost()}} produces a different subclass \code{xgboost}, which keeps other
+additional metadata as R attributes such as class names in classification problems,
+and which has a dedicated \code{predict} method that uses different defaults. XGBoost's
+own serializers can work with this \code{xgboost} class, but as they do not keep R
+attributes, the resulting object, when deserialized, is downcasted to the regular
+\code{xgb.Booster} class (i.e. it loses the metadata, and the resulting object will use
+\code{predict.xgb.Booster} instead of \code{predict.xgboost}) - for these \code{xgboost} objects,
+\code{saveRDS} might thus be a better option if the extra functionalities are needed.
 
 Note that XGBoost models in R starting from version \verb{2.1.0} and onwards, and
 XGBoost models before version \verb{2.1.0}; have a very different R object structure and
@@ -58,9 +69,9 @@ The \code{\link[=xgb.save.raw]{xgb.save.raw()}} function is useful if you would 
 as part of another R object.
 
 Use \code{\link[=saveRDS]{saveRDS()}} if you require the R-specific attributes that a booster might have, such
-as evaluation logs, but note that future compatibility of such objects is outside XGBoost's
-control as it relies on R's serialization format (see e.g. the details section in
-\link{serialize} and \code{\link[=save]{save()}} from base R).
+as evaluation logs or the model class \code{xgboost} instead of \code{xgb.Booster}, but note that
+future compatibility of such objects is outside XGBoost's control as it relies on R's
+serialization format (see e.g. the details section in \link{serialize} and \code{\link[=save]{save()}} from base R).
 
 For more details and explanation about model persistence and archival, consult the page
 \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
