@@ -2,7 +2,7 @@
 #'
 #' Visualizes SHAP values against feature values to gain an impression of feature effects.
 #'
-#' @param data The data to explain as a `matrix` or `dgCMatrix`.
+#' @param data The data to explain as a `matrix`, `dgCMatrix`, or `data.frame`.
 #' @param shap_contrib Matrix of SHAP contributions of `data`.
 #'   The default (`NULL`) computes it from `model` and `data`.
 #' @param features Vector of column indices or feature names to plot. When `NULL`
@@ -285,8 +285,8 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
 xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1, model = NULL,
                           trees = NULL, target_class = NULL, approxcontrib = FALSE,
                           subsample = NULL, max_observations = 100000) {
-  if (!inherits(data, c("xgb.DMatrix", "matrix", "dsparseMatrix", "data.frame")))
-    stop("data: must be matrix, sparse matrix, data.frame, or xgb.DMatrix.")
+  if (!inherits(data, c("matrix", "dsparseMatrix", "data.frame")))
+    stop("data: must be matrix, sparse matrix, or data.frame.")
   if (inherits(data, "data.frame") && length(class(data)) > 1L) {
     data <- as.data.frame(data)
   }

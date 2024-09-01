@@ -102,20 +102,28 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
 #' @export
 xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, top_n = 10, model = NULL,
                                     trees = NULL, target_class = NULL, approxcontrib = FALSE, subsample = NULL) {
-  has_categ <- FALSE
-  if (inherits(data, "data.frame")) {
-    has_categ <- any(sapply(data, function(x) is.factor(x) || is.character(x)))
-  } else if (inherits(data, "xgb.DMatrix")) {
-    ftypes <- getinfo(data, "feature_type")
+  if (inherits(data, "xgb.DMatrix")) {
+    stop(
+      "'xgb.ggplot.shap.summary' is not compatible with 'xgb.DMatrix' objects. Try passing a matrix or data.frame."
+    )
+  }
+  cols_categ <- c()
+  if (!is.null(model)) {
+    ftypes <- getinfo(model, "feature_type")
     if (NROW(ftypes)) {
-      if ("c" %in% ftypes) {
-        has_categ <- TRUE
+      if (length(ftypes) != ncol(data)) {
+        stop(sprintf("'data' has incorrect number of columns (expected: %d, got: %d).", length(ftypes), ncol(data)))
       }
+      cols_categ <- colnames(data)[ftypes == "c"]
     }
   }
-  if (has_categ) {
-    stop("Function 'xgb.ggplot.shap.summary' is not available for data with categorical features.")
+  else if (inherits(data, "data.frame")) {
+    cols_categ <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
   }
+  if (NROW(cols_categ)) {
+    warning("Categorical features are ignored in 'xgb.ggplot.shap.summary'.")
+  }
+
   data_list <- xgb.shap.data(
     data = data,
     shap_contrib = shap_contrib,
@@ -128,6 +136,10 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
     subsample = subsample,
     max_observations = 10000  # 10,000 samples per feature.
   )
+  if (NROW(cols_categ)) {
+    data_list <- lapply(data_list, function(x) x[, !(colnames(x) %in% cols_categ), drop = FALSE])
+  }
+
   p_data <- prepare.ggplot.shap.data(data_list, normalize = TRUE)
   # Reverse factor levels so that the first level is at the top of the plot
   p_data[, "feature" := factor(feature, rev(levels(feature)))]
