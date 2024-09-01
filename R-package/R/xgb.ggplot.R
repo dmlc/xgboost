@@ -107,7 +107,7 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
       "'xgb.ggplot.shap.summary' is not compatible with 'xgb.DMatrix' objects. Try passing a matrix or data.frame."
     )
   }
-  cols_categ <- c()
+  cols_categ <- NULL
   if (!is.null(model)) {
     ftypes <- getinfo(model, "feature_type")
     if (NROW(ftypes)) {
@@ -116,8 +116,7 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
       }
       cols_categ <- colnames(data)[ftypes == "c"]
     }
-  }
-  else if (inherits(data, "data.frame")) {
+  } else if (inherits(data, "data.frame")) {
     cols_categ <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
   }
   if (NROW(cols_categ)) {
