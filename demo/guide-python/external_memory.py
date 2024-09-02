@@ -22,9 +22,9 @@ import tempfile
 from typing import Callable, List, Tuple
 
 import numpy as np
-from sklearn.datasets import make_regression
 
 import xgboost
+from xgboost.testing.data import make_dense_regression
 
 
 def make_batches(
@@ -34,13 +34,18 @@ def make_batches(
     tmpdir: str,
 ) -> List[Tuple[str, str]]:
     files: List[Tuple[str, str]] = []
-    rng = np.random.RandomState(1994)
     for i in range(n_batches):
-        X, y = make_regression(n_samples_per_batch, n_features, random_state=rng)
         X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
         y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
-        np.save(X_path, X)
-        np.save(y_path, y)
+
+        if os.path.exists(X_path) and os.path.exists(y_path):
+            files.append((X_path, y_path))
+            continue
+
+        print("make_regression")
+        X, y = make_dense_regression(n_samples_per_batch, n_features)
+        np.save(X_path, X.astype(np.float32))
+        np.save(y_path, y.astype(np.float32))
         files.append((X_path, y_path))
     return files
 
@@ -107,7 +112,7 @@ def hist_train(it: Iterator) -> None:
         {"tree_method": "hist", "max_depth": 4, "device": it.device},
         Xy,
         evals=[(Xy, "Train")],
-        num_boost_round=10,
+        num_boost_round=284,
     )
     booster.predict(Xy)
 

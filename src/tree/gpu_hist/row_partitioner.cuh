@@ -223,6 +223,39 @@ __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
   }
 }
 
+struct ManagedMemory {
+  void* temp_storage{nullptr};
+  size_t temp_storage_bytes{0};
+
+  ~ManagedMemory() { Free(); }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(size_t size) {
+    size_t num_bytes = size * sizeof(T);
+    if (num_bytes > temp_storage_bytes) {
+      Free();
+      temp_storage = std::malloc(num_bytes);
+      temp_storage_bytes = num_bytes;
+    }
+    return xgboost::common::Span<T>(static_cast<T*>(temp_storage), size);
+  }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(size_t size, T init) {
+    auto result = this->GetSpan<T>(size);
+    for (auto& e : result) {
+      e = init;
+    }
+    return result;
+  }
+
+  void Free() {
+    if (temp_storage != nullptr) {
+      std::free(temp_storage);
+    }
+  }
+};
+
 /** \brief Class responsible for tracking subsets of rows as we add splits and
  * partition training rows into different leaf nodes. */
 class RowPartitioner {
@@ -253,7 +286,7 @@ class RowPartitioner {
   dh::DeviceUVector<RowIndexT> ridx_tmp_;
   dh::DeviceUVector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
-  dh::PinnedMemory pinned2_;
+  ManagedMemory pinned2_;
   bst_node_t n_nodes_{0};  // Counter for internal checks.
 
  public:
@@ -319,7 +352,6 @@ class RowPartitioner {
     this->n_nodes_ += (left_nidx.size() + right_nidx.size());
 
     auto h_batch_info = pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
-    dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
 
     std::size_t total_rows = 0;
     for (size_t i = 0; i < nidx.size(); i++) {
@@ -335,6 +367,7 @@ class RowPartitioner {
     // Must initialize with 0 as 0 count is not written in the kernel.
     dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
+    ctx->CUDACtx()->Stream().Sync();
     // Partition the rows according to the operator
     SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info), dh::ToSpan(ridx_),
                                                   dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),

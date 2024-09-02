@@ -26,6 +26,7 @@
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #include <cstddef>                 // for size_t
+#include <thread>
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
 #include <cub/util_device.cuh>     // for CurrentDevice
 #include <map>                     // for map
@@ -46,6 +47,12 @@ class MemoryLogger {
     size_t num_deallocations{0};
     std::map<void *, size_t> device_allocations;
     void RegisterAllocation(void *ptr, size_t n) {
+      auto itr = device_allocations.find(ptr);
+      if (itr != device_allocations.cend()) {
+        LOG(FATAL) << "Attempting to allocate " << n << " bytes."
+                   << " that was already allocated\nptr:" << ptr << "\n"
+                   << dmlc::StackTrace();
+      }
       device_allocations[ptr] = n;
       currently_allocated_bytes += n;
       peak_allocated_bytes = std::max(peak_allocated_bytes, currently_allocated_bytes);
@@ -55,9 +62,9 @@ class MemoryLogger {
     void RegisterDeallocation(void *ptr, size_t n, int current_device) {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
-        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
-                     << " that was never allocated\n"
-                     << dmlc::StackTrace();
+        LOG(FATAL) << "Attempting to deallocate " << n << " bytes on device " << current_device
+                   << " that was never allocated\nptr:" << ptr << "\n"
+                   << dmlc::StackTrace();
       } else {
         num_deallocations++;
         CHECK_LE(num_deallocations, num_allocations);
@@ -74,14 +81,14 @@ class MemoryLogger {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::lock_guard guard{mutex_};
     stats_.RegisterAllocation(ptr, n);
   }
   void RegisterDeallocation(void *ptr, size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::lock_guard guard{mutex_};
     stats_.RegisterDeallocation(ptr, n, cub::CurrentDevice());
   }
   size_t PeakMemory() const { return stats_.peak_allocated_bytes; }
@@ -239,6 +246,7 @@ using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocato
  */
 class LoggingResource : public rmm::mr::device_memory_resource {
   rmm::mr::device_memory_resource *mr_{rmm::mr::get_current_device_resource()};
+  std::mutex lock_;
 
  public:
   LoggingResource() = default;
@@ -256,6 +264,7 @@ class LoggingResource : public rmm::mr::device_memory_resource {
   }
 
   void *do_allocate(std::size_t bytes, rmm::cuda_stream_view stream) override {  // NOLINT
+    std::lock_guard guard{lock_};
     try {
       auto const ptr = mr_->allocate(bytes, stream);
       GlobalMemoryLogger().RegisterAllocation(ptr, bytes);
@@ -268,6 +277,7 @@ class LoggingResource : public rmm::mr::device_memory_resource {
 
   void do_deallocate(void *ptr, std::size_t bytes,  // NOLINT
                      rmm::cuda_stream_view stream) override {
+    std::lock_guard guard{lock_};
     mr_->deallocate(ptr, bytes, stream);
     GlobalMemoryLogger().RegisterDeallocation(ptr, bytes);
   }

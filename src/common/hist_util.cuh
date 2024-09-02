@@ -189,10 +189,9 @@ inline size_t constexpr BytesPerElement(bool has_weight) {
 /* \brief Calcuate the length of sliding window. Returns `sketch_batch_num_elements`
  *        directly if it's not 0.
  */
-size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_idx_t num_rows, bst_feature_t columns,
-                              size_t nnz, int device,
-                              size_t num_cuts, bool has_weight);
+bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, bst_idx_t num_rows,
+                                 bst_feature_t columns, size_t nnz, int device, size_t num_cuts,
+                                 bool has_weight, std::size_t container_bytes);
 
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
@@ -249,6 +248,8 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan);
+
+constexpr bst_idx_t UnknownSketchNumElements() { return 0; }
 }  // namespace detail
 
 /**
@@ -264,7 +265,7 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
  */
 HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
                                       Span<float const> hessian,
-                                      std::size_t sketch_batch_num_elements = 0);
+                                      std::size_t sketch_batch_num_elements = detail::UnknownSketchNumElements());
 
 /**
  * @brief Compute sketch on DMatrix with GPU.
@@ -276,14 +277,15 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
  *
  * @return Quantile cuts
  */
-inline HistogramCuts DeviceSketch(Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
-                                  std::size_t sketch_batch_num_elements = 0) {
+inline HistogramCuts DeviceSketch(
+    Context const* ctx, DMatrix* p_fmat, bst_bin_t max_bin,
+    std::size_t sketch_batch_num_elements = detail::UnknownSketchNumElements()) {
   return DeviceSketchWithHessian(ctx, p_fmat, max_bin, {}, sketch_batch_num_elements);
 }
 
 template <typename AdapterBatch>
 void ProcessSlidingWindow(Context const* ctx, AdapterBatch const& batch, MetaInfo const& info,
-                          size_t columns, size_t begin, size_t end, float missing,
+                          size_t n_features, size_t begin, size_t end, float missing,
                           SketchContainer* sketch_container, int num_cuts) {
   // Copy current subset of valid elements into temporary storage and sort
   dh::device_vector<Entry> sorted_entries;
@@ -294,8 +296,9 @@ void ProcessSlidingWindow(Context const* ctx, AdapterBatch const& batch, MetaInf
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   cuts_ptr.SetDevice(ctx->Device());
   CUDAContext const* cuctx = ctx->CUDACtx();
-  detail::MakeEntriesFromAdapter(cuctx, batch, batch_iter, {begin, end}, missing, columns, num_cuts,
-                                 ctx->Device(), &cuts_ptr, &column_sizes_scan, &sorted_entries);
+  detail::MakeEntriesFromAdapter(cuctx, batch, batch_iter, {begin, end}, missing, n_features,
+                                 num_cuts, ctx->Device(), &cuts_ptr, &column_sizes_scan,
+                                 &sorted_entries);
   thrust::sort(cuctx->TP(), sorted_entries.begin(), sorted_entries.end(), detail::EntryCompareOp());
 
   if (sketch_container->HasCategorical()) {
@@ -305,10 +308,12 @@ void ProcessSlidingWindow(Context const* ctx, AdapterBatch const& batch, MetaInf
   }
 
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
-  auto const &h_cuts_ptr = cuts_ptr.HostVector();
+  auto const& h_cuts_ptr = cuts_ptr.HostVector();
   // Extract the cuts from all columns concurrently
-  sketch_container->Push(ctx, dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
+  auto d_sorted_entries = dh::ToSpan(sorted_entries);
+  sketch_container->Push(ctx, d_sorted_entries, dh::ToSpan(column_sizes_scan), d_cuts_ptr,
                          h_cuts_ptr.back());
+
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
 }
@@ -388,48 +393,51 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
   sorted_entries.shrink_to_fit();
 }
 
-/*
- * \brief Perform sketching on GPU.
+/**
+ * @brief Perform sketching on GPU.
  *
- * \param batch            A batch from adapter.
- * \param num_bins         Bins per column.
- * \param info             Metainfo used for sketching.
- * \param missing          Floating point value that represents invalid value.
- * \param sketch_container Container for output sketch.
- * \param sketch_batch_num_elements Number of element per-sliding window, use it only for
+ * @param batch            A batch from adapter.
+ * @param num_bins         Bins per column.
+ * @param info             Metainfo used for sketching.
+ * @param missing          Floating point value that represents invalid value.
+ * @param sketch_container Container for output sketch.
+ * @param sketch_batch_num_elements Number of element per-sliding window, use it only for
  *                                  testing.
  */
 template <typename Batch>
 void AdapterDeviceSketch(Context const* ctx, Batch batch, int num_bins, MetaInfo const& info,
                          float missing, SketchContainer* sketch_container,
-                         size_t sketch_batch_num_elements = 0) {
-  size_t num_rows = batch.NumRows();
+                         bst_idx_t sketch_batch_num_elements = detail::UnknownSketchNumElements()) {
+  bst_idx_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
-  size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+
   auto device = sketch_container->DeviceIdx();
   bool weighted = !info.weights_.Empty();
 
-  if (weighted) {
+  bst_idx_t const kRemaining = batch.Size();
+  bst_idx_t begin = 0;
+
+  while (begin < kRemaining) {
+    auto num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
     sketch_batch_num_elements = detail::SketchBatchNumElements(
         sketch_batch_num_elements, num_rows, num_cols, std::numeric_limits<size_t>::max(),
-        device.ordinal, num_cuts_per_feature, true);
-    for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
-      size_t end =
-          std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));
+        device.ordinal, num_cuts_per_feature, weighted, sketch_container->MemCostBytes());
+    // The estimation of `sketch_batch_num_elements` assumes dense input, so the
+    // approximation here is reasonably accurate.
+    auto approx_n_samples = std::max(sketch_batch_num_elements / num_cols, bst_idx_t{1});
+    num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, approx_n_samples);
+    bst_idx_t end =
+        std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));
+
+    if (weighted) {
       ProcessWeightedSlidingWindow(ctx, batch, info, num_cuts_per_feature,
                                    HostSketchContainer::UseGroup(info), missing, device, num_cols,
                                    begin, end, sketch_container);
-    }
-  } else {
-    sketch_batch_num_elements = detail::SketchBatchNumElements(
-        sketch_batch_num_elements, num_rows, num_cols, std::numeric_limits<size_t>::max(),
-        device.ordinal, num_cuts_per_feature, false);
-    for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
-      size_t end =
-          std::min(batch.Size(), static_cast<std::size_t>(begin + sketch_batch_num_elements));
+    } else {
       ProcessSlidingWindow(ctx, batch, info, num_cols, begin, end, missing, sketch_container,
                            num_cuts_per_feature);
     }
+    begin += sketch_batch_num_elements;
   }
 }
 }  // namespace xgboost::common

@@ -125,6 +125,25 @@ class SketchContainer {
   }
   /* \brief Return GPU ID for this container. */
   [[nodiscard]] DeviceOrd DeviceIdx() const { return device_; }
+  /**
+   * @brief Calculate the memory cost of the container.
+   */
+  [[nodiscard]] std::size_t MemCapacityBytes() const {
+    auto constexpr kE = sizeof(typename decltype(this->entries_a_)::value_type);
+    auto n_bytes = (this->entries_a_.capacity() + this->entries_b_.capacity()) * kE;
+    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_b_.Size()) * sizeof(OffsetT);
+    n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
+
+    return n_bytes;
+  }
+  [[nodiscard]] std::size_t MemCostBytes() const {
+    auto constexpr kE = sizeof(typename decltype(this->entries_a_)::value_type);
+    auto n_bytes = (this->entries_a_.size() + this->entries_b_.size()) * kE;
+    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_b_.Size()) * sizeof(OffsetT);
+    n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
+
+    return n_bytes;
+  }
   /* \brief Whether the predictor matrix contains categorical features. */
   bool HasCategorical() const { return has_categorical_; }
   /* \brief Accumulate weights of duplicated entries in input. */
@@ -166,6 +185,7 @@ class SketchContainer {
     this->Current().shrink_to_fit();
     this->Other().clear();
     this->Other().shrink_to_fit();
+    LOG(DEBUG) << "Quantile memory cost:" << this->MemCapacityBytes();
   }
 
   /* \brief Merge quantiles from other GPU workers. */
