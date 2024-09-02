@@ -115,7 +115,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
 
     val out1 = classifier.setLeafPredictionCol("leaf1")
       .setContribPredictionCol("contrib1")
-      .train(trainDf).transform(trainDf)
+      .fit(trainDf).transform(trainDf)
 
     assert(out1.schema.names.contains("leaf1"))
     assert(out1.schema.names.contains("contrib1"))
@@ -135,7 +135,7 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
     )
   }
 
-  test("Binaryclassification infer objective and num_class") {
+  test("BinaryClassification infer objective and num_class") {
     val trainDf = smallBinaryClassificationVector
     var classifier = new XGBoostClassifier()
     assert(classifier.getObjective === "reg:squarederror")

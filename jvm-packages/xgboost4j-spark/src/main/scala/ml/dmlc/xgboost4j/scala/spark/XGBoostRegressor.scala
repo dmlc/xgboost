@@ -26,6 +26,7 @@ import org.apache.spark.sql.Dataset
 import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor._uid
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.REGRESSION_OBJS
+import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
 
 class XGBoostRegressor(override val uid: String,
                        private val xgboostParams: Map[String, Any])
@@ -60,6 +61,12 @@ class XGBoostRegressor(override val uid: String,
       summary: XGBoostTrainingSummary): XGBoostRegressionModel = {
     new XGBoostRegressionModel(uid, booster, Option(summary))
   }
+
+  override protected def validateAndTransformSchema(
+      schema: StructType,
+      fitting: Boolean,
+      featuresDataType: DataType): StructType =
+    SparkUtils.appendColumn(schema, $(predictionCol), DoubleType)
 }
 
 object XGBoostRegressor extends DefaultParamsReadable[XGBoostRegressor] {

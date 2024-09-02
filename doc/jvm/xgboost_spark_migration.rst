@@ -6,7 +6,7 @@ XGBoost-Spark jvm packages underwent significant modifications in version 3.0,
 which may cause compatibility issues with existing user code.
 
 This guide will walk you through the process of updating your code to ensure
-it's compatible with XGBoost Spark 3.0 and later versions.
+it's compatible with XGBoost-Spark 3.0 and later versions.
 
 **********************
 XGBoost Spark Packages

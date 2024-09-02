@@ -18,7 +18,6 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.util.Arrays
-
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
@@ -58,7 +57,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(estimator.getMaxDepth === 7)
     assert(estimator.getEta === 0.66)
 
-    val model = estimator.train(df)
+    val model = estimator.fit(df)
     assert(model.getMaxDepth === 7)
     assert(model.getEta === 0.66)
     assert(model.getObjective === "binary:logistic")
@@ -497,4 +496,17 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     assert(featureTypes sameElements featureTypesInModel)
   }
 
+  test("Exception with clear message") {
+    val df = smallMultiClassificationVector
+    val classifier = new XGBoostClassifier()
+      .setNumRound(2)
+      .setObjective("multi:softprob")
+      .setNumClass(2)
+
+    val exception = intercept[SparkException] {
+      classifier.fit(df)
+    }
+
+    exception.getMessage.contains("SoftmaxMultiClassObj: label must be in [0, num_class).")
+  }
 }

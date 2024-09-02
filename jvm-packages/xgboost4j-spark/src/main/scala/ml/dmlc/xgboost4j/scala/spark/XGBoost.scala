@@ -24,7 +24,7 @@ import org.apache.spark.{SparkConf, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.resource.{ResourceProfileBuilder, TaskResourceRequests}
 
-import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker, XGBoostError}
+import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 
 private[spark] case class RuntimeParams(
@@ -185,54 +185,37 @@ private[spark] object XGBoost extends StageLevelScheduling {
   }
 
 
+  /**
+   * Train a XGBoost Boost on the dataset in the Watches
+   *
+   * @param watches       holds the dataset to be trained
+   * @param runtimeParams XGBoost runtime parameters
+   * @param xgboostParams XGBoost library paramters
+   * @return a booster and the metrics
+   */
   private def trainBooster(watches: Watches,
                            runtimeParams: RuntimeParams,
-                           xgboostParams: Map[String, Any],
-                           rabitEnv: java.util.Map[String, Object]
-                          ): Booster = {
-    val partitionId = TaskContext.getPartitionId()
-    val attempt = TaskContext.get().attemptNumber.toString
-    rabitEnv.put("DMLC_TASK_ID", partitionId.toString)
+                           xgboostParams: Map[String, Any]
+                          ): (Booster, Array[Array[Float]]) = {
 
-    var previousException: Option[Throwable] = None
-    try {
-      Communicator.init(rabitEnv)
-      val numEarlyStoppingRounds = runtimeParams.earlyStoppingRounds
-      val metrics = Array.tabulate(watches.size)(_ =>
-        Array.ofDim[Float](runtimeParams.numRounds))
+    val numEarlyStoppingRounds = runtimeParams.earlyStoppingRounds
+    val metrics = Array.tabulate(watches.size)(_ =>
+      Array.ofDim[Float](runtimeParams.numRounds))
 
-      var params = xgboostParams
-
-      if (runtimeParams.runOnGpu) {
-        val gpuId = if (runtimeParams.isLocal) {
-          // For local mode, force gpu id to primary device
-          0
-        } else {
-          getGPUAddrFromResources
-        }
-        logger.info("Leveraging gpu device " + gpuId + " to train")
-        params = params + ("device" -> s"cuda:$gpuId")
+    var params = xgboostParams
+    if (runtimeParams.runOnGpu) {
+      val gpuId = if (runtimeParams.isLocal) {
+        TaskContext.get().partitionId() % runtimeParams.numWorkers
+      } else {
+        getGPUAddrFromResources
       }
-      SXGBoost.train(watches.toMap("train"), params, runtimeParams.numRounds, watches.toMap,
-        metrics, runtimeParams.obj.getOrElse(null), runtimeParams.eval.getOrElse(null),
-        earlyStoppingRound = numEarlyStoppingRounds)
-    } catch {
-      case e: Throwable =>
-        logger.error(s"XGBooster worker $partitionId has failed $attempt " +
-          s"times due to ", e)
-        previousException = Some(e)
-        throw e
-    } finally {
-      // If shutdown throws exception, then the real exception for training will be swallowed,
-      // So we need to throw the real exception instead of shutdown error.
-      try {
-        Communicator.shutdown()
-      } catch {
-        case e: Throwable =>
-          logger.error("Communicator.shutdown error: ", e)
-          throw previousException.getOrElse(e)
-      }
+      logger.info("Leveraging gpu device " + gpuId + " to train")
+      params = params + ("device" -> s"cuda:$gpuId")
     }
+    val booster = SXGBoost.train(watches.toMap("train"), params, runtimeParams.numRounds,
+      watches.toMap, metrics, runtimeParams.obj.getOrElse(null),
+      runtimeParams.eval.getOrElse(null), earlyStoppingRound = numEarlyStoppingRounds)
+    (booster, metrics)
   }
 
   /**
@@ -261,21 +244,32 @@ private[spark] object XGBoost extends StageLevelScheduling {
       val rabitEnv = tracker.getWorkerArgs()
 
       val boostersAndMetrics = input.barrier().mapPartitions { iter =>
-        require(iter.hasNext, "Couldn't get DMatrix")
-        val watches = iter.next()
-
-        val metrics = Array.tabulate(watches.size)(_ =>
-          Array.ofDim[Float](runtimeParams.numRounds))
+        val partitionId = TaskContext.getPartitionId()
+        rabitEnv.put("DMLC_TASK_ID", partitionId.toString)
         try {
-          val booster = trainBooster(watches, runtimeParams, xgboostParams, rabitEnv)
-          if (TaskContext.getPartitionId() == 0) {
-            Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
-          } else {
-            Iterator.empty
+          Communicator.init(rabitEnv)
+          require(iter.hasNext, "Failed to create DMatrix")
+          val watches = iter.next()
+          try {
+            val (booster, metrics) = trainBooster(watches, runtimeParams, xgboostParams)
+            if (partitionId == 0) {
+              Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+            } else {
+              Iterator.empty
+            }
+          } finally {
+            if (watches != null) {
+              watches.delete()
+            }
           }
         } finally {
-          if (watches != null) {
-            watches.delete()
+          // If shutdown throws exception, then the real exception for
+          // training will be swallowed,
+          try {
+            Communicator.shutdown()
+          } catch {
+            case e: Throwable =>
+              logger.error("Communicator.shutdown error: ", e)
           }
         }
       }

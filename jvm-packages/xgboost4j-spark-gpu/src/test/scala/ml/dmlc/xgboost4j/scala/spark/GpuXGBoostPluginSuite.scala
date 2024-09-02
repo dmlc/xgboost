@@ -68,7 +68,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       assert(estimator.getMaxDepth === 7)
       assert(estimator.getEta === 0.66)
 
-      val model = estimator.train(df)
+      val model = estimator.fit(df)
       assert(model.getMaxDepth === 7)
       assert(model.getEta === 0.66)
       assert(model.getObjective === "binary:logistic")
@@ -322,7 +322,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
 
       assert(estimator.getPlugin.isDefined && estimator.getPlugin.get.isEnabled(df))
 
-      val out = estimator.train(df).transform(df)
+      val out = estimator.fit(df).transform(df)
       // Transform should not discard the other columns of the transforming dataframe
       Seq("c1", "c2", "weight", "margin", "label", "other").foreach { v =>
         assert(out.schema.names.contains(v))
@@ -335,7 +335,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       assert(out.schema.names.length === 9)
 
       val out1 = estimator.setLeafPredictionCol("leaf").setContribPredictionCol("contrib")
-        .train(df)
+        .fit(df)
         .transform(df)
       Seq("leaf", "contrib").foreach { v =>
         assert(out1.schema.names.contains(v))
@@ -408,7 +408,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
             xgb4jModel.predict(qdm), xgb4jModel.predict(qdm, outPutMargin = true))
         }
 
-        val rows = classifier.train(df).transform(testdf).collect()
+        val rows = classifier.fit(df).transform(testdf).collect()
 
         // Check Leaf
         val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))
@@ -485,7 +485,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
           xgb4jModel.predict(qdm))
       }
 
-      val rows = regressor.train(df).transform(testdf).collect()
+      val rows = regressor.fit(df).transform(testdf).collect()
 
       // Check Leaf
       val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))

@@ -388,7 +388,7 @@ private[spark] trait XGBoostEstimator[
     }
   }
 
-  def train(dataset: Dataset[_]): M = {
+  protected def train(dataset: Dataset[_]): M = {
     validate(dataset)
 
     val rdd = if (isPluginEnabled(dataset)) {
