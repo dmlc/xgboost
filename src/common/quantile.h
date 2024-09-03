@@ -15,6 +15,9 @@
 #include <cstring>
 #include <iostream>
 #include <set>
+#if __cplusplus < 202002L
+#include <tuple>              // WQSummary::Entry::operator==
+#endif
 #include <vector>
 
 #include "categorical.h"
@@ -71,6 +74,14 @@ struct WQSummary {
          << "value: " << e.value;
       return os;
     }
+
+    #if __cplusplus < 202002L
+    // Default comparison operators aren't present until C++20
+    inline bool operator==(const Entry &rhs) const {
+      return std::tie(rmin, rmax, wmin, value) ==
+             std::tie(rhs.rmin, rhs.rmax, rhs.wmin, rhs.value);
+    }
+    #endif
   };
   /*! \brief input data queue before entering the summary */
   struct Queue {
