@@ -25,6 +25,12 @@ steps:
     agents:
       queue: linux-amd64-cpu
   - wait
+  - label: ":console: Build CUDA + RMM Nightly"
+    command: "tests/buildkite/build-cuda-with-rmm.sh dev"
+    key: build-cuda-rmm-nightly
+    agents:
+      queue: linux-amd64-cpu
+  - wait
   - label: ":console: Test Python package, single GPU"
     command: "tests/buildkite/test-python-gpu.sh gpu"
     key: test-python-gpu
