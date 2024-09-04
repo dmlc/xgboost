@@ -14,6 +14,9 @@ class XGBoostLibraryNotFound(Exception):
 def find_lib_path() -> List[str]:
     """Find the path to xgboost dynamic library files.
 
+    Supports use of XGBOOST_LIBRARY_PATH environment variable as a
+    a custom directory for dynamic library file location.
+
     Returns
     -------
     lib_path
@@ -29,6 +32,9 @@ def find_lib_path() -> List[str]:
         # option.
         os.path.join(sys.base_prefix, "lib"),
     ]
+
+    if "XGBOOST_LIBRARY_PATH" in os.environ:
+        dll_path.extend([os.path.join(os.environ.get("XGBOOST_LIBRARY_PATH"), "lib")])
 
     if sys.platform == "win32":
         # On Windows, Conda may install libs in different paths
