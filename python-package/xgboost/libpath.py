@@ -33,8 +33,9 @@ def find_lib_path() -> List[str]:
         os.path.join(sys.base_prefix, "lib"),
     ]
 
-    if "XGBOOST_LIBRARY_PATH" in os.environ:
-        dll_path.extend([os.path.join(os.environ.get("XGBOOST_LIBRARY_PATH"), "lib")])
+    custom_xgboost_path = os.environ.get("XGBOOST_LIBRARY_PATH")
+    if custom_xgboost_path is not None:
+        dll_path.extend([os.path.join(custom_xgboost_path, "lib")])
 
     if sys.platform == "win32":
         # On Windows, Conda may install libs in different paths
