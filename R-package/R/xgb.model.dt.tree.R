@@ -89,7 +89,7 @@ xgb.model.dt.tree <- function(model = NULL, text = NULL,
     from_text <- FALSE
   }
 
-  if (length(text) < 2 || !any(grepl('leaf=(\\d+)', text))) {
+  if (length(text) < 2 || !any(grepl('leaf=(-?\\d+)', text))) {
     stop("Non-tree model detected! This function can only be used with tree models.")
   }
 
