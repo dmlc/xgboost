@@ -334,7 +334,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
         val rdd = classifier.toRdd(df, indices)
         val result = rdd.mapPartitions { iter =>
           if (iter.hasNext) {
-            val watches = iter.next()
+            val watches = iter.next()()
             val size = watches.size
             val trainDM = watches.toMap(TRAIN_NAME)
             val rowNum = trainDM.rowNum
@@ -410,7 +410,7 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     val rdd = classifier.toRdd(df, indices)
     val result = rdd.mapPartitions { iter =>
       if (iter.hasNext) {
-        val watches = iter.next()
+        val watches = iter.next()()
         val size = watches.size
         val evalDM = watches.toMap(Utils.VALIDATION_NAME)
         val rowNum = evalDM.rowNum

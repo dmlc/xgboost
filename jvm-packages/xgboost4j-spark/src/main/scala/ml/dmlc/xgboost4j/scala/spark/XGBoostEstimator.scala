@@ -236,7 +236,8 @@ private[spark] trait XGBoostEstimator[
    * @param columnsOrder the order of columns including weight/group/base margin ...
    * @return RDD
    */
-  private[spark] def toRdd(dataset: Dataset[_], columnIndices: ColumnIndices): RDD[Watches] = {
+  private[spark] def toRdd(dataset: Dataset[_],
+                           columnIndices: ColumnIndices): RDD[() => Watches] = {
     val trainRDD = toXGBLabeledPoint(dataset, columnIndices)
 
     val featureNames = if (getFeatureNames.isEmpty) None else Some(getFeatureNames)
@@ -308,17 +309,20 @@ private[spark] trait XGBoostEstimator[
       val (evalDf, _) = preprocess(eval)
       val evalRDD = toXGBLabeledPoint(evalDf, columnIndices)
       trainRDD.zipPartitions(evalRDD) { (left, right) =>
+        Iterator.single(() => {
         val trainDMatrix = buildDMatrix(left)
         val evalDMatrix = buildDMatrix(right)
-        val watches = new Watches(Array(trainDMatrix, evalDMatrix),
+        new Watches(Array(trainDMatrix, evalDMatrix),
           Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None)
-        Iterator.single(watches)
+        })
       }
     }.getOrElse(
       trainRDD.mapPartitions { iter =>
-        val dm = buildDMatrix(iter)
-        val watches = new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
-        Iterator.single(watches)
+
+        Iterator.single(() => {
+          val dm = buildDMatrix(iter)
+          new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
+        })
       }
     )
   }

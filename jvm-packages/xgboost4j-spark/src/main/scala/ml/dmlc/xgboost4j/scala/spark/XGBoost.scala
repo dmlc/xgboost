@@ -226,7 +226,7 @@ private[spark] object XGBoost extends StageLevelScheduling {
    * @param xgboostParams the xgboost parameters to pass to xgboost library
    * @return the booster and the metrics
    */
-  def train(input: RDD[Watches],
+  def train(input: RDD[() => Watches],
             runtimeParams: RuntimeParams,
             xgboostParams: Map[String, Any]): (Booster, Map[String, Array[Float]]) = {
 
@@ -249,7 +249,7 @@ private[spark] object XGBoost extends StageLevelScheduling {
         try {
           Communicator.init(rabitEnv)
           require(iter.hasNext, "Failed to create DMatrix")
-          val watches = iter.next()
+          val watches = iter.next()()
           try {
             val (booster, metrics) = trainBooster(watches, runtimeParams, xgboostParams)
             if (partitionId == 0) {
