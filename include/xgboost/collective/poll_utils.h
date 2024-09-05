@@ -35,7 +35,7 @@
 
 #if !defined(_WIN32)
 
-#include <sys/poll.h>
+#include <poll.h>
 
 using SOCKET = int;
 using sock_size_t = size_t;  // NOLINT

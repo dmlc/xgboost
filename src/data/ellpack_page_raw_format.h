@@ -26,13 +26,17 @@ class EllpackHostCacheStream;
 class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   std::shared_ptr<common::HistogramCuts const> cuts_;
   DeviceOrd device_;
+  BatchParam param_;
   // Supports CUDA HMM or ATS
   bool has_hmm_ats_{false};
 
  public:
   explicit EllpackPageRawFormat(std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device,
-                                bool has_hmm_ats)
-      : cuts_{std::move(cuts)}, device_{device}, has_hmm_ats_{has_hmm_ats} {}
+                                BatchParam param, bool has_hmm_ats)
+      : cuts_{std::move(cuts)},
+        device_{device},
+        param_{std::move(param)},
+        has_hmm_ats_{has_hmm_ats} {}
   [[nodiscard]] bool Read(EllpackPage* page, common::AlignedResourceReadStream* fi) override;
   [[nodiscard]] std::size_t Write(const EllpackPage& page,
                                   common::AlignedFileWriteStream* fo) override;

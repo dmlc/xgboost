@@ -12,7 +12,7 @@ xgb.ExternalDMatrix(
 )
 }
 \arguments{
-\item{data_iterator}{A data iterator structure as returned by \link{xgb.DataIter},
+\item{data_iterator}{A data iterator structure as returned by \code{\link[=xgb.DataIter]{xgb.DataIter()}},
 which includes an environment shared between function calls, and functions to access
 the data in batches on-demand.}
 
@@ -20,14 +20,14 @@ the data in batches on-demand.}
 
 \item{missing}{A float value to represents missing values in data.
 
-Note that, while functions like \link{xgb.DMatrix} can take a generic \code{NA} and interpret it
+Note that, while functions like \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} can take a generic \code{NA} and interpret it
 correctly for different types like \code{numeric} and \code{integer}, if an \code{NA} value is passed here,
 it will not be adapted for different input types.
 
 For example, in R \code{integer} types, missing values are represented by integer number \code{-2147483648}
 (since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes \code{NA},
-which is interpreted as a floating-point NaN by 'xgb.ExternalDMatrix' and by
-'xgb.QuantileDMatrix.from_iterator', these integer missing values will not be treated as missing.
+which is interpreted as a floating-point NaN by \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}} and by
+\code{\link[=xgb.QuantileDMatrix.from_iterator]{xgb.QuantileDMatrix.from_iterator()}}, these integer missing values will not be treated as missing.
 This should not pose any problem for \code{numeric} types, since they do have an inheret NaN value.}
 
 \item{nthread}{Number of threads used for creating DMatrix.}
@@ -37,23 +37,22 @@ An 'xgb.DMatrix' object, with subclass 'xgb.ExternalDMatrix', in which the data 
 held internally but accessed through the iterator when needed.
 }
 \description{
-Create a special type of xgboost 'DMatrix' object from external data
-supplied by an \link{xgb.DataIter} object, potentially passed in batches from a
+Create a special type of XGBoost 'DMatrix' object from external data
+supplied by an \code{\link[=xgb.DataIter]{xgb.DataIter()}} object, potentially passed in batches from a
 bigger set that might not fit entirely in memory.
 
 The data supplied by the iterator is accessed on-demand as needed, multiple times,
-without being concatenated, but note that fields like 'label' \bold{will} be
+without being concatenated, but note that fields like 'label' \strong{will} be
 concatenated from multiple calls to the data iterator.
 
 For more information, see the guide 'Using XGBoost External Memory Version':
 \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
 }
 \examples{
-library(xgboost)
 data(mtcars)
 
-# this custom environment will be passed to the iterator
-# functions at each call. It's up to the user to keep
+# This custom environment will be passed to the iterator
+# functions at each call. It is up to the user to keep
 # track of the iteration number in this environment.
 iterator_env <- as.environment(
   list(
@@ -118,5 +117,5 @@ pred_dm <- predict(model, dm)
 pred_mat <- predict(model, as.matrix(mtcars[, -1]))
 }
 \seealso{
-\link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.QuantileDMatrix.from_iterator}
+\code{\link[=xgb.DataIter]{xgb.DataIter()}}, \code{\link[=xgb.DataBatch]{xgb.DataBatch()}}, \code{\link[=xgb.QuantileDMatrix.from_iterator]{xgb.QuantileDMatrix.from_iterator()}}
 }

@@ -116,7 +116,7 @@ model ended, in which case this will be larger than 1.
 It should match with argument \code{nrounds} passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
 
 Note that boosting might be interrupted before reaching this last iteration, for
-example by using the early stopping callback \link{xgb.cb.early.stop}.
+example by using the early stopping callback \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}}.
 \item iteration Index of the iteration number that is being executed (first iteration
 will be the same as parameter \code{begin_iteration}, then next one will add +1, and so on).
 \item iter_feval Evaluation metrics for \code{evals} that were supplied, either

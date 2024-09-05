@@ -30,7 +30,7 @@ xgb.plot.shap.summary(
 )
 }
 \arguments{
-\item{data}{The data to explain as a \code{matrix} or \code{dgCMatrix}.}
+\item{data}{The data to explain as a \code{matrix}, \code{dgCMatrix}, or \code{data.frame}.}
 
 \item{shap_contrib}{Matrix of SHAP contributions of \code{data}.
 The default (\code{NULL}) computes it from \code{model} and \code{data}.}
