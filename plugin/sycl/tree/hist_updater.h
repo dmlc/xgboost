@@ -11,9 +11,10 @@
 #include <xgboost/tree_updater.h>
 #pragma GCC diagnostic pop
 
-#include <utility>
 #include <vector>
 #include <memory>
+#include <queue>
+#include <utility>
 
 #include "../common/partition_builder.h"
 #include "split_evaluator.h"
@@ -53,12 +54,10 @@ class HistUpdater {
   explicit HistUpdater(const Context* ctx,
                        ::sycl::queue qu,
                        const xgboost::tree::TrainParam& param,
-                       std::unique_ptr<TreeUpdater> pruner,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
     : ctx_(ctx), qu_(qu), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
-      pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
       p_last_tree_(nullptr), p_last_fmat_(fmat) {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
@@ -66,10 +65,22 @@ class HistUpdater {
     if (param.max_depth > 0) {
       snode_device_.Resize(&qu, 1u << (param.max_depth + 1));
     }
+    has_fp64_support_ = qu_.get_device().has(::sycl::aspect::fp64);
     const auto sub_group_sizes =
       qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
     sub_group_size_ = sub_group_sizes.back();
   }
+
+  // update one tree, growing
+  void Update(xgboost::tree::TrainParam const *param,
+              const common::GHistIndexMatrix &gmat,
+              const USMVector<GradientPair, MemoryType::on_device>& gpair,
+              DMatrix *p_fmat,
+              xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
+              RegTree *p_tree);
+
+  bool UpdatePredictionCache(const DMatrix* data,
+                              linalg::MatrixView<float> p_out_preds);
 
   void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
   void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
@@ -126,8 +137,37 @@ class HistUpdater {
   void InitNewNode(int nid,
                    const common::GHistIndexMatrix& gmat,
                    const USMVector<GradientPair, MemoryType::on_device> &gpair,
-                   const DMatrix& fmat,
                    const RegTree& tree);
+
+  // Split nodes to 2 sets depending on amount of rows in each node
+  // Histograms for small nodes will be built explicitly
+  // Histograms for big nodes will be built by 'Subtraction Trick'
+  void SplitSiblings(const std::vector<ExpandEntry>& nodes,
+                  std::vector<ExpandEntry>* small_siblings,
+                  std::vector<ExpandEntry>* big_siblings,
+                  RegTree *p_tree);
+
+  void BuildNodeStats(const common::GHistIndexMatrix &gmat,
+                      RegTree *p_tree,
+                      const USMVector<GradientPair, MemoryType::on_device> &gpair);
+
+  void EvaluateAndApplySplits(const common::GHistIndexMatrix &gmat,
+                              RegTree *p_tree,
+                              int *num_leaves,
+                              int depth,
+                              std::vector<ExpandEntry> *temp_qexpand_depth);
+
+  void AddSplitsToTree(
+            const common::GHistIndexMatrix &gmat,
+            RegTree *p_tree,
+            int *num_leaves,
+            int depth,
+            std::vector<ExpandEntry>* nodes_for_apply_split,
+            std::vector<ExpandEntry>* temp_qexpand_depth);
+
+  void ExpandWithDepthWise(const common::GHistIndexMatrix &gmat,
+                            RegTree *p_tree,
+                            const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
   void BuildLocalHistograms(const common::GHistIndexMatrix &gmat,
                             RegTree *p_tree,
@@ -139,8 +179,21 @@ class HistUpdater {
                       RegTree *p_tree,
                       const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
+  void ExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
+                           RegTree* p_tree,
+                           const USMVector<GradientPair, MemoryType::on_device>& gpair);
+
+  inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
+    if (lhs.GetLossChange() == rhs.GetLossChange()) {
+      return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
+    } else {
+      return lhs.GetLossChange() < rhs.GetLossChange();  // favor large loss_chg
+    }
+  }
+
   //  --data fields--
   const Context* ctx_;
+  bool has_fp64_support_;
   size_t sub_group_size_;
 
   // the internal row sets
@@ -156,12 +209,18 @@ class HistUpdater {
   std::vector<SplitEntry<GradientSumT>> best_splits_host_;
 
   TreeEvaluator<GradientSumT> tree_evaluator_;
-  std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost interaction_constraints_;
 
   // back pointers to tree and data matrix
   const RegTree* p_last_tree_;
   DMatrix const* const p_last_fmat_;
+
+  using ExpandQueue =
+      std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
+                          std::function<bool(ExpandEntry, ExpandEntry)>>;
+
+  std::unique_ptr<ExpandQueue> qexpand_loss_guided_;
+  std::vector<ExpandEntry> qexpand_depth_wise_;
 
   enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
   DataLayout data_layout_;
@@ -195,6 +254,9 @@ class HistUpdater {
 
   std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
   std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;
+
+  USMVector<bst_float, MemoryType::on_device> out_preds_buf_;
+  bst_float* out_pred_ptr = nullptr;
 
   ::sycl::queue qu_;
 };

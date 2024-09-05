@@ -330,13 +330,13 @@ XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle) {
   return Rf_ScalarLogical(R_ExternalPtrAddr(handle) == nullptr);
 }
 
-XGB_DLL SEXP XGSetArrayDimInplace_R(SEXP arr, SEXP dims) {
-  Rf_setAttrib(arr, R_DimSymbol, dims);
+XGB_DLL SEXP XGSetArrayDimNamesInplace_R(SEXP arr, SEXP dim_names) {
+  Rf_setAttrib(arr, R_DimNamesSymbol, dim_names);
   return R_NilValue;
 }
 
-XGB_DLL SEXP XGSetArrayDimNamesInplace_R(SEXP arr, SEXP dim_names) {
-  Rf_setAttrib(arr, R_DimNamesSymbol, dim_names);
+XGB_DLL SEXP XGSetVectorNamesInplace_R(SEXP arr, SEXP names) {
+  Rf_setAttrib(arr, R_NamesSymbol, names);
   return R_NilValue;
 }
 
@@ -1301,12 +1301,9 @@ enum class PredictionInputType {DMatrix, DenseMatrix, CSRMatrix, DataFrame};
 SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
                                     PredictionInputType input_type, SEXP missing,
                                     SEXP base_margin) {
-  SEXP r_out_shape;
-  SEXP r_out_result;
-  SEXP r_out = Rf_protect(Rf_allocVector(VECSXP, 2));
-  SEXP json_config_ = Rf_protect(Rf_asChar(json_config));
-
+  SEXP r_out_result = R_NilValue;
   R_API_BEGIN();
+  SEXP json_config_ = Rf_protect(Rf_asChar(json_config));
   char const *c_json_config = CHAR(json_config_);
 
   bst_ulong out_dim;
@@ -1386,23 +1383,24 @@ SEXP XGBoosterPredictGeneric(SEXP handle, SEXP input_data, SEXP json_config,
   }
   CHECK_CALL(res_code);
 
-  r_out_shape = Rf_protect(Rf_allocVector(INTSXP, out_dim));
+  SEXP r_out_shape = Rf_protect(Rf_allocVector(INTSXP, out_dim));
   size_t len = 1;
   int *r_out_shape_ = INTEGER(r_out_shape);
   for (size_t i = 0; i < out_dim; ++i) {
-    r_out_shape_[i] = out_shape[i];
+    r_out_shape_[out_dim - i - 1] = out_shape[i];
     len *= out_shape[i];
   }
   r_out_result = Rf_protect(Rf_allocVector(REALSXP, len));
   std::copy(out_result, out_result + len, REAL(r_out_result));
 
-  SET_VECTOR_ELT(r_out, 0, r_out_shape);
-  SET_VECTOR_ELT(r_out, 1, r_out_result);
+  if (out_dim > 1) {
+    Rf_setAttrib(r_out_result, R_DimSymbol, r_out_shape);
+  }
 
   R_API_END();
-  Rf_unprotect(4);
+  Rf_unprotect(3);
 
-  return r_out;
+  return r_out_result;
 }
 
 }  // namespace

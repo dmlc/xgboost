@@ -5,6 +5,7 @@ from functools import partial, update_wrapper
 from typing import Any, Dict, List
 
 import numpy as np
+import pytest
 
 import xgboost as xgb
 import xgboost.testing as tm
@@ -163,6 +164,76 @@ def check_quantile_loss(tree_method: str, weighted: bool) -> None:
         np.testing.assert_allclose(predts[:, i], predt_multi[:, i])
 
 
+def check_quantile_loss_extmem(
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    tree_method: str,
+    device: str,
+) -> None:
+    """Check external memory with the quantile objective."""
+    it = tm.IteratorForTest(
+        *tm.make_batches(n_samples_per_batch, n_features, n_batches, device != "cpu"),
+        cache="cache",
+        on_host=False,
+    )
+    Xy_it = xgb.DMatrix(it)
+    params = {
+        "tree_method": tree_method,
+        "objective": "reg:quantileerror",
+        "device": device,
+        "quantile_alpha": [0.2, 0.8],
+    }
+    booster_it = xgb.train(params, Xy_it)
+    X, y, w = it.as_arrays()
+    Xy = xgb.DMatrix(X, y, weight=w)
+    booster = xgb.train(params, Xy)
+
+    predt_it = booster_it.predict(Xy_it)
+    predt = booster.predict(Xy)
+
+    np.testing.assert_allclose(predt, predt_it)
+
+
+def check_extmem_qdm(
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    device: str,
+    on_host: bool,
+) -> None:
+    """Basic test for the `ExtMemQuantileDMatrix`."""
+
+    it = tm.IteratorForTest(
+        *tm.make_batches(
+            n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
+        ),
+        cache="cache",
+        on_host=on_host,
+    )
+    Xy_it = xgb.ExtMemQuantileDMatrix(it)
+    with pytest.raises(ValueError, match="Only the `hist`"):
+        booster_it = xgb.train(
+            {"device": device, "tree_method": "approx"}, Xy_it, num_boost_round=8
+        )
+
+    booster_it = xgb.train({"device": device}, Xy_it, num_boost_round=8)
+    X, y, w = it.as_arrays()
+    Xy = xgb.QuantileDMatrix(X, y, weight=w)
+    booster = xgb.train({"device": device}, Xy, num_boost_round=8)
+
+    if device == "cpu":
+        # Get cuts from ellpack without CPU-GPU interpolation is not yet supported.
+        cut_it = Xy_it.get_quantile_cut()
+        cut = Xy.get_quantile_cut()
+        np.testing.assert_allclose(cut_it[0], cut[0])
+        np.testing.assert_allclose(cut_it[1], cut[1])
+
+    predt_it = booster_it.predict(Xy_it)
+    predt = booster.predict(Xy)
+    np.testing.assert_allclose(predt_it, predt)
+
+
 def check_cut(
     n_entries: int, indptr: np.ndarray, data: np.ndarray, dtypes: Any
 ) -> None:
@@ -250,10 +321,10 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
     check_cut(n_entries, indptr, data, X.dtypes)
 
 
-def check_get_quantile_cut(tree_method: str) -> None:
+def check_get_quantile_cut(tree_method: str, device: str) -> None:
     """Check the quantile cut getter."""
 
-    use_cupy = tree_method == "gpu_hist"
+    use_cupy = device.startswith("cuda")
     check_get_quantile_cut_device(tree_method, False)
     if use_cupy:
         check_get_quantile_cut_device(tree_method, True)

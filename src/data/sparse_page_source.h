@@ -9,6 +9,7 @@
 #include <atomic>     // for atomic
 #include <cstdint>    // for uint64_t
 #include <future>     // for future
+#include <map>        // for map
 #include <memory>     // for unique_ptr
 #include <mutex>      // for mutex
 #include <string>     // for string
@@ -79,6 +80,40 @@ struct Cache {
    */
   void Commit();
 };
+
+inline void DeleteCacheFiles(std::map<std::string, std::shared_ptr<Cache>> const& cache_info) {
+  for (auto const& kv : cache_info) {
+    CHECK(kv.second);
+    auto n = kv.second->ShardName();
+    if (kv.second->OnHost()) {
+      continue;
+    }
+    TryDeleteCacheFile(n);
+  }
+}
+
+[[nodiscard]] inline std::string MakeId(std::string prefix, void const* ptr) {
+  std::stringstream ss;
+  ss << ptr;
+  return prefix + "-" + ss.str();
+}
+
+/**
+ * @brief Make cache if it doesn't exist yet.
+ */
+[[nodiscard]] inline std::string MakeCache(void const* ptr, std::string format, bool on_host,
+                                           std::string prefix,
+                                           std::map<std::string, std::shared_ptr<Cache>>* out) {
+  auto& cache_info = *out;
+  auto name = MakeId(prefix, ptr);
+  auto id = name + format;
+  auto it = cache_info.find(id);
+  if (it == cache_info.cend()) {
+    cache_info[id].reset(new Cache{false, name, format, on_host});
+    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
+  }
+  return id;
+}
 
 // Prevents multi-threaded call to `GetBatches`.
 class TryLockGuard {
@@ -169,10 +204,16 @@ class DefaultFormatPolicy {
   using FormatT = SparsePageFormat<S>;
 
  public:
-  auto CreatePageFormat() const {
+  auto CreatePageFormat(BatchParam const&) const {
     std::unique_ptr<FormatT> fmt{::xgboost::data::CreatePageFormat<S>("raw")};
     return fmt;
   }
+};
+
+struct InitNewThread {
+  GlobalConfiguration config = *GlobalConfigThreadLocalStore::Get();
+
+  void operator()() const;
 };
 
 /**
@@ -204,6 +245,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   std::uint32_t count_{0};
   // Total number of batches.
   bst_idx_t n_batches_{0};
+  // How we pre-fetch the data.
+  BatchParam param_;
 
   std::shared_ptr<Cache> cache_info_;
 
@@ -226,12 +269,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     }
     // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
     // to let user adjust number of pre-fetched batches when needed.
-    std::int32_t constexpr kPrefetches = 3;
-    std::int32_t n_prefetches = std::min(nthreads_, kPrefetches);
+    std::int32_t n_prefetches = std::min(nthreads_, this->param_.n_prefetch_batches);
     n_prefetches = std::max(n_prefetches, 1);
     std::int32_t n_prefetch_batches = std::min(static_cast<bst_idx_t>(n_prefetches), n_batches_);
-    CHECK_GT(n_prefetch_batches, 0) << "total batches:" << n_batches_;
-    CHECK_LE(n_prefetch_batches, kPrefetches);
+    CHECK_GT(n_prefetch_batches, 0);
+    CHECK_LE(n_prefetch_batches, this->param_.n_prefetch_batches);
     std::size_t fetch_it = count_;
 
     exce_.Rethrow();
@@ -246,7 +288,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
       ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, this] {
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
-          std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{this->CreatePageFormat()};
+          std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{
+              this->CreatePageFormat(this->param_)};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
           std::unique_ptr<typename FormatStreamPolicy::ReaderT> fi{
@@ -276,7 +319,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     CHECK(!cache_info_->written);
     common::Timer timer;
     timer.Start();
-    auto fmt{this->CreatePageFormat()};
+    auto fmt{this->CreatePageFormat(this->param_)};
 
     auto name = cache_info_->ShardName();
     std::unique_ptr<typename FormatStreamPolicy::WriterT> fo{
@@ -295,10 +338,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
  public:
   SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features, bst_idx_t n_batches,
                        std::shared_ptr<Cache> cache)
-      : workers_{std::max(2, std::min(nthreads, 16)),
-                 [config = *GlobalConfigThreadLocalStore::Get()] {
-                   *GlobalConfigThreadLocalStore::Get() = config;
-                 }},
+      : workers_{StringView{"ext-mem"}, std::max(2, std::min(nthreads, 16)), InitNewThread{}},
         missing_{missing},
         nthreads_{nthreads},
         n_features_{n_features},
@@ -344,13 +384,16 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     this->count_ = 0;
   }
 
-  virtual void Reset() {
+  virtual void Reset(BatchParam const& param) {
     TryLockGuard guard{single_threaded_};
 
     this->at_end_ = false;
     auto cnt = this->count_;
     this->count_ = 0;
-    if (cnt != 0) {
+    bool changed = this->param_.n_prefetch_batches != param.n_prefetch_batches;
+    this->param_ = param;
+
+    if (cnt != 0 || changed) {
       // The last iteration did not get to the end, clear the ring to start from 0.
       this->ring_ = std::make_unique<Ring>();
       this->Fetch();
@@ -430,12 +473,12 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     return *this;
   }
 
-  void Reset() override {
+  void Reset(BatchParam const& param) override {
     if (proxy_) {
       TryLockGuard guard{single_threaded_};
       iter_.Reset();
     }
-    SparsePageSourceImpl::Reset();
+    SparsePageSourceImpl::Reset(param);
 
     TryLockGuard guard{single_threaded_};
     base_row_id_ = 0;
@@ -497,9 +540,9 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
     return *this;
   }
 
-  void Reset() final {
-    this->source_->Reset();
-    Super::Reset();
+  void Reset(BatchParam const& param) final {
+    this->source_->Reset(param);
+    Super::Reset(param);
   }
 };
 
@@ -548,6 +591,51 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
       : PageSourceIncMixIn(missing, nthreads, n_features, n_batches, cache, true) {
     this->source_ = source;
     this->Fetch();
+  }
+};
+
+/**
+ * @brief operator++ implementation for QDM.
+ */
+template <typename S,
+          typename FormatCreatePolicy = DefaultFormatStreamPolicy<S, DefaultFormatPolicy>>
+class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy> {
+ protected:
+  std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source_;
+  using Super = SparsePageSourceImpl<S, FormatCreatePolicy>;
+
+ public:
+  ExtQantileSourceMixin(
+      float missing, std::int32_t nthreads, bst_feature_t n_features, bst_idx_t n_batches,
+      std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
+      std::shared_ptr<Cache> cache)
+      : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache},
+        source_{std::move(source)} {}
+  // This function always operate on the source first, then the downstream. The downstream
+  // can assume the source to be ready.
+  [[nodiscard]] ExtQantileSourceMixin& operator++() final {
+    TryLockGuard guard{this->single_threaded_};
+    // Increment self.
+    ++this->count_;
+    // Set at end.
+    this->at_end_ = this->count_ == this->n_batches_;
+
+    if (this->at_end_) {
+      this->EndIter();
+
+      CHECK(this->cache_info_->written);
+      source_ = nullptr;  // release the source
+    }
+    this->Fetch();
+
+    return *this;
+  }
+
+  void Reset(BatchParam const& param) final {
+    if (this->source_) {
+      this->source_->Reset();
+    }
+    Super::Reset(param);
   }
 };
 }  // namespace xgboost::data

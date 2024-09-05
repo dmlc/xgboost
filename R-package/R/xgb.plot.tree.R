@@ -2,36 +2,7 @@
 #'
 #' Read a tree model text dump and plot the model.
 #'
-#' @param model Object of class `xgb.Booster`. If it contains feature names (they can be set through
-#'        \link{setinfo}), they will be used in the output from this function.
-#' @param trees An integer vector of tree indices that should be used.
-#'        The default (`NULL`) uses all trees.
-#'        Useful, e.g., in multiclass classification to get only
-#'        the trees of one class. *Important*: the tree index in XGBoost models
-#'        is zero-based (e.g., use `trees = 0:2` for the first three trees).
-#' @param plot_width,plot_height Width and height of the graph in pixels.
-#'        The values are passed to [DiagrammeR::render_graph()].
-#' @param render Should the graph be rendered or not? The default is `TRUE`.
-#' @param show_node_id a logical flag for whether to show node id's in the graph.
-#' @param style Style to use for the plot. Options are:\itemize{
-#' \item `"xgboost"`: will use the plot style defined in the core XGBoost library,
-#' which is shared between different interfaces through the 'dot' format. This
-#' style was not available before version 2.1.0 in R. It always plots the trees
-#' vertically (from top to bottom).
-#' \item `"R"`: will use the style defined from XGBoost's R interface, which predates
-#' the introducition of the standardized style from the core library. It might plot
-#' the trees horizontally (from left to right).
-#' }
-#'
-#' Note that `style="xgboost"` is only supported when all of the following conditions are met:\itemize{
-#' \item Only a single tree is being plotted.
-#' \item Node IDs are not added to the graph.
-#' \item The graph is being returned as `htmlwidget` (`render=TRUE`).
-#' }
-#' @param ... currently not used.
-#'
 #' @details
-#'
 #' When using `style="xgboost"`, the content of each node is visualized as follows:
 #' - For non-terminal nodes, it will display the split condition (number or name if
 #'   available, and the condition that would decide to which node to go next).
@@ -56,6 +27,31 @@
 #'
 #' This function uses [GraphViz](https://www.graphviz.org/) as DiagrammeR backend.
 #'
+#' @param model Object of class `xgb.Booster`. If it contains feature names (they can be set through
+#'   [setinfo()], they will be used in the output from this function.
+#' @param trees An integer vector of tree indices that should be used.
+#'   The default (`NULL`) uses all trees.
+#'   Useful, e.g., in multiclass classification to get only
+#'   the trees of one class. *Important*: the tree index in XGBoost models
+#'   is zero-based (e.g., use `trees = 0:2` for the first three trees).
+#' @param plot_width,plot_height Width and height of the graph in pixels.
+#'   The values are passed to `DiagrammeR::render_graph()`.
+#' @param render Should the graph be rendered or not? The default is `TRUE`.
+#' @param show_node_id a logical flag for whether to show node id's in the graph.
+#' @param style Style to use for the plot:
+#'   - `"xgboost"`: will use the plot style defined in the core XGBoost library,
+#'     which is shared between different interfaces through the 'dot' format. This
+#'     style was not available before version 2.1.0 in R. It always plots the trees
+#'     vertically (from top to bottom).
+#'   - `"R"`: will use the style defined from XGBoost's R interface, which predates
+#'     the introducition of the standardized style from the core library. It might plot
+#'     the trees horizontally (from left to right).
+#'
+#'   Note that `style="xgboost"` is only supported when all of the following conditions are met:
+#'   - Only a single tree is being plotted.
+#'   - Node IDs are not added to the graph.
+#'   - The graph is being returned as `htmlwidget` (`render=TRUE`).
+#' @param ... Currently not used.
 #' @return
 #' The value depends on the `render` parameter:
 #' - If `render = TRUE` (default): Rendered graph object which is an htmlwidget of
@@ -63,7 +59,7 @@
 #'   running from the command line.
 #' - If `render = FALSE`: Graph object which is of DiagrammeR's class `dgr_graph`.
 #'   This could be useful if one wants to modify some of the graph attributes
-#'   before rendering the graph with [DiagrammeR::render_graph()].
+#'   before rendering the graph with `DiagrammeR::render_graph()`.
 #'
 #' @examples
 #' data(agaricus.train, package = "xgboost")

@@ -8,6 +8,7 @@
 #include <cstdint>  // for int32_t
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
+#include <vector>   // for vector
 
 #include "../common/cuda_rt_utils.h"  // for SupportsPageableMem
 #include "../common/hist_util.h"      // for HistogramCuts
@@ -21,10 +22,22 @@
 
 namespace xgboost::data {
 // We need to decouple the storage and the view of the storage so that we can implement
-// concurrent read.
+// concurrent read. As a result, there are two classes, one for cache storage, another one
+// for stream.
+struct EllpackHostCache {
+  std::vector<std::shared_ptr<EllpackPageImpl>> pages;
 
-// Dummy type to hide CUDA calls from the host compiler.
-struct EllpackHostCache;
+  EllpackHostCache();
+  ~EllpackHostCache();
+
+  [[nodiscard]] std::size_t Size() const;
+
+  bool Empty() const { return this->Size() == 0; }
+
+  void Push(std::unique_ptr<EllpackPageImpl> page);
+  EllpackPageImpl const* Get(std::int32_t k);
+};
+
 // Pimpl to hide CUDA calls from the host compiler.
 class EllpackHostCacheStreamImpl;
 
@@ -36,24 +49,12 @@ class EllpackHostCacheStream {
   explicit EllpackHostCacheStream(std::shared_ptr<EllpackHostCache> cache);
   ~EllpackHostCacheStream();
 
-  [[nodiscard]] bst_idx_t Write(void const* ptr, bst_idx_t n_bytes);
-  template <typename T>
-  [[nodiscard]] std::enable_if_t<std::is_pod_v<T>, bst_idx_t> Write(T const& v) {
-    return this->Write(&v, sizeof(T));
-  }
+  std::shared_ptr<EllpackHostCache> Share();
 
-  [[nodiscard]] bool Read(void* ptr, bst_idx_t n_bytes);
-
-  template <typename T>
-  [[nodiscard]] auto Read(T* ptr) -> std::enable_if_t<std::is_pod_v<T>, bool> {
-    return this->Read(ptr, sizeof(T));
-  }
-
-  [[nodiscard]] bst_idx_t Tell() const;
   void Seek(bst_idx_t offset_bytes);
-  // Limit the size of read. offset_bytes is the maximum offset that this stream can read
-  // to. An error is raised if the limited is exceeded.
-  void Bound(bst_idx_t offset_bytes);
+
+  void Read(EllpackPage* page, bool prefetch_copy) const;
+  void Write(EllpackPage const& page);
 };
 
 template <typename S>
@@ -70,9 +71,9 @@ class EllpackFormatPolicy {
   // For testing with the HMM flag.
   explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}
 
-  [[nodiscard]] auto CreatePageFormat() const {
+  [[nodiscard]] auto CreatePageFormat(BatchParam const& param) const {
     CHECK_EQ(cuts_->cut_values_.Device(), device_);
-    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_, has_hmm_}};
+    std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_, param, has_hmm_}};
     return fmt;
   }
 
@@ -85,6 +86,7 @@ class EllpackFormatPolicy {
     CHECK(cuts_);
     return cuts_;
   }
+
   [[nodiscard]] auto Device() const { return device_; }
 };
 
@@ -169,12 +171,62 @@ using EllpackPageHostSource =
 using EllpackPageSource =
     EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
 
+template <typename FormatCreatePolicy>
+class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, FormatCreatePolicy> {
+  using Super = ExtQantileSourceMixin<EllpackPage, FormatCreatePolicy>;
+
+  Context const* ctx_;
+  BatchParam p_;
+  DMatrixProxy* proxy_;
+  MetaInfo* info_;
+  ExternalDataInfo ext_info_;
+
+  std::vector<bst_idx_t> base_rows_;
+
+ public:
+  ExtEllpackPageSourceImpl(
+      Context const* ctx, float missing, MetaInfo* info, ExternalDataInfo ext_info,
+      std::shared_ptr<Cache> cache, BatchParam param, std::shared_ptr<common::HistogramCuts> cuts,
+      std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
+      DMatrixProxy* proxy, std::vector<bst_idx_t> base_rows)
+      : Super{missing,
+              ctx->Threads(),
+              static_cast<bst_feature_t>(info->num_col_),
+              ext_info.n_batches,
+              source,
+              cache},
+        ctx_{ctx},
+        p_{std::move(param)},
+        proxy_{proxy},
+        info_{info},
+        ext_info_{std::move(ext_info)},
+        base_rows_{std::move(base_rows)} {
+    this->SetCuts(std::move(cuts), ctx->Device());
+    this->Fetch();
+  }
+
+  void Fetch() final;
+};
+
+// Cache to host
+using ExtEllpackPageHostSource =
+    ExtEllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
+
+// Cache to disk
+using ExtEllpackPageSource =
+    ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
+
 #if !defined(XGBOOST_USE_CUDA)
 template <typename F>
 inline void EllpackPageSourceImpl<F>::Fetch() {
   // silent the warning about unused variables.
   (void)(row_stride_);
   (void)(is_dense_);
+  common::AssertGPUSupport();
+}
+
+template <typename F>
+inline void ExtEllpackPageSourceImpl<F>::Fetch() {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

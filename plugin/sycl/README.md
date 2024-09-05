@@ -33,8 +33,6 @@ See also [Intel® oneAPI Programming Guide](https://www.intel.com/content/www/us
 From the ``xgboost`` directory, run:
 
 ```bash
-$ mkdir build
-$ cd build
-$ cmake .. -DPLUGIN_SYCL=ON
-$ make -j
+$ cmake -B build -S . -DPLUGIN_SYCL=ON
+$ cmake --build build -j
 ```

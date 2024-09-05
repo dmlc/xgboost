@@ -15,12 +15,17 @@ void RowPartitioner::Reset(Context const* ctx, bst_idx_t n_samples, bst_idx_t ba
   ridx_.resize(n_samples);
   ridx_tmp_.resize(n_samples);
   tmp_.clear();
+  n_nodes_ = 1;  // Root
 
   CHECK_LE(n_samples, std::numeric_limits<cuda_impl::RowIndexT>::max());
   ridx_segments_.emplace_back(
       NodePositionInfo{Segment{0, static_cast<cuda_impl::RowIndexT>(n_samples)}});
 
   thrust::sequence(ctx->CUDACtx()->CTP(), ridx_.data(), ridx_.data() + ridx_.size(), base_rowid);
+
+  // Pre-allocate some host memory
+  this->pinned_.GetSpan<std::int32_t>(1 << 11);
+  this->pinned2_.GetSpan<std::int32_t>(1 << 13);
 }
 
 RowPartitioner::~RowPartitioner() = default;
@@ -30,7 +35,7 @@ common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(bst_node_t
   return dh::ToSpan(ridx_).subspan(segment.begin, segment.Size());
 }
 
-common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() {
+common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() const {
   return dh::ToSpan(ridx_);
 }
 

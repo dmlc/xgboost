@@ -53,12 +53,12 @@ Return values of \code{NULL} will be interpreted as \code{FALSE}.}
 \item{f_after_training}{A function that will be executed after training is finished.
 
 This function can optionally output something non-NULL, which will become part of the R
-attributes of the booster (assuming one passes \code{keep_extra_attributes=TRUE} to \link{xgb.train})
-under the name supplied for parameter \code{cb_name} imn the case of \link{xgb.train}; or a part
-of the named elements in the result of \link{xgb.cv}.}
+attributes of the booster (assuming one passes \code{keep_extra_attributes=TRUE} to \code{\link[=xgb.train]{xgb.train()}})
+under the name supplied for parameter \code{cb_name} imn the case of \code{\link[=xgb.train]{xgb.train()}}; or a part
+of the named elements in the result of \code{\link[=xgb.cv]{xgb.cv()}}.}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \link{xgb.train} or \link{xgb.cv}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
 }
 \description{
 Constructor for defining the structure of callback functions that can be executed
@@ -66,8 +66,8 @@ at different stages of model training (before / after training, before / after e
 iteration).
 }
 \details{
-Arguments that will be passed to the supplied functions are as follows:\itemize{
-
+Arguments that will be passed to the supplied functions are as follows:
+\itemize{
 \item env The same environment that is passed under argument \code{env}.
 
 It may be modified by the functions in order to e.g. keep tracking of what happens
@@ -75,11 +75,10 @@ across iterations or similar.
 
 This environment is only used by the functions supplied to the callback, and will
 not be kept after the model fitting function terminates (see parameter \code{f_after_training}).
+\item model The booster object when using \code{\link[=xgb.train]{xgb.train()}}, or the folds when using \code{\link[=xgb.cv]{xgb.cv()}}.
 
-\item model The booster object when using \link{xgb.train}, or the folds when using
-\link{xgb.cv}.
-
-For \link{xgb.cv}, folds are a list with a structure as follows:\itemize{
+For \code{\link[=xgb.cv]{xgb.cv()}}, folds are a list with a structure as follows:
+\itemize{
 \item \code{dtrain}: The training data for the fold (as an \code{xgb.DMatrix} object).
 \item \code{bst}: Rhe \code{xgb.Booster} object for the fold.
 \item \code{evals}: A list containing two DMatrices, with names \code{train} and \code{test}
@@ -88,79 +87,71 @@ For \link{xgb.cv}, folds are a list with a structure as follows:\itemize{
 from which the \code{test} entry in \code{evals} was obtained.
 }
 
-This object should \bold{not} be in-place modified in ways that conflict with the
+This object should \strong{not} be in-place modified in ways that conflict with the
 training (e.g. resetting the parameters for a training update in a way that resets
 the number of rounds to zero in order to overwrite rounds).
 
 Note that any R attributes that are assigned to the booster during the callback functions,
 will not be kept thereafter as the booster object variable is not re-assigned during
 training. It is however possible to set C-level attributes of the booster through
-\link{xgb.attr} or \link{xgb.attributes}, which should remain available for the rest
+\code{\link[=xgb.attr]{xgb.attr()}} or \code{\link[=xgb.attributes]{xgb.attributes()}}, which should remain available for the rest
 of the iterations and after the training is done.
 
 For keeping variables across iterations, it's recommended to use \code{env} instead.
 \item data The data to which the model is being fit, as an \code{xgb.DMatrix} object.
 
-Note that, for \link{xgb.cv}, this will be the full data, while data for the specific
+Note that, for \code{\link[=xgb.cv]{xgb.cv()}}, this will be the full data, while data for the specific
 folds can be found in the \code{model} object.
+\item evals The evaluation data, as passed under argument \code{evals} to \code{\link[=xgb.train]{xgb.train()}}.
 
-\item evals The evaluation data, as passed under argument \code{evals} to
-\link{xgb.train}.
-
-For \link{xgb.cv}, this will always be \code{NULL}.
-
-\item begin_iteration Index of the first boosting iteration that will be executed
-(base-1 indexing).
+For \code{\link[=xgb.cv]{xgb.cv()}}, this will always be \code{NULL}.
+\item begin_iteration Index of the first boosting iteration that will be executed (base-1 indexing).
 
 This will typically be '1', but when using training continuation, depending on the
 parameters for updates, boosting rounds will be continued from where the previous
 model ended, in which case this will be larger than 1.
-
 \item end_iteration Index of the last boostign iteration that will be executed
 (base-1 indexing, inclusive of this end).
 
-It should match with argument \code{nrounds} passed to \link{xgb.train} or \link{xgb.cv}.
+It should match with argument \code{nrounds} passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
 
 Note that boosting might be interrupted before reaching this last iteration, for
-example by using the early stopping callback \link{xgb.cb.early.stop}.
-
+example by using the early stopping callback \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}}.
 \item iteration Index of the iteration number that is being executed (first iteration
 will be the same as parameter \code{begin_iteration}, then next one will add +1, and so on).
-
 \item iter_feval Evaluation metrics for \code{evals} that were supplied, either
 determined by the objective, or by parameter \code{feval}.
 
-For \link{xgb.train}, this will be a named vector with one entry per element in
+For \code{\link[=xgb.train]{xgb.train()}}, this will be a named vector with one entry per element in
 \code{evals}, where the names are determined as 'evals name' + '-' + 'metric name' - for
 example, if \code{evals} contains an entry named "tr" and the metric is "rmse",
 this will be a one-element vector with name "tr-rmse".
 
-For \link{xgb.cv}, this will be a 2d matrix with dimensions \verb{[length(evals), nfolds]},
+For \code{\link[=xgb.cv]{xgb.cv()}}, this will be a 2d matrix with dimensions \verb{[length(evals), nfolds]},
 where the row names will follow the same naming logic as the one-dimensional vector
-that is passed in \link{xgb.train}.
+that is passed in \code{\link[=xgb.train]{xgb.train()}}.
 
 Note that, internally, the built-in callbacks such as \link{xgb.cb.print.evaluation} summarize
 this table by calculating the row-wise means and standard deviations.
-
 \item final_feval The evaluation results after the last boosting round is executed
 (same format as \code{iter_feval}, and will be the exact same input as passed under
 \code{iter_feval} to the last round that is executed during model fitting).
-
 \item prev_cb_res Result from a previous run of a callback sharing the same name
 (as given by parameter \code{cb_name}) when conducting training continuation, if there
 was any in the booster R attributes.
 
-Some times, one might want to append the new results to the previous one, and this will
+Sometimes, one might want to append the new results to the previous one, and this will
 be done automatically by the built-in callbacks such as \link{xgb.cb.evaluation.log},
 which will append the new rows to the previous table.
 
 If no such previous callback result is available (which it never will when fitting
 a model from start instead of updating an existing model), this will be \code{NULL}.
 
-For \link{xgb.cv}, which doesn't support training continuation, this will always be \code{NULL}.
+For \code{\link[=xgb.cv]{xgb.cv()}}, which doesn't support training continuation, this will always be \code{NULL}.
 }
 
-The following names (\code{cb_name} values) are reserved for internal callbacks:\itemize{
+The following names (\code{cb_name} values) are reserved for internal callbacks:
+\itemize{
 \item print_evaluation
 \item evaluation_log
 \item reset_parameters
@@ -170,7 +161,8 @@ The following names (\code{cb_name} values) are reserved for internal callbacks:
 \item gblinear_history
 }
 
-The following names are reserved for other non-callback attributes:\itemize{
+The following names are reserved for other non-callback attributes:
+\itemize{
 \item names
 \item class
 \item call
@@ -221,8 +213,10 @@ ssq_callback <- xgb.Callback(
 )
 
 data(mtcars)
+
 y <- mtcars$mpg
 x <- as.matrix(mtcars[, -1])
+
 dm <- xgb.DMatrix(x, label = y, nthread = 1)
 model <- xgb.train(
   data = dm,
@@ -236,7 +230,8 @@ model <- xgb.train(
 attributes(model)$ssq
 }
 \seealso{
-Built-in callbacks:\itemize{
+Built-in callbacks:
+\itemize{
 \item \link{xgb.cb.print.evaluation}
 \item \link{xgb.cb.evaluation.log}
 \item \link{xgb.cb.reset.parameters}

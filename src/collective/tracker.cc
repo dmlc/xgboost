@@ -23,6 +23,7 @@
 #include <utility>    // for move, forward
 
 #include "../common/json_utils.h"
+#include "../common/threading_utils.h"  // for NameThread
 #include "comm.h"
 #include "protocol.h"  // for kMagic, PeerInfo
 #include "tracker.h"
@@ -143,6 +144,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       Json::Dump(jnext, &str);
       worker.Send(StringView{str});
     });
+    std::string name = "tkbs_t-" + std::to_string(r);
+    common::NameThread(&bootstrap_threads.back(), name.c_str());
   }
 
   for (auto& t : bootstrap_threads) {

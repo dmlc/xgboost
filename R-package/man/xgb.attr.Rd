@@ -16,7 +16,7 @@ xgb.attributes(object)
 xgb.attributes(object) <- value
 }
 \arguments{
-\item{object}{Object of class \code{xgb.Booster}. \bold{Will be modified in-place} when assigning to it.}
+\item{object}{Object of class \code{xgb.Booster}. \strong{Will be modified in-place} when assigning to it.}
 
 \item{name}{A non-empty character string specifying which attribute is to be accessed.}
 
@@ -36,18 +36,18 @@ or \code{NULL} if a model has no stored attributes.
 }
 }
 \description{
-These methods allow to manipulate the key-value attribute strings of an xgboost model.
+These methods allow to manipulate the key-value attribute strings of an XGBoost model.
 }
 \details{
-The primary purpose of xgboost model attributes is to store some meta data about the model.
+The primary purpose of XGBoost model attributes is to store some meta data about the model.
 Note that they are a separate concept from the object attributes in R.
-Specifically, they refer to key-value strings that can be attached to an xgboost model,
+Specifically, they refer to key-value strings that can be attached to an XGBoost model,
 stored together with the model's binary representation, and accessed later
 (from R or any other interface).
 In contrast, any R attribute assigned to an R object of \code{xgb.Booster} class
-would not be saved by \code{\link[=xgb.save]{xgb.save()}} because an xgboost model is an external memory object
+would not be saved by \code{\link[=xgb.save]{xgb.save()}} because an XGBoost model is an external memory object
 and its serialization is handled externally.
-Also, setting an attribute that has the same name as one of xgboost's parameters wouldn't
+Also, setting an attribute that has the same name as one of XGBoost's parameters wouldn't
 change the value of that parameter for a model.
 Use \code{\link[=xgb.parameters<-]{xgb.parameters<-()}} to set or change model parameters.
 
@@ -57,7 +57,7 @@ but it doesn't delete the other existing attributes.
 Important: since this modifies the booster's C object, semantics for assignment here
 will differ from R's, as any object reference to the same booster will be modified
 too, while assignment of R attributes through \verb{attributes(model)$<attr> <- <value>}
-will follow the usual copy-on-write R semantics (see \link{xgb.copy.Booster} for an
+will follow the usual copy-on-write R semantics (see \code{\link[=xgb.copy.Booster]{xgb.copy.Booster()}} for an
 example of these behaviors).
 }
 \examples{

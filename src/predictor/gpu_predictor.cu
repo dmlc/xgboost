@@ -3,10 +3,8 @@
  */
 #include <GPUTreeShap/gpu_treeshap.h>
 #include <thrust/copy.h>
-#include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
-#include <thrust/host_vector.h>
 
 #include <any>  // for any, any_cast
 #include <memory>
@@ -102,7 +100,7 @@ struct SparsePageView {
       }
     }
     // Value is missing
-    return nanf("");
+    return std::numeric_limits<float>::quiet_NaN();
   }
   [[nodiscard]] XGBOOST_DEVICE size_t NumRows() const { return d_row_ptr.size() - 1; }
   [[nodiscard]] XGBOOST_DEVICE size_t NumCols() const { return num_features; }
@@ -114,22 +112,21 @@ struct SparsePageLoader {
   float* smem;
 
   __device__ SparsePageLoader(SparsePageView data, bool use_shared, bst_feature_t num_features,
-                              bst_idx_t num_rows, size_t entry_start, float)
-      : use_shared(use_shared),
-        data(data) {
+                              bst_idx_t num_rows, float)
+      : use_shared(use_shared), data(data) {
     extern __shared__ float _smem[];
     smem = _smem;
     // Copy instances
     if (use_shared) {
       bst_uint global_idx = blockDim.x * blockIdx.x + threadIdx.x;
       int shared_elements = blockDim.x * data.num_features;
-      dh::BlockFill(smem, shared_elements, nanf(""));
+      dh::BlockFill(smem, shared_elements, std::numeric_limits<float>::quiet_NaN());
       __syncthreads();
       if (global_idx < num_rows) {
         bst_uint elem_begin = data.d_row_ptr[global_idx];
         bst_uint elem_end = data.d_row_ptr[global_idx + 1];
         for (bst_uint elem_idx = elem_begin; elem_idx < elem_end; elem_idx++) {
-          Entry elem = data.d_data[elem_idx - entry_start];
+          Entry elem = data.d_data[elem_idx];
           smem[threadIdx.x * data.num_features + elem.index] = elem.fvalue;
         }
       }
@@ -146,14 +143,13 @@ struct SparsePageLoader {
 };
 
 struct EllpackLoader {
-  EllpackDeviceAccessor const& matrix;
-  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool, bst_feature_t, bst_idx_t,
-                               size_t, float)
-      : matrix{m} {}
-  [[nodiscard]] __device__ __forceinline__ float GetElement(size_t ridx, size_t fidx) const {
-    auto gidx = matrix.GetBinIndex(ridx, fidx);
+  EllpackDeviceAccessor matrix;
+  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor m, bool, bst_feature_t, bst_idx_t, float)
+      : matrix{std::move(m)} {}
+  [[nodiscard]] XGBOOST_DEV_INLINE float GetElement(size_t ridx, size_t fidx) const {
+    auto gidx = matrix.GetBinIndex<false>(ridx, fidx);
     if (gidx == -1) {
-      return nan("");
+      return std::numeric_limits<float>::quiet_NaN();
     }
     if (common::IsCat(matrix.feature_types, fidx)) {
       return matrix.gidx_fvalue_map[gidx];
@@ -165,6 +161,8 @@ struct EllpackLoader {
     }
     return matrix.gidx_fvalue_map[gidx - 1];
   }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return this->matrix.NumFeatures(); }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return this->matrix.n_rows; }
 };
 
 template <typename Batch>
@@ -179,14 +177,14 @@ struct DeviceAdapterLoader {
 
   XGBOOST_DEV_INLINE DeviceAdapterLoader(Batch const batch, bool use_shared,
                                          bst_feature_t num_features, bst_idx_t num_rows,
-                                         size_t entry_start, float missing)
+                                         float missing)
       : batch{batch}, columns{num_features}, use_shared{use_shared}, is_valid{missing} {
     extern __shared__ float _smem[];
     smem = _smem;
     if (use_shared) {
       uint32_t global_idx = blockDim.x * blockIdx.x + threadIdx.x;
       size_t shared_elements = blockDim.x * num_features;
-      dh::BlockFill(smem, shared_elements, nanf(""));
+      dh::BlockFill(smem, shared_elements, std::numeric_limits<float>::quiet_NaN());
       __syncthreads();
       if (global_idx < num_rows) {
         auto beg = global_idx * columns;
@@ -210,21 +208,19 @@ struct DeviceAdapterLoader {
     if (is_valid(value)) {
       return value;
     } else {
-      return nan("");
+      return std::numeric_limits<float>::quiet_NaN();
     }
   }
 };
 
 template <bool has_missing, bool has_categorical, typename Loader>
-__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const &tree,
-                                   Loader *loader) {
+__device__ bst_node_t GetLeafIndex(bst_idx_t ridx, TreeView const& tree, Loader* loader) {
   bst_node_t nidx = 0;
   RegTree::Node n = tree.d_tree[nidx];
   while (!n.IsLeaf()) {
     float fvalue = loader->GetElement(ridx, n.SplitIndex());
     bool is_missing = common::CheckNAN(fvalue);
-    nidx = GetNextNode<has_missing, has_categorical>(n, nidx, fvalue,
-                                                     is_missing, tree.cats);
+    nidx = GetNextNode<has_missing, has_categorical>(n, nidx, fvalue, is_missing, tree.cats);
     n = tree.d_tree[nidx];
   }
   return nidx;
@@ -253,14 +249,14 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
                   common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
                   common::Span<uint32_t const> d_categories,
 
-                  size_t tree_begin, size_t tree_end, size_t num_features,
-                  size_t num_rows, size_t entry_start, bool use_shared,
+                  size_t tree_begin, size_t tree_end, bst_feature_t num_features,
+                  size_t num_rows, bool use_shared,
                   float missing) {
   bst_idx_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
   if (ridx >= num_rows) {
     return;
   }
-  Loader loader(data, use_shared, num_features, num_rows, entry_start, missing);
+  Loader loader{data, use_shared, num_features, num_rows, missing};
   for (size_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
     TreeView d_tree{
         tree_begin,          tree_idx,           d_nodes,
@@ -288,10 +284,11 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
               common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
               common::Span<uint32_t const> d_categories, size_t tree_begin,
               size_t tree_end, size_t num_features, size_t num_rows,
-              size_t entry_start, bool use_shared, int num_group, float missing) {
+              bool use_shared, int num_group, float missing) {
   bst_uint global_idx = blockDim.x * blockIdx.x + threadIdx.x;
-  Loader loader(data, use_shared, num_features, num_rows, entry_start, missing);
+  Loader loader(data, use_shared, num_features, num_rows, missing);
   if (global_idx >= num_rows) return;
+
   if (num_group == 1) {
     float sum = 0;
     for (size_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
@@ -627,10 +624,10 @@ __global__ void MaskBitVectorKernel(
     common::Span<std::uint32_t const> d_cat_tree_segments,
     common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
     common::Span<std::uint32_t const> d_categories, BitVector decision_bits, BitVector missing_bits,
-    std::size_t tree_begin, std::size_t tree_end, std::size_t num_features, std::size_t num_rows,
-    std::size_t entry_start, std::size_t num_nodes, bool use_shared, float missing) {
+    std::size_t tree_begin, std::size_t tree_end, bst_feature_t num_features, std::size_t num_rows,
+    std::size_t num_nodes, bool use_shared, float missing) {
   // This needs to be always instantiated since the data is loaded cooperatively by all threads.
-  SparsePageLoader loader(data, use_shared, num_features, num_rows, entry_start, missing);
+  SparsePageLoader loader{data, use_shared, num_features, num_rows, missing};
   auto const row_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (row_idx >= num_rows) {
     return;
@@ -789,17 +786,16 @@ class ColumnSplitHelper {
 
       batch.offset.SetDevice(ctx_->Device());
       batch.data.SetDevice(ctx_->Device());
-      std::size_t entry_start = 0;
       SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(), num_features);
 
       auto const grid = static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()} (
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
           MaskBitVectorKernel, data, model.nodes.ConstDeviceSpan(),
           model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
           model.categories_node_segments.ConstDeviceSpan(), model.categories.ConstDeviceSpan(),
           decision_bits, missing_bits, model.tree_beg_, model.tree_end_, num_features, num_rows,
-          entry_start, num_nodes, use_shared, nan(""));
+          num_nodes, use_shared, std::numeric_limits<float>::quiet_NaN());
 
       AllReduceBitVectors(&decision_storage, &missing_storage);
 
@@ -852,36 +848,30 @@ class ColumnSplitHelper {
 
 class GPUPredictor : public xgboost::Predictor {
  private:
-  void PredictInternal(const SparsePage& batch,
-                       DeviceModel const& model,
-                       size_t num_features,
-                       HostDeviceVector<bst_float>* predictions,
-                       size_t batch_offset, bool is_dense) const {
+  void PredictInternal(const SparsePage& batch, DeviceModel const& model, size_t num_features,
+                       HostDeviceVector<bst_float>* predictions, size_t batch_offset,
+                       bool is_dense) const {
     batch.offset.SetDevice(ctx_->Device());
     batch.data.SetDevice(ctx_->Device());
     const uint32_t BLOCK_THREADS = 128;
-    size_t num_rows = batch.Size();
+    bst_idx_t num_rows = batch.Size();
     auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(num_rows, BLOCK_THREADS));
     auto max_shared_memory_bytes = ConfigureDevice(ctx_->Device());
     size_t shared_memory_bytes =
         SharedMemoryBytes<BLOCK_THREADS>(num_features, max_shared_memory_bytes);
     bool use_shared = shared_memory_bytes != 0;
 
-    size_t entry_start = 0;
     SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                         num_features);
     auto const kernel = [&](auto predict_fn) {
-      dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
+      dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
           predict_fn, data, model.nodes.ConstDeviceSpan(),
-          predictions->DeviceSpan().subspan(batch_offset),
-          model.tree_segments.ConstDeviceSpan(),
-          model.tree_group.ConstDeviceSpan(),
-          model.split_types.ConstDeviceSpan(),
+          predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
+          model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
           model.categories_tree_segments.ConstDeviceSpan(),
-          model.categories_node_segments.ConstDeviceSpan(),
-          model.categories.ConstDeviceSpan(), model.tree_beg_, model.tree_end_,
-          num_features, num_rows, entry_start, use_shared, model.num_group,
-          nan(""));
+          model.categories_node_segments.ConstDeviceSpan(), model.categories.ConstDeviceSpan(),
+          model.tree_beg_, model.tree_end_, num_features, num_rows, use_shared, model.num_group,
+          std::numeric_limits<float>::quiet_NaN());
     };
     if (is_dense) {
       kernel(PredictKernel<SparsePageLoader, SparsePageView, false>);
@@ -889,27 +879,23 @@ class GPUPredictor : public xgboost::Predictor {
       kernel(PredictKernel<SparsePageLoader, SparsePageView, true>);
     }
   }
-  void PredictInternal(EllpackDeviceAccessor const& batch,
-                       DeviceModel const& model,
-                       HostDeviceVector<bst_float>* out_preds,
-                       size_t batch_offset) const {
+
+  void PredictInternal(EllpackDeviceAccessor const& batch, DeviceModel const& model,
+                       HostDeviceVector<bst_float>* out_preds, bst_idx_t batch_offset) const {
     const uint32_t BLOCK_THREADS = 256;
     size_t num_rows = batch.n_rows;
     auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(num_rows, BLOCK_THREADS));
     DeviceModel d_model;
 
     bool use_shared = false;
-    size_t entry_start = 0;
-    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS} (
-        PredictKernel<EllpackLoader, EllpackDeviceAccessor>, batch,
-        model.nodes.ConstDeviceSpan(), out_preds->DeviceSpan().subspan(batch_offset),
-        model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
-        model.split_types.ConstDeviceSpan(),
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS}(
+        PredictKernel<EllpackLoader, EllpackDeviceAccessor>, batch, model.nodes.ConstDeviceSpan(),
+        out_preds->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
+        model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
         model.categories_tree_segments.ConstDeviceSpan(),
-        model.categories_node_segments.ConstDeviceSpan(),
-        model.categories.ConstDeviceSpan(), model.tree_beg_, model.tree_end_,
-        batch.NumFeatures(), num_rows, entry_start, use_shared,
-        model.num_group, nan(""));
+        model.categories_node_segments.ConstDeviceSpan(), model.categories.ConstDeviceSpan(),
+        model.tree_beg_, model.tree_end_, batch.NumFeatures(), num_rows, use_shared,
+        model.num_group, std::numeric_limits<float>::quiet_NaN());
   }
 
   void DevicePredictInternal(DMatrix* dmat, HostDeviceVector<float>* out_preds,
@@ -928,24 +914,22 @@ class GPUPredictor : public xgboost::Predictor {
       return;
     }
 
+    CHECK_LE(dmat->Info().num_col_, model.learner_model_param->num_feature);
     if (dmat->PageExists<SparsePage>()) {
-      size_t batch_offset = 0;
-      for (auto &batch : dmat->GetBatches<SparsePage>()) {
-        this->PredictInternal(batch, d_model, model.learner_model_param->num_feature,
-                              out_preds, batch_offset, dmat->IsDense());
-        batch_offset += batch.Size() * model.learner_model_param->num_output_group;
+      bst_idx_t batch_offset = 0;
+      for (auto& batch : dmat->GetBatches<SparsePage>()) {
+        this->PredictInternal(batch, d_model, model.learner_model_param->num_feature, out_preds,
+                              batch_offset, dmat->IsDense());
+        batch_offset += batch.Size() * model.learner_model_param->OutputLength();
       }
     } else {
-      size_t batch_offset = 0;
+      bst_idx_t batch_offset = 0;
       for (auto const& page : dmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
         dmat->Info().feature_types.SetDevice(ctx_->Device());
         auto feature_types = dmat->Info().feature_types.ConstDeviceSpan();
-        this->PredictInternal(
-            page.Impl()->GetDeviceAccessor(ctx_->Device(), feature_types),
-            d_model,
-            out_preds,
-            batch_offset);
-        batch_offset += page.Impl()->n_rows;
+        this->PredictInternal(page.Impl()->GetDeviceAccessor(ctx_->Device(), feature_types),
+                              d_model, out_preds, batch_offset);
+        batch_offset += page.Size() * model.learner_model_param->OutputLength();
       }
     }
   }
@@ -1004,17 +988,14 @@ class GPUPredictor : public xgboost::Predictor {
     d_model.Init(model, tree_begin, tree_end, m->Device());
 
     bool use_shared = shared_memory_bytes != 0;
-    size_t entry_start = 0;
 
-    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
-        PredictKernel<Loader, typename Loader::BatchT>, m->Value(),
-        d_model.nodes.ConstDeviceSpan(), out_preds->predictions.DeviceSpan(),
-        d_model.tree_segments.ConstDeviceSpan(), d_model.tree_group.ConstDeviceSpan(),
-        d_model.split_types.ConstDeviceSpan(),
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+        PredictKernel<Loader, typename Loader::BatchT>, m->Value(), d_model.nodes.ConstDeviceSpan(),
+        out_preds->predictions.DeviceSpan(), d_model.tree_segments.ConstDeviceSpan(),
+        d_model.tree_group.ConstDeviceSpan(), d_model.split_types.ConstDeviceSpan(),
         d_model.categories_tree_segments.ConstDeviceSpan(),
-        d_model.categories_node_segments.ConstDeviceSpan(),
-        d_model.categories.ConstDeviceSpan(), tree_begin, tree_end, m->NumColumns(),
-        m->NumRows(), entry_start, use_shared, output_groups, missing);
+        d_model.categories_node_segments.ConstDeviceSpan(), d_model.categories.ConstDeviceSpan(),
+        tree_begin, tree_end, m->NumColumns(), m->NumRows(), use_shared, output_groups, missing);
   }
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel& model, float missing,
@@ -1043,16 +1024,13 @@ class GPUPredictor : public xgboost::Predictor {
                            std::vector<bst_float> const* tree_weights,
                            bool approximate, int,
                            unsigned) const override {
-    std::string not_implemented{"contribution is not implemented in GPU "
-                                "predictor, use `cpu_predictor` instead."};
+    std::string not_implemented{
+        "contribution is not implemented in the GPU predictor, use CPU instead."};
     if (approximate) {
       LOG(FATAL) << "Approximated " << not_implemented;
     }
     if (tree_weights != nullptr) {
       LOG(FATAL) << "Dart booster feature " << not_implemented;
-    }
-    if (!p_fmat->PageExists<SparsePage>()) {
-      LOG(FATAL) << "SHAP value for QuantileDMatrix is not yet implemented for GPU.";
     }
     CHECK(!p_fmat->Info().IsColumnSplit())
         << "Predict contribution support for column-wise data split is not yet implemented.";
@@ -1067,8 +1045,8 @@ class GPUPredictor : public xgboost::Predictor {
     // allocate space for (number of features + bias) times the number of rows
     size_t contributions_columns =
         model.learner_model_param->num_feature + 1;  // +1 for bias
-    out_contribs->Resize(p_fmat->Info().num_row_ * contributions_columns *
-                    model.learner_model_param->num_output_group);
+    auto dim_size = contributions_columns * model.learner_model_param->num_output_group;
+    out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
     out_contribs->Fill(0.0f);
     auto phis = out_contribs->DeviceSpan();
 
@@ -1078,16 +1056,27 @@ class GPUPredictor : public xgboost::Predictor {
     d_model.Init(model, 0, tree_end, ctx_->Device());
     dh::device_vector<uint32_t> categories;
     ExtractPaths(&device_paths, &d_model, &categories, ctx_->Device());
-    for (auto& batch : p_fmat->GetBatches<SparsePage>()) {
-      batch.data.SetDevice(ctx_->Device());
-      batch.offset.SetDevice(ctx_->Device());
-      SparsePageView X(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
-                       model.learner_model_param->num_feature);
-      auto begin = dh::tbegin(phis) + batch.base_rowid * contributions_columns;
-      gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
-          X, device_paths.begin(), device_paths.end(), ngroup, begin,
-          dh::tend(phis));
+    if (p_fmat->PageExists<SparsePage>()) {
+      for (auto& batch : p_fmat->GetBatches<SparsePage>()) {
+        batch.data.SetDevice(ctx_->Device());
+        batch.offset.SetDevice(ctx_->Device());
+        SparsePageView X(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
+                         model.learner_model_param->num_feature);
+        auto begin = dh::tbegin(phis) + batch.base_rowid * dim_size;
+        gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
+            X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+      }
+    } else {
+      for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
+        EllpackDeviceAccessor acc{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
+        auto X = EllpackLoader{acc, true, model.learner_model_param->num_feature, batch.Size(),
+                               std::numeric_limits<float>::quiet_NaN()};
+        auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
+        gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
+            X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+      }
     }
+
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(ctx_->Device());
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
@@ -1114,9 +1103,6 @@ class GPUPredictor : public xgboost::Predictor {
     if (tree_weights != nullptr) {
       LOG(FATAL) << "Dart booster feature " << not_implemented;
     }
-    if (!p_fmat->PageExists<SparsePage>()) {
-      LOG(FATAL) << "SHAP value for QuantileDMatrix is not yet implemented for GPU.";
-    }
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     out_contribs->SetDevice(ctx_->Device());
     if (tree_end == 0 || tree_end > model.trees.size()) {
@@ -1128,9 +1114,9 @@ class GPUPredictor : public xgboost::Predictor {
     // allocate space for (number of features + bias) times the number of rows
     size_t contributions_columns =
         model.learner_model_param->num_feature + 1;  // +1 for bias
-    out_contribs->Resize(p_fmat->Info().num_row_ * contributions_columns *
-                         contributions_columns *
-                         model.learner_model_param->num_output_group);
+    auto dim_size =
+        contributions_columns * contributions_columns * model.learner_model_param->num_output_group;
+    out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
     out_contribs->Fill(0.0f);
     auto phis = out_contribs->DeviceSpan();
 
@@ -1140,16 +1126,29 @@ class GPUPredictor : public xgboost::Predictor {
     d_model.Init(model, 0, tree_end, ctx_->Device());
     dh::device_vector<uint32_t> categories;
     ExtractPaths(&device_paths, &d_model, &categories, ctx_->Device());
-    for (auto& batch : p_fmat->GetBatches<SparsePage>()) {
-      batch.data.SetDevice(ctx_->Device());
-      batch.offset.SetDevice(ctx_->Device());
-      SparsePageView X(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
-                       model.learner_model_param->num_feature);
-      auto begin = dh::tbegin(phis) + batch.base_rowid * contributions_columns;
-      gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
-          X, device_paths.begin(), device_paths.end(), ngroup, begin,
-          dh::tend(phis));
+    if (p_fmat->PageExists<SparsePage>()) {
+      for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
+        batch.data.SetDevice(ctx_->Device());
+        batch.offset.SetDevice(ctx_->Device());
+        SparsePageView X(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
+                         model.learner_model_param->num_feature);
+        auto begin = dh::tbegin(phis) + batch.base_rowid * dim_size;
+        gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
+            X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+      }
+    } else {
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
+        auto impl = batch.Impl();
+        auto acc =
+            impl->GetDeviceAccessor(ctx_->Device(), p_fmat->Info().feature_types.ConstDeviceSpan());
+        auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
+        auto X = EllpackLoader{acc, true, model.learner_model_param->num_feature, batch.Size(),
+                               std::numeric_limits<float>::quiet_NaN()};
+        gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
+            X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+      }
     }
+
     // Add the base margin term to last column
     p_fmat->Info().base_margin_.SetDevice(ctx_->Device());
     const auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
@@ -1199,60 +1198,39 @@ class GPUPredictor : public xgboost::Predictor {
         info.num_col_, max_shared_memory_bytes);
     bool use_shared = shared_memory_bytes != 0;
     bst_feature_t num_features = info.num_col_;
-    size_t entry_start = 0;
+
+    auto launch = [&](auto fn, std::uint32_t grid, auto data, bst_idx_t batch_offset) {
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes}(
+          fn, data, d_model.nodes.ConstDeviceSpan(),
+          predictions->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
+
+          d_model.split_types.ConstDeviceSpan(), d_model.categories_tree_segments.ConstDeviceSpan(),
+          d_model.categories_node_segments.ConstDeviceSpan(), d_model.categories.ConstDeviceSpan(),
+
+          d_model.tree_beg_, d_model.tree_end_, num_features, num_rows, use_shared,
+          std::numeric_limits<float>::quiet_NaN());
+    };
 
     if (p_fmat->PageExists<SparsePage>()) {
+      bst_idx_t batch_offset = 0;
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
         batch.data.SetDevice(ctx_->Device());
         batch.offset.SetDevice(ctx_->Device());
-        bst_idx_t batch_offset = 0;
         SparsePageView data{batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                             model.learner_model_param->num_feature};
-        size_t num_rows = batch.Size();
-        auto grid =
-            static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-        dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes} (
-            PredictLeafKernel<SparsePageLoader, SparsePageView>, data,
-            d_model.nodes.ConstDeviceSpan(),
-            predictions->DeviceSpan().subspan(batch_offset),
-            d_model.tree_segments.ConstDeviceSpan(),
-
-            d_model.split_types.ConstDeviceSpan(),
-            d_model.categories_tree_segments.ConstDeviceSpan(),
-            d_model.categories_node_segments.ConstDeviceSpan(),
-            d_model.categories.ConstDeviceSpan(),
-
-            d_model.tree_beg_, d_model.tree_end_, num_features, num_rows,
-            entry_start, use_shared, nan(""));
+        auto grid = static_cast<std::uint32_t>(common::DivRoundUp(batch.Size(), kBlockThreads));
+        launch(PredictLeafKernel<SparsePageLoader, SparsePageView>, grid, data, batch_offset);
         batch_offset += batch.Size();
       }
     } else {
+      bst_idx_t batch_offset = 0;
       for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
-        bst_idx_t batch_offset = 0;
         EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
-        size_t num_rows = batch.Size();
-        auto grid =
-            static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
-        dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes} (
-            PredictLeafKernel<EllpackLoader, EllpackDeviceAccessor>, data,
-            d_model.nodes.ConstDeviceSpan(),
-            predictions->DeviceSpan().subspan(batch_offset),
-            d_model.tree_segments.ConstDeviceSpan(),
-
-            d_model.split_types.ConstDeviceSpan(),
-            d_model.categories_tree_segments.ConstDeviceSpan(),
-            d_model.categories_node_segments.ConstDeviceSpan(),
-            d_model.categories.ConstDeviceSpan(),
-
-            d_model.tree_beg_, d_model.tree_end_, num_features, num_rows,
-            entry_start, use_shared, nan(""));
+        auto grid = static_cast<std::uint32_t>(common::DivRoundUp(batch.Size(), kBlockThreads));
+        launch(PredictLeafKernel<EllpackLoader, EllpackDeviceAccessor>, grid, data, batch_offset);
         batch_offset += batch.Size();
       }
     }
-  }
-
-  void Configure(const std::vector<std::pair<std::string, std::string>>& cfg) override {
-    Predictor::Configure(cfg);
   }
 
  private:

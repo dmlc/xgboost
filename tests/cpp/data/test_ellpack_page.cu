@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <xgboost/base.h>
 
@@ -15,7 +15,6 @@
 #include "gtest/gtest.h"
 
 namespace xgboost {
-
 TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256;
   constexpr float kSparsity = 0;
@@ -140,13 +139,11 @@ struct ReadRowFunction {
 TEST(EllpackPage, Copy) {
   constexpr size_t kRows = 1024;
   constexpr size_t kCols = 16;
-  constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix>
-      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  Context ctx{MakeCUDACtx(0)};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
+  auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
@@ -187,14 +184,12 @@ TEST(EllpackPage, Copy) {
 TEST(EllpackPage, Compact) {
   constexpr size_t kRows = 16;
   constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1;
   constexpr size_t kCompactedRows = 8;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(
-      CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  Context ctx{MakeCUDACtx(0)};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(2).GenerateSparsePageDMatrix("temp", true);
+  auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
 
@@ -246,7 +241,7 @@ TEST(EllpackPage, Compact) {
 namespace {
 class EllpackPageTest : public testing::TestWithParam<float> {
  protected:
-  void Run(float sparsity) {
+  void TestFromGHistIndex(float sparsity) const {
     // Only testing with small sample size as the cuts might be different between host and
     // device.
     size_t n_samples{128}, n_features{13};
@@ -277,9 +272,25 @@ class EllpackPageTest : public testing::TestWithParam<float> {
       }
     }
   }
+
+  void TestNumNonMissing(float sparsity) const {
+    size_t n_samples{1024}, n_features{13};
+    auto ctx = MakeCUDACtx(0);
+    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}.GenerateDMatrix(true);
+    auto nnz = p_fmat->Info().num_nonzero_;
+    for (auto const& page : p_fmat->GetBatches<EllpackPage>(
+             &ctx, BatchParam{17, tree::TrainParam::DftSparseThreshold()})) {
+      auto ellpack_nnz =
+          page.Impl()->NumNonMissing(&ctx, p_fmat->Info().feature_types.ConstDeviceSpan());
+      ASSERT_EQ(nnz, ellpack_nnz);
+    }
+  }
 };
 }  // namespace
 
-TEST_P(EllpackPageTest, FromGHistIndex) { this->Run(GetParam()); }
+TEST_P(EllpackPageTest, FromGHistIndex) { this->TestFromGHistIndex(GetParam()); }
+
+TEST_P(EllpackPageTest, NumNonMissing) { this->TestNumNonMissing(this->GetParam()); }
+
 INSTANTIATE_TEST_SUITE_P(EllpackPage, EllpackPageTest, testing::Values(.0f, .2f, .4f, .8f));
 }  // namespace xgboost

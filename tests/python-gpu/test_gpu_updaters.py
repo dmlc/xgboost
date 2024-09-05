@@ -10,6 +10,7 @@ from xgboost import testing as tm
 from xgboost.testing.params import (
     cat_parameter_strategy,
     exact_parameter_strategy,
+    hist_cache_strategy,
     hist_parameter_strategy,
 )
 from xgboost.testing.updater import (
@@ -46,6 +47,7 @@ class TestGPUUpdaters:
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,
+        hist_cache_strategy,
         strategies.integers(1, 20),
         tm.make_dataset_strategy(),
     )
@@ -54,19 +56,44 @@ class TestGPUUpdaters:
         self,
         param: Dict[str, Any],
         hist_param: Dict[str, Any],
+        cache_param: Dict[str, Any],
         num_rounds: int,
         dataset: tm.TestDataset,
     ) -> None:
         param.update({"tree_method": "hist", "device": "cuda"})
         param.update(hist_param)
+        param.update(cache_param)
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
         note(str(result))
         assert tm.non_increasing(result["train"][dataset.metric])
 
+    @pytest.mark.parametrize("tree_method", ["approx", "hist"])
+    def test_cache_size(self, tree_method: str) -> None:
+        from sklearn.datasets import make_regression
+
+        X, y = make_regression(n_samples=4096, n_features=64, random_state=1994)
+        Xy = xgb.DMatrix(X, y)
+        results = []
+        for cache_size in [1, 3, 2048]:
+            params: Dict[str, Any] = {"tree_method": tree_method, "device": "cuda"}
+            params["max_cached_hist_node"] = cache_size
+            evals_result: Dict[str, Dict[str, list]] = {}
+            xgb.train(
+                params,
+                Xy,
+                num_boost_round=4,
+                evals=[(Xy, "Train")],
+                evals_result=evals_result,
+            )
+            results.append(evals_result["Train"]["rmse"])
+        for i in range(1, len(results)):
+            np.testing.assert_allclose(results[0], results[i])
+
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,
+        hist_cache_strategy,
         strategies.integers(1, 20),
         tm.make_dataset_strategy(),
     )
@@ -75,11 +102,13 @@ class TestGPUUpdaters:
         self,
         param: Dict[str, Any],
         hist_param: Dict[str, Any],
+        cache_param: Dict[str, Any],
         num_rounds: int,
         dataset: tm.TestDataset,
     ) -> None:
         param.update({"tree_method": "approx", "device": "cuda"})
         param.update(hist_param)
+        param.update(cache_param)
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
         note(str(result))
@@ -321,4 +350,4 @@ class TestGPUUpdaters:
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_get_quantile_cut(self) -> None:
-        check_get_quantile_cut("gpu_hist")
+        check_get_quantile_cut("hist", "cuda")

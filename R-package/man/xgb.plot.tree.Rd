@@ -17,7 +17,7 @@ xgb.plot.tree(
 }
 \arguments{
 \item{model}{Object of class \code{xgb.Booster}. If it contains feature names (they can be set through
-\link{setinfo}), they will be used in the output from this function.}
+\code{\link[=setinfo]{setinfo()}}, they will be used in the output from this function.}
 
 \item{trees}{An integer vector of tree indices that should be used.
 The default (\code{NULL}) uses all trees.
@@ -26,13 +26,14 @@ the trees of one class. \emph{Important}: the tree index in XGBoost models
 is zero-based (e.g., use \code{trees = 0:2} for the first three trees).}
 
 \item{plot_width, plot_height}{Width and height of the graph in pixels.
-The values are passed to \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.}
+The values are passed to \code{DiagrammeR::render_graph()}.}
 
 \item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
 
 \item{show_node_id}{a logical flag for whether to show node id's in the graph.}
 
-\item{style}{Style to use for the plot. Options are:\itemize{
+\item{style}{Style to use for the plot:
+\itemize{
 \item \code{"xgboost"}: will use the plot style defined in the core XGBoost library,
 which is shared between different interfaces through the 'dot' format. This
 style was not available before version 2.1.0 in R. It always plots the trees
@@ -42,13 +43,14 @@ the introducition of the standardized style from the core library. It might plot
 the trees horizontally (from left to right).
 }
 
-Note that \code{style="xgboost"} is only supported when all of the following conditions are met:\itemize{
+Note that \code{style="xgboost"} is only supported when all of the following conditions are met:
+\itemize{
 \item Only a single tree is being plotted.
 \item Node IDs are not added to the graph.
 \item The graph is being returned as \code{htmlwidget} (\code{render=TRUE}).
 }}
 
-\item{...}{currently not used.}
+\item{...}{Currently not used.}
 }
 \value{
 The value depends on the \code{render} parameter:
@@ -58,7 +60,7 @@ class \code{grViz}. Similar to "ggplot" objects, it needs to be printed when not
 running from the command line.
 \item If \code{render = FALSE}: Graph object which is of DiagrammeR's class \code{dgr_graph}.
 This could be useful if one wants to modify some of the graph attributes
-before rendering the graph with \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.
+before rendering the graph with \code{DiagrammeR::render_graph()}.
 }
 }
 \description{

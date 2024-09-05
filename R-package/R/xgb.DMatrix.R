@@ -1,9 +1,9 @@
 #' Construct xgb.DMatrix object
 #'
 #' Construct an 'xgb.DMatrix' object from a given data source, which can then be passed to functions
-#' such as \link{xgb.train} or \link{predict.xgb.Booster}.
+#' such as [xgb.train()] or [predict()].
 #'
-#' Function 'xgb.QuantileDMatrix' will construct a DMatrix with quantization for the histogram
+#' Function `xgb.QuantileDMatrix()` will construct a DMatrix with quantization for the histogram
 #' method already applied to it, which can be used to reduce memory usage (compared to using a
 #' a regular DMatrix first and then creating a quantization out of it) when using the histogram
 #' method (`tree_method = "hist"`, which is the default algorithm), but is not usable for the
@@ -24,20 +24,20 @@
 #'
 #' Other column types are not supported.
 #' \item CSR matrices, as class `dgRMatrix` from package `Matrix`.
-#' \item CSC matrices, as class `dgCMatrix` from package `Matrix`. These are \bold{not} supported for
+#' \item CSC matrices, as class `dgCMatrix` from package `Matrix`. These are **not** supported for
 #' 'xgb.QuantileDMatrix'.
 #' \item Single-row CSR matrices, as class `dsparseVector` from package `Matrix`, which is interpreted
 #' as a single row (only when making predictions from a fitted model).
 #' \item Text files in a supported format, passed as a `character` variable containing the URI path to
 #' the file, with an optional format specifier.
 #'
-#' These are \bold{not} supported for `xgb.QuantileDMatrix`. Supported formats are:\itemize{
-#'   \item XGBoost's own binary format for DMatrices, as produced by \link{xgb.DMatrix.save}.
+#' These are **not** supported for `xgb.QuantileDMatrix`. Supported formats are:\itemize{
+#'   \item XGBoost's own binary format for DMatrices, as produced by [xgb.DMatrix.save()].
 #'   \item SVMLight (a.k.a. LibSVM) format for CSR matrices. This format can be signaled by suffix
-#'         `?format=libsvm` at the end of the file path. It will be the default format if not
-#'         otherwise specified.
+#'     `?format=libsvm` at the end of the file path. It will be the default format if not
+#'     otherwise specified.
 #'   \item CSV files (comma-separated values). This format can be specified by adding suffix
-#'         `?format=csv` at the end ofthe file path. It will \bold{not} be auto-deduced from file extensions.
+#'     `?format=csv` at the end ofthe file path. It will **not** be auto-deduced from file extensions.
 #'   }
 #'
 #' Be aware that the format of the file will not be auto-deduced - for example, if a file is named 'file.csv',
@@ -54,44 +54,41 @@
 #' integers with numeration starting at zero.
 #' @param weight Weight for each instance.
 #'
-#' Note that, for ranking task, weights are per-group.  In ranking task, one weight
-#' is assigned to each group (not each data point). This is because we
-#' only care about the relative ordering of data points within each group,
-#' so it doesn't make sense to assign weights to individual data points.
+#'   Note that, for ranking task, weights are per-group.  In ranking task, one weight
+#'   is assigned to each group (not each data point). This is because we
+#'   only care about the relative ordering of data points within each group,
+#'   so it doesn't make sense to assign weights to individual data points.
 #' @param base_margin Base margin used for boosting from existing model.
 #'
-#'        In the case of multi-output models, one can also pass multi-dimensional base_margin.
+#'   In the case of multi-output models, one can also pass multi-dimensional base_margin.
 #' @param missing A float value to represents missing values in data (not used when creating DMatrix
-#'        from text files).
-#'        It is useful to change when a zero, infinite, or some other extreme value represents missing
-#'        values in data.
+#'   from text files). It is useful to change when a zero, infinite, or some other
+#'   extreme value represents missing values in data.
 #' @param silent whether to suppress printing an informational message after loading from a file.
-#' @param feature_names Set names for features. Overrides column names in data
-#'        frame and matrix.
+#' @param feature_names Set names for features. Overrides column names in data frame and matrix.
 #'
-#'        Note: columns are not referenced by name when calling `predict`, so the column order there
-#'        must be the same as in the DMatrix construction, regardless of the column names.
+#'   Note: columns are not referenced by name when calling `predict`, so the column order there
+#'   must be the same as in the DMatrix construction, regardless of the column names.
 #' @param feature_types Set types for features.
 #'
-#' If `data` is a `data.frame` and passing `feature_types` is not supplied, feature types will be deduced
-#' automatically from the column types.
+#'   If `data` is a `data.frame` and passing `feature_types` is not supplied,
+#'   feature types will be deduced automatically from the column types.
 #'
-#' Otherwise, one can pass a character vector with the same length as number of columns in `data`,
-#' with the following possible values:\itemize{
-#' \item "c", which represents categorical columns.
-#' \item "q", which represents numeric columns.
-#' \item "int", which represents integer columns.
-#' \item "i", which represents logical (boolean) columns.
-#' }
+#'   Otherwise, one can pass a character vector with the same length as number of columns in `data`,
+#'   with the following possible values:
+#'   - "c", which represents categorical columns.
+#'   - "q", which represents numeric columns.
+#'   - "int", which represents integer columns.
+#'   - "i", which represents logical (boolean) columns.
 #'
-#' Note that, while categorical types are treated differently from the rest for model fitting
-#' purposes, the other types do not influence the generated model, but have effects in other
-#' functionalities such as feature importances.
+#'   Note that, while categorical types are treated differently from the rest for model fitting
+#'   purposes, the other types do not influence the generated model, but have effects in other
+#'   functionalities such as feature importances.
 #'
-#' \bold{Important}: categorical features, if specified manually through `feature_types`, must
-#' be encoded as integers with numeration starting at zero, and the same encoding needs to be
-#' applied when passing data to `predict`. Even if passing `factor` types, the encoding will
-#' not be saved, so make sure that `factor` columns passed to `predict` have the same `levels`.
+#'   **Important**: Categorical features, if specified manually through `feature_types`, must
+#'   be encoded as integers with numeration starting at zero, and the same encoding needs to be
+#'   applied when passing data to [predict()]. Even if passing `factor` types, the encoding will
+#'   not be saved, so make sure that `factor` columns passed to `predict` have the same `levels`.
 #' @param nthread Number of threads used for creating DMatrix.
 #' @param group Group size for all ranking group.
 #' @param qid Query ID for data samples, used for ranking.
@@ -99,23 +96,24 @@
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
 #' @param data_split_mode When passing a URI (as R `character`) as input, this signals
-#' whether to split by row or column. Allowed values are `"row"` and `"col"`.
+#'   whether to split by row or column. Allowed values are `"row"` and `"col"`.
 #'
-#' In distributed mode, the file is split accordingly; otherwise this is only an indicator on
-#' how the file was split beforehand. Default to row.
+#'   In distributed mode, the file is split accordingly; otherwise this is only an indicator on
+#'   how the file was split beforehand. Default to row.
 #'
-#' This is not used when `data` is not a URI.
+#'   This is not used when `data` is not a URI.
 #' @return An 'xgb.DMatrix' object. If calling 'xgb.QuantileDMatrix', it will have additional
 #' subclass 'xgb.QuantileDMatrix'.
 #'
 #' @details
-#' Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
+#' Note that DMatrix objects are not serializable through R functions such as [saveRDS()] or [save()].
 #' If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching
 #' chunks in an Rmd file), the resulting object will not be usable anymore and will need to be reconstructed
 #' from the original source of data.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' ## Keep the number of threads to 1 for examples
 #' nthread <- 1
 #' data.table::setDTthreads(nthread)
@@ -318,13 +316,13 @@ xgb.DMatrix <- function(
 }
 
 #' @param ref The training dataset that provides quantile information, needed when creating
-#' validation/test dataset with `xgb.QuantileDMatrix`. Supplying the training DMatrix
+#' validation/test dataset with [xgb.QuantileDMatrix()]. Supplying the training DMatrix
 #' as a reference means that the same quantisation applied to the training data is
 #' applied to the validation/test data
 #' @param max_bin The number of histogram bin, should be consistent with the training parameter
-#' `max_bin`.
+#'   `max_bin`.
 #'
-#' This is only supported when constructing a QuantileDMatrix.
+#'   This is only supported when constructing a QuantileDMatrix.
 #' @export
 #' @rdname xgb.DMatrix
 xgb.QuantileDMatrix <- function(
@@ -411,40 +409,42 @@ xgb.QuantileDMatrix <- function(
   return(dmat)
 }
 
-#' @title XGBoost Data Iterator
-#' @description Interface to create a custom data iterator in order to construct a DMatrix
+#' XGBoost Data Iterator
+#'
+#' @description
+#' Interface to create a custom data iterator in order to construct a DMatrix
 #' from external memory.
 #'
 #' This function is responsible for generating an R object structure containing callback
 #' functions and an environment shared with them.
 #'
-#' The output structure from this function is then meant to be passed to \link{xgb.ExternalDMatrix},
+#' The output structure from this function is then meant to be passed to [xgb.ExternalDMatrix()],
 #' which will consume the data and create a DMatrix from it by executing the callback functions.
 #'
-#' For more information, and for a usage example, see the documentation for \link{xgb.ExternalDMatrix}.
+#' For more information, and for a usage example, see the documentation for [xgb.ExternalDMatrix()].
+#'
 #' @param env An R environment to pass to the callback functions supplied here, which can be
-#' used to keep track of variables to determine how to handle the batches.
+#'   used to keep track of variables to determine how to handle the batches.
 #'
-#' For example, one might want to keep track of an iteration number in this environment in order
-#' to know which part of the data to pass next.
-#' @param f_next `function(env)` which is responsible for:\itemize{
-#' \item Accessing or retrieving the next batch of data in the iterator.
-#' \item Supplying this data by calling function \link{xgb.DataBatch} on it and returning the result.
-#' \item Keeping track of where in the iterator batch it is or will go next, which can for example
-#' be done by modifiying variables in the `env` variable that is passed here.
-#' \item Signaling whether there are more batches to be consumed or not, by returning `NULL`
-#' when the stream of data ends (all batches in the iterator have been consumed), or the result from
-#' calling \link{xgb.DataBatch} when there are more batches in the line to be consumed.
-#' }
+#'   For example, one might want to keep track of an iteration number in this environment in order
+#'   to know which part of the data to pass next.
+#' @param f_next `function(env)` which is responsible for:
+#'   - Accessing or retrieving the next batch of data in the iterator.
+#'   - Supplying this data by calling function [xgb.DataBatch()] on it and returning the result.
+#'   - Keeping track of where in the iterator batch it is or will go next, which can for example
+#'     be done by modifiying variables in the `env` variable that is passed here.
+#'   - Signaling whether there are more batches to be consumed or not, by returning `NULL`
+#'     when the stream of data ends (all batches in the iterator have been consumed), or the result from
+#'     calling [xgb.DataBatch()] when there are more batches in the line to be consumed.
 #' @param f_reset `function(env)` which is responsible for reseting the data iterator
-#' (i.e. taking it back to the first batch, called before and after the sequence of batches
-#' has been consumed).
+#'   (i.e. taking it back to the first batch, called before and after the sequence of batches
+#'   has been consumed).
 #'
-#' Note that, after resetting the iterator, the batches will be accessed again, so the same data
-#' (and in the same order) must be passed in subsequent iterations.
+#'   Note that, after resetting the iterator, the batches will be accessed again, so the same data
+#'   (and in the same order) must be passed in subsequent iterations.
 #' @return An `xgb.DataIter` object, containing the same inputs supplied here, which can then
-#' be passed to \link{xgb.ExternalDMatrix}.
-#' @seealso \link{xgb.ExternalDMatrix}, \link{xgb.DataBatch}.
+#'   be passed to [xgb.ExternalDMatrix()].
+#' @seealso [xgb.ExternalDMatrix()], [xgb.DataBatch()].
 #' @export
 xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
   if (!is.function(f_next)) {
@@ -508,38 +508,39 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
   return(out)
 }
 
-#' @title Structure for Data Batches
-#' @description Helper function to supply data in batches of a data iterator when
-#' constructing a DMatrix from external memory through \link{xgb.ExternalDMatrix}
-#' or through \link{xgb.QuantileDMatrix.from_iterator}.
+#' Structure for Data Batches
 #'
-#' This function is \bold{only} meant to be called inside of a callback function (which
-#' is passed as argument to function \link{xgb.DataIter} to construct a data iterator)
+#' @description
+#' Helper function to supply data in batches of a data iterator when
+#' constructing a DMatrix from external memory through [xgb.ExternalDMatrix()]
+#' or through [xgb.QuantileDMatrix.from_iterator()].
+#'
+#' This function is **only** meant to be called inside of a callback function (which
+#' is passed as argument to function [xgb.DataIter()] to construct a data iterator)
 #' when constructing a DMatrix through external memory - otherwise, one should call
-#' \link{xgb.DMatrix} or \link{xgb.QuantileDMatrix}.
+#' [xgb.DMatrix()] or [xgb.QuantileDMatrix()].
 #'
-#' The object that results from calling this function directly is \bold{not} like
+#' The object that results from calling this function directly is **not** like
 #' an `xgb.DMatrix` - i.e. cannot be used to train a model, nor to get predictions - only
 #' possible usage is to supply data to an iterator, from which a DMatrix is then constructed.
 #'
-#' For more information and for example usage, see the documentation for \link{xgb.ExternalDMatrix}.
+#' For more information and for example usage, see the documentation for [xgb.ExternalDMatrix()].
 #' @inheritParams xgb.DMatrix
 #' @param data Batch of data belonging to this batch.
 #'
-#' Note that not all of the input types supported by \link{xgb.DMatrix} are possible
-#' to pass here. Supported types are:\itemize{
-#' \item `matrix`, with types `numeric`, `integer`, and `logical`. Note that for types
-#' `integer` and `logical`, missing values might not be automatically recognized as
-#' as such - see the documentation for parameter `missing` in \link{xgb.ExternalDMatrix}
-#' for details on this.
-#' \item `data.frame`, with the same types as supported by 'xgb.DMatrix' and same
-#' conversions applied to it. See the documentation for parameter `data` in
-#' \link{xgb.DMatrix} for details on it.
-#' \item CSR matrices, as class `dgRMatrix` from package `Matrix`.
-#' }
+#'   Note that not all of the input types supported by [xgb.DMatrix()] are possible
+#'   to pass here. Supported types are:
+#'   - `matrix`, with types `numeric`, `integer`, and `logical`. Note that for types
+#'     `integer` and `logical`, missing values might not be automatically recognized as
+#'     as such - see the documentation for parameter `missing` in [xgb.ExternalDMatrix()]
+#'     for details on this.
+#'   - `data.frame`, with the same types as supported by 'xgb.DMatrix' and same
+#'     conversions applied to it. See the documentation for parameter `data` in
+#'     [xgb.DMatrix()] for details on it.
+#'   - CSR matrices, as class `dgRMatrix` from package "Matrix".
 #' @return An object of class `xgb.DataBatch`, which is just a list containing the
-#' data and parameters passed here. It does \bold{not} inherit from `xgb.DMatrix`.
-#' @seealso \link{xgb.DataIter}, \link{xgb.ExternalDMatrix}.
+#'   data and parameters passed here. It does **not** inherit from `xgb.DMatrix`.
+#' @seealso [xgb.DataIter()], [xgb.ExternalDMatrix()].
 #' @export
 xgb.DataBatch <- function(
   data,
@@ -616,42 +617,43 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
   return(1L)
 }
 
-#' @title DMatrix from External Data
-#' @description Create a special type of xgboost 'DMatrix' object from external data
-#' supplied by an \link{xgb.DataIter} object, potentially passed in batches from a
+#' DMatrix from External Data
+#'
+#' @description
+#' Create a special type of XGBoost 'DMatrix' object from external data
+#' supplied by an [xgb.DataIter()] object, potentially passed in batches from a
 #' bigger set that might not fit entirely in memory.
 #'
 #' The data supplied by the iterator is accessed on-demand as needed, multiple times,
-#' without being concatenated, but note that fields like 'label' \bold{will} be
+#' without being concatenated, but note that fields like 'label' **will** be
 #' concatenated from multiple calls to the data iterator.
 #'
 #' For more information, see the guide 'Using XGBoost External Memory Version':
 #' \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
 #' @inheritParams xgb.DMatrix
-#' @param data_iterator A data iterator structure as returned by \link{xgb.DataIter},
-#' which includes an environment shared between function calls, and functions to access
-#' the data in batches on-demand.
+#' @param data_iterator A data iterator structure as returned by [xgb.DataIter()],
+#'   which includes an environment shared between function calls, and functions to access
+#'   the data in batches on-demand.
 #' @param cache_prefix The path of cache file, caller must initialize all the directories in this path.
 #' @param missing A float value to represents missing values in data.
 #'
-#' Note that, while functions like \link{xgb.DMatrix} can take a generic `NA` and interpret it
-#' correctly for different types like `numeric` and `integer`, if an `NA` value is passed here,
-#' it will not be adapted for different input types.
+#'   Note that, while functions like [xgb.DMatrix()] can take a generic `NA` and interpret it
+#'   correctly for different types like `numeric` and `integer`, if an `NA` value is passed here,
+#'   it will not be adapted for different input types.
 #'
-#' For example, in R `integer` types, missing values are represented by integer number `-2147483648`
-#' (since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes `NA`,
-#' which is interpreted as a floating-point NaN by 'xgb.ExternalDMatrix' and by
-#' 'xgb.QuantileDMatrix.from_iterator', these integer missing values will not be treated as missing.
-#' This should not pose any problem for `numeric` types, since they do have an inheret NaN value.
+#'   For example, in R `integer` types, missing values are represented by integer number `-2147483648`
+#'   (since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes `NA`,
+#'   which is interpreted as a floating-point NaN by [xgb.ExternalDMatrix()] and by
+#'   [xgb.QuantileDMatrix.from_iterator()], these integer missing values will not be treated as missing.
+#'   This should not pose any problem for `numeric` types, since they do have an inheret NaN value.
 #' @return An 'xgb.DMatrix' object, with subclass 'xgb.ExternalDMatrix', in which the data is not
-#' held internally but accessed through the iterator when needed.
-#' @seealso \link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.QuantileDMatrix.from_iterator}
+#'   held internally but accessed through the iterator when needed.
+#' @seealso [xgb.DataIter()], [xgb.DataBatch()], [xgb.QuantileDMatrix.from_iterator()]
 #' @examples
-#' library(xgboost)
 #' data(mtcars)
 #'
-#' # this custom environment will be passed to the iterator
-#' # functions at each call. It's up to the user to keep
+#' # This custom environment will be passed to the iterator
+#' # functions at each call. It is up to the user to keep
 #' # track of the iteration number in this environment.
 #' iterator_env <- as.environment(
 #'   list(
@@ -758,25 +760,27 @@ xgb.ExternalDMatrix <- function(
 }
 
 
-#' @title QuantileDMatrix from External Data
-#' @description Create an `xgb.QuantileDMatrix` object (exact same class as would be returned by
-#' calling function \link{xgb.QuantileDMatrix}, with the same advantages and limitations) from
-#' external data supplied by an \link{xgb.DataIter} object, potentially passed in batches from
-#' a bigger set that might not fit entirely in memory, same way as \link{xgb.ExternalDMatrix}.
+#' QuantileDMatrix from External Data
+#'
+#' @description
+#' Create an `xgb.QuantileDMatrix` object (exact same class as would be returned by
+#' calling function [xgb.QuantileDMatrix()], with the same advantages and limitations) from
+#' external data supplied by [xgb.DataIter()], potentially passed in batches from
+#' a bigger set that might not fit entirely in memory, same way as [xgb.ExternalDMatrix()].
 #'
 #' Note that, while external data will only be loaded through the iterator (thus the full data
 #' might not be held entirely in-memory), the quantized representation of the data will get
 #' created in-memory, being concatenated from multiple calls to the data iterator. The quantized
 #' version is typically lighter than the original data, so there might be cases in which this
-#' representation could potentially fit in memory even if the full data doesn't.
+#' representation could potentially fit in memory even if the full data does not.
 #'
 #' For more information, see the guide 'Using XGBoost External Memory Version':
 #' \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
 #' @inheritParams xgb.ExternalDMatrix
 #' @inheritParams xgb.QuantileDMatrix
 #' @return An 'xgb.DMatrix' object, with subclass 'xgb.QuantileDMatrix'.
-#' @seealso \link{xgb.DataIter}, \link{xgb.DataBatch}, \link{xgb.ExternalDMatrix},
-#' \link{xgb.QuantileDMatrix}
+#' @seealso [xgb.DataIter()], [xgb.DataBatch()], [xgb.ExternalDMatrix()],
+#' [xgb.QuantileDMatrix()]
 #' @export
 xgb.QuantileDMatrix.from_iterator <- function( # nolint
   data_iterator,
@@ -823,18 +827,18 @@ xgb.QuantileDMatrix.from_iterator <- function( # nolint
   return(dmat)
 }
 
-#' @title Check whether DMatrix object has a field
-#' @description Checks whether an xgb.DMatrix object has a given field assigned to
+#' Check whether DMatrix object has a field
+#'
+#' Checks whether an xgb.DMatrix object has a given field assigned to
 #' it, such as weights, labels, etc.
-#' @param object The DMatrix object to check for the given \code{info} field.
-#' @param info The field to check for presence or absence in \code{object}.
-#' @seealso \link{xgb.DMatrix}, \link{getinfo.xgb.DMatrix}, \link{setinfo.xgb.DMatrix}
+#' @param object The DMatrix object to check for the given `info` field.
+#' @param info The field to check for presence or absence in `object`.
+#' @seealso [xgb.DMatrix()], [getinfo.xgb.DMatrix()], [setinfo.xgb.DMatrix()]
 #' @examples
-#' library(xgboost)
 #' x <- matrix(1:10, nrow = 5)
 #' dm <- xgb.DMatrix(x, nthread = 1)
 #'
-#' # 'dm' so far doesn't have any fields set
+#' # 'dm' so far does not have any fields set
 #' xgb.DMatrix.hasinfo(dm, "label")
 #'
 #' # Fields can be added after construction
@@ -855,17 +859,19 @@ xgb.DMatrix.hasinfo <- function(object, info) {
 
 #' Dimensions of xgb.DMatrix
 #'
-#' Returns a vector of numbers of rows and of columns in an \code{xgb.DMatrix}.
-#' @param x Object of class \code{xgb.DMatrix}
+#' Returns a vector of numbers of rows and of columns in an `xgb.DMatrix`.
+#'
+#' @param x Object of class `xgb.DMatrix`
 #'
 #' @details
-#' Note: since \code{nrow} and \code{ncol} internally use \code{dim}, they can also
-#' be directly used with an \code{xgb.DMatrix} object.
+#' Note: since [nrow()] and [ncol()] internally use [dim()], they can also
+#' be directly used with an `xgb.DMatrix` object.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label, nthread = 2)
+#' dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = 2)
 #'
 #' stopifnot(nrow(dtrain) == nrow(train$data))
 #' stopifnot(ncol(dtrain) == ncol(train$data))
@@ -877,27 +883,28 @@ dim.xgb.DMatrix <- function(x) {
 }
 
 
-#' Handling of column names of \code{xgb.DMatrix}
+#' Handling of column names of `xgb.DMatrix`
 #'
-#' Only column names are supported for \code{xgb.DMatrix}, thus setting of
-#' row names would have no effect and returned row names would be NULL.
+#' Only column names are supported for `xgb.DMatrix`, thus setting of
+#' row names would have no effect and returned row names would be `NULL`.
 #'
-#' @param x object of class \code{xgb.DMatrix}
-#' @param value a list of two elements: the first one is ignored
-#'        and the second one is column names
+#' @param x Object of class `xgb.DMatrix`.
+#' @param value A list of two elements: the first one is ignored
+#'   and the second one is column names
 #'
 #' @details
-#' Generic \code{dimnames} methods are used by \code{colnames}.
-#' Since row names are irrelevant, it is recommended to use \code{colnames} directly.
+#' Generic [dimnames()] methods are used by [colnames()].
+#' Since row names are irrelevant, it is recommended to use [colnames()] directly.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label, nthread = 2)
+#' dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = 2)
 #' dimnames(dtrain)
 #' colnames(dtrain)
 #' colnames(dtrain) <- make.names(1:ncol(train$data))
-#' print(dtrain, verbose=TRUE)
+#' print(dtrain, verbose = TRUE)
 #'
 #' @rdname dimnames.xgb.DMatrix
 #' @export
@@ -926,47 +933,45 @@ dimnames.xgb.DMatrix <- function(x) {
 }
 
 
-#' @title Get or set information of xgb.DMatrix and xgb.Booster objects
-#' @param object Object of class \code{xgb.DMatrix} of `xgb.Booster`.
-#' @param name the name of the information field to get (see details)
-#' @return For `getinfo`, will return the requested field. For `setinfo`, will always return value `TRUE`
-#' if it succeeds.
-#' @details
-#' The \code{name} field can be one of the following for `xgb.DMatrix`:
+#' Get or set information of xgb.DMatrix and xgb.Booster objects
 #'
-#' \itemize{
-#'     \item \code{label}
-#'     \item \code{weight}
-#'     \item \code{base_margin}
-#'     \item \code{label_lower_bound}
-#'     \item \code{label_upper_bound}
-#'     \item \code{group}
-#'     \item \code{feature_type}
-#'     \item \code{feature_name}
-#'     \item \code{nrow}
-#' }
-#' See the documentation for \link{xgb.DMatrix} for more information about these fields.
+#' @param object Object of class `xgb.DMatrix` or `xgb.Booster`.
+#' @param name The name of the information field to get (see details).
+#' @return For `getinfo()`, will return the requested field. For `setinfo()`,
+#'   will always return value `TRUE` if it succeeds.
+#' @details
+#' The `name` field can be one of the following for `xgb.DMatrix`:
+#' - label
+#' - weight
+#' - base_margin
+#' - label_lower_bound
+#' - label_upper_bound
+#' - group
+#' - feature_type
+#' - feature_name
+#' - nrow
+#'
+#' See the documentation for [xgb.DMatrix()] for more information about these fields.
 #'
 #' For `xgb.Booster`, can be one of the following:
-#' \itemize{
-#'     \item \code{feature_type}
-#'     \item \code{feature_name}
-#' }
+#' - `feature_type`
+#' - `feature_name`
 #'
-#' Note that, while 'qid' cannot be retrieved, it's possible to get the equivalent 'group'
+#' Note that, while 'qid' cannot be retrieved, it is possible to get the equivalent 'group'
 #' for a DMatrix that had 'qid' assigned.
 #'
-#' \bold{Important}: when calling `setinfo`, the objects are modified in-place. See
-#' \link{xgb.copy.Booster} for an idea of this in-place assignment works.
+#' **Important**: when calling [setinfo()], the objects are modified in-place. See
+#' [xgb.copy.Booster()] for an idea of this in-place assignment works.
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
-#' labels <- getinfo(dtrain, 'label')
-#' setinfo(dtrain, 'label', 1-labels)
+#' labels <- getinfo(dtrain, "label")
+#' setinfo(dtrain, "label", 1 - labels)
 #'
-#' labels2 <- getinfo(dtrain, 'label')
-#' stopifnot(all(labels2 == 1-labels))
+#' labels2 <- getinfo(dtrain, "label")
+#' stopifnot(all(labels2 == 1 - labels))
 #' @rdname getinfo
 #' @export
 getinfo <- function(object, name) UseMethod("getinfo")
@@ -1011,28 +1016,29 @@ getinfo.xgb.DMatrix <- function(object, name) {
 }
 
 #' @rdname getinfo
-#' @param info the specific field of information to set
+#' @param info The specific field of information to set.
 #'
 #' @details
-#' See the documentation for \link{xgb.DMatrix} for possible fields that can be set
+#' See the documentation for [xgb.DMatrix()] for possible fields that can be set
 #' (which correspond to arguments in that function).
 #'
-#' Note that the following fields are allowed in the construction of an \code{xgb.DMatrix}
-#' but \bold{aren't} allowed here:\itemize{
-#' \item data
-#' \item missing
-#' \item silent
-#' \item nthread
-#' }
+#' Note that the following fields are allowed in the construction of an `xgb.DMatrix`
+#' but **are not** allowed here:
+#' - data
+#' - missing
+#' - silent
+#' - nthread
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
-#' labels <- getinfo(dtrain, 'label')
-#' setinfo(dtrain, 'label', 1-labels)
-#' labels2 <- getinfo(dtrain, 'label')
-#' stopifnot(all.equal(labels2, 1-labels))
+#' labels <- getinfo(dtrain, "label")
+#' setinfo(dtrain, "label", 1 - labels)
+#'
+#' labels2 <- getinfo(dtrain, "label")
+#' stopifnot(all.equal(labels2, 1 - labels))
 #' @export
 setinfo <- function(object, name, info) UseMethod("setinfo")
 
@@ -1117,9 +1123,11 @@ setinfo.xgb.DMatrix <- function(object, name, info) {
   stop("setinfo: unknown info name ", name)
 }
 
-#' @title Get Quantile Cuts from DMatrix
-#' @description Get the quantile cuts (a.k.a. borders) from an `xgb.DMatrix`
-#' that has been quantized for the histogram method (`tree_method="hist"`).
+#' Get Quantile Cuts from DMatrix
+#'
+#' @description
+#' Get the quantile cuts (a.k.a. borders) from an `xgb.DMatrix`
+#' that has been quantized for the histogram method (`tree_method = "hist"`).
 #'
 #' These cuts are used in order to assign observations to bins - i.e. these are ordered
 #' boundaries which are used to determine assignment condition `border_low < x < border_high`.
@@ -1130,19 +1138,18 @@ setinfo.xgb.DMatrix <- function(object, name, info) {
 #' which will be output in sorted order from lowest to highest.
 #'
 #' Different columns can have different numbers of bins according to their range.
-#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
-#' @param output Output format for the quantile cuts. Possible options are:\itemize{
-#' \item `"list"` will return the output as a list with one entry per column, where
-#' each column will have a numeric vector with the cuts. The list will be named if
-#' `dmat` has column names assigned to it.
-#' \item `"arrays"` will return a list with entries `indptr` (base-0 indexing) and
-#' `data`. Here, the cuts for column 'i' are obtained by slicing 'data' from entries
-#' `indptr[i]+1` to `indptr[i+1]`.
-#' }
+#' @param dmat An `xgb.DMatrix` object, as returned by [xgb.DMatrix()].
+#' @param output Output format for the quantile cuts. Possible options are:
+#'   - "list"` will return the output as a list with one entry per column, where
+#'     each column will have a numeric vector with the cuts. The list will be named if
+#'     `dmat` has column names assigned to it.
+#'   - `"arrays"` will return a list with entries `indptr` (base-0 indexing) and
+#'     `data`. Here, the cuts for column 'i' are obtained by slicing 'data' from entries
+#' `   indptr[i]+1` to `indptr[i+1]`.
 #' @return The quantile cuts, in the format specified by parameter `output`.
 #' @examples
-#' library(xgboost)
 #' data(mtcars)
+#'
 #' y <- mtcars$mpg
 #' x <- as.matrix(mtcars[, -1])
 #' dm <- xgb.DMatrix(x, label = y, nthread = 1)
@@ -1150,11 +1157,7 @@ setinfo.xgb.DMatrix <- function(object, name, info) {
 #' # DMatrix is not quantized right away, but will be once a hist model is generated
 #' model <- xgb.train(
 #'   data = dm,
-#'   params = list(
-#'     tree_method = "hist",
-#'     max_bin = 8,
-#'     nthread = 1
-#'   ),
+#'   params = list(tree_method = "hist", max_bin = 8, nthread = 1),
 #'   nrounds = 3
 #' )
 #'
@@ -1189,17 +1192,19 @@ xgb.get.DMatrix.qcut <- function(dmat, output = c("list", "arrays")) { # nolint
   }
 }
 
-#' @title Get Number of Non-Missing Entries in DMatrix
-#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
-#' @return The number of non-missing entries in the DMatrix
+#' Get Number of Non-Missing Entries in DMatrix
+#'
+#' @param dmat An `xgb.DMatrix` object, as returned by [xgb.DMatrix()].
+#' @return The number of non-missing entries in the DMatrix.
 #' @export
 xgb.get.DMatrix.num.non.missing <- function(dmat) { # nolint
   stopifnot(inherits(dmat, "xgb.DMatrix"))
   return(.Call(XGDMatrixNumNonMissing_R, dmat))
 }
 
-#' @title Get DMatrix Data
-#' @param dmat An `xgb.DMatrix` object, as returned by \link{xgb.DMatrix}.
+#' Get DMatrix Data
+#'
+#' @param dmat An `xgb.DMatrix` object, as returned by [xgb.DMatrix()].
 #' @return The data held in the DMatrix, as a sparse CSR matrix (class `dgRMatrix`
 #' from package `Matrix`). If it had feature names, these will be added as column names
 #' in the output.
@@ -1223,27 +1228,27 @@ xgb.get.DMatrix.data <- function(dmat) {
   return(out)
 }
 
-#' Get a new DMatrix containing the specified rows of
-#' original xgb.DMatrix object
+#' Slice DMatrix
 #'
-#' Get a new DMatrix containing the specified rows of
-#' original xgb.DMatrix object
+#' Get a new DMatrix containing the specified rows of original xgb.DMatrix object.
 #'
-#' @param object Object of class "xgb.DMatrix".
+#' @param object Object of class `xgb.DMatrix`.
 #' @param idxset An integer vector of indices of rows needed (base-1 indexing).
 #' @param allow_groups Whether to allow slicing an `xgb.DMatrix` with `group` (or
-#'        equivalently `qid`) field. Note that in such case, the result will not have
-#'        the groups anymore - they need to be set manually through `setinfo`.
-#' @param colset currently not used (columns subsetting is not available)
+#'   equivalently `qid`) field. Note that in such case, the result will not have
+#'   the groups anymore - they need to be set manually through [setinfo()].
+#' @param colset Currently not used (columns subsetting is not available).
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#'
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #'
 #' dsub <- xgb.slice.DMatrix(dtrain, 1:42)
-#' labels1 <- getinfo(dsub, 'label')
+#' labels1 <- getinfo(dsub, "label")
+#'
 #' dsub <- dtrain[1:42, ]
-#' labels2 <- getinfo(dsub, 'label')
+#' labels2 <- getinfo(dsub, "label")
 #' all.equal(labels1, labels2)
 #'
 #' @rdname xgb.slice.DMatrix
@@ -1292,16 +1297,17 @@ xgb.slice.DMatrix <- function(object, idxset, allow_groups = FALSE) {
 #' Print information about xgb.DMatrix.
 #' Currently it displays dimensions and presence of info-fields and colnames.
 #'
-#' @param x an xgb.DMatrix object
-#' @param verbose whether to print colnames (when present)
-#' @param ... not currently used
+#' @param x An xgb.DMatrix object.
+#' @param verbose Whether to print colnames (when present).
+#' @param ... Not currently used.
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
-#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
+#' data(agaricus.train, package = "xgboost")
 #'
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #' dtrain
-#' print(dtrain, verbose=TRUE)
+#'
+#' print(dtrain, verbose = TRUE)
 #'
 #' @method print xgb.DMatrix
 #' @export

@@ -1,20 +1,15 @@
 #' Create new features from a previously learned model
 #'
-#' May improve the learning by adding new features to the training data based on the decision trees from a previously learned model.
-#'
-#' @param model decision tree boosting model learned on the original data
-#' @param data original data (usually provided as a \code{dgCMatrix} matrix)
-#' @param ... currently not used
-#'
-#' @return \code{dgCMatrix} matrix including both the original data and the new features.
+#' May improve the learning by adding new features to the training data based on the
+#' decision trees from a previously learned model.
 #'
 #' @details
 #' This is the function inspired from the paragraph 3.1 of the paper:
 #'
-#' \strong{Practical Lessons from Predicting Clicks on Ads at Facebook}
+#' **Practical Lessons from Predicting Clicks on Ads at Facebook**
 #'
-#' \emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers,
-#' Joaquin Quinonero Candela)}
+#' *(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers,
+#' Joaquin Quinonero Candela)*
 #'
 #' International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 #'
@@ -33,11 +28,11 @@
 #' where the first subtree has 3 leafs and the second 2 leafs. If an
 #' instance ends up in leaf 2 in the first subtree and leaf 1 in
 #' second subtree, the overall input to the linear classifier will
-#' be the binary vector \code{[0, 1, 0, 1, 0]}, where the first 3 entries
+#' be the binary vector `[0, 1, 0, 1, 0]`, where the first 3 entries
 #' correspond to the leaves of the first subtree and last 2 to
 #' those of the second subtree.
 #'
-#' [...]
+#' ...
 #'
 #' We can understand boosted decision tree
 #' based transformation as a supervised feature encoding that
@@ -45,16 +40,23 @@
 #' vector. A traversal from root node to a leaf node represents
 #' a rule on certain features."
 #'
+#' @param model Decision tree boosting model learned on the original data.
+#' @param data Original data (usually provided as a `dgCMatrix` matrix).
+#' @param ... Currently not used.
+#'
+#' @return A `dgCMatrix` matrix including both the original data and the new features.
+#'
 #' @examples
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#' data(agaricus.test, package = "xgboost")
+#'
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #' dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
 #'
-#' param <- list(max_depth=2, eta=1, objective='binary:logistic')
+#' param <- list(max_depth = 2, eta = 1, objective = 'binary:logistic')
 #' nrounds = 4
 #'
-#' bst = xgb.train(params = param, data = dtrain, nrounds = nrounds, nthread = 2)
+#' bst <- xgb.train(params = param, data = dtrain, nrounds = nrounds, nthread = 2)
 #'
 #' # Model accuracy without new features
 #' accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) /

@@ -57,7 +57,7 @@ struct CatAccessor {
 class GPUHistEvaluator {
   using CatST = common::CatBitField::value_type;  // categorical storage type
   // use pinned memory to stage the categories, used for sort based splits.
-  using Alloc = xgboost::common::cuda::pinned_allocator<CatST>;
+  using Alloc = xgboost::common::cuda_impl::PinnedAllocator<CatST>;
 
  private:
   TreeEvaluator tree_evaluator_;

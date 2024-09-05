@@ -5,19 +5,17 @@
 #include <cstddef>  // for size_t
 
 #include "../../common/device_vector.cuh"  // for device_vector, caching_device_vector
-#include "../../data/ellpack_page.cuh"     // for EllpackPageImpl
+#include "../../common/timer.h"            // for Monitor
 #include "xgboost/base.h"                  // for GradientPair
 #include "xgboost/data.h"                  // for BatchParam
 #include "xgboost/span.h"                  // for Span
 
 namespace xgboost::tree {
 struct GradientBasedSample {
-  /*!\brief Number of sampled rows. */
-  std::size_t sample_rows;
-  /*!\brief Sampled rows in ELLPACK format. */
-  EllpackPageImpl const* page;
-  /*!\brief Gradient pairs for the sampled rows. */
-  common::Span<GradientPair> gpair;
+  /** @brief Sampled rows in ELLPACK format. */
+  DMatrix* p_fmat;
+  /** @brief Gradient pairs for the sampled rows. */
+  common::Span<GradientPair const> gpair;
 };
 
 class SamplingStrategy {
@@ -48,8 +46,6 @@ class ExternalMemoryNoSampling : public SamplingStrategy {
 
  private:
   BatchParam batch_param_;
-  std::unique_ptr<EllpackPageImpl> page_{nullptr};
-  bool page_concatenated_{false};
 };
 
 /*! \brief Uniform sampling in in-memory mode. */
@@ -74,9 +70,10 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
  private:
   BatchParam batch_param_;
   float subsample_;
-  std::unique_ptr<EllpackPageImpl> page_;
+  std::unique_ptr<DMatrix> p_fmat_new_{nullptr};
   dh::device_vector<GradientPair> gpair_{};
-  dh::caching_device_vector<size_t> sample_row_index_;
+  dh::caching_device_vector<bst_idx_t> sample_row_index_;
+  dh::device_vector<bst_idx_t> compact_row_index_;
 };
 
 /*! \brief Gradient-based sampling in in-memory mode.. */
@@ -105,9 +102,10 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
   float subsample_;
   dh::device_vector<float> threshold_;
   dh::device_vector<float> grad_sum_;
-  std::unique_ptr<EllpackPageImpl> page_;
+  std::unique_ptr<DMatrix> p_fmat_new_{nullptr};
   dh::device_vector<GradientPair> gpair_;
-  dh::device_vector<size_t> sample_row_index_;
+  dh::device_vector<bst_idx_t> sample_row_index_;
+  dh::device_vector<bst_idx_t> compact_row_index_;
 };
 
 /*! \brief Draw a sample of rows from a DMatrix.

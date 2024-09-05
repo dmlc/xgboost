@@ -134,6 +134,7 @@ To run checks for R:
 .. code-block:: bash
 
   cd /path/to/xgboost/
+  R CMD INSTALL R-package/
   Rscript tests/ci_build/lint_r.R $(pwd)
 
 To run checks for cpplint locally:

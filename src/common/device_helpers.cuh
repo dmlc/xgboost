@@ -16,12 +16,9 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord
-#include <sstream>
-#include <string>
 #include <tuple>
 #include <vector>
 
-#include "../collective/communicator-inl.h"
 #include "common.h"
 #include "device_vector.cuh"
 #include "xgboost/host_device_vector.h"
@@ -84,8 +81,8 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 
 // atomicAdd is not defined for size_t.
 template <typename T = size_t,
-          std::enable_if_t<std::is_same<size_t, T>::value &&
-                           !std::is_same<size_t, unsigned long long>::value> * =  // NOLINT
+          std::enable_if_t<std::is_same_v<size_t, T> &&
+                           !std::is_same_v<size_t, unsigned long long>> * =  // NOLINT
               nullptr>
 XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
@@ -114,6 +111,13 @@ inline int32_t CurrentDevice() {
   int32_t device = 0;
   safe_cuda(cudaGetDevice(&device));
   return device;
+}
+
+// Helper function to get a device from a potentially CPU context.
+inline auto GetDevice(xgboost::Context const *ctx) {
+  auto d = (ctx->IsCUDA()) ? ctx->Device() : xgboost::DeviceOrd::CUDA(dh::CurrentDevice());
+  CHECK(!d.IsCPU());
+  return d;
 }
 
 inline size_t TotalMemory(int device_idx) {
@@ -368,19 +372,19 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
                                 cudaMemcpyDeviceToHost));
 }
 
-template <class HContainer, class DContainer>
-void CopyToD(HContainer const &h, DContainer *d) {
-  if (h.empty()) {
-    d->clear();
+template <class Src, class Dst>
+void CopyTo(Src const &src, Dst *dst) {
+  if (src.empty()) {
+    dst->clear();
     return;
   }
-  d->resize(h.size());
-  using HVT = std::remove_cv_t<typename HContainer::value_type>;
-  using DVT = std::remove_cv_t<typename DContainer::value_type>;
-  static_assert(std::is_same<HVT, DVT>::value,
+  dst->resize(src.size());
+  using SVT = std::remove_cv_t<typename Src::value_type>;
+  using DVT = std::remove_cv_t<typename Dst::value_type>;
+  static_assert(std::is_same_v<SVT, DVT>,
                 "Host and device containers must have same value type.");
-  dh::safe_cuda(cudaMemcpyAsync(d->data().get(), h.data(), h.size() * sizeof(HVT),
-                                cudaMemcpyHostToDevice));
+  dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
+                                src.size() * sizeof(SVT), cudaMemcpyDefault));
 }
 
 // Keep track of pinned memory allocation
@@ -477,29 +481,30 @@ class TypedDiscard : public thrust::discard_iterator<T> {
 } // namespace detail
 
 template <typename T>
-using TypedDiscard =
-    std::conditional_t<HasThrustMinorVer<12>(), detail::TypedDiscardCTK114<T>,
-                       detail::TypedDiscard<T>>;
+using TypedDiscard = std::conditional_t<HasThrustMinorVer<12>(), detail::TypedDiscardCTK114<T>,
+                                        detail::TypedDiscard<T>>;
 
 template <typename VectorT, typename T = typename VectorT::value_type,
-  typename IndexT = typename xgboost::common::Span<T>::index_type>
-xgboost::common::Span<T> ToSpan(
-    VectorT &vec,
-    IndexT offset = 0,
-    IndexT size = std::numeric_limits<size_t>::max()) {
+          typename IndexT = typename xgboost::common::Span<T>::index_type>
+xgboost::common::Span<T> ToSpan(VectorT &vec, IndexT offset = 0,
+                                IndexT size = std::numeric_limits<size_t>::max()) {
   size = size == std::numeric_limits<size_t>::max() ? vec.size() : size;
   CHECK_LE(offset + size, vec.size());
-  return {vec.data().get() + offset, size};
+  return {thrust::raw_pointer_cast(vec.data()) + offset, size};
 }
 
 template <typename T>
-xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
-                                size_t offset, size_t size) {
+xgboost::common::Span<T> ToSpan(thrust::device_vector<T> &vec, size_t offset, size_t size) {
   return ToSpan(vec, offset, size);
 }
 
 template <typename T>
 xgboost::common::Span<T> ToSpan(DeviceUVector<T> &vec) {
+  return {vec.data(), vec.size()};
+}
+
+template <typename T>
+xgboost::common::Span<std::add_const_t<T>> ToSpan(DeviceUVector<T> const &vec) {
   return {vec.data(), vec.size()};
 }
 
@@ -632,12 +637,11 @@ struct SegmentedUniqueReduceOp {
  * \return Number of unique values in total.
  */
 template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
-          typename ValOutIt, typename CompValue, typename CompKey>
-size_t
-SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
-                KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
-                ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
-                CompValue comp, CompKey comp_key=thrust::equal_to<size_t>{}) {
+          typename ValOutIt, typename CompValue, typename CompKey = thrust::equal_to<size_t>>
+size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                       KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
+                       ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
+                       CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
   using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
@@ -669,16 +673,6 @@ SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec
   thrust::exclusive_scan(exec, key_segments_out,
                          key_segments_out + segments_len, key_segments_out, 0);
   return n_uniques;
-}
-
-template <typename... Inputs,
-          std::enable_if_t<std::tuple_size<std::tuple<Inputs...>>::value == 7>
-              * = nullptr>
-size_t SegmentedUnique(Inputs &&...inputs) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  return SegmentedUnique(thrust::cuda::par(alloc),
-                         std::forward<Inputs &&>(inputs)...,
-                         thrust::equal_to<size_t>{});
 }
 
 /**
@@ -788,21 +782,6 @@ void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
 #endif
 }
 
-template <typename InIt, typename OutIt, typename Predicate>
-void CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
-  // We loop over batches because thrust::copy_if can't deal with sizes > 2^31
-  // See thrust issue #1302, XGBoost #6822
-  size_t constexpr kMaxCopySize = std::numeric_limits<int>::max() / 2;
-  size_t length = std::distance(in_first, in_second);
-  XGBCachingDeviceAllocator<char> alloc;
-  for (size_t offset = 0; offset < length; offset += kMaxCopySize) {
-    auto begin_input = in_first + offset;
-    auto end_input = in_first + std::min(offset + kMaxCopySize, length);
-    out_first = thrust::copy_if(thrust::cuda::par(alloc), begin_input,
-                                end_input, out_first, pred);
-  }
-}
-
 template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
 void InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, OffsetT num_items) {
   InclusiveScan(d_in, d_out, cub::Sum(), num_items);
@@ -865,13 +844,7 @@ inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
 
 // Changing this has effect on prediction return, where we need to pass the pointer to
 // third-party libraries like cuPy
-inline CUDAStreamView DefaultStream() {
-#ifdef CUDA_API_PER_THREAD_DEFAULT_STREAM
-  return CUDAStreamView{cudaStreamPerThread};
-#else
-  return CUDAStreamView{cudaStreamLegacy};
-#endif
-}
+inline CUDAStreamView DefaultStream() { return CUDAStreamView{cudaStreamPerThread}; }
 
 class CUDAStream {
   cudaStream_t stream_;

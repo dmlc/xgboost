@@ -1634,7 +1634,7 @@ class DaskScikitLearnBase(XGBModel):
             if isinstance(predts, dd.DataFrame):
                 predts = predts.to_dask_array()
         else:
-            test_dmatrix = await DaskDMatrix(
+            test_dmatrix: DaskDMatrix = await DaskDMatrix(  # type: ignore
                 self.client,
                 data=data,
                 base_margin=base_margin,
@@ -1675,7 +1675,7 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = await DaskDMatrix(
+        test_dmatrix: DaskDMatrix = await DaskDMatrix(  # type: ignore
             self.client,
             data=X,
             missing=self.missing,

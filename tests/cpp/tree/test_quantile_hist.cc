@@ -62,7 +62,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree{n_targets, n_features};
-      if constexpr (std::is_same<ExpandEntry, CPUExpandEntry>::value) {
+      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, split_value, &candidates);
       } else {
         GetMultiSplitForTest(&tree, split_value, &candidates);
@@ -119,7 +119,7 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
     {
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
-      if constexpr (std::is_same<ExpandEntry, CPUExpandEntry>::value) {
+      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, min_value, &candidates);
       } else {
         GetMultiSplitForTest(&tree, min_value, &candidates);
@@ -132,7 +132,7 @@ void VerifyColumnSplitPartitioner(bst_target_t n_targets, size_t n_samples,
     {
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid, true};
-      if constexpr (std::is_same<ExpandEntry, CPUExpandEntry>::value) {
+      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
         GetSplit(&tree, mid_value, &candidates);
       } else {
         GetMultiSplitForTest(&tree, mid_value, &candidates);
@@ -187,7 +187,7 @@ void TestColumnSplitPartitioner(bst_target_t n_targets) {
     auto ptr = gmat.cut.Ptrs()[split_ind + 1];
     mid_value = gmat.cut.Values().at(ptr / 2);
     RegTree tree{n_targets, n_features};
-    if constexpr (std::is_same<ExpandEntry, CPUExpandEntry>::value) {
+    if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
       GetSplit(&tree, mid_value, &candidates);
     } else {
       GetMultiSplitForTest(&tree, mid_value, &candidates);
@@ -203,12 +203,12 @@ void TestColumnSplitPartitioner(bst_target_t n_targets) {
 }
 }  // anonymous namespace
 
-TEST(QuantileHist, PartitionerColSplit) { TestColumnSplitPartitioner<CPUExpandEntry>(1); }
+TEST(QuantileHist, PartitionerColumnSplit) { TestColumnSplitPartitioner<CPUExpandEntry>(1); }
 
-TEST(QuantileHist, MultiPartitionerColSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
+TEST(QuantileHist, MultiPartitionerColumnSplit) { TestColumnSplitPartitioner<MultiExpandEntry>(3); }
 
 namespace {
-class TestHistColSplit : public ::testing::TestWithParam<std::tuple<bst_target_t, bool, float>> {
+class TestHistColumnSplit : public ::testing::TestWithParam<std::tuple<bst_target_t, bool, float>> {
  public:
   void Run() {
     auto [n_targets, categorical, sparsity] = GetParam();
@@ -217,9 +217,9 @@ class TestHistColSplit : public ::testing::TestWithParam<std::tuple<bst_target_t
 };
 }  // anonymous namespace
 
-TEST_P(TestHistColSplit, Basic) { this->Run(); }
+TEST_P(TestHistColumnSplit, Basic) { this->Run(); }
 
-INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestHistColSplit, ::testing::ValuesIn([]() {
+INSTANTIATE_TEST_SUITE_P(ColumnSplit, TestHistColumnSplit, ::testing::ValuesIn([]() {
                            std::vector<std::tuple<bst_target_t, bool, float>> params;
                            for (auto categorical : {true, false}) {
                              for (auto sparsity : {0.0f, 0.6f}) {

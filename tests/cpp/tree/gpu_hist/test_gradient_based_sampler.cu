@@ -7,22 +7,18 @@
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
 #include "../../../../src/tree/param.h"
 #include "../../../../src/tree/param.h"  // TrainParam
-#include "../../filesystem.h"            // dmlc::TemporaryDirectory
 #include "../../helpers.h"
 
 namespace xgboost::tree {
-void VerifySampling(size_t page_size,
-                    float subsample,
-                    int sampling_method,
-                    bool fixed_size_sampling = true,
-                    bool check_sum = true) {
+void VerifySampling(size_t page_size, float subsample, int sampling_method,
+                    bool fixed_size_sampling = true, bool check_sum = true) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 1;
-  size_t sample_rows = kRows * subsample;
+  bst_idx_t sample_rows = kRows * subsample;
+  bst_idx_t n_batches = fixed_size_sampling ? 1 : 4;
 
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrix(
-      kRows, kCols, kRows / (page_size == 0 ? kRows : page_size), tmpdir.path + "/cache"));
+  auto dmat = RandomDataGenerator{kRows, kCols, 0.0f}.Batches(n_batches).GenerateSparsePageDMatrix(
+      "temp", true);
   auto gpair = GenerateRandomGradients(kRows);
   GradientPair sum_gpair{};
   for (const auto& gp : gpair.ConstHostVector()) {
@@ -42,12 +38,10 @@ void VerifySampling(size_t page_size,
   auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
 
   if (fixed_size_sampling) {
-    EXPECT_EQ(sample.sample_rows, kRows);
-    EXPECT_EQ(sample.page->n_rows, kRows);
+    EXPECT_EQ(sample.p_fmat->Info().num_row_, kRows);
     EXPECT_EQ(sample.gpair.size(), kRows);
   } else {
-    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.03);
-    EXPECT_NEAR(sample.page->n_rows, sample_rows, kRows * 0.03f);
+    EXPECT_NEAR(sample.p_fmat->Info().num_row_, sample_rows, kRows * 0.03f);
     EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.03f);
   }
 
@@ -73,47 +67,24 @@ TEST(GradientBasedSampler, NoSampling) {
   VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
-// In external mode, when not sampling, we concatenate the pages together.
 TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   constexpr size_t kRows = 2048;
   constexpr size_t kCols = 1;
   constexpr float kSubsample = 1.0f;
-  constexpr size_t kPageSize = 1024;
 
   // Create a DMatrix with multiple batches.
-  dmlc::TemporaryDirectory tmpdir;
-  std::unique_ptr<DMatrix> dmat(
-      CreateSparsePageDMatrix(kRows, kCols, kRows / kPageSize, tmpdir.path + "/cache"));
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
   auto gpair = GenerateRandomGradients(kRows);
-  Context ctx{MakeCUDACtx(0)};
+  auto ctx = MakeCUDACtx(0);
   gpair.SetDevice(ctx.Device());
 
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
-  auto page = (*dmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
-  EXPECT_NE(page->n_rows, kRows);
 
   GradientBasedSampler sampler(&ctx, kRows, param, kSubsample, TrainParam::kUniform, true);
   auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
-  auto sampled_page = sample.page;
-  EXPECT_EQ(sample.sample_rows, kRows);
-  EXPECT_EQ(sample.gpair.size(), gpair.Size());
-  EXPECT_EQ(sample.gpair.data(), gpair.DevicePointer());
-  EXPECT_EQ(sampled_page->n_rows, kRows);
-
-  std::vector<common::CompressedByteT> h_gidx_buffer;
-  auto h_accessor = sampled_page->GetHostAccessor(&ctx, &h_gidx_buffer);
-
-  std::size_t offset = 0;
-  for (auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
-    auto page = batch.Impl();
-    std::vector<common::CompressedByteT> h_page_gidx_buffer;
-    auto page_accessor = page->GetHostAccessor(&ctx, &h_page_gidx_buffer);
-    size_t num_elements = page->n_rows * page->row_stride;
-    for (size_t i = 0; i < num_elements; i++) {
-      EXPECT_EQ(h_accessor.gidx_iter[i + offset], page_accessor.gidx_iter[i]);
-    }
-    offset += num_elements;
-  }
+  auto p_fmat = sample.p_fmat;
+  ASSERT_EQ(p_fmat, dmat.get());
 }
 
 TEST(GradientBasedSampler, UniformSampling) {

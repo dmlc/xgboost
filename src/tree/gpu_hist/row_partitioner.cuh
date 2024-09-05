@@ -19,7 +19,9 @@
 namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
-}
+// TODO(Rory): Can be larger. To be tuned alongside other batch operations.
+static const std::int32_t kMaxUpdatePositionBatchSize = 32;
+}  // namespace cuda_impl
 
 /**
  * @brief Used to demarcate a contiguous set of row indices associated with some tree
@@ -37,8 +39,6 @@ struct Segment {
   __host__ __device__ bst_idx_t Size() const { return end - begin; }
 };
 
-// TODO(Rory): Can be larger. To be tuned alongside other batch operations.
-static const int kMaxUpdatePositionBatchSize = 32;
 template <typename OpDataT>
 struct PerNodeData {
   Segment segment;
@@ -46,10 +46,10 @@ struct PerNodeData {
 };
 
 template <typename BatchIterT>
-__device__ __forceinline__ void AssignBatch(BatchIterT batch_info, std::size_t global_thread_idx,
-                                            int* batch_idx, std::size_t* item_idx) {
+XGBOOST_DEV_INLINE void AssignBatch(BatchIterT batch_info, std::size_t global_thread_idx,
+                                    int* batch_idx, std::size_t* item_idx) {
   cuda_impl::RowIndexT sum = 0;
-  for (int i = 0; i < kMaxUpdatePositionBatchSize; i++) {
+  for (int i = 0; i < cuda_impl::kMaxUpdatePositionBatchSize; i++) {
     if (sum + batch_info[i].segment.Size() > global_thread_idx) {
       *batch_idx = i;
       *item_idx = (global_thread_idx - sum) + batch_info[i].segment.begin;
@@ -59,10 +59,10 @@ __device__ __forceinline__ void AssignBatch(BatchIterT batch_info, std::size_t g
   }
 }
 
-template <int kBlockSize, typename RowIndexT, typename OpDataT>
+template <int kBlockSize, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void SortPositionCopyKernel(
-    dh::LDGIterator<PerNodeData<OpDataT>> batch_info, common::Span<RowIndexT> d_ridx,
-    const common::Span<const RowIndexT> ridx_tmp, std::size_t total_rows) {
+    dh::LDGIterator<PerNodeData<OpDataT>> batch_info, common::Span<cuda_impl::RowIndexT> d_ridx,
+    const common::Span<const cuda_impl::RowIndexT> ridx_tmp, bst_idx_t total_rows) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, total_rows)) {
     int batch_idx;
     std::size_t item_idx;
@@ -92,6 +92,7 @@ struct IndexFlagOp {
   }
 };
 
+// Scatter from `ridx_in` to `ridx_out`.
 template <typename OpDataT>
 struct WriteResultsFunctor {
   dh::LDGIterator<PerNodeData<OpDataT>> batch_info;
@@ -99,10 +100,12 @@ struct WriteResultsFunctor {
   cuda_impl::RowIndexT* ridx_out;
   cuda_impl::RowIndexT* counts;
 
-  __device__ IndexFlagTuple operator()(const IndexFlagTuple& x) {
-    std::size_t scatter_address;
+  __device__ IndexFlagTuple operator()(IndexFlagTuple const& x) {
+    cuda_impl::RowIndexT scatter_address;
+    // Get the segment that this row belongs to.
     const Segment& segment = batch_info[x.batch_idx].segment;
     if (x.flag) {
+      // Go left.
       cuda_impl::RowIndexT num_previous_flagged = x.flag_scan - 1;  // -1 because inclusive scan
       scatter_address = segment.begin + num_previous_flagged;
     } else {
@@ -121,11 +124,15 @@ struct WriteResultsFunctor {
   }
 };
 
-template <typename RowIndexT, typename OpT, typename OpDataT>
+/**
+ * @param d_batch_info Node data, with the size of the input number of nodes.
+ */
+template <typename OpT, typename OpDataT>
 void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
-                       common::Span<RowIndexT> ridx, common::Span<RowIndexT> ridx_tmp,
-                       common::Span<cuda_impl::RowIndexT> d_counts, std::size_t total_rows, OpT op,
-                       dh::device_vector<int8_t>* tmp) {
+                       common::Span<cuda_impl::RowIndexT> ridx,
+                       common::Span<cuda_impl::RowIndexT> ridx_tmp,
+                       common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
+                       dh::DeviceUVector<int8_t>* tmp) {
   dh::LDGIterator<PerNodeData<OpDataT>> batch_info_itr(d_batch_info.data());
   WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
                                              d_counts.data()};
@@ -134,22 +141,25 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
   auto input_iterator =
-      dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(size_t idx) {
-        int batch_idx;
+      dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(std::size_t idx) {
+        int nidx_in_batch;
         std::size_t item_idx;
-        AssignBatch(batch_info_itr, idx, &batch_idx, &item_idx);
-        auto op_res = op(ridx[item_idx], batch_idx, batch_info_itr[batch_idx].data);
-        return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), op_res, batch_idx, op_res};
+        AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
+        auto go_left = op(ridx[item_idx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
+        return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
+                              go_left};
       });
-  size_t temp_bytes = 0;
+  std::size_t temp_bytes = 0;
+  // Restriction imposed by cub.
+  CHECK_LE(total_rows, static_cast<bst_idx_t>(std::numeric_limits<std::int32_t>::max()));
   if (tmp->empty()) {
-    cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
-                                   IndexFlagOp(), total_rows);
+    dh::safe_cuda(cub::DeviceScan::InclusiveScan(
+        nullptr, temp_bytes, input_iterator, discard_write_iterator, IndexFlagOp{}, total_rows));
     tmp->resize(temp_bytes);
   }
   temp_bytes = tmp->size();
-  cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
-                                 discard_write_iterator, IndexFlagOp(), total_rows);
+  dh::safe_cuda(cub::DeviceScan::InclusiveScan(tmp->data(), temp_bytes, input_iterator,
+                                               discard_write_iterator, IndexFlagOp{}, total_rows));
 
   constexpr int kBlockSize = 256;
 
@@ -157,7 +167,7 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
   const int kItemsThread = 12;
   const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
 
-  SortPositionCopyKernel<kBlockSize, RowIndexT, OpDataT>
+  SortPositionCopyKernel<kBlockSize, OpDataT>
       <<<grid_size, kBlockSize, 0>>>(batch_info_itr, ridx, ridx_tmp, total_rows);
 }
 
@@ -168,8 +178,8 @@ struct NodePositionInfo {
   __device__ bool IsLeaf() { return left_child == -1; }
 };
 
-__device__ __forceinline__ int GetPositionFromSegments(std::size_t idx,
-                                                       const NodePositionInfo* d_node_info) {
+XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
+                                               const NodePositionInfo* d_node_info) {
   int position = 0;
   NodePositionInfo node = d_node_info[position];
   while (!node.IsLeaf()) {
@@ -190,11 +200,11 @@ __device__ __forceinline__ int GetPositionFromSegments(std::size_t idx,
 
 template <int kBlockSize, typename RowIndexT, typename OpT>
 __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
-    const common::Span<const NodePositionInfo> d_node_info,
+    const common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
     const common::Span<const RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position, OpT op) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, d_ridx.size())) {
     auto position = GetPositionFromSegments(idx, d_node_info.data());
-    RowIndexT ridx = d_ridx[idx];
+    RowIndexT ridx = d_ridx[idx] - base_ridx;
     bst_node_t new_position = op(ridx, position);
     d_out_position[ridx] = new_position;
   }
@@ -205,7 +215,6 @@ __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
 class RowPartitioner {
  public:
   using RowIndexT = cuda_impl::RowIndexT;
-  static constexpr bst_node_t kIgnoredTreePosition = -1;
 
  private:
   /**
@@ -229,9 +238,10 @@ class RowPartitioner {
   dh::DeviceUVector<RowIndexT> ridx_;
   // Staging area for sorting ridx
   dh::DeviceUVector<RowIndexT> ridx_tmp_;
-  dh::device_vector<int8_t> tmp_;
+  dh::DeviceUVector<int8_t> tmp_;
   dh::PinnedMemory pinned_;
   dh::PinnedMemory pinned2_;
+  bst_node_t n_nodes_{0};  // Counter for internal checks.
 
  public:
   /**
@@ -254,7 +264,13 @@ class RowPartitioner {
   /**
    * \brief Gets all training rows in the set.
    */
-  common::Span<const RowIndexT> GetRows();
+  common::Span<const RowIndexT> GetRows() const;
+  /**
+   * @brief Get the number of rows in this partitioner.
+   */
+  std::size_t Size() const { return this->GetRows().size(); }
+
+  [[nodiscard]] bst_node_t GetNumNodes() const { return n_nodes_; }
 
   /**
    * \brief Convenience method for testing
@@ -280,10 +296,14 @@ class RowPartitioner {
                            const std::vector<bst_node_t>& left_nidx,
                            const std::vector<bst_node_t>& right_nidx,
                            const std::vector<OpDataT>& op_data, UpdatePositionOpT op) {
-    if (nidx.empty()) return;
+    if (nidx.empty()) {
+      return;
+    }
+
     CHECK_EQ(nidx.size(), left_nidx.size());
     CHECK_EQ(nidx.size(), right_nidx.size());
     CHECK_EQ(nidx.size(), op_data.size());
+    this->n_nodes_ += (left_nidx.size() + right_nidx.size());
 
     auto h_batch_info = pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
     dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
@@ -302,9 +322,9 @@ class RowPartitioner {
     dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
     // Partition the rows according to the operator
-    SortPositionBatch<RowIndexT, UpdatePositionOpT, OpDataT>(
-        dh::ToSpan(d_batch_info), dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
-        total_rows, op, &tmp_);
+    SortPositionBatch<UpdatePositionOpT, OpDataT>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx_),
+                                                  dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
+                                                  total_rows, op, &tmp_);
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
                                   cudaMemcpyDefault));
     // TODO(Rory): this synchronisation hurts performance a lot
@@ -327,20 +347,17 @@ class RowPartitioner {
   }
 
   /**
-   * \brief Finalise the position of all training instances after tree construction is
+   * @brief Finalise the position of all training instances after tree construction is
    * complete. Does not update any other meta information in this data structure, so
    * should only be used at the end of training.
    *
-   *   When the task requires update leaf, this function will copy the node index into
-   *   p_out_position. The index is negated if it's being sampled in current iteration.
-   *
-   * \param p_out_position Node index for each row.
-   * \param op Device lambda. Should provide the row index and current position as an
+   * @param p_out_position Node index for each row.
+   * @param op Device lambda. Should provide the row index and current position as an
    *           argument and return the new position for this training instance.
-   * \param sampled A device lambda to inform the partitioner whether a row is sampled.
    */
   template <typename FinalisePositionOpT>
-  void FinalisePosition(common::Span<bst_node_t> d_out_position, FinalisePositionOpT op) {
+  void FinalisePosition(common::Span<bst_node_t> d_out_position, bst_idx_t base_ridx,
+                        FinalisePositionOpT op) const {
     dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
     dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
@@ -350,8 +367,8 @@ class RowPartitioner {
     const int kItemsThread = 8;
     const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
-    FinalisePositionKernel<kBlockSize>
-        <<<grid_size, kBlockSize, 0>>>(dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
+    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0>>>(
+        dh::ToSpan(d_node_info_storage), base_ridx, d_ridx, d_out_position, op);
   }
 };
 };  // namespace xgboost::tree

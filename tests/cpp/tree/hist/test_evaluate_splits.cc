@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #include "../test_evaluate_splits.h"
 
@@ -10,13 +10,15 @@
 #include <xgboost/logging.h>     // for CHECK_EQ
 #include <xgboost/tree_model.h>  // for RegTree, RTreeNodeStat
 
-#include <memory>  // for make_shared, shared_ptr, addressof
+#include <memory>   // for make_shared, shared_ptr, addressof
+#include <numeric>  // for iota
+#include <tuple>    // for make_tuple
 
 #include "../../../../src/common/hist_util.h"           // for HistCollection, HistogramCuts
 #include "../../../../src/common/random.h"              // for ColumnSampler
 #include "../../../../src/common/row_set.h"             // for RowSetCollection
 #include "../../../../src/data/gradient_index.h"        // for GHistIndexMatrix
-#include "../../../../src/tree/hist/evaluate_splits.h"  // for HistEvaluator
+#include "../../../../src/tree/hist/evaluate_splits.h"  // for HistEvaluator, TreeEvaluator
 #include "../../../../src/tree/hist/expand_entry.h"     // for CPUExpandEntry
 #include "../../../../src/tree/hist/hist_cache.h"       // for BoundedHistCollection
 #include "../../../../src/tree/hist/param.h"            // for HistMakerTrainParam
@@ -24,6 +26,74 @@
 #include "../../helpers.h"                              // for RandomDataGenerator, AllThreadsFo...
 
 namespace xgboost::tree {
+void TestPartitionBasedSplit::SetUp() {
+  param_.UpdateAllowUnknown(Args{{"min_child_weight", "0"}, {"reg_lambda", "0"}});
+  sorted_idx_.resize(n_bins_);
+  std::iota(sorted_idx_.begin(), sorted_idx_.end(), 0);
+
+  info_.num_col_ = 1;
+
+  cuts_.cut_ptrs_.Resize(2);
+  cuts_.SetCategorical(true, n_bins_);
+  auto &h_cuts = cuts_.cut_ptrs_.HostVector();
+  h_cuts[0] = 0;
+  h_cuts[1] = n_bins_;
+  auto &h_vals = cuts_.cut_values_.HostVector();
+  h_vals.resize(n_bins_);
+  std::iota(h_vals.begin(), h_vals.end(), 0.0);
+
+  cuts_.min_vals_.Resize(1);
+
+  Context ctx;
+  HistMakerTrainParam hist_param;
+  hist_.Reset(cuts_.TotalBins(), hist_param.MaxCachedHistNodes(ctx.Device()));
+  hist_.AllocateHistograms({0});
+  auto node_hist = hist_[0];
+
+  SimpleLCG lcg;
+  SimpleRealUniformDistribution<double> grad_dist{-4.0, 4.0};
+  SimpleRealUniformDistribution<double> hess_dist{0.0, 4.0};
+
+  for (auto &e : node_hist) {
+    e = GradientPairPrecise{grad_dist(&lcg), hess_dist(&lcg)};
+    total_gpair_ += e;
+  }
+
+  auto enumerate = [this, n_feat = info_.num_col_](common::GHistRow hist,
+                                                   GradientPairPrecise parent_sum) {
+    int32_t best_thresh = -1;
+    float best_score{-std::numeric_limits<float>::infinity()};
+    TreeEvaluator evaluator{param_, static_cast<bst_feature_t>(n_feat), DeviceOrd::CPU()};
+    auto tree_evaluator = evaluator.GetEvaluator<TrainParam>();
+    GradientPairPrecise left_sum;
+    auto parent_gain = tree_evaluator.CalcGain(0, param_, GradStats{total_gpair_});
+    for (size_t i = 0; i < hist.size() - 1; ++i) {
+      left_sum += hist[i];
+      auto right_sum = parent_sum - left_sum;
+      auto gain =
+          tree_evaluator.CalcSplitGain(param_, 0, 0, GradStats{left_sum}, GradStats{right_sum}) -
+          parent_gain;
+      if (gain > best_score) {
+        best_score = gain;
+        best_thresh = i;
+      }
+    }
+    return std::make_tuple(best_thresh, best_score);
+  };
+
+  // enumerate all possible partitions to find the optimal split
+  do {
+    std::vector<GradientPairPrecise> sorted_hist(node_hist.size());
+    for (size_t i = 0; i < sorted_hist.size(); ++i) {
+      sorted_hist[i] = node_hist[sorted_idx_[i]];
+    }
+    auto [thresh, score] = enumerate({sorted_hist}, total_gpair_);
+    if (score > best_score_) {
+      best_score_ = score;
+    }
+  } while (std::next_permutation(sorted_idx_.begin(), sorted_idx_.end()));
+}
+
 void TestEvaluateSplits(bool force_read_by_column) {
   Context ctx;
   ctx.nthread = 4;
@@ -51,7 +121,7 @@ void TestEvaluateSplits(bool force_read_by_column) {
   row_set_collection.Init();
 
   HistMakerTrainParam hist_param;
-  hist.Reset(gmat.cut.Ptrs().back(), hist_param.max_cached_hist_node);
+  hist.Reset(gmat.cut.Ptrs().back(), hist_param.MaxCachedHistNodes(ctx.Device()));
   hist.AllocateHistograms({0});
   auto const &elem = row_set_collection[0];
   common::BuildHist<false>(row_gpairs, common::Span{elem.begin(), elem.end()}, gmat, hist[0],
@@ -120,7 +190,7 @@ TEST(HistMultiEvaluator, Evaluate) {
   linalg::Vector<GradientPairPrecise> root_sum({2}, DeviceOrd::CPU());
   for (bst_target_t t{0}; t < n_targets; ++t) {
     auto &hist = histogram[t];
-    hist.Reset(n_bins * n_features, hist_param.max_cached_hist_node);
+    hist.Reset(n_bins * n_features, hist_param.MaxCachedHistNodes(ctx.Device()));
     hist.AllocateHistograms({0});
     auto node_hist = hist[0];
     node_hist[0] = {-0.5, 0.5};
@@ -237,7 +307,7 @@ auto CompareOneHotAndPartition(bool onehot) {
     entries.front().nid = 0;
     entries.front().depth = 0;
 
-    hist.Reset(gmat.cut.TotalBins(), hist_param.max_cached_hist_node);
+    hist.Reset(gmat.cut.TotalBins(), hist_param.MaxCachedHistNodes(ctx.Device()));
     hist.AllocateHistograms({0});
     auto node_hist = hist[0];
 
@@ -265,9 +335,10 @@ TEST(HistEvaluator, Categorical) {
 }
 
 TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
+  Context ctx;
   BoundedHistCollection hist;
   HistMakerTrainParam hist_param;
-  hist.Reset(cuts_.TotalBins(), hist_param.max_cached_hist_node);
+  hist.Reset(cuts_.TotalBins(), hist_param.MaxCachedHistNodes(ctx.Device()));
   hist.AllocateHistograms({0});
   auto node_hist = hist[0];
   ASSERT_EQ(node_hist.size(), feature_histogram_.size());
@@ -277,10 +348,9 @@ TEST_F(TestCategoricalSplitWithMissing, HistEvaluator) {
   MetaInfo info;
   info.num_col_ = 1;
   info.feature_types = {FeatureType::kCategorical};
-  Context ctx;
+
   auto evaluator = HistEvaluator{&ctx, &param_, info, sampler};
   evaluator.InitRoot(GradStats{parent_sum_});
-
   std::vector<CPUExpandEntry> entries(1);
   RegTree tree;
   evaluator.EvaluateSplits(hist, cuts_, info.feature_types.ConstHostSpan(), tree, &entries);

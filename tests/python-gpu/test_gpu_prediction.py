@@ -343,17 +343,25 @@ class TestGPUPredict:
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_shap(self, num_rounds, dataset, param):
+    def test_shap(self, num_rounds: int, dataset: tm.TestDataset, param: dict) -> None:
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
         param.update({"tree_method": "hist", "device": "gpu:0"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
-        test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+        test_dmat = xgb.DMatrix(
+            dataset.X, dataset.y, weight=dataset.w, base_margin=dataset.margin
+        )
         bst.set_param({"device": "gpu:0"})
         shap = bst.predict(test_dmat, pred_contribs=True)
         margin = bst.predict(test_dmat, output_margin=True)
+        assume(len(dataset.y) > 0)
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
+
+        dmat = dataset.get_external_dmat()
+        shap = bst.predict(dmat, pred_contribs=True)
+        margin = bst.predict(dmat, output_margin=True)
         assume(len(dataset.y) > 0)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
 
@@ -361,15 +369,31 @@ class TestGPUPredict:
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
-    def test_shap_interactions(self, num_rounds, dataset, param):
+    def test_shap_interactions(
+        self, num_rounds: int, dataset: tm.TestDataset, param: dict
+    ) -> None:
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
         param.update({"tree_method": "hist", "device": "cuda:0"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
-        test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+
+        test_dmat = xgb.DMatrix(
+            dataset.X, dataset.y, weight=dataset.w, base_margin=dataset.margin
+        )
         bst.set_param({"device": "cuda:0"})
+        shap = bst.predict(test_dmat, pred_interactions=True)
+        margin = bst.predict(test_dmat, output_margin=True)
+        assume(len(dataset.y) > 0)
+        assert np.allclose(
+            np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
+            margin,
+            1e-3,
+            1e-3,
+        )
+
+        test_dmat = dataset.get_external_dmat()
         shap = bst.predict(test_dmat, pred_interactions=True)
         margin = bst.predict(test_dmat, output_margin=True)
         assume(len(dataset.y) > 0)

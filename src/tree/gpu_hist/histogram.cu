@@ -325,7 +325,7 @@ class DeviceHistogramBuilderImpl {
   void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
-                      common::Span<const std::uint32_t> d_ridx,
+                      common::Span<const cuda_impl::RowIndexT> d_ridx,
                       common::Span<GradientPairInt64> histogram, GradientQuantiser rounding) {
     CHECK(kernel_);
     // Otherwise launch blocks such that each block has a minimum amount of work to do
@@ -356,22 +356,43 @@ class DeviceHistogramBuilderImpl {
 };
 
 DeviceHistogramBuilder::DeviceHistogramBuilder()
-    : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {}
+    : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {
+  monitor_.Init(__func__);
+}
 
 DeviceHistogramBuilder::~DeviceHistogramBuilder() = default;
 
-void DeviceHistogramBuilder::Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
-                                   bool force_global_memory) {
+void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
+                                   FeatureGroupsAccessor const& feature_groups,
+                                   bst_bin_t n_total_bins, bool force_global_memory) {
+  this->monitor_.Start(__func__);
   this->p_impl_->Reset(ctx, feature_groups, force_global_memory);
+  this->hist_.Reset(ctx, n_total_bins, max_cached_hist_nodes);
+  this->monitor_.Stop(__func__);
 }
 
 void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx,
                                             EllpackDeviceAccessor const& matrix,
                                             FeatureGroupsAccessor const& feature_groups,
                                             common::Span<GradientPair const> gpair,
-                                            common::Span<const std::uint32_t> ridx,
+                                            common::Span<const cuda_impl::RowIndexT> ridx,
                                             common::Span<GradientPairInt64> histogram,
                                             GradientQuantiser rounding) {
+  this->monitor_.Start(__func__);
   this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram, rounding);
+  this->monitor_.Stop(__func__);
+}
+
+void DeviceHistogramBuilder::AllReduceHist(Context const* ctx, MetaInfo const& info,
+                                           bst_node_t nidx, std::size_t num_histograms) {
+  this->monitor_.Start(__func__);
+  auto d_node_hist = hist_.GetNodeHistogram(nidx);
+  using ReduceT = typename std::remove_pointer<decltype(d_node_hist.data())>::type::ValueT;
+  auto rc = collective::GlobalSum(
+      ctx, info,
+      linalg::MakeVec(reinterpret_cast<ReduceT*>(d_node_hist.data()),
+                      d_node_hist.size() * 2 * num_histograms, ctx->Device()));
+  SafeColl(rc);
+  this->monitor_.Stop(__func__);
 }
 }  // namespace xgboost::tree

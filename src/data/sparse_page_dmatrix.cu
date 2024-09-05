@@ -28,7 +28,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     this->InitializeSparsePage(ctx);
     // reinitialize the cache
     cache_info_.erase(id);
-    MakeCache(this, ".ellpack.page", on_host_, cache_prefix_, &cache_info_);
+    id = MakeCache(this, ".ellpack.page", on_host_, cache_prefix_, &cache_info_);
     LOG(INFO) << "Generating new a Ellpack page.";
     std::shared_ptr<common::HistogramCuts> cuts;
     if (!param.hess.empty()) {
@@ -61,7 +61,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
         ellpack_page_source_);
   } else {
     CHECK(sparse_page_source_);
-    std::visit([&](auto&& ptr) { ptr->Reset(); }, this->ellpack_page_source_);
+    std::visit([&](auto&& ptr) { ptr->Reset(param); }, this->ellpack_page_source_);
   }
 
   auto batch_set =

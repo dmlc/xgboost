@@ -10,12 +10,10 @@
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 #include "test_predictor.h"
 
 namespace xgboost {
-
 TEST(CpuPredictor, Basic) {
   Context ctx;
   size_t constexpr kRows = 5;
@@ -56,10 +54,17 @@ TEST(CpuPredictor, IterationRangeColmnSplit) {
 
 TEST(CpuPredictor, ExternalMemory) {
   Context ctx;
-  size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries);
+  bst_idx_t constexpr kRows{64};
+  bst_feature_t constexpr kCols{12};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.5f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
   TestBasic(dmat.get(), &ctx);
+}
+
+TEST_P(ShapExternalMemoryTest, CPUPredictor) {
+  Context ctx;
+  auto [is_qdm, is_interaction] = this->GetParam();
+  this->Run(&ctx, is_qdm, is_interaction);
 }
 
 TEST(CpuPredictor, InplacePredict) {
@@ -111,7 +116,7 @@ void TestUpdatePredictionCache(bool use_subsampling) {
   }
   gbm->Configure(args);
 
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix(true, true, kClasses);
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).Classes(kClasses).GenerateDMatrix(true);
 
   linalg::Matrix<GradientPair> gpair({kRows, kClasses}, ctx.Device());
   auto h_gpair = gpair.HostView();
@@ -146,7 +151,7 @@ TEST(CPUPredictor, GHistIndexTraining) {
   auto adapter = data::ArrayAdapter(columnar.c_str());
   std::shared_ptr<DMatrix> p_full{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
-  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist, true);
+  TestTrainingPrediction(&ctx, kRows, kBins, p_full, p_hist);
 }
 
 TEST(CPUPredictor, CategoricalPrediction) {

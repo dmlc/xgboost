@@ -67,8 +67,8 @@ Represents previously calculated feature importance as a bar graph.
 }
 }
 \details{
-The graph represents each feature as a horizontal bar of length proportional to the importance of a feature.
-Features are sorted by decreasing importance.
+The graph represents each feature as a horizontal bar of length proportional to the
+importance of a feature. Features are sorted by decreasing importance.
 It works for both "gblinear" and "gbtree" models.
 
 When \code{rel_to_first = FALSE}, the values would be plotted as in \code{importance_matrix}.

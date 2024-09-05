@@ -2,7 +2,7 @@
 % Please edit documentation in R/callbacks.R
 \name{xgb.cb.cv.predict}
 \alias{xgb.cb.cv.predict}
-\title{Callback for returning cross-validation based predictions.}
+\title{Callback for returning cross-validation based predictions}
 \usage{
 xgb.cb.cv.predict(save_models = FALSE, outputmargin = FALSE)
 }
@@ -13,8 +13,8 @@ xgb.cb.cv.predict(save_models = FALSE, outputmargin = FALSE)
 parameter to \link{predict.xgb.Booster}).}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \link{xgb.cv},
-but \bold{not} to \link{xgb.train}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.cv]{xgb.cv()}},
+but \strong{not} to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 This callback function saves predictions for all of the test folds,
@@ -24,7 +24,7 @@ and also allows to save the folds' models.
 Predictions are saved inside of the \code{pred} element, which is either a vector or a matrix,
 depending on the number of prediction outputs per data row. The order of predictions corresponds
 to the order of rows in the original dataset. Note that when a custom \code{folds} list is
-provided in \code{xgb.cv}, the predictions would only be returned properly when this list is a
+provided in \code{\link[=xgb.cv]{xgb.cv()}}, the predictions would only be returned properly when this list is a
 non-overlapping list of k sets of indices, as in a standard k-fold CV. The predictions would not be
 meaningful when user-provided folds have overlapping indices as in, e.g., random sampling splits.
 When some of the indices in the training dataset are not included into user-provided \code{folds},

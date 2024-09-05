@@ -30,17 +30,16 @@ xgb.plot.shap.summary(
 )
 }
 \arguments{
-\item{data}{The data to explain as a \code{matrix} or \code{dgCMatrix}.}
+\item{data}{The data to explain as a \code{matrix}, \code{dgCMatrix}, or \code{data.frame}.}
 
 \item{shap_contrib}{Matrix of SHAP contributions of \code{data}.
 The default (\code{NULL}) computes it from \code{model} and \code{data}.}
 
-\item{features}{Vector of column indices or feature names to plot.
-When \code{NULL} (default), the \code{top_n} most important features are selected
-by \code{\link[=xgb.importance]{xgb.importance()}}.}
+\item{features}{Vector of column indices or feature names to plot. When \code{NULL}
+(default), the \code{top_n} most important features are selected by \code{\link[=xgb.importance]{xgb.importance()}}.}
 
 \item{top_n}{How many of the most important features (<= 100) should be selected?
-By default 1 for SHAP dependence and 10 for SHAP summary).
+By default 1 for SHAP dependence and 10 for SHAP summary.
 Only used when \code{features = NULL}.}
 
 \item{model}{An \code{xgb.Booster} model. Only required when \code{shap_contrib = NULL} or

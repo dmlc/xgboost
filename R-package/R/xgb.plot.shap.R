@@ -2,44 +2,43 @@
 #'
 #' Visualizes SHAP values against feature values to gain an impression of feature effects.
 #'
-#' @param data The data to explain as a `matrix` or `dgCMatrix`.
+#' @param data The data to explain as a `matrix`, `dgCMatrix`, or `data.frame`.
 #' @param shap_contrib Matrix of SHAP contributions of `data`.
-#'        The default (`NULL`) computes it from `model` and `data`.
-#' @param features Vector of column indices or feature names to plot.
-#'        When `NULL` (default), the `top_n` most important features are selected
-#'        by [xgb.importance()].
+#'   The default (`NULL`) computes it from `model` and `data`.
+#' @param features Vector of column indices or feature names to plot. When `NULL`
+#'   (default), the `top_n` most important features are selected by [xgb.importance()].
 #' @param top_n How many of the most important features (<= 100) should be selected?
-#'        By default 1 for SHAP dependence and 10 for SHAP summary).
-#'        Only used when `features = NULL`.
+#'   By default 1 for SHAP dependence and 10 for SHAP summary.
+#'   Only used when `features = NULL`.
 #' @param model An `xgb.Booster` model. Only required when `shap_contrib = NULL` or
-#'        `features = NULL`.
+#'   `features = NULL`.
 #' @param trees Passed to [xgb.importance()] when `features = NULL`.
 #' @param target_class Only relevant for multiclass models. The default (`NULL`)
-#'        averages the SHAP values over all classes. Pass a (0-based) class index
-#'        to show only SHAP values of that class.
+#'   averages the SHAP values over all classes. Pass a (0-based) class index
+#'   to show only SHAP values of that class.
 #' @param approxcontrib Passed to `predict()` when `shap_contrib = NULL`.
 #' @param subsample Fraction of data points randomly picked for plotting.
-#'        The default (`NULL`) will use up to 100k data points.
+#'   The default (`NULL`) will use up to 100k data points.
 #' @param n_col Number of columns in a grid of plots.
 #' @param col Color of the scatterplot markers.
 #' @param pch Scatterplot marker.
 #' @param discrete_n_uniq Maximal number of unique feature values to consider the
-#'        feature as discrete.
+#'   feature as discrete.
 #' @param discrete_jitter Jitter amount added to the values of discrete features.
 #' @param ylab The y-axis label in 1D plots.
 #' @param plot_NA Should contributions of cases with missing values be plotted?
-#'        Default is `TRUE`.
+#'   Default is `TRUE`.
 #' @param col_NA Color of marker for missing value contributions.
 #' @param pch_NA Marker type for `NA` values.
 #' @param pos_NA Relative position of the x-location where `NA` values are shown:
-#'        `min(x) + (max(x) - min(x)) * pos_NA`.
+#'   `min(x) + (max(x) - min(x)) * pos_NA`.
 #' @param plot_loess Should loess-smoothed curves be plotted? (Default is `TRUE`).
-#'        The smoothing is only done for features with more than 5 distinct values.
+#'   The smoothing is only done for features with more than 5 distinct values.
 #' @param col_loess Color of loess curves.
 #' @param span_loess The `span` parameter of [stats::loess()].
 #' @param which Whether to do univariate or bivariate plotting. Currently, only "1d" is implemented.
 #' @param plot Should the plot be drawn? (Default is `TRUE`).
-#'        If `FALSE`, only a list of matrices is returned.
+#'   If `FALSE`, only a list of matrices is returned.
 #' @param ... Other parameters passed to [graphics::plot()].
 #'
 #' @details
@@ -120,6 +119,7 @@
 #' )
 #' trees0 <- seq(from = 0, by = nclass, length.out = nrounds)
 #' col <- rgb(0, 0, 1, 0.5)
+#'
 #' xgb.plot.shap(
 #'   x,
 #'   model = mbst,
@@ -285,8 +285,11 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
 xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1, model = NULL,
                           trees = NULL, target_class = NULL, approxcontrib = FALSE,
                           subsample = NULL, max_observations = 100000) {
-  if (!is.matrix(data) && !inherits(data, "dgCMatrix"))
-    stop("data: must be either matrix or dgCMatrix")
+  if (!inherits(data, c("matrix", "dsparseMatrix", "data.frame")))
+    stop("data: must be matrix, sparse matrix, or data.frame.")
+  if (inherits(data, "data.frame") && length(class(data)) > 1L) {
+    data <- as.data.frame(data)
+  }
 
   if (is.null(shap_contrib) && (is.null(model) || !inherits(model, "xgb.Booster")))
     stop("when shap_contrib is not provided, one must provide an xgb.Booster model")
@@ -294,8 +297,10 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   if (is.null(features) && (is.null(model) || !inherits(model, "xgb.Booster")))
     stop("when features are not provided, one must provide an xgb.Booster model to rank the features")
 
+  last_dim <- function(v) dim(v)[length(dim(v))]
+
   if (!is.null(shap_contrib) &&
-      (!is.matrix(shap_contrib) || nrow(shap_contrib) != nrow(data) || ncol(shap_contrib) != ncol(data) + 1))
+      (!is.array(shap_contrib) || nrow(shap_contrib) != nrow(data) || last_dim(shap_contrib) != ncol(data) + 1))
     stop("shap_contrib is not compatible with the provided data")
 
   if (is.character(features) && is.null(colnames(data)))
@@ -309,7 +314,14 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     stop("if model has no feature_names, columns in `data` must match features in model")
 
   if (!is.null(subsample)) {
-    idx <- sample(x = seq_len(nrow(data)), size = as.integer(subsample * nrow(data)), replace = FALSE)
+    if (subsample <= 0 || subsample >= 1) {
+      stop("'subsample' must be a number between zero and one (non-inclusive).")
+    }
+    sample_size <- as.integer(subsample * nrow(data))
+    if (sample_size < 2) {
+      stop("Sampling fraction involves less than 2 rows.")
+    }
+    idx <- sample(x = seq_len(nrow(data)), size = sample_size, replace = FALSE)
   } else {
     idx <- seq_len(min(nrow(data), max_observations))
   }
@@ -318,19 +330,39 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     colnames(data) <- paste0("X", seq_len(ncol(data)))
   }
 
-  if (!is.null(shap_contrib)) {
-    if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
-      shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
+  reshape_3d_shap_contrib <- function(shap_contrib, target_class) {
+    # multiclass: either choose a class or merge
+    if (is.list(shap_contrib)) {
+      if (!is.null(target_class)) {
+        shap_contrib <- shap_contrib[[target_class + 1]]
+      } else {
+        shap_contrib <- Reduce("+", lapply(shap_contrib, abs))
+      }
+    } else if (length(dim(shap_contrib)) > 2) {
+      if (!is.null(target_class)) {
+        orig_shape <- dim(shap_contrib)
+        shap_contrib <- shap_contrib[, target_class + 1, , drop = TRUE]
+        if (!is.matrix(shap_contrib)) {
+          shap_contrib <- matrix(shap_contrib, orig_shape[c(1L, 3L)])
+        }
+      } else {
+        shap_contrib <- apply(abs(shap_contrib), c(1L, 3L), sum)
+      }
     }
-    shap_contrib <- shap_contrib[idx, ]
-    if (is.null(colnames(shap_contrib))) {
-      colnames(shap_contrib) <- paste0("X", seq_len(ncol(data)))
-    }
-  } else {
-    shap_contrib <- predict(model, newdata = data, predcontrib = TRUE, approxcontrib = approxcontrib)
-    if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
-      shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
-    }
+    return(shap_contrib)
+  }
+
+  if (is.null(shap_contrib)) {
+    shap_contrib <- predict(
+      model,
+      newdata = data,
+      predcontrib = TRUE,
+      approxcontrib = approxcontrib
+    )
+  }
+  shap_contrib <- reshape_3d_shap_contrib(shap_contrib, target_class)
+  if (is.null(colnames(shap_contrib))) {
+    colnames(shap_contrib) <- paste0("X", seq_len(ncol(data)))
   }
 
   if (is.null(features)) {

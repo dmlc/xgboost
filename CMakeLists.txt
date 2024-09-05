@@ -218,7 +218,6 @@ if(USE_CUDA)
   if(DEFINED GPU_COMPUTE_VER)
     compute_cmake_cuda_archs("${GPU_COMPUTE_VER}")
   endif()
-  add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 
   find_package(CUDAToolkit REQUIRED)
   find_package(CCCL CONFIG)

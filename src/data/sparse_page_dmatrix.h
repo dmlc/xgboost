@@ -10,7 +10,6 @@
 #include <cstdint>  // for uint32_t, int32_t
 #include <map>      // for map
 #include <memory>   // for shared_ptr
-#include <sstream>  // for stringstream
 #include <string>   // for string
 #include <variant>  // for variant, visit
 
@@ -91,8 +90,7 @@ class SparsePageDMatrix : public DMatrix {
   [[nodiscard]] MetaInfo &Info() override;
   [[nodiscard]] const MetaInfo &Info() const override;
   [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
-  // The only DMatrix implementation that returns false.
-  [[nodiscard]] bool SingleColBlock() const override { return false; }
+  [[nodiscard]] std::int32_t NumBatches() const override { return n_batches_; }
   DMatrix *Slice(common::Span<std::int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
@@ -137,28 +135,5 @@ class SparsePageDMatrix : public DMatrix {
   std::shared_ptr<SortedCSCPageSource> sorted_column_source_;
   std::shared_ptr<GradientIndexPageSource> ghist_index_source_;
 };
-
-[[nodiscard]] inline std::string MakeId(std::string prefix, SparsePageDMatrix *ptr) {
-  std::stringstream ss;
-  ss << ptr;
-  return prefix + "-" + ss.str();
-}
-
-/**
- * @brief Make cache if it doesn't exist yet.
- */
-inline std::string MakeCache(SparsePageDMatrix *ptr, std::string format, bool on_host,
-                             std::string prefix,
-                             std::map<std::string, std::shared_ptr<Cache>> *out) {
-  auto &cache_info = *out;
-  auto name = MakeId(prefix, ptr);
-  auto id = name + format;
-  auto it = cache_info.find(id);
-  if (it == cache_info.cend()) {
-    cache_info[id].reset(new Cache{false, name, format, on_host});
-    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
-  }
-  return id;
-}
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_

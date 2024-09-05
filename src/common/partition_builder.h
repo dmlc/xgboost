@@ -20,6 +20,7 @@
 #include "column_matrix.h"
 #include "xgboost/context.h"
 #include "xgboost/tree_model.h"
+#include "../tree/sample_position.h"  // for SamplePosition
 
 namespace xgboost::common {
 // The builder is required for samples partition to left and rights children for set of nodes
@@ -364,24 +365,23 @@ class PartitionBuilder {
   }
 
   // Copy row partitions into global cache for reuse in objective
-  template <typename Sampledp>
+  template <typename Invalidp>
   void LeafPartition(Context const* ctx, RegTree const& tree, RowSetCollection const& row_set,
-                     std::vector<bst_node_t>* p_position, Sampledp sampledp) const {
-    auto& h_pos = *p_position;
-    h_pos.resize(row_set.Data()->size(), std::numeric_limits<bst_node_t>::max());
-
+                     Span<bst_node_t> position, Invalidp invalidp) const {
     auto p_begin = row_set.Data()->data();
-    ParallelFor(row_set.Size(), ctx->Threads(), [&](size_t i) {
+    // For each node, walk through all the samples that fall in this node.
+    auto p_pos = position.data();
+    ParallelFor(row_set.Size(), ctx->Threads(), [&](auto i) {
       auto const& node = row_set[i];
       if (node.node_id < 0) {
         return;
       }
       CHECK(tree.IsLeaf(node.node_id));
       if (node.begin()) {  // guard for empty node.
-        size_t ptr_offset = node.end() - p_begin;
+        std::size_t ptr_offset = node.end() - p_begin;
         CHECK_LE(ptr_offset, row_set.Data()->size()) << node.node_id;
         for (auto idx = node.begin(); idx != node.end(); ++idx) {
-          h_pos[*idx] = sampledp(*idx) ? ~node.node_id : node.node_id;
+          p_pos[*idx] = tree::SamplePosition::Encode(node.node_id, !invalidp(*idx));
         }
       }
     });

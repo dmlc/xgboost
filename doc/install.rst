@@ -107,6 +107,13 @@ Conda should be able to detect the existence of a GPU on your machine and instal
    # Use NVIDIA GPU
    conda install -c conda-forge py-xgboost-gpu
 
+To force the installation of the GPU variant on a machine that does not have an NVIDIA GPU, use environment variable ``CONDA_OVERRIDE_CUDA``,
+as described in `"Managing Virtual Packages" in the conda docs <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-virtual.html>`_.
+
+.. code-block:: bash
+
+  export CONDA_OVERRIDE_CUDA="12.5"
+  conda install -c conda-forge py-xgboost-gpu
 
 Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
 
