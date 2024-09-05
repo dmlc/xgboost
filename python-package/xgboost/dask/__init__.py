@@ -1792,7 +1792,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             base_margin_eval_set=base_margin_eval_set,
             eval_group=None,
             eval_qid=None,
-            missing=self.missing, 
+            missing=self.missing,
             enable_categorical=self.enable_categorical,
             feature_types=self.feature_types,
         )
