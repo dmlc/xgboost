@@ -38,6 +38,12 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   endif()
 endif()
 
+include(${xgboost_SOURCE_DIR}/cmake/CheckSVEsupport.cmake)
+check_xgboost_sve_support()
+if(XGBOOST_COMPILER_HAS_ARM_SVE)
+    add_compile_definitions(XGBOOST_SVE_COMPILER_SUPPORT)
+endif()
+
 include(${xgboost_SOURCE_DIR}/cmake/PrefetchIntrinsics.cmake)
 find_prefetch_intrinsics()
 include(${xgboost_SOURCE_DIR}/cmake/Version.cmake)
@@ -353,13 +359,6 @@ target_include_directories(xgboost
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 #-- End shared library
-
-include(${xgboost_SOURCE_DIR}/cmake/CheckSVEsupport.cmake)
-check_xgboost_sve_support()
-if(XGBOOST_ARM_SVE_HARDWARE_SUPPORT)
-    target_compile_definitions(objxgboost PUBLIC XGBOOST_SVE_SUPPORT_DETECTED)
-    target_compile_options(objxgboost PRIVATE ${XGBOOST_SVE_FLAGS})
-endif()
 
 #-- CLI for xgboost
 if(BUILD_DEPRECATED_CLI)
