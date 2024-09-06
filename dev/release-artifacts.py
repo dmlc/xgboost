@@ -61,7 +61,13 @@ def retrieve(url: str, filename: Optional[Path] = None) -> str:
 def latest_hash() -> str:
     """Get latest commit hash."""
     try:
-        result = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True, encoding="utf-8")
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         raise RuntimeError("Failed to get latest commit hash.") from e
@@ -89,9 +95,17 @@ def _download_python_wheels(
         retrieve(url=url, filename=wheel_path)
 
         try:
-            result = subprocess.run(["twine", "check", str(wheel_path)], check=True, capture_output=True, text=True, encoding="utf-8")
+            result = subprocess.run(
+                ["twine", "check", str(wheel_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
             if "warning" in result.stderr or "warning" in result.stdout:
-                raise RuntimeError(f"Unresolved warnings:\n{result.stderr}\n{result.stdout}")
+                raise RuntimeError(
+                    f"Unresolved warnings:\n{result.stderr}\n{result.stdout}"
+                )
         except subprocess.CalledProcessError as e:
             raise RuntimeError("Failed twine check") from e
     return wheel_paths
@@ -111,11 +125,17 @@ def make_python_sdist(
             orig_pyproj_lines = f.read()
         with open("tests/buildkite/remove_nccl_dep.patch", "r") as f:
             patch_lines = f.read()
-        subprocess.run(["patch", "-p0"], input=patch_lines, check=True, text=True, encoding="utf-8")
+        subprocess.run(
+            ["patch", "-p0"], input=patch_lines, check=True, text=True, encoding="utf-8"
+        )
 
     with DirectoryExcursion(ROOT / "python-package"):
         subprocess.run(["python", "-m", "build", "--sdist"], check=True)
-        sdist_name = f"xgboost-{release}{rc}{rc_ver}.tar.gz" if rc else f"xgboost-{release}.tar.gz"
+        sdist_name = (
+            f"xgboost-{release}{rc}{rc_ver}.tar.gz"
+            if rc
+            else f"xgboost-{release}.tar.gz"
+        )
         src = DIST / sdist_name
         subprocess.run(["twine", "check", str(src)], check=True)
         dest = dist_dir / sdist_name
@@ -126,9 +146,7 @@ def make_python_sdist(
             f.write(orig_pyproj_lines)
 
 
-def download_python_wheels(
-    branch: str, commit_hash: str, outdir: Path
-) -> None:
+def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
     """Download all Python binary wheels for the specified branch."""
     full_platforms = [
         "win_amd64",
@@ -148,12 +166,17 @@ def download_python_wheels(
     dir_url = f"{S3_BUCKET_URL}/{branch}/"
     wheels = []
 
-    for pkg_name, platforms in [("xgboost", full_platforms), ("xgboost_cpu", minimal_platforms)]:
+    for pkg_name, platforms in [
+        ("xgboost", full_platforms),
+        ("xgboost_cpu", minimal_platforms),
+    ]:
         src_filename_prefix = f"{pkg_name}-{args.release}%2B{commit_hash}-py3-none-"
         target_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
-        wheels.extend(_download_python_wheels(
-            platforms, dir_url, src_filename_prefix, target_filename_prefix, outdir
-        ))
+        wheels.extend(
+            _download_python_wheels(
+                platforms, dir_url, src_filename_prefix, target_filename_prefix, outdir
+            )
+        )
     print(f"List of downloaded wheels: {wheels}")
     print(
         """
@@ -178,7 +201,11 @@ def download_r_artifacts(
 
     for plat in platforms:
         url = f"{S3_BUCKET_URL}/{branch}/xgboost_r_gpu_{plat}_{commit}.tar.gz"
-        artifact_name = f"xgboost_r_gpu_{plat}_{release}-{rc}.tar.gz" if rc else f"xgboost_r_gpu_{plat}_{release}.tar.gz"
+        artifact_name = (
+            f"xgboost_r_gpu_{plat}_{release}-{rc}.tar.gz"
+            if rc
+            else f"xgboost_r_gpu_{plat}_{release}.tar.gz"
+        )
         artifact_path = rpkg_dir / artifact_name
         retrieve(url=url, filename=artifact_path)
         artifacts.append(artifact_path)
@@ -189,7 +216,11 @@ def download_r_artifacts(
     with DirectoryExcursion(rpkg_dir):
         for f in artifacts:
             result = subprocess.run(
-                ["sha256sum", f.name], check=True, capture_output=True, text=True, encoding="utf-8"
+                ["sha256sum", f.name],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
             )
             hashes.append(result.stdout.strip())
     return urls, hashes
@@ -217,7 +248,7 @@ def make_src_tarball(release: str, outdir: Path) -> Tuple[str, str]:
                 check=True,
                 capture_output=True,
                 text=True,
-                encoding="utf-8"
+                encoding="utf-8",
             )
             submodules = result.stdout.strip().split()
             for mod in submodules:
@@ -228,7 +259,13 @@ def make_src_tarball(release: str, outdir: Path) -> Tuple[str, str]:
                 tar.add(tmpdir / "xgboost", arcname="xgboost")
 
     with DirectoryExcursion(tarball_path.parent):
-        result = subprocess.run(["sha256sum", tarball_name], check=True, capture_output=True, text=True, encoding="utf-8")
+        result = subprocess.run(
+            ["sha256sum", tarball_name],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
         sha256sum = result.stdout.strip()
     return tarball_name, sha256sum
 
@@ -287,7 +324,9 @@ def main(args: argparse.Namespace) -> None:
         # RC release
         rc, rc_ver = release_parsed.pre
         if rc != "rc":
-            raise ValueError("Only supports release candidates with 'rc' in the version string")
+            raise ValueError(
+                "Only supports release candidates with 'rc' in the version string"
+            )
 
     # Release string with only major, minor, patch components
     release = f"{major}.{minor}.{patch}"
