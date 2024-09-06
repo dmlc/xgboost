@@ -2,7 +2,7 @@
 #'
 #' Visualizes SHAP values against feature values to gain an impression of feature effects.
 #'
-#' @param data The data to explain as a `matrix` or `dgCMatrix`.
+#' @param data The data to explain as a `matrix`, `dgCMatrix`, or `data.frame`.
 #' @param shap_contrib Matrix of SHAP contributions of `data`.
 #'   The default (`NULL`) computes it from `model` and `data`.
 #' @param features Vector of column indices or feature names to plot. When `NULL`
@@ -285,8 +285,11 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
 xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1, model = NULL,
                           trees = NULL, target_class = NULL, approxcontrib = FALSE,
                           subsample = NULL, max_observations = 100000) {
-  if (!is.matrix(data) && !inherits(data, "dgCMatrix"))
-    stop("data: must be either matrix or dgCMatrix")
+  if (!inherits(data, c("matrix", "dsparseMatrix", "data.frame")))
+    stop("data: must be matrix, sparse matrix, or data.frame.")
+  if (inherits(data, "data.frame") && length(class(data)) > 1L) {
+    data <- as.data.frame(data)
+  }
 
   if (is.null(shap_contrib) && (is.null(model) || !inherits(model, "xgb.Booster")))
     stop("when shap_contrib is not provided, one must provide an xgb.Booster model")
@@ -311,7 +314,14 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     stop("if model has no feature_names, columns in `data` must match features in model")
 
   if (!is.null(subsample)) {
-    idx <- sample(x = seq_len(nrow(data)), size = as.integer(subsample * nrow(data)), replace = FALSE)
+    if (subsample <= 0 || subsample >= 1) {
+      stop("'subsample' must be a number between zero and one (non-inclusive).")
+    }
+    sample_size <- as.integer(subsample * nrow(data))
+    if (sample_size < 2) {
+      stop("Sampling fraction involves less than 2 rows.")
+    }
+    idx <- sample(x = seq_len(nrow(data)), size = sample_size, replace = FALSE)
   } else {
     idx <- seq_len(min(nrow(data), max_observations))
   }
