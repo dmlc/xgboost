@@ -16,7 +16,11 @@
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for SparsePage, SortedCSCPage
 
-#ifdef XGBOOST_SVE_SUPPORT_DETECTED
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
+
+#ifdef XGBOOST_SVE_COMPILER_SUPPORT
 #include <arm_sve.h>  // to leverage sve intrinsics
 #endif
 
@@ -183,8 +187,9 @@ class GHistBuildingManager {
   }
 };
 
-#ifdef XGBOOST_SVE_SUPPORT_DETECTED
+#ifdef XGBOOST_SVE_COMPILER_SUPPORT
 template <typename BinIdxType>
+__attribute__((target("arch=armv8-a+sve")))
 inline void UpdateHistogramWithSVE(size_t row_size, const BinIdxType *gr_index_local,
                                    const std::uint32_t *offsets, double *hist_data,
                                    const float *p_gpair, size_t idx_gh, const uint32_t two,
@@ -240,6 +245,12 @@ inline void UpdateHistogramWithSVE(size_t row_size, const BinIdxType *gr_index_l
   }
 }
 #endif
+
+// Returns true if SVE ISA is available on the current CPU
+bool check_sve_hw_support() {
+  int ret = prctl(PR_SVE_GET_VL);
+  return ret >= 0 ? 1 : 0;
+}
 
 template <bool do_prefetch, class BuildingManager>
 void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
@@ -302,20 +313,22 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
     }
     const BinIdxType *gr_index_local = gradient_index + icol_start;
 
-#ifdef XGBOOST_SVE_SUPPORT_DETECTED
-    UpdateHistogramWithSVE(row_size, gr_index_local, offsets, hist_data, p_gpair, idx_gh, two,
-                           kAnyMissing);
-#else
-    // The trick with pgh_t buffer helps the compiler to generate faster binary.
-    const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
-    for (size_t j = 0; j < row_size; ++j) {
-      const uint32_t idx_bin =
-          two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
-      auto hist_local = hist_data + idx_bin;
-      *(hist_local) += pgh_t[0];
-      *(hist_local + 1) += pgh_t[1];
+    if (check_sve_hw_support()) {
+      #ifdef XGBOOST_SVE_COMPILER_SUPPORT
+        UpdateHistogramWithSVE(row_size, gr_index_local, offsets, hist_data, p_gpair, idx_gh, two,
+                                kAnyMissing);
+      #endif
+    } else {
+        // The trick with pgh_t buffer helps the compiler to generate faster binary.
+        const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
+        for (size_t j = 0; j < row_size; ++j) {
+          const uint32_t idx_bin =
+              two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
+          auto hist_local = hist_data + idx_bin;
+          *(hist_local) += pgh_t[0];
+          *(hist_local + 1) += pgh_t[1];
+        }
     }
-#endif
   }
 }
 
