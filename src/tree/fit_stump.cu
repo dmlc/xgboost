@@ -9,6 +9,7 @@
 #include <cstddef>  // std::size_t
 
 #include "../collective/aggregator.cuh"  // for GlobalSum
+#include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"  // dh::MakeTransformIterator
 #include "fit_stump.h"
 #include "xgboost/base.h"     // GradientPairPrecise, GradientPair, XGBOOST_DEVICE
@@ -39,9 +40,7 @@ void FitStump(Context const* ctx, MetaInfo const& info,
   auto d_sum = sum.View(ctx->Device());
   CHECK(d_sum.CContiguous());
 
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  auto policy = thrust::cuda::par(alloc);
-  thrust::reduce_by_key(policy, key_it, key_it + gpair.Size(), grad_it,
+  thrust::reduce_by_key(ctx->CUDACtx()->CTP(), key_it, key_it + gpair.Size(), grad_it,
                         thrust::make_discard_iterator(), dh::tbegin(d_sum.Values()));
 
   auto rc = collective::GlobalSum(ctx, info,
@@ -49,7 +48,7 @@ void FitStump(Context const* ctx, MetaInfo const& info,
                                                   d_sum.Size() * 2, ctx->Device()));
   SafeColl(rc);
 
-  thrust::for_each_n(policy, thrust::make_counting_iterator(0ul), n_targets,
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), n_targets,
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        out(i) = static_cast<float>(
                            CalcUnregularizedWeight(d_sum(i).GetGrad(), d_sum(i).GetHess()));

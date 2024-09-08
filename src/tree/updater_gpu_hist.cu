@@ -338,7 +338,7 @@ struct GPUHistMakerDevice {
     monitor.Start(__func__);
     auto d_node_hist = histogram_.GetNodeHistogram(nidx);
     auto batch = page.Impl();
-    auto acc = batch->GetDeviceAccessor(ctx_->Device());
+    auto acc = batch->GetDeviceAccessor(ctx_);
 
     auto d_ridx = partitioners_.at(k)->GetRows(nidx);
     this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
@@ -497,7 +497,7 @@ struct GPUHistMakerDevice {
 
     std::int32_t k{0};
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(prefetch_copy))) {
-      auto d_matrix = page.Impl()->GetDeviceAccessor(ctx_->Device());
+      auto d_matrix = page.Impl()->GetDeviceAccessor(ctx_);
       auto go_left = GoLeftOp{d_matrix};
 
       // Partition histogram.
@@ -567,9 +567,10 @@ struct GPUHistMakerDevice {
     dh::CopyTo(p_tree->GetSplitCategories(), &categories);
     auto const& cat_segments = p_tree->GetSplitCategoriesPtr();
     auto d_categories = dh::ToSpan(categories);
+    auto ft = p_fmat->Info().feature_types.ConstDeviceSpan();
 
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-      auto d_matrix = page.Impl()->GetDeviceAccessor(ctx_->Device());
+      auto d_matrix = page.Impl()->GetDeviceAccessor(ctx_, ft);
 
       std::vector<NodeSplitData> split_data(p_tree->NumNodes());
       auto const& tree = *p_tree;
