@@ -67,8 +67,10 @@ template <typename T>
   RET_IF_NOT(fi->Read(&impl->base_rowid));
   bst_idx_t n_symbols{0};
   RET_IF_NOT(fi->Read(&n_symbols));
+  impl->SetNumSymbols(n_symbols);
 
   impl->SetCuts(this->cuts_);
+
   dh::DefaultStream().Sync();
   return true;
 }
@@ -114,8 +116,7 @@ template <typename T>
   fo->Write(page);
   dh::DefaultStream().Sync();
 
-  auto* impl = page.Impl();
-  return impl->MemCostBytes();
+  return page.Impl()->MemCostBytes();
 }
 
 #undef RET_IF_NOT

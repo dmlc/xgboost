@@ -45,7 +45,7 @@ struct EllpackDeviceAccessor {
   EllpackDeviceAccessor() = delete;
   EllpackDeviceAccessor(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
                         bool is_dense, bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
-                        common::CompressedIterator<uint32_t> gidx_iter, bst_idx_t n_symbols,
+                        common::CompressedIterator<uint32_t> gidx_iter,
                         common::Span<FeatureType const> feature_types)
       : is_dense{is_dense},
         row_stride{row_stride},

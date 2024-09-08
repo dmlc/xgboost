@@ -94,7 +94,8 @@ __global__ void CompressBinEllpackKernel(
 
 [[nodiscard]] std::size_t CalcNumSymbols(Context const*, bool /*is_dense*/,
                                          std::shared_ptr<common::HistogramCuts const> cuts) {
-  return cuts->TotalBins() + 1;
+  // Return the total number of symbols (total number of bins plus 1 for not found)
+  return cuts->cut_values_.Size() + 1;
 }
 
 // Construct an ELLPACK matrix with the given number of empty rows.
@@ -105,7 +106,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       cuts_(std::move(cuts)),
       row_stride{row_stride},
       n_rows{n_rows},
-      n_symbols_{CalcNumSymbols(ctx, is_dense, cuts_)} {
+      n_symbols_{CalcNumSymbols(ctx, this->is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   common::SetDevice(ctx->Ordinal());
 
@@ -120,7 +121,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       is_dense(is_dense),
       n_rows(page.Size()),
       row_stride(row_stride),
-      n_symbols_(CalcNumSymbols(ctx, is_dense, this->cuts_)) {
+      n_symbols_(CalcNumSymbols(ctx, this->is_dense, this->cuts_)) {
   this->InitCompressedData(ctx);
   this->CreateHistIndices(ctx, page, feature_types);
 }
@@ -136,7 +137,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* p_fmat, const Batc
                       common::DeviceSketch(ctx, p_fmat, param.max_bin))
                 : std::make_shared<common::HistogramCuts>(
                       common::DeviceSketchWithHessian(ctx, p_fmat, param.max_bin, param.hess))},
-      n_symbols_{CalcNumSymbols(ctx, p_fmat->IsDense(), cuts_)} {
+      n_symbols_{CalcNumSymbols(ctx, this->is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   common::SetDevice(ctx->Ordinal());
 
@@ -575,7 +576,6 @@ EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
           base_rowid,
           n_rows,
           common::CompressedIterator<uint32_t>(gidx_buffer.data(), this->NumSymbols()),
-          this->NumSymbols(),
           feature_types};
 }
 
@@ -595,7 +595,6 @@ EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
           base_rowid,
           n_rows,
           common::CompressedIterator<uint32_t>(h_gidx_buffer->data(), this->NumSymbols()),
-          this->NumSymbols(),
           feature_types};
 }
 
