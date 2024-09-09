@@ -14,7 +14,7 @@
 namespace xgboost {
 
 TEST(SparsePageDMatrix, EllpackPage) {
-  Context ctx{MakeCUDACtx(0)};
+  auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/simple.libsvm";
@@ -301,11 +301,11 @@ TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
     EXPECT_EQ(impl_ext->base_rowid, current_row);
 
     for (size_t i = 0; i < impl_ext->Size(); i++) {
-      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(ctx.Device()), current_row,
-                                         row_d.data().get()));
+      dh::LaunchN(kCols,
+                  ReadRowFunction(impl->GetDeviceAccessor(&ctx), current_row, row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(kCols, ReadRowFunction(impl_ext->GetDeviceAccessor(ctx.Device()), current_row,
+      dh::LaunchN(kCols, ReadRowFunction(impl_ext->GetDeviceAccessor(&ctx), current_row,
                                          row_ext_d.data().get()));
       thrust::copy(row_ext_d.begin(), row_ext_d.end(), row_ext.begin());
 

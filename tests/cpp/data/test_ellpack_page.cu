@@ -19,7 +19,7 @@ TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256;
   constexpr float kSparsity = 0;
   auto dmat = RandomDataGenerator(kNRows, kNCols, kSparsity).GenerateDMatrix();
-  Context ctx{MakeCUDACtx(0)};
+  auto ctx = MakeCUDACtx(0);
   auto& page = *dmat->GetBatches<EllpackPage>(
                         &ctx, BatchParam{kMaxBin, tree::TrainParam::DftSparseThreshold()})
                     .begin();
@@ -94,7 +94,7 @@ TEST(EllpackPage, FromCategoricalBasic) {
   Context ctx{MakeCUDACtx(0)};
   auto p = BatchParam{max_bins, tree::TrainParam::DftSparseThreshold()};
   auto ellpack = EllpackPage(&ctx, m.get(), p);
-  auto accessor = ellpack.Impl()->GetDeviceAccessor(ctx.Device());
+  auto accessor = ellpack.Impl()->GetDeviceAccessor(&ctx);
   ASSERT_EQ(kCats, accessor.NumBins());
 
   auto x_copy = x;
@@ -167,11 +167,11 @@ TEST(EllpackPage, Copy) {
     EXPECT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
-      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(ctx.Device()), current_row,
-                                         row_d.data().get()));
+      dh::LaunchN(kCols,
+                  ReadRowFunction(impl->GetDeviceAccessor(&ctx), current_row, row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(ctx.Device()), current_row,
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(&ctx), current_row,
                                          row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
@@ -223,12 +223,12 @@ TEST(EllpackPage, Compact) {
         continue;
       }
 
-      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(ctx.Device()), current_row,
-                                         row_d.data().get()));
+      dh::LaunchN(kCols,
+                  ReadRowFunction(impl->GetDeviceAccessor(&ctx), current_row, row_d.data().get()));
       dh::safe_cuda(cudaDeviceSynchronize());
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(ctx.Device()), compacted_row,
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(&ctx), compacted_row,
                                          row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 

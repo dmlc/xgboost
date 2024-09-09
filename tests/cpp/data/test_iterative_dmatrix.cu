@@ -27,7 +27,7 @@ void TestEquivalent(float sparsity) {
     size_t num_elements = page_concatenated->Copy(&ctx, page, offset);
     offset += num_elements;
   }
-  auto from_iter = page_concatenated->GetDeviceAccessor(ctx.Device());
+  auto from_iter = page_concatenated->GetDeviceAccessor(&ctx);
   ASSERT_EQ(m.Info().num_col_, CudaArrayIterForTest::Cols());
   ASSERT_EQ(m.Info().num_row_, CudaArrayIterForTest::Rows());
 
@@ -37,7 +37,7 @@ void TestEquivalent(float sparsity) {
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 0)};
   auto bp = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   for (auto& ellpack : dm->GetBatches<EllpackPage>(&ctx, bp)) {
-    auto from_data = ellpack.Impl()->GetDeviceAccessor(ctx.Device());
+    auto from_data = ellpack.Impl()->GetDeviceAccessor(&ctx);
 
     std::vector<float> cuts_from_iter(from_iter.gidx_fvalue_map.size());
     std::vector<float> min_fvalues_iter(from_iter.min_fvalue.size());
@@ -71,7 +71,7 @@ void TestEquivalent(float sparsity) {
     auto data_buf = ellpack.Impl()->GetHostAccessor(&ctx, &buffer_from_data);
     ASSERT_NE(buffer_from_data.size(), 0);
     ASSERT_NE(buffer_from_iter.size(), 0);
-    CHECK_EQ(from_data.NumSymbols(), from_iter.NumSymbols());
+    CHECK_EQ(ellpack.Impl()->NumSymbols(), page_concatenated->NumSymbols());
     CHECK_EQ(from_data.n_rows * from_data.row_stride, from_data.n_rows * from_iter.row_stride);
     for (size_t i = 0; i < from_data.n_rows * from_data.row_stride; ++i) {
       CHECK_EQ(data_buf.gidx_iter[i], data_iter.gidx_iter[i]);
@@ -146,10 +146,10 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
   auto impl = ellpack.Impl();
   std::vector<common::CompressedByteT> h_gidx;
   auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx);
-  EXPECT_EQ(h_accessor.gidx_iter[1], impl->GetDeviceAccessor(ctx.Device()).NullValue());
-  EXPECT_EQ(h_accessor.gidx_iter[5], impl->GetDeviceAccessor(ctx.Device()).NullValue());
+  EXPECT_EQ(h_accessor.gidx_iter[1], impl->GetDeviceAccessor(&ctx).NullValue());
+  EXPECT_EQ(h_accessor.gidx_iter[5], impl->GetDeviceAccessor(&ctx).NullValue());
   // null values get placed after valid values in a row
-  EXPECT_EQ(h_accessor.gidx_iter[7], impl->GetDeviceAccessor(ctx.Device()).NullValue());
+  EXPECT_EQ(h_accessor.gidx_iter[7], impl->GetDeviceAccessor(&ctx).NullValue());
   EXPECT_EQ(m.Info().num_col_, cols);
   EXPECT_EQ(m.Info().num_row_, rows);
   EXPECT_EQ(m.Info().num_nonzero_, rows* cols - 3);
