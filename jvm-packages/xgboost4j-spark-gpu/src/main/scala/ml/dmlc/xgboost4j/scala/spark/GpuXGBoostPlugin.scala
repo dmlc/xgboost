@@ -53,8 +53,8 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
    */
   override def isEnabled(dataset: Dataset[_]): Boolean = {
     val conf = dataset.sparkSession.conf
-    val hasRapidsPlugin = conf.get("spark.sql.extensions", "").split(",").contains(
-      "com.nvidia.spark.rapids.SQLExecPlugin")
+    val hasRapidsPlugin = conf.get("spark.plugins", "").split(",").contains(
+      "com.nvidia.spark.SQLPlugin")
     val rapidsEnabled = try {
       conf.get("spark.rapids.sql.enabled").toBoolean
     } catch {
