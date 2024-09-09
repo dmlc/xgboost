@@ -1028,7 +1028,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context = BarrierTaskContext.get()
 
             dev_ordinal = None
-            use_qdm = _can_use_qdm(booster_params.get("tree_method", None))
+            use_qdm = _can_use_qdm(
+                booster_params.get("tree_method", None),
+                booster_params.get("device", None),
+            )
             verbosity = booster_params.get("verbosity", 1)
             msg = "Training on CPUs"
             if run_on_gpu:
