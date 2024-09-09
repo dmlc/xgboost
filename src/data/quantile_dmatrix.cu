@@ -86,14 +86,12 @@ void MakeSketches(Context const* ctx,
       if (sketches.empty()) {
         lazy_init_sketch();
       }
-      if (sketches.back().second > std::pow(2, sketches.size() - 1)) {
+      if (sketches.back().second > (1ul << (sketches.size() - 1))) {
         auto n_cuts_per_feat =
             common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
         // Prune to a single block
         sketches.back().first->Prune(p_ctx, n_cuts_per_feat);
         sketches.back().first->ShrinkToFit();
-
-        std::cout << "prune n_batches:" << sketches.back().second << std::endl;
 
         sketches.back().second = 1;
         lazy_init_sketch();  // Add a new level.
