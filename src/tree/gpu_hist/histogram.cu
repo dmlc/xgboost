@@ -186,7 +186,7 @@ class HistogramAgent {
   // Increases the throughput of this kernel significantly
   __device__ void ProcessFullTileShared(std::size_t offset) {
     std::size_t idx[kItemsPerThread];
-    int ridx[kItemsPerThread];
+    Idx ridx[kItemsPerThread];
     int gidx[kItemsPerThread];
     GradientPair gpair[kItemsPerThread];
 #pragma unroll
