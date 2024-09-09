@@ -11,6 +11,7 @@
 #include <cstdint>    // for int32_t, uint32_t
 #include <vector>     // for vector
 
+#include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
 #include "xgboost/base.h"                   // for bst_idx_t
 #include "xgboost/context.h"                // for Context
@@ -356,18 +357,18 @@ class RowPartitioner {
    *           argument and return the new position for this training instance.
    */
   template <typename FinalisePositionOpT>
-  void FinalisePosition(common::Span<bst_node_t> d_out_position, bst_idx_t base_ridx,
-                        FinalisePositionOpT op) const {
+  void FinalisePosition(Context const* ctx, common::Span<bst_node_t> d_out_position,
+                        bst_idx_t base_ridx, FinalisePositionOpT op) const {
     dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
     dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
-                                  cudaMemcpyDefault));
+                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
 
     constexpr int kBlockSize = 512;
     const int kItemsThread = 8;
     const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
-    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0>>>(
+    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()>>>(
         dh::ToSpan(d_node_info_storage), base_ridx, d_ridx, d_out_position, op);
   }
 };

@@ -6,14 +6,15 @@
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 
-#include <string>
 #include <set>
+#include <string>
 
-#include "xgboost/logging.h"
-#include "xgboost/span.h"
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/device_helpers.cuh"
 #include "constraints.cuh"
 #include "param.h"
-#include "../common/device_helpers.cuh"
+#include "xgboost/logging.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 
@@ -130,9 +131,9 @@ FeatureInteractionConstraintDevice::FeatureInteractionConstraintDevice(
   this->Configure(param, n_features);
 }
 
-void FeatureInteractionConstraintDevice::Reset() {
+void FeatureInteractionConstraintDevice::Reset(Context const* ctx) {
   for (auto& node : node_constraints_storage_) {
-    thrust::fill(node.begin(), node.end(), 0);
+    thrust::fill(ctx->CUDACtx()->CTP(), node.begin(), node.end(), 0);
   }
 }
 
