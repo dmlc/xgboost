@@ -13,7 +13,7 @@
 
 namespace xgboost::data {
 void TestEquivalent(float sparsity) {
-  Context ctx{MakeCUDACtx(0)};
+  auto ctx = MakeCUDACtx(0);
 
   CudaArrayIterForTest iter{sparsity};
   IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
