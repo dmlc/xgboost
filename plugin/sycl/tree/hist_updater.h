@@ -87,7 +87,10 @@ class HistUpdater {
 
  protected:
   friend class BatchHistSynchronizer<GradientSumT>;
+  friend class DistributedHistSynchronizer<GradientSumT>;
+
   friend class BatchHistRowsAdder<GradientSumT>;
+  friend class DistributedHistRowsAdder<GradientSumT>;
 
   struct SplitQuery {
     bst_node_t nid;
