@@ -216,7 +216,7 @@ TEST(GpuHist, ConfigIO) {
 }
 
 TEST(GpuHist, MaxDepth) {
-  Context ctx(MakeCUDACtx(0));
+  auto ctx = MakeCUDACtx(0);
   size_t constexpr kRows = 16;
   size_t constexpr kCols = 4;
   auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();

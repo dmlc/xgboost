@@ -11,6 +11,7 @@
 #include <type_traits>  // for invoke_result_t, declval
 #include <vector>       // for vector
 
+#include "../common/cuda_rt_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "adapter.h"
 #include "xgboost/c_api.h"
 #include "xgboost/context.h"
@@ -36,6 +37,8 @@ class DataIterProxy {
   DataIterProxy& operator=(DataIterProxy const& that) = default;
 
   [[nodiscard]] bool Next() {
+    xgboost_NVTX_FN_RANGE();
+
     bool ret = !!next_(iter_);
     if (!ret) {
       return ret;

@@ -31,7 +31,7 @@ class GHistIndexFormatPolicy {
   using FormatT = SparsePageFormat<GHistIndexMatrix>;
 
  public:
-  [[nodiscard]] auto CreatePageFormat() const {
+  [[nodiscard]] auto CreatePageFormat(BatchParam const&) const {
     std::unique_ptr<FormatT> fmt{new GHistIndexRawFormat{cuts_}};
     return fmt;
   }

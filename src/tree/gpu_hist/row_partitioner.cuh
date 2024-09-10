@@ -200,11 +200,11 @@ XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
 
 template <int kBlockSize, typename RowIndexT, typename OpT>
 __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
-    const common::Span<const NodePositionInfo> d_node_info,
+    const common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
     const common::Span<const RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position, OpT op) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, d_ridx.size())) {
     auto position = GetPositionFromSegments(idx, d_node_info.data());
-    RowIndexT ridx = d_ridx[idx];
+    RowIndexT ridx = d_ridx[idx] - base_ridx;
     bst_node_t new_position = op(ridx, position);
     d_out_position[ridx] = new_position;
   }
@@ -264,7 +264,12 @@ class RowPartitioner {
   /**
    * \brief Gets all training rows in the set.
    */
-  common::Span<const RowIndexT> GetRows();
+  common::Span<const RowIndexT> GetRows() const;
+  /**
+   * @brief Get the number of rows in this partitioner.
+   */
+  std::size_t Size() const { return this->GetRows().size(); }
+
   [[nodiscard]] bst_node_t GetNumNodes() const { return n_nodes_; }
 
   /**
@@ -351,7 +356,8 @@ class RowPartitioner {
    *           argument and return the new position for this training instance.
    */
   template <typename FinalisePositionOpT>
-  void FinalisePosition(common::Span<bst_node_t> d_out_position, FinalisePositionOpT op) const {
+  void FinalisePosition(common::Span<bst_node_t> d_out_position, bst_idx_t base_ridx,
+                        FinalisePositionOpT op) const {
     dh::TemporaryArray<NodePositionInfo> d_node_info_storage(ridx_segments_.size());
     dh::safe_cuda(cudaMemcpyAsync(d_node_info_storage.data().get(), ridx_segments_.data(),
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
@@ -361,8 +367,8 @@ class RowPartitioner {
     const int kItemsThread = 8;
     const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
-    FinalisePositionKernel<kBlockSize>
-        <<<grid_size, kBlockSize, 0>>>(dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
+    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0>>>(
+        dh::ToSpan(d_node_info_storage), base_ridx, d_ridx, d_out_position, op);
   }
 };
 };  // namespace xgboost::tree

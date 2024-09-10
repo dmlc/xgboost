@@ -1568,6 +1568,7 @@ def inplace_predict(  # pylint: disable=unused-argument
 
 async def _async_wrap_evaluation_matrices(
     client: Optional["distributed.Client"],
+    device: Optional[str],
     tree_method: Optional[str],
     max_bin: Optional[int],
     **kwargs: Any,
@@ -1575,7 +1576,7 @@ async def _async_wrap_evaluation_matrices(
     """A switch function for async environment."""
 
     def _dispatch(ref: Optional[DaskDMatrix], **kwargs: Any) -> DaskDMatrix:
-        if _can_use_qdm(tree_method):
+        if _can_use_qdm(tree_method, device):
             return DaskQuantileDMatrix(
                 client=client, ref=ref, max_bin=max_bin, **kwargs
             )
@@ -1634,7 +1635,7 @@ class DaskScikitLearnBase(XGBModel):
             if isinstance(predts, dd.DataFrame):
                 predts = predts.to_dask_array()
         else:
-            test_dmatrix = await DaskDMatrix(
+            test_dmatrix: DaskDMatrix = await DaskDMatrix(  # type: ignore
                 self.client,
                 data=data,
                 base_margin=base_margin,
@@ -1675,7 +1676,7 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = await DaskDMatrix(
+        test_dmatrix: DaskDMatrix = await DaskDMatrix(  # type: ignore
             self.client,
             data=X,
             missing=self.missing,
@@ -1776,6 +1777,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             client=self.client,
+            device=self.device,
             tree_method=self.tree_method,
             max_bin=self.max_bin,
             X=X,
@@ -1865,6 +1867,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            device=self.device,
             tree_method=self.tree_method,
             max_bin=self.max_bin,
             X=X,
@@ -2067,6 +2070,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         params = self.get_xgb_params()
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
+            device=self.device,
             tree_method=self.tree_method,
             max_bin=self.max_bin,
             X=X,

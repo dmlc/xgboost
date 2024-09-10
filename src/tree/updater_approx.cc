@@ -154,8 +154,10 @@ class GlobalApproxBuilder {
     if (!task_->UpdateTreeLeaf()) {
       return;
     }
+    p_out_position->resize(hess.size());
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, hess, p_out_position);
+      part.LeafPartition(ctx_, tree, hess,
+                         common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
   }

@@ -11,6 +11,7 @@
 
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"  // for InfInData
+#include "../common/algorithm.cuh"  // for CopyIf
 #include "device_adapter.cuh"     // for NoInfInData
 
 namespace xgboost::data {
@@ -27,16 +28,15 @@ struct COOToEntryOp {
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
 template <typename AdapterBatchT>
-void CopyDataToDMatrix(AdapterBatchT batch, common::Span<Entry> data,
-                       float missing) {
+void CopyDataToDMatrix(AdapterBatchT batch, common::Span<Entry> data, float missing) {
   auto counting = thrust::make_counting_iterator(0llu);
-  dh::XGBCachingDeviceAllocator<char> alloc;
   COOToEntryOp<decltype(batch)> transform_op{batch};
-  thrust::transform_iterator<decltype(transform_op), decltype(counting)>
-      transform_iter(counting, transform_op);
+  thrust::transform_iterator<decltype(transform_op), decltype(counting)> transform_iter(
+      counting, transform_op);
   auto begin_output = thrust::device_pointer_cast(data.data());
-  dh::CopyIf(transform_iter, transform_iter + batch.Size(), begin_output,
-             IsValidFunctor(missing));
+  auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
+  common::CopyIf(ctx.CUDACtx(), transform_iter, transform_iter + batch.Size(), begin_output,
+                 IsValidFunctor(missing));
 }
 
 template <typename AdapterBatchT>

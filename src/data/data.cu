@@ -1,9 +1,11 @@
 /**
- * Copyright 2019-2022 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  *
  * \file data.cu
  * \brief Handles setting metainfo from array interface.
  */
+#include <thrust/gather.h>  // for gather
+
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "../common/linalg_op.cuh"
@@ -168,6 +170,62 @@ void MetaInfo::SetInfoFromCUDA(Context const& ctx, StringView key, Json array) {
     LOG(FATAL) << "Unknown key for MetaInfo: " << key;
   }
 }
+
+namespace {
+void Gather(Context const* ctx, linalg::MatrixView<float const> in,
+            common::Span<bst_idx_t const> ridx, linalg::Matrix<float>* p_out) {
+  if (in.Empty()) {
+    return;
+  }
+  auto& out = *p_out;
+  out.Reshape(ridx.size(), in.Shape(1));
+  auto d_out = out.View(ctx->Device());
+
+  auto cuctx = ctx->CUDACtx();
+  auto map_it = thrust::make_transform_iterator(thrust::make_counting_iterator(0ull),
+                                                [=] XGBOOST_DEVICE(bst_idx_t i) {
+                                                  auto [r, c] = linalg::UnravelIndex(i, in.Shape());
+                                                  return (ridx[r] * in.Shape(1)) + c;
+                                                });
+  CHECK_NE(in.Shape(1), 0);
+  thrust::gather(cuctx->TP(), map_it, map_it + out.Size(), linalg::tcbegin(in),
+                 linalg::tbegin(d_out));
+}
+
+template <typename T>
+void Gather(Context const* ctx, HostDeviceVector<T> const& in, common::Span<bst_idx_t const> ridx,
+            HostDeviceVector<T>* p_out) {
+  if (in.Empty()) {
+    return;
+  }
+  in.SetDevice(ctx->Device());
+
+  auto& out = *p_out;
+  out.SetDevice(ctx->Device());
+  out.Resize(ridx.size());
+  auto d_out = out.DeviceSpan();
+
+  auto cuctx = ctx->CUDACtx();
+  auto d_in = in.ConstDeviceSpan();
+  thrust::gather(cuctx->TP(), dh::tcbegin(ridx), dh::tcend(ridx), dh::tcbegin(d_in),
+                 dh::tbegin(d_out));
+}
+}  // anonymous namespace
+
+namespace cuda_impl {
+void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_idx_t const> ridx,
+                   MetaInfo* p_out) {
+  auto& out = *p_out;
+
+  Gather(ctx, info.labels.View(ctx->Device()), ridx, &p_out->labels);
+  Gather(ctx, info.base_margin_.View(ctx->Device()), ridx, &p_out->base_margin_);
+
+  Gather(ctx, info.labels_lower_bound_, ridx, &out.labels_lower_bound_);
+  Gather(ctx, info.labels_upper_bound_, ridx, &out.labels_upper_bound_);
+
+  Gather(ctx, info.weights_, ridx, &out.weights_);
+}
+}  // namespace cuda_impl
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,

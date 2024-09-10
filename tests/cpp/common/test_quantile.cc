@@ -283,22 +283,22 @@ void TestColSplitQuantile(size_t rows, size_t cols) {
 }
 }  // anonymous namespace
 
-TEST(Quantile, ColSplitBasic) {
+TEST(Quantile, ColumnSplitBasic) {
   constexpr size_t kRows = 10, kCols = 10;
   TestColSplitQuantile<false>(kRows, kCols);
 }
 
-TEST(Quantile, ColSplit) {
+TEST(Quantile, ColumnSplit) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestColSplitQuantile<false>(kRows, kCols);
 }
 
-TEST(Quantile, ColSplitSortedBasic) {
+TEST(Quantile, ColumnSplitSortedBasic) {
   constexpr size_t kRows = 10, kCols = 10;
   TestColSplitQuantile<true>(kRows, kCols);
 }
 
-TEST(Quantile, ColSplitSorted) {
+TEST(Quantile, ColumnSplitSorted) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestColSplitQuantile<true>(kRows, kCols);
 }

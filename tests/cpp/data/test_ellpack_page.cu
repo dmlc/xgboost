@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <xgboost/base.h>
 
@@ -15,12 +15,11 @@
 #include "gtest/gtest.h"
 
 namespace xgboost {
-
 TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256;
   constexpr float kSparsity = 0;
   auto dmat = RandomDataGenerator(kNRows, kNCols, kSparsity).GenerateDMatrix();
-  Context ctx{MakeCUDACtx(0)};
+  auto ctx = MakeCUDACtx(0);
   auto& page = *dmat->GetBatches<EllpackPage>(
                         &ctx, BatchParam{kMaxBin, tree::TrainParam::DftSparseThreshold()})
                     .begin();
@@ -95,7 +94,7 @@ TEST(EllpackPage, FromCategoricalBasic) {
   Context ctx{MakeCUDACtx(0)};
   auto p = BatchParam{max_bins, tree::TrainParam::DftSparseThreshold()};
   auto ellpack = EllpackPage(&ctx, m.get(), p);
-  auto accessor = ellpack.Impl()->GetDeviceAccessor(ctx.Device());
+  auto accessor = ellpack.Impl()->GetDeviceAccessor(&ctx);
   ASSERT_EQ(kCats, accessor.NumBins());
 
   auto x_copy = x;
@@ -168,11 +167,11 @@ TEST(EllpackPage, Copy) {
     EXPECT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
-      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(ctx.Device()), current_row,
-                                         row_d.data().get()));
+      dh::LaunchN(kCols,
+                  ReadRowFunction(impl->GetDeviceAccessor(&ctx), current_row, row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(ctx.Device()), current_row,
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(&ctx), current_row,
                                          row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
@@ -224,12 +223,12 @@ TEST(EllpackPage, Compact) {
         continue;
       }
 
-      dh::LaunchN(kCols, ReadRowFunction(impl->GetDeviceAccessor(ctx.Device()), current_row,
-                                         row_d.data().get()));
+      dh::LaunchN(kCols,
+                  ReadRowFunction(impl->GetDeviceAccessor(&ctx), current_row, row_d.data().get()));
       dh::safe_cuda(cudaDeviceSynchronize());
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(ctx.Device()), compacted_row,
+      dh::LaunchN(kCols, ReadRowFunction(result.GetDeviceAccessor(&ctx), compacted_row,
                                          row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
@@ -242,7 +241,7 @@ TEST(EllpackPage, Compact) {
 namespace {
 class EllpackPageTest : public testing::TestWithParam<float> {
  protected:
-  void Run(float sparsity) {
+  void TestFromGHistIndex(float sparsity) const {
     // Only testing with small sample size as the cuts might be different between host and
     // device.
     size_t n_samples{128}, n_features{13};
@@ -273,9 +272,25 @@ class EllpackPageTest : public testing::TestWithParam<float> {
       }
     }
   }
+
+  void TestNumNonMissing(float sparsity) const {
+    size_t n_samples{1024}, n_features{13};
+    auto ctx = MakeCUDACtx(0);
+    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}.GenerateDMatrix(true);
+    auto nnz = p_fmat->Info().num_nonzero_;
+    for (auto const& page : p_fmat->GetBatches<EllpackPage>(
+             &ctx, BatchParam{17, tree::TrainParam::DftSparseThreshold()})) {
+      auto ellpack_nnz =
+          page.Impl()->NumNonMissing(&ctx, p_fmat->Info().feature_types.ConstDeviceSpan());
+      ASSERT_EQ(nnz, ellpack_nnz);
+    }
+  }
 };
 }  // namespace
 
-TEST_P(EllpackPageTest, FromGHistIndex) { this->Run(GetParam()); }
+TEST_P(EllpackPageTest, FromGHistIndex) { this->TestFromGHistIndex(GetParam()); }
+
+TEST_P(EllpackPageTest, NumNonMissing) { this->TestNumNonMissing(this->GetParam()); }
+
 INSTANTIATE_TEST_SUITE_P(EllpackPage, EllpackPageTest, testing::Values(.0f, .2f, .4f, .8f));
 }  // namespace xgboost

@@ -927,8 +927,8 @@ class GPUPredictor : public xgboost::Predictor {
       for (auto const& page : dmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
         dmat->Info().feature_types.SetDevice(ctx_->Device());
         auto feature_types = dmat->Info().feature_types.ConstDeviceSpan();
-        this->PredictInternal(page.Impl()->GetDeviceAccessor(ctx_->Device(), feature_types),
-                              d_model, out_preds, batch_offset);
+        this->PredictInternal(page.Impl()->GetDeviceAccessor(ctx_, feature_types), d_model,
+                              out_preds, batch_offset);
         batch_offset += page.Size() * model.learner_model_param->OutputLength();
       }
     }
@@ -1068,7 +1068,7 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
-        EllpackDeviceAccessor acc{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
+        EllpackDeviceAccessor acc{batch.Impl()->GetDeviceAccessor(ctx_)};
         auto X = EllpackLoader{acc, true, model.learner_model_param->num_feature, batch.Size(),
                                std::numeric_limits<float>::quiet_NaN()};
         auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
@@ -1139,8 +1139,7 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
         auto impl = batch.Impl();
-        auto acc =
-            impl->GetDeviceAccessor(ctx_->Device(), p_fmat->Info().feature_types.ConstDeviceSpan());
+        auto acc = impl->GetDeviceAccessor(ctx_, p_fmat->Info().feature_types.ConstDeviceSpan());
         auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
         auto X = EllpackLoader{acc, true, model.learner_model_param->num_feature, batch.Size(),
                                std::numeric_limits<float>::quiet_NaN()};
@@ -1225,7 +1224,7 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       bst_idx_t batch_offset = 0;
       for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
-        EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
+        EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_)};
         auto grid = static_cast<std::uint32_t>(common::DivRoundUp(batch.Size(), kBlockThreads));
         launch(PredictLeafKernel<EllpackLoader, EllpackDeviceAccessor>, grid, data, batch_offset);
         batch_offset += batch.Size();
