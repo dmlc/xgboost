@@ -28,11 +28,6 @@ private[scala] sealed trait XGBoostEstimatorCommon extends GeneralParams with Le
   with HasBaseMarginCol with HasLeafPredictionCol with HasContribPredictionCol with HasFeaturesCol
   with HasLabelCol with HasFeaturesCols with HasHandleInvalid {
 
-  def needDeterministicRepartitioning: Boolean = {
-    isDefined(checkpointPath) && getCheckpointPath != null && getCheckpointPath.nonEmpty &&
-      isDefined(checkpointInterval) && getCheckpointInterval > 0
-  }
-
   /**
    * Param for how to handle invalid data (NULL values). Options are 'skip' (filter out rows with
    * invalid data), 'error' (throw an error), or 'keep' (return relevant number of NaN in the
