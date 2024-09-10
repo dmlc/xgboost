@@ -205,7 +205,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
 
           val rdd = classifier.getPlugin.get.buildRddWatches(classifier, df)
           val result = rdd.mapPartitions { iter =>
-            val watches = iter.next()()
+            val watches = iter.next()
             val size = watches.size
             val labels = watches.datasets(0).getLabel
             val weight = watches.datasets(0).getWeight
@@ -269,7 +269,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
 
           val rdd = classifier.getPlugin.get.buildRddWatches(classifier, train)
           val result = rdd.mapPartitions { iter =>
-            val watches = iter.next()()
+            val watches = iter.next()
             val size = watches.size
             val labels = watches.datasets(1).getLabel
             val weight = watches.datasets(1).getWeight

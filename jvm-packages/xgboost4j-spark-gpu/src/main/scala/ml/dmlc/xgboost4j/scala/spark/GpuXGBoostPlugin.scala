@@ -113,7 +113,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
    */
   override def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
-      dataset: Dataset[_]): RDD[() => Watches] = {
+      dataset: Dataset[_]): RDD[Watches] = {
 
     validate(estimator, dataset)
 
@@ -148,19 +148,25 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       val evalProcessed = preprocess(estimator, evalDs)
       ColumnarRdd(train.toDF()).zipPartitions(ColumnarRdd(evalProcessed.toDF())) {
         (trainIter, evalIter) =>
-          Iterator.single(() => {
-            val trainDM = buildQuantileDMatrix(trainIter)
-            val evalDM = buildQuantileDMatrix(evalIter, Some(trainDM))
-            new Watches(Array(trainDM, evalDM),
-              Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None)
-          })
+          new Iterator[Watches] {
+            override def hasNext: Boolean = trainIter.hasNext
+            override def next(): Watches = {
+              val trainDM = buildQuantileDMatrix(trainIter)
+              val evalDM = buildQuantileDMatrix(evalIter, Some(trainDM))
+              new Watches(Array(trainDM, evalDM),
+                Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None)
+            }
+          }
       }
     }.getOrElse(
       ColumnarRdd(train.toDF()).mapPartitions { iter =>
-        Iterator.single(() => {
-          val dm = buildQuantileDMatrix(iter)
-          new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
-        })
+        new Iterator[Watches] {
+          override def hasNext: Boolean = iter.hasNext
+          override def next(): Watches = {
+            val dm = buildQuantileDMatrix(iter)
+            new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
+          }
+        }
       }
     )
   }

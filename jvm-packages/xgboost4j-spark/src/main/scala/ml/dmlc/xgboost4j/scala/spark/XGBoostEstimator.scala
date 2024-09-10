@@ -234,10 +234,10 @@ private[spark] trait XGBoostEstimator[
    *
    * @param dataset
    * @param columnsOrder the order of columns including weight/group/base margin ...
-   * @return RDD
+   * @return RDD[Watches]
    */
   private[spark] def toRdd(dataset: Dataset[_],
-                           columnIndices: ColumnIndices): RDD[() => Watches] = {
+                           columnIndices: ColumnIndices): RDD[Watches] = {
     val trainRDD = toXGBLabeledPoint(dataset, columnIndices)
 
     val featureNames = if (getFeatureNames.isEmpty) None else Some(getFeatureNames)
@@ -309,20 +309,25 @@ private[spark] trait XGBoostEstimator[
       val (evalDf, _) = preprocess(eval)
       val evalRDD = toXGBLabeledPoint(evalDf, columnIndices)
       trainRDD.zipPartitions(evalRDD) { (left, right) =>
-        Iterator.single(() => {
-        val trainDMatrix = buildDMatrix(left)
-        val evalDMatrix = buildDMatrix(right)
-        new Watches(Array(trainDMatrix, evalDMatrix),
-          Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None)
-        })
+        new Iterator[Watches] {
+          override def hasNext: Boolean = left.hasNext
+          override def next(): Watches = {
+            val trainDMatrix = buildDMatrix(left)
+            val evalDMatrix = buildDMatrix(right)
+            new Watches(Array(trainDMatrix, evalDMatrix),
+              Array(Utils.TRAIN_NAME, Utils.VALIDATION_NAME), None)
+          }
+        }
       }
     }.getOrElse(
       trainRDD.mapPartitions { iter =>
-
-        Iterator.single(() => {
-          val dm = buildDMatrix(iter)
-          new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
-        })
+        new Iterator[Watches] {
+          override def hasNext: Boolean = iter.hasNext
+          override def next(): Watches = {
+            val dm = buildDMatrix(iter)
+            new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
+          }
+        }
       }
     )
   }
