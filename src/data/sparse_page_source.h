@@ -289,11 +289,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
           std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{
-              this->CreatePageFormat(this->param_)};
+              self->CreatePageFormat(self->param_)};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
           std::unique_ptr<typename FormatStreamPolicy::ReaderT> fi{
-              this->CreateReader(name, offset, length)};
+              self->CreateReader(name, offset, length)};
           CHECK(fmt->Read(page.get(), fi.get()));
         });
         return page;
