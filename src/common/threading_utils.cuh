@@ -1,20 +1,20 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_CUH_
 #define XGBOOST_COMMON_THREADING_UTILS_CUH_
 
-#include <algorithm>           // std::min
-#include <cstddef>             // std::size_t
+#include <algorithm>  // std::min
+#include <cstddef>    // std::size_t
 
 #include "./math.h"            // Sqr
-#include "common.h"
+#include "algorithm.cuh"       // for InclusiveSum
+#include "common.h"            // for safe_cuda
 #include "device_helpers.cuh"  // LaunchN
 #include "xgboost/base.h"      // XGBOOST_DEVICE
 #include "xgboost/span.h"      // Span
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 /**
  * \param n Number of items (length of the base)
  * \param h hight
@@ -43,9 +43,8 @@ XGBOOST_DEVICE inline std::size_t DiscreteTrapezoidArea(std::size_t n, std::size
  * with h <= n
  */
 template <typename U>
-std::size_t SegmentedTrapezoidThreads(xgboost::common::Span<U> group_ptr,
-                                      xgboost::common::Span<std::size_t> out_group_threads_ptr,
-                                      std::size_t h) {
+std::size_t SegmentedTrapezoidThreads(Context const *ctx, Span<U> group_ptr,
+                                      Span<std::size_t> out_group_threads_ptr, std::size_t h) {
   CHECK_GE(group_ptr.size(), 1);
   CHECK_EQ(group_ptr.size(), out_group_threads_ptr.size());
   dh::LaunchN(group_ptr.size(), [=] XGBOOST_DEVICE(std::size_t idx) {
@@ -57,8 +56,8 @@ std::size_t SegmentedTrapezoidThreads(xgboost::common::Span<U> group_ptr,
     std::size_t cnt = static_cast<std::size_t>(group_ptr[idx] - group_ptr[idx - 1]);
     out_group_threads_ptr[idx] = DiscreteTrapezoidArea(cnt, h);
   });
-  dh::InclusiveSum(out_group_threads_ptr.data(), out_group_threads_ptr.data(),
-                   out_group_threads_ptr.size());
+  InclusiveSum(ctx, out_group_threads_ptr.data(), out_group_threads_ptr.data(),
+               out_group_threads_ptr.size());
   std::size_t total = 0;
   dh::safe_cuda(cudaMemcpy(&total, out_group_threads_ptr.data() + out_group_threads_ptr.size() - 1,
                            sizeof(total), cudaMemcpyDeviceToHost));
@@ -82,6 +81,5 @@ XGBOOST_DEVICE inline void UnravelTrapeziodIdx(std::size_t i_idx, std::size_t n,
 
   j = idx - n_elems + i + 1;
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_THREADING_UTILS_CUH_

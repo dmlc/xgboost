@@ -66,12 +66,10 @@ GradientQuantiser::GradientQuantiser(Context const* ctx, common::Span<GradientPa
                                      MetaInfo const& info) {
   using GradientSumT = GradientPairPrecise;
   using T = typename GradientSumT::ValueT;
-  dh::XGBCachingDeviceAllocator<char> alloc;
 
   thrust::device_ptr<GradientPair const> gpair_beg{gpair.data()};
   auto beg = thrust::make_transform_iterator(gpair_beg, Clip());
-  Pair p =
-      dh::Reduce(thrust::cuda::par(alloc), beg, beg + gpair.size(), Pair{}, thrust::plus<Pair>{});
+  Pair p = dh::Reduce(ctx->CUDACtx()->CTP(), beg, beg + gpair.size(), Pair{}, thrust::plus<Pair>{});
   // Treat pair as array of 4 primitive types to allreduce
   using ReduceT = typename decltype(p.first)::ValueT;
   static_assert(sizeof(Pair) == sizeof(ReduceT) * 4, "Expected to reduce four elements.");

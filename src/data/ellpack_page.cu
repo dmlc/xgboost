@@ -254,30 +254,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
       d_compressed_buffer, writer, batch, device_accessor, feature_types, is_valid};
   thrust::transform_output_iterator<decltype(functor), decltype(discard)> out(discard, functor);
 
-  // Go one level down into cub::DeviceScan API to set OffsetT as 64 bit
-  // So we don't crash on n > 2^31
-  size_t temp_storage_bytes = 0;
-  using DispatchScan = cub::DispatchScan<decltype(key_value_index_iter), decltype(out),
-                                         TupleScanOp<Tuple>, cub::NullType, std::int64_t>;
-#if THRUST_MAJOR_VERSION >= 2
-  dh::safe_cuda(DispatchScan::Dispatch(nullptr, temp_storage_bytes, key_value_index_iter, out,
-                                       TupleScanOp<Tuple>(), cub::NullType(), batch.Size(),
-                                       ctx->CUDACtx()->Stream()));
-#else
-  DispatchScan::Dispatch(nullptr, temp_storage_bytes, key_value_index_iter, out,
-                         TupleScanOp<Tuple>(), cub::NullType(), batch.Size(),
-                         nullptr, false);
-#endif
-  dh::TemporaryArray<char> temp_storage(temp_storage_bytes);
-#if THRUST_MAJOR_VERSION >= 2
-  dh::safe_cuda(DispatchScan::Dispatch(temp_storage.data().get(), temp_storage_bytes,
-                                       key_value_index_iter, out, TupleScanOp<Tuple>(),
-                                       cub::NullType(), batch.Size(), ctx->CUDACtx()->Stream()));
-#else
-  DispatchScan::Dispatch(temp_storage.data().get(), temp_storage_bytes,
-                         key_value_index_iter, out, TupleScanOp<Tuple>(),
-                         cub::NullType(), batch.Size(), nullptr, false);
-#endif
+  common::InclusiveScan(ctx, key_value_index_iter, out, TupleScanOp<Tuple>{}, batch.Size());
 }
 
 void WriteNullValues(Context const* ctx, EllpackPageImpl* dst, common::Span<size_t> row_counts) {

@@ -78,7 +78,7 @@ struct FeatureInteractionConstraintDevice {
   FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const& that) = default;
   FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice&& that) = default;
   /*! \brief Reset before constructing a new tree. */
-  void Reset();
+  void Reset(Context const* ctx);
   /*! \brief Return a list of features given node id */
   common::Span<bst_feature_t> QueryNode(int32_t nid);
   /*!

@@ -372,21 +372,6 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
                                 cudaMemcpyDeviceToHost));
 }
 
-template <class Src, class Dst>
-void CopyTo(Src const &src, Dst *dst) {
-  if (src.empty()) {
-    dst->clear();
-    return;
-  }
-  dst->resize(src.size());
-  using SVT = std::remove_cv_t<typename Src::value_type>;
-  using DVT = std::remove_cv_t<typename Dst::value_type>;
-  static_assert(std::is_same_v<SVT, DVT>,
-                "Host and device containers must have same value type.");
-  dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
-                                src.size() * sizeof(SVT), cudaMemcpyDefault));
-}
-
 // Keep track of pinned memory allocation
 struct PinnedMemory {
   void *temp_storage{nullptr};
@@ -748,45 +733,6 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   return aggregate;
 }
 
-// wrapper to avoid integer `num_items`.
-template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
-          typename OffsetT>
-void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
-                   OffsetT num_items) {
-  size_t bytes = 0;
-#if THRUST_MAJOR_VERSION >= 2
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(nullptr, bytes, d_in, d_out, scan_op,
-                                           cub::NullType(), num_items, nullptr)));
-#else
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(nullptr, bytes, d_in, d_out, scan_op,
-                                           cub::NullType(), num_items, nullptr,
-                                           false)));
-#endif
-  TemporaryArray<char> storage(bytes);
-#if THRUST_MAJOR_VERSION >= 2
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
-                                           d_out, scan_op, cub::NullType(),
-                                           num_items, nullptr)));
-#else
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
-                                           d_out, scan_op, cub::NullType(),
-                                           num_items, nullptr, false)));
-#endif
-}
-
-template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
-void InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, OffsetT num_items) {
-  InclusiveScan(d_in, d_out, cub::Sum(), num_items);
-}
-
 class CUDAStreamView;
 
 class CUDAEvent {
@@ -857,7 +803,22 @@ class CUDAStream {
   [[nodiscard]] cudaStream_t Handle() const { return stream_; }
 
   void Sync() { this->View().Sync(); }
+  void Wait(CUDAEvent const &e) { this->View().Wait(e); }
 };
+
+template <class Src, class Dst>
+void CopyTo(Src const &src, Dst *dst, CUDAStreamView stream = DefaultStream()) {
+  if (src.empty()) {
+    dst->clear();
+    return;
+  }
+  dst->resize(src.size());
+  using SVT = std::remove_cv_t<typename Src::value_type>;
+  using DVT = std::remove_cv_t<typename Dst::value_type>;
+  static_assert(std::is_same_v<SVT, DVT>, "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
+                                src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
+}
 
 inline auto CachingThrustPolicy() {
   XGBCachingDeviceAllocator<char> alloc;
