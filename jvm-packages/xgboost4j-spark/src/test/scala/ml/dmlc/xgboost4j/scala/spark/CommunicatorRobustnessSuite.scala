@@ -16,21 +16,11 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.util.concurrent.LinkedBlockingDeque
-
-import scala.util.Random
-
-import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker}
-import ml.dmlc.xgboost4j.scala.DMatrix
 import org.scalatest.funsuite.AnyFunSuite
 
-class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
+import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker}
 
-  private def getXGBoostExecutionParams(paramMap: Map[String, Any]): XGBoostExecutionParams = {
-    val classifier = new XGBoostClassifier(paramMap)
-    val xgbParamsFactory = new XGBoostExecutionParamsFactory(classifier.MLlib2XGBoostParams, sc)
-    xgbParamsFactory.buildXGBRuntimeParams
-  }
+class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
 
   test("test Java RabitTracker wrapper's exception handling: it should not hang forever.") {
     /*
@@ -113,9 +103,11 @@ class CommunicatorRobustnessSuite extends AnyFunSuite with PerTest {
       "max_depth" -> "6",
       "silent" -> "1",
       "objective" -> "binary:logistic")
-    val trainingDF = buildDataFrame(Classification.train)
-    val model = new XGBoostClassifier(paramMap ++ Array("num_round" -> 10,
-      "num_workers" -> numWorkers)).fit(trainingDF)
+    val trainingDF = smallBinaryClassificationVector
+    val model = new XGBoostClassifier(paramMap)
+      .setNumWorkers(numWorkers)
+      .setNumRound(10)
+      .fit(trainingDF)
     val prediction = model.transform(trainingDF)
     // a partial evaluation of dataframe will cause rabit initialized but not shutdown in some
     // threads
