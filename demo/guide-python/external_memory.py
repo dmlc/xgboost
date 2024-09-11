@@ -10,6 +10,10 @@ instead of Quantile DMatrix.  The feature is not ready for production use yet.
 
 See :doc:`the tutorial </tutorials/external_memory>` for more details.
 
+    .. versionchanged:: 3.0.0
+
+        Added :py:class:`xgboost.ExtMemQuantileDMatrix`.
+
 """
 
 import os
@@ -78,25 +82,46 @@ class Iterator(xgboost.DataIter):
         self._it = 0
 
 
-def main(tmpdir: str) -> xgboost.Booster:
-    # generate some random data for demo
-    files = make_batches(1024, 17, 31, tmpdir)
-    it = Iterator(files)
-    # For non-data arguments, specify it here once instead of passing them by the `next`
-    # method.
-    missing = np.nan
-    Xy = xgboost.DMatrix(it, missing=missing, enable_categorical=False)
+def hist_train(it: Iterator) -> None:
+    """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
+    faster initialization and lower memory usage.
 
-    # ``approx`` is also supported, but less efficient due to sketching. GPU behaves
-    # differently than CPU tree methods as it uses a hybrid approach. See tutorial in
-    # doc for details.
+    .. versionadded:: 3.0.0
+
+    """
+    Xy = xgboost.ExtMemQuantileDMatrix(it, missing=np.nan, enable_categorical=False)
     booster = xgboost.train(
         {"tree_method": "hist", "max_depth": 4},
         Xy,
         evals=[(Xy, "Train")],
         num_boost_round=10,
     )
-    return booster
+    booster.predict(Xy)
+
+
+def approx_train(it: Iterator) -> None:
+    # For non-data arguments, specify it here once instead of passing them by the `next`
+    # method.
+    Xy = xgboost.DMatrix(it, missing=np.nan, enable_categorical=False)
+    # ``approx`` is also supported, but less efficient due to sketching.
+    booster = xgboost.train(
+        {"tree_method": "approx", "max_depth": 4},
+        Xy,
+        evals=[(Xy, "Train")],
+        num_boost_round=10,
+    )
+    booster.predict(Xy)
+
+
+def main(tmpdir: str) -> None:
+    # generate some random data for demo
+    files = make_batches(
+        n_samples_per_batch=1024, n_features=17, n_batches=31, tmpdir=tmpdir
+    )
+    it = Iterator(files)
+
+    hist_train(it)
+    approx_train(it)
 
 
 if __name__ == "__main__":
