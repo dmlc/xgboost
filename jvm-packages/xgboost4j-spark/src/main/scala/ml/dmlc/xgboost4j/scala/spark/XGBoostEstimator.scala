@@ -492,7 +492,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     val predContrib = addToSchema(contribPredictionCol)
 
     var predRaw = false
-    // For classification case, the tranformed col is probability,
+    // For classification case, the transformed col is probability,
     // while for others, it's the prediction value.
     var predTmp = false
     this match {
@@ -503,7 +503,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
         if (isDefinedNonEmpty(predictionCol)) {
           // Let's use transformed col to calculate the prediction
           if (!predTmp) {
-            // Add the transformed col for predition
+            // Add the transformed col for prediction
             schema = schema.add(
               StructField(TMP_TRANSFORMED_COL, ArrayType(FloatType)))
             predTmp = true

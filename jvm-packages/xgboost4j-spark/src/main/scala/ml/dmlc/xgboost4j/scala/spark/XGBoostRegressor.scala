@@ -47,8 +47,7 @@ class XGBoostRegressor(override val uid: String,
   override protected[spark] def validate(dataset: Dataset[_]): Unit = {
     super.validate(dataset)
 
-    // If the objective is set explicitly, it must be in binaryClassificationObjs and
-    // multiClassificationObjs
+    // If the objective is set explicitly, it must be in REGRESSION_OBJS
     if (isSet(objective)) {
       val tmpObj = getObjective
       require(REGRESSION_OBJS.contains(tmpObj),

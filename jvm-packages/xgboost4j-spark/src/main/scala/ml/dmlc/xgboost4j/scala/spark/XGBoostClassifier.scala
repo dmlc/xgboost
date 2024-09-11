@@ -47,8 +47,8 @@ class XGBoostClassifier(override val uid: String,
   private var numberClasses = 0
 
   private def validateObjective(dataset: Dataset[_]): Unit = {
-    // If the objective is set explicitly, it must be in binaryClassificationObjs and
-    // multiClassificationObjs
+    // If the objective is set explicitly, it must be in BINARY_CLASSIFICATION_OBJS and
+    // MULTICLASSIFICATION_OBJS
     val obj = if (isSet(objective)) {
       val tmpObj = getObjective
       val supportedObjs = BINARY_CLASSIFICATION_OBJS.toSeq ++ MULTICLASSIFICATION_OBJS.toSeq
