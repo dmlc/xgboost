@@ -503,6 +503,73 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     }
   }
 
+   test("Ranker: XGBoost-Spark should match xgboost4j") {
+    withGpuSparkSession() { spark =>
+      import spark.implicits._
+
+      val trainPath = writeFile(Ranking.train.toDF("label", "weight", "group", "c1", "c2", "c3"))
+      val testPath = writeFile(Ranking.test.toDF("label", "weight", "group", "c1", "c2", "c3"))
+
+      val df = spark.read.parquet(trainPath)
+      val testdf = spark.read.parquet(testPath)
+
+      val features = Array("c1", "c2", "c3")
+      val featuresIndices = features.map(df.schema.fieldIndex)
+      val label = "label"
+      val group = "group"
+
+      val numRound = 100
+      val xgboostParams: Map[String, Any] = Map(
+        "device" -> "cuda",
+        "objective" -> "rank:ndcg"
+      )
+
+      val ranker = new XGBoostRanker(xgboostParams)
+        .setFeaturesCol(features)
+        .setLabelCol(label)
+        .setNumRound(numRound)
+        .setLeafPredictionCol("leaf")
+        .setContribPredictionCol("contrib")
+        .setGroupCol(group)
+        .setDevice("cuda")
+
+      val xgb4jModel = withResource(new GpuColumnBatch(
+        Table.readParquet(new File(trainPath)))) { batch =>
+        val cb = new CudfColumnBatch(batch.select(featuresIndices),
+          batch.select(df.schema.fieldIndex(label)), null, null,
+          batch.select(df.schema.fieldIndex(group)))
+        val qdm = new QuantileDMatrix(Seq(cb).iterator, ranker.getMissing,
+          ranker.getMaxBins, ranker.getNthread)
+        ScalaXGBoost.train(qdm, xgboostParams, numRound)
+      }
+
+      val (xgb4jLeaf, xgb4jContrib, xgb4jPred) = withResource(new GpuColumnBatch(
+        Table.readParquet(new File(testPath)))) { batch =>
+        val cb = new CudfColumnBatch(batch.select(featuresIndices), null, null, null, null
+        )
+        val qdm = new DMatrix(cb, ranker.getMissing, ranker.getNthread)
+        (xgb4jModel.predictLeaf(qdm), xgb4jModel.predictContrib(qdm),
+          xgb4jModel.predict(qdm))
+      }
+
+      val rows = ranker.fit(df).transform(testdf).collect()
+
+      // Check Leaf
+      val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))
+      checkEqual(xgb4jLeaf, xgbSparkLeaf)
+
+      // Check contrib
+      val xgbSparkContrib = rows.map(row =>
+        row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))
+      checkEqual(xgb4jContrib, xgbSparkContrib)
+
+      // Check prediction
+      val xgbSparkPred = rows.map(row =>
+        Array(row.getAs[Double]("prediction").toFloat))
+      checkEqual(xgb4jPred, xgbSparkPred)
+    }
+  }
+
   def writeFile(df: Dataset[_]): String = {
     def listFiles(directory: String): Array[String] = {
       val dir = new File(directory)
