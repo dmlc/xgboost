@@ -31,7 +31,6 @@ void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
   for (size_t i = 0; i < sync_ids.size(); i++) {
     auto& this_hist = hist_[sync_ids[i]];
     const GradientPairT* psrc = reinterpret_cast<const GradientPairT*>(this_hist.DataConst());
-    // std::copy(psrc, psrc + nbins, reduce_buffer.begin() + i * nbins);
     qu_.memcpy(reduce_buffer_.data() + i * nbins, psrc, nbins*sizeof(GradientPairT)).wait();
   }
 
@@ -44,7 +43,6 @@ void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
     auto& this_hist = hist_[sync_ids[i]];
     GradientPairT* psrc = reinterpret_cast<GradientPairT*>(this_hist.Data());
     qu_.memcpy(psrc, reduce_buffer_.data() + i * nbins, nbins*sizeof(GradientPairT)).wait();
-    // std::copy(reduce_buffer.begin() + i * nbins, reduce_buffer.begin() + (i + 1) * nbins, psrc);
   }
 }
 
