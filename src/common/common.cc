@@ -63,7 +63,7 @@ std::string HumanMemUnit(std::size_t n_bytes) {
   using P = std::pair<std::int32_t, StringView>;
   std::stringstream ss;
   for (auto pu : {P{3, "GB"}, P{2, "MB"}, P{1, "KB"}}) {
-    auto const [power, unit] = pu;
+    auto const [power, unit] = pu;  // NOLINT
     if (n_bytes_f64 >= (std::pow(k1024, power))) {
       ss << (n_bytes_f64 / std::pow(k1024, power)) << unit;
       return ss.str();
