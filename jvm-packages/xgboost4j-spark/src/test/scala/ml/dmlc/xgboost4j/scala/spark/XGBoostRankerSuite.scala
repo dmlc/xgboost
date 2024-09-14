@@ -22,7 +22,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.ml.linalg.{DenseVector, Vectors}
 import org.apache.spark.ml.param.ParamMap
-import org.apache.spark.sql.{DataFrame, Dataset}
+import org.apache.spark.sql.{DataFrame, Dataset, Row}
 import org.scalatest.funsuite.AnyFunSuite
 
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
@@ -129,6 +129,26 @@ class XGBoostRankerSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite
     intercept[IllegalArgumentException](
       ranker.validate(df)
     )
+  }
+
+  test("The group col should be sorted in each partition") {
+    val trainingDF = buildDataFrameWithGroup(Ranking.train)
+
+    val ranker = new XGBoostRanker()
+      .setNumRound(1)
+      .setNumWorkers(numWorkers)
+      .setGroupCol("group")
+
+    val (df, _) = ranker.preprocess(trainingDF)
+    df.rdd.foreachPartition { iter => {
+      var prevGroup = Int.MinValue
+      while (iter.hasNext) {
+        val curr = iter.next()
+        val group = curr.asInstanceOf[Row].getAs[Int](2)
+        assert(prevGroup <= group)
+        prevGroup = group
+      }
+    }}
   }
 
   private def runLengthEncode(input: Seq[Int]): Seq[Int] = {
