@@ -1,5 +1,5 @@
 /**
- *  Copyright 2019-2023 by XGBoost Contributors
+ *  Copyright 2019-2024, XGBoost Contributors
  * \file device_adapter.cuh
  */
 #ifndef XGBOOST_DATA_DEVICE_ADAPTER_H_
@@ -7,13 +7,12 @@
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/logical.h>                     // for none_of
 
-#include <cstddef>                              // for size_t
+#include <cstddef>  // for size_t
 #include <limits>
-#include <memory>
 #include <string>
 
+#include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
-#include "../common/math.h"
 #include "adapter.h"
 #include "array_interface.h"
 
@@ -208,11 +207,12 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
 
 // Returns maximum row length
 template <typename AdapterBatchT>
-bst_idx_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_idx_t> offset, DeviceOrd device,
-                       float missing) {
+bst_idx_t GetRowCounts(Context const* ctx, const AdapterBatchT batch,
+                       common::Span<bst_idx_t> offset, DeviceOrd device, float missing) {
   dh::safe_cuda(cudaSetDevice(device.ordinal));
   IsValidFunctor is_valid(missing);
-  dh::safe_cuda(cudaMemsetAsync(offset.data(), '\0', offset.size_bytes()));
+  dh::safe_cuda(
+      cudaMemsetAsync(offset.data(), '\0', offset.size_bytes(), ctx->CUDACtx()->Stream()));
 
   auto n_samples = batch.NumRows();
   bst_feature_t n_features = batch.NumCols();
@@ -230,7 +230,7 @@ bst_idx_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_idx_t> offset
   }
 
   // Count elements per row
-  dh::LaunchN(n_samples * stride, [=] __device__(std::size_t idx) {
+  dh::LaunchN(n_samples * stride, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
     bst_idx_t cnt{0};
     auto [ridx, fbeg] = linalg::UnravelIndex(idx, n_samples, stride);
     SPAN_CHECK(ridx < n_samples);
@@ -244,9 +244,8 @@ bst_idx_t GetRowCounts(const AdapterBatchT batch, common::Span<bst_idx_t> offset
                   &offset[ridx]),
               static_cast<unsigned long long>(cnt));  // NOLINT
   });
-  dh::XGBCachingDeviceAllocator<char> alloc;
   bst_idx_t row_stride =
-      dh::Reduce(thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
+      dh::Reduce(ctx->CUDACtx()->CTP(), thrust::device_pointer_cast(offset.data()),
                  thrust::device_pointer_cast(offset.data()) + offset.size(),
                  static_cast<bst_idx_t>(0), thrust::maximum<bst_idx_t>());
   return row_stride;

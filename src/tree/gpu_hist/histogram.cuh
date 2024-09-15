@@ -172,8 +172,8 @@ class DeviceHistogramBuilder {
 
   // Attempt to do subtraction trick
   // return true if succeeded
-  [[nodiscard]] bool SubtractionTrick(bst_node_t nidx_parent, bst_node_t nidx_histogram,
-                                      bst_node_t nidx_subtraction) {
+  [[nodiscard]] bool SubtractionTrick(Context const* ctx, bst_node_t nidx_parent,
+                                      bst_node_t nidx_histogram, bst_node_t nidx_subtraction) {
     if (!hist_.HistogramExists(nidx_histogram) || !hist_.HistogramExists(nidx_parent)) {
       return false;
     }
@@ -181,13 +181,13 @@ class DeviceHistogramBuilder {
     auto d_node_hist_histogram = hist_.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist_.GetNodeHistogram(nidx_subtraction);
 
-    dh::LaunchN(d_node_hist_parent.size(), [=] __device__(size_t idx) {
+    dh::LaunchN(d_node_hist_parent.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] = d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
     return true;
   }
 
-  [[nodiscard]] auto SubtractHist(std::vector<GPUExpandEntry> const& candidates,
+  [[nodiscard]] auto SubtractHist(Context const* ctx, std::vector<GPUExpandEntry> const& candidates,
                                   std::vector<bst_node_t> const& build_nidx,
                                   std::vector<bst_node_t> const& subtraction_nidx) {
     this->monitor_.Start(__func__);
@@ -197,7 +197,7 @@ class DeviceHistogramBuilder {
       auto subtraction_trick_nidx = subtraction_nidx.at(i);
       auto parent_nidx = candidates.at(i).nid;
 
-      if (!this->SubtractionTrick(parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
+      if (!this->SubtractionTrick(ctx, parent_nidx, build_hist_nidx, subtraction_trick_nidx)) {
         need_build.push_back(subtraction_trick_nidx);
       }
     }

@@ -277,14 +277,23 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     std::size_t fetch_it = count_;
 
     exce_.Rethrow();
+    // Clear out the existing page before loading new ones. This helps reduce memory usage
+    // when page is not loaded with mmap, in addition, it triggers necessary CUDA
+    // synchronizations by freeing memory.
+    page_.reset();
 
     for (std::int32_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
+      bool restart = fetch_it == n_batches_;
       fetch_it %= n_batches_;  // ring
       if (ring_->at(fetch_it).valid()) {
         continue;
       }
       auto const* self = this;  // make sure it's const
       CHECK_LT(fetch_it, cache_info_->offset.size());
+      // Make sure the new iteration starts with a copy to avoid spilling configuration.
+      if (restart) {
+        this->param_.prefetch_copy = true;
+      }
       ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, this] {
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
@@ -304,11 +313,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
              n_prefetch_batches)
         << "Sparse DMatrix assumes forward iteration.";
 
-    monitor_.Start("Wait");
+    monitor_.Start("Wait-" + std::to_string(count_));
     CHECK((*ring_)[count_].valid());
     page_ = (*ring_)[count_].get();
     CHECK(!(*ring_)[count_].valid());
-    monitor_.Stop("Wait");
+    monitor_.Stop("Wait-" + std::to_string(count_));
 
     exce_.Rethrow();
 
@@ -328,8 +337,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
 
     timer.Stop();
     // Not entirely accurate, the kernels doesn't have to flush the data.
-    LOG(INFO) << static_cast<double>(bytes) / 1024.0 / 1024.0 << " MB written in "
-              << timer.ElapsedSeconds() << " seconds.";
+    LOG(INFO) << common::HumanMemUnit(bytes) << " written in " << timer.ElapsedSeconds()
+              << " seconds.";
     cache_info_->Push(bytes);
   }
 
@@ -387,17 +396,20 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   virtual void Reset(BatchParam const& param) {
     TryLockGuard guard{single_threaded_};
 
-    this->at_end_ = false;
-    auto cnt = this->count_;
-    this->count_ = 0;
+    auto at_end = false;
+    std::swap(this->at_end_, at_end);
+
     bool changed = this->param_.n_prefetch_batches != param.n_prefetch_batches;
     this->param_ = param;
 
-    if (cnt != 0 || changed) {
+    this->count_ = 0;
+
+    if (!at_end || changed) {
       // The last iteration did not get to the end, clear the ring to start from 0.
       this->ring_ = std::make_unique<Ring>();
-      this->Fetch();
     }
+
+    this->Fetch();  // Get the 0^th page, prefetch the next page.
   }
 };
 
@@ -625,8 +637,9 @@ class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy>
 
       CHECK(this->cache_info_->written);
       source_ = nullptr;  // release the source
+    } else {
+      this->Fetch();
     }
-    this->Fetch();
 
     return *this;
   }
