@@ -68,7 +68,7 @@ const char* kMaxDeltaStepDefaultValue = "0.7";
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
 
 namespace xgboost {
-const char* U8(const char8_t* in) {
+static const char* U8(const char8_t* in) {
   return reinterpret_cast<const char *>(in);
 }
 

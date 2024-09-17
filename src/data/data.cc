@@ -66,7 +66,7 @@ DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::GHistIndexM
 
 namespace {
 
-const char* U8(const char8_t* in) {
+static const char* U8(const char8_t* in) {
   return reinterpret_cast<const char *>(in);
 }
 
