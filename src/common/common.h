@@ -188,5 +188,8 @@ template <typename Indexable>
 XGBOOST_DEVICE size_t LastOf(size_t group, Indexable const &indptr) {
   return indptr[group + 1] - 1;
 }
+
+// Convert the number of bytes to a human readable unit.
+std::string HumanMemUnit(std::size_t n_bytes);
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_COMMON_H_
