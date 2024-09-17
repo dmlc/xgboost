@@ -66,6 +66,10 @@ DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::GHistIndexM
 
 namespace {
 
+const char* U8(const char8_t* in) {
+  return reinterpret_cast<const char *>(in);
+}
+
 template <typename T>
 void SaveScalarField(dmlc::Stream *strm, const std::string &name,
                      xgboost::DataType type, const T &field) {
@@ -235,25 +239,25 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(kNumField);
   int field_cnt = 0;  // make sure we are actually writing kNumField fields
 
-  SaveScalarField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
-  SaveScalarField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
-  SaveScalarField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
-  SaveTensorField(fo, u8"labels", DataType::kFloat32, labels); ++field_cnt;
-  SaveVectorField(fo, u8"group_ptr", DataType::kUInt32,
+  SaveScalarField(fo, U8(u8"num_row"), DataType::kUInt64, num_row_); ++field_cnt;
+  SaveScalarField(fo, U8(u8"num_col"), DataType::kUInt64, num_col_); ++field_cnt;
+  SaveScalarField(fo, U8(u8"num_nonzero"), DataType::kUInt64, num_nonzero_); ++field_cnt;
+  SaveTensorField(fo, U8(u8"labels"), DataType::kFloat32, labels); ++field_cnt;
+  SaveVectorField(fo, U8(u8"group_ptr"), DataType::kUInt32,
                   {group_ptr_.size(), 1}, group_ptr_); ++field_cnt;
-  SaveVectorField(fo, u8"weights", DataType::kFloat32,
+  SaveVectorField(fo, U8(u8"weights"), DataType::kFloat32,
                   {weights_.Size(), 1}, weights_); ++field_cnt;
-  SaveTensorField(fo, u8"base_margin", DataType::kFloat32, base_margin_); ++field_cnt;
-  SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32,
+  SaveTensorField(fo, U8(u8"base_margin"), DataType::kFloat32, base_margin_); ++field_cnt;
+  SaveVectorField(fo, U8(u8"labels_lower_bound"), DataType::kFloat32,
                   {labels_lower_bound_.Size(), 1}, labels_lower_bound_); ++field_cnt;
-  SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
+  SaveVectorField(fo, U8(u8"labels_upper_bound"), DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
-  SaveVectorField(fo, u8"feature_names", DataType::kStr,
+  SaveVectorField(fo, U8(u8"feature_names"), DataType::kStr,
                   {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_types", DataType::kStr,
+  SaveVectorField(fo, U8(u8"feature_types"), DataType::kStr,
                   {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
+  SaveVectorField(fo, U8(u8"feature_weights"), DataType::kFloat32, {feature_weights.Size(), 1},
                   feature_weights);
   ++field_cnt;
 
@@ -334,19 +338,19 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
                     "which will be ignored.";
   }
 
-  LoadScalarField(fi, u8"num_row", DataType::kUInt64, &num_row_);
-  LoadScalarField(fi, u8"num_col", DataType::kUInt64, &num_col_);
-  LoadScalarField(fi, u8"num_nonzero", DataType::kUInt64, &num_nonzero_);
-  LoadTensorField(fi, u8"labels", DataType::kFloat32, &labels);
-  LoadVectorField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
-  LoadVectorField(fi, u8"weights", DataType::kFloat32, &weights_);
-  LoadTensorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
-  LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
-  LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
+  LoadScalarField(fi, U8(u8"num_row"), DataType::kUInt64, &num_row_);
+  LoadScalarField(fi, U8(u8"num_col"), DataType::kUInt64, &num_col_);
+  LoadScalarField(fi, U8(u8"num_nonzero"), DataType::kUInt64, &num_nonzero_);
+  LoadTensorField(fi, U8(u8"labels"), DataType::kFloat32, &labels);
+  LoadVectorField(fi, U8(u8"group_ptr"), DataType::kUInt32, &group_ptr_);
+  LoadVectorField(fi, U8(u8"weights"), DataType::kFloat32, &weights_);
+  LoadTensorField(fi, U8(u8"base_margin"), DataType::kFloat32, &base_margin_);
+  LoadVectorField(fi, U8(u8"labels_lower_bound"), DataType::kFloat32, &labels_lower_bound_);
+  LoadVectorField(fi, U8(u8"labels_upper_bound"), DataType::kFloat32, &labels_upper_bound_);
 
-  LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
-  LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
-  LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
+  LoadVectorField(fi, U8(u8"feature_names"), DataType::kStr, &feature_names);
+  LoadVectorField(fi, U8(u8"feature_types"), DataType::kStr, &feature_type_names);
+  LoadVectorField(fi, U8(u8"feature_weights"), DataType::kFloat32, &feature_weights);
 
   this->has_categorical_ = LoadFeatureType(feature_type_names, &feature_types.HostVector());
 }

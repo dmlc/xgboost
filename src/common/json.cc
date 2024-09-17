@@ -28,6 +28,10 @@
 
 namespace xgboost {
 
+const char* U8(const char8_t* in) {
+  return reinterpret_cast<const char *>(in);
+}
+
 void JsonWriter::Save(Json json) { json.Ptr()->Save(this); }
 
 void JsonWriter::Visit(JsonArray const* arr) {
@@ -426,11 +430,11 @@ Json JsonReader::ParseString() {
     if (ch == '\\') {
       Char next{GetNextChar()};
       switch (next) {
-        case 'r':  str += u8"\r"; break;
-        case 'n':  str += u8"\n"; break;
-        case '\\': str += u8"\\"; break;
-        case 't':  str += u8"\t"; break;
-        case '\"': str += u8"\""; break;
+        case 'r':  str += U8(u8"\r"); break;
+        case 'n':  str += U8(u8"\n"); break;
+        case '\\': str += U8(u8"\\"); break;
+        case 't':  str += U8(u8"\t"); break;
+        case '\"': str += U8(u8"\""); break;
         case 'u':
           str += ch;
           str += 'u';
@@ -636,8 +640,8 @@ Json JsonReader::ParseNumber() {
 Json JsonReader::ParseBoolean() {
   bool result = false;
   Char ch = GetNextNonSpaceChar();
-  std::string const t_value = u8"true";
-  std::string const f_value = u8"false";
+  std::string const t_value = reinterpret_cast<const char *>(u8"true");
+  std::string const f_value = reinterpret_cast<const char *>(u8"false");
 
   if (ch == 't') {
     GetConsecutiveChar('r');

@@ -14,6 +14,10 @@
 
 namespace xgboost {
 
+constexpr const char* U8(const char8_t* in) {
+  return reinterpret_cast<const char *>(in);
+}
+
 const Version::TripletT Version::kInvalid {-1, -1, -1};
 
 Version::TripletT Version::Load(Json const& in) {
@@ -40,7 +44,7 @@ Version::TripletT Version::Load(dmlc::Stream* fi) {
   std::string msg { "Incorrect version format found in binary file.  "
                     "Binary file from XGBoost < 1.0.0 is no longer supported. "
                     "Please generate it again." };
-  std::string verstr { u8"version:" }, read;
+  std::string verstr { U8(u8"version:") }, read;
   read.resize(verstr.size(), 0);
 
   CHECK_EQ(fi->Read(&read[0], verstr.size()), verstr.size()) << msg;
@@ -67,7 +71,7 @@ void Version::Save(Json* out) {
 void Version::Save(dmlc::Stream* fo) {
   XGBoostVersionT major, minor, patch;
   std::tie(major, minor, patch) = Self();
-  std::string verstr { u8"version:" };
+  std::string verstr { U8(u8"version:") };
   fo->Write(&verstr[0], verstr.size());
   fo->Write(major);
   fo->Write(minor);

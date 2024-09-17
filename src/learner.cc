@@ -68,6 +68,10 @@ const char* kMaxDeltaStepDefaultValue = "0.7";
 DECLARE_FIELD_ENUM_CLASS(xgboost::MultiStrategy);
 
 namespace xgboost {
+const char* U8(const char8_t* in) {
+  return reinterpret_cast<const char *>(in);
+}
+
 Learner::~Learner() = default;
 namespace {
 StringView ModelNotFitted() { return "Model is not yet initialized (not fitted)."; }
@@ -858,7 +862,7 @@ class LearnerIO : public LearnerConfiguration {
  private:
   // Used to identify the offset of JSON string when
   // Will be removed once JSON takes over.  Right now we still loads some RDS files from R.
-  std::string const serialisation_header_ { u8"CONFIG-offset:" };
+  std::string const serialisation_header_ { U8(u8"CONFIG-offset:") };
 
   void ClearCaches() { this->prediction_container_ = PredictionContainer{}; }
 
