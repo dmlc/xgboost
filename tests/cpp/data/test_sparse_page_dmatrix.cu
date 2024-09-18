@@ -40,10 +40,9 @@ TEST(SparsePageDMatrix, EllpackPage) {
 
 TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
   // Test Ellpack can avoid loading sparse page after the initialization.
-  dmlc::TemporaryDirectory tmpdir;
   std::size_t n_batches = 6;
-  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(n_batches).GenerateSparsePageDMatrix(
-      tmpdir.path + "/", true);
+  auto Xy =
+      RandomDataGenerator{180, 12, 0.0}.Batches(n_batches).GenerateSparsePageDMatrix("temp", true);
   auto ctx = MakeCUDACtx(0);
   auto cpu = ctx.MakeCPU();
   bst_bin_t n_bins{256};
@@ -117,7 +116,6 @@ TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
 TEST(SparsePageDMatrix, MultipleEllpackPages) {
   auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
-  dmlc::TemporaryDirectory tmpdir;
   auto dmat = RandomDataGenerator{1024, 2, 0.5f}.Batches(2).GenerateSparsePageDMatrix("temp", true);
 
   // Loop over the batches and count the records
@@ -196,13 +194,10 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     auto p_fmat = RandomDataGenerator{kRows, kCols, sparsity}.GenerateDMatrix(true);
 
     // Create a DMatrix with multiple batches.
-    dmlc::TemporaryDirectory tmpdir;
-    auto prefix = tmpdir.path + "/cache";
-
     auto p_ext_fmat = RandomDataGenerator{kRows, kCols, sparsity}
                           .Batches(4)
                           .OnHost(on_host)
-                          .GenerateSparsePageDMatrix(prefix, true);
+                          .GenerateSparsePageDMatrix("temp", true);
 
     auto param = BatchParam{2, tree::TrainParam::DftSparseThreshold()};
     auto impl = (*p_fmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();

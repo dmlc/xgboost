@@ -124,6 +124,7 @@ namespace {
       cudaMemcpyAsync(&h_me, d_me.get(), sizeof(PtrT), cudaMemcpyDeviceToHost, cuctx->Stream()));
   cuctx->Stream().Sync();
   // No missing, hence no null value, hence no + 1 symbol.
+  // FIXME(jiamingy): When we extend this to use a sparsity threshold, +1 is needed back.
   return h_me;
 }
 }  // namespace
@@ -519,8 +520,7 @@ void EllpackPageImpl::CreateHistIndices(Context const* ctx,
   if (row_batch.Size() == 0) {
     return;
   }
-  auto d_acc = this->GetDeviceAccessor(ctx, feature_types);
-  auto null_gidx_value = d_acc.NullValue();
+  auto null_gidx_value = this->GetDeviceAccessor(ctx, feature_types).NullValue();
 
   auto const& offset_vec = row_batch.offset.ConstHostVector();
 
