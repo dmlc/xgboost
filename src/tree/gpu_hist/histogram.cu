@@ -138,7 +138,7 @@ XGBOOST_DEV_INLINE void AtomicAddGpairGlobal(xgboost::GradientPairInt64* dest,
             *reinterpret_cast<uint64_t*>(&h));
 }
 
-template <bool is_dense, int kBlockThreads, int kItemsPerThread,
+template <bool kIsDense, int kBlockThreads, int kItemsPerThread,
           int kItemsPerTile = kBlockThreads * kItemsPerThread>
 class HistogramAgent {
   GradientPairInt64* smem_arr_;
@@ -163,7 +163,7 @@ class HistogramAgent {
         d_ridx_(d_ridx.data()),
         group_(group),
         matrix_(matrix),
-        feature_stride_(matrix.is_dense ? group.num_features : matrix.row_stride),
+        feature_stride_(kIsDense ? group.num_features : matrix.row_stride),
         n_elements_(feature_stride_ * d_ridx.size()),
         rounding_(rounding),
         d_gpair_(d_gpair) {}
@@ -175,11 +175,11 @@ class HistogramAgent {
       Idx ridx = d_ridx_[idx / feature_stride_];
       auto fidx = FeatIdx(group_, idx, feature_stride_);
       bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
-      if (is_dense || compressed_bin != matrix_.NullValue()) {
+      if (kIsDense || compressed_bin != matrix_.NullValue()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
         // Subtract start_bin to write to group-local histogram. If this is not a dense
         // matrix, then start_bin is 0 since featuregrouping doesn't support sparse data.
-        if (is_dense) {
+        if (kIsDense) {
           AtomicAddGpairShared(
               smem_arr_ + compressed_bin + this->matrix_.feature_segments[fidx] - group_.start_bin,
               adjusted);
@@ -210,7 +210,7 @@ class HistogramAgent {
     for (int i = 0; i < kItemsPerThread; i++) {
       gpair[i] = d_gpair_[ridx[i]];
       auto fidx = FeatIdx(group_, idx[i], feature_stride_);
-      if (is_dense) {
+      if (kIsDense) {
         gidx[i] =
             matrix_.gidx_iter[IterIdx(matrix_, ridx[i], fidx)] + matrix_.feature_segments[fidx];
       } else {
@@ -219,7 +219,7 @@ class HistogramAgent {
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
-      if ((matrix_.is_dense || gidx[i] != matrix_.NullValue())) {
+      if ((kIsDense || gidx[i] != matrix_.NullValue())) {
         auto adjusted = rounding_.ToFixedPoint(gpair[i]);
         AtomicAddGpairShared(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
       }
@@ -248,9 +248,9 @@ class HistogramAgent {
       Idx ridx = d_ridx_[idx / feature_stride_];
       auto fidx = FeatIdx(group_, idx, feature_stride_);
       bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
-      if (is_dense || compressed_bin != matrix_.NullValue()) {
+      if (kIsDense || compressed_bin != matrix_.NullValue()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
-        if (is_dense) {
+        if (kIsDense) {
           auto start_bin = this->matrix_.feature_segments[fidx];
           AtomicAddGpairGlobal(d_node_hist_ + compressed_bin + start_bin, adjusted);
         } else {
@@ -261,7 +261,7 @@ class HistogramAgent {
   }
 };
 
-template <bool is_dense, bool use_shared_memory_histograms, int kBlockThreads, int kItemsPerThread>
+template <bool kIsDense, bool use_shared_memory_histograms, int kBlockThreads, int kItemsPerThread>
 __global__ void __launch_bounds__(kBlockThreads)
     SharedMemHistKernel(const EllpackDeviceAccessor matrix,
                         const FeatureGroupsAccessor feature_groups,
@@ -272,7 +272,7 @@ __global__ void __launch_bounds__(kBlockThreads)
   extern __shared__ char smem[];
   const FeatureGroup group = feature_groups[blockIdx.y];
   auto smem_arr = reinterpret_cast<GradientPairInt64*>(smem);
-  auto agent = HistogramAgent<is_dense, kBlockThreads, kItemsPerThread>(
+  auto agent = HistogramAgent<kIsDense, kBlockThreads, kItemsPerThread>(
       smem_arr, d_node_hist, group, matrix, d_ridx, rounding, d_gpair);
   if (use_shared_memory_histograms) {
     agent.BuildHistogramWithShared();

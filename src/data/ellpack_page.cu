@@ -46,7 +46,7 @@ void EllpackPage::SetBaseRowId(std::size_t row_id) { impl_->SetBaseRowId(row_id)
 [[nodiscard]] bool EllpackPage::IsDense() const { return this->Impl()->IsDense(); }
 
 // Bin each input data entry, store the bin indices in compressed form.
-template <bool is_dense>
+template <bool kIsDense>
 __global__ void CompressBinEllpackKernel(
     common::CompressedBufferWriter wr,
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
@@ -87,7 +87,7 @@ __global__ void CompressBinEllpackKernel(
       bin = ncuts - 1;
     }
     // Add the number of bins in previous features.
-    if (!is_dense) {
+    if (!kIsDense) {
       bin += cut_ptrs[feature];
     }
   }
