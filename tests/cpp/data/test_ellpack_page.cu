@@ -269,7 +269,7 @@ class EllpackPageTest : public testing::TestWithParam<float> {
       auto from_ghist_acc = from_ghist->GetHostAccessor(&gpu_ctx, &h_gidx_from_ghist);
       auto from_sparse_acc = from_sparse_page->GetHostAccessor(&gpu_ctx, &h_gidx_from_sparse);
       for (size_t i = 0; i < from_ghist->n_rows * from_ghist->row_stride; ++i) {
-        EXPECT_EQ(from_ghist_acc.gidx_iter[i], from_sparse_acc.gidx_iter[i]);
+        ASSERT_EQ(from_ghist_acc.gidx_iter[i], from_sparse_acc.gidx_iter[i]);
       }
     }
   }

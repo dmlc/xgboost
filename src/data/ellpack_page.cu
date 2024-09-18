@@ -340,15 +340,15 @@ ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
 
 namespace {
 void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
-                        common::Span<size_t const> d_row_ptr, size_t row_stride,
-                        common::CompressedByteT* d_compressed_buffer, size_t null) {
+                        common::Span<bst_idx_t const> d_row_ptr, bst_idx_t row_stride,
+                        bst_bin_t null, bst_idx_t n_symbols,
+                        common::CompressedByteT* d_compressed_buffer) {
   dh::device_vector<uint8_t> data(page.index.begin(), page.index.end());
   auto d_data = dh::ToSpan(data);
 
   // GPU employs the same dense compression as CPU, no need to handle page.index.Offset()
   auto bin_type = page.index.GetBinTypeSize();
-  common::CompressedBufferWriter writer{page.cut.TotalBins() +
-                                        static_cast<std::size_t>(1)};  // +1 for null value
+  common::CompressedBufferWriter writer{n_symbols};
 
   auto cuctx = ctx->CUDACtx();
   bool is_dense = page.IsDense();
@@ -358,7 +358,7 @@ void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
 
     auto r_begin = d_row_ptr[ridx];
     auto r_end = d_row_ptr[ridx + 1];
-    size_t r_size = r_end - r_begin;
+    auto r_size = r_end - r_begin;
 
     if (ifeature >= r_size) {
       writer.AtomicWriteSymbol(d_compressed_buffer, null, idx);
@@ -378,14 +378,16 @@ void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
 EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
                                  common::Span<FeatureType const> ft)
     : is_dense{page.IsDense()},
+      row_stride{[&] {
+        auto it = common::MakeIndexTransformIter(
+            [&](bst_idx_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
+        return *std::max_element(it, it + page.Size());
+      }()},
       base_rowid{page.base_rowid},
       n_rows{page.Size()},
       cuts_{std::make_shared<common::HistogramCuts>(page.cut)},
       n_symbols_{CalcNumSymbols(ctx, page.IsDense(), cuts_)} {
-  auto it = common::MakeIndexTransformIter(
-      [&](size_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
-  row_stride = *std::max_element(it, it + page.Size());
-
+  this->monitor_.Init("ellpack_page");
   CHECK(ctx->IsCUDA());
   this->InitCompressedData(ctx);
 
@@ -397,9 +399,9 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
                                 cudaMemcpyHostToDevice, ctx->CUDACtx()->Stream()));
 
   auto accessor = this->GetDeviceAccessor(ctx, ft);
-  auto null = accessor.NullValue();
   this->monitor_.Start("CopyGHistToEllpack");
-  CopyGHistToEllpack(ctx, page, d_row_ptr, row_stride, d_compressed_buffer, null);
+  CopyGHistToEllpack(ctx, page, d_row_ptr, row_stride, accessor.NullValue(), this->NumSymbols(),
+                     d_compressed_buffer);
   this->monitor_.Stop("CopyGHistToEllpack");
 }
 
