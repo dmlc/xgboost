@@ -55,14 +55,6 @@ ExtMemQuantileDMatrix::~ExtMemQuantileDMatrix() {
   DeleteCacheFiles(cache_info_);
 }
 
-[[nodiscard]] bst_idx_t ExtMemQuantileDMatrix::EllpackPageFetchCount() const {
-  return std::visit([](auto &&ptr) { return ptr->FetchCount(); }, this->ellpack_page_source_);
-}
-
-[[nodiscard]] bst_idx_t ExtMemQuantileDMatrix::GradientIndexFetchCount() const {
-  return this->ghist_index_source_->FetchCount();
-}
-
 BatchSet<ExtSparsePage> ExtMemQuantileDMatrix::GetExtBatches(Context const *, BatchParam const &) {
   LOG(FATAL) << "Not implemented";
   auto begin_iter =

@@ -406,7 +406,10 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
   this->monitor_.Stop("CopyGHistToEllpack");
 }
 
-EllpackPageImpl::~EllpackPageImpl() noexcept(false) { dh::DefaultStream().Sync(); }
+EllpackPageImpl::~EllpackPageImpl() noexcept(false) {
+  // Sync the stream to make sure all running CUDA kernels finish before deallocation.
+  dh::DefaultStream().Sync();
+}
 
 // A functor that copies the data from one EllpackPage to another.
 struct CopyPage {
@@ -420,7 +423,7 @@ struct CopyPage {
       : cbw{dst->NumSymbols()},
         dst_data_d{dst->gidx_buffer.data()},
         src_iterator_d{src->gidx_buffer.data(), src->NumSymbols()},
-        offset(offset) {}
+        offset{offset} {}
 
   __device__ void operator()(size_t element_id) {
     cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[element_id], element_id + offset);
@@ -428,7 +431,7 @@ struct CopyPage {
 };
 
 // Copy the data from the given EllpackPage to the current page.
-size_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page, bst_idx_t offset) {
+bst_idx_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page, bst_idx_t offset) {
   monitor_.Start(__func__);
   bst_idx_t num_elements = page->n_rows * page->row_stride;
   CHECK_EQ(this->row_stride, page->row_stride);
