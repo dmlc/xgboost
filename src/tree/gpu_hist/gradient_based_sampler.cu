@@ -246,9 +246,10 @@ GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batc
       grad_sum_(n_rows, 0.0f) {}
 
 GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
-                                                  common::Span<GradientPair> gpair, DMatrix* dmat) {
+                                                  common::Span<GradientPair> gpair,
+                                                  DMatrix* p_fmat) {
   auto cuctx = ctx->CUDACtx();
-  size_t n_rows = dmat->Info().num_row_;
+  size_t n_rows = p_fmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       ctx, gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 
@@ -257,7 +258,7 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
                     thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
                     PoissonSampling(dh::ToSpan(threshold_), threshold_index,
                                     RandomWeight(common::GlobalRandom()())));
-  return {dmat, gpair};
+  return {p_fmat, gpair};
 }
 
 ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(size_t n_rows,
@@ -323,23 +324,23 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
 
 GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows,
                                            const BatchParam& batch_param, float subsample,
-                                           int sampling_method, bool is_external_memory) {
+                                           int sampling_method, bool concat_pages) {
   // The ctx is kept here for future development of stream-based operations.
-  monitor_.Init("gradient_based_sampler");
+  monitor_.Init(__func__);
 
   bool is_sampling = subsample < 1.0;
 
   if (is_sampling) {
     switch (sampling_method) {
       case TrainParam::kUniform:
-        if (is_external_memory) {
+        if (concat_pages) {
           strategy_.reset(new ExternalMemoryUniformSampling(n_rows, batch_param, subsample));
         } else {
           strategy_.reset(new UniformSampling(batch_param, subsample));
         }
         break;
       case TrainParam::kGradientBased:
-        if (is_external_memory) {
+        if (concat_pages) {
           strategy_.reset(new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
         } else {
           strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
@@ -349,7 +350,7 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
         LOG(FATAL) << "unknown sampling method";
     }
   } else {
-    if (is_external_memory) {
+    if (concat_pages) {
       strategy_.reset(new ExternalMemoryNoSampling(batch_param));
     } else {
       strategy_.reset(new NoSampling(batch_param));
@@ -360,9 +361,9 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
 // Sample a DMatrix based on the given gradient pairs.
 GradientBasedSample GradientBasedSampler::Sample(Context const* ctx,
                                                  common::Span<GradientPair> gpair, DMatrix* dmat) {
-  monitor_.Start("Sample");
+  monitor_.Start(__func__);
   GradientBasedSample sample = strategy_->Sample(ctx, gpair, dmat);
-  monitor_.Stop("Sample");
+  monitor_.Stop(__func__);
   return sample;
 }
 

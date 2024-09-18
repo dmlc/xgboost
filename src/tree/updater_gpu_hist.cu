@@ -154,16 +154,16 @@ struct GPUHistMakerDevice {
                      MetaInfo const& info, std::vector<bst_idx_t> batch_ptr,
                      std::shared_ptr<common::HistogramCuts const> cuts)
       : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
-        ctx_(ctx),
-        param(std::move(_param)),
-        column_sampler_(std::move(column_sampler)),
+        ctx_{ctx},
+        param{std::move(_param)},
+        column_sampler_{std::move(column_sampler)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)} {
-    this->sampler =
-        std::make_unique<GradientBasedSampler>(ctx, info.num_row_, batch_param, param.subsample,
-                                               param.sampling_method, batch_ptr_.size() > 2);
+    this->sampler = std::make_unique<GradientBasedSampler>(
+        ctx, info.num_row_, batch_param, param.subsample, param.sampling_method,
+        batch_ptr_.size() > 2 && this->hist_param_->external_memory_concat_page);
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
@@ -185,33 +185,32 @@ struct GPUHistMakerDevice {
   }
 
   // Reset values for each update iteration
-  [[nodiscard]] DMatrix* Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* p_fmat) {
+  [[nodiscard]] DMatrix* Reset(HostDeviceVector<GradientPair> const* dh_gpair, DMatrix* p_fmat) {
     this->monitor.Start(__func__);
     common::SetDevice(ctx_->Ordinal());
 
     auto const& info = p_fmat->Info();
-    // backup the gradient
-    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair, ctx_->CUDACtx()->Stream());
-    this->column_sampler_->Init(ctx_, p_fmat->Info().num_col_, info.feature_weights.HostVector(),
-                                param.colsample_bynode, param.colsample_bylevel,
-                                param.colsample_bytree);
-    this->interaction_constraints.Reset(ctx_);
-    this->evaluator_.Reset(this->ctx_, *cuts_, p_fmat->Info().feature_types.ConstDeviceSpan(),
-                           p_fmat->Info().num_col_, this->param, p_fmat->Info().IsColumnSplit());
 
-    // Sampling
-    auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
-    this->gpair = sample.gpair;
-    p_fmat = sample.p_fmat;  // Update p_fmat before allocating partitioners
-    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-    std::size_t n_batches = p_fmat->NumBatches();
-    bool is_concat = (n_batches + 1) != this->batch_ptr_.size();
-    std::vector<bst_idx_t> batch_ptr{batch_ptr_};
+    /**
+     * Backup the gradient
+     */
+    dh::CUDAStream stream;
+    dh::CUDAEvent e;
+    e.Record(ctx_->CUDACtx()->Stream());
+    stream.Wait(e);
+    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair, stream.View());
+    e.Record(stream.View());
+
+    /**
+     * Initialize the partitioners
+     */
+    bool is_concat = this->hist_param_->external_memory_concat_page;
+    std::size_t n_batches = is_concat ? 1 : p_fmat->NumBatches();
+    std::vector<bst_idx_t> batch_ptr{this->batch_ptr_};
     if (is_concat) {
       // Concatenate the batch ptrs as well.
       batch_ptr = {static_cast<bst_idx_t>(0), p_fmat->Info().num_row_};
     }
-    // Initialize partitions
     if (!partitioners_.empty()) {
       CHECK_EQ(partitioners_.size(), n_batches);
     }
@@ -230,8 +229,29 @@ struct GPUHistMakerDevice {
       CHECK_EQ(partitioners_.front()->Size(), p_fmat->Info().num_row_);
     }
 
-    // Other initializations
-    quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, p_fmat->Info());
+    /**
+     * Initialize the evaluator
+     */
+    this->column_sampler_->Init(ctx_, info.num_col_, info.feature_weights.HostVector(),
+                                param.colsample_bynode, param.colsample_bylevel,
+                                param.colsample_bytree);
+    this->interaction_constraints.Reset(ctx_);
+    this->evaluator_.Reset(this->ctx_, *cuts_, info.feature_types.ConstDeviceSpan(), info.num_col_,
+                           this->param, info.IsColumnSplit());
+
+    /**
+     * Sampling
+     */
+    ctx_->CUDACtx()->Stream().Wait(e);
+    auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
+    this->gpair = sample.gpair;
+    p_fmat = sample.p_fmat;
+    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
+
+    /**
+     * Other initializations
+     */
+    this->quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, p_fmat->Info());
 
     this->InitFeatureGroupsOnce(info);
 
@@ -327,8 +347,8 @@ struct GPUHistMakerDevice {
 
     auto d_ridx = partitioners_.at(k)->GetRows(nidx);
     this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
-                                    feature_groups->DeviceAccessor(ctx_->Device()), gpair, d_ridx,
-                                    d_node_hist, *quantiser);
+                                    feature_groups->DeviceAccessor(ctx_->Device()), this->gpair,
+                                    d_ridx, d_node_hist, *quantiser);
     monitor.Stop(__func__);
   }
 
@@ -678,11 +698,11 @@ struct GPUHistMakerDevice {
     constexpr bst_node_t kRootNIdx = RegTree::kRoot;
     auto quantiser = *this->quantiser;
     auto gpair_it = dh::MakeTransformIterator<GradientPairInt64>(
-        dh::tbegin(gpair),
+        dh::tbegin(this->gpair),
         [=] __device__(auto const& gpair) { return quantiser.ToFixedPoint(gpair); });
     GradientPairInt64 root_sum_quantised =
-        dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + gpair.size(), GradientPairInt64{},
-                   thrust::plus<GradientPairInt64>{});
+        dh::Reduce(ctx_->CUDACtx()->CTP(), gpair_it, gpair_it + this->gpair.size(),
+                   GradientPairInt64{}, thrust::plus<GradientPairInt64>{});
     using ReduceT = typename decltype(root_sum_quantised)::ValueT;
     auto rc = collective::GlobalSum(
         ctx_, p_fmat->Info(), linalg::MakeVec(reinterpret_cast<ReduceT*>(&root_sum_quantised), 2));
