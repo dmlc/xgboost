@@ -307,7 +307,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         });
         return page;
       });
-      std::cout << "fetch_cnt:" << fetch_cnt_ << " fetch:" << fetch_it << std::endl;
       this->fetch_cnt_++;
     }
 
@@ -320,7 +319,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     page_ = (*ring_)[count_].get();
     CHECK(!(*ring_)[count_].valid());
     monitor_.Stop("Wait-" + std::to_string(count_));
-    std::cout << "got:" << this->count_ << std::endl;
+
     exce_.Rethrow();
 
     return true;
@@ -386,7 +385,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
 
   // Call this at the last iteration.
   void EndIter() {
-    std::cout << __func__ << std::endl;
     CHECK_EQ(this->cache_info_->offset.size(), this->n_batches_ + 1);
     this->cache_info_->Commit();
     if (this->n_batches_ != 0) {
@@ -394,28 +392,25 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     }
     CHECK_GE(this->count_, 1);
     this->count_ = 0;
-    std::cout << "done:" << __func__ << std::endl;
   }
 
   virtual void Reset(BatchParam const& param) {
     TryLockGuard guard{single_threaded_};
-    std::cout << __func__ << std::endl;
+
     auto at_end = false;
     std::swap(this->at_end_, at_end);
-    std::cout << "at_end:" << at_end << std::endl;
+
     bool changed = this->param_.n_prefetch_batches != param.n_prefetch_batches;
     this->param_ = param;
 
     this->count_ = 0;
 
     if (!at_end || changed) {
-      std::cout << "changed, reset ring, end:" << at_end << " changed:" << changed << std::endl;
       // The last iteration did not get to the end, clear the ring to start from 0.
       this->ring_ = std::make_unique<Ring>();
     }
-    std::cout << "0th valid:" << (this->ring_ && !this->ring_->empty() && (*this->ring_)[0].valid()) << std::endl;
+
     this->Fetch();  // Get the 0^th page, prefetch the next page.
-    std::cout << "Done:" << __func__ << std::endl;
   }
 
   [[nodiscard]] auto FetchCount() const { return this->fetch_cnt_; }
@@ -485,7 +480,6 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     if (at_end_) {
       this->EndIter();
       this->proxy_ = nullptr;
-      std::cout << "sparse source at end:" << this->at_end_ << std::endl;
     } else {
       this->Fetch();
     }
@@ -548,7 +542,6 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
       if (src_need_inc) {
         CHECK(this->cache_info_->written);
       }
-      std::cout << "MixIn: at end:" << this->at_end_ << std::endl;
     } else {
       this->Fetch();
     }
@@ -561,12 +554,11 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
   }
 
   void Reset(BatchParam const& param) final {
-    std::cout << "MixIn:" << __func__ << std::endl;
+    this->source_->Reset(param);
     if (this->sync_) {
       this->source_->Reset(param);
     }
     Super::Reset(param);
-    std::cout << "Done MixIn:" << __func__ << std::endl;
   }
 };
 
