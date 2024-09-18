@@ -31,7 +31,7 @@
 #include <map>                     // for map
 #include <memory>                  // for unique_ptr
 
-#include "common.h"  // for safe_cuda
+#include "common.h"  // for safe_cuda, HumanMemUnit
 #include "xgboost/logging.h"
 
 namespace dh {
@@ -97,12 +97,13 @@ class MemoryLogger {
     dh::safe_cuda(cudaGetDevice(&current_device));
     LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
                  << " ========";
-    LOG(CONSOLE) << "Peak memory usage: " << stats_.peak_allocated_bytes / 1048576 << "MiB";
+    LOG(CONSOLE) << "Peak memory usage: "
+                 << xgboost::common::HumanMemUnit(stats_.peak_allocated_bytes);
     LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
   }
 };
 
-void ThrowOOMError(std::string const &err, size_t bytes);
+void ThrowOOMError(std::string const &err, std::size_t bytes);
 }  // namespace detail
 
 inline detail::MemoryLogger &GlobalMemoryLogger() {

@@ -520,12 +520,11 @@ struct GPUHistMakerDevice {
   // prediction cache
   void FinalisePosition(DMatrix* p_fmat, RegTree const* p_tree, ObjInfo task,
                         HostDeviceVector<bst_node_t>* p_out_position) {
-    if (!p_fmat->SingleColBlock() && task.UpdateTreeLeaf()) {
-      LOG(FATAL) << "Current objective function can not be used with external memory.";
-    }
-
     monitor.Start(__func__);
     if (static_cast<std::size_t>(p_fmat->NumBatches() + 1) != this->batch_ptr_.size()) {
+      if (task.UpdateTreeLeaf()) {
+        LOG(FATAL) << "Current objective function can not be used with concatenated pages.";
+      }
       // External memory with concatenation. Not supported.
       p_out_position->Resize(0);
       positions_.clear();

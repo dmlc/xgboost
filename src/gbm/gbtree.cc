@@ -218,10 +218,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
                                     model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
 
-  if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf() && this->ctx_->IsCUDA()) {
-    LOG(FATAL) << "Current objective doesn't support external memory.";
-  }
-
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
   std::vector<HostDeviceVector<bst_node_t>> node_position;
