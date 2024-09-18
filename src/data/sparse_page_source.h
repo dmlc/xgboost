@@ -241,6 +241,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   float missing_;
   std::int32_t nthreads_;
   bst_feature_t n_features_;
+  bst_idx_t fetch_cnt_{0};  // Used for sanity check.
   // Index to the current page.
   std::uint32_t count_{0};
   // Total number of batches.
@@ -267,8 +268,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     if (ring_->empty()) {
       ring_->resize(n_batches_);
     }
-    // An heuristic for number of pre-fetched batches.  We can make it part of BatchParam
-    // to let user adjust number of pre-fetched batches when needed.
+
     std::int32_t n_prefetches = std::min(nthreads_, this->param_.n_prefetch_batches);
     n_prefetches = std::max(n_prefetches, 1);
     std::int32_t n_prefetch_batches = std::min(static_cast<bst_idx_t>(n_prefetches), n_batches_);
@@ -307,6 +307,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         });
         return page;
       });
+      this->fetch_cnt_++;
     }
 
     CHECK_EQ(std::count_if(ring_->cbegin(), ring_->cend(), [](auto const& f) { return f.valid(); }),
@@ -411,6 +412,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
 
     this->Fetch();  // Get the 0^th page, prefetch the next page.
   }
+
+  [[nodiscard]] auto FetchCount() const { return this->fetch_cnt_; }
 };
 
 #if defined(XGBOOST_USE_CUDA)
@@ -425,10 +428,8 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter_;
   DMatrixProxy* proxy_;
   std::size_t base_row_id_{0};
-  bst_idx_t fetch_cnt_{0};  // Used for sanity check.
 
   void Fetch() final {
-    fetch_cnt_++;
     page_ = std::make_shared<SparsePage>();
     // The first round of reading, this is responsible for initialization.
     if (!this->ReadCache()) {
@@ -479,9 +480,10 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     if (at_end_) {
       this->EndIter();
       this->proxy_ = nullptr;
+    } else {
+      this->Fetch();
     }
 
-    this->Fetch();
     return *this;
   }
 
@@ -495,8 +497,6 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     TryLockGuard guard{single_threaded_};
     base_row_id_ = 0;
   }
-
-  [[nodiscard]] auto FetchCount() const { return fetch_cnt_; }
 };
 
 // A mixin for advancing the iterator.
@@ -542,8 +542,9 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
       if (src_need_inc) {
         CHECK(this->cache_info_->written);
       }
+    } else {
+      this->Fetch();
     }
-    this->Fetch();
 
     if (sync_) {
       // Sanity check.
@@ -554,6 +555,9 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
 
   void Reset(BatchParam const& param) final {
     this->source_->Reset(param);
+    if (this->sync_) {
+      this->source_->Reset(param);
+    }
     Super::Reset(param);
   }
 };

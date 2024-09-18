@@ -35,6 +35,10 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
 
   [[nodiscard]] std::int32_t NumBatches() const override { return n_batches_; }
 
+  // For testing, getter for the number of fetches.
+  [[nodiscard]] bst_idx_t EllpackPageFetchCount() const;
+  [[nodiscard]] bst_idx_t GradientIndexFetchCount() const;
+
  private:
   void InitFromCPU(
       Context const *ctx,
