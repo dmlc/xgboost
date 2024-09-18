@@ -155,18 +155,24 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
     auto const& d_src = (*it).Impl()->gidx_buffer;
     dh::safe_cuda(cudaMemcpyAsync(d_dst, d_src.data(), d_src.size_bytes(), cudaMemcpyDefault));
   }
-  ASSERT_GE(iterators.size(), 2);
+  ASSERT_EQ(iterators.size(), 8);
 
   for (size_t i = 0; i < iterators.size(); ++i) {
     std::vector<common::CompressedByteT> h_buf;
     [[maybe_unused]] auto h_acc = (*iterators[i]).Impl()->GetHostAccessor(&ctx, &h_buf);
     ASSERT_EQ(h_buf, gidx_buffers.at(i).HostVector());
-    ASSERT_EQ(iterators[i].use_count(), 1);
+    // The last page is still kept in the DMatrix until Reset is called.
+    if (i == iterators.size() - 1) {
+      ASSERT_EQ(iterators[i].use_count(), 2);
+    } else {
+      ASSERT_EQ(iterators[i].use_count(), 1);
+    }
   }
 
   // make sure it's const and the caller can not modify the content of page.
   for (auto& page : m->GetBatches<EllpackPage>(&ctx, param)) {
     static_assert(std::is_const_v<std::remove_reference_t<decltype(page)>>);
+    break;
   }
 
   // The above iteration clears out all references inside DMatrix.

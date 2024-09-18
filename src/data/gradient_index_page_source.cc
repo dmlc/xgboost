@@ -12,18 +12,17 @@
 namespace xgboost::data {
 void GradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
-    if (count_ != 0 && !sync_) {
-      // source is initialized to be the 0th page during construction, so when count_ is 0
-      // there's no need to increment the source.
-      //
+    // source is initialized to be the 0th page during construction, so when count_ is 0
+    // there's no need to increment the source.
+    if (this->count_ != 0 && !this->sync_) {
       // The mixin doesn't sync the source if `sync_` is false, we need to sync it
       // ourselves.
       ++(*source_);
     }
     // This is not read from cache so we still need it to be synced with sparse page source.
-    CHECK_EQ(count_, source_->Iter());
-    auto const& csr = source_->Page();
-    CHECK_NE(cuts_.Values().size(), 0);
+    CHECK_EQ(this->count_, this->source_->Iter());
+    auto const& csr = this->source_->Page();
+    CHECK_NE(this->cuts_.Values().size(), 0);
     this->page_.reset(new GHistIndexMatrix{*csr, feature_types_, cuts_, max_bin_per_feat_,
                                            is_dense_, sparse_thresh_, nthreads_});
     this->WriteCache();

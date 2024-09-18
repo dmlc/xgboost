@@ -317,7 +317,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     monitor_.Start("Wait-" + std::to_string(count_));
     CHECK((*ring_)[count_].valid());
     page_ = (*ring_)[count_].get();
-    CHECK(!(*ring_)[count_].valid());
     monitor_.Stop("Wait-" + std::to_string(count_));
 
     exce_.Rethrow();
@@ -383,7 +382,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     return at_end_;
   }
 
-  // Call this at the last iteration.
+  // Call this at the last iteration (it == n_batches).
   void EndIter() {
     CHECK_EQ(this->cache_info_->offset.size(), this->n_batches_ + 1);
     this->cache_info_->Commit();
@@ -409,7 +408,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
       // The last iteration did not get to the end, clear the ring to start from 0.
       this->ring_ = std::make_unique<Ring>();
     }
-
     this->Fetch();  // Get the 0^th page, prefetch the next page.
   }
 
@@ -495,11 +493,13 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     SparsePageSourceImpl::Reset(param);
 
     TryLockGuard guard{single_threaded_};
-    base_row_id_ = 0;
+    this->base_row_id_ = 0;
   }
 };
 
-// A mixin for advancing the iterator.
+/**
+ * @brief A mixin for advancing the iterator with a sparse page source.
+ */
 template <typename S,
           typename FormatCreatePolicy = DefaultFormatStreamPolicy<S, DefaultFormatPolicy>>
 class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
@@ -508,7 +508,7 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
   using Super = SparsePageSourceImpl<S, FormatCreatePolicy>;
   // synchronize the row page, `hist` and `gpu_hist` don't need the original sparse page
   // so we avoid fetching it.
-  bool sync_{true};
+  bool const sync_;
 
  public:
   PageSourceIncMixIn(float missing, std::int32_t nthreads, bst_feature_t n_features,
@@ -518,8 +518,9 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
   // can assume the source to be ready.
   [[nodiscard]] PageSourceIncMixIn& operator++() final {
     TryLockGuard guard{this->single_threaded_};
+
     // Increment the source.
-    if (sync_) {
+    if (this->sync_) {
       ++(*source_);
     }
     // Increment self.
@@ -528,25 +529,16 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
     this->at_end_ = this->count_ == this->n_batches_;
 
     if (this->at_end_) {
-      // If this is the first round of iterations, we have just built the binary cache
-      // from soruce. For a non-sync page type, the source hasn't been updated to the end
-      // iteration yet due to skipped increment. We increment the source here and it will
-      // call the `EndIter` method itself.
-      bool src_need_inc = !sync_ && this->source_->Iter() != 0;
-      if (src_need_inc) {
-        CHECK_EQ(this->source_->Iter(), this->count_ - 1);
-        ++(*source_);
-      }
       this->EndIter();
-
-      if (src_need_inc) {
-        CHECK(this->cache_info_->written);
+      CHECK(this->cache_info_->written);
+      if (!this->sync_) {
+        source_.reset();  // Make sure no unnecessary fetch.
       }
     } else {
       this->Fetch();
     }
 
-    if (sync_) {
+    if (this->sync_) {
       // Sanity check.
       CHECK_EQ(source_->Iter(), this->count_);
     }
@@ -554,8 +546,7 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
   }
 
   void Reset(BatchParam const& param) final {
-    this->source_->Reset(param);
-    if (this->sync_) {
+    if (this->sync_ || !this->cache_info_->written) {
       this->source_->Reset(param);
     }
     Super::Reset(param);
