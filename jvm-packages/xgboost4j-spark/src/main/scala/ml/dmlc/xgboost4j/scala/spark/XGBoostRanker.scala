@@ -62,14 +62,13 @@ class XGBoostRanker(override val uid: String,
   }
 
   /**
-   * Preprocess the dataset to meet the xgboost input requirement
+   * Sort partition for Ranker issue.
    *
    * @param dataset
    * @return
    */
-  override private[spark] def preprocess(dataset: Dataset[_]): (Dataset[_], ColumnIndices) = {
-    val (output, columnIndices) = super.preprocess(dataset)
-    (output.sortWithinPartitions(getGroupCol), columnIndices)
+  override private[spark] def sortPartitionIfNeeded(dataset: Dataset[_]) = {
+    dataset.sortWithinPartitions(getGroupCol)
   }
 
   override protected def createModel(

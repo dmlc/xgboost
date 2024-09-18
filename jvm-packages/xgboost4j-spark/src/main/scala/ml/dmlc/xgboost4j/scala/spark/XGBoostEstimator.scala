@@ -135,6 +135,15 @@ private[spark] trait XGBoostEstimator[
   }
 
   /**
+   * Sort partition for Ranker issue.
+   * @param dataset
+   * @return
+   */
+  private[spark] def sortPartitionIfNeeded(dataset: Dataset[_]): Dataset[_] = {
+    dataset
+  }
+
+  /**
    * Build the columns indices.
    */
   private[spark] def buildColumnIndices(schema: StructType): ColumnIndices = {
@@ -198,10 +207,10 @@ private[spark] trait XGBoostEstimator[
       case p: HasGroupCol => selectCol(p.groupCol, IntegerType)
       case _ =>
     }
-    val input = repartitionIfNeeded(dataset.select(selectedCols.toArray: _*))
-
-    val columnIndices = buildColumnIndices(input.schema)
-    (input, columnIndices)
+    val repartitioned = repartitionIfNeeded(dataset.select(selectedCols.toArray: _*))
+    val sorted = sortPartitionIfNeeded(repartitioned)
+    val columnIndices = buildColumnIndices(sorted.schema)
+    (sorted, columnIndices)
   }
 
   /** visible for testing */

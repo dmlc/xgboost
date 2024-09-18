@@ -16,14 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ai.rapids.cudf.Table
+import ai.rapids.cudf.{OrderByArg, Table}
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.{DMatrix, QuantileDMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.scala.rapids.spark.GpuTestSuite
 import ml.dmlc.xgboost4j.scala.rapids.spark.SparkSessionHolder.withSparkSession
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 import org.apache.spark.ml.linalg.DenseVector
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.{Dataset, Row, SparkSession}
 import org.apache.spark.SparkConf
 
 import java.io.File
@@ -94,7 +94,9 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     }
 
     // spark.rapids.sql.enabled is not set explicitly, default to true
-    withSparkSession(new SparkConf(), spark => {checkIsEnabled(spark, true)})
+    withSparkSession(new SparkConf(), spark => {
+      checkIsEnabled(spark, true)
+    })
 
     // set spark.rapids.sql.enabled to false
     withCpuSparkSession() { spark =>
@@ -503,7 +505,42 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     }
   }
 
-   test("Ranker: XGBoost-Spark should match xgboost4j") {
+  test("The group col should be sorted in each partition") {
+    withGpuSparkSession() { spark =>
+      import spark.implicits._
+      val df = Ranking.train.toDF("label", "weight", "group", "c1", "c2", "c3")
+
+      val xgboostParams: Map[String, Any] = Map(
+        "device" -> "cuda",
+        "objective" -> "rank:ndcg"
+      )
+      val features = Array("c1", "c2", "c3")
+      val label = "label"
+      val group = "group"
+
+      val ranker = new XGBoostRanker(xgboostParams)
+        .setFeaturesCol(features)
+        .setLabelCol(label)
+        .setNumWorkers(1)
+        .setNumRound(1)
+        .setGroupCol(group)
+        .setDevice("cuda")
+
+      val processedDf = ranker.getPlugin.get.asInstanceOf[GpuXGBoostPlugin].preprocess(ranker, df)
+      processedDf.rdd.foreachPartition { iter => {
+        var prevGroup = Int.MinValue
+        while (iter.hasNext) {
+          val curr = iter.next()
+          val group = curr.asInstanceOf[Row].getAs[Int](1)
+          assert(prevGroup <= group)
+          prevGroup = group
+        }
+      }
+      }
+    }
+  }
+
+  test("Ranker: XGBoost-Spark should match xgboost4j") {
     withGpuSparkSession() { spark =>
       import spark.implicits._
 
@@ -534,7 +571,8 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         .setDevice("cuda")
 
       val xgb4jModel = withResource(new GpuColumnBatch(
-        Table.readParquet(new File(trainPath)))) { batch =>
+        Table.readParquet(new File(trainPath)
+        ).orderBy(OrderByArg.asc(df.schema.fieldIndex(group))))) { batch =>
         val cb = new CudfColumnBatch(batch.select(featuresIndices),
           batch.select(df.schema.fieldIndex(label)), null, null,
           batch.select(df.schema.fieldIndex(group)))
