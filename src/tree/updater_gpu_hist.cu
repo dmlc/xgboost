@@ -555,7 +555,7 @@ struct GPUHistMakerDevice {
       return;
     }
 
-    dh::caching_device_vector<uint32_t> categories;
+    dh::CachingDeviceUVector<std::uint32_t> categories;
     dh::CopyTo(p_tree->GetSplitCategories(), &categories, this->ctx_->CUDACtx()->Stream());
     auto const& cat_segments = p_tree->GetSplitCategoriesPtr();
     auto d_categories = dh::ToSpan(categories);
@@ -574,7 +574,7 @@ struct GPUHistMakerDevice {
       }
 
       auto go_left_op = GoLeftOp{d_matrix};
-      dh::caching_device_vector<NodeSplitData> d_split_data;
+      dh::CachingDeviceUVector<NodeSplitData> d_split_data;
       dh::CopyTo(split_data, &d_split_data, this->ctx_->CUDACtx()->Stream());
       auto s_split_data = dh::ToSpan(d_split_data);
 
@@ -609,7 +609,7 @@ struct GPUHistMakerDevice {
 
     // Use the nodes from tree, the leaf value might be changed by the objective since the
     // last update tree call.
-    dh::caching_device_vector<RegTree::Node> nodes;
+    dh::CachingDeviceUVector<RegTree::Node> nodes;
     dh::CopyTo(p_tree->GetNodes(), &nodes, this->ctx_->CUDACtx()->Stream());
     common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
     CHECK_EQ(out_preds_d.Shape(1), 1);
