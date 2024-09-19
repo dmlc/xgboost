@@ -352,7 +352,6 @@ void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
   common::CompressedBufferWriter writer{n_symbols};
 
   auto cuctx = ctx->CUDACtx();
-  bool is_dense = page.IsDense();
   dh::LaunchN(row_stride * page.Size(), cuctx->Stream(), [=] __device__(bst_idx_t idx) mutable {
     auto ridx = idx / row_stride;
     auto ifeature = idx % row_stride;

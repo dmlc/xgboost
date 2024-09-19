@@ -177,8 +177,10 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     pointer thrust_ptr;
     if (use_cub_allocator_) {
       T *raw_ptr{nullptr};
+      // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
       auto errc = GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
                                                              n * sizeof(T));
+      // NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
       if (errc != cudaSuccess) {
         detail::ThrowOOMError("Caching allocator", n * sizeof(T));
       }
