@@ -116,12 +116,12 @@ namespace {
       [=] XGBOOST_DEVICE(std::size_t i) { return dptrs[i] - dptrs[i - 1]; });
   CHECK_GE(dptrs.size(), 2);
   auto max_it = thrust::max_element(cuctx->CTP(), it, it + dptrs.size() - 1);
-  dh::TemporaryArray<PtrT> max_element(1);
+  dh::CachingDeviceUVector<PtrT> max_element(1);
   auto d_me = max_element.data();
   dh::LaunchN(1, cuctx->Stream(), [=] XGBOOST_DEVICE(std::size_t i) { d_me[i] = *max_it; });
   PtrT h_me{0};
   dh::safe_cuda(
-      cudaMemcpyAsync(&h_me, d_me.get(), sizeof(PtrT), cudaMemcpyDeviceToHost, cuctx->Stream()));
+      cudaMemcpyAsync(&h_me, d_me, sizeof(PtrT), cudaMemcpyDeviceToHost, cuctx->Stream()));
   cuctx->Stream().Sync();
   // No missing, hence no null value, hence no + 1 symbol.
   // FIXME(jiamingy): When we extend this to use a sparsity threshold, +1 is needed back.
