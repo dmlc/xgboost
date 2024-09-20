@@ -218,8 +218,13 @@ def check_extmem_qdm(
         )
 
     booster_it = xgb.train({"device": device}, Xy_it, num_boost_round=8)
-    X, y, w = it.as_arrays()
-    Xy = xgb.QuantileDMatrix(X, y, weight=w)
+    it = tm.IteratorForTest(
+        *tm.make_batches(
+            n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
+        ),
+        cache=None,
+    )
+    Xy = xgb.QuantileDMatrix(it)
     booster = xgb.train({"device": device}, Xy, num_boost_round=8)
 
     if device == "cpu":
