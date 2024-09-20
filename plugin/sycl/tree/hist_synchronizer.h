@@ -48,7 +48,7 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
                                                        this_hist, nbins, ::sycl::event());
       }
     }
-    builder->qu_.wait_and_throw();
+    builder->qu_->wait_and_throw();
 
     builder->builder_monitor_.Stop("SyncHistograms");
   }

@@ -105,7 +105,7 @@ class QuantileHistMaker: public TreeUpdater {
 
   FeatureInteractionConstraintHost int_constraint_;
 
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
   DeviceManager device_manager;
   ObjInfo const *task_{nullptr};
 

@@ -21,10 +21,10 @@ TEST(SyclRowSetCollection, AddSplits) {
   RowSetCollection row_set_collection;
 
   auto& row_indices = row_set_collection.Data();
-  row_indices.Resize(&qu, num_rows);
+  row_indices.Resize(qu, num_rows);
   size_t* p_row_indices = row_indices.Data();
 
-  qu.submit([&](::sycl::handler& cgh) {
+  qu->submit([&](::sycl::handler& cgh) {
     cgh.parallel_for<>(::sycl::range<1>(num_rows),
                        [p_row_indices](::sycl::item<1> pid) {
       const size_t idx = pid.get_id(0);

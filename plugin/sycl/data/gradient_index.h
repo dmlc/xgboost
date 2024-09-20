@@ -26,16 +26,16 @@ class HistogramCuts {
  public:
   HistogramCuts() {}
 
-  explicit HistogramCuts(::sycl::queue qu) {}
+  explicit HistogramCuts(::sycl::queue* qu) {}
 
   ~HistogramCuts() {
   }
 
-  void Init(::sycl::queue qu, xgboost::common::HistogramCuts const& cuts) {
+  void Init(::sycl::queue* qu, xgboost::common::HistogramCuts const& cuts) {
     qu_ = qu;
-    cut_values_.Init(&qu_, cuts.cut_values_.HostVector());
-    cut_ptrs_.Init(&qu_, cuts.cut_ptrs_.HostVector());
-    min_vals_.Init(&qu_, cuts.min_vals_.HostVector());
+    cut_values_.Init(qu_, cuts.cut_values_.HostVector());
+    cut_ptrs_.Init(qu_, cuts.cut_ptrs_.HostVector());
+    min_vals_.Init(qu_, cuts.min_vals_.HostVector());
   }
 
   // Getters for USM buffers to pass pointers into device kernels
@@ -47,7 +47,7 @@ class HistogramCuts {
   USMVector<bst_float> cut_values_;
   USMVector<uint32_t> cut_ptrs_;
   USMVector<float> min_vals_;
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
 };
 
 using BinTypeSize = ::xgboost::common::BinTypeSize;
@@ -115,11 +115,11 @@ struct Index {
   }
 
   void Resize(const size_t nBytesData) {
-    data_.Resize(&qu_, nBytesData);
+    data_.Resize(qu_, nBytesData);
   }
 
   void ResizeOffset(const size_t nDisps) {
-    offset_.Resize(&qu_, nDisps);
+    offset_.Resize(qu_, nDisps);
     p_ = nDisps;
   }
 
@@ -131,7 +131,7 @@ struct Index {
     return data_.End();
   }
 
-  void setQueue(::sycl::queue qu) {
+  void setQueue(::sycl::queue* qu) {
     qu_ = qu;
   }
 
@@ -155,7 +155,7 @@ struct Index {
   size_t p_ {1};
   Func func_;
 
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
 };
 
 /*!
@@ -182,11 +182,11 @@ struct GHistIndexMatrix {
   size_t row_stride;
 
   // Create a global histogram matrix based on a given DMatrix device wrapper
-  void Init(::sycl::queue qu, Context const * ctx,
+  void Init(::sycl::queue* qu, Context const * ctx,
             const sycl::DeviceMatrix& p_fmat_device, int max_num_bins);
 
   template <typename BinIdxType>
-  void SetIndexData(::sycl::queue qu, BinIdxType* index_data,
+  void SetIndexData(::sycl::queue* qu, BinIdxType* index_data,
                     const sycl::DeviceMatrix &dmat_device,
                     size_t nbins, size_t row_stride, uint32_t* offsets);
 
