@@ -163,7 +163,7 @@ struct GPUHistMakerDevice {
         cuts_{std::move(cuts)} {
     this->sampler = std::make_unique<GradientBasedSampler>(
         ctx, info.num_row_, batch_param, param.subsample, param.sampling_method,
-        batch_ptr_.size() > 2 && this->hist_param_->external_memory_concat_page);
+        batch_ptr_.size() > 2 && this->hist_param_->external_memory_concat_pages);
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
@@ -204,7 +204,7 @@ struct GPUHistMakerDevice {
     /**
      * Initialize the partitioners
      */
-    bool is_concat = this->hist_param_->external_memory_concat_page;
+    bool is_concat = this->hist_param_->external_memory_concat_pages;
     std::size_t n_batches = is_concat ? 1 : p_fmat->NumBatches();
     std::vector<bst_idx_t> batch_ptr{this->batch_ptr_};
     if (is_concat) {

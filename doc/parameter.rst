@@ -230,14 +230,30 @@ Parameters for Tree Booster
     - ``one_output_per_tree``: One model for each target.
     - ``multi_output_tree``:  Use multi-target trees.
 
+
+Parameters for Non-Exact Tree Methods
+=====================================
+
 * ``max_cached_hist_node``, [default = 65536]
 
-  Maximum number of cached nodes for histogram.
+  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the
+  ``approx`` tree methods.
 
   .. versionadded:: 2.0.0
 
   - For most of the cases this parameter should not be set except for growing deep
     trees. After 3.0, this parameter affects GPU algorithms as well.
+
+
+* ``external_memory_concat_pages``, [default = ``false``]
+
+  This parameter is only used for the ``hist`` tree method with ``device=cuda``.
+
+  .. versionadded:: 3.0.0
+
+  Whether the GPU-based ``hist`` tree method should concatenate the pages when training
+  with external memory. See :doc:`/tutorials/external_memory` for more information. Before
+  3.0, pages were always concatenated.
 
 .. _cat-param:
 
