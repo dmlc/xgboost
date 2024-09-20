@@ -30,13 +30,13 @@ TEST(EllpackPage, EmptyDMatrix) {
 }
 
 TEST(EllpackPage, BuildGidxDense) {
-  int constexpr kNRows = 16, kNCols = 8;
+  bst_idx_t n_samples = 16, n_features = 8;
   auto ctx = MakeCUDACtx(0);
-  auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
+  auto page = BuildEllpackPage(&ctx, n_samples, n_features);
   std::vector<common::CompressedByteT> h_gidx_buffer;
   auto h_accessor = page->GetHostAccessor(&ctx, &h_gidx_buffer);
 
-  ASSERT_EQ(page->row_stride, kNCols);
+  ASSERT_EQ(page->row_stride, n_features);
 
   std::vector<uint32_t> solution = {
     0, 3, 8,  9, 14, 17, 20, 21,
@@ -56,8 +56,9 @@ TEST(EllpackPage, BuildGidxDense) {
     2, 4, 8, 10, 14, 15, 19, 22,
     1, 4, 7, 10, 14, 16, 19, 21,
   };
-  for (size_t i = 0; i < kNRows * kNCols; ++i) {
-    ASSERT_EQ(solution[i], h_accessor.gidx_iter[i]);
+  for (size_t i = 0; i < n_samples * n_features; ++i) {
+    auto fidx = i % n_features;
+    ASSERT_EQ(solution[i], h_accessor.gidx_iter[i] + h_accessor.feature_segments[fidx]);
   }
 }
 
@@ -263,12 +264,12 @@ class EllpackPageTest : public testing::TestWithParam<float> {
       ASSERT_EQ(from_sparse_page->base_rowid, from_ghist->base_rowid);
       ASSERT_EQ(from_sparse_page->n_rows, from_ghist->n_rows);
       ASSERT_EQ(from_sparse_page->gidx_buffer.size(), from_ghist->gidx_buffer.size());
+      ASSERT_EQ(from_sparse_page->NumSymbols(), from_ghist->NumSymbols());
       std::vector<common::CompressedByteT> h_gidx_from_sparse, h_gidx_from_ghist;
       auto from_ghist_acc = from_ghist->GetHostAccessor(&gpu_ctx, &h_gidx_from_ghist);
       auto from_sparse_acc = from_sparse_page->GetHostAccessor(&gpu_ctx, &h_gidx_from_sparse);
-      ASSERT_EQ(from_sparse_page->NumSymbols(), from_ghist->NumSymbols());
       for (size_t i = 0; i < from_ghist->n_rows * from_ghist->row_stride; ++i) {
-        EXPECT_EQ(from_ghist_acc.gidx_iter[i], from_sparse_acc.gidx_iter[i]);
+        ASSERT_EQ(from_ghist_acc.gidx_iter[i], from_sparse_acc.gidx_iter[i]);
       }
     }
   }

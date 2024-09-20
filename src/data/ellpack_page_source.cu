@@ -9,16 +9,17 @@
 #include <numeric>  // for accumulate
 #include <utility>  // for move
 
-#include "../common/common.h"                 // for safe_cuda
-#include "../common/ref_resource_view.cuh"
-#include "../common/device_helpers.cuh"       // for CUDAStreamView, DefaultStream
-#include "../common/resource.cuh"             // for PrivateCudaMmapConstStream
-#include "ellpack_page.cuh"                   // for EllpackPageImpl
-#include "ellpack_page.h"                     // for EllpackPage
+#include "../common/common.h"               // for safe_cuda
+#include "../common/cuda_rt_utils.h"        // for SetDevice
+#include "../common/device_helpers.cuh"     // for CUDAStreamView, DefaultStream
+#include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
+#include "../common/resource.cuh"           // for PrivateCudaMmapConstStream
+#include "../common/transform_iterator.h"   // for MakeIndexTransformIter
+#include "ellpack_page.cuh"                 // for EllpackPageImpl
+#include "ellpack_page.h"                   // for EllpackPage
 #include "ellpack_page_source.h"
 #include "proxy_dmatrix.cuh"  // for Dispatch
 #include "xgboost/base.h"     // for bst_idx_t
-#include "../common/transform_iterator.h"  // for MakeIndexTransformIter
 
 namespace xgboost::data {
 /**
@@ -201,7 +202,7 @@ EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringVi
  */
 template <typename F>
 void EllpackPageSourceImpl<F>::Fetch() {
-  dh::safe_cuda(cudaSetDevice(this->Device().ordinal));
+  common::SetDevice(this->Device().ordinal);
   if (!this->ReadCache()) {
     if (this->count_ != 0 && !this->sync_) {
       // source is initialized to be the 0th page during construction, so when count_ is 0
@@ -235,7 +236,7 @@ EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>
  */
 template <typename F>
 void ExtEllpackPageSourceImpl<F>::Fetch() {
-  dh::safe_cuda(cudaSetDevice(this->Device().ordinal));
+  common::SetDevice(this->Device().ordinal);
   if (!this->ReadCache()) {
     auto iter = this->source_->Iter();
     CHECK_EQ(this->count_, iter);
@@ -250,7 +251,8 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
       dh::device_vector<size_t> row_counts(n_samples + 1, 0);
       common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
       cuda_impl::Dispatch(proxy_, [=](auto const& value) {
-        return GetRowCounts(value, row_counts_span, dh::GetDevice(this->ctx_), this->missing_);
+        return GetRowCounts(this->ctx_, value, row_counts_span, dh::GetDevice(this->ctx_),
+                            this->missing_);
       });
 
       this->page_.reset(new EllpackPage{});

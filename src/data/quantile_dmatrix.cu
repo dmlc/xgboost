@@ -72,7 +72,7 @@ void MakeSketches(Context const* ctx,
                                       collective::Op::kMax);
       SafeColl(rc);
     } else {
-      CHECK_EQ(ext_info.n_features, ::xgboost::data::BatchColumns(proxy))
+      CHECK_EQ(ext_info.n_features, data::BatchColumns(proxy))
           << "Inconsistent number of columns.";
     }
 
@@ -97,7 +97,7 @@ void MakeSketches(Context const* ctx,
         lazy_init_sketch();  // Add a new level.
       }
       proxy->Info().weights_.SetDevice(dh::GetDevice(ctx));
-      cuda_impl::Dispatch(proxy, [&](auto const& value) {
+      Dispatch(proxy, [&](auto const& value) {
         common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing,
                                     sketches.back().first.get());
         sketches.back().second++;
@@ -110,8 +110,8 @@ void MakeSketches(Context const* ctx,
     dh::device_vector<size_t> row_counts(batch_rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
     ext_info.row_stride =
-        std::max(ext_info.row_stride, cuda_impl::Dispatch(proxy, [=](auto const& value) {
-                   return GetRowCounts(value, row_counts_span, dh::GetDevice(ctx), missing);
+        std::max(ext_info.row_stride, Dispatch(proxy, [=](auto const& value) {
+                   return GetRowCounts(ctx, value, row_counts_span, dh::GetDevice(ctx), missing);
                  }));
     ext_info.nnz += thrust::reduce(ctx->CUDACtx()->CTP(), row_counts.begin(), row_counts.end());
     ext_info.n_batches++;

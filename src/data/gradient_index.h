@@ -189,7 +189,7 @@ class GHistIndexMatrix {
    * @brief Constructor for external memory.
    */
   GHistIndexMatrix(SparsePage const& page, common::Span<FeatureType const> ft,
-                   common::HistogramCuts cuts, int32_t max_bins_per_feat, bool is_dense,
+                   common::HistogramCuts cuts, bst_bin_t max_bins_per_feat, bool is_dense,
                    double sparse_thresh, std::int32_t n_threads);
   GHistIndexMatrix();  // also for ext mem, empty ctor so that we can read the cache back.
 

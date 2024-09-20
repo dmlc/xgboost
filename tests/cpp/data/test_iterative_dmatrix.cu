@@ -106,9 +106,11 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
     common::Span<float const> s_data{static_cast<float const*>(loaded.data), cols * rows};
     dh::CopyDeviceSpanToVector(&h_data, s_data);
 
-    for(auto i = 0ull; i < rows * cols; i++) {
+    auto cut_ptr = h_accessor.feature_segments;
+    for (auto i = 0ull; i < rows * cols; i++) {
       int column_idx = i % cols;
-      EXPECT_EQ(impl->Cuts().SearchBin(h_data[i], column_idx), h_accessor.gidx_iter[i]);
+      EXPECT_EQ(impl->Cuts().SearchBin(h_data[i], column_idx),
+                h_accessor.gidx_iter[i] + cut_ptr[column_idx]);
     }
     EXPECT_EQ(m.Info().num_col_, cols);
     EXPECT_EQ(m.Info().num_row_, rows);
