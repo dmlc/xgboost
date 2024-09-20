@@ -64,17 +64,12 @@ struct NodeSplitData {
 };
 static_assert(std::is_trivially_copyable_v<NodeSplitData>);
 
-// To be tuned.
-constexpr double ExtMemPrefetchThresh() { return 4.0; }
-
 // Some nodes we will manually compute histograms, others we will do by subtraction
-[[nodiscard]] bool AssignNodes(RegTree const* p_tree, GradientQuantiser const* quantizer,
-                               std::vector<GPUExpandEntry> const& candidates,
-                               common::Span<bst_node_t> nodes_to_build,
-                               common::Span<bst_node_t> nodes_to_sub) {
+void AssignNodes(RegTree const* p_tree, GradientQuantiser const* quantizer,
+                 std::vector<GPUExpandEntry> const& candidates,
+                 common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
   auto const& tree = *p_tree;
   std::size_t nidx_in_set{0};
-  double total{0.0}, smaller{0.0};
   auto p_build_nidx = nodes_to_build.data();
   auto p_sub_nidx = nodes_to_sub.data();
   for (auto& e : candidates) {
@@ -85,24 +80,15 @@ constexpr double ExtMemPrefetchThresh() { return 4.0; }
     auto left_sum = quantizer->ToFloatingPoint(e.split.left_sum);
     auto right_sum = quantizer->ToFloatingPoint(e.split.right_sum);
     bool fewer_right = right_sum.GetHess() < left_sum.GetHess();
-    total += left_sum.GetHess() + right_sum.GetHess();
     if (fewer_right) {
       p_build_nidx[nidx_in_set] = tree[e.nid].RightChild();
       p_sub_nidx[nidx_in_set] = tree[e.nid].LeftChild();
-      smaller += right_sum.GetHess();
     } else {
       p_build_nidx[nidx_in_set] = tree[e.nid].LeftChild();
       p_sub_nidx[nidx_in_set] = tree[e.nid].RightChild();
-      smaller += left_sum.GetHess();
     }
     ++nidx_in_set;
   }
-
-  if (-kRtEps < smaller && smaller < kRtEps) {  // Too close to 0, don't prefetch.
-    return false;
-  }
-  // Prefetch if these smaller nodes are not quite small.
-  return (total / smaller) < ExtMemPrefetchThresh();
 }
 
 // GPU tree updater implementation.
@@ -201,16 +187,19 @@ struct GPUHistMakerDevice {
   // Reset values for each update iteration
   [[nodiscard]] DMatrix* Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* p_fmat) {
     this->monitor.Start(__func__);
+    common::SetDevice(ctx_->Ordinal());
+
     auto const& info = p_fmat->Info();
+    // backup the gradient
+    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair, ctx_->CUDACtx()->Stream());
     this->column_sampler_->Init(ctx_, p_fmat->Info().num_col_, info.feature_weights.HostVector(),
                                 param.colsample_bynode, param.colsample_bylevel,
                                 param.colsample_bytree);
-    common::SetDevice(ctx_->Ordinal());
-
-    this->interaction_constraints.Reset();
+    this->interaction_constraints.Reset(ctx_);
+    this->evaluator_.Reset(this->ctx_, *cuts_, p_fmat->Info().feature_types.ConstDeviceSpan(),
+                           p_fmat->Info().num_col_, this->param, p_fmat->Info().IsColumnSplit());
 
     // Sampling
-    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair);  // backup the gradient
     auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
     this->gpair = sample.gpair;
     p_fmat = sample.p_fmat;  // Update p_fmat before allocating partitioners
@@ -242,10 +231,6 @@ struct GPUHistMakerDevice {
     }
 
     // Other initializations
-    this->evaluator_.Reset(*cuts_, p_fmat->Info().feature_types.ConstDeviceSpan(),
-                           p_fmat->Info().num_col_, this->param, p_fmat->Info().IsColumnSplit(),
-                           this->ctx_->Device());
-
     quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, p_fmat->Info());
 
     this->InitFeatureGroupsOnce(info);
@@ -359,7 +344,7 @@ struct GPUHistMakerDevice {
     // This gives much better latency in a distributed setting when processing a large batch
     this->histogram_.AllReduceHist(ctx_, p_fmat->Info(), build_nidx.at(0), build_nidx.size());
     // Perform subtraction for sibiling nodes
-    auto need_build = this->histogram_.SubtractHist(candidates, build_nidx, subtraction_nidx);
+    auto need_build = this->histogram_.SubtractHist(ctx_, candidates, build_nidx, subtraction_nidx);
     if (need_build.empty()) {
       this->monitor.Stop(__func__);
       return;
@@ -394,12 +379,14 @@ struct GPUHistMakerDevice {
     BitVector decision_bits{dh::ToSpan(decision_storage)};
     BitVector missing_bits{dh::ToSpan(missing_storage)};
 
+    auto cuctx = this->ctx_->CUDACtx();
     dh::TemporaryArray<NodeSplitData> split_data_storage(num_candidates);
     dh::safe_cuda(cudaMemcpyAsync(split_data_storage.data().get(), split_data.data(),
-                                  num_candidates * sizeof(NodeSplitData), cudaMemcpyDefault));
+                                  num_candidates * sizeof(NodeSplitData), cudaMemcpyDefault,
+                                  cuctx->Stream()));
     auto d_split_data = dh::ToSpan(split_data_storage);
 
-    dh::LaunchN(d_matrix.n_rows, [=] __device__(std::size_t ridx) mutable {
+    dh::LaunchN(d_matrix.n_rows, cuctx->Stream(), [=] __device__(std::size_t ridx) mutable {
       for (auto i = 0; i < num_candidates; i++) {
         auto const& data = d_split_data[i];
         auto const cut_value = d_matrix.GetFvalue(ridx, data.split_node.SplitIndex());
@@ -432,7 +419,7 @@ struct GPUHistMakerDevice {
 
     CHECK_EQ(partitioners_.size(), 1) << "External memory with column split is not yet supported.";
     partitioners_.front()->UpdatePositionBatch(
-        nidx, left_nidx, right_nidx, split_data,
+        ctx_, nidx, left_nidx, right_nidx, split_data,
         [=] __device__(bst_uint ridx, int nidx_in_batch, NodeSplitData const& data) {
           auto const index = ridx * num_candidates + nidx_in_batch;
           bool go_left;
@@ -488,8 +475,8 @@ struct GPUHistMakerDevice {
     // Prepare for build hist
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
-    auto prefetch_copy =
-        AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
+    AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
+    auto prefetch_copy = !build_nidx.empty();
 
     this->histogram_.AllocateHistograms(ctx_, build_nidx, subtraction_nidx);
 
@@ -506,10 +493,11 @@ struct GPUHistMakerDevice {
         UpdatePositionColumnSplit(d_matrix, split_data, nidx, left_nidx, right_nidx);
       } else {
         partitioners_.at(k)->UpdatePositionBatch(
-            nidx, left_nidx, right_nidx, split_data,
+            ctx_, nidx, left_nidx, right_nidx, split_data,
             [=] __device__(cuda_impl::RowIndexT ridx, int /*nidx_in_batch*/,
                            const NodeSplitData& data) { return go_left(ridx, data); });
       }
+
       monitor.Stop("UpdatePositionBatch");
 
       for (auto nidx : build_nidx) {
@@ -531,13 +519,15 @@ struct GPUHistMakerDevice {
   // prediction cache
   void FinalisePosition(DMatrix* p_fmat, RegTree const* p_tree, ObjInfo task,
                         HostDeviceVector<bst_node_t>* p_out_position) {
-    if (!p_fmat->SingleColBlock() && task.UpdateTreeLeaf()) {
-      LOG(FATAL) << "Current objective function can not be used with external memory.";
-    }
+    monitor.Start(__func__);
     if (static_cast<std::size_t>(p_fmat->NumBatches() + 1) != this->batch_ptr_.size()) {
+      if (task.UpdateTreeLeaf()) {
+        LOG(FATAL) << "Current objective function can not be used with concatenated pages.";
+      }
       // External memory with concatenation. Not supported.
       p_out_position->Resize(0);
       positions_.clear();
+      monitor.Stop(__func__);
       return;
     }
 
@@ -557,14 +547,16 @@ struct GPUHistMakerDevice {
         CHECK_EQ(part->GetNumNodes(), p_tree->NumNodes());
         auto base_ridx = batch_ptr_[k];
         auto n_samples = batch_ptr_.at(k + 1) - base_ridx;
-        part->FinalisePosition(d_out_position.subspan(base_ridx, n_samples), base_ridx, encode_op);
+        part->FinalisePosition(ctx_, d_out_position.subspan(base_ridx, n_samples), base_ridx,
+                               encode_op);
       }
-      dh::CopyTo(d_out_position, &positions_);
+      dh::CopyTo(d_out_position, &positions_, this->ctx_->CUDACtx()->Stream());
+      monitor.Stop(__func__);
       return;
     }
 
-    dh::caching_device_vector<uint32_t> categories;
-    dh::CopyTo(p_tree->GetSplitCategories(), &categories);
+    dh::CachingDeviceUVector<std::uint32_t> categories;
+    dh::CopyTo(p_tree->GetSplitCategories(), &categories, this->ctx_->CUDACtx()->Stream());
     auto const& cat_segments = p_tree->GetSplitCategoriesPtr();
     auto d_categories = dh::ToSpan(categories);
     auto ft = p_fmat->Info().feature_types.ConstDeviceSpan();
@@ -582,23 +574,25 @@ struct GPUHistMakerDevice {
       }
 
       auto go_left_op = GoLeftOp{d_matrix};
-      dh::caching_device_vector<NodeSplitData> d_split_data;
-      dh::CopyTo(split_data, &d_split_data);
+      dh::CachingDeviceUVector<NodeSplitData> d_split_data;
+      dh::CopyTo(split_data, &d_split_data, this->ctx_->CUDACtx()->Stream());
       auto s_split_data = dh::ToSpan(d_split_data);
 
-      partitioners_.front()->FinalisePosition(
-          d_out_position, page.BaseRowId(), [=] __device__(bst_idx_t row_id, bst_node_t nidx) {
-            auto split_data = s_split_data[nidx];
-            auto node = split_data.split_node;
-            while (!node.IsLeaf()) {
-              auto go_left = go_left_op(row_id, split_data);
-              nidx = go_left ? node.LeftChild() : node.RightChild();
-              node = s_split_data[nidx].split_node;
-            }
-            return encode_op(row_id, nidx);
-          });
-      dh::CopyTo(d_out_position, &positions_);
+      partitioners_.front()->FinalisePosition(ctx_, d_out_position, page.BaseRowId(),
+                                              [=] __device__(bst_idx_t row_id, bst_node_t nidx) {
+                                                auto split_data = s_split_data[nidx];
+                                                auto node = split_data.split_node;
+                                                while (!node.IsLeaf()) {
+                                                  auto go_left = go_left_op(row_id, split_data);
+                                                  nidx = go_left ? node.LeftChild()
+                                                                 : node.RightChild();
+                                                  node = s_split_data[nidx].split_node;
+                                                }
+                                                return encode_op(row_id, nidx);
+                                              });
+      dh::CopyTo(d_out_position, &positions_, this->ctx_->CUDACtx()->Stream());
     }
+    monitor.Stop(__func__);
   }
 
   bool UpdatePredictionCache(linalg::MatrixView<float> out_preds_d, RegTree const* p_tree) {
@@ -615,8 +609,8 @@ struct GPUHistMakerDevice {
 
     // Use the nodes from tree, the leaf value might be changed by the objective since the
     // last update tree call.
-    dh::caching_device_vector<RegTree::Node> nodes;
-    dh::CopyTo(p_tree->GetNodes(), &nodes);
+    dh::CachingDeviceUVector<RegTree::Node> nodes;
+    dh::CopyTo(p_tree->GetNodes(), &nodes, this->ctx_->CUDACtx()->Stream());
     common::Span<RegTree::Node> d_nodes = dh::ToSpan(nodes);
     CHECK_EQ(out_preds_d.Shape(1), 1);
     dh::LaunchN(d_position.size(), ctx_->CUDACtx()->Stream(),
@@ -825,6 +819,7 @@ class GPUHistMaker : public TreeUpdater {
   }
 
   void InitDataOnce(TrainParam const* param, DMatrix* p_fmat) {
+    monitor_.Start(__func__);
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
 
     // Synchronise the column sampling seed
@@ -845,24 +840,22 @@ class GPUHistMaker : public TreeUpdater {
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
+    monitor_.Stop(__func__);
   }
 
   void InitData(TrainParam const* param, DMatrix* dmat, RegTree const* p_tree) {
+    monitor_.Start(__func__);
     if (!initialised_) {
-      monitor_.Start("InitDataOnce");
       this->InitDataOnce(param, dmat);
-      monitor_.Stop("InitDataOnce");
     }
     p_last_tree_ = p_tree;
     CHECK(hist_maker_param_.GetInitialised());
+    monitor_.Stop(__func__);
   }
 
   void UpdateTree(TrainParam const* param, HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
-    monitor_.Start("InitData");
     this->InitData(param, p_fmat, p_tree);
-    monitor_.Stop("InitData");
-
     gpair->SetDevice(ctx_->Device());
     maker->UpdateTree(gpair, p_fmat, task_, p_tree, p_out_position);
   }

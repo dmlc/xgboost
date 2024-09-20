@@ -40,10 +40,9 @@ TEST(SparsePageDMatrix, EllpackPage) {
 
 TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
   // Test Ellpack can avoid loading sparse page after the initialization.
-  dmlc::TemporaryDirectory tmpdir;
   std::size_t n_batches = 6;
-  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(n_batches).GenerateSparsePageDMatrix(
-      tmpdir.path + "/", true);
+  auto Xy =
+      RandomDataGenerator{180, 12, 0.0}.Batches(n_batches).GenerateSparsePageDMatrix("temp", true);
   auto ctx = MakeCUDACtx(0);
   auto cpu = ctx.MakeCPU();
   bst_bin_t n_bins{256};
@@ -117,7 +116,6 @@ TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
 TEST(SparsePageDMatrix, MultipleEllpackPages) {
   auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
-  dmlc::TemporaryDirectory tmpdir;
   auto dmat = RandomDataGenerator{1024, 2, 0.5f}.Batches(2).GenerateSparsePageDMatrix("temp", true);
 
   // Loop over the batches and count the records
@@ -155,18 +153,24 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
     auto const& d_src = (*it).Impl()->gidx_buffer;
     dh::safe_cuda(cudaMemcpyAsync(d_dst, d_src.data(), d_src.size_bytes(), cudaMemcpyDefault));
   }
-  ASSERT_GE(iterators.size(), 2);
+  ASSERT_EQ(iterators.size(), 8);
 
   for (size_t i = 0; i < iterators.size(); ++i) {
     std::vector<common::CompressedByteT> h_buf;
     [[maybe_unused]] auto h_acc = (*iterators[i]).Impl()->GetHostAccessor(&ctx, &h_buf);
     ASSERT_EQ(h_buf, gidx_buffers.at(i).HostVector());
-    ASSERT_EQ(iterators[i].use_count(), 1);
+    // The last page is still kept in the DMatrix until Reset is called.
+    if (i == iterators.size() - 1) {
+      ASSERT_EQ(iterators[i].use_count(), 2);
+    } else {
+      ASSERT_EQ(iterators[i].use_count(), 1);
+    }
   }
 
   // make sure it's const and the caller can not modify the content of page.
   for (auto& page : m->GetBatches<EllpackPage>(&ctx, param)) {
     static_assert(std::is_const_v<std::remove_reference_t<decltype(page)>>);
+    break;
   }
 
   // The above iteration clears out all references inside DMatrix.
@@ -190,13 +194,10 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     auto p_fmat = RandomDataGenerator{kRows, kCols, sparsity}.GenerateDMatrix(true);
 
     // Create a DMatrix with multiple batches.
-    dmlc::TemporaryDirectory tmpdir;
-    auto prefix = tmpdir.path + "/cache";
-
     auto p_ext_fmat = RandomDataGenerator{kRows, kCols, sparsity}
                           .Batches(4)
                           .OnHost(on_host)
-                          .GenerateSparsePageDMatrix(prefix, true);
+                          .GenerateSparsePageDMatrix("temp", true);
 
     auto param = BatchParam{2, tree::TrainParam::DftSparseThreshold()};
     auto impl = (*p_fmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();

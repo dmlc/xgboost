@@ -16,9 +16,7 @@
 
 package ml.dmlc.xgboost4j.java;
 
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 import ai.rapids.cudf.Table;
 import junit.framework.TestCase;
@@ -122,8 +120,7 @@ public class DMatrixTest {
       tables.add(new CudfColumnBatch(X_0, y_0, w_0, m_0, q_0));
       tables.add(new CudfColumnBatch(X_1, y_1, w_1, m_1, q_1));
 
-      DMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1);
-
+      QuantileDMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1);
       float[] anchorLabel = convertFloatTofloat(label1, label2);
       float[] anchorWeight = convertFloatTofloat(weight1, weight2);
       float[] anchorBaseMargin = convertFloatTofloat(baseMargin1, baseMargin2);
@@ -132,6 +129,57 @@ public class DMatrixTest {
       TestCase.assertTrue(Arrays.equals(anchorWeight, dmat.getWeight()));
       TestCase.assertTrue(Arrays.equals(anchorBaseMargin, dmat.getBaseMargin()));
       TestCase.assertTrue(Arrays.equals(expectedGroup, dmat.getGroup()));
+    }
+  }
+
+  private Float[] generateFloatArray(int size, long seed) {
+    Float[] array = new Float[size];
+    Random random = new Random(seed);
+    for (int i = 0; i < size; i++) {
+      array[i] = random.nextFloat();
+    }
+    return array;
+  }
+
+   @Test
+  public void testGetQuantileCut() throws XGBoostError {
+
+    int rows = 100;
+    try (
+      Table X_0 = new Table.TestBuilder()
+        .column(generateFloatArray(rows, 1l))
+        .column(generateFloatArray(rows, 2l))
+        .column(generateFloatArray(rows, 3l))
+        .column(generateFloatArray(rows, 4l))
+        .column(generateFloatArray(rows, 5l))
+        .build();
+      Table y_0 = new Table.TestBuilder().column(generateFloatArray(rows, 6l)).build();
+
+      Table X_1 = new Table.TestBuilder()
+        .column(generateFloatArray(rows, 11l))
+        .column(generateFloatArray(rows, 12l))
+        .column(generateFloatArray(rows, 13l))
+        .column(generateFloatArray(rows, 14l))
+        .column(generateFloatArray(rows, 15l))
+        .build();
+      Table y_1 = new Table.TestBuilder().column(generateFloatArray(rows, 16l)).build();
+    ) {
+      List<ColumnBatch> tables = new LinkedList<>();
+      tables.add(new CudfColumnBatch(X_0, y_0, null, null, null));
+      QuantileDMatrix train = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1);
+
+      tables.clear();
+      tables.add(new CudfColumnBatch(X_1, y_1, null, null, null));
+      QuantileDMatrix eval = new QuantileDMatrix(tables.iterator(),  train, 0.0f, 256, 1);
+
+      DMatrix.QuantileCut trainCut = train.getQuantileCut();
+      DMatrix.QuantileCut evalCut = eval.getQuantileCut();
+
+      TestCase.assertTrue(trainCut.getIndptr().length == evalCut.getIndptr().length);
+      TestCase.assertTrue(Arrays.equals(trainCut.getIndptr(), evalCut.getIndptr()));
+
+      TestCase.assertTrue(trainCut.getValues().length == evalCut.getValues().length);
+      TestCase.assertTrue(Arrays.equals(trainCut.getValues(), evalCut.getValues()));
     }
   }
 

@@ -143,17 +143,30 @@ class SketchContainer {
    */
   void Push(Context const* ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
             common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights = {});
-  /* \brief Prune the quantile structure.
+  /**
+   * @brief Prune the quantile structure.
    *
-   * \param to The maximum size of pruned quantile.  If the size of quantile
-   * structure is already less than `to`, then no operation is performed.
+   * @param to The maximum size of pruned quantile.  If the size of quantile structure is
+   *           already less than `to`, then no operation is performed.
    */
   void Prune(Context const* ctx, size_t to);
-  /* \brief Merge another set of sketch.
-   * \param that columns of other.
+  /**
+   * @brief Merge another set of sketch.
+   *
+   * @param that_columns_ptr Column pointer of the quantile summary being merged.
+   * @param that Columns of the other quantile summary.
    */
   void Merge(Context const* ctx, Span<OffsetT const> that_columns_ptr,
              Span<SketchEntry const> that);
+  /**
+   * @brief Shrink the internal data structure to reduce memory usage. Can be used after
+   *        prune.
+   */
+  void ShrinkToFit() {
+    this->Current().shrink_to_fit();
+    this->Other().clear();
+    this->Other().shrink_to_fit();
+  }
 
   /* \brief Merge quantiles from other GPU workers. */
   void AllReduce(Context const* ctx, bool is_column_split);

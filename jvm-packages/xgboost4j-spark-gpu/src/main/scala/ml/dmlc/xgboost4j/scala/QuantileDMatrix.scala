@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021 by Contributors
+ Copyright (c) 2021-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,17 +16,17 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import _root_.scala.collection.JavaConverters._
-
 import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, XGBoostError, QuantileDMatrix => JQuantileDMatrix}
 
+import scala.collection.JavaConverters._
+
 class QuantileDMatrix private[scala](
-  private[scala] override val jDMatrix: JQuantileDMatrix) extends DMatrix(jDMatrix) {
+    private[scala] override val jDMatrix: JQuantileDMatrix) extends DMatrix(jDMatrix) {
 
   /**
-   * Create QuantileDMatrix from iterator based on the cuda array interface
+   * Create QuantileDMatrix from iterator based on the array interface
    *
-   * @param iter    the XGBoost ColumnBatch batch to provide the corresponding cuda array interface
+   * @param iter    the XGBoost ColumnBatch batch to provide the corresponding array interface
    * @param missing the missing value
    * @param maxBin  the max bin
    * @param nthread the parallelism
@@ -34,6 +34,27 @@ class QuantileDMatrix private[scala](
    */
   def this(iter: Iterator[ColumnBatch], missing: Float, maxBin: Int, nthread: Int) {
     this(new JQuantileDMatrix(iter.asJava, missing, maxBin, nthread))
+  }
+
+  /**
+   * Create QuantileDMatrix from iterator based on the array interface
+   *
+   * @param iter       the XGBoost ColumnBatch batch to provide the corresponding array interface
+   * @param refDMatrix The reference QuantileDMatrix that provides quantile information, needed
+   *                   when creating validation/test dataset with QuantileDMatrix. Supplying the
+   *                   training DMatrix as a reference means that the same quantisation applied
+   *                   to the training data is applied to the validation/test data
+   * @param missing    the missing value
+   * @param maxBin     the max bin
+   * @param nthread    the parallelism
+   * @throws XGBoostError
+   */
+  def this(iter: Iterator[ColumnBatch],
+           ref: QuantileDMatrix,
+           missing: Float,
+           maxBin: Int,
+           nthread: Int) {
+    this(new JQuantileDMatrix(iter.asJava, ref.jDMatrix, missing, maxBin, nthread))
   }
 
   /**
@@ -84,7 +105,7 @@ class QuantileDMatrix private[scala](
     throw new XGBoostError("QuantileDMatrix does not support setGroup.")
 
   /**
-   * Set label of DMatrix from cuda array interface
+   * Set label of DMatrix from array interface
    */
   @throws(classOf[XGBoostError])
   override def setLabel(column: Column): Unit =
@@ -103,5 +124,10 @@ class QuantileDMatrix private[scala](
   @throws(classOf[XGBoostError])
   override def setBaseMargin(column: Column): Unit =
     throw new XGBoostError("QuantileDMatrix does not support setBaseMargin.")
+
+  @throws(classOf[XGBoostError])
+  override def setQueryId(column: Column): Unit = {
+    throw new XGBoostError("QuantileDMatrix does not support setQueryId.")
+  }
 
 }

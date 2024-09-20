@@ -85,6 +85,7 @@ struct EllpackDeviceAccessor {
     bst_bin_t gidx = -1;
     if (is_dense) {
       gidx = gidx_iter[row_begin + fidx];
+      gidx += this->feature_segments[fidx];
     } else {
       gidx = common::BinarySearchBin(row_begin, row_end, gidx_iter, feature_segments[fidx],
                                      feature_segments[fidx + 1]);
@@ -175,7 +176,7 @@ class EllpackPageImpl {
    */
   template <typename AdapterBatch>
   explicit EllpackPageImpl(Context const* ctx, AdapterBatch batch, float missing, bool is_dense,
-                           common::Span<size_t> row_counts_span,
+                           common::Span<size_t const> row_counts_span,
                            common::Span<FeatureType const> feature_types, size_t row_stride,
                            bst_idx_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
   /**
@@ -183,6 +184,14 @@ class EllpackPageImpl {
    */
   explicit EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
                            common::Span<FeatureType const> ft);
+
+  EllpackPageImpl(EllpackPageImpl const& that) = delete;
+  EllpackPageImpl& operator=(EllpackPageImpl const& that) = delete;
+
+  EllpackPageImpl(EllpackPageImpl&& that) = default;
+  EllpackPageImpl& operator=(EllpackPageImpl&& that) = default;
+
+  ~EllpackPageImpl() noexcept(false);
 
   /**
    * @brief Copy the elements of the given ELLPACK page into this page.

@@ -54,6 +54,7 @@
           <groupId>com.nvidia</groupId>
           <artifactId>rapids-4-spark_${scala.binary.version}</artifactId>
           <version>${spark.rapids.version}</version>
+          <classifier>${spark.rapids.classifier}</classifier>
           <scope>provided</scope>
         </dependency>
         <dependency>

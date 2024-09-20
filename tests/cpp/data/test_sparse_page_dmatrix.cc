@@ -12,6 +12,7 @@
 #include "../../../src/data/file_iterator.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/sparse_page_dmatrix.h"
+#include "../../../src/tree/param.h"  // for TrainParam
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
@@ -114,6 +115,47 @@ TEST(SparsePageDMatrix, RetainSparsePage) {
   TestRetainPage<CSCPage>();
   TestRetainPage<SortedCSCPage>();
 }
+
+class TestGradientIndexExt : public ::testing::TestWithParam<bool> {
+ protected:
+  void Run(bool is_dense) {
+    constexpr bst_idx_t kRows = 64;
+    constexpr size_t kCols = 2;
+    float sparsity = is_dense ? 0.0 : 0.4;
+    bst_bin_t n_bins = 16;
+    Context ctx;
+    auto p_ext_fmat =
+        RandomDataGenerator{kRows, kCols, sparsity}.Batches(4).GenerateSparsePageDMatrix("temp",
+                                                                                         true);
+
+    auto cuts = common::SketchOnDMatrix(&ctx, p_ext_fmat.get(), n_bins, false, {});
+    std::vector<std::unique_ptr<GHistIndexMatrix>> pages;
+    for (auto const &page : p_ext_fmat->GetBatches<SparsePage>()) {
+      pages.emplace_back(std::make_unique<GHistIndexMatrix>(
+          page, common::Span<FeatureType const>{}, cuts, n_bins, is_dense, 0.8, ctx.Threads()));
+    }
+    std::int32_t k = 0;
+    for (auto const &page : p_ext_fmat->GetBatches<GHistIndexMatrix>(
+             &ctx, BatchParam{n_bins, tree::TrainParam::DftSparseThreshold()})) {
+      auto const &from_sparse = pages[k];
+      ASSERT_TRUE(std::equal(page.index.begin(), page.index.end(), from_sparse->index.begin()));
+      if (is_dense) {
+        ASSERT_TRUE(std::equal(page.index.Offset(), page.index.Offset() + kCols,
+                               from_sparse->index.Offset()));
+      } else {
+        ASSERT_FALSE(page.index.Offset());
+        ASSERT_FALSE(from_sparse->index.Offset());
+      }
+      ASSERT_TRUE(
+          std::equal(page.row_ptr.cbegin(), page.row_ptr.cend(), from_sparse->row_ptr.cbegin()));
+      ++k;
+    }
+  }
+};
+
+TEST_P(TestGradientIndexExt, Basic) { this->Run(this->GetParam()); }
+
+INSTANTIATE_TEST_SUITE_P(SparsePageDMatrix, TestGradientIndexExt, testing::Bool());
 
 // Test GHistIndexMatrix can avoid loading sparse page after the initialization.
 TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {

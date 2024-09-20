@@ -33,6 +33,7 @@ ipch
 *.filters
 *.user
 *log
+rmm_log.txt
 Debug
 *suo
 .Rhistory
