@@ -103,7 +103,7 @@ struct GPUHistMakerDevice {
   // node idx for each sample
   dh::device_vector<bst_node_t> positions_;
   HistMakerTrainParam const* hist_param_;
-  std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
+  std::shared_ptr<common::HistogramCuts const> const cuts_;
 
   auto CreatePartitionNodes(RegTree const* p_tree, std::vector<GPUExpandEntry> const& candidates) {
     std::vector<bst_node_t> nidx(candidates.size());
@@ -132,19 +132,19 @@ struct GPUHistMakerDevice {
 
   dh::device_vector<int> monotone_constraints;
 
-  TrainParam param;
+  TrainParam const param;
 
   std::unique_ptr<GradientQuantiser> quantiser;
 
   dh::PinnedMemory pinned;
   dh::PinnedMemory pinned2;
 
-  common::Monitor monitor;
   FeatureInteractionConstraintDevice interaction_constraints;
 
   std::unique_ptr<GradientBasedSampler> sampler;
 
   std::unique_ptr<FeatureGroups> feature_groups;
+  common::Monitor monitor;
 
   GPUHistMakerDevice(Context const* ctx, TrainParam _param, HistMakerTrainParam const* hist_param,
                      std::shared_ptr<common::ColumnSampler> column_sampler, BatchParam batch_param,
@@ -152,15 +152,15 @@ struct GPUHistMakerDevice {
                      std::shared_ptr<common::HistogramCuts const> cuts)
       : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
         ctx_{ctx},
-        param{std::move(_param)},
         column_sampler_{std::move(column_sampler)},
-        interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
-        cuts_{std::move(cuts)} {
-    this->sampler = std::make_unique<GradientBasedSampler>(
-        ctx, info.num_row_, batch_param, param.subsample, param.sampling_method,
-        batch_ptr_.size() > 2 && this->hist_param_->external_memory_concat_pages);
+        cuts_{std::move(cuts)},
+        param{std::move(_param)},
+        interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
+        sampler{std::make_unique<GradientBasedSampler>(
+            ctx, info.num_row_, batch_param, param.subsample, param.sampling_method,
+            batch_ptr_.size() > 2 && this->hist_param_->external_memory_concat_pages)} {
     if (!param.monotone_constraints.empty()) {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;

@@ -111,5 +111,12 @@ inline void NoOnHost(bool on_host) {
     LOG(FATAL) << "Caching on host memory is only available for GPU.";
   }
 }
+
+inline void NoPageConcat(bool concat_pages) {
+  if (concat_pages) {
+    LOG(FATAL) << "`external_memory_concat_pages` must be false when there's no sampling or when "
+                  "it's running on the CPU.";
+  }
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

@@ -321,9 +321,7 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
 
   if (!is_sampling) {
     strategy_.reset(new NoSampling{});
-    if (concat_pages) {
-      LOG(FATAL) << "`external_memory_concat_pages` must be false when there's no sampling.";
-    }
+    error::NoPageConcat(concat_pages);
     return;
   }
 

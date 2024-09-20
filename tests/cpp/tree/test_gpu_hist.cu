@@ -228,11 +228,12 @@ TEST(GpuHist, MaxDepth) {
   ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
 }
 
-TEST(GpuHist, PageConcatChanged) {
+TEST(GpuHist, PageConcatConfig) {
   auto ctx = MakeCUDACtx(0);
   bst_idx_t n_samples = 64, n_features = 32;
   auto p_fmat = RandomDataGenerator{n_samples, n_features, 0}.Batches(2).GenerateSparsePageDMatrix(
       "temp", true);
+
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
   learner->SetParam("device", ctx.DeviceName());
   learner->SetParam("external_memory_concat_pages", "true");
@@ -244,6 +245,26 @@ TEST(GpuHist, PageConcatChanged) {
   learner->Configure();
   // GPU Hist rebuilds the updater after configuration. Training continues
   learner->UpdateOneIter(1, p_fmat);
+
+  learner->SetParam("external_memory_concat_pages", "true");
+  learner->SetParam("subsample", "1.0");
+  ASSERT_THAT([&] { learner->UpdateOneIter(2, p_fmat); },
+              GMockThrow("external_memory_concat_pages"));
+
+  // Throws error on CPU.
+  {
+    auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
+    learner->SetParam("external_memory_concat_pages", "true");
+    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); },
+                GMockThrow("external_memory_concat_pages"));
+  }
+  {
+    auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
+    learner->SetParam("external_memory_concat_pages", "true");
+    learner->SetParam("tree_method", "approx");
+    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); },
+                GMockThrow("external_memory_concat_pages"));
+  }
 }
 
 namespace {
