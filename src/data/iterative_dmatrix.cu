@@ -68,7 +68,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     dh::device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
     cuda_impl::Dispatch(proxy, [=](auto const& value) {
-      return GetRowCounts(value, row_counts_span, dh::GetDevice(ctx), missing);
+      return GetRowCounts(ctx, value, row_counts_span, dh::GetDevice(ctx), missing);
     });
     auto is_dense = this->IsDense();
 

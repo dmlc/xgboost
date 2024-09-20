@@ -10,9 +10,9 @@
 
 namespace xgboost::data {
 void Cache::Commit() {
-  if (!written) {
-    std::partial_sum(offset.begin(), offset.end(), offset.begin());
-    written = true;
+  if (!this->written) {
+    std::partial_sum(this->offset.begin(), this->offset.end(), this->offset.begin());
+    this->written = true;
   }
 }
 

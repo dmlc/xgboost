@@ -33,9 +33,9 @@ void TestUpdatePositionBatch() {
   std::vector<int> extra_data = {0};
   // Send the first five training instances to the right node
   // and the second 5 to the left node
-  rp.UpdatePositionBatch({0}, {1}, {2}, extra_data, [=] __device__(RowPartitioner::RowIndexT ridx, int, int) {
-    return ridx > 4;
-  });
+  rp.UpdatePositionBatch(
+      &ctx, {0}, {1}, {2}, extra_data,
+      [=] __device__(RowPartitioner::RowIndexT ridx, int, int) { return ridx > 4; });
   rows = rp.GetRowsHost(1);
   for (auto r : rows) {
     EXPECT_GT(r, 4);
@@ -46,9 +46,9 @@ void TestUpdatePositionBatch() {
   }
 
   // Split the left node again
-  rp.UpdatePositionBatch({1}, {3}, {4}, extra_data,[=] __device__(RowPartitioner::RowIndexT ridx, int, int) {
-    return ridx < 7;
-  });
+  rp.UpdatePositionBatch(
+      &ctx, {1}, {3}, {4}, extra_data,
+      [=] __device__(RowPartitioner::RowIndexT ridx, int, int) { return ridx < 7; });
   EXPECT_EQ(rp.GetRows(3).size(), 2);
   EXPECT_EQ(rp.GetRows(4).size(), 3);
 }
@@ -56,6 +56,7 @@ void TestUpdatePositionBatch() {
 TEST(RowPartitioner, Batch) { TestUpdatePositionBatch(); }
 
 void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Segment>& segments) {
+  auto ctx = MakeCUDACtx(0);
   thrust::device_vector<cuda_impl::RowIndexT> ridx = ridx_in;
   thrust::device_vector<cuda_impl::RowIndexT> ridx_tmp(ridx_in.size());
   thrust::device_vector<cuda_impl::RowIndexT> counts(segments.size());
@@ -74,7 +75,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
                                 h_batch_info.size() * sizeof(PerNodeData<int>), cudaMemcpyDefault,
                                 nullptr));
   dh::DeviceUVector<int8_t> tmp;
-  SortPositionBatch<decltype(op), int>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx),
+  SortPositionBatch<decltype(op), int>(&ctx, dh::ToSpan(d_batch_info), dh::ToSpan(ridx),
                                        dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows, op,
                                        &tmp);
 
@@ -145,7 +146,7 @@ void TestExternalMemory() {
     std::vector<RegTree::Node> splits{tree[0]};
     auto acc = page.Impl()->GetDeviceAccessor(&ctx);
     partitioners.back()->UpdatePositionBatch(
-        {0}, {1}, {2}, splits,
+        &ctx, {0}, {1}, {2}, splits,
         [=] __device__(bst_idx_t ridx, std::int32_t nidx_in_batch, RegTree::Node const& node) {
           auto fvalue = acc.GetFvalue(ridx, node.SplitIndex());
           return fvalue <= node.SplitCond();

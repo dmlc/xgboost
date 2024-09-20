@@ -24,16 +24,20 @@ __host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
 }
 
+XGBOOST_DEV_INLINE bst_feature_t FeatIdx(FeatureGroup const& group, bst_idx_t idx,
+                                         std::int32_t feature_stride) {
+  auto fidx = group.start_feature + idx % feature_stride;
+  return fidx;
+}
+
 XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackDeviceAccessor const& matrix,
-                                     RowPartitioner::RowIndexT ridx, FeatureGroup const& group,
-                                     bst_idx_t idx, std::int32_t feature_stride) {
+                                     RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
   // ridx_local = ridx - base_rowid  <== Row index local to each batch
   // entry_idx = ridx_local * row_stride <== Starting entry index for this row in the matrix
   // entry_idx += start_feature  <== Inside a row, first column inside this feature group
   // idx % feature_stride <== The feaature index local to the current feature group
   // entry_idx += idx % feature_stride <== Final index.
-  return (ridx - matrix.base_rowid) * matrix.row_stride + group.start_feature +
-         idx % feature_stride;
+  return (ridx - matrix.base_rowid) * matrix.row_stride + fidx;
 }
 }  // anonymous namespace
 
@@ -134,7 +138,7 @@ XGBOOST_DEV_INLINE void AtomicAddGpairGlobal(xgboost::GradientPairInt64* dest,
             *reinterpret_cast<uint64_t*>(&h));
 }
 
-template <int kBlockThreads, int kItemsPerThread,
+template <bool kIsDense, int kBlockThreads, int kItemsPerThread,
           int kItemsPerTile = kBlockThreads * kItemsPerThread>
 class HistogramAgent {
   GradientPairInt64* smem_arr_;
@@ -159,7 +163,7 @@ class HistogramAgent {
         d_ridx_(d_ridx.data()),
         group_(group),
         matrix_(matrix),
-        feature_stride_(matrix.is_dense ? group.num_features : matrix.row_stride),
+        feature_stride_(kIsDense ? group.num_features : matrix.row_stride),
         n_elements_(feature_stride_ * d_ridx.size()),
         rounding_(rounding),
         d_gpair_(d_gpair) {}
@@ -169,12 +173,19 @@ class HistogramAgent {
          idx < std::min(offset + kBlockThreads * kItemsPerTile, n_elements_);
          idx += kBlockThreads) {
       Idx ridx = d_ridx_[idx / feature_stride_];
-      bst_bin_t gidx = matrix_.gidx_iter[IterIdx(matrix_, ridx, group_, idx, feature_stride_)];
-      if (matrix_.is_dense || gidx != matrix_.NullValue()) {
+      auto fidx = FeatIdx(group_, idx, feature_stride_);
+      bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
+      if (kIsDense || compressed_bin != matrix_.NullValue()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
         // Subtract start_bin to write to group-local histogram. If this is not a dense
         // matrix, then start_bin is 0 since featuregrouping doesn't support sparse data.
-        AtomicAddGpairShared(smem_arr_ + gidx - group_.start_bin, adjusted);
+        if (kIsDense) {
+          AtomicAddGpairShared(
+              smem_arr_ + compressed_bin + this->matrix_.feature_segments[fidx] - group_.start_bin,
+              adjusted);
+        } else {
+          AtomicAddGpairShared(smem_arr_ + compressed_bin - group_.start_bin, adjusted);
+        }
       }
     }
   }
@@ -185,7 +196,7 @@ class HistogramAgent {
   __device__ void ProcessFullTileShared(std::size_t offset) {
     std::size_t idx[kItemsPerThread];
     Idx ridx[kItemsPerThread];
-    int gidx[kItemsPerThread];
+    bst_bin_t gidx[kItemsPerThread];
     GradientPair gpair[kItemsPerThread];
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
@@ -198,11 +209,17 @@ class HistogramAgent {
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
       gpair[i] = d_gpair_[ridx[i]];
-      gidx[i] = matrix_.gidx_iter[IterIdx(matrix_, ridx[i], group_, idx[i], feature_stride_)];
+      auto fidx = FeatIdx(group_, idx[i], feature_stride_);
+      if (kIsDense) {
+        gidx[i] =
+            matrix_.gidx_iter[IterIdx(matrix_, ridx[i], fidx)] + matrix_.feature_segments[fidx];
+      } else {
+        gidx[i] = matrix_.gidx_iter[IterIdx(matrix_, ridx[i], fidx)];
+      }
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
-      if ((matrix_.is_dense || gidx[i] != matrix_.NullValue())) {
+      if ((kIsDense || gidx[i] != matrix_.NullValue())) {
         auto adjusted = rounding_.ToFixedPoint(gpair[i]);
         AtomicAddGpairShared(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
       }
@@ -229,16 +246,22 @@ class HistogramAgent {
   __device__ void BuildHistogramWithGlobal() {
     for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), n_elements_)) {
       Idx ridx = d_ridx_[idx / feature_stride_];
-      bst_bin_t gidx = matrix_.gidx_iter[IterIdx(matrix_, ridx, group_, idx, feature_stride_)];
-      if (matrix_.is_dense || gidx != matrix_.NullValue()) {
+      auto fidx = FeatIdx(group_, idx, feature_stride_);
+      bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
+      if (kIsDense || compressed_bin != matrix_.NullValue()) {
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
-        AtomicAddGpairGlobal(d_node_hist_ + gidx, adjusted);
+        if (kIsDense) {
+          auto start_bin = this->matrix_.feature_segments[fidx];
+          AtomicAddGpairGlobal(d_node_hist_ + compressed_bin + start_bin, adjusted);
+        } else {
+          AtomicAddGpairGlobal(d_node_hist_ + compressed_bin, adjusted);
+        }
       }
     }
   }
 };
 
-template <bool use_shared_memory_histograms, int kBlockThreads, int kItemsPerThread>
+template <bool kIsDense, bool use_shared_memory_histograms, int kBlockThreads, int kItemsPerThread>
 __global__ void __launch_bounds__(kBlockThreads)
     SharedMemHistKernel(const EllpackDeviceAccessor matrix,
                         const FeatureGroupsAccessor feature_groups,
@@ -249,8 +272,8 @@ __global__ void __launch_bounds__(kBlockThreads)
   extern __shared__ char smem[];
   const FeatureGroup group = feature_groups[blockIdx.y];
   auto smem_arr = reinterpret_cast<GradientPairInt64*>(smem);
-  auto agent = HistogramAgent<kBlockThreads, kItemsPerThread>(smem_arr, d_node_hist, group, matrix,
-                                                              d_ridx, rounding, d_gpair);
+  auto agent = HistogramAgent<kIsDense, kBlockThreads, kItemsPerThread>(
+      smem_arr, d_node_hist, group, matrix, d_ridx, rounding, d_gpair);
   if (use_shared_memory_histograms) {
     agent.BuildHistogramWithShared();
   } else {
@@ -265,11 +288,22 @@ constexpr std::int32_t ItemsPerTile() { return kBlockThreads * kItemsPerThread; 
 }  // namespace
 
 // Use auto deduction guide to workaround compiler error.
-template <auto Global = SharedMemHistKernel<false, kBlockThreads, kItemsPerThread>,
-          auto Shared = SharedMemHistKernel<true, kBlockThreads, kItemsPerThread>>
+template <auto GlobalDense = SharedMemHistKernel<true, false, kBlockThreads, kItemsPerThread>,
+          auto Global = SharedMemHistKernel<false, false, kBlockThreads, kItemsPerThread>,
+          auto SharedDense = SharedMemHistKernel<true, true, kBlockThreads, kItemsPerThread>,
+          auto Shared = SharedMemHistKernel<false, true, kBlockThreads, kItemsPerThread>>
 struct HistogramKernel {
-  decltype(Global) global_kernel{SharedMemHistKernel<false, kBlockThreads, kItemsPerThread>};
-  decltype(Shared) shared_kernel{SharedMemHistKernel<true, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with dense Ellpack using the global memory.
+  decltype(Global) global_dense_kernel{
+      SharedMemHistKernel<true, false, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with sparse Ellpack using the global memory.
+  decltype(Global) global_kernel{SharedMemHistKernel<false, false, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with dense Ellpack using the shared memory.
+  decltype(Shared) shared_dense_kernel{
+      SharedMemHistKernel<true, true, kBlockThreads, kItemsPerThread>};
+  // Kernel for working with sparse Ellpack using the shared memory.
+  decltype(Shared) shared_kernel{SharedMemHistKernel<false, true, kBlockThreads, kItemsPerThread>};
+
   bool shared{false};
   std::uint32_t grid_size{0};
   std::size_t smem_size{0};
@@ -303,28 +337,30 @@ struct HistogramKernel {
       // maximum number of blocks
       this->grid_size = n_blocks_per_mp * n_mps;
     };
-
-    init(this->global_kernel);
-    init(this->shared_kernel);
+    // Initialize all kernel instantiations
+    for (auto& kernel : {global_dense_kernel, global_kernel, shared_dense_kernel, shared_kernel}) {
+      init(kernel);
+    }
   }
 };
 
 class DeviceHistogramBuilderImpl {
   std::unique_ptr<HistogramKernel<>> kernel_{nullptr};
-  bool force_global_memory_{false};
 
  public:
   void Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
              bool force_global_memory) {
     this->kernel_ = std::make_unique<HistogramKernel<>>(ctx, feature_groups, force_global_memory);
-    this->force_global_memory_ = force_global_memory;
+    if (force_global_memory) {
+      CHECK(!this->kernel_->shared);
+    }
   }
 
   void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const cuda_impl::RowIndexT> d_ridx,
-                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding) {
+                      common::Span<GradientPairInt64> histogram, GradientQuantiser rounding) const {
     CHECK(kernel_);
     // Otherwise launch blocks such that each block has a minimum amount of work to do
     // There are fixed costs to launching each block, e.g. zeroing shared memory
@@ -338,17 +374,26 @@ class DeviceHistogramBuilderImpl {
     auto constexpr kMinItemsPerBlock = ItemsPerTile();
     auto grid_size = std::min(kernel_->grid_size, static_cast<std::uint32_t>(common::DivRoundUp(
                                                       items_per_group, kMinItemsPerBlock)));
+    auto launcher = [&](auto kernel) {
+      dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
+                       static_cast<uint32_t>(kBlockThreads), kernel_->smem_size, ctx->Stream()}(
+          kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
+    };
 
-    if (this->force_global_memory_ || !this->kernel_->shared) {
-      dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
-                       static_cast<uint32_t>(kBlockThreads), kernel_->smem_size,
-                       ctx->Stream()}(kernel_->global_kernel, matrix, feature_groups, d_ridx,
-                                      histogram.data(), gpair.data(), rounding);
+    if (!this->kernel_->shared) {
+      CHECK_EQ(this->kernel_->smem_size, 0);
+      if (matrix.is_dense) {
+        launcher(this->kernel_->global_dense_kernel);
+      } else {
+        launcher(this->kernel_->global_kernel);
+      }
     } else {
-      dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
-                       static_cast<uint32_t>(kBlockThreads), kernel_->smem_size,
-                       ctx->Stream()}(kernel_->shared_kernel, matrix, feature_groups, d_ridx,
-                                      histogram.data(), gpair.data(), rounding);
+      CHECK_NE(this->kernel_->smem_size, 0);
+      if (matrix.is_dense) {
+        launcher(this->kernel_->shared_dense_kernel);
+      } else {
+        launcher(this->kernel_->shared_kernel);
+      }
     }
   }
 };

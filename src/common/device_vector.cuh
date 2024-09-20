@@ -177,8 +177,10 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     pointer thrust_ptr;
     if (use_cub_allocator_) {
       T *raw_ptr{nullptr};
+      // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
       auto errc = GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
                                                              n * sizeof(T));
+      // NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
       if (errc != cudaSuccess) {
         detail::ThrowOOMError("Caching allocator", n * sizeof(T));
       }
@@ -290,13 +292,13 @@ LoggingResource *GlobalLoggingResource();
 /**
  * @brief Container class that doesn't initialize the data when RMM is used.
  */
-template <typename T>
-class DeviceUVector {
+template <typename T, bool is_caching>
+class DeviceUVectorImpl {
  private:
 #if defined(XGBOOST_USE_RMM)
   rmm::device_uvector<T> data_{0, rmm::cuda_stream_per_thread, GlobalLoggingResource()};
 #else
-  ::dh::device_vector<T> data_;
+  std::conditional_t<is_caching, ::dh::caching_device_vector<T>, ::dh::device_vector<T>> data_;
 #endif  // defined(XGBOOST_USE_RMM)
 
  public:
@@ -307,12 +309,12 @@ class DeviceUVector {
   using const_reference = value_type const &;  // NOLINT
 
  public:
-  DeviceUVector() = default;
-  explicit DeviceUVector(std::size_t n) { this->resize(n); }
-  DeviceUVector(DeviceUVector const &that) = delete;
-  DeviceUVector &operator=(DeviceUVector const &that) = delete;
-  DeviceUVector(DeviceUVector &&that) = default;
-  DeviceUVector &operator=(DeviceUVector &&that) = default;
+  DeviceUVectorImpl() = default;
+  explicit DeviceUVectorImpl(std::size_t n) { this->resize(n); }
+  DeviceUVectorImpl(DeviceUVectorImpl const &that) = delete;
+  DeviceUVectorImpl &operator=(DeviceUVectorImpl const &that) = delete;
+  DeviceUVectorImpl(DeviceUVectorImpl &&that) = default;
+  DeviceUVectorImpl &operator=(DeviceUVectorImpl &&that) = default;
 
   void resize(std::size_t n) {  // NOLINT
 #if defined(XGBOOST_USE_RMM)
@@ -356,4 +358,10 @@ class DeviceUVector {
   [[nodiscard]] auto data() { return thrust::raw_pointer_cast(data_.data()); }        // NOLINT
   [[nodiscard]] auto data() const { return thrust::raw_pointer_cast(data_.data()); }  // NOLINT
 };
+
+template <typename T>
+using DeviceUVector = DeviceUVectorImpl<T, false>;
+
+template <typename T>
+using CachingDeviceUVector = DeviceUVectorImpl<T, true>;
 }  // namespace dh
