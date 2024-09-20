@@ -8,11 +8,9 @@ infeasible. Staring from 1.5, users can define a custom iterator to load data in
 for running XGBoost algorithms. External memory can be used for both training and
 prediction, but training is the primary use case and it will be our focus in this
 tutorial. For prediction and evaluation, users can iterate through the data themselves
-while training requires the full dataset to be loaded into the memory.
-
-During training, there are two different modes for external memory support available in
-XGBoost, one for CPU-based algorithms like ``hist`` and ``approx``, another one for the
-GPU-based training algorithm. We will introduce them in the following sections.
+while training requires the full dataset to be loaded into the memory. Significant
+progress was made in 3.0 release for the GPU implementation, we will introduce the
+difference between CPU and GPU in following sections.
 
 .. note::
 
@@ -20,16 +18,18 @@ GPU-based training algorithm. We will introduce them in the following sections.
 
 .. note::
 
-   The feature is still experimental as of 2.0. The performance is not well optimized.
+   The feature is considered experimental but ready for public testing in 3.0. Vector-leaf
+   is not yet supported.
 
-The external memory support has gone through multiple iterations and is still under heavy
-development. Like the :py:class:`~xgboost.QuantileDMatrix` with
-:py:class:`~xgboost.DataIter`, XGBoost loads data batch-by-batch using a custom iterator
-supplied by the user. However, unlike the :py:class:`~xgboost.QuantileDMatrix`, external
-memory will not concatenate the batches unless GPU is used (it uses a hybrid approach,
-more details follow). Instead, it will cache all batches on the external memory and fetch
-them on-demand.  Go to the end of the document to see a comparison between
-:py:class:`~xgboost.QuantileDMatrix` and external memory.
+The external memory support has gone through multiple iterations. Like the
+:py:class:`~xgboost.QuantileDMatrix` with :py:class:`~xgboost.DataIter`, XGBoost loads
+data batch-by-batch using a custom iterator supplied by the user. However, unlike the
+:py:class:`~xgboost.QuantileDMatrix`, external memory will not concatenate the batches
+unless this is explicitly specified by setting ``external_memory_concat_pages`` to true
+for the GPU implementation. Instead, it will cache all batches on an external memory and
+fetch them on-demand.  Go to the end of the document to see a comparison between
+:py:class:`~xgboost.QuantileDMatrix` and the external memory version of
+:py:class:`~xgboost.ExtMemQuantileDMatrix`.
 
 *************
 Data Iterator
@@ -40,7 +40,7 @@ interface.  There are some examples in the ``demo`` directory for quick start.  
 generalized version of text input external memory, where users no longer need to prepare a
 text file that XGBoost recognizes.  To enable the feature, users need to define a data
 iterator with 2 class methods: ``next`` and ``reset``, then pass it into the
-:py:class:`~xgboost.DMatrix` constructor.
+:py:class:`~xgboost.DMatrix` or the :py:class:`~xgboost.ExtMemQuantileDMatrix` constructor.
 
 .. code-block:: python
 
