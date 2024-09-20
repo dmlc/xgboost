@@ -148,19 +148,8 @@ class PoissonSampling : public thrust::binary_function<GradientPair, size_t, Gra
   CombineGradientPair combine_;
 };
 
-NoSampling::NoSampling(BatchParam batch_param) : batch_param_(std::move(batch_param)) {}
-
 GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair> gpair,
-                                       DMatrix* dmat) {
-  return {dmat, gpair};
-}
-
-ExternalMemoryNoSampling::ExternalMemoryNoSampling(BatchParam batch_param)
-    : batch_param_{std::move(batch_param)} {}
-
-GradientBasedSample ExternalMemoryNoSampling::Sample(Context const*,
-                                                     common::Span<GradientPair> gpair,
-                                                     DMatrix* p_fmat) {
+                                       DMatrix* p_fmat) {
   return {p_fmat, gpair};
 }
 
@@ -330,31 +319,33 @@ GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows
 
   bool is_sampling = subsample < 1.0;
 
-  if (is_sampling) {
-    switch (sampling_method) {
-      case TrainParam::kUniform:
-        if (concat_pages) {
-          strategy_.reset(new ExternalMemoryUniformSampling(n_rows, batch_param, subsample));
-        } else {
-          strategy_.reset(new UniformSampling(batch_param, subsample));
-        }
-        break;
-      case TrainParam::kGradientBased:
-        if (concat_pages) {
-          strategy_.reset(new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
-        } else {
-          strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
-        }
-        break;
-      default:
-        LOG(FATAL) << "unknown sampling method";
-    }
-  } else {
+  if (!is_sampling) {
+    strategy_.reset(new NoSampling{});
     if (concat_pages) {
-      strategy_.reset(new ExternalMemoryNoSampling(batch_param));
-    } else {
-      strategy_.reset(new NoSampling(batch_param));
+      LOG(FATAL) << "`external_memory_concat_pages` must be false when there's no sampling.";
     }
+    return;
+  }
+
+  switch (sampling_method) {
+    case TrainParam::kUniform: {
+      if (concat_pages) {
+        strategy_.reset(new ExternalMemoryUniformSampling(n_rows, batch_param, subsample));
+      } else {
+        strategy_.reset(new UniformSampling(batch_param, subsample));
+      }
+      break;
+    }
+    case TrainParam::kGradientBased: {
+      if (concat_pages) {
+        strategy_.reset(new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
+      } else {
+        strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "unknown sampling method";
   }
 }
 

@@ -189,19 +189,18 @@ struct GPUHistMakerDevice {
     auto const& info = p_fmat->Info();
 
     /**
-     * Backup the gradient
+     * Sampling
      */
-    dh::CUDAStream stream;
-    dh::CUDAEvent e;
-    e.Record(ctx_->CUDACtx()->Stream());
-    stream.Wait(e);
-    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair, stream.View());
-    e.Record(stream.View());
+    dh::CopyTo(dh_gpair->ConstDeviceSpan(), &this->d_gpair, ctx_->CUDACtx()->Stream());
+    auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
+    this->gpair = sample.gpair;
+    p_fmat = sample.p_fmat;
+    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     /**
      * Initialize the partitioners
      */
-    bool is_concat = this->hist_param_->external_memory_concat_pages;
+    bool is_concat = sampler->ConcatPages();
     std::size_t n_batches = is_concat ? 1 : p_fmat->NumBatches();
     std::vector<bst_idx_t> batch_ptr{this->batch_ptr_};
     if (is_concat) {
@@ -235,15 +234,6 @@ struct GPUHistMakerDevice {
     this->interaction_constraints.Reset(ctx_);
     this->evaluator_.Reset(this->ctx_, *cuts_, info.feature_types.ConstDeviceSpan(), info.num_col_,
                            this->param, info.IsColumnSplit());
-
-    /**
-     * Sampling
-     */
-    ctx_->CUDACtx()->Stream().Wait(e);
-    auto sample = this->sampler->Sample(ctx_, dh::ToSpan(d_gpair), p_fmat);
-    this->gpair = sample.gpair;
-    p_fmat = sample.p_fmat;
-    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     /**
      * Other initializations
