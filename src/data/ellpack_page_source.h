@@ -67,7 +67,15 @@ class EllpackFormatPolicy {
   using FormatT = EllpackPageRawFormat;
 
  public:
-  EllpackFormatPolicy() = default;
+  EllpackFormatPolicy() {
+    if (!has_hmm_) {
+      LOG(WARNING) << "CUDA heterogeneous memory management is not available, the overhead for "
+                      "iterating through external memory might be significant.";
+    } else if (!common::SupportsAts()) {
+      LOG(WARNING) << "CUDA address translation service is not available, the overhead for "
+                      "iterating through external memory might be significant.";
+    }
+  }
   // For testing with the HMM flag.
   explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}
 
@@ -135,6 +143,9 @@ class EllpackMmapStreamPolicy : public F<S> {
                                                       bst_idx_t length) const;
 };
 
+/**
+ * @brief Ellpack source with sparse pages as the underlying source.
+ */
 template <typename F>
 class EllpackPageSourceImpl : public PageSourceIncMixIn<EllpackPage, F> {
   using Super = PageSourceIncMixIn<EllpackPage, F>;
@@ -171,6 +182,9 @@ using EllpackPageHostSource =
 using EllpackPageSource =
     EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>;
 
+/**
+ * @brief Ellpack source directly interfaces with user-defined iterators.
+ */
 template <typename FormatCreatePolicy>
 class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, FormatCreatePolicy> {
   using Super = ExtQantileSourceMixin<EllpackPage, FormatCreatePolicy>;
@@ -201,6 +215,7 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
         info_{info},
         ext_info_{std::move(ext_info)},
         base_rows_{std::move(base_rows)} {
+    cuts->SetDevice(ctx->Device());
     this->SetCuts(std::move(cuts), ctx->Device());
     this->Fetch();
   }
