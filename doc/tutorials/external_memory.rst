@@ -221,7 +221,8 @@ Text File Inputs
 .. warning::
 
    This is the original form of external memory support before 1.5, users are encouraged
-   to use custom data iterator instead.
+   to use custom data iterator instead. The document here is used as a reference to the
+   deprecated file loader.
 
 There is no big difference between using external memory version of text input and the
 in-memory version.  The only difference is the filename format.
