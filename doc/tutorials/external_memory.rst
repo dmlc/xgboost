@@ -35,12 +35,11 @@ fetch them on-demand.  Go to the end of the document to see a comparison between
 Data Iterator
 *************
 
-Starting from XGBoost 1.5, users can define their own data loader using Python or C
-interface.  There are some examples in the ``demo`` directory for quick start.  This is a
-generalized version of text input external memory, where users no longer need to prepare a
-text file that XGBoost recognizes.  To enable the feature, users need to define a data
-iterator with 2 class methods: ``next`` and ``reset``, then pass it into the
-:py:class:`~xgboost.DMatrix` or the :py:class:`~xgboost.ExtMemQuantileDMatrix` constructor.
+Starting from XGBoost 1.5, users can define their own data loader using the Python or C
+interface. There are some examples in the ``demo`` directory for a quick start. To enable
+external memory training, users need to define a data iterator with 2 class methods:
+``next`` and ``reset``, then pass it into the :py:class:`~xgboost.DMatrix` or the
+:py:class:`~xgboost.ExtMemQuantileDMatrix` constructor.
 
 .. code-block:: python
 
@@ -79,59 +78,81 @@ iterator with 2 class methods: ``next`` and ``reset``, then pass it into the
       self._it = 0
 
   it = Iterator(["file_0.svm", "file_1.svm", "file_2.svm"])
-  Xy = xgboost.DMatrix(it)
 
-  # The ``approx`` also work, but with low performance. GPU implementation is different from CPU.
-  # as noted in following sections.
+  Xy = xgboost.ExtMemQuantileDMatrix(it)
   booster = xgboost.train({"tree_method": "hist"}, Xy)
 
+  # The ``approx`` tree method also work, but with lower performance and cannot be used
+  with the quantile DMatrix.
+
+  Xy = xgboost.DMatrix(it)
+  booster = xgboost.train({"tree_method": "approx"}, Xy)
 
 The above snippet is a simplified version of :ref:`sphx_glr_python_examples_external_memory.py`.
 For an example in C, please see ``demo/c-api/external-memory/``. The iterator is the
 common interface for using external memory with XGBoost, you can pass the resulting
 :py:class:`DMatrix` object for training, prediction, and evaluation.
 
+The :py:class:`ExtMemQuantileDMatrix` is an external memory version of the
+:py:class:`QuantileDMatrix`. They are specifically designed for the ``hist`` tree method
+for reduced memory usage and data loading overhead. See respective references for more
+info.
+
 It is important to set the batch size based on the memory available. A good starting point
 is to set the batch size to 10GB per batch if you have 64GB of memory. It is *not*
-recommended to set small batch sizes like 32 samples per batch, as this can seriously hurt
+recommended to set small batch sizes like 32 samples per batch, as this can severally hurt
 performance in gradient boosting.
-
-***********
-CPU Version
-***********
-
-In the previous section, we demonstrated how to train a tree-based model using the
-``hist`` tree method on a CPU. This method involves iterating through data batches stored
-in a cache during tree construction. For optimal performance, we recommend using the
-``grow_policy=depthwise`` setting, which allows XGBoost to build an entire layer of tree
-nodes with only a few batch iterations. Conversely, using the ``lossguide`` policy
-requires XGBoost to iterate over the data set for each tree node, resulting in slower
-performance.
-
-If external memory is used, the performance of CPU training is limited by IO
-(input/output) speed. This means that the disk IO speed primarily determines the training
-speed. During benchmarking, we used an NVMe connected to a PCIe-4 slot, other types of
-storage can be too slow for practical usage. In addition, your system may perform caching
-to reduce the overhead of file reading.
 
 **********************************
 GPU Version (GPU Hist tree method)
 **********************************
 
 External memory is supported by GPU algorithms (i.e. when ``device`` is set to
-``cuda``). However, the algorithm used for GPU is different from the one used for
-CPU. When training on a CPU, the tree method iterates through all batches from external
-memory for each step of the tree construction algorithm. On the other hand, the GPU
-algorithm uses a hybrid approach. It iterates through the data during the beginning of
-each iteration and concatenates all batches into one in GPU memory for performance
-reasons. To reduce overall memory usage, users can utilize subsampling. The GPU hist tree
-method supports `gradient-based sampling`, enabling users to set a low sampling rate
-without compromising accuracy.
+``cuda``). After 3.0, the default GPU implementation is similar to what the CPU version
+does. It also supports the use of :py:class:`~xgboost.ExtMemQuantileDMatrix` when the
+``hist`` tree method is employed. For a GPU device, the main memory is the device memory,
+whereas the external memory can be either a disk or the CPU memory. XGBoost stages the
+cache on CPU memory by default. Users can change the backing storage to disk by specifying
+the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using the disk is
+not recommended it's likely to be slower than using a CPU to train the models. The option
+is here for experimental purposes only.
+
+In addition, inputs to the :py:class:`~xgboost.DataIter` must also be on the GPU. This is
+a current limitation we aim to address in future releases.
+
+.. code-block:: python
+
+    Xy_train = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
+    Xy_valid = xgb.core.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
+    booster = xgb.train(
+	{
+	    "tree_method": "hist",
+	    "max_depth": 6,
+	    "max_bin": n_bins,
+	    "device": device,
+	},
+	Xy_train,
+	num_boost_round=n_rounds,
+	evals=[(Xy_train, "Train"), (Xy_valid, "Valid")]
+    )
+
+In addition to the batch-based data fetching, the GPU version supports concatenating
+batches into a single blob before training begins for performance reasons. For GPUs
+connected via PCIe instead of nvlink, the performance overhead with batch-based training
+is significant, particularly for non-dense data. Overall it can be at least five times
+slower than in-core training. Concatenating pages can be used to get the performance
+closer to in-core training. This option should be used in combination with subsampling to
+reduce the memory usage. During concatenation, subsampling removes a portion of samples
+and hence reduces the training dataset size. The GPU hist tree method supports
+`gradient-based sampling`, enabling users to set a low sampling rate without compromising
+accuracy. Before 3.0, concatenation with subsampling was the only option for GPU-based
+external memory. After 3.0, XGBoost uses the normal batch fetching as the default.
 
 .. code-block:: python
 
   param = {
-    ...
+    "device": "cuda",
+    "external_memory_concat_pages": true,
     'subsample': 0.2,
     'sampling_method': 'gradient_based',
   }
@@ -139,10 +160,34 @@ without compromising accuracy.
 For more information about the sampling algorithm and its use in external memory training,
 see `this paper <https://arxiv.org/abs/2005.09148>`_.
 
-.. warning::
 
-   When GPU is running out of memory during iteration on external memory, user might
-   receive a segfault instead of an OOM exception.
+**************
+Best Practices
+**************
+
+In the previous section, we demonstrated how to train a tree-based model with data resided
+on an external memory. This method involves iterating through data batches stored in a
+cache during tree construction. For optimal performance, we recommend using the
+``grow_policy=depthwise`` setting, which allows XGBoost to build an entire layer of tree
+nodes with only a few batch iterations. Conversely, using the ``lossguide`` policy
+requires XGBoost to iterate over the data set for each tree node, resulting in
+significantly slower performance.
+
+In addition, this ``hist`` tree method should be preferred over the ``approx`` tree method
+as the former doesn't recreate the histogram bins for every iteration. Creating the
+histogram bins requires loading the raw input data, which is expensive. The
+:py:class:`~xgboost.ExtMemQuantileDMatrix` designed for the ``hist`` tree method can be
+used to speed up the initial data construction and the evaluation significantly for
+external memory.
+
+When external memory is used, the performance of CPU training is limited by disk IO
+(input/output) speed. This means that the disk IO speed primarily determines the training
+speed. Similarly, the GPU performance is limited by PCIe bandwidth, assuming the CPU
+memory is used as a cache and address translation services (ATS) is not available.
+
+During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot, other types of
+storage can be too slow for practical usage. However, your system is likely to perform
+some caching to reduce the overhead of the file read. See following sections for remark.
 
 .. _ext_remarks:
 
@@ -193,7 +238,6 @@ training session might take a long time and you are using solutions like NVMe-oF
 recommend checkpointing your model periodically. Also, it's worth noting that most tests
 have been conducted on Linux distributions.
 
-
 Another important point to keep in mind is that creating the initial cache for XGBoost may
 take some time. The interface to external memory is through custom iterators, which we can
 not assume to be thread-safe. Therefore, initialization is performed sequentially. Using
@@ -206,13 +250,15 @@ Compared to the QuantileDMatrix
 
 Passing an iterator to the :py:class:`~xgboost.QuantileDMatrix` enables direct
 construction of :py:class:`~xgboost.QuantileDMatrix` with data chunks. On the other hand,
-if it's passed to :py:class:`~xgboost.DMatrix`, it instead enables the external memory
-feature. The :py:class:`~xgboost.QuantileDMatrix` concatenates the data on memory after
+if it's passed to the :py:class:`~xgboost.DMatrix` or the
+:py:class:`~xgboost.ExtMemQuantileDMatrix`, it instead enables the external memory
+feature. The :py:class:`~xgboost.QuantileDMatrix` concatenates the data in memory after
 compression and doesn't fetch data during training. On the other hand, the external memory
-:py:class:`~xgboost.DMatrix` fetches data batches from external memory on-demand.  Use the
-:py:class:`~xgboost.QuantileDMatrix` (with iterator if necessary) when you can fit most of
-your data in memory. The training would be an order of magnitude faster than using
-external memory.
+:py:class:`~xgboost.DMatrix` (:py:class:`~xgboost.ExtMemQuantileDMatrix`) fetches data
+batches from external memory on-demand.  Use the :py:class:`~xgboost.QuantileDMatrix`
+(with iterator if necessary) when you can fit most of your data in memory. For many
+platforms, the training speed can be an order of magnitude faster than using external
+memory.
 
 ****************
 Text File Inputs
@@ -225,7 +271,7 @@ Text File Inputs
    deprecated file loader.
 
 There is no big difference between using external memory version of text input and the
-in-memory version.  The only difference is the filename format.
+in-memory version of text input.  The only difference is the filename format.
 
 The external memory version takes in the following `URI
 <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>`_ format:

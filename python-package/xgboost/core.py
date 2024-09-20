@@ -524,9 +524,9 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         keep the cache.
 
     on_host :
-        Whether the data should be cached on host memory instead of harddrive when using
-        GPU with external memory. If set to true, then the "external memory" would
-        simply be CPU (host) memory.
+        Whether the data should be cached on the host memory instead of the harddrive
+        when using GPU with external memory. If set to true, then the "external memory"
+        would simply be the CPU (host) memory.
 
         .. versionadded:: 3.0.0
 
@@ -540,7 +540,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         self,
         cache_prefix: Optional[str] = None,
         release_data: bool = True,
-        on_host: bool = False,
+        on_host: bool = True,
     ) -> None:
         self.cache_prefix = cache_prefix
         self.on_host = on_host

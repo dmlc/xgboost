@@ -247,13 +247,16 @@ Parameters for Non-Exact Tree Methods
 
 * ``external_memory_concat_pages``, [default = ``false``]
 
-  This parameter is only used for the ``hist`` tree method with ``device=cuda``.
+  This parameter is only used for the ``hist`` tree method with ``device=cuda``. Before
+  3.0, pages were always concatenated.
 
   .. versionadded:: 3.0.0
 
   Whether the GPU-based ``hist`` tree method should concatenate the pages when training
-  with external memory. See :doc:`/tutorials/external_memory` for more information. Before
-  3.0, pages were always concatenated.
+  with external memory. For GPU devices that don't support address translation services,
+  external memory training can be expensive. This parameter can be used in combination
+  with subsampling to reduce overall memory usage without significant overhead.  See
+  :doc:`/tutorials/external_memory` for more information
 
 .. _cat-param:
 
