@@ -16,7 +16,8 @@
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs
 #include "../common/device_helpers.cuh"
-#include "../common/error_msg.h"  // for InplacePredictProxy
+#include "../common/error_msg.h"    // for InplacePredictProxy
+#include "../data/batch_utils.cuh"  // for StaticBatch
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
 #include "../data/proxy_dmatrix.h"
@@ -30,6 +31,8 @@
 
 namespace xgboost::predictor {
 DMLC_REGISTRY_FILE_TAG(gpu_predictor);
+
+using data::cuda_impl::StaticBatch;
 
 struct TreeView {
   RegTree::CategoricalSplitMatrix cats;
@@ -924,7 +927,7 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       bst_idx_t batch_offset = 0;
-      for (auto const& page : dmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
+      for (auto const& page : dmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         dmat->Info().feature_types.SetDevice(ctx_->Device());
         auto feature_types = dmat->Info().feature_types.ConstDeviceSpan();
         this->PredictInternal(page.Impl()->GetDeviceAccessor(ctx_, feature_types), d_model,
@@ -1067,7 +1070,7 @@ class GPUPredictor : public xgboost::Predictor {
             X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
       }
     } else {
-      for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
+      for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         EllpackDeviceAccessor acc{batch.Impl()->GetDeviceAccessor(ctx_)};
         auto X = EllpackLoader{acc, true, model.learner_model_param->num_feature, batch.Size(),
                                std::numeric_limits<float>::quiet_NaN()};
@@ -1137,7 +1140,7 @@ class GPUPredictor : public xgboost::Predictor {
             X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
       }
     } else {
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         auto impl = batch.Impl();
         auto acc = impl->GetDeviceAccessor(ctx_, p_fmat->Info().feature_types.ConstDeviceSpan());
         auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
@@ -1223,7 +1226,7 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       bst_idx_t batch_offset = 0;
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_)};
         auto grid = static_cast<std::uint32_t>(common::DivRoundUp(batch.Size(), kBlockThreads));
         launch(PredictLeafKernel<EllpackLoader, EllpackDeviceAccessor>, grid, data, batch_offset);

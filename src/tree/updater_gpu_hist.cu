@@ -21,6 +21,7 @@
 #include "../common/hist_util.h"        // for HistogramCuts
 #include "../common/random.h"           // for ColumnSampler, GlobalRandom
 #include "../common/timer.h"
+#include "../data/batch_utils.cuh"  // for StaticBatch
 #include "../data/ellpack_page.cuh"
 #include "../data/ellpack_page.h"
 #include "constraints.cuh"
@@ -50,11 +51,7 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 
 using cuda_impl::ApproxBatch;
 using cuda_impl::HistBatch;
-
-// Both the approx and hist initializes the DMatrix before creating the actual
-// implementation (InitDataOnce). Therefore, the `GPUHistMakerDevice` can use an empty
-// parameter to avoid any regen.
-using cuda_impl::StaticBatch;
+using data::cuda_impl::StaticBatch;
 
 // Extra data for each node that is passed to the update position function
 struct NodeSplitData {
