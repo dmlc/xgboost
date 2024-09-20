@@ -24,7 +24,7 @@ difference between CPU and GPU in following sections.
 The external memory support has gone through multiple iterations. Like the
 :py:class:`~xgboost.QuantileDMatrix` with :py:class:`~xgboost.DataIter`, XGBoost loads
 data batch-by-batch using a custom iterator supplied by the user. However, unlike the
-:py:class:`~xgboost.QuantileDMatrix`, external memory will not concatenate the batches
+:py:class:`~xgboost.QuantileDMatrix`, external memory does not concatenate the batches
 unless this is explicitly specified by setting ``external_memory_concat_pages`` to true
 for the GPU implementation. Instead, it will cache all batches on an external memory and
 fetch them on-demand.  Go to the end of the document to see a comparison between
@@ -35,7 +35,7 @@ fetch them on-demand.  Go to the end of the document to see a comparison between
 Data Iterator
 *************
 
-Starting from XGBoost 1.5, users can define their own data loader using the Python or C
+Starting with XGBoost 1.5, users can define their own data loader using the Python or C
 interface. There are some examples in the ``demo`` directory for a quick start. To enable
 external memory training, users need to define a data iterator with 2 class methods:
 ``next`` and ``reset``, then pass it into the :py:class:`~xgboost.DMatrix` or the
@@ -108,17 +108,17 @@ GPU Version (GPU Hist tree method)
 **********************************
 
 External memory is supported by GPU algorithms (i.e. when ``device`` is set to
-``cuda``). After 3.0, the default GPU implementation is similar to what the CPU version
-does. It also supports the use of :py:class:`~xgboost.ExtMemQuantileDMatrix` when the
-``hist`` tree method is employed. For a GPU device, the main memory is the device memory,
-whereas the external memory can be either a disk or the CPU memory. XGBoost stages the
-cache on CPU memory by default. Users can change the backing storage to disk by specifying
-the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using the disk is
-not recommended it's likely to be slower than using a CPU to train the models. The option
-is here for experimental purposes only.
+``cuda``). Starting with 3.0, the default GPU implementation is similar to what the CPU
+version does. It also supports the use of :py:class:`~xgboost.ExtMemQuantileDMatrix` when
+the ``hist`` tree method is employed. For a GPU device, the main memory is the device
+memory, whereas the external memory can be either a disk or the CPU memory. XGBoost stages
+the cache on CPU memory by default. Users can change the backing storage to disk by
+specifying the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using
+the disk is not recommended it's likely to make the GPU slower than using a CPU. The
+option is here for experimental purposes only.
 
-In addition, inputs to the :py:class:`~xgboost.DataIter` must also be on the GPU. This is
-a current limitation we aim to address in future releases.
+Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
+the GPU. This is a current limitation we aim to address in the future.
 
 .. code-block:: python
 
@@ -266,9 +266,8 @@ Text File Inputs
 
 .. warning::
 
-   This is the original form of external memory support before 1.5, users are encouraged
-   to use custom data iterator instead. The document here is used as a reference to the
-   deprecated file loader.
+   This is the original form of external memory support before 1.5 and is now deprecated,
+   users are encouraged to use custom data iterator instead.
 
 There is no big difference between using external memory version of text input and the
 in-memory version of text input.  The only difference is the filename format.

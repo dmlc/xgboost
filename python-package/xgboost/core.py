@@ -503,8 +503,8 @@ def _prediction_output(
 class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     """The interface for user defined data iterator. The iterator facilitates
     distributed training, :py:class:`QuantileDMatrix`, and external memory support using
-    :py:class:`DMatrix`. Most of time, users don't need to interact with this class
-    directly.
+    :py:class:`DMatrix` or :py:class:`ExtMemQuantileDMatrix`. Most of time, users don't
+    need to interact with this class directly.
 
     .. note::
 
@@ -524,9 +524,9 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         keep the cache.
 
     on_host :
-        Whether the data should be cached on the host memory instead of the harddrive
-        when using GPU with external memory. If set to true, then the "external memory"
-        would simply be the CPU (host) memory.
+        Whether the data should be cached on the host memory instead of the file system
+        when using GPU with external memory. When set to true (the default), the
+        "external memory" is the CPU (host) memory.
 
         .. versionadded:: 3.0.0
 
