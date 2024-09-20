@@ -91,13 +91,13 @@ void TestHostDeviceVector(size_t n, DeviceOrd device) {
 
 TEST(SyclHostDeviceVector, Basic) {
   size_t n = 1001;
-  DeviceOrd device = DeviceOrd::SyclDefault(0);
+  DeviceOrd device = DeviceOrd::SyclDefault();
   TestHostDeviceVector(n, device);
 }
 
 TEST(SyclHostDeviceVector, Copy) {
   size_t n = 1001;
-  auto device = DeviceOrd::SyclDefault(0);
+  auto device = DeviceOrd::SyclDefault();
 
   HostDeviceVector<int> v;
   {
@@ -116,7 +116,7 @@ TEST(SyclHostDeviceVector, Copy) {
 
 TEST(SyclHostDeviceVector, Fill) {
   size_t n = 1001;
-  auto device = DeviceOrd::SyclDefault(0);
+  auto device = DeviceOrd::SyclDefault();
 
   int val = 42;
   HostDeviceVector<int> v;
@@ -138,7 +138,7 @@ TEST(SyclHostDeviceVector, Fill) {
 TEST(SyclHostDeviceVector, Extend) {
   size_t n0 = 1001;
   size_t n1 = 17;
-  auto device = DeviceOrd::SyclDefault(0);
+  auto device = DeviceOrd::SyclDefault();
 
   int val = 42;
   HostDeviceVector<int> v0;
@@ -169,7 +169,7 @@ TEST(SyclHostDeviceVector, SetDevice) {
     h_vec[i] = i;
   }
   HostDeviceVector<int> vec (h_vec);
-  auto device = DeviceOrd::SyclDefault(0);
+  auto device = DeviceOrd::SyclDefault();
 
   vec.SetDevice(device);
   ASSERT_EQ(vec.Size(), h_vec.size());
@@ -185,7 +185,7 @@ TEST(SyclHostDeviceVector, SetDevice) {
 
 TEST(SyclHostDeviceVector, Span) {
   HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
-  vec.SetDevice(DeviceOrd::SyclDefault(0));
+  vec.SetDevice(DeviceOrd::SyclDefault());
   auto span = vec.DeviceSpan();
   ASSERT_EQ(vec.Size(), span.size());
   ASSERT_EQ(vec.DevicePointer(), span.data());
@@ -222,7 +222,7 @@ TEST(SyclHostDeviceVector, Resize) {
   };
   {
     HostDeviceVector<float> vec{1.0f, 2.0f, 3.0f, 4.0f};
-    vec.SetDevice(DeviceOrd::SyclDefault(0));
+    vec.SetDevice(DeviceOrd::SyclDefault());
     vec.ConstDeviceSpan();
     ASSERT_TRUE(vec.DeviceCanRead());
     ASSERT_FALSE(vec.DeviceCanWrite());
@@ -232,7 +232,7 @@ TEST(SyclHostDeviceVector, Resize) {
     check(vec);
   }
   {
-    HostDeviceVector<float> vec{{1.0f, 2.0f, 3.0f, 4.0f}, DeviceOrd::SyclDefault(0)};
+    HostDeviceVector<float> vec{{1.0f, 2.0f, 3.0f, 4.0f}, DeviceOrd::SyclDefault()};
     ASSERT_TRUE(vec.DeviceCanWrite());
     vec.Resize(7, 3.0f);
     ASSERT_TRUE(vec.DeviceCanWrite());

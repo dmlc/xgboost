@@ -218,8 +218,6 @@ class HostDeviceVectorImpl {
   }
 
   void SetDevice() {
-    CHECK_GE(device_.ordinal, 0);
-
     if (!qu_) {
       qu_ = device_manager_.GetQueue(device_);
     }
