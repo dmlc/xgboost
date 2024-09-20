@@ -8,7 +8,10 @@
 
 #include <memory>
 #include <utility>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-W#pragma-messages"
 #include "xgboost/host_device_vector.h"
+#pragma GCC diagnostic pop
 
 #include "../device_manager.h"
 #include "../data.h"
@@ -17,6 +20,7 @@ namespace xgboost {
 template <typename T>
 class HostDeviceVectorImpl {
   using DeviceStorage = sycl::USMVector<T, sycl::MemoryType::on_device>;
+
  public:
   explicit HostDeviceVectorImpl(size_t size, T v, DeviceOrd device) : device_(device) {
     if (device.IsSycl()) {
@@ -130,7 +134,7 @@ class HostDeviceVectorImpl {
 
   DeviceOrd Device() const { return device_; }
 
- T* DevicePointer() {
+  T* DevicePointer() {
     SyncDevice(GPUAccess::kWrite);
     return data_d_->Data();
   }

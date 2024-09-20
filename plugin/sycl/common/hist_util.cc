@@ -116,7 +116,8 @@ template<typename FPType, typename BinIdxType, bool isDense>
   const size_t nblocks = block_params.nblocks;
 
   GradientPairT* hist_buffer_data = hist_buffer->Data();
-  auto event_fill = qu->fill(hist_buffer_data, GradientPairT(0, 0), nblocks * nbins * 2, event_priv);
+  auto event_fill = qu->fill(hist_buffer_data, GradientPairT(0, 0),
+                             nblocks * nbins * 2, event_priv);
   auto event_main = qu->submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event_fill);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(nblocks, work_group_size),

@@ -40,11 +40,14 @@ namespace sycl {
         }
     } else {
         if (device_spec.IsSyclCPU()) {
-            queue_idx = device_register.devices.at(::sycl::queue(::sycl::cpu_selector_v).get_device());
+            auto device = ::sycl::queue(::sycl::cpu_selector_v).get_device();
+            queue_idx = device_register.devices.at(device);
         } else if (device_spec.IsSyclGPU()) {
-            queue_idx = device_register.devices.at(::sycl::queue(::sycl::gpu_selector_v).get_device());
+            auto device = ::sycl::queue(::sycl::gpu_selector_v).get_device();
+            queue_idx = device_register.devices.at(device);
         } else {
-            queue_idx = device_register.devices.at(::sycl::queue(::sycl::default_selector_v).get_device());
+            auto device = ::sycl::queue(::sycl::default_selector_v).get_device();
+            queue_idx = device_register.devices.at(device);
         }
     }
     return &(device_register.queues[queue_idx]);

@@ -360,7 +360,8 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
   if (is_first_group) {
     out_preds_buf_.ResizeNoCopy(qu_, buffer_size);
     out_pred_ptr = &out_preds(0);
-    event = qu_->memcpy(out_preds_buf_.Data(), out_pred_ptr, buffer_size * sizeof(bst_float), event);
+    event = qu_->memcpy(out_preds_buf_.Data(), out_pred_ptr,
+                        buffer_size * sizeof(bst_float), event);
   }
   auto* out_preds_buf_ptr = out_preds_buf_.Data();
 

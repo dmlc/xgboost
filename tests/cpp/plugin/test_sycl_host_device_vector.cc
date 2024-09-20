@@ -3,7 +3,10 @@
  */
 #include <gtest/gtest.h>
 #include <numeric>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <xgboost/host_device_vector.h>
+#pragma GCC diagnostic pop
 
 #include "sycl_helpers.h"
 
