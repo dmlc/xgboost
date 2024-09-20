@@ -252,11 +252,12 @@ Parameters for Non-Exact Tree Methods
 
   .. versionadded:: 3.0.0
 
-  Whether the GPU-based ``hist`` tree method should concatenate the pages when training
-  with external memory. For GPU devices that don't support address translation services,
-  external memory training can be expensive. This parameter can be used in combination
-  with subsampling to reduce overall memory usage without significant overhead.  See
-  :doc:`/tutorials/external_memory` for more information
+  Whether the GPU-based ``hist`` tree method should concatenate the training data into a
+  single batch instead of fetching data on-demand when external memory is used. For GPU
+  devices that don't support address translation services, external memory training can be
+  expensive. This parameter can be used in combination with subsampling to reduce overall
+  memory usage without significant overhead.  See :doc:`/tutorials/external_memory` for
+  more information
 
 .. _cat-param:
 

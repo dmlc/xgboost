@@ -114,8 +114,8 @@ the ``hist`` tree method is employed. For a GPU device, the main memory is the d
 memory, whereas the external memory can be either a disk or the CPU memory. XGBoost stages
 the cache on CPU memory by default. Users can change the backing storage to disk by
 specifying the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using
-the disk is not recommended it's likely to make the GPU slower than using a CPU. The
-option is here for experimental purposes only.
+the disk is not recommended it's likely to make the GPU slower than a CPU. The option is
+here for experimental purposes only.
 
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
 the GPU. This is a current limitation we aim to address in the future.
@@ -175,14 +175,14 @@ significantly slower performance.
 
 In addition, this ``hist`` tree method should be preferred over the ``approx`` tree method
 as the former doesn't recreate the histogram bins for every iteration. Creating the
-histogram bins requires loading the raw input data, which is expensive. The
+histogram bins requires loading the raw input data, which is prohibitively expensive. The
 :py:class:`~xgboost.ExtMemQuantileDMatrix` designed for the ``hist`` tree method can be
 used to speed up the initial data construction and the evaluation significantly for
 external memory.
 
 When external memory is used, the performance of CPU training is limited by disk IO
 (input/output) speed. This means that the disk IO speed primarily determines the training
-speed. Similarly, the GPU performance is limited by PCIe bandwidth, assuming the CPU
+speed. Similarly, the GPU performance is limited by the PCIe bandwidth, assuming the CPU
 memory is used as a cache and address translation services (ATS) is not available.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot, other types of
