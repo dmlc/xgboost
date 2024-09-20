@@ -228,6 +228,24 @@ TEST(GpuHist, MaxDepth) {
   ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
 }
 
+TEST(GpuHist, PageConcatChanged) {
+  auto ctx = MakeCUDACtx(0);
+  bst_idx_t n_samples = 64, n_features = 32;
+  auto p_fmat = RandomDataGenerator{n_samples, n_features, 0}.Batches(2).GenerateSparsePageDMatrix(
+      "temp", true);
+  auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
+  learner->SetParam("device", ctx.DeviceName());
+  learner->SetParam("external_memory_concat_pages", "true");
+  learner->SetParam("subsample", "0.8");
+  learner->Configure();
+
+  learner->UpdateOneIter(0, p_fmat);
+  learner->SetParam("external_memory_concat_pages", "false");
+  learner->Configure();
+  // GPU Hist rebuilds the updater after configuration. Training continues
+  learner->UpdateOneIter(1, p_fmat);
+}
+
 namespace {
 RegTree GetHistTree(Context const* ctx, DMatrix* dmat) {
   ObjInfo task{ObjInfo::kRegression};
