@@ -152,6 +152,7 @@ if __name__ == "__main__":
         from rmm.allocators.cupy import rmm_cupy_allocator
 
         # It's important to use RMM for GPU-based external memory for good performance.
+        # If XGBoost is not built with RMM support, a warning will be raised.
         mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
         rmm.mr.set_current_device_resource(mr)
         # Set the allocator for cupy as well.

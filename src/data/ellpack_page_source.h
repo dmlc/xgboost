@@ -10,7 +10,7 @@
 #include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../common/cuda_rt_utils.h"  // for SupportsPageableMem
+#include "../common/cuda_rt_utils.h"  // for SupportsPageableMem, SupportsAts
 #include "../common/hist_util.h"      // for HistogramCuts
 #include "ellpack_page.h"             // for EllpackPage
 #include "ellpack_page_raw_format.h"  // for EllpackPageRawFormat
@@ -68,12 +68,17 @@ class EllpackFormatPolicy {
 
  public:
   EllpackFormatPolicy() {
+    StringView msg{" The overhead of iterating through external memory might be significant."};
     if (!has_hmm_) {
-      LOG(WARNING) << "CUDA heterogeneous memory management is not available, the overhead for "
-                      "iterating through external memory might be significant.";
+      LOG(WARNING) << "CUDA heterogeneous memory management is not available." << msg;
     } else if (!common::SupportsAts()) {
-      LOG(WARNING) << "CUDA address translation service is not available, the overhead for "
-                      "iterating through external memory might be significant.";
+      LOG(WARNING) << "CUDA address translation service is not available." << msg;
+    }
+#if !defined(XGBOOST_USE_RMM)
+    LOG(WARNING) << "XGBoost is not built with RMM support." << msg;
+#endif
+    if (!GlobalConfigThreadLocalStore::Get()->use_rmm) {
+      LOG(WARNING) << "`use_rmm` is set to false." << msg;
     }
   }
   // For testing with the HMM flag.
