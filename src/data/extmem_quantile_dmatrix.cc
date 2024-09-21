@@ -13,6 +13,7 @@
 #include "proxy_dmatrix.h"          // for DataIterProxy, HostAdapterDispatch
 #include "quantile_dmatrix.h"       // for GetDataShape, MakeSketches
 #include "simple_batch_iterator.h"  // for SimpleBatchIteratorImpl
+#include "sparse_page_source.h"     // for MakeCachePrefix
 
 #if !defined(XGBOOST_USE_CUDA)
 #include "../common/common.h"  // for AssertGPUSupport
@@ -26,6 +27,7 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
                                              std::int32_t n_threads, std::string cache,
                                              bst_bin_t max_bin, bool on_host)
     : cache_prefix_{std::move(cache)}, on_host_{on_host} {
+  cache_prefix_ = MakeCachePrefix(cache_prefix_);
   auto iter = std::make_shared<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>>(
       iter_handle, reset, next);
   iter->Reset();

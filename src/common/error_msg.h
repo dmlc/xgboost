@@ -106,12 +106,6 @@ inline auto NoCategorical(std::string name) {
   return name + " doesn't support categorical features.";
 }
 
-inline void NoOnHost(bool on_host) {
-  if (on_host) {
-    LOG(FATAL) << "Caching on host memory is only available for GPU.";
-  }
-}
-
 inline void NoPageConcat(bool concat_pages) {
   if (concat_pages) {
     LOG(FATAL) << "`external_memory_concat_pages` must be false when there's no sampling or when "

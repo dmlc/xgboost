@@ -37,7 +37,8 @@ void TestSparseDMatrixLoadFile(Context const* ctx) {
                             data::fileiter::Next,
                             std::numeric_limits<float>::quiet_NaN(),
                             n_threads,
-                            tmpdir.path + "cache"};
+                            tmpdir.path + "cache",
+                            false};
   ASSERT_EQ(AllThreadsForTest(), m.Ctx()->Threads());
   ASSERT_EQ(m.Info().num_col_, 5);
   ASSERT_EQ(m.Info().num_row_, 64);
@@ -364,9 +365,9 @@ auto TestSparsePageDMatrixDeterminism(int32_t threads) {
   CreateBigTestData(filename, 1 << 16);
 
   data::FileIterator iter(filename + "?format=libsvm", 0, 1);
-  std::unique_ptr<DMatrix> sparse{
-      new data::SparsePageDMatrix{&iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
-                                  std::numeric_limits<float>::quiet_NaN(), threads, filename}};
+  std::unique_ptr<DMatrix> sparse{new data::SparsePageDMatrix{
+      &iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
+      std::numeric_limits<float>::quiet_NaN(), threads, filename, false}};
   CHECK(sparse->Ctx()->Threads() == threads || sparse->Ctx()->Threads() == AllThreadsForTest());
 
   DMatrixToCSR(sparse.get(), &sparse_data, &sparse_rptr, &sparse_cids);
