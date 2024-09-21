@@ -93,7 +93,8 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       selectedCols.append(col)
     }
     val input = dataset.select(selectedCols.toArray: _*)
-    estimator.repartitionIfNeeded(input)
+    val repartitioned = estimator.repartitionIfNeeded(input)
+    estimator.sortPartitionIfNeeded(repartitioned)
   }
 
   // visible for testing
