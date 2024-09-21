@@ -51,7 +51,8 @@ void QuantileHistMaker::SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>* pim
                 param_,
                 int_constraint_, dmat));
   if (collective::IsDistributed()) {
-    LOG(FATAL) << "Distributed mode is not yet upstreamed for sycl";
+    (*pimpl)->SetHistSynchronizer(new DistributedHistSynchronizer<GradientSumT>());
+    (*pimpl)->SetHistRowsAdder(new DistributedHistRowsAdder<GradientSumT>());
   } else {
     (*pimpl)->SetHistSynchronizer(new BatchHistSynchronizer<GradientSumT>());
     (*pimpl)->SetHistRowsAdder(new BatchHistRowsAdder<GradientSumT>());

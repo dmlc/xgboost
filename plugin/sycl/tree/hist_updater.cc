@@ -23,6 +23,30 @@ using ::sycl::ext::oneapi::minimum;
 using ::sycl::ext::oneapi::maximum;
 
 template <typename GradientSumT>
+void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
+                                            size_t nbins) {
+  if (reduce_buffer_.size() < sync_ids.size() * nbins) {
+    reduce_buffer_.resize(sync_ids.size() * nbins);
+  }
+  for (size_t i = 0; i < sync_ids.size(); i++) {
+    auto& this_hist = hist_[sync_ids[i]];
+    const GradientPairT* psrc = reinterpret_cast<const GradientPairT*>(this_hist.DataConst());
+    qu_.memcpy(reduce_buffer_.data() + i * nbins, psrc, nbins*sizeof(GradientPairT)).wait();
+  }
+
+  auto buffer_vec = linalg::MakeVec(reinterpret_cast<GradientSumT*>(reduce_buffer_.data()),
+                                    2 * nbins * sync_ids.size());
+  auto rc = collective::Allreduce(ctx_, buffer_vec, collective::Op::kSum);
+  SafeColl(rc);
+
+  for (size_t i = 0; i < sync_ids.size(); i++) {
+    auto& this_hist = hist_[sync_ids[i]];
+    GradientPairT* psrc = reinterpret_cast<GradientPairT*>(this_hist.Data());
+    qu_.memcpy(psrc, reduce_buffer_.data() + i * nbins, nbins*sizeof(GradientPairT)).wait();
+  }
+}
+
+template <typename GradientSumT>
 void HistUpdater<GradientSumT>::SetHistSynchronizer(
     HistSynchronizer<GradientSumT> *sync) {
   hist_synchronizer_.reset(sync);
@@ -492,6 +516,7 @@ void HistUpdater<GradientSumT>::InitData(
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     hist_.Init(qu_, nbins);
+    hist_local_worker_.Init(qu_, nbins);
 
     hist_buffer_.Init(qu_, nbins);
     size_t buffer_size = kBufferSize;
