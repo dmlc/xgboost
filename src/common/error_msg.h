@@ -108,8 +108,8 @@ inline auto NoCategorical(std::string name) {
 
 inline void NoPageConcat(bool concat_pages) {
   if (concat_pages) {
-    LOG(FATAL) << "`external_memory_concat_pages` must be false when there's no sampling or when "
-                  "it's running on the CPU.";
+    LOG(FATAL) << "`extmem_concat_pages` must be false when there's no sampling or when it's "
+                  "running on the CPU.";
   }
 }
 }  // namespace xgboost::error

@@ -85,7 +85,7 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
       [&] {
         GradientBasedSampler sampler(&ctx, kRows, param, kSubsample, TrainParam::kUniform, true);
       },
-      GMockThrow("external_memory_concat_pages"));
+      GMockThrow("extmem_concat_pages"));
 }
 
 TEST(GradientBasedSampler, UniformSampling) {

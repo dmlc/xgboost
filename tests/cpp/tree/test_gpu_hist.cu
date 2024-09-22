@@ -189,7 +189,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, kSubsample, kSamplingMethod,
-             kRows,true);
+             kRows, true);
 
   Json jtree{Object{}};
   Json jtree_ext{Object{}};
@@ -237,34 +237,31 @@ TEST(GpuHist, PageConcatConfig) {
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
   learner->SetParam("device", ctx.DeviceName());
-  learner->SetParam("external_memory_concat_pages", "true");
+  learner->SetParam("extmem_concat_pages", "true");
   learner->SetParam("subsample", "0.8");
   learner->Configure();
 
   learner->UpdateOneIter(0, p_fmat);
-  learner->SetParam("external_memory_concat_pages", "false");
+  learner->SetParam("extmem_concat_pages", "false");
   learner->Configure();
   // GPU Hist rebuilds the updater after configuration. Training continues
   learner->UpdateOneIter(1, p_fmat);
 
-  learner->SetParam("external_memory_concat_pages", "true");
+  learner->SetParam("extmem_concat_pages", "true");
   learner->SetParam("subsample", "1.0");
-  ASSERT_THAT([&] { learner->UpdateOneIter(2, p_fmat); },
-              GMockThrow("external_memory_concat_pages"));
+  ASSERT_THAT([&] { learner->UpdateOneIter(2, p_fmat); }, GMockThrow("extmem_concat_pages"));
 
   // Throws error on CPU.
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
-    learner->SetParam("external_memory_concat_pages", "true");
-    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); },
-                GMockThrow("external_memory_concat_pages"));
+    learner->SetParam("extmem_concat_pages", "true");
+    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_concat_pages"));
   }
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
-    learner->SetParam("external_memory_concat_pages", "true");
+    learner->SetParam("extmem_concat_pages", "true");
     learner->SetParam("tree_method", "approx");
-    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); },
-                GMockThrow("external_memory_concat_pages"));
+    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_concat_pages"));
   }
 }
 
