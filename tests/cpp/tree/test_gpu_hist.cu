@@ -23,7 +23,7 @@ namespace xgboost::tree {
 namespace {
 void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix* dmat,
                 RegTree* tree, HostDeviceVector<bst_float>* preds, float subsample,
-                const std::string& sampling_method, bst_bin_t max_bin) {
+                const std::string& sampling_method, bst_bin_t max_bin, bool concat_pages) {
   Args args{
       {"max_depth", "2"},
       {"max_bin", std::to_string(max_bin)},
@@ -32,6 +32,7 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
       {"reg_lambda", "0"},
       {"subsample", std::to_string(subsample)},
       {"sampling_method", sampling_method},
+      {"extmem_concat_pages", std::to_string(concat_pages)},
   };
   TrainParam param;
   param.UpdateAllowUnknown(args);
@@ -44,7 +45,7 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
   auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
-  if (subsample < 1.0 && !dmat->SingleColBlock()) {
+  if (subsample < 1.0 && !dmat->SingleColBlock() && concat_pages) {
     ASSERT_FALSE(hist_maker->UpdatePredictionCache(dmat, cache));
   } else {
     ASSERT_TRUE(hist_maker->UpdatePredictionCache(dmat, cache));
@@ -69,12 +70,12 @@ TEST(GpuHist, UniformSampling) {
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows, false);
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat.get(), &tree_sampling, &preds_sampling, kSubsample, "uniform",
-             kRows);
+             kRows, false);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -100,13 +101,13 @@ TEST(GpuHist, GradientBasedSampling) {
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows, false);
 
   // Build another tree using sampling.
   RegTree tree_sampling;
   HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat.get(), &tree_sampling, &preds_sampling, kSubsample,
-             "gradient_based", kRows);
+             "gradient_based", kRows, false);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -137,11 +138,11 @@ TEST(GpuHist, ExternalMemory) {
   // Build a tree using the in-memory DMatrix.
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, 1.0, "uniform", kRows, true);
   // Build another tree using multiple ELLPACK pages.
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, 1.0, "uniform", kRows);
+  UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, 1.0, "uniform", kRows, true);
 
   // Make sure the predictions are the same.
   auto preds_h = preds.ConstHostVector();
@@ -181,14 +182,14 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
 
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, ctx.Device());
-  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, kSubsample, kSamplingMethod, kRows);
+  UpdateTree(&ctx, &gpair, p_fmat.get(), &tree, &preds, kSubsample, kSamplingMethod, kRows, true);
 
   // Build another tree using multiple ELLPACK pages.
   common::GlobalRandom() = rng;
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, ctx.Device());
   UpdateTree(&ctx, &gpair, p_fmat_ext.get(), &tree_ext, &preds_ext, kSubsample, kSamplingMethod,
-             kRows);
+             kRows,true);
 
   Json jtree{Object{}};
   Json jtree_ext{Object{}};
