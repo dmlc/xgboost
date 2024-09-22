@@ -32,14 +32,17 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
       {"reg_lambda", "0"},
       {"subsample", std::to_string(subsample)},
       {"sampling_method", sampling_method},
-      {"extmem_concat_pages", std::to_string(concat_pages)},
   };
   TrainParam param;
   param.UpdateAllowUnknown(args);
 
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
-  hist_maker->Configure(Args{});
+  if (subsample < 1.0) {
+    hist_maker->Configure(Args{{"extmem_concat_pages", std::to_string(concat_pages)}});
+  } else {
+    hist_maker->Configure(Args{});
+  }
 
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},

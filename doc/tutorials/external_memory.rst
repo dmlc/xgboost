@@ -213,7 +213,7 @@ Best Practices
 **************
 
 In previous sections, we demonstrated how to train a tree-based model with data residing
-on an external memory and made recommendation for batch size. Here are some other
+on an external memory and made some recommendations for batch size. Here are some other
 configurations we find useful. The external memory feature involves iterating through data
 batches stored in a cache during tree construction. For optimal performance, we recommend
 using the ``grow_policy=depthwise`` setting, which allows XGBoost to build an entire layer
@@ -226,6 +226,14 @@ as the former doesn't recreate the histogram bins for every iteration. Creating 
 histogram bins requires loading the raw input data, which is prohibitively expensive. The
 :py:class:`~xgboost.ExtMemQuantileDMatrix` designed for the ``hist`` tree method can speed
 up the initial data construction and the evaluation significantly for external memory.
+
+Since the external memory implementation focuses on training where XGBoost needs to access
+the entire dataset, only the ``X`` is divided into batches while everything is
+concatenated. As a result, it's recommended for users to define their own management code
+to iterate through the data for inference, especially for SHAP value computation. The size
+of SHAP results can be larger than ``X``, making external memory in XGBoost less
+effective. Some frameworks like ``dask`` can help with the data chunking and iterate
+through the data for inference with memory spilling.
 
 When external memory is used, the performance of CPU training is limited by disk IO
 (input/output) speed. This means that the disk IO speed primarily determines the training
@@ -332,7 +340,7 @@ undergone multiple development iterations. Here's a brief summary of major chang
   zero-copy data fetching.
 - 3.0 reworked the GPU implementation to support caching data on the host and disk,
   introduced the :py:class:`~xgboost.ExtMemQuantileDMatrix` class, added quantile-based
-  objectives and SHAP values support.
+  objectives support.
 
 ****************
 Text File Inputs
