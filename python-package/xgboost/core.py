@@ -533,7 +533,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 
         .. warning::
 
-            This is still working in progress, not ready for test yet.
+            This is an experimental parameter.
 
     """
 
@@ -1681,9 +1681,12 @@ class QuantileDMatrix(DMatrix):
 class ExtMemQuantileDMatrix(DMatrix):
     """The external memory version of the :py:class:`QuantileDMatrix`.
 
+    See :doc:`/tutorials/external_memory` for explanation and usage examples, and
+    :py:class:`QuantileDMatrix` for parameter document.
+
     .. warning::
 
-        This is still working in progress, not ready for test yet.
+        This is an experimental feature.
 
     .. versionadded:: 3.0.0
 
@@ -1699,6 +1702,13 @@ class ExtMemQuantileDMatrix(DMatrix):
         ref: Optional[DMatrix] = None,
         enable_categorical: bool = False,
     ) -> None:
+        """
+        Parameters
+        ----------
+        data :
+            A user-defined :py:class:`DataIter` for loading data.
+
+        """
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else -1

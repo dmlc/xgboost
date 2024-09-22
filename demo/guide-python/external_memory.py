@@ -12,7 +12,7 @@ See :doc:`the tutorial </tutorials/external_memory>` for more details.
 
     .. versionchanged:: 3.0.0
 
-        Added :py:class:`xgboost.ExtMemQuantileDMatrix`.
+        Added :py:class:`~xgboost.ExtMemQuantileDMatrix`.
 
 """
 
