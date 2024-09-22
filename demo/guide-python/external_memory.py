@@ -53,8 +53,8 @@ class Iterator(xgboost.DataIter):
 
         self._file_paths = file_paths
         self._it = 0
-        # XGBoost will generate some cache files under current directory with the prefix
-        # "cache"
+        # XGBoost will generate some cache files under the current directory with the
+        # prefix "cache"
         super().__init__(cache_prefix=os.path.join(".", "cache"))
 
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -81,7 +81,7 @@ class Iterator(xgboost.DataIter):
             # return 0 to let XGBoost know this is the end of iteration
             return 0
 
-        # input_data is a function passed in by XGBoost who has the similar signature to
+        # input_data is a function passed in by XGBoost and has the similar signature to
         # the ``DMatrix`` constructor.
         X, y = self.load_file()
         input_data(data=X, label=y)
@@ -151,7 +151,7 @@ if __name__ == "__main__":
         import rmm
         from rmm.allocators.cupy import rmm_cupy_allocator
 
-        # It's important to use RMM for GPU-based external memory for good performance.
+        # It's important to use RMM for GPU-based external memory to improve performance.
         # If XGBoost is not built with RMM support, a warning will be raised.
         mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
         rmm.mr.set_current_device_resource(mr)

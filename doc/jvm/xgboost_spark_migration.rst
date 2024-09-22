@@ -55,9 +55,9 @@ When submitting the XGBoost application to the Spark cluster, you only need to s
       --jars xgboost-spark_2.12-3.0.0.jar \
       ... \
 
-**************
+***************
 XGBoost Ranking
-**************
+***************
 
 Learning to rank using XGBoostRegressor has been replaced by a dedicated `XGBoostRanker`, which is specifically designed
 to support ranking algorithms.

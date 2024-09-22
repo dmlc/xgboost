@@ -28,6 +28,10 @@ Core Data Structure
     :members:
     :show-inheritance:
 
+.. autoclass:: xgboost.ExtMemQuantileDMatrix
+    :members:
+    :show-inheritance:
+
 .. autoclass:: xgboost.Booster
     :members:
     :show-inheritance:
