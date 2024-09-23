@@ -146,9 +146,12 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
   workers.resize(comm.World());
   workers[BootstrapNext(comm.Rank(), comm.World())] = next;
   if (BootstrapNext(comm.Rank(), comm.World()) == BootstrapPrev(comm.Rank(), comm.World())) {
-    CHECK_EQ(comm.World(), 2);
     if (comm.Rank() == 0) {
-      workers[BootstrapNext(comm.Rank(), comm.World())] = prev;
+      if (comm.World() == 2) {
+        workers[BootstrapNext(comm.Rank(), comm.World())] = prev;
+      } else {
+        CHECK_EQ(comm.World(), 1);
+      }
     }
   } else {
     workers[BootstrapPrev(comm.Rank(), comm.World())] = prev;
