@@ -55,7 +55,6 @@ template <typename T>
   xgboost_NVTX_FN_RANGE();
   auto* impl = page->Impl();
 
-  impl->SetCuts(this->cuts_);
   RET_IF_NOT(fi->Read(&impl->n_rows));
   RET_IF_NOT(fi->Read(&impl->is_dense));
   RET_IF_NOT(fi->Read(&impl->row_stride));
@@ -66,6 +65,12 @@ template <typename T>
     RET_IF_NOT(common::ReadVec(fi, &impl->gidx_buffer));
   }
   RET_IF_NOT(fi->Read(&impl->base_rowid));
+  bst_idx_t n_symbols{0};
+  RET_IF_NOT(fi->Read(&n_symbols));
+  impl->SetNumSymbols(n_symbols);
+
+  impl->SetCuts(this->cuts_);
+
   dh::DefaultStream().Sync();
   return true;
 }
@@ -84,6 +89,8 @@ template <typename T>
   [[maybe_unused]] auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx_buffer);
   bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);
+  bytes += fo->Write(impl->NumSymbols());
+
   dh::DefaultStream().Sync();
   return bytes;
 }
@@ -93,9 +100,10 @@ template <typename T>
 
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
-  impl->SetCuts(this->cuts_);
 
   fi->Read(page, this->param_.prefetch_copy || !this->has_hmm_ats_);
+  impl->SetCuts(this->cuts_);
+
   dh::DefaultStream().Sync();
 
   return true;
@@ -108,8 +116,7 @@ template <typename T>
   fo->Write(page);
   dh::DefaultStream().Sync();
 
-  auto* impl = page.Impl();
-  return impl->MemCostBytes();
+  return page.Impl()->MemCostBytes();
 }
 
 #undef RET_IF_NOT

@@ -70,3 +70,28 @@ def test_extmem_qdm(
     n_samples_per_batch: int, n_features: int, n_batches: int, on_host: bool
 ) -> None:
     check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cuda", on_host)
+
+
+@given(
+    strategies.integers(1, 64),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_quantile_objective(
+    n_samples_per_batch: int, n_features: int, n_batches: int
+) -> None:
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "hist",
+        "cuda",
+    )
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "approx",
+        "cuda",
+    )

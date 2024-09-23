@@ -32,6 +32,33 @@ template void InitHist(::sycl::queue qu,
                        size_t size, ::sycl::event* event);
 
 /*!
+ * \brief Copy histogram from src to dst
+ */
+template<typename GradientSumT>
+void CopyHist(::sycl::queue qu,
+              GHistRow<GradientSumT, MemoryType::on_device>* dst,
+              const GHistRow<GradientSumT, MemoryType::on_device>& src,
+              size_t size) {
+  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst->Data());
+  const GradientSumT* psrc = reinterpret_cast<const GradientSumT*>(src.DataConst());
+
+  qu.submit([&](::sycl::handler& cgh) {
+    cgh.parallel_for<>(::sycl::range<1>(2 * size), [=](::sycl::item<1> pid) {
+      const size_t i = pid.get_id(0);
+      pdst[i] = psrc[i];
+    });
+  }).wait();
+}
+template void CopyHist(::sycl::queue qu,
+                       GHistRow<float, MemoryType::on_device>* dst,
+                       const GHistRow<float, MemoryType::on_device>& src,
+                       size_t size);
+template void CopyHist(::sycl::queue qu,
+                       GHistRow<double, MemoryType::on_device>* dst,
+                       const GHistRow<double, MemoryType::on_device>& src,
+                       size_t size);
+
+/*!
  * \brief Compute Subtraction: dst = src1 - src2
  */
 template<typename GradientSumT>

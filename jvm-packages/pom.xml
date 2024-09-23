@@ -46,7 +46,7 @@
         <use.cuda>OFF</use.cuda>
         <cudf.version>24.06.0</cudf.version>
         <spark.rapids.version>24.06.0</spark.rapids.version>
-        <cudf.classifier>cuda12</cudf.classifier>
+        <spark.rapids.classifier>cuda12</spark.rapids.classifier>
         <scalatest.version>3.2.19</scalatest.version>
         <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
         <skip.native.build>false</skip.native.build>

@@ -87,7 +87,10 @@ class HistUpdater {
 
  protected:
   friend class BatchHistSynchronizer<GradientSumT>;
+  friend class DistributedHistSynchronizer<GradientSumT>;
+
   friend class BatchHistRowsAdder<GradientSumT>;
+  friend class DistributedHistRowsAdder<GradientSumT>;
 
   struct SplitQuery {
     bst_node_t nid;
@@ -183,6 +186,8 @@ class HistUpdater {
                            RegTree* p_tree,
                            const USMVector<GradientPair, MemoryType::on_device>& gpair);
 
+  void ReduceHists(const std::vector<int>& sync_ids, size_t nbins);
+
   inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
     if (lhs.GetLossChange() == rhs.GetLossChange()) {
       return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
@@ -230,6 +235,8 @@ class HistUpdater {
   common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
   /*! \brief culmulative histogram of gradients. */
   common::HistCollection<GradientSumT, MemoryType::on_device> hist_;
+  /*! \brief culmulative local parent histogram of gradients. */
+  common::HistCollection<GradientSumT, MemoryType::on_device> hist_local_worker_;
 
   /*! \brief TreeNode Data: statistics for each constructed node */
   std::vector<NodeEntry<GradientSumT>> snode_host_;
@@ -257,6 +264,8 @@ class HistUpdater {
 
   USMVector<bst_float, MemoryType::on_device> out_preds_buf_;
   bst_float* out_pred_ptr = nullptr;
+
+  std::vector<GradientPairT> reduce_buffer_;
 
   ::sycl::queue qu_;
 };

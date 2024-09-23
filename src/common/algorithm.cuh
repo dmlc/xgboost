@@ -190,8 +190,7 @@ void SegmentedArgMergeSort(Context const *ctx, SegIt seg_begin, SegIt seg_end, V
 }
 
 template <bool accending, typename IdxT, typename U>
-void ArgSort(xgboost::Context const *ctx, xgboost::common::Span<U> keys,
-             xgboost::common::Span<IdxT> sorted_idx) {
+void ArgSort(Context const *ctx, Span<U> keys, Span<IdxT> sorted_idx) {
   std::size_t bytes = 0;
   auto cuctx = ctx->CUDACtx();
   dh::Iota(sorted_idx, cuctx->Stream());
@@ -271,6 +270,41 @@ void CopyIf(CUDAContext const *cuctx, InIt in_first, InIt in_second, OutIt out_f
     auto end_input = in_first + std::min(offset + kMaxCopySize, length);
     out_first = thrust::copy_if(cuctx->CTP(), begin_input, end_input, out_first, pred);
   }
+}
+
+// Go one level down into cub::DeviceScan API to set OffsetT as 64 bit So we don't crash
+// on n > 2^31.
+template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT, typename OffsetT>
+void InclusiveScan(xgboost::Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
+                   ScanOpT scan_op, OffsetT num_items) {
+  auto cuctx = ctx->CUDACtx();
+  std::size_t bytes = 0;
+#if THRUST_MAJOR_VERSION >= 2
+  dh::safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          nullptr, bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr)));
+#else
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          nullptr, bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr, false)));
+#endif
+  dh::TemporaryArray<char> storage(bytes);
+#if THRUST_MAJOR_VERSION >= 2
+  dh::safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          storage.data().get(), bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr)));
+#else
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          storage.data().get(), bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr,
+          false)));
+#endif
+}
+
+template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
+void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
+                  OffsetT num_items) {
+  InclusiveScan(ctx, d_in, d_out, cub::Sum{}, num_items);
 }
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_ALGORITHM_CUH_

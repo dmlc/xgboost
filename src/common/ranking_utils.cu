@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <thrust/functional.h>                  // for maximum
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
@@ -158,7 +158,7 @@ void RankingCache::InitOnCUDA(Context const* ctx, MetaInfo const& info) {
   auto d_threads_group_ptr = threads_group_ptr_.DeviceSpan();
   if (param_.HasTruncation()) {
     n_cuda_threads_ =
-        common::SegmentedTrapezoidThreads(d_group_ptr, d_threads_group_ptr, Param().NumPair());
+        common::SegmentedTrapezoidThreads(ctx, d_group_ptr, d_threads_group_ptr, Param().NumPair());
   } else {
     auto n_pairs = Param().NumPair();
     dh::LaunchN(n_groups, cuctx->Stream(),

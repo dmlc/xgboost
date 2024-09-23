@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -18,37 +18,39 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.{File, FileInputStream}
 
-import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-
+import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkContext
+import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
-import scala.math.min
-import scala.util.Random
 
-import org.apache.commons.io.IOUtils
+import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
+import ml.dmlc.xgboost4j.scala.spark.Utils.{withResource, XGBLabeledPointFeatures}
 
-trait PerTest extends BeforeAndAfterEach { self: AnyFunSuite =>
+trait PerTest extends BeforeAndAfterEach {
+  self: AnyFunSuite =>
 
-  protected val numWorkers: Int = min(Runtime.getRuntime.availableProcessors(), 4)
+  protected val numWorkers: Int = 4
 
   @transient private var currentSession: SparkSession = _
 
   def ss: SparkSession = getOrCreateSession
+
   implicit def sc: SparkContext = ss.sparkContext
 
   protected def sparkSessionBuilder: SparkSession.Builder = SparkSession.builder()
-      .master(s"local[${numWorkers}]")
-      .appName("XGBoostSuite")
-      .config("spark.ui.enabled", false)
-      .config("spark.driver.memory", "512m")
-      .config("spark.barrier.sync.timeout", 10)
-      .config("spark.task.cpus", 1)
+    .master(s"local[${numWorkers}]")
+    .appName("XGBoostSuite")
+    .config("spark.ui.enabled", false)
+    .config("spark.driver.memory", "512m")
+    .config("spark.barrier.sync.timeout", 10)
+    .config("spark.task.cpus", 1)
+    .config("spark.stage.maxConsecutiveAttempts", 1)
 
   override def beforeEach(): Unit = getOrCreateSession
 
-  override def afterEach() {
+  override def afterEach(): Unit = {
     if (currentSession != null) {
       currentSession.stop()
       cleanExternalCache(currentSession.sparkContext.appName)
@@ -74,41 +76,24 @@ trait PerTest extends BeforeAndAfterEach { self: AnyFunSuite =>
   protected def buildDataFrame(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val it = labeledPoints.iterator.zipWithIndex
       .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
-        (id, labeledPoint.label, labeledPoint.features)
+        (id, labeledPoint.label, labeledPoint.features, labeledPoint.weight)
       }
-
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
-      .toDF("id", "label", "features")
-  }
-
-  protected def buildDataFrameWithRandSort(
-      labeledPoints: Seq[XGBLabeledPoint],
-      numPartitions: Int = numWorkers): DataFrame = {
-    val df = buildDataFrame(labeledPoints, numPartitions)
-    val rndSortedRDD = df.rdd.mapPartitions { iter =>
-      iter.map(_ -> Random.nextDouble()).toList
-        .sortBy(_._2)
-        .map(_._1).iterator
-    }
-    ss.createDataFrame(rndSortedRDD, df.schema)
+      .toDF("id", "label", "features", "weight")
   }
 
   protected def buildDataFrameWithGroup(
       labeledPoints: Seq[XGBLabeledPoint],
       numPartitions: Int = numWorkers): DataFrame = {
-    import ml.dmlc.xgboost4j.scala.spark.util.DataUtils._
     val it = labeledPoints.iterator.zipWithIndex
       .map { case (labeledPoint: XGBLabeledPoint, id: Int) =>
-        (id, labeledPoint.label, labeledPoint.features, labeledPoint.group)
+        (id, labeledPoint.label, labeledPoint.features, labeledPoint.group, labeledPoint.weight)
       }
-
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
-      .toDF("id", "label", "features", "group")
+      .toDF("id", "label", "features", "group", "weight")
   }
-
 
   protected def compareTwoFiles(lhs: String, rhs: String): Boolean = {
     withResource(new FileInputStream(lhs)) { lfis =>
@@ -118,12 +103,32 @@ trait PerTest extends BeforeAndAfterEach { self: AnyFunSuite =>
     }
   }
 
-  /** Executes the provided code block and then closes the resource */
-  protected def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {
-    try {
-      block(r)
-    } finally {
-      r.close()
-    }
-  }
+  def smallBinaryClassificationVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
+    (0.0, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),
+    (0.0, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
+    (1.0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
+    (0.0, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
+    (1.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
+  ))).toDF("label", "margin", "weight", "features")
+
+  def smallMultiClassificationVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
+    (0.0, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),
+    (2.0, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
+    (1.0, 1.2, 0.2, Vectors.dense(2.0, 0.0, 4.0)),
+    (0.0, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
+    (2.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
+  ))).toDF("label", "margin", "weight", "features")
+
+
+  def smallGroupVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 0, 0.5, 2.0, Vectors.dense(1.0, 2.0, 3.0)),
+    (0.0, 1, 0.4, 1.0, Vectors.dense(0.0, 0.0, 0.0)),
+    (0.0, 1, 0.3, 1.0, Vectors.dense(0.0, 3.0, 0.0)),
+    (1.0, 0, 1.2, 2.0, Vectors.dense(2.0, 0.0, 4.0)),
+    (1.0, 2, -0.5, 3.0, Vectors.dense(0.2, 1.2, 2.0)),
+    (0.0, 2, -0.4, 3.0, Vectors.dense(0.5, 2.2, 1.7))
+  ))).toDF("label", "group", "margin", "weight", "features")
+
 }
