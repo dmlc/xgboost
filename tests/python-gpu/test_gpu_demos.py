@@ -32,6 +32,6 @@ def test_categorical_demo():
 @pytest.mark.skipif(**tm.no_rmm())
 @pytest.mark.skipif(**tm.no_cupy())
 def test_external_memory_demo():
-    script = os.path.join(PYTHON_DEMO_DIR, "categorical.py")
+    script = os.path.join(PYTHON_DEMO_DIR, "external_memory.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)
