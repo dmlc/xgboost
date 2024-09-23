@@ -16,18 +16,20 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import java.io.File
+
+import scala.collection.mutable.ArrayBuffer
+
 import ai.rapids.cudf.{OrderByArg, Table}
+import org.apache.spark.SparkConf
+import org.apache.spark.ml.linalg.DenseVector
+import org.apache.spark.sql.{Dataset, Row, SparkSession}
+
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.{DMatrix, QuantileDMatrix, XGBoost => ScalaXGBoost}
 import ml.dmlc.xgboost4j.scala.rapids.spark.GpuTestSuite
 import ml.dmlc.xgboost4j.scala.rapids.spark.SparkSessionHolder.withSparkSession
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
-import org.apache.spark.ml.linalg.DenseVector
-import org.apache.spark.sql.{Dataset, Row, SparkSession}
-import org.apache.spark.SparkConf
-
-import java.io.File
-import scala.collection.mutable.ArrayBuffer
 
 class GpuXGBoostPluginSuite extends GpuTestSuite {
 

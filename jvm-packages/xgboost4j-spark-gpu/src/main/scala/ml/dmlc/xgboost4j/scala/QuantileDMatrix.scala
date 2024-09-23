@@ -16,9 +16,9 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, XGBoostError, QuantileDMatrix => JQuantileDMatrix}
-
 import scala.collection.JavaConverters._
+
+import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, QuantileDMatrix => JQuantileDMatrix, XGBoostError}
 
 class QuantileDMatrix private[scala](
     private[scala] override val jDMatrix: JQuantileDMatrix) extends DMatrix(jDMatrix) {
