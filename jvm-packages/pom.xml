@@ -448,6 +448,19 @@
             <plugin>
                 <groupId>org.scalatest</groupId>
                 <artifactId>scalatest-maven-plugin</artifactId>
+                      <configuration>
+                        <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+                        <junitxml>.</junitxml>
+                        <filereports>XGBoostTestSuite.txt</filereports>
+                      </configuration>
+                      <executions>
+                        <execution>
+                          <id>test</id>
+                          <goals>
+                            <goal>test</goal>
+                          </goals>
+                        </execution>
+                      </executions>
             </plugin>
         </plugins>
         <extensions>
