@@ -157,6 +157,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   for (auto const& w : workers) {
     worker_error_handles_.emplace_back(w.Host(), w.ErrorPort());
   }
+  LOG(CONSOLE) << "[tracker]: Bootstrap " << workers.size() << " workers.";
   return Success();
 }
 
