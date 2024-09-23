@@ -81,23 +81,26 @@ class TestTreeMethod:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_pruner(self):
         import sklearn
-        params = {'tree_method': 'exact'}
+
+        params = {"tree_method": "exact"}
         cancer = sklearn.datasets.load_breast_cancer()
-        X = cancer['data']
+        X = cancer["data"]
         y = cancer["target"]
 
         dtrain = xgb.DMatrix(X, y)
         booster = xgb.train(params, dtrain=dtrain, num_boost_round=10)
         grown = str(booster.get_dump())
 
-        params = {'updater': 'prune', 'process_type': 'update', 'gamma': '0.2'}
-        booster = xgb.train(params, dtrain=dtrain, num_boost_round=10,
-                            xgb_model=booster)
+        params = {"updater": "prune", "process_type": "update", "gamma": "0.2"}
+        booster = xgb.train(
+            params, dtrain=dtrain, num_boost_round=10, xgb_model=booster
+        )
         after_prune = str(booster.get_dump())
         assert grown != after_prune
 
-        booster = xgb.train(params, dtrain=dtrain, num_boost_round=10,
-                            xgb_model=booster)
+        booster = xgb.train(
+            params, dtrain=dtrain, num_boost_round=10, xgb_model=booster
+        )
         second_prune = str(booster.get_dump())
         # Second prune should not change the tree
         assert after_prune == second_prune
@@ -107,11 +110,12 @@ class TestTreeMethod:
         hist_parameter_strategy,
         hist_cache_strategy,
         strategies.integers(1, 20),
-        tm.make_dataset_strategy()
+        tm.make_dataset_strategy(),
     )
     @settings(deadline=None, print_blob=True)
     def test_hist(
-        self, param: Dict[str, Any],
+        self,
+        param: Dict[str, Any],
         hist_param: Dict[str, Any],
         cache_param: Dict[str, Any],
         num_rounds: int,
@@ -128,11 +132,13 @@ class TestTreeMethod:
     def test_hist_categorical(self):
         # hist must be same as exact on all-categorial data
         ag_dtrain, ag_dtest = tm.load_agaricus(__file__)
-        ag_param = {'max_depth': 2,
-                    'tree_method': 'hist',
-                    'eta': 1,
-                    'objective': 'binary:logistic',
-                    'eval_metric': 'auc'}
+        ag_param = {
+            "max_depth": 2,
+            "tree_method": "hist",
+            "eta": 1,
+            "objective": "binary:logistic",
+            "eval_metric": "auc",
+        }
         hist_res = {}
         exact_res = {}
 
@@ -141,7 +147,7 @@ class TestTreeMethod:
             ag_dtrain,
             10,
             evals=[(ag_dtrain, "train"), (ag_dtest, "test")],
-            evals_result=hist_res
+            evals_result=hist_res,
         )
         ag_param["tree_method"] = "exact"
         xgb.train(
@@ -149,10 +155,10 @@ class TestTreeMethod:
             ag_dtrain,
             10,
             evals=[(ag_dtrain, "train"), (ag_dtest, "test")],
-            evals_result=exact_res
+            evals_result=exact_res,
         )
-        assert hist_res['train']['auc'] == exact_res['train']['auc']
-        assert hist_res['test']['auc'] == exact_res['test']['auc']
+        assert hist_res["train"]["auc"] == exact_res["train"]["auc"]
+        assert hist_res["test"]["auc"] == exact_res["test"]["auc"]
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_hist_degenerate_case(self):
@@ -160,11 +166,17 @@ class TestTreeMethod:
         # quantile points for a particular feature (the second feature in
         # this example). Source: https://github.com/dmlc/xgboost/issues/2943
         nan = np.nan
-        param = {'missing': nan, 'tree_method': 'hist'}
+        param = {"missing": nan, "tree_method": "hist"}
         model = xgb.XGBRegressor(**param)
-        X = np.array([[6.18827160e+05, 1.73000000e+02], [6.37345679e+05, nan],
-                      [6.38888889e+05, nan], [6.28086420e+05, nan]])
-        y = [1000000., 0., 0., 500000.]
+        X = np.array(
+            [
+                [6.18827160e05, 1.73000000e02],
+                [6.37345679e05, nan],
+                [6.38888889e05, nan],
+                [6.28086420e05, nan],
+            ]
+        )
+        y = [1000000.0, 0.0, 0.0, 500000.0]
         w = [0, 0, 1, 0]
         model.fit(X, y, sample_weight=w)
 
@@ -174,12 +186,12 @@ class TestTreeMethod:
         param = {"tree_method": "hist", "max_bin": 64}
         hist_result = train_result(param, dataset.get_dmat(), 16)
         note(str(hist_result))
-        assert tm.non_increasing(hist_result['train'][dataset.metric])
+        assert tm.non_increasing(hist_result["train"][dataset.metric])
 
         param = {"tree_method": "approx", "max_bin": 64}
         approx_result = train_result(param, dataset.get_dmat(), 16)
         note(str(approx_result))
-        assert tm.non_increasing(approx_result['train'][dataset.metric])
+        assert tm.non_increasing(approx_result["train"][dataset.metric])
 
         np.testing.assert_allclose(
             hist_result["train"]["rmse"], approx_result["train"]["rmse"]
@@ -248,15 +260,33 @@ class TestTreeMethod:
     def test_max_cat(self, tree_method) -> None:
         self.run_max_cat(tree_method)
 
-    @given(strategies.integers(10, 400), strategies.integers(3, 8),
-           strategies.integers(1, 2), strategies.integers(4, 7))
+    @given(
+        strategies.integers(10, 400),
+        strategies.integers(3, 8),
+        strategies.integers(1, 2),
+        strategies.integers(4, 7),
+    )
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(
         self, rows: int, cols: int, rounds: int, cats: int
     ) -> None:
-        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "approx")
-        check_categorical_ohe(rows, cols, rounds, cats, "cpu", "hist")
+        check_categorical_ohe(
+            rows=rows,
+            cols=cols,
+            rounds=rounds,
+            cats=cats,
+            device="cpu",
+            tree_method="approx",
+        )
+        check_categorical_ohe(
+            rows=rows,
+            cols=cols,
+            rounds=rounds,
+            cats=cats,
+            device="cpu",
+            tree_method="hist",
+        )
 
     @given(
         tm.categorical_dataset_strategy,
@@ -307,7 +337,7 @@ class TestTreeMethod:
     @given(
         strategies.integers(10, 400),
         strategies.integers(3, 8),
-        strategies.integers(4, 7)
+        strategies.integers(4, 7),
     )
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
@@ -395,9 +425,8 @@ class TestTreeMethod:
 
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.parametrize(
-        "tree_method,weighted", [
-            ("approx", False), ("hist", False), ("approx", True), ("hist", True)
-        ]
+        "tree_method,weighted",
+        [("approx", False), ("hist", False), ("approx", True), ("hist", True)],
     )
     def test_adaptive(self, tree_method, weighted) -> None:
         self.run_adaptive(tree_method, weighted)

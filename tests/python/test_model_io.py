@@ -104,7 +104,7 @@ class TestBoosterIO:
         self.run_model_json_io(parameters, ext)
 
     def test_categorical_model_io(self) -> None:
-        X, y = tm.make_categorical(256, 16, 71, False)
+        X, y = tm.make_categorical(256, 16, 71, onehot=False)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         booster = xgb.train({"tree_method": "approx"}, Xy, num_boost_round=16)
         predt_0 = booster.predict(Xy)

@@ -582,6 +582,7 @@ Parameters
 
 
 def _wrap_evaluation_matrices(
+    *,
     missing: float,
     X: Any,
     y: Any,
@@ -696,8 +697,10 @@ DEFAULT_N_ESTIMATORS = 100
 )
 class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, missing-docstring
+    @_deprecate_positional_args
     def __init__(
         self,
+        *,
         max_depth: Optional[int] = None,
         max_leaves: Optional[int] = None,
         max_bin: Optional[int] = None,
@@ -1174,9 +1177,11 @@ class XGBModel(XGBModelBase):
             iteration_range = (0, 0)
         return iteration_range
 
+    @_deprecate_positional_args
     def predict(
         self,
         X: ArrayLike,
+        *,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
@@ -1587,9 +1592,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         "Fit gradient boosting model", "Fit gradient boosting classifier", 1
     )
 
+    @_deprecate_positional_args
     def predict(
         self,
         X: ArrayLike,
+        *,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
@@ -2070,9 +2077,11 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             self._set_evaluation_result(evals_result)
             return self
 
+    @_deprecate_positional_args
     def predict(
         self,
         X: ArrayLike,
+        *,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
@@ -2081,9 +2090,9 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         X, _ = _get_qid(X, None)
         return super().predict(
             X,
-            output_margin,
-            validate_features,
-            base_margin,
+            output_margin=output_margin,
+            validate_features=validate_features,
+            base_margin=base_margin,
             iteration_range=iteration_range,
         )
 

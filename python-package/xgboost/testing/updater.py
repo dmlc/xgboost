@@ -291,7 +291,9 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
 
     # categorical
     n_categories = 32
-    X, y = tm.make_categorical(n_samples, n_features, n_categories, False, sparsity=0.8)
+    X, y = tm.make_categorical(
+        n_samples, n_features, n_categories, onehot=False, sparsity=0.8
+    )
     if use_cupy:
         import cudf  # pylint: disable=import-error
         import cupy as cp  # pylint: disable=import-error
@@ -310,7 +312,7 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
 
     # mixed
     X, y = tm.make_categorical(
-        n_samples, n_features, n_categories, False, sparsity=0.8, cat_ratio=0.5
+        n_samples, n_features, n_categories, onehot=False, sparsity=0.8, cat_ratio=0.5
     )
     n_cat_features = len([0 for dtype in X.dtypes if is_pd_cat_dtype(dtype)])
     n_num_features = n_features - n_cat_features
@@ -340,12 +342,12 @@ USE_PART = 1
 
 
 def check_categorical_ohe(  # pylint: disable=too-many-arguments
-    rows: int, cols: int, rounds: int, cats: int, device: str, tree_method: str
+    *, rows: int, cols: int, rounds: int, cats: int, device: str, tree_method: str
 ) -> None:
     "Test for one-hot encoding with categorical data."
 
-    onehot, label = tm.make_categorical(rows, cols, cats, True)
-    cat, _ = tm.make_categorical(rows, cols, cats, False)
+    onehot, label = tm.make_categorical(rows, cols, cats, onehot=True)
+    cat, _ = tm.make_categorical(rows, cols, cats, onehot=False)
 
     by_etl_results: Dict[str, Dict[str, List[float]]] = {}
     by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
