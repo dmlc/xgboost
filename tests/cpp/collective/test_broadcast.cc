@@ -47,16 +47,8 @@ TEST_F(BroadcastTest, Basic) {
       worker.Run();
     });
   };
-  {
-    std::int32_t n_workers = 1u;
-    test_with(n_workers);
-  }
-  {
-    std::int32_t n_workers = std::min(2u, std::thread::hardware_concurrency());
-    test_with(n_workers);
-  }
-  {
-    std::int32_t n_workers = std::min(3u, std::thread::hardware_concurrency());
+  for (std::uint32_t n_workers = 1u; n_workers < 4u; ++n_workers) {
+    n_workers = std::min(n_workers, std::thread::hardware_concurrency());
     test_with(n_workers);
   }
 }
