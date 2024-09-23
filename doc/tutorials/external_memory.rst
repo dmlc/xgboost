@@ -228,7 +228,7 @@ histogram bins requires loading the raw input data, which is prohibitively expen
 up the initial data construction and the evaluation significantly for external memory.
 
 Since the external memory implementation focuses on training where XGBoost needs to access
-the entire dataset, only the ``X`` is divided into batches while everything is
+the entire dataset, only the ``X`` is divided into batches while everything else is
 concatenated. As a result, it's recommended for users to define their own management code
 to iterate through the data for inference, especially for SHAP value computation. The size
 of SHAP results can be larger than ``X``, making external memory in XGBoost less
