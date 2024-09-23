@@ -177,11 +177,10 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
 
   // Value found by experimentation
   const int kItemsThread = 12;
-  const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
-
-  SortPositionCopyKernel<kBlockSize, OpDataT>
-      <<<grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()>>>(batch_info_itr, ridx, ridx_tmp,
-                                                               total_rows);
+  std::uint32_t const kGridSize =
+      xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
+  dh::LaunchKernel{kGridSize, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
+      SortPositionCopyKernel<kBlockSize, OpDataT>, batch_info_itr, ridx, ridx_tmp, total_rows);
 }
 
 struct NodePositionInfo {
@@ -211,13 +210,14 @@ XGBOOST_DEV_INLINE int GetPositionFromSegments(std::size_t idx,
   return position;
 }
 
-template <int kBlockSize, typename RowIndexT, typename OpT>
+template <int kBlockSize, typename OpT>
 __global__ __launch_bounds__(kBlockSize) void FinalisePositionKernel(
-    const common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
-    const common::Span<const RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position, OpT op) {
+    common::Span<const NodePositionInfo> d_node_info, bst_idx_t base_ridx,
+    common::Span<const cuda_impl::RowIndexT> d_ridx, common::Span<bst_node_t> d_out_position,
+    OpT op) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, d_ridx.size())) {
     auto position = GetPositionFromSegments(idx, d_node_info.data());
-    RowIndexT ridx = d_ridx[idx] - base_ridx;
+    cuda_impl::RowIndexT ridx = d_ridx[idx] - base_ridx;
     bst_node_t new_position = op(ridx, position);
     d_out_position[ridx] = new_position;
   }
@@ -377,12 +377,14 @@ class RowPartitioner {
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
                                   cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
 
-    constexpr int kBlockSize = 512;
+    constexpr std::uint32_t kBlockSize = 512;
     const int kItemsThread = 8;
-    const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
+    const std::uint32_t grid_size =
+        xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
-    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()>>>(
-        dh::ToSpan(d_node_info_storage), base_ridx, d_ridx, d_out_position, op);
+    dh::LaunchKernel{grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
+        FinalisePositionKernel<kBlockSize, FinalisePositionOpT>, dh::ToSpan(d_node_info_storage),
+        base_ridx, d_ridx, d_out_position, op);
   }
 };
 };  // namespace xgboost::tree

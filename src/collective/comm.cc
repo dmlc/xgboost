@@ -197,7 +197,8 @@ std::string InitLog(std::string task_id, std::int32_t rank) {
   if (task_id.empty()) {
     return "Rank " + std::to_string(rank);
   }
-  return "Task " + task_id + " got rank " + std::to_string(rank);
+  return "Task " + task_id + " pid:" + std::to_string(getpid()) + " got rank " +
+         std::to_string(rank);
 }
 }  // namespace
 

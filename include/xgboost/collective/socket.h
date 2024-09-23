@@ -539,7 +539,7 @@ class TCPSocket {
   /**
    * @brief Listen to incoming requests. Should be called after bind.
    */
-  [[nodiscard]] Result Listen(std::int32_t backlog = 16) {
+  [[nodiscard]] Result Listen(std::int32_t backlog = 256) {
     if (listen(handle_, backlog) != 0) {
       return system::FailWithCode("Failed to listen.");
     }
