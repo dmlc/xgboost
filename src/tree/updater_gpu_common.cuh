@@ -5,10 +5,11 @@
 #include <limits>   // for numeric_limits
 #include <ostream>  // for ostream
 
-#include "gpu_hist/quantiser.cuh"  // for GradientQuantiser
-#include "param.h"                 // for TrainParam
-#include "xgboost/base.h"          // for bst_bin_t
-#include "xgboost/task.h"          // for ObjInfo
+#include "../data/batch_utils.cuh"  // for DftPrefetchBatches, StaticBatch
+#include "gpu_hist/quantiser.cuh"   // for GradientQuantiser
+#include "param.h"                  // for TrainParam
+#include "xgboost/base.h"           // for bst_bin_t
+#include "xgboost/task.h"           // for ObjInfo
 
 namespace xgboost::tree {
 struct GPUTrainingParam {
@@ -119,26 +120,19 @@ struct DeviceSplitCandidate {
 };
 
 namespace cuda_impl {
-constexpr auto DftPrefetchBatches() { return 2; }
-
 inline BatchParam HistBatch(TrainParam const& param) {
   auto p = BatchParam{param.max_bin, TrainParam::DftSparseThreshold()};
   p.prefetch_copy = true;
-  p.n_prefetch_batches = DftPrefetchBatches();
+  p.n_prefetch_batches = data::cuda_impl::DftPrefetchBatches();
   return p;
 }
 
 inline BatchParam ApproxBatch(TrainParam const& p, common::Span<float const> hess,
                               ObjInfo const& task) {
-  return BatchParam{p.max_bin, hess, !task.const_hess};
-}
-
-// Empty parameter to prevent regen, only used to control external memory prefetching.
-inline BatchParam StaticBatch(bool prefetch_copy) {
-  BatchParam p;
-  p.prefetch_copy = prefetch_copy;
-  p.n_prefetch_batches = DftPrefetchBatches();
-  return p;
+  auto batch = BatchParam{p.max_bin, hess, !task.const_hess};
+  batch.prefetch_copy = true;
+  batch.n_prefetch_batches = data::cuda_impl::DftPrefetchBatches();
+  return batch;
 }
 }  // namespace cuda_impl
 

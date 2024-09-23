@@ -13,9 +13,9 @@
 #include <utility>    // for move
 #include <variant>    // for visit
 
-#include "../collective/communicator-inl.h"
-#include "batch_utils.h"  // for RegenGHist
-#include "gradient_index.h"
+#include "batch_utils.h"         // for RegenGHist
+#include "gradient_index.h"      // for GHistIndexMatrix
+#include "sparse_page_source.h"  // for MakeCachePrefix
 
 namespace xgboost::data {
 MetaInfo &SparsePageDMatrix::Info() { return info_; }
@@ -34,12 +34,9 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
       cache_prefix_{std::move(cache_prefix)},
       on_host_{on_host} {
   Context ctx;
-  ctx.nthread = nthreads;
+  ctx.Init(Args{{"nthread", std::to_string(nthreads)}});
+  cache_prefix_ = MakeCachePrefix(cache_prefix_);
 
-  cache_prefix_ = cache_prefix_.empty() ? "DMatrix" : cache_prefix_;
-  if (collective::IsDistributed()) {
-    cache_prefix_ += ("-r" + std::to_string(collective::GetRank()));
-  }
   DMatrixProxy *proxy = MakeProxy(proxy_);
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
       iter_, reset_, next_};
@@ -107,7 +104,6 @@ BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
 BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
   auto id = MakeCache(this, ".col.page", on_host_, cache_prefix_, &cache_info_);
   CHECK_NE(this->Info().num_col_, 0);
-  error::NoOnHost(on_host_);
   this->InitializeSparsePage(ctx);
   if (!column_source_) {
     column_source_ =
@@ -122,7 +118,6 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
 BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const *ctx) {
   auto id = MakeCache(this, ".sorted.col.page", on_host_, cache_prefix_, &cache_info_);
   CHECK_NE(this->Info().num_col_, 0);
-  error::NoOnHost(on_host_);
   this->InitializeSparsePage(ctx);
   if (!sorted_column_source_) {
     sorted_column_source_ = std::make_shared<SortedCSCPageSource>(
@@ -140,7 +135,6 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
     CHECK_GE(param.max_bin, 2);
   }
   detail::CheckEmpty(batch_param_, param);
-  error::NoOnHost(on_host_);
   auto id = MakeCache(this, ".gradient_index.page", on_host_, cache_prefix_, &cache_info_);
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
     this->InitializeSparsePage(ctx);

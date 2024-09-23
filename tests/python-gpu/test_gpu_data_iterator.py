@@ -3,6 +3,8 @@ import sys
 import pytest
 from hypothesis import given, settings, strategies
 
+import xgboost as xgb
+from xgboost import testing as tm
 from xgboost.testing import no_cupy
 from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
 
@@ -70,6 +72,22 @@ def test_extmem_qdm(
     n_samples_per_batch: int, n_features: int, n_batches: int, on_host: bool
 ) -> None:
     check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cuda", on_host)
+
+
+def test_concat_pages() -> None:
+    it = tm.IteratorForTest(*tm.make_batches(64, 16, 4, use_cupy=True), cache=None)
+    Xy = xgb.ExtMemQuantileDMatrix(it)
+    with pytest.raises(ValueError, match="can not be used with concatenated pages"):
+        booster = xgb.train(
+            {
+                "device": "cuda",
+                "subsample": 0.5,
+                "sampling_method": "gradient_based",
+                "extmem_concat_pages": True,
+                "objective": "reg:absoluteerror",
+            },
+            Xy,
+        )
 
 
 @given(

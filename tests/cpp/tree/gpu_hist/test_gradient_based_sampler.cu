@@ -81,10 +81,11 @@ TEST(GradientBasedSampler, NoSamplingExternalMemory) {
 
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
 
-  GradientBasedSampler sampler(&ctx, kRows, param, kSubsample, TrainParam::kUniform, true);
-  auto sample = sampler.Sample(&ctx, gpair.DeviceSpan(), dmat.get());
-  auto p_fmat = sample.p_fmat;
-  ASSERT_EQ(p_fmat, dmat.get());
+  ASSERT_THAT(
+      [&] {
+        GradientBasedSampler sampler(&ctx, kRows, param, kSubsample, TrainParam::kUniform, true);
+      },
+      GMockThrow("extmem_concat_pages"));
 }
 
 TEST(GradientBasedSampler, UniformSampling) {
@@ -120,4 +121,4 @@ TEST(GradientBasedSampler, GradientBasedSamplingExternalMemory) {
   constexpr bool kFixedSizeSampling = false;
   VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
-};  // namespace xgboost::tree
+}  // namespace xgboost::tree

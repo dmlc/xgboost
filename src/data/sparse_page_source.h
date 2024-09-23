@@ -33,6 +33,8 @@
 namespace xgboost::data {
 void TryDeleteCacheFile(const std::string& file);
 
+std::string MakeCachePrefix(std::string cache_prefix);
+
 /**
  * @brief Information about the cache including path and page offsets.
  */

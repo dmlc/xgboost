@@ -70,10 +70,10 @@ class SparsePageDMatrix : public DMatrix {
   DataIterResetCallback *reset_;
   XGDMatrixCallbackNext *next_;
 
-  float missing_;
+  float const missing_;
   Context fmat_ctx_;
   std::string cache_prefix_;
-  bool on_host_{false};
+  bool const on_host_;
   std::uint32_t n_batches_{0};
   // sparse page is the source to other page types, we make a special member function.
   void InitializeSparsePage(Context const *ctx);
@@ -83,7 +83,7 @@ class SparsePageDMatrix : public DMatrix {
  public:
   explicit SparsePageDMatrix(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
                              XGDMatrixCallbackNext *next, float missing, int32_t nthreads,
-                             std::string cache_prefix, bool on_host = false);
+                             std::string cache_prefix, bool on_host);
 
   ~SparsePageDMatrix() override;
 
