@@ -91,7 +91,15 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
   } << [&] {
     if (cmd_ == proto::CMD::kStart) {
       proto::Start start;
-      return start.TrackerHandle(jcmd, &world_, world, &port, &sock_, &eport_);
+      std::string cmd1;
+      return Success() << [&] {
+        return start.TrackerHandle(jcmd, &world_, world, &port, &sock_, &eport_);
+      } << [&] {
+        return sock_.Recv(&cmd1);
+      } << [&] {
+        auto jcmd1 = Json::Load(StringView{cmd1});
+        return start.TrackerFinish(jcmd1);
+      };
     } else if (cmd_ == proto::CMD::kPrint) {
       proto::Print print;
       return print.TrackerHandle(jcmd, &msg_);

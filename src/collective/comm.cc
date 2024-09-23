@@ -275,6 +275,9 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 
 [[nodiscard]] Result RabitComm::Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
                                           std::string task_id) {
+  common::Timer t;
+  t.Start();
+
   TCPSocket tracker;
   std::int32_t world{-1};
   auto rc = ConnectTrackerImpl(this->TrackerInfo(), timeout, retry, task_id, &tracker, this->Rank(),
@@ -288,11 +291,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   // Start command
   TCPSocket listener = TCPSocket::Create(tracker.Domain());
   std::int32_t lport{0};
-  rc = std::move(rc) << [&] {
-    return listener.BindHost(&lport);
-  } << [&] {
-    return listener.Listen(512);
-  };
+  rc = listener.BindHost(&lport);
   if (!rc.OK()) {
     return rc;
   }
@@ -304,8 +303,8 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   rc = std::move(rc) << [&] {
     return error_sock->BindHost(&eport);
   } << [&] {
-    return error_sock->Listen(16);
-  };
+    return error_sock->Listen(4);
+  };;
   if (!rc.OK()) {
     return rc;
   }
@@ -353,6 +352,10 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
     return start.WorkerSend(lport, &tracker, eport);
   } << [&] {
     return start.WorkerRecv(&tracker, &world);
+  } << [&] {
+    return listener.Listen(world);
+  } << [&] {
+    return start.WorkerFinish(&tracker);
   };
   if (!rc.OK()) {
     return rc;
@@ -395,6 +398,8 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
     this->channels_.emplace_back(std::make_shared<Channel>(*this, w));
   }
 
+  t.Stop();
+  LOG(DEBUG) << "Bootstrap took:" << t.ElapsedSeconds() << " secs.";
   LOG(CONSOLE) << InitLog(task_id_, rank_);
   return rc;
 }
