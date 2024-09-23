@@ -339,8 +339,8 @@ class DaskDMatrix:
 
         self._init = client.sync(
             self._map_local_data,
-            client,
-            data,
+            client=client,
+            data=data,
             label=label,
             weights=weight,
             base_margin=base_margin,
