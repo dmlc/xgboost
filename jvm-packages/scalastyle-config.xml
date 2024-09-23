@@ -314,7 +314,7 @@ This file is divided into 3 sections:
       <parameter name="illegalImports"><![CDATA[scala.collection.Seq,scala.collection.IndexedSeq]]></parameter>
     </parameters>
     <customMessage><![CDATA[
-        Don't import scala.collection.Seq and scala.collection.IndexedSeq as it may bring some problems with cross-build between Scala 2.12 and 2.13.
+        Don't import scala.collection.Seq and scala.collection.IndexedSeq as it may cause issues with cross-build between Scala 2.12 and 2.13.
 
         Please refer below page to see the details of changes around Seq / IndexedSeq.
         https://docs.scala-lang.org/overviews/core/collections-migration-213.html
