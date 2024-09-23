@@ -81,6 +81,6 @@ object Regression extends TrainTestData {
 }
 
 object Ranking extends TrainTestData {
-  val train = generateRankDataset(300, 10, 555)
-  val test = generateRankDataset(150, 10, 556)
+  val train = generateRankDataset(300, 10, 12, 555)
+  val test = generateRankDataset(150, 10, 12, 556)
 }

@@ -129,7 +129,7 @@ struct WriteResultsFunctor {
  * @param d_batch_info Node data, with the size of the input number of nodes.
  */
 template <typename OpT, typename OpDataT>
-void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
+void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpDataT>> d_batch_info,
                        common::Span<cuda_impl::RowIndexT> ridx,
                        common::Span<cuda_impl::RowIndexT> ridx_tmp,
                        common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
@@ -150,17 +150,28 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
         return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
                               go_left};
       });
-  std::size_t temp_bytes = 0;
-  // Restriction imposed by cub.
-  CHECK_LE(total_rows, static_cast<bst_idx_t>(std::numeric_limits<std::int32_t>::max()));
+  // Avoid using int as the offset type
+  std::size_t n_bytes = 0;
   if (tmp->empty()) {
-    dh::safe_cuda(cub::DeviceScan::InclusiveScan(
-        nullptr, temp_bytes, input_iterator, discard_write_iterator, IndexFlagOp{}, total_rows));
-    tmp->resize(temp_bytes);
+    auto ret =
+        cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
+                          cub::NullType, std::int64_t>::Dispatch(nullptr, n_bytes, input_iterator,
+                                                                 discard_write_iterator,
+                                                                 IndexFlagOp{}, cub::NullType{},
+                                                                 total_rows,
+                                                                 ctx->CUDACtx()->Stream());
+    dh::safe_cuda(ret);
+    tmp->resize(n_bytes);
   }
-  temp_bytes = tmp->size();
-  dh::safe_cuda(cub::DeviceScan::InclusiveScan(tmp->data(), temp_bytes, input_iterator,
-                                               discard_write_iterator, IndexFlagOp{}, total_rows));
+  n_bytes = tmp->size();
+  auto ret =
+      cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
+                        cub::NullType, std::int64_t>::Dispatch(tmp->data(), n_bytes, input_iterator,
+                                                               discard_write_iterator,
+                                                               IndexFlagOp{}, cub::NullType{},
+                                                               total_rows,
+                                                               ctx->CUDACtx()->Stream());
+  dh::safe_cuda(ret);
 
   constexpr int kBlockSize = 256;
 
@@ -169,7 +180,8 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
   const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
 
   SortPositionCopyKernel<kBlockSize, OpDataT>
-      <<<grid_size, kBlockSize, 0>>>(batch_info_itr, ridx, ridx_tmp, total_rows);
+      <<<grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()>>>(batch_info_itr, ridx, ridx_tmp,
+                                                               total_rows);
 }
 
 struct NodePositionInfo {
@@ -293,7 +305,7 @@ class RowPartitioner {
    * second. Returns true if this training instance goes on the left partition.
    */
   template <typename UpdatePositionOpT, typename OpDataT>
-  void UpdatePositionBatch(const std::vector<bst_node_t>& nidx,
+  void UpdatePositionBatch(Context const* ctx, const std::vector<bst_node_t>& nidx,
                            const std::vector<bst_node_t>& left_nidx,
                            const std::vector<bst_node_t>& right_nidx,
                            const std::vector<OpDataT>& op_data, UpdatePositionOpT op) {
@@ -316,21 +328,22 @@ class RowPartitioner {
     }
     dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                   h_batch_info.size() * sizeof(PerNodeData<OpDataT>),
-                                  cudaMemcpyDefault));
+                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
 
     // Temporary arrays
-    auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size(), 0);
+    auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
+    // Must initialize with 0 as 0 count is not written in the kernel.
     dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
     // Partition the rows according to the operator
-    SortPositionBatch<UpdatePositionOpT, OpDataT>(dh::ToSpan(d_batch_info), dh::ToSpan(ridx_),
+    SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info), dh::ToSpan(ridx_),
                                                   dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
                                                   total_rows, op, &tmp_);
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
-                                  cudaMemcpyDefault));
+                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
     // TODO(Rory): this synchronisation hurts performance a lot
     // Future optimisation should find a way to skip this
-    dh::DefaultStream().Sync();
+    ctx->CUDACtx()->Stream().Sync();
 
     // Update segments
     for (std::size_t i = 0; i < nidx.size(); i++) {
@@ -341,9 +354,9 @@ class RowPartitioner {
                                      std::max(left_nidx[i], right_nidx[i]) + 1));
       ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
       ridx_segments_[left_nidx[i]] =
-          NodePositionInfo{Segment(segment.begin, segment.begin + left_count)};
+          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
       ridx_segments_[right_nidx[i]] =
-          NodePositionInfo{Segment(segment.begin + left_count, segment.end)};
+          NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
     }
   }
 

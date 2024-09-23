@@ -306,11 +306,12 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
         raise TypeError(msg)
 
     if device and device.find(":") != -1:
-        raise ValueError(
-            "Distributed training doesn't support selecting device ordinal as GPUs are"
-            " managed by the distributed frameworks. use `device=cuda` or `device=gpu`"
-            " instead."
-        )
+        if device != "sycl:gpu":
+            raise ValueError(
+                "Distributed training doesn't support selecting device ordinal as GPUs are"
+                " managed by the distributed frameworks. use `device=cuda` or `device=gpu`"
+                " instead."
+            )
 
     if kwargs.get("booster", None) == "gblinear":
         raise NotImplementedError(

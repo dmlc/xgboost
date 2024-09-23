@@ -10,6 +10,7 @@
 
 #include <cstddef>  // for size_t
 #include <limits>   // for numeric_limits
+#include <new>      // for bad_array_new_length
 
 #include "common.h"
 
@@ -28,14 +29,14 @@ struct PinnedAllocPolicy {
   using size_type = std::size_t;   // NOLINT: The type used for the size of the allocation
   using value_type = T;            // NOLINT: The type of the elements in the allocator
 
-  size_type max_size() const {  // NOLINT
+  [[nodiscard]] constexpr size_type max_size() const {  // NOLINT
     return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
   [[nodiscard]] pointer allocate(size_type cnt, const_pointer = nullptr) const {  // NOLINT
     if (cnt > this->max_size()) {
-      throw std::bad_alloc{};
-    }  // end if
+      throw std::bad_array_new_length{};
+    }
 
     pointer result(nullptr);
     dh::safe_cuda(cudaMallocHost(reinterpret_cast<void**>(&result), cnt * sizeof(value_type)));
@@ -52,14 +53,14 @@ struct ManagedAllocPolicy {
   using size_type = std::size_t;   // NOLINT: The type used for the size of the allocation
   using value_type = T;            // NOLINT: The type of the elements in the allocator
 
-  size_type max_size() const {  // NOLINT
+  [[nodiscard]] constexpr size_type max_size() const {  // NOLINT
     return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
   [[nodiscard]] pointer allocate(size_type cnt, const_pointer = nullptr) const {  // NOLINT
     if (cnt > this->max_size()) {
-      throw std::bad_alloc{};
-    }  // end if
+      throw std::bad_array_new_length{};
+    }
 
     pointer result(nullptr);
     dh::safe_cuda(cudaMallocManaged(reinterpret_cast<void**>(&result), cnt * sizeof(value_type)));
@@ -78,14 +79,14 @@ struct SamAllocPolicy {
   using size_type = std::size_t;   // NOLINT: The type used for the size of the allocation
   using value_type = T;            // NOLINT: The type of the elements in the allocator
 
-  size_type max_size() const {  // NOLINT
+  [[nodiscard]] constexpr size_type max_size() const {  // NOLINT
     return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
   [[nodiscard]] pointer allocate(size_type cnt, const_pointer = nullptr) const {  // NOLINT
     if (cnt > this->max_size()) {
-      throw std::bad_alloc{};
-    }  // end if
+      throw std::bad_array_new_length{};
+    }
 
     size_type n_bytes = cnt * sizeof(value_type);
     pointer result = reinterpret_cast<pointer>(std::malloc(n_bytes));
@@ -139,10 +140,10 @@ class CudaHostAllocatorImpl : public Policy<T> {
 };
 
 template <typename T>
-using PinnedAllocator = CudaHostAllocatorImpl<T, PinnedAllocPolicy>;  // NOLINT
+using PinnedAllocator = CudaHostAllocatorImpl<T, PinnedAllocPolicy>;
 
 template <typename T>
-using ManagedAllocator = CudaHostAllocatorImpl<T, ManagedAllocPolicy>;  // NOLINT
+using ManagedAllocator = CudaHostAllocatorImpl<T, ManagedAllocPolicy>;
 
 template <typename T>
 using SamAllocator = CudaHostAllocatorImpl<T, SamAllocPolicy>;
