@@ -288,7 +288,11 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   // Start command
   TCPSocket listener = TCPSocket::Create(tracker.Domain());
   std::int32_t lport{0};
-  rc = listener.BindHost(&lport);
+  rc = std::move(rc) << [&] {
+    return listener.BindHost(&lport);
+  } << [&] {
+    return listener.Listen(512);
+  };
   if (!rc.OK()) {
     return rc;
   }
@@ -300,7 +304,7 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   rc = std::move(rc) << [&] {
     return error_sock->BindHost(&eport);
   } << [&] {
-    return error_sock->Listen();
+    return error_sock->Listen(16);
   };
   if (!rc.OK()) {
     return rc;
@@ -349,8 +353,6 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
     return start.WorkerSend(lport, &tracker, eport);
   } << [&] {
     return start.WorkerRecv(&tracker, &world);
-  } << [&] {
-    return listener.Listen(world);
   };
   if (!rc.OK()) {
     return rc;
