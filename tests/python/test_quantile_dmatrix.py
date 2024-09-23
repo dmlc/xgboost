@@ -97,14 +97,15 @@ class TestQuantileDMatrix:
 
         if sparsity == 0.0:
             it = IteratorForTest(
-                *make_batches(n_samples_per_batch, n_features, n_batches, False), None
+                *make_batches(n_samples_per_batch, n_features, n_batches, False),
+                cache=None,
             )
         else:
             it = IteratorForTest(
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None,
+                cache=None,
             )
         Xy = xgb.QuantileDMatrix(it)
         assert Xy.num_row() == n_samples_per_batch * n_batches
@@ -134,14 +135,15 @@ class TestQuantileDMatrix:
         n_batches = 7
         if sparsity == 0.0:
             it = IteratorForTest(
-                *make_batches(n_samples_per_batch, n_features, n_batches, False), None
+                *make_batches(n_samples_per_batch, n_features, n_batches, False),
+                cache=None,
             )
         else:
             it = IteratorForTest(
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None,
+                cache=None,
             )
 
         parameters = {"tree_method": "hist", "max_bin": 256}
