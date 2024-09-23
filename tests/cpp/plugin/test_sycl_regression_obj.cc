@@ -50,6 +50,7 @@ TEST(SyclObjective, CPUvsSycl) {
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   ObjFunction * obj_sycl =
       ObjFunction::Create("reg:squarederror_sycl", &ctx);
+  obj_sycl->Configure({});
 
   ctx = ctx.MakeCPU();
   ObjFunction * obj_cpu =
