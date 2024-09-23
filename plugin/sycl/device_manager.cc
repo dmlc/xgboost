@@ -36,7 +36,9 @@ namespace sycl {
             CHECK_LT(device_idx, gpu_devices_idxes.size());
             queue_idx = gpu_devices_idxes[device_idx];
         } else {
-            LOG(FATAL) << device_spec << " is not sycl, sycl:cpu or sycl:gpu";
+            LOG(WARNING) << device_spec << " is not sycl, sycl:cpu or sycl:gpu";
+            auto device = ::sycl::queue(::sycl::default_selector_v).get_device();
+            queue_idx = device_register.devices.at(device);
         }
     } else {
         if (device_spec.IsSyclCPU()) {
