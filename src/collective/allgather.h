@@ -13,6 +13,7 @@
 #include "../common/type.h"             // for EraseType
 #include "comm.h"                       // for Comm, Channel
 #include "comm_group.h"                 // for CommGroup
+#include "topo.h"                       // for BootstrapNext, BootstrapPrev
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/linalg.h"             // for MakeVec
 #include "xgboost/span.h"               // for Span

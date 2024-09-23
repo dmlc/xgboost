@@ -16,6 +16,7 @@
 #endif                                  // !defined(XGBOOST_USE_NCCL)
 #include "allgather.h"                  // for RingAllgather
 #include "protocol.h"                   // for kMagic
+#include "topo.h"                       // for BootstrapNext
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
 #include "xgboost/json.h"               // for Json, Object
@@ -58,6 +59,7 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
                             this->Rank(), this->World());
 }
 
+// Connect ring and tree neighbors
 [[nodiscard]] Result ConnectWorkers(Comm const& comm, TCPSocket* listener, std::int32_t lport,
                                     proto::PeerInfo ninfo, std::chrono::seconds timeout,
                                     std::int32_t retry,
@@ -80,10 +82,10 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     return prev->NonBlocking(true);
   };
   if (!rc.OK()) {
-    return rc;
+    return Fail("Bootstrap failed to recv from ring prev.", std::move(rc));
   }
 
-  // exchange host name and port
+  // Exchange host name and port
   std::vector<std::int8_t> buffer(HOST_NAME_MAX * comm.World(), 0);
   auto s_buffer = common::Span{buffer.data(), buffer.size()};
   auto next_host = s_buffer.subspan(HOST_NAME_MAX * comm.Rank(), HOST_NAME_MAX);
@@ -107,7 +109,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
 
   rc = std::move(rc) << [&] {
     return cpu_impl::RingAllgather(comm, s_buffer, HOST_NAME_MAX, 0, prev_ch, next_ch);
-  } << [&] { return block(); };
+  } << [&] {
+    return block();
+  };
   if (!rc.OK()) {
     return Fail("Failed to get host names from peers.", std::move(rc));
   }
@@ -118,7 +122,9 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
     auto s_ports = common::Span{reinterpret_cast<std::int8_t*>(peers_port.data()),
                                 peers_port.size() * sizeof(ninfo.port)};
     return cpu_impl::RingAllgather(comm, s_ports, sizeof(ninfo.port), 0, prev_ch, next_ch);
-  } << [&] { return block(); };
+  } << [&] {
+    return block();
+  };
   if (!rc.OK()) {
     return Fail("Failed to get the port from peers.", std::move(rc));
   }
@@ -138,55 +144,91 @@ Result ConnectTrackerImpl(proto::PeerInfo info, std::chrono::seconds timeout, st
 
   std::vector<std::shared_ptr<TCPSocket>>& workers = *out_workers;
   workers.resize(comm.World());
-
-  for (std::int32_t r = (comm.Rank() + 1); r < comm.World(); ++r) {
-    auto const& peer = peers[r];
-    auto worker = std::make_shared<TCPSocket>();
-    rc = std::move(rc)
-         << [&] { return Connect(peer.host, peer.port, retry, timeout, worker.get()); }
-         << [&] { return worker->RecvTimeout(timeout); };
-    if (!rc.OK()) {
-      return rc;
+  workers[BootstrapNext(comm.Rank(), comm.World())] = next;
+  if (BootstrapNext(comm.Rank(), comm.World()) == BootstrapPrev(comm.Rank(), comm.World())) {
+    CHECK_EQ(comm.World(), 2);
+    if (comm.Rank() == 0) {
+      workers[BootstrapNext(comm.Rank(), comm.World())] = prev;
     }
-
-    auto rank = comm.Rank();
-    std::size_t n_bytes{0};
-    auto rc = worker->SendAll(&rank, sizeof(comm.Rank()), &n_bytes);
-    if (!rc.OK()) {
-      return rc;
-    } else if (n_bytes != sizeof(comm.Rank())) {
-      return Fail("Failed to send rank.", std::move(rc));
-    }
-    workers[r] = std::move(worker);
+  } else {
+    workers[BootstrapPrev(comm.Rank(), comm.World())] = prev;
   }
 
-  for (std::int32_t r = 0; r < comm.Rank(); ++r) {
-    auto peer = std::make_shared<TCPSocket>();
-    rc = std::move(rc) << [&] {
+  /**
+   * Construct tree.
+   */
+  // All workers connect to rank 0 so that we can always use rank 0 as broadcast root.
+  if (comm.Rank() == 0) {
+    for (std::int32_t i = 0; i < comm.World() - 3; ++i) {
+      auto worker = std::make_shared<TCPSocket>();
       SockAddress addr;
-      return listener->Accept(peer.get(), &addr);
-    } << [&] {
-      return peer->RecvTimeout(timeout);
-    };
-    if (!rc.OK()) {
-      return rc;
+      rc = listener->Accept(worker.get(), &addr);
+      if (!rc.OK()) {
+        return Fail("Failed to accept for rank 0.", std::move(rc));
+      }
+      std::int32_t r{-1};
+      std::size_t n_bytes{0};
+      rc = worker->RecvAll(&r, sizeof(r), &n_bytes);
+      if (!rc.OK()) {
+        return Fail("Failed to recv rank.", std::move(rc));
+      }
+      if (n_bytes != sizeof(r)) {
+        return Fail("Failed to recv rank due to size.", std::move(rc));
+      }
+      workers[r] = worker;
     }
-    std::int32_t rank{-1};
-    std::size_t n_bytes{0};
-    auto rc = peer->RecvAll(&rank, sizeof(rank), &n_bytes);
-    if (!rc.OK()) {
-      return rc;
-    } else if (n_bytes != sizeof(comm.Rank())) {
-      return Fail("Failed to recv rank.");
+  } else {
+    if (!workers[0]) {
+      auto worker = std::make_shared<TCPSocket>();
+      rc = std::move(rc) << [&] {
+        return Connect(peers[0].host, peers[0].port, retry, timeout, worker.get());
+      } << [&] {
+        auto rank = comm.Rank();
+        std::size_t n_bytes = 0;
+        auto rc = worker->SendAll(&rank, sizeof(rank), &n_bytes);
+        if (n_bytes != sizeof(rank)) {
+          return Fail("Failed to send rank due to size.", std::move(rc));
+        }
+        return rc;
+      };
+      if (!rc.OK()) {
+        return Fail("Failed to connect to root.", std::move(rc));
+      }
+      workers[0] = worker;
     }
-    workers[rank] = std::move(peer);
+  }
+  // Binomial tree connect
+  std::int32_t const kDepth = std::ceil(std::log2(static_cast<double>(comm.World()))) - 1;
+  if (comm.Rank() != 0) {
+    auto prank = ParentRank(comm.Rank(), kDepth);
+    if (!workers[prank]) {  // Skip if it's part of the ring.
+      auto parent = std::make_shared<TCPSocket>();
+      SockAddress addr;
+      rc = listener->Accept(parent.get(), &addr);
+      if (!rc.OK()) {
+        return Fail("Failed to recv connection from tree parent.", std::move(rc));
+      }
+      workers[prank] = parent;
+    }
   }
 
-  for (std::int32_t r = 0; r < comm.World(); ++r) {
-    if (r == comm.Rank()) {
-      continue;
+  for (std::int32_t i = kDepth; i >= 0; --i) {
+    if (comm.Rank() % (1 << (i + 1)) == 0 && comm.Rank() + (1 << i) < comm.World()) {
+      auto peer = comm.Rank() + (1 << i);
+      if (workers[peer]) {  // skip if it's part of the ring.
+        continue;
+      }
+      auto worker = std::make_shared<TCPSocket>();
+      rc = std::move(rc) << [&] {
+        return Connect(peers[peer].host, peers[peer].port, retry, timeout, worker.get());
+      } << [&] {
+        return worker->RecvTimeout(timeout);
+      };
+      if (!rc.OK()) {
+        return Fail("Failed to connect to tree neighbor", std::move(rc));
+      }
+      workers[peer] = worker;
     }
-    CHECK(workers[r]);
   }
 
   return Success();

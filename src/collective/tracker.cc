@@ -2,6 +2,8 @@
  * Copyright 2023-2024, XGBoost Contributors
  */
 
+#include "tracker.h"
+
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>       // gethostbyname
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
@@ -23,10 +25,10 @@
 #include <utility>    // for move, forward
 
 #include "../common/json_utils.h"
-#include "../common/threading_utils.h"  // for NameThread
-#include "comm.h"
-#include "protocol.h"  // for kMagic, PeerInfo
-#include "tracker.h"
+#include "../common/threading_utils.h"      // for NameThread
+#include "../common/timer.h"                // for Timer
+#include "protocol.h"                       // for kMagic, PeerInfo
+#include "topo.h"                           // for BootstrapNext
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Result, Fail, Success
 #include "xgboost/collective/socket.h"      // for GetHostName, FailWithCode, MakeSockAddress, ...
