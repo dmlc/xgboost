@@ -145,6 +145,10 @@ class RegLossObj : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
+    if (qu_ == nullptr) {
+      LOG(WARNING) << ctx_->Device();
+      qu_ = device_manager.GetQueue(ctx_->Device());
+    }
     size_t const ndata = io_preds->Size();
     if (ndata == 0) return;
     InitBuffers();
