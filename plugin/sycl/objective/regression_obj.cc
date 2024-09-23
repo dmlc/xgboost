@@ -58,13 +58,16 @@ class RegLossObj : public ObjFunction {
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
-    qu_ = device_manager.GetQueue(ctx_->Device());
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info,
                    int iter,
                    xgboost::linalg::Matrix<GradientPair>* out_gpair) override {
+    if (qu_ == nullptr) {
+      LOG(WARNING) << ctx_->Device();
+      qu_ = device_manager.GetQueue(ctx_->Device());
+    }
     if (info.labels.Size() == 0) return;
     CHECK_EQ(preds.Size(), info.labels.Size())
         << " " << "labels are not correctly provided"
@@ -187,7 +190,7 @@ class RegLossObj : public ObjFunction {
   xgboost::obj::RegLossParam param_;
   sycl::DeviceManager device_manager;
 
-  mutable ::sycl::queue* qu_;
+  mutable ::sycl::queue* qu_ = nullptr;
   static constexpr size_t kBatchSize = 1u << 22;
   mutable linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3> batch_processor_;
 };
