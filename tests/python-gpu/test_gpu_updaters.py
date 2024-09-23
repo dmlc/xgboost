@@ -146,7 +146,7 @@ class TestGPUUpdaters:
             rounds=rounds,
             cats=cats,
             device="cuda",
-            tree_method="hist"
+            tree_method="hist",
         )
 
     @given(
