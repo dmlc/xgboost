@@ -3,6 +3,7 @@
  */
 #pragma once
 
+#include <algorithm>     // for max
 #include <cerrno>        // errno, EINTR, EBADF
 #include <climits>       // HOST_NAME_MAX
 #include <cstddef>       // std::size_t
