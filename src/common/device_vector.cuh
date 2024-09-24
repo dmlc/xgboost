@@ -30,6 +30,7 @@
 #include <cub/util_device.cuh>     // for CurrentDevice
 #include <map>                     // for map
 #include <memory>                  // for unique_ptr
+#include <mutex>                   // for defer_lock
 
 #include "common.h"  // for safe_cuda, HumanMemUnit
 #include "xgboost/logging.h"
@@ -46,6 +47,12 @@ class MemoryLogger {
     size_t num_deallocations{0};
     std::map<void *, size_t> device_allocations;
     void RegisterAllocation(void *ptr, size_t n) {
+      auto itr = device_allocations.find(ptr);
+      if (itr != device_allocations.cend()) {
+        LOG(WARNING) << "Attempting to allocate " << n << " bytes."
+                     << " that was already allocated\nptr:" << ptr << "\n"
+                     << dmlc::StackTrace();
+      }
       device_allocations[ptr] = n;
       currently_allocated_bytes += n;
       peak_allocated_bytes = std::max(peak_allocated_bytes, currently_allocated_bytes);
@@ -56,7 +63,7 @@ class MemoryLogger {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
         LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
-                     << " that was never allocated\n"
+                     << " that was never allocated\nptr:" << ptr << "\n"
                      << dmlc::StackTrace();
       } else {
         num_deallocations++;
@@ -70,18 +77,34 @@ class MemoryLogger {
   std::mutex mutex_;
 
  public:
-  void RegisterAllocation(void *ptr, size_t n) {
+  /**
+   * @brief Register the allocation for logging.
+   *
+   * @param lock Set to false if the allocator has locking machanism.
+   */
+  void RegisterAllocation(void *ptr, size_t n, bool lock) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::unique_lock guard{mutex_, std::defer_lock};
+    if (lock) {
+      guard.lock();
+    }
     stats_.RegisterAllocation(ptr, n);
   }
-  void RegisterDeallocation(void *ptr, size_t n) {
+  /**
+   * @brief Register the deallocation for logging.
+   *
+   * @param lock Set to false if the allocator has locking machanism.
+   */
+  void RegisterDeallocation(void *ptr, size_t n, bool lock) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::unique_lock guard{mutex_, std::defer_lock};
+    if (lock) {
+      guard.lock();
+    }
     stats_.RegisterDeallocation(ptr, n, cub::CurrentDevice());
   }
   size_t PeakMemory() const { return stats_.peak_allocated_bytes; }
@@ -140,11 +163,12 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     } catch (const std::exception &e) {
       detail::ThrowOOMError(e.what(), n * sizeof(T));
     }
-    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
+    // We can't place a lock here as template allocator is transient.
+    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T), true);
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T), true);
     SuperT::deallocate(ptr, n);
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -193,11 +217,12 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
         detail::ThrowOOMError(e.what(), n * sizeof(T));
       }
     }
-    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
+    // We can't place a lock here as template allocator is transient.
+    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T), true);
     return thrust_ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T), true);
     if (use_cub_allocator_) {
       GetGlobalCachingAllocator().DeviceFree(ptr.get());
     } else {
@@ -239,14 +264,15 @@ using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocato
  */
 class LoggingResource : public rmm::mr::device_memory_resource {
   rmm::mr::device_memory_resource *mr_{rmm::mr::get_current_device_resource()};
+  std::mutex lock_;
 
  public:
   LoggingResource() = default;
   ~LoggingResource() override = default;
   LoggingResource(LoggingResource const &) = delete;
   LoggingResource &operator=(LoggingResource const &) = delete;
-  LoggingResource(LoggingResource &&) noexcept = default;
-  LoggingResource &operator=(LoggingResource &&) noexcept = default;
+  LoggingResource(LoggingResource &&) noexcept = delete;
+  LoggingResource &operator=(LoggingResource &&) noexcept = delete;
 
   [[nodiscard]] rmm::device_async_resource_ref get_upstream_resource() const noexcept {  // NOLINT
     return mr_;
@@ -256,9 +282,13 @@ class LoggingResource : public rmm::mr::device_memory_resource {
   }
 
   void *do_allocate(std::size_t bytes, rmm::cuda_stream_view stream) override {  // NOLINT
+    std::unique_lock<std::mutex> guard{lock_, std::defer_lock};
+    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
+      guard.lock();
+    }
     try {
       auto const ptr = mr_->allocate(bytes, stream);
-      GlobalMemoryLogger().RegisterAllocation(ptr, bytes);
+      GlobalMemoryLogger().RegisterAllocation(ptr, bytes, false);
       return ptr;
     } catch (rmm::bad_alloc const &e) {
       detail::ThrowOOMError(e.what(), bytes);
@@ -268,8 +298,12 @@ class LoggingResource : public rmm::mr::device_memory_resource {
 
   void do_deallocate(void *ptr, std::size_t bytes,  // NOLINT
                      rmm::cuda_stream_view stream) override {
+    std::unique_lock<std::mutex> guard{lock_, std::defer_lock};
+    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
+      guard.lock();
+    }
     mr_->deallocate(ptr, bytes, stream);
-    GlobalMemoryLogger().RegisterDeallocation(ptr, bytes);
+    GlobalMemoryLogger().RegisterDeallocation(ptr, bytes, false);
   }
 
   [[nodiscard]] bool do_is_equal(  // NOLINT
