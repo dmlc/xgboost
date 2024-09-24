@@ -8,6 +8,7 @@
 
 #include "categorical.h"
 #include "cuda_context.cuh"  // for CUDAContext
+#include "cuda_rt_utils.h"   // for SetDevice
 #include "device_helpers.cuh"
 #include "error_msg.h"  // for InvalidMaxBin
 #include "quantile.h"
@@ -15,9 +16,7 @@
 #include "xgboost/data.h"
 #include "xgboost/span.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 class HistogramCuts;
 using WQSketch = WQuantileSketch<bst_float, bst_float>;
 using SketchEntry = WQSketch::Entry;
@@ -46,7 +45,6 @@ class SketchContainer {
   bst_idx_t num_rows_;
   bst_feature_t num_columns_;
   int32_t num_bins_;
-  DeviceOrd device_;
 
   // Double buffer as neither prune nor merge can be performed inplace.
   dh::device_vector<SketchEntry> entries_a_;
@@ -100,12 +98,12 @@ class SketchContainer {
    */
   SketchContainer(HostDeviceVector<FeatureType> const& feature_types, bst_bin_t max_bin,
                   bst_feature_t num_columns, bst_idx_t num_rows, DeviceOrd device)
-      : num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
+      : num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin} {
     CHECK(device.IsCUDA());
     // Initialize Sketches for this dmatrix
-    this->columns_ptr_.SetDevice(device_);
+    this->columns_ptr_.SetDevice(device);
     this->columns_ptr_.Resize(num_columns + 1, 0);
-    this->columns_ptr_b_.SetDevice(device_);
+    this->columns_ptr_b_.SetDevice(device);
     this->columns_ptr_b_.Resize(num_columns + 1, 0);
 
     this->feature_types_.Resize(feature_types.Size());
@@ -123,8 +121,6 @@ class SketchContainer {
 
     timer_.Init(__func__);
   }
-  /* \brief Return GPU ID for this container. */
-  [[nodiscard]] DeviceOrd DeviceIdx() const { return device_; }
   /**
    * @brief Calculate the memory cost of the container.
    */
@@ -210,13 +206,13 @@ class SketchContainer {
   template <typename KeyComp = thrust::equal_to<size_t>>
   size_t Unique(Context const* ctx, KeyComp key_comp = thrust::equal_to<size_t>{}) {
     timer_.Start(__func__);
-    dh::safe_cuda(cudaSetDevice(device_.ordinal));
-    this->columns_ptr_.SetDevice(device_);
+    SetDevice(ctx->Ordinal());
+    this->columns_ptr_.SetDevice(ctx->Device());
     Span<OffsetT> d_column_scan = this->columns_ptr_.DeviceSpan();
     CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
     Span<SketchEntry> entries = dh::ToSpan(this->Current());
     HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-    scan_out.SetDevice(device_);
+    scan_out.SetDevice(ctx->Device());
     auto d_scan_out = scan_out.DeviceSpan();
 
     d_column_scan = this->columns_ptr_.DeviceSpan();
@@ -232,7 +228,6 @@ class SketchContainer {
     return n_uniques;
   }
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 
 #endif  // XGBOOST_COMMON_QUANTILE_CUH_

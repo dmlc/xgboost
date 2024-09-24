@@ -82,31 +82,31 @@ size_t RequiredMemory(bst_idx_t num_rows, bst_feature_t num_columns, size_t nnz,
   return peak;
 }
 
-bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, bst_idx_t num_rows,
-                                 bst_feature_t columns, size_t nnz, int device, size_t num_cuts,
-                                 bool has_weight, std::size_t container_bytes) {
+bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShape shape, int device,
+                                 size_t num_cuts, bool has_weight, std::size_t container_bytes) {
   auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   // Device available memory is not accurate when rmm is used.
   double total_mem = dh::TotalMemory(device) - container_bytes;
   double total_f32 = total_mem / sizeof(float);
   double n_max_used_f32 = std::max(total_f32 / 16.0, 1.0);  // a quarter
-  if (nnz > num_rows * columns) {
+  if (shape.nnz > shape.Size()) {
     // Unknown nnz
-    nnz = num_rows * columns;
+    shape.nnz = shape.Size();
   }
-  return std::min(static_cast<bst_idx_t>(n_max_used_f32), nnz);
+  return std::min(static_cast<bst_idx_t>(n_max_used_f32), shape.nnz);
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   (void)container_bytes;  // We known the remaining size when RMM is not used.
 
   if (sketch_batch_num_elements == detail::UnknownSketchNumElements()) {
-    auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);
+    auto required_memory =
+        RequiredMemory(shape.n_samples, shape.n_features, shape.nnz, num_cuts, has_weight);
     // use up to 80% of available space
     auto avail = dh::AvailableMemory(device) * 0.8;
     if (required_memory > avail) {
       sketch_batch_num_elements = avail / BytesPerElement(has_weight);
     } else {
-      sketch_batch_num_elements = std::min(num_rows * static_cast<size_t>(columns), nnz);
+      sketch_batch_num_elements = std::min(shape.Size(), shape.nnz);
     }
   }
 
@@ -345,7 +345,8 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
   // Configure batch size based on available memory
   std::size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(max_bin, info.num_row_);
   sketch_batch_num_elements = detail::SketchBatchNumElements(
-      sketch_batch_num_elements, info.num_row_, info.num_col_, info.num_nonzero_, ctx->Ordinal(),
+      sketch_batch_num_elements,
+      detail::SketchShape{info.num_row_, info.num_col_, info.num_nonzero_}, ctx->Ordinal(),
       num_cuts_per_feature, has_weight, 0);
 
   CUDAContext const* cuctx = ctx->CUDACtx();

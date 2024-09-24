@@ -10,7 +10,10 @@
 #include <thrust/host_vector.h>
 #include <thrust/sort.h>  // for sort
 
-#include <cstddef>  // for size_t
+#include <algorithm>  // for max
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
+#include <limits>     // for numeric_limits
 
 #include "../data/adapter.h"  // for IsValidFunctor
 #include "algorithm.cuh"      // for CopyIf
@@ -186,12 +189,24 @@ inline size_t constexpr BytesPerElement(bool has_weight) {
   return (has_weight ? sizeof(Entry) + sizeof(float) : sizeof(Entry)) * 2;
 }
 
-/* \brief Calcuate the length of sliding window. Returns `sketch_batch_num_elements`
+struct SketchShape {
+  bst_idx_t n_samples;
+  bst_feature_t n_features;
+  bst_idx_t nnz;
+
+  template <typename F, std::enable_if_t<std::is_integral_v<F>>* = nullptr>
+  SketchShape(bst_idx_t n_samples, F n_features, bst_idx_t nnz)
+      : n_samples{n_samples}, n_features{static_cast<bst_feature_t>(n_features)}, nnz{nnz} {}
+
+  [[nodiscard]] bst_idx_t Size() const { return n_samples * n_features; }
+};
+
+/**
+ * @brief Calcuate the length of sliding window. Returns `sketch_batch_num_elements`
  *        directly if it's not 0.
  */
-bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, bst_idx_t num_rows,
-                                 bst_feature_t columns, size_t nnz, int device, size_t num_cuts,
-                                 bool has_weight, std::size_t container_bytes);
+bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShape shape, int device,
+                                 size_t num_cuts, bool has_weight, std::size_t container_bytes);
 
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
@@ -320,10 +335,10 @@ void ProcessSlidingWindow(Context const* ctx, AdapterBatch const& batch, MetaInf
 template <typename Batch>
 void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo const& info,
                                   int num_cuts_per_feature, bool is_ranking, float missing,
-                                  DeviceOrd device, size_t columns, size_t begin, size_t end,
+                                  size_t columns, size_t begin, size_t end,
                                   SketchContainer* sketch_container) {
-  dh::safe_cuda(cudaSetDevice(device.ordinal));
-  info.weights_.SetDevice(device);
+  SetDevice(ctx->Ordinal());
+  info.weights_.SetDevice(ctx->Device());
   auto weights = info.weights_.ConstDeviceSpan();
 
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
@@ -334,7 +349,7 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
   dh::caching_device_vector<size_t> column_sizes_scan;
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   detail::MakeEntriesFromAdapter(cuctx, batch, batch_iter, {begin, end}, missing, columns,
-                                 num_cuts_per_feature, device, &cuts_ptr, &column_sizes_scan,
+                                 num_cuts_per_feature, ctx->Device(), &cuts_ptr, &column_sizes_scan,
                                  &sorted_entries);
   data::IsValidFunctor is_valid(missing);
 
@@ -404,25 +419,33 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
  *                                  testing.
  */
 template <typename Batch>
-void AdapterDeviceSketch(Context const* ctx, Batch batch, int num_bins, MetaInfo const& info,
+void AdapterDeviceSketch(Context const* ctx, Batch batch, bst_bin_t num_bins, MetaInfo const& info,
                          float missing, SketchContainer* sketch_container,
                          bst_idx_t sketch_batch_num_elements = detail::UnknownSketchNumElements()) {
   bst_idx_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
 
-  auto device = sketch_container->DeviceIdx();
   bool weighted = !info.weights_.Empty();
 
   bst_idx_t const kRemaining = batch.Size();
   bst_idx_t begin = 0;
 
+  auto shape = detail::SketchShape{num_rows, num_cols, std::numeric_limits<bst_idx_t>::max()};
+
   while (begin < kRemaining) {
+    // Use total number of samples to estimate the needed cuts first, this doesn't hurt
+    // accuracy as total number of samples is larger.
     auto num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+    // Estimate the memory usage based on the current available memory.
     sketch_batch_num_elements = detail::SketchBatchNumElements(
-        sketch_batch_num_elements, num_rows, num_cols, std::numeric_limits<size_t>::max(),
-        device.ordinal, num_cuts_per_feature, weighted, sketch_container->MemCostBytes());
+        sketch_batch_num_elements, shape, ctx->Ordinal(), num_cuts_per_feature, weighted,
+        sketch_container->MemCostBytes());
+    // Re-estimate the needed number of cuts based on the size of the sub-batch.
+    //
     // The estimation of `sketch_batch_num_elements` assumes dense input, so the
-    // approximation here is reasonably accurate.
+    // approximation here is reasonably accurate. It doesn't hurt accuracy since the
+    // estimated n_samples must be greater or equal to the actual n_samples thanks to the
+    // dense assumption.
     auto approx_n_samples = std::max(sketch_batch_num_elements / num_cols, bst_idx_t{1});
     num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, approx_n_samples);
     bst_idx_t end =
@@ -430,8 +453,8 @@ void AdapterDeviceSketch(Context const* ctx, Batch batch, int num_bins, MetaInfo
 
     if (weighted) {
       ProcessWeightedSlidingWindow(ctx, batch, info, num_cuts_per_feature,
-                                   HostSketchContainer::UseGroup(info), missing, device, num_cols,
-                                   begin, end, sketch_container);
+                                   HostSketchContainer::UseGroup(info), missing, num_cols, begin,
+                                   end, sketch_container);
     } else {
       ProcessSlidingWindow(ctx, batch, info, num_cols, begin, end, missing, sketch_container,
                            num_cuts_per_feature);
