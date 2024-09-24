@@ -87,20 +87,17 @@ bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, bst_idx_t 
                                  bool has_weight, std::size_t container_bytes) {
   auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  // device available memory is not accurate when rmm is used.
+  // Device available memory is not accurate when rmm is used.
   double total_mem = dh::TotalMemory(device) - container_bytes;
   double total_f32 = total_mem / sizeof(float);
   double n_max_used_f32 = std::max(total_f32 / 16.0, 1.0);  // a quarter
-  bst_idx_t ret = 0;
   if (nnz > num_rows * columns) {
     // Unknown nnz
-    ret = std::min(static_cast<bst_idx_t>(n_max_used_f32), num_rows * columns);
-  } else {
-    ret = std::min(static_cast<bst_idx_t>(n_max_used_f32), nnz);
+    nnz = num_rows * columns;
   }
-  return ret;
+  return std::min(static_cast<bst_idx_t>(n_max_used_f32), nnz);
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  (void)container_bytes;
+  (void)container_bytes;  // We known the remaining size when RMM is not used.
 
   if (sketch_batch_num_elements == detail::UnknownSketchNumElements()) {
     auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);

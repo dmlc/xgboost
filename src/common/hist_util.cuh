@@ -310,8 +310,7 @@ void ProcessSlidingWindow(Context const* ctx, AdapterBatch const& batch, MetaInf
   auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   auto const& h_cuts_ptr = cuts_ptr.HostVector();
   // Extract the cuts from all columns concurrently
-  auto d_sorted_entries = dh::ToSpan(sorted_entries);
-  sketch_container->Push(ctx, d_sorted_entries, dh::ToSpan(column_sizes_scan), d_cuts_ptr,
+  sketch_container->Push(ctx, dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan), d_cuts_ptr,
                          h_cuts_ptr.back());
 
   sorted_entries.clear();

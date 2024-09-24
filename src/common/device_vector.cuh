@@ -49,9 +49,9 @@ class MemoryLogger {
     void RegisterAllocation(void *ptr, size_t n) {
       auto itr = device_allocations.find(ptr);
       if (itr != device_allocations.cend()) {
-        LOG(FATAL) << "Attempting to allocate " << n << " bytes."
-                   << " that was already allocated\nptr:" << ptr << "\n"
-                   << dmlc::StackTrace();
+        LOG(WARNING) << "Attempting to allocate " << n << " bytes."
+                     << " that was already allocated\nptr:" << ptr << "\n"
+                     << dmlc::StackTrace();
       }
       device_allocations[ptr] = n;
       currently_allocated_bytes += n;
@@ -62,9 +62,9 @@ class MemoryLogger {
     void RegisterDeallocation(void *ptr, size_t n, int current_device) {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
-        LOG(FATAL) << "Attempting to deallocate " << n << " bytes on device " << current_device
-                   << " that was never allocated\nptr:" << ptr << "\n"
-                   << dmlc::StackTrace();
+        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
+                     << " that was never allocated\nptr:" << ptr << "\n"
+                     << dmlc::StackTrace();
       } else {
         num_deallocations++;
         CHECK_LE(num_deallocations, num_allocations);
@@ -77,6 +77,11 @@ class MemoryLogger {
   std::mutex mutex_;
 
  public:
+  /**
+   * @brief Register the allocation for logging.
+   *
+   * @param lock Set to false if the allocator has locking machanism.
+   */
   void RegisterAllocation(void *ptr, size_t n, bool lock) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
@@ -87,6 +92,11 @@ class MemoryLogger {
     }
     stats_.RegisterAllocation(ptr, n);
   }
+  /**
+   * @brief Register the deallocation for logging.
+   *
+   * @param lock Set to false if the allocator has locking machanism.
+   */
   void RegisterDeallocation(void *ptr, size_t n, bool lock) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
@@ -153,6 +163,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     } catch (const std::exception &e) {
       detail::ThrowOOMError(e.what(), n * sizeof(T));
     }
+    // We can't place a lock here as template allocator is transient.
     GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T), true);
     return ptr;
   }
@@ -206,6 +217,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
         detail::ThrowOOMError(e.what(), n * sizeof(T));
       }
     }
+    // We can't place a lock here as template allocator is transient.
     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T), true);
     return thrust_ptr;
   }
