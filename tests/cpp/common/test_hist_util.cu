@@ -65,7 +65,8 @@ TEST(HistUtil, SketchBatchNumElements) {
   auto per_elem = detail::BytesPerElement(false);
   auto avail_elem = avail / per_elem;
   size_t rows = avail_elem / kCols * 10;
-  auto batch = detail::SketchBatchNumElements(0, rows, kCols, rows * kCols, device, 256, false, 0);
+  auto batch = detail::SketchBatchNumElements(0, rows, kCols, rows * kCols, device, 256, false,
+                                              detail::UnknownSketchNumElements());
   ASSERT_EQ(batch, avail_elem);
 }
 
