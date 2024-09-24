@@ -26,6 +26,6 @@ void InitNewThread::operator()() const {
   // action might cause an insufficient driver version error for some reason. Lastly, it
   // should work with CUDA 12.5 without any action being taken.
 
-  dh::DefaultStream().Sync();
+  // dh::DefaultStream().Sync();
 }
 }  // namespace xgboost::data

@@ -57,32 +57,4 @@ INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, ExtMemQuantileDMatrixCpu, ::test
                                0.0f, tree::TrainParam::DftSparseThreshold(), 0.4f, 0.8f};
                            return sparsities;
                          }()));
-
-TEST(ExtMemQuantileDMatrix, Prefetch) {
-  bst_idx_t n_samples = 256, n_features = 16, n_batches = 5;
-  bst_bin_t max_bin = 64;
-  auto ctx = MakeCUDACtx(0);
-  BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
-  p.n_prefetch_batches = 3;
-
-  auto p_fmat = RandomDataGenerator{n_samples, n_features, 0.0f}
-                    .Bins(max_bin)
-                    .Batches(n_batches)
-                    .Device(ctx.Device())
-                    .OnHost(true)
-                    .GenerateExtMemQuantileDMatrix("temp", true);
-
-  for (std::int32_t i = 0; i < 3; ++i) {
-    std::cout << "\n---begin---\n" << std::endl;
-    std::int32_t k = 0;
-    for ([[maybe_unused]] auto const& page : p_fmat->GetBatches<EllpackPage>(&ctx, p)) {
-      std::cout << "k:" << k++ << std::endl;
-      if (i == 1 && k == 2) {
-        std::cout << "early break" << std::endl;
-        break;
-      }
-    }
-    std::cout << "\n---exit---\n" << std::endl;
-  }
-}
 }  // namespace xgboost::data
