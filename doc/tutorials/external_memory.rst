@@ -134,7 +134,7 @@ the GPU. This is a current limitation we aim to address in the future.
 
     # It's important to use RMM for GPU-based external memory to improve performance.
     # If XGBoost is not built with RMM support, a warning will be raised.
-    mr = rmm.mr.CudaAsyncMemoryResource()
+    mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
@@ -159,9 +159,8 @@ the GPU. This is a current limitation we aim to address in the future.
 
 It's crucial to use `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ for
 all memory allocation when training with external memory. XGBoost relies on the memory
-pool to reduce the overhead for data fetching. The size of each batch should be slightly
-smaller than a quarter of the available GPU memory. In addition, the open source `NVIDIA
-Linux driver
+pool to reduce the overhead for data fetching. In addition, the open source `NVIDIA Linux
+driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
 is required for ``Heterogeneous memory management (HMM)`` support.
 

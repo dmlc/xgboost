@@ -9,6 +9,7 @@
 #include <atomic>     // for atomic
 #include <cstdint>    // for uint64_t
 #include <future>     // for future
+#include <limits>     // for numeric_limits
 #include <map>        // for map
 #include <memory>     // for unique_ptr
 #include <mutex>      // for mutex
@@ -34,6 +35,8 @@ namespace xgboost::data {
 void TryDeleteCacheFile(const std::string& file);
 
 std::string MakeCachePrefix(std::string cache_prefix);
+
+auto constexpr InvalidPageSize() { return std::numeric_limits<bst_idx_t>::max(); }
 
 /**
  * @brief Information about the cache including path and page offsets.
@@ -339,10 +342,12 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     auto bytes = fmt->Write(*page_, fo.get());
 
     timer.Stop();
-    // Not entirely accurate, the kernels doesn't have to flush the data.
-    LOG(INFO) << common::HumanMemUnit(bytes) << " written in " << timer.ElapsedSeconds()
-              << " seconds.";
-    cache_info_->Push(bytes);
+    if (bytes != InvalidPageSize()) {
+      // Not entirely accurate, the kernels doesn't have to flush the data.
+      LOG(INFO) << common::HumanMemUnit(bytes) << " written in " << timer.ElapsedSeconds()
+                << " seconds.";
+      cache_info_->Push(bytes);
+    }
   }
 
   virtual void Fetch() = 0;

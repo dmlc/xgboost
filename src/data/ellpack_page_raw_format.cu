@@ -113,10 +113,14 @@ template <typename T>
                                                       EllpackHostCacheStream* fo) const {
   xgboost_NVTX_FN_RANGE();
 
-  fo->Write(page);
+  bool new_page = fo->Write(page);
   dh::DefaultStream().Sync();
 
-  return page.Impl()->MemCostBytes();
+  if (new_page) {
+    return fo->Share()->pages.back()->MemCostBytes();
+  } else {
+    return InvalidPageSize();
+  }
 }
 
 #undef RET_IF_NOT

@@ -24,6 +24,11 @@ void CheckComputeCapability();
 
 void SetDevice(std::int32_t device);
 
+/**
+ * @brief Total device memory size.
+ */
+[[nodiscard]] std::size_t TotalMemory();
+
 // Returns the CUDA Runtime version.
 void RtVersion(std::int32_t* major, std::int32_t* minor);
 

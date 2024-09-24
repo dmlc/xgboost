@@ -35,4 +35,11 @@ inline bool RegenGHist(BatchParam old, BatchParam p) {
  */
 void CheckParam(BatchParam const& init, BatchParam const& param);
 }  // namespace xgboost::data::detail
+
+namespace xgboost::cuda_impl {
+// Indicator for XGBoost to not concatenate any page.
+constexpr bst_idx_t MatchingPageBytes() { return 0; }
+// Default size of the cached page
+constexpr double CachePageRatio() { return 0.125; }
+}  // namespace xgboost::cuda_impl
 #endif  // XGBOOST_DATA_BATCH_UTILS_H_

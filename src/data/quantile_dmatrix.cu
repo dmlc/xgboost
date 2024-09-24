@@ -48,6 +48,13 @@ void MakeSketches(Context const* ctx,
                               data::BatchSamples(proxy), dh::GetDevice(ctx)),
                           0);
   };
+  auto total_capacity = [&] {
+    bst_idx_t n_bytes = 0;
+    for (auto const& sk : sketches) {
+      n_bytes += sk.first->MemCapacityBytes();
+    }
+    return n_bytes;
+  };
 
   // Workaround empty input with CPU ctx.
   Context new_ctx;
@@ -102,6 +109,7 @@ void MakeSketches(Context const* ctx,
                                     sketches.back().first.get());
         sketches.back().second++;
       });
+      LOG(DEBUG) << "Total capacity:" << common::HumanMemUnit(total_capacity());
     }
 
     /**
@@ -115,13 +123,13 @@ void MakeSketches(Context const* ctx,
                  }));
     ext_info.nnz += thrust::reduce(ctx->CUDACtx()->CTP(), row_counts.begin(), row_counts.end());
     ext_info.n_batches++;
-    ext_info.base_rows.push_back(batch_rows);
+    ext_info.base_rowids.push_back(batch_rows);
   } while (iter->Next());
   iter->Reset();
 
   CHECK_GE(ext_info.n_features, 1) << "Data must has at least 1 column.";
-  std::partial_sum(ext_info.base_rows.cbegin(), ext_info.base_rows.cend(),
-                   ext_info.base_rows.begin());
+  std::partial_sum(ext_info.base_rowids.cbegin(), ext_info.base_rowids.cend(),
+                   ext_info.base_rowids.begin());
 
   // Get reference
   curt::SetDevice(dh::GetDevice(ctx).ordinal);
@@ -151,6 +159,8 @@ void MakeSketches(Context const* ctx,
   } else {
     GetCutsFromRef(ctx, ref, ext_info.n_features, p, cuts.get());
   }
+
+  ctx->CUDACtx()->Stream().Sync();
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::data

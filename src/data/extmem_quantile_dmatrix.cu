@@ -2,7 +2,7 @@
  * Copyright 2024, XGBoost Contributors
  */
 #include <memory>   // for shared_ptr
-#include <variant>  // for visit
+#include <variant>  // for visit, get_if
 
 #include "../common/cuda_rt_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "batch_utils.h"              // for CheckParam, RegenGHist
@@ -11,13 +11,13 @@
 #include "proxy_dmatrix.h"    // for DataIterProxy
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for BatchParam
-#include "../common/cuda_rt_utils.h"
 
 namespace xgboost::data {
 void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *ctx,
     std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
-    DMatrixHandle proxy_handle, BatchParam const &p, float missing, std::shared_ptr<DMatrix> ref) {
+    DMatrixHandle proxy_handle, BatchParam const &p, std::shared_ptr<DMatrix> ref,
+    ExtMemConfig const &config) {
   xgboost_NVTX_FN_RANGE();
 
   // A handle passed to external iterator.
@@ -29,8 +29,19 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
    */
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
-  cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, missing, cuts, this->Info(), &ext_info);
+  cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->Info(),
+                          &ext_info);
   ext_info.SetInfo(ctx, &this->info_);
+
+  /**
+   * Calculate cache info
+   */
+  auto cinfo = EllpackCacheInfo{p, config.missing};
+  CalcCacheMapping(ctx, this->Info().IsDense(), cuts, config.min_cache_page_bytes, ext_info,
+                   &cinfo);
+  CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
+  auto n_batches = cinfo.buffer_rows.size();
+  LOG(INFO) << "Number of batches after concatenation:" << n_batches;
 
   /**
    * Generate gradient index
@@ -43,8 +54,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   std::visit(
       [&](auto &&ptr) {
         using SourceT = typename std::remove_reference_t<decltype(ptr)>::element_type;
-        ptr = std::make_shared<SourceT>(ctx, missing, &this->Info(), ext_info, cache_info_.at(id),
-                                        p, cuts, iter, proxy);
+        ptr = std::make_shared<SourceT>(ctx, &this->Info(), ext_info, cache_info_.at(id), cuts,
+                                        iter, proxy, cinfo);
       },
       ellpack_page_source_);
 
@@ -55,13 +66,17 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   bst_idx_t n_total_samples = 0;
   for (auto const &page : this->GetEllpackPageImpl()) {
     n_total_samples += page.Size();
-    CHECK_EQ(page.Impl()->base_rowid, ext_info.base_rows[k]);
+    CHECK_EQ(page.Impl()->base_rowid, ext_info.base_rowids[k]);
     CHECK_EQ(page.Impl()->info.row_stride, ext_info.row_stride);
     ++k, ++batch_cnt;
   }
   CHECK_EQ(batch_cnt, ext_info.n_batches);
   CHECK_EQ(n_total_samples, ext_info.accumulated_rows);
-  this->n_batches_ = ext_info.n_batches;
+
+  if (this->on_host_) {
+    CHECK_EQ(this->cache_info_.at(id)->Size(), n_batches);
+  }
+  this->n_batches_ = this->cache_info_.at(id)->Size();
 }
 
 [[nodiscard]] BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl() {
