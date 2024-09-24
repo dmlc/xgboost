@@ -29,10 +29,13 @@ class ExtMemQuantileDMatrixGpu : public ::testing::TestWithParam<float> {
       auto equal = std::equal(h_orig.cbegin(), h_orig.cend(), h_sparse.cbegin());
       ASSERT_TRUE(equal);
     };
+    auto no_missing = [](EllpackPage const& page) {
+      return page.Impl()->IsDense();
+    };
 
     auto ctx = MakeCUDACtx(0);
-    TestExtMemQdmBasic<EllpackPage>(&ctx, true, sparsity, equal);
-    TestExtMemQdmBasic<EllpackPage>(&ctx, false, sparsity, equal);
+    TestExtMemQdmBasic<EllpackPage>(&ctx, true, sparsity, equal, no_missing);
+    TestExtMemQdmBasic<EllpackPage>(&ctx, false, sparsity, equal, no_missing);
   }
 };
 

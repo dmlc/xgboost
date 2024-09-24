@@ -45,7 +45,8 @@ class ExtMemQuantileDMatrixCpu : public ::testing::TestWithParam<float> {
     };
 
     Context ctx;
-    TestExtMemQdmBasic<GHistIndexMatrix>(&ctx, false, sparsity, equal);
+    TestExtMemQdmBasic<GHistIndexMatrix>(
+        &ctx, false, sparsity, equal, [](GHistIndexMatrix const& page) { return page.IsDense(); });
   }
 };
 }  // anonymous namespace

@@ -80,6 +80,12 @@ class EllpackFormatPolicy {
     if (!GlobalConfigThreadLocalStore::Get()->use_rmm) {
       LOG(WARNING) << "`use_rmm` is set to false." << msg;
     }
+    std::int32_t major{0}, minor{0};
+    curt::DrVersion(&major, &minor);
+    if (!(major >= 12 && minor >= 7) && curt::SupportsAts()) {
+      // Use ATS, but with an old kernel driver.
+      LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7." << msg;
+    }
   }
   // For testing with the HMM flag.
   explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}

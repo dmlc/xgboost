@@ -61,8 +61,7 @@ TEST(Histogram, SubtractionTrack) {
 
   auto page = BuildEllpackPage(&ctx, 64, 4);
   auto cuts = page->CutsShared();
-  FeatureGroups fg{*cuts, true, std::numeric_limits<std::size_t>::max(),
-                   sizeof(GradientPairPrecise)};
+  FeatureGroups fg{*cuts, true, std::numeric_limits<std::size_t>::max()};
   auto fg_acc = fg.DeviceAccessor(ctx.Device());
   auto n_total_bins = cuts->TotalBins();
 
@@ -102,14 +101,7 @@ std::vector<GradientPairPrecise> GetHostHistGpair() {
 
 void TestBuildHist(bool use_shared_memory_histograms) {
   int const kNRows = 16, kNCols = 8;
-  Context ctx{MakeCUDACtx(0)};
-
-  TrainParam param;
-  Args args{
-      {"max_depth", "6"},
-      {"max_leaves", "0"},
-  };
-  param.Init(args);
+  auto ctx = MakeCUDACtx(0);
 
   auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
   BatchParam batch_param{};
@@ -129,7 +121,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   auto quantiser = std::make_unique<GradientQuantiser>(&ctx, gpair.ConstDeviceSpan(), MetaInfo());
   auto shm_size = use_shared_memory_histograms ? dh::MaxSharedMemoryOptin(ctx.Ordinal()) : 0;
-  FeatureGroups feature_groups(page->Cuts(), page->is_dense, shm_size, sizeof(GradientPairInt64));
+  FeatureGroups feature_groups(page->Cuts(), page->IsDenseCompressed(), shm_size);
 
   DeviceHistogramBuilder builder;
   builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
@@ -161,7 +153,8 @@ TEST(Histogram, BuildHistSharedMem) {
   TestBuildHist(true);
 }
 
-void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) {
+namespace {
+void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_global) {
   Context ctx = MakeCUDACtx(0);
   size_t constexpr kBins = 256, kCols = 120, kRows = 16384, kRounds = 16;
   float constexpr kLower = -1e-2, kUpper = 1e2;
@@ -183,7 +176,7 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
     auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
     gpair.SetDevice(ctx.Device());
 
-    FeatureGroups feature_groups(page->Cuts(), page->is_dense, shm_size, sizeof(GradientPairInt64));
+    FeatureGroups feature_groups{page->Cuts(), page->IsDenseCompressed(), shm_size};
 
     auto quantiser = GradientQuantiser(&ctx, gpair.DeviceSpan(), MetaInfo());
     DeviceHistogramBuilder builder;
@@ -211,8 +204,7 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
 
       std::vector<GradientPairInt64> new_histogram_h(num_bins);
       dh::safe_cuda(cudaMemcpy(new_histogram_h.data(), d_new_histogram.data(),
-                               num_bins * sizeof(GradientPairInt64),
-                               cudaMemcpyDeviceToHost));
+                               num_bins * sizeof(GradientPairInt64), cudaMemcpyDeviceToHost));
       for (size_t j = 0; j < new_histogram_h.size(); ++j) {
         ASSERT_EQ(new_histogram_h[j].GetQuantisedGrad(), histogram_h[j].GetQuantisedGrad());
         ASSERT_EQ(new_histogram_h[j].GetQuantisedHess(), histogram_h[j].GetQuantisedHess());
@@ -236,28 +228,30 @@ void TestDeterministicHistogram(bool is_dense, int shm_size, bool force_global) 
 
       std::vector<GradientPairInt64> baseline_h(num_bins);
       dh::safe_cuda(cudaMemcpy(baseline_h.data(), baseline.data().get(),
-                               num_bins * sizeof(GradientPairInt64),
-                               cudaMemcpyDeviceToHost));
+                               num_bins * sizeof(GradientPairInt64), cudaMemcpyDeviceToHost));
 
       for (size_t i = 0; i < baseline.size(); ++i) {
-        EXPECT_NEAR(baseline_h[i].GetQuantisedGrad(), histogram_h[i].GetQuantisedGrad(),
+        ASSERT_NEAR(baseline_h[i].GetQuantisedGrad(), histogram_h[i].GetQuantisedGrad(),
                     baseline_h[i].GetQuantisedGrad() * 1e-3);
       }
     }
   }
 }
-
-TEST(Histogram, GPUDeterministic) {
-  std::vector<bool> is_dense_array{false, true};
-  std::vector<int> shm_sizes{48 * 1024, 64 * 1024, 160 * 1024};
-  for (bool is_dense : is_dense_array) {
-    for (int shm_size : shm_sizes) {
-      for (bool force_global : {true, false}) {
-        TestDeterministicHistogram(is_dense, shm_size, force_global);
-      }
-    }
+class TestGPUDeterministic : public ::testing::TestWithParam<std::tuple<bool, std::size_t, bool>> {
+ protected:
+  void Run() {
+    auto [is_dense, shm_size, force_global] = this->GetParam();
+    TestDeterministicHistogram(is_dense, shm_size, force_global);
   }
-}
+};
+}  // anonymous namespace
+
+TEST_P(TestGPUDeterministic, Histogram) { this->Run(); }
+
+INSTANTIATE_TEST_SUITE_P(Histogram, TestGPUDeterministic,
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Values(48 * 1024, 64 * 1024, 160 * 1024),
+                                            ::testing::Bool()));
 
 void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientPairInt64> onehot,
                                   common::Span<GradientPairInt64> cat) {
@@ -513,13 +507,7 @@ TEST_P(HistogramExternalMemoryTest, ExternalMemory) {
   std::apply(&HistogramExternalMemoryTest::Run, std::tuple_cat(std::make_tuple(this), GetParam()));
 }
 
-INSTANTIATE_TEST_SUITE_P(Histogram, HistogramExternalMemoryTest, ::testing::ValuesIn([]() {
-                           std::vector<std::tuple<float, bool>> params;
-                           for (auto global : {true, false}) {
-                             for (auto sparsity : {0.0f, 0.2f, 0.8f}) {
-                               params.emplace_back(sparsity, global);
-                             }
-                           }
-                           return params;
-                         }()));
+INSTANTIATE_TEST_SUITE_P(Histogram, HistogramExternalMemoryTest,
+                         ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.8f),
+                                            ::testing::Bool()));
 }  // namespace xgboost::tree
