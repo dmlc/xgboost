@@ -9,10 +9,14 @@
 #include <memory>              // for make_shared
 #include <mutex>               // for mutex, unique_lock
 #include <queue>               // for queue
+#include <string>              // for string
 #include <thread>              // for thread
 #include <type_traits>         // for invoke_result_t
 #include <utility>             // for move
 #include <vector>              // for vector
+
+#include "threading_utils.h"      // for NameThread
+#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::common {
 /**
@@ -27,11 +31,12 @@ class ThreadPool {
 
  public:
   /**
+   * @param name      Name prefix for threads.
    * @param n_threads The number of threads this pool should hold.
    * @param init_fn   Function called once during thread creation.
    */
   template <typename InitFn>
-  explicit ThreadPool(std::int32_t n_threads, InitFn&& init_fn) {
+  explicit ThreadPool(StringView name, std::int32_t n_threads, InitFn&& init_fn) {
     for (std::int32_t i = 0; i < n_threads; ++i) {
       pool_.emplace_back([&, init_fn = std::forward<InitFn>(init_fn)] {
         init_fn();
@@ -55,6 +60,8 @@ class ThreadPool {
           fn();
         }
       });
+      std::string name_i = name.c_str() + std::string{"-"} + std::to_string(i);  // NOLINT
+      NameThread(&pool_.back(), name_i);
     }
   }
 

@@ -1,9 +1,9 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include "numeric.h"
 
-#include <type_traits>  // std::is_same
+#include <type_traits>  // std::is_same_v
 
 #include "xgboost/context.h"             // Context
 #include "xgboost/host_device_vector.h"  // HostDeviceVector
@@ -16,7 +16,7 @@ double Reduce(Context const* ctx, HostDeviceVector<float> const& values) {
   } else {
     auto const& h_values = values.ConstHostVector();
     auto result = cpu_impl::Reduce(ctx, h_values.cbegin(), h_values.cend(), 0.0);
-    static_assert(std::is_same<decltype(result), double>::value);
+    static_assert(std::is_same_v<decltype(result), double>);
     return result;
   }
 }

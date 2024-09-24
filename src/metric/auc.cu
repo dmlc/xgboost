@@ -13,7 +13,7 @@
 #include <utility>
 
 #include "../collective/allreduce.h"
-#include "../common/algorithm.cuh"        // SegmentedArgSort
+#include "../common/algorithm.cuh"        // SegmentedArgSort, InclusiveScan
 #include "../common/optional_weight.h"    // OptionalWeights
 #include "../common/threading_utils.cuh"  // UnravelTrapeziodIdx,SegmentedTrapezoidThreads
 #include "auc.h"
@@ -128,8 +128,8 @@ std::tuple<double, double, double> GPUBinaryAUC(Context const *ctx,
       dh::tbegin(d_unique_idx));
   d_unique_idx = d_unique_idx.subspan(0, end_unique.second - dh::tbegin(d_unique_idx));
 
-  dh::InclusiveScan(dh::tbegin(d_fptp), dh::tbegin(d_fptp),
-                    PairPlus<double, double>{}, d_fptp.size());
+  common::InclusiveScan(ctx, dh::tbegin(d_fptp), dh::tbegin(d_fptp), PairPlus<double, double>{},
+                        d_fptp.size());
 
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
   // scatter unique negaive/positive values
@@ -239,7 +239,7 @@ double ScaleClasses(Context const *ctx, bool is_column_split, common::Span<doubl
  * getting class id or group id given scan index.
  */
 template <typename Fn>
-void SegmentedFPTP(common::Span<Pair> d_fptp, Fn segment_id) {
+void SegmentedFPTP(Context const *ctx, common::Span<Pair> d_fptp, Fn segment_id) {
   using Triple = thrust::tuple<uint32_t, double, double>;
   // expand to tuple to include idx
   auto fptp_it_in = dh::MakeTransformIterator<Triple>(
@@ -253,8 +253,8 @@ void SegmentedFPTP(common::Span<Pair> d_fptp, Fn segment_id) {
             thrust::make_pair(thrust::get<1>(t), thrust::get<2>(t));
         return t;
       });
-  dh::InclusiveScan(
-      fptp_it_in, fptp_it_out,
+  common::InclusiveScan(
+      ctx, fptp_it_in, fptp_it_out,
       [=] XGBOOST_DEVICE(Triple const &l, Triple const &r) {
         uint32_t l_gid = segment_id(thrust::get<0>(l));
         uint32_t r_gid = segment_id(thrust::get<0>(r));
@@ -391,7 +391,7 @@ double GPUMultiClassAUCOVR(Context const *ctx, MetaInfo const &info,
   d_unique_idx = d_unique_idx.subspan(0, n_uniques);
 
   auto get_class_id = [=] XGBOOST_DEVICE(size_t idx) { return idx / n_samples; };
-  SegmentedFPTP(d_fptp, get_class_id);
+  SegmentedFPTP(ctx, d_fptp, get_class_id);
 
   // scatter unique FP_PREV/TP_PREV values
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
@@ -528,8 +528,8 @@ std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<
   dh::caching_device_vector<size_t> threads_group_ptr(group_ptr.size(), 0);
   auto d_threads_group_ptr = dh::ToSpan(threads_group_ptr);
   // Use max to represent triangle
-  auto n_threads = common::SegmentedTrapezoidThreads(
-      d_group_ptr, d_threads_group_ptr, std::numeric_limits<size_t>::max());
+  auto n_threads = common::SegmentedTrapezoidThreads(ctx, d_group_ptr, d_threads_group_ptr,
+                                                     std::numeric_limits<std::size_t>::max());
   CHECK_LT(n_threads, std::numeric_limits<int32_t>::max());
   // get the coordinate in nested summation
   auto get_i_j = [=]XGBOOST_DEVICE(size_t idx, size_t query_group_idx) {
@@ -591,8 +591,8 @@ std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<
         }
         return {};  // discard
       });
-  dh::InclusiveScan(
-      in, out,
+  common::InclusiveScan(
+      ctx, in, out,
       [] XGBOOST_DEVICE(RankScanItem const &l, RankScanItem const &r) {
         if (l.group_id != r.group_id) {
           return r;
@@ -774,7 +774,7 @@ std::pair<double, uint32_t> GPURankingPRAUCImpl(Context const *ctx,
   auto get_group_id = [=] XGBOOST_DEVICE(size_t idx) {
     return dh::SegmentId(d_group_ptr, idx);
   };
-  SegmentedFPTP(d_fptp, get_group_id);
+  SegmentedFPTP(ctx, d_fptp, get_group_id);
 
   // scatter unique FP_PREV/TP_PREV values
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);

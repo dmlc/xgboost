@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #ifndef EXPAND_ENTRY_CUH_
 #define EXPAND_ENTRY_CUH_
@@ -7,9 +7,9 @@
 #include <limits>   // for numeric_limits
 #include <utility>  // for move
 
-#include "../param.h"
-#include "../updater_gpu_common.cuh"
-#include "xgboost/base.h"  // for bst_node_t
+#include "../param.h"                 // for TrainParam
+#include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
+#include "xgboost/base.h"             // for bst_node_t
 
 namespace xgboost::tree {
 struct GPUExpandEntry {

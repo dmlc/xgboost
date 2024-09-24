@@ -55,9 +55,9 @@ public class CudfColumn extends Column {
     DType dType = cv.getType();
     String typeStr = "";
     if (dType == DType.FLOAT32 || dType == DType.FLOAT64 ||
-          dType == DType.TIMESTAMP_DAYS || dType == DType.TIMESTAMP_MICROSECONDS ||
-          dType == DType.TIMESTAMP_MILLISECONDS || dType == DType.TIMESTAMP_NANOSECONDS ||
-          dType == DType.TIMESTAMP_SECONDS) {
+        dType == DType.TIMESTAMP_DAYS || dType == DType.TIMESTAMP_MICROSECONDS ||
+        dType == DType.TIMESTAMP_MILLISECONDS || dType == DType.TIMESTAMP_NANOSECONDS ||
+        dType == DType.TIMESTAMP_SECONDS) {
       typeStr = "<f" + dType.getSizeInBytes();
     } else if (dType == DType.BOOL8 || dType == DType.INT8 || dType == DType.INT16 ||
         dType == DType.INT32 || dType == DType.INT64) {

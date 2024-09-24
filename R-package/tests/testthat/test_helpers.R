@@ -36,6 +36,10 @@ if (isTRUE(VCD_AVAILABLE)) {
                          base_score = 0.5)
 
     feature.names <- colnames(sparse_matrix)
+
+    # without feature names
+    bst.Tree.unnamed <- xgb.copy.Booster(bst.Tree)
+    setinfo(bst.Tree.unnamed, "feature_name", NULL)
 }
 
 # multiclass
@@ -48,10 +52,6 @@ mbst.Tree <- xgb.train(data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel)
 mbst.GLM <- xgb.train(data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel), verbose = 0,
                       booster = "gblinear", eta = 0.1, nthread = 1, nrounds = nrounds,
                       objective = "multi:softprob", num_class = nclass, base_score = 0)
-
-# without feature names
-bst.Tree.unnamed <- xgb.copy.Booster(bst.Tree)
-setinfo(bst.Tree.unnamed, "feature_name", NULL)
 
 test_that("xgb.dump works", {
   .skip_if_vcd_not_available()
@@ -132,31 +132,31 @@ test_that("predict feature contributions works", {
                tolerance = float_tolerance)
 
   # gbtree multiclass
-  pred <- predict(mbst.Tree, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred <- predict(mbst.Tree, as.matrix(iris[, -5]), outputmargin = TRUE)
   pred_contr <- predict(mbst.Tree, as.matrix(iris[, -5]), predcontrib = TRUE)
-  expect_is(pred_contr, "list")
-  expect_length(pred_contr, 3)
-  for (g in seq_along(pred_contr)) {
-    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "(Intercept)"))
-    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), 1e-5)
+  expect_is(pred_contr, "array")
+  expect_length(dim(pred_contr), 3)
+  for (g in seq_len(dim(pred_contr)[2])) {
+    expect_equal(colnames(pred_contr[, g, ]), c(colnames(iris[, -5]), "(Intercept)"))
+    expect_lt(max(abs(rowSums(pred_contr[, g, ]) - pred[, g])), 1e-5)
   }
 
   # gblinear multiclass (set base_score = 0, which is base margin in multiclass)
-  pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
+  pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE)
   pred_contr <- predict(mbst.GLM, as.matrix(iris[, -5]), predcontrib = TRUE)
-  expect_length(pred_contr, 3)
+  expect_length(dim(pred_contr), 3)
   coefs_all <- matrix(
     data = as.numeric(xgb.dump(mbst.GLM)[-c(1, 2, 6)]),
     ncol = 3,
     byrow = TRUE
   )
-  for (g in seq_along(pred_contr)) {
-    expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "(Intercept)"))
-    expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), float_tolerance)
+  for (g in seq_along(dim(pred_contr)[2])) {
+    expect_equal(colnames(pred_contr[, g, ]), c(colnames(iris[, -5]), "(Intercept)"))
+    expect_lt(max(abs(rowSums(pred_contr[, g, ]) - pred[, g])), float_tolerance)
     # manual calculation of linear terms
     coefs <- c(coefs_all[-1, g], coefs_all[1, g]) # intercept needs to be the last
     pred_contr_manual <- sweep(as.matrix(cbind(iris[, -5], 1)), 2, coefs, FUN = "*")
-    expect_equal(as.numeric(pred_contr[[g]]), as.numeric(pred_contr_manual),
+    expect_equal(as.numeric(pred_contr[, g, ]), as.numeric(pred_contr_manual),
                  tolerance = float_tolerance)
   }
 })
@@ -449,6 +449,26 @@ test_that("xgb.shap.data works with subsampling", {
   expect_equal(NROW(data_list$data), NROW(data_list$shap_contrib))
 })
 
+test_that("xgb.shap.data works with data frames", {
+  data(mtcars)
+  df <- mtcars
+  df$cyl <- factor(df$cyl)
+  x <- df[, -1]
+  y <- df$mpg
+  dm <- xgb.DMatrix(x, label = y, nthread = 1L)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      max_depth = 2,
+      nthread = 1
+    ),
+    nrounds = 2
+  )
+  data_list <- xgb.shap.data(data = df[, -1], model = model, top_n = 2, subsample = 0.8)
+  expect_equal(NROW(data_list$data), as.integer(0.8 * nrow(df)))
+  expect_equal(NROW(data_list$data), NROW(data_list$shap_contrib))
+})
+
 test_that("prepare.ggplot.shap.data works", {
   .skip_if_vcd_not_available()
   data_list <- xgb.shap.data(data = sparse_matrix, model = bst.Tree, top_n = 2)
@@ -470,6 +490,44 @@ test_that("xgb.plot.shap.summary works", {
   .skip_if_vcd_not_available()
   expect_silent(xgb.plot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
   expect_silent(xgb.ggplot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
+})
+
+test_that("xgb.plot.shap.summary ignores categorical features", {
+  .skip_if_vcd_not_available()
+  data(mtcars)
+  df <- mtcars
+  df$cyl <- factor(df$cyl)
+  levels(df$cyl) <- c("a", "b", "c")
+  x <- df[, -1]
+  y <- df$mpg
+  dm <- xgb.DMatrix(x, label = y, nthread = 1L)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      max_depth = 2,
+      nthread = 1
+    ),
+    nrounds = 2
+  )
+  expect_warning({
+    xgb.ggplot.shap.summary(data = x, model = model, top_n = 2)
+  })
+
+  x_num <- mtcars[, -1]
+  x_num$gear <- as.numeric(x_num$gear) - 1
+  x_num <- as.matrix(x_num)
+  dm <- xgb.DMatrix(x_num, label = y, feature_types = c(rep("q", 8), "c", "q"), nthread = 1L)
+  model <- xgb.train(
+    data = dm,
+    params = list(
+      max_depth = 2,
+      nthread = 1
+    ),
+    nrounds = 2
+  )
+  expect_warning({
+    xgb.ggplot.shap.summary(data = x_num, model = model, top_n = 2)
+  })
 })
 
 test_that("check.deprecation works", {

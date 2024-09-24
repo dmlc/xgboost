@@ -258,8 +258,7 @@ public class DMatrixTest {
     TestCase.assertTrue(Arrays.equals(weights, dmat0.getWeight()));
   }
 
-  @Test
-  public void testCreateFromDenseMatrixWithMissingValue() throws XGBoostError {
+  private DMatrix createFromDenseMatrix() throws XGBoostError {
     //create DMatrix from 10*5 dense matrix
     int nrow = 10;
     int ncol = 5;
@@ -280,12 +279,17 @@ public class DMatrixTest {
       label0[i] = random.nextFloat();
     }
 
-    DMatrix dmat0 = new DMatrix(data0, nrow, ncol, -0.1f);
-    dmat0.setLabel(label0);
+    DMatrix dm = new DMatrix(data0, nrow, ncol, -0.1f);
+    dm.setLabel(label0);
+    return dm;
+  }
 
+  @Test
+  public void testCreateFromDenseMatrixWithMissingValue() throws XGBoostError {
+    DMatrix dm = createFromDenseMatrix();
     //check
-    TestCase.assertTrue(dmat0.rowNum() == 10);
-    TestCase.assertTrue(dmat0.getLabel().length == 10);
+    TestCase.assertTrue(dm.rowNum() == 10);
+    TestCase.assertTrue(dm.getLabel().length == 10);
   }
 
   @Test
@@ -492,5 +496,29 @@ public class DMatrixTest {
     dmat0.setQueryId(qid1);
     TestCase.assertTrue(Arrays.equals(qidExpected1, dmat0.getGroup()));
 
+  }
+
+  @Test
+  public void getGetQuantileCut() throws XGBoostError {
+    DMatrix Xy = createFromDenseMatrix();
+    Map<String, Object> params = new HashMap<String, Object>();
+    HashMap<String, DMatrix> watches = new HashMap<String, DMatrix>();
+    watches.put("train", Xy);
+    XGBoost.train(Xy, params, 1, watches, null, null); // Create the cuts
+    DMatrix.QuantileCut cuts = Xy.getQuantileCut();
+    TestCase.assertEquals(cuts.indptr.length, 6);
+    for (int i = 1; i < cuts.indptr.length; ++i) {
+      // Number of bins for each feature + min value.
+      TestCase.assertTrue(cuts.indptr[i] - cuts.indptr[i - 1] >= 5);
+      TestCase.assertTrue(cuts.indptr[i] - cuts.indptr[i - 1] <= Xy.rowNum() + 1);
+    }
+    TestCase.assertEquals(cuts.values.length, cuts.indptr[cuts.indptr.length - 1]);
+    for (int i = 1; i < cuts.indptr.length; ++i) {
+      long begin = cuts.indptr[i - 1];
+      long end = cuts.indptr[i];
+      for (long j = begin + 1; j < end; ++j) {
+        TestCase.assertTrue(cuts.values[(int) j] > cuts.values[(int) j - 1]);
+      }
+    }
   }
 }

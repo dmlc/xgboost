@@ -4,7 +4,7 @@ import ctypes
 from threading import Thread
 from typing import Any, Dict, Optional
 
-from .core import _LIB, _check_call, make_jcargs
+from .core import _LIB, _check_call, _deprecate_positional_args, make_jcargs
 from .tracker import RabitTracker
 
 
@@ -34,10 +34,12 @@ class FederatedTracker(RabitTracker):
 
     """
 
+    @_deprecate_positional_args
     def __init__(  # pylint: disable=R0913, W0231
         self,
         n_workers: int,
         port: int,
+        *,
         secure: bool,
         server_key_path: Optional[str] = None,
         server_cert_path: Optional[str] = None,
@@ -59,9 +61,11 @@ class FederatedTracker(RabitTracker):
         self.handle = handle
 
 
+@_deprecate_positional_args
 def run_federated_server(  # pylint: disable=too-many-arguments
     n_workers: int,
     port: int,
+    *,
     server_key_path: Optional[str] = None,
     server_cert_path: Optional[str] = None,
     client_cert_path: Optional[str] = None,

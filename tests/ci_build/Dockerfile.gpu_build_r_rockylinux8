@@ -42,7 +42,7 @@ run \
     wget -nv -nc https://cmake.org/files/v3.29/cmake-3.29.5-linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.29.5-linux-x86_64.sh --skip-license --prefix=/usr
 
-ENV GOSU_VERSION 1.10
+ENV GOSU_VERSION=1.10
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

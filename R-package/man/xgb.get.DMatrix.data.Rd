@@ -7,7 +7,7 @@
 xgb.get.DMatrix.data(dmat)
 }
 \arguments{
-\item{dmat}{An \code{xgb.DMatrix} object, as returned by \link{xgb.DMatrix}.}
+\item{dmat}{An \code{xgb.DMatrix} object, as returned by \code{\link[=xgb.DMatrix]{xgb.DMatrix()}}.}
 }
 \value{
 The data held in the DMatrix, as a sparse CSR matrix (class \code{dgRMatrix}

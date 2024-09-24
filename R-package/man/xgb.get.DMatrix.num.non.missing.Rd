@@ -7,10 +7,10 @@
 xgb.get.DMatrix.num.non.missing(dmat)
 }
 \arguments{
-\item{dmat}{An \code{xgb.DMatrix} object, as returned by \link{xgb.DMatrix}.}
+\item{dmat}{An \code{xgb.DMatrix} object, as returned by \code{\link[=xgb.DMatrix]{xgb.DMatrix()}}.}
 }
 \value{
-The number of non-missing entries in the DMatrix
+The number of non-missing entries in the DMatrix.
 }
 \description{
 Get Number of Non-Missing Entries in DMatrix

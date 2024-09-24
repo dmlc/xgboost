@@ -6,6 +6,8 @@
 
 #include <thrust/binary_search.h>
 
+#include <limits>  // for numeric_limits
+
 #include "../common/categorical.h"
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
@@ -21,36 +23,40 @@ namespace xgboost {
  * Does not own underlying memory and may be trivially copied into kernels.
  */
 struct EllpackDeviceAccessor {
-  /*! \brief Whether or not if the matrix is dense. */
+  /** @brief Whether or not if the matrix is dense. */
   bool is_dense;
-  /*! \brief Row length for ELLPACK, equal to number of features. */
+  /** @brief Row length for ELLPACK, equal to number of features when the data is dense. */
   bst_idx_t row_stride;
-  bst_idx_t base_rowid{0};
-  bst_idx_t n_rows{0};
+  /** @brief Starting index of the rows. Used for external memory. */
+  bst_idx_t base_rowid;
+  /** @brief Number of rows in this batch. */
+  bst_idx_t n_rows;
+  /** @brief Acessor for the gradient index. */
   common::CompressedIterator<std::uint32_t> gidx_iter;
-  /*! \brief Minimum value for each feature. Size equals to number of features. */
+  /** @brief Minimum value for each feature. Size equals to number of features. */
   common::Span<const float> min_fvalue;
-  /*! \brief Histogram cut pointers. Size equals to (number of features + 1). */
+  /** @brief Histogram cut pointers. Size equals to (number of features + 1). */
   common::Span<const std::uint32_t> feature_segments;
-  /*! \brief Histogram cut values. Size equals to (bins per feature * number of features). */
+  /** @brief Histogram cut values. Size equals to (bins per feature * number of features). */
   common::Span<const float> gidx_fvalue_map;
-
+  /** @brief Type of each feature, categorical or numerical. */
   common::Span<const FeatureType> feature_types;
 
-  EllpackDeviceAccessor(DeviceOrd device, std::shared_ptr<const common::HistogramCuts> cuts,
-                        bool is_dense, size_t row_stride, size_t base_rowid, size_t n_rows,
+  EllpackDeviceAccessor() = delete;
+  EllpackDeviceAccessor(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
+                        bool is_dense, bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
                         common::CompressedIterator<uint32_t> gidx_iter,
                         common::Span<FeatureType const> feature_types)
-      : is_dense(is_dense),
-        row_stride(row_stride),
-        base_rowid(base_rowid),
-        n_rows(n_rows),
-        gidx_iter(gidx_iter),
+      : is_dense{is_dense},
+        row_stride{row_stride},
+        base_rowid{base_rowid},
+        n_rows{n_rows},
+        gidx_iter{gidx_iter},
         feature_types{feature_types} {
-    if (device.IsCUDA()) {
-      cuts->cut_values_.SetDevice(device);
-      cuts->cut_ptrs_.SetDevice(device);
-      cuts->min_vals_.SetDevice(device);
+    if (ctx->IsCUDA()) {
+      cuts->cut_values_.SetDevice(ctx->Device());
+      cuts->cut_ptrs_.SetDevice(ctx->Device());
+      cuts->min_vals_.SetDevice(ctx->Device());
       gidx_fvalue_map = cuts->cut_values_.ConstDeviceSpan();
       feature_segments = cuts->cut_ptrs_.ConstDeviceSpan();
       min_fvalue = cuts->min_vals_.ConstDeviceSpan();
@@ -60,20 +66,28 @@ struct EllpackDeviceAccessor {
       min_fvalue = cuts->min_vals_.ConstHostSpan();
     }
   }
-  // Get a matrix element, uses binary search for look up Return NaN if missing
-  // Given a row index and a feature index, returns the corresponding cut value
-  [[nodiscard]] __device__ int32_t GetBinIndex(size_t ridx, size_t fidx) const {
-    ridx -= base_rowid;
+
+  /**
+   * @brief Given a row index and a feature index, returns the corresponding cut value.
+   *
+   * Uses binary search for look up. Returns NaN if missing.
+   *
+   * @tparam global_ridx Whether the row index is global to all ellpack batches or it's
+   *                     local to the current batch.
+   */
+  template <bool global_ridx = true>
+  [[nodiscard]] __device__ bst_bin_t GetBinIndex(bst_idx_t ridx, size_t fidx) const {
+    if (global_ridx) {
+      ridx -= base_rowid;
+    }
     auto row_begin = row_stride * ridx;
     auto row_end = row_begin + row_stride;
-    auto gidx = -1;
+    bst_bin_t gidx = -1;
     if (is_dense) {
       gidx = gidx_iter[row_begin + fidx];
+      gidx += this->feature_segments[fidx];
     } else {
-      gidx = common::BinarySearchBin(row_begin,
-                                     row_end,
-                                     gidx_iter,
-                                     feature_segments[fidx],
+      gidx = common::BinarySearchBin(row_begin, row_end, gidx_iter, feature_segments[fidx],
                                      feature_segments[fidx + 1]);
     }
     return gidx;
@@ -102,10 +116,10 @@ struct EllpackDeviceAccessor {
     return idx;
   }
 
-  [[nodiscard]] __device__ bst_float GetFvalue(size_t ridx, size_t fidx) const {
+  [[nodiscard]] __device__ float GetFvalue(bst_idx_t ridx, size_t fidx) const {
     auto gidx = GetBinIndex(ridx, fidx);
     if (gidx == -1) {
-      return nan("");
+      return std::numeric_limits<float>::quiet_NaN();
     }
     return gidx_fvalue_map[gidx];
   }
@@ -114,9 +128,6 @@ struct EllpackDeviceAccessor {
   [[nodiscard]] __device__ bool IsInRange(size_t row_id) const {
     return row_id >= base_rowid && row_id < base_rowid + n_rows;
   }
-  /*! \brief Return the total number of symbols (total number of bins plus 1 for
-   * not found). */
-  [[nodiscard]] XGBOOST_DEVICE size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
 
   [[nodiscard]] XGBOOST_DEVICE size_t NullValue() const { return this->NumBins(); }
 
@@ -147,7 +158,7 @@ class EllpackPageImpl {
   EllpackPageImpl(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
                   bool is_dense, bst_idx_t row_stride, bst_idx_t n_rows);
   /**
-   * @brief Constructor used for external memory.
+   * @brief Constructor used for external memory with DMatrix.
    */
   EllpackPageImpl(Context const* ctx, std::shared_ptr<common::HistogramCuts const> cuts,
                   const SparsePage& page, bool is_dense, size_t row_stride,
@@ -160,17 +171,27 @@ class EllpackPageImpl {
    * in CSR format.
    */
   explicit EllpackPageImpl(Context const* ctx, DMatrix* dmat, const BatchParam& parm);
-
+  /**
+   * @brief Constructor for Quantile DMatrix using an adapter.
+   */
   template <typename AdapterBatch>
   explicit EllpackPageImpl(Context const* ctx, AdapterBatch batch, float missing, bool is_dense,
-                           common::Span<size_t> row_counts_span,
+                           common::Span<size_t const> row_counts_span,
                            common::Span<FeatureType const> feature_types, size_t row_stride,
-                           size_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
+                           bst_idx_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
   /**
    * @brief Constructor from an existing CPU gradient index.
    */
   explicit EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
                            common::Span<FeatureType const> ft);
+
+  EllpackPageImpl(EllpackPageImpl const& that) = delete;
+  EllpackPageImpl& operator=(EllpackPageImpl const& that) = delete;
+
+  EllpackPageImpl(EllpackPageImpl&& that) = default;
+  EllpackPageImpl& operator=(EllpackPageImpl&& that) = default;
+
+  ~EllpackPageImpl() noexcept(false);
 
   /**
    * @brief Copy the elements of the given ELLPACK page into this page.
@@ -201,37 +222,43 @@ class EllpackPageImpl {
 
   [[nodiscard]] common::HistogramCuts const& Cuts() const { return *cuts_; }
   [[nodiscard]] std::shared_ptr<common::HistogramCuts const> CutsShared() const { return cuts_; }
-  void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts) { cuts_ = cuts; }
+  void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts);
 
+  [[nodiscard]] bool IsDense() const { return is_dense; }
   /** @return Estimation of memory cost of this page. */
-  static size_t MemCostBytes(size_t num_rows, size_t row_stride, const common::HistogramCuts&cuts) ;
-
+  std::size_t MemCostBytes() const;
 
   /**
    * @brief Return the total number of symbols (total number of bins plus 1 for not
    *        found).
    */
-  [[nodiscard]] std::size_t NumSymbols() const { return cuts_->TotalBins() + 1; }
+  [[nodiscard]] std::size_t NumSymbols() const { return this->n_symbols_; }
+  void SetNumSymbols(bst_idx_t n_symbols) { this->n_symbols_ = n_symbols; }
+
   /**
    * @brief Get an accessor that can be passed into CUDA kernels.
    */
   [[nodiscard]] EllpackDeviceAccessor GetDeviceAccessor(
-      DeviceOrd device, common::Span<FeatureType const> feature_types = {}) const;
+      Context const* ctx, common::Span<FeatureType const> feature_types = {}) const;
   /**
    * @brief Get an accessor for host code.
    */
   [[nodiscard]] EllpackDeviceAccessor GetHostAccessor(
       Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
       common::Span<FeatureType const> feature_types = {}) const;
+  /**
+   * @brief Calculate the number of non-missing values.
+   */
+  [[nodiscard]] bst_idx_t NumNonMissing(Context const* ctx,
+                                        common::Span<FeatureType const> feature_types) const;
 
  private:
   /**
    * @brief Compress a single page of CSR data into ELLPACK.
    *
-   * @param device The GPU device to use.
    * @param row_batch The CSR page.
    */
-  void CreateHistIndices(DeviceOrd device, const SparsePage& row_batch,
+  void CreateHistIndices(Context const* ctx, const SparsePage& row_batch,
                          common::Span<FeatureType const> feature_types);
   /**
    * @brief Initialize the buffer to store compressed features.
@@ -254,6 +281,7 @@ class EllpackPageImpl {
 
  private:
   std::shared_ptr<common::HistogramCuts const> cuts_;
+  bst_idx_t n_symbols_{0};
   common::Monitor monitor_;
 };
 

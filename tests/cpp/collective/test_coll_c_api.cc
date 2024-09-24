@@ -7,6 +7,7 @@
 #include <chrono>  // for ""s
 #include <thread>  // for thread
 
+#include "../../../src/collective/allgather.h"  // for RingAllgather
 #include "../../../src/collective/tracker.h"
 #include "test_worker.h"   // for SocketTest
 #include "xgboost/json.h"  // for Json
@@ -19,8 +20,9 @@ class TrackerAPITest : public SocketTest {};
 TEST_F(TrackerAPITest, CAPI) {
   TrackerHandle handle;
   Json config{Object{}};
+  std::int32_t n_workers{2};
   config["dmlc_communicator"] = String{"rabit"};
-  config["n_workers"] = 2;
+  config["n_workers"] = n_workers;
   config["timeout"] = 1;
   auto config_str = Json::Dump(config);
   auto rc = XGTrackerCreate(config_str.c_str(), &handle);
@@ -47,9 +49,21 @@ TEST_F(TrackerAPITest, CAPI) {
   ASSERT_NE(port, 0);
 
   std::vector<std::thread> workers;
-  using namespace std::chrono_literals;  // NOLINT
-  for (std::int32_t r = 0; r < 2; ++r) {
-    workers.emplace_back([=] { WorkerForTest w{host, static_cast<std::int32_t>(port), 1s, 2, r}; });
+  using std::chrono_literals::operator""s;
+  for (std::int32_t r = 0; r < n_workers; ++r) {
+    workers.emplace_back([=] {
+      WorkerForTest w{host, static_cast<std::int32_t>(port), 8s, n_workers, r};
+      // basic test
+      std::vector<std::int32_t> data(w.Comm().World(), 0);
+      data[w.Comm().Rank()] = w.Comm().Rank();
+
+      auto rc = RingAllgather(w.Comm(), common::Span{data.data(), data.size()});
+      SafeColl(rc);
+
+      for (std::int32_t r = 0; r < w.Comm().World(); ++r) {
+        ASSERT_EQ(data[r], r);
+      }
+    });
   }
   for (auto& w : workers) {
     w.join();

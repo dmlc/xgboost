@@ -37,6 +37,15 @@ void InitHist(::sycl::queue qu,
               size_t size, ::sycl::event* event);
 
 /*!
+ * \brief Copy histogram from src to dst
+ */
+template<typename GradientSumT>
+void CopyHist(::sycl::queue qu,
+              GHistRow<GradientSumT, MemoryType::on_device>* dst,
+              const GHistRow<GradientSumT, MemoryType::on_device>& src,
+              size_t size);
+
+/*!
  * \brief Compute subtraction: dst = src1 - src2
  */
 template<typename GradientSumT>

@@ -93,11 +93,11 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
 
 // A mock for JVM data iterator.
 class CSRIterForTest {
-  std::vector<float> data_ {1, 2, 3, 4, 5};
-  std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().index)>::type>
-      feature_idx_ {0, 1, 0, 1, 1};
-  std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().offset)>::type>
-      row_ptr_ {0, 2, 4, 5, 5};
+  std::vector<float> data_{1, 2, 3, 4, 5};
+  std::vector<std::remove_pointer_t<decltype(std::declval<XGBoostBatchCSR>().index)>> feature_idx_{
+      0, 1, 0, 1, 1};
+  std::vector<std::remove_pointer_t<decltype(std::declval<XGBoostBatchCSR>().offset)>> row_ptr_{
+      0, 2, 4, 5, 5};
   size_t iter_ {0};
 
  public:

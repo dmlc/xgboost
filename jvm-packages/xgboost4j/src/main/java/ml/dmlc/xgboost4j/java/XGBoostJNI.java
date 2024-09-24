@@ -172,7 +172,7 @@ class XGBoostJNI {
     long handle, String field, String json);
 
   public final static native int XGQuantileDMatrixCreateFromCallback(
-    java.util.Iterator<ColumnBatch> iter, java.util.Iterator<ColumnBatch> ref, String config, long[] out);
+    java.util.Iterator<ColumnBatch> iter, long[] ref, String config, long[] out);
 
   public final static native int XGDMatrixCreateFromArrayInterfaceColumns(
     String featureJson, float missing, int nthread, long[] out);
@@ -180,4 +180,7 @@ class XGBoostJNI {
   public final static native int XGBoosterSetStrFeatureInfo(long handle, String field, String[] features);
 
   public final static native int XGBoosterGetStrFeatureInfo(long handle, String field, String[] out);
+
+  public final static native int XGDMatrixGetQuantileCut(long handle, long[][] outIndptr, float[][] outValues);
+
 }

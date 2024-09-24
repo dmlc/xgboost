@@ -67,8 +67,8 @@ def run_dmatrix_ctor(is_feature_cols: bool, is_qdm: bool, on_gpu: bool) -> None:
     cols = [f"feat-{i}" for i in range(n_features)]
     feature_cols = cols if is_feature_cols else None
     train_Xy, valid_Xy = create_dmatrix_from_partitions(
-        iter(dfs),
-        feature_cols,
+        iterator=iter(dfs),
+        feature_cols=feature_cols,
         dev_ordinal=device_id,
         use_qdm=is_qdm,
         kwargs=kwargs,

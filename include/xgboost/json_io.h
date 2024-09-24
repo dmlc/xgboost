@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_JSON_IO_H_
 #define XGBOOST_JSON_IO_H_
@@ -7,11 +7,8 @@
 #include <xgboost/base.h>
 #include <xgboost/json.h>
 
-#include <cinttypes>
+#include <cstdint>  // for int8_t
 #include <limits>
-#include <map>
-#include <memory>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -111,7 +108,7 @@ class JsonReader {
 };
 
 class JsonWriter {
-  template <typename T, std::enable_if_t<!std::is_same<Json, T>::value>* = nullptr>
+  template <typename T, std::enable_if_t<!std::is_same_v<Json, T>>* = nullptr>
   void Save(T const& v) {
     this->Save(Json{v});
   }

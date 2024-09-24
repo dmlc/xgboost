@@ -17,6 +17,7 @@ from xgboost.testing import (
 )
 from xgboost.testing.data import check_inf, np_dtypes
 from xgboost.testing.data_iter import run_mixed_sparsity
+from xgboost.testing.quantile_dmatrix import check_ref_quantile_cut
 
 
 class TestQuantileDMatrix:
@@ -96,14 +97,15 @@ class TestQuantileDMatrix:
 
         if sparsity == 0.0:
             it = IteratorForTest(
-                *make_batches(n_samples_per_batch, n_features, n_batches, False), None
+                *make_batches(n_samples_per_batch, n_features, n_batches, False),
+                cache=None,
             )
         else:
             it = IteratorForTest(
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None,
+                cache=None,
             )
         Xy = xgb.QuantileDMatrix(it)
         assert Xy.num_row() == n_samples_per_batch * n_batches
@@ -133,14 +135,15 @@ class TestQuantileDMatrix:
         n_batches = 7
         if sparsity == 0.0:
             it = IteratorForTest(
-                *make_batches(n_samples_per_batch, n_features, n_batches, False), None
+                *make_batches(n_samples_per_batch, n_features, n_batches, False),
+                cache=None,
             )
         else:
             it = IteratorForTest(
                 *make_batches_sparse(
                     n_samples_per_batch, n_features, n_batches, sparsity
                 ),
-                None,
+                cache=None,
             )
 
         parameters = {"tree_method": "hist", "max_bin": 256}
@@ -265,6 +268,9 @@ class TestQuantileDMatrix:
         np.testing.assert_allclose(
             dm_results["dvalid"]["rmse"], qdm_results["valid"]["rmse"]
         )
+
+    def test_ref_quantile_cut(self) -> None:
+        check_ref_quantile_cut("cpu")
 
     def test_ref_dmatrix(self) -> None:
         rng = np.random.RandomState(1994)

@@ -288,6 +288,7 @@ def groups_to_rows(groups: np.ndarray, boundaries: np.ndarray) -> np.ndarray:
 
 
 def mkgroupfold(
+    *,
     dall: DMatrix,
     nfold: int,
     param: BoosterParam,
@@ -341,6 +342,7 @@ def mkgroupfold(
 
 
 def mknfold(
+    *,
     dall: DMatrix,
     nfold: int,
     param: BoosterParam,
@@ -361,7 +363,12 @@ def mknfold(
         # Do standard k-fold cross validation. Automatically determine the folds.
         if len(dall.get_uint_info("group_ptr")) > 1:
             return mkgroupfold(
-                dall, nfold, param, evals=evals, fpreproc=fpreproc, shuffle=shuffle
+                dall=dall,
+                nfold=nfold,
+                param=param,
+                evals=evals,
+                fpreproc=fpreproc,
+                shuffle=shuffle,
             )
 
         if shuffle is True:
@@ -407,10 +414,12 @@ def mknfold(
     return ret
 
 
+@_deprecate_positional_args
 def cv(
     params: BoosterParam,
     dtrain: DMatrix,
     num_boost_round: int = 10,
+    *,
     nfold: int = 3,
     stratified: bool = False,
     folds: XGBStratifiedKFold = None,
@@ -541,7 +550,15 @@ def cv(
 
     results: Dict[str, List[float]] = {}
     cvfolds = mknfold(
-        dtrain, nfold, params, seed, metrics, fpreproc, stratified, folds, shuffle
+        dall=dtrain,
+        nfold=nfold,
+        param=params,
+        seed=seed,
+        evals=metrics,
+        fpreproc=fpreproc,
+        stratified=stratified,
+        folds=folds,
+        shuffle=shuffle,
     )
 
     metric_fn = _configure_custom_metric(feval, custom_metric)

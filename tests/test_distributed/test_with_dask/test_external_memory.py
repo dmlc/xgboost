@@ -54,7 +54,7 @@ def run_external_memory(worker_id: int, n_workers: int, comm_args: dict) -> None
     X = concat(lx)
     yconcat = concat(ly)
     wconcat = concat(lw)
-    Xy = xgb.DMatrix(X, yconcat, wconcat, nthread=n_threads)
+    Xy = xgb.DMatrix(X, yconcat, weight=wconcat, nthread=n_threads)
 
     results_local: xgb.callback.TrainingCallback.EvalsLog = {}
     booster = xgb.train(

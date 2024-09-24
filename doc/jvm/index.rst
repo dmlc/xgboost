@@ -38,6 +38,7 @@ Contents
   XGBoost4J-Spark-GPU Tutorial <xgboost4j_spark_gpu_tutorial>
   Code Examples <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example>
   API docs <api>
+  How to migrate to XGBoost-Spark jvm 3.x <xgboost_spark_migration>
 
 .. note::
 

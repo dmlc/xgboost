@@ -344,7 +344,7 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
                               common::Span<double const> discount, bst_group_t g) {
     auto delta = [&](auto y_high, auto y_low, std::size_t rank_high, std::size_t rank_low,
                      bst_group_t g) {
-      static_assert(std::is_floating_point<decltype(y_high)>::value);
+      static_assert(std::is_floating_point_v<decltype(y_high)>);
       return DeltaNDCG<exp_gain>(y_high, y_low, rank_high, rank_low, inv_IDCG(g), discount);
     };
     this->CalcLambdaForGroup<unbiased>(iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);

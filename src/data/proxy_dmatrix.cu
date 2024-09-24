@@ -43,5 +43,13 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
     return p_fmat;
   });
 }
+
+[[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
+  return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumRows(); });
+}
+
+[[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const* proxy) {
+  return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
+}
 }  // namespace cuda_impl
 }  // namespace xgboost::data

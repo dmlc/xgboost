@@ -2,8 +2,9 @@
  * Copyright 2021-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <thrust/equal.h>     // for equal
-#include <thrust/sequence.h>  // for sequence
+#include <thrust/equal.h>                       // for equal
+#include <thrust/iterator/constant_iterator.h>  // for make_constant_iterator
+#include <thrust/sequence.h>                    // for sequence
 
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/linalg_op.cuh"
@@ -83,6 +84,14 @@ void TestSlice() {
     }
   });
 }
+
+void TestWriteAccess(CUDAContext const* cuctx, linalg::TensorView<double, 3> t) {
+  thrust::for_each(cuctx->CTP(), linalg::tbegin(t), linalg::tend(t),
+                   [=] XGBOOST_DEVICE(double& v) { v = 0; });
+  auto eq = thrust::equal(cuctx->CTP(), linalg::tcbegin(t), linalg::tcend(t),
+                          thrust::make_constant_iterator<double>(0.0), thrust::equal_to<>{});
+  ASSERT_TRUE(eq);
+}
 }  // anonymous namespace
 
 TEST(Linalg, GPUElementWise) { TestElementWiseKernel(); }
@@ -106,5 +115,7 @@ TEST(Linalg, GPUIter) {
 
   bool eq = thrust::equal(cuctx->CTP(), data.cbegin(), data.cend(), linalg::tcbegin(t));
   ASSERT_TRUE(eq);
+
+  TestWriteAccess(cuctx, t);
 }
 }  // namespace xgboost::linalg

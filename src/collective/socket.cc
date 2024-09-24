@@ -118,7 +118,9 @@ std::size_t TCPSocket::Send(StringView str) {
     addr_len = sizeof(addr.V6().Handle());
   }
 
-  conn = TCPSocket::Create(addr.Domain());
+  if (conn.IsClosed()) {
+    conn = TCPSocket::Create(addr.Domain());
+  }
   CHECK_EQ(static_cast<std::int32_t>(conn.Domain()), static_cast<std::int32_t>(addr.Domain()));
   auto non_blocking = conn.NonBlocking();
   auto rc = conn.NonBlocking(true);

@@ -10,26 +10,27 @@
 \method{dimnames}{xgb.DMatrix}(x) <- value
 }
 \arguments{
-\item{x}{object of class \code{xgb.DMatrix}}
+\item{x}{Object of class \code{xgb.DMatrix}.}
 
-\item{value}{a list of two elements: the first one is ignored
+\item{value}{A list of two elements: the first one is ignored
 and the second one is column names}
 }
 \description{
 Only column names are supported for \code{xgb.DMatrix}, thus setting of
-row names would have no effect and returned row names would be NULL.
+row names would have no effect and returned row names would be \code{NULL}.
 }
 \details{
-Generic \code{dimnames} methods are used by \code{colnames}.
-Since row names are irrelevant, it is recommended to use \code{colnames} directly.
+Generic \code{\link[=dimnames]{dimnames()}} methods are used by \code{\link[=colnames]{colnames()}}.
+Since row names are irrelevant, it is recommended to use \code{\link[=colnames]{colnames()}} directly.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label, nthread = 2)
+dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = 2)
 dimnames(dtrain)
 colnames(dtrain)
 colnames(dtrain) <- make.names(1:ncol(train$data))
-print(dtrain, verbose=TRUE)
+print(dtrain, verbose = TRUE)
 
 }

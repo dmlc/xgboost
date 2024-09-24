@@ -221,16 +221,12 @@ class TestDistributedGPU:
         X_, y_ = load_breast_cancer(return_X_y=True)
         X = dd.from_array(X_, chunksize=100).to_backend("cudf")
         y = dd.from_array(y_, chunksize=100).to_backend("cudf")
-        divisions = copy(X.divisions)
-        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client, divisions)
+        run_boost_from_prediction(X, y, "hist", "cuda", local_cuda_client)
 
         X_, y_ = load_iris(return_X_y=True)
         X = dd.from_array(X_, chunksize=50).to_backend("cudf")
         y = dd.from_array(y_, chunksize=50).to_backend("cudf")
-        divisions = copy(X.divisions)
-        run_boost_from_prediction_multi_class(
-            X, y, "hist", "cuda", local_cuda_client, divisions
-        )
+        run_boost_from_prediction_multi_class(X, y, "hist", "cuda", local_cuda_client)
 
     def test_init_estimation(self, local_cuda_client: Client) -> None:
         check_init_estimation("hist", "cuda", local_cuda_client)
@@ -651,10 +647,10 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         import cupy as cp
 
         X, y, _ = generate_array()
-        X = X.map_blocks(cp.array)  # type: ignore
-        y = y.map_blocks(cp.array)  # type: ignore
+        X = X.to_backend("cupy")
+        y = y.to_backend("cupy")
 
-        m = await xgb.dask.DaskQuantileDMatrix(client, X, y)
+        m: xgb.dask.DaskDMatrix = await xgb.dask.DaskQuantileDMatrix(client, X, y)  # type: ignore
         output = await xgb.dask.train(
             client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
         )

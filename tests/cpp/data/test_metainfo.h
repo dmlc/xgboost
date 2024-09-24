@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021 by XGBoost Contributors
+/**
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_TESTS_CPP_DATA_TEST_METAINFO_H_
 #define XGBOOST_TESTS_CPP_DATA_TEST_METAINFO_H_
@@ -11,7 +11,6 @@
 #include <numeric>
 
 #include "../../../src/common/linalg_op.h"
-#include "../../../src/data/array_interface.h"
 
 namespace xgboost {
 inline void TestMetaInfoStridedData(DeviceOrd device) {

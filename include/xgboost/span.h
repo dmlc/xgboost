@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023, XGBoost contributors
+ * Copyright 2018-2024, XGBoost contributors
  * \brief span class based on ISO++20 span
  *
  * About NOLINTs in this file:
@@ -129,9 +129,8 @@ namespace detail {
  *   represent ptrdiff_t, which is just int64_t. So we make it deterministic
  *   here.
  */
-using ptrdiff_t = typename std::conditional<  // NOLINT
-    std::is_same<std::ptrdiff_t, std::int64_t>::value,
-    std::ptrdiff_t, std::int64_t>::type;
+using ptrdiff_t = typename std::conditional_t<  // NOLINT
+    std::is_same_v<std::ptrdiff_t, std::int64_t>, std::ptrdiff_t, std::int64_t>;
 }  // namespace detail
 
 #if defined(_MSC_VER) && _MSC_VER < 1910
@@ -169,8 +168,8 @@ class SpanIterator {
                                            span_(_span), index_(_idx) {}
 
   friend SpanIterator<SpanType, true>;
-  template <bool B, typename std::enable_if<!B && IsConst>::type* = nullptr>
-  XGBOOST_DEVICE constexpr SpanIterator(                         // NOLINT
+  template <bool B, typename std::enable_if_t<!B && IsConst>* = nullptr>
+  XGBOOST_DEVICE constexpr SpanIterator(  // NOLINT
       const SpanIterator<SpanType, B>& other_) __span_noexcept
       : SpanIterator(other_.span_, other_.index_) {}
 
@@ -303,8 +302,8 @@ struct IsAllowedExtentConversion : public std::integral_constant<
   bool, From == To || From == dynamic_extent || To == dynamic_extent> {};
 
 template <class From, class To>
-struct IsAllowedElementTypeConversion : public std::integral_constant<
-  bool, std::is_convertible<From(*)[], To(*)[]>::value> {};
+struct IsAllowedElementTypeConversion
+    : public std::integral_constant<bool, std::is_convertible_v<From (*)[], To (*)[]>> {}; // NOLINT
 
 template <class T>
 struct IsSpanOracle : std::false_type {};
@@ -313,7 +312,7 @@ template <class T, std::size_t Extent>
 struct IsSpanOracle<Span<T, Extent>> : std::true_type {};
 
 template <class T>
-struct IsSpan : public IsSpanOracle<typename std::remove_cv<T>::type> {};
+struct IsSpan : public IsSpanOracle<typename std::remove_cv_t<T>> {};
 
 // Re-implement std algorithms here to adopt CUDA.
 template <typename T>
@@ -452,35 +451,34 @@ class Span {
       __span_noexcept : size_(N), data_(&arr[0]) {}
 
   template <class Container,
-            class = typename std::enable_if<
-              !std::is_const<element_type>::value &&
-              !detail::IsSpan<Container>::value &&
-              std::is_convertible<typename Container::pointer, pointer>::value &&
-              std::is_convertible<typename Container::pointer,
-                                  decltype(std::declval<Container>().data())>::value>::type>
-  Span(Container& _cont) :  // NOLINT
-      size_(_cont.size()), data_(_cont.data()) {
+            class = typename std::enable_if_t<
+                !std::is_const_v<element_type> && !detail::IsSpan<Container>::value &&
+                std::is_convertible_v<typename Container::pointer, pointer> &&
+                std::is_convertible_v<typename Container::pointer,
+                                      decltype(std::declval<Container>().data())>>>
+  Span(Container& _cont)  // NOLINT
+      : size_(_cont.size()), data_(_cont.data()) {
     static_assert(!detail::IsSpan<Container>::value, "Wrong constructor of Span is called.");
   }
 
   template <class Container,
-            class = typename std::enable_if<
-              std::is_const<element_type>::value &&
-              !detail::IsSpan<Container>::value &&
-              std::is_convertible<typename Container::pointer, pointer>::value &&
-              std::is_convertible<typename Container::pointer,
-                                  decltype(std::declval<Container>().data())>::value>::type>
-  Span(const Container& _cont) : size_(_cont.size()),  // NOLINT
-                                 data_(_cont.data()) {
+            class = typename std::enable_if_t<
+                std::is_const_v<element_type> && !detail::IsSpan<Container>::value &&
+                std::is_convertible_v<typename Container::pointer, pointer> &&
+                std::is_convertible_v<typename Container::pointer,
+                                      decltype(std::declval<Container>().data())>>>
+  Span(const Container& _cont)  // NOLINT
+      : size_(_cont.size()), data_(_cont.data()) {
     static_assert(!detail::IsSpan<Container>::value, "Wrong constructor of Span is called.");
   }
 
   template <class U, std::size_t OtherExtent,
-            class = typename std::enable_if<
-              detail::IsAllowedElementTypeConversion<U, T>::value &&
-              detail::IsAllowedExtentConversion<OtherExtent, Extent>::value>>
-  XGBOOST_DEVICE constexpr Span(const Span<U, OtherExtent>& _other)   // NOLINT
-      __span_noexcept : size_(_other.size()), data_(_other.data()) {}
+            class = typename std::enable_if_t<
+                detail::IsAllowedElementTypeConversion<U, T>::value &&
+                detail::IsAllowedExtentConversion<OtherExtent, Extent>::value>>
+  XGBOOST_DEVICE constexpr Span(const Span<U, OtherExtent>& _other)  // NOLINT
+      __span_noexcept : size_(_other.size()),
+                        data_(_other.data()) {}
 
   XGBOOST_DEVICE constexpr Span(const Span& _other)
       __span_noexcept : size_(_other.size()), data_(_other.data()) {}

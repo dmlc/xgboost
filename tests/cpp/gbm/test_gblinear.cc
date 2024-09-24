@@ -1,21 +1,18 @@
-/*!
- * Copyright 2019 by Contributors
+/**
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <xgboost/feature_map.h>  // for FeatureMap
 
 #include <memory>
-#include <sstream>
 
 #include "../helpers.h"
 #include "xgboost/context.h"
 #include "xgboost/gbm.h"
 #include "xgboost/json.h"
 #include "xgboost/learner.h"
-#include "xgboost/logging.h"
 
-namespace xgboost {
-namespace gbm {
-
+namespace xgboost::gbm {
 TEST(GBLinear, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
@@ -40,5 +37,16 @@ TEST(GBLinear, JsonIO) {
     ASSERT_EQ(weights.size(), 17);
   }
 }
-}  // namespace gbm
-}  // namespace xgboost
+
+TEST(GBLinear, Dump) {
+  Context ctx;
+  size_t constexpr kRows = 16, kCols = 16;
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+
+  std::unique_ptr<GradientBooster> gbm{
+      CreateTrainedGBM("gblinear", Args{}, kRows, kCols, &mparam, &ctx)};
+  FeatureMap fmap;
+  ASSERT_THAT([&] { [[maybe_unused]] auto vec = gbm->DumpModel(fmap, true, "dot"); },
+              GMockThrow(R"(`dot` is not supported)"));
+}
+}  // namespace xgboost::gbm

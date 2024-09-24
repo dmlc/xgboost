@@ -365,4 +365,8 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   override def read(kryo: Kryo, input: Input): Unit = {
     booster = kryo.readObject(input, classOf[JBooster])
   }
+
+  // a flag to indicate if the device is set for the GPU transform
+  var deviceIsSet = false
+
 }

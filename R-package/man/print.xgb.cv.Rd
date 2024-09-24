@@ -7,25 +7,33 @@
 \method{print}{xgb.cv.synchronous}(x, verbose = FALSE, ...)
 }
 \arguments{
-\item{x}{an \code{xgb.cv.synchronous} object}
+\item{x}{An \code{xgb.cv.synchronous} object.}
 
-\item{verbose}{whether to print detailed data}
+\item{verbose}{Whether to print detailed data.}
 
-\item{...}{passed to \code{data.table.print}}
+\item{...}{Passed to \code{data.table.print()}.}
 }
 \description{
-Prints formatted results of \code{xgb.cv}.
+Prints formatted results of \code{\link[=xgb.cv]{xgb.cv()}}.
 }
 \details{
 When not verbose, it would only print the evaluation results,
 including the best iteration (when available).
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 train <- agaricus.train
-cv <- xgb.cv(data = xgb.DMatrix(train$data, label = train$label), nfold = 5, max_depth = 2,
-             eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+cv <- xgb.cv(
+  data = xgb.DMatrix(train$data, label = train$label),
+  nfold = 5,
+  max_depth = 2,
+  eta = 1,
+  nthread = 2,
+  nrounds = 2,
+  objective = "binary:logistic"
+)
 print(cv)
-print(cv, verbose=TRUE)
+print(cv, verbose = TRUE)
 
 }

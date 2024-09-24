@@ -54,22 +54,18 @@ class SparsePageRawFormat : public SparsePageFormat<T> {
  private:
 };
 
-XGBOOST_REGISTER_SPARSE_PAGE_FORMAT(raw)
-.describe("Raw binary data format.")
-.set_body([]() {
-    return new SparsePageRawFormat<SparsePage>();
-  });
+#define SparsePageFmt SparsePageFormat<SparsePage>
+DMLC_REGISTRY_REGISTER(SparsePageFormatReg<SparsePage>, SparsePageFmt, raw)
+    .describe("Raw binary data format.")
+    .set_body([]() { return new SparsePageRawFormat<SparsePage>(); });
 
-XGBOOST_REGISTER_CSC_PAGE_FORMAT(raw)
-.describe("Raw binary data format.")
-.set_body([]() {
-    return new SparsePageRawFormat<CSCPage>();
-  });
+#define CSCPageFmt SparsePageFormat<CSCPage>
+DMLC_REGISTRY_REGISTER(SparsePageFormatReg<CSCPage>, CSCPageFmt, raw)
+    .describe("Raw binary data format.")
+    .set_body([]() { return new SparsePageRawFormat<CSCPage>(); });
 
-XGBOOST_REGISTER_SORTED_CSC_PAGE_FORMAT(raw)
-.describe("Raw binary data format.")
-.set_body([]() {
-    return new SparsePageRawFormat<SortedCSCPage>();
-  });
-
+#define SortedCSCPageFmt SparsePageFormat<SortedCSCPage>
+DMLC_REGISTRY_REGISTER(SparsePageFormatReg<SortedCSCPage>, SortedCSCPageFmt, raw)
+    .describe("Raw binary data format.")
+    .set_body([]() { return new SparsePageRawFormat<SortedCSCPage>(); });
 }  // namespace xgboost::data

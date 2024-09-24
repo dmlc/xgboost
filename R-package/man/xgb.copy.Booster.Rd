@@ -16,14 +16,18 @@ functions called on that copy will not affect the \code{model} variable.
 \description{
 Creates a deep copy of an 'xgb.Booster' object, such that the
 C object pointer contained will be a different object, and hence functions
-like \link{xgb.attr} will not affect the object from which it was copied.
+like \code{\link[=xgb.attr]{xgb.attr()}} will not affect the object from which it was copied.
 }
 \examples{
 library(xgboost)
+
 data(mtcars)
+
 y <- mtcars$mpg
 x <- mtcars[, -1]
+
 dm <- xgb.DMatrix(x, label = y, nthread = 1)
+
 model <- xgb.train(
   data = dm,
   params = list(nthread = 1),

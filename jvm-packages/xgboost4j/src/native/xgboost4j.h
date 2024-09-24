@@ -402,10 +402,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetInfoFr
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGQuantileDMatrixCreateFromCallback
- * Signature: (Ljava/util/Iterator;Ljava/util/Iterator;Ljava/lang/String;[J)I
+ * Signature: (Ljava/util/Iterator;[JLjava/lang/String;[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGQuantileDMatrixCreateFromCallback
-  (JNIEnv *, jclass, jobject, jobject, jstring, jlongArray);
+  (JNIEnv *, jclass, jobject, jlongArray, jstring, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -430,6 +430,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetStrFea
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetStrFeatureInfo
   (JNIEnv *, jclass, jlong, jstring, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixGetQuantileCut
+ * Signature: (J[[J[[F)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetQuantileCut
+  (JNIEnv *, jclass, jlong, jobjectArray, jobjectArray);
 
 #ifdef __cplusplus
 }

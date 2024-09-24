@@ -37,6 +37,7 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost import RabitTracker
 from xgboost.core import ArrayLike
+from xgboost.data import is_pd_cat_dtype
 from xgboost.sklearn import SklObjective
 from xgboost.testing.data import (
     get_california_housing,
@@ -223,6 +224,7 @@ class IteratorForTest(xgb.core.DataIter):
         X: Sequence,
         y: Sequence,
         w: Optional[Sequence],
+        *,
         cache: Optional[str],
         on_host: bool = False,
     ) -> None:
@@ -378,6 +380,7 @@ def make_categorical(
     n_samples: int,
     n_features: int,
     n_categories: int,
+    *,
     onehot: bool,
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
@@ -403,7 +406,6 @@ def make_categorical(
     X, y
     """
     import pandas as pd
-    from pandas.api.types import is_categorical_dtype
 
     rng = np.random.RandomState(1994)
 
@@ -431,8 +433,8 @@ def make_categorical(
                 low=0, high=n_samples - 1, size=int(n_samples * sparsity)
             )
             df.iloc[index, i] = np.nan
-            if is_categorical_dtype(df.dtypes[i]):
-                assert n_categories == np.unique(df.dtypes[i].categories).size
+            if is_pd_cat_dtype(df.dtypes.iloc[i]):
+                assert n_categories == np.unique(df.dtypes.iloc[i].categories).size
 
     if onehot:
         df = pd.get_dummies(df)
@@ -487,7 +489,9 @@ def _cat_sampled_from() -> strategies.SearchStrategy:
         sparsity = args[3]
         return TestDataset(
             f"{n_samples}x{n_features}-{n_cats}-{sparsity}",
-            lambda: make_categorical(n_samples, n_features, n_cats, False, sparsity),
+            lambda: make_categorical(
+                n_samples, n_features, n_cats, onehot=False, sparsity=sparsity
+            ),
             "reg:squarederror",
             "rmse",
         )

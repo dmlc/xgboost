@@ -13,8 +13,8 @@
 }
 \description{
 Returns the feature / variable / column names from a fitted
-booster object, which are set automatically during the call to \link{xgb.train}
-from the DMatrix names, or which can be set manually through \link{setinfo}.
+booster object, which are set automatically during the call to \code{\link[=xgb.train]{xgb.train()}}
+from the DMatrix names, or which can be set manually through \code{\link[=setinfo]{setinfo()}}.
 
 If the object doesn't have feature names, will return \code{NULL}.
 

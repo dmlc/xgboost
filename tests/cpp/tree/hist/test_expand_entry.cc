@@ -1,10 +1,11 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/json.h>        // for Json
 #include <xgboost/tree_model.h>  // for RegTree
 
+#include "../../../../src/common/categorical.h"  // for CatBitField
 #include "../../../../src/tree/hist/expand_entry.h"
 
 namespace xgboost::tree {

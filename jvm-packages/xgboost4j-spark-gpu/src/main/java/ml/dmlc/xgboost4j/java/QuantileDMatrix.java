@@ -35,11 +35,39 @@ public class QuantileDMatrix extends DMatrix {
       float missing,
       int maxBin,
       int nthread) throws XGBoostError {
+    this(iter, null, missing, maxBin, nthread);
+  }
+
+  /**
+   * Create QuantileDMatrix from iterator based on the cuda array interface
+   *
+   * @param iter       the XGBoost ColumnBatch batch to provide the corresponding cuda array
+   *                   interface
+   * @param refDMatrix The reference QuantileDMatrix that provides quantile information, needed
+   *                   when creating validation/test dataset with QuantileDMatrix. Supplying the
+   *                   training DMatrix as a reference means that the same quantisation
+   *                   applied to the training data is applied to the validation/test data
+   * @param missing    the missing value
+   * @param maxBin     the max bin
+   * @param nthread    the parallelism
+   * @throws XGBoostError
+   */
+  public QuantileDMatrix(
+      Iterator<ColumnBatch> iter,
+      QuantileDMatrix refDMatrix,
+      float missing,
+      int maxBin,
+      int nthread) throws XGBoostError {
     super(0);
     long[] out = new long[1];
     String conf = getConfig(missing, maxBin, nthread);
+    long[] ref = null;
+    if (refDMatrix != null) {
+      ref = new long[1];
+      ref[0] = refDMatrix.getHandle();
+    }
     XGBoostJNI.checkCall(XGBoostJNI.XGQuantileDMatrixCreateFromCallback(
-        iter, null, conf, out));
+        iter, ref, conf, out));
     handle = out[0];
   }
 
@@ -85,6 +113,7 @@ public class QuantileDMatrix extends DMatrix {
 
   private String getConfig(float missing, int maxBin, int nthread) {
     return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d}",
-        missing, maxBin, nthread);
+                         missing, maxBin, nthread);
   }
+
 }

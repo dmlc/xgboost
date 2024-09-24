@@ -6,7 +6,7 @@ dependencies:
 - wheel
 - numpy
 - scipy
-- scikit-learn
+- scikit-learn>=1.4.1
 - pandas
 - matplotlib
 - dask

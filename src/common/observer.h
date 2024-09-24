@@ -105,9 +105,9 @@ class TrainingObserver {
 
   /*\brief Observe objects with `XGBoostParamer' type. */
   template <typename Parameter,
-            typename std::enable_if<
-              std::is_base_of<XGBoostParameter<Parameter>, Parameter>::value>::type* = nullptr>
-  void Observe(const Parameter &p, std::string name) const {
+            typename std::enable_if_t<std::is_base_of_v<XGBoostParameter<Parameter>, Parameter>>* =
+                nullptr>
+  void Observe(const Parameter& p, std::string name) const {
     if (XGBOOST_EXPECT(!kObserve, true)) { return; }
 
     Json obj {toJson(p)};

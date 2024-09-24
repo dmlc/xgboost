@@ -1,6 +1,6 @@
 FROM i386/debian:sid
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
 RUN \

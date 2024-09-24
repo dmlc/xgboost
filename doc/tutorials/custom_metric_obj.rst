@@ -52,7 +52,7 @@ If we compute the gradient of said objective function:
 As well as the hessian (the second derivative of the objective):
 
 .. math::
-   h = \frac{\partial^2{objective}}{\partial{pred}} = \frac{ - \log(pred + 1) + \log(label + 1) + 1}{(pred + 1)^2}
+   h = \frac{\partial^2{objective}}{\partial{pred}^2} = \frac{ - \log(pred + 1) + \log(label + 1) + 1}{(pred + 1)^2}
 
 *****************************
 Customized Objective Function

@@ -3127,12 +3127,12 @@ fi
 printf "%s\n" "$ac_cv_c_bigendian" >&6; }
  case $ac_cv_c_bigendian in #(
    yes)
-     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: big endian" >&5
-printf "%s\n" "big endian" >&6; }
+     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: using big endian" >&5
+printf "%s\n" "using big endian" >&6; }
      ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=0";; #(
    no)
-     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: little endian" >&5
-printf "%s\n" "little endian" >&6; }
+     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: using little endian" >&5
+printf "%s\n" "using little endian" >&6; }
      ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=1" ;; #(
    universal)
 

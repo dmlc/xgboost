@@ -224,11 +224,11 @@ void JsonArray::Save(JsonWriter* writer) const { writer->Visit(this); }
 namespace {
 // error C2668: 'fpclassify': ambiguous call to overloaded function
 template <typename T>
-std::enable_if_t<std::is_floating_point<T>::value, bool> IsInfMSVCWar(T v) {
+std::enable_if_t<std::is_floating_point_v<T>, bool> IsInfMSVCWar(T v) {
   return std::isinf(v);
 }
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, bool> IsInfMSVCWar(T) {
+std::enable_if_t<std::is_integral_v<T>, bool> IsInfMSVCWar(T) {
   return false;
 }
 }  // namespace
@@ -247,7 +247,7 @@ bool JsonTypedArray<T, kind>::operator==(Value const& rhs) const {
   if (vec_.size() != arr.size()) {
     return false;
   }
-  if (std::is_same<float, T>::value) {
+  if (std::is_same_v<float, T>) {
     for (size_t i = 0; i < vec_.size(); ++i) {
       bool equal{false};
       if (common::CheckNAN(vec_[i])) {
@@ -693,10 +693,10 @@ void Json::Dump(Json json, JsonWriter* writer) {
   writer->Save(json);
 }
 
-static_assert(std::is_nothrow_move_constructible<Json>::value);
-static_assert(std::is_nothrow_move_constructible<Object>::value);
-static_assert(std::is_nothrow_move_constructible<Array>::value);
-static_assert(std::is_nothrow_move_constructible<String>::value);
+static_assert(std::is_nothrow_move_constructible_v<Json>);
+static_assert(std::is_nothrow_move_constructible_v<Object>);
+static_assert(std::is_nothrow_move_constructible_v<Array>);
+static_assert(std::is_nothrow_move_constructible_v<String>);
 
 Json UBJReader::ParseArray() {
   auto marker = PeekNextChar();
@@ -887,17 +887,17 @@ template <typename T, Value::ValueKind kind>
 void WriteTypedArray(JsonTypedArray<T, kind> const* arr, std::vector<char>* stream) {
   stream->emplace_back('[');
   stream->push_back('$');
-  if (std::is_same<T, float>::value) {
+  if (std::is_same_v<T, float>) {
     stream->push_back('d');
   } else if (std::is_same_v<T, double>) {
     stream->push_back('D');
-  } else if (std::is_same<T, int8_t>::value) {
+  } else if (std::is_same_v<T, int8_t>) {
     stream->push_back('i');
-  } else if (std::is_same<T, uint8_t>::value) {
+  } else if (std::is_same_v<T, uint8_t>) {
     stream->push_back('U');
-  } else if (std::is_same<T, int32_t>::value) {
+  } else if (std::is_same_v<T, int32_t>) {
     stream->push_back('l');
-  } else if (std::is_same<T, int64_t>::value) {
+  } else if (std::is_same_v<T, int64_t>) {
     stream->push_back('L');
   } else {
     LOG(FATAL) << "Not implemented";

@@ -128,7 +128,7 @@ class Transform {
     }
 
 #if defined(__CUDACC__)
-    template <typename std::enable_if<CompiledWithCuda>::type* = nullptr,
+    template <typename std::enable_if_t<CompiledWithCuda>* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
       UnpackShard(device_, _vectors...);
@@ -151,9 +151,8 @@ class Transform {
     }
 #else
     /*! \brief Dummy function defined when compiling for CPU.  */
-    template <typename std::enable_if<!CompiledWithCuda>::type* = nullptr,
-              typename... HDV>
-    void LaunchCUDA(Functor _func, HDV*...) const {
+    template <typename std::enable_if_t<!CompiledWithCuda> * = nullptr, typename... HDV>
+    void LaunchCUDA(Functor _func, HDV *...) const {
       // Remove unused parameter compiler warning.
       (void) _func;
 

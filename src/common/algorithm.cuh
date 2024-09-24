@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_CUH_
 #define XGBOOST_COMMON_ALGORITHM_CUH_
@@ -17,7 +17,8 @@
 
 #include "common.h"            // safe_cuda
 #include "cuda_context.cuh"    // CUDAContext
-#include "device_helpers.cuh"  // TemporaryArray,SegmentId,LaunchN,Iota,device_vector
+#include "device_helpers.cuh"  // TemporaryArray,SegmentId,LaunchN,Iota
+#include "device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"      // XGBOOST_DEVICE
 #include "xgboost/context.h"   // Context
 #include "xgboost/logging.h"   // CHECK
@@ -189,8 +190,7 @@ void SegmentedArgMergeSort(Context const *ctx, SegIt seg_begin, SegIt seg_end, V
 }
 
 template <bool accending, typename IdxT, typename U>
-void ArgSort(xgboost::Context const *ctx, xgboost::common::Span<U> keys,
-             xgboost::common::Span<IdxT> sorted_idx) {
+void ArgSort(Context const *ctx, Span<U> keys, Span<IdxT> sorted_idx) {
   std::size_t bytes = 0;
   auto cuctx = ctx->CUDACtx();
   dh::Iota(sorted_idx, cuctx->Stream());
@@ -256,6 +256,55 @@ void ArgSort(xgboost::Context const *ctx, xgboost::common::Span<U> keys,
   dh::safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
                                 sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice,
                                 cuctx->Stream()));
+}
+
+template <typename InIt, typename OutIt, typename Predicate>
+void CopyIf(CUDAContext const *cuctx, InIt in_first, InIt in_second, OutIt out_first,
+            Predicate pred) {
+  // We loop over batches because thrust::copy_if can't deal with sizes > 2^31
+  // See thrust issue #1302, XGBoost #6822
+  size_t constexpr kMaxCopySize = std::numeric_limits<int>::max() / 2;
+  size_t length = std::distance(in_first, in_second);
+  for (size_t offset = 0; offset < length; offset += kMaxCopySize) {
+    auto begin_input = in_first + offset;
+    auto end_input = in_first + std::min(offset + kMaxCopySize, length);
+    out_first = thrust::copy_if(cuctx->CTP(), begin_input, end_input, out_first, pred);
+  }
+}
+
+// Go one level down into cub::DeviceScan API to set OffsetT as 64 bit So we don't crash
+// on n > 2^31.
+template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT, typename OffsetT>
+void InclusiveScan(xgboost::Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
+                   ScanOpT scan_op, OffsetT num_items) {
+  auto cuctx = ctx->CUDACtx();
+  std::size_t bytes = 0;
+#if THRUST_MAJOR_VERSION >= 2
+  dh::safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          nullptr, bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr)));
+#else
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          nullptr, bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr, false)));
+#endif
+  dh::TemporaryArray<char> storage(bytes);
+#if THRUST_MAJOR_VERSION >= 2
+  dh::safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          storage.data().get(), bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr)));
+#else
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType, OffsetT>::Dispatch(
+          storage.data().get(), bytes, d_in, d_out, scan_op, cub::NullType(), num_items, nullptr,
+          false)));
+#endif
+}
+
+template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
+void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out,
+                  OffsetT num_items) {
+  InclusiveScan(ctx, d_in, d_out, cub::Sum{}, num_items);
 }
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_ALGORITHM_CUH_

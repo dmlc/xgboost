@@ -11,7 +11,7 @@ dependencies:
 - numpy
 - scipy
 - llvm-openmp
-- scikit-learn
+- scikit-learn>=1.4.1
 - pandas
 - matplotlib
 - dask

@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2023 by XGBoost contributors.
+ * Copyright 2022-2024, XGBoost contributors.
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                         // for bst_node_t
@@ -43,14 +43,15 @@ void TestLeafPartition(size_t n_samples) {
 
   std::vector<size_t> h_nptr;
   float split_value{0};
+  bst_feature_t const split_ind = 0;
+
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{64, 0.2})) {
-    bst_feature_t const split_ind = 0;
     auto ptr = page.cut.Ptrs()[split_ind + 1];
     split_value = page.cut.Values().at(ptr / 2);
     GetSplit(&tree, split_value, &candidates);
     partitioner.UpdatePosition(&ctx, page, candidates, &tree);
-    std::vector<bst_node_t> position;
-    partitioner.LeafPartition(&ctx, tree, hess, &position);
+    std::vector<bst_node_t> position(page.Size());
+    partitioner.LeafPartition(&ctx, tree, hess, position);
     std::sort(position.begin(), position.end());
     size_t beg = std::distance(
         position.begin(),
@@ -76,12 +77,58 @@ void TestLeafPartition(size_t n_samples) {
     auto batch = page.GetView();
     size_t left{0};
     for (size_t i = 0; i < batch.Size(); ++i) {
-      if (not_sampled(i) && batch[i].front().fvalue < split_value) {
+      if (not_sampled(i) && batch[i][split_ind].fvalue < split_value) {
         left++;
       }
     }
     ASSERT_EQ(left, h_nptr[1] - h_nptr[0]);  // equal to number of sampled assigned to left
   }
+}
+
+void TestExternalMemory() {
+  Context ctx;
+  bst_bin_t max_bin = 32;
+  auto p_fmat =
+      RandomDataGenerator{256, 16, 0.0f}.Batches(4).GenerateSparsePageDMatrix("temp", true);
+  std::vector<CommonRowPartitioner> partitioners;
+
+  RegTree tree;
+  std::vector<CPUExpandEntry> candidates{{0, 0}};
+
+  auto gpair = GenerateRandomGradients(p_fmat->Info().num_row_);
+  auto t_gpair = linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), p_fmat->Info().num_row_, 1);
+  std::vector<bst_node_t> position(p_fmat->Info().num_row_);
+
+  auto param = BatchParam{max_bin, TrainParam::DftSparseThreshold()};
+  float split_value{0.0f};
+  bst_feature_t const split_ind = 0;
+  for (auto const& page : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, param)) {
+    if (partitioners.empty()) {
+      auto ptr = page.cut.Ptrs()[split_ind + 1];
+      split_value = page.cut.Values().at(ptr / 2);
+      GetSplit(&tree, split_value, &candidates);
+    }
+
+    partitioners.emplace_back(&ctx, page.Size(), page.base_rowid, false);
+    partitioners.back().UpdatePosition(&ctx, page, candidates, &tree);
+    partitioners.back().LeafPartition(&ctx, tree, t_gpair, position);
+  }
+
+  bst_idx_t n_left{0};
+  for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
+    auto batch = page.GetView();
+    for (size_t i = 0; i < batch.Size(); ++i) {
+      if (batch[i][split_ind].fvalue < split_value) {
+        n_left++;
+      }
+    }
+  }
+  auto n_left_pos = std::count_if(position.cbegin(), position.cend(),
+                                  [&](auto v) { return v == tree[RegTree::kRoot].LeftChild(); });
+  ASSERT_EQ(n_left, n_left_pos);
+  std::sort(position.begin(), position.end());
+  auto end_it = std::unique(position.begin(), position.end());
+  ASSERT_EQ(std::distance(position.begin(), end_it), 2);
 }
 }  // anonymous namespace
 
@@ -90,4 +137,6 @@ TEST(CommonRowPartitioner, LeafPartition) {
     TestLeafPartition(n_samples);
   }
 }
+
+TEST(CommonRowPartitioner, LeafPartitionExternalMemory) { TestExternalMemory(); }
 }  // namespace xgboost::tree

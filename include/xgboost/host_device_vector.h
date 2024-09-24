@@ -85,7 +85,7 @@ enum GPUAccess {
 
 template <typename T>
 class HostDeviceVector {
-  static_assert(std::is_standard_layout<T>::value, "HostDeviceVector admits only POD types");
+  static_assert(std::is_standard_layout_v<T>, "HostDeviceVector admits only POD types");
 
  public:
   explicit HostDeviceVector(size_t size = 0, T v = T(), DeviceOrd device = DeviceOrd::CPU());

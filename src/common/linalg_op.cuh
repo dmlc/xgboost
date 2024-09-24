@@ -76,7 +76,7 @@ struct IterOp {
 // returns a thrust iterator for a tensor view.
 template <typename T, std::int32_t kDim>
 auto tcbegin(TensorView<T, kDim> v) {  // NOLINT
-  return dh::MakeTransformIterator<T>(
+  return thrust::make_transform_iterator(
       thrust::make_counting_iterator(0ul),
       detail::IterOp<std::add_const_t<std::remove_const_t<T>>, kDim>{v});
 }
@@ -84,6 +84,17 @@ auto tcbegin(TensorView<T, kDim> v) {  // NOLINT
 template <typename T, std::int32_t kDim>
 auto tcend(TensorView<T, kDim> v) {  // NOLINT
   return tcbegin(v) + v.Size();
+}
+
+template <typename T, std::int32_t kDim>
+auto tbegin(TensorView<T, kDim> v) {  // NOLINT
+  return thrust::make_transform_iterator(thrust::make_counting_iterator(0ul),
+                                         detail::IterOp<std::remove_const_t<T>, kDim>{v});
+}
+
+template <typename T, std::int32_t kDim>
+auto tend(TensorView<T, kDim> v) {  // NOLINT
+  return tbegin(v) + v.Size();
 }
 }  // namespace xgboost::linalg
 #endif  // XGBOOST_COMMON_LINALG_OP_CUH_

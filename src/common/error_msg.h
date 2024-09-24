@@ -41,6 +41,8 @@ constexpr StringView InconsistentMaxBin() {
          "and consistent with the Booster being trained.";
 }
 
+constexpr StringView InvalidMaxBin() { return "`max_bin` must be equal to or greater than 2."; }
+
 constexpr StringView UnknownDevice() { return "Unknown device type."; }
 
 inline void MaxFeatureSize(std::uint64_t n_features) {
@@ -104,9 +106,10 @@ inline auto NoCategorical(std::string name) {
   return name + " doesn't support categorical features.";
 }
 
-inline void NoOnHost(bool on_host) {
-  if (on_host) {
-    LOG(FATAL) << "Caching on host memory is only available for GPU.";
+inline void NoPageConcat(bool concat_pages) {
+  if (concat_pages) {
+    LOG(FATAL) << "`extmem_concat_pages` must be false when there's no sampling or when it's "
+                  "running on the CPU.";
   }
 }
 }  // namespace xgboost::error

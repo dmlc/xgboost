@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023 by XGBoost contributors
+ * Copyright 2021-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>                       // for BatchIterator, BatchSet, DMatrix, BatchParam

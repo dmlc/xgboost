@@ -21,16 +21,17 @@ xgb.DataBatch(
 \arguments{
 \item{data}{Batch of data belonging to this batch.
 
-Note that not all of the input types supported by \link{xgb.DMatrix} are possible
-to pass here. Supported types are:\itemize{
+Note that not all of the input types supported by \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} are possible
+to pass here. Supported types are:
+\itemize{
 \item \code{matrix}, with types \code{numeric}, \code{integer}, and \code{logical}. Note that for types
 \code{integer} and \code{logical}, missing values might not be automatically recognized as
-as such - see the documentation for parameter \code{missing} in \link{xgb.ExternalDMatrix}
+as such - see the documentation for parameter \code{missing} in \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}
 for details on this.
 \item \code{data.frame}, with the same types as supported by 'xgb.DMatrix' and same
 conversions applied to it. See the documentation for parameter \code{data} in
-\link{xgb.DMatrix} for details on it.
-\item CSR matrices, as class \code{dgRMatrix} from package \code{Matrix}.
+\code{\link[=xgb.DMatrix]{xgb.DMatrix()}} for details on it.
+\item CSR matrices, as class \code{dgRMatrix} from package "Matrix".
 }}
 
 \item{label}{Label of the training data. For classification problems, should be passed encoded as
@@ -45,23 +46,21 @@ so it doesn't make sense to assign weights to individual data points.}
 
 \item{base_margin}{Base margin used for boosting from existing model.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   In the case of multi-output models, one can also pass multi-dimensional base_margin.
-}\if{html}{\out{</div>}}}
+In the case of multi-output models, one can also pass multi-dimensional base_margin.}
 
-\item{feature_names}{Set names for features. Overrides column names in data
-frame and matrix.
+\item{feature_names}{Set names for features. Overrides column names in data frame and matrix.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note: columns are not referenced by name when calling `predict`, so the column order there
-   must be the same as in the DMatrix construction, regardless of the column names.
-}\if{html}{\out{</div>}}}
+Note: columns are not referenced by name when calling \code{predict}, so the column order there
+must be the same as in the DMatrix construction, regardless of the column names.}
 
 \item{feature_types}{Set types for features.
 
-If \code{data} is a \code{data.frame} and passing \code{feature_types} is not supplied, feature types will be deduced
-automatically from the column types.
+If \code{data} is a \code{data.frame} and passing \code{feature_types} is not supplied,
+feature types will be deduced automatically from the column types.
 
 Otherwise, one can pass a character vector with the same length as number of columns in \code{data},
-with the following possible values:\itemize{
+with the following possible values:
+\itemize{
 \item "c", which represents categorical columns.
 \item "q", which represents numeric columns.
 \item "int", which represents integer columns.
@@ -72,9 +71,9 @@ Note that, while categorical types are treated differently from the rest for mod
 purposes, the other types do not influence the generated model, but have effects in other
 functionalities such as feature importances.
 
-\bold{Important}: categorical features, if specified manually through \code{feature_types}, must
+\strong{Important}: Categorical features, if specified manually through \code{feature_types}, must
 be encoded as integers with numeration starting at zero, and the same encoding needs to be
-applied when passing data to \code{predict}. Even if passing \code{factor} types, the encoding will
+applied when passing data to \code{\link[=predict]{predict()}}. Even if passing \code{factor} types, the encoding will
 not be saved, so make sure that \code{factor} columns passed to \code{predict} have the same \code{levels}.}
 
 \item{group}{Group size for all ranking group.}
@@ -89,24 +88,24 @@ not be saved, so make sure that \code{factor} columns passed to \code{predict} h
 }
 \value{
 An object of class \code{xgb.DataBatch}, which is just a list containing the
-data and parameters passed here. It does \bold{not} inherit from \code{xgb.DMatrix}.
+data and parameters passed here. It does \strong{not} inherit from \code{xgb.DMatrix}.
 }
 \description{
 Helper function to supply data in batches of a data iterator when
-constructing a DMatrix from external memory through \link{xgb.ExternalDMatrix}
-or through \link{xgb.QuantileDMatrix.from_iterator}.
+constructing a DMatrix from external memory through \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}
+or through \code{\link[=xgb.QuantileDMatrix.from_iterator]{xgb.QuantileDMatrix.from_iterator()}}.
 
-This function is \bold{only} meant to be called inside of a callback function (which
-is passed as argument to function \link{xgb.DataIter} to construct a data iterator)
+This function is \strong{only} meant to be called inside of a callback function (which
+is passed as argument to function \code{\link[=xgb.DataIter]{xgb.DataIter()}} to construct a data iterator)
 when constructing a DMatrix through external memory - otherwise, one should call
-\link{xgb.DMatrix} or \link{xgb.QuantileDMatrix}.
+\code{\link[=xgb.DMatrix]{xgb.DMatrix()}} or \code{\link[=xgb.QuantileDMatrix]{xgb.QuantileDMatrix()}}.
 
-The object that results from calling this function directly is \bold{not} like
+The object that results from calling this function directly is \strong{not} like
 an \code{xgb.DMatrix} - i.e. cannot be used to train a model, nor to get predictions - only
 possible usage is to supply data to an iterator, from which a DMatrix is then constructed.
 
-For more information and for example usage, see the documentation for \link{xgb.ExternalDMatrix}.
+For more information and for example usage, see the documentation for \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
 }
 \seealso{
-\link{xgb.DataIter}, \link{xgb.ExternalDMatrix}.
+\code{\link[=xgb.DataIter]{xgb.DataIter()}}, \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
 }

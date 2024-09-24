@@ -105,16 +105,20 @@ def main():
     assert m_with_it.num_row() == m.num_row()
     # Tree meethod must be `hist`.
     reg_with_it = xgboost.train(
-        {"tree_method": "hist", "device": "cuda"}, m_with_it, num_boost_round=rounds
+        {"tree_method": "hist", "device": "cuda"},
+        m_with_it,
+        num_boost_round=rounds,
+        evals=[(m_with_it, "Train")],
     )
     predict_with_it = reg_with_it.predict(m_with_it)
 
     reg = xgboost.train(
-        {"tree_method": "hist", "device": "cuda"}, m, num_boost_round=rounds
+        {"tree_method": "hist", "device": "cuda"},
+        m,
+        num_boost_round=rounds,
+        evals=[(m, "Train")],
     )
     predict = reg.predict(m)
-
-    numpy.testing.assert_allclose(predict_with_it, predict, rtol=1e6)
 
 
 if __name__ == "__main__":

@@ -125,7 +125,7 @@ class GBLinearModel : public Model {
         }
       }
       fo << std::endl << "    ]" << std::endl << "  }";
-    } else {
+    } else if (format == "text") {
       fo << "bias:\n";
       for (int gid = 0; gid < ngroup; ++gid) {
         fo << this->Bias()[gid] << std::endl;
@@ -136,6 +136,8 @@ class GBLinearModel : public Model {
           fo << (*this)[i][gid] << std::endl;
         }
       }
+    } else {
+      LOG(FATAL) << "Dump format `" << format << "` is not supported by the gblinear model.";
     }
     std::vector<std::string> v;
     v.push_back(fo.str());

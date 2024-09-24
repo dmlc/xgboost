@@ -33,9 +33,9 @@ AS_IF([test -z "${USE_LITTLE_ENDIAN+x}"], [
   AC_MSG_NOTICE([Checking system endianness as USE_LITTLE_ENDIAN is unset])
   AC_MSG_CHECKING([system endianness])
   AC_C_BIGENDIAN(
-    [AC_MSG_RESULT([big endian])
+    [AC_MSG_RESULT([using big endian])
      ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=0"],
-    [AC_MSG_RESULT([little endian])
+    [AC_MSG_RESULT([using little endian])
      ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=1"],
     [AC_MSG_RESULT([unknown])
      AC_MSG_ERROR([Could not determine endianness. Please set USE_LITTLE_ENDIAN])]

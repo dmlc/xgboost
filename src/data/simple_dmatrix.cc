@@ -31,6 +31,9 @@ const MetaInfo& SimpleDMatrix::Info() const { return info_; }
 DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   auto out = new SimpleDMatrix;
   SparsePage& out_page = *out->sparse_page_;
+  // Convert to uint64 to avoid a breaking change in the C API. The performance impact is
+  // small since we have to iteratve through the sparse page.
+  std::vector<bst_idx_t> h_ridx(ridxs.data(), ridxs.data() + ridxs.size());
   for (auto const& page : this->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
     auto& h_data = out_page.data.HostVector();
@@ -42,8 +45,8 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
       std::copy(inst.begin(), inst.end(), std::back_inserter(h_data));
       h_offset.emplace_back(rptr);
     }
-    out->Info() = this->Info().Slice(ridxs);
-    out->Info().num_nonzero_ = h_offset.back();
+    auto ctx = this->fmat_ctx_.MakeCPU();
+    out->Info() = this->Info().Slice(&ctx, h_ridx, h_offset.back());
   }
   out->fmat_ctx_ = this->fmat_ctx_;
   return out;
@@ -294,16 +297,14 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
         IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
     // If AdapterT is either IteratorAdapter or FileAdapter type, use the total batch size to
     // determine the correct number of rows, as offset_vec may be too short
-    if (std::is_same<AdapterT, IteratorAdapterT>::value ||
-        std::is_same<AdapterT, FileAdapter>::value) {
+    if (std::is_same_v<AdapterT, IteratorAdapterT> || std::is_same_v<AdapterT, FileAdapter>) {
       info_.num_row_ = total_batch_size;
       // Ensure offset_vec.size() - 1 == [number of rows]
       while (offset_vec.size() - 1 < total_batch_size) {
         offset_vec.emplace_back(offset_vec.back());
       }
     } else {
-      CHECK((std::is_same<AdapterT, CSCAdapter>::value ||
-             std::is_same<AdapterT, CSCArrayAdapter>::value))
+      CHECK((std::is_same_v<AdapterT, CSCAdapter> || std::is_same_v<AdapterT, CSCArrayAdapter>))
           << "Expecting CSCAdapter";
       info_.num_row_ = offset_vec.size() - 1;
     }

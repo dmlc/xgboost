@@ -802,10 +802,10 @@ class SketchContainerImpl {
   /* \brief Initialize necessary info.
    *
    * \param columns_size Size of each column.
-   * \param max_bins maximum number of bins for each feature.
+   * \param max_bin maximum number of bins for each feature.
    * \param use_group whether is assigned to group to data instance.
    */
-  SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size, bst_bin_t max_bins,
+  SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size, bst_bin_t max_bin,
                       common::Span<FeatureType const> feature_types, bool use_group);
 
   static bool UseGroup(MetaInfo const &info) {

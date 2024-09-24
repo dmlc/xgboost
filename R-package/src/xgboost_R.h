@@ -27,20 +27,20 @@
 XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle);
 
 /*!
- * \brief set the dimensions of an array in-place
- * \param arr
- * \param dims dimensions to set to the array
- * \return NULL value
- */
-XGB_DLL SEXP XGSetArrayDimInplace_R(SEXP arr, SEXP dims);
-
-/*!
  * \brief set the names of the dimensions of an array in-place
  * \param arr
  * \param dim_names names for the dimensions to set
  * \return NULL value
  */
 XGB_DLL SEXP XGSetArrayDimNamesInplace_R(SEXP arr, SEXP dim_names);
+
+/*!
+ * \brief set the names of a vector in-place
+ * \param arr
+ * \param names names for the dimensions to set
+ * \return NULL value
+ */
+XGB_DLL SEXP XGSetVectorNamesInplace_R(SEXP arr, SEXP names);
 
 /*!
  * \brief Set global configuration

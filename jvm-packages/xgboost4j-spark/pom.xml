@@ -19,6 +19,26 @@
                     <skipAssembly>false</skipAssembly>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <configuration>
+                  <shadedArtifactAttached>false</shadedArtifactAttached>
+                  <artifactSet>
+                    <includes>
+                      <include>ml.dmlc:xgboost4j_${scala.binary.version}</include>
+                    </includes>
+                  </artifactSet>
+                </configuration>
+                <executions>
+                  <execution>
+                    <phase>package</phase>
+                    <goals>
+                      <goal>shade</goal>
+                    </goals>
+                  </execution>
+                </executions>
+              </plugin>
         </plugins>
     </build>
     <dependencies>

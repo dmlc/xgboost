@@ -20,6 +20,7 @@
 #include <xgboost/c_api.h>
 #include <xgboost/json.h>
 #include <xgboost/logging.h>
+#include <xgboost/string_view.h>  // for StringView
 
 #include <algorithm>  // for copy_n
 #include <cstddef>
@@ -30,8 +31,9 @@
 #include <type_traits>
 #include <vector>
 
-#include "../../../src/c_api/c_api_error.h"
-#include "../../../src/c_api/c_api_utils.h"
+#include "../../../../src/c_api/c_api_error.h"
+#include "../../../../src/c_api/c_api_utils.h"
+#include "../../../../src/data/array_interface.h"  // for ArrayInterface
 
 #define JVM_CHECK_CALL(__expr)                                                 \
   {                                                                            \
@@ -1330,16 +1332,16 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDeviceQuantileDM
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGQuantileDMatrixCreateFromCallback
- * Signature: (Ljava/util/Iterator;Ljava/util/Iterator;Ljava/lang/String;[J)I
+ * Signature: (Ljava/util/Iterator;[JLjava/lang/String;[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGQuantileDMatrixCreateFromCallback(
-    JNIEnv *jenv, jclass jcls, jobject jdata_iter, jobject jref_iter, jstring jconf,
+    JNIEnv *jenv, jclass jcls, jobject jdata_iter, jlongArray jref, jstring jconf,
     jlongArray jout) {
   std::unique_ptr<char const, Deleter<char const>> conf{jenv->GetStringUTFChars(jconf, nullptr),
                                                         [&](char const *ptr) {
                                                           jenv->ReleaseStringUTFChars(jconf, ptr);
                                                         }};
-  return xgboost::jni::XGQuantileDMatrixCreateFromCallbackImpl(jenv, jcls, jdata_iter, jref_iter,
+  return xgboost::jni::XGQuantileDMatrixCreateFromCallbackImpl(jenv, jcls, jdata_iter, jref,
                                                                conf.get(), jout);
 }
 
@@ -1514,6 +1516,47 @@ Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetStrFeatureInfo(
     jstring jfeature = jenv->NewStringUTF(features[i]);
     jenv->SetObjectArrayElement(jout, i, jfeature);
   }
+
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixGetQuantileCut
+ * Signature: (J[[J[[F)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetQuantileCut(
+    JNIEnv *jenv, jclass, jlong jhandle, jobjectArray j_indptr, jobjectArray j_values) {
+  using namespace xgboost;  // NOLINT
+  auto handle = reinterpret_cast<DMatrixHandle>(jhandle);
+
+  char const *str_indptr;
+  char const *str_data;
+  Json config{Object{}};
+  auto str_config = Json::Dump(config);
+
+  auto ret = XGDMatrixGetQuantileCut(handle, str_config.c_str(), &str_indptr, &str_data);
+
+  ArrayInterface<1> indptr{StringView{str_indptr}};
+  ArrayInterface<1> data{StringView{str_data}};
+  CHECK_GE(indptr.Shape(0), 2);
+
+  // Cut ptr
+  auto j_indptr_array = jenv->NewLongArray(indptr.Shape(0));
+  CHECK_EQ(indptr.type, ArrayInterfaceHandler::Type::kU8);
+  CHECK_LT(indptr(indptr.Shape(0) - 1),
+           static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()));
+  static_assert(sizeof(jlong) == sizeof(std::uint64_t));
+  jenv->SetLongArrayRegion(j_indptr_array, 0, indptr.Shape(0),
+                           static_cast<jlong const *>(indptr.data));
+  jenv->SetObjectArrayElement(j_indptr, 0, j_indptr_array);
+
+  // Cut values
+  auto n_cuts = indptr(indptr.Shape(0) - 1);
+  jfloatArray jcuts_array = jenv->NewFloatArray(n_cuts);
+  CHECK_EQ(data.type, ArrayInterfaceHandler::Type::kF4);
+  jenv->SetFloatArrayRegion(jcuts_array, 0, n_cuts, static_cast<float const *>(data.data));
+  jenv->SetObjectArrayElement(j_values, 0, jcuts_array);
 
   return ret;
 }

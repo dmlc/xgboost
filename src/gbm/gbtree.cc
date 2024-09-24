@@ -52,7 +52,8 @@ std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) 
     case TreeMethod::kAuto:  // Use hist as default in 2.0
     case TreeMethod::kHist: {
       return ctx->DispatchDevice([] { return "grow_quantile_histmaker"; },
-                                 [] { return "grow_gpu_hist"; });
+                                 [] { return "grow_gpu_hist"; },
+                                 [] { return "grow_quantile_histmaker_sycl"; });
     }
     case TreeMethod::kApprox: {
       return ctx->DispatchDevice([] { return "grow_histmaker"; }, [] { return "grow_gpu_approx"; });
@@ -216,10 +217,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
                                     model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
-
-  if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf()) {
-    LOG(FATAL) << "Current objective doesn't support external memory.";
-  }
 
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.

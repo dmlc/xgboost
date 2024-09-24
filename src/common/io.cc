@@ -4,7 +4,7 @@
 #if defined(__unix__) || defined(__APPLE__)
 
 #include <fcntl.h>     // for open, O_RDONLY
-#include <sys/mman.h>  // for mmap, mmap64, munmap, madvise
+#include <sys/mman.h>  // for mmap, munmap, madvise
 #include <unistd.h>    // for close, getpagesize
 
 #else
@@ -202,7 +202,7 @@ MMAPFile* detail::OpenMmap(std::string path, std::size_t offset, std::size_t len
 
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
-  ptr = reinterpret_cast<std::byte*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
+  ptr = reinterpret_cast<std::byte*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
   auto handle = new MMAPFile{fd, ptr, view_size, offset - view_start, std::move(path)};
 #elif defined(xgboost_IS_WIN)

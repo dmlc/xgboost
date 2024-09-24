@@ -36,9 +36,10 @@ TEST(SyclPredictor, ExternalMemory) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
 
-  size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries);
+  bst_idx_t constexpr kRows{64};
+  bst_feature_t constexpr kCols{12};
+  auto dmat =
+      RandomDataGenerator{kRows, kCols, 0.5f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
   TestBasic(dmat.get(), &ctx);
 }
 

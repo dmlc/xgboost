@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "../collective/aggregator.h"
+#include "../common/error_msg.h"  // for InvalidMaxBin
 #include "../data/adapter.h"
 #include "categorical.h"
 #include "hist_util.h"
@@ -16,15 +17,16 @@ namespace xgboost::common {
 template <typename WQSketch>
 SketchContainerImpl<WQSketch>::SketchContainerImpl(Context const *ctx,
                                                    std::vector<bst_idx_t> columns_size,
-                                                   int32_t max_bins,
+                                                   bst_bin_t max_bin,
                                                    Span<FeatureType const> feature_types,
                                                    bool use_group)
     : feature_types_(feature_types.cbegin(), feature_types.cend()),
       columns_size_{std::move(columns_size)},
-      max_bins_{max_bins},
+      max_bins_{max_bin},
       use_group_ind_{use_group},
       n_threads_{ctx->Threads()} {
   monitor_.Init(__func__);
+  CHECK_GE(max_bin, 2) << error::InvalidMaxBin();
   CHECK_NE(columns_size_.size(), 0);
   sketches_.resize(columns_size_.size());
   CHECK_GE(n_threads_, 1);

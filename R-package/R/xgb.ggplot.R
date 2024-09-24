@@ -1,6 +1,5 @@
 # ggplot backend for the xgboost plotting facilities
 
-
 #' @rdname xgb.plot.importance
 #' @export
 xgb.ggplot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL,
@@ -103,6 +102,27 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
 #' @export
 xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, top_n = 10, model = NULL,
                                     trees = NULL, target_class = NULL, approxcontrib = FALSE, subsample = NULL) {
+  if (inherits(data, "xgb.DMatrix")) {
+    stop(
+      "'xgb.ggplot.shap.summary' is not compatible with 'xgb.DMatrix' objects. Try passing a matrix or data.frame."
+    )
+  }
+  cols_categ <- NULL
+  if (!is.null(model)) {
+    ftypes <- getinfo(model, "feature_type")
+    if (NROW(ftypes)) {
+      if (length(ftypes) != ncol(data)) {
+        stop(sprintf("'data' has incorrect number of columns (expected: %d, got: %d).", length(ftypes), ncol(data)))
+      }
+      cols_categ <- colnames(data)[ftypes == "c"]
+    }
+  } else if (inherits(data, "data.frame")) {
+    cols_categ <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
+  }
+  if (NROW(cols_categ)) {
+    warning("Categorical features are ignored in 'xgb.ggplot.shap.summary'.")
+  }
+
   data_list <- xgb.shap.data(
     data = data,
     shap_contrib = shap_contrib,
@@ -115,6 +135,10 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
     subsample = subsample,
     max_observations = 10000  # 10,000 samples per feature.
   )
+  if (NROW(cols_categ)) {
+    data_list <- lapply(data_list, function(x) x[, !(colnames(x) %in% cols_categ), drop = FALSE])
+  }
+
   p_data <- prepare.ggplot.shap.data(data_list, normalize = TRUE)
   # Reverse factor levels so that the first level is at the top of the plot
   p_data[, "feature" := factor(feature, rev(levels(feature)))]
@@ -135,8 +159,8 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
 #' @param data_list The result of `xgb.shap.data()`.
 #' @param normalize Whether to standardize feature values to mean 0 and
 #'   standard deviation 1. This is useful for comparing multiple features on the same
-#'   plot. Default is \code{FALSE}.
-#'
+#'   plot. Default is `FALSE`. Note that it cannot be used when the data contains
+#'   categorical features.
 #' @return A `data.table` containing the observation ID, the feature name, the
 #'   feature value (normalized if specified), and the SHAP contribution value.
 #' @noRd
@@ -167,7 +191,6 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
 #' Useful to compare multiple features on the same plot.
 #'
 #' @param x Numeric vector.
-#'
 #' @return Numeric vector with mean 0 and standard deviation 1.
 #' @noRd
 #' @keywords internal

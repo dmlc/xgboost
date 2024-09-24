@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023, XGBoost contributors
+ * Copyright 2018-2024, XGBoost contributors
  */
 #include "test_span.h"
 
@@ -174,19 +174,11 @@ TEST(Span, FromFirstLast) {
   }
 }
 
-struct BaseClass {
-  virtual void operator()() {}
-};
-struct DerivedClass : public BaseClass {
-  void operator()() override {}
-};
-
 TEST(Span, FromOther) {
-
   // convert constructor
   {
-    Span<DerivedClass> derived;
-    Span<BaseClass> base { derived };
+    Span<int> derived;
+    Span<int const> base{derived};
     ASSERT_EQ(base.size(), derived.size());
     ASSERT_EQ(base.data(), derived.data());
   }

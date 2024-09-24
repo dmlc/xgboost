@@ -30,4 +30,4 @@
 
 #endif  // xgboost_IS_MINGW
 
-#endif  // defined(xgboost_IS_WIN)
+#endif  // !defined(xgboost_IS_WIN)

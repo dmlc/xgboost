@@ -16,11 +16,10 @@ Checks whether an xgb.DMatrix object has a given field assigned to
 it, such as weights, labels, etc.
 }
 \examples{
-library(xgboost)
 x <- matrix(1:10, nrow = 5)
 dm <- xgb.DMatrix(x, nthread = 1)
 
-# 'dm' so far doesn't have any fields set
+# 'dm' so far does not have any fields set
 xgb.DMatrix.hasinfo(dm, "label")
 
 # Fields can be added after construction
@@ -28,5 +27,5 @@ setinfo(dm, "label", 1:5)
 xgb.DMatrix.hasinfo(dm, "label")
 }
 \seealso{
-\link{xgb.DMatrix}, \link{getinfo.xgb.DMatrix}, \link{setinfo.xgb.DMatrix}
+\code{\link[=xgb.DMatrix]{xgb.DMatrix()}}, \code{\link[=getinfo.xgb.DMatrix]{getinfo.xgb.DMatrix()}}, \code{\link[=setinfo.xgb.DMatrix]{setinfo.xgb.DMatrix()}}
 }
