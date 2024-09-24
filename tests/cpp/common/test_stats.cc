@@ -5,11 +5,14 @@
 #include <xgboost/context.h>
 #include <xgboost/linalg.h>  // Tensor,Vector
 
+#include <algorithm>  // for min
+#include <thread>     // for thread
+
 #include "../../../src/common/linalg_op.h"  // for begin, end
 #include "../../../src/common/stats.h"
 #include "../../../src/common/transform_iterator.h"  // common::MakeIndexTransformIter
-#include "../helpers.h"
 #include "../collective/test_worker.h"
+#include "../helpers.h"
 
 namespace xgboost::common {
 TEST(Stats, Quantile) {
@@ -144,7 +147,8 @@ void TestSampleMean(Context const* ctx) {
   }
 
   auto device = ctx->Device();
-  std::int32_t n_workers = device.IsCPU() ? 4 : common::AllVisibleGPUs();
+  std::int32_t n_workers =
+      device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : common::AllVisibleGPUs();
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
@@ -192,7 +196,8 @@ void TestWeightedSampleMean(Context const* ctx) {
   }
 
   auto device = ctx->Device();
-  std::int32_t n_workers = device.IsCPU() ? 4 : common::AllVisibleGPUs();
+  std::int32_t n_workers =
+      device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : common::AllVisibleGPUs();
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
