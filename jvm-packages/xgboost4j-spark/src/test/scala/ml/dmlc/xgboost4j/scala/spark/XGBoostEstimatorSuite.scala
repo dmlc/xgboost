@@ -18,10 +18,11 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.util.Arrays
+
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
 import org.apache.spark.SparkException
+import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.parseJson
 import org.scalatest.funsuite.AnyFunSuite

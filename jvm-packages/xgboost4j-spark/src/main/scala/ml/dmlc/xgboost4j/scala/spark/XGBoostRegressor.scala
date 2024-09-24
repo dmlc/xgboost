@@ -22,11 +22,11 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader}
 import org.apache.spark.ml.xgboost.SparkUtils
 import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
 
 import ml.dmlc.xgboost4j.scala.Booster
 import ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor._uid
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.REGRESSION_OBJS
-import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
 
 class XGBoostRegressor(override val uid: String,
                        private val xgboostParams: Map[String, Any])

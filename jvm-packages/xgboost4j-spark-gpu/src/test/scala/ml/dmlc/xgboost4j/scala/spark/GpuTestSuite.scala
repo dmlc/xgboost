@@ -17,13 +17,12 @@
 package ml.dmlc.xgboost4j.scala.rapids.spark
 
 import java.nio.file.{Files, Path}
-import java.sql.{Date, Timestamp}
 import java.util.{Locale, TimeZone}
 
 import org.apache.spark.{GpuTestUtils, SparkConf}
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.util.JavaUtils
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 
