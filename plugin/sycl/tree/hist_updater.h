@@ -52,7 +52,7 @@ class HistUpdater {
   using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
 
   explicit HistUpdater(const Context* ctx,
-                       ::sycl::queue qu,
+                       ::sycl::queue* qu,
                        const xgboost::tree::TrainParam& param,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
@@ -63,11 +63,11 @@ class HistUpdater {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
     kernel_monitor_.Init("SYCL::Quantile::HistUpdater");
     if (param.max_depth > 0) {
-      snode_device_.Resize(&qu, 1u << (param.max_depth + 1));
+      snode_device_.Resize(qu, 1u << (param.max_depth + 1));
     }
-    has_fp64_support_ = qu_.get_device().has(::sycl::aspect::fp64);
+    has_fp64_support_ = qu_->get_device().has(::sycl::aspect::fp64);
     const auto sub_group_sizes =
-      qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
+      qu_->get_device().get_info<::sycl::info::device::sub_group_sizes>();
     sub_group_size_ = sub_group_sizes.back();
   }
 
@@ -266,8 +266,7 @@ class HistUpdater {
   bst_float* out_pred_ptr = nullptr;
 
   std::vector<GradientPairT> reduce_buffer_;
-
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
 };
 
 }  // namespace tree

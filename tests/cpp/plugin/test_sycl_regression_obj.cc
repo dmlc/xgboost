@@ -46,14 +46,15 @@ TEST(SyclObjective, LogisticRawGPair) {
 }
 
 TEST(SyclObjective, CPUvsSycl) {
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  Context ctx_sycl;
+  ctx_sycl.UpdateAllowUnknown(Args{{"device", "sycl"}});
   ObjFunction * obj_sycl =
-      ObjFunction::Create("reg:squarederror_sycl", &ctx);
+      ObjFunction::Create("reg:squarederror_sycl", &ctx_sycl);
 
-  ctx = ctx.MakeCPU();
+  Context ctx_cpu;
+  ctx_cpu.UpdateAllowUnknown(Args{{"device", "cpu"}});
   ObjFunction * obj_cpu =
-      ObjFunction::Create("reg:squarederror", &ctx);
+      ObjFunction::Create("reg:squarederror", &ctx_cpu);
 
   linalg::Matrix<GradientPair> cpu_out_preds;
   linalg::Matrix<GradientPair> sycl_out_preds;

@@ -37,14 +37,14 @@ enum class MemoryType { shared, on_device};
 template <typename T>
 class USMDeleter {
  public:
-  explicit USMDeleter(::sycl::queue qu) : qu_(qu) {}
+  explicit USMDeleter(::sycl::queue* qu) : qu_(qu) {}
 
   void operator()(T* data) const {
-    ::sycl::free(data, qu_);
+    ::sycl::free(data, *qu_);
   }
 
  private:
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
 };
 
 template <typename T, MemoryType memory_type = MemoryType::shared>
@@ -53,9 +53,9 @@ class USMVector {
 
   std::shared_ptr<T> allocate_memory_(::sycl::queue* qu, size_t size) {
     if constexpr (memory_type == MemoryType::shared) {
-      return std::shared_ptr<T>(::sycl::malloc_shared<T>(size_, *qu), USMDeleter<T>(*qu));
+      return std::shared_ptr<T>(::sycl::malloc_shared<T>(size_, *qu), USMDeleter<T>(qu));
     } else {
-      return std::shared_ptr<T>(::sycl::malloc_device<T>(size_, *qu), USMDeleter<T>(*qu));
+      return std::shared_ptr<T>(::sycl::malloc_device<T>(size_, *qu), USMDeleter<T>(qu));
     }
   }
 
@@ -227,14 +227,14 @@ class USMVector {
 /* Wrapper for DMatrix which stores all batches in a single USM buffer */
 struct DeviceMatrix {
   DMatrix* p_mat;  // Pointer to the original matrix on the host
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
   USMVector<size_t, MemoryType::on_device> row_ptr;
   USMVector<Entry, MemoryType::on_device> data;
   size_t total_offset;
 
   DeviceMatrix() = default;
 
-  void Init(::sycl::queue qu, DMatrix* dmat) {
+  void Init(::sycl::queue* qu, DMatrix* dmat) {
     qu_ = qu;
     p_mat = dmat;
 
@@ -247,9 +247,9 @@ struct DeviceMatrix {
       num_row += batch.Size();
     }
 
-    row_ptr.Resize(&qu_, num_row + 1);
+    row_ptr.Resize(qu_, num_row + 1);
     size_t* rows = row_ptr.Data();
-    data.Resize(&qu_, num_nonzero);
+    data.Resize(qu_, num_nonzero);
 
     size_t data_offset = 0;
     ::sycl::event event;
@@ -259,10 +259,10 @@ struct DeviceMatrix {
       size_t batch_size = batch.Size();
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;
-        event = qu.memcpy(row_ptr.Data() + base_rowid, offset_vec.data(),
+        event = qu->memcpy(row_ptr.Data() + base_rowid, offset_vec.data(),
                           sizeof(size_t) * batch_size, event);
         if (base_rowid > 0) {
-          qu.submit([&](::sycl::handler& cgh) {
+          qu->submit([&](::sycl::handler& cgh) {
             cgh.depends_on(event);
             cgh.parallel_for<>(::sycl::range<1>(batch_size), [=](::sycl::id<1> pid) {
               int row_id = pid[0];
@@ -270,19 +270,19 @@ struct DeviceMatrix {
             });
           });
         }
-        event = qu.memcpy(data.Data() + data_offset, data_vec.data(),
+        event = qu->memcpy(data.Data() + data_offset, data_vec.data(),
                           sizeof(Entry) * offset_vec[batch_size], event);
         data_offset += offset_vec[batch_size];
-        qu.wait();
+        qu->wait();
       }
     }
-    qu.submit([&](::sycl::handler& cgh) {
+    qu_->submit([&](::sycl::handler& cgh) {
       cgh.depends_on(event);
       cgh.single_task<>([=] {
         rows[num_row] = data_offset;
       });
     });
-    qu.wait();
+    qu_->wait();
     total_offset = data_offset;
   }
 

@@ -32,7 +32,7 @@ class ColumnMatrix;
  * \brief Fill histogram with zeroes
  */
 template<typename GradientSumT>
-void InitHist(::sycl::queue qu,
+void InitHist(::sycl::queue* qu,
               GHistRow<GradientSumT, MemoryType::on_device>* hist,
               size_t size, ::sycl::event* event);
 
@@ -40,7 +40,7 @@ void InitHist(::sycl::queue qu,
  * \brief Copy histogram from src to dst
  */
 template<typename GradientSumT>
-void CopyHist(::sycl::queue qu,
+void CopyHist(::sycl::queue* qu,
               GHistRow<GradientSumT, MemoryType::on_device>* dst,
               const GHistRow<GradientSumT, MemoryType::on_device>& src,
               size_t size);
@@ -49,7 +49,7 @@ void CopyHist(::sycl::queue qu,
  * \brief Compute subtraction: dst = src1 - src2
  */
 template<typename GradientSumT>
-::sycl::event SubtractionHist(::sycl::queue qu,
+::sycl::event SubtractionHist(::sycl::queue* qu,
                               GHistRow<GradientSumT, MemoryType::on_device>* dst,
                               const GHistRow<GradientSumT, MemoryType::on_device>& src1,
                               const GHistRow<GradientSumT, MemoryType::on_device>& src2,
@@ -73,7 +73,7 @@ class HistCollection {
   }
 
   // Initialize histogram collection
-  void Init(::sycl::queue qu, uint32_t nbins) {
+  void Init(::sycl::queue* qu, uint32_t nbins) {
     qu_ = qu;
     if (nbins_ != nbins) {
       nbins_ = nbins;
@@ -86,11 +86,11 @@ class HistCollection {
     ::sycl::event event;
     if (data_.count(nid) == 0) {
       data_[nid] =
-        std::make_shared<GHistRowT>(&qu_, nbins_,
+        std::make_shared<GHistRowT>(qu_, nbins_,
                                     xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
                                     &event);
     } else {
-      data_[nid]->Resize(&qu_, nbins_,
+      data_[nid]->Resize(qu_, nbins_,
                          xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
                          &event);
     }
@@ -103,7 +103,7 @@ class HistCollection {
 
   std::unordered_map<uint32_t, std::shared_ptr<GHistRowT>> data_;
 
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
 };
 
 /*!
@@ -114,7 +114,7 @@ class ParallelGHistBuilder {
  public:
   using GHistRowT = GHistRow<GradientSumT, MemoryType::on_device>;
 
-  void Init(::sycl::queue qu, size_t nbins) {
+  void Init(::sycl::queue* qu, size_t nbins) {
     qu_ = qu;
     if (nbins != nbins_) {
       hist_buffer_.Init(qu_, nbins);
@@ -123,7 +123,7 @@ class ParallelGHistBuilder {
   }
 
   void Reset(size_t nblocks) {
-    hist_device_buffer_.Resize(&qu_, nblocks * nbins_ * 2);
+    hist_device_buffer_.Resize(qu_, nblocks * nbins_ * 2);
   }
 
   GHistRowT& GetDeviceBuffer() {
@@ -139,7 +139,7 @@ class ParallelGHistBuilder {
   /*! \brief Buffer for additional histograms for Parallel processing  */
   GHistRowT hist_device_buffer_;
 
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
 };
 
 /*!
@@ -152,7 +152,7 @@ class GHistBuilder {
   using GHistRowT = GHistRow<GradientSumT, memory_type>;
 
   GHistBuilder() = default;
-  GHistBuilder(::sycl::queue qu, uint32_t nbins) : qu_{qu}, nbins_{nbins} {}
+  GHistBuilder(::sycl::queue* qu, uint32_t nbins) : qu_{qu}, nbins_{nbins} {}
 
   // Construct a histogram via histogram aggregation
   ::sycl::event BuildHist(const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
@@ -177,7 +177,7 @@ class GHistBuilder {
   /*! \brief Number of all bins over all features */
   uint32_t nbins_ { 0 };
 
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
 };
 }  // namespace common
 }  // namespace sycl

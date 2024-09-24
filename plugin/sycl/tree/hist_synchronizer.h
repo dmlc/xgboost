@@ -48,7 +48,7 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
                                                        this_hist, nbins, ::sycl::event());
       }
     }
-    builder->qu_.wait_and_throw();
+    builder->qu_->wait_and_throw();
 
     builder->builder_monitor_.Stop("SyncHistograms");
   }
@@ -84,7 +84,7 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
         auto& sibling_hist = builder->hist_[sibling_nid];
         common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
                                 this_hist, nbins, ::sycl::event());
-        builder->qu_.wait_and_throw();
+        builder->qu_->wait_and_throw();
         // Store posible parent node
         auto& sibling_local = builder->hist_local_worker_[sibling_nid];
         common::CopyHist(builder->qu_, &sibling_local, sibling_hist, nbins);
@@ -113,7 +113,7 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
           auto& sibling_hist = builder->hist_[entry.GetSiblingId(p_tree, parent_id)];
           common::SubtractionHist(builder->qu_, &this_hist, parent_hist,
                                   sibling_hist, nbins, ::sycl::event());
-          builder->qu_.wait_and_throw();
+          builder->qu_->wait_and_throw();
         }
       }
     }
