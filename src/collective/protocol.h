@@ -130,7 +130,7 @@ class Start {
     }
     return Success();
   }
-  // Ensure the worker started to listen before bootstrapping.
+  // Ensure the worker has started to listen before bootstrapping the coll group.
   [[nodiscard]] Result WorkerFinish(TCPSocket* tracker) {
     Json jcmd{Object{}};
     jcmd["done"] = true;
@@ -171,7 +171,11 @@ class Start {
   }
 
   [[nodiscard]] Result TrackerFinish(Json jcmd) {
-    return get<Boolean>(jcmd["done"]) ? Success() : Fail("Failed to start.");
+    auto it = get<Object const>(jcmd).find("done");
+    if (IsA<Boolean>(it->second) && get<Boolean const>(it->second)) {
+      return Success();
+    }
+    return Fail("Failed to start.");
   }
 };
 
