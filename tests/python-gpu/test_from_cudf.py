@@ -195,7 +195,7 @@ class TestFromColumnar:
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_categorical(self) -> None:
         n_features = 30
-        _X, _y = tm.make_categorical(100, n_features, 17, False)
+        _X, _y = tm.make_categorical(100, n_features, 17, onehot=False)
         X = cudf.from_pandas(_X)
         y = cudf.from_pandas(_y)
 
@@ -312,7 +312,7 @@ class IterForDMatrixTest(xgb.core.DataIter):
             self._data = []
             self._labels = []
             for i in range(self.BATCHES):
-                X, y = tm.make_categorical(self.ROWS_PER_BATCH, 4, 13, False)
+                X, y = tm.make_categorical(self.ROWS_PER_BATCH, 4, 13, onehot=False)
                 self._data.append(cudf.from_pandas(X))
                 self._labels.append(y)
         else:

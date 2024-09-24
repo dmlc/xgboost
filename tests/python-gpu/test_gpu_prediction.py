@@ -405,7 +405,7 @@ class TestGPUPredict:
         )
 
     def test_shap_categorical(self):
-        X, y = tm.make_categorical(100, 20, 7, False)
+        X, y = tm.make_categorical(100, 20, 7, onehot=False)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         booster = xgb.train(
             {"tree_method": "hist", "device": "gpu:0"}, Xy, num_boost_round=10

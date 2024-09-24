@@ -140,7 +140,14 @@ class TestGPUUpdaters:
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(self, rows, cols, rounds, cats):
-        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
+        check_categorical_ohe(
+            rows=rows,
+            cols=cols,
+            rounds=rounds,
+            cats=cats,
+            device="cuda",
+            tree_method="hist",
+        )
 
     @given(
         tm.categorical_dataset_strategy,
@@ -222,10 +229,9 @@ class TestGPUUpdaters:
     def test_categorical_32_cat(self):
         """32 hits the bound of integer bitset, so special test"""
         rows = 1000
-        cols = 10
-        cats = 32
-        rounds = 4
-        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
+        check_categorical_ohe(
+            rows=rows, cols=10, rounds=4, cats=32, device="cuda", tree_method="hist"
+        )
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_invalid_category(self):

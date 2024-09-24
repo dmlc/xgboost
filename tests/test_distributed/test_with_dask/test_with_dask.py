@@ -359,7 +359,7 @@ def run_categorical(
 
 def test_categorical(client: "Client") -> None:
     X, y = make_categorical(client, 10000, 30, 13)
-    X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
+    X_onehot, _ = make_categorical(client, 10000, 30, 13, onehot=True)
     run_categorical(client, "approx", "cpu", X, X_onehot, y)
     run_categorical(client, "hist", "cpu", X, X_onehot, y)
 
@@ -1335,7 +1335,7 @@ class TestWithDask:
         def save_dmatrix(rabit_args: Dict[str, Union[int, str]], tmpdir: str) -> None:
             with xgb.dask.CommunicatorContext(**rabit_args):
                 rank = xgb.collective.get_rank()
-                X, y = tm.make_categorical(100, 4, 4, False)
+                X, y = tm.make_categorical(100, 4, 4, onehot=False)
                 Xy = xgb.DMatrix(X, y, enable_categorical=True)
                 path = os.path.join(tmpdir, f"{rank}.bin")
                 Xy.save_binary(path)
@@ -1665,7 +1665,12 @@ class TestWithDask:
         fw = da.from_array(fw)
         parser = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
         poly_increasing = get_feature_weights(
-            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
+            X=X,
+            y=y,
+            fw=fw,
+            parser_path=parser,
+            tree_method="approx",
+            model=xgb.dask.DaskXGBRegressor,
         )
 
         fw = np.ones(shape=(kCols,))
@@ -1673,7 +1678,12 @@ class TestWithDask:
             fw[i] *= float(kCols - i)
         fw = da.from_array(fw)
         poly_decreasing = get_feature_weights(
-            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
+            X=X,
+            y=y,
+            fw=fw,
+            parser_path=parser,
+            tree_method="approx",
+            model=xgb.dask.DaskXGBRegressor,
         )
 
         # Approxmated test, this is dependent on the implementation of random

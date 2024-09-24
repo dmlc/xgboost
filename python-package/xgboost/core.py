@@ -907,7 +907,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             return
 
         handle, feature_names, feature_types = dispatch_data_backend(
-            data,
+            data=data,
             missing=self.missing,
             threads=self.nthread,
             feature_names=feature_names,
@@ -1697,6 +1697,7 @@ class ExtMemQuantileDMatrix(DMatrix):
     def __init__(  # pylint: disable=super-init-not-called
         self,
         data: DataIter,
+        *,
         missing: Optional[float] = None,
         nthread: Optional[int] = None,
         max_bin: Optional[int] = None,
@@ -2355,9 +2356,11 @@ class Booster:
         return self.eval_set([(data, name)], iteration)
 
     # pylint: disable=too-many-function-args
+    @_deprecate_positional_args
     def predict(
         self,
         data: DMatrix,
+        *,
         output_margin: bool = False,
         pred_leaf: bool = False,
         pred_contribs: bool = False,
@@ -2490,9 +2493,11 @@ class Booster:
         return _prediction_output(shape, dims, preds, False)
 
     # pylint: disable=too-many-statements
+    @_deprecate_positional_args
     def inplace_predict(
         self,
         data: DataType,
+        *,
         iteration_range: IterationRange = (0, 0),
         predict_type: str = "value",
         missing: float = np.nan,

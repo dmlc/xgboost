@@ -339,8 +339,8 @@ class DaskDMatrix:
 
         self._init = client.sync(
             self._map_local_data,
-            client,
-            data,
+            client=client,
+            data=data,
             label=label,
             weights=weight,
             base_margin=base_margin,
@@ -355,6 +355,7 @@ class DaskDMatrix:
 
     async def _map_local_data(
         self,
+        *,
         client: "distributed.Client",
         data: _DataT,
         label: Optional[_DaskCollection] = None,
@@ -589,6 +590,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         self,
         data: List[Any],
         label: Optional[List[Any]] = None,
+        *,
         weight: Optional[List[Any]] = None,
         base_margin: Optional[List[Any]] = None,
         qid: Optional[List[Any]] = None,
@@ -712,6 +714,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
 
 
 def _create_quantile_dmatrix(
+    *,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
@@ -757,6 +760,7 @@ def _create_quantile_dmatrix(
 
 
 def _create_dmatrix(
+    *,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
@@ -927,6 +931,7 @@ def _get_dmatrices(
 
 
 async def _train_async(
+    *,
     client: "distributed.Client",
     global_config: Dict[str, Any],
     dconfig: Optional[Dict[str, Any]],
@@ -947,7 +952,7 @@ async def _train_async(
     _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
     _check_distributed_params(params)
 
-    def dispatched_train(
+    def dispatched_train(  # pylint: disable=too-many-positional-arguments
         parameters: Dict,
         rabit_args: Dict[str, Union[str, int]],
         train_id: int,
@@ -1115,6 +1120,7 @@ def _maybe_dataframe(
 
 
 async def _direct_predict_impl(  # pylint: disable=too-many-branches
+    *,
     mapped_predict: Callable,
     booster: "distributed.Future",
     data: _DataT,
@@ -1249,6 +1255,7 @@ async def _predict_async(
     global_config: Dict[str, Any],
     model: Union[Booster, Dict, "distributed.Future"],
     data: _DataT,
+    *,
     output_margin: bool,
     missing: float,
     pred_leaf: bool,
@@ -1304,7 +1311,12 @@ async def _predict_async(
             )
         )
         return await _direct_predict_impl(
-            mapped_predict, _booster, data, None, _output_shape, meta
+            mapped_predict=mapped_predict,
+            booster=_booster,
+            data=data,
+            base_margin=None,
+            output_shape=_output_shape,
+            meta=meta,
         )
 
     output_shape, _ = await client.compute(
@@ -1392,10 +1404,12 @@ async def _predict_async(
     return predictions
 
 
+@_deprecate_positional_args
 def predict(  # pylint: disable=unused-argument
     client: Optional["distributed.Client"],
     model: Union[TrainReturnT, Booster, "distributed.Future"],
     data: Union[DaskDMatrix, _DataT],
+    *,
     output_margin: bool = False,
     missing: float = numpy.nan,
     pred_leaf: bool = False,
@@ -1447,6 +1461,7 @@ def predict(  # pylint: disable=unused-argument
 
 
 async def _inplace_predict_async(  # pylint: disable=too-many-branches
+    *,
     client: "distributed.Client",
     global_config: Dict[str, Any],
     model: Union[Booster, Dict, "distributed.Future"],
@@ -1501,14 +1516,21 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
         )
     )
     return await _direct_predict_impl(
-        mapped_predict, booster, data, base_margin, shape, meta
+        mapped_predict=mapped_predict,
+        booster=booster,
+        data=data,
+        base_margin=base_margin,
+        output_shape=shape,
+        meta=meta,
     )
 
 
+@_deprecate_positional_args
 def inplace_predict(  # pylint: disable=unused-argument
     client: Optional["distributed.Client"],
     model: Union[TrainReturnT, Booster, "distributed.Future"],
     data: _DataT,
+    *,
     iteration_range: IterationRange = (0, 0),
     predict_type: str = "value",
     missing: float = numpy.nan,
@@ -1615,6 +1637,7 @@ class DaskScikitLearnBase(XGBModel):
     async def _predict_async(
         self,
         data: _DataT,
+        *,
         output_margin: bool,
         validate_features: bool,
         base_margin: Optional[_DaskCollection],
@@ -1652,9 +1675,11 @@ class DaskScikitLearnBase(XGBModel):
             )
         return predts
 
+    @_deprecate_positional_args
     def predict(
         self,
         X: _DataT,
+        *,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None,
@@ -1765,6 +1790,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         self,
         X: _DataT,
         y: _DaskCollection,
+        *,
         sample_weight: Optional[_DaskCollection],
         base_margin: Optional[_DaskCollection],
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
@@ -1855,6 +1881,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self,
         X: _DataT,
         y: _DaskCollection,
+        *,
         sample_weight: Optional[_DaskCollection],
         base_margin: Optional[_DaskCollection],
         eval_set: Optional[Sequence[Tuple[_DaskCollection, _DaskCollection]]],
@@ -1999,13 +2026,18 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     async def _predict_async(
         self,
         data: _DataT,
+        *,
         output_margin: bool,
         validate_features: bool,
         base_margin: Optional[_DaskCollection],
         iteration_range: Optional[IterationRange],
     ) -> _DaskCollection:
         pred_probs = await super()._predict_async(
-            data, output_margin, validate_features, base_margin, iteration_range
+            data,
+            output_margin=output_margin,
+            validate_features=validate_features,
+            base_margin=base_margin,
+            iteration_range=iteration_range,
         )
         if output_margin:
             return pred_probs
@@ -2049,6 +2081,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         self,
         X: _DataT,
         y: _DaskCollection,
+        *,
         group: Optional[_DaskCollection],
         qid: Optional[_DaskCollection],
         sample_weight: Optional[_DaskCollection],

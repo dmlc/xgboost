@@ -32,6 +32,7 @@ class LintersPaths:
         "tests/python/test_tree_regularization.py",
         "tests/python/test_training_continuation.py",
         "tests/python/test_shap.py",
+        "tests/python/test_updaters.py",
         "tests/python/test_model_io.py",
         "tests/python/test_with_pandas.py",
         "tests/python-gpu/",
