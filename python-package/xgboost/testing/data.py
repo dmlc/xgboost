@@ -27,7 +27,6 @@ from numpy.random import Generator as RNG
 from scipy import sparse
 
 import xgboost
-from xgboost.compat import concat
 from xgboost.data import pandas_pyarrow_mapper
 
 if TYPE_CHECKING:
@@ -933,46 +932,3 @@ def make_sparse_regression(
         return arr, y
 
     return csr, y
-
-
-def make_dense_regression(
-    n_samples: int, n_features: int
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Make dense synthetic data for regression."""
-    n_cpus = os.cpu_count()
-    assert n_cpus is not None
-    n_threads = min(n_cpus, n_samples)
-    start = 0
-
-    def make_regression(
-        n_samples_per_batch: int, seed: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        # A custom version of make_regression since sklearn doesn't support np
-        # generator.
-        rng = np.random.default_rng(seed)
-        X = rng.normal(
-            loc=0.0, scale=1.5, size=(n_samples_per_batch, n_features)
-        ).astype(np.float32)
-        err = rng.normal(0.0, scale=0.2, size=(n_samples_per_batch,)).astype(np.float32)
-        y = X.sum(axis=1) + err
-        return X, y
-
-    futures = []
-    n_samples_per_batch = n_samples // n_threads
-    with ThreadPoolExecutor(max_workers=n_threads) as executor:
-        for i in range(n_threads):
-            n_samples_cur = n_samples_per_batch
-            if i == n_threads - 1:
-                n_samples_cur = n_samples - start
-            fut = executor.submit(make_regression, n_samples_cur, i)
-            start += n_samples_cur
-            futures.append(fut)
-    X_arr, y_arr = [], []
-    for fut in futures:
-        X, y = fut.result()
-        X_arr.append(X)
-        y_arr.append(y)
-    X = concat(X_arr)
-    y = concat(y_arr)
-    assert X.shape[0] == n_samples and X.shape[1] == n_features
-    return X, y

@@ -13,10 +13,9 @@ void ThrowOnCudaError(cudaError_t code, const char *file, int line) {
     if (file != nullptr) {
       f = file;
     }
-    std::string error =
-        thrust::system_error(code, thrust::cuda_category(), f + ": " + std::to_string(line)).what();
-    std::cout << "CUDA ERROR:\n" << error << std::endl;
-    LOG(FATAL) << error;
+    LOG(FATAL) << thrust::system_error(code, thrust::cuda_category(),
+                                       f + ": " + std::to_string(line))
+                      .what();
   }
 }
 }  // namespace dh
