@@ -101,7 +101,7 @@ struct GPUHistMakerDevice {
   DeviceHistogramBuilder histogram_;
   std::vector<bst_idx_t> const batch_ptr_;
   // node idx for each sample
-  dh::DeviceUVector<bst_node_t> positions_;
+  dh::device_vector<bst_node_t> positions_;
   HistMakerTrainParam const* hist_param_;
   std::shared_ptr<common::HistogramCuts const> const cuts_;
 
