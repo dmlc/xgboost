@@ -7,11 +7,10 @@
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
 #endif                   // defined(__unix__) || defined(__APPLE__)
 
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif  // !defined(NOMINMAX)
-
 #if defined(_WIN32)
+// Guard the include
+#include <xgboost/windefs.h>
+// Socket API
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #endif  // defined(_WIN32)
@@ -24,6 +23,7 @@
 #include <utility>    // for move, forward
 
 #include "../common/json_utils.h"
+#include "../common/threading_utils.h"  // for NameThread
 #include "comm.h"
 #include "protocol.h"  // for kMagic, PeerInfo
 #include "tracker.h"
@@ -111,12 +111,14 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
 }
 
 RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
-  std::string self;
   auto rc = Success() << [&] {
-    return collective::GetHostAddress(&self);
+    host_.clear();
+    host_ = OptionalArg<String>(config, "host", std::string{});
+    if (host_.empty()) {
+      return collective::GetHostAddress(&host_);
+    }
+    return Success();
   } << [&] {
-    host_ = OptionalArg<String>(config, "host", self);
-
     auto addr = MakeSockAddress(xgboost::StringView{host_}, 0);
     listener_ = TCPSocket::Create(addr.IsV4() ? SockDomain::kV4 : SockDomain::kV6);
     return listener_.Bind(host_, &this->port_);
@@ -142,6 +144,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       Json::Dump(jnext, &str);
       worker.Send(StringView{str});
     });
+    std::string name = "tkbs_t-" + std::to_string(r);
+    common::NameThread(&bootstrap_threads.back(), name.c_str());
   }
 
   for (auto& t : bootstrap_threads) {
@@ -414,7 +418,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
       addresses.emplace_back(SockAddrV6{*ipv6});
     }
   }
-  // If not v4 address is found, we try v6
+  // If no v4 address is found, we try v6
   for (auto const& addr : addresses) {
     if (addr.IsV6()) {
       auto ip = addr.V6().Addr();

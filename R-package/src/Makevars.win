@@ -72,6 +72,10 @@ OBJECTS= \
     $(PKGROOT)/src/data/gradient_index_page_source.o \
     $(PKGROOT)/src/data/gradient_index_format.o \
     $(PKGROOT)/src/data/sparse_page_dmatrix.o \
+    $(PKGROOT)/src/data/sparse_page_source.o \
+    $(PKGROOT)/src/data/extmem_quantile_dmatrix.o \
+    $(PKGROOT)/src/data/quantile_dmatrix.o \
+    $(PKGROOT)/src/data/batch_utils.o \
     $(PKGROOT)/src/data/proxy_dmatrix.o \
     $(PKGROOT)/src/data/iterative_dmatrix.o \
     $(PKGROOT)/src/predictor/predictor.o \
@@ -112,6 +116,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/charconv.o \
     $(PKGROOT)/src/common/column_matrix.o \
     $(PKGROOT)/src/common/common.o \
+    $(PKGROOT)/src/common/cuda_rt_utils.o \
     $(PKGROOT)/src/common/error_msg.o \
     $(PKGROOT)/src/common/hist_util.o \
     $(PKGROOT)/src/common/host_device_vector.o \

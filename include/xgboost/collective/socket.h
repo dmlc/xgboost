@@ -1,11 +1,7 @@
 /**
- * Copyright (c) 2022-2024, XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #pragma once
-
-#if !defined(NOMINMAX) && defined(_WIN32)
-#define NOMINMAX
-#endif                   // !defined(NOMINMAX)
 
 #include <cerrno>        // errno, EINTR, EBADF
 #include <climits>       // HOST_NAME_MAX
@@ -18,18 +14,12 @@
 
 #if defined(__linux__)
 #include <sys/ioctl.h>  // for TIOCOUTQ, FIONREAD
-#endif  // defined(__linux__)
-
-#if !defined(xgboost_IS_MINGW)
-
-#if defined(__MINGW32__)
-#define xgboost_IS_MINGW 1
-#endif  // defined(__MINGW32__)
-
-#endif  // xgboost_IS_MINGW
+#endif                  // defined(__linux__)
 
 #if defined(_WIN32)
-
+// Guard the include.
+#include <xgboost/windefs.h>
+// Socket API
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
@@ -41,9 +31,9 @@ using in_port_t = std::uint16_t;
 
 #if !defined(xgboost_IS_MINGW)
 using ssize_t = int;
-#endif                    // !xgboost_IS_MINGW()
+#endif  // !xgboost_IS_MINGW()
 
-#else                     // UNIX
+#else  // UNIX
 
 #include <arpa/inet.h>    // inet_ntop
 #include <fcntl.h>        // fcntl, F_GETFL, O_NONBLOCK
@@ -696,8 +686,11 @@ class TCPSocket {
    * \return size of data actually received return -1 if error occurs
    */
   auto Recv(void *buf, std::size_t len, std::int32_t flags = 0) {
-    char *_buf = reinterpret_cast<char *>(buf);
+    char *_buf = static_cast<char *>(buf);
+    // See https://github.com/llvm/llvm-project/issues/104241 for skipped tidy analysis
+    // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
     return recv(handle_, _buf, len, flags);
+    // NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
   }
   /**
    * \brief Send string, format is matched with the Python socket wrapper in RABIT.
@@ -839,7 +832,3 @@ Result INetNToP(H const &host, std::string *p_out) {
 }  // namespace xgboost
 
 #undef xgboost_CHECK_SYS_CALL
-
-#if defined(xgboost_IS_MINGW)
-#undef xgboost_IS_MINGW
-#endif

@@ -49,7 +49,7 @@ void mergeSort(BinIdxType* begin, BinIdxType* end, BinIdxType* buf) {
 }
 
 template <typename BinIdxType>
-void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
+void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
                                     BinIdxType* index_data,
                                     const DeviceMatrix &dmat,
                                     size_t nbins,
@@ -66,11 +66,11 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
   // Sparse case only
   if (!offsets) {
     // sort_buff has type uint8_t
-    sort_buff.Resize(&qu, num_rows * row_stride * sizeof(BinIdxType));
+    sort_buff.Resize(qu, num_rows * row_stride * sizeof(BinIdxType));
   }
   BinIdxType* sort_data = reinterpret_cast<BinIdxType*>(sort_buff.Data());
 
-  auto event = qu.submit([&](::sycl::handler& cgh) {
+  auto event = qu->submit([&](::sycl::handler& cgh) {
     cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::item<1> pid) {
       const size_t i = pid.get_id(0);
       const size_t ibegin = offset_vec[i];
@@ -92,8 +92,8 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
       }
     });
   });
-  qu.memcpy(hit_count.data(), hit_count_ptr, nbins * sizeof(size_t), event);
-  qu.wait();
+  qu->memcpy(hit_count.data(), hit_count_ptr, nbins * sizeof(size_t), event);
+  qu->wait();
 }
 
 void GHistIndexMatrix::ResizeIndex(size_t n_index, bool isDense) {
@@ -110,7 +110,7 @@ void GHistIndexMatrix::ResizeIndex(size_t n_index, bool isDense) {
   }
 }
 
-void GHistIndexMatrix::Init(::sycl::queue qu,
+void GHistIndexMatrix::Init(::sycl::queue* qu,
                             Context const * ctx,
                             const DeviceMatrix& p_fmat_device,
                             int max_bins) {
@@ -123,7 +123,7 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
   const uint32_t nbins = cut.Ptrs().back();
   this->nbins = nbins;
   hit_count.resize(nbins, 0);
-  hit_count_buff.Resize(&qu, nbins, 0);
+  hit_count_buff.Resize(qu, nbins, 0);
 
   this->p_fmat = p_fmat_device.p_mat;
   const bool isDense = p_fmat_device.p_mat->IsDense();
@@ -150,7 +150,7 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
   if (isDense) {
     index.ResizeOffset(n_offsets);
     offsets = index.Offset();
-    qu.memcpy(offsets, cut_device.Ptrs().DataConst(),
+    qu->memcpy(offsets, cut_device.Ptrs().DataConst(),
               sizeof(uint32_t) * n_offsets).wait_and_throw();
   }
 

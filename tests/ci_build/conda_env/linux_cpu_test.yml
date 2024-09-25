@@ -2,7 +2,7 @@ name: linux_cpu_test
 channels:
 - conda-forge
 dependencies:
-- python=3.8
+- python=3.10
 - cmake
 - c-compiler
 - cxx-compiler
@@ -14,7 +14,7 @@ dependencies:
 - pylint
 - numpy
 - scipy
-- scikit-learn
+- scikit-learn>=1.4.1
 - pandas
 - matplotlib
 - dask
@@ -33,7 +33,7 @@ dependencies:
 - boto3
 - awscli
 - py-ubjson
-- cffi
+- loky
 - pyarrow
 - protobuf
 - cloudpickle

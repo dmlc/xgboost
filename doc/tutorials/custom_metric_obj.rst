@@ -15,13 +15,16 @@ Overview
 XGBoost is designed to be an extensible library.  One way to extend it is by providing our
 own objective function for training and corresponding metric for performance monitoring.
 This document introduces implementing a customized elementwise evaluation metric and
-objective for XGBoost.  Although the introduction uses Python for demonstration, the
+objective for XGBoost. Although the introduction uses Python for demonstration, the
 concepts should be readily applicable to other language bindings.
 
 .. note::
 
    * The ranking task does not support customized functions.
    * Breaking change was made in XGBoost 1.6.
+
+See also the advanced usage example for more information about limitations and
+workarounds for more complex objetives: :doc:`/tutorials/advanced_custom_obj`
 
 In the following two sections, we will provide a step by step walk through of implementing
 the ``Squared Log Error (SLE)`` objective function:
@@ -49,7 +52,7 @@ If we compute the gradient of said objective function:
 As well as the hessian (the second derivative of the objective):
 
 .. math::
-   h = \frac{\partial^2{objective}}{\partial{pred}} = \frac{ - \log(pred + 1) + \log(label + 1) + 1}{(pred + 1)^2}
+   h = \frac{\partial^2{objective}}{\partial{pred}^2} = \frac{ - \log(pred + 1) + \log(label + 1) + 1}{(pred + 1)^2}
 
 *****************************
 Customized Objective Function

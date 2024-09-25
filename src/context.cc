@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  *
  * \brief Context object used for controlling runtime parameters.
  */
@@ -11,8 +11,9 @@
 #include <optional>   // for optional
 #include <regex>      // for regex_replace, regex_match
 
-#include "common/common.h"     // AssertGPUSupport
-#include "common/error_msg.h"  // WarnDeprecatedGPUId
+#include "common/common.h"         // AssertGPUSupport
+#include "common/cuda_rt_utils.h"  // for AllVisibleGPUs
+#include "common/error_msg.h"      // WarnDeprecatedGPUId
 #include "common/threading_utils.h"
 #include "xgboost/string_view.h"
 
@@ -191,8 +192,11 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   }
   if (device.IsCUDA()) {
     device = CUDAOrdinal(device, fail_on_invalid_gpu_id);
+    if (!device.IsCUDA()) {
+      // We allow loading a GPU-based pickle on a CPU-only machine.
+      LOG(WARNING) << "XGBoost is not compiled with CUDA support.";
+    }
   }
-
   return device;
 }
 }  // namespace

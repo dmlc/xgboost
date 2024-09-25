@@ -57,20 +57,20 @@ was constructed.
 
 Other column types are not supported.
 \item CSR matrices, as class \code{dgRMatrix} from package \code{Matrix}.
-\item CSC matrices, as class \code{dgCMatrix} from package \code{Matrix}. These are \bold{not} supported for
+\item CSC matrices, as class \code{dgCMatrix} from package \code{Matrix}. These are \strong{not} supported for
 'xgb.QuantileDMatrix'.
 \item Single-row CSR matrices, as class \code{dsparseVector} from package \code{Matrix}, which is interpreted
 as a single row (only when making predictions from a fitted model).
 \item Text files in a supported format, passed as a \code{character} variable containing the URI path to
 the file, with an optional format specifier.
 
-These are \bold{not} supported for \code{xgb.QuantileDMatrix}. Supported formats are:\itemize{
-\item XGBoost's own binary format for DMatrices, as produced by \link{xgb.DMatrix.save}.
+These are \strong{not} supported for \code{xgb.QuantileDMatrix}. Supported formats are:\itemize{
+\item XGBoost's own binary format for DMatrices, as produced by \code{\link[=xgb.DMatrix.save]{xgb.DMatrix.save()}}.
 \item SVMLight (a.k.a. LibSVM) format for CSR matrices. This format can be signaled by suffix
 \code{?format=libsvm} at the end of the file path. It will be the default format if not
 otherwise specified.
 \item CSV files (comma-separated values). This format can be specified by adding suffix
-\code{?format=csv} at the end ofthe file path. It will \bold{not} be auto-deduced from file extensions.
+\code{?format=csv} at the end ofthe file path. It will \strong{not} be auto-deduced from file extensions.
 }
 
 Be aware that the format of the file will not be auto-deduced - for example, if a file is named 'file.csv',
@@ -96,30 +96,27 @@ so it doesn't make sense to assign weights to individual data points.}
 
 \item{base_margin}{Base margin used for boosting from existing model.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   In the case of multi-output models, one can also pass multi-dimensional base_margin.
-}\if{html}{\out{</div>}}}
+In the case of multi-output models, one can also pass multi-dimensional base_margin.}
 
 \item{missing}{A float value to represents missing values in data (not used when creating DMatrix
-from text files).
-It is useful to change when a zero, infinite, or some other extreme value represents missing
-values in data.}
+from text files). It is useful to change when a zero, infinite, or some other
+extreme value represents missing values in data.}
 
 \item{silent}{whether to suppress printing an informational message after loading from a file.}
 
-\item{feature_names}{Set names for features. Overrides column names in data
-frame and matrix.
+\item{feature_names}{Set names for features. Overrides column names in data frame and matrix.
 
-\if{html}{\out{<div class="sourceCode">}}\preformatted{   Note: columns are not referenced by name when calling `predict`, so the column order there
-   must be the same as in the DMatrix construction, regardless of the column names.
-}\if{html}{\out{</div>}}}
+Note: columns are not referenced by name when calling \code{predict}, so the column order there
+must be the same as in the DMatrix construction, regardless of the column names.}
 
 \item{feature_types}{Set types for features.
 
-If \code{data} is a \code{data.frame} and passing \code{feature_types} is not supplied, feature types will be deduced
-automatically from the column types.
+If \code{data} is a \code{data.frame} and passing \code{feature_types} is not supplied,
+feature types will be deduced automatically from the column types.
 
 Otherwise, one can pass a character vector with the same length as number of columns in \code{data},
-with the following possible values:\itemize{
+with the following possible values:
+\itemize{
 \item "c", which represents categorical columns.
 \item "q", which represents numeric columns.
 \item "int", which represents integer columns.
@@ -130,9 +127,9 @@ Note that, while categorical types are treated differently from the rest for mod
 purposes, the other types do not influence the generated model, but have effects in other
 functionalities such as feature importances.
 
-\bold{Important}: categorical features, if specified manually through \code{feature_types}, must
+\strong{Important}: Categorical features, if specified manually through \code{feature_types}, must
 be encoded as integers with numeration starting at zero, and the same encoding needs to be
-applied when passing data to \code{predict}. Even if passing \code{factor} types, the encoding will
+applied when passing data to \code{\link[=predict]{predict()}}. Even if passing \code{factor} types, the encoding will
 not be saved, so make sure that \code{factor} columns passed to \code{predict} have the same \code{levels}.}
 
 \item{nthread}{Number of threads used for creating DMatrix.}
@@ -156,7 +153,7 @@ how the file was split beforehand. Default to row.
 This is not used when \code{data} is not a URI.}
 
 \item{ref}{The training dataset that provides quantile information, needed when creating
-validation/test dataset with \code{xgb.QuantileDMatrix}. Supplying the training DMatrix
+validation/test dataset with \code{\link[=xgb.QuantileDMatrix]{xgb.QuantileDMatrix()}}. Supplying the training DMatrix
 as a reference means that the same quantisation applied to the training data is
 applied to the validation/test data}
 
@@ -171,23 +168,24 @@ subclass 'xgb.QuantileDMatrix'.
 }
 \description{
 Construct an 'xgb.DMatrix' object from a given data source, which can then be passed to functions
-such as \link{xgb.train} or \link{predict.xgb.Booster}.
+such as \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=predict]{predict()}}.
 }
 \details{
-Function 'xgb.QuantileDMatrix' will construct a DMatrix with quantization for the histogram
+Function \code{xgb.QuantileDMatrix()} will construct a DMatrix with quantization for the histogram
 method already applied to it, which can be used to reduce memory usage (compared to using a
 a regular DMatrix first and then creating a quantization out of it) when using the histogram
 method (\code{tree_method = "hist"}, which is the default algorithm), but is not usable for the
 sorted-indices method (\code{tree_method = "exact"}), nor for the approximate method
 (\code{tree_method = "approx"}).
 
-Note that DMatrix objects are not serializable through R functions such as \code{saveRDS} or \code{save}.
+Note that DMatrix objects are not serializable through R functions such as \code{\link[=saveRDS]{saveRDS()}} or \code{\link[=save]{save()}}.
 If a DMatrix gets serialized and then de-serialized (for example, when saving data in an R session or caching
 chunks in an Rmd file), the resulting object will not be usable anymore and will need to be reconstructed
 from the original source of data.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
+
 ## Keep the number of threads to 1 for examples
 nthread <- 1
 data.table::setDTthreads(nthread)

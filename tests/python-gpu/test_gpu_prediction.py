@@ -226,7 +226,7 @@ class TestGPUPredict:
         cols = 10
         missing = 11  # set to integer for testing
 
-        cp_rng = cp.random.RandomState(1994)
+        cp_rng = cp.random.RandomState(np.uint64(1994))
         cp.random.set_random_state(cp_rng)
 
         X = cp.random.randn(rows, cols)
@@ -343,17 +343,25 @@ class TestGPUPredict:
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
-    def test_shap(self, num_rounds, dataset, param):
+    def test_shap(self, num_rounds: int, dataset: tm.TestDataset, param: dict) -> None:
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
         param.update({"tree_method": "hist", "device": "gpu:0"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
-        test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+        test_dmat = xgb.DMatrix(
+            dataset.X, dataset.y, weight=dataset.w, base_margin=dataset.margin
+        )
         bst.set_param({"device": "gpu:0"})
         shap = bst.predict(test_dmat, pred_contribs=True)
         margin = bst.predict(test_dmat, output_margin=True)
+        assume(len(dataset.y) > 0)
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
+
+        dmat = dataset.get_external_dmat()
+        shap = bst.predict(dmat, pred_contribs=True)
+        margin = bst.predict(dmat, output_margin=True)
         assume(len(dataset.y) > 0)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
 
@@ -361,14 +369,19 @@ class TestGPUPredict:
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
-    def test_shap_interactions(self, num_rounds, dataset, param):
+    def test_shap_interactions(
+        self, num_rounds: int, dataset: tm.TestDataset, param: dict
+    ) -> None:
         if dataset.name.endswith("-l1"):  # not supported by the exact tree method
             return
         param.update({"tree_method": "hist", "device": "cuda:0"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
-        test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+
+        test_dmat = xgb.DMatrix(
+            dataset.X, dataset.y, weight=dataset.w, base_margin=dataset.margin
+        )
         bst.set_param({"device": "cuda:0"})
         shap = bst.predict(test_dmat, pred_interactions=True)
         margin = bst.predict(test_dmat, output_margin=True)
@@ -380,8 +393,19 @@ class TestGPUPredict:
             1e-3,
         )
 
+        test_dmat = dataset.get_external_dmat()
+        shap = bst.predict(test_dmat, pred_interactions=True)
+        margin = bst.predict(test_dmat, output_margin=True)
+        assume(len(dataset.y) > 0)
+        assert np.allclose(
+            np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
+            margin,
+            1e-3,
+            1e-3,
+        )
+
     def test_shap_categorical(self):
-        X, y = tm.make_categorical(100, 20, 7, False)
+        X, y = tm.make_categorical(100, 20, 7, onehot=False)
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         booster = xgb.train(
             {"tree_method": "hist", "device": "gpu:0"}, Xy, num_boost_round=10
@@ -546,7 +570,7 @@ class TestGPUPredict:
 
         rows = 1000
         cols = 10
-        rng = cp.random.RandomState(1994)
+        rng = cp.random.RandomState(np.uint64(1994))
         orig = rng.randint(low=0, high=127, size=rows * cols).reshape(rows, cols)
         y = rng.randint(low=0, high=127, size=rows)
         dtrain = xgb.DMatrix(orig, label=y)
@@ -576,10 +600,10 @@ class TestGPUPredict:
         # boolean
         orig = cp.random.binomial(1, 0.5, size=rows * cols).reshape(rows, cols)
         predt_orig = booster.inplace_predict(orig)
-        for dtype in [cp.bool8, cp.bool_]:
-            X = cp.array(orig, dtype=dtype)
-            predt = booster.inplace_predict(X)
-            cp.testing.assert_allclose(predt, predt_orig)
+
+        X = cp.array(orig, dtype=cp.bool_)
+        predt = booster.inplace_predict(X)
+        cp.testing.assert_allclose(predt, predt_orig)
 
         # unsupported types
         for dtype in [

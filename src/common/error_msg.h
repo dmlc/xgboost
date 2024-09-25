@@ -6,7 +6,7 @@
 #ifndef XGBOOST_COMMON_ERROR_MSG_H_
 #define XGBOOST_COMMON_ERROR_MSG_H_
 
-#include <cinttypes>  // for uint64_t
+#include <cstdint>    // for uint64_t
 #include <limits>     // for numeric_limits
 #include <string>     // for string
 
@@ -40,6 +40,8 @@ constexpr StringView InconsistentMaxBin() {
   return "Inconsistent `max_bin`. `max_bin` should be the same across different QuantileDMatrix, "
          "and consistent with the Booster being trained.";
 }
+
+constexpr StringView InvalidMaxBin() { return "`max_bin` must be equal to or greater than 2."; }
 
 constexpr StringView UnknownDevice() { return "Unknown device type."; }
 
@@ -102,6 +104,13 @@ inline auto NoFederated() { return "XGBoost is not compiled with federated learn
 
 inline auto NoCategorical(std::string name) {
   return name + " doesn't support categorical features.";
+}
+
+inline void NoPageConcat(bool concat_pages) {
+  if (concat_pages) {
+    LOG(FATAL) << "`extmem_concat_pages` must be false when there's no sampling or when it's "
+                  "running on the CPU.";
+  }
 }
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

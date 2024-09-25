@@ -1,8 +1,8 @@
-#' Load serialised xgboost model from R's raw vector
+#' Load serialised XGBoost model from R's raw vector
 #'
-#' User can generate raw memory buffer by calling xgb.save.raw
+#' User can generate raw memory buffer by calling [xgb.save.raw()].
 #'
-#' @param buffer the buffer returned by xgb.save.raw
+#' @param buffer The buffer returned by [xgb.save.raw()].
 #' @export
 xgb.load.raw <- function(buffer) {
   cachelist <- list()

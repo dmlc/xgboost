@@ -1,15 +1,14 @@
-// Copyright (c) 2019 by Contributors
+/**
+ * Copyright 2019-2024, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>  // for device
+#include <thrust/sequence.h>          // for sequence
 #include <xgboost/data.h>
 #include <xgboost/json.h>
-#include <thrust/device_vector.h>
-
-#include <memory>
-#include "../../../src/common/bitfield.h"
-#include "../../../src/common/device_helpers.cuh"
 
 namespace xgboost {
-
 template <typename T>
 Json GenerateDenseColumn(std::string const& typestr, size_t kRows,
                          thrust::device_vector<T>* out_d_data) {

@@ -4,7 +4,7 @@ import ctypes
 from threading import Thread
 from typing import Any, Dict, Optional
 
-from .core import _LIB, _check_call, make_jcargs
+from .core import _LIB, _check_call, _deprecate_positional_args, make_jcargs
 from .tracker import RabitTracker
 
 
@@ -34,14 +34,16 @@ class FederatedTracker(RabitTracker):
 
     """
 
+    @_deprecate_positional_args
     def __init__(  # pylint: disable=R0913, W0231
         self,
         n_workers: int,
         port: int,
+        *,
         secure: bool,
-        server_key_path: str = "",
-        server_cert_path: str = "",
-        client_cert_path: str = "",
+        server_key_path: Optional[str] = None,
+        server_cert_path: Optional[str] = None,
+        client_cert_path: Optional[str] = None,
         timeout: int = 300,
     ) -> None:
         handle = ctypes.c_void_p()
@@ -59,24 +61,46 @@ class FederatedTracker(RabitTracker):
         self.handle = handle
 
 
+@_deprecate_positional_args
 def run_federated_server(  # pylint: disable=too-many-arguments
     n_workers: int,
     port: int,
+    *,
     server_key_path: Optional[str] = None,
     server_cert_path: Optional[str] = None,
     client_cert_path: Optional[str] = None,
+    blocking: bool = True,
     timeout: int = 300,
-) -> Dict[str, Any]:
-    """See :py:class:`~xgboost.federated.FederatedTracker` for more info."""
+) -> Optional[Dict[str, Any]]:
+    """See :py:class:`~xgboost.federated.FederatedTracker` for more info.
+
+    Parameters
+    ----------
+    blocking :
+        Block the server until the training is finished. If set to False, the function
+        launches an additional thread and returns the worker arguments. The default is
+        True and a higher level framework is responsible for setting worker parameters.
+
+    """
     args: Dict[str, Any] = {"n_workers": n_workers}
     secure = all(
         path is not None
         for path in [server_key_path, server_cert_path, client_cert_path]
     )
     tracker = FederatedTracker(
-        n_workers=n_workers, port=port, secure=secure, timeout=timeout
+        n_workers=n_workers,
+        port=port,
+        secure=secure,
+        timeout=timeout,
+        server_key_path=server_key_path,
+        server_cert_path=server_cert_path,
+        client_cert_path=client_cert_path,
     )
     tracker.start()
+
+    if blocking:
+        tracker.wait_for()
+        return None
 
     thread = Thread(target=tracker.wait_for)
     thread.daemon = True

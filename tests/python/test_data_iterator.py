@@ -12,11 +12,12 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
+from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
 
 pytestmark = tm.timeout(30)
 
 
-def test_single_batch(tree_method: str = "approx") -> None:
+def test_single_batch(tree_method: str = "approx", device: str = "cpu") -> None:
     from sklearn.datasets import load_breast_cancer
 
     n_rounds = 10
@@ -24,17 +25,19 @@ def test_single_batch(tree_method: str = "approx") -> None:
     X = X.astype(np.float32)
     y = y.astype(np.float32)
 
+    params = {"tree_method": tree_method, "device": device}
+
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
-    from_it = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_it = xgb.train(params, Xy, num_boost_round=n_rounds)
 
     Xy = xgb.DMatrix(X, y)
-    from_dmat = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_dmat = xgb.train(params, Xy, num_boost_round=n_rounds)
     assert from_it.get_dump() == from_dmat.get_dump()
 
     X, y = load_breast_cancer(return_X_y=True, as_frame=True)
     X = X.astype(np.float32)
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
-    from_pd = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_pd = xgb.train(params, Xy, num_boost_round=n_rounds)
     # remove feature info to generate exact same text representation.
     from_pd.feature_names = None
     from_pd.feature_types = None
@@ -44,12 +47,27 @@ def test_single_batch(tree_method: str = "approx") -> None:
     X, y = load_breast_cancer(return_X_y=True)
     X = csr_matrix(X)
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y))
-    from_it = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_it = xgb.train(params, Xy, num_boost_round=n_rounds)
 
     X, y = load_breast_cancer(return_X_y=True)
     Xy = xgb.DMatrix(SingleBatch(data=X, label=y), missing=0.0)
-    from_np = xgb.train({"tree_method": tree_method}, Xy, num_boost_round=n_rounds)
+    from_np = xgb.train(params, Xy, num_boost_round=n_rounds)
     assert from_np.get_dump() == from_it.get_dump()
+
+
+def test_with_cat_single() -> None:
+    X, y = tm.make_categorical(
+        n_samples=128, n_features=3, n_categories=6, onehot=False
+    )
+    Xy = xgb.DMatrix(SingleBatch(data=X, label=y), enable_categorical=True)
+    from_it = xgb.train({}, Xy, num_boost_round=3)
+
+    Xy = xgb.DMatrix(X, y, enable_categorical=True)
+    from_Xy = xgb.train({}, Xy, num_boost_round=3)
+
+    jit = from_it.save_raw(raw_format="json")
+    jxy = from_Xy.save_raw(raw_format="json")
+    assert jit == jxy
 
 
 def run_data_iterator(
@@ -58,7 +76,9 @@ def run_data_iterator(
     n_batches: int,
     tree_method: str,
     subsample: bool,
+    device: str,
     use_cupy: bool,
+    on_host: bool,
 ) -> None:
     n_rounds = 2
     # The test is more difficult to pass if the subsample rate is smaller as the root_sum
@@ -68,7 +88,8 @@ def run_data_iterator(
 
     it = IteratorForTest(
         *make_batches(n_samples_per_batch, n_features, n_batches, use_cupy),
-        cache="cache"
+        cache="cache",
+        on_host=on_host,
     )
     if n_batches == 0:
         with pytest.raises(ValueError, match="1 batch"):
@@ -83,10 +104,11 @@ def run_data_iterator(
         "tree_method": tree_method,
         "max_depth": 2,
         "subsample": subsample_rate,
+        "device": device,
         "seed": 0,
     }
 
-    if tree_method == "gpu_hist":
+    if device.find("cuda") != -1:
         parameters["sampling_method"] = "gradient_based"
 
     results_from_it: Dict[str, Dict[str, List[float]]] = {}
@@ -152,10 +174,24 @@ def test_data_iterator(
     subsample: bool,
 ) -> None:
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "approx", subsample, False
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "approx",
+        subsample,
+        "cpu",
+        False,
+        False,
     )
     run_data_iterator(
-        n_samples_per_batch, n_features, n_batches, "hist", subsample, False
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "hist",
+        subsample,
+        "cpu",
+        False,
+        False,
     )
 
 
@@ -226,7 +262,7 @@ def test_cat_check() -> None:
         batches.append((X, y))
 
     X, y = list(zip(*batches))
-    it = tm.IteratorForTest(X, y, None, cache=None)
+    it = tm.IteratorForTest(X, y, None, cache=None, on_host=False)
     Xy: xgb.DMatrix = xgb.QuantileDMatrix(it, enable_categorical=True)
 
     with pytest.raises(ValueError, match="categorical features"):
@@ -239,7 +275,42 @@ def test_cat_check() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_path = os.path.join(tmpdir, "cache")
 
-        it = tm.IteratorForTest(X, y, None, cache=cache_path)
+        it = tm.IteratorForTest(X, y, None, cache=cache_path, on_host=False)
         Xy = xgb.DMatrix(it, enable_categorical=True)
         with pytest.raises(ValueError, match="categorical features"):
             xgb.train({"booster": "gblinear"}, Xy)
+
+
+@given(
+    strategies.integers(1, 64),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_quantile_objective(
+    n_samples_per_batch: int, n_features: int, n_batches: int
+) -> None:
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "hist",
+        "cpu",
+    )
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "approx",
+        "cpu",
+    )
+
+
+@given(
+    strategies.integers(1, 4096),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_extmem_qdm(n_samples_per_batch: int, n_features: int, n_batches: int) -> None:
+    check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cpu", False)

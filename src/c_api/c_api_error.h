@@ -7,10 +7,9 @@
 #define XGBOOST_C_API_C_API_ERROR_H_
 
 #include <dmlc/base.h>
-#include <dmlc/logging.h>
 
-#include "c_api_utils.h"
-#include "xgboost/collective/result.h"
+#include "c_api_utils.h"  // for XGBoostAPIGuard
+#include "xgboost/logging.h"
 
 /*! \brief  macro to guard beginning and end section of all functions */
 #ifdef LOG_CAPI_INVOCATION

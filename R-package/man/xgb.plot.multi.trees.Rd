@@ -15,17 +15,17 @@ xgb.plot.multi.trees(
 }
 \arguments{
 \item{model}{Object of class \code{xgb.Booster}. If it contains feature names (they can be set through
-\link{setinfo}), they will be used in the output from this function.}
+\code{\link[=setinfo]{setinfo()}}, they will be used in the output from this function.}
 
 \item{features_keep}{Number of features to keep in each position of the multi trees,
 by default 5.}
 
 \item{plot_width, plot_height}{Width and height of the graph in pixels.
-The values are passed to \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.}
+The values are passed to \code{DiagrammeR::render_graph()}.}
 
 \item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
 
-\item{...}{currently not used.}
+\item{...}{Currently not used.}
 }
 \value{
 The value depends on the \code{render} parameter:
@@ -35,7 +35,7 @@ class \code{grViz}. Similar to "ggplot" objects, it needs to be printed when not
 running from the command line.
 \item If \code{render = FALSE}: Graph object which is of DiagrammeR's class \code{dgr_graph}.
 This could be useful if one wants to modify some of the graph attributes
-before rendering the graph with \code{\link[DiagrammeR:render_graph]{DiagrammeR::render_graph()}}.
+before rendering the graph with \code{DiagrammeR::render_graph()}.
 }
 }
 \description{
@@ -67,9 +67,8 @@ data(agaricus.train, package = "xgboost")
 nthread <- 2
 data.table::setDTthreads(nthread)
 
-bst <- xgboost(
-  data = agaricus.train$data,
-  label = agaricus.train$label,
+bst <- xgb.train(
+  data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
   max_depth = 15,
   eta = 1,
   nthread = nthread,

@@ -1,9 +1,9 @@
 name: linux_sycl_test
 channels:
 - conda-forge
-- intel
+- https://software.repos.intel.com/python/conda/
 dependencies:
-- python=3.8
+- python=3.10
 - cmake
 - c-compiler
 - cxx-compiler
@@ -17,5 +17,6 @@ dependencies:
 - pytest
 - pytest-timeout
 - pytest-cov
+- dask
 - dpcpp_linux-64
 - onedpl-devel

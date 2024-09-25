@@ -9,10 +9,14 @@
 #include <memory>              // for make_shared
 #include <mutex>               // for mutex, unique_lock
 #include <queue>               // for queue
+#include <string>              // for string
 #include <thread>              // for thread
 #include <type_traits>         // for invoke_result_t
 #include <utility>             // for move
 #include <vector>              // for vector
+
+#include "threading_utils.h"      // for NameThread
+#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::common {
 /**
@@ -26,20 +30,26 @@ class ThreadPool {
   bool stop_{false};
 
  public:
-  explicit ThreadPool(std::int32_t n_threads) {
+  /**
+   * @param name      Name prefix for threads.
+   * @param n_threads The number of threads this pool should hold.
+   * @param init_fn   Function called once during thread creation.
+   */
+  template <typename InitFn>
+  explicit ThreadPool(StringView name, std::int32_t n_threads, InitFn&& init_fn) {
     for (std::int32_t i = 0; i < n_threads; ++i) {
-      pool_.emplace_back([&] {
+      pool_.emplace_back([&, init_fn = std::forward<InitFn>(init_fn)] {
+        init_fn();
+
         while (true) {
           std::unique_lock lock{mu_};
           cv_.wait(lock, [this] { return !this->tasks_.empty() || stop_; });
 
           if (this->stop_) {
-            if (!tasks_.empty()) {
-              while (!tasks_.empty()) {
-                auto fn = tasks_.front();
-                tasks_.pop();
-                fn();
-              }
+            while (!tasks_.empty()) {
+              auto fn = tasks_.front();
+              tasks_.pop();
+              fn();
             }
             return;
           }
@@ -50,6 +60,8 @@ class ThreadPool {
           fn();
         }
       });
+      std::string name_i = name.c_str() + std::string{"-"} + std::to_string(i);  // NOLINT
+      NameThread(&pool_.back(), name_i);
     }
   }
 
@@ -81,8 +93,13 @@ class ThreadPool {
     // Use shared ptr to make the task copy constructible.
     auto p{std::make_shared<std::promise<R>>()};
     auto fut = p->get_future();
-    auto ffn = std::function{[task = std::move(p), fn = std::move(fn)]() mutable {
-      task->set_value(fn());
+    auto ffn = std::function{[task = std::move(p), fn = std::forward<Fn>(fn)]() mutable {
+      if constexpr (std::is_void_v<R>) {
+        fn();
+        task->set_value();
+      } else {
+        task->set_value(fn());
+      }
     }};
 
     std::unique_lock lock{mu_};

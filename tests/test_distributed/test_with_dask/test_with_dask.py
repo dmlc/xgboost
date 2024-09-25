@@ -1,4 +1,4 @@
-"""Copyright 2019-2022 XGBoost contributors"""
+"""Copyright 2019-2024, XGBoost contributors"""
 
 import asyncio
 import json
@@ -7,12 +7,24 @@ import pickle
 import socket
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from copy import copy
 from functools import partial
 from itertools import starmap
 from math import ceil
 from operator import attrgetter, getitem
 from pathlib import Path
-from typing import Any, Dict, Generator, Literal, Optional, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import hypothesis
 import numpy as np
@@ -23,6 +35,7 @@ from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
 
 import xgboost as xgb
+from xgboost import dask as dxgb
 from xgboost import testing as tm
 from xgboost.data import _is_cudf_df
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
@@ -37,7 +50,7 @@ pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_dask())]
 import dask
 import dask.array as da
 import dask.dataframe as dd
-from distributed import Client, LocalCluster, Nanny, Worker
+from distributed import Client, LocalCluster, Nanny, Worker, wait
 from distributed.utils_test import async_poll_for, gen_cluster
 from toolz import sliding_window  # dependency of dask
 
@@ -133,68 +146,6 @@ def generate_array(
     return X, y, None
 
 
-def deterministic_persist_per_worker(
-    df: dd.DataFrame, client: "Client"
-) -> dd.DataFrame:
-    # Got this script from https://github.com/dmlc/xgboost/issues/7927
-    # Query workers
-    n_workers = len(client.cluster.workers)
-    workers = map(attrgetter("worker_address"), client.cluster.workers.values())
-
-    # Slice data into roughly equal partitions
-    subpartition_size = ceil(df.npartitions / n_workers)
-    subpartition_divisions = range(
-        0, df.npartitions + subpartition_size, subpartition_size
-    )
-    subpartition_slices = starmap(slice, sliding_window(2, subpartition_divisions))
-    subpartitions = map(partial(getitem, df.partitions), subpartition_slices)
-
-    # Persist each subpartition on each worker
-    # Rebuild dataframe from persisted subpartitions
-    df2 = dd.concat(
-        [
-            sp.persist(workers=w, allow_other_workers=False)
-            for sp, w in zip(subpartitions, workers)
-        ]
-    )
-
-    return df2
-
-
-Margin = TypeVar("Margin", dd.DataFrame, dd.Series, None)
-
-
-def deterministic_repartition(
-    client: Client,
-    X: dd.DataFrame,
-    y: dd.Series,
-    m: Margin,
-) -> Tuple[dd.DataFrame, dd.Series, Margin]:
-    # force repartition the data to avoid non-deterministic result
-    if any(X.map_partitions(lambda x: _is_cudf_df(x)).compute()):
-        # dask_cudf seems to be doing fine for now
-        return X, y, m
-
-    X["_y"] = y
-    if m is not None:
-        if isinstance(m, dd.DataFrame):
-            m_columns = m.columns
-            X = dd.concat([X, m], join="outer", axis=1)
-        else:
-            m_columns = ["_m"]
-            X["_m"] = m
-
-    X = deterministic_persist_per_worker(X, client)
-
-    y = X["_y"]
-    X = X[X.columns.difference(["_y"])]
-    if m is not None:
-        m = X[m_columns]
-        X = X[X.columns.difference(m_columns)]
-
-    return X, y, m
-
-
 @pytest.mark.parametrize("to_frame", [True, False])
 def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client"):
     X, y = make_classification(n_samples=1000, n_features=4, random_state=123)
@@ -218,10 +169,10 @@ def test_xgbclassifier_classes_type_and_value(to_frame: bool, client: "Client"):
 def test_from_dask_dataframe() -> None:
     with LocalCluster(n_workers=kWorkers, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            X, y, _ = generate_array()
+            X_, y_, _ = generate_array()
 
-            X = dd.from_dask_array(X)
-            y = dd.from_dask_array(y)
+            X = dd.from_dask_array(X_)
+            y = dd.from_dask_array(y_)
 
             dtrain = DaskDMatrix(client, X, y)
             booster = xgb.dask.train(client, {}, dtrain, num_boost_round=2)["booster"]
@@ -408,7 +359,7 @@ def run_categorical(
 
 def test_categorical(client: "Client") -> None:
     X, y = make_categorical(client, 10000, 30, 13)
-    X_onehot, _ = make_categorical(client, 10000, 30, 13, True)
+    X_onehot, _ = make_categorical(client, 10000, 30, 13, onehot=True)
     run_categorical(client, "approx", "cpu", X, X_onehot, y)
     run_categorical(client, "hist", "cpu", X, X_onehot, y)
 
@@ -464,8 +415,7 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin = xgb.dask.inplace_predict(
         client, model_0.get_booster(), X, predict_type="margin"
     )
@@ -478,8 +428,9 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin)
-    model_1.fit(X=X, y=y, base_margin=margin)
+    model_1.fit(
+        X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
+    )
     predictions_1 = xgb.dask.predict(
         client,
         model_1.get_booster(),
@@ -494,8 +445,7 @@ def run_boost_from_prediction_multi_class(
         max_bin=768,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2 = xgb.dask.inplace_predict(
         client, model_2.get_booster(), X, predict_type="margin"
     )
@@ -522,54 +472,49 @@ def run_boost_from_prediction(
 
     model_0 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
-    model_0.fit(X=X, y=y)
+    model_0.fit(X=X, y=y, eval_set=[(X, y)])
     margin: dd.Series = model_0.predict(X, output_margin=True)
 
     model_1 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=4,
+        n_estimators=3,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
-    X, y, margin = deterministic_repartition(client, X, y, margin)
-    model_1.fit(X=X, y=y, base_margin=margin)
-    X, y, margin = deterministic_repartition(client, X, y, margin)
+    model_1.fit(
+        X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
+    )
     predictions_1: dd.Series = model_1.predict(X, base_margin=margin)
 
     model_2 = xgb.dask.DaskXGBClassifier(
         learning_rate=0.3,
-        n_estimators=8,
+        n_estimators=6,
         tree_method=tree_method,
         max_bin=512,
         device=device,
     )
-    X, y, _ = deterministic_repartition(client, X, y, None)
-    model_2.fit(X=X, y=y)
+    model_2.fit(X=X, y=y, eval_set=[(X, y)])
     predictions_2: dd.Series = model_2.predict(X)
 
-    predt_1 = predictions_1.compute()
-    predt_2 = predictions_2.compute()
-    if hasattr(predt_1, "to_numpy"):
-        predt_1 = predt_1.to_numpy()
-    if hasattr(predt_2, "to_numpy"):
-        predt_2 = predt_2.to_numpy()
-    np.testing.assert_allclose(predt_1, predt_2, atol=1e-5)
+    logloss_concat = (
+        model_0.evals_result()["validation_0"]["logloss"]
+        + model_1.evals_result()["validation_0"]["logloss"]
+    )
+    logloss_2 = model_2.evals_result()["validation_0"]["logloss"]
+    np.testing.assert_allclose(logloss_concat, logloss_2, rtol=1e-4)
 
     margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin)
     margined.fit(
         X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
     )
 
     unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
-    X, y, margin = deterministic_repartition(client, X, y, margin)
     unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
 
     margined_res = margined.evals_result()["validation_0"]["logloss"]
@@ -582,16 +527,28 @@ def run_boost_from_prediction(
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
-def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
+def test_boost_from_prediction(tree_method: str) -> None:
     from sklearn.datasets import load_breast_cancer, load_digits
 
-    X_, y_ = load_breast_cancer(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
-    run_boost_from_prediction(X, y, tree_method, "cpu", client)
+    n_threads = os.cpu_count()
+    assert n_threads is not None
+    # This test has strict reproducibility requirements. However, Dask is freed to move
+    # partitions between workers and modify the partitions' size during the test. Given
+    # the lack of control over the partitioning logic, here we use a single worker as a
+    # workaround.
+    n_workers = 1
 
-    X_, y_ = load_digits(return_X_y=True)
-    X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
-    run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
+    with LocalCluster(
+        n_workers=n_workers, threads_per_worker=n_threads // n_workers
+    ) as cluster:
+        with Client(cluster) as client:
+            X_, y_ = load_breast_cancer(return_X_y=True)
+            X, y = dd.from_array(X_, chunksize=200), dd.from_array(y_, chunksize=200)
+            run_boost_from_prediction(X, y, tree_method, "cpu", client)
+
+            X_, y_ = load_digits(return_X_y=True)
+            X, y = dd.from_array(X_, chunksize=100), dd.from_array(y_, chunksize=100)
+            run_boost_from_prediction_multi_class(X, y, tree_method, "cpu", client)
 
 
 def test_inplace_predict(client: "Client") -> None:
@@ -1378,7 +1335,7 @@ class TestWithDask:
         def save_dmatrix(rabit_args: Dict[str, Union[int, str]], tmpdir: str) -> None:
             with xgb.dask.CommunicatorContext(**rabit_args):
                 rank = xgb.collective.get_rank()
-                X, y = tm.make_categorical(100, 4, 4, False)
+                X, y = tm.make_categorical(100, 4, 4, onehot=False)
                 Xy = xgb.DMatrix(X, y, enable_categorical=True)
                 path = os.path.join(tmpdir, f"{rank}.bin")
                 Xy.save_binary(path)
@@ -1594,7 +1551,6 @@ class TestWithDask:
     def test_empty_quantile_dmatrix(self, client: Client) -> None:
         X, y = make_categorical(client, 2, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
-        X_valid, y_valid, _ = deterministic_repartition(client, X_valid, y_valid, None)
 
         Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
         Xy_valid = xgb.dask.DaskQuantileDMatrix(
@@ -1709,7 +1665,12 @@ class TestWithDask:
         fw = da.from_array(fw)
         parser = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
         poly_increasing = get_feature_weights(
-            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
+            X=X,
+            y=y,
+            fw=fw,
+            parser_path=parser,
+            tree_method="approx",
+            model=xgb.dask.DaskXGBRegressor,
         )
 
         fw = np.ones(shape=(kCols,))
@@ -1717,7 +1678,12 @@ class TestWithDask:
             fw[i] *= float(kCols - i)
         fw = da.from_array(fw)
         poly_decreasing = get_feature_weights(
-            X, y, fw, parser, "approx", model=xgb.dask.DaskXGBRegressor
+            X=X,
+            y=y,
+            fw=fw,
+            parser_path=parser,
+            tree_method="approx",
+            model=xgb.dask.DaskXGBRegressor,
         )
 
         # Approxmated test, this is dependent on the implementation of random
@@ -2345,3 +2311,16 @@ async def test_worker_restarted(c, s, a, b):
             d_train,
             evals=[(d_train, "train")],
         )
+
+
+def test_doc_link() -> None:
+    for est in [
+        dxgb.DaskXGBRegressor(),
+        dxgb.DaskXGBClassifier(),
+        dxgb.DaskXGBRanker(),
+        dxgb.DaskXGBRFRegressor(),
+        dxgb.DaskXGBRFClassifier(),
+    ]:
+        name = est.__class__.__name__
+        link = est._get_doc_link()
+        assert f"xgboost.dask.{name}" in link

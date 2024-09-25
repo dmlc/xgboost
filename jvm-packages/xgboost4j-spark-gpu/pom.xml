@@ -19,13 +19,44 @@
                     <skipAssembly>false</skipAssembly>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <configuration>
+                  <shadedArtifactAttached>false</shadedArtifactAttached>
+                  <artifactSet>
+                    <includes>
+                      <include>ml.dmlc:xgboost4j-spark_${scala.binary.version}</include>
+                    </includes>
+                  </artifactSet>
+                </configuration>
+                <executions>
+                  <execution>
+                    <phase>package</phase>
+                    <goals>
+                      <goal>shade</goal>
+                    </goals>
+                  </execution>
+                </executions>
+              </plugin>
         </plugins>
     </build>
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j-gpu_2.12</artifactId>
+            <artifactId>xgboost4j_2.12</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ml.dmlc</groupId>
+            <artifactId>xgboost4j-spark_2.12</artifactId>
+            <version>${project.version}</version>
+            <exclusions>
+              <exclusion>
+                  <groupId>ml.dmlc</groupId>
+                  <artifactId>xgboost4j_2.12</artifactId>
+              </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
@@ -49,7 +80,20 @@
           <groupId>com.nvidia</groupId>
           <artifactId>rapids-4-spark_${scala.binary.version}</artifactId>
           <version>${spark.rapids.version}</version>
+          <classifier>${spark.rapids.classifier}</classifier>
           <scope>provided</scope>
+        </dependency>
+        <dependency>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-databind</artifactId>
+          <version>${fasterxml.jackson.version}</version>
+          <scope>provided</scope>
+        </dependency>
+        <dependency>
+          <groupId>junit</groupId>
+          <artifactId>junit</artifactId>
+          <version>${junit.version}</version>
+          <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

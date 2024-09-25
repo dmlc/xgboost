@@ -11,7 +11,7 @@
 #include "../../common/hist_util.h"          // for GHistRow, ConstGHistRow
 #include "../../common/ref_resource_view.h"  // for ReallocVector
 #include "xgboost/base.h"                    // for bst_node_t, bst_bin_t
-#include "xgboost/logging.h"                 // for CHECK_GT
+#include "xgboost/logging.h"                 // for CHECK_EQ
 #include "xgboost/span.h"                    // for Span
 
 namespace xgboost::tree {
@@ -40,7 +40,7 @@ class BoundedHistCollection {
   // number of histogram bins across all features
   bst_bin_t n_total_bins_{0};
   // limits the number of nodes that can be in the cache for each tree
-  std::size_t n_cached_nodes_{0};
+  std::size_t max_cached_nodes_{0};
   // whether the tree has grown beyond the cache limit
   bool has_exceeded_{false};
 
@@ -58,7 +58,7 @@ class BoundedHistCollection {
   }
   void Reset(bst_bin_t n_total_bins, std::size_t n_cached_nodes) {
     n_total_bins_ = n_total_bins;
-    n_cached_nodes_ = n_cached_nodes;
+    max_cached_nodes_ = n_cached_nodes;
     this->Clear(false);
   }
   /**
@@ -73,7 +73,7 @@ class BoundedHistCollection {
   [[nodiscard]] bool CanHost(common::Span<bst_node_t const> nodes_to_build,
                              common::Span<bst_node_t const> nodes_to_sub) const {
     auto n_new_nodes = nodes_to_build.size() + nodes_to_sub.size();
-    return n_new_nodes + node_map_.size() <= n_cached_nodes_;
+    return n_new_nodes + node_map_.size() <= max_cached_nodes_;
   }
 
   /**

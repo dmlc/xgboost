@@ -425,8 +425,8 @@ class TestModels:
         np.testing.assert_allclose(merged, single, atol=1e-6)
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    @pytest.mark.parametrize("booster", ["gbtree", "dart"])
-    def test_slice(self, booster):
+    @pytest.mark.parametrize("booster_name", ["gbtree", "dart"])
+    def test_slice(self, booster_name: str) -> None:
         from sklearn.datasets import make_classification
 
         num_classes = 3
@@ -442,7 +442,7 @@ class TestModels:
                 "num_parallel_tree": num_parallel_tree,
                 "subsample": 0.5,
                 "num_class": num_classes,
-                "booster": booster,
+                "booster": booster_name,
                 "objective": "multi:softprob",
             },
             num_boost_round=num_boost_round,
@@ -451,6 +451,8 @@ class TestModels:
         booster.feature_types = ["q"] * X.shape[1]
 
         assert len(booster.get_dump()) == total_trees
+
+        assert booster[...].num_boosted_rounds() == num_boost_round
 
         self.run_slice(
             booster, dtrain, num_parallel_tree, num_classes, num_boost_round, False

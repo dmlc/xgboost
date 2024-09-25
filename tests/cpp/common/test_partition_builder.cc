@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost contributors
+ * Copyright 2020-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 
@@ -58,7 +58,7 @@ TEST(PartitionBuilder, BasicTest) {
   }
   builder.CalculateRowOffsets();
 
-  std::vector<size_t> v(*std::max_element(tasks.begin(), tasks.end()) * kBlockSize);
+  std::vector<bst_idx_t> v(*std::max_element(tasks.begin(), tasks.end()) * kBlockSize);
 
   for(size_t nid = 0; nid < kNodes; ++nid) {
 

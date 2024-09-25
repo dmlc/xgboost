@@ -1,28 +1,27 @@
-#' Load xgboost model from binary file
+#' Load XGBoost model from binary file
 #'
-#' Load xgboost model from the binary model file.
+#' Load XGBoost model from binary model file.
 #'
-#' @param modelfile the name of the binary input file.
+#' @param modelfile The name of the binary input file.
 #'
 #' @details
-#' The input file is expected to contain a model saved in an xgboost model format
-#' using either \code{\link{xgb.save}} or \code{\link{xgb.cb.save.model}} in R, or using some
-#' appropriate methods from other xgboost interfaces. E.g., a model trained in Python and
-#' saved from there in xgboost format, could be loaded from R.
+#' The input file is expected to contain a model saved in an XGBoost model format
+#' using either [xgb.save()] in R, or using some
+#' appropriate methods from other XGBoost interfaces. E.g., a model trained in Python and
+#' saved from there in XGBoost format, could be loaded from R.
 #'
-#' Note: a model saved as an R-object, has to be loaded using corresponding R-methods,
-#' not \code{xgb.load}.
+#' Note: a model saved as an R object has to be loaded using corresponding R-methods,
+#' not by [xgb.load()].
 #'
 #' @return
-#' An object of \code{xgb.Booster} class.
+#' An object of `xgb.Booster` class.
 #'
-#' @seealso
-#' \code{\link{xgb.save}}
+#' @seealso [xgb.save()]
 #'
 #' @examples
 #' \dontshow{RhpcBLASctl::omp_set_num_threads(1)}
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#' data(agaricus.test, package = "xgboost")
 #'
 #' ## Keep the number of threads to 1 for examples
 #' nthread <- 1
@@ -30,6 +29,7 @@
 #'
 #' train <- agaricus.train
 #' test <- agaricus.test
+#'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
 #'   max_depth = 2,

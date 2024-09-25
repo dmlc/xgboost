@@ -12,10 +12,11 @@
 #include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../../../src/collective/comm.h"
+#include "../../../src/collective/comm.h"              // for RabitComm
 #include "../../../src/collective/communicator-inl.h"  // for Init, Finalize
 #include "../../../src/collective/tracker.h"           // for GetHostAddress
-#include "../../../src/common/common.h"                // for AllVisibleGPUs
+#include "../../../src/common/cuda_rt_utils.h"         // for AllVisibleGPUs
+#include "../../../src/common/threading_utils.h"       // for NameThread
 #include "../helpers.h"                                // for FileExists
 
 #if defined(XGBOOST_USE_FEDERATED)
@@ -50,8 +51,8 @@ class WorkerForTest {
     for (std::int32_t i = 0; i < comm_.World(); ++i) {
       if (i != comm_.Rank()) {
         ASSERT_TRUE(comm_.Chan(i)->Socket()->NonBlocking());
-        ASSERT_TRUE(comm_.Chan(i)->Socket()->SetBufSize(n_bytes).OK());
-        ASSERT_TRUE(comm_.Chan(i)->Socket()->SetNoDelay().OK());
+        SafeColl(comm_.Chan(i)->Socket()->SetBufSize(n_bytes));
+        SafeColl(comm_.Chan(i)->Socket()->SetNoDelay());
       }
     }
   }
@@ -105,7 +106,7 @@ inline Json MakeTrackerConfig(std::string host, std::int32_t n_workers,
   config["port"] = Integer{0};
   config["n_workers"] = Integer{n_workers};
   config["sortby"] = Integer{static_cast<std::int32_t>(Tracker::SortBy::kHost)};
-  config["timeout"] = timeout.count();
+  config["timeout"] = static_cast<std::int64_t>(timeout.count());
   return config;
 }
 
@@ -131,7 +132,7 @@ void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
     t.join();
   }
 
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(fut.get());
 }
 
 inline auto MakeDistributedTestConfig(std::string host, std::int32_t port,
@@ -150,13 +151,13 @@ template <typename WorkerFn>
 void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true,
                            std::chrono::seconds test_timeout = std::chrono::seconds{30}) {
   system::SocketStartup();
-  std::chrono::seconds timeout{1};
+  std::chrono::seconds poll_timeout{5};
 
   std::string host;
   auto rc = GetHostAddress(&host);
   SafeColl(rc);
 
-  RabitTracker tracker{MakeTrackerConfig(host, n_workers, timeout)};
+  RabitTracker tracker{MakeTrackerConfig(host, n_workers, poll_timeout)};
   auto fut = tracker.Run();
 
   std::vector<std::thread> workers;
@@ -165,7 +166,7 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
   for (std::int32_t i = 0; i < n_workers; ++i) {
     workers.emplace_back([=] {
       auto fut = std::async(std::launch::async, [=] {
-        auto config = MakeDistributedTestConfig(host, port, timeout, i);
+        auto config = MakeDistributedTestConfig(host, port, poll_timeout, i);
         Init(config);
         worker_fn();
         if (need_finalize) {
@@ -176,14 +177,23 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
       CHECK(status == std::future_status::ready) << "Test timeout";
       fut.get();
     });
+
+    std::string name = "tw-" + std::to_string(i);
+    common::NameThread(&workers.back(), name.c_str());
   }
 
   for (auto& t : workers) {
     t.join();
   }
 
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(fut.get());
   system::SocketFinalize();
+}
+
+inline std::int32_t GetWorkerLocalThreads(std::int32_t n_workers) {
+  std::int32_t n_total_threads = std::thread::hardware_concurrency();
+  auto n_threads = std::max(n_total_threads / n_workers, 1);
+  return n_threads;
 }
 
 class BaseMGPUTest : public ::testing::Test {
@@ -193,7 +203,8 @@ class BaseMGPUTest : public ::testing::Test {
    *                          available.
    */
   template <typename Fn>
-  auto DoTest(Fn&& fn, bool is_federated, bool emulate_if_single = false) const {
+  auto DoTest([[maybe_unused]] Fn&& fn, bool is_federated,
+              [[maybe_unused]] bool emulate_if_single = false) const {
     auto n_gpus = common::AllVisibleGPUs();
     if (is_federated) {
 #if defined(XGBOOST_USE_FEDERATED)

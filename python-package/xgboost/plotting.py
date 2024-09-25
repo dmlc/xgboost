@@ -8,15 +8,17 @@ from typing import Any, Optional, Union
 import numpy as np
 
 from ._typing import PathLike
-from .core import Booster
+from .core import Booster, _deprecate_positional_args
 from .sklearn import XGBModel
 
 Axes = Any  # real type is matplotlib.axes.Axes
 GraphvizSource = Any  # real type is graphviz.Source
 
 
+@_deprecate_positional_args
 def plot_importance(
     booster: Union[XGBModel, Booster, dict],
+    *,
     ax: Optional[Axes] = None,
     height: float = 0.2,
     xlim: Optional[tuple] = None,
@@ -146,8 +148,10 @@ def plot_importance(
     return ax
 
 
+@_deprecate_positional_args
 def to_graphviz(
     booster: Union[Booster, XGBModel],
+    *,
     fmap: PathLike = "",
     num_trees: int = 0,
     rankdir: Optional[str] = None,

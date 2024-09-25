@@ -28,11 +28,22 @@ AC_MSG_RESULT([])
 AC_CHECK_LIB([execinfo], [backtrace], [BACKTRACE_LIB=-lexecinfo], [BACKTRACE_LIB=''])
 
 ### Endian detection
-AC_MSG_CHECKING([endian])
-AC_MSG_RESULT([])
-AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <stdint.h>]], [[const uint16_t endianness = 256; return !!(*(const uint8_t *)&endianness);]])],
-  [ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=1"],
-  [ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=0"])
+AC_ARG_VAR(USE_LITTLE_ENDIAN, "Whether to build with little endian (checks at compile time if unset)")
+AS_IF([test -z "${USE_LITTLE_ENDIAN+x}"], [
+  AC_MSG_NOTICE([Checking system endianness as USE_LITTLE_ENDIAN is unset])
+  AC_MSG_CHECKING([system endianness])
+  AC_C_BIGENDIAN(
+    [AC_MSG_RESULT([using big endian])
+     ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=0"],
+    [AC_MSG_RESULT([using little endian])
+     ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=1"],
+    [AC_MSG_RESULT([unknown])
+     AC_MSG_ERROR([Could not determine endianness. Please set USE_LITTLE_ENDIAN])]
+  )
+], [
+  AC_MSG_NOTICE([Forcing endianness to: ${USE_LITTLE_ENDIAN}])
+  ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=${USE_LITTLE_ENDIAN}"
+])
 
 OPENMP_CXXFLAGS=""
 
@@ -73,4 +84,5 @@ AC_SUBST(OPENMP_LIB)
 AC_SUBST(ENDIAN_FLAG)
 AC_SUBST(BACKTRACE_LIB)
 AC_CONFIG_FILES([src/Makevars])
+AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT

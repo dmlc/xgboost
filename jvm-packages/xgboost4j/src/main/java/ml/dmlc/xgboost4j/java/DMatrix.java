@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2023 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -29,21 +29,27 @@ public class DMatrix {
   protected long handle = 0;
 
   /**
-   * sparse matrix type (CSR or CSC)
+   * Create DMatrix from iterator.
+   *
+   * @param iter      The data iterator of mini batch to provide the data.
+   * @param cacheInfo Cache path information, used for external memory setting, can be null.
+   * @throws XGBoostError
    */
-  public static enum SparseType {
-    CSR,
-    CSC;
+  public DMatrix(Iterator<LabeledPoint> iter, String cacheInfo) throws XGBoostError {
+    this(iter, cacheInfo, Float.NaN);
   }
 
   /**
    * Create DMatrix from iterator.
    *
-   * @param iter The data iterator of mini batch to provide the data.
+   * @param iter      The data iterator of mini batch to provide the data.
    * @param cacheInfo Cache path information, used for external memory setting, can be null.
+   * @param missing   the missing value
    * @throws XGBoostError
    */
-  public DMatrix(Iterator<LabeledPoint> iter, String cacheInfo) throws XGBoostError {
+  public DMatrix(Iterator<LabeledPoint> iter,
+                 String cacheInfo,
+                 float missing) throws XGBoostError {
     if (iter == null) {
       throw new NullPointerException("iter: null");
     }
@@ -51,7 +57,8 @@ public class DMatrix {
     int batchSize = 32 << 10;
     Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter, cacheInfo, out));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(
+        batchIter, cacheInfo, missing, out));
     handle = out[0];
   }
 
@@ -72,10 +79,11 @@ public class DMatrix {
 
   /**
    * Create DMatrix from Sparse matrix in CSR/CSC format.
+   *
    * @param headers The row index of the matrix.
    * @param indices The indices of presenting entries.
-   * @param data The data content.
-   * @param st  Type of sparsity.
+   * @param data    The data content.
+   * @param st      Type of sparsity.
    * @throws XGBoostError
    */
   @Deprecated
@@ -86,12 +94,13 @@ public class DMatrix {
 
   /**
    * Create DMatrix from Sparse matrix in CSR/CSC format.
-   * @param headers The row index of the matrix.
-   * @param indices The indices of presenting entries.
-   * @param data The data content.
-   * @param st  Type of sparsity.
-   * @param shapeParam   when st is CSR, it specifies the column number, otherwise it is taken as
-   *                     row number
+   *
+   * @param headers    The row index of the matrix.
+   * @param indices    The indices of presenting entries.
+   * @param data       The data content.
+   * @param st         Type of sparsity.
+   * @param shapeParam when st is CSR, it specifies the column number, otherwise it is taken as
+   *                   row number
    * @throws XGBoostError
    */
   public DMatrix(long[] headers, int[] indices, float[] data, DMatrix.SparseType st,
@@ -121,7 +130,6 @@ public class DMatrix {
    * @param nrow number of rows
    * @param ncol number of columns
    * @throws XGBoostError native error
-   *
    * @deprecated Please specify the missing value explicitly using
    * {@link DMatrix(float[], int, int, float)}
    */
@@ -144,9 +152,10 @@ public class DMatrix {
 
   /**
    * create DMatrix from dense matrix
-   * @param data data values
-   * @param nrow number of rows
-   * @param ncol number of columns
+   *
+   * @param data    data values
+   * @param nrow    number of rows
+   * @param ncol    number of columns
    * @param missing the specified value to represent the missing value
    */
   public DMatrix(float[] data, int nrow, int ncol, float missing) throws XGBoostError {
@@ -157,13 +166,14 @@ public class DMatrix {
 
   /**
    * create DMatrix from dense matrix
-   * @param matrix instance of BigDenseMatrix
+   *
+   * @param matrix  instance of BigDenseMatrix
    * @param missing the specified value to represent the missing value
    */
   public DMatrix(BigDenseMatrix matrix, float missing) throws XGBoostError {
     long[] out = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMatRef(matrix.address, matrix.nrow,
-        matrix.ncol, missing, out));
+                                                              matrix.ncol, missing, out));
     handle = out[0];
   }
 
@@ -176,15 +186,16 @@ public class DMatrix {
 
   /**
    * Create the normal DMatrix from column array interface
-   * @param columnBatch the XGBoost ColumnBatch to provide the cuda array interface
+   *
+   * @param columnBatch the XGBoost ColumnBatch to provide the array interface
    *                    of feature columns
-   * @param missing missing value
-   * @param nthread threads number
+   * @param missing     missing value
+   * @param nthread     threads number
    * @throws XGBoostError
    */
   public DMatrix(ColumnBatch columnBatch, float missing, int nthread) throws XGBoostError {
     long[] out = new long[1];
-    String json = columnBatch.getFeatureArrayInterface();
+    String json = columnBatch.toFeaturesJson();
     if (json == null || json.isEmpty()) {
       throw new XGBoostError("Expecting non-empty feature columns' array interface");
     }
@@ -194,36 +205,30 @@ public class DMatrix {
   }
 
   /**
-   * Set label of DMatrix from cuda array interface
-   *
-   * @param column the XGBoost Column to provide the cuda array interface
-   *               of label column
-   * @throws XGBoostError native error
+   * flatten a mat to array
    */
-  public void setLabel(Column column) throws XGBoostError {
-    setXGBDMatrixInfo("label", column.getArrayInterfaceJson());
+  private static float[] flatten(float[][] mat) {
+    int size = 0;
+    for (float[] array : mat) size += array.length;
+    float[] result = new float[size];
+    int pos = 0;
+    for (float[] ar : mat) {
+      System.arraycopy(ar, 0, result, pos, ar.length);
+      pos += ar.length;
+    }
+
+    return result;
   }
 
   /**
-   * Set weight of DMatrix from cuda array interface
+   * Set query id of DMatrix from array interface
    *
-   * @param column the XGBoost Column to provide the cuda array interface
-   *               of weight column
+   * @param column the XGBoost Column to provide the array interface
+   *               of query id column
    * @throws XGBoostError native error
    */
-  public void setWeight(Column column) throws XGBoostError {
-    setXGBDMatrixInfo("weight", column.getArrayInterfaceJson());
-  }
-
-  /**
-   * Set base margin of DMatrix from cuda array interface
-   *
-   * @param column the XGBoost Column to provide the cuda array interface
-   *               of base margin column
-   * @throws XGBoostError native error
-   */
-  public void setBaseMargin(Column column) throws XGBoostError {
-    setXGBDMatrixInfo("base_margin", column.getArrayInterfaceJson());
+  public void setQueryId(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("qid", column.toJson());
   }
 
   private void setXGBDMatrixInfo(String type, String json) throws XGBoostError {
@@ -258,16 +263,8 @@ public class DMatrix {
   }
 
   /**
-   * Set feature names
-   * @param values feature names to be set
-   * @throws XGBoostError
-   */
-  public void setFeatureNames(String[] values) throws XGBoostError {
-    setXGBDMatrixFeatureInfo("feature_name", values);
-  }
-
-  /**
    * Get feature names
+   *
    * @return an array of feature names to be returned
    * @throws XGBoostError
    */
@@ -276,16 +273,18 @@ public class DMatrix {
   }
 
   /**
-   * Set feature types
-   * @param values feature types to be set
+   * Set feature names
+   *
+   * @param values feature names to be set
    * @throws XGBoostError
    */
-  public void setFeatureTypes(String[] values) throws XGBoostError {
-    setXGBDMatrixFeatureInfo("feature_type", values);
+  public void setFeatureNames(String[] values) throws XGBoostError {
+    setXGBDMatrixFeatureInfo("feature_name", values);
   }
 
   /**
    * Get feature types
+   *
    * @return an array of feature types to be returned
    * @throws XGBoostError
    */
@@ -294,46 +293,23 @@ public class DMatrix {
   }
 
   /**
-   * set label of dmatrix
+   * Set feature types
    *
-   * @param labels labels
+   * @param values feature types to be set
+   * @throws XGBoostError
+   */
+  public void setFeatureTypes(String[] values) throws XGBoostError {
+    setXGBDMatrixFeatureInfo("feature_type", values);
+  }
+
+  /**
+   * Get group sizes of DMatrix
+   *
+   * @return group size as array
    * @throws XGBoostError native error
    */
-  public void setLabel(float[] labels) throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "label", labels));
-  }
-
-  /**
-   * set weight of each instance
-   *
-   * @param weights weights
-   * @throws XGBoostError native error
-   */
-  public void setWeight(float[] weights) throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "weight", weights));
-  }
-
-  /**
-   * Set base margin (initial prediction).
-   *
-   * The margin must have the same number of elements as the number of
-   * rows in this matrix.
-   */
-  public void setBaseMargin(float[] baseMargin) throws XGBoostError {
-    if (baseMargin.length != rowNum()) {
-      throw new IllegalArgumentException(String.format(
-              "base margin must have exactly %s elements, got %s",
-              rowNum(), baseMargin.length));
-    }
-
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
-  }
-
-  /**
-   * Set base margin (initial prediction).
-   */
-  public void setBaseMargin(float[][] baseMargin) throws XGBoostError {
-    setBaseMargin(flatten(baseMargin));
+  public int[] getGroup() throws XGBoostError {
+    return getIntInfo("group_ptr");
   }
 
   /**
@@ -347,13 +323,13 @@ public class DMatrix {
   }
 
   /**
-   * Get group sizes of DMatrix
+   * Set query ids (used for ranking)
    *
+   * @param qid the query ids
    * @throws XGBoostError native error
-   * @return group size as array
    */
-  public int[] getGroup() throws XGBoostError {
-    return getIntInfo("group_ptr");
+  public void setQueryId(int[] qid) throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetUIntInfo(handle, "qid", qid));
   }
 
   private float[] getFloatInfo(String field) throws XGBoostError {
@@ -379,6 +355,27 @@ public class DMatrix {
   }
 
   /**
+   * Set label of DMatrix from array interface
+   *
+   * @param column the XGBoost Column to provide the array interface
+   *               of label column
+   * @throws XGBoostError native error
+   */
+  public void setLabel(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("label", column.toJson());
+  }
+
+  /**
+   * set label of dmatrix
+   *
+   * @param labels labels
+   * @throws XGBoostError native error
+   */
+  public void setLabel(float[] labels) throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "label", labels));
+  }
+
+  /**
    * get weight of the DMatrix
    *
    * @return weights
@@ -389,10 +386,65 @@ public class DMatrix {
   }
 
   /**
+   * Set weight of DMatrix from array interface
+   *
+   * @param column the XGBoost Column to provide the array interface
+   *               of weight column
+   * @throws XGBoostError native error
+   */
+  public void setWeight(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("weight", column.toJson());
+  }
+
+  /**
+   * set weight of each instance
+   *
+   * @param weights weights
+   * @throws XGBoostError native error
+   */
+  public void setWeight(float[] weights) throws XGBoostError {
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "weight", weights));
+  }
+
+  /**
    * Get base margin of the DMatrix.
    */
   public float[] getBaseMargin() throws XGBoostError {
     return getFloatInfo("base_margin");
+  }
+
+  /**
+   * Set base margin of DMatrix from array interface
+   *
+   * @param column the XGBoost Column to provide the array interface
+   *               of base margin column
+   * @throws XGBoostError native error
+   */
+  public void setBaseMargin(Column column) throws XGBoostError {
+    setXGBDMatrixInfo("base_margin", column.toJson());
+  }
+
+  /**
+   * Set base margin (initial prediction).
+   * <p>
+   * The margin must have the same number of elements as the number of
+   * rows in this matrix.
+   */
+  public void setBaseMargin(float[] baseMargin) throws XGBoostError {
+    if (baseMargin.length != rowNum()) {
+      throw new IllegalArgumentException(String.format(
+        "base margin must have exactly %s elements, got %s",
+        rowNum(), baseMargin.length));
+    }
+
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixSetFloatInfo(handle, "base_margin", baseMargin));
+  }
+
+  /**
+   * Set base margin (initial prediction).
+   */
+  public void setBaseMargin(float[][] baseMargin) throws XGBoostError {
+    setBaseMargin(flatten(baseMargin));
   }
 
   /**
@@ -448,22 +500,6 @@ public class DMatrix {
     return handle;
   }
 
-  /**
-   * flatten a mat to array
-   */
-  private static float[] flatten(float[][] mat) {
-    int size = 0;
-    for (float[] array : mat) size += array.length;
-    float[] result = new float[size];
-    int pos = 0;
-    for (float[] ar : mat) {
-      System.arraycopy(ar, 0, result, pos, ar.length);
-      pos += ar.length;
-    }
-
-    return result;
-  }
-
   @Override
   protected void finalize() {
     dispose();
@@ -474,5 +510,48 @@ public class DMatrix {
       XGBoostJNI.XGDMatrixFree(handle);
       handle = 0;
     }
+  }
+
+  /**
+   * sparse matrix type (CSR or CSC)
+   */
+  public enum SparseType {
+    CSR,
+    CSC
+  }
+
+  /**
+   * A class to hold the quantile information
+   */
+  public class QuantileCut {
+    // cut ptr
+    long[] indptr;
+    // cut values
+    float[] values;
+
+    QuantileCut(long[] indptr, float[] values) {
+      this.indptr = indptr;
+      this.values = values;
+    }
+
+    public long[] getIndptr() {
+      return indptr;
+    }
+
+    public float[] getValues() {
+      return values;
+    }
+  }
+
+  /**
+   * Get the Quantile Cut.
+   * @return QuantileCut
+   * @throws XGBoostError
+   */
+  public QuantileCut getQuantileCut() throws XGBoostError {
+    long[][] indptr = new long[1][];
+    float[][] values = new float[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetQuantileCut(this.handle, indptr, values));
+    return new QuantileCut(indptr[0], values[0]);
   }
 }

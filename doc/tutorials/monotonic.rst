@@ -97,7 +97,8 @@ Some other examples:
 Using feature names
 *******************
 
-XGBoost's Python package supports using feature names instead of feature index for
+XGBoost's Python and R packages support using feature names instead of feature indices for
 specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]``, the
-monotonic constraint can be specified as ``{"f0": 1, "f2": -1}``, and ``"f1"`` will
+monotonic constraint can be specified as ``{"f0": 1, "f2": -1}`` (Python) or as
+``list(f0=1, f2=-1)`` (R, when using 'xgboost()', but not 'xgb.train'), and ``"f1"`` will
 default to ``0`` (no constraint).

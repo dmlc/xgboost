@@ -80,12 +80,8 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>)
-
-  if(USE_PER_THREAD_DEFAULT_STREAM)
-    target_compile_options(${target} PRIVATE
-            $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
-  endif()
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>
+    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
 
   if(FORCE_COLORED_OUTPUT)
     if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
@@ -108,11 +104,24 @@ function(xgboost_set_cuda_flags target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
   endif()
 
+  # Use CCCL we find before CUDA Toolkit to make sure we get newer headers as intended
+  # The CUDA Toolkit includes its own copy of CCCL that often lags the latest releases
+  # (and would be picked up otherwise)
+  if(BUILD_STATIC_LIB)
+    # If the downstream user is statically linking with libxgboost, it needs to
+    # explicitly link with CCCL and CUDA runtime.
+    target_link_libraries(${target}
+      PUBLIC CCCL::CCCL CUDA::cudart_static)
+  else()
+    # If the downstream user is dynamically linking with libxgboost, it does not
+    # need to link with CCCL and CUDA runtime.
+    target_link_libraries(${target}
+      PRIVATE CCCL::CCCL CUDA::cudart_static)
+  endif()
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
     ${target} PRIVATE
-    ${xgboost_SOURCE_DIR}/gputreeshap
-    ${CUDAToolkit_INCLUDE_DIRS})
+    ${xgboost_SOURCE_DIR}/gputreeshap)
 
   if(MSVC)
     target_compile_options(${target} PRIVATE
@@ -136,6 +145,7 @@ function(xgboost_link_nccl target)
   set(xgboost_nccl_flags -DXGBOOST_USE_NCCL=1)
   if(USE_DLOPEN_NCCL)
     list(APPEND xgboost_nccl_flags -DXGBOOST_USE_DLOPEN_NCCL=1)
+    target_link_libraries(${target} PRIVATE ${CMAKE_DL_LIBS})
   endif()
 
   if(BUILD_STATIC_LIB)
@@ -238,7 +248,6 @@ macro(xgboost_target_link_libraries target)
 
   if(USE_CUDA)
     xgboost_set_cuda_flags(${target})
-    target_link_libraries(${target} PUBLIC CUDA::cudart_static)
   endif()
 
   if(PLUGIN_RMM)

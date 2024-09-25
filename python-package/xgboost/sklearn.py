@@ -40,6 +40,8 @@ from .core import (
     XGBoostError,
     _deprecate_positional_args,
     _parse_eval_str,
+    _parse_version,
+    _py_version,
 )
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
@@ -65,8 +67,9 @@ def _check_rf_callback(
         )
 
 
-def _can_use_qdm(tree_method: Optional[str]) -> bool:
-    return tree_method in ("hist", "gpu_hist", None, "auto")
+def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
+    not_sycl = (device is None) or (not device.startswith("sycl"))
+    return tree_method in ("hist", "gpu_hist", None, "auto") and not_sycl
 
 
 class _SklObjWProto(Protocol):  # pylint: disable=too-few-public-methods
@@ -517,6 +520,11 @@ __custom_obj_note = """
                 The value of the gradient for each sample point.
             hess: array_like of shape [n_samples]
                 The value of the second derivative for each sample point
+
+            Note that, if the custom objective produces negative values for
+            the Hessian, these will be clipped. If the objective is non-convex,
+            one might also consider using the expected Hessian (Fisher
+            information) instead.
 """
 
 
@@ -574,6 +582,7 @@ Parameters
 
 
 def _wrap_evaluation_matrices(
+    *,
     missing: float,
     X: Any,
     y: Any,
@@ -688,8 +697,10 @@ DEFAULT_N_ESTIMATORS = 100
 )
 class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, missing-docstring
+    @_deprecate_positional_args
     def __init__(
         self,
+        *,
         max_depth: Optional[int] = None,
         max_leaves: Optional[int] = None,
         max_bin: Optional[int] = None,
@@ -789,6 +800,32 @@ class XGBModel(XGBModelBase):
 
     def __sklearn_is_fitted__(self) -> bool:
         return hasattr(self, "_Booster")
+
+    @property
+    def _doc_link_module(self) -> str:
+        return "xgboost"
+
+    @property
+    def _doc_link_template(self) -> str:
+        ver = _py_version()
+        (major, minor, _), post = _parse_version(ver)
+
+        if post == "dev":
+            rel = "latest"
+        else:
+            # RTD tracks the release branch. We don't have independent branches for
+            # patch releases.
+            rel = f"release_{major}.{minor}.0"
+
+        module = self.__class__.__module__
+        # All sklearn estimators are forwarded to the top level module in both source
+        # code and sphinx api doc.
+        if module == "xgboost.sklearn":
+            module = module.split(".")[0]
+        name = self.__class__.__name__
+
+        base = "https://xgboost.readthedocs.io/en"
+        return f"{base}/{rel}/python/python_api.html#{module}.{name}"
 
     def get_booster(self) -> Booster:
         """Get the underlying xgboost Booster of this model.
@@ -998,7 +1035,7 @@ class XGBModel(XGBModelBase):
 
     def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
         # Use `QuantileDMatrix` to save memory.
-        if _can_use_qdm(self.tree_method) and self.booster != "gblinear":
+        if _can_use_qdm(self.tree_method, self.device) and self.booster != "gblinear":
             try:
                 return QuantileDMatrix(
                     **kwargs, ref=ref, nthread=self.n_jobs, max_bin=self.max_bin
@@ -1140,9 +1177,11 @@ class XGBModel(XGBModelBase):
             iteration_range = (0, 0)
         return iteration_range
 
+    @_deprecate_positional_args
     def predict(
         self,
         X: ArrayLike,
+        *,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
@@ -1553,9 +1592,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         "Fit gradient boosting model", "Fit gradient boosting classifier", 1
     )
 
+    @_deprecate_positional_args
     def predict(
         self,
         X: ArrayLike,
+        *,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
@@ -2036,9 +2077,11 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             self._set_evaluation_result(evals_result)
             return self
 
+    @_deprecate_positional_args
     def predict(
         self,
         X: ArrayLike,
+        *,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[ArrayLike] = None,
@@ -2047,9 +2090,9 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         X, _ = _get_qid(X, None)
         return super().predict(
             X,
-            output_margin,
-            validate_features,
-            base_margin,
+            output_margin=output_margin,
+            validate_features=validate_features,
+            base_margin=base_margin,
             iteration_range=iteration_range,
         )
 

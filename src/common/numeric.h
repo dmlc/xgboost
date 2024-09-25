@@ -1,17 +1,18 @@
 /**
- * Copyright 2022-2023 by XGBoost contributors.
+ * Copyright 2022-2024, XGBoost contributors.
  */
 #ifndef XGBOOST_COMMON_NUMERIC_H_
 #define XGBOOST_COMMON_NUMERIC_H_
 
 #include <dmlc/common.h>  // OMPException
 
-#include <algorithm>  // for std::max
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t
-#include <iterator>   // for iterator_traits
-#include <numeric>    // for accumulate
-#include <vector>
+#include <algorithm>    // for max
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t
+#include <iterator>     // for iterator_traits
+#include <numeric>      // for accumulate
+#include <type_traits>  // for is_same_v
+#include <vector>       // for vector
 
 #include "common.h"                      // AssertGPUSupport
 #include "threading_utils.h"             // MemStackAllocator, DefaultMaxThreads
@@ -44,8 +45,8 @@ void RunLengthEncode(Iter begin, Iter end, std::vector<Idx>* p_out) {
  */
 template <typename InIt, typename OutIt, typename T>
 void PartialSum(int32_t n_threads, InIt begin, InIt end, T init, OutIt out_it) {
-  static_assert(std::is_same<T, typename std::iterator_traits<InIt>::value_type>::value);
-  static_assert(std::is_same<T, typename std::iterator_traits<OutIt>::value_type>::value);
+  static_assert(std::is_same_v<T, typename std::iterator_traits<InIt>::value_type>);
+  static_assert(std::is_same_v<T, typename std::iterator_traits<OutIt>::value_type>);
   // The number of threads is pegged to the batch size. If the OMP block is parallelized
   // on anything other than the batch/block size, it should be reassigned
   auto n = static_cast<size_t>(std::distance(begin, end));

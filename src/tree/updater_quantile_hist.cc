@@ -126,7 +126,7 @@ class MultiTargetHistBuilder {
   std::vector<CommonRowPartitioner> partitioner_;
   // Pointer to last updated tree, used for update prediction cache.
   RegTree const *p_last_tree_{nullptr};
-  DMatrix const * p_last_fmat_{nullptr};
+  DMatrix const *p_last_fmat_{nullptr};
 
   ObjInfo const *task_{nullptr};
 
@@ -254,8 +254,10 @@ class MultiTargetHistBuilder {
       monitor_->Stop(__func__);
       return;
     }
+    p_out_position->resize(gpair.Shape(0));
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, gpair, p_out_position);
+      part.LeafPartition(ctx_, tree, gpair,
+                         common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
   }
@@ -461,8 +463,10 @@ class HistUpdater {
       monitor_->Stop(__func__);
       return;
     }
+    p_out_position->resize(gpair.Shape(0));
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, gpair, p_out_position);
+      part.LeafPartition(ctx_, tree, gpair,
+                         common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
   }
@@ -521,7 +525,9 @@ class QuantileHistMaker : public TreeUpdater {
 
     linalg::Matrix<GradientPair> sample_out;
     auto h_sample_out = h_gpair;
-    auto need_copy = [&] { return trees.size() > 1 || n_targets > 1; };
+    auto need_copy = [&] {
+      return trees.size() > 1 || n_targets > 1;
+    };
     if (need_copy()) {
       // allocate buffer
       sample_out = decltype(sample_out){h_gpair.Shape(), ctx_->Device(), linalg::Order::kF};
@@ -533,6 +539,7 @@ class QuantileHistMaker : public TreeUpdater {
         // Copy gradient into buffer for sampling. This converts C-order to F-order.
         std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(h_sample_out));
       }
+      error::NoPageConcat(this->hist_param_.extmem_concat_pages);
       SampleGradient(ctx_, *param, h_sample_out);
       auto *h_out_position = &out_position[tree_it - trees.begin()];
       if ((*tree_it)->IsMultiTarget()) {

@@ -70,9 +70,8 @@ be on the same scale (which is also recommended when using L1 or L2 regularizati
 # binomial classification using "gbtree":
 data(agaricus.train, package = "xgboost")
 
-bst <- xgboost(
-  data = agaricus.train$data,
-  label = agaricus.train$label,
+bst <- xgb.train(
+  data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
   max_depth = 2,
   eta = 1,
   nthread = 2,
@@ -83,9 +82,8 @@ bst <- xgboost(
 xgb.importance(model = bst)
 
 # binomial classification using "gblinear":
-bst <- xgboost(
-  data = agaricus.train$data,
-  label = agaricus.train$label,
+bst <- xgb.train(
+  data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
   booster = "gblinear",
   eta = 0.3,
   nthread = 1,
@@ -97,9 +95,11 @@ xgb.importance(model = bst)
 # multiclass classification using "gbtree":
 nclass <- 3
 nrounds <- 10
-mbst <- xgboost(
-  data = as.matrix(iris[, -5]),
-  label = as.numeric(iris$Species) - 1,
+mbst <- xgb.train(
+  data = xgb.DMatrix(
+    as.matrix(iris[, -5]),
+    label = as.numeric(iris$Species) - 1
+  ),
   max_depth = 3,
   eta = 0.2,
   nthread = 2,
@@ -123,9 +123,11 @@ xgb.importance(
 )
 
 # multiclass classification using "gblinear":
-mbst <- xgboost(
-  data = scale(as.matrix(iris[, -5])),
-  label = as.numeric(iris$Species) - 1,
+mbst <- xgb.train(
+  data = xgb.DMatrix(
+    scale(as.matrix(iris[, -5])),
+    label = as.numeric(iris$Species) - 1
+  ),
   booster = "gblinear",
   eta = 0.2,
   nthread = 1,

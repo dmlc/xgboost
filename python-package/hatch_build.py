@@ -3,16 +3,16 @@ Custom hook to customize the behavior of Hatchling.
 Here, we customize the tag of the generated wheels.
 """
 
-import sysconfig
 from typing import Any, Dict
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+from packaging.tags import platform_tags
 
 
 def get_tag() -> str:
     """Get appropriate wheel tag according to system"""
-    tag_platform = sysconfig.get_platform().replace("-", "_").replace(".", "_")
-    return f"py3-none-{tag_platform}"
+    platform_tag = next(platform_tags())
+    return f"py3-none-{platform_tag}"
 
 
 class CustomBuildHook(BuildHookInterface):

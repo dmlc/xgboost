@@ -1,7 +1,9 @@
 # pylint: disable=invalid-name
 """Utilities for data generation."""
+import multiprocessing
 import os
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -9,6 +11,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    List,
     NamedTuple,
     Optional,
     Tuple,
@@ -164,10 +167,6 @@ def pd_arrow_dtypes() -> Generator:
 
     # Integer
     dtypes = pandas_pyarrow_mapper
-    Null: Union[float, None, Any] = np.nan
-    orig = pd.DataFrame(
-        {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=np.float32
-    )
     # Create a dictionary-backed dataframe, enable this when the roundtrip is
     # implemented in pandas/pyarrow
     #
@@ -190,24 +189,33 @@ def pd_arrow_dtypes() -> Generator:
     # pd_catcodes = pd_cat_df["f1"].cat.codes
     # assert pd_catcodes.equals(pa_catcodes)
 
-    for Null in (None, pd.NA):
+    for Null in (None, pd.NA, 0):
         for dtype in dtypes:
             if dtype.startswith("float16") or dtype.startswith("bool"):
                 continue
+            # Use np.nan is a baseline
+            orig_null = Null if not pd.isna(Null) and Null == 0 else np.nan
+            orig = pd.DataFrame(
+                {"f0": [1, 2, orig_null, 3], "f1": [4, 3, orig_null, 1]},
+                dtype=np.float32,
+            )
+
             df = pd.DataFrame(
                 {"f0": [1, 2, Null, 3], "f1": [4, 3, Null, 1]}, dtype=dtype
             )
             yield orig, df
 
-    orig = pd.DataFrame(
-        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
-        dtype=pd.BooleanDtype(),
-    )
-    df = pd.DataFrame(
-        {"f0": [True, False, pd.NA, True], "f1": [False, True, pd.NA, True]},
-        dtype=pd.ArrowDtype(pa.bool_()),
-    )
-    yield orig, df
+    # If Null is `False`, then there's no missing value.
+    for Null in (pd.NA, False):
+        orig = pd.DataFrame(
+            {"f0": [True, False, Null, True], "f1": [False, True, Null, True]},
+            dtype=pd.BooleanDtype(),
+        )
+        df = pd.DataFrame(
+            {"f0": [True, False, Null, True], "f1": [False, True, Null, True]},
+            dtype=pd.ArrowDtype(pa.bool_()),
+        )
+        yield orig, df
 
 
 def check_inf(rng: RNG) -> None:
@@ -499,6 +507,36 @@ def get_mq2008(
         y_valid,
         qid_valid,
     )
+
+
+def make_batches(  # pylint: disable=too-many-arguments,too-many-locals
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    use_cupy: bool = False,
+    *,
+    vary_size: bool = False,
+    random_state: int = 1994,
+) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    """Make batches of dense data."""
+    X = []
+    y = []
+    w = []
+    if use_cupy:
+        import cupy  # pylint: disable=import-error
+
+        rng = cupy.random.RandomState(np.uint64(random_state))
+    else:
+        rng = np.random.RandomState(random_state)
+    for i in range(n_batches):
+        n_samples = n_samples_per_batch + i * 10 if vary_size else n_samples_per_batch
+        _X = rng.randn(n_samples, n_features)
+        _y = rng.randn(n_samples)
+        _w = rng.uniform(low=0, high=1, size=n_samples)
+        X.append(_X)
+        y.append(_y)
+        w.append(_w)
+    return X, y, w
 
 
 RelData = Tuple[sparse.csr_matrix, npt.NDArray[np.int32], npt.NDArray[np.int32]]
@@ -807,3 +845,90 @@ def run_base_margin_info(
         base_margin = X.reshape(2, 5, 2, 5)
         with pytest.raises(ValueError, match=r".*base_margin.*"):
             Xy.set_base_margin(base_margin)
+
+
+# pylint: disable=too-many-locals
+@memory.cache
+def make_sparse_regression(
+    n_samples: int, n_features: int, sparsity: float, as_dense: bool
+) -> Tuple[Union[sparse.csr_matrix], np.ndarray]:
+    """Make sparse matrix.
+
+    Parameters
+    ----------
+
+    as_dense:
+
+      Return the matrix as np.ndarray with missing values filled by NaN
+
+    """
+    if not hasattr(np.random, "default_rng"):
+        rng = np.random.RandomState(1994)
+        X = sparse.random(
+            m=n_samples,
+            n=n_features,
+            density=1.0 - sparsity,
+            random_state=rng,
+            format="csr",
+        )
+        y = rng.normal(loc=0.0, scale=1.0, size=n_samples)
+        return X, y
+
+    # Use multi-thread to speed up the generation, convenient if you use this function
+    # for benchmarking.
+    n_threads = min(multiprocessing.cpu_count(), n_features)
+
+    def random_csc(t_id: int) -> sparse.csc_matrix:
+        rng = np.random.default_rng(1994 * t_id)
+        thread_size = n_features // n_threads
+        if t_id == n_threads - 1:
+            n_features_tloc = n_features - t_id * thread_size
+        else:
+            n_features_tloc = thread_size
+
+        X = sparse.random(
+            m=n_samples,
+            n=n_features_tloc,
+            density=1.0 - sparsity,
+            random_state=rng,
+        ).tocsc()
+        y = np.zeros((n_samples, 1))
+
+        for i in range(X.shape[1]):
+            size = X.indptr[i + 1] - X.indptr[i]
+            if size != 0:
+                y += X[:, i].toarray() * rng.random((n_samples, 1)) * 0.2
+
+        return X, y
+
+    futures = []
+    with ThreadPoolExecutor(max_workers=n_threads) as executor:
+        for i in range(n_threads):
+            futures.append(executor.submit(random_csc, i))
+
+    X_results = []
+    y_results = []
+    for f in futures:
+        X, y = f.result()
+        X_results.append(X)
+        y_results.append(y)
+
+    assert len(y_results) == n_threads
+
+    csr: sparse.csr_matrix = sparse.hstack(X_results, format="csr")
+    y = np.asarray(y_results)
+    y = y.reshape((y.shape[0], y.shape[1])).T
+    y = np.sum(y, axis=1)
+
+    assert csr.shape[0] == n_samples
+    assert csr.shape[1] == n_features
+    assert y.shape[0] == n_samples
+
+    if as_dense:
+        arr = csr.toarray()
+        assert arr.shape[0] == n_samples
+        assert arr.shape[1] == n_features
+        arr[arr == 0] = np.nan
+        return arr, y
+
+    return csr, y

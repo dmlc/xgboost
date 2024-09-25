@@ -7,7 +7,7 @@
 xgb.parameters(object) <- value
 }
 \arguments{
-\item{object}{Object of class \code{xgb.Booster}. \bold{Will be modified in-place}.}
+\item{object}{Object of class \code{xgb.Booster}. \strong{Will be modified in-place}.}
 
 \item{value}{A list (or an object coercible to a list) with the names of parameters to set
 and the elements corresponding to parameter values.}
@@ -16,26 +16,26 @@ and the elements corresponding to parameter values.}
 The same booster \code{object}, which gets modified in-place.
 }
 \description{
-Only the setter for xgboost parameters is currently implemented.
+Only the setter for XGBoost parameters is currently implemented.
 }
 \details{
-Just like \link{xgb.attr}, this function will make in-place modifications
+Just like \code{\link[=xgb.attr]{xgb.attr()}}, this function will make in-place modifications
 on the booster object which do not follow typical R assignment semantics - that is,
 all references to the same booster will also be updated, unlike assingment of R
 attributes which follow copy-on-write semantics.
 
-See \link{xgb.copy.Booster} for an example of this behavior.
+See \code{\link[=xgb.copy.Booster]{xgb.copy.Booster()}} for an example of this behavior.
 
 Be aware that setting parameters of a fitted booster related to training continuation / updates
 will reset its number of rounds indicator to zero.
 }
 \examples{
 data(agaricus.train, package = "xgboost")
+
 train <- agaricus.train
 
-bst <- xgboost(
-  data = train$data,
-  label = train$label,
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label),
   max_depth = 2,
   eta = 1,
   nthread = 2,

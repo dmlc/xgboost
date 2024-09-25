@@ -28,7 +28,7 @@ TEST_F(FederatedCollTest, Allreduce) {
     auto coll = std::make_shared<FederatedColl>();
     auto rc = coll->Allreduce(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}),
                               ArrayInterfaceHandler::kI4, Op::kSum);
-    ASSERT_TRUE(rc.OK());
+    SafeColl(rc);
     for (auto i = 0; i < 5; i++) {
       ASSERT_EQ(buffer[i], expected[i]);
     }
@@ -49,7 +49,7 @@ TEST_F(FederatedCollTest, Broadcast) {
       rc = coll.Broadcast(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}), 0);
       ASSERT_EQ(buffer, "hello");
     }
-    ASSERT_TRUE(rc.OK());
+    SafeColl(rc);
   });
 }
 
@@ -61,7 +61,7 @@ TEST_F(FederatedCollTest, Allgather) {
     std::vector<std::int32_t> buffer(n_workers, 0);
     buffer[comm->Rank()] = comm->Rank();
     auto rc = coll.Allgather(*comm, common::EraseType(common::Span{buffer.data(), buffer.size()}));
-    ASSERT_TRUE(rc.OK());
+    SafeColl(rc);
     for (auto i = 0; i < n_workers; i++) {
       ASSERT_EQ(buffer[i], i);
     }
@@ -87,7 +87,7 @@ TEST_F(FederatedCollTest, AllgatherV) {
         common::EraseType(common::Span{r.data(), r.size()}), AllgatherVAlgo::kRing);
 
     EXPECT_EQ(r, "Federated Learning!!!");
-    ASSERT_TRUE(rc.OK());
+    SafeColl(rc);
   });
 }
 }  // namespace xgboost::collective

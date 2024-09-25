@@ -1,43 +1,39 @@
-#' Save xgboost model to binary file
+#' Save XGBoost model to binary file
 #'
-#' Save xgboost model to a file in binary or JSON format.
+#' Save XGBoost model to a file in binary or JSON format.
 #'
-#' @param model Model object of \code{xgb.Booster} class.
-#' @param fname Name of the file to write.
-#'
-#' Note that the extension of this file name determined the serialization format to use:\itemize{
-#' \item Extension ".ubj" will use the universal binary JSON format (recommended).
-#' This format uses binary types for e.g. floating point numbers, thereby preventing any loss
-#' of precision when converting to a human-readable JSON text or similar.
-#' \item Extension ".json" will use plain JSON, which is a human-readable format.
-#' \item Extension ".deprecated" will use a \bold{deprecated} binary format. This format will
-#' not be able to save attributes introduced after v1 of XGBoost, such as the "best_iteration"
-#' attribute that boosters might keep, nor feature names or user-specifiec attributes.
-#' \item If the format is not specified by passing one of the file extensions above, will
-#' default to UBJ.
-#' }
+#' @param model Model object of `xgb.Booster` class.
+#' @param fname Name of the file to write. Its extension determines the serialization format:
+#'   - ".ubj": Use the universal binary JSON format (recommended).
+#'     This format uses binary types for e.g. floating point numbers, thereby preventing any loss
+#'     of precision when converting to a human-readable JSON text or similar.
+#'   - ".json": Use plain JSON, which is a human-readable format.
+#'   - ".deprecated": Use **deprecated** binary format. This format will
+#'     not be able to save attributes introduced after v1 of XGBoost, such as the "best_iteration"
+#'     attribute that boosters might keep, nor feature names or user-specifiec attributes.
+#'   - If the format is not specified by passing one of the file extensions above, will
+#'     default to UBJ.
 #'
 #' @details
-#' This methods allows to save a model in an xgboost-internal binary or text format which is universal
-#' among the various xgboost interfaces. In R, the saved model file could be read-in later
-#' using either the \code{\link{xgb.load}} function or the \code{xgb_model} parameter
-#' of \code{\link{xgb.train}}.
 #'
-#' Note: a model can also be saved as an R-object (e.g., by using \code{\link[base]{readRDS}}
-#' or \code{\link[base]{save}}). However, it would then only be compatible with R, and
-#' corresponding R-methods would need to be used to load it. Moreover, persisting the model with
-#' \code{\link[base]{readRDS}} or \code{\link[base]{save}}) might cause compatibility problems in
-#' future versions of XGBoost. Consult \code{\link{a-compatibility-note-for-saveRDS-save}} to learn
-#' how to persist models in a future-proof way, i.e. to make the model accessible in future
+#' This methods allows to save a model in an XGBoost-internal binary or text format which is universal
+#' among the various xgboost interfaces. In R, the saved model file could be read later
+#' using either the [xgb.load()] function or the `xgb_model` parameter of [xgb.train()].
+#'
+#' Note: a model can also be saved as an R object (e.g., by using [readRDS()]
+#' or [save()]). However, it would then only be compatible with R, and
+#' corresponding R methods would need to be used to load it. Moreover, persisting the model with
+#' [readRDS()] or [save()] might cause compatibility problems in
+#' future versions of XGBoost. Consult [a-compatibility-note-for-saveRDS-save] to learn
+#' how to persist models in a future-proof way, i.e., to make the model accessible in future
 #' releases of XGBoost.
 #'
-#' @seealso
-#' \code{\link{xgb.load}}
+#' @seealso [xgb.load()]
 #'
 #' @examples
 #' \dontshow{RhpcBLASctl::omp_set_num_threads(1)}
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
+#' data(agaricus.test, package = "xgboost")
 #'
 #' ## Keep the number of threads to 1 for examples
 #' nthread <- 1
@@ -45,6 +41,7 @@
 #'
 #' train <- agaricus.train
 #' test <- agaricus.test
+#'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
 #'   max_depth = 2,
@@ -53,6 +50,7 @@
 #'   nrounds = 2,
 #'   objective = "binary:logistic"
 #' )
+#'
 #' fname <- file.path(tempdir(), "xgb.ubj")
 #' xgb.save(bst, fname)
 #' bst <- xgb.load(fname)

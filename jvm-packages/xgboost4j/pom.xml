@@ -96,6 +96,8 @@
                             <argument>create_jni.py</argument>
                             <argument>--log-capi-invocation</argument>
                             <argument>${log.capi.invocation}</argument>
+                            <argument>--use-cuda</argument>
+                            <argument>${use.cuda}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
                           <skip>${skip.native.build}</skip>
@@ -106,7 +108,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-jar-plugin</artifactId>
-              <version>3.4.1</version>
+              <version>3.4.2</version>
               <executions>
                   <execution>
                       <goals>

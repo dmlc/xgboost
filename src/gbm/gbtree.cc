@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by Contributors
+ * Copyright 2014-2024, XGBoost Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -10,14 +10,14 @@
 #include <dmlc/parameter.h>
 
 #include <algorithm>  // for equal
-#include <cinttypes>  // for uint32_t
-#include <limits>
+#include <cstdint>    // for uint32_t
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "../common/common.h"
+#include "../common/cuda_rt_utils.h"  // for AllVisibleGPUs
 #include "../common/error_msg.h"  // for UnknownDevice, WarnOldSerialization, InplacePredictProxy
 #include "../common/random.h"
 #include "../common/threading_utils.h"
@@ -52,7 +52,8 @@ std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) 
     case TreeMethod::kAuto:  // Use hist as default in 2.0
     case TreeMethod::kHist: {
       return ctx->DispatchDevice([] { return "grow_quantile_histmaker"; },
-                                 [] { return "grow_gpu_hist"; });
+                                 [] { return "grow_gpu_hist"; },
+                                 [] { return "grow_quantile_histmaker_sycl"; });
     }
     case TreeMethod::kApprox: {
       return ctx->DispatchDevice([] { return "grow_histmaker"; }, [] { return "grow_gpu_approx"; });
@@ -217,10 +218,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
                                     model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
 
-  if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf()) {
-    LOG(FATAL) << "Current objective doesn't support external memory.";
-  }
-
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
   std::vector<HostDeviceVector<bst_node_t>> node_position;
@@ -347,7 +344,7 @@ void GBTree::LoadConfig(Json const& in) {
   // This would cause all trees to be pushed to trees_to_update
   // e.g. updating a model, then saving and loading it would result in an empty model
   tparam_.process_type = TreeProcessType::kDefault;
-  std::int32_t const n_gpus = xgboost::common::AllVisibleGPUs();
+  std::int32_t const n_gpus = common::AllVisibleGPUs();
 
   auto msg = StringView{
       R"(

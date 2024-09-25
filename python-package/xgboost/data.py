@@ -5,7 +5,17 @@ import ctypes
 import json
 import os
 import warnings
-from typing import Any, Callable, List, Optional, Sequence, Tuple, cast
+from typing import (
+    Any,
+    Callable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeGuard,
+    Union,
+    cast,
+)
 
 import numpy as np
 
@@ -118,6 +128,7 @@ def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
 
 
 def _from_scipy_csr(
+    *,
     data: DataType,
     missing: FloatCompatible,
     nthread: int,
@@ -166,6 +177,7 @@ def is_scipy_csc(data: DataType) -> bool:
 
 
 def _from_scipy_csc(
+    *,
     data: DataType,
     missing: FloatCompatible,
     nthread: int,
@@ -212,7 +224,7 @@ def is_scipy_coo(data: DataType) -> bool:
     return is_array or is_matrix
 
 
-def _is_np_array_like(data: DataType) -> bool:
+def _is_np_array_like(data: DataType) -> TypeGuard[np.ndarray]:
     return hasattr(data, "__array_interface__")
 
 
@@ -241,7 +253,8 @@ def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
 
 
 def _from_numpy_array(
-    data: DataType,
+    *,
+    data: np.ndarray,
     missing: FloatCompatible,
     nthread: int,
     feature_names: Optional[FeatureNames],
@@ -266,7 +279,7 @@ def _from_numpy_array(
     return handle, feature_names, feature_types
 
 
-def _is_pandas_df(data: DataType) -> bool:
+def _is_pandas_df(data: DataType) -> TypeGuard[DataFrame]:
     try:
         import pandas as pd
     except ImportError:
@@ -458,7 +471,7 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     # combine_chunks takes the most significant amount of time
     chunk: pa.Array = aa.combine_chunks()
     # When there's null value, we have to use copy
-    zero_copy = chunk.null_count == 0
+    zero_copy = chunk.null_count == 0 and not pa.types.is_boolean(chunk.type)
     # Alternately, we can use chunk.buffers(), which returns a list of buffers and
     # we need to concatenate them ourselves.
     # FIXME(jiamingy): Is there a better way to access the arrow buffer along with
@@ -629,6 +642,7 @@ def _meta_from_pandas_df(
 
 
 def _from_pandas_df(
+    *,
     data: DataFrame,
     enable_categorical: bool,
     missing: FloatCompatible,
@@ -688,6 +702,7 @@ def _is_modin_series(data: DataType) -> bool:
 
 
 def _from_pandas_series(
+    *,
     data: DataType,
     missing: FloatCompatible,
     nthread: int,
@@ -702,11 +717,11 @@ def _from_pandas_series(
     if enable_categorical and is_pd_cat_dtype(data.dtype):
         data = data.cat.codes
     return _from_numpy_array(
-        data.values.reshape(data.shape[0], 1).astype("float"),
-        missing,
-        nthread,
-        feature_names,
-        feature_types,
+        data=data.values.reshape(data.shape[0], 1).astype("float"),
+        missing=missing,
+        nthread=nthread,
+        feature_names=feature_names,
+        feature_types=feature_types,
     )
 
 
@@ -758,6 +773,7 @@ def _transform_dt_df(
 
 
 def _from_dt_df(
+    *,
     data: DataType,
     missing: Optional[FloatCompatible],
     nthread: int,
@@ -768,7 +784,11 @@ def _from_dt_df(
     if enable_categorical:
         raise ValueError("categorical data in datatable is not supported yet.")
     data, feature_names, feature_types = _transform_dt_df(
-        data, feature_names, feature_types, None, None
+        data=data,
+        feature_names=feature_names,
+        feature_types=feature_types,
+        meta=None,
+        meta_type=None,
     )
 
     ptrs = (ctypes.c_void_p * data.ncols)()
@@ -825,37 +845,9 @@ def _arrow_transform(data: DataType) -> Any:
 
     data = cast(pa.Table, data)
 
-    def type_mapper(dtype: pa.DataType) -> Optional[str]:
-        """Maps pyarrow type to pandas arrow extension type."""
-        if pa.types.is_int8(dtype):
-            return pd.ArrowDtype(pa.int8())
-        if pa.types.is_int16(dtype):
-            return pd.ArrowDtype(pa.int16())
-        if pa.types.is_int32(dtype):
-            return pd.ArrowDtype(pa.int32())
-        if pa.types.is_int64(dtype):
-            return pd.ArrowDtype(pa.int64())
-        if pa.types.is_uint8(dtype):
-            return pd.ArrowDtype(pa.uint8())
-        if pa.types.is_uint16(dtype):
-            return pd.ArrowDtype(pa.uint16())
-        if pa.types.is_uint32(dtype):
-            return pd.ArrowDtype(pa.uint32())
-        if pa.types.is_uint64(dtype):
-            return pd.ArrowDtype(pa.uint64())
-        if pa.types.is_float16(dtype):
-            return pd.ArrowDtype(pa.float16())
-        if pa.types.is_float32(dtype):
-            return pd.ArrowDtype(pa.float32())
-        if pa.types.is_float64(dtype):
-            return pd.ArrowDtype(pa.float64())
-        if pa.types.is_boolean(dtype):
-            return pd.ArrowDtype(pa.bool_())
-        return None
-
     # For common cases, this is zero-copy, can check with:
     # pa.total_allocated_bytes()
-    df = data.to_pandas(types_mapper=type_mapper)
+    df = data.to_pandas(types_mapper=pd.ArrowDtype)
     return df
 
 
@@ -986,6 +978,7 @@ def _transform_cudf_df(
 
 
 def _from_cudf_df(
+    *,
     data: DataType,
     missing: FloatCompatible,
     nthread: int,
@@ -1085,12 +1078,12 @@ def _from_dlpack(
     return _from_cupy_array(data, missing, nthread, feature_names, feature_types)
 
 
-def _is_uri(data: DataType) -> bool:
+def _is_uri(data: DataType) -> TypeGuard[Union[str, os.PathLike]]:
     return isinstance(data, (str, os.PathLike))
 
 
 def _from_uri(
-    data: DataType,
+    data: Union[str, os.PathLike],
     missing: Optional[FloatCompatible],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
@@ -1108,11 +1101,12 @@ def _from_uri(
     return handle, feature_names, feature_types
 
 
-def _is_list(data: DataType) -> bool:
+def _is_list(data: DataType) -> TypeGuard[list]:
     return isinstance(data, list)
 
 
 def _from_list(
+    *,
     data: Sequence,
     missing: FloatCompatible,
     n_threads: int,
@@ -1123,15 +1117,21 @@ def _from_list(
     array = np.array(data)
     _check_data_shape(data)
     return _from_numpy_array(
-        array, missing, n_threads, feature_names, feature_types, data_split_mode
+        data=array,
+        missing=missing,
+        nthread=n_threads,
+        feature_names=feature_names,
+        feature_types=feature_types,
+        data_split_mode=data_split_mode,
     )
 
 
-def _is_tuple(data: DataType) -> bool:
+def _is_tuple(data: DataType) -> TypeGuard[tuple]:
     return isinstance(data, tuple)
 
 
 def _from_tuple(
+    *,
     data: Sequence,
     missing: FloatCompatible,
     n_threads: int,
@@ -1140,11 +1140,16 @@ def _from_tuple(
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     return _from_list(
-        data, missing, n_threads, feature_names, feature_types, data_split_mode
+        data=data,
+        missing=missing,
+        n_threads=n_threads,
+        feature_names=feature_names,
+        feature_types=feature_types,
+        data_split_mode=data_split_mode,
     )
 
 
-def _is_iter(data: DataType) -> bool:
+def _is_iter(data: DataType) -> TypeGuard[DataIter]:
     return isinstance(data, DataIter)
 
 
@@ -1171,6 +1176,7 @@ def _convert_unknown_data(data: DataType) -> DataType:
 
 
 def dispatch_data_backend(
+    *,
     data: DataType,
     missing: FloatCompatible,  # Or Optional[Float]
     threads: int,
@@ -1184,34 +1190,59 @@ def dispatch_data_backend(
         _check_data_shape(data)
     if is_scipy_csr(data):
         return _from_scipy_csr(
-            data, missing, threads, feature_names, feature_types, data_split_mode
+            data=data,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            data_split_mode=data_split_mode,
         )
     if is_scipy_csc(data):
         return _from_scipy_csc(
-            data, missing, threads, feature_names, feature_types, data_split_mode
+            data=data,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            data_split_mode=data_split_mode,
         )
     if is_scipy_coo(data):
         return _from_scipy_csr(
-            data.tocsr(),
-            missing,
-            threads,
-            feature_names,
-            feature_types,
-            data_split_mode,
+            data=data.tocsr(),
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            data_split_mode=data_split_mode,
         )
     if _is_np_array_like(data):
         return _from_numpy_array(
-            data, missing, threads, feature_names, feature_types, data_split_mode
+            data=data,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            data_split_mode=data_split_mode,
         )
     if _is_uri(data):
         return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
     if _is_list(data):
         return _from_list(
-            data, missing, threads, feature_names, feature_types, data_split_mode
+            data=data,
+            missing=missing,
+            n_threads=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            data_split_mode=data_split_mode,
         )
     if _is_tuple(data):
         return _from_tuple(
-            data, missing, threads, feature_names, feature_types, data_split_mode
+            data=data,
+            missing=missing,
+            n_threads=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            data_split_mode=data_split_mode,
         )
     if _is_arrow(data):
         data = _arrow_transform(data)
@@ -1221,17 +1252,22 @@ def dispatch_data_backend(
         data = pd.DataFrame(data)
     if _is_pandas_df(data):
         return _from_pandas_df(
-            data,
-            enable_categorical,
-            missing,
-            threads,
-            feature_names,
-            feature_types,
-            data_split_mode,
+            data=data,
+            enable_categorical=enable_categorical,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            data_split_mode=data_split_mode,
         )
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _from_cudf_df(
-            data, missing, threads, feature_names, feature_types, enable_categorical
+            data=data,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            enable_categorical=enable_categorical,
         )
     if _is_cupy_alike(data):
         return _from_cupy_array(data, missing, threads, feature_names, feature_types)
@@ -1244,24 +1280,49 @@ def dispatch_data_backend(
     if _is_dt_df(data):
         _warn_unused_missing(data, missing)
         return _from_dt_df(
-            data, missing, threads, feature_names, feature_types, enable_categorical
+            data=data,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+            enable_categorical=enable_categorical,
         )
     if _is_modin_df(data):
         return _from_pandas_df(
-            data, enable_categorical, missing, threads, feature_names, feature_types
+            data=data,
+            enable_categorical=enable_categorical,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
         )
     if _is_modin_series(data):
         return _from_pandas_series(
-            data, missing, threads, enable_categorical, feature_names, feature_types
+            data=data,
+            missing=missing,
+            nthread=threads,
+            enable_categorical=enable_categorical,
+            feature_names=feature_names,
+            feature_types=feature_types,
         )
     if _has_array_protocol(data):
         array = np.asarray(data)
-        return _from_numpy_array(array, missing, threads, feature_names, feature_types)
+        return _from_numpy_array(
+            data=array,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
+        )
 
     converted = _convert_unknown_data(data)
     if converted is not None:
         return _from_scipy_csr(
-            converted, missing, threads, feature_names, feature_types
+            data=converted,
+            missing=missing,
+            nthread=threads,
+            feature_names=feature_names,
+            feature_types=feature_types,
         )
 
     raise TypeError("Not supported type for data." + str(type(data)))
@@ -1331,7 +1392,9 @@ def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -
 def _meta_from_dt(
     data: DataType, field: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
-    data, _, _ = _transform_dt_df(data, None, None, field, dtype)
+    data, _, _ = _transform_dt_df(
+        data=data, feature_names=None, feature_types=None, meta=field, meta_type=dtype
+    )
     _meta_from_numpy(data, field, dtype, handle)
 
 

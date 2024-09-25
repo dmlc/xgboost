@@ -1,13 +1,15 @@
 /**
- * Copyright 2015-2023 by Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  */
 #include "common.h"
 
 #include <dmlc/thread_local.h>  // for ThreadLocalStore
 
+#include <cmath>    // for pow
 #include <cstdint>  // for uint8_t
 #include <cstdio>   // for snprintf, size_t
 #include <string>   // for string
+#include <utility>  // for pair
 
 #include "./random.h"  // for GlobalRandomEngine, GlobalRandom
 
@@ -55,8 +57,19 @@ void EscapeU8(std::string const &string, std::string *p_buffer) {
   }
 }
 
-#if !defined(XGBOOST_USE_CUDA)
-int AllVisibleGPUs() { return 0; }
-#endif  // !defined(XGBOOST_USE_CUDA)
-
+std::string HumanMemUnit(std::size_t n_bytes) {
+  auto n_bytes_f64 = static_cast<double>(n_bytes);
+  double constexpr k1024 = 1024.0;
+  using P = std::pair<std::int32_t, StringView>;
+  std::stringstream ss;
+  for (auto pu : {P{3, "GB"}, P{2, "MB"}, P{1, "KB"}}) {
+    auto const [power, unit] = pu;  // NOLINT
+    if (n_bytes_f64 >= (std::pow(k1024, power))) {
+      ss << (n_bytes_f64 / std::pow(k1024, power)) << unit;
+      return ss.str();
+    }
+  }
+  ss << n_bytes_f64 << "B";
+  return ss.str();
+}
 }  // namespace xgboost::common

@@ -171,6 +171,7 @@ def make_qdm(
 
 
 def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
+    *,
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
     dev_ordinal: Optional[int],

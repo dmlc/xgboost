@@ -49,7 +49,7 @@ if __name__ == "__main__":
         "--platform-tag",
         type=str,
         required=True,
-        help="Platform tag (e.g. manylinux2014_x86_64)",
+        help="Platform tag (e.g. manylinux_2_28_x86_64)",
     )
     parser.add_argument(
         "--meta-path", type=str, required=True, help="Directory to place meta.json"

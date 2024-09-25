@@ -1,18 +1,15 @@
-/*!
- * Copyright 2017-2019 XGBoost contributors
+/**
+ * Copyright 2017-2024, XGBoost contributors
  */
 #pragma once
-#include <thrust/random.h>
-#include <cstdio>
-#include <cub/cub.cuh>
-#include <stdexcept>
-#include <string>
-#include <vector>
-#include "../common/categorical.h"
-#include "../common/device_helpers.cuh"
-#include "../common/random.h"
-#include "gpu_hist/histogram.cuh"
-#include "param.h"
+#include <limits>   // for numeric_limits
+#include <ostream>  // for ostream
+
+#include "../data/batch_utils.cuh"  // for DftPrefetchBatches, StaticBatch
+#include "gpu_hist/quantiser.cuh"   // for GradientQuantiser
+#include "param.h"                  // for TrainParam
+#include "xgboost/base.h"           // for bst_bin_t
+#include "xgboost/task.h"           // for ObjInfo
 
 namespace xgboost::tree {
 struct GPUTrainingParam {
@@ -54,8 +51,8 @@ enum DefaultDirection {
 };
 
 struct DeviceSplitCandidate {
-  float loss_chg {-FLT_MAX};
-  DefaultDirection dir {kLeftDir};
+  float loss_chg{-std::numeric_limits<float>::max()};
+  DefaultDirection dir{kLeftDir};
   int findex {-1};
   float fvalue {0};
   // categorical split, either it's the split category for OHE or the threshold for partition-based
@@ -121,6 +118,23 @@ struct DeviceSplitCandidate {
     return os;
   }
 };
+
+namespace cuda_impl {
+inline BatchParam HistBatch(TrainParam const& param) {
+  auto p = BatchParam{param.max_bin, TrainParam::DftSparseThreshold()};
+  p.prefetch_copy = true;
+  p.n_prefetch_batches = data::cuda_impl::DftPrefetchBatches();
+  return p;
+}
+
+inline BatchParam ApproxBatch(TrainParam const& p, common::Span<float const> hess,
+                              ObjInfo const& task) {
+  auto batch = BatchParam{p.max_bin, hess, !task.const_hess};
+  batch.prefetch_copy = true;
+  batch.n_prefetch_batches = data::cuda_impl::DftPrefetchBatches();
+  return batch;
+}
+}  // namespace cuda_impl
 
 template <typename T>
 struct SumCallbackOp {

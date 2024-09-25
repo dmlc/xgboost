@@ -154,8 +154,10 @@ class GlobalApproxBuilder {
     if (!task_->UpdateTreeLeaf()) {
       return;
     }
+    p_out_position->resize(hess.size());
     for (auto const &part : partitioner_) {
-      part.LeafPartition(ctx_, tree, hess, p_out_position);
+      part.LeafPartition(ctx_, tree, hess,
+                         common::Span{p_out_position->data(), p_out_position->size()});
     }
     monitor_->Stop(__func__);
   }
@@ -276,7 +278,7 @@ class GlobalApproxUpdater : public TreeUpdater {
     *sampled = linalg::Empty<GradientPair>(ctx_, gpair->Size(), 1);
     auto in = gpair->HostView().Values();
     std::copy(in.data(), in.data() + in.size(), sampled->HostView().Values().data());
-
+    error::NoPageConcat(this->hist_param_.extmem_concat_pages);
     SampleGradient(ctx_, param, sampled->HostView());
   }
 

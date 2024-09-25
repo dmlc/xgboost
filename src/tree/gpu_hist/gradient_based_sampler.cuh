@@ -1,24 +1,21 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #pragma once
-#include <xgboost/base.h>
-#include <xgboost/data.h>
-#include <xgboost/span.h>
+#include <cstddef>  // for size_t
 
-#include "../../common/device_helpers.cuh"
-#include "../../data/ellpack_page.cuh"
+#include "../../common/device_vector.cuh"  // for device_vector, caching_device_vector
+#include "../../common/timer.h"            // for Monitor
+#include "xgboost/base.h"                  // for GradientPair
+#include "xgboost/data.h"                  // for BatchParam
+#include "xgboost/span.h"                  // for Span
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 struct GradientBasedSample {
-  /*!\brief Number of sampled rows. */
-  size_t sample_rows;
-  /*!\brief Sampled rows in ELLPACK format. */
-  EllpackPageImpl const* page;
-  /*!\brief Gradient pairs for the sampled rows. */
-  common::Span<GradientPair> gpair;
+  /** @brief Sampled rows in ELLPACK format. */
+  DMatrix* p_fmat;
+  /** @brief Gradient pairs for the sampled rows. */
+  common::Span<GradientPair const> gpair;
 };
 
 class SamplingStrategy {
@@ -27,33 +24,29 @@ class SamplingStrategy {
   virtual GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                                      DMatrix* dmat) = 0;
   virtual ~SamplingStrategy() = default;
+  /**
+   * @brief Whether pages are concatenated after sampling.
+   */
+  [[nodiscard]] virtual bool ConcatPages() const { return false; }
 };
 
-/*! \brief No sampling in in-memory mode. */
+class ExtMemSamplingStrategy : public SamplingStrategy {
+ public:
+  [[nodiscard]] bool ConcatPages() const final { return true; }
+};
+
+/**
+ * @brief No-op.
+ */
 class NoSampling : public SamplingStrategy {
  public:
-  explicit NoSampling(BatchParam batch_param);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                              DMatrix* dmat) override;
-
- private:
-  BatchParam batch_param_;
 };
 
-/*! \brief No sampling in external memory mode. */
-class ExternalMemoryNoSampling : public SamplingStrategy {
- public:
-  explicit ExternalMemoryNoSampling(BatchParam batch_param);
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                             DMatrix* dmat) override;
-
- private:
-  BatchParam batch_param_;
-  std::unique_ptr<EllpackPageImpl> page_{nullptr};
-  bool page_concatenated_{false};
-};
-
-/*! \brief Uniform sampling in in-memory mode. */
+/**
+ * @brief Uniform sampling in in-memory mode.
+ */
 class UniformSampling : public SamplingStrategy {
  public:
   UniformSampling(BatchParam batch_param, float subsample);
@@ -66,7 +59,7 @@ class UniformSampling : public SamplingStrategy {
 };
 
 /*! \brief No sampling in external memory mode. */
-class ExternalMemoryUniformSampling : public SamplingStrategy {
+class ExternalMemoryUniformSampling : public ExtMemSamplingStrategy {
  public:
   ExternalMemoryUniformSampling(size_t n_rows, BatchParam batch_param, float subsample);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
@@ -75,9 +68,10 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
  private:
   BatchParam batch_param_;
   float subsample_;
-  std::unique_ptr<EllpackPageImpl> page_;
+  std::unique_ptr<DMatrix> p_fmat_new_{nullptr};
   dh::device_vector<GradientPair> gpair_{};
-  dh::caching_device_vector<size_t> sample_row_index_;
+  dh::caching_device_vector<bst_idx_t> sample_row_index_;
+  dh::device_vector<bst_idx_t> compact_row_index_;
 };
 
 /*! \brief Gradient-based sampling in in-memory mode.. */
@@ -95,7 +89,7 @@ class GradientBasedSampling : public SamplingStrategy {
 };
 
 /*! \brief Gradient-based sampling in external memory mode.. */
-class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
+class ExternalMemoryGradientBasedSampling : public ExtMemSamplingStrategy {
  public:
   ExternalMemoryGradientBasedSampling(size_t n_rows, BatchParam batch_param, float subsample);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
@@ -106,9 +100,10 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
   float subsample_;
   dh::device_vector<float> threshold_;
   dh::device_vector<float> grad_sum_;
-  std::unique_ptr<EllpackPageImpl> page_;
+  std::unique_ptr<DMatrix> p_fmat_new_{nullptr};
   dh::device_vector<GradientPair> gpair_;
-  dh::device_vector<size_t> sample_row_index_;
+  dh::device_vector<bst_idx_t> sample_row_index_;
+  dh::device_vector<bst_idx_t> compact_row_index_;
 };
 
 /*! \brief Draw a sample of rows from a DMatrix.
@@ -123,20 +118,20 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
 class GradientBasedSampler {
  public:
   GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
-                       float subsample, int sampling_method, bool is_external_memory);
+                       float subsample, int sampling_method, bool concat_pages);
 
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);
 
   /*! \brief Calculate the threshold used to normalize sampling probabilities. */
-  static size_t CalculateThresholdIndex(common::Span<GradientPair> gpair,
-                                        common::Span<float> threshold,
-                                        common::Span<float> grad_sum,
+  static size_t CalculateThresholdIndex(Context const* ctx, common::Span<GradientPair> gpair,
+                                        common::Span<float> threshold, common::Span<float> grad_sum,
                                         size_t sample_rows);
+
+  [[nodiscard]] bool ConcatPages() const { return this->strategy_->ConcatPages(); }
 
  private:
   common::Monitor monitor_;
   std::unique_ptr<SamplingStrategy> strategy_;
 };
-};  // namespace tree
-};  // namespace xgboost
+};  // namespace xgboost::tree

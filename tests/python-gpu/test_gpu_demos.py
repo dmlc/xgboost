@@ -6,24 +6,32 @@ import pytest
 
 from xgboost import testing as tm
 
-sys.path.append("tests/python")
-import test_demos as td  # noqa
+DEMO_DIR = tm.demo_dir(__file__)
+PYTHON_DEMO_DIR = os.path.join(DEMO_DIR, "guide-python")
 
 
 @pytest.mark.skipif(**tm.no_cupy())
 def test_data_iterator():
-    script = os.path.join(td.PYTHON_DEMO_DIR, "quantile_data_iterator.py")
+    script = os.path.join(PYTHON_DEMO_DIR, "quantile_data_iterator.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)
 
 
 def test_update_process_demo():
-    script = os.path.join(td.PYTHON_DEMO_DIR, "update_process.py")
+    script = os.path.join(PYTHON_DEMO_DIR, "update_process.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)
 
 
 def test_categorical_demo():
-    script = os.path.join(td.PYTHON_DEMO_DIR, "categorical.py")
+    script = os.path.join(PYTHON_DEMO_DIR, "categorical.py")
+    cmd = ["python", script]
+    subprocess.check_call(cmd)
+
+
+@pytest.mark.skipif(**tm.no_rmm())
+@pytest.mark.skipif(**tm.no_cupy())
+def test_external_memory_demo():
+    script = os.path.join(PYTHON_DEMO_DIR, "external_memory.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)

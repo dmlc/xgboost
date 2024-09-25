@@ -55,11 +55,6 @@ def run(command, **kwargs):
     subprocess.check_call(command, shell=True, **kwargs)
 
 
-def get_current_git_tag():
-    out = subprocess.check_output(["git", "tag", "--points-at", "HEAD"])
-    return out.decode().split("\n")[0]
-
-
 def get_current_commit_hash():
     out = subprocess.check_output(["git", "rev-parse", "HEAD"])
     return out.decode().split("\n")[0]
@@ -88,23 +83,11 @@ def main():
     )
     args = parser.parse_args()
     version = args.release_version
-    expected_git_tag = "v" + version
-    current_git_tag = get_current_git_tag()
-    if current_git_tag != expected_git_tag:
-        if not current_git_tag:
-            raise ValueError(
-                f"Expected git tag {expected_git_tag} but current HEAD has no tag. "
-                f"Run: git checkout {expected_git_tag}"
-            )
-        raise ValueError(
-            f"Expected git tag {expected_git_tag} but current HEAD is at tag "
-            f"{current_git_tag}. Run: git checkout {expected_git_tag}"
-        )
 
     commit_hash = get_current_commit_hash()
     git_branch = get_current_git_branch()
     print(
-        f"Using commit {commit_hash} of branch {git_branch}, git tag {current_git_tag}"
+        f"Using commit {commit_hash} of branch {git_branch}"
     )
 
     with cd("jvm-packages/"):
@@ -134,6 +117,7 @@ def main():
         print("====Creating directories to hold native binaries====")
         for os_ident, arch in [
             ("linux", "x86_64"),
+            ("linux", "aarch64"),
             ("windows", "x86_64"),
             ("macos", "x86_64"),
             ("macos", "aarch64"),
@@ -157,6 +141,14 @@ def main():
             filename="xgboost4j/src/main/resources/lib/windows/x86_64/xgboost4j.dll",
         )
         retrieve(
+            url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_linux_x86_64_{commit_hash}.so",
+            filename="xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
+        )
+        retrieve(
+            url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_linux_arm64_{commit_hash}.so",
+            filename="xgboost4j/src/main/resources/lib/linux/aarch64/libxgboost4j.so",
+        )
+        retrieve(
             url=f"{nightly_bucket_prefix}/{git_branch}/libxgboost4j/libxgboost4j_{commit_hash}.dylib",
             filename="xgboost4j/src/main/resources/lib/macos/x86_64/libxgboost4j.dylib",
         )
@@ -166,22 +158,6 @@ def main():
         )
 
         with tempfile.TemporaryDirectory() as tempdir:
-            # libxgboost4j.so for Linux x86_64, CPU only
-            zip_path = os.path.join(tempdir, "xgboost4j_2.12.jar")
-            extract_dir = os.path.join(tempdir, "xgboost4j")
-            retrieve(
-                url=f"{maven_repo_prefix}/xgboost4j_2.12/{version}/"
-                f"xgboost4j_2.12-{version}.jar",
-                filename=zip_path,
-            )
-            os.mkdir(extract_dir)
-            with zipfile.ZipFile(zip_path, "r") as t:
-                t.extractall(extract_dir)
-            cp(
-                os.path.join(extract_dir, "lib", "linux", "x86_64", "libxgboost4j.so"),
-                "xgboost4j/src/main/resources/lib/linux/x86_64/libxgboost4j.so",
-            )
-
             # libxgboost4j.so for Linux x86_64, GPU support
             zip_path = os.path.join(tempdir, "xgboost4j-gpu_2.12.jar")
             extract_dir = os.path.join(tempdir, "xgboost4j-gpu")

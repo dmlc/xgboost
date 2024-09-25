@@ -59,7 +59,7 @@ TEST_F(TrackerTest, Print) {
 
   std::vector<std::thread> workers;
   auto rc = tracker.WaitUntilReady();
-  ASSERT_TRUE(rc.OK());
+  SafeColl(rc);
 
   std::int32_t port = tracker.Port();
 
@@ -74,7 +74,7 @@ TEST_F(TrackerTest, Print) {
     w.join();
   }
 
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(fut.get());
 }
 
 TEST_F(TrackerTest, GetHostAddress) { ASSERT_TRUE(host.find("127.") == std::string::npos); }
@@ -88,7 +88,7 @@ TEST_F(TrackerTest, AfterShutdown) {
 
   std::vector<std::thread> workers;
   auto rc = tracker.WaitUntilReady();
-  ASSERT_TRUE(rc.OK());
+  SafeColl(rc);
 
   std::int32_t port = tracker.Port();
 
@@ -101,7 +101,7 @@ TEST_F(TrackerTest, AfterShutdown) {
     w.join();
   }
 
-  ASSERT_TRUE(fut.get().OK());
+  SafeColl(fut.get());
 
   // Launch workers again, they should fail.
   workers.clear();

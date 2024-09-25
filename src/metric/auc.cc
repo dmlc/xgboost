@@ -336,12 +336,12 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double auc{0};
     uint32_t valid_groups = 0;
     auto n_threads = ctx_->Threads();
-    if (ctx_->IsCPU()) {
-      std::tie(auc, valid_groups) =
-          RankingAUC<true>(ctx_, predts.ConstHostVector(), info, n_threads);
-    } else {
+    if (ctx_->IsCUDA()) {
       std::tie(auc, valid_groups) =
           GPURankingAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+    } else {
+      std::tie(auc, valid_groups) =
+          RankingAUC<true>(ctx_, predts.ConstHostVector(), info, n_threads);
     }
     return std::make_pair(auc, valid_groups);
   }
@@ -351,10 +351,10 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double auc{0};
     auto n_threads = ctx_->Threads();
     CHECK_NE(n_classes, 0);
-    if (ctx_->IsCPU()) {
-      auc = MultiClassOVR(ctx_, predts.ConstHostVector(), info, n_classes, n_threads, BinaryROCAUC);
-    } else {
+    if (ctx_->IsCUDA()) {
       auc = GPUMultiClassROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes);
+    } else {
+      auc = MultiClassOVR(ctx_, predts.ConstHostVector(), info, n_classes, n_threads, BinaryROCAUC);
     }
     return auc;
   }
@@ -362,13 +362,13 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   std::tuple<double, double, double>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
     double fp, tp, auc;
-    if (ctx_->IsCPU()) {
+    if (ctx_->IsCUDA()) {
+      std::tie(fp, tp, auc) =
+          GPUBinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+    } else {
       std::tie(fp, tp, auc) = BinaryROCAUC(ctx_, predts.ConstHostVector(),
                                            info.labels.HostView().Slice(linalg::All(), 0),
                                            common::OptionalWeights{info.weights_.ConstHostSpan()});
-    } else {
-      std::tie(fp, tp, auc) =
-          GPUBinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     }
     return std::make_tuple(fp, tp, auc);
   }
@@ -413,23 +413,23 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   std::tuple<double, double, double>
   EvalBinary(HostDeviceVector<float> const &predts, MetaInfo const &info) {
     double pr, re, auc;
-    if (ctx_->IsCPU()) {
+    if (ctx_->IsCUDA()) {
+      std::tie(pr, re, auc) = GPUBinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+    } else {
       std::tie(pr, re, auc) =
           BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
                       common::OptionalWeights{info.weights_.ConstHostSpan()});
-    } else {
-      std::tie(pr, re, auc) = GPUBinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
     }
     return std::make_tuple(pr, re, auc);
   }
 
   double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_classes) {
-    if (ctx_->IsCPU()) {
+    if (ctx_->IsCUDA()) {
+      return GPUMultiClassPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes);
+    } else {
       auto n_threads = this->ctx_->Threads();
       return MultiClassOVR(ctx_, predts.ConstHostSpan(), info, n_classes, n_threads, BinaryPRAUC);
-    } else {
-      return GPUMultiClassPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes);
     }
   }
 
@@ -438,16 +438,16 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     double auc{0};
     uint32_t valid_groups = 0;
     auto n_threads = ctx_->Threads();
-    if (ctx_->IsCPU()) {
+    if (ctx_->IsCUDA()) {
+      std::tie(auc, valid_groups) =
+          GPURankingPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_);
+    } else {
       auto labels = info.labels.Data()->ConstHostSpan();
       if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {
         InvalidLabels();
       }
       std::tie(auc, valid_groups) =
           RankingAUC<false>(ctx_, predts.ConstHostVector(), info, n_threads);
-    } else {
-      std::tie(auc, valid_groups) =
-          GPURankingPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_);
     }
     return std::make_pair(auc, valid_groups);
   }

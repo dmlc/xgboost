@@ -22,11 +22,11 @@ function set_buildkite_env_vars_in_container {
 
 set -x
 
-CUDA_VERSION=11.8.0
-NCCL_VERSION=2.16.5-1
-RAPIDS_VERSION=24.04
-DEV_RAPIDS_VERSION=24.06
-SPARK_VERSION=3.4.0
+CUDA_VERSION=12.4.1
+NCCL_VERSION=2.22.3-1
+RAPIDS_VERSION=24.08
+DEV_RAPIDS_VERSION=24.10
+SPARK_VERSION=3.5.1
 JDK_VERSION=8
 R_VERSION=4.3.2
 
@@ -47,7 +47,7 @@ else
 fi
 export BRANCH_NAME=${BRANCH_NAME//\//-}
 
-if [[ $BRANCH_NAME == "master" || $BRANCH_NAME == "release_"* ]]
+if [[ $BRANCH_NAME == "master" || $BRANCH_NAME == "release_"* || $BRANCH_NAME == "federated-secure" ]]
 then
   is_release_branch=1
   enforce_daily_budget=0

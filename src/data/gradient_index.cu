@@ -12,11 +12,12 @@
 namespace xgboost {
 // Similar to GHistIndexMatrix::SetIndexData, but without the need for adaptor or bin
 // searching. Is there a way to unify the code?
-template <typename BinT, typename CompressOffset>
+template <typename BinT, typename DecompressOffset>
 void SetIndexData(Context const* ctx, EllpackPageImpl const* page,
-                  std::vector<size_t>* p_hit_count_tloc, CompressOffset&& get_offset,
+                  std::vector<size_t>* p_hit_count_tloc, DecompressOffset&& get_offset,
                   GHistIndexMatrix* out) {
-  auto accessor = page->GetHostAccessor();
+  std::vector<common::CompressedByteT> h_gidx_buffer;
+  auto accessor = page->GetHostAccessor(ctx, &h_gidx_buffer);
   auto const kNull = static_cast<bst_bin_t>(accessor.NullValue());
 
   common::Span<BinT> index_data_span = {out->index.data<BinT>(), out->index.Size()};
@@ -34,8 +35,8 @@ void SetIndexData(Context const* ctx, EllpackPageImpl const* page,
     for (size_t j = 0; j < r_size; ++j) {
       auto bin_idx = accessor.gidx_iter[in_rbegin + j];
       assert(bin_idx != kNull);
-      index_data_span[out_rbegin + j] = get_offset(bin_idx, j);
-      ++hit_count_tloc[tid * n_bins_total + bin_idx];
+      index_data_span[out_rbegin + j] = bin_idx;
+      ++hit_count_tloc[tid * n_bins_total + get_offset(bin_idx, j)];
     }
   });
 }
@@ -47,7 +48,8 @@ void GetRowPtrFromEllpack(Context const* ctx, EllpackPageImpl const* page,
   if (page->is_dense) {
     std::fill(row_ptr.begin() + 1, row_ptr.end(), page->row_stride);
   } else {
-    auto accessor = page->GetHostAccessor();
+    std::vector<common::CompressedByteT> h_gidx_buffer;
+    auto accessor = page->GetHostAccessor(ctx, &h_gidx_buffer);
     auto const kNull = static_cast<bst_bin_t>(accessor.NullValue());
 
     common::ParallelFor(page->Size(), ctx->Threads(), [&](auto i) {
@@ -84,10 +86,13 @@ GHistIndexMatrix::GHistIndexMatrix(Context const* ctx, MetaInfo const& info,
 
   auto n_bins_total = page->Cuts().TotalBins();
   GetRowPtrFromEllpack(ctx, page, &this->row_ptr);
-  if (page->is_dense) {
+  if (page->IsDense()) {
+    auto offset = index.Offset();
     common::DispatchBinType(this->index.GetBinTypeSize(), [&](auto dtype) {
       using T = decltype(dtype);
-      ::xgboost::SetIndexData<T>(ctx, page, &hit_count_tloc_, index.MakeCompressor<T>(), this);
+      ::xgboost::SetIndexData<T>(
+          ctx, page, &hit_count_tloc_,
+          [offset](bst_bin_t bin_idx, bst_feature_t fidx) { return bin_idx + offset[fidx]; }, this);
     });
   } else {
     // no compression

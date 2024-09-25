@@ -1,13 +1,12 @@
 /**
  * Copyright 2020-2024, XGBoost Contributors
  */
-#include <algorithm>  // std::max
-#include <vector>
-#include <limits>
+#include <algorithm>  // for :max
+#include <limits>     // for numeric_limits
 
 #include "../../collective/allgather.h"
+#include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "../../common/categorical.h"
-#include "../../data/ellpack_page.cuh"
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
 
@@ -42,7 +41,7 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairInt64 &scan,
 template <int kBlockSize>
 class EvaluateSplitAgent {
  public:
-  using ArgMaxT = cub::KeyValuePair<int, float>;
+  using ArgMaxT = cub::KeyValuePair<std::uint32_t, float>;
   using BlockScanT = cub::BlockScan<GradientPairInt64, kBlockSize>;
   using MaxReduceT = cub::WarpReduce<ArgMaxT>;
   using SumReduceT = cub::WarpReduce<GradientPairInt64>;
@@ -473,7 +472,9 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
 
 GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(Context const *ctx, EvaluateSplitInputs input,
                                                      EvaluateSplitSharedInputs shared_inputs) {
-  dh::device_vector<EvaluateSplitInputs> inputs = std::vector<EvaluateSplitInputs>{input};
+  dh::device_vector<EvaluateSplitInputs> inputs(1);
+  dh::safe_cuda(cudaMemcpyAsync(inputs.data().get(), &input, sizeof(input), cudaMemcpyDefault));
+
   dh::TemporaryArray<GPUExpandEntry> out_entries(1);
   this->EvaluateSplits(ctx, {input.nidx}, input.feature_set.size(), dh::ToSpan(inputs),
                        shared_inputs, dh::ToSpan(out_entries));

@@ -75,8 +75,11 @@ using CollAPIThreadLocalStore = dmlc::ThreadLocalStore<CollAPIEntry>;
 
 void WaitImpl(TrackerHandleT *ptr, std::chrono::seconds timeout) {
   constexpr std::int64_t kDft{collective::DefaultTimeoutSec()};
-  std::chrono::seconds wait_for{collective::HasTimeout(timeout) ? std::min(kDft, timeout.count())
-                                                                : kDft};
+  std::int64_t timeout_clipped = kDft;
+  if (collective::HasTimeout(timeout)) {
+    timeout_clipped = std::min(kDft, static_cast<std::int64_t>(timeout.count()));
+  }
+  std::chrono::seconds wait_for{timeout_clipped};
 
   common::Timer timer;
   timer.Start();
@@ -171,7 +174,19 @@ XGB_DLL int XGTrackerFree(TrackerHandle handle) {
   common::Timer timer;
   timer.Start();
   // Make sure no one else is waiting on the tracker.
-  while (!ptr->first.unique()) {
+
+  // Quote from https://en.cppreference.com/w/cpp/memory/shared_ptr/use_count#Notes:
+  //
+  // In multithreaded environment, `use_count() == 1` does not imply that the object is
+  // safe to modify because accesses to the managed object by former shared owners may not
+  // have completed, and because new shared owners may be introduced concurrently.
+  //
+  // - We don't have the first case since we never access the raw pointer.
+  //
+  // - We don't have the second case for most of the scenarios since tracker is an unique
+  //   object, if the free function is called before another function calls, it's likely
+  //   to be a bug in the user code. The use_count should only decrease in this function.
+  while (ptr->first.use_count() != 1) {
     auto ela = timer.Duration().count();
     if (collective::HasTimeout(ptr->first->Timeout()) && ela > ptr->first->Timeout().count()) {
       LOG(WARNING) << "Time out " << ptr->first->Timeout().count()

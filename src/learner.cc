@@ -1321,7 +1321,7 @@ class LearnerImpl : public LearnerIO {
     std::ostringstream os;
     os.precision(std::numeric_limits<double>::max_digits10);
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
-    if (metrics_.empty() && tparam_.disable_default_eval_metric <= 0) {
+    if (metrics_.empty() && !tparam_.disable_default_eval_metric) {
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &ctx_));
       auto config = obj_->DefaultMetricConfig();
       if (!IsA<Null>(config)) {

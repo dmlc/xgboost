@@ -1,16 +1,17 @@
 /**
- * Copyright 2019-2023, XGBoost contributors
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
-#include <cinttypes>
-#include <string>
-#include <bitset>
+
+#include <cstdint>
 #include <set>
+#include <string>
+
+#include "../../../src/common/device_helpers.cuh"
 #include "../../../src/tree/constraints.cuh"
 #include "../../../src/tree/param.h"
-#include "../../../src/common/device_helpers.cuh"
 
 namespace xgboost {
 namespace {
@@ -36,9 +37,7 @@ std::string GetConstraintsStr() {
 }
 
 tree::TrainParam GetParameter() {
-  std::vector<std::pair<std::string, std::string>> args{
-    {"interaction_constraints", GetConstraintsStr()}
-  };
+  Args args{{"interaction_constraints", GetConstraintsStr()}};
   tree::TrainParam param;
   param.Init(args);
   return param;

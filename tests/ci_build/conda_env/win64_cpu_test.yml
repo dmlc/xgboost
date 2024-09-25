@@ -2,11 +2,11 @@ name: win64_env
 channels:
 - conda-forge
 dependencies:
-- python=3.8
+- python=3.10
 - wheel
 - numpy
 - scipy
-- scikit-learn
+- scikit-learn>=1.4.1
 - pandas
 - matplotlib
 - dask
@@ -18,5 +18,5 @@ dependencies:
 - python-graphviz
 - pip
 - py-ubjson
-- cffi
+- loky
 - pyarrow

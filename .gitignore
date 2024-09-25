@@ -33,6 +33,7 @@ ipch
 *.filters
 *.user
 *log
+rmm_log.txt
 Debug
 *suo
 .Rhistory
@@ -63,6 +64,7 @@ java/xgboost4j-demo/data/
 java/xgboost4j-demo/tmp/
 java/xgboost4j-demo/model/
 nb-configuration*
+
 # Eclipse
 .project
 .cproject
@@ -84,6 +86,7 @@ target
 *.gcov
 *.gcda
 *.gcno
+*.ubj
 build_tests
 /tests/cpp/xgboost_test
 
@@ -97,6 +100,7 @@ metastore_db
 
 # files from R-package source install
 **/config.status
+R-package/config.h
 R-package/src/Makevars
 *.lib
 
@@ -152,3 +156,6 @@ model*.json
 *.rds
 Rplots.pdf
 *.zip
+
+# nsys
+*.nsys-rep
