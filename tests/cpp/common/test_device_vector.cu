@@ -22,6 +22,7 @@ TEST(DeviceUVector, Basic) {
   std::swap(verbosity, xgboost::GlobalConfigThreadLocalStore::Get()->verbosity);
 }
 
+#if defined(__linux__)
 namespace {
 class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
  public:
@@ -83,4 +84,5 @@ INSTANTIATE_TEST_SUITE_P(
       }
       return nullptr;
     });
+#endif  // defined(__linux__)
 }  // namespace dh
