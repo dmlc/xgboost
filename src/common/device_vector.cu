@@ -38,7 +38,7 @@ GrowOnlyVirtualMemVec::GrowOnlyVirtualMemVec(CUmemLocationType type)
     CUmemAccessDesc hacc;
     hacc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
 
-    xgboost::cudr::GetCuLocation(CU_MEM_LOCATION_TYPE_HOST_NUMA, &hacc.location);
+    xgboost::cudr::MakeCuMemLocation(type, &hacc.location);
     this->access_desc_.push_back(hacc);
   }
 }

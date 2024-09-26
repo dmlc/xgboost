@@ -3,8 +3,8 @@
  *
  * @brief Utility for CUDA driver API.
  *
- * We don't link with libcuda.so at build time. The utilities here load the shared object
- * at runtime.
+ * XGBoost doesn't link libcuda.so at build time. The utilities here load the shared
+ * object at runtime.
  */
 #pragma once
 
@@ -22,6 +22,7 @@ namespace xgboost::cudr {
 struct CuDriverApi {
   using Flags = unsigned long long;  // NOLINT
 
+  // Memroy manipulation functions.
   using MemGetAllocationGranularityFn = CUresult(size_t *granularity,
                                                  const CUmemAllocationProp *prop,
                                                  CUmemAllocationGranularity_flags option);
@@ -36,10 +37,10 @@ struct CuDriverApi {
   using MemUnmapFn = CUresult(CUdeviceptr ptr, size_t size);
   using MemReleaseFn = CUresult(CUmemGenericAllocationHandle handle);
   using MemAddressFreeFn = CUresult(CUdeviceptr ptr, size_t size);
-
+  // Error handling
   using GetErrorString = CUresult(CUresult error, const char **pStr);
   using GetErrorName = CUresult(CUresult error, const char **pStr);
-
+  // Device attributes
   using DeviceGetAttribute = CUresult(int *pi, CUdevice_attribute attrib, CUdevice dev);
   using DeviceGet = CUresult(CUdevice *device, int ordinal);
 
@@ -70,6 +71,9 @@ struct CuDriverApi {
 
 [[nodiscard]] CuDriverApi &GetGlobalCuDriverApi();
 
+/**
+ * @brief Macro for guarding CUDA driver API calls.
+ */
 #define safe_cu(call)                                                                            \
   do {                                                                                           \
     auto __status = (call);                                                                      \
@@ -86,8 +90,13 @@ inline auto GetAllocGranularity(CUmemAllocationProp const *prop) {
   return granularity;
 }
 
-void GetCuLocation(CUmemLocationType type, CUmemLocation* loc);
+/**
+ * @brief Obtain appropriate device ordinal for `CUmemLocation`.
+ */
+void MakeCuMemLocation(CUmemLocationType type, CUmemLocation* loc);
 
-// Describe the allocation property
+/**
+ * @brief Construct a `CUmemAllocationProp`.
+ */
 [[nodiscard]] CUmemAllocationProp MakeAllocProp(CUmemLocationType type);
 }  // namespace xgboost::cudr

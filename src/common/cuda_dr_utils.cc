@@ -4,12 +4,13 @@
 #if defined(XGBOOST_USE_CUDA)
 #include "cuda_dr_utils.h"
 
-#include <cstdint>  // for int32_t
-#include <cstring>  // for memset
-#include <memory>   // for make_unique
-#include <mutex>    // for call_once
-#include <sstream>  // for stringstream
-#include <string>   // for string
+#include <algorithm>  // for max
+#include <cstdint>    // for int32_t
+#include <cstring>    // for memset
+#include <memory>     // for make_unique
+#include <mutex>      // for call_once
+#include <sstream>    // for stringstream
+#include <string>     // for string
 
 #include "common.h"               // for safe_cuda
 #include "cuda_rt_utils.h"        // for CurrentDevice
@@ -78,7 +79,7 @@ void CuDriverApi::ThrowIfError(CUresult status, StringView fn, std::int32_t line
   return *cu;
 }
 
-void GetCuLocation(CUmemLocationType type, CUmemLocation *loc) {
+void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   auto ordinal = curt::CurrentDevice();
   loc->type = type;
 
@@ -100,7 +101,7 @@ void GetCuLocation(CUmemLocationType type, CUmemLocation *loc) {
   CUmemAllocationProp prop;
   std::memset(&prop, '\0', sizeof(prop));
   prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-  GetCuLocation(type, &prop.location);
+  MakeCuMemLocation(type, &prop.location);
   return prop;
 }
 }  // namespace xgboost::cudr
