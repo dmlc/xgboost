@@ -1,14 +1,14 @@
 /**
  * Copyright 2024, XGBoost contributors
  */
-#include "cuda_rt_utils.h"
+#include "cuda_rt_utils.h"  // for RtVersion
 #include "device_helpers.cuh"
+#include "xgboost/windefs.h"  // for xgboost_IS_WIN
 
 namespace dh {
 PinnedMemory::PinnedMemory() {
-#if (defined(_MSC_VER) || defined(__MINGW32__)) || \
-    !(__CUDACC_VER_MAJOR__ >= 12 && __CUDACC_VER_MINOR__ >= 5)
-  this->impl_.emplace<detail::GrowOnlyPinnedMemoryImpl>(CU_MEM_LOCATION_TYPE_HOST_NUMA);
+#if defined(xgboost_IS_WIN) || !((CUDA_VERSION / 1000) >= 12 && ((CUDA_VERSION) % 100 / 10) >= 5)
+  this->impl_.emplace<detail::GrowOnlyPinnedMemoryImpl>();
 #else
   std::int32_t major{0}, minor{0};
   xgboost::curt::RtVersion(&major, &minor);
