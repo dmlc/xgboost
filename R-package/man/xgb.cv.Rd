@@ -53,7 +53,7 @@ system - thus, for reproducible results, one needs to call the \code{\link[=set.
 for model training by the objective.
 
 Note that only the basic \code{xgb.DMatrix} class is supported - variants such as \code{xgb.QuantileDMatrix}
-or \code{xgb.ExternalDMatrix} are not supported here.}
+or \code{xgb.ExtMemDMatrix} are not supported here.}
 
 \item{nrounds}{The max number of iterations.}
 
