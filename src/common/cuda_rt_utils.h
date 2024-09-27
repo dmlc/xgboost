@@ -24,7 +24,11 @@ void CheckComputeCapability();
 
 void SetDevice(std::int32_t device);
 
+// Returns the CUDA Runtime version.
 void RtVersion(std::int32_t* major, std::int32_t* minor);
+
+// Returns the latest version of CUDA supported by the driver.
+void DrVersion(std::int32_t* major, std::int32_t* minor);
 
 struct NvtxDomain {
   static constexpr char const *name{"libxgboost"};  // NOLINT

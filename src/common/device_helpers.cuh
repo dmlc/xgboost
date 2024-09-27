@@ -389,6 +389,10 @@ class PinnedMemory {
     std::fill_n(result.data(), result.size(), init);
     return result;
   }
+  // Used for testing.
+  [[nodiscard]] bool IsVm() {
+    return std::get_if<detail::GrowOnlyVirtualMemVec>(&this->impl_) != nullptr;
+  }
 };
 
 /*

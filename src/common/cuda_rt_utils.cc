@@ -65,16 +65,28 @@ void SetDevice(std::int32_t device) {
   }
 }
 
-void RtVersion(std::int32_t* major, std::int32_t* minor) {
-  static std::int32_t rt_version = 0;
+namespace {
+template <typename Fn>
+void GetVersionImpl(Fn&& fn, std::int32_t* major, std::int32_t* minor) {
+  static std::int32_t version = 0;
   static std::once_flag flag;
-  std::call_once(flag, [] { dh::safe_cuda(cudaRuntimeGetVersion(&rt_version)); });
+  std::call_once(flag, [&] { fn(&version); });
   if (major) {
-    *major = rt_version / 1000;
+    *major = version / 1000;
   }
   if (minor) {
-    *minor = rt_version % 100 / 10;
+    *minor = version % 100 / 10;
   }
+}
+}  // namespace
+
+void RtVersion(std::int32_t* major, std::int32_t* minor) {
+  GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaRuntimeGetVersion(ver)); }, major,
+                 minor);
+}
+
+void DrVersion(std::int32_t* major, std::int32_t* minor) {
+  GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaDriverGetVersion(ver)); }, major, minor);
 }
 
 #else

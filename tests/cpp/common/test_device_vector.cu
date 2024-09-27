@@ -6,7 +6,8 @@
 #include <numeric>                     // for iota
 #include <thrust/detail/sequence.inl>  // for sequence
 
-#include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy
+#include "../../../src/common/cuda_rt_utils.h"     // for DrVersion
+#include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy, PinnedMemory
 #include "../../../src/common/device_vector.cuh"
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 
@@ -93,13 +94,25 @@ INSTANTIATE_TEST_SUITE_P(
       auto type = info.param;
       switch (type) {
         case CU_MEM_LOCATION_TYPE_DEVICE:
-          return "device";
+          return "Device";
         case CU_MEM_LOCATION_TYPE_HOST_NUMA:
-          return "host_numa";
+          return "HostNuma";
         default:
           LOG(FATAL) << "unreachable";
       }
       return nullptr;
     });
 #endif  // defined(__linux__)
+
+TEST(TestVirtualMem, Version) {
+  std::int32_t major, minor;
+  xgboost::curt::DrVersion(&major, &minor);
+  LOG(INFO) << "Latest supported CUDA version by the driver:" << major << "." << minor;
+  PinnedMemory pinned;
+  if (major >= 12 && minor >= 5) {
+    ASSERT_TRUE(pinned.IsVm());
+  } else {
+    ASSERT_FALSE(pinned.IsVm());
+  }
+}
 }  // namespace dh
