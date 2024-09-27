@@ -30,7 +30,7 @@ void TestCUDA(Context const& ctx, bst_d_ordinal_t ord) {
 
 TEST(Context, DeviceOrdinal) {
   Context ctx;
-  auto n_vis = common::AllVisibleGPUs();
+  auto n_vis = curt::AllVisibleGPUs();
   auto ord = n_vis - 1;
 
   std::string device = "cuda:" + std::to_string(ord);
@@ -82,7 +82,7 @@ TEST(Context, GPUId) {
   ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
   TestCUDA(ctx, 0);
 
-  auto n_vis = common::AllVisibleGPUs();
+  auto n_vis = curt::AllVisibleGPUs();
   auto ord = n_vis - 1;
   ctx.UpdateAllowUnknown(Args{{"gpu_id", std::to_string(ord)}});
   TestCUDA(ctx, ord);

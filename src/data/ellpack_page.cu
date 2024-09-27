@@ -139,7 +139,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       n_rows{n_rows},
       n_symbols_{CalcNumSymbols(ctx, this->is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
-  common::SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
 
   this->InitCompressedData(ctx);
 }
@@ -154,7 +154,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       row_stride{row_stride},
       n_symbols_{CalcNumSymbols(ctx, this->is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
-  common::SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
 
   this->InitCompressedData(ctx);
   this->CreateHistIndices(ctx, page, feature_types);
@@ -173,7 +173,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* p_fmat, const Batc
                       common::DeviceSketchWithHessian(ctx, p_fmat, param.max_bin, param.hess))},
       n_symbols_{CalcNumSymbols(ctx, this->is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
-  common::SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
 
   this->InitCompressedData(ctx);
 
@@ -319,7 +319,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, AdapterBatch batch, float m
                                  bst_idx_t n_rows,
                                  std::shared_ptr<common::HistogramCuts const> cuts)
     : EllpackPageImpl{ctx, cuts, is_dense, row_stride, n_rows} {
-  common::SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
 
   if (this->IsDense()) {
     CopyDataToEllpack<true>(ctx, batch, feature_types, this, missing);

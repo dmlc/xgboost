@@ -105,7 +105,7 @@ void GBTree::Configure(Args const& cfg) {
   }
   cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
-  auto n_gpus = common::AllVisibleGPUs();
+  auto n_gpus = curt::AllVisibleGPUs();
   if (!gpu_predictor_) {
     gpu_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", this->ctx_));
   }
@@ -344,7 +344,7 @@ void GBTree::LoadConfig(Json const& in) {
   // This would cause all trees to be pushed to trees_to_update
   // e.g. updating a model, then saving and loading it would result in an empty model
   tparam_.process_type = TreeProcessType::kDefault;
-  std::int32_t const n_gpus = common::AllVisibleGPUs();
+  std::int32_t const n_gpus = curt::AllVisibleGPUs();
 
   auto msg = StringView{
       R"(

@@ -64,8 +64,8 @@ void MakeSketches(Context const* ctx,
      * Get the data shape.
      */
     // We use do while here as the first batch is fetched in ctor
-    CHECK_LT(ctx->Ordinal(), common::AllVisibleGPUs());
-    common::SetDevice(dh::GetDevice(ctx).ordinal);
+    CHECK_LT(ctx->Ordinal(), curt::AllVisibleGPUs());
+    curt::SetDevice(dh::GetDevice(ctx).ordinal);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
       auto rc = collective::Allreduce(ctx, linalg::MakeVec(&ext_info.n_features, 1),
@@ -124,7 +124,7 @@ void MakeSketches(Context const* ctx,
                    ext_info.base_rows.begin());
 
   // Get reference
-  common::SetDevice(dh::GetDevice(ctx).ordinal);
+  curt::SetDevice(dh::GetDevice(ctx).ordinal);
   if (!ref) {
     HostDeviceVector<FeatureType> ft;
     common::SketchContainer final_sketch(

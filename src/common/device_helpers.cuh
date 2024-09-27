@@ -16,7 +16,8 @@
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
-#include <vector>
+#include <variant>            // for variant, visit
+#include <vector>             // for vector
 
 #include "common.h"
 #include "device_vector.cuh"
@@ -372,36 +373,25 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
 }
 
 // Keep track of pinned memory allocation
-struct PinnedMemory {
-  void *temp_storage{nullptr};
-  size_t temp_storage_bytes{0};
+class PinnedMemory {
+  std::variant<detail::GrowOnlyPinnedMemoryImpl, detail::GrowOnlyVirtualMemVec> impl_;
 
-  ~PinnedMemory() { Free(); }
+ public:
+  PinnedMemory();
 
   template <typename T>
   xgboost::common::Span<T> GetSpan(size_t size) {
-    size_t num_bytes = size * sizeof(T);
-    if (num_bytes > temp_storage_bytes) {
-      Free();
-      safe_cuda(cudaMallocHost(&temp_storage, num_bytes));
-      temp_storage_bytes = num_bytes;
-    }
-    return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
+    return std::visit([&](auto &&alloc) { return alloc.template GetSpan<T>(size); }, this->impl_);
   }
-
   template <typename T>
-  xgboost::common::Span<T> GetSpan(size_t size, T init) {
+  xgboost::common::Span<T> GetSpan(size_t size, T const &init) {
     auto result = this->GetSpan<T>(size);
-    for (auto &e : result) {
-      e = init;
-    }
+    std::fill_n(result.data(), result.size(), init);
     return result;
   }
-
-  void Free() {
-    if (temp_storage != nullptr) {
-      safe_cuda(cudaFreeHost(temp_storage));
-    }
+  // Used for testing.
+  [[nodiscard]] bool IsVm() {
+    return std::get_if<detail::GrowOnlyVirtualMemVec>(&this->impl_) != nullptr;
   }
 };
 

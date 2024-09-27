@@ -25,6 +25,8 @@
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
+#include <cuda.h>
+
 #include <cstddef>                 // for size_t
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
 #include <cub/util_device.cuh>     // for CurrentDevice
@@ -32,8 +34,10 @@
 #include <memory>                  // for unique_ptr
 #include <mutex>                   // for defer_lock
 
-#include "common.h"  // for safe_cuda, HumanMemUnit
+#include "common.h"         // for safe_cuda, HumanMemUnit
+#include "cuda_dr_utils.h"  // for CuDriverApi
 #include "xgboost/logging.h"
+#include "xgboost/span.h"  // for Span
 
 namespace dh {
 namespace detail {
@@ -127,6 +131,153 @@ class MemoryLogger {
 };
 
 void ThrowOOMError(std::string const &err, std::size_t bytes);
+
+struct GrowOnlyPinnedMemoryImpl {
+  void *temp_storage{nullptr};
+  size_t temp_storage_bytes{0};
+
+  ~GrowOnlyPinnedMemoryImpl() { Free(); }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(size_t size) {
+    size_t num_bytes = size * sizeof(T);
+    if (num_bytes > temp_storage_bytes) {
+      Free();
+      safe_cuda(cudaMallocHost(&temp_storage, num_bytes));
+      temp_storage_bytes = num_bytes;
+    }
+    return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
+  }
+
+  void Free() {
+    if (temp_storage != nullptr) {
+      safe_cuda(cudaFreeHost(temp_storage));
+    }
+  }
+};
+
+/**
+ * @brief Use low-level virtual memory functions from CUDA driver API for grow-only memory
+ *        allocation.
+ *
+ * @url https://developer.nvidia.com/blog/introducing-low-level-gpu-virtual-memory-management/
+ *
+ * Aside from the potential performance benefits, this is primarily implemented to prevent
+ * deadlock in NCCL and XGBoost. The host NUMA version requires CTK12.5+ to be stable.
+ */
+class GrowOnlyVirtualMemVec {
+  static auto RoundUp(std::size_t new_sz, std::size_t chunk_sz) {
+    return ((new_sz + chunk_sz - 1) / chunk_sz) * chunk_sz;
+  }
+
+  struct PhyAddrHandle {
+    CUmemGenericAllocationHandle handle;
+    std::size_t size;
+  };
+
+  class VaRange {
+    CUdeviceptr ptr_{0};
+    std::size_t size_{0};
+
+   public:
+    VaRange(std::size_t size, CUdeviceptr hint, CUresult *p_status, bool *failed) : size_{size} {
+      CUresult &status = *p_status;
+      status = xgboost::cudr::GetGlobalCuDriverApi().cuMemAddressReserve(&ptr_, size, 0, hint, 0);
+      *failed = status != CUDA_SUCCESS || (hint != 0 && ptr_ != hint);
+    }
+    ~VaRange() {
+      if (ptr_ != 0) {
+        xgboost::cudr::GetGlobalCuDriverApi().cuMemAddressFree(ptr_, this->size_);
+      }
+    }
+
+    VaRange(VaRange const &that) = delete;
+    VaRange &operator=(VaRange const &that) = delete;
+
+    VaRange(VaRange &&that) { std::swap(*this, that); }
+    VaRange &operator=(VaRange &&that) {
+      std::swap(*this, that);
+      return *this;
+    }
+    [[nodiscard]] auto DevPtr() const { return this->ptr_; }
+    [[nodiscard]] std::size_t Size() const { return this->size_; }
+  };
+
+  using PhyHandle = std::unique_ptr<PhyAddrHandle, std::function<void(PhyAddrHandle *)>>;
+  std::vector<PhyHandle> handles_;
+  std::vector<std::unique_ptr<VaRange>> va_ranges_;
+
+  xgboost::cudr::CuDriverApi &cu_{xgboost::cudr::GetGlobalCuDriverApi()};
+  std::vector<CUmemAccessDesc> access_desc_;
+  CUmemAllocationProp const prop_;
+
+  // Always use bytes.
+  std::size_t const granularity_;
+
+  [[nodiscard]] std::size_t PhyCapacity() const;
+  [[nodiscard]] CUdeviceptr DevPtr() const {
+    if (this->va_ranges_.empty()) {
+      return 0;
+    }
+    return this->va_ranges_.front()->DevPtr();
+  }
+  void MapBlock(CUdeviceptr ptr, PhyHandle const &hdl) const {
+    safe_cu(cu_.cuMemMap(ptr, hdl->size, 0, hdl->handle, 0));
+    safe_cu(cu_.cuMemSetAccess(ptr, hdl->size, access_desc_.data(), access_desc_.size()));
+  }
+  auto CreatePhysicalMem(std::size_t size) const {
+    CUmemGenericAllocationHandle alloc_handle;
+    auto padded_size = RoundUp(size, this->granularity_);
+    CUresult status = this->cu_.cuMemCreate(&alloc_handle, padded_size, &this->prop_, 0);
+    CHECK_EQ(status, CUDA_SUCCESS);
+    return alloc_handle;
+  }
+  void Reserve(std::size_t new_size);
+
+ public:
+  explicit GrowOnlyVirtualMemVec(CUmemLocationType type);
+
+  void GrowTo(std::size_t n_bytes) {
+    auto alloc_size = this->PhyCapacity();
+    if (n_bytes <= alloc_size) {
+      return;
+    }
+
+    std::size_t delta = n_bytes - alloc_size;
+    auto const padded_delta = RoundUp(delta, this->granularity_);
+    this->Reserve(alloc_size + padded_delta);
+
+    this->handles_.emplace_back(
+        std::unique_ptr<PhyAddrHandle, std::function<void(PhyAddrHandle *)>>{
+            new PhyAddrHandle{this->CreatePhysicalMem(padded_delta), padded_delta}, [&](auto *hdl) {
+              if (hdl) {
+                cu_.cuMemRelease(hdl->handle);
+              }
+            }});
+    auto ptr = this->DevPtr() + alloc_size;
+    this->MapBlock(ptr, this->handles_.back());
+  }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(std::size_t size) {
+    size_t n_bytes = size * sizeof(T);
+    this->GrowTo(n_bytes);
+    return xgboost::common::Span<T>(reinterpret_cast<T *>(this->DevPtr()), size);
+  }
+
+  ~GrowOnlyVirtualMemVec() noexcept(false) {
+    if (this->DevPtr() != 0) {
+      safe_cu(cu_.cuMemUnmap(this->DevPtr(), this->PhyCapacity()));
+    }
+
+    this->va_ranges_.clear();  // make sure all VA are freed before releasing the handles.
+    this->handles_.clear();    // release the handles
+  }
+
+  [[nodiscard]] void *data() { return reinterpret_cast<void *>(this->DevPtr()); }  // NOLINT
+  [[nodiscard]] std::size_t size() const { return this->PhyCapacity(); }           // NOLINT
+  [[nodiscard]] std::size_t Capacity() const;
+};
 }  // namespace detail
 
 inline detail::MemoryLogger &GlobalMemoryLogger() {

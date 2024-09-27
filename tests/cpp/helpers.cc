@@ -655,7 +655,7 @@ class RMMAllocator {
   std::vector<std::unique_ptr<CUDAMemoryResource>> cuda_mr;
   std::vector<std::unique_ptr<PoolMemoryResource>> pool_mr;
   int n_gpu;
-  RMMAllocator() : n_gpu(common::AllVisibleGPUs()) {
+  RMMAllocator() : n_gpu(curt::AllVisibleGPUs()) {
     int current_device;
     CHECK_EQ(cudaGetDevice(&current_device), cudaSuccess);
     for (int i = 0; i < n_gpu; ++i) {
@@ -697,5 +697,5 @@ void DeleteRMMResource(RMMAllocator*) {}
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, DeleteRMMResource}; }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 
-std::int32_t DistGpuIdx() { return common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank(); }
+std::int32_t DistGpuIdx() { return curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank(); }
 } // namespace xgboost

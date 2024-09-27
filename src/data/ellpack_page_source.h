@@ -61,7 +61,7 @@ template <typename S>
 class EllpackFormatPolicy {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
   DeviceOrd device_;
-  bool has_hmm_{common::SupportsPageableMem()};
+  bool has_hmm_{curt::SupportsPageableMem()};
 
  public:
   using FormatT = EllpackPageRawFormat;
@@ -71,7 +71,7 @@ class EllpackFormatPolicy {
     StringView msg{" The overhead of iterating through external memory might be significant."};
     if (!has_hmm_) {
       LOG(WARNING) << "CUDA heterogeneous memory management is not available." << msg;
-    } else if (!common::SupportsAts()) {
+    } else if (!curt::SupportsAts()) {
       LOG(WARNING) << "CUDA address translation service is not available." << msg;
     }
 #if !defined(XGBOOST_USE_RMM)
@@ -121,7 +121,7 @@ class EllpackCacheStreamPolicy : public F<S> {
 
 template <typename S, template <typename> typename F>
 class EllpackMmapStreamPolicy : public F<S> {
-  bool has_hmm_{common::SupportsPageableMem()};
+  bool has_hmm_{curt::SupportsPageableMem()};
 
  public:
   using WriterT = common::AlignedFileWriteStream;

@@ -578,7 +578,7 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
 
 namespace {
 auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_features) {
-  common::SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   auto n = n_samples * n_features;
   std::vector<float> x;
   x.resize(n);

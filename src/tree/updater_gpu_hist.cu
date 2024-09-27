@@ -184,7 +184,7 @@ struct GPUHistMakerDevice {
   // Reset values for each update iteration
   [[nodiscard]] DMatrix* Reset(HostDeviceVector<GradientPair> const* dh_gpair, DMatrix* p_fmat) {
     this->monitor.Start(__func__);
-    common::SetDevice(ctx_->Ordinal());
+    curt::SetDevice(ctx_->Ordinal());
 
     auto const& info = p_fmat->Info();
 
@@ -789,7 +789,7 @@ class GPUHistMaker : public TreeUpdater {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
-    common::CheckComputeCapability();
+    curt::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init("updater_gpu_hist");
@@ -835,7 +835,7 @@ class GPUHistMaker : public TreeUpdater {
         ctx_, linalg::MakeVec(&column_sampling_seed, sizeof(column_sampling_seed)), 0));
     this->column_sampler_ = std::make_shared<common::ColumnSampler>(column_sampling_seed);
 
-    common::SetDevice(ctx_->Ordinal());
+    curt::SetDevice(ctx_->Ordinal());
     p_fmat->Info().feature_types.SetDevice(ctx_->Device());
 
     std::vector<bst_idx_t> batch_ptr;
@@ -909,7 +909,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
-    common::CheckComputeCapability();
+    curt::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init(this->Name());
