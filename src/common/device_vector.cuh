@@ -149,15 +149,6 @@ struct GrowOnlyPinnedMemoryImpl {
     return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
   }
 
-  template <typename T>
-  xgboost::common::Span<T> GetSpan(size_t size, T init) {
-    auto result = this->GetSpan<T>(size);
-    for (auto &e : result) {
-      e = init;
-    }
-    return result;
-  }
-
   void Free() {
     if (temp_storage != nullptr) {
       safe_cuda(cudaFreeHost(temp_storage));
@@ -304,13 +295,6 @@ class GrowOnlyVirtualMemVec {
     size_t num_bytes = size * sizeof(T);
     this->GrowTo(num_bytes);
     return xgboost::common::Span<T>(reinterpret_cast<T *>(this->ptr_), size);
-  }
-
-  template <typename T>
-  xgboost::common::Span<T> GetSpan(size_t size, T const &init) {
-    auto result = this->GetSpan<T>(size);
-    std::fill_n(result.data(), result.size(), init);
-    return result;
   }
 
   ~GrowOnlyVirtualMemVec() noexcept(false) {

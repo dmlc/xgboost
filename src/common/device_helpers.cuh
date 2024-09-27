@@ -378,15 +378,16 @@ class PinnedMemory {
 
  public:
   PinnedMemory();
-  template <typename T>
-  xgboost::common::Span<T> GetSpan(size_t size) {
-    return std::visit([&](auto &&alloc) { return alloc.template GetSpan<T>(size); }, this->impl_);
-  }
 
   template <typename T>
-  xgboost::common::Span<T> GetSpan(size_t size, T const &init) {
-    return std::visit([&](auto &&alloc) { return alloc.template GetSpan<T>(size, init); },
-                      this->impl_);
+  [[nodiscard]] xgboost::common::Span<T> GetSpan(size_t size) {
+    return std::visit([&](auto &&alloc) { return alloc.template GetSpan<T>(size); }, this->impl_);
+  }
+  template <typename T>
+  [[nodiscard]] xgboost::common::Span<T> GetSpan(size_t size, T const &init) {
+    auto result = this->GetSpan<T>(size);
+    std::fill_n(result.data(), result.size(), init);
+    return result;
   }
 };
 

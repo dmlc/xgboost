@@ -25,13 +25,11 @@ GrowOnlyVirtualMemVec::GrowOnlyVirtualMemVec(CUmemLocationType type)
   CHECK(type == CU_MEM_LOCATION_TYPE_DEVICE || type == CU_MEM_LOCATION_TYPE_HOST_NUMA);
   // Get the allocation granularity.
   this->granularity_ = xgboost::cudr::GetAllocGranularity(&this->prop_);
-  auto ordinal = CurrentDevice();
 
   // Assign the access descriptor
   CUmemAccessDesc dacc;
   dacc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
-  dacc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-  dacc.location.id = ordinal;
+  xgboost::cudr::MakeCuMemLocation(CU_MEM_LOCATION_TYPE_DEVICE, &dacc.location);
   this->access_desc_.push_back(dacc);
 
   if (type == CU_MEM_LOCATION_TYPE_HOST_NUMA) {
