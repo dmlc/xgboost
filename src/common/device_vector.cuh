@@ -156,108 +156,75 @@ struct GrowOnlyPinnedMemoryImpl {
   }
 };
 
-// https://developer.nvidia.com/blog/introducing-low-level-gpu-virtual-memory-management/
+/**
+ * @brief Use low-level virtual memory functions from CUDA driver API for grow-only memory
+ *        allocation.
+ *
+ * @url https://developer.nvidia.com/blog/introducing-low-level-gpu-virtual-memory-management/
+ *
+ * Aside from the potential performance benefits, this is primarily implemented to prevent
+ * deadlock in NCCL and XGBoost. The host NUMA version requires CTK12.5+ to be stable.
+ */
 class GrowOnlyVirtualMemVec {
- public:
   static auto RoundUp(std::size_t new_sz, std::size_t chunk_sz) {
     return ((new_sz + chunk_sz - 1) / chunk_sz) * chunk_sz;
   }
 
- private:
-  struct Range {
-    CUdeviceptr begin;
-    std::size_t size;
-  };
   struct PhyAddrHandle {
     CUmemGenericAllocationHandle handle;
     std::size_t size;
   };
 
-  std::vector<PhyAddrHandle> handles_;
-  std::vector<Range> va_ranges_;
+  class VaRange {
+    CUdeviceptr ptr_{0};
+    std::size_t size_{0};
+
+   public:
+    VaRange(std::size_t size, CUdeviceptr hint, CUresult *p_status, bool *failed) : size_{size} {
+      CUresult &status = *p_status;
+      status = xgboost::cudr::GetGlobalCuDriverApi().cuMemAddressReserve(&ptr_, size, 0, hint, 0);
+      *failed = status != CUDA_SUCCESS || (hint != 0 && ptr_ != hint);
+    }
+    ~VaRange() {
+      if (ptr_ != 0) {
+        xgboost::cudr::GetGlobalCuDriverApi().cuMemAddressFree(ptr_, this->size_);
+      }
+    }
+
+    VaRange(VaRange const &that) = delete;
+    VaRange &operator=(VaRange const &that) = delete;
+
+    VaRange(VaRange &&that) { std::swap(*this, that); }
+    VaRange &operator=(VaRange &&that) {
+      std::swap(*this, that);
+      return *this;
+    }
+    [[nodiscard]] auto DevPtr() const { return this->ptr_; }
+    [[nodiscard]] std::size_t Size() const { return this->size_; }
+  };
+
+  using PhyHandle = std::unique_ptr<PhyAddrHandle, std::function<void(PhyAddrHandle *)>>;
+  std::vector<PhyHandle> handles_;
+  std::vector<std::unique_ptr<VaRange>> va_ranges_;
 
   xgboost::cudr::CuDriverApi &cu_{xgboost::cudr::GetGlobalCuDriverApi()};
   std::vector<CUmemAccessDesc> access_desc_;
-  CUmemAllocationProp prop_;
+  CUmemAllocationProp const prop_;
 
   // Always use bytes.
-  CUdeviceptr ptr_{0};
-  std::size_t granularity_{0};
-  std::size_t reserved_size_{0};
-  std::size_t alloc_size_{0};
+  std::size_t const granularity_;
 
-  [[nodiscard]] bool TryReserve(CUdeviceptr *new_ptr, std::size_t size, CUdeviceptr hint,
-                                CUresult *p_status) const {
-    *new_ptr = 0;
-    CUresult &status = *p_status;
-    status = cu_.cuMemAddressReserve(new_ptr, size, 0, hint, 0);
-
-    bool failed = status != CUDA_SUCCESS || (hint != 0 && (*new_ptr) != hint);
-    if (failed) {
-      // Cleanup
-      if ((*new_ptr) != 0) {
-        safe_cu(cu_.cuMemAddressFree(*new_ptr, size));
-        *new_ptr = 0;
-      }
+  [[nodiscard]] std::size_t PhyCapacity() const;
+  [[nodiscard]] CUdeviceptr DevPtr() const {
+    if (this->va_ranges_.empty()) {
+      return 0;
     }
-    return failed;
+    return this->va_ranges_.front()->DevPtr();
   }
-
-  void Reserve(std::size_t new_size) {
-    if (new_size < this->reserved_size_) {
-      return;
-    }
-
-    // Try to reserve new virtual address.
-    auto const aligned_size = RoundUp(new_size, this->granularity_);
-    CUdeviceptr new_ptr = 0;
-    auto const new_reserve_size = aligned_size - this->reserved_size_;
-    CUresult status = CUDA_SUCCESS;
-    auto hint = this->ptr_ + this->reserved_size_;
-    auto failed = this->TryReserve(&new_ptr, new_reserve_size, hint, &status);
-
-    if (failed) {
-      // Failed to reserve the requested address.
-      // Slow path, try to reserve a new address with full size.
-      failed = this->TryReserve(&new_ptr, aligned_size, 0ULL, &status);
-      safe_cu(status);
-      CHECK(!failed);
-
-      // New allocation is successful. Map the pyhsical address to the virtual address.
-      // First unmap the existing ptr.
-      if (this->ptr_ != 0) {
-        // Unmap the existing ptr.
-        safe_cu(cu_.cuMemUnmap(this->ptr_, this->alloc_size_));
-
-        // Then remap all the existing physical addresses to the new ptr.
-        CUdeviceptr ptr = new_ptr;
-        for (PhyAddrHandle const &hdl : this->handles_) {
-          safe_cu(cu_.cuMemMap(ptr, hdl.size, 0, hdl.handle, 0));
-          safe_cu(cu_.cuMemSetAccess(ptr, hdl.size, access_desc_.data(), access_desc_.size()));
-          ptr += hdl.size;
-        }
-
-        // Release the existing ptr.
-        for (auto const &r : va_ranges_) {
-          safe_cu(cu_.cuMemAddressFree(r.begin, r.size));
-        }
-        va_ranges_.clear();
-      }
-
-      this->ptr_ = new_ptr;
-      va_ranges_.push_back({new_ptr, aligned_size});
-    } else {
-      if (this->ptr_ == 0) {
-        // Reuse the existing ptr if we can map the new address to the end of the existing
-        // address.
-        this->ptr_ = new_ptr;
-      }
-      va_ranges_.push_back({new_ptr, aligned_size - this->reserved_size_});
-    }
-
-    this->reserved_size_ = aligned_size;
+  void MapBlock(CUdeviceptr ptr, PhyHandle const &hdl) const {
+    safe_cu(cu_.cuMemMap(ptr, hdl->size, 0, hdl->handle, 0));
+    safe_cu(cu_.cuMemSetAccess(ptr, hdl->size, access_desc_.data(), access_desc_.size()));
   }
-
   auto CreatePhysicalMem(std::size_t size) const {
     CUmemGenericAllocationHandle alloc_handle;
     auto padded_size = RoundUp(size, this->granularity_);
@@ -265,53 +232,51 @@ class GrowOnlyVirtualMemVec {
     CHECK_EQ(status, CUDA_SUCCESS);
     return alloc_handle;
   }
+  void Reserve(std::size_t new_size);
 
  public:
-  using value_type = std::int32_t;  // NOLINT
-
   explicit GrowOnlyVirtualMemVec(CUmemLocationType type);
 
-  void GrowTo(std::size_t n) {
-    std::size_t n_bytes = sizeof(value_type) * n;
-    if (n_bytes <= this->alloc_size_) {
+  void GrowTo(std::size_t n_bytes) {
+    auto alloc_size = this->PhyCapacity();
+    if (n_bytes <= alloc_size) {
       return;
     }
 
-    std::size_t delta = n_bytes - this->alloc_size_;
+    std::size_t delta = n_bytes - alloc_size;
     auto const padded_delta = RoundUp(delta, this->granularity_);
-    this->Reserve(this->alloc_size_ + padded_delta);
+    this->Reserve(alloc_size + padded_delta);
 
-    auto handle = this->CreatePhysicalMem(padded_delta);
-    auto ptr = this->ptr_ + this->alloc_size_;
-    safe_cu(cu_.cuMemMap(ptr, padded_delta, 0, handle, 0));
-    safe_cu(cu_.cuMemSetAccess(ptr, padded_delta, access_desc_.data(), access_desc_.size()));
-    this->handles_.push_back({handle, padded_delta});
-
-    this->alloc_size_ += padded_delta;
+    this->handles_.emplace_back(
+        std::unique_ptr<PhyAddrHandle, std::function<void(PhyAddrHandle *)>>{
+            new PhyAddrHandle{this->CreatePhysicalMem(padded_delta), padded_delta}, [&](auto *hdl) {
+              if (hdl) {
+                cu_.cuMemRelease(hdl->handle);
+              }
+            }});
+    auto ptr = this->DevPtr() + alloc_size;
+    this->MapBlock(ptr, this->handles_.back());
   }
 
   template <typename T>
   xgboost::common::Span<T> GetSpan(std::size_t size) {
-    size_t num_bytes = size * sizeof(T);
-    this->GrowTo(num_bytes);
-    return xgboost::common::Span<T>(reinterpret_cast<T *>(this->ptr_), size);
+    size_t n_bytes = size * sizeof(T);
+    this->GrowTo(n_bytes);
+    return xgboost::common::Span<T>(reinterpret_cast<T *>(this->DevPtr()), size);
   }
 
   ~GrowOnlyVirtualMemVec() noexcept(false) {
-    if (this->ptr_ != 0) {
-      safe_cu(cu_.cuMemUnmap(this->ptr_, this->alloc_size_));
+    if (this->DevPtr() != 0) {
+      safe_cu(cu_.cuMemUnmap(this->DevPtr(), this->PhyCapacity()));
     }
-    for (auto va : va_ranges_) {
-      safe_cu(cu_.cuMemAddressFree(va.begin, va.size));
-    }
-    for (auto hdl : handles_) {
-      safe_cu(cu_.cuMemRelease(hdl.handle));
-    }
+
+    this->va_ranges_.clear();  // make sure all VA are freed before releasing the handles.
+    this->handles_.clear();    // release the handles
   }
 
-  [[nodiscard]] void *data() { return reinterpret_cast<void *>(ptr_); }  // NOLINT
-  [[nodiscard]] std::size_t size() const { return this->alloc_size_; }   // NOLINT
-  [[nodiscard]] std::size_t Capacity() const { return this->reserved_size_; }
+  [[nodiscard]] void *data() { return reinterpret_cast<void *>(this->DevPtr()); }  // NOLINT
+  [[nodiscard]] std::size_t size() const { return this->PhyCapacity(); }           // NOLINT
+  [[nodiscard]] std::size_t Capacity() const;
 };
 }  // namespace detail
 

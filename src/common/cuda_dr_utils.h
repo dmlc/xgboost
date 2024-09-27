@@ -46,6 +46,9 @@ struct CuDriverApi {
 
   MemGetAllocationGranularityFn *cuMemGetAllocationGranularity{nullptr};  // NOLINT
   MemCreateFn *cuMemCreate{nullptr};                                      // NOLINT
+  /**
+   * @param[in] offset - Must be zero.
+   */
   MemMapFn *cuMemMap{nullptr};                                            // NOLINT
   /**
    * @param[out] ptr       - Resulting pointer to start of virtual address range allocated

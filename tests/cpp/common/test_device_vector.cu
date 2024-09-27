@@ -57,12 +57,28 @@ class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
     check();
 
     auto n_orig = data.size();
-    // Should be greater than granularity since we are using i32.
+    // Should be smaller than granularity, use already reserved.
+    data = vec.GetSpan<std::int32_t>(128);
+    h_data.resize(data.size());
+    fill(n_orig, data);
+    check();
+    if (128 < gran) {
+      ASSERT_EQ(vec.Capacity(), gran);
+    }
+
+    n_orig = data.size();
+    data = vec.GetSpan<std::int32_t>(gran / 2);
+    h_data.resize(data.size());
+    fill(n_orig, data);
+    check();
+    ASSERT_EQ(vec.Capacity(), gran * 2);
+
+    n_orig = data.size();
     data = vec.GetSpan<std::int32_t>(gran);
     h_data.resize(data.size());
     fill(n_orig, data);
-
     check();
+    ASSERT_EQ(vec.Capacity(), gran * 4);
   }
 };
 }  // anonymous namespace
