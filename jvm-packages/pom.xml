@@ -439,7 +439,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.3.1</version>
+                <version>3.5.0</version>
                 <configuration>
                     <skipTests>false</skipTests>
                     <useSystemClassLoader>false</useSystemClassLoader>
