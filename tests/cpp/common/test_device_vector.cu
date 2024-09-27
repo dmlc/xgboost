@@ -6,6 +6,7 @@
 #include <numeric>                     // for iota
 #include <thrust/detail/sequence.inl>  // for sequence
 
+#include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy
 #include "../../../src/common/device_vector.cuh"
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
 
@@ -44,7 +45,7 @@ class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
     };
     auto fill = [&](std::int32_t n_orig, xgboost::common::Span<std::int32_t> data) {
       if (type == CU_MEM_LOCATION_TYPE_DEVICE) {
-        thrust::sequence(thrust::cuda::par_nosync, data.data() + n_orig, data.data() + data.size(),
+        thrust::sequence(dh::CachingThrustPolicy(), data.data() + n_orig, data.data() + data.size(),
                          n_orig);
         dh::safe_cuda(cudaMemcpy(h_data.data(), data.data(), data.size_bytes(), cudaMemcpyDefault));
       } else {
