@@ -33,7 +33,7 @@ Note that, after resetting the iterator, the batches will be accessed again, so 
 }
 \value{
 An \code{xgb.DataIter} object, containing the same inputs supplied here, which can then
-be passed to \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
+be passed to \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}.
 }
 \description{
 Interface to create a custom data iterator in order to construct a DMatrix
@@ -42,11 +42,11 @@ from external memory.
 This function is responsible for generating an R object structure containing callback
 functions and an environment shared with them.
 
-The output structure from this function is then meant to be passed to \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}},
+The output structure from this function is then meant to be passed to \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}},
 which will consume the data and create a DMatrix from it by executing the callback functions.
 
-For more information, and for a usage example, see the documentation for \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
+For more information, and for a usage example, see the documentation for \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}.
 }
 \seealso{
-\code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}, \code{\link[=xgb.DataBatch]{xgb.DataBatch()}}.
+\code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}, \code{\link[=xgb.DataBatch]{xgb.DataBatch()}}.
 }

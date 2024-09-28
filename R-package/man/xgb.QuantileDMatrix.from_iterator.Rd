@@ -25,7 +25,7 @@ it will not be adapted for different input types.
 
 For example, in R \code{integer} types, missing values are represented by integer number \code{-2147483648}
 (since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes \code{NA},
-which is interpreted as a floating-point NaN by \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}} and by
+which is interpreted as a floating-point NaN by \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}} and by
 \code{\link[=xgb.QuantileDMatrix.from_iterator]{xgb.QuantileDMatrix.from_iterator()}}, these integer missing values will not be treated as missing.
 This should not pose any problem for \code{numeric} types, since they do have an inheret NaN value.}
 
@@ -48,7 +48,7 @@ An 'xgb.DMatrix' object, with subclass 'xgb.QuantileDMatrix'.
 Create an \code{xgb.QuantileDMatrix} object (exact same class as would be returned by
 calling function \code{\link[=xgb.QuantileDMatrix]{xgb.QuantileDMatrix()}}, with the same advantages and limitations) from
 external data supplied by \code{\link[=xgb.DataIter]{xgb.DataIter()}}, potentially passed in batches from
-a bigger set that might not fit entirely in memory, same way as \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
+a bigger set that might not fit entirely in memory, same way as \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}.
 
 Note that, while external data will only be loaded through the iterator (thus the full data
 might not be held entirely in-memory), the quantized representation of the data will get
@@ -60,6 +60,6 @@ For more information, see the guide 'Using XGBoost External Memory Version':
 \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
 }
 \seealso{
-\code{\link[=xgb.DataIter]{xgb.DataIter()}}, \code{\link[=xgb.DataBatch]{xgb.DataBatch()}}, \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}},
+\code{\link[=xgb.DataIter]{xgb.DataIter()}}, \code{\link[=xgb.DataBatch]{xgb.DataBatch()}}, \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}},
 \code{\link[=xgb.QuantileDMatrix]{xgb.QuantileDMatrix()}}
 }

@@ -26,7 +26,7 @@ to pass here. Supported types are:
 \itemize{
 \item \code{matrix}, with types \code{numeric}, \code{integer}, and \code{logical}. Note that for types
 \code{integer} and \code{logical}, missing values might not be automatically recognized as
-as such - see the documentation for parameter \code{missing} in \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}
+as such - see the documentation for parameter \code{missing} in \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}
 for details on this.
 \item \code{data.frame}, with the same types as supported by 'xgb.DMatrix' and same
 conversions applied to it. See the documentation for parameter \code{data} in
@@ -92,7 +92,7 @@ data and parameters passed here. It does \strong{not} inherit from \code{xgb.DMa
 }
 \description{
 Helper function to supply data in batches of a data iterator when
-constructing a DMatrix from external memory through \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}
+constructing a DMatrix from external memory through \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}
 or through \code{\link[=xgb.QuantileDMatrix.from_iterator]{xgb.QuantileDMatrix.from_iterator()}}.
 
 This function is \strong{only} meant to be called inside of a callback function (which
@@ -104,8 +104,8 @@ The object that results from calling this function directly is \strong{not} like
 an \code{xgb.DMatrix} - i.e. cannot be used to train a model, nor to get predictions - only
 possible usage is to supply data to an iterator, from which a DMatrix is then constructed.
 
-For more information and for example usage, see the documentation for \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
+For more information and for example usage, see the documentation for \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}.
 }
 \seealso{
-\code{\link[=xgb.DataIter]{xgb.DataIter()}}, \code{\link[=xgb.ExternalDMatrix]{xgb.ExternalDMatrix()}}.
+\code{\link[=xgb.DataIter]{xgb.DataIter()}}, \code{\link[=xgb.ExtMemDMatrix]{xgb.ExtMemDMatrix()}}.
 }
