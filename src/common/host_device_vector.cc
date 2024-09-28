@@ -1,7 +1,8 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2024 by XGBoost contributors
  */
 #ifndef XGBOOST_USE_CUDA
+#ifndef XGBOOST_USE_SYCL
 
 // dummy implementation of HostDeviceVector in case CUDA is not used
 
@@ -202,4 +203,5 @@ template class HostDeviceVector<std::size_t>;
 
 }  // namespace xgboost
 
+#endif  // XGBOOST_USE_SYCL
 #endif  // XGBOOST_USE_CUDA

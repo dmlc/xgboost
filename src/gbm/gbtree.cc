@@ -105,7 +105,7 @@ void GBTree::Configure(Args const& cfg) {
   }
   cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
-  auto n_gpus = common::AllVisibleGPUs();
+  auto n_gpus = curt::AllVisibleGPUs();
   if (!gpu_predictor_) {
     gpu_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", this->ctx_));
   }
@@ -217,10 +217,6 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
                                     model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
-
-  if (!p_fmat->SingleColBlock() && obj->Task().UpdateTreeLeaf() && this->ctx_->IsCUDA()) {
-    LOG(FATAL) << "Current objective doesn't support external memory.";
-  }
 
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
@@ -348,7 +344,7 @@ void GBTree::LoadConfig(Json const& in) {
   // This would cause all trees to be pushed to trees_to_update
   // e.g. updating a model, then saving and loading it would result in an empty model
   tparam_.process_type = TreeProcessType::kDefault;
-  std::int32_t const n_gpus = common::AllVisibleGPUs();
+  std::int32_t const n_gpus = curt::AllVisibleGPUs();
 
   auto msg = StringView{
       R"(

@@ -14,9 +14,10 @@
 #include "../common/categorical.h"
 #include "../common/common.h"
 #include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs
+#include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs, SetDevice
 #include "../common/device_helpers.cuh"
-#include "../common/error_msg.h"  // for InplacePredictProxy
+#include "../common/error_msg.h"    // for InplacePredictProxy
+#include "../data/batch_utils.cuh"  // for StaticBatch
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
 #include "../data/proxy_dmatrix.h"
@@ -30,6 +31,8 @@
 
 namespace xgboost::predictor {
 DMLC_REGISTRY_FILE_TAG(gpu_predictor);
+
+using data::cuda_impl::StaticBatch;
 
 struct TreeView {
   RegTree::CategoricalSplitMatrix cats;
@@ -475,15 +478,14 @@ struct PathInfo {
 };
 
 // Transform model into path element form for GPUTreeShap
-void ExtractPaths(
-    dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> *paths,
-    DeviceModel *model, dh::device_vector<uint32_t> *path_categories,
-    DeviceOrd device) {
-  dh::safe_cuda(cudaSetDevice(device.ordinal));
+void ExtractPaths(Context const* ctx,
+                  dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>>* paths,
+                  DeviceModel* model, dh::device_vector<uint32_t>* path_categories,
+                  DeviceOrd device) {
+  curt::SetDevice(device.ordinal);
   auto& device_model = *model;
 
   dh::caching_device_vector<PathInfo> info(device_model.nodes.Size());
-  dh::XGBCachingDeviceAllocator<PathInfo> alloc;
   auto d_nodes = device_model.nodes.ConstDeviceSpan();
   auto d_tree_segments = device_model.tree_segments.ConstDeviceSpan();
   auto nodes_transform = dh::MakeTransformIterator<PathInfo>(
@@ -502,17 +504,15 @@ void ExtractPaths(
         }
         return PathInfo{static_cast<int64_t>(idx), path_length, tree_idx};
       });
-  auto end = thrust::copy_if(
-      thrust::cuda::par(alloc), nodes_transform,
-      nodes_transform + d_nodes.size(), info.begin(),
-      [=] __device__(const PathInfo& e) { return e.leaf_position != -1; });
+  auto end = thrust::copy_if(ctx->CUDACtx()->CTP(), nodes_transform,
+                             nodes_transform + d_nodes.size(), info.begin(),
+                             [=] __device__(const PathInfo& e) { return e.leaf_position != -1; });
   info.resize(end - info.begin());
   auto length_iterator = dh::MakeTransformIterator<size_t>(
       info.begin(),
       [=] __device__(const PathInfo& info) { return info.length; });
   dh::caching_device_vector<size_t> path_segments(info.size() + 1);
-  thrust::exclusive_scan(thrust::cuda::par(alloc), length_iterator,
-                         length_iterator + info.size() + 1,
+  thrust::exclusive_scan(ctx->CUDACtx()->CTP(), length_iterator, length_iterator + info.size() + 1,
                          path_segments.begin());
 
   paths->resize(path_segments.back());
@@ -528,19 +528,17 @@ void ExtractPaths(
   auto d_cat_node_segments = device_model.categories_node_segments.ConstDeviceSpan();
 
   size_t max_cat = 0;
-  if (thrust::any_of(dh::tbegin(d_split_types), dh::tend(d_split_types),
+  if (thrust::any_of(ctx->CUDACtx()->CTP(), dh::tbegin(d_split_types), dh::tend(d_split_types),
                      common::IsCatOp{})) {
     dh::PinnedMemory pinned;
     auto h_max_cat = pinned.GetSpan<RegTree::CategoricalSplitMatrix::Segment>(1);
     auto max_elem_it = dh::MakeTransformIterator<size_t>(
         dh::tbegin(d_cat_node_segments),
         [] __device__(RegTree::CategoricalSplitMatrix::Segment seg) { return seg.size; });
-    size_t max_cat_it =
-        thrust::max_element(thrust::device, max_elem_it,
-                            max_elem_it + d_cat_node_segments.size()) -
-        max_elem_it;
-    dh::safe_cuda(cudaMemcpy(h_max_cat.data(),
-                             d_cat_node_segments.data() + max_cat_it,
+    size_t max_cat_it = thrust::max_element(ctx->CUDACtx()->CTP(), max_elem_it,
+                                            max_elem_it + d_cat_node_segments.size()) -
+                        max_elem_it;
+    dh::safe_cuda(cudaMemcpy(h_max_cat.data(), d_cat_node_segments.data() + max_cat_it,
                              h_max_cat.size_bytes(), cudaMemcpyDeviceToHost));
     max_cat = h_max_cat[0].size;
     CHECK_GE(max_cat, 1);
@@ -550,7 +548,7 @@ void ExtractPaths(
   auto d_model_categories = device_model.categories.DeviceSpan();
   common::Span<uint32_t> d_path_categories = dh::ToSpan(*path_categories);
 
-  dh::LaunchN(info.size(), [=] __device__(size_t idx) {
+  dh::LaunchN(info.size(), ctx->CUDACtx()->Stream(), [=] __device__(size_t idx) {
     auto path_info = d_info[idx];
     size_t tree_offset = d_tree_segments[path_info.tree_idx];
     TreeView tree{0,                   path_info.tree_idx, d_nodes,
@@ -864,7 +862,7 @@ class GPUPredictor : public xgboost::Predictor {
     SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                         num_features);
     auto const kernel = [&](auto predict_fn) {
-      dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+      dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
           predict_fn, data, model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
           model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
@@ -888,7 +886,7 @@ class GPUPredictor : public xgboost::Predictor {
     DeviceModel d_model;
 
     bool use_shared = false;
-    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS}(
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, 0, ctx_->CUDACtx()->Stream()}(
         PredictKernel<EllpackLoader, EllpackDeviceAccessor>, batch, model.nodes.ConstDeviceSpan(),
         out_preds->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
         model.tree_group.ConstDeviceSpan(), model.split_types.ConstDeviceSpan(),
@@ -924,11 +922,11 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       bst_idx_t batch_offset = 0;
-      for (auto const& page : dmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
+      for (auto const& page : dmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         dmat->Info().feature_types.SetDevice(ctx_->Device());
         auto feature_types = dmat->Info().feature_types.ConstDeviceSpan();
-        this->PredictInternal(page.Impl()->GetDeviceAccessor(ctx_->Device(), feature_types),
-                              d_model, out_preds, batch_offset);
+        this->PredictInternal(page.Impl()->GetDeviceAccessor(ctx_, feature_types), d_model,
+                              out_preds, batch_offset);
         batch_offset += page.Size() * model.learner_model_param->OutputLength();
       }
     }
@@ -939,7 +937,7 @@ class GPUPredictor : public xgboost::Predictor {
       : Predictor::Predictor{ctx}, column_split_helper_{ctx} {}
 
   ~GPUPredictor() override {
-    if (ctx_->IsCUDA() && ctx_->Ordinal() < common::AllVisibleGPUs()) {
+    if (ctx_->IsCUDA() && ctx_->Ordinal() < curt::AllVisibleGPUs()) {
       dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     }
   }
@@ -989,7 +987,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     bool use_shared = shared_memory_bytes != 0;
 
-    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
         PredictKernel<Loader, typename Loader::BatchT>, m->Value(), d_model.nodes.ConstDeviceSpan(),
         out_preds->predictions.DeviceSpan(), d_model.tree_segments.ConstDeviceSpan(),
         d_model.tree_group.ConstDeviceSpan(), d_model.split_types.ConstDeviceSpan(),
@@ -1055,7 +1053,7 @@ class GPUPredictor : public xgboost::Predictor {
     DeviceModel d_model;
     d_model.Init(model, 0, tree_end, ctx_->Device());
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(&device_paths, &d_model, &categories, ctx_->Device());
+    ExtractPaths(ctx_, &device_paths, &d_model, &categories, ctx_->Device());
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto& batch : p_fmat->GetBatches<SparsePage>()) {
         batch.data.SetDevice(ctx_->Device());
@@ -1067,8 +1065,8 @@ class GPUPredictor : public xgboost::Predictor {
             X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
       }
     } else {
-      for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
-        EllpackDeviceAccessor acc{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
+      for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+        EllpackDeviceAccessor acc{batch.Impl()->GetDeviceAccessor(ctx_)};
         auto X = EllpackLoader{acc, true, model.learner_model_param->num_feature, batch.Size(),
                                std::numeric_limits<float>::quiet_NaN()};
         auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
@@ -1083,7 +1081,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     auto base_score = model.learner_model_param->BaseScore(ctx_);
     dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-                [=] __device__(size_t idx) {
+                ctx_->CUDACtx()->Stream(), [=] __device__(size_t idx) {
                   phis[(idx + 1) * contributions_columns - 1] +=
                       margin.empty() ? base_score(0) : margin[idx];
                 });
@@ -1125,7 +1123,7 @@ class GPUPredictor : public xgboost::Predictor {
     DeviceModel d_model;
     d_model.Init(model, 0, tree_end, ctx_->Device());
     dh::device_vector<uint32_t> categories;
-    ExtractPaths(&device_paths, &d_model, &categories, ctx_->Device());
+    ExtractPaths(ctx_, &device_paths, &d_model, &categories, ctx_->Device());
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
         batch.data.SetDevice(ctx_->Device());
@@ -1137,10 +1135,9 @@ class GPUPredictor : public xgboost::Predictor {
             X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
       }
     } else {
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, {})) {
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         auto impl = batch.Impl();
-        auto acc =
-            impl->GetDeviceAccessor(ctx_->Device(), p_fmat->Info().feature_types.ConstDeviceSpan());
+        auto acc = impl->GetDeviceAccessor(ctx_, p_fmat->Info().feature_types.ConstDeviceSpan());
         auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
         auto X = EllpackLoader{acc, true, model.learner_model_param->num_feature, batch.Size(),
                                std::numeric_limits<float>::quiet_NaN()};
@@ -1156,7 +1153,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto base_score = model.learner_model_param->BaseScore(ctx_);
     size_t n_features = model.learner_model_param->num_feature;
     dh::LaunchN(p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-                [=] __device__(size_t idx) {
+                ctx_->CUDACtx()->Stream(), [=] __device__(size_t idx) {
                   size_t group = idx % ngroup;
                   size_t row_idx = idx / ngroup;
                   phis[gpu_treeshap::IndexPhiInteractions(row_idx, ngroup, group, n_features,
@@ -1200,7 +1197,7 @@ class GPUPredictor : public xgboost::Predictor {
     bst_feature_t num_features = info.num_col_;
 
     auto launch = [&](auto fn, std::uint32_t grid, auto data, bst_idx_t batch_offset) {
-      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes}(
+      dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes, ctx_->CUDACtx()->Stream()}(
           fn, data, d_model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), d_model.tree_segments.ConstDeviceSpan(),
 
@@ -1224,8 +1221,8 @@ class GPUPredictor : public xgboost::Predictor {
       }
     } else {
       bst_idx_t batch_offset = 0;
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, BatchParam{})) {
-        EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_->Device())};
+      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+        EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_)};
         auto grid = static_cast<std::uint32_t>(common::DivRoundUp(batch.Size(), kBlockThreads));
         launch(PredictLeafKernel<EllpackLoader, EllpackDeviceAccessor>, grid, data, batch_offset);
         batch_offset += batch.Size();

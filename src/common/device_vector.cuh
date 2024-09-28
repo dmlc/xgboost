@@ -25,14 +25,19 @@
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
+#include <cuda.h>
+
 #include <cstddef>                 // for size_t
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
 #include <cub/util_device.cuh>     // for CurrentDevice
 #include <map>                     // for map
 #include <memory>                  // for unique_ptr
+#include <mutex>                   // for defer_lock
 
-#include "common.h"  // for safe_cuda
+#include "common.h"         // for safe_cuda, HumanMemUnit
+#include "cuda_dr_utils.h"  // for CuDriverApi
 #include "xgboost/logging.h"
+#include "xgboost/span.h"  // for Span
 
 namespace dh {
 namespace detail {
@@ -46,6 +51,12 @@ class MemoryLogger {
     size_t num_deallocations{0};
     std::map<void *, size_t> device_allocations;
     void RegisterAllocation(void *ptr, size_t n) {
+      auto itr = device_allocations.find(ptr);
+      if (itr != device_allocations.cend()) {
+        LOG(WARNING) << "Attempting to allocate " << n << " bytes."
+                     << " that was already allocated\nptr:" << ptr << "\n"
+                     << dmlc::StackTrace();
+      }
       device_allocations[ptr] = n;
       currently_allocated_bytes += n;
       peak_allocated_bytes = std::max(peak_allocated_bytes, currently_allocated_bytes);
@@ -56,7 +67,7 @@ class MemoryLogger {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
         LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
-                     << " that was never allocated\n"
+                     << " that was never allocated\nptr:" << ptr << "\n"
                      << dmlc::StackTrace();
       } else {
         num_deallocations++;
@@ -70,18 +81,34 @@ class MemoryLogger {
   std::mutex mutex_;
 
  public:
-  void RegisterAllocation(void *ptr, size_t n) {
+  /**
+   * @brief Register the allocation for logging.
+   *
+   * @param lock Set to false if the allocator has locking machanism.
+   */
+  void RegisterAllocation(void *ptr, size_t n, bool lock) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::unique_lock guard{mutex_, std::defer_lock};
+    if (lock) {
+      guard.lock();
+    }
     stats_.RegisterAllocation(ptr, n);
   }
-  void RegisterDeallocation(void *ptr, size_t n) {
+  /**
+   * @brief Register the deallocation for logging.
+   *
+   * @param lock Set to false if the allocator has locking machanism.
+   */
+  void RegisterDeallocation(void *ptr, size_t n, bool lock) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::lock_guard<std::mutex> guard(mutex_);
+    std::unique_lock guard{mutex_, std::defer_lock};
+    if (lock) {
+      guard.lock();
+    }
     stats_.RegisterDeallocation(ptr, n, cub::CurrentDevice());
   }
   size_t PeakMemory() const { return stats_.peak_allocated_bytes; }
@@ -97,12 +124,160 @@ class MemoryLogger {
     dh::safe_cuda(cudaGetDevice(&current_device));
     LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
                  << " ========";
-    LOG(CONSOLE) << "Peak memory usage: " << stats_.peak_allocated_bytes / 1048576 << "MiB";
+    LOG(CONSOLE) << "Peak memory usage: "
+                 << xgboost::common::HumanMemUnit(stats_.peak_allocated_bytes);
     LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
   }
 };
 
-void ThrowOOMError(std::string const &err, size_t bytes);
+void ThrowOOMError(std::string const &err, std::size_t bytes);
+
+struct GrowOnlyPinnedMemoryImpl {
+  void *temp_storage{nullptr};
+  size_t temp_storage_bytes{0};
+
+  ~GrowOnlyPinnedMemoryImpl() { Free(); }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(size_t size) {
+    size_t num_bytes = size * sizeof(T);
+    if (num_bytes > temp_storage_bytes) {
+      Free();
+      safe_cuda(cudaMallocHost(&temp_storage, num_bytes));
+      temp_storage_bytes = num_bytes;
+    }
+    return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
+  }
+
+  void Free() {
+    if (temp_storage != nullptr) {
+      safe_cuda(cudaFreeHost(temp_storage));
+    }
+  }
+};
+
+/**
+ * @brief Use low-level virtual memory functions from CUDA driver API for grow-only memory
+ *        allocation.
+ *
+ * @url https://developer.nvidia.com/blog/introducing-low-level-gpu-virtual-memory-management/
+ *
+ * Aside from the potential performance benefits, this is primarily implemented to prevent
+ * deadlock in NCCL and XGBoost. The host NUMA version requires CTK12.5+ to be stable.
+ */
+class GrowOnlyVirtualMemVec {
+  static auto RoundUp(std::size_t new_sz, std::size_t chunk_sz) {
+    return ((new_sz + chunk_sz - 1) / chunk_sz) * chunk_sz;
+  }
+
+  struct PhyAddrHandle {
+    CUmemGenericAllocationHandle handle;
+    std::size_t size;
+  };
+
+  class VaRange {
+    CUdeviceptr ptr_{0};
+    std::size_t size_{0};
+
+   public:
+    VaRange(std::size_t size, CUdeviceptr hint, CUresult *p_status, bool *failed) : size_{size} {
+      CUresult &status = *p_status;
+      status = xgboost::cudr::GetGlobalCuDriverApi().cuMemAddressReserve(&ptr_, size, 0, hint, 0);
+      *failed = status != CUDA_SUCCESS || (hint != 0 && ptr_ != hint);
+    }
+    ~VaRange() {
+      if (ptr_ != 0) {
+        xgboost::cudr::GetGlobalCuDriverApi().cuMemAddressFree(ptr_, this->size_);
+      }
+    }
+
+    VaRange(VaRange const &that) = delete;
+    VaRange &operator=(VaRange const &that) = delete;
+
+    VaRange(VaRange &&that) { std::swap(*this, that); }
+    VaRange &operator=(VaRange &&that) {
+      std::swap(*this, that);
+      return *this;
+    }
+    [[nodiscard]] auto DevPtr() const { return this->ptr_; }
+    [[nodiscard]] std::size_t Size() const { return this->size_; }
+  };
+
+  using PhyHandle = std::unique_ptr<PhyAddrHandle, std::function<void(PhyAddrHandle *)>>;
+  std::vector<PhyHandle> handles_;
+  std::vector<std::unique_ptr<VaRange>> va_ranges_;
+
+  xgboost::cudr::CuDriverApi &cu_{xgboost::cudr::GetGlobalCuDriverApi()};
+  std::vector<CUmemAccessDesc> access_desc_;
+  CUmemAllocationProp const prop_;
+
+  // Always use bytes.
+  std::size_t const granularity_;
+
+  [[nodiscard]] std::size_t PhyCapacity() const;
+  [[nodiscard]] CUdeviceptr DevPtr() const {
+    if (this->va_ranges_.empty()) {
+      return 0;
+    }
+    return this->va_ranges_.front()->DevPtr();
+  }
+  void MapBlock(CUdeviceptr ptr, PhyHandle const &hdl) const {
+    safe_cu(cu_.cuMemMap(ptr, hdl->size, 0, hdl->handle, 0));
+    safe_cu(cu_.cuMemSetAccess(ptr, hdl->size, access_desc_.data(), access_desc_.size()));
+  }
+  auto CreatePhysicalMem(std::size_t size) const {
+    CUmemGenericAllocationHandle alloc_handle;
+    auto padded_size = RoundUp(size, this->granularity_);
+    CUresult status = this->cu_.cuMemCreate(&alloc_handle, padded_size, &this->prop_, 0);
+    CHECK_EQ(status, CUDA_SUCCESS);
+    return alloc_handle;
+  }
+  void Reserve(std::size_t new_size);
+
+ public:
+  explicit GrowOnlyVirtualMemVec(CUmemLocationType type);
+
+  void GrowTo(std::size_t n_bytes) {
+    auto alloc_size = this->PhyCapacity();
+    if (n_bytes <= alloc_size) {
+      return;
+    }
+
+    std::size_t delta = n_bytes - alloc_size;
+    auto const padded_delta = RoundUp(delta, this->granularity_);
+    this->Reserve(alloc_size + padded_delta);
+
+    this->handles_.emplace_back(
+        std::unique_ptr<PhyAddrHandle, std::function<void(PhyAddrHandle *)>>{
+            new PhyAddrHandle{this->CreatePhysicalMem(padded_delta), padded_delta}, [&](auto *hdl) {
+              if (hdl) {
+                cu_.cuMemRelease(hdl->handle);
+              }
+            }});
+    auto ptr = this->DevPtr() + alloc_size;
+    this->MapBlock(ptr, this->handles_.back());
+  }
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(std::size_t size) {
+    size_t n_bytes = size * sizeof(T);
+    this->GrowTo(n_bytes);
+    return xgboost::common::Span<T>(reinterpret_cast<T *>(this->DevPtr()), size);
+  }
+
+  ~GrowOnlyVirtualMemVec() noexcept(false) {
+    if (this->DevPtr() != 0) {
+      safe_cu(cu_.cuMemUnmap(this->DevPtr(), this->PhyCapacity()));
+    }
+
+    this->va_ranges_.clear();  // make sure all VA are freed before releasing the handles.
+    this->handles_.clear();    // release the handles
+  }
+
+  [[nodiscard]] void *data() { return reinterpret_cast<void *>(this->DevPtr()); }  // NOLINT
+  [[nodiscard]] std::size_t size() const { return this->PhyCapacity(); }           // NOLINT
+  [[nodiscard]] std::size_t Capacity() const;
+};
 }  // namespace detail
 
 inline detail::MemoryLogger &GlobalMemoryLogger() {
@@ -139,11 +314,12 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     } catch (const std::exception &e) {
       detail::ThrowOOMError(e.what(), n * sizeof(T));
     }
-    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
+    // We can't place a lock here as template allocator is transient.
+    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T), true);
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T), true);
     SuperT::deallocate(ptr, n);
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -176,8 +352,10 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     pointer thrust_ptr;
     if (use_cub_allocator_) {
       T *raw_ptr{nullptr};
+      // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
       auto errc = GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
                                                              n * sizeof(T));
+      // NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
       if (errc != cudaSuccess) {
         detail::ThrowOOMError("Caching allocator", n * sizeof(T));
       }
@@ -190,11 +368,12 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
         detail::ThrowOOMError(e.what(), n * sizeof(T));
       }
     }
-    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
+    // We can't place a lock here as template allocator is transient.
+    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T), true);
     return thrust_ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T), true);
     if (use_cub_allocator_) {
       GetGlobalCachingAllocator().DeviceFree(ptr.get());
     } else {
@@ -236,14 +415,15 @@ using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocato
  */
 class LoggingResource : public rmm::mr::device_memory_resource {
   rmm::mr::device_memory_resource *mr_{rmm::mr::get_current_device_resource()};
+  std::mutex lock_;
 
  public:
   LoggingResource() = default;
   ~LoggingResource() override = default;
   LoggingResource(LoggingResource const &) = delete;
   LoggingResource &operator=(LoggingResource const &) = delete;
-  LoggingResource(LoggingResource &&) noexcept = default;
-  LoggingResource &operator=(LoggingResource &&) noexcept = default;
+  LoggingResource(LoggingResource &&) noexcept = delete;
+  LoggingResource &operator=(LoggingResource &&) noexcept = delete;
 
   [[nodiscard]] rmm::device_async_resource_ref get_upstream_resource() const noexcept {  // NOLINT
     return mr_;
@@ -253,9 +433,13 @@ class LoggingResource : public rmm::mr::device_memory_resource {
   }
 
   void *do_allocate(std::size_t bytes, rmm::cuda_stream_view stream) override {  // NOLINT
+    std::unique_lock<std::mutex> guard{lock_, std::defer_lock};
+    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
+      guard.lock();
+    }
     try {
       auto const ptr = mr_->allocate(bytes, stream);
-      GlobalMemoryLogger().RegisterAllocation(ptr, bytes);
+      GlobalMemoryLogger().RegisterAllocation(ptr, bytes, false);
       return ptr;
     } catch (rmm::bad_alloc const &e) {
       detail::ThrowOOMError(e.what(), bytes);
@@ -265,8 +449,12 @@ class LoggingResource : public rmm::mr::device_memory_resource {
 
   void do_deallocate(void *ptr, std::size_t bytes,  // NOLINT
                      rmm::cuda_stream_view stream) override {
+    std::unique_lock<std::mutex> guard{lock_, std::defer_lock};
+    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
+      guard.lock();
+    }
     mr_->deallocate(ptr, bytes, stream);
-    GlobalMemoryLogger().RegisterDeallocation(ptr, bytes);
+    GlobalMemoryLogger().RegisterDeallocation(ptr, bytes, false);
   }
 
   [[nodiscard]] bool do_is_equal(  // NOLINT
@@ -289,13 +477,13 @@ LoggingResource *GlobalLoggingResource();
 /**
  * @brief Container class that doesn't initialize the data when RMM is used.
  */
-template <typename T>
-class DeviceUVector {
+template <typename T, bool is_caching>
+class DeviceUVectorImpl {
  private:
 #if defined(XGBOOST_USE_RMM)
   rmm::device_uvector<T> data_{0, rmm::cuda_stream_per_thread, GlobalLoggingResource()};
 #else
-  ::dh::device_vector<T> data_;
+  std::conditional_t<is_caching, ::dh::caching_device_vector<T>, ::dh::device_vector<T>> data_;
 #endif  // defined(XGBOOST_USE_RMM)
 
  public:
@@ -306,12 +494,12 @@ class DeviceUVector {
   using const_reference = value_type const &;  // NOLINT
 
  public:
-  DeviceUVector() = default;
-  explicit DeviceUVector(std::size_t n) { this->resize(n); }
-  DeviceUVector(DeviceUVector const &that) = delete;
-  DeviceUVector &operator=(DeviceUVector const &that) = delete;
-  DeviceUVector(DeviceUVector &&that) = default;
-  DeviceUVector &operator=(DeviceUVector &&that) = default;
+  DeviceUVectorImpl() = default;
+  explicit DeviceUVectorImpl(std::size_t n) { this->resize(n); }
+  DeviceUVectorImpl(DeviceUVectorImpl const &that) = delete;
+  DeviceUVectorImpl &operator=(DeviceUVectorImpl const &that) = delete;
+  DeviceUVectorImpl(DeviceUVectorImpl &&that) = default;
+  DeviceUVectorImpl &operator=(DeviceUVectorImpl &&that) = default;
 
   void resize(std::size_t n) {  // NOLINT
 #if defined(XGBOOST_USE_RMM)
@@ -355,4 +543,10 @@ class DeviceUVector {
   [[nodiscard]] auto data() { return thrust::raw_pointer_cast(data_.data()); }        // NOLINT
   [[nodiscard]] auto data() const { return thrust::raw_pointer_cast(data_.data()); }  // NOLINT
 };
+
+template <typename T>
+using DeviceUVector = DeviceUVectorImpl<T, false>;
+
+template <typename T>
+using CachingDeviceUVector = DeviceUVectorImpl<T, true>;
 }  // namespace dh

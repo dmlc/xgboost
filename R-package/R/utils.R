@@ -427,7 +427,8 @@ NULL
 #' its own serializers with better compatibility guarantees, which allow loading
 #' said models in other language bindings of XGBoost.
 #'
-#' Note that an `xgb.Booster` object, outside of its core components, might also keep:
+#' Note that an `xgb.Booster` object (**as produced by [xgb.train()]**, see rest of the doc
+#' for objects produced by [xgboost()]), outside of its core components, might also keep:
 #' - Additional model configuration (accessible through [xgb.config()]), which includes
 #'   model fitting parameters like `max_depth` and runtime parameters like `nthread`.
 #'   These are not necessarily useful for prediction/importance/plotting.
@@ -449,6 +450,16 @@ NULL
 #' the model was fit, or saving the R call that produced the model, but are otherwise
 #' not used for prediction / importance / plotting / etc.
 #' These R attributes are only preserved when using R's serializers.
+#'
+#' In addition to the regular `xgb.Booster` objects producted by [xgb.train()], the
+#' function [xgboost()] produces a different subclass `xgboost`, which keeps other
+#' additional metadata as R attributes such as class names in classification problems,
+#' and which has a dedicated `predict` method that uses different defaults. XGBoost's
+#' own serializers can work with this `xgboost` class, but as they do not keep R
+#' attributes, the resulting object, when deserialized, is downcasted to the regular
+#' `xgb.Booster` class (i.e. it loses the metadata, and the resulting object will use
+#' `predict.xgb.Booster` instead of `predict.xgboost`) - for these `xgboost` objects,
+#' `saveRDS` might thus be a better option if the extra functionalities are needed.
 #'
 #' Note that XGBoost models in R starting from version `2.1.0` and onwards, and
 #' XGBoost models before version `2.1.0`; have a very different R object structure and
@@ -474,9 +485,9 @@ NULL
 #' as part of another R object.
 #'
 #' Use [saveRDS()] if you require the R-specific attributes that a booster might have, such
-#' as evaluation logs, but note that future compatibility of such objects is outside XGBoost's
-#' control as it relies on R's serialization format (see e.g. the details section in
-#' [serialize] and [save()] from base R).
+#' as evaluation logs or the model class `xgboost` instead of `xgb.Booster`, but note that
+#' future compatibility of such objects is outside XGBoost's control as it relies on R's
+#' serialization format (see e.g. the details section in [serialize] and [save()] from base R).
 #'
 #' For more details and explanation about model persistence and archival, consult the page
 #' \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.

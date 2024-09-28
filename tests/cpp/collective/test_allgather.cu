@@ -94,7 +94,7 @@ class MGPUAllgatherTest : public SocketTest {};
 }  // namespace
 
 TEST_F(MGPUAllgatherTest, MGPUTestVRing) {
-  auto n_workers = common::AllVisibleGPUs();
+  auto n_workers = curt::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     Worker w{host, port, timeout, n_workers, r};
@@ -105,7 +105,7 @@ TEST_F(MGPUAllgatherTest, MGPUTestVRing) {
 }
 
 TEST_F(MGPUAllgatherTest, MGPUTestVBcast) {
-  auto n_workers = common::AllVisibleGPUs();
+  auto n_workers = curt::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     Worker w{host, port, timeout, n_workers, r};

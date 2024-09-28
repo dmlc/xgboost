@@ -15,9 +15,9 @@
 #include <algorithm>
 #include <cstddef>  // for size_t
 #include <cub/cub.cuh>
-#include <cub/util_type.cuh>  // for UnitWord
-#include <tuple>
-#include <vector>
+#include <cub/util_type.cuh>  // for UnitWord, DoubleBuffer
+#include <variant>            // for variant, visit
+#include <vector>             // for vector
 
 #include "common.h"
 #include "device_vector.cuh"
@@ -372,52 +372,26 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
                                 cudaMemcpyDeviceToHost));
 }
 
-template <class Src, class Dst>
-void CopyTo(Src const &src, Dst *dst) {
-  if (src.empty()) {
-    dst->clear();
-    return;
-  }
-  dst->resize(src.size());
-  using SVT = std::remove_cv_t<typename Src::value_type>;
-  using DVT = std::remove_cv_t<typename Dst::value_type>;
-  static_assert(std::is_same_v<SVT, DVT>,
-                "Host and device containers must have same value type.");
-  dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
-                                src.size() * sizeof(SVT), cudaMemcpyDefault));
-}
-
 // Keep track of pinned memory allocation
-struct PinnedMemory {
-  void *temp_storage{nullptr};
-  size_t temp_storage_bytes{0};
+class PinnedMemory {
+  std::variant<detail::GrowOnlyPinnedMemoryImpl, detail::GrowOnlyVirtualMemVec> impl_;
 
-  ~PinnedMemory() { Free(); }
+ public:
+  PinnedMemory();
 
   template <typename T>
   xgboost::common::Span<T> GetSpan(size_t size) {
-    size_t num_bytes = size * sizeof(T);
-    if (num_bytes > temp_storage_bytes) {
-      Free();
-      safe_cuda(cudaMallocHost(&temp_storage, num_bytes));
-      temp_storage_bytes = num_bytes;
-    }
-    return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
+    return std::visit([&](auto &&alloc) { return alloc.template GetSpan<T>(size); }, this->impl_);
   }
-
   template <typename T>
-  xgboost::common::Span<T> GetSpan(size_t size, T init) {
+  xgboost::common::Span<T> GetSpan(size_t size, T const &init) {
     auto result = this->GetSpan<T>(size);
-    for (auto &e : result) {
-      e = init;
-    }
+    std::fill_n(result.data(), result.size(), init);
     return result;
   }
-
-  void Free() {
-    if (temp_storage != nullptr) {
-      safe_cuda(cudaFreeHost(temp_storage));
-    }
+  // Used for testing.
+  [[nodiscard]] bool IsVm() {
+    return std::get_if<detail::GrowOnlyVirtualMemVec>(&this->impl_) != nullptr;
   }
 };
 
@@ -637,12 +611,11 @@ struct SegmentedUniqueReduceOp {
  * \return Number of unique values in total.
  */
 template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
-          typename ValOutIt, typename CompValue, typename CompKey>
-size_t
-SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
-                KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
-                ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
-                CompValue comp, CompKey comp_key=thrust::equal_to<size_t>{}) {
+          typename ValOutIt, typename CompValue, typename CompKey = thrust::equal_to<size_t>>
+size_t SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                       KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
+                       ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
+                       CompValue comp, CompKey comp_key = thrust::equal_to<size_t>{}) {
   using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
@@ -651,7 +624,7 @@ SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec
         return thrust::make_pair(seg, *(val_first + i));
       });
   size_t segments_len = key_segments_last - key_segments_first;
-  thrust::fill(thrust::device, key_segments_out, key_segments_out + segments_len, 0);
+  thrust::fill(exec, key_segments_out, key_segments_out + segments_len, 0);
   size_t n_inputs = std::distance(val_first, val_last);
   // Reduce the number of uniques elements per segment, avoid creating an intermediate
   // array for `reduce_by_key`.  It's limited by the types that atomicAdd supports.  For
@@ -674,16 +647,6 @@ SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec
   thrust::exclusive_scan(exec, key_segments_out,
                          key_segments_out + segments_len, key_segments_out, 0);
   return n_uniques;
-}
-
-template <typename... Inputs,
-          std::enable_if_t<std::tuple_size<std::tuple<Inputs...>>::value == 7>
-              * = nullptr>
-size_t SegmentedUnique(Inputs &&...inputs) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  return SegmentedUnique(thrust::cuda::par(alloc),
-                         std::forward<Inputs &&>(inputs)...,
-                         thrust::equal_to<size_t>{});
 }
 
 /**
@@ -759,79 +722,35 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   return aggregate;
 }
 
-// wrapper to avoid integer `num_items`.
-template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
-          typename OffsetT>
-void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
-                   OffsetT num_items) {
-  size_t bytes = 0;
-#if THRUST_MAJOR_VERSION >= 2
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(nullptr, bytes, d_in, d_out, scan_op,
-                                           cub::NullType(), num_items, nullptr)));
-#else
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(nullptr, bytes, d_in, d_out, scan_op,
-                                           cub::NullType(), num_items, nullptr,
-                                           false)));
-#endif
-  TemporaryArray<char> storage(bytes);
-#if THRUST_MAJOR_VERSION >= 2
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
-                                           d_out, scan_op, cub::NullType(),
-                                           num_items, nullptr)));
-#else
-  safe_cuda((
-      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
-                        OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
-                                           d_out, scan_op, cub::NullType(),
-                                           num_items, nullptr, false)));
-#endif
-}
-
-template <typename InIt, typename OutIt, typename Predicate>
-void CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
-  // We loop over batches because thrust::copy_if can't deal with sizes > 2^31
-  // See thrust issue #1302, XGBoost #6822
-  size_t constexpr kMaxCopySize = std::numeric_limits<int>::max() / 2;
-  size_t length = std::distance(in_first, in_second);
-  XGBCachingDeviceAllocator<char> alloc;
-  for (size_t offset = 0; offset < length; offset += kMaxCopySize) {
-    auto begin_input = in_first + offset;
-    auto end_input = in_first + std::min(offset + kMaxCopySize, length);
-    out_first = thrust::copy_if(thrust::cuda::par(alloc), begin_input,
-                                end_input, out_first, pred);
-  }
-}
-
-template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
-void InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, OffsetT num_items) {
-  InclusiveScan(d_in, d_out, cub::Sum(), num_items);
-}
-
 class CUDAStreamView;
 
 class CUDAEvent {
-  cudaEvent_t event_{nullptr};
+  std::unique_ptr<cudaEvent_t, void (*)(cudaEvent_t *)> event_;
 
  public:
-  CUDAEvent() { dh::safe_cuda(cudaEventCreateWithFlags(&event_, cudaEventDisableTiming)); }
-  ~CUDAEvent() {
-    if (event_) {
-      dh::safe_cuda(cudaEventDestroy(event_));
-    }
+  CUDAEvent()
+      : event_{[] {
+                 auto e = new cudaEvent_t;
+                 dh::safe_cuda(cudaEventCreateWithFlags(e, cudaEventDisableTiming));
+                 return e;
+               }(),
+               [](cudaEvent_t *e) {
+                 if (e) {
+                   dh::safe_cuda(cudaEventDestroy(*e));
+                   delete e;
+                 }
+               }} {}
+
+  inline void Record(CUDAStreamView stream);  // NOLINT
+  // Define swap-based ctor to make sure an event is always valid.
+  CUDAEvent(CUDAEvent &&e) : CUDAEvent() { std::swap(this->event_, e.event_); }
+  CUDAEvent &operator=(CUDAEvent &&e) {
+    std::swap(this->event_, e.event_);
+    return *this;
   }
 
-  CUDAEvent(CUDAEvent const &that) = delete;
-  CUDAEvent &operator=(CUDAEvent const &that) = delete;
-
-  inline void Record(CUDAStreamView stream);       // NOLINT
-
-  operator cudaEvent_t() const { return event_; }  // NOLINT
+  operator cudaEvent_t() const { return *event_; }                // NOLINT
+  cudaEvent_t const *data() const { return this->event_.get(); }  // NOLINT
 };
 
 class CUDAStreamView {
@@ -865,7 +784,7 @@ class CUDAStreamView {
 };
 
 inline void CUDAEvent::Record(CUDAStreamView stream) {  // NOLINT
-  dh::safe_cuda(cudaEventRecord(event_, cudaStream_t{stream}));
+  dh::safe_cuda(cudaEventRecord(*event_, cudaStream_t{stream}));
 }
 
 // Changing this has effect on prediction return, where we need to pass the pointer to
@@ -883,7 +802,22 @@ class CUDAStream {
   [[nodiscard]] cudaStream_t Handle() const { return stream_; }
 
   void Sync() { this->View().Sync(); }
+  void Wait(CUDAEvent const &e) { this->View().Wait(e); }
 };
+
+template <class Src, class Dst>
+void CopyTo(Src const &src, Dst *dst, CUDAStreamView stream = DefaultStream()) {
+  if (src.empty()) {
+    dst->clear();
+    return;
+  }
+  dst->resize(src.size());
+  using SVT = std::remove_cv_t<typename Src::value_type>;
+  using DVT = std::remove_cv_t<typename Dst::value_type>;
+  static_assert(std::is_same_v<SVT, DVT>, "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
+                                src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
+}
 
 inline auto CachingThrustPolicy() {
   XGBCachingDeviceAllocator<char> alloc;

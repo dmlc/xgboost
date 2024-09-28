@@ -306,9 +306,15 @@ class MemStackAllocator {
 };
 
 /**
- * \brief Constant that can be used for initializing static thread local memory.
+ * @brief Constant that can be used for initializing static thread local memory.
  */
 std::int32_t constexpr DefaultMaxThreads() { return 128; }
+
+/**
+ * @brief Get numa node on Linux. Other platforms are not supported. Returns false if the
+ *        call fails.
+ */
+[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa);
 
 /**
  * @brief Give the thread a name. Supports only pthread on linux.

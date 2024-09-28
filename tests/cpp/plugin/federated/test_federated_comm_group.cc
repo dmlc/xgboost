@@ -10,7 +10,7 @@
 
 namespace xgboost::collective {
 TEST(CommGroup, Federated) {
-  std::int32_t n_workers = common::AllVisibleGPUs();
+  std::int32_t n_workers = curt::AllVisibleGPUs();
   TestFederatedGroup(n_workers, [&](std::shared_ptr<CommGroup> comm_group, std::int32_t r) {
     Context ctx;
     ASSERT_EQ(comm_group->Rank(), r);

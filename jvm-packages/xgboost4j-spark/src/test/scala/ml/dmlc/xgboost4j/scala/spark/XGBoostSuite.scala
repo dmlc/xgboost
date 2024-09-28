@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2023 by Contributors
+ Copyright (c) 2023-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,39 +16,17 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import ml.dmlc.xgboost4j.scala.Booster
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.scalatest.funsuite.AnyFunSuite
 
+import ml.dmlc.xgboost4j.scala.Booster
+
 class XGBoostSuite extends AnyFunSuite with PerTest {
 
   // Do not create spark context
   override def beforeEach(): Unit = {}
-
-  test("XGBoost execution parameters") {
-    var xgbExecutionParams = new XGBoostExecutionParamsFactory(
-      Map("device" -> "cpu", "num_workers" -> 1, "num_round" -> 1), sc)
-      .buildXGBRuntimeParams
-    assert(!xgbExecutionParams.runOnGpu)
-
-    xgbExecutionParams = new XGBoostExecutionParamsFactory(
-      Map("device" -> "cuda", "num_workers" -> 1, "num_round" -> 1), sc)
-      .buildXGBRuntimeParams
-    assert(xgbExecutionParams.runOnGpu)
-
-    xgbExecutionParams = new XGBoostExecutionParamsFactory(
-      Map("device" -> "cpu", "tree_method" -> "gpu_hist", "num_workers" -> 1, "num_round" -> 1), sc)
-      .buildXGBRuntimeParams
-    assert(xgbExecutionParams.runOnGpu)
-
-    xgbExecutionParams = new XGBoostExecutionParamsFactory(
-      Map("device" -> "cuda", "tree_method" -> "gpu_hist",
-        "num_workers" -> 1, "num_round" -> 1), sc)
-      .buildXGBRuntimeParams
-    assert(xgbExecutionParams.runOnGpu)
-  }
 
   test("skip stage-level scheduling") {
     val conf = new SparkConf()
@@ -101,13 +79,13 @@ class XGBoostSuite extends AnyFunSuite with PerTest {
   }
 
 
-  object FakedXGBoost extends XGBoostStageLevel {
+  object FakedXGBoost extends StageLevelScheduling {
 
     // Do not skip stage-level scheduling for testing purposes.
     override private[spark] def skipStageLevelScheduling(
-      sparkVersion: String,
-      runOnGpu: Boolean,
-      conf: SparkConf) = false
+        sparkVersion: String,
+        runOnGpu: Boolean,
+        conf: SparkConf) = false
   }
 
   test("try stage-level scheduling without spark-rapids") {
@@ -129,12 +107,12 @@ class XGBoostSuite extends AnyFunSuite with PerTest {
       val df = ss.range(1, 10)
       val rdd = df.rdd
 
-      val xgbExecutionParams = new XGBoostExecutionParamsFactory(
-        Map("device" -> "cuda", "num_workers" -> 1, "num_round" -> 1), sc)
-        .buildXGBRuntimeParams
-      assert(xgbExecutionParams.runOnGpu)
+      val runtimeParams = new XGBoostClassifier(
+        Map("device" -> "cuda")).setNumWorkers(1).setNumRound(1)
+        .getRuntimeParameters(true)
+      assert(runtimeParams.runOnGpu)
 
-      val finalRDD = FakedXGBoost.tryStageLevelScheduling(ss.sparkContext, xgbExecutionParams,
+      val finalRDD = FakedXGBoost.tryStageLevelScheduling(ss.sparkContext, runtimeParams,
         rdd.asInstanceOf[RDD[(Booster, Map[String, Array[Float]])]])
 
       val taskResources = finalRDD.getResourceProfile().taskResources

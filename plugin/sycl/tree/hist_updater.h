@@ -52,7 +52,7 @@ class HistUpdater {
   using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
 
   explicit HistUpdater(const Context* ctx,
-                       ::sycl::queue qu,
+                       ::sycl::queue* qu,
                        const xgboost::tree::TrainParam& param,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
@@ -63,11 +63,11 @@ class HistUpdater {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
     kernel_monitor_.Init("SYCL::Quantile::HistUpdater");
     if (param.max_depth > 0) {
-      snode_device_.Resize(&qu, 1u << (param.max_depth + 1));
+      snode_device_.Resize(qu, 1u << (param.max_depth + 1));
     }
-    has_fp64_support_ = qu_.get_device().has(::sycl::aspect::fp64);
+    has_fp64_support_ = qu_->get_device().has(::sycl::aspect::fp64);
     const auto sub_group_sizes =
-      qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
+      qu_->get_device().get_info<::sycl::info::device::sub_group_sizes>();
     sub_group_size_ = sub_group_sizes.back();
   }
 
@@ -87,7 +87,10 @@ class HistUpdater {
 
  protected:
   friend class BatchHistSynchronizer<GradientSumT>;
+  friend class DistributedHistSynchronizer<GradientSumT>;
+
   friend class BatchHistRowsAdder<GradientSumT>;
+  friend class DistributedHistRowsAdder<GradientSumT>;
 
   struct SplitQuery {
     bst_node_t nid;
@@ -183,6 +186,8 @@ class HistUpdater {
                            RegTree* p_tree,
                            const USMVector<GradientPair, MemoryType::on_device>& gpair);
 
+  void ReduceHists(const std::vector<int>& sync_ids, size_t nbins);
+
   inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
     if (lhs.GetLossChange() == rhs.GetLossChange()) {
       return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
@@ -230,6 +235,8 @@ class HistUpdater {
   common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
   /*! \brief culmulative histogram of gradients. */
   common::HistCollection<GradientSumT, MemoryType::on_device> hist_;
+  /*! \brief culmulative local parent histogram of gradients. */
+  common::HistCollection<GradientSumT, MemoryType::on_device> hist_local_worker_;
 
   /*! \brief TreeNode Data: statistics for each constructed node */
   std::vector<NodeEntry<GradientSumT>> snode_host_;
@@ -258,7 +265,8 @@ class HistUpdater {
   USMVector<bst_float, MemoryType::on_device> out_preds_buf_;
   bst_float* out_pred_ptr = nullptr;
 
-  ::sycl::queue qu_;
+  std::vector<GradientPairT> reduce_buffer_;
+  ::sycl::queue* qu_;
 };
 
 }  // namespace tree

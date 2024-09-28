@@ -17,6 +17,7 @@
 
 #include "../../../include/xgboost/logging.h"
 #include "../../../src/common/cuda_context.cuh"
+#include "../../../src/common/cuda_rt_utils.h"  // for SetDevice
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/hist_util.h"
@@ -59,13 +60,14 @@ TEST(HistUtil, SketchBatchNumElements) {
   GTEST_SKIP_("Test not runnable with RMM enabled.");
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   size_t constexpr kCols = 10000;
-  int device;
-  dh::safe_cuda(cudaGetDevice(&device));
+  std::int32_t device = dh::CurrentDevice();
   auto avail = static_cast<size_t>(dh::AvailableMemory(device) * 0.8);
   auto per_elem = detail::BytesPerElement(false);
   auto avail_elem = avail / per_elem;
   size_t rows = avail_elem / kCols * 10;
-  auto batch = detail::SketchBatchNumElements(0, rows, kCols, rows * kCols, device, 256, false);
+  auto shape = detail::SketchShape{rows, kCols, rows * kCols};
+  auto batch = detail::SketchBatchNumElements(detail::UnknownSketchNumElements(), shape, device,
+                                              256, false, 0);
   ASSERT_EQ(batch, avail_elem);
 }
 
@@ -221,8 +223,8 @@ TEST(HistUtil, RemoveDuplicatedCategories) {
   thrust::sort_by_key(sorted_entries.begin(), sorted_entries.end(), weight.begin(),
                       detail::EntryCompareOp());
 
-  detail::RemoveDuplicatedCategories(ctx.Device(), info, cuts_ptr.DeviceSpan(), &sorted_entries,
-                                     &weight, &columns_ptr);
+  detail::RemoveDuplicatedCategories(&ctx, info, cuts_ptr.DeviceSpan(), &sorted_entries, &weight,
+                                     &columns_ptr);
 
   auto const& h_cptr = cuts_ptr.ConstHostVector();
   ASSERT_EQ(h_cptr.back(), n_samples * 2 + n_categories);
@@ -367,7 +369,7 @@ auto MakeUnweightedCutsForTest(Context const* ctx, Adapter adapter, int32_t num_
   SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), adapter.NumRows(),
                                    DeviceOrd::CUDA(0));
   MetaInfo info;
-  AdapterDeviceSketch(adapter.Value(), num_bins, info, missing, &sketch_container, batch_size);
+  AdapterDeviceSketch(ctx, adapter.Value(), num_bins, info, missing, &sketch_container, batch_size);
   sketch_container.MakeCuts(ctx, &batched_cuts, info.IsColumnSplit());
   return batched_cuts;
 }
@@ -437,8 +439,8 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, DeviceOrd::CUDA(0));
-  AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
+  AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
+                      std::numeric_limits<float>::quiet_NaN(), &sketch_container);
   HistogramCuts cuts;
   sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
   size_t bytes_required = detail::RequiredMemory(
@@ -466,9 +468,8 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   common::HistogramCuts batched_cuts;
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, DeviceOrd::CUDA(0));
-  AdapterDeviceSketch(adapter.Value(), num_bins, info,
-                      std::numeric_limits<float>::quiet_NaN(),
-                      &sketch_container);
+  AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
+                      std::numeric_limits<float>::quiet_NaN(), &sketch_container);
 
   HistogramCuts cuts;
   sketch_container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
@@ -502,7 +503,7 @@ void TestCategoricalSketchAdapter(size_t n, size_t num_categories,
 
   ASSERT_EQ(info.feature_types.Size(), 1);
   SketchContainer container(info.feature_types, num_bins, 1, n, DeviceOrd::CUDA(0));
-  AdapterDeviceSketch(adapter.Value(), num_bins, info,
+  AdapterDeviceSketch(&ctx, adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(), &container);
   HistogramCuts cuts;
   container.MakeCuts(&ctx, &cuts, info.IsColumnSplit());
@@ -577,7 +578,7 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
 
 namespace {
 auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_features) {
-  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+  curt::SetDevice(ctx->Ordinal());
   auto n = n_samples * n_features;
   std::vector<float> x;
   x.resize(n);
@@ -616,22 +617,27 @@ void TestGetColumnSize(std::size_t n_samples) {
   std::vector<std::size_t> h_column_size(column_sizes_scan.size());
   std::vector<std::size_t> h_column_size_1(column_sizes_scan.size());
 
+  auto cuctx = ctx.CUDACtx();
   detail::LaunchGetColumnSizeKernel<decltype(batch_iter), true, true>(
-      ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+      cuctx, ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid,
+      dh::ToSpan(column_sizes_scan));
   thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size.begin());
 
   detail::LaunchGetColumnSizeKernel<decltype(batch_iter), true, false>(
-      ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+      cuctx, ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid,
+      dh::ToSpan(column_sizes_scan));
   thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
   ASSERT_EQ(h_column_size, h_column_size_1);
 
   detail::LaunchGetColumnSizeKernel<decltype(batch_iter), false, true>(
-      ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+      cuctx, ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid,
+      dh::ToSpan(column_sizes_scan));
   thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
   ASSERT_EQ(h_column_size, h_column_size_1);
 
   detail::LaunchGetColumnSizeKernel<decltype(batch_iter), false, false>(
-      ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid, dh::ToSpan(column_sizes_scan));
+      cuctx, ctx.Device(), IterSpan{batch_iter, batch.Size()}, is_valid,
+      dh::ToSpan(column_sizes_scan));
   thrust::copy(column_sizes_scan.begin(), column_sizes_scan.end(), h_column_size_1.begin());
   ASSERT_EQ(h_column_size, h_column_size_1);
 }
@@ -737,7 +743,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
   auto const& batch = adapter.Value();
   HostDeviceVector<FeatureType> ft;
   SketchContainer sketch_container(ft, kBins, kCols, kRows, DeviceOrd::CUDA(0));
-  AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
+  AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
 
   common::HistogramCuts cuts;
@@ -780,7 +786,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
       h_weights[i] = (i % 2 == 0 ? 1 : 2) / static_cast<float>(kGroups);
     }
     SketchContainer sketch_container{ft, kBins, kCols, kRows, DeviceOrd::CUDA(0)};
-    AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
+    AdapterDeviceSketch(&ctx, adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                         &sketch_container);
     sketch_container.MakeCuts(&ctx, &weighted, info.IsColumnSplit());
     ValidateCuts(weighted, dmat.get(), kBins);

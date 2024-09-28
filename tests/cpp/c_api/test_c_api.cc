@@ -496,7 +496,7 @@ auto MakeExtMemForTest(bst_idx_t n_samples, bst_feature_t n_features, Json dconf
 
   NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
   auto Xy = std::make_shared<data::SparsePageDMatrix>(
-      &iter_1, iter_1.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, "");
+      &iter_1, iter_1.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, "", false);
   MakeLabelForTest(Xy, p_fmat);
   return std::pair{p_fmat, Xy};
 }

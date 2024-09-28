@@ -3,8 +3,10 @@ import sys
 import pytest
 from hypothesis import given, settings, strategies
 
+import xgboost as xgb
+from xgboost import testing as tm
 from xgboost.testing import no_cupy
-from xgboost.testing.updater import check_quantile_loss_extmem
+from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
 
 sys.path.append("tests/python")
 from test_data_iterator import run_data_iterator
@@ -59,6 +61,55 @@ def test_cpu_data_iterator() -> None:
     )
 
 
-def test_quantile_objective() -> None:
-    with pytest.raises(ValueError, match="external memory"):
-        check_quantile_loss_extmem(2, 2, 2, "hist", "cuda")
+@given(
+    strategies.integers(1, 2048),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+    strategies.booleans(),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_extmem_qdm(
+    n_samples_per_batch: int, n_features: int, n_batches: int, on_host: bool
+) -> None:
+    check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cuda", on_host)
+
+
+def test_concat_pages() -> None:
+    it = tm.IteratorForTest(*tm.make_batches(64, 16, 4, use_cupy=True), cache=None)
+    Xy = xgb.ExtMemQuantileDMatrix(it)
+    with pytest.raises(ValueError, match="can not be used with concatenated pages"):
+        booster = xgb.train(
+            {
+                "device": "cuda",
+                "subsample": 0.5,
+                "sampling_method": "gradient_based",
+                "extmem_concat_pages": True,
+                "objective": "reg:absoluteerror",
+            },
+            Xy,
+        )
+
+
+@given(
+    strategies.integers(1, 64),
+    strategies.integers(1, 8),
+    strategies.integers(1, 4),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_quantile_objective(
+    n_samples_per_batch: int, n_features: int, n_batches: int
+) -> None:
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "hist",
+        "cuda",
+    )
+    check_quantile_loss_extmem(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        "approx",
+        "cuda",
+    )

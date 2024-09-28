@@ -17,5 +17,6 @@ dependencies:
 - pytest
 - pytest-timeout
 - pytest-cov
+- dask
 - dpcpp_linux-64
 - onedpl-devel

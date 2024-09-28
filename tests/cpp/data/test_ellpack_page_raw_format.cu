@@ -72,7 +72,7 @@ TEST_P(TestEllpackPageRawFormat, DiskIO) {
 }
 
 TEST_P(TestEllpackPageRawFormat, DiskIOHmm) {
-  if (common::SupportsPageableMem()) {
+  if (curt::SupportsPageableMem()) {
     EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy> policy{true};
     this->Run(&policy, this->GetParam());
   } else {

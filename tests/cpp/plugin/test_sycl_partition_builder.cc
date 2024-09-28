@@ -32,10 +32,10 @@ void TestPartitioning(float sparsity, int max_bins) {
 
   RowSetCollection row_set_collection;
   auto& row_indices = row_set_collection.Data();
-  row_indices.Resize(&qu, num_rows);
+  row_indices.Resize(qu, num_rows);
   size_t* p_row_indices = row_indices.Data();
 
-  qu.submit([&](::sycl::handler& cgh) {
+  qu->submit([&](::sycl::handler& cgh) {
     cgh.parallel_for<>(::sycl::range<1>(num_rows),
                        [p_row_indices](::sycl::item<1> pid) {
       const size_t idx = pid.get_id(0);
@@ -49,7 +49,7 @@ void TestPartitioning(float sparsity, int max_bins) {
 
   const size_t n_nodes = row_set_collection.Size();
   PartitionBuilder partition_builder;
-  partition_builder.Init(&qu, n_nodes, [&](size_t nid) {
+  partition_builder.Init(qu, n_nodes, [&](size_t nid) {
     return row_set_collection[nid].Size();
   });
 
@@ -60,11 +60,11 @@ void TestPartitioning(float sparsity, int max_bins) {
   std::vector<int32_t> split_conditions = {2};
   partition_builder.Partition(gmat, nodes, row_set_collection,
                     split_conditions, &tree, &event);
-  qu.wait_and_throw();
+  qu->wait_and_throw();
 
   size_t* data_result = const_cast<size_t*>(row_set_collection[0].begin);
   partition_builder.MergeToArray(0, data_result, &event);
-  qu.wait_and_throw();
+  qu->wait_and_throw();
 
   bst_float split_pt = gmat.cut.Values()[split_conditions[0]];
 
@@ -99,8 +99,8 @@ void TestPartitioning(float sparsity, int max_bins) {
   auto n_right = std::accumulate(ridx_right.begin(), ridx_right.end(), 0);
 
   std::vector<size_t> row_indices_host(num_rows);
-  qu.memcpy(row_indices_host.data(), row_indices.Data(), num_rows * sizeof(size_t));
-  qu.wait_and_throw();
+  qu->memcpy(row_indices_host.data(), row_indices.Data(), num_rows * sizeof(size_t));
+  qu->wait_and_throw();
 
   ASSERT_EQ(n_left,  partition_builder.GetNLeftElems(0));
   for (size_t i = 0; i < n_left; ++i) {
@@ -123,7 +123,7 @@ TEST(SyclPartitionBuilder, BasicTest) {
   DeviceManager device_manager;
   auto qu = device_manager.GetQueue(DeviceOrd::SyclDefault());
   PartitionBuilder builder;
-  builder.Init(&qu, kNodes, [&](size_t i) {
+  builder.Init(qu, kNodes, [&](size_t i) {
     return rows[i];
   });
 
@@ -142,23 +142,23 @@ TEST(SyclPartitionBuilder, BasicTest) {
     size_t n_left  = rows_for_left_node[nid];
     size_t n_right = rows[nid] - n_left;
 
-    qu.submit([&](::sycl::handler& cgh) {
+    qu->submit([&](::sycl::handler& cgh) {
       cgh.parallel_for<>(::sycl::range<1>(n_left), [=](::sycl::id<1> pid) {
         int row_id = first_row_id + pid[0];
         rid_buff_ptr[pid[0]] = row_id;
       });
     });
-    qu.wait();
+    qu->wait();
     first_row_id += n_left;
 
     // We are storing indexes for the right side in the tail of the array to save some memory
-    qu.submit([&](::sycl::handler& cgh) {
+    qu->submit([&](::sycl::handler& cgh) {
       cgh.parallel_for<>(::sycl::range<1>(n_right), [=](::sycl::id<1> pid) {
         int row_id = first_row_id + pid[0];
         rid_buff_ptr[rid_buff_size - pid[0] - 1] = row_id;
       });
     });
-    qu.wait();
+    qu->wait();
     first_row_id += n_right;
 
     builder.SetNLeftElems(nid, n_left);
@@ -170,7 +170,7 @@ TEST(SyclPartitionBuilder, BasicTest) {
   size_t row_id = 0;
   for(size_t nid = 0; nid < kNodes; ++nid) {
     builder.MergeToArray(nid, v.data(), &event);
-    qu.wait();
+    qu->wait();
 
     // Check that row_id for left side are correct
     for(size_t j = 0; j < rows_for_left_node[nid]; ++j) {

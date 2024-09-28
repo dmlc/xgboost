@@ -8,10 +8,11 @@
 #endif  // defined(XGBOOST_USE_CUDA)
 
 #include <cstdint>  // for int32_t
+#include <mutex>    // for once_flag, call_once
 
 #include "common.h"  // for safe_cuda
 
-namespace xgboost::common {
+namespace xgboost::curt {
 #if defined(XGBOOST_USE_CUDA)
 std::int32_t AllVisibleGPUs() {
   int n_visgpus = 0;
@@ -19,7 +20,7 @@ std::int32_t AllVisibleGPUs() {
     // When compiled with CUDA but running on CPU only device,
     // cudaGetDeviceCount will fail.
     dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
-  } catch (const dmlc::Error &) {
+  } catch (const dmlc::Error&) {
     cudaGetLastError();  // reset error.
     return 0;
   }
@@ -63,11 +64,36 @@ void SetDevice(std::int32_t device) {
     dh::safe_cuda(cudaSetDevice(device));
   }
 }
+
+namespace {
+template <typename Fn>
+void GetVersionImpl(Fn&& fn, std::int32_t* major, std::int32_t* minor) {
+  static std::int32_t version = 0;
+  static std::once_flag flag;
+  std::call_once(flag, [&] { fn(&version); });
+  if (major) {
+    *major = version / 1000;
+  }
+  if (minor) {
+    *minor = version % 100 / 10;
+  }
+}
+}  // namespace
+
+void RtVersion(std::int32_t* major, std::int32_t* minor) {
+  GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaRuntimeGetVersion(ver)); }, major,
+                 minor);
+}
+
+void DrVersion(std::int32_t* major, std::int32_t* minor) {
+  GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaDriverGetVersion(ver)); }, major, minor);
+}
+
 #else
 std::int32_t AllVisibleGPUs() { return 0; }
 
 std::int32_t CurrentDevice() {
-  AssertGPUSupport();
+  common::AssertGPUSupport();
   return -1;
 }
 
@@ -79,8 +105,8 @@ void CheckComputeCapability() {}
 
 void SetDevice(std::int32_t device) {
   if (device >= 0) {
-    AssertGPUSupport();
+    common::AssertGPUSupport();
   }
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
-}  // namespace xgboost::common
+}  // namespace xgboost::curt

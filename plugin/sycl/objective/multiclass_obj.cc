@@ -39,7 +39,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
   void InitBuffers(const std::vector<int>& sample_rate) const {
     if (!are_buffs_init) {
-      batch_processor_.InitBuffers(&qu_, sample_rate);
+      batch_processor_.InitBuffers(qu_, sample_rate);
       are_buffs_init = true;
     }
   }
@@ -88,7 +88,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                          const bst_float* weights) {
       const size_t wg_size = 32;
       const size_t nwgs = ndata / wg_size + (ndata % wg_size > 0);
-      return linalg::GroupWiseKernel(&qu_, &flag, events, {nwgs, wg_size},
+      return linalg::GroupWiseKernel(qu_, &flag, events, {nwgs, wg_size},
         [=] (size_t idx, auto flag) {
           const bst_float* pred = preds + idx * nclass;
 
@@ -133,7 +133,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
                                  *(info.labels.Data()),
                                  info.weights_);
     }
-    qu_.wait_and_throw();
+    qu_->wait_and_throw();
 
     if (flag == 0) {
       LOG(FATAL) << "SYCL::SoftmaxMultiClassObj: label must be in [0, num_class).";
@@ -160,7 +160,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
       ::sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
 
       if (prob) {
-        qu_.submit([&](::sycl::handler& cgh) {
+        qu_->submit([&](::sycl::handler& cgh) {
           auto io_preds_acc = io_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
             int idx = pid[0];
@@ -171,7 +171,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
       } else {
         ::sycl::buffer<bst_float, 1> max_preds_buf(max_preds_.HostPointer(), max_preds_.Size());
 
-        qu_.submit([&](::sycl::handler& cgh) {
+        qu_->submit([&](::sycl::handler& cgh) {
           auto io_preds_acc = io_preds_buf.get_access<::sycl::access::mode::read>(cgh);
           auto max_preds_acc = max_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
@@ -215,7 +215,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
   sycl::DeviceManager device_manager;
 
-  mutable ::sycl::queue qu_;
+  mutable ::sycl::queue* qu_;
   static constexpr size_t kBatchSize = 1u << 22;
   mutable linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3> batch_processor_;
 };

@@ -224,6 +224,7 @@ class IteratorForTest(xgb.core.DataIter):
         X: Sequence,
         y: Sequence,
         w: Optional[Sequence],
+        *,
         cache: Optional[str],
         on_host: bool = False,
     ) -> None:
@@ -379,6 +380,7 @@ def make_categorical(
     n_samples: int,
     n_features: int,
     n_categories: int,
+    *,
     onehot: bool,
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
@@ -487,7 +489,9 @@ def _cat_sampled_from() -> strategies.SearchStrategy:
         sparsity = args[3]
         return TestDataset(
             f"{n_samples}x{n_features}-{n_cats}-{sparsity}",
-            lambda: make_categorical(n_samples, n_features, n_cats, False, sparsity),
+            lambda: make_categorical(
+                n_samples, n_features, n_cats, onehot=False, sparsity=sparsity
+            ),
             "reg:squarederror",
             "rmse",
         )

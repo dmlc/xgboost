@@ -519,4 +519,39 @@ public class DMatrix {
     CSR,
     CSC
   }
+
+  /**
+   * A class to hold the quantile information
+   */
+  public class QuantileCut {
+    // cut ptr
+    long[] indptr;
+    // cut values
+    float[] values;
+
+    QuantileCut(long[] indptr, float[] values) {
+      this.indptr = indptr;
+      this.values = values;
+    }
+
+    public long[] getIndptr() {
+      return indptr;
+    }
+
+    public float[] getValues() {
+      return values;
+    }
+  }
+
+  /**
+   * Get the Quantile Cut.
+   * @return QuantileCut
+   * @throws XGBoostError
+   */
+  public QuantileCut getQuantileCut() throws XGBoostError {
+    long[][] indptr = new long[1][];
+    float[][] values = new float[1][];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixGetQuantileCut(this.handle, indptr, values));
+    return new QuantileCut(indptr[0], values[0]);
+  }
 }

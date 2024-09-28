@@ -920,7 +920,8 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
                                        data::fileiter::Next,
                                        std::numeric_limits<float>::quiet_NaN(),
                                        1,
-                                       cache_file};
+                                       cache_file,
+                                       false};
   }
 
   return dmat;
