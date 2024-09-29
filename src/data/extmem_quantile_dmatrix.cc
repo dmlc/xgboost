@@ -58,7 +58,7 @@ ExtMemQuantileDMatrix::~ExtMemQuantileDMatrix() {
 }
 
 BatchSet<ExtSparsePage> ExtMemQuantileDMatrix::GetExtBatches(Context const *, BatchParam const &) {
-  LOG(FATAL) << "Not implemented";
+  LOG(FATAL) << "Not implemented for `ExtMemQuantileDMatrix`.";
   auto begin_iter =
       BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(nullptr));
   return BatchSet<ExtSparsePage>{begin_iter};
@@ -121,7 +121,8 @@ BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndex(Context const
     CHECK(!detail::RegenGHist(param, batch_)) << error::InconsistentMaxBin();
   }
 
-  CHECK(this->ghist_index_source_);
+  CHECK(this->ghist_index_source_)
+      << "The `ExtMemQuantileDMatrix` is initialized using GPU data, cannot be used for CPU.";
   this->ghist_index_source_->Reset(param);
 
   if (!std::isnan(param.sparse_thresh) &&

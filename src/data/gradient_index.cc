@@ -189,13 +189,13 @@ common::ColumnMatrix const &GHistIndexMatrix::Transpose() const {
 bst_bin_t GHistIndexMatrix::GetGindex(size_t ridx, size_t fidx) const {
   auto begin = RowIdx(ridx);
   if (IsDense()) {
-    return static_cast<bst_bin_t>(index[begin + fidx]);
+    return static_cast<bst_bin_t>(this->index[begin + fidx]);
   }
   auto end = RowIdx(ridx + 1);
   auto const& cut_ptrs = cut.Ptrs();
   auto f_begin = cut_ptrs[fidx];
   auto f_end = cut_ptrs[fidx + 1];
-  return BinarySearchBin(begin, end, index, f_begin, f_end);
+  return BinarySearchBin(begin, end, this->index, f_begin, f_end);
 }
 
 float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
