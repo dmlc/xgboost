@@ -1,4 +1,5 @@
-"""Simple script for managing Python, R, and source release packages.
+"""
+Simple script for managing Python, R, and source release packages.
 
 tqdm, sh are required to run this script.
 """
@@ -17,8 +18,8 @@ import tqdm
 from packaging import version
 from sh.contrib import git
 
-# The package building is managed by Jenkins CI.
-PREFIX = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/release_"
+# S3 bucket hosting the release artifacts
+S3_BUCKET_URL = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
 ROOT = Path(__file__).absolute().parent.parent
 DIST = ROOT / "python-package" / "dist"
 
@@ -26,9 +27,9 @@ pbar = None
 
 
 class DirectoryExcursion:
-    def __init__(self, path: Union[os.PathLike, str]) -> None:
+    def __init__(self, path: Path) -> None:
         self.path = path
-        self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
+        self.curdir = Path.cwd().resolve()
 
     def __enter__(self) -> None:
         os.chdir(self.path)
@@ -37,75 +38,85 @@ class DirectoryExcursion:
         os.chdir(self.curdir)
 
 
-def show_progress(block_num, block_size, total_size):
-    "Show file download progress."
+def show_progress(block_num: int, block_size: int, total_size: int) -> None:
+    """Show file download progress."""
     global pbar
     if pbar is None:
         pbar = tqdm.tqdm(total=total_size / 1024, unit="kB")
 
     downloaded = block_num * block_size
     if downloaded < total_size:
-        upper = (total_size - downloaded) / 1024
-        pbar.update(min(block_size / 1024, upper))
+        pbar.update(min(block_size / 1024, (total_size - downloaded) / 1024))
     else:
         pbar.close()
         pbar = None
 
 
-def retrieve(url, filename=None):
-    print(f"{url} -> {filename}")
-    return urlretrieve(url, filename, reporthook=show_progress)
+def retrieve(url: str, filename: Optional[Path] = None) -> str:
+    """Retrieve a file from a URL with progress indication."""
+    print(f"Downloading {url} -> {filename}")
+    return urlretrieve(url, filename, reporthook=show_progress)[0]
 
 
 def latest_hash() -> str:
-    "Get latest commit hash."
-    ret = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True)
-    assert ret.returncode == 0, "Failed to get latest commit hash."
-    commit_hash = ret.stdout.decode("utf-8").strip()
-    return commit_hash
+    """Get latest commit hash."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError("Failed to get latest commit hash.") from e
 
 
-def download_wheels(
+def _download_python_wheels(
     platforms: List[str],
-    dir_URL: str,
+    dir_url: str,
     src_filename_prefix: str,
     target_filename_prefix: str,
-    outdir: str,
-) -> List[str]:
-    """Download all binary wheels. dir_URL is the URL for remote directory storing the
-    release wheels.
-
-    """
-
-    filenames = []
-    outdir = os.path.join(outdir, "dist")
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
+    outdir: Path,
+) -> List[Path]:
+    """Download all Python binary wheels for a given set of platforms"""
+    wheel_paths = []
+    dist_dir = outdir / "dist"
+    dist_dir.mkdir(exist_ok=True)
 
     for platform in platforms:
-        src_wheel = src_filename_prefix + platform + ".whl"
-        url = dir_URL + src_wheel
+        src_wheel = f"{src_filename_prefix}{platform}.whl"
+        url = f"{dir_url}{src_wheel}"
+        target_wheel = f"{target_filename_prefix}{platform}.whl"
+        wheel_path = dist_dir / target_wheel
+        wheel_paths.append(wheel_path)
 
-        target_wheel = target_filename_prefix + platform + ".whl"
-        filename = os.path.join(outdir, target_wheel)
-        filenames.append(filename)
-        retrieve(url=url, filename=filename)
-        ret = subprocess.run(["twine", "check", filename], capture_output=True)
-        assert ret.returncode == 0, "Failed twine check"
-        stderr = ret.stderr.decode("utf-8")
-        stdout = ret.stdout.decode("utf-8")
-        assert stderr.find("warning") == -1, "Unresolved warnings:\n" + stderr
-        assert stdout.find("warning") == -1, "Unresolved warnings:\n" + stdout
-    return filenames
+        retrieve(url=url, filename=wheel_path)
+
+        try:
+            result = subprocess.run(
+                ["twine", "check", str(wheel_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            if "warning" in result.stderr or "warning" in result.stdout:
+                raise RuntimeError(
+                    f"Unresolved warnings:\n{result.stderr}\n{result.stdout}"
+                )
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError("Failed twine check") from e
+    return wheel_paths
 
 
-def make_pysrc_wheel(
-    release: str, rc: Optional[str], rc_ver: Optional[int], outdir: str
+def make_python_sdist(
+    release: str, rc: Optional[str], rc_ver: Optional[int], outdir: Path
 ) -> None:
     """Make Python source distribution."""
-    dist = os.path.abspath(os.path.normpath(os.path.join(outdir, "dist")))
-    if not os.path.exists(dist):
-        os.mkdir(dist)
+    dist_dir = outdir / "dist"
+    dist_dir.mkdir(exist_ok=True)
 
     # Apply patch to remove NCCL dependency
     # Save the original content of pyproject.toml so that we can restore it later
@@ -114,28 +125,29 @@ def make_pysrc_wheel(
             orig_pyproj_lines = f.read()
         with open("tests/buildkite/remove_nccl_dep.patch", "r") as f:
             patch_lines = f.read()
-        subprocess.run(["patch", "-p0"], input=patch_lines, text=True)
+        subprocess.run(
+            ["patch", "-p0"], input=patch_lines, check=True, text=True, encoding="utf-8"
+        )
 
-    with DirectoryExcursion(os.path.join(ROOT, "python-package")):
-        subprocess.check_call(["python", "-m", "build", "--sdist"])
-        if rc is not None:
-            name = f"xgboost-{release}{rc}{rc_ver}.tar.gz"
-        else:
-            name = f"xgboost-{release}.tar.gz"
-        src = os.path.join(DIST, name)
-        subprocess.check_call(["twine", "check", src])
-        target = os.path.join(dist, name)
-        shutil.move(src, target)
+    with DirectoryExcursion(ROOT / "python-package"):
+        subprocess.run(["python", "-m", "build", "--sdist"], check=True)
+        sdist_name = (
+            f"xgboost-{release}{rc}{rc_ver}.tar.gz"
+            if rc
+            else f"xgboost-{release}.tar.gz"
+        )
+        src = DIST / sdist_name
+        subprocess.run(["twine", "check", str(src)], check=True)
+        dest = dist_dir / sdist_name
+        shutil.move(src, dest)
 
     with DirectoryExcursion(ROOT):
         with open("python-package/pyproject.toml", "w") as f:
-            print(orig_pyproj_lines, file=f, end="")
+            f.write(orig_pyproj_lines)
 
 
-def download_py_packages(
-    branch: str, major: int, minor: int, commit_hash: str, outdir: str
-) -> None:
-    # List of platforms for full package and minimal package
+def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
+    """Download all Python binary wheels for the specified branch."""
     full_platforms = [
         "win_amd64",
         "manylinux2014_x86_64",
@@ -151,18 +163,21 @@ def download_py_packages(
         "manylinux2014_aarch64",
     ]
 
-    branch = branch.split("_")[1]  # release_x.y.z
-    dir_URL = PREFIX + branch + "/"
+    dir_url = f"{S3_BUCKET_URL}/{branch}/"
     wheels = []
 
-    for pkg_name, platforms in [("xgboost", full_platforms), ("xgboost_cpu", minimal_platforms)]:
+    for pkg_name, platforms in [
+        ("xgboost", full_platforms),
+        ("xgboost_cpu", minimal_platforms),
+    ]:
         src_filename_prefix = f"{pkg_name}-{args.release}%2B{commit_hash}-py3-none-"
         target_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
-        wheels_partial = download_wheels(
-            platforms, dir_URL, src_filename_prefix, target_filename_prefix, outdir
+        wheels.extend(
+            _download_python_wheels(
+                platforms, dir_url, src_filename_prefix, target_filename_prefix, outdir
+            )
         )
-        wheels.extend(wheels_partial)
-    print("List of downloaded wheels:", wheels)
+    print(f"List of downloaded wheels: {wheels}")
     print(
         """
 Following steps should be done manually:
@@ -172,88 +187,100 @@ Following steps should be done manually:
     )
 
 
-def download_r_packages(
-    release: str, branch: str, rc: str, commit: str, outdir: str
+def download_r_artifacts(
+    release: str, branch: str, rc: str, commit: str, outdir: Path
 ) -> Tuple[Dict[str, str], List[str]]:
+    """Download R package artifacts for the specified release and branch."""
     platforms = ["linux"]
-    dirname = os.path.join(outdir, "r-packages")
-    if not os.path.exists(dirname):
-        os.mkdir(dirname)
+    rpkg_dir = outdir / "r-packages"
+    rpkg_dir.mkdir(exist_ok=True)
 
-    filenames = []
+    artifacts = []
     branch = branch.split("_")[1]  # release_x.y.z
     urls = {}
 
     for plat in platforms:
-        url = f"{PREFIX}{branch}/xgboost_r_gpu_{plat}_{commit}.tar.gz"
-
-        if not rc:
-            filename = f"xgboost_r_gpu_{plat}_{release}.tar.gz"
-        else:
-            filename = f"xgboost_r_gpu_{plat}_{release}-{rc}.tar.gz"
-
-        target = os.path.join(dirname, filename)
-        retrieve(url=url, filename=target)
-        filenames.append(target)
+        url = f"{S3_BUCKET_URL}/{branch}/xgboost_r_gpu_{plat}_{commit}.tar.gz"
+        artifact_name = (
+            f"xgboost_r_gpu_{plat}_{release}-{rc}.tar.gz"
+            if rc
+            else f"xgboost_r_gpu_{plat}_{release}.tar.gz"
+        )
+        artifact_path = rpkg_dir / artifact_name
+        retrieve(url=url, filename=artifact_path)
+        artifacts.append(artifact_path)
         urls[plat] = url
 
-    print("Finished downloading R packages:", filenames)
+    print(f"Finished downloading R package artifacts: {artifacts}")
     hashes = []
-    with DirectoryExcursion(os.path.join(outdir, "r-packages")):
-        for f in filenames:
-            ret = subprocess.run(
-                ["sha256sum", os.path.basename(f)], capture_output=True
+    with DirectoryExcursion(rpkg_dir):
+        for f in artifacts:
+            result = subprocess.run(
+                ["sha256sum", f.name],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
             )
-            h = ret.stdout.decode().strip()
-            hashes.append(h)
+            hashes.append(result.stdout.strip())
     return urls, hashes
 
 
-def check_path():
-    root = os.path.abspath(os.path.curdir)
-    assert os.path.basename(root) == "xgboost", "Must be run on project root."
+def check_path() -> None:
+    """Ensure the script is run from the project root directory."""
+    current_dir = Path.cwd().resolve()
+    if current_dir.name != "xgboost":
+        raise RuntimeError("Must be run from the project root directory.")
 
 
-def make_src_package(release: str, outdir: str) -> Tuple[str, str]:
-    tarname = f"xgboost-{release}.tar.gz"
-    tarpath = os.path.join(outdir, tarname)
-    if os.path.exists(tarpath):
-        os.remove(tarpath)
+def make_src_tarball(release: str, outdir: Path) -> Tuple[str, str]:
+    tarball_name = f"xgboost-{release}.tar.gz"
+    tarball_path = outdir / tarball_name
+    if tarball_path.exists():
+        tarball_path.unlink()
 
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
-        shutil.copytree(os.path.curdir, tmpdir / "xgboost")
+        shutil.copytree(Path.cwd(), tmpdir / "xgboost")
         with DirectoryExcursion(tmpdir / "xgboost"):
-            ret = subprocess.run(
+            result = subprocess.run(
                 ["git", "submodule", "foreach", "--quiet", "echo $sm_path"],
+                check=True,
                 capture_output=True,
+                text=True,
+                encoding="utf-8",
             )
-            submodules = ret.stdout.decode().strip().split()
+            submodules = result.stdout.strip().split()
             for mod in submodules:
-                mod_path = os.path.join(os.path.abspath(os.path.curdir), mod, ".git")
-                os.remove(mod_path)
+                mod_path = Path.cwd().resolve() / mod / ".git"
+                mod_path.unlink()
             shutil.rmtree(".git")
-            with tarfile.open(tarpath, "x:gz") as tar:
-                src = tmpdir / "xgboost"
-                tar.add(src, arcname="xgboost")
+            with tarfile.open(tarball_path, "x:gz") as tar:
+                tar.add(tmpdir / "xgboost", arcname="xgboost")
 
-    with DirectoryExcursion(os.path.dirname(tarpath)):
-        ret = subprocess.run(["sha256sum", tarname], capture_output=True)
-        h = ret.stdout.decode().strip()
-    return tarname, h
+    with DirectoryExcursion(tarball_path.parent):
+        result = subprocess.run(
+            ["sha256sum", tarball_name],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        sha256sum = result.stdout.strip()
+    return tarball_name, sha256sum
 
 
 def release_note(
     release: str,
     artifact_hashes: List[str],
     r_urls: Dict[str, str],
-    tarname: str,
-    outdir: str,
+    tarball_name: str,
+    outdir: Path,
 ) -> None:
     """Generate a note for GitHub release description."""
     r_gpu_linux_url = r_urls["linux"]
     src_tarball = (
-        f"https://github.com/dmlc/xgboost/releases/download/v{release}/{tarname}"
+        f"https://github.com/dmlc/xgboost/releases/download/v{release}/{tarball_name}"
     )
     hash_note = "\n".join(artifact_hashes)
 
@@ -276,39 +303,37 @@ echo "<hash> <artifact>" | shasum -a 256 --check
 **Source tarball**
 * xgboost.tar.gz: [Download]({src_tarball})"""
     print(end_note)
-    with open(os.path.join(outdir, "end_note.md"), "w") as fd:
-        fd.write(end_note)
+    with open(outdir / "end_note.md", "w") as f:
+        f.write(end_note)
 
 
 def main(args: argparse.Namespace) -> None:
     check_path()
 
-    rel = version.parse(args.release)
-    assert isinstance(rel, version.Version)
+    release_parsed: version.Version = version.parse(args.release)
+    print(f"Release: {release_parsed}")
 
-    major = rel.major
-    minor = rel.minor
-    patch = rel.micro
-
-    print("Release:", rel)
-    if not rel.is_prerelease:
+    major = release_parsed.major
+    minor = release_parsed.minor
+    patch = release_parsed.micro
+    if not release_parsed.is_prerelease:
         # Major release
         rc: Optional[str] = None
         rc_ver: Optional[int] = None
     else:
         # RC release
-        major = rel.major
-        minor = rel.minor
-        patch = rel.micro
-        assert rel.pre is not None
-        rc, rc_ver = rel.pre
-        assert rc == "rc"
+        rc, rc_ver = release_parsed.pre
+        if rc != "rc":
+            raise ValueError(
+                "Only supports release candidates with 'rc' in the version string"
+            )
 
-    release = str(major) + "." + str(minor) + "." + str(patch)
+    # Release string with only major, minor, patch components
+    release = f"{major}.{minor}.{patch}"
     if args.branch is not None:
         branch = args.branch
     else:
-        branch = "release_" + str(major) + "." + str(minor) + ".0"
+        branch = f"release_{major}.{minor}.0"
 
     git.clean("-xdf")
     git.checkout(branch)
@@ -316,35 +341,35 @@ def main(args: argparse.Namespace) -> None:
     git.submodule("update")
     commit_hash = latest_hash()
 
-    outdir = os.path.abspath(args.outdir)
-    if outdir.find(str(ROOT)) != -1:
-        raise ValueError("output dir must be outside of the source tree.")
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
+    outdir = Path(args.outdir).resolve()
+    if ROOT in outdir.parents:
+        raise ValueError("Output directory must be outside of the source tree.")
+    outdir.mkdir(exist_ok=True)
 
-    # source tarball
-    hashes: List[str] = []
-    tarname, h = make_src_package(release, outdir)
-    hashes.append(h)
+    artifact_hashes: List[str] = []
+
+    # Source tarball
+    tarball_name, hash = make_src_tarball(release, outdir)
+    artifact_hashes.append(hash)
 
     # CUDA R packages
-    urls, hr = download_r_packages(
+    urls, hashes = download_r_artifacts(
         release,
         branch,
-        "" if rc is None else rc + str(rc_ver),
+        "" if rc is None else f"rc{rc_ver}",
         commit_hash,
         outdir,
     )
-    hashes.extend(hr)
+    artifact_hashes.extend(hashes)
 
     # Python source wheel
-    make_pysrc_wheel(release, rc, rc_ver, outdir)
+    make_python_sdist(release, rc, rc_ver, outdir)
 
     # Python binary wheels
-    download_py_packages(branch, major, minor, commit_hash, outdir)
+    download_python_wheels(branch, commit_hash, outdir)
 
     # Write end note
-    release_note(release, hashes, urls, tarname, outdir)
+    release_note(release, artifact_hashes, urls, tarball_name, outdir)
 
 
 if __name__ == "__main__":
