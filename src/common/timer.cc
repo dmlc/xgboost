@@ -7,6 +7,7 @@
 
 #include "../collective/communicator-inl.h"
 #include "cuda_rt_utils.h"
+#include <unistd.h>  // for getpid
 
 #if defined(XGBOOST_USE_NVTX)
 #include <nvtx3/nvtx3.hpp>
@@ -14,7 +15,7 @@
 
 namespace xgboost::common {
 void Monitor::Start(std::string const &name) {
-  LOG(CONSOLE) << "start:" << name << std::endl;
+  LOG(CONSOLE) << "start:" << getpid() << ":" << name << std::endl;
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
     auto &stats = statistics_map_[name];
     stats.timer.Start();
@@ -26,7 +27,7 @@ void Monitor::Start(std::string const &name) {
 }
 
 void Monitor::Stop(const std::string &name) {
-  LOG(CONSOLE) << "stop:" << name << std::endl;
+  LOG(CONSOLE) << "stop:" << getpid() << ":" << name << std::endl;
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
     auto &stats = statistics_map_[name];
     stats.timer.Stop();
