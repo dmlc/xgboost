@@ -95,7 +95,7 @@ def check_uneven_nan(
         )
 
 
-def check_external_memory(  # pylint: disable=too-many-local
+def check_external_memory(  # pylint: disable=too-many-locals
     worker_id: int,
     n_workers: int,
     device: str,
