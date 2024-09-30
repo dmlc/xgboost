@@ -21,8 +21,8 @@ else
   cmake_prefix_flag=''
 fi
 
-rm -rf build
-mkdir build
+# rm -rf build
+# mkdir build
 cd build
 # Disable CMAKE_COMPILE_WARNING_AS_ERROR option temporarily until
 # https://github.com/dmlc/xgboost/issues/10400 is fixed

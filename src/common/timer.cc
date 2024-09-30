@@ -67,7 +67,7 @@ void Monitor::Print() const {
 }
 
 ScopedLog::ScopedLog(std::string name) : name_{std::move(name)} {
-  LOG(CONSOLE) << "Start:" << name;
+  LOG(CONSOLE) << "Start:" << name_;
 }
 ScopedLog::~ScopedLog() { LOG(CONSOLE) << "Stop:" << name_; }
 }  // namespace xgboost::common
