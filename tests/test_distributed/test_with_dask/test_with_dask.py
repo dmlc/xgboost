@@ -9,16 +9,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import (
-    Any,
-    Dict,
-    Generator,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, Dict, Generator, Literal, Optional, Tuple, Type, Union
 
 import hypothesis
 import numpy as np
