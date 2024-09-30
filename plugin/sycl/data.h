@@ -241,9 +241,7 @@ struct DeviceMatrix {
     size_t num_row = 0;
     size_t num_nonzero = 0;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
-      const auto& data_vec = batch.data.HostVector();
-      const auto& offset_vec = batch.offset.HostVector();
-      num_nonzero += data_vec.size();
+      num_nonzero += batch.data.Size();
       num_row += batch.Size();
     }
 
@@ -254,8 +252,8 @@ struct DeviceMatrix {
     size_t data_offset = 0;
     ::sycl::event event;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
-      const auto& data_vec = batch.data.HostVector();
-      const auto& offset_vec = batch.offset.HostVector();
+      const auto& data_vec = batch.data.ConstHostVector();
+      const auto& offset_vec = batch.offset.ConstHostVector();
       size_t batch_size = batch.Size();
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;
