@@ -95,7 +95,7 @@ def check_uneven_nan(
         )
 
 
-def check_external_memory(  # pylint: disable=too-many-local-variables
+def check_external_memory(  # pylint: disable=too-many-local
     worker_id: int,
     n_workers: int,
     device: str,
@@ -156,7 +156,7 @@ def check_external_memory(  # pylint: disable=too-many-local-variables
         Xy = xgb.DMatrix(X, yconcat, weight=wconcat, nthread=n_threads)
 
     results_local: xgb.callback.TrainingCallback.EvalsLog = {}
-    booster = xgb.train(
+    xgb.train(
         {"tree_method": "hist", "nthread": n_threads, "device": device},
         Xy,
         evals=[(Xy, "Train")],
