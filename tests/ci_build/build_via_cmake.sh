@@ -26,6 +26,6 @@ fi
 cd build
 # Disable CMAKE_COMPILE_WARNING_AS_ERROR option temporarily until
 # https://github.com/dmlc/xgboost/issues/10400 is fixed
-cmake .. ${cmake_args} -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_ALL_WARNINGS=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF -GNinja ${cmake_prefix_flag} -DHIDE_CXX_SYMBOLS=ON -DBUILD_DEPRECATED_CLI=ON
+cmake .. ${cmake_args} -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_ALL_WARNINGS=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF -GNinja ${cmake_prefix_flag} -DHIDE_CXX_SYMBOLS=ON -DBUILD_DEPRECATED_CLI=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 time ninja -v
 cd ..

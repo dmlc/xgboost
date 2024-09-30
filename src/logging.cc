@@ -7,6 +7,7 @@
 #include "xgboost/logging.h"
 
 #include <string>  // for string
+#include <unistd.h>  // for getpid
 
 #include "collective/communicator-inl.h"
 
@@ -82,18 +83,18 @@ ConsoleLogger::ConsoleLogger(
   switch (cur_verbosity_) {
     case LogVerbosity::kWarning:
       BaseLogger::log_stream_ << "WARNING: "
-                              << file << ":" << line << ": ";
+                              << file << ":" << line << ": pid:" << getpid();
       break;
     case LogVerbosity::kDebug:
       BaseLogger::log_stream_ << "DEBUG: "
-                              << file << ":" << line << ": ";
+                              << file << ":" << line << ": pid:" << getpid();
       break;
     case LogVerbosity::kInfo:
       BaseLogger::log_stream_ << "INFO: "
-                              << file << ":" << line << ": ";
+                              << file << ":" << line << ": pid:" << getpid();
       break;
     case LogVerbosity::kIgnore:
-      BaseLogger::log_stream_ << file << ":" << line << ": ";
+      BaseLogger::log_stream_ << file << ":" << line << ": pid:" << getpid();
       break;
     case LogVerbosity::kSilent:
       break;
