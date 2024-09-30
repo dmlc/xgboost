@@ -68,17 +68,35 @@ def test_cpu_data_iterator() -> None:
     strategies.booleans(),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
+@pytest.mark.filterwarnings("ignore")
 def test_extmem_qdm(
     n_samples_per_batch: int, n_features: int, n_batches: int, on_host: bool
 ) -> None:
     check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cuda", on_host)
 
 
+@pytest.mark.filterwarnings("ignore")
+def test_invalid_device_extmem_qdm() -> None:
+    it = tm.IteratorForTest(
+        *tm.make_batches(16, 4, 2, use_cupy=False), cache="cache", on_host=True
+    )
+    Xy = xgb.ExtMemQuantileDMatrix(it)
+    with pytest.raises(ValueError, match="cannot be used for GPU"):
+        xgb.train({"device": "cuda"}, Xy)
+
+    it = tm.IteratorForTest(
+        *tm.make_batches(16, 4, 2, use_cupy=True), cache="cache", on_host=True
+    )
+    Xy = xgb.ExtMemQuantileDMatrix(it)
+    with pytest.raises(ValueError, match="cannot be used for CPU"):
+        xgb.train({"device": "cpu"}, Xy)
+
+
 def test_concat_pages() -> None:
     it = tm.IteratorForTest(*tm.make_batches(64, 16, 4, use_cupy=True), cache=None)
     Xy = xgb.ExtMemQuantileDMatrix(it)
     with pytest.raises(ValueError, match="can not be used with concatenated pages"):
-        booster = xgb.train(
+        xgb.train(
             {
                 "device": "cuda",
                 "subsample": 0.5,

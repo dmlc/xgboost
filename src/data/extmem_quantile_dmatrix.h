@@ -54,7 +54,9 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
   [[nodiscard]] bool EllpackExists() const override {
     return std::visit([](auto &&v) { return static_cast<bool>(v); }, ellpack_page_source_);
   }
-  [[nodiscard]] bool GHistIndexExists() const override { return true; }
+  [[nodiscard]] bool GHistIndexExists() const override {
+    return static_cast<bool>(ghist_index_source_);
+  }
 
   [[nodiscard]] BatchSet<ExtSparsePage> GetExtBatches(Context const *ctx,
                                                       BatchParam const &param) override;

@@ -206,7 +206,7 @@ in-core training is one additional data read when the data is dense.
 
 To run experiments on these platforms, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
-with version ``>=565.47`` is required.
+with version ``>=565.47`` is required, it should come with CTK 12.7 and later versions.
 
 **************
 Best Practices

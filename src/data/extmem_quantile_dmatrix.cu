@@ -80,7 +80,8 @@ BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackBatches(Context const *,
 
   std::visit(
       [this, param](auto &&ptr) {
-        CHECK(ptr);
+        CHECK(ptr)
+            << "The `ExtMemQuantileDMatrix` is initialized using CPU data, cannot be used for GPU.";
         ptr->Reset(param);
       },
       this->ellpack_page_source_);
