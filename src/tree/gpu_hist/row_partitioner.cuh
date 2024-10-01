@@ -177,11 +177,10 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
 
   // Value found by experimentation
   const int kItemsThread = 12;
-  const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
-
-  SortPositionCopyKernel<kBlockSize, OpDataT>
-      <<<grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()>>>(batch_info_itr, ridx, ridx_tmp,
-                                                               total_rows);
+  std::uint32_t const kGridSize =
+      xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
+  dh::LaunchKernel{kGridSize, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
+      SortPositionCopyKernel<kBlockSize, OpDataT>, batch_info_itr, ridx, ridx_tmp, total_rows);
 }
 
 struct NodePositionInfo {
