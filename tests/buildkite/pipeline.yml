@@ -42,7 +42,7 @@ steps:
     agents:
       queue: linux-amd64-cpu
   - label: ":console: Build CUDA with RMM"
-    command: "tests/buildkite/build-cuda-with-rmm.sh"
+    command: "tests/buildkite/build-cuda-with-rmm.sh stable"
     key: build-cuda-with-rmm
     agents:
       queue: linux-amd64-cpu
