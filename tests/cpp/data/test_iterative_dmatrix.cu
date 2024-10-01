@@ -110,39 +110,43 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
 
 TEST(IterativeDeviceDMatrix, RowMajorMissing) {
   const float kMissing = std::numeric_limits<float>::quiet_NaN();
-  size_t rows = 10;
-  size_t cols = 2;
-  CudaArrayIterForTest iter(0.0f, rows, cols, 2);
+  bst_idx_t rows = 4;
+  size_t cols = 3;
+  CudaArrayIterForTest iter{0.0f, rows, cols, 2};
   std::string interface_str = iter.AsArray();
-  auto j_interface =
-      Json::Load({interface_str.c_str(), interface_str.size()});
-  ArrayInterface<2> loaded {get<Object const>(j_interface)};
+  auto j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
+  ArrayInterface<2> loaded{get<Object const>(j_interface)};
   std::vector<float> h_data(cols * rows);
   common::Span<float const> s_data{static_cast<float const*>(loaded.data), cols * rows};
   dh::CopyDeviceSpanToVector(&h_data, s_data);
   h_data[1] = kMissing;
   h_data[5] = kMissing;
   h_data[6] = kMissing;
-  auto ptr = thrust::device_ptr<float>(
-      reinterpret_cast<float *>(get<Integer>(j_interface["data"][0])));
+  h_data[9] = kMissing;  // idx = (2, 0)
+  h_data[10] = kMissing; // idx = (2, 1)
+  auto ptr =
+      thrust::device_ptr<float>(reinterpret_cast<float*>(get<Integer>(j_interface["data"][0])));
   thrust::copy(h_data.cbegin(), h_data.cend(), ptr);
-
-  IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                     std::numeric_limits<float>::quiet_NaN(), 0, 256);
+  IterativeDMatrix m{
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, 256};
   auto ctx = MakeCUDACtx(0);
   auto& ellpack =
       *m.GetBatches<EllpackPage>(&ctx, BatchParam{256, tree::TrainParam::DftSparseThreshold()})
            .begin();
   auto impl = ellpack.Impl();
   std::vector<common::CompressedByteT> h_gidx;
-  auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx);
-  EXPECT_EQ(h_accessor.gidx_iter[1], impl->GetDeviceAccessor(&ctx).NullValue());
-  EXPECT_EQ(h_accessor.gidx_iter[5], impl->GetDeviceAccessor(&ctx).NullValue());
+  auto h_acc = impl->GetHostAccessor(&ctx, &h_gidx);
   // null values get placed after valid values in a row
-  EXPECT_EQ(h_accessor.gidx_iter[7], impl->GetDeviceAccessor(&ctx).NullValue());
+  ASSERT_FALSE(h_acc.IsDenseCompressed());
+  ASSERT_EQ(h_acc.row_stride, cols - 1);
+  ASSERT_EQ(h_acc.gidx_iter[7], impl->GetDeviceAccessor(&ctx).NullValue());
+  for (std::size_t i = 0; i < 7; ++i) {
+  ASSERT_NE(h_acc.gidx_iter[i], impl->GetDeviceAccessor(&ctx).NullValue());
+  }
+
   EXPECT_EQ(m.Info().num_col_, cols);
   EXPECT_EQ(m.Info().num_row_, rows);
-  EXPECT_EQ(m.Info().num_nonzero_, rows* cols - 3);
+  EXPECT_EQ(m.Info().num_nonzero_, rows * cols - 5);
 }
 
 TEST(IterativeDeviceDMatrix, IsDense) {

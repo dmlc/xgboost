@@ -253,6 +253,7 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
     for (std::size_t i = 0; i < data.size(); i += n_features) {
       data[i + null_column] = std::numeric_limits<float>::quiet_NaN();
     }
+    data[null_column] = null_column;  // keep the first sample full.
     auto p_fmat = GetDMatrixFromData(data, n_samples, n_features);
     return p_fmat;
   }
@@ -269,7 +270,7 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
     ASSERT_EQ(h_acc.NullValue(), batch.max_bin);
     for (std::size_t i = 0; i < h_acc.row_stride * h_acc.n_rows; ++i) {
       auto [m, n] = linalg::UnravelIndex(i, h_acc.n_rows, h_acc.row_stride);
-      if (n == null_column) {
+      if (n == null_column && m != 0) {
         ASSERT_EQ(static_cast<std::int32_t>(h_acc.gidx_iter[i]), h_acc.NullValue());
       } else {
         ASSERT_EQ(static_cast<std::int32_t>(h_acc.gidx_iter[i]), m);
@@ -298,6 +299,7 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
     for (std::size_t i = 0; i < h_data.size(); i += n_features) {
       h_data[i + null_column] = std::numeric_limits<float>::quiet_NaN();
     }
+    h_data[null_column] = null_column;  // Keep the first sample full.
     auto p_fmat = GetDMatrixFromData(h_data, n_samples, n_features);
 
     auto arri = GetArrayInterface(&data, n_samples, n_features);
@@ -313,11 +315,12 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
       cuts = std::make_shared<common::HistogramCuts>(page.Cuts());
     }
     dh::device_vector<bst_idx_t> row_counts(n_samples, n_features - 1);
+    row_counts[0] = n_features;
     auto d_row_counts = dh::ToSpan(row_counts);
     auto impl =
-        EllpackPageImpl{&ctx,           adapter.Value(), std::numeric_limits<float>::quiet_NaN(),
-                        false,          d_row_counts,    {},
-                        n_features - 1, n_samples,       cuts};
+        EllpackPageImpl{&ctx,       adapter.Value(), std::numeric_limits<float>::quiet_NaN(),
+                        false,      d_row_counts,    {},
+                        n_features, n_samples,       cuts};
     this->CheckBasic(&ctx, batch, null_column, impl);
   }
 
@@ -346,8 +349,13 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
         for (std::size_t ridx = 0; ridx < gidx.Size(); ++ridx) {
           auto rbegin = gidx.row_ptr[ridx];
           auto rend = gidx.row_ptr[ridx + 1];
-          ASSERT_EQ(rend - rbegin, p_fmat->Info().num_col_ - 1);
+          if (ridx == 0) {
+            ASSERT_EQ(rend - rbegin, p_fmat->Info().num_col_);
+          } else {
+            ASSERT_EQ(rend - rbegin, p_fmat->Info().num_col_ - 1);
+          }
         }
+        // GHist can't compress a dataset with missing values
         ASSERT_FALSE(gidx.index.Offset());
         ASSERT_TRUE(std::equal(gidx.data.cbegin(), gidx.data.cend(), orig.cbegin()));
       }

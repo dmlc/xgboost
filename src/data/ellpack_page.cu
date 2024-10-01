@@ -130,9 +130,10 @@ __global__ void CompressBinEllpackKernel(
 namespace {
 // Calculate the number of symbols for the compressed ellpack. Similar to what the CPU
 // implementation does, we compress the dense data by subtracting the bin values with the
-// starting bin of its feature if it's dense.
+// starting bin of its feature if it's dense. In addition, we treat the data as dense if
+// there's no compression to be made by using ellpack.
 [[nodiscard]] EllpackPageImpl::Info CalcNumSymbols(
-    Context const* ctx, bst_idx_t n_samples, bst_idx_t row_stride, bool is_dense,
+    Context const* ctx, bst_idx_t row_stride, bool is_dense,
     std::shared_ptr<common::HistogramCuts const> cuts) {
   // Return the total number of symbols (total number of bins plus 1 for missing)
   // The null value equals the total number of bins.
@@ -148,38 +149,26 @@ namespace {
 
   // Calculate the number of required symbols if we treat the data as dense.
   PtrT n_symbols_dense{0};
-  {
-    CUDAContext const* cuctx = ctx->CUDACtx();
-    auto it = dh::MakeTransformIterator<PtrT>(
-        thrust::make_counting_iterator(1ul),
-        [=] XGBOOST_DEVICE(std::size_t i) { return dptrs[i] - dptrs[i - 1]; });
-    CHECK_GE(dptrs.size(), 2);
-    auto max_it = thrust::max_element(cuctx->CTP(), it, it + dptrs.size() - 1);
-    dh::CachingDeviceUVector<PtrT> max_element(1);
-    auto d_me = max_element.data();
-    dh::LaunchN(1, cuctx->Stream(), [=] XGBOOST_DEVICE(std::size_t i) { d_me[i] = *max_it; });
-
-    dh::safe_cuda(cudaMemcpyAsync(&n_symbols_dense, d_me, sizeof(PtrT), cudaMemcpyDeviceToHost,
-                                  cuctx->Stream()));
-    cuctx->Stream().Sync();
-  }
-
+  CUDAContext const* cuctx = ctx->CUDACtx();
+  auto it = dh::MakeTransformIterator<PtrT>(
+      thrust::make_counting_iterator(1ul),
+      [=] XGBOOST_DEVICE(std::size_t i) { return dptrs[i] - dptrs[i - 1]; });
+  CHECK_GE(dptrs.size(), 2);
+  auto max_it = thrust::max_element(cuctx->CTP(), it, it + dptrs.size() - 1);
+  dh::CachingDeviceUVector<PtrT> max_element(1);
+  auto d_me = max_element.data();
+  dh::LaunchN(1, cuctx->Stream(), [=] XGBOOST_DEVICE(std::size_t i) { d_me[i] = *max_it; });
+  dh::safe_cuda(cudaMemcpyAsync(&n_symbols_dense, d_me, sizeof(PtrT), cudaMemcpyDeviceToHost,
+                                cuctx->Stream()));
+  cuctx->Stream().Sync();
+  // Decide the type of the data.
   CHECK_LE(row_stride, n_features);
-  // Treat the ellpack as dense if we can save memory.
-  auto calc_n_bytes = [&](bst_idx_t row_stride, auto n_symbols) {
-    return common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_samples, n_symbols);
-  };
-  auto as_dense = [&] {
-    bool no_compression = n_features == row_stride;
-    bool less = calc_n_bytes(n_features, n_symbols_dense + 1) < calc_n_bytes(row_stride, n_symbols);
-    return no_compression || less;
-  };
-
   if (is_dense) {
     // No missing, hence no null value, hence no + 1 symbol.
     LOG(INFO) << "Ellpack is dense.";
     return {n_features, n_symbols_dense};
-  } else if (as_dense()) {
+  } else if (n_features == row_stride) {
+    // Treat the ellpack as dense if we can save memory.
     LOG(INFO) << "Ellpack is relatively dense.";
     return {n_features, n_symbols_dense + 1};  // +1 for missing value (null in ellpack)
   } else {
@@ -196,7 +185,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
     : is_dense{is_dense},
       n_rows{n_rows},
       cuts_{std::move(cuts)},
-      info{CalcNumSymbols(ctx, n_rows, row_stride, is_dense, this->cuts_)} {
+      info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
 
@@ -210,7 +199,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
     : is_dense{is_dense},
       n_rows{page.Size()},
       cuts_{std::move(cuts)},
-      info{CalcNumSymbols(ctx, n_rows, row_stride, is_dense, this->cuts_)} {
+      info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
 
@@ -228,7 +217,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* p_fmat, const Batc
                       common::DeviceSketch(ctx, p_fmat, param.max_bin))
                 : std::make_shared<common::HistogramCuts>(
                       common::DeviceSketchWithHessian(ctx, p_fmat, param.max_bin, param.hess))},
-      info{CalcNumSymbols(ctx, n_rows, GetRowStride(p_fmat), p_fmat->IsDense(), this->cuts_)} {
+      info{CalcNumSymbols(ctx, GetRowStride(p_fmat), p_fmat->IsDense(), this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
 
@@ -466,7 +455,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
         return cuts;
       }()},
       info{CalcNumSymbols(
-          ctx, n_rows,
+          ctx,
           [&] {
             auto it = common::MakeIndexTransformIter(
                 [&](bst_idx_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
@@ -523,8 +512,7 @@ struct CopyPage {
 bst_idx_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page, bst_idx_t offset) {
   monitor_.Start(__func__);
   bst_idx_t num_elements = page->n_rows * page->info.row_stride;
-  CHECK_EQ(this->info.row_stride,
-           page->info.row_stride);  // fixme: make sure row strides are correctly handled
+  CHECK_EQ(this->info.row_stride, page->info.row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_GE(this->n_rows * this->info.row_stride, offset + num_elements);
   if (page == this) {
@@ -582,7 +570,7 @@ struct CompactPage {
 void EllpackPageImpl::Compact(Context const* ctx, EllpackPageImpl const* page,
                               common::Span<size_t> row_indexes) {
   monitor_.Start(__func__);
-  CHECK_EQ(this->info.row_stride, page->info.row_stride);  // fixme: check in iterative dmatrix
+  CHECK_EQ(this->info.row_stride, page->info.row_stride);
   CHECK_EQ(this->NumSymbols(), page->NumSymbols());
   CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
   auto cuctx = ctx->CUDACtx();
