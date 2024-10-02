@@ -293,7 +293,9 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
 
   void CheckFromAdapter(std::size_t null_column) {
     bst_idx_t n_samples = 16, n_features = 8;
-    HostDeviceVector<float> data(n_samples * n_features);
+
+    auto ctx = MakeCUDACtx(0);
+    HostDeviceVector<float> data(n_samples * n_features, 0.0f, ctx.Device());
     auto& h_data = data.HostVector();
     std::iota(h_data.begin(), h_data.end(), 0.0f);
     for (std::size_t i = 0; i < h_data.size(); i += n_features) {
@@ -302,11 +304,11 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
     h_data[null_column] = null_column;  // Keep the first sample full.
     auto p_fmat = GetDMatrixFromData(h_data, n_samples, n_features);
 
+    data.ConstDeviceSpan();  // Pull to device
     auto arri = GetArrayInterface(&data, n_samples, n_features);
     auto sarri = Json::Dump(arri);
     data::CupyAdapter adapter{StringView{sarri}};
 
-    auto ctx = MakeCUDACtx(0);
     Context cpu_ctx;
     auto batch = BatchParam{static_cast<bst_bin_t>(p_fmat->Info().num_row_), 0.8};
 
@@ -317,11 +319,13 @@ class CompressedDense : public ::testing::TestWithParam<std::size_t> {
     dh::device_vector<bst_idx_t> row_counts(n_samples, n_features - 1);
     row_counts[0] = n_features;
     auto d_row_counts = dh::ToSpan(row_counts);
+    ASSERT_EQ(adapter.NumColumns(), n_features);
     auto impl =
         EllpackPageImpl{&ctx,       adapter.Value(), std::numeric_limits<float>::quiet_NaN(),
                         false,      d_row_counts,    {},
                         n_features, n_samples,       cuts};
     this->CheckBasic(&ctx, batch, null_column, impl);
+    dh::DefaultStream().Sync();
   }
 
   void CheckFromToGHist(std::size_t null_column) {

@@ -141,6 +141,13 @@ struct EllpackDeviceAccessor {
 
 class GHistIndexMatrix;
 
+/**
+ * @brief This is either an Ellpack format matrix or a dense matrix.
+ *
+ * When there's no compression can be made by using ellpack, we use this structure as a
+ * simple dense matrix. For dense matrix, we can provide extra compression by counting the
+ * histogram bin for each feature instead of for the entire dataset.
+ */
 class EllpackPageImpl {
  public:
   /**
@@ -152,7 +159,7 @@ class EllpackPageImpl {
   EllpackPageImpl() = default;
 
   /**
-   * @brief Constructor from an existing EllpackInfo.
+   * @brief Constructor from existing ellpack matrics.
    *
    * This is used in the sampling case. The ELLPACK page is constructed from an existing
    * Ellpack page and the given number of rows.

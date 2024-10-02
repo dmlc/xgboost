@@ -17,6 +17,8 @@ class EllpackPageImpl;
  *
  * This class uses the PImpl idiom (https://en.cppreference.com/w/cpp/language/pimpl) to avoid
  * including CUDA-specific implementation details in the header.
+ *
+ * See @ref EllpackPageImpl .
  */
 class EllpackPage {
  public:
