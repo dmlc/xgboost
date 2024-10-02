@@ -23,6 +23,11 @@ fi
 
 # rm -rf build
 # mkdir build
+
+if [ ! -d build ]; then
+    mkdir build
+fi
+
 cd build
 # Disable CMAKE_COMPILE_WARNING_AS_ERROR option temporarily until
 # https://github.com/dmlc/xgboost/issues/10400 is fixed
