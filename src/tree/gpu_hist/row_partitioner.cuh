@@ -376,12 +376,14 @@ class RowPartitioner {
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
                                   cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
 
-    constexpr int kBlockSize = 512;
+    constexpr std::uint32_t kBlockSize = 512;
     const int kItemsThread = 8;
-    const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
+    const std::uint32_t grid_size =
+        xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<RowIndexT const> d_ridx{ridx_.data(), ridx_.size()};
-    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()>>>(
-        dh::ToSpan(d_node_info_storage), base_ridx, d_ridx, d_out_position, op);
+    dh::LaunchKernel{grid_size, kBlockSize, 0, ctx->CUDACtx()->Stream()}(
+        FinalisePositionKernel<kBlockSize>, dh::ToSpan(d_node_info_storage), base_ridx, d_ridx,
+        d_out_position, op);
   }
 };
 };  // namespace xgboost::tree
