@@ -75,7 +75,9 @@ std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line) {
 
 void SafeColl(Result const& rc) {
   if (!rc.OK()) {
-    LOG(FATAL) << rc.Report();
+    auto report = rc.Report();
+    LOG(CONSOLE) << __func__ << ":" << report << std::endl;
+    LOG(FATAL) << report;
   }
 }
 }  // namespace xgboost::collective

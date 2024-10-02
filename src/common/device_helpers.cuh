@@ -203,13 +203,6 @@ __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
     lambda(i);
   }
 }
-template <typename L>
-__global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
-                              L lambda) {
-  for (auto i : GridStrideRange(begin, end)) {
-    lambda(i, device_idx);
-  }
-}
 
 /* \brief A wrapper around kernel launching syntax, used to guard against empty input.
  *
@@ -239,6 +232,7 @@ class LaunchKernel {
       return;
     }
     kernel<<<grids_, blocks_, shmem_size_, stream_>>>(args...);  // NOLINT
+    safe_cuda(cudaPeekAtLastError());
   }
 };
 
@@ -251,6 +245,7 @@ inline void LaunchN(size_t n, cudaStream_t stream, L lambda) {
       static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(  // NOLINT
       static_cast<size_t>(0), n, lambda);
+  safe_cuda(cudaPeekAtLastError());
 }
 
 // Default stream version
