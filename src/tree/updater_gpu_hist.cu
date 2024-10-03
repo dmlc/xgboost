@@ -754,7 +754,8 @@ struct GPUHistMakerDevice {
 };
 
 std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
-    Context const* ctx, DMatrix* p_fmat, BatchParam batch, std::vector<bst_idx_t>* p_batch_ptr) {
+    Context const* ctx, DMatrix* p_fmat, BatchParam const& batch,
+    std::vector<bst_idx_t>* p_batch_ptr) {
   std::vector<bst_idx_t>& batch_ptr = *p_batch_ptr;
   batch_ptr = {0};
   std::shared_ptr<common::HistogramCuts const> cuts;
@@ -772,7 +773,7 @@ std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
   CHECK(cuts);
   CHECK_EQ(p_fmat->NumBatches(), batch_ptr.size() - 1);
   std::partial_sum(batch_ptr.cbegin(), batch_ptr.cend(), batch_ptr.begin());
-  return {cuts, dense_compressed};
+  return {cuts, static_cast<bool>(dense_compressed)};
 }
 
 class GPUHistMaker : public TreeUpdater {

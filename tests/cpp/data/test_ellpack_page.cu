@@ -62,6 +62,9 @@ TEST(EllpackPage, BuildGidxDense) {
     auto fidx = i % n_features;
     ASSERT_EQ(solution[i], h_accessor.gidx_iter[i] + h_accessor.feature_segments[fidx]);
   }
+  ASSERT_EQ(page->NumSymbols(), 3);
+  ASSERT_EQ(page->NumNonMissing(&ctx, {}), n_samples * n_features);
+  ASSERT_EQ(page->NumSymbols(), h_accessor.NullValue());
 }
 
 TEST(EllpackPage, BuildGidxSparse) {

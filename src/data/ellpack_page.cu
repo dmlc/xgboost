@@ -257,7 +257,7 @@ struct WriteCompressedEllpackFunctor {
   // Tuple[2] = The index in the input data
   using Tuple = thrust::tuple<bst_idx_t, bst_idx_t, bst_idx_t>;
 
-  template <bool kIsDense>
+  template <bool kIsDenseCompressed>
   __device__ void Write(data::COOTuple const& e, bst_idx_t out_position) {
     bst_bin_t bin_idx = 0;
     if (common::IsCat(feature_types, e.column_idx)) {
@@ -265,7 +265,7 @@ struct WriteCompressedEllpackFunctor {
     } else {
       bin_idx = accessor.SearchBin<false>(e.value, e.column_idx);
     }
-    if constexpr (kIsDense) {
+    if constexpr (kIsDenseCompressed) {
       bin_idx -= accessor.feature_segments[e.column_idx];
     }
     writer.AtomicWriteSymbol(d_buffer, bin_idx, out_position);
@@ -306,7 +306,7 @@ struct TupleScanOp {
 
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
-template <bool kIsDense, typename AdapterBatchT>
+template <bool kIsDenseCompressed, typename AdapterBatchT>
 void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
                        common::Span<FeatureType const> feature_types, EllpackPageImpl* dst,
                        float missing) {
@@ -327,7 +327,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
       d_compressed_buffer, writer, batch, device_accessor, feature_types, is_valid};
 
   // For dense compressed data, we can simply copy the data with the input position.
-  if (kIsDense) {
+  if (kIsDenseCompressed) {
     CHECK(batch.NumRows() == 0 || batch.NumCols() == dst->info.row_stride);
     thrust::for_each_n(ctx->CUDACtx()->CTP(), cnt, dst->Size() * dst->info.row_stride, functor);
     return;

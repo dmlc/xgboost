@@ -237,7 +237,7 @@ class EllpackPageImpl {
    */
   [[nodiscard]] bool IsDense() const { return this->is_dense; }
   /**
-   * @brief Stored as a dense matrix, but there are might be missing values.
+   * @brief Stored as a dense matrix, but there might be missing values.
    */
   [[nodiscard]] bool IsDenseCompressed() const {
     return this->cuts_->NumFeatures() == this->info.row_stride;
