@@ -80,7 +80,7 @@ class EllpackHostCacheStreamImpl {
         common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(impl->gidx_buffer.size());
     new_impl->n_rows = impl->Size();
     new_impl->is_dense = impl->IsDense();
-    new_impl->row_stride = impl->row_stride;
+    new_impl->info.row_stride = impl->info.row_stride;
     new_impl->base_rowid = impl->base_rowid;
     new_impl->SetNumSymbols(impl->NumSymbols());
 
@@ -108,7 +108,7 @@ class EllpackHostCacheStreamImpl {
 
     impl->n_rows = page->Size();
     impl->is_dense = page->IsDense();
-    impl->row_stride = page->row_stride;
+    impl->info.row_stride = page->info.row_stride;
     impl->base_rowid = page->base_rowid;
     impl->SetNumSymbols(page->NumSymbols());
   }

@@ -17,6 +17,8 @@ class EllpackPageImpl;
  *
  * This class uses the PImpl idiom (https://en.cppreference.com/w/cpp/language/pimpl) to avoid
  * including CUDA-specific implementation details in the header.
+ *
+ * See @ref EllpackPageImpl .
  */
 class EllpackPage {
  public:
@@ -42,7 +44,6 @@ class EllpackPage {
 
   /*! \return Number of instances in the page. */
   [[nodiscard]] bst_idx_t Size() const;
-  [[nodiscard]] bool IsDense() const;
 
   /*! \brief Set the base row id for this page. */
   void SetBaseRowId(std::size_t row_id);

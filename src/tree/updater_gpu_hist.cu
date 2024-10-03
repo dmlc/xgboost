@@ -104,6 +104,7 @@ struct GPUHistMakerDevice {
   dh::device_vector<bst_node_t> positions_;
   HistMakerTrainParam const* hist_param_;
   std::shared_ptr<common::HistogramCuts const> const cuts_;
+  std::unique_ptr<FeatureGroups> feature_groups_;
 
   auto CreatePartitionNodes(RegTree const* p_tree, std::vector<GPUExpandEntry> const& candidates) {
     std::vector<bst_node_t> nidx(candidates.size());
@@ -143,19 +144,20 @@ struct GPUHistMakerDevice {
 
   std::unique_ptr<GradientBasedSampler> sampler;
 
-  std::unique_ptr<FeatureGroups> feature_groups;
   common::Monitor monitor;
 
   GPUHistMakerDevice(Context const* ctx, TrainParam _param, HistMakerTrainParam const* hist_param,
                      std::shared_ptr<common::ColumnSampler> column_sampler, BatchParam batch_param,
                      MetaInfo const& info, std::vector<bst_idx_t> batch_ptr,
-                     std::shared_ptr<common::HistogramCuts const> cuts)
+                     std::shared_ptr<common::HistogramCuts const> cuts, bool dense_compressed)
       : evaluator_{_param, static_cast<bst_feature_t>(info.num_col_), ctx->Device()},
         ctx_{ctx},
         column_sampler_{std::move(column_sampler)},
         batch_ptr_{std::move(batch_ptr)},
         hist_param_{hist_param},
         cuts_{std::move(cuts)},
+        feature_groups_{std::make_unique<FeatureGroups>(*cuts_, dense_compressed,
+                                                        dh::MaxSharedMemoryOptin(ctx_->Ordinal()))},
         param{std::move(_param)},
         interaction_constraints(param, static_cast<bst_feature_t>(info.num_col_)),
         sampler{std::make_unique<GradientBasedSampler>(
@@ -171,15 +173,6 @@ struct GPUHistMakerDevice {
   }
 
   ~GPUHistMakerDevice() = default;
-
-  void InitFeatureGroupsOnce(MetaInfo const& info) {
-    if (!feature_groups) {
-      CHECK(cuts_);
-      feature_groups = std::make_unique<FeatureGroups>(*cuts_, info.IsDense(),
-                                                       dh::MaxSharedMemoryOptin(ctx_->Ordinal()),
-                                                       sizeof(GradientPairInt64));
-    }
-  }
 
   // Reset values for each update iteration
   [[nodiscard]] DMatrix* Reset(HostDeviceVector<GradientPair> const* dh_gpair, DMatrix* p_fmat) {
@@ -240,10 +233,8 @@ struct GPUHistMakerDevice {
      */
     this->quantiser = std::make_unique<GradientQuantiser>(ctx_, this->gpair, p_fmat->Info());
 
-    this->InitFeatureGroupsOnce(info);
-
     this->histogram_.Reset(ctx_, this->hist_param_->MaxCachedHistNodes(ctx_->Device()),
-                           feature_groups->DeviceAccessor(ctx_->Device()), cuts_->TotalBins(),
+                           feature_groups_->DeviceAccessor(ctx_->Device()), cuts_->TotalBins(),
                            false);
     this->monitor.Stop(__func__);
     return p_fmat;
@@ -334,7 +325,7 @@ struct GPUHistMakerDevice {
 
     auto d_ridx = partitioners_.at(k)->GetRows(nidx);
     this->histogram_.BuildHistogram(ctx_->CUDACtx(), acc,
-                                    feature_groups->DeviceAccessor(ctx_->Device()), this->gpair,
+                                    feature_groups_->DeviceAccessor(ctx_->Device()), this->gpair,
                                     d_ridx, d_node_hist, *quantiser);
     monitor.Stop(__func__);
   }
@@ -762,22 +753,27 @@ struct GPUHistMakerDevice {
   }
 };
 
-std::shared_ptr<common::HistogramCuts const> InitBatchCuts(Context const* ctx, DMatrix* p_fmat,
-                                                           BatchParam batch,
-                                                           std::vector<bst_idx_t>* p_batch_ptr) {
+std::pair<std::shared_ptr<common::HistogramCuts const>, bool> InitBatchCuts(
+    Context const* ctx, DMatrix* p_fmat, BatchParam const& batch,
+    std::vector<bst_idx_t>* p_batch_ptr) {
   std::vector<bst_idx_t>& batch_ptr = *p_batch_ptr;
   batch_ptr = {0};
   std::shared_ptr<common::HistogramCuts const> cuts;
 
+  std::int32_t dense_compressed = -1;
   for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx, batch)) {
     batch_ptr.push_back(page.Size());
     cuts = page.Impl()->CutsShared();
     CHECK(cuts->cut_values_.DeviceCanRead());
+    if (dense_compressed != -1) {
+      CHECK_EQ(page.Impl()->IsDenseCompressed(), static_cast<bool>(dense_compressed));
+    }
+    dense_compressed = page.Impl()->IsDenseCompressed();
   }
   CHECK(cuts);
   CHECK_EQ(p_fmat->NumBatches(), batch_ptr.size() - 1);
   std::partial_sum(batch_ptr.cbegin(), batch_ptr.cend(), batch_ptr.begin());
-  return cuts;
+  return {cuts, static_cast<bool>(dense_compressed)};
 }
 
 class GPUHistMaker : public TreeUpdater {
@@ -840,10 +836,11 @@ class GPUHistMaker : public TreeUpdater {
 
     std::vector<bst_idx_t> batch_ptr;
     auto batch = HistBatch(*param);
-    auto cuts = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
+    auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
 
-    this->maker = std::make_unique<GPUHistMakerDevice>(
-        ctx_, *param, &hist_maker_param_, column_sampler_, batch, p_fmat->Info(), batch_ptr, cuts);
+    this->maker = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
+                                                       column_sampler_, batch, p_fmat->Info(),
+                                                       batch_ptr, cuts, dense_compressed);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
@@ -947,11 +944,12 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     std::vector<bst_idx_t> batch_ptr;
     auto batch = ApproxBatch(*param, hess, *task_);
-    auto cuts = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
+    auto [cuts, dense_compressed] = InitBatchCuts(ctx_, p_fmat, batch, &batch_ptr);
     batch.regen = false;  // Regen only at the beginning of the iteration.
 
-    this->maker_ = std::make_unique<GPUHistMakerDevice>(
-        ctx_, *param, &hist_maker_param_, column_sampler_, batch, p_fmat->Info(), batch_ptr, cuts);
+    this->maker_ = std::make_unique<GPUHistMakerDevice>(ctx_, *param, &hist_maker_param_,
+                                                        column_sampler_, batch, p_fmat->Info(),
+                                                        batch_ptr, cuts, dense_compressed);
 
     std::size_t t_idx{0};
     for (xgboost::RegTree* tree : trees) {

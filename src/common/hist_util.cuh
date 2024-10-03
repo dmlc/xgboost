@@ -24,29 +24,6 @@
 #include "xgboost/span.h"  // for IterSpan
 
 namespace xgboost::common {
-namespace cuda {
-/**
- * copy and paste of the host version, we can't make it a __host__ __device__ function as
- * the fn might be a host only or device only callable object, which is not allowed by nvcc.
- */
-template <typename Fn>
-auto __device__ DispatchBinType(BinTypeSize type, Fn&& fn) {
-  switch (type) {
-    case kUint8BinsTypeSize: {
-      return fn(uint8_t{});
-    }
-    case kUint16BinsTypeSize: {
-      return fn(uint16_t{});
-    }
-    case kUint32BinsTypeSize: {
-      return fn(uint32_t{});
-    }
-  }
-  SPAN_CHECK(false);
-  return fn(uint32_t{});
-}
-}  // namespace cuda
-
 namespace detail {
 struct EntryCompareOp {
   __device__ bool operator()(const Entry& a, const Entry& b) {
