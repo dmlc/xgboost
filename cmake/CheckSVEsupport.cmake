@@ -1,7 +1,7 @@
 function(check_xgboost_sve_support)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
     include(CheckCSourceCompiles)
-    
+
     # Save the original C_FLAGS to restore later
     set(ORIGINAL_C_FLAGS "${CMAKE_C_FLAGS}")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8-a+sve")
