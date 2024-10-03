@@ -20,21 +20,10 @@
 
 namespace xgboost::collective {
 
-inline constexpr std::int64_t DefaultTimeoutSec() { return 60 * 30; }  // 30min
-inline constexpr std::int32_t DefaultRetry() { return 3; }
+constexpr std::int64_t DefaultTimeoutSec() { return 60 * 30; }  // 30min
+constexpr std::int32_t DefaultRetry() { return 3; }
 
-// indexing into the ring
-inline std::int32_t BootstrapNext(std::int32_t r, std::int32_t world) {
-  auto nrank = (r + world + 1) % world;
-  return nrank;
-}
-
-inline std::int32_t BootstrapPrev(std::int32_t r, std::int32_t world) {
-  auto nrank = (r + world - 1) % world;
-  return nrank;
-}
-
-inline StringView DefaultNcclName() { return "libnccl.so.2"; }
+constexpr StringView DefaultNcclName() { return "libnccl.so.2"; }
 
 class Channel;
 class Coll;

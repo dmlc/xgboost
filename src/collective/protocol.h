@@ -130,6 +130,17 @@ class Start {
     }
     return Success();
   }
+  // Ensure the worker has started to listen before bootstrapping the coll group.
+  [[nodiscard]] Result WorkerFinish(TCPSocket* tracker) {
+    Json jcmd{Object{}};
+    jcmd["done"] = true;
+    auto scmd = Json::Dump(jcmd);
+    auto n_bytes = tracker->Send(scmd);
+    if (n_bytes != scmd.size()) {
+      return Fail("Failed to send init command from worker.");
+    }
+    return Success();
+  }
   [[nodiscard]] Result WorkerRecv(TCPSocket* tracker, std::int32_t* p_world) const {
     std::string scmd;
     auto rc = tracker->Recv(&scmd);
@@ -157,6 +168,14 @@ class Start {
     *recv_world = world;
     *eport = get<Integer const>(jcmd["error_port"]);
     return TrackerSend(world, p_sock);
+  }
+
+  [[nodiscard]] Result TrackerFinish(Json jcmd) {
+    auto it = get<Object const>(jcmd).find("done");
+    if (IsA<Boolean>(it->second) && get<Boolean const>(it->second)) {
+      return Success();
+    }
+    return Fail("Failed to start.");
   }
 };
 

@@ -3,6 +3,7 @@
  */
 #pragma once
 
+#include <algorithm>     // for max
 #include <cerrno>        // errno, EINTR, EBADF
 #include <climits>       // HOST_NAME_MAX
 #include <cstddef>       // std::size_t
@@ -539,7 +540,8 @@ class TCPSocket {
   /**
    * @brief Listen to incoming requests. Should be called after bind.
    */
-  [[nodiscard]] Result Listen(std::int32_t backlog = 16) {
+  [[nodiscard]] Result Listen(std::int32_t backlog) {
+    backlog = std::max(backlog, 16);  // Don't be too small.
     if (listen(handle_, backlog) != 0) {
       return system::FailWithCode("Failed to listen.");
     }

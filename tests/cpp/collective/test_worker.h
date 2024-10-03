@@ -49,7 +49,7 @@ class WorkerForTest {
 
   void LimitSockBuf(std::int32_t n_bytes) {
     for (std::int32_t i = 0; i < comm_.World(); ++i) {
-      if (i != comm_.Rank()) {
+      if (comm_.Chan(i)->Socket()) {
         ASSERT_TRUE(comm_.Chan(i)->Socket()->NonBlocking());
         SafeColl(comm_.Chan(i)->Socket()->SetBufSize(n_bytes));
         SafeColl(comm_.Chan(i)->Socket()->SetNoDelay());

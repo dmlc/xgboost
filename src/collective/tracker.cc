@@ -2,6 +2,8 @@
  * Copyright 2023-2024, XGBoost Contributors
  */
 
+#include "tracker.h"
+
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>       // gethostbyname
 #include <sys/socket.h>  // socket, AF_INET6, AF_INET, connect, getsockname
@@ -23,10 +25,10 @@
 #include <utility>    // for move, forward
 
 #include "../common/json_utils.h"
-#include "../common/threading_utils.h"  // for NameThread
-#include "comm.h"
-#include "protocol.h"  // for kMagic, PeerInfo
-#include "tracker.h"
+#include "../common/threading_utils.h"      // for NameThread
+#include "../common/timer.h"                // for Timer
+#include "protocol.h"                       // for kMagic, PeerInfo
+#include "topo.h"                           // for BootstrapNext
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Result, Fail, Success
 #include "xgboost/collective/socket.h"      // for GetHostName, FailWithCode, MakeSockAddress, ...
@@ -89,7 +91,15 @@ RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockA
   } << [&] {
     if (cmd_ == proto::CMD::kStart) {
       proto::Start start;
-      return start.TrackerHandle(jcmd, &world_, world, &port, &sock_, &eport_);
+      std::string cmd1;
+      return Success() << [&] {
+        return start.TrackerHandle(jcmd, &world_, world, &port, &sock_, &eport_);
+      } << [&] {
+        return sock_.Recv(&cmd1);
+      } << [&] {
+        auto jcmd1 = Json::Load(StringView{cmd1});
+        return start.TrackerFinish(jcmd1);
+      };
     } else if (cmd_ == proto::CMD::kPrint) {
       proto::Print print;
       return print.TrackerHandle(jcmd, &msg_);
@@ -123,7 +133,8 @@ RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
     listener_ = TCPSocket::Create(addr.IsV4() ? SockDomain::kV4 : SockDomain::kV6);
     return listener_.Bind(host_, &this->port_);
   } << [&] {
-    return listener_.Listen();
+    CHECK_GT(this->n_workers_, 0);
+    return listener_.Listen(this->n_workers_);
   };
   SafeColl(rc);
 }
@@ -155,6 +166,7 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   for (auto const& w : workers) {
     worker_error_handles_.emplace_back(w.Host(), w.ErrorPort());
   }
+  LOG(CONSOLE) << "[tracker]: Bootstrap " << workers.size() << " workers.";
   return Success();
 }
 

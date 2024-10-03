@@ -32,7 +32,7 @@ class LoopTest : public ::testing::Test {
     auto rc = Success() << [&] {
       return pair_.first.BindHost(&port);
     } << [&] {
-      return pair_.first.Listen();
+      return pair_.first.Listen(16);
     };
     SafeColl(rc);
 

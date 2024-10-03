@@ -25,7 +25,7 @@ TEST_F(SocketTest, Basic) {
     auto rc = Success() << [&] {
       return server.BindHost(&port);
     } << [&] {
-      return server.Listen();
+      return server.Listen(16);
     };
     SafeColl(rc);
 
