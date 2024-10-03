@@ -328,7 +328,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
 
   // For dense compressed data, we can simply copy the data with the input position.
   if (kIsDense) {
-    CHECK_EQ(batch.NumCols(), dst->info.row_stride);
+    CHECK(batch.NumRows() == 0 || batch.NumCols() == dst->info.row_stride);
     thrust::for_each_n(ctx->CUDACtx()->CTP(), cnt, dst->Size() * dst->info.row_stride, functor);
     return;
   }
