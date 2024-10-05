@@ -3,7 +3,7 @@
  */
 #include "threading_utils.h"
 
-#include <algorithm>   // for max
+#include <algorithm>   // for max, min
 #include <exception>   // for exception
 #include <filesystem>  // for path, exists
 #include <fstream>     // for ifstream
@@ -99,17 +99,18 @@ std::int32_t GetCfsCPUCount() noexcept {
   return -1;
 }
 
-std::int32_t OmpGetNumThreads(std::int32_t n_threads) {
+std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true) {
   // Don't use parallel if we are in a parallel region.
   if (omp_in_parallel()) {
     return 1;
   }
+  // Honor the openmp thread limit, which can be set via environment variable.
+  auto max_n_threads = std::min({omp_get_num_procs(), omp_get_max_threads(), OmpGetThreadLimit()});
   // If -1 or 0 is specified by the user, we default to maximum number of threads.
   if (n_threads <= 0) {
-    n_threads = std::min(omp_get_num_procs(), omp_get_max_threads());
+    n_threads = max_n_threads;
   }
-  // Honor the openmp thread limit, which can be set via environment variable.
-  n_threads = std::min(n_threads, OmpGetThreadLimit());
+  n_threads = std::min(n_threads, max_n_threads);
   n_threads = std::max(n_threads, 1);
   return n_threads;
 }
