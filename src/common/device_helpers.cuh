@@ -680,8 +680,7 @@ size_t SegmentedUniqueByKey(
         return thrust::make_pair(seg, *(key_first + i));
       });
   size_t segments_len = key_segments_last - key_segments_first;
-  thrust::fill(thrust::device, key_segments_out,
-               key_segments_out + segments_len, 0);
+  thrust::fill(exec, key_segments_out, key_segments_out + segments_len, 0);
   size_t n_inputs = std::distance(key_first, key_last);
   // Reduce the number of uniques elements per segment, avoid creating an
   // intermediate array for `reduce_by_key`.  It's limited by the types that

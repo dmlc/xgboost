@@ -311,7 +311,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
                        common::Span<FeatureType const> feature_types, EllpackPageImpl* dst,
                        float missing) {
   data::IsValidFunctor is_valid(missing);
-  bool valid = data::NoInfInData(batch, is_valid);
+  bool valid = data::NoInfInData(ctx, batch, is_valid);
   CHECK(valid) << error::InfInData();
 
   auto cnt = thrust::make_counting_iterator(0llu);
