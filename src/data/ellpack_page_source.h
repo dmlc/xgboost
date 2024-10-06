@@ -206,8 +206,6 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
   MetaInfo* info_;
   ExternalDataInfo ext_info_;
 
-  std::vector<bst_idx_t> base_rows_;
-
  public:
   ExtEllpackPageSourceImpl(
       Context const* ctx, float missing, MetaInfo* info, ExternalDataInfo ext_info,
@@ -224,14 +222,27 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
         p_{std::move(param)},
         proxy_{proxy},
         info_{info},
-        ext_info_{std::move(ext_info)},
-        base_rows_{std::move(base_rows)} {
+        ext_info_{std::move(ext_info)} {
     cuts->SetDevice(ctx->Device());
     this->SetCuts(std::move(cuts), ctx->Device());
+    CHECK(!this->cache_info_->written);
+    this->source_->Reset();
+    CHECK(this->source_->Next());
     this->Fetch();
   }
 
   void Fetch() final;
+  // Need a specialized end iter as we can concatenate pages.
+  void EndIter() final {
+    if (this->cache_info_->written) {
+      CHECK_EQ(this->Iter(), this->cache_info_->Size());
+    } else {
+      CHECK_LE(this->cache_info_->Size(), this->ext_info_.n_batches);
+    }
+    this->cache_info_->Commit();
+    CHECK_GE(this->count_, 1);
+    this->count_ = 0;
+  }
 };
 
 // Cache to host

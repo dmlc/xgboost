@@ -46,7 +46,7 @@ EllpackPageImpl const* EllpackHostCache::Get(std::int32_t k) {
  */
 class EllpackHostCacheStreamImpl {
   std::shared_ptr<EllpackHostCache> cache_;
-  std::int32_t ptr_;
+  std::int32_t ptr_{0};
 
  public:
   explicit EllpackHostCacheStreamImpl(std::shared_ptr<EllpackHostCache> cache)

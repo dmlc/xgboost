@@ -32,7 +32,6 @@ void GradientIndexPageSource::Fetch() {
 void ExtGradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
     CHECK_EQ(count_, source_->Iter());
-    ++(*source_);
     CHECK_GE(source_->Iter(), 1);
     CHECK_NE(cuts_.Values().size(), 0);
     HostAdapterDispatch(proxy_, [this](auto const& value) {

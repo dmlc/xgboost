@@ -124,6 +124,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     dh::safe_cuda(cudaSetDevice(device_.ordinal));
     for (auto& json_col : json_columns) {
       auto column = ArrayInterface<1>(get<Object const>(json_col));
+      n_bytes_ += column.ElementSize() * column.Shape(0);
       columns.push_back(column);
       num_rows_ = std::max(num_rows_, column.Shape(0));
       CHECK_EQ(device_.ordinal, dh::CudaGetPointerDevice(column.data))
@@ -145,11 +146,13 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   [[nodiscard]] std::size_t NumRows() const { return num_rows_; }
   [[nodiscard]] std::size_t NumColumns() const { return columns_.size(); }
   [[nodiscard]] DeviceOrd Device() const { return device_; }
+  [[nodiscard]] bst_idx_t SizeBytes() const { return  this->n_bytes_; }
 
  private:
   CudfAdapterBatch batch_;
   dh::device_vector<ArrayInterface<1>> columns_;
   size_t num_rows_{0};
+  bst_idx_t n_bytes_{0};
   DeviceOrd device_{DeviceOrd::CPU()};
 };
 
@@ -189,6 +192,8 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
       return;
     }
     device_ = DeviceOrd::CUDA(dh::CudaGetPointerDevice(array_interface_.data));
+    this->n_bytes_ =
+        array_interface_.Shape(0) * array_interface_.Shape(1) * array_interface_.ElementSize();
     CHECK(device_.IsCUDA());
   }
   explicit CupyAdapter(std::string cuda_interface_str)
@@ -198,10 +203,12 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
   [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
   [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape(1); }
   [[nodiscard]] DeviceOrd Device() const { return device_; }
+  [[nodiscard]] bst_idx_t SizeBytes() const { return  this->n_bytes_; }
 
  private:
   ArrayInterface<2> array_interface_;
   CupyAdapterBatch batch_;
+  bst_idx_t n_bytes_{0};
   DeviceOrd device_{DeviceOrd::CPU()};
 };
 

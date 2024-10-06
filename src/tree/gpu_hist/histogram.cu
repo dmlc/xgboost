@@ -308,9 +308,11 @@ struct HistogramKernel {
   bool shared{false};
   std::uint32_t grid_size{0};
   std::size_t smem_size{0};
+  bool const force_global;
 
   HistogramKernel(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
-                  bool force_global_memory) {
+                  bool force_global_memory)
+      : force_global{force_global_memory} {
     // Decide whether to use shared memory
     // Opt into maximum shared memory for the kernel if necessary
     std::size_t max_shared_memory = dh::MaxSharedMemoryOptin(ctx->Ordinal());
@@ -381,14 +383,16 @@ class DeviceHistogramBuilderImpl {
           kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
     };
 
-    if (!this->kernel_->shared) {
+    if (!this->kernel_->shared) {  // Use global memory
+      // This must use shared memory except for testing.
+      CHECK(!matrix.IsDenseCompressed() || this->kernel_->force_global);
       CHECK_EQ(this->kernel_->smem_size, 0);
       if (matrix.IsDenseCompressed()) {
         launcher(this->kernel_->global_dense_kernel);
       } else {
         launcher(this->kernel_->global_kernel);
       }
-    } else {
+    } else {  // Use shared memory
       CHECK_NE(this->kernel_->smem_size, 0);
       if (matrix.IsDenseCompressed()) {
         launcher(this->kernel_->shared_dense_kernel);
