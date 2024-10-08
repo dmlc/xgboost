@@ -318,7 +318,7 @@ struct HistogramKernel {
     std::size_t max_shared_memory = dh::MaxSharedMemoryOptin(ctx->Ordinal());
 
     this->smem_size = sizeof(GradientPairInt64) * feature_groups.max_group_bins;
-    this->shared = !force_global_memory && smem_size <= max_shared_memory;
+    this->shared = !force_global_memory && this->smem_size <= max_shared_memory;
     this->smem_size = this->shared ? this->smem_size : 0;
 
     auto init = [&](auto& kernel) {
@@ -384,10 +384,10 @@ class DeviceHistogramBuilderImpl {
     };
 
     if (!this->kernel_->shared) {  // Use global memory
-      // This must use shared memory except for testing.
-      CHECK(!matrix.IsDenseCompressed() || this->kernel_->force_global);
       CHECK_EQ(this->kernel_->smem_size, 0);
       if (matrix.IsDenseCompressed()) {
+        // Dense must use shared memory except for testing.
+        CHECK(this->kernel_->force_global);
         launcher(this->kernel_->global_dense_kernel);
       } else {
         launcher(this->kernel_->global_kernel);
