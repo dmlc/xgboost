@@ -211,13 +211,8 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
       Context const* ctx, float missing, MetaInfo* info, ExternalDataInfo ext_info,
       std::shared_ptr<Cache> cache, BatchParam param, std::shared_ptr<common::HistogramCuts> cuts,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
-      DMatrixProxy* proxy, std::vector<bst_idx_t> base_rows)
-      : Super{missing,
-              ctx->Threads(),
-              static_cast<bst_feature_t>(info->num_col_),
-              ext_info.n_batches,
-              source,
-              cache},
+      DMatrixProxy* proxy)
+      : Super{missing, ctx->Threads(), static_cast<bst_feature_t>(info->num_col_), source, cache},
         ctx_{ctx},
         p_{std::move(param)},
         proxy_{proxy},

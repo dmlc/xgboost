@@ -609,7 +609,7 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
 };
 
 /**
- * @brief operator++ implementation for QDM.
+ * @brief operator++ implementation for ExtMemQDM.
  */
 template <typename S, typename FormatCreatePolicy>
 class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy> {
@@ -619,10 +619,10 @@ class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy>
 
  public:
   ExtQantileSourceMixin(
-      float missing, std::int32_t nthreads, bst_feature_t n_features,
+      float missing, std::int32_t n_threads, bst_feature_t n_features,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
       std::shared_ptr<Cache> cache)
-      : Super::SparsePageSourceImpl{missing, nthreads, n_features, cache},
+      : Super::SparsePageSourceImpl{missing, n_threads, n_features, cache},
         source_{std::move(source)} {}
   // This function always operate on the source first, then the downstream. The downstream
   // can assume the source to be ready.
@@ -641,7 +641,7 @@ class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy>
       this->EndIter();
 
       CHECK(this->cache_info_->written);
-      source_ = nullptr;  // release the source
+      source_.reset();  // release the source
     } else {
       this->Fetch();
     }
