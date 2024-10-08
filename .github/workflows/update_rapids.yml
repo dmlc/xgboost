@@ -32,7 +32,7 @@ jobs:
       run: |
         bash tests/buildkite/update-rapids.sh
     - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v6
+      uses: peter-evans/create-pull-request@v7
       if: github.ref == 'refs/heads/master'
       with:
         add-paths: |
