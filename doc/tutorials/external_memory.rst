@@ -134,7 +134,7 @@ the GPU. This is a current limitation we aim to address in the future.
 
     # It's important to use RMM for GPU-based external memory to improve performance.
     # If XGBoost is not built with RMM support, a warning will be raised.
-    mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
+    mr = rmm.mr.CudaAsyncMemoryResource()
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
