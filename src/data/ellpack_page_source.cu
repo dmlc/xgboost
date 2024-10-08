@@ -1,8 +1,6 @@
 /**
  * Copyright 2019-2024, XGBoost contributors
  */
-#include <thrust/host_vector.h>  // for host_vector
-
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int8_t, uint64_t, uint32_t
 #include <memory>   // for shared_ptr, make_unique, make_shared
@@ -267,7 +265,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
               << cuda_impl::Dispatch<false>(proxy_, [](auto const& adapter) {
                    return common::HumanMemUnit(adapter->SizeBytes());
                  });
-    this->page_->SetBaseRowId(this->ext_info_.base_rows.at(iter - 1));
+    this->page_->SetBaseRowId(this->ext_info_.base_rows.at(iter));
     this->WriteCache();
   }
 }
