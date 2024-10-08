@@ -634,6 +634,7 @@ class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy>
     if (this->cache_info_->written) {
       this->at_end_ = (this->Iter() == this->cache_info_->Size());
     } else {
+      CHECK(this->source_);
       this->at_end_ = !this->source_->Next();
     }
 

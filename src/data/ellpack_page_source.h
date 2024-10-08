@@ -227,17 +227,6 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
   }
 
   void Fetch() final;
-  // Need a specialized end iter as we can concatenate pages.
-  void EndIter() final {
-    if (this->cache_info_->written) {
-      CHECK_EQ(this->Iter(), this->cache_info_->Size());
-    } else {
-      CHECK_LE(this->cache_info_->Size(), this->ext_info_.n_batches);
-    }
-    this->cache_info_->Commit();
-    CHECK_GE(this->count_, 1);
-    this->count_ = 0;
-  }
 };
 
 // Cache to host
