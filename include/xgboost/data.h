@@ -211,8 +211,8 @@ class MetaInfo {
   bool HasCategorical() const { return has_categorical_; }
 
  private:
-  void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
-  void SetInfoFromCUDA(Context const& ctx, StringView key, Json arr);
+  void SetInfoFromHost(Context const* ctx, StringView key, Json arr);
+  void SetInfoFromCUDA(Context const* ctx, StringView key, Json arr);
 
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;

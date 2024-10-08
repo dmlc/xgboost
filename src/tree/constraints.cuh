@@ -80,7 +80,7 @@ struct FeatureInteractionConstraintDevice {
   /*! \brief Reset before constructing a new tree. */
   void Reset(Context const* ctx);
   /*! \brief Return a list of features given node id */
-  common::Span<bst_feature_t> QueryNode(int32_t nid);
+  common::Span<bst_feature_t> QueryNode(Context const* ctx, bst_node_t nid);
   /*!
    * \brief Return a list of selected features from given feature_list and node id.
    *
