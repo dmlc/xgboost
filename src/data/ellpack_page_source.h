@@ -84,7 +84,9 @@ class EllpackFormatPolicy {
     curt::DrVersion(&major, &minor);
     if (!(major >= 12 && minor >= 7) && curt::SupportsAts()) {
       // Use ATS, but with an old kernel driver.
-      LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7." << msg;
+      LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7."
+                   << "The latest version of CTK supported by the current driver: " << major << "."
+                   << minor << "." << msg;
     }
   }
   // For testing with the HMM flag.

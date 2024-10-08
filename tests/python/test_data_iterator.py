@@ -202,12 +202,12 @@ class IterForCacheTest(xgb.DataIter):
         self.kwargs = {"data": x, "label": y, "weight": w}
         super().__init__(release_data=release_data)
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         if self.it == 1:
-            return 0
+            return False
         self.it += 1
         input_data(**self.kwargs)
-        return 1
+        return True
 
     def reset(self) -> None:
         self.it = 0
