@@ -94,9 +94,9 @@ class PartIter(DataIter):
 
         return data[self._iter]
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         if self._iter == len(self._data[alias.data]):
-            return 0
+            return False
         input_data(
             data=self._fetch(self._data[alias.data]),
             label=self._fetch(self._data.get(alias.label, None)),
@@ -106,7 +106,7 @@ class PartIter(DataIter):
             **self._kwargs,
         )
         self._iter += 1
-        return 1
+        return True
 
     def reset(self) -> None:
         self._iter = 0

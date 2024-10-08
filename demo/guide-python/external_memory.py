@@ -72,21 +72,21 @@ class Iterator(xgboost.DataIter):
         assert X.shape[0] == y.shape[0]
         return X, y
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         """Advance the iterator by 1 step and pass the data to XGBoost.  This function
         is called by XGBoost during the construction of ``DMatrix``
 
         """
         if self._it == len(self._file_paths):
-            # return 0 to let XGBoost know this is the end of iteration
-            return 0
+            # return False to let XGBoost know this is the end of iteration
+            return False
 
         # input_data is a function passed in by XGBoost and has the similar signature to
         # the ``DMatrix`` constructor.
         X, y = self.load_file()
         input_data(data=X, label=y)
         self._it += 1
-        return 1
+        return True
 
     def reset(self) -> None:
         """Reset the iterator to its beginning"""
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
         # It's important to use RMM for GPU-based external memory to improve performance.
         # If XGBoost is not built with RMM support, a warning will be raised.
-        mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
+        mr = rmm.mr.CudaAsyncMemoryResource()
         rmm.mr.set_current_device_resource(mr)
         # Set the allocator for cupy as well.
         cp.cuda.set_allocator(rmm_cupy_allocator)

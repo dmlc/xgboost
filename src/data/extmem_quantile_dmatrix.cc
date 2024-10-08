@@ -92,8 +92,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
    */
   auto id = MakeCache(this, ".gradient_index.page", false, cache_prefix_, &cache_info_);
   this->ghist_index_source_ = std::make_unique<ExtGradientIndexPageSource>(
-      ctx, missing, &this->Info(), ext_info.n_batches, cache_info_.at(id), p, cuts, iter, proxy,
-      ext_info.base_rows);
+      ctx, missing, &this->Info(), cache_info_.at(id), p, cuts, iter, proxy, ext_info.base_rows);
 
   /**
    * Force initialize the cache and do some sanity checks along the way

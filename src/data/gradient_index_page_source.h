@@ -49,7 +49,7 @@ class GradientIndexPageSource
 
  public:
   GradientIndexPageSource(float missing, std::int32_t nthreads, bst_feature_t n_features,
-                          size_t n_batches, std::shared_ptr<Cache> cache, BatchParam param,
+                          bst_idx_t n_batches, std::shared_ptr<Cache> cache, BatchParam param,
                           common::HistogramCuts cuts, bool is_dense,
                           common::Span<FeatureType const> feature_types,
                           std::shared_ptr<SparsePageSource> source)
@@ -81,18 +81,21 @@ class ExtGradientIndexPageSource
 
  public:
   ExtGradientIndexPageSource(
-      Context const* ctx, float missing, MetaInfo* info, bst_idx_t n_batches,
-      std::shared_ptr<Cache> cache, BatchParam param, common::HistogramCuts cuts,
+      Context const* ctx, float missing, MetaInfo* info, std::shared_ptr<Cache> cache,
+      BatchParam param, common::HistogramCuts cuts,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
       DMatrixProxy* proxy, std::vector<bst_idx_t> base_rows)
-      : ExtQantileSourceMixin{missing,   ctx->Threads(), static_cast<bst_feature_t>(info->num_col_),
-                              n_batches, source,         cache},
+      : ExtQantileSourceMixin{missing, ctx->Threads(), static_cast<bst_feature_t>(info->num_col_),
+                              source, cache},
         p_{std::move(param)},
         ctx_{ctx},
         proxy_{proxy},
         info_{info},
         feature_types_{info_->feature_types.ConstHostSpan()},
         base_rows_{std::move(base_rows)} {
+    CHECK(!this->cache_info_->written);
+    this->source_->Reset();
+    CHECK(this->source_->Next());
     this->SetCuts(std::move(cuts));
     this->Fetch();
   }

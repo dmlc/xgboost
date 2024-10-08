@@ -50,7 +50,7 @@ class DataIterProxy {
     reset_(iter_);
     count_ = 0;
   }
-  [[nodiscard]] std::uint32_t Iter() const { return this->count_; }
+  [[nodiscard]] std::int32_t Iter() const { return this->count_ == 0 ? 0 : this->count_ - 1; }
   DataIterProxy& operator++() {
     CHECK(this->Next());
     return *this;

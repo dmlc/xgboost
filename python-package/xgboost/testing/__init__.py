@@ -235,9 +235,9 @@ class IteratorForTest(xgb.core.DataIter):
         self.it = 0
         super().__init__(cache_prefix=cache, on_host=on_host)
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         if self.it == len(self.X):
-            return 0
+            return False
 
         with pytest.raises(TypeError, match="Keyword argument"):
             input_data(self.X[self.it], self.y[self.it], None)
@@ -250,7 +250,7 @@ class IteratorForTest(xgb.core.DataIter):
         )
         gc.collect()  # clear up the copy, see if XGBoost access freed memory.
         self.it += 1
-        return 1
+        return True
 
     def reset(self) -> None:
         self.it = 0

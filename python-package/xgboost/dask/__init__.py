@@ -636,11 +636,11 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         """Reset the iterator"""
         self._iter = 0
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         """Yield next batch of data"""
         if self._iter == len(self._data):
-            # Return 0 when there's no more batch.
-            return 0
+            # Return False when there's no more batch.
+            return False
 
         input_data(
             data=self.data(),
@@ -656,7 +656,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
             feature_weights=self._feature_weights,
         )
         self._iter += 1
-        return 1
+        return True
 
 
 class DaskQuantileDMatrix(DaskDMatrix):

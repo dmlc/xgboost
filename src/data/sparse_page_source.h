@@ -48,9 +48,7 @@ struct Cache {
   std::vector<bst_idx_t> offset;
 
   Cache(bool w, std::string n, std::string fmt, bool on_host)
-      : written{w}, on_host{on_host}, name{std::move(n)}, format{std::move(fmt)} {
-    offset.push_back(0);
-  }
+      : written{w}, on_host{on_host}, name{std::move(n)}, format{std::move(fmt)}, offset{0} {}
 
   [[nodiscard]] static std::string ShardName(std::string name, std::string format) {
     CHECK_EQ(format.front(), '.');
@@ -81,6 +79,10 @@ struct Cache {
    * @brief Call this once the write for the cache is complete.
    */
   void Commit();
+  /**
+   * @brief Returns the number of pages in the cache.
+   */
+  [[nodiscard]] bst_idx_t Size() const { return this->offset.size() - 1; }
 };
 
 inline void DeleteCacheFiles(std::map<std::string, std::shared_ptr<Cache>> const& cache_info) {
@@ -246,8 +248,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   bst_idx_t fetch_cnt_{0};  // Used for sanity check.
   // Index to the current page.
   std::uint32_t count_{0};
-  // Total number of batches.
-  bst_idx_t n_batches_{0};
   // How we pre-fetch the data.
   BatchParam param_;
 
@@ -267,13 +267,14 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     if (!cache_info_->written) {
       return false;
     }
+    auto n_batches = this->cache_info_->Size();
     if (ring_->empty()) {
-      ring_->resize(n_batches_);
+      ring_->resize(n_batches);
     }
 
     std::int32_t n_prefetches = std::min(nthreads_, this->param_.n_prefetch_batches);
     n_prefetches = std::max(n_prefetches, 1);
-    std::int32_t n_prefetch_batches = std::min(static_cast<bst_idx_t>(n_prefetches), n_batches_);
+    std::int32_t n_prefetch_batches = std::min(static_cast<bst_idx_t>(n_prefetches), n_batches);
     CHECK_GT(n_prefetch_batches, 0);
     CHECK_LE(n_prefetch_batches, this->param_.n_prefetch_batches);
     std::size_t fetch_it = count_;
@@ -285,8 +286,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     page_.reset();
 
     for (std::int32_t i = 0; i < n_prefetch_batches; ++i, ++fetch_it) {
-      bool restart = fetch_it == n_batches_;
-      fetch_it %= n_batches_;  // ring
+      bool restart = fetch_it == n_batches;
+      fetch_it %= n_batches;  // ring
       if (ring_->at(fetch_it).valid()) {
         continue;
       }
@@ -347,13 +348,12 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   virtual void Fetch() = 0;
 
  public:
-  SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features, bst_idx_t n_batches,
+  SparsePageSourceImpl(float missing, int nthreads, bst_feature_t n_features,
                        std::shared_ptr<Cache> cache)
       : workers_{StringView{"ext-mem"}, std::max(2, std::min(nthreads, 16)), InitNewThread{}},
         missing_{missing},
         nthreads_{nthreads},
         n_features_{n_features},
-        n_batches_{n_batches},
         cache_info_{std::move(cache)} {
     monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
   }
@@ -383,13 +383,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
   [[nodiscard]] bool AtEnd() const override {
     return at_end_;
   }
-
   // Call this at the last iteration (it == n_batches).
-  void EndIter() {
-    CHECK_EQ(this->cache_info_->offset.size(), this->n_batches_ + 1);
+  virtual void EndIter() {
     this->cache_info_->Commit();
-    if (this->n_batches_ != 0) {
-      CHECK_EQ(this->count_, this->n_batches_);
+    if (this->cache_info_->Size() != 0) {
+      CHECK_EQ(this->count_, this->cache_info_->Size());
     }
     CHECK_GE(this->count_, 1);
     this->count_ = 0;
@@ -428,6 +426,8 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter_;
   DMatrixProxy* proxy_;
   std::size_t base_row_id_{0};
+  // Total number of batches.
+  bst_idx_t n_batches_{0};
 
   void Fetch() final {
     page_ = std::make_shared<SparsePage>();
@@ -447,18 +447,19 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
 
       page_->SetBaseRowId(base_row_id_);
       base_row_id_ += page_->Size();
-      n_batches_++;
+      this->n_batches_++;
       this->WriteCache();
     }
   }
 
  public:
-  SparsePageSource(
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter,
-      DMatrixProxy *proxy, float missing, int nthreads,
-      bst_feature_t n_features, uint32_t n_batches, std::shared_ptr<Cache> cache)
-      : SparsePageSourceImpl(missing, nthreads, n_features, n_batches, cache),
-        iter_{iter}, proxy_{proxy} {
+  SparsePageSource(DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter,
+                   DMatrixProxy* proxy, float missing, int nthreads, bst_feature_t n_features,
+                   bst_idx_t n_batches, std::shared_ptr<Cache> cache)
+      : SparsePageSourceImpl(missing, nthreads, n_features, cache),
+        iter_{iter},
+        proxy_{proxy},
+        n_batches_{n_batches} {
     if (!cache_info_->written) {
       iter_.Reset();
       CHECK(iter_.Next()) << "Must have at least 1 batch.";
@@ -511,11 +512,15 @@ class PageSourceIncMixIn : public SparsePageSourceImpl<S, FormatCreatePolicy> {
   // synchronize the row page, `hist` and `gpu_hist` don't need the original sparse page
   // so we avoid fetching it.
   bool const sync_;
+  // Total number of batches.
+  bst_idx_t const n_batches_{0};
 
  public:
   PageSourceIncMixIn(float missing, std::int32_t nthreads, bst_feature_t n_features,
                      bst_idx_t n_batches, std::shared_ptr<Cache> cache, bool sync)
-      : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache}, sync_{sync} {}
+      : Super::SparsePageSourceImpl{missing, nthreads, n_features, cache},
+        sync_{sync},
+        n_batches_{n_batches} {}
   // This function always operate on the source first, then the downstream. The downstream
   // can assume the source to be ready.
   [[nodiscard]] PageSourceIncMixIn& operator++() final {
@@ -604,10 +609,9 @@ class SortedCSCPageSource : public PageSourceIncMixIn<SortedCSCPage> {
 };
 
 /**
- * @brief operator++ implementation for QDM.
+ * @brief operator++ implementation for ExtMemQDM.
  */
-template <typename S,
-          typename FormatCreatePolicy = DefaultFormatStreamPolicy<S, DefaultFormatPolicy>>
+template <typename S, typename FormatCreatePolicy>
 class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy> {
  protected:
   std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source_;
@@ -615,10 +619,10 @@ class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy>
 
  public:
   ExtQantileSourceMixin(
-      float missing, std::int32_t nthreads, bst_feature_t n_features, bst_idx_t n_batches,
+      float missing, std::int32_t n_threads, bst_feature_t n_features,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
       std::shared_ptr<Cache> cache)
-      : Super::SparsePageSourceImpl{missing, nthreads, n_features, n_batches, cache},
+      : Super::SparsePageSourceImpl{missing, n_threads, n_features, cache},
         source_{std::move(source)} {}
   // This function always operate on the source first, then the downstream. The downstream
   // can assume the source to be ready.
@@ -627,13 +631,18 @@ class ExtQantileSourceMixin : public SparsePageSourceImpl<S, FormatCreatePolicy>
     // Increment self.
     ++this->count_;
     // Set at end.
-    this->at_end_ = this->count_ == this->n_batches_;
+    if (this->cache_info_->written) {
+      this->at_end_ = (this->Iter() == this->cache_info_->Size());
+    } else {
+      CHECK(this->source_);
+      this->at_end_ = !this->source_->Next();
+    }
 
     if (this->at_end_) {
       this->EndIter();
 
       CHECK(this->cache_info_->written);
-      source_ = nullptr;  // release the source
+      source_.reset();  // release the source
     } else {
       this->Fetch();
     }

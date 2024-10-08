@@ -44,7 +44,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
       [&](auto &&ptr) {
         using SourceT = typename std::remove_reference_t<decltype(ptr)>::element_type;
         ptr = std::make_shared<SourceT>(ctx, missing, &this->Info(), ext_info, cache_info_.at(id),
-                                        p, cuts, iter, proxy, ext_info.base_rows);
+                                        p, cuts, iter, proxy);
       },
       ellpack_page_source_);
 
