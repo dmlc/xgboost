@@ -23,8 +23,8 @@ class ExtMemQuantileDMatrixGpu : public ::testing::TestWithParam<std::tuple<floa
       ASSERT_EQ(orig_cuts.Ptrs(), sparse_cuts.Ptrs());
 
       std::vector<common::CompressedByteT> h_orig, h_sparse;
-      auto orig_acc = orig.Impl()->GetHostAccessor(ctx, &h_orig, {});
-      auto sparse_acc = sparse.Impl()->GetHostAccessor(ctx, &h_sparse, {});
+      [[maybe_unused]] auto orig_acc = orig.Impl()->GetHostAccessor(ctx, &h_orig, {});
+      [[maybe_unused]] auto sparse_acc = sparse.Impl()->GetHostAccessor(ctx, &h_sparse, {});
       ASSERT_EQ(h_orig.size(), h_sparse.size());
 
       auto equal = std::equal(h_orig.cbegin(), h_orig.cend(), h_sparse.cbegin());

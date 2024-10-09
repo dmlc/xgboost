@@ -104,7 +104,6 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   auto ctx = MakeCUDACtx(0);
 
   auto page = BuildEllpackPage(&ctx, kNRows, kNCols);
-  BatchParam batch_param{};
 
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
@@ -448,7 +447,6 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
         auto impl = page.Impl();
         if (k == 0) {
           // Initialization
-          auto d_matrix = impl->GetDeviceAccessor(&ctx);
           fg = std::make_unique<FeatureGroups>(impl->Cuts());
           auto init = GradientPairInt64{0, 0};
           multi_hist = decltype(multi_hist)(impl->Cuts().TotalBins(), init);

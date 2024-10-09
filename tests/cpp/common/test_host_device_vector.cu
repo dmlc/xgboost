@@ -146,7 +146,7 @@ TEST(HostDeviceVector, SetDevice) {
 
   vec.SetDevice(device);
   ASSERT_EQ(vec.Size(), h_vec.size());
-  auto span = vec.DeviceSpan();  // sync to device
+  vec.DeviceSpan();  // sync to device
 
   vec.SetDevice(DeviceOrd::CPU());  // pull back to cpu.
   ASSERT_EQ(vec.Size(), h_vec.size());

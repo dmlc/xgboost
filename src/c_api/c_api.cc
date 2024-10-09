@@ -1098,7 +1098,6 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   auto ctx = learner->Ctx();
   if (!grad_is_cuda) {
     gpair.Reshape(i_grad.Shape(0), i_grad.Shape(1));
-    auto const shape = gpair.Shape();
     auto h_gpair = gpair.HostView();
     DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
       DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {

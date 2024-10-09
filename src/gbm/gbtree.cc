@@ -167,7 +167,6 @@ void CopyGradient(Context const* ctx, linalg::Matrix<GradientPair> const* in_gpa
     GPUCopyGradient(ctx, in_gpair, group_id, out_gpair);
   } else {
     auto const& in = *in_gpair;
-    auto target_gpair = in.Slice(linalg::All(), group_id);
     auto h_tmp = out_gpair->HostView();
     auto h_in = in.HostView().Slice(linalg::All(), group_id);
     CHECK_EQ(h_tmp.Size(), h_in.Size());

@@ -10,7 +10,6 @@
 #include "../split_evaluator.h"
 #include "../updater_gpu_common.cuh"
 #include "expand_entry.cuh"
-#include "histogram.cuh"
 
 namespace xgboost {
 namespace common {
