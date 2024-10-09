@@ -776,7 +776,7 @@ class Tensor {
     for (auto i = D; i < kDim; ++i) {
       shape_[i] = 1;
     }
-    if (!device.IsCPU()) {
+    if (device.IsCUDA()) {
       data_.SetDevice(device);
       data_.ConstDevicePointer();  // Pull to device;
     }
@@ -805,11 +805,11 @@ class Tensor {
       shape_[i] = 1;
     }
     auto size = detail::CalcSize(shape_);
-    if (!device.IsCPU()) {
+    if (device.IsCUDA()) {
       data_.SetDevice(device);
     }
     data_.Resize(size);
-    if (!device.IsCPU()) {
+    if (device.IsCUDA()) {
       data_.DevicePointer();  // Pull to device
     }
   }
@@ -855,7 +855,7 @@ class Tensor {
    * @brief Get a @ref TensorView for this tensor.
    */
   auto View(DeviceOrd device) {
-    if (!device.IsCPU()) {
+    if (device.IsCUDA()) {
       data_.SetDevice(device);
       auto span = data_.DeviceSpan();
       return TensorView<T, kDim>{span, shape_, device, order_};
@@ -865,7 +865,7 @@ class Tensor {
     }
   }
   auto View(DeviceOrd device) const {
-    if (!device.IsCPU()) {
+    if (device.IsCUDA()) {
       data_.SetDevice(device);
       auto span = data_.ConstDeviceSpan();
       return TensorView<T const, kDim>{span, shape_, device, order_};
