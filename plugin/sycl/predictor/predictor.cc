@@ -187,6 +187,7 @@ class Predictor : public xgboost::Predictor {
       }
       out_preds->Fill(base_score);
     }
+    needs_buffer_update = true;
   }
 
   explicit Predictor(Context const* context) :
@@ -272,6 +273,7 @@ class Predictor : public xgboost::Predictor {
 
     float* fval_buff_ptr = fval_buff.Data();
     uint8_t* miss_buff_ptr = miss_buff.Data();
+    bool needs_buffer_update = this->needs_buffer_update;
 
     *event = qu_->submit([&](::sycl::handler& cgh) {
       cgh.depends_on(*event);
@@ -280,12 +282,14 @@ class Predictor : public xgboost::Predictor {
         auto* fval_buff_row_ptr = fval_buff_ptr + num_features * row_idx;
         auto* miss_buff_row_ptr = miss_buff_ptr + num_features * row_idx;
 
-        const Entry* first_entry = data + row_ptr[row_idx];
-        const Entry* last_entry = data + row_ptr[row_idx + 1];
-        for (const Entry* entry = first_entry; entry < last_entry; entry += 1) {
-          fval_buff_row_ptr[entry->index] = entry->fvalue;
-          if constexpr (any_missing) {
-            miss_buff_row_ptr[entry->index] = 0;
+        if (true) {
+          const Entry* first_entry = data + row_ptr[row_idx];
+          const Entry* last_entry = data + row_ptr[row_idx + 1];
+          for (const Entry* entry = first_entry; entry < last_entry; entry += 1) {
+            fval_buff_row_ptr[entry->index] = entry->fvalue;
+            if constexpr (any_missing) {
+              miss_buff_row_ptr[entry->index] = 0;
+            }
           }
         }
 
@@ -339,14 +343,18 @@ class Predictor : public xgboost::Predictor {
       size_t batch_size = batch.Size();
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;
-        fval_buff.ResizeNoCopy(qu_, num_features * batch_size);
-        if constexpr (any_missing) {
-          miss_buff.ResizeAndFill(qu_, num_features * batch_size, 1, &event);
+
+        if (true) {
+          fval_buff.ResizeNoCopy(qu_, num_features * batch_size);
+          if constexpr (any_missing) {
+            miss_buff.ResizeAndFill(qu_, num_features * batch_size, 1, &event);
+          }
         }
 
         PredictKernel<any_missing>(&event, data, out_predictions + base_rowid,
                                    row_ptr, batch_size, num_features,
                                    num_group, tree_begin, tree_end);
+        needs_buffer_update = true; //(batch_size != out_preds->Size());
       }
     }
     qu_->wait();
@@ -355,6 +363,7 @@ class Predictor : public xgboost::Predictor {
   mutable USMVector<float,   MemoryType::on_device> fval_buff;
   mutable USMVector<uint8_t, MemoryType::on_device> miss_buff;
   mutable DeviceModel device_model;
+  mutable bool needs_buffer_update = true;
 
   mutable ::sycl::queue* qu_ = nullptr;
 
