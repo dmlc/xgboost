@@ -277,7 +277,6 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
                                             HostDeviceVector<float>* p_out_weight) {
   if (hessian.empty()) {
     if (info.IsRanking() && !info.weights_.Empty()) {
-      common::Span<float const> group_weight = info.weights_.ConstDeviceSpan();
       dh::device_vector<bst_group_t> group_ptr(info.group_ptr_);
       auto d_group_ptr = dh::ToSpan(group_ptr);
       CHECK_GE(d_group_ptr.size(), 2) << "Must have at least 1 group for ranking.";

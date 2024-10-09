@@ -360,8 +360,6 @@ TEST(SimpleDMatrix, FromCupySparse){
   auto& batch = *dmat.GetBatches<SparsePage>().begin();
   auto page = batch.GetView();
 
-  auto inst0 = page[0];
-  auto inst1 = page[1];
   EXPECT_EQ(page[0].size(), 1);
   EXPECT_EQ(page[1].size(), 1);
   EXPECT_EQ(page[0][0].fvalue, 0.0f);
