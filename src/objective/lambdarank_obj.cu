@@ -488,9 +488,6 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
   info.labels.SetDevice(device);
   predt.SetDevice(device);
 
-  auto d_predt = predt.ConstDeviceSpan();
-  auto const d_sorted_idx = p_cache->SortedIdx(ctx, d_predt);
-
   auto delta = [] XGBOOST_DEVICE(float, float, std::size_t, std::size_t, bst_group_t) {
     return 1.0;
   };
