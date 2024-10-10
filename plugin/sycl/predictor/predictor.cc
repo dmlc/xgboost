@@ -89,40 +89,38 @@ class Node {
 class DeviceModel {
  public:
   USMVector<Node> nodes;
-  USMVector<size_t> first_node_position;
-  USMVector<int> tree_group;
-  size_t tree_beg;
-  size_t tree_end;
-  int num_group;
+  HostDeviceVector<size_t> first_node_position;
+  HostDeviceVector<int> tree_group;
 
   void Init(::sycl::queue* qu, const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
     int n_nodes = 0;
-    first_node_position.Resize(qu, (tree_end - tree_begin) + 1);
-    first_node_position[0] = n_nodes;
+    first_node_position.Resize((tree_end - tree_begin) + 1);
+    auto& first_node_position_host = first_node_position.HostVector();
+    first_node_position_host[0] = n_nodes;
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       if (model.trees[tree_idx]->HasCategoricalSplit()) {
         LOG(FATAL) << "Categorical features are not yet supported by sycl";
       }
       n_nodes += model.trees[tree_idx]->GetNodes().size();
-      first_node_position[tree_idx - tree_begin + 1] = n_nodes;
+      first_node_position_host[tree_idx - tree_begin + 1] = n_nodes;
     }
 
     nodes.Resize(qu, n_nodes);
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       auto& src_nodes = model.trees[tree_idx]->GetNodes();
-      size_t n_nodes_shift = first_node_position[tree_idx - tree_begin];
+      size_t n_nodes_shift = first_node_position_host[tree_idx - tree_begin];
       for (size_t node_idx = 0; node_idx < src_nodes.size(); node_idx++) {
         nodes[node_idx + n_nodes_shift] = static_cast<Node>(src_nodes[node_idx]);
       }
     }
 
-    tree_group.Resize(qu, model.tree_info.size());
-    for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
-      tree_group[tree_idx] = model.tree_info[tree_idx];
-
-    tree_beg = tree_begin;
-    tree_end = tree_end;
-    num_group = model.learner_model_param->num_output_group;
+    int num_group = model.learner_model_param->num_output_group;
+    if (num_group > 1) {
+      tree_group.Resize(model.tree_info.size());
+      auto& tree_group_host = tree_group.HostVector();
+      for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
+        tree_group_host[tree_idx] = model.tree_info[tree_idx];
+    }
   }
 };
 
@@ -268,8 +266,8 @@ class Predictor : public xgboost::Predictor {
                      size_t tree_begin,
                      size_t tree_end) const {
     const Node* nodes = device_model.nodes.DataConst();
-    const size_t* first_node_position = device_model.first_node_position.DataConst();
-    const int* tree_group = device_model.tree_group.DataConst();
+    const size_t* first_node_position = device_model.first_node_position.ConstDevicePointer();
+    const int* tree_group = device_model.tree_group.ConstDevicePointer();
 
     float* fval_buff_ptr = fval_buff.Data();
     uint8_t* miss_buff_ptr = miss_buff.Data();
@@ -282,7 +280,7 @@ class Predictor : public xgboost::Predictor {
         auto* fval_buff_row_ptr = fval_buff_ptr + num_features * row_idx;
         auto* miss_buff_row_ptr = miss_buff_ptr + num_features * row_idx;
 
-        if (true) {
+        if (needs_buffer_update) {
           const Entry* first_entry = data + row_ptr[row_idx];
           const Entry* last_entry = data + row_ptr[row_idx + 1];
           for (const Entry* entry = first_entry; entry < last_entry; entry += 1) {
@@ -344,7 +342,7 @@ class Predictor : public xgboost::Predictor {
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;
 
-        if (true) {
+        if (needs_buffer_update) {
           fval_buff.ResizeNoCopy(qu_, num_features * batch_size);
           if constexpr (any_missing) {
             miss_buff.ResizeAndFill(qu_, num_features * batch_size, 1, &event);
@@ -354,7 +352,7 @@ class Predictor : public xgboost::Predictor {
         PredictKernel<any_missing>(&event, data, out_predictions + base_rowid,
                                    row_ptr, batch_size, num_features,
                                    num_group, tree_begin, tree_end);
-        needs_buffer_update = true; //(batch_size != out_preds->Size());
+        needs_buffer_update = (batch_size != out_preds->Size());
       }
     }
     qu_->wait();
