@@ -7,7 +7,6 @@
 
 #include "../collective/communicator-inl.h"
 #include "cuda_rt_utils.h"
-#include <unistd.h>  // for getpid
 
 #if defined(XGBOOST_USE_NVTX)
 #include <nvtx3/nvtx3.hpp>

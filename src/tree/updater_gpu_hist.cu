@@ -738,11 +738,9 @@ struct GPUHistMakerDevice {
       std::copy_if(expand_set.begin(), expand_set.end(), std::back_inserter(valid_candidates),
                    [&](auto const& e) { return driver.IsChildValid(e); });
 
-      monitor.Start("new_candidates");
       // Allocaate children nodes.
       auto new_candidates =
           pinned.GetSpan<GPUExpandEntry>(valid_candidates.size() * 2, GPUExpandEntry());
-      monitor.Stop("new_candidates");
 
       this->PartitionAndBuildHist(p_fmat, expand_set, valid_candidates, p_tree);
 
