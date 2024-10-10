@@ -138,19 +138,20 @@ XGBOOST_DEV_INLINE void AtomicAddGpairGlobal(xgboost::GradientPairInt64* dest,
             *reinterpret_cast<uint64_t*>(&h));
 }
 
-template <bool kIsDense, int kBlockThreads, int kItemsPerThread,
-          int kItemsPerTile = kBlockThreads * kItemsPerThread>
+template <bool kCompressed, int kBlockThreads, int kItemsPerThread>
 class HistogramAgent {
+  int constexpr static kItemsPerTile = kBlockThreads * kItemsPerThread;
+
   GradientPairInt64* smem_arr_;
   GradientPairInt64* d_node_hist_;
-  using Idx = RowPartitioner::RowIndexT;
+  using Idx = cuda_impl::RowIndexT;
 
   dh::LDGIterator<const Idx> d_ridx_;
   const GradientPair* d_gpair_;
   const FeatureGroup group_;
   const EllpackDeviceAccessor& matrix_;
   const int feature_stride_;
-  const std::size_t n_elements_;
+  const bst_idx_t n_elements_;
   const GradientQuantiser& rounding_;
 
  public:
@@ -158,34 +159,33 @@ class HistogramAgent {
                             GradientPairInt64* __restrict__ d_node_hist, const FeatureGroup& group,
                             const EllpackDeviceAccessor& matrix, common::Span<const Idx> d_ridx,
                             const GradientQuantiser& rounding, const GradientPair* d_gpair)
-      : smem_arr_(smem_arr),
-        d_node_hist_(d_node_hist),
+      : smem_arr_{smem_arr},
+        d_node_hist_{d_node_hist},
         d_ridx_(d_ridx.data()),
-        group_(group),
+        group_{group},
         matrix_(matrix),
-        feature_stride_(kIsDense ? group.num_features : matrix.row_stride),
-        n_elements_(feature_stride_ * d_ridx.size()),
-        rounding_(rounding),
-        d_gpair_(d_gpair) {}
+        feature_stride_(kCompressed ? group.num_features : matrix.row_stride),
+        n_elements_{feature_stride_ * d_ridx.size()},
+        rounding_{rounding},
+        d_gpair_{d_gpair} {}
 
   __device__ void ProcessPartialTileShared(std::size_t offset) {
-    for (std::size_t idx = offset + threadIdx.x;
-         idx < std::min(offset + kBlockThreads * kItemsPerTile, n_elements_);
-         idx += kBlockThreads) {
+    for (std::size_t idx = offset + threadIdx.x,
+                     n = std::min(offset + kBlockThreads * kItemsPerTile, n_elements_);
+         idx < n; idx += kBlockThreads) {
       Idx ridx = d_ridx_[idx / feature_stride_];
       auto fidx = FeatIdx(group_, idx, feature_stride_);
       bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
-      if (kIsDense || compressed_bin != matrix_.NullValue()) {
+      if (compressed_bin != matrix_.NullValue()) {
+        // The matrix is compressed with feature-local bins.
+        if (kCompressed) {
+          compressed_bin += this->matrix_.feature_segments[fidx];
+        }
+        // Avoid atomic add if it's a null value.
         auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
         // Subtract start_bin to write to group-local histogram. If this is not a dense
         // matrix, then start_bin is 0 since featuregrouping doesn't support sparse data.
-        if (kIsDense) {
-          AtomicAddGpairShared(
-              smem_arr_ + compressed_bin + this->matrix_.feature_segments[fidx] - group_.start_bin,
-              adjusted);
-        } else {
-          AtomicAddGpairShared(smem_arr_ + compressed_bin - group_.start_bin, adjusted);
-        }
+        AtomicAddGpairShared(smem_arr_ + compressed_bin - group_.start_bin, adjusted);
       }
     }
   }
@@ -210,16 +210,19 @@ class HistogramAgent {
     for (int i = 0; i < kItemsPerThread; i++) {
       gpair[i] = d_gpair_[ridx[i]];
       auto fidx = FeatIdx(group_, idx[i], feature_stride_);
-      if (kIsDense) {
-        gidx[i] =
-            matrix_.gidx_iter[IterIdx(matrix_, ridx[i], fidx)] + matrix_.feature_segments[fidx];
+      gidx[i] = matrix_.gidx_iter[IterIdx(matrix_, ridx[i], fidx)];
+      if (gidx[i] != matrix_.NullValue()) {
+        if (kCompressed) {
+          gidx[i] += matrix_.feature_segments[fidx];
+        }
       } else {
-        gidx[i] = matrix_.gidx_iter[IterIdx(matrix_, ridx[i], fidx)];
+        gidx[i] = -1;  // missing
       }
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
-      if ((kIsDense || gidx[i] != matrix_.NullValue())) {
+      // Avoid atomic add if it's a null value.
+      if (gidx[i] != -1) {
         auto adjusted = rounding_.ToFixedPoint(gpair[i]);
         AtomicAddGpairShared(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
       }
@@ -248,14 +251,12 @@ class HistogramAgent {
       Idx ridx = d_ridx_[idx / feature_stride_];
       auto fidx = FeatIdx(group_, idx, feature_stride_);
       bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
-      if (kIsDense || compressed_bin != matrix_.NullValue()) {
-        auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
-        if (kIsDense) {
-          auto start_bin = this->matrix_.feature_segments[fidx];
-          AtomicAddGpairGlobal(d_node_hist_ + compressed_bin + start_bin, adjusted);
-        } else {
-          AtomicAddGpairGlobal(d_node_hist_ + compressed_bin, adjusted);
+      if (compressed_bin != matrix_.NullValue()) {
+        if (kCompressed) {
+          compressed_bin += this->matrix_.feature_segments[fidx];
         }
+        auto adjusted = rounding_.ToFixedPoint(d_gpair_[ridx]);
+        AtomicAddGpairGlobal(d_node_hist_ + compressed_bin, adjusted);
       }
     }
   }
@@ -307,15 +308,17 @@ struct HistogramKernel {
   bool shared{false};
   std::uint32_t grid_size{0};
   std::size_t smem_size{0};
+  bool const force_global;
 
   HistogramKernel(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
-                  bool force_global_memory) {
+                  bool force_global_memory)
+      : force_global{force_global_memory} {
     // Decide whether to use shared memory
     // Opt into maximum shared memory for the kernel if necessary
     std::size_t max_shared_memory = dh::MaxSharedMemoryOptin(ctx->Ordinal());
 
     this->smem_size = sizeof(GradientPairInt64) * feature_groups.max_group_bins;
-    this->shared = !force_global_memory && smem_size <= max_shared_memory;
+    this->shared = !force_global_memory && this->smem_size <= max_shared_memory;
     this->smem_size = this->shared ? this->smem_size : 0;
 
     auto init = [&](auto& kernel) {
@@ -380,16 +383,18 @@ class DeviceHistogramBuilderImpl {
           kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
     };
 
-    if (!this->kernel_->shared) {
+    if (!this->kernel_->shared) {  // Use global memory
       CHECK_EQ(this->kernel_->smem_size, 0);
-      if (matrix.is_dense) {
+      if (matrix.IsDenseCompressed()) {
+        // Dense must use shared memory except for testing.
+        CHECK(this->kernel_->force_global);
         launcher(this->kernel_->global_dense_kernel);
       } else {
         launcher(this->kernel_->global_kernel);
       }
-    } else {
+    } else {  // Use shared memory
       CHECK_NE(this->kernel_->smem_size, 0);
-      if (matrix.is_dense) {
+      if (matrix.IsDenseCompressed()) {
         launcher(this->kernel_->shared_dense_kernel);
       } else {
         launcher(this->kernel_->shared_kernel);

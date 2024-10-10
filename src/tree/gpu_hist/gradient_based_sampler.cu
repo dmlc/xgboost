@@ -205,8 +205,8 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   auto batch_iterator = dmat->GetBatches<EllpackPage>(ctx, batch_param_);
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
-  *page = EllpackPageImpl{ctx, first_page->CutsShared(), first_page->is_dense,
-                          first_page->row_stride, sample_rows};
+  *page = EllpackPageImpl{ctx, first_page->CutsShared(), first_page->IsDense(),
+                          first_page->info.row_stride, sample_rows};
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), page->gidx_buffer.begin(), page->gidx_buffer.end(), 0);
@@ -290,8 +290,8 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
 
-  *page = EllpackPageImpl{ctx, first_page->CutsShared(), dmat->IsDense(), first_page->row_stride,
-                          sample_rows};
+  *page = EllpackPageImpl{ctx, first_page->CutsShared(), dmat->IsDense(),
+                          first_page->info.row_stride, sample_rows};
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), page->gidx_buffer.begin(), page->gidx_buffer.end(), 0);
   for (auto& batch : batch_iterator) {

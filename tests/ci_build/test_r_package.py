@@ -37,7 +37,10 @@ def pack_rpackage() -> Path:
     output = subprocess.run(["git", "clean", "-xdf", "--dry-run"], capture_output=True)
     if output.returncode != 0:
         raise ValueError("Failed to check git repository status.", output)
-    would_remove = output.stdout.decode("utf-8").strip().split("\n")
+    if len(output.stdout) == 0:
+        would_remove = None
+    else:
+        would_remove = output.stdout.decode("utf-8").strip().split("\n")
 
     if would_remove and not all(f.find("tests/ci_build") != -1 for f in would_remove):
         raise ValueError(

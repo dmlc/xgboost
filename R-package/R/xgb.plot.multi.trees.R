@@ -109,11 +109,10 @@ xgb.plot.multi.trees <- function(model, features_keep = 5, plot_width = NULL, pl
 
   edges.dt <- data.table::rbindlist(
     l = list(
-      tree.matrix[Feature != "Leaf", .(abs.node.position, Yes)],
-      tree.matrix[Feature != "Leaf", .(abs.node.position, No)]
+      tree.matrix[Feature != "Leaf", .(From = abs.node.position, To = Yes)],
+      tree.matrix[Feature != "Leaf", .(From = abs.node.position, To = No)]
     )
   )
-  data.table::setnames(edges.dt, c("From", "To"))
   edges.dt <- edges.dt[, .N, .(From, To)]
   edges.dt[, N := NULL]
 

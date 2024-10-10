@@ -7,24 +7,9 @@ import pickle
 import socket
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from copy import copy
 from functools import partial
-from itertools import starmap
-from math import ceil
-from operator import attrgetter, getitem
 from pathlib import Path
-from typing import (
-    Any,
-    Dict,
-    Generator,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import Any, Dict, Generator, Literal, Optional, Tuple, Type, Union
 
 import hypothesis
 import numpy as np
@@ -37,7 +22,6 @@ from sklearn.datasets import make_classification, make_regression
 import xgboost as xgb
 from xgboost import dask as dxgb
 from xgboost import testing as tm
-from xgboost.data import _is_cudf_df
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,

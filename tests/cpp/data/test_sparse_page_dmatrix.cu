@@ -203,8 +203,8 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     auto impl = (*p_fmat->GetBatches<EllpackPage>(&ctx, param).begin()).Impl();
     ASSERT_EQ(impl->base_rowid, 0);
     ASSERT_EQ(impl->n_rows, kRows);
-    ASSERT_EQ(impl->is_dense, is_dense);
-    ASSERT_EQ(impl->row_stride, 2);
+    ASSERT_EQ(impl->IsDense(), is_dense);
+    ASSERT_EQ(impl->info.row_stride, 2);
     ASSERT_EQ(impl->Cuts().TotalBins(), 4);
 
     std::unique_ptr<EllpackPageImpl> impl_ext;
@@ -213,15 +213,15 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
       if (!impl_ext) {
         impl_ext = std::make_unique<EllpackPageImpl>(&ctx, batch.Impl()->CutsShared(),
                                                      batch.Impl()->is_dense,
-                                                     batch.Impl()->row_stride, kRows);
+                                                     batch.Impl()->info.row_stride, kRows);
       }
       auto n_elems = impl_ext->Copy(&ctx, batch.Impl(), offset);
       offset += n_elems;
     }
     ASSERT_EQ(impl_ext->base_rowid, 0);
     ASSERT_EQ(impl_ext->n_rows, kRows);
-    ASSERT_EQ(impl_ext->is_dense, is_dense);
-    ASSERT_EQ(impl_ext->row_stride, 2);
+    ASSERT_EQ(impl_ext->IsDense(), is_dense);
+    ASSERT_EQ(impl_ext->info.row_stride, 2);
     ASSERT_EQ(impl_ext->Cuts().TotalBins(), 4);
 
     std::vector<common::CompressedByteT> buffer;

@@ -465,7 +465,7 @@ MetaInfo MetaInfo::Copy() const {
 
 namespace {
 template <int32_t D, typename T>
-void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
+void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array{arr_interface};
   if (array.n == 0) {
     p_out->Reshape(array.shape);
@@ -489,7 +489,7 @@ void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T
   CHECK(t_out.CContiguous());
   auto const shape = t_out.Shape();
   DispatchDType(array, DeviceOrd::CPU(), [&](auto&& in) {
-    linalg::ElementWiseTransformHost(t_out, ctx.Threads(), [&](auto i, auto) {
+    linalg::ElementWiseTransformHost(t_out, ctx->Threads(), [&](auto i, auto) {
       return std::apply(in, linalg::UnravelIndex<D>(i, shape));
     });
   });
@@ -513,13 +513,13 @@ void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_
   }
 
   if (is_cuda) {
-    this->SetInfoFromCUDA(ctx, key, j_interface);
+    this->SetInfoFromCUDA(&ctx, key, j_interface);
   } else {
-    this->SetInfoFromHost(ctx, key, j_interface);
+    this->SetInfoFromHost(&ctx, key, j_interface);
   }
 }
 
-void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
+void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
   // multi-dim float info
   if (key == "base_margin") {
     CopyTensorInfoImpl(ctx, arr, &this->base_margin_);
@@ -833,7 +833,7 @@ void MetaInfo::Validate(DeviceOrd device) const {
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void MetaInfo::SetInfoFromCUDA(Context const&, StringView, Json) { common::AssertGPUSupport(); }
+void MetaInfo::SetInfoFromCUDA(Context const*, StringView, Json) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 bool MetaInfo::IsVerticalFederated() const {

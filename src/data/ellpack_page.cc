@@ -53,12 +53,6 @@ bst_idx_t EllpackPage::Size() const {
                 "EllpackPage is required";
   return 0;
 }
-
-[[nodiscard]] bool EllpackPage::IsDense() const {
-  LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
-                "EllpackPage is required";
-  return false;
-}
 }  // namespace xgboost
 
 #endif  // XGBOOST_USE_CUDA

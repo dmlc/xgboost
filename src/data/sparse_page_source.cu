@@ -14,9 +14,10 @@ void DevicePush(DMatrixProxy *proxy, float missing, SparsePage *page) {
     device = DeviceOrd::CUDA(dh::CurrentDevice());
   }
   CHECK(device.IsCUDA());
+  auto ctx = Context{}.MakeCUDA(device.ordinal);
 
-  cuda_impl::Dispatch(proxy,
-                      [&](auto const &value) { CopyToSparsePage(value, device, missing, page); });
+  cuda_impl::Dispatch(
+      proxy, [&](auto const &value) { CopyToSparsePage(&ctx, value, device, missing, page); });
 }
 
 void InitNewThread::operator()() const {

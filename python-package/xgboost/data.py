@@ -1472,12 +1472,12 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
         # might use memory.
         super().__init__(release_data=False)
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         if self.it == 1:
-            return 0
+            return False
         self.it += 1
         input_data(**self.kwargs)
-        return 1
+        return True
 
     def reset(self) -> None:
         self.it = 0

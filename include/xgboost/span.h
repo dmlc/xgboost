@@ -433,7 +433,7 @@ class Span {
   using const_reverse_iterator = const std::reverse_iterator<const_iterator>;  // NOLINT
 
   // constructors
-  constexpr Span() __span_noexcept = default;
+  constexpr Span() = default;
 
   XGBOOST_DEVICE Span(pointer _ptr, index_type _count) :
       size_(_count), data_(_ptr) {
@@ -480,16 +480,11 @@ class Span {
       __span_noexcept : size_(_other.size()),
                         data_(_other.data()) {}
 
-  XGBOOST_DEVICE constexpr Span(const Span& _other)
-      __span_noexcept : size_(_other.size()), data_(_other.data()) {}
-
-  XGBOOST_DEVICE Span& operator=(const Span& _other) __span_noexcept {
-    size_ = _other.size();
-    data_ = _other.data();
-    return *this;
-  }
-
-  XGBOOST_DEVICE ~Span() __span_noexcept {};  // NOLINT
+  constexpr Span(Span const& _other) noexcept(true) = default;
+  constexpr Span& operator=(Span const& _other) noexcept(true) = default;
+  constexpr Span(Span&& _other) noexcept(true) = default;
+  constexpr Span& operator=(Span&& _other) noexcept(true) = default;
+  ~Span() noexcept(true) = default;
 
   XGBOOST_DEVICE constexpr iterator begin() const __span_noexcept {  // NOLINT
     return {this, 0};

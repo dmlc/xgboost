@@ -56,7 +56,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       ASSERT_EQ(loaded->Cuts().MinValues(), orig->Cuts().MinValues());
       ASSERT_EQ(loaded->Cuts().Values(), orig->Cuts().Values());
       ASSERT_EQ(loaded->base_rowid, orig->base_rowid);
-      ASSERT_EQ(loaded->row_stride, orig->row_stride);
+      ASSERT_EQ(loaded->info.row_stride, orig->info.row_stride);
       std::vector<common::CompressedByteT> h_loaded, h_orig;
       [[maybe_unused]] auto h_loaded_acc = loaded->GetHostAccessor(&ctx, &h_loaded);
       [[maybe_unused]] auto h_orig_acc = orig->GetHostAccessor(&ctx, &h_orig);
@@ -72,7 +72,7 @@ TEST_P(TestEllpackPageRawFormat, DiskIO) {
 }
 
 TEST_P(TestEllpackPageRawFormat, DiskIOHmm) {
-  if (common::SupportsPageableMem()) {
+  if (curt::SupportsPageableMem()) {
     EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy> policy{true};
     this->Run(&policy, this->GetParam());
   } else {
@@ -125,7 +125,8 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
         ASSERT_EQ(h_acc_orig.row_stride, h_acc.row_stride);
         ASSERT_EQ(h_acc_orig.n_rows, h_acc.n_rows);
         ASSERT_EQ(h_acc_orig.base_rowid, h_acc.base_rowid);
-        ASSERT_EQ(h_acc_orig.is_dense, h_acc.is_dense);
+        ASSERT_EQ(h_acc_orig.IsDenseCompressed(), h_acc.IsDenseCompressed());
+        ASSERT_EQ(h_acc_orig.NullValue(), h_acc.NullValue());
       }
     }
   }

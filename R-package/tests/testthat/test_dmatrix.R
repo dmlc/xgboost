@@ -478,7 +478,7 @@ test_that("xgb.DMatrix: QuantileDMatrix is not accepted by exact method", {
   })
 })
 
-test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMatrix", {
+test_that("xgb.DMatrix: ExtMemDMatrix produces the same results as regular DMatrix", {
   data(mtcars)
   y <- mtcars[, 1]
   x <- as.matrix(mtcars[, -1])
@@ -528,8 +528,8 @@ test_that("xgb.DMatrix: ExternalDMatrix produces the same results as regular DMa
     f_reset = iterator_reset
   )
   cache_prefix <- tempdir()
-  edm <- xgb.ExternalDMatrix(data_iterator, cache_prefix, nthread = 1)
-  expect_true(inherits(edm, "xgb.ExternalDMatrix"))
+  edm <- xgb.ExtMemDMatrix(data_iterator, cache_prefix, nthread = 1)
+  expect_true(inherits(edm, "xgb.ExtMemDMatrix"))
   expect_true(inherits(edm, "xgb.DMatrix"))
   set.seed(123)
   model_ext <- xgb.train(
@@ -660,7 +660,7 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
     f_reset = iterator_reset
   )
   expect_error(
-    {xgb.ExternalDMatrix(data_iterator, nthread = 1)},
+    {xgb.ExtMemDMatrix(data_iterator, nthread = 1)},
     "custom error"
   )
 })

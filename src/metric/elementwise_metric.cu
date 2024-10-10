@@ -22,7 +22,6 @@
 #include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/execution_policy.h>  // thrust::cuda::par
 #include <thrust/functional.h>        // thrust::plus<>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>

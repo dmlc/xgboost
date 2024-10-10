@@ -105,7 +105,7 @@ void GBTree::Configure(Args const& cfg) {
   }
   cpu_predictor_->Configure(cfg);
 #if defined(XGBOOST_USE_CUDA)
-  auto n_gpus = common::AllVisibleGPUs();
+  auto n_gpus = curt::AllVisibleGPUs();
   if (!gpu_predictor_) {
     gpu_predictor_ = std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", this->ctx_));
   }
@@ -167,7 +167,6 @@ void CopyGradient(Context const* ctx, linalg::Matrix<GradientPair> const* in_gpa
     GPUCopyGradient(ctx, in_gpair, group_id, out_gpair);
   } else {
     auto const& in = *in_gpair;
-    auto target_gpair = in.Slice(linalg::All(), group_id);
     auto h_tmp = out_gpair->HostView();
     auto h_in = in.HostView().Slice(linalg::All(), group_id);
     CHECK_EQ(h_tmp.Size(), h_in.Size());
@@ -344,7 +343,7 @@ void GBTree::LoadConfig(Json const& in) {
   // This would cause all trees to be pushed to trees_to_update
   // e.g. updating a model, then saving and loading it would result in an empty model
   tparam_.process_type = TreeProcessType::kDefault;
-  std::int32_t const n_gpus = common::AllVisibleGPUs();
+  std::int32_t const n_gpus = curt::AllVisibleGPUs();
 
   auto msg = StringView{
       R"(

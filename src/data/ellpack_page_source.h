@@ -61,7 +61,7 @@ template <typename S>
 class EllpackFormatPolicy {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
   DeviceOrd device_;
-  bool has_hmm_{common::SupportsPageableMem()};
+  bool has_hmm_{curt::SupportsPageableMem()};
 
  public:
   using FormatT = EllpackPageRawFormat;
@@ -71,7 +71,7 @@ class EllpackFormatPolicy {
     StringView msg{" The overhead of iterating through external memory might be significant."};
     if (!has_hmm_) {
       LOG(WARNING) << "CUDA heterogeneous memory management is not available." << msg;
-    } else if (!common::SupportsAts()) {
+    } else if (!curt::SupportsAts()) {
       LOG(WARNING) << "CUDA address translation service is not available." << msg;
     }
 #if !defined(XGBOOST_USE_RMM)
@@ -79,6 +79,14 @@ class EllpackFormatPolicy {
 #endif
     if (!GlobalConfigThreadLocalStore::Get()->use_rmm) {
       LOG(WARNING) << "`use_rmm` is set to false." << msg;
+    }
+    std::int32_t major{0}, minor{0};
+    curt::DrVersion(&major, &minor);
+    if (!(major >= 12 && minor >= 7) && curt::SupportsAts()) {
+      // Use ATS, but with an old kernel driver.
+      LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7."
+                   << "The latest version of CTK supported by the current driver: " << major << "."
+                   << minor << "." << msg;
     }
   }
   // For testing with the HMM flag.
@@ -121,7 +129,7 @@ class EllpackCacheStreamPolicy : public F<S> {
 
 template <typename S, template <typename> typename F>
 class EllpackMmapStreamPolicy : public F<S> {
-  bool has_hmm_{common::SupportsPageableMem()};
+  bool has_hmm_{curt::SupportsPageableMem()};
 
  public:
   using WriterT = common::AlignedFileWriteStream;
@@ -200,28 +208,23 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
   MetaInfo* info_;
   ExternalDataInfo ext_info_;
 
-  std::vector<bst_idx_t> base_rows_;
-
  public:
   ExtEllpackPageSourceImpl(
       Context const* ctx, float missing, MetaInfo* info, ExternalDataInfo ext_info,
       std::shared_ptr<Cache> cache, BatchParam param, std::shared_ptr<common::HistogramCuts> cuts,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
-      DMatrixProxy* proxy, std::vector<bst_idx_t> base_rows)
-      : Super{missing,
-              ctx->Threads(),
-              static_cast<bst_feature_t>(info->num_col_),
-              ext_info.n_batches,
-              source,
-              cache},
+      DMatrixProxy* proxy)
+      : Super{missing, ctx->Threads(), static_cast<bst_feature_t>(info->num_col_), source, cache},
         ctx_{ctx},
         p_{std::move(param)},
         proxy_{proxy},
         info_{info},
-        ext_info_{std::move(ext_info)},
-        base_rows_{std::move(base_rows)} {
+        ext_info_{std::move(ext_info)} {
     cuts->SetDevice(ctx->Device());
     this->SetCuts(std::move(cuts), ctx->Device());
+    CHECK(!this->cache_info_->written);
+    this->source_->Reset();
+    CHECK(this->source_->Next());
     this->Fetch();
   }
 

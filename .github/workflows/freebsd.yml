@@ -12,6 +12,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     name: A job to run test in FreeBSD
     steps:
     - uses: actions/checkout@v4

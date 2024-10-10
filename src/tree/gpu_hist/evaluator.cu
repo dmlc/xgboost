@@ -7,6 +7,7 @@
 #include <thrust/logical.h>  // thrust::any_of
 #include <thrust/sort.h>     // thrust::stable_sort
 
+#include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
 #include "evaluate_splits.cuh"
@@ -53,9 +54,7 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
      * cache feature index binary search result
      */
     feature_idx_.resize(cat_sorted_idx_.size());
-    auto d_fidxes = dh::ToSpan(feature_idx_);
     auto it = thrust::make_counting_iterator(0ul);
-    auto values = cuts.cut_values_.ConstDeviceSpan();
     thrust::transform(ctx->CUDACtx()->CTP(), it, it + feature_idx_.size(), feature_idx_.begin(),
                       [=] XGBOOST_DEVICE(size_t i) {
                         auto fidx = dh::SegmentId(ptrs, i);

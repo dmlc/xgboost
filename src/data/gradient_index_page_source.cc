@@ -32,8 +32,6 @@ void GradientIndexPageSource::Fetch() {
 void ExtGradientIndexPageSource::Fetch() {
   if (!this->ReadCache()) {
     CHECK_EQ(count_, source_->Iter());
-    ++(*source_);
-    CHECK_GE(source_->Iter(), 1);
     CHECK_NE(cuts_.Values().size(), 0);
     HostAdapterDispatch(proxy_, [this](auto const& value) {
       CHECK(this->proxy_->Ctx()->IsCPU()) << "All batches must use the same device type.";
@@ -49,9 +47,9 @@ void ExtGradientIndexPageSource::Fetch() {
       // FIXME(jiamingy): For now, we use the `info->IsDense()` to represent all batches
       // similar to the sparse DMatrix source. We should use per-batch property with proxy
       // DMatrix info instead. This requires more fine-grained tests.
-      this->page_ = std::make_shared<GHistIndexMatrix>(
-          value.NumRows(), this->base_rows_.at(source_->Iter() - 1), std::move(cuts),
-          this->p_.max_bin, info_->IsDense());
+      this->page_ =
+          std::make_shared<GHistIndexMatrix>(value.NumRows(), this->base_rows_.at(source_->Iter()),
+                                             std::move(cuts), this->p_.max_bin, info_->IsDense());
       bst_idx_t prev_sum = 0;
       bst_idx_t rbegin = 0;
       // Use `value.NumRows()` for the size of a single batch. Unlike the

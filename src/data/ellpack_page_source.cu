@@ -1,8 +1,6 @@
 /**
  * Copyright 2019-2024, XGBoost contributors
  */
-#include <thrust/host_vector.h>  // for host_vector
-
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int8_t, uint64_t, uint32_t
 #include <memory>   // for shared_ptr, make_unique, make_shared
@@ -46,7 +44,7 @@ EllpackPageImpl const* EllpackHostCache::Get(std::int32_t k) {
  */
 class EllpackHostCacheStreamImpl {
   std::shared_ptr<EllpackHostCache> cache_;
-  std::int32_t ptr_;
+  std::int32_t ptr_{0};
 
  public:
   explicit EllpackHostCacheStreamImpl(std::shared_ptr<EllpackHostCache> cache)
@@ -80,7 +78,7 @@ class EllpackHostCacheStreamImpl {
         common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(impl->gidx_buffer.size());
     new_impl->n_rows = impl->Size();
     new_impl->is_dense = impl->IsDense();
-    new_impl->row_stride = impl->row_stride;
+    new_impl->info.row_stride = impl->info.row_stride;
     new_impl->base_rowid = impl->base_rowid;
     new_impl->SetNumSymbols(impl->NumSymbols());
 
@@ -108,7 +106,7 @@ class EllpackHostCacheStreamImpl {
 
     impl->n_rows = page->Size();
     impl->is_dense = page->IsDense();
-    impl->row_stride = page->row_stride;
+    impl->info.row_stride = page->info.row_stride;
     impl->base_rowid = page->base_rowid;
     impl->SetNumSymbols(page->NumSymbols());
   }
@@ -202,23 +200,24 @@ EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringVi
  */
 template <typename F>
 void EllpackPageSourceImpl<F>::Fetch() {
-  common::SetDevice(this->Device().ordinal);
+  curt::SetDevice(this->Device().ordinal);
   if (!this->ReadCache()) {
-    if (this->count_ != 0 && !this->sync_) {
+    if (this->Iter() != 0 && !this->sync_) {
       // source is initialized to be the 0th page during construction, so when count_ is 0
       // there's no need to increment the source.
       ++(*this->source_);
     }
     // This is not read from cache so we still need it to be synced with sparse page source.
-    CHECK_EQ(this->count_, this->source_->Iter());
+    CHECK_EQ(this->Iter(), this->source_->Iter());
     auto const& csr = this->source_->Page();
     this->page_.reset(new EllpackPage{});
     auto* impl = this->page_->Impl();
     Context ctx = Context{}.MakeCUDA(this->Device().ordinal);
     *impl = EllpackPageImpl{&ctx, this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
-    LOG(INFO) << "Generated an Ellpack page with size: " << impl->MemCostBytes()
-              << " from a SparsePage with size:" << csr->MemCostBytes();
+    LOG(INFO) << "Generated an Ellpack page with size: "
+              << common::HumanMemUnit(impl->MemCostBytes())
+              << " from a SparsePage with size:" << common::HumanMemUnit(csr->MemCostBytes());
     this->WriteCache();
   }
 }
@@ -236,12 +235,10 @@ EllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>
  */
 template <typename F>
 void ExtEllpackPageSourceImpl<F>::Fetch() {
-  common::SetDevice(this->Device().ordinal);
+  curt::SetDevice(this->Device().ordinal);
   if (!this->ReadCache()) {
     auto iter = this->source_->Iter();
-    CHECK_EQ(this->count_, iter);
-    ++(*this->source_);
-    CHECK_GE(this->source_->Iter(), 1);
+    CHECK_EQ(this->Iter(), iter);
     cuda_impl::Dispatch(proxy_, [this](auto const& value) {
       CHECK(this->proxy_->Ctx()->IsCUDA()) << "All batches must use the same device type.";
       proxy_->Info().feature_types.SetDevice(dh::GetDevice(this->ctx_));
@@ -250,11 +247,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
 
       dh::device_vector<size_t> row_counts(n_samples + 1, 0);
       common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
-      cuda_impl::Dispatch(proxy_, [=](auto const& value) {
-        return GetRowCounts(this->ctx_, value, row_counts_span, dh::GetDevice(this->ctx_),
-                            this->missing_);
-      });
-
+      GetRowCounts(this->ctx_, value, row_counts_span, dh::GetDevice(this->ctx_), this->missing_);
       this->page_.reset(new EllpackPage{});
       *this->page_->Impl() = EllpackPageImpl{this->ctx_,
                                              value,
@@ -267,6 +260,11 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
                                              this->GetCuts()};
       this->info_->Extend(proxy_->Info(), false, true);
     });
+    // The size of ellpack is logged in write cache.
+    LOG(INFO) << "Estimated batch size:"
+              << cuda_impl::Dispatch<false>(proxy_, [](auto const& adapter) {
+                   return common::HumanMemUnit(adapter->SizeBytes());
+                 });
     this->page_->SetBaseRowId(this->ext_info_.base_rows.at(iter));
     this->WriteCache();
   }

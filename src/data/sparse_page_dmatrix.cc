@@ -78,14 +78,16 @@ void SparsePageDMatrix::InitializeSparsePage(Context const *ctx) {
   // Don't use proxy DMatrix once this is already initialized, this allows users to
   // release the iterator and data.
   if (cache_info_.at(id)->written) {
-    CHECK(sparse_page_source_);
-    sparse_page_source_->Reset({});
+    CHECK(this->sparse_page_source_);
+    this->sparse_page_source_->Reset({});
     return;
   }
 
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_, reset_, next_};
   DMatrixProxy *proxy = MakeProxy(proxy_);
   sparse_page_source_.reset();  // clear before creating new one to prevent conflicts.
+  // During initialization, the n_batches_ is 0.
+  CHECK_EQ(this->n_batches_, static_cast<decltype(this->n_batches_)>(0));
   sparse_page_source_ = std::make_shared<SparsePageSource>(iter, proxy, this->missing_,
                                                            ctx->Threads(), this->info_.num_col_,
                                                            this->n_batches_, cache_info_.at(id));

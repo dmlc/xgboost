@@ -37,7 +37,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   // Enforce single batch
   CHECK(!adapter->Next());
 
-  info_.num_nonzero_ = CopyToSparsePage(adapter->Value(), device, missing, sparse_page_.get());
+  info_.num_nonzero_ =
+      CopyToSparsePage(&ctx, adapter->Value(), device, missing, sparse_page_.get());
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns

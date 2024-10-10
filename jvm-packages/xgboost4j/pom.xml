@@ -82,7 +82,7 @@
           <plugin>
               <artifactId>exec-maven-plugin</artifactId>
               <groupId>org.codehaus.mojo</groupId>
-              <version>3.3.0</version>
+              <version>3.4.1</version>
               <executions>
                   <execution>
                       <id>native</id>

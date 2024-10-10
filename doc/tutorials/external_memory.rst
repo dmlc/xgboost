@@ -134,7 +134,7 @@ the GPU. This is a current limitation we aim to address in the future.
 
     # It's important to use RMM for GPU-based external memory to improve performance.
     # If XGBoost is not built with RMM support, a warning will be raised.
-    mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
+    mr = rmm.mr.CudaAsyncMemoryResource()
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
@@ -206,7 +206,7 @@ in-core training is one additional data read when the data is dense.
 
 To run experiments on these platforms, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
-with version ``>=565.47`` is required.
+with version ``>=565.47`` is required, it should come with CTK 12.7 and later versions.
 
 **************
 Best Practices
