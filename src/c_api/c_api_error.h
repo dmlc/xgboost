@@ -49,7 +49,6 @@ void XGBAPISetLastError(const char* msg);
  * \return the return value of API after exception is handled
  */
 inline int XGBAPIHandleException(const dmlc::Error& e) {
-  LOG(CONSOLE) << __func__ << ":" << e.what() << std::endl;
   XGBAPISetLastError(e.what());
   return -1;
 }

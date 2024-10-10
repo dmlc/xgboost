@@ -232,7 +232,6 @@ class LaunchKernel {
       return;
     }
     kernel<<<grids_, blocks_, shmem_size_, stream_>>>(args...);  // NOLINT
-    safe_cuda(cudaPeekAtLastError());
   }
 };
 
@@ -245,7 +244,6 @@ inline void LaunchN(size_t n, cudaStream_t stream, L lambda) {
       static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(  // NOLINT
       static_cast<size_t>(0), n, lambda);
-  safe_cuda(cudaPeekAtLastError());
 }
 
 // Default stream version

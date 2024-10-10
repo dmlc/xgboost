@@ -2,7 +2,7 @@
  *  Copyright 2024, XGBoost Contributors
  */
 #include "xgboost/collective/result.h"
-#include <unistd.h>
+
 #include <filesystem>  // for path
 #include <sstream>     // for stringstream
 #include <stack>       // for stack
@@ -75,9 +75,7 @@ std::string MakeMsg(std::string&& msg, char const* file, std::int32_t line) {
 
 void SafeColl(Result const& rc) {
   if (!rc.OK()) {
-    auto report = rc.Report();
-    LOG(CONSOLE) << "pid:" << getpid() << ":" << __func__ << ":" << report << std::endl;
-    LOG(FATAL) << report;
+    LOG(FATAL) << rc.Report();
   }
 }
 }  // namespace xgboost::collective

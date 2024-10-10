@@ -19,7 +19,6 @@ namespace cpu_impl {
 Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size_t segment_size,
                      std::int32_t worker_off, std::shared_ptr<Channel> prev_ch,
                      std::shared_ptr<Channel> next_ch) {
-  common::ScopedLog logger{__func__};
   auto world = comm.World();
   auto rank = comm.Rank();
   CHECK_LT(worker_off, world);
@@ -57,7 +56,6 @@ Result RingAllgather(Comm const& comm, common::Span<std::int8_t> data, std::size
 
 Result BroadcastAllgatherV(Comm const& comm, common::Span<std::int64_t const> sizes,
                            common::Span<std::int8_t> recv) {
-  common::ScopedLog logger{__func__};
   std::size_t offset = 0;
   for (std::int32_t r = 0; r < comm.World(); ++r) {
     auto as_bytes = sizes[r];
@@ -76,7 +74,6 @@ namespace detail {
 [[nodiscard]] Result RingAllgatherV(Comm const& comm, common::Span<std::int64_t const> sizes,
                                     common::Span<std::int64_t const> offset,
                                     common::Span<std::int8_t> erased_result) {
-  common::ScopedLog logger{__func__};
   auto world = comm.World();
   if (world == 1) {
     return Success();
@@ -115,7 +112,6 @@ namespace detail {
 
 [[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
     Context const* ctx, CommGroup const& comm, std::vector<std::vector<char>> const& input) {
-  common::ScopedLog logger{__func__};
   auto n_inputs = input.size();
   std::vector<std::int64_t> sizes(n_inputs);
   std::transform(input.cbegin(), input.cend(), sizes.begin(),
@@ -154,7 +150,6 @@ namespace detail {
 
 [[nodiscard]] std::vector<std::vector<char>> VectorAllgatherV(
     Context const* ctx, std::vector<std::vector<char>> const& input) {
-  common::ScopedLog logger{__func__};
   return VectorAllgatherV(ctx, *GlobalCommGroup(), input);
 }
 }  // namespace xgboost::collective

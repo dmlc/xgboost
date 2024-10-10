@@ -15,7 +15,6 @@
 
 namespace xgboost::common {
 void Monitor::Start(std::string const &name) {
-  // LOG(CONSOLE) << "start:" << getpid() << ":" << name << std::endl;
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
     auto &stats = statistics_map_[name];
     stats.timer.Start();
@@ -27,7 +26,6 @@ void Monitor::Start(std::string const &name) {
 }
 
 void Monitor::Stop(const std::string &name) {
-  // LOG(CONSOLE) << "stop:" << getpid() << ":" << name << std::endl;
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
     auto &stats = statistics_map_[name];
     stats.timer.Stop();
@@ -66,10 +64,4 @@ void Monitor::Print() const {
   LOG(CONSOLE) << "======== Monitor (" << rank << "): " << label_ << " ========";
   this->PrintStatistics(stat_map);
 }
-
-ScopedLog::ScopedLog(std::string name) : name_{std::move(name)} {
-  // LOG(CONSOLE) << "Start:" << name_;
-}
-ScopedLog::~ScopedLog() = default;
-// { LOG(CONSOLE) << "Stop:" << name_; }
 }  // namespace xgboost::common

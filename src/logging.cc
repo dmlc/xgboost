@@ -7,7 +7,6 @@
 #include "xgboost/logging.h"
 
 #include <string>  // for string
-#include <unistd.h>  // for getpid
 
 #include "collective/communicator-inl.h"
 
@@ -50,7 +49,9 @@ void ConsoleLogger::Configure(Args const& args) {
   param.UpdateAllowUnknown(args);
 }
 
-ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() { return LogVerbosity::kDebug; }
+ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {
+  return LogVerbosity::kWarning;
+}
 
 ConsoleLogger::LogVerbosity ConsoleLogger::GlobalVerbosity() {
   LogVerbosity global_verbosity { LogVerbosity::kWarning };
@@ -83,18 +84,18 @@ ConsoleLogger::ConsoleLogger(
   switch (cur_verbosity_) {
     case LogVerbosity::kWarning:
       BaseLogger::log_stream_ << "WARNING: "
-                              << file << ":" << line << ": pid:" << getpid();
+                              << file << ":" << line << ": ";
       break;
     case LogVerbosity::kDebug:
       BaseLogger::log_stream_ << "DEBUG: "
-                              << file << ":" << line << ": pid:" << getpid();
+                              << file << ":" << line << ": ";
       break;
     case LogVerbosity::kInfo:
       BaseLogger::log_stream_ << "INFO: "
-                              << file << ":" << line << ": pid:" << getpid();
+                              << file << ":" << line << ": ";
       break;
     case LogVerbosity::kIgnore:
-      BaseLogger::log_stream_ << file << ":" << line << ": pid:" << getpid();
+      BaseLogger::log_stream_ << file << ":" << line << ": ";
       break;
     case LogVerbosity::kSilent:
       break;

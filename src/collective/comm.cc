@@ -231,7 +231,6 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
 
 [[nodiscard]] Result RabitComm::Bootstrap(std::chrono::seconds timeout, std::int32_t retry,
                                           std::string task_id) {
-  LOG(CONSOLE) << "Start:" << __func__ << " pid:" << getpid() << std::endl;
   TCPSocket tracker;
   std::int32_t world{-1};
   auto rc = ConnectTrackerImpl(this->TrackerInfo(), timeout, retry, task_id, &tracker, this->Rank(),
@@ -350,7 +349,6 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   }
 
   LOG(CONSOLE) << InitLog(task_id_, rank_);
-  LOG(CONSOLE) << "Stop:" << __func__ << " pid:" << getpid() << std::endl;
   return rc;
 }
 

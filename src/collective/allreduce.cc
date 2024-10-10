@@ -2,7 +2,6 @@
  * Copyright 2023-2024, XGBoost Contributors
  */
 #include "allreduce.h"
-#include "../common/timer.h"
 
 #include <algorithm>  // for min
 #include <cstddef>    // for size_t
@@ -20,7 +19,6 @@ namespace xgboost::collective::cpu_impl {
 namespace {
 template <typename T>
 Result RingAllreduceSmall(Comm const& comm, common::Span<std::int8_t> data, Func const& op) {
-  common::ScopedLog logger{__func__};
   auto rank = comm.Rank();
   auto world = comm.World();
 
@@ -58,7 +56,6 @@ template <typename T>
 // note that n_bytes_in_seg is calculated with round-down.
 Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
                               std::size_t n_bytes_in_seg, Func const& op) {
-  common::ScopedLog logger{__func__};
   auto rank = comm.Rank();
   auto world = comm.World();
 
@@ -115,7 +112,6 @@ Result RingScatterReduceTyped(Comm const& comm, common::Span<std::int8_t> data,
 
 Result RingAllreduce(Comm const& comm, common::Span<std::int8_t> data, Func const& op,
                      ArrayInterfaceHandler::Type type) {
-  common::ScopedLog logger{__func__};
   if (comm.World() == 1) {
     return Success();
   }
