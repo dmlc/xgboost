@@ -27,10 +27,6 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
                                    XGDMatrixCallbackNext* next, float missing, int nthread,
                                    bst_bin_t max_bin)
     : proxy_{proxy}, reset_{reset}, next_{next} {
-  common::Monitor monitor;
-  monitor.Init("Iterator-Ctor");
-
-  monitor.Start(__func__);
   // fetch the first batch
   auto iter =
       DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
@@ -46,13 +42,9 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
   if (ctx.IsCUDA()) {
-    monitor.Start("InitCUDA");
     this->InitFromCUDA(&ctx, p, iter_handle, missing, ref);
-    monitor.Stop("InitCUDA");
   } else {
-    monitor.Start("InitCPU");
     this->InitFromCPU(&ctx, p, iter_handle, missing, ref);
-    monitor.Stop("InitCPU");
   }
 
   this->fmat_ctx_ = ctx;
@@ -60,7 +52,6 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
 
   LOG(INFO) << "Finished constructing the `IterativeDMatrix`: (" << this->Info().num_row_ << ", "
             << this->Info().num_col_ << ", " << this->Info().num_nonzero_ << ").";
-  monitor.Stop(__func__);
 }
 
 void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,

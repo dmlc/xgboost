@@ -191,7 +191,7 @@ void TestEmptyNode(std::int32_t n_workers) {
     RowPartitioner partitioner;
     bst_idx_t n_samples = (collective::GetRank() == 0) ? 0 : 1024;
     bst_idx_t base_rowid = 0;
-    partitioner.Reset(&ctx, /*n_samples=*/0, base_rowid);
+    partitioner.Reset(&ctx, n_samples, base_rowid);
     std::vector<RegTree::Node> splits(1);
     partitioner.UpdatePositionBatch(
         &ctx, {0}, {1}, {2}, splits,
