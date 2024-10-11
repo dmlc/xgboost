@@ -65,14 +65,26 @@ def test_cpu_data_iterator() -> None:
     strategies.integers(1, 2048),
     strategies.integers(1, 8),
     strategies.integers(1, 4),
+    strategies.integers(2, 16),
     strategies.booleans(),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
 @pytest.mark.filterwarnings("ignore")
 def test_extmem_qdm(
-    n_samples_per_batch: int, n_features: int, n_batches: int, on_host: bool
+    n_samples_per_batch: int,
+    n_features: int,
+    n_batches: int,
+    n_bins: int,
+    on_host: bool,
 ) -> None:
-    check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cuda", on_host)
+    check_extmem_qdm(
+        n_samples_per_batch,
+        n_features,
+        n_batches=n_batches,
+        n_bins=n_bins,
+        device="cuda",
+        on_host=on_host,
+    )
 
 
 @pytest.mark.filterwarnings("ignore")
