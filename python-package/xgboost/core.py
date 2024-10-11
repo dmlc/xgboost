@@ -1726,6 +1726,7 @@ class ExtMemQuantileDMatrix(DMatrix):
             nthread=self.nthread,
             cache_prefix=it.cache_prefix if it.cache_prefix else "",
             on_host=it.on_host,
+            max_bin=self.max_bin,
         )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)

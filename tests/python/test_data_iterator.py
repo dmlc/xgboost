@@ -310,7 +310,17 @@ def test_quantile_objective(
     strategies.integers(1, 4096),
     strategies.integers(1, 8),
     strategies.integers(1, 4),
+    strategies.integers(2, 16),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
-def test_extmem_qdm(n_samples_per_batch: int, n_features: int, n_batches: int) -> None:
-    check_extmem_qdm(n_samples_per_batch, n_features, n_batches, "cpu", False)
+def test_extmem_qdm(
+    n_samples_per_batch: int, n_features: int, n_batches: int, n_bins: int
+) -> None:
+    check_extmem_qdm(
+        n_samples_per_batch,
+        n_features,
+        n_batches=n_batches,
+        n_bins=n_bins,
+        device="cpu",
+        on_host=False,
+    )

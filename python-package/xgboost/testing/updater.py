@@ -195,10 +195,12 @@ def check_quantile_loss_extmem(
     np.testing.assert_allclose(predt, predt_it)
 
 
-def check_extmem_qdm(
+def check_extmem_qdm(  # pylint: disable=too-many-arguments
     n_samples_per_batch: int,
     n_features: int,
+    *,
     n_batches: int,
+    n_bins: int,
     device: str,
     on_host: bool,
 ) -> None:
@@ -212,21 +214,25 @@ def check_extmem_qdm(
         on_host=on_host,
     )
 
-    Xy_it = xgb.ExtMemQuantileDMatrix(it)
+    Xy_it = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins)
     with pytest.raises(ValueError, match="Only the `hist`"):
         booster_it = xgb.train(
-            {"device": device, "tree_method": "approx"}, Xy_it, num_boost_round=8
+            {"device": device, "tree_method": "approx", "max_bin": n_bins},
+            Xy_it,
+            num_boost_round=8,
         )
 
-    booster_it = xgb.train({"device": device}, Xy_it, num_boost_round=8)
+    booster_it = xgb.train(
+        {"device": device, "max_bin": n_bins}, Xy_it, num_boost_round=8
+    )
     it = tm.IteratorForTest(
         *tm.make_batches(
             n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
         ),
         cache=None,
     )
-    Xy = xgb.QuantileDMatrix(it)
-    booster = xgb.train({"device": device}, Xy, num_boost_round=8)
+    Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
+    booster = xgb.train({"device": device, "max_bin": n_bins}, Xy, num_boost_round=8)
 
     cut_it = Xy_it.get_quantile_cut()
     cut = Xy.get_quantile_cut()
