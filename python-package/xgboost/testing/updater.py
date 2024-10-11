@@ -222,7 +222,9 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
             num_boost_round=8,
         )
 
-    booster_it = xgb.train({"device": device, "max_bin": n_bins}, Xy_it, num_boost_round=8)
+    booster_it = xgb.train(
+        {"device": device, "max_bin": n_bins}, Xy_it, num_boost_round=8
+    )
     it = tm.IteratorForTest(
         *tm.make_batches(
             n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
