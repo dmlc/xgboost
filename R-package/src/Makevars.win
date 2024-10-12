@@ -112,6 +112,7 @@ OBJECTS= \
     $(PKGROOT)/src/collective/tracker.o \
     $(PKGROOT)/src/collective/in_memory_handler.o \
     $(PKGROOT)/src/collective/loop.o \
+    $(PKGROOT)/src/collective/topo.o \
     $(PKGROOT)/src/collective/socket.o \
     $(PKGROOT)/src/common/charconv.o \
     $(PKGROOT)/src/common/column_matrix.o \
