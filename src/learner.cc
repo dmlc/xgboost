@@ -426,7 +426,7 @@ class LearnerConfiguration : public Learner {
         info.Validate(Ctx()->Device());
         // We estimate it from input data.
         linalg::Tensor<float, 1> base_score;
-        InitEstimation(info, &base_score);
+        this->InitEstimation(info, &base_score);
         CHECK_EQ(base_score.Size(), 1);
         mparam_.base_score = base_score(0);
         CHECK(!std::isnan(mparam_.base_score));
