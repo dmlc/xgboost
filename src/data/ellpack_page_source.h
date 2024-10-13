@@ -130,7 +130,7 @@ class EllpackFormatPolicy {
     }
     std::int32_t major{0}, minor{0};
     curt::DrVersion(&major, &minor);
-    if ((major < 12 || (major <= 12 && minor < 7)) && curt::SupportsAts()) {
+    if ((major < 12 || (major == 12 && minor < 7)) && curt::SupportsAts()) {
       // Use ATS, but with an old kernel driver.
       LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7."
                    << "The latest version of CTK supported by the current driver: " << major << "."
