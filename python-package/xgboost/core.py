@@ -537,7 +537,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
             This is an experimental parameter.
 
     min_cache_page_bytes :
-        The minimum number of bytes of each cached pages Only used for on-host cache
+        The minimum number of bytes of each cached pages. Only used for on-host cache
         with GPU-based :py:class:`ExtMemQuantileDMatrix`. When using GPU-based external
         memory with the data cached in the host memory, XGBoost can concatenate the
         pages internally to increase the batch size for the GPU. The default page size
