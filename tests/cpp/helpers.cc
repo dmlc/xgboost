@@ -448,12 +448,12 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  ExtMemConfig config{
-      .cache = prefix,
-      .on_host = this->on_host_,
-      .min_cache_page_bytes = this->min_cache_page_bytes_,
-      .missing = std::numeric_limits<float>::quiet_NaN(),
-      .n_threads = Context{}.Threads(),
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
   };
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
@@ -497,12 +497,12 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   CHECK(iter);
 
-  ExtMemConfig config{
-      .cache = prefix,
-      .on_host = this->on_host_,
-      .min_cache_page_bytes = this->min_cache_page_bytes_,
-      .missing = std::numeric_limits<float>::quiet_NaN(),
-      .n_threads = Context{}.Threads(),
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
   };
   std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(static_cast<DataIterHandle>(iter.get()),
                                                   iter->Proxy(), nullptr, Reset, Next, this->bins_,

@@ -32,11 +32,8 @@ void TestSparseDMatrixLoadFile(Context const* ctx) {
   opath += "?indexing_mode=1&format=libsvm";
   data::FileIterator iter{opath, 0, 1};
   auto n_threads = 0;
-  auto config = ExtMemConfig{.cache = tmpdir.path + "cache",
-                             .on_host = false,
-                             .min_cache_page_bytes = cuda_impl::MatchingPageBytes(),
-                             .missing = std::numeric_limits<float>::quiet_NaN(),
-                             .n_threads = n_threads};
+  auto config = ExtMemConfig{tmpdir.path + "cache", false, cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(), n_threads};
   data::SparsePageDMatrix m{&iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
                             config};
   ASSERT_EQ(AllThreadsForTest(), m.Ctx()->Threads());
@@ -365,11 +362,8 @@ auto TestSparsePageDMatrixDeterminism(int32_t threads) {
   CreateBigTestData(filename, 1 << 16);
 
   data::FileIterator iter(filename + "?format=libsvm", 0, 1);
-  auto config = ExtMemConfig{.cache = filename,
-                             .on_host = false,
-                             .min_cache_page_bytes = cuda_impl::MatchingPageBytes(),
-                             .missing = std::numeric_limits<float>::quiet_NaN(),
-                             .n_threads = threads};
+  auto config = ExtMemConfig{filename, false, cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(), threads};
   std::unique_ptr<DMatrix> sparse{new data::SparsePageDMatrix{
       &iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next, config}};
   CHECK(sparse->Ctx()->Threads() == threads || sparse->Ctx()->Threads() == AllThreadsForTest());

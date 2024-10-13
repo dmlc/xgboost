@@ -322,12 +322,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  ExtMemConfig config{.cache = cache,
-                      .on_host = on_host,
-                      .min_cache_page_bytes = min_cache_page_bytes,
-                      .missing = missing,
-                      .n_threads = n_threads};
-
+  auto config = ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, n_threads};
   *out = new std::shared_ptr<xgboost::DMatrix>{
       xgboost::DMatrix::Create(iter, proxy, reset, next, config)};
   API_END();
@@ -403,11 +398,7 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  ExtMemConfig config{.cache = cache,
-                      .on_host = on_host,
-                      .min_cache_page_bytes = min_cache_page_bytes,
-                      .missing = missing,
-                      .n_threads = n_threads};
+  auto config = ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, n_threads};
   *out = new std::shared_ptr<xgboost::DMatrix>{
       xgboost::DMatrix::Create(iter, proxy, p_ref, reset, next, max_bin, config)};
   API_END();
