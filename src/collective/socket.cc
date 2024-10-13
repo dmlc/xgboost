@@ -3,6 +3,7 @@
  */
 #include "xgboost/collective/socket.h"
 
+#include <algorithm>     // for max
 #include <array>         // for array
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t
