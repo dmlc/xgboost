@@ -108,6 +108,8 @@ bool SupportsPageableMem() { return false; }
 
 bool SupportsAts() { return false; }
 
+[[nodiscard]] std::size_t TotalMemory() { return 0; }
+
 void CheckComputeCapability() {}
 
 void SetDevice(std::int32_t device) {
