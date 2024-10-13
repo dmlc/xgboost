@@ -144,6 +144,7 @@ def test_concat_pages() -> None:
     for model in boosters[1:]:
         assert str(model) == str(boosters[0])
 
+
 @given(
     strategies.integers(1, 64),
     strategies.integers(1, 8),
