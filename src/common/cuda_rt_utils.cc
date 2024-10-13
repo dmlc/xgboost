@@ -7,6 +7,7 @@
 #include <cuda_runtime_api.h>
 #endif  // defined(XGBOOST_USE_CUDA)
 
+#include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 #include <mutex>    // for once_flag, call_once
 

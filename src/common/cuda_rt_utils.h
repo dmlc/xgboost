@@ -2,6 +2,7 @@
  * Copyright 2024, XGBoost contributors
  */
 #pragma once
+#include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 
 #if defined(XGBOOST_USE_NVTX)
