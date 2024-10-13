@@ -74,7 +74,7 @@ class SparsePageDMatrix : public DMatrix {
   Context fmat_ctx_;
   std::string cache_prefix_;
   bool const on_host_;
-  bst_idx_t const min_cache_page_bytes_;
+  std::int64_t const min_cache_page_bytes_;
   ExternalDataInfo ext_info_;
 
   // sparse page is the source to other page types, we make a special member function.

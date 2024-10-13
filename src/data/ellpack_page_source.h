@@ -205,9 +205,14 @@ class EllpackMmapStreamPolicy : public F<S> {
                                                       bst_idx_t length) const;
 };
 
+/**
+ * @brief Calculate the size of each internal cached page along with the mapping of old
+ *        pages to the new pages.
+ */
 void CalcCacheMapping(Context const* ctx, bool is_dense,
-                      std::shared_ptr<common::HistogramCuts const> cuts, double min_page_bytes,
-                      ExternalDataInfo const& ext_info, EllpackCacheInfo* cinfo);
+                      std::shared_ptr<common::HistogramCuts const> cuts,
+                      std::int64_t min_cache_page_bytes, ExternalDataInfo const& ext_info,
+                      EllpackCacheInfo* cinfo);
 
 /**
  * @brief Ellpack source with sparse pages as the underlying source.

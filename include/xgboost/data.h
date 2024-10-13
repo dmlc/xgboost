@@ -518,16 +518,16 @@ class BatchSet {
 struct XGBAPIThreadLocalEntry;
 
 struct ExtMemConfig {
-  // Cache prefix, not used if the cache is in the host memory.
+  // Cache prefix, not used if the cache is in the host memory. (on_host is true)
   std::string cache;
   // Whether the ellpack page is stored in the host memory.
   bool on_host{true};
   // Minimum number of of bytes for each ellpack page in cache. Only used for in-host
   // ExtMemQdm.
-  bst_idx_t min_cache_page_bytes{0};
+  std::int64_t min_cache_page_bytes{0};
   // Missing value.
   float missing{std::numeric_limits<float>::quiet_NaN()};
-  // The number of threads for CPU.
+  // The number of CPU threads.
   std::int32_t n_threads{0};
 };
 

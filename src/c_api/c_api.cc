@@ -287,20 +287,6 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *, char const *, DM
 
 #endif
 
-namespace {
-// Default value for the ratio between a single cached page and the device memory size.
-[[nodiscard]] bst_idx_t DftMinCachePageBytes(Json const &jconfig) {
-  // Set to 0 if it should match the user input size.
-  auto min_cache_page_bytes =
-      OptionalArg<Integer, std::int64_t>(jconfig, "min_cache_page_bytes", -1);
-  if (min_cache_page_bytes == -1) {
-    double n_total_bytes = curt::TotalMemory();
-    min_cache_page_bytes = n_total_bytes * xgboost::cuda_impl::CachePageRatio();
-  }
-  return min_cache_page_bytes;
-}
-}  // namespace
-
 // Create from data iterator
 XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
                                         DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
@@ -313,8 +299,8 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
   std::int32_t n_threads = OptionalArg<Integer, std::int64_t>(jconfig, "nthread", 0);
   auto on_host = OptionalArg<Boolean>(jconfig, "on_host", false);
-  bst_idx_t min_cache_page_bytes = OptionalArg<Integer, std::int64_t>(
-      jconfig, "min_cache_page_bytes", cuda_impl::MatchingPageBytes());
+  auto min_cache_page_bytes = OptionalArg<Integer, std::int64_t>(jconfig, "min_cache_page_bytes",
+                                                                 cuda_impl::MatchingPageBytes());
   CHECK_EQ(min_cache_page_bytes, cuda_impl::MatchingPageBytes())
       << "Page concatenation is not supported by the DMatrix yet.";
 
@@ -392,7 +378,8 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
   auto max_bin = OptionalArg<Integer, std::int64_t>(jconfig, "max_bin", 256);
   auto on_host = OptionalArg<Boolean>(jconfig, "on_host", false);
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
-  bst_idx_t min_cache_page_bytes = DftMinCachePageBytes(jconfig);
+  auto min_cache_page_bytes = OptionalArg<Integer, std::int64_t>(jconfig, "min_cache_page_bytes",
+                                                                 cuda_impl::AutoCachePageBytes());
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);

@@ -199,9 +199,12 @@ The newer NVIDIA platforms like `Grace-Hopper
 interconnect between the CPU and the GPU. With the host memory serving as the data cache,
 XGBoost can retrieve data with significantly lower overhead. When the input data is dense,
 there's minimal to no performance loss for training, except for the initial construction
-of the :py:class:`~xgboost.ExtMemQuantileDMatrix`. The initial construction iterates
+of the :py:class:`~xgboost.ExtMemQuantileDMatrix`.  The initial construction iterates
 through the input data twice, as a result, the most significantly overhead compared to
-in-core training is one additional data read when the data is dense.
+in-core training is one additional data read when the data is dense. Please note that
+there are multiple variants of the platform and they come with different C2C
+bandwidths. During initial development of the feature, we used the LPDDR5 480G version,
+which has about 350GB/s bandwidth for host to device transfer.
 
 To run experiments on these platforms, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__

@@ -11,8 +11,18 @@
 #include "proxy_dmatrix.h"    // for DataIterProxy
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for BatchParam
+#include "batch_utils.h"      // for AutoCachePageBytes
 
 namespace xgboost::data {
+[[nodiscard]] std::int64_t DftMinCachePageBytes(std::int64_t min_cache_page_bytes) {
+  // Set to 0 if it should match the user input size.
+  if (::xgboost::cuda_impl::AutoCachePageBytes() == min_cache_page_bytes) {
+    double n_total_bytes = curt::TotalMemory();
+    min_cache_page_bytes = n_total_bytes * xgboost::cuda_impl::CachePageRatio();
+  }
+  return min_cache_page_bytes;
+}
+
 void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *ctx,
     std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
@@ -37,8 +47,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
    * Calculate cache info
    */
   auto cinfo = EllpackCacheInfo{p, config.missing};
-  CalcCacheMapping(ctx, this->Info().IsDense(), cuts, config.min_cache_page_bytes, ext_info,
-                   &cinfo);
+  CalcCacheMapping(ctx, this->Info().IsDense(), cuts,
+                   DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
   auto n_batches = cinfo.buffer_rows.size();
   LOG(INFO) << "Number of batches after concatenation:" << n_batches;

@@ -244,8 +244,9 @@ EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringVi
                                                                         bst_idx_t length) const;
 
 void CalcCacheMapping(Context const* ctx, bool is_dense,
-                      std::shared_ptr<common::HistogramCuts const> cuts, double min_page_bytes,
-                      ExternalDataInfo const& ext_info, EllpackCacheInfo* cinfo) {
+                      std::shared_ptr<common::HistogramCuts const> cuts,
+                      std::int64_t min_cache_page_bytes, ExternalDataInfo const& ext_info,
+                      EllpackCacheInfo* cinfo) {
   CHECK(cinfo->param.Initialized()) << "Need to initialize scalar fields first.";
   auto ell_info = CalcNumSymbols(ctx, ext_info.row_stride, is_dense, cuts);
   std::vector<std::size_t> cache_bytes;
@@ -259,7 +260,8 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
     if (cache_bytes.empty()) {
       cache_bytes.push_back(n_bytes);
       cache_rows.push_back(n_samples);
-    } else if (cache_bytes.back() < min_page_bytes) {
+    } else if (static_cast<decltype(min_cache_page_bytes)>(cache_bytes.back()) <
+               min_cache_page_bytes) {
       cache_bytes.back() += n_bytes;
       cache_rows.back() += n_samples;
     } else {

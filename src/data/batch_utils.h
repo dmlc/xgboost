@@ -38,8 +38,10 @@ void CheckParam(BatchParam const& init, BatchParam const& param);
 
 namespace xgboost::cuda_impl {
 // Indicator for XGBoost to not concatenate any page.
-constexpr bst_idx_t MatchingPageBytes() { return 0; }
+constexpr std::int64_t MatchingPageBytes() { return 0; }
 // Default size of the cached page
 constexpr double CachePageRatio() { return 0.125; }
+// Indicator for XGBoost to not concatenate any page.
+constexpr std::int64_t AutoCachePageBytes() { return -1; }
 }  // namespace xgboost::cuda_impl
 #endif  // XGBOOST_DATA_BATCH_UTILS_H_

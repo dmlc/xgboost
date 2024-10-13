@@ -239,7 +239,7 @@ class RandomDataGenerator {
   std::vector<FeatureType> ft_;
   bst_cat_t max_cat_{32};
   bool on_host_{false};
-  bst_idx_t min_cache_page_bytes_{0};
+  std::int64_t min_cache_page_bytes_{0};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
@@ -269,7 +269,7 @@ class RandomDataGenerator {
     on_host_ = on_host;
     return *this;
   }
-  RandomDataGenerator& MinPageCacheBytes(bst_idx_t min_cache_page_bytes) {
+  RandomDataGenerator& MinPageCacheBytes(std::int64_t min_cache_page_bytes) {
     this->min_cache_page_bytes_ = min_cache_page_bytes;
     return *this;
   }
