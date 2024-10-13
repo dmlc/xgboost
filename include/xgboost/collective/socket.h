@@ -539,13 +539,7 @@ class TCPSocket {
   /**
    * @brief Listen to incoming requests. Should be called after bind.
    */
-  [[nodiscard]] Result Listen(std::int32_t backlog = 256) {
-    backlog = std::max(backlog, 256);
-    if (listen(handle_, backlog) != 0) {
-      return system::FailWithCode("Failed to listen.");
-    }
-    return Success();
-  }
+  [[nodiscard]] Result Listen(std::int32_t backlog = 256);
   /**
    * @brief Bind socket to INADDR_ANY, return the port selected by the OS.
    */

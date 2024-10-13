@@ -56,6 +56,14 @@ SockAddrV4 SockAddrV4::InaddrAny() { return MakeSockAddress("0.0.0.0", 0).V4(); 
 SockAddrV6 SockAddrV6::Loopback() { return MakeSockAddress("::1", 0).V6(); }
 SockAddrV6 SockAddrV6::InaddrAny() { return MakeSockAddress("::", 0).V6(); }
 
+[[nodiscard]] Result TCPSocket::Listen(std::int32_t backlog) {
+  backlog = std::max(backlog, 256);
+  if (listen(this->handle_, backlog) != 0) {
+    return system::FailWithCode("Failed to listen.");
+  }
+  return Success();
+}
+
 std::size_t TCPSocket::Send(StringView str) {
   CHECK(!this->IsClosed());
   CHECK_LT(str.size(), std::numeric_limits<std::int32_t>::max());
