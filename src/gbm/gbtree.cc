@@ -748,7 +748,7 @@ class Dart : public GBTree {
     auto n_groups = model_.learner_model_param->num_output_group;
 
     PredictionCacheEntry predts;  // temporary storage for prediction
-    if (ctx_->IsCUDA()) {
+    if (!ctx_->IsCPU()) {
       predts.predictions.SetDevice(ctx_->Device());
     }
     predts.predictions.Resize(p_fmat->Info().num_row_ * n_groups, 0);
