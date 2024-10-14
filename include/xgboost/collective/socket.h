@@ -538,6 +538,8 @@ class TCPSocket {
   [[nodiscard]] HandleT const &Handle() const { return handle_; }
   /**
    * @brief Listen to incoming requests. Should be called after bind.
+   *
+   *   Both the default and minimum backlog is set to 256.
    */
   [[nodiscard]] Result Listen(std::int32_t backlog = 256);
   /**
