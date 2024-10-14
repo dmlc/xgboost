@@ -120,7 +120,8 @@ RabitTracker::RabitTracker(Json const& config) : Tracker{config} {
     listener_ = TCPSocket::Create(addr.IsV4() ? SockDomain::kV4 : SockDomain::kV6);
     return listener_.Bind(host_, &this->port_);
   } << [&] {
-    return listener_.Listen();
+    CHECK_GT(this->n_workers_, 0);
+    return listener_.Listen(this->n_workers_);
   };
   SafeColl(rc);
 }

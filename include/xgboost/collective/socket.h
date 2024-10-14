@@ -548,13 +548,10 @@ class TCPSocket {
   [[nodiscard]] HandleT const &Handle() const { return handle_; }
   /**
    * @brief Listen to incoming requests. Should be called after bind.
+   *
+   *   Both the default and minimum backlog is set to 256.
    */
-  [[nodiscard]] Result Listen(std::int32_t backlog = 16) {
-    if (listen(handle_, backlog) != 0) {
-      return system::FailWithCode("Failed to listen.");
-    }
-    return Success();
-  }
+  [[nodiscard]] Result Listen(std::int32_t backlog = 256);
   /**
    * @brief Bind socket to INADDR_ANY, return the port selected by the OS.
    */

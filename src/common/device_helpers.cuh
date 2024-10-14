@@ -224,13 +224,6 @@ __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
     lambda(i);
   }
 }
-template <typename L>
-__global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
-                              L lambda) {
-  for (auto i : GridStrideRange(begin, end)) {
-    lambda(i, device_idx);
-  }
-}
 
 /* \brief A wrapper around kernel launching syntax, used to guard against empty input.
  *

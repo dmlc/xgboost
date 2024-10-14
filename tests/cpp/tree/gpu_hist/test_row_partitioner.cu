@@ -6,15 +6,12 @@
 #include <thrust/host_vector.h>
 #include <thrust/sequence.h>
 
-#include <algorithm>
 #include <vector>
 
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../helpers.h"
 #include "xgboost/base.h"
-#include "xgboost/context.h"
-#include "xgboost/task.h"
-#include "xgboost/tree_model.h"
+#include "../../helpers.h"                 // for RandomDataGenerator
 
 namespace xgboost::tree {
 void TestUpdatePositionBatch() {
@@ -55,7 +52,9 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   thrust::device_vector<uint32_t> ridx_tmp(ridx_in.size());
   thrust::device_vector<bst_uint> counts(segments.size());
 
-  auto op = [=] __device__(auto ridx, int split_index, int data) { return ridx % 2 == 0; };
+  auto op = [=] __device__(auto ridx, int split_index, int data) {
+    return ridx % 2 == 0;
+  };
   std::vector<int> op_data(segments.size());
   std::vector<PerNodeData<int>> h_batch_info(segments.size());
   dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
@@ -73,7 +72,9 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
                                                  dh::ToSpan(ridx_tmp), dh::ToSpan(counts),
                                                  total_rows, op, &tmp);
 
-  auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
+  auto op_without_data = [=] __device__(auto ridx) {
+    return ridx % 2 == 0;
+  };
   for (size_t i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
@@ -87,11 +88,10 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   }
 }
 
-TEST(GpuHist, SortPositionBatch) {
+TEST(RowPartitioner, SortPositionBatch) {
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 3}, {3, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 1}, {3, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{3, 6}, {0, 2}});
 }
-
 }  // namespace xgboost::tree
