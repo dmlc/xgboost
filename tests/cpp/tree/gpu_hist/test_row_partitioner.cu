@@ -16,8 +16,9 @@
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/expand_entry.cuh"  // for GPUExpandEntry
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
-#include "../../../../src/tree/param.h"  // for TrainParam
-#include "../../helpers.h"               // for RandomDataGenerator
+#include "../../../../src/tree/param.h"    // for TrainParam
+#include "../../collective/test_worker.h"  // for TestDistributedGlobal
+#include "../../helpers.h"                 // for RandomDataGenerator
 
 namespace xgboost::tree {
 void TestUpdatePositionBatch() {
@@ -61,7 +62,9 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   thrust::device_vector<cuda_impl::RowIndexT> ridx_tmp(ridx_in.size());
   thrust::device_vector<cuda_impl::RowIndexT> counts(segments.size());
 
-  auto op = [=] __device__(auto ridx, int split_index, int data) { return ridx % 2 == 0; };
+  auto op = [=] __device__(auto ridx, int split_index, int data) {
+    return ridx % 2 == 0;
+  };
   std::vector<int> op_data(segments.size());
   std::vector<PerNodeData<int>> h_batch_info(segments.size());
   dh::TemporaryArray<PerNodeData<int>> d_batch_info(segments.size());
@@ -79,7 +82,9 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
                                        dh::ToSpan(ridx_tmp), dh::ToSpan(counts), total_rows, op,
                                        &tmp);
 
-  auto op_without_data = [=] __device__(auto ridx) { return ridx % 2 == 0; };
+  auto op_without_data = [=] __device__(auto ridx) {
+    return ridx % 2 == 0;
+  };
   for (size_t i = 0; i < segments.size(); i++) {
     auto begin = ridx.begin() + segments[i].begin;
     auto end = ridx.begin() + segments[i].end;
@@ -93,7 +98,7 @@ void TestSortPositionBatch(const std::vector<int>& ridx_in, const std::vector<Se
   }
 }
 
-TEST(GpuHist, SortPositionBatch) {
+TEST(RowPartitioner, SortPositionBatch) {
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 3}, {3, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 1}, {3, 6}});
   TestSortPositionBatch({0, 1, 2, 3, 4, 5}, {{0, 6}});
@@ -178,4 +183,34 @@ void TestExternalMemory() {
 }  // anonymous namespace
 
 TEST(RowPartitioner, LeafPartitionExternalMemory) { TestExternalMemory(); }
+
+namespace {
+void TestEmptyNode(std::int32_t n_workers) {
+  collective::TestDistributedGlobal(n_workers, [] {
+    auto ctx = MakeCUDACtx(DistGpuIdx());
+    RowPartitioner partitioner;
+    bst_idx_t n_samples = (collective::GetRank() == 0) ? 0 : 1024;
+    bst_idx_t base_rowid = 0;
+    partitioner.Reset(&ctx, n_samples, base_rowid);
+    std::vector<RegTree::Node> splits(1);
+    partitioner.UpdatePositionBatch(
+        &ctx, {0}, {1}, {2}, splits,
+        [] XGBOOST_DEVICE(bst_idx_t ridx, std::int32_t /*nidx_in_batch*/, RegTree::Node) {
+          return ridx < 3;
+        });
+    ASSERT_EQ(partitioner.GetNumNodes(), 3);
+    if (collective::GetRank() == 0) {
+      for (std::size_t i = 0; i < 3; ++i) {
+        ASSERT_TRUE(partitioner.GetRows(i).empty());
+      }
+    }
+    ctx.CUDACtx()->Stream().Sync();
+  });
+}
+}  // anonymous namespace
+
+TEST(RowPartitioner, MGPUEmpty) {
+  std::int32_t n_workers = curt::AllVisibleGPUs();
+  TestEmptyNode(n_workers);
+}
 }  // namespace xgboost::tree
