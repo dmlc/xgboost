@@ -227,13 +227,18 @@ class IteratorForTest(xgb.core.DataIter):
         *,
         cache: Optional[str],
         on_host: bool = False,
+        min_cache_page_bytes: Optional[int] = None,
     ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
         self.w = w
         self.it = 0
-        super().__init__(cache_prefix=cache, on_host=on_host)
+        super().__init__(
+            cache_prefix=cache,
+            on_host=on_host,
+            min_cache_page_bytes=min_cache_page_bytes,
+        )
 
     def next(self, input_data: Callable) -> bool:
         if self.it == len(self.X):

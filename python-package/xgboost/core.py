@@ -536,16 +536,34 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 
             This is an experimental parameter.
 
+    min_cache_page_bytes :
+        The minimum number of bytes of each cached pages. Only used for on-host cache
+        with GPU-based :py:class:`ExtMemQuantileDMatrix`. When using GPU-based external
+        memory with the data cached in the host memory, XGBoost can concatenate the
+        pages internally to increase the batch size for the GPU. The default page size
+        is about 1/8 of the total device memory. Users can manually set the value based
+        on the actual hardware and datasets. Set this to 0 to disable page
+        concatenation.
+
+        .. versionadded:: 3.0.0
+
+        .. warning::
+
+            This is an experimental parameter.
+
     """
 
     def __init__(
         self,
         cache_prefix: Optional[str] = None,
         release_data: bool = True,
+        *,
         on_host: bool = True,
+        min_cache_page_bytes: Optional[int] = None,
     ) -> None:
         self.cache_prefix = cache_prefix
         self.on_host = on_host
+        self.min_cache_page_bytes = min_cache_page_bytes
 
         self._handle = _ProxyDMatrix()
         self._exception: Optional[Exception] = None
@@ -940,6 +958,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             nthread=self.nthread,
             cache_prefix=it.cache_prefix if it.cache_prefix else "",
             on_host=it.on_host,
+            min_cache_page_bytes=it.min_cache_page_bytes,
         )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)
@@ -1727,6 +1746,7 @@ class ExtMemQuantileDMatrix(DMatrix):
             cache_prefix=it.cache_prefix if it.cache_prefix else "",
             on_host=it.on_host,
             max_bin=self.max_bin,
+            min_cache_page_bytes=it.min_cache_page_bytes,
         )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)

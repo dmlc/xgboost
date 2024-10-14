@@ -7,6 +7,7 @@
 #include <cuda_runtime_api.h>
 #endif  // defined(XGBOOST_USE_CUDA)
 
+#include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 #include <mutex>    // for once_flag, call_once
 
@@ -65,6 +66,13 @@ void SetDevice(std::int32_t device) {
   }
 }
 
+[[nodiscard]] std::size_t TotalMemory() {
+  std::size_t device_free = 0;
+  std::size_t device_total = 0;
+  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
+  return device_total;
+}
+
 namespace {
 template <typename Fn>
 void GetVersionImpl(Fn&& fn, std::int32_t* major, std::int32_t* minor) {
@@ -100,6 +108,8 @@ std::int32_t CurrentDevice() {
 bool SupportsPageableMem() { return false; }
 
 bool SupportsAts() { return false; }
+
+[[nodiscard]] std::size_t TotalMemory() { return 0; }
 
 void CheckComputeCapability() {}
 

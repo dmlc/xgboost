@@ -1,5 +1,6 @@
 import sys
 
+import numpy as np
 import pytest
 from hypothesis import given, settings, strategies
 
@@ -11,6 +12,9 @@ from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
 sys.path.append("tests/python")
 from test_data_iterator import run_data_iterator
 from test_data_iterator import test_single_batch as cpu_single_batch
+
+# There are lots of warnings if XGBoost is not running on ATS-enabled systems.
+pytestmark = pytest.mark.filterwarnings("ignore")
 
 
 def test_gpu_single_batch() -> None:
@@ -69,7 +73,6 @@ def test_cpu_data_iterator() -> None:
     strategies.booleans(),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
-@pytest.mark.filterwarnings("ignore")
 def test_extmem_qdm(
     n_samples_per_batch: int,
     n_features: int,
@@ -87,7 +90,6 @@ def test_extmem_qdm(
     )
 
 
-@pytest.mark.filterwarnings("ignore")
 def test_invalid_device_extmem_qdm() -> None:
     it = tm.IteratorForTest(
         *tm.make_batches(16, 4, 2, use_cupy=False), cache="cache", on_host=True
@@ -104,7 +106,7 @@ def test_invalid_device_extmem_qdm() -> None:
         xgb.train({"device": "cpu"}, Xy)
 
 
-def test_concat_pages() -> None:
+def test_concat_pages_invalid() -> None:
     it = tm.IteratorForTest(*tm.make_batches(64, 16, 4, use_cupy=True), cache=None)
     Xy = xgb.ExtMemQuantileDMatrix(it)
     with pytest.raises(ValueError, match="can not be used with concatenated pages"):
@@ -118,6 +120,29 @@ def test_concat_pages() -> None:
             },
             Xy,
         )
+
+
+def test_concat_pages() -> None:
+    boosters = []
+    for min_cache_page_bytes in [0, 256, 386, np.iinfo(np.int64).max]:
+        it = tm.IteratorForTest(
+            *tm.make_batches(64, 16, 4, use_cupy=True),
+            cache=None,
+            min_cache_page_bytes=min_cache_page_bytes,
+            on_host=True,
+        )
+        Xy = xgb.ExtMemQuantileDMatrix(it)
+        booster = xgb.train(
+            {
+                "device": "cuda",
+                "objective": "reg:absoluteerror",
+            },
+            Xy,
+        )
+        boosters.append(booster.save_raw(raw_format="json"))
+
+    for model in boosters[1:]:
+        assert str(model) == str(boosters[0])
 
 
 @given(
