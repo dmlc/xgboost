@@ -67,7 +67,7 @@ EllpackHostCache::~EllpackHostCache() = default;
                        [](auto const& page) { return IsDevicePage(page.get()); });
 }
 
-constexpr std::int32_t MaxDevicePages() { return 3; }
+constexpr std::int32_t MaxDevicePages() { return 1; }
 
 /**
  * Cache stream.
@@ -119,7 +119,7 @@ class EllpackHostCacheStreamImpl {
     // copy during write since new page is alwalys in device when page concatenation is
     // enabled.
     bool to_device =
-        this->cache_->prefer_device && this->cache_->NumDevicePages() < MaxDevicePages();
+        this->cache_->prefer_device && this->cache_->NumDevicePages() <= MaxDevicePages();
 
     auto commit_page = [&ctx](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);

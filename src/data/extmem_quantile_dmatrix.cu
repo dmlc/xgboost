@@ -1,5 +1,17 @@
 /**
  * Copyright 2024, XGBoost Contributors
+ *
+ * The @ref ExtMemQuantileDMatrix for GPU prefetches 2 pages by default and can optionally
+ * cache page in the device memory for the validation DMatrix. In addition, it can
+ * concatenate user-provded pages to form larger @ref EllpackPage to avoid small GPU
+ * kernels.
+ *
+ * Given 1 training DMatrix and 1 validation DMatrix, with 2 pages from the validation set
+ * cached in device memory, we can have at most 6 pages in the device memory. 2 from
+ * prefetched training DMatrix, 2 from prefetched validation DMatrix, and 2 in the device
+ * cache. If set the minimum @ref EllpackPage to 12GB in a 96GB GPU, 6 pages have 72GB
+ * size in total. Without accounting for memory fragmentation, this should be very close
+ * the upper boundary.
  */
 #include <memory>   // for shared_ptr
 #include <variant>  // for visit, get_if
