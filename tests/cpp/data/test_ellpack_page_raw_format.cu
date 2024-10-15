@@ -16,7 +16,7 @@ namespace {
 [[nodiscard]] EllpackCacheInfo CInfoForTest(Context const *ctx, DMatrix *Xy, bst_idx_t row_stride,
                                             BatchParam param,
                                             std::shared_ptr<common::HistogramCuts const> cuts) {
-  EllpackCacheInfo cinfo{param, false, std::numeric_limits<float>::quiet_NaN()};
+  EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
   ExternalDataInfo ext_info;
   ext_info.n_batches = 1;
   ext_info.row_stride = row_stride;
@@ -116,7 +116,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         if (!format) {
           // Prepare the mapping info.
-          EllpackCacheInfo cinfo{param, false, std::numeric_limits<float>::quiet_NaN()};
+          EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
           for (std::size_t i = 0; i < 3; ++i) {
             cinfo.cache_mapping.push_back(i);
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());

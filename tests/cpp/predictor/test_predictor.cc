@@ -810,9 +810,9 @@ void TestVectorLeafPrediction(Context const *ctx) {
 
       auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
                                         static_cast<std::size_t>(1)};
-      p_fmat =
-          std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                   std::numeric_limits<float>::quiet_NaN(), 0, 256);
+      p_fmat = std::make_shared<data::IterativeDMatrix>(
+          &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+          256, std::numeric_limits<std::int64_t>::max());
 
       cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
       cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);

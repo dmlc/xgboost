@@ -534,7 +534,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 
         .. warning::
 
-            This is an experimental parameter.
+            This is an experimental parameter and subject to change.
 
     min_cache_page_bytes :
         The minimum number of bytes of each cached pages. Only used for on-host cache
@@ -549,7 +549,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
 
         .. warning::
 
-            This is an experimental parameter.
+            This is an experimental parameter and subject to change.
 
     """
 
@@ -1573,6 +1573,19 @@ class QuantileDMatrix(DMatrix):
         as a reference means that the same quantisation applied to the training data is
         applied to the validation/test data
 
+    max_quantile_batches :
+        For a GPU-based inputs, XGBoost treats incoming batches as multiple growing
+        sub-streams. This parameter sets the maximum number of batches before XGBoost
+        can cut the sub-stream and create a new one. This can help bound the memory
+        usage. By default, XGBoost grows new sub-streams exponentially until batches are
+        exhausted. Only used for the training dataset.
+
+        .. versionadded:: 3.0.0
+
+        .. warning::
+
+            This is an experimental parameter and subject to change.
+
     """
 
     @_deprecate_positional_args
@@ -1596,6 +1609,7 @@ class QuantileDMatrix(DMatrix):
         label_upper_bound: Optional[ArrayLike] = None,
         feature_weights: Optional[ArrayLike] = None,
         enable_categorical: bool = False,
+        max_quantile_batches: Optional[int] = None,
         data_split_mode: DataSplitMode = DataSplitMode.ROW,
     ) -> None:
         self.max_bin = max_bin
@@ -1647,6 +1661,7 @@ class QuantileDMatrix(DMatrix):
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
+            max_quantile_batches=max_quantile_batches,
         )
 
     def _init(
@@ -1654,6 +1669,7 @@ class QuantileDMatrix(DMatrix):
         data: DataType,
         ref: Optional[DMatrix],
         enable_categorical: bool,
+        max_quantile_batches: Optional[int],
         **meta: Any,
     ) -> None:
         from .data import (
@@ -1681,7 +1697,10 @@ class QuantileDMatrix(DMatrix):
             )
 
         config = make_jcargs(
-            nthread=self.nthread, missing=self.missing, max_bin=self.max_bin
+            nthread=self.nthread,
+            missing=self.missing,
+            max_bin=self.max_bin,
+            max_quantile_batches=max_quantile_batches,
         )
         ret = _LIB.XGQuantileDMatrixCreateFromCallback(
             None,
@@ -1722,6 +1741,8 @@ class ExtMemQuantileDMatrix(DMatrix):
         max_bin: Optional[int] = None,
         ref: Optional[DMatrix] = None,
         enable_categorical: bool = False,
+        max_num_device_pages: Optional[int] = None,
+        max_quantile_batches: Optional[int] = None,
     ) -> None:
         """
         Parameters
@@ -1729,10 +1750,31 @@ class ExtMemQuantileDMatrix(DMatrix):
         data :
             A user-defined :py:class:`DataIter` for loading data.
 
+        max_num_device_pages :
+            For a GPU-based validation dataset, XGBoost can optionally cache some pages
+            in device memory instead of host memory to reduce data transfer. Each cached
+            page has size of `min_cache_page_bytes`. Set this to 0 if you don't want
+            pages to be cached in the device memory. This can be useful for preventing
+            OOM error where there are more than one validation datasets. The default
+            number of device-based page is 1. Lastly, XGBoost infers whether a dataset
+            is used for valdiation by checking whether ref is not None.
+
+            .. versionadded:: 3.0.0
+
+            .. warning::
+
+                This is an experimental parameter and subject to change.
+
+        max_quantile_batches :
+            See :py:class:`QuantileDMatrix`.
+
         """
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else -1
+        self.max_num_device_pages = max_num_device_pages
+        # It's called blocks internally due to block-based quantile sketching.
+        self.max_quantile_blocks = max_quantile_batches
 
         self._init(data, ref, enable_categorical)
         assert self.handle is not None
@@ -1747,6 +1789,8 @@ class ExtMemQuantileDMatrix(DMatrix):
             on_host=it.on_host,
             max_bin=self.max_bin,
             min_cache_page_bytes=it.min_cache_page_bytes,
+            max_num_device_pages=self.max_num_device_pages,
+            max_quantile_blocks=self.max_quantile_blocks,
         )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)

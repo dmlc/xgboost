@@ -39,7 +39,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *ctx,
     std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
     DMatrixHandle proxy_handle, BatchParam const &p, std::shared_ptr<DMatrix> ref,
-    ExtMemConfig const &config) {
+    std::int64_t max_quantile_blocks, ExtMemConfig const &config) {
   xgboost_NVTX_FN_RANGE();
 
   // A handle passed to external iterator.
@@ -52,7 +52,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->Info(),
-                          &ext_info);
+                          max_quantile_blocks, &ext_info);
   ext_info.SetInfo(ctx, &this->info_);
 
   /**
@@ -61,7 +61,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   // Prefer device storage for validation dataset since we can't hide it's data load
   // overhead with inference. But the training procedures can confortably overlap with the
   // data transfer.
-  auto cinfo = EllpackCacheInfo{p, (ref != nullptr), config.missing};
+  auto cinfo = EllpackCacheInfo{p, (ref != nullptr), config.max_num_device_pages, config.missing};
   CalcCacheMapping(ctx, this->Info().IsDense(), cuts,
                    DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);

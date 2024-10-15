@@ -42,11 +42,12 @@ namespace {
 /**
  * Cache
  */
-EllpackHostCache::EllpackHostCache(EllpackCacheInfo info)
-    : cache_mapping{std::move(info.cache_mapping)},
-      buffer_bytes{std::move(info.buffer_bytes)},
-      buffer_rows{std::move(info.buffer_rows)},
-      prefer_device{info.prefer_device} {
+EllpackHostCache::EllpackHostCache(EllpackCacheInfo cinfo)
+    : cache_mapping{std::move(cinfo.cache_mapping)},
+      buffer_bytes{std::move(cinfo.buffer_bytes)},
+      buffer_rows{std::move(cinfo.buffer_rows)},
+      prefer_device{cinfo.prefer_device},
+      max_num_device_pages{cinfo.max_num_device_pages} {
   CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
 }
 
@@ -62,12 +63,10 @@ EllpackHostCache::~EllpackHostCache() = default;
   return this->pages.at(k).get();
 }
 
-[[nodiscard]] bst_idx_t EllpackHostCache::NumDevicePages() const {
+[[nodiscard]] std::int64_t EllpackHostCache::NumDevicePages() const {
   return std::count_if(this->pages.cbegin(), this->pages.cend(),
                        [](auto const& page) { return IsDevicePage(page.get()); });
 }
-
-constexpr std::int32_t MaxDevicePages() { return 1; }
 
 /**
  * Cache stream.
@@ -118,8 +117,8 @@ class EllpackHostCacheStreamImpl {
     // Whether the page should be cached in device. If true, then we don't need to make a
     // copy during write since new page is alwalys in device when page concatenation is
     // enabled.
-    bool to_device =
-        this->cache_->prefer_device && this->cache_->NumDevicePages() <= MaxDevicePages();
+    bool to_device = this->cache_->prefer_device &&
+                     this->cache_->NumDevicePages() <= this->cache_->max_num_device_pages;
 
     auto commit_page = [&ctx](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
