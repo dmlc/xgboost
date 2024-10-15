@@ -196,6 +196,7 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     // Create a DMatrix with multiple batches.
     auto p_ext_fmat = RandomDataGenerator{kRows, kCols, sparsity}
                           .Batches(4)
+                          .Device(ctx.Device())
                           .OnHost(on_host)
                           .GenerateSparsePageDMatrix("temp", true);
 
@@ -204,8 +205,8 @@ class TestEllpackPageExt : public ::testing::TestWithParam<std::tuple<bool, bool
     ASSERT_EQ(impl->base_rowid, 0);
     ASSERT_EQ(impl->n_rows, kRows);
     ASSERT_EQ(impl->IsDense(), is_dense);
-    ASSERT_EQ(impl->info.row_stride, 2);
-    ASSERT_EQ(impl->Cuts().TotalBins(), 4);
+    ASSERT_EQ(impl->info.row_stride, kCols);
+    ASSERT_EQ(impl->Cuts().TotalBins(), param.max_bin * kCols);
 
     std::unique_ptr<EllpackPageImpl> impl_ext;
     size_t offset = 0;

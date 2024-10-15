@@ -74,7 +74,9 @@ class SparsePageDMatrix : public DMatrix {
   Context fmat_ctx_;
   std::string cache_prefix_;
   bool const on_host_;
-  std::uint32_t n_batches_{0};
+  std::int64_t const min_cache_page_bytes_;
+  ExternalDataInfo ext_info_;
+
   // sparse page is the source to other page types, we make a special member function.
   void InitializeSparsePage(Context const *ctx);
   // Non-virtual version that can be used in constructor
@@ -82,15 +84,14 @@ class SparsePageDMatrix : public DMatrix {
 
  public:
   explicit SparsePageDMatrix(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
-                             XGDMatrixCallbackNext *next, float missing, int32_t nthreads,
-                             std::string cache_prefix, bool on_host);
+                             XGDMatrixCallbackNext *next, ExtMemConfig const &config);
 
   ~SparsePageDMatrix() override;
 
   [[nodiscard]] MetaInfo &Info() override;
   [[nodiscard]] const MetaInfo &Info() const override;
   [[nodiscard]] Context const *Ctx() const override { return &fmat_ctx_; }
-  [[nodiscard]] std::int32_t NumBatches() const override { return n_batches_; }
+  [[nodiscard]] std::int32_t NumBatches() const override { return ext_info_.n_batches; }
   DMatrix *Slice(common::Span<std::int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;

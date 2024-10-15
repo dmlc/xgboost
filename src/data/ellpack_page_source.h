@@ -6,6 +6,7 @@
 #define XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
 
 #include <cstdint>  // for int32_t
+#include <limits>   // for numeric_limits
 #include <memory>   // for shared_ptr
 #include <utility>  // for move
 #include <vector>   // for vector
@@ -21,40 +22,84 @@
 #include "xgboost/span.h"             // for Span
 
 namespace xgboost::data {
+struct EllpackCacheInfo {
+  BatchParam param;
+  float missing{std::numeric_limits<float>::quiet_NaN()};
+  std::vector<bst_idx_t> cache_mapping;
+  std::vector<bst_idx_t> buffer_bytes;
+  std::vector<bst_idx_t> buffer_rows;
+
+  EllpackCacheInfo() = default;
+  EllpackCacheInfo(BatchParam param, float missing) : param{std::move(param)}, missing{missing} {}
+};
+
 // We need to decouple the storage and the view of the storage so that we can implement
 // concurrent read. As a result, there are two classes, one for cache storage, another one
 // for stream.
 struct EllpackHostCache {
-  std::vector<std::shared_ptr<EllpackPageImpl>> pages;
+  std::vector<std::unique_ptr<EllpackPageImpl>> pages;
+  std::vector<std::size_t> offsets;
+  // Size of each batch before concatenation.
+  std::vector<bst_idx_t> sizes_orig;
+  // Mapping of pages before concatenation to after concatenation.
+  std::vector<std::size_t> const cache_mapping;
+  // Cache info
+  std::vector<std::size_t> const buffer_bytes;
+  std::vector<bst_idx_t> const buffer_rows;
 
-  EllpackHostCache();
+  explicit EllpackHostCache(EllpackCacheInfo info);
   ~EllpackHostCache();
 
-  [[nodiscard]] std::size_t Size() const;
+  // The number of bytes for the entire cache.
+  [[nodiscard]] std::size_t SizeBytes() const;
 
-  bool Empty() const { return this->Size() == 0; }
+  bool Empty() const { return this->SizeBytes() == 0; }
 
-  void Push(std::unique_ptr<EllpackPageImpl> page);
-  EllpackPageImpl const* Get(std::int32_t k);
+  [[nodiscard]] bst_idx_t NumBatchesOrig() const { return cache_mapping.size(); }
+  EllpackPageImpl const* At(std::int32_t k);
 };
 
 // Pimpl to hide CUDA calls from the host compiler.
 class EllpackHostCacheStreamImpl;
 
-// A view onto the actual cache implemented by `EllpackHostCache`.
+/**
+ * @brief A view of the actual cache implemented by `EllpackHostCache`.
+ */
 class EllpackHostCacheStream {
   std::unique_ptr<EllpackHostCacheStreamImpl> p_impl_;
 
  public:
   explicit EllpackHostCacheStream(std::shared_ptr<EllpackHostCache> cache);
   ~EllpackHostCacheStream();
-
-  std::shared_ptr<EllpackHostCache> Share();
-
+  /**
+   * @brief Get a shared handler to the cache.
+   */
+  std::shared_ptr<EllpackHostCache const> Share() const;
+  /**
+   * @brief Stream seek.
+   *
+   * @param offset_bytes This must align to the actual cached page size.
+   */
   void Seek(bst_idx_t offset_bytes);
-
+  /**
+   * @brief Read a page from the cache.
+   *
+   * The read page might be concatenated during page write.
+   *
+   * @param page[out] The returned page.
+   * @param prefetch_copy[in] Does the stream need to copy the page?
+   */
   void Read(EllpackPage* page, bool prefetch_copy) const;
-  void Write(EllpackPage const& page);
+  /**
+   * @brief Add a new page to the host cache.
+   *
+   * This method might append the input page to a previously stored page to increase
+   * individual page size.
+   *
+   * @return Whether a new cache page is create. False if the new page is appended to the
+   * previous one.
+   */
+  [[nodiscard]] bool Write(EllpackPage const& page);
 };
 
 template <typename S>
@@ -62,6 +107,9 @@ class EllpackFormatPolicy {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
   DeviceOrd device_;
   bool has_hmm_{curt::SupportsPageableMem()};
+
+  EllpackCacheInfo cache_info_;
+  static_assert(std::is_same_v<S, EllpackPage>);
 
  public:
   using FormatT = EllpackPageRawFormat;
@@ -82,7 +130,7 @@ class EllpackFormatPolicy {
     }
     std::int32_t major{0}, minor{0};
     curt::DrVersion(&major, &minor);
-    if (!(major >= 12 && minor >= 7) && curt::SupportsAts()) {
+    if ((major < 12 || (major == 12 && minor < 7)) && curt::SupportsAts()) {
       // Use ATS, but with an old kernel driver.
       LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7."
                    << "The latest version of CTK supported by the current driver: " << major << "."
@@ -97,18 +145,19 @@ class EllpackFormatPolicy {
     std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{cuts_, device_, param, has_hmm_}};
     return fmt;
   }
-
-  void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device) {
-    std::swap(cuts_, cuts);
-    device_ = device;
+  void SetCuts(std::shared_ptr<common::HistogramCuts const> cuts, DeviceOrd device,
+               EllpackCacheInfo cinfo) {
+    std::swap(this->cuts_, cuts);
+    this->device_ = device;
     CHECK(this->device_.IsCUDA());
+    this->cache_info_ = std::move(cinfo);
   }
-  [[nodiscard]] auto GetCuts() {
+  [[nodiscard]] auto GetCuts() const {
     CHECK(cuts_);
     return cuts_;
   }
-
-  [[nodiscard]] auto Device() const { return device_; }
+  [[nodiscard]] auto Device() const { return this->device_; }
+  [[nodiscard]] auto const& CacheInfo() { return this->cache_info_; }
 };
 
 template <typename S, template <typename> typename F>
@@ -120,7 +169,7 @@ class EllpackCacheStreamPolicy : public F<S> {
   using ReaderT = EllpackHostCacheStream;
 
  public:
-  EllpackCacheStreamPolicy();
+  EllpackCacheStreamPolicy() = default;
   [[nodiscard]] std::unique_ptr<WriterT> CreateWriter(StringView name, std::uint32_t iter);
 
   [[nodiscard]] std::unique_ptr<ReaderT> CreateReader(StringView name, bst_idx_t offset,
@@ -157,6 +206,15 @@ class EllpackMmapStreamPolicy : public F<S> {
 };
 
 /**
+ * @brief Calculate the size of each internal cached page along with the mapping of old
+ *        pages to the new pages.
+ */
+void CalcCacheMapping(Context const* ctx, bool is_dense,
+                      std::shared_ptr<common::HistogramCuts const> cuts,
+                      std::int64_t min_cache_page_bytes, ExternalDataInfo const& ext_info,
+                      EllpackCacheInfo* cinfo);
+
+/**
  * @brief Ellpack source with sparse pages as the underlying source.
  */
 template <typename F>
@@ -168,19 +226,19 @@ class EllpackPageSourceImpl : public PageSourceIncMixIn<EllpackPage, F> {
   common::Span<FeatureType const> feature_types_;
 
  public:
-  EllpackPageSourceImpl(float missing, std::int32_t nthreads, bst_feature_t n_features,
-                        std::size_t n_batches, std::shared_ptr<Cache> cache, BatchParam param,
-                        std::shared_ptr<common::HistogramCuts> cuts, bool is_dense,
-                        bst_idx_t row_stride, common::Span<FeatureType const> feature_types,
-                        std::shared_ptr<SparsePageSource> source, DeviceOrd device)
-      : Super{missing, nthreads, n_features, n_batches, cache, false},
+  EllpackPageSourceImpl(Context const* ctx, bst_feature_t n_features, std::size_t n_batches,
+                        std::shared_ptr<Cache> cache, std::shared_ptr<common::HistogramCuts> cuts,
+                        bool is_dense, bst_idx_t row_stride,
+                        common::Span<FeatureType const> feature_types,
+                        std::shared_ptr<SparsePageSource> source, EllpackCacheInfo const& cinfo)
+      : Super{cinfo.missing, ctx->Threads(), n_features, n_batches, cache, false},
         is_dense_{is_dense},
         row_stride_{row_stride},
-        param_{std::move(param)},
+        param_{std::move(cinfo.param)},
         feature_types_{feature_types} {
     this->source_ = source;
-    cuts->SetDevice(device);
-    this->SetCuts(std::move(cuts), device);
+    cuts->SetDevice(ctx->Device());
+    this->SetCuts(std::move(cuts), ctx->Device(), cinfo);
     this->Fetch();
   }
 
@@ -210,18 +268,19 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
 
  public:
   ExtEllpackPageSourceImpl(
-      Context const* ctx, float missing, MetaInfo* info, ExternalDataInfo ext_info,
-      std::shared_ptr<Cache> cache, BatchParam param, std::shared_ptr<common::HistogramCuts> cuts,
+      Context const* ctx, MetaInfo* info, ExternalDataInfo ext_info, std::shared_ptr<Cache> cache,
+      std::shared_ptr<common::HistogramCuts> cuts,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> source,
-      DMatrixProxy* proxy)
-      : Super{missing, ctx->Threads(), static_cast<bst_feature_t>(info->num_col_), source, cache},
+      DMatrixProxy* proxy, EllpackCacheInfo const& cinfo)
+      : Super{cinfo.missing, ctx->Threads(), static_cast<bst_feature_t>(info->num_col_), source,
+              cache},
         ctx_{ctx},
-        p_{std::move(param)},
+        p_{cinfo.param},
         proxy_{proxy},
         info_{info},
         ext_info_{std::move(ext_info)} {
     cuts->SetDevice(ctx->Device());
-    this->SetCuts(std::move(cuts), ctx->Device());
+    this->SetCuts(std::move(cuts), ctx->Device(), cinfo);
     CHECK(!this->cache_info_->written);
     this->source_->Reset();
     CHECK(this->source_->Next());
@@ -229,6 +288,17 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
   }
 
   void Fetch() final;
+  // Need a specialized end iter as we can concatenate pages.
+  void EndIter() final {
+    if (this->cache_info_->written) {
+      CHECK_EQ(this->Iter(), this->cache_info_->Size());
+    } else {
+      CHECK_LE(this->cache_info_->Size(), this->ext_info_.n_batches);
+    }
+    this->cache_info_->Commit();
+    CHECK_GE(this->count_, 1);
+    this->count_ = 0;
+  }
 };
 
 // Cache to host

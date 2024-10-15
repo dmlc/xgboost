@@ -86,8 +86,9 @@ bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShap
                                  size_t num_cuts, bool has_weight, std::size_t container_bytes) {
   auto constexpr kIntMax = static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  (void)device;
   // Device available memory is not accurate when rmm is used.
-  double total_mem = dh::TotalMemory(device) - container_bytes;
+  double total_mem = curt::TotalMemory() - container_bytes;
   double total_f32 = total_mem / sizeof(float);
   double n_max_used_f32 = std::max(total_f32 / 16.0, 1.0);  // a quarter
   if (shape.nnz > shape.Size()) {

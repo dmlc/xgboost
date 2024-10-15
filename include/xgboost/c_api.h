@@ -523,6 +523,9 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
  *   - max_bin (optional): Maximum number of bins for building histogram. Must be consistent with
                            the corresponding booster training parameter.
  *   - on_host (optional): Whether the data should be placed on host memory. Used by GPU inputs.
+ *   - min_cache_page_bytes (optional): The minimum number of bytes for each internal GPU
+ *      page. Set to 0 to disable page concatenation. Automatic configuration if the
+ *      parameter is not provided or set to None.
  * @param out      The created Quantile DMatrix.
  *
  * @return 0 when success, -1 when failure happens

@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
-#include "../../../src/data/ellpack_page.cuh"           // for EllpackPage
+#include "../../../src/data/ellpack_page.cuh"           // for EllpackPage, GetRowStride
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
@@ -13,6 +13,20 @@
 
 namespace xgboost::data {
 namespace {
+[[nodiscard]] EllpackCacheInfo CInfoForTest(Context const *ctx, DMatrix *Xy, bst_idx_t row_stride,
+                                            BatchParam param,
+                                            std::shared_ptr<common::HistogramCuts const> cuts) {
+  EllpackCacheInfo cinfo{param, std::numeric_limits<float>::quiet_NaN()};
+  ExternalDataInfo ext_info;
+  ext_info.n_batches = 1;
+  ext_info.row_stride = row_stride;
+  ext_info.base_rowids.push_back(Xy->Info().num_row_);
+
+  CalcCacheMapping(ctx, Xy->IsDense(), cuts, 0, ext_info, &cinfo);
+  CHECK_EQ(ext_info.n_batches, cinfo.cache_mapping.size());
+  return cinfo;
+}
+
 class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
  public:
   template <typename FormatStreamPolicy>
@@ -33,7 +47,10 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
 
     ASSERT_EQ(cuts->cut_values_.Device(), ctx.Device());
     ASSERT_TRUE(cuts->cut_values_.DeviceCanRead());
-    policy.SetCuts(cuts, ctx.Device());
+
+    auto row_stride = GetRowStride(m.get());
+    EllpackCacheInfo cinfo = CInfoForTest(&ctx, m.get(), row_stride, param, cuts);
+    policy.SetCuts(cuts, ctx.Device(), cinfo);
 
     std::unique_ptr<EllpackPageRawFormat> format{policy.CreatePageFormat(param)};
 
@@ -98,7 +115,13 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
       for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         if (!format) {
-          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device());
+          EllpackCacheInfo cinfo{param, std::numeric_limits<float>::quiet_NaN()};
+          for (std::size_t i = 0; i < 3; ++i) {
+            cinfo.cache_mapping.push_back(i);
+            cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
+            cinfo.buffer_rows.push_back(page.Impl()->n_rows);
+          }
+          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), cinfo);
           format = policy.CreatePageFormat(param);
         }
         auto writer = policy.CreateWriter({}, i);

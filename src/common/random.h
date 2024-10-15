@@ -177,7 +177,10 @@ class ColumnSampler {
     }
     Reset();
 
-    feature_set_tree_->SetDevice(ctx->Device());
+    // We process ColumnSampler on host for SYCL. So don't need to push data to device
+    if (!ctx->Device().IsSycl()) {
+      feature_set_tree_->SetDevice(ctx->Device());
+    }
     feature_set_tree_->Resize(num_col);
     if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)

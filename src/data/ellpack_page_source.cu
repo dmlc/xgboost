@@ -8,6 +8,7 @@
 #include <utility>  // for move
 
 #include "../common/common.h"               // for safe_cuda
+#include "../common/common.h"               // for HumanMemUnit
 #include "../common/cuda_rt_utils.h"        // for SetDevice
 #include "../common/device_helpers.cuh"     // for CUDAStreamView, DefaultStream
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
@@ -23,21 +24,22 @@ namespace xgboost::data {
 /**
  * Cache
  */
-EllpackHostCache::EllpackHostCache() = default;
+EllpackHostCache::EllpackHostCache(EllpackCacheInfo info)
+    : cache_mapping{std::move(info.cache_mapping)},
+      buffer_bytes{std::move(info.buffer_bytes)},
+      buffer_rows{std::move(info.buffer_rows)} {
+  CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
+}
+
 EllpackHostCache::~EllpackHostCache() = default;
 
-[[nodiscard]] std::size_t EllpackHostCache::Size() const {
+[[nodiscard]] std::size_t EllpackHostCache::SizeBytes() const {
   auto it = common::MakeIndexTransformIter([&](auto i) { return pages.at(i)->MemCostBytes(); });
-  return std::accumulate(it, it + pages.size(), 0l);
+  using T = std::iterator_traits<decltype(it)>::value_type;
+  return std::accumulate(it, it + pages.size(), static_cast<T>(0));
 }
 
-void EllpackHostCache::Push(std::unique_ptr<EllpackPageImpl> page) {
-  this->pages.emplace_back(std::move(page));
-}
-
-EllpackPageImpl const* EllpackHostCache::Get(std::int32_t k) {
-  return this->pages.at(k).get();
-}
+EllpackPageImpl const* EllpackHostCache::At(std::int32_t k) { return this->pages.at(k).get(); }
 
 /**
  * Cache stream.
@@ -69,28 +71,79 @@ class EllpackHostCacheStreamImpl {
     ptr_ = k;
   }
 
-  void Write(EllpackPage const& page) {
+  [[nodiscard]] bool Write(EllpackPage const& page) {
     auto impl = page.Impl();
+    auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
 
-    auto new_impl = std::make_unique<EllpackPageImpl>();
-    auto new_cache = std::make_shared<EllpackHostCache>();
-    new_impl->gidx_buffer =
-        common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(impl->gidx_buffer.size());
-    new_impl->n_rows = impl->Size();
-    new_impl->is_dense = impl->IsDense();
-    new_impl->info.row_stride = impl->info.row_stride;
-    new_impl->base_rowid = impl->base_rowid;
-    new_impl->SetNumSymbols(impl->NumSymbols());
+    this->cache_->sizes_orig.push_back(page.Impl()->MemCostBytes());
+    auto orig_ptr = this->cache_->sizes_orig.size() - 1;
 
-    dh::safe_cuda(cudaMemcpyAsync(new_impl->gidx_buffer.data(), impl->gidx_buffer.data(),
-                                  impl->gidx_buffer.size_bytes(), cudaMemcpyDefault));
+    CHECK_LT(orig_ptr, this->cache_->NumBatchesOrig());
+    auto cache_idx = this->cache_->cache_mapping.at(orig_ptr);
+    // Wrap up the previous page if this is a new page, or this is the last page.
+    auto new_page = cache_idx == this->cache_->pages.size();
 
-    this->cache_->Push(std::move(new_impl));
-    ptr_ += 1;
+    auto last_page = (orig_ptr + 1) == this->cache_->NumBatchesOrig();
+    bool no_concat = this->cache_->NumBatchesOrig() == this->cache_->buffer_rows.size();
+
+    auto commit_page = [&ctx](EllpackPageImpl const* old_impl) {
+      CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
+
+      auto new_impl = std::make_unique<EllpackPageImpl>();
+      new_impl->CopyInfo(old_impl);
+      new_impl->gidx_buffer = common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(
+          old_impl->gidx_buffer.size());
+      dh::safe_cuda(cudaMemcpyAsync(new_impl->gidx_buffer.data(), old_impl->gidx_buffer.data(),
+                                    old_impl->gidx_buffer.size_bytes(), cudaMemcpyDefault));
+      LOG(INFO) << "Create cache page with size:" << common::HumanMemUnit(new_impl->MemCostBytes());
+      return new_impl;
+    };
+
+    if (no_concat) {
+      // Avoid a device->device->host copy.
+      CHECK(new_page);
+      auto commited = commit_page(page.Impl());
+      this->cache_->offsets.push_back(commited->n_rows * commited->info.row_stride);
+      this->cache_->pages.push_back(std::move(commited));
+      return new_page;
+    }
+
+    if (new_page) {
+      if (!this->cache_->pages.empty()) {
+        // New to wrap up the previous page.
+        auto commited = commit_page(this->cache_->pages.back().get());
+        this->cache_->pages.back() = std::move(commited);
+      }
+      // Push a new page
+      auto n_bytes = this->cache_->buffer_bytes.at(this->cache_->pages.size());
+      auto n_samples = this->cache_->buffer_rows.at(this->cache_->pages.size());
+      auto new_impl = std::make_unique<EllpackPageImpl>(&ctx, impl->CutsShared(), impl->IsDense(),
+                                                        impl->info.row_stride, n_samples);
+      new_impl->SetBaseRowId(impl->base_rowid);
+      new_impl->SetNumSymbols(impl->NumSymbols());
+      new_impl->gidx_buffer =
+          common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(&ctx, n_bytes, 0);
+      auto offset = new_impl->Copy(&ctx, impl, 0);
+
+      this->cache_->offsets.push_back(offset);
+      this->cache_->pages.push_back(std::move(new_impl));
+    } else {
+      CHECK(!this->cache_->pages.empty());
+      CHECK_EQ(cache_idx, this->cache_->pages.size() - 1);
+      auto& new_impl = this->cache_->pages.back();
+      auto offset = new_impl->Copy(&ctx, impl, this->cache_->offsets.back());
+      this->cache_->offsets.back() += offset;
+      if (last_page) {
+        auto commited = commit_page(this->cache_->pages.back().get());
+        this->cache_->pages.back() = std::move(commited);
+      }
+    }
+
+    return new_page;
   }
 
   void Read(EllpackPage* out, bool prefetch_copy) const {
-    auto page = this->cache_->Get(ptr_);
+    auto page = this->cache_->At(ptr_);
 
     auto impl = out->Impl();
     if (prefetch_copy) {
@@ -104,24 +157,21 @@ class EllpackHostCacheStreamImpl {
           res->DataAs<common::CompressedByteT>(), page->gidx_buffer.size(), res};
     }
 
-    impl->n_rows = page->Size();
-    impl->is_dense = page->IsDense();
-    impl->info.row_stride = page->info.row_stride;
-    impl->base_rowid = page->base_rowid;
-    impl->SetNumSymbols(page->NumSymbols());
+    impl->CopyInfo(page);
   }
 };
 
 /**
  * EllpackHostCacheStream
  */
-
 EllpackHostCacheStream::EllpackHostCacheStream(std::shared_ptr<EllpackHostCache> cache)
     : p_impl_{std::make_unique<EllpackHostCacheStreamImpl>(std::move(cache))} {}
 
 EllpackHostCacheStream::~EllpackHostCacheStream() = default;
 
-std::shared_ptr<EllpackHostCache> EllpackHostCacheStream::Share() { return p_impl_->Share(); }
+std::shared_ptr<EllpackHostCache const> EllpackHostCacheStream::Share() const {
+  return p_impl_->Share();
+}
 
 void EllpackHostCacheStream::Seek(bst_idx_t offset_bytes) { this->p_impl_->Seek(offset_bytes); }
 
@@ -129,24 +179,24 @@ void EllpackHostCacheStream::Read(EllpackPage* page, bool prefetch_copy) const {
   this->p_impl_->Read(page, prefetch_copy);
 }
 
-void EllpackHostCacheStream::Write(EllpackPage const& page) { this->p_impl_->Write(page); }
+[[nodiscard]] bool EllpackHostCacheStream::Write(EllpackPage const& page) {
+  return this->p_impl_->Write(page);
+}
 
 /**
  * EllpackCacheStreamPolicy
  */
-
-template <typename S, template <typename> typename F>
-EllpackCacheStreamPolicy<S, F>::EllpackCacheStreamPolicy()
-    : p_cache_{std::make_shared<EllpackHostCache>()} {}
-
 template <typename S, template <typename> typename F>
 [[nodiscard]] std::unique_ptr<typename EllpackCacheStreamPolicy<S, F>::WriterT>
 EllpackCacheStreamPolicy<S, F>::CreateWriter(StringView, std::uint32_t iter) {
+  if (!this->p_cache_) {
+    this->p_cache_ = std::make_unique<EllpackHostCache>(this->CacheInfo());
+  }
   auto fo = std::make_unique<EllpackHostCacheStream>(this->p_cache_);
   if (iter == 0) {
     CHECK(this->p_cache_->Empty());
   } else {
-    fo->Seek(this->p_cache_->Size());
+    fo->Seek(this->p_cache_->SizeBytes());
   }
   return fo;
 }
@@ -160,8 +210,6 @@ EllpackCacheStreamPolicy<S, F>::CreateReader(StringView, bst_idx_t offset, bst_i
 }
 
 // Instantiation
-template EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::EllpackCacheStreamPolicy();
-
 template std::unique_ptr<
     typename EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::WriterT>
 EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateWriter(StringView name,
@@ -194,6 +242,39 @@ template std::unique_ptr<
 EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringView name,
                                                                         bst_idx_t offset,
                                                                         bst_idx_t length) const;
+
+void CalcCacheMapping(Context const* ctx, bool is_dense,
+                      std::shared_ptr<common::HistogramCuts const> cuts,
+                      std::int64_t min_cache_page_bytes, ExternalDataInfo const& ext_info,
+                      EllpackCacheInfo* cinfo) {
+  CHECK(cinfo->param.Initialized()) << "Need to initialize scalar fields first.";
+  auto ell_info = CalcNumSymbols(ctx, ext_info.row_stride, is_dense, cuts);
+  std::vector<std::size_t> cache_bytes;
+  std::vector<std::size_t> cache_mapping(ext_info.n_batches, 0);
+  std::vector<std::size_t> cache_rows;
+
+  for (std::size_t i = 0; i < ext_info.n_batches; ++i) {
+    auto n_samples = ext_info.base_rowids.at(i + 1) - ext_info.base_rowids[i];
+    auto n_bytes = common::CompressedBufferWriter::CalculateBufferSize(
+        ext_info.row_stride * n_samples, ell_info.n_symbols);
+    if (cache_bytes.empty()) {
+      cache_bytes.push_back(n_bytes);
+      cache_rows.push_back(n_samples);
+    } else if (static_cast<decltype(min_cache_page_bytes)>(cache_bytes.back()) <
+               min_cache_page_bytes) {
+      cache_bytes.back() += n_bytes;
+      cache_rows.back() += n_samples;
+    } else {
+      cache_bytes.push_back(n_bytes);
+      cache_rows.push_back(n_samples);
+    }
+    cache_mapping[i] = cache_bytes.size() - 1;
+  }
+
+  cinfo->cache_mapping = std::move(cache_mapping);
+  cinfo->buffer_bytes = std::move(cache_bytes);
+  cinfo->buffer_rows = std::move(cache_rows);
+}
 
 /**
  * EllpackPageSourceImpl
@@ -265,7 +346,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
               << cuda_impl::Dispatch<false>(proxy_, [](auto const& adapter) {
                    return common::HumanMemUnit(adapter->SizeBytes());
                  });
-    this->page_->SetBaseRowId(this->ext_info_.base_rows.at(iter));
+    this->page_->SetBaseRowId(this->ext_info_.base_rowids.at(iter));
     this->WriteCache();
   }
 }

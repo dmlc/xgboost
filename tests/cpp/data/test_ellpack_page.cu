@@ -7,7 +7,8 @@
 
 #include "../../../src/common/categorical.h"
 #include "../../../src/common/hist_util.h"
-#include "../../../src/data/device_adapter.cuh"  // for CupyAdapter
+#include "../../../src/common/ref_resource_view.cuh"  // for MakeCudaGrowOnly
+#include "../../../src/data/device_adapter.cuh"       // for CupyAdapter
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/ellpack_page.h"
 #include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
@@ -433,5 +434,5 @@ TEST_P(SparseEllpack, FromGHistIndex) { this->TestFromGHistIndex(GetParam()); }
 
 TEST_P(SparseEllpack, NumNonMissing) { this->TestNumNonMissing(this->GetParam()); }
 
-INSTANTIATE_TEST_SUITE_P(EllpackPage, SparseEllpack, testing::Values(.0f, .2f, .4f, .8f));
+INSTANTIATE_TEST_SUITE_P(EllpackPage, SparseEllpack, ::testing::Values(.0f, .2f, .4f, .8f));
 }  // namespace xgboost

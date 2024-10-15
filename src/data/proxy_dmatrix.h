@@ -150,7 +150,7 @@ struct ExternalDataInfo {
   bst_idx_t nnz = 0;                    // The number of non-missing values
   std::vector<bst_idx_t> column_sizes;  // The nnz for each column
   std::vector<bst_idx_t> batch_nnz;     // nnz for each batch
-  std::vector<bst_idx_t> base_rows{0};  // base_rowid
+  std::vector<bst_idx_t> base_rowids{0};  // base_rowid
   bst_idx_t row_stride{0};              // Used by ellpack
 
   void Validate() const {
@@ -159,6 +159,7 @@ struct ExternalDataInfo {
     })) << "Something went wrong during iteration.";
 
     CHECK_GE(this->n_features, 1) << "Data must has at least 1 column.";
+    CHECK_EQ(this->base_rowids.size(), this->n_batches + 1);
   }
 
   void SetInfo(Context const* ctx, MetaInfo* p_info) {

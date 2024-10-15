@@ -120,14 +120,6 @@ inline auto GetDevice(xgboost::Context const *ctx) {
   return d;
 }
 
-inline size_t TotalMemory(int device_idx) {
-  size_t device_free = 0;
-  size_t device_total = 0;
-  safe_cuda(cudaSetDevice(device_idx));
-  dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
-  return device_total;
-}
-
 /**
  * \fn  inline int MaxSharedMemory(int device_idx)
  *

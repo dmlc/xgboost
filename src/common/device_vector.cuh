@@ -228,8 +228,7 @@ class GrowOnlyVirtualMemVec {
   auto CreatePhysicalMem(std::size_t size) const {
     CUmemGenericAllocationHandle alloc_handle;
     auto padded_size = RoundUp(size, this->granularity_);
-    CUresult status = this->cu_.cuMemCreate(&alloc_handle, padded_size, &this->prop_, 0);
-    CHECK_EQ(status, CUDA_SUCCESS);
+    safe_cu(this->cu_.cuMemCreate(&alloc_handle, padded_size, &this->prop_, 0));
     return alloc_handle;
   }
   void Reserve(std::size_t new_size);

@@ -11,6 +11,7 @@
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/file_iterator.h"
 #include "../../../src/data/simple_dmatrix.h"
+#include "../../../src/data/batch_utils.h"  // for MatchingPageBytes
 #include "../../../src/data/sparse_page_dmatrix.h"
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../filesystem.h"  // dmlc::TemporaryDirectory
@@ -31,14 +32,10 @@ void TestSparseDMatrixLoadFile(Context const* ctx) {
   opath += "?indexing_mode=1&format=libsvm";
   data::FileIterator iter{opath, 0, 1};
   auto n_threads = 0;
-  data::SparsePageDMatrix m{&iter,
-                            iter.Proxy(),
-                            data::fileiter::Reset,
-                            data::fileiter::Next,
-                            std::numeric_limits<float>::quiet_NaN(),
-                            n_threads,
-                            tmpdir.path + "cache",
-                            false};
+  auto config = ExtMemConfig{tmpdir.path + "cache", false, cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(), n_threads};
+  data::SparsePageDMatrix m{&iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
+                            config};
   ASSERT_EQ(AllThreadsForTest(), m.Ctx()->Threads());
   ASSERT_EQ(m.Info().num_col_, 5);
   ASSERT_EQ(m.Info().num_row_, 64);
@@ -365,9 +362,10 @@ auto TestSparsePageDMatrixDeterminism(int32_t threads) {
   CreateBigTestData(filename, 1 << 16);
 
   data::FileIterator iter(filename + "?format=libsvm", 0, 1);
+  auto config = ExtMemConfig{filename, false, cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(), threads};
   std::unique_ptr<DMatrix> sparse{new data::SparsePageDMatrix{
-      &iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
-      std::numeric_limits<float>::quiet_NaN(), threads, filename, false}};
+      &iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next, config}};
   CHECK(sparse->Ctx()->Threads() == threads || sparse->Ctx()->Threads() == AllThreadsForTest());
 
   DMatrixToCSR(sparse.get(), &sparse_data, &sparse_rptr, &sparse_cids);

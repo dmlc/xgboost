@@ -448,9 +448,15 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(
-      static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), prefix, on_host_)};
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
+  };
+  std::shared_ptr<DMatrix> p_fmat{
+      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
   auto row_page_path =
       data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(p_fmat.get())) + ".row.page";
@@ -491,9 +497,16 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   CHECK(iter);
 
-  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(
-      static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix, this->on_host_)};
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
+  };
+  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(static_cast<DataIterHandle>(iter.get()),
+                                                  iter->Proxy(), nullptr, Reset, Next, this->bins_,
+                                                  config)};
 
   auto page_path = data::MakeId(prefix, p_fmat.get());
   page_path += device_.IsCPU() ? ".gradient_index.page" : ".ellpack.page";

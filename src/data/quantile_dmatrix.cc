@@ -131,14 +131,14 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
     }
     bst_idx_t batch_size = BatchSamples(proxy);
     info.batch_nnz.push_back(nnz_cnt());
-    info.base_rows.push_back(batch_size);
+    info.base_rowids.push_back(batch_size);
     info.nnz += info.batch_nnz.back();
     info.accumulated_rows += batch_size;
     info.n_batches++;
   } while (iter.Next());
   iter.Reset();
 
-  std::partial_sum(info.base_rows.cbegin(), info.base_rows.cend(), info.base_rows.begin());
+  std::partial_sum(info.base_rowids.cbegin(), info.base_rowids.cend(), info.base_rowids.begin());
 }
 
 void MakeSketches(Context const* ctx,

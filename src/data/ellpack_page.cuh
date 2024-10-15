@@ -211,7 +211,6 @@ class EllpackPageImpl {
    * @returns The number of elements copied.
    */
   bst_idx_t Copy(Context const* ctx, EllpackPageImpl const* page, bst_idx_t offset);
-
   /**
    * @brief Compact the given ELLPACK page into the current page.
    *
@@ -252,6 +251,17 @@ class EllpackPageImpl {
    */
   [[nodiscard]] auto NumSymbols() const { return this->info.n_symbols; }
   void SetNumSymbols(bst_idx_t n_symbols) { this->info.n_symbols = n_symbols; }
+  /**
+   * @brief Copy basic shape from another page.
+   */
+  void CopyInfo(EllpackPageImpl const* page) {
+    CHECK_NE(this, page);
+    this->n_rows = page->Size();
+    this->is_dense = page->IsDense();
+    this->info.row_stride = page->info.row_stride;
+    this->SetBaseRowId(page->base_rowid);
+    this->SetNumSymbols(page->NumSymbols());
+  }
   /**
    * @brief Get an accessor that can be passed into CUDA kernels.
    */
@@ -310,9 +320,11 @@ class EllpackPageImpl {
 };
 
 [[nodiscard]] inline bst_idx_t GetRowStride(DMatrix* dmat) {
-  if (dmat->IsDense()) return dmat->Info().num_col_;
+  if (dmat->IsDense()) {
+    return dmat->Info().num_col_;
+  }
 
-  size_t row_stride = 0;
+  bst_idx_t row_stride = 0;
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     const auto& row_offset = batch.offset.ConstHostVector();
     for (auto i = 1ull; i < row_offset.size(); i++) {
@@ -321,6 +333,10 @@ class EllpackPageImpl {
   }
   return row_stride;
 }
+
+[[nodiscard]] EllpackPageImpl::Info CalcNumSymbols(
+    Context const* ctx, bst_idx_t row_stride, bool is_dense,
+    std::shared_ptr<common::HistogramCuts const> cuts);
 }  // namespace xgboost
 
 #endif  // XGBOOST_DATA_ELLPACK_PAGE_CUH_
