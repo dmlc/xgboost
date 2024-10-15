@@ -41,6 +41,7 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
   if (ctx.IsCPU()) {
     this->InitFromCPU(&ctx, iter, proxy, p, config.missing, ref);
   } else {
+    p.n_prefetch_batches = ::xgboost::cuda_impl::DftPrefetchBatches();
     this->InitFromCUDA(&ctx, iter, proxy, p, ref, config);
   }
   this->batch_ = p;

@@ -24,13 +24,15 @@
 namespace xgboost::data {
 struct EllpackCacheInfo {
   BatchParam param;
+  bool prefer_device{false};  // Prefer to cache the page in the device memory instead of host.
   float missing{std::numeric_limits<float>::quiet_NaN()};
   std::vector<bst_idx_t> cache_mapping;
   std::vector<bst_idx_t> buffer_bytes;
   std::vector<bst_idx_t> buffer_rows;
 
   EllpackCacheInfo() = default;
-  EllpackCacheInfo(BatchParam param, float missing) : param{std::move(param)}, missing{missing} {}
+  EllpackCacheInfo(BatchParam param, bool prefer_device, float missing)
+      : param{std::move(param)}, prefer_device{prefer_device}, missing{missing} {}
 };
 
 // We need to decouple the storage and the view of the storage so that we can implement
@@ -46,6 +48,7 @@ struct EllpackHostCache {
   // Cache info
   std::vector<std::size_t> const buffer_bytes;
   std::vector<bst_idx_t> const buffer_rows;
+  bool const prefer_device;
 
   explicit EllpackHostCache(EllpackCacheInfo info);
   ~EllpackHostCache();
@@ -53,10 +56,12 @@ struct EllpackHostCache {
   // The number of bytes for the entire cache.
   [[nodiscard]] std::size_t SizeBytes() const;
 
-  bool Empty() const { return this->SizeBytes() == 0; }
+  [[nodiscard]] bool Empty() const { return this->SizeBytes() == 0; }
 
   [[nodiscard]] bst_idx_t NumBatchesOrig() const { return cache_mapping.size(); }
-  EllpackPageImpl const* At(std::int32_t k);
+  [[nodiscard]] EllpackPageImpl const* At(std::int32_t k) const;
+
+  [[nodiscard]] bst_idx_t NumDevicePages() const;
 };
 
 // Pimpl to hide CUDA calls from the host compiler.

@@ -87,7 +87,7 @@ class MemoryLogger {
    * @param lock Set to false if the allocator has locking machanism.
    */
   void RegisterAllocation(void *ptr, size_t n, bool lock) {
-    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
+    if (true) {
       return;
     }
     std::unique_lock guard{mutex_, std::defer_lock};
@@ -102,7 +102,7 @@ class MemoryLogger {
    * @param lock Set to false if the allocator has locking machanism.
    */
   void RegisterDeallocation(void *ptr, size_t n, bool lock) {
-    if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
+    if (true) {
       return;
     }
     std::unique_lock guard{mutex_, std::defer_lock};

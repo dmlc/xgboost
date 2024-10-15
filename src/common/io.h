@@ -282,11 +282,11 @@ class ResourceHandler {
  public:
   // RTTI
   enum Kind : std::uint8_t {
-    kMalloc = 0,
-    kMmap = 1,
-    kCudaMalloc = 2,
-    kCudaMmap = 3,
-    kCudaHostCache = 4,
+    kMalloc = 0,         // System memory.
+    kMmap = 1,           // Memory mapp.
+    kCudaMalloc = 2,     // CUDA device memory.
+    kCudaMmap = 3,       // CUDA with mmap.
+    kCudaHostCache = 4,  // CUDA pinned host memory.
   };
 
  private:

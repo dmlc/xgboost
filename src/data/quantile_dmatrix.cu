@@ -93,7 +93,7 @@ void MakeSketches(Context const* ctx,
       if (sketches.empty()) {
         lazy_init_sketch();
       }
-      if (sketches.back().second > (1ul << (sketches.size() - 1))) {
+      if (sketches.back().second > (1ul << (sketches.size() - 1)) || sketches.back().second == 32) {
         auto n_cuts_per_feat =
             common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
         // Prune to a single block

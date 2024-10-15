@@ -46,11 +46,14 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   /**
    * Calculate cache info
    */
-  auto cinfo = EllpackCacheInfo{p, config.missing};
+  // Prefer device storage for validation dataset since we can't hide it's data load
+  // overhead with inference. But the training procedures can confortably overlap with the
+  // data transfer.
+  auto cinfo = EllpackCacheInfo{p, (ref != nullptr), config.missing};
   CalcCacheMapping(ctx, this->Info().IsDense(), cuts,
                    DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
-  auto n_batches = cinfo.buffer_rows.size();
+  auto n_batches = cinfo.buffer_rows.size();  // The number of batches after page concatenation.
   LOG(INFO) << "Number of batches after concatenation:" << n_batches;
 
   /**
@@ -85,6 +88,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
 
   if (this->on_host_) {
     CHECK_EQ(this->cache_info_.at(id)->Size(), n_batches);
+  } else {
+    CHECK_EQ(this->cache_info_.at(id)->Size(), ext_info.n_batches);
   }
   this->n_batches_ = this->cache_info_.at(id)->Size();
 }
