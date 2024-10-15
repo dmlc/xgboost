@@ -793,9 +793,8 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
 
   auto evaluator = tree_evaluator_.GetEvaluator();
   SplitQuery* split_queries_device = split_queries_device_.Data();
-  const uint32_t* cut_ptr = gmat.cut_device.Ptrs().DataConst();
-  const bst_float* cut_val = gmat.cut_device.Values().DataConst();
-  const bst_float* cut_minval = gmat.cut_device.MinValues().DataConst();
+  const uint32_t* cut_ptr = gmat.cut.cut_ptrs_.ConstDevicePointer();
+  const bst_float* cut_val = gmat.cut.cut_values_.ConstDevicePointer();
 
   snode_device_.ResizeNoCopy(qu_, snode_host_.size());
   event = qu_->memcpy(snode_device_.Data(), snode_host_.data(),

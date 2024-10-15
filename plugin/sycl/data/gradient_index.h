@@ -16,40 +16,6 @@ namespace xgboost {
 namespace sycl {
 namespace common {
 
-/*!
- * \brief SYCL implementation of HistogramCuts stored in USM buffers to provide access from device kernels
- */
-class HistogramCuts {
- protected:
-  using BinIdx = uint32_t;
-
- public:
-  HistogramCuts() {}
-
-  explicit HistogramCuts(::sycl::queue* qu) {}
-
-  ~HistogramCuts() {
-  }
-
-  void Init(::sycl::queue* qu, xgboost::common::HistogramCuts const& cuts) {
-    qu_ = qu;
-    cut_values_.Init(qu_, cuts.cut_values_.HostVector());
-    cut_ptrs_.Init(qu_, cuts.cut_ptrs_.HostVector());
-    min_vals_.Init(qu_, cuts.min_vals_.HostVector());
-  }
-
-  // Getters for USM buffers to pass pointers into device kernels
-  const USMVector<uint32_t>& Ptrs()      const { return cut_ptrs_;   }
-  const USMVector<float>&    Values()    const { return cut_values_; }
-  const USMVector<float>&    MinValues() const { return min_vals_;   }
-
- private:
-  USMVector<bst_float> cut_values_;
-  USMVector<uint32_t> cut_ptrs_;
-  USMVector<float> min_vals_;
-  ::sycl::queue* qu_;
-};
-
 using BinTypeSize = ::xgboost::common::BinTypeSize;
 
 /*!
@@ -168,13 +134,11 @@ struct GHistIndexMatrix {
   /*! \brief The index data */
   Index index;
   /*! \brief hit count of each index */
-  std::vector<size_t> hit_count;
-  /*! \brief buffers for calculations */
-  USMVector<size_t, MemoryType::on_device> hit_count_buff;
+  HostDeviceVector<size_t> hit_count;
+
   USMVector<uint8_t, MemoryType::on_device> sort_buff;
   /*! \brief The corresponding cuts */
   xgboost::common::HistogramCuts cut;
-  HistogramCuts cut_device;
   DMatrix* p_fmat;
   size_t max_num_bins;
   size_t nbins;
@@ -183,22 +147,22 @@ struct GHistIndexMatrix {
 
   // Create a global histogram matrix based on a given DMatrix device wrapper
   void Init(::sycl::queue* qu, Context const * ctx,
-            const sycl::DeviceMatrix& p_fmat_device, int max_num_bins);
+            DMatrix *dmat, int max_num_bins);
 
   template <typename BinIdxType>
   void SetIndexData(::sycl::queue* qu, BinIdxType* index_data,
-                    const sycl::DeviceMatrix &dmat_device,
-                    size_t nbins, size_t row_stride, uint32_t* offsets);
+                    DMatrix *dmat,
+                    size_t nbins, size_t row_stride, const uint32_t* offsets);
 
   void ResizeIndex(size_t n_index, bool isDense);
 
   inline void GetFeatureCounts(size_t* counts) const {
-    auto nfeature = cut_device.Ptrs().Size() - 1;
+    auto nfeature = cut.cut_ptrs_.Size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
-      auto ibegin = cut_device.Ptrs()[fid];
-      auto iend = cut_device.Ptrs()[fid + 1];
+      auto ibegin = cut.cut_ptrs_.ConstHostVector()[fid];
+      auto iend = cut.cut_ptrs_.ConstHostVector()[fid + 1];
       for (auto i = ibegin; i < iend; ++i) {
-        *(counts + fid) += hit_count[i];
+        *(counts + fid) += hit_count.ConstHostVector()[i];
       }
     }
   }

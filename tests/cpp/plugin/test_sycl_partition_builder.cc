@@ -24,11 +24,8 @@ void TestPartitioning(float sparsity, int max_bins) {
   auto qu = device_manager.GetQueue(ctx.Device());
 
   auto p_fmat = RandomDataGenerator{num_rows, num_columns, sparsity}.GenerateDMatrix();
-  sycl::DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
-
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, max_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), max_bins);
 
   RowSetCollection row_set_collection;
   auto& row_indices = row_set_collection.Data();
