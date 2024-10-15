@@ -48,13 +48,12 @@ void mergeSort(BinIdxType* begin, BinIdxType* end, BinIdxType* buf) {
   }
 }
 
-template <typename BinIdxType>
+template <typename BinIdxType, bool isDense>
 void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
                                     BinIdxType* index_data,
                                     DMatrix *dmat,
                                     size_t nbins,
-                                    size_t row_stride,
-                                    const uint32_t* offsets) {
+                                    size_t row_stride) {
   if (nbins == 0) return;
   const bst_float* cut_values = cut.cut_values_.ConstDevicePointer();
   const uint32_t* cut_ptrs = cut.cut_ptrs_.ConstDevicePointer();
@@ -80,11 +79,11 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
           const size_t start = (i + base_rowid) * row_stride;
           for (bst_uint j = 0; j < size; ++j) {
             uint32_t idx = SearchBin(cut_values, cut_ptrs, data_ptr[ibegin + j]);
-            index_data[start + j] = offsets ? idx - offsets[j] : idx;
+            index_data[start + j] = isDense ? idx - cut_ptrs[j] : idx;
             AtomicRef<size_t> hit_count_ref(hit_count_ptr[idx]);
             hit_count_ref.fetch_add(1);
           }
-          if (!offsets) {
+          if constexpr (!isDense) {
             // Sparse case only
             mergeSort<BinIdxType>(index_data + start, index_data + start + size, sort_data + start);
             for (bst_uint j = size; j < row_stride; ++j) {
@@ -153,30 +152,22 @@ void GHistIndexMatrix::Init(::sycl::queue* qu,
 
   CHECK_GT(cut.cut_values_.Size(), 0U);
 
-  uint32_t* offsets = nullptr;
-  if (isDense) {
-    index.ResizeOffset(n_offsets);
-    offsets = index.Offset();
-    qu->memcpy(offsets, cut.cut_ptrs_.ConstDevicePointer(),
-               sizeof(uint32_t) * n_offsets).wait_and_throw();
-  }
-
   if (isDense) {
     BinTypeSize curent_bin_size = index.GetBinTypeSize();
     if (curent_bin_size == BinTypeSize::kUint8BinsTypeSize) {
-      SetIndexData(qu, index.data<uint8_t>(), dmat, nbins, row_stride, offsets);
+      SetIndexData<uint8_t, true>(qu, index.data<uint8_t>(), dmat, nbins, row_stride);
 
     } else if (curent_bin_size == BinTypeSize::kUint16BinsTypeSize) {
-      SetIndexData(qu, index.data<uint16_t>(), dmat, nbins, row_stride, offsets);
+      SetIndexData<uint16_t, true>(qu, index.data<uint16_t>(), dmat, nbins, row_stride);
     } else {
       CHECK_EQ(curent_bin_size, BinTypeSize::kUint32BinsTypeSize);
-      SetIndexData(qu, index.data<uint32_t>(), dmat, nbins, row_stride, offsets);
+      SetIndexData<uint32_t, true>(qu, index.data<uint32_t>(), dmat, nbins, row_stride);
     }
   /* For sparse DMatrix we have to store index of feature for each bin
      in index field to chose right offset. So offset is nullptr and index is not reduced */
   } else {
     sort_buff.Resize(qu, n_rows * row_stride * sizeof(uint32_t));
-    SetIndexData(qu, index.data<uint32_t>(), dmat, nbins, row_stride, offsets);
+    SetIndexData<uint32_t, false>(qu, index.data<uint32_t>(), dmat, nbins, row_stride);
   }
 }
 

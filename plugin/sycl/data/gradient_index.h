@@ -29,13 +29,6 @@ struct Index {
   Index& operator=(Index i) = delete;
   Index(Index&& i) = delete;
   Index& operator=(Index&& i) = delete;
-  uint32_t operator[](size_t i) const {
-    if (!offset_.Empty()) {
-      return func_(data_.DataConst(), i) + offset_[i%p_];
-    } else {
-      return func_(data_.DataConst(), i);
-    }
-  }
   void SetBinTypeSize(BinTypeSize binTypeSize) {
     binTypeSize_ = binTypeSize;
     switch (binTypeSize) {
@@ -68,25 +61,12 @@ struct Index {
     return reinterpret_cast<const T*>(data_.DataConst());
   }
 
-  uint32_t* Offset() {
-    return offset_.Data();
-  }
-
-  const uint32_t* Offset() const {
-    return offset_.DataConst();
-  }
-
   size_t Size() const {
     return data_.Size() / (binTypeSize_);
   }
 
   void Resize(const size_t nBytesData) {
     data_.Resize(qu_, nBytesData);
-  }
-
-  void ResizeOffset(const size_t nDisps) {
-    offset_.Resize(qu_, nDisps);
-    p_ = nDisps;
   }
 
   uint8_t* begin() const {
@@ -115,10 +95,7 @@ struct Index {
   using Func = uint32_t (*)(const uint8_t*, size_t);
 
   USMVector<uint8_t, MemoryType::on_device> data_;
-  // size of this field is equal to number of features
-  USMVector<uint32_t, MemoryType::on_device> offset_;
   BinTypeSize binTypeSize_ {BinTypeSize::kUint8BinsTypeSize};
-  size_t p_ {1};
   Func func_;
 
   ::sycl::queue* qu_;
@@ -149,10 +126,10 @@ struct GHistIndexMatrix {
   void Init(::sycl::queue* qu, Context const * ctx,
             DMatrix *dmat, int max_num_bins);
 
-  template <typename BinIdxType>
+  template <typename BinIdxType, bool isDense>
   void SetIndexData(::sycl::queue* qu, BinIdxType* index_data,
                     DMatrix *dmat,
-                    size_t nbins, size_t row_stride, const uint32_t* offsets);
+                    size_t nbins, size_t row_stride);
 
   void ResizeIndex(size_t n_index, bool isDense);
 
