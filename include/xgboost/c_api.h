@@ -351,7 +351,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *
 
 /*! \brief handle to a external data iterator */
 typedef void *DataIterHandle;  // NOLINT(*)
-/*! \brief handle to a internal data holder. */
+/** @brief handle to an internal data holder. */
 typedef void *DataHolderHandle;  // NOLINT(*)
 
 

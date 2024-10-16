@@ -2,6 +2,7 @@
  * Copyright 2020-2024, XGBoost Contributors
  */
 #include <algorithm>  // for max
+#include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
 #include <utility>    // for pair
 #include <vector>     // for vector
@@ -97,6 +98,7 @@ void MakeSketches(Context const* ctx,
       }
       if (sketches.back().second > (1ul << (sketches.size() - 1)) ||
           sketches.back().second == static_cast<bst_idx_t>(max_quantile_blocks)) {
+        // Cut the sub-stream.
         auto n_cuts_per_feat =
             common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
         // Prune to a single block

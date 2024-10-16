@@ -25,7 +25,7 @@ The external memory support has undergone multiple development iterations. Like 
 :py:class:`~xgboost.QuantileDMatrix` with :py:class:`~xgboost.DataIter`, XGBoost loads
 data batch-by-batch using a custom iterator supplied by the user. However, unlike the
 :py:class:`~xgboost.QuantileDMatrix`, external memory does not concatenate the batches
-(unless specified by the ``extmem_concat_pages``) . Instead, it caches all batches in the
+(unless specified by the ``extmem_single_page``) . Instead, it caches all batches in the
 external memory and fetch them on-demand. Go to the end of the document to see a
 comparison between :py:class:`~xgboost.QuantileDMatrix` and the external memory version of
 :py:class:`~xgboost.ExtMemQuantileDMatrix`.
