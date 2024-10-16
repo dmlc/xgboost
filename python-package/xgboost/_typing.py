@@ -28,7 +28,10 @@ FeatureTypes = FeatureInfo
 BoosterParam = Union[List, Dict[str, Any]]  # better be sequence
 
 ArrayLike = Any
-PathLike = Union[str, os.PathLike]
+if TYPE_CHECKING:
+    PathLike = Union[str, os.PathLike[str]]
+else:
+    PathLike = Union[str, os.PathLike]
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
 NumpyOrCupy = Any
 NumpyDType = Union[str, Type[np.number]]  # pylint: disable=invalid-name
