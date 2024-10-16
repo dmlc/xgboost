@@ -17,6 +17,6 @@ dependencies:
 - isort
 - cloudpickle
 - pytest
-- hypothesis
+- hypothesis<=6.112
 - hatchling
 - pyspark>=3.4.0
