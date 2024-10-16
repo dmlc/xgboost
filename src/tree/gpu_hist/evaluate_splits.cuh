@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020 by XGBoost Contributors
+/**
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
@@ -8,7 +8,7 @@
 #include "../../common/categorical.h"
 #include "../../common/cuda_pinned_allocator.h"
 #include "../split_evaluator.h"
-#include "../updater_gpu_common.cuh"
+#include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "expand_entry.cuh"
 
 namespace xgboost {

@@ -1,10 +1,11 @@
 /**
- * Copyright 2022-2023 by XGBoost contributors
+ * Copyright 2022-2024, XGBoost contributors
  */
 #include "test_iterative_dmatrix.h"
 
 #include <gtest/gtest.h>
-#include <limits>
+
+#include <limits>  // for numeric_limits
 #include <memory>
 
 #include "../../../src/data/gradient_index.h"
@@ -25,7 +26,8 @@ TEST(IterativeDMatrix, IsDense) {
     NumpyArrayIterForTest iter(sparsity);
     auto n_threads = 0;
     IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                       std::numeric_limits<float>::quiet_NaN(), n_threads, n_bins);
+                       std::numeric_limits<float>::quiet_NaN(), n_threads, n_bins,
+                       std::numeric_limits<std::int64_t>::max());
     ASSERT_EQ(m.Ctx()->Threads(), AllThreadsForTest());
     if (sparsity == 0.0) {
       ASSERT_TRUE(m.IsDense());

@@ -16,7 +16,7 @@ namespace {
 [[nodiscard]] EllpackCacheInfo CInfoForTest(Context const *ctx, DMatrix *Xy, bst_idx_t row_stride,
                                             BatchParam param,
                                             std::shared_ptr<common::HistogramCuts const> cuts) {
-  EllpackCacheInfo cinfo{param, std::numeric_limits<float>::quiet_NaN()};
+  EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
   ExternalDataInfo ext_info;
   ext_info.n_batches = 1;
   ext_info.row_stride = row_stride;
@@ -115,13 +115,14 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
       for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         if (!format) {
-          EllpackCacheInfo cinfo{param, std::numeric_limits<float>::quiet_NaN()};
+          // Prepare the mapping info.
+          EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
           for (std::size_t i = 0; i < 3; ++i) {
             cinfo.cache_mapping.push_back(i);
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
             cinfo.buffer_rows.push_back(page.Impl()->n_rows);
           }
-          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), cinfo);
+          policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
           format = policy.CreatePageFormat(param);
         }
         auto writer = policy.CreateWriter({}, i);

@@ -504,9 +504,9 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
       std::numeric_limits<float>::quiet_NaN(),
       Context{}.Threads(),
   };
-  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(static_cast<DataIterHandle>(iter.get()),
-                                                  iter->Proxy(), nullptr, Reset, Next, this->bins_,
-                                                  config)};
+  std::shared_ptr<DMatrix> p_fmat{
+      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
+                      this->bins_, std::numeric_limits<std::int64_t>::max(), config)};
 
   auto page_path = data::MakeId(prefix, p_fmat.get());
   page_path += device_.IsCPU() ? ".gradient_index.page" : ".ellpack.page";
@@ -525,14 +525,14 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_
 
   if (this->device_.IsCPU()) {
     NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-    p_fmat =
-        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+    p_fmat = std::make_shared<data::IterativeDMatrix>(
+        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+        bins_, std::numeric_limits<std::int64_t>::max());
   } else {
     CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-    p_fmat =
-        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+    p_fmat = std::make_shared<data::IterativeDMatrix>(
+        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+        bins_, std::numeric_limits<std::int64_t>::max());
   }
 
   if (with_label) {
