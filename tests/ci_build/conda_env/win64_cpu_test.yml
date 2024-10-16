@@ -14,7 +14,7 @@ dependencies:
 - python-graphviz
 - pytest
 - jsonschema
-- hypothesis
+- hypothesis<=6.112
 - python-graphviz
 - pip
 - py-ubjson

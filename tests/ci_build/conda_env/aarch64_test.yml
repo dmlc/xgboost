@@ -14,7 +14,7 @@ dependencies:
 - matplotlib
 - dask
 - distributed
-- hypothesis
+- hypothesis<=6.112
 - graphviz
 - python-graphviz
 - codecov

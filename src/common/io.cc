@@ -15,7 +15,7 @@
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <fcntl.h>     // for open, O_RDONLY
-#include <sys/mman.h>  // for mmap, mmap64, munmap
+#include <sys/mman.h>  // for mmap, munmap, madvise
 #include <unistd.h>    // for close, getpagesize
 #elif defined(xgboost_IS_WIN)
 #define WIN32_LEAN_AND_MEAN
@@ -233,9 +233,9 @@ std::unique_ptr<MMAPFile> Open(std::string path, std::size_t offset, std::size_t
 
 #if defined(__linux__) || defined(__GLIBC__)
   int prot{PROT_READ};
-  ptr = reinterpret_cast<std::byte*>(mmap64(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
-  madvise(ptr, view_size, MADV_WILLNEED);
+  ptr = reinterpret_cast<std::byte*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << SystemErrorMsg();
+  madvise(ptr, view_size, MADV_WILLNEED);
   auto handle =
       std::make_unique<MMAPFile>(fd, ptr, view_size, offset - view_start, std::move(path));
 #elif defined(xgboost_IS_WIN)

@@ -13,7 +13,7 @@ dependencies:
 - scipy
 - scikit-learn
 - pandas
-- hypothesis>=6.46
+- hypothesis<=6.112
 - pytest
 - pytest-timeout
 - pytest-cov
