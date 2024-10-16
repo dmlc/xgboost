@@ -1574,12 +1574,13 @@ class QuantileDMatrix(DMatrix):
         applied to the validation/test data
 
     max_quantile_batches :
-        For GPU-based inputs, XGBoost handles incoming batches with multiple growing
-        substreams. This parameter sets the maximum number of batches before XGBoost can
-        cut the sub-stream and create a new one. This can help bound the memory
-        usage. By default, XGBoost grows new sub-streams exponentially until batches are
-        exhausted. Only used for the training dataset and the default is None
-        (unbounded).
+        For GPU-based inputs from an iterator, XGBoost handles incoming batches with
+        multiple growing substreams. This parameter sets the maximum number of batches
+        before XGBoost can cut the sub-stream and create a new one. This can help bound
+        the memory usage. By default, XGBoost grows new sub-streams exponentially until
+        batches are exhausted. Only used for the training dataset and the default is
+        None (unbounded). Lastly, if the `data` is a single batch instead of an
+        iterator, this parameter has no effect.
 
         .. versionadded:: 3.0.0
 

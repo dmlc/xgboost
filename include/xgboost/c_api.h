@@ -308,35 +308,40 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *
  * used by JVM packages.  It uses `XGBoostBatchCSR` to accept batches for CSR formated
  * input, and concatenate them into 1 final big CSR.  The related functions are:
  *
- * - \ref XGBCallbackSetData
- * - \ref XGBCallbackDataIterNext
- * - \ref XGDMatrixCreateFromDataIter
+ * - @ref XGBCallbackSetData
+ * - @ref XGBCallbackDataIterNext
+ * - @ref XGDMatrixCreateFromDataIter
  *
- * Another set is used by external data iterator. It accept foreign data iterators as
+ * Another set is used by external data iterator. It accepts foreign data iterators as
  * callbacks.  There are 2 different senarios where users might want to pass in callbacks
- * instead of raw data.  First it's the Quantile DMatrix used by hist and GPU Hist. For
- * this case, the data is first compressed by quantile sketching then merged.  This is
- * particular useful for distributed setting as it eliminates 2 copies of data.  1 by a
- * `concat` from external library to make the data into a blob for normal DMatrix
- * initialization, another by the internal CSR copy of DMatrix.  The second use case is
- * external memory support where users can pass a custom data iterator into XGBoost for
- * loading data in batches.  There are short notes on each of the use cases in respected
- * DMatrix factory function.
+ * instead of raw data.  First it's the Quantile DMatrix used by the hist and GPU-based
+ * hist tree method. For this case, the data is first compressed by quantile sketching
+ * then merged.  This is particular useful for distributed setting as it eliminates 2
+ * copies of data. First one by a `concat` from external library to make the data into a
+ * blob for normal DMatrix initialization, another one by the internal CSR copy of
+ * DMatrix.
+ *
+ * The second use case is external memory support where users can pass a custom data
+ * iterator into XGBoost for loading data in batches. For both cases, the iterator is only
+ * used during the construction of the DMatrix and can be safely freed after construction
+ * finishes. There are short notes on each of the use cases in respected DMatrix factory
+ * function.
  *
  * Related functions are:
  *
  * # Factory functions
- * - \ref XGDMatrixCreateFromCallback for external memory
- * - \ref XGQuantileDMatrixCreateFromCallback for quantile DMatrix
+ * - @ref XGDMatrixCreateFromCallback for external memory
+ * - @ref XGQuantileDMatrixCreateFromCallback for quantile DMatrix
+ * - @ref XGExtMemQuantileDMatrixCreateFromCallback for External memory Quantile DMatrix
  *
  * # Proxy that callers can use to pass data to XGBoost
- * - \ref XGProxyDMatrixCreate
- * - \ref XGDMatrixCallbackNext
- * - \ref DataIterResetCallback
- * - \ref XGProxyDMatrixSetDataCudaArrayInterface
- * - \ref XGProxyDMatrixSetDataCudaColumnar
- * - \ref XGProxyDMatrixSetDataDense
- * - \ref XGProxyDMatrixSetDataCSR
+ * - @ref XGProxyDMatrixCreate
+ * - @ref XGDMatrixCallbackNext
+ * - @ref DataIterResetCallback
+ * - @ref XGProxyDMatrixSetDataCudaArrayInterface
+ * - @ref XGProxyDMatrixSetDataCudaColumnar
+ * - @ref XGProxyDMatrixSetDataDense
+ * - @ref XGProxyDMatrixSetDataCSR
  * - ... (data setters)
  *
  * @{
@@ -515,7 +520,7 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
  *
  * @since 3.0.0
  *
- * @note This is still under development, not ready for test yet.
+ * @note This is experimental and subject to change.
  *
  * @param iter     A handle to external data iterator.
  * @param proxy    A DMatrix proxy handle created by @ref XGProxyDMatrixCreate.
