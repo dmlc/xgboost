@@ -25,7 +25,7 @@ The external memory support has undergone multiple development iterations. Like 
 :py:class:`~xgboost.QuantileDMatrix` with :py:class:`~xgboost.DataIter`, XGBoost loads
 data batch-by-batch using a custom iterator supplied by the user. However, unlike the
 :py:class:`~xgboost.QuantileDMatrix`, external memory does not concatenate the batches
-(unless specified by the ``extmem_concat_pages``) . Instead, it caches all batches in the
+(unless specified by the ``extmem_single_page``) . Instead, it caches all batches in the
 external memory and fetch them on-demand. Go to the end of the document to see a
 comparison between :py:class:`~xgboost.QuantileDMatrix` and the external memory version of
 :py:class:`~xgboost.ExtMemQuantileDMatrix`.
@@ -120,8 +120,11 @@ the ``hist`` tree method is employed. For a GPU device, the main memory is the d
 memory, whereas the external memory can be either a disk or the CPU memory. XGBoost stages
 the cache on CPU memory by default. Users can change the backing storage to disk by
 specifying the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using
-the disk is not recommended. It's likely to make the GPU slower than the CPU. The option is
-here for experimental purposes only.
+the disk is not recommended as it's likely to make the GPU slower than the CPU. The option
+is here for experimental purposes only. In addition,
+:py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device_pages``,
+``min_cache_page_bytes``, and ``max_quantile_batches`` can help control the data placement
+and memory usage.
 
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
 the GPU. This is a current limitation we aim to address in the future.
@@ -157,12 +160,17 @@ the GPU. This is a current limitation we aim to address in the future.
 	    evals=[(Xy_train, "Train"), (Xy_valid, "Valid")]
 	)
 
-It's crucial to use `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ for
-all memory allocation when training with external memory. XGBoost relies on the memory
-pool to reduce the overhead for data fetching. In addition, the open source `NVIDIA Linux
-driver
+It's crucial to use `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ with
+an asynchronous memory resource for all memory allocation when training with external
+memory. XGBoost relies on the asynchronous memory pool to reduce the overhead of data
+fetching. In addition, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
-is required for ``Heterogeneous memory management (HMM)`` support.
+is required for ``Heterogeneous memory management (HMM)`` support. Usually, users need not
+to change :py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device_pages``
+and ``min_cache_page_bytes``, they are automatically configured based on the device and
+don't change model accuracy. However, the ``max_quantile_batches`` can be useful if
+:py:class:`~xgboost.ExtMemQuantileDMatrix` is running out of device memory during
+construction, see :py:class:`~xgboost.QuantileDMatrix` for more info.
 
 In addition to the batch-based data fetching, the GPU version supports concatenating
 batches into a single blob for the training data to improve performance. For GPUs
@@ -181,7 +189,7 @@ concatenation can be enabled by:
 
   param = {
     "device": "cuda",
-    "extmem_concat_pages": true,
+    "extmem_single_page": true,
     'subsample': 0.2,
     'sampling_method': 'gradient_based',
   }
@@ -200,7 +208,7 @@ interconnect between the CPU and the GPU. With the host memory serving as the da
 XGBoost can retrieve data with significantly lower overhead. When the input data is dense,
 there's minimal to no performance loss for training, except for the initial construction
 of the :py:class:`~xgboost.ExtMemQuantileDMatrix`.  The initial construction iterates
-through the input data twice, as a result, the most significantly overhead compared to
+through the input data twice, as a result, the most significant overhead compared to
 in-core training is one additional data read when the data is dense. Please note that
 there are multiple variants of the platform and they come with different C2C
 bandwidths. During initial development of the feature, we used the LPDDR5 480G version,
