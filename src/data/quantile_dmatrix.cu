@@ -91,6 +91,7 @@ void MakeSketches(Context const* ctx,
      */
     if (!ref) {
       CHECK_LE(max_quantile_blocks, std::numeric_limits<bst_idx_t>::max());
+      CHECK_GT(max_quantile_blocks, 0);
       if (sketches.empty()) {
         lazy_init_sketch();
       }

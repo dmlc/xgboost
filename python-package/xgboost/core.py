@@ -1574,11 +1574,12 @@ class QuantileDMatrix(DMatrix):
         applied to the validation/test data
 
     max_quantile_batches :
-        For a GPU-based inputs, XGBoost treats incoming batches as multiple growing
-        sub-streams. This parameter sets the maximum number of batches before XGBoost
-        can cut the sub-stream and create a new one. This can help bound the memory
+        For GPU-based inputs, XGBoost handles incoming batches with multiple growing
+        substreams. This parameter sets the maximum number of batches before XGBoost can
+        cut the sub-stream and create a new one. This can help bound the memory
         usage. By default, XGBoost grows new sub-streams exponentially until batches are
-        exhausted. Only used for the training dataset.
+        exhausted. Only used for the training dataset and the default is None
+        (unbounded).
 
         .. versionadded:: 3.0.0
 
@@ -1661,7 +1662,7 @@ class QuantileDMatrix(DMatrix):
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
-            max_quantile_batches=max_quantile_batches,
+            max_quantile_blocks=max_quantile_batches,
         )
 
     def _init(
@@ -1669,7 +1670,7 @@ class QuantileDMatrix(DMatrix):
         data: DataType,
         ref: Optional[DMatrix],
         enable_categorical: bool,
-        max_quantile_batches: Optional[int],
+        max_quantile_blocks: Optional[int],
         **meta: Any,
     ) -> None:
         from .data import (
@@ -1700,7 +1701,7 @@ class QuantileDMatrix(DMatrix):
             nthread=self.nthread,
             missing=self.missing,
             max_bin=self.max_bin,
-            max_quantile_batches=max_quantile_batches,
+            max_quantile_blocks=max_quantile_blocks,
         )
         ret = _LIB.XGQuantileDMatrixCreateFromCallback(
             None,

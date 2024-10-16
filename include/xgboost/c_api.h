@@ -473,7 +473,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  */
 
 /**
- * @brief Create a Quantile DMatrix with data iterator.
+ * @brief Create a Quantile DMatrix with a data iterator.
  *
  * Short note for how to use the second set of callback for (GPU)Hist tree method:
  *
@@ -494,7 +494,13 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  *   - missing:      Which value to represent missing value
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  *   - max_bin (optional): Maximum number of bins for building histogram. Must be consistent with
-                           the corresponding booster training parameter.
+ *                         the corresponding booster training parameter.
+ *   - max_quantile_blocks (optional): For GPU-based inputs, XGBoost handles incoming
+ *       batches with multiple growing substreams. This parameter sets the maximum number
+ *       of batches before XGBoost can cut the sub-stream and create a new one. This can
+ *       help bound the memory usage. By default, XGBoost grows new sub-streams
+ *       exponentially until batches are exhausted. Only used for the training dataset and
+ *       the default is None (unbounded).
  * @param out      The created Quantile DMatrix.
  *
  * @return 0 when success, -1 when failure happens
@@ -521,12 +527,18 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
  *   - cache_prefix: The path of cache file, caller must initialize all the directories in this path.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  *   - max_bin (optional): Maximum number of bins for building histogram. Must be consistent with
-                           the corresponding booster training parameter.
+ *                         the corresponding booster training parameter.
  *   - on_host (optional): Whether the data should be placed on host memory. Used by GPU inputs.
  *   - min_cache_page_bytes (optional): The minimum number of bytes for each internal GPU
  *      page. Set to 0 to disable page concatenation. Automatic configuration if the
  *      parameter is not provided or set to None.
- * @param out      The created Quantile DMatrix.
+ *   - max_quantile_blocks (optional): For GPU-based inputs, XGBoost handles incoming
+ *       batches with multiple growing substreams. This parameter sets the maximum number
+ *       of batches before XGBoost can cut the sub-stream and create a new one. This can
+ *       help bound the memory usage. By default, XGBoost grows new sub-streams
+ *       exponentially until batches are exhausted. Only used for the training dataset and
+ *       the default is None (unbounded).
+ * @param out The created Quantile DMatrix.
  *
  * @return 0 when success, -1 when failure happens
  */
