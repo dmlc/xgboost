@@ -14,9 +14,15 @@ jobs:
     name: Build
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=2cpu-linux-x64
+      - runner=linux-amd64-cpu
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: "true"
-    - run: echo "Hello from x64!"
+    - run: |
+        sudo apt update && sudo apt install ninja-build
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON
+        ninja -v
+        ./testxgboost
