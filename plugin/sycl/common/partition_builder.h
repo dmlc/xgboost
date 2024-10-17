@@ -85,7 +85,7 @@ inline ::sycl::event PartitionSparseKernel(::sycl::queue* qu,
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
   const size_t* rid = rid_span.begin;
   const size_t range_size = rid_span.Size();
-  const uint32_t* cut_ptrs = gmat.cut_device.Ptrs().DataConst();
+  const uint32_t* cut_ptrs = gmat.cut.cut_ptrs_.ConstDevicePointer();
 
   size_t* p_rid_buf = rid_buf->data();
   return qu->submit([&](::sycl::handler& cgh) {

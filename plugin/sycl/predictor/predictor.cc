@@ -92,6 +92,11 @@ class DeviceModel {
   HostDeviceVector<size_t> first_node_position;
   HostDeviceVector<int> tree_group;
 
+  void SetDevice(DeviceOrd device) {
+    first_node_position.SetDevice(device);
+    tree_group.SetDevice(device);
+  }
+
   void Init(::sycl::queue* qu, const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
     int n_nodes = 0;
     first_node_position.Resize((tree_end - tree_begin) + 1);
@@ -159,6 +164,7 @@ class Predictor : public xgboost::Predictor {
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const override {
+    device_model.SetDevice(ctx_->Device());
     CHECK_NE(model.learner_model_param->num_output_group, 0);
     size_t n = model.learner_model_param->num_output_group * info.num_row_;
     size_t base_margin_size = info.base_margin_.Data()->Size();
@@ -198,6 +204,7 @@ class Predictor : public xgboost::Predictor {
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
                     uint32_t tree_end = 0) const override {
     auto* out_preds = &predts->predictions;
+    out_preds->SetDevice(ctx_->Device());
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
@@ -336,6 +343,8 @@ class Predictor : public xgboost::Predictor {
     float* out_predictions = out_preds->DevicePointer();
     ::sycl::event event;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
+      batch.data.SetDevice(ctx_->Device());
+      batch.offset.SetDevice(ctx_->Device());
       const Entry* data = batch.data.ConstDevicePointer();
       const size_t* row_ptr = batch.offset.ConstDevicePointer();
       size_t batch_size = batch.Size();

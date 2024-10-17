@@ -30,11 +30,8 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
   auto qu = device_manager.GetQueue(ctx.Device());
 
   auto p_fmat = RandomDataGenerator{num_rows, num_columns, sparsity}.GenerateDMatrix();
-  sycl::DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
-
   GHistIndexMatrix gmat_sycl;
-  gmat_sycl.Init(qu, &ctx, dmat, n_bins);
+  gmat_sycl.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   xgboost::GHistIndexMatrix gmat{&ctx, p_fmat.get(), n_bins, 0.3, false};
 
