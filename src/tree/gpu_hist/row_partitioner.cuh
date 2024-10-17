@@ -134,13 +134,13 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
       });
   size_t temp_bytes = 0;
   if (tmp->empty()) {
-    cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
-                                   IndexFlagOp(), total_rows);
+    dh::safe_cuda(cub::DeviceScan::InclusiveScan(
+        nullptr, temp_bytes, input_iterator, discard_write_iterator, IndexFlagOp(), total_rows));
     tmp->resize(temp_bytes);
   }
   temp_bytes = tmp->size();
-  cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
-                                 discard_write_iterator, IndexFlagOp(), total_rows);
+  dh::safe_cuda(cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
+                                               discard_write_iterator, IndexFlagOp(), total_rows));
 
   constexpr int kBlockSize = 256;
 
