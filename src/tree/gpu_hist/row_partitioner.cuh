@@ -146,10 +146,11 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
 
   // Value found by experimentation
   const int kItemsThread = 12;
-  const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
 
-  SortPositionCopyKernel<kBlockSize, RowIndexT, OpDataT>
-      <<<grid_size, kBlockSize, 0>>>(batch_info_itr, ridx, ridx_tmp, total_rows);
+  std::uint32_t const kGridSize =
+      xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
+  dh::LaunchKernel{kGridSize, kBlockSize, 0}(SortPositionCopyKernel<kBlockSize, RowIndexT, OpDataT>,
+                                             batch_info_itr, ridx, ridx_tmp, total_rows);
 }
 
 struct NodePositionInfo {
@@ -328,11 +329,13 @@ class RowPartitioner {
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
                                   cudaMemcpyDefault));
 
-    constexpr int kBlockSize = 512;
+    constexpr std::uint32_t kBlockSize = 512;
     const int kItemsThread = 8;
-    const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
+    const std::uint32_t grid_size =
+        xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<const RowIndexT> d_ridx(ridx_.data().get(), ridx_.size());
-    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0>>>(
+    dh::LaunchKernel{grid_size, kBlockSize}(
+        FinalisePositionKernel<kBlockSize, RowIndexT, FinalisePositionOpT>,
         dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
   }
 };
