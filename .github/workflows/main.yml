@@ -1,0 +1,22 @@
+name: Nextgen XGBoost CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=2cpu-linux-x64
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: "true"
+    - run: echo "Hello from x64!"
