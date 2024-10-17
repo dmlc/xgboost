@@ -1,17 +1,16 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
 #include <cstddef>  // std::size_t
+#include <thread>   // for std::thread
 
 #include "../../../src/common/threading_utils.h"  // BlockedSpace2d,ParallelFor2d,ParallelFor
 #include "dmlc/omp.h"                             // omp_in_parallel
 #include "xgboost/context.h"                      // Context
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 TEST(ParallelFor2d, CreateBlockedSpace2d) {
   constexpr size_t kDim1 = 5;
   constexpr size_t kDim2 = 3;
@@ -102,5 +101,14 @@ TEST(ParallelFor, Basic) {
   });
   ASSERT_FALSE(omp_in_parallel());
 }
-}  // namespace common
-}  // namespace xgboost
+
+TEST(OmpGetNumThreads, Max) {
+#if defined(_OPENMP)
+  auto n_threads = OmpGetNumThreads(1 << 18);
+  ASSERT_LE(n_threads, std::thread::hardware_concurrency());  // le due to container
+  n_threads = OmpGetNumThreads(0);
+  ASSERT_GE(n_threads, 1);
+  ASSERT_LE(n_threads, std::thread::hardware_concurrency());
+#endif
+}
+}  // namespace xgboost::common

@@ -257,9 +257,9 @@ inline std::int32_t OmpGetThreadLimit() {
 std::int32_t GetCfsCPUCount() noexcept;
 
 /**
- * \brief Get the number of available threads based on n_threads specified by users.
+ * @brief Get the number of available threads based on n_threads specified by users.
  */
-std::int32_t OmpGetNumThreads(std::int32_t n_threads);
+std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true);
 
 /*!
  * \brief A C-style array with in-stack allocation. As long as the array is smaller than
