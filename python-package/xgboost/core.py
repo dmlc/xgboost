@@ -1732,7 +1732,7 @@ class ExtMemQuantileDMatrix(DMatrix):
 
     .. warning::
 
-        This is an experimental feature.
+        This is an experimental feature and subject to change.
 
     .. versionadded:: 3.0.0
 
@@ -1765,12 +1765,6 @@ class ExtMemQuantileDMatrix(DMatrix):
             OOM error where there are more than one validation datasets. The default
             number of device-based page is 1. Lastly, XGBoost infers whether a dataset
             is used for valdiation by checking whether ref is not None.
-
-            .. versionadded:: 3.0.0
-
-            .. warning::
-
-                This is an experimental parameter and subject to change.
 
         max_quantile_batches :
             See :py:class:`QuantileDMatrix`.
