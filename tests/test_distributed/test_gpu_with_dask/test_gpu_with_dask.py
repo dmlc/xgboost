@@ -4,7 +4,7 @@ import asyncio
 import json
 from collections import OrderedDict
 from inspect import signature
-from typing import Any, Dict, Type, TypeVar, List
+from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
 import pytest
@@ -520,6 +520,7 @@ class TestDistributedGPU:
         same ordering.
 
         """
+
         def comp_dm_qdm(dm_names: List[str], qdm_names: List[str]) -> None:
             qdm_only = {"max_bin", "ref", "max_quantile_batches"}
             assert len(dm_names) == len(qdm_names) - len(qdm_only)
@@ -663,7 +664,9 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         X = X.to_backend("cupy")
         y = y.to_backend("cupy")
 
-        m: xgb.dask.DaskDMatrix = await xgb.dask.DaskQuantileDMatrix(client, X, y)  # type: ignore
+        m: xgb.dask.DaskDMatrix = await xgb.dask.DaskQuantileDMatrix(
+            client, X, y
+        )  # type:ignore
         output = await xgb.dask.train(
             client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
         )
@@ -684,3 +687,13 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
 
         client.shutdown()
         return output
+
+
+def test_invalid_quantile_blocks(local_cuda_client: Client) -> None:
+    X, y, _ = generate_array()
+    client = local_cuda_client
+    X = X.to_backend("cupy")
+    y = y.to_backend("cupy")
+    with pytest.raises(ValueError, match="must be greater than 0."):
+        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, max_quantile_batches=0)
+        xgb.dask.train(client, {"tree_method": "hist", "device": "cuda"}, dtrain=Xy)
