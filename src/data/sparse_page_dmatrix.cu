@@ -53,7 +53,8 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
       ellpack_page_source_.emplace<EllpackHostPtr>(nullptr);
     }
 
-    auto cinfo = EllpackCacheInfo{param, this->missing_};
+    auto cinfo = EllpackCacheInfo{param, /*prefer_device=*/false, /*max_num_device_pages=*/0,
+                                  this->missing_};
     CalcCacheMapping(ctx, this->IsDense(), cuts, min_cache_page_bytes_, this->ext_info_, &cinfo);
     CHECK_EQ(cinfo.cache_mapping.size(), this->ext_info_.n_batches)
         << "Page concatenation is only supported by the `ExtMemQuantileDMatrix`.";

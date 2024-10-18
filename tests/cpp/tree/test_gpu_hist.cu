@@ -39,7 +39,7 @@ void UpdateTree(Context const* ctx, linalg::Matrix<GradientPair>* gpair, DMatrix
   ObjInfo task{ObjInfo::kRegression};
   std::unique_ptr<TreeUpdater> hist_maker{TreeUpdater::Create("grow_gpu_hist", ctx, &task)};
   if (subsample < 1.0) {
-    hist_maker->Configure(Args{{"extmem_concat_pages", std::to_string(concat_pages)}});
+    hist_maker->Configure(Args{{"extmem_single_page", std::to_string(concat_pages)}});
   } else {
     hist_maker->Configure(Args{});
   }
@@ -240,31 +240,31 @@ TEST(GpuHist, PageConcatConfig) {
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
   learner->SetParam("device", ctx.DeviceName());
-  learner->SetParam("extmem_concat_pages", "true");
+  learner->SetParam("extmem_single_page", "true");
   learner->SetParam("subsample", "0.8");
   learner->Configure();
 
   learner->UpdateOneIter(0, p_fmat);
-  learner->SetParam("extmem_concat_pages", "false");
+  learner->SetParam("extmem_single_page", "false");
   learner->Configure();
   // GPU Hist rebuilds the updater after configuration. Training continues
   learner->UpdateOneIter(1, p_fmat);
 
-  learner->SetParam("extmem_concat_pages", "true");
+  learner->SetParam("extmem_single_page", "true");
   learner->SetParam("subsample", "1.0");
-  ASSERT_THAT([&] { learner->UpdateOneIter(2, p_fmat); }, GMockThrow("extmem_concat_pages"));
+  ASSERT_THAT([&] { learner->UpdateOneIter(2, p_fmat); }, GMockThrow("extmem_single_page"));
 
   // Throws error on CPU.
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
-    learner->SetParam("extmem_concat_pages", "true");
-    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_concat_pages"));
+    learner->SetParam("extmem_single_page", "true");
+    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_single_page"));
   }
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_fmat}));
-    learner->SetParam("extmem_concat_pages", "true");
+    learner->SetParam("extmem_single_page", "true");
     learner->SetParam("tree_method", "approx");
-    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_concat_pages"));
+    ASSERT_THAT([&] { learner->UpdateOneIter(0, p_fmat); }, GMockThrow("extmem_single_page"));
   }
 }
 

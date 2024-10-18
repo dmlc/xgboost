@@ -31,7 +31,7 @@ EllpackPage::EllpackPage() : impl_{new EllpackPageImpl{}} {}
 EllpackPage::EllpackPage(Context const* ctx, DMatrix* dmat, const BatchParam& param)
     : impl_{new EllpackPageImpl{ctx, dmat, param}} {}
 
-EllpackPage::~EllpackPage() = default;
+EllpackPage::~EllpackPage() noexcept(false) = default;
 
 EllpackPage::EllpackPage(EllpackPage&& that) { std::swap(impl_, that.impl_); }
 
@@ -368,9 +368,9 @@ void WriteNullValues(Context const* ctx, EllpackPageImpl* dst,
 
 template <typename AdapterBatch>
 EllpackPageImpl::EllpackPageImpl(Context const* ctx, AdapterBatch batch, float missing,
-                                 bool is_dense, common::Span<size_t const> row_counts,
-                                 common::Span<FeatureType const> feature_types, size_t row_stride,
-                                 bst_idx_t n_rows,
+                                 bool is_dense, common::Span<bst_idx_t const> row_counts,
+                                 common::Span<FeatureType const> feature_types,
+                                 bst_idx_t row_stride, bst_idx_t n_rows,
                                  std::shared_ptr<common::HistogramCuts const> cuts)
     : EllpackPageImpl{ctx, cuts, is_dense, row_stride, n_rows} {
   curt::SetDevice(ctx->Ordinal());
@@ -383,11 +383,12 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, AdapterBatch batch, float m
   }
 }
 
-#define ELLPACK_BATCH_SPECIALIZE(__BATCH_T)                                                      \
-  template EllpackPageImpl::EllpackPageImpl(                                                     \
-      Context const* ctx, __BATCH_T batch, float missing, bool is_dense,                         \
-      common::Span<size_t const> row_counts_span, common::Span<FeatureType const> feature_types, \
-      size_t row_stride, size_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
+#define ELLPACK_BATCH_SPECIALIZE(__BATCH_T)                                                  \
+  template EllpackPageImpl::EllpackPageImpl(                                                 \
+      Context const* ctx, __BATCH_T batch, float missing, bool is_dense,                     \
+      common::Span<bst_idx_t const> row_counts_span,                                         \
+      common::Span<FeatureType const> feature_types, bst_idx_t row_stride, bst_idx_t n_rows, \
+      std::shared_ptr<common::HistogramCuts const> cuts);
 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)

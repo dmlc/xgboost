@@ -308,7 +308,8 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  auto config = ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, n_threads};
+  auto config = ExtMemConfig{
+      cache, on_host, min_cache_page_bytes, missing, /*max_num_device_pages=*/0, n_threads};
   *out = new std::shared_ptr<xgboost::DMatrix>{
       xgboost::DMatrix::Create(iter, proxy, reset, next, config)};
   API_END();
@@ -323,7 +324,8 @@ XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
   API_BEGIN();
   LOG(WARNING) << error::DeprecatedFunc(__func__, "1.7.0", "XGQuantileDMatrixCreateFromCallback");
   *out = new std::shared_ptr<xgboost::DMatrix>{
-      xgboost::DMatrix::Create(iter, proxy, nullptr, reset, next, missing, nthread, max_bin)};
+      xgboost::DMatrix::Create(iter, proxy, nullptr, reset, next, missing, nthread, max_bin,
+                               std::numeric_limits<std::int64_t>::max())};
   API_END();
 }
 
@@ -353,13 +355,15 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
   auto missing = GetMissing(jconfig);
   auto n_threads = OptionalArg<Integer, int64_t>(jconfig, "nthread", 0);
   auto max_bin = OptionalArg<Integer, int64_t>(jconfig, "max_bin", 256);
+  auto max_quantile_blocks = OptionalArg<Integer, std::int64_t>(
+      jconfig, "max_quantile_blocks", std::numeric_limits<std::int64_t>::max());
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  *out = new std::shared_ptr<xgboost::DMatrix>{
-      xgboost::DMatrix::Create(iter, proxy, p_ref, reset, next, missing, n_threads, max_bin)};
+  *out = new std::shared_ptr<xgboost::DMatrix>{xgboost::DMatrix::Create(
+      iter, proxy, p_ref, reset, next, missing, n_threads, max_bin, max_quantile_blocks)};
   API_END();
 }
 
@@ -380,14 +384,19 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
   auto min_cache_page_bytes = OptionalArg<Integer, std::int64_t>(jconfig, "min_cache_page_bytes",
                                                                  cuda_impl::AutoCachePageBytes());
+  auto max_num_device_pages = OptionalArg<Integer, std::int64_t>(jconfig, "max_num_device_pages",
+                                                                 cuda_impl::MaxNumDevicePages());
+  auto max_quantile_blocks = OptionalArg<Integer, std::int64_t>(
+      jconfig, "max_quantile_blocks", std::numeric_limits<std::int64_t>::max());
 
   xgboost_CHECK_C_ARG_PTR(next);
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  auto config = ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, n_threads};
-  *out = new std::shared_ptr<xgboost::DMatrix>{
-      xgboost::DMatrix::Create(iter, proxy, p_ref, reset, next, max_bin, config)};
+  auto config =
+      ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, max_num_device_pages, n_threads};
+  *out = new std::shared_ptr<xgboost::DMatrix>{xgboost::DMatrix::Create(
+      iter, proxy, p_ref, reset, next, max_bin, max_quantile_blocks, config)};
   API_END();
 }
 

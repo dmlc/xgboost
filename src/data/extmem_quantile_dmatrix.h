@@ -29,7 +29,8 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
  public:
   ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                         std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
-                        XGDMatrixCallbackNext *next, bst_bin_t max_bin, ExtMemConfig const &config);
+                        XGDMatrixCallbackNext *next, bst_bin_t max_bin,
+                        std::int64_t max_quantile_blocks, ExtMemConfig const &config);
   ~ExtMemQuantileDMatrix() override;
 
   [[nodiscard]] std::int32_t NumBatches() const override { return n_batches_; }
@@ -43,6 +44,7 @@ class ExtMemQuantileDMatrix : public QuantileDMatrix {
       Context const *ctx,
       std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
       DMatrixHandle proxy_handle, BatchParam const &p, std::shared_ptr<DMatrix> ref,
+      std::int64_t max_quantile_blocks,
       ExtMemConfig const &config);
 
   [[nodiscard]] BatchSet<GHistIndexMatrix> GetGradientIndexImpl();

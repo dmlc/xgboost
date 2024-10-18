@@ -129,9 +129,9 @@ TEST(ColumnMatrix, GrowMissing) {
   bst_bin_t n_bins = 16;
   BatchParam batch{n_bins, tree::TrainParam::DftSparseThreshold()};
   Context ctx;
-  auto m = std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                    std::numeric_limits<float>::quiet_NaN(),
-                                                    n_threads, n_bins);
+  auto m = std::make_shared<data::IterativeDMatrix>(
+      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), n_threads,
+      n_bins, std::numeric_limits<std::int64_t>::max());
   for (auto const& page : m->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
     auto const& column_matrix = page.Transpose();
     auto const& missing = column_matrix.Missing();

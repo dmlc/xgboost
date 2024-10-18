@@ -5,11 +5,11 @@
 #include <limits>   // for numeric_limits
 #include <ostream>  // for ostream
 
-#include "../data/batch_utils.cuh"  // for DftPrefetchBatches, StaticBatch
-#include "gpu_hist/quantiser.cuh"   // for GradientQuantiser
-#include "param.h"                  // for TrainParam
-#include "xgboost/base.h"           // for bst_bin_t
-#include "xgboost/task.h"           // for ObjInfo
+#include "../data/batch_utils.h"   // for DftPrefetchBatches, StaticBatch
+#include "gpu_hist/quantiser.cuh"  // for GradientQuantiser
+#include "param.h"                 // for TrainParam
+#include "xgboost/base.h"          // for bst_bin_t
+#include "xgboost/task.h"          // for ObjInfo
 
 namespace xgboost::tree {
 struct GPUTrainingParam {
@@ -123,7 +123,7 @@ namespace cuda_impl {
 inline BatchParam HistBatch(TrainParam const& param) {
   auto p = BatchParam{param.max_bin, TrainParam::DftSparseThreshold()};
   p.prefetch_copy = true;
-  p.n_prefetch_batches = data::cuda_impl::DftPrefetchBatches();
+  p.n_prefetch_batches = ::xgboost::cuda_impl::DftPrefetchBatches();
   return p;
 }
 
@@ -131,7 +131,7 @@ inline BatchParam ApproxBatch(TrainParam const& p, common::Span<float const> hes
                               ObjInfo const& task) {
   auto batch = BatchParam{p.max_bin, hess, !task.const_hess};
   batch.prefetch_copy = true;
-  batch.n_prefetch_batches = data::cuda_impl::DftPrefetchBatches();
+  batch.n_prefetch_batches = ::xgboost::cuda_impl::DftPrefetchBatches();
   return batch;
 }
 }  // namespace cuda_impl

@@ -3,9 +3,8 @@
 import asyncio
 import json
 from collections import OrderedDict
-from copy import copy
 from inspect import signature
-from typing import Any, Dict, Type, TypeVar
+from typing import Any, Dict, List, Type, TypeVar
 
 import numpy as np
 import pytest
@@ -54,7 +53,6 @@ except ImportError:
 
 def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
-    import dask_cudf
 
     cp.cuda.runtime.setDevice(0)
     _X, _y, _ = generate_array()
@@ -215,7 +213,6 @@ def test_tree_stats() -> None:
 class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cudf())
     def test_boost_from_prediction(self, local_cuda_client: Client) -> None:
-        import dask_cudf
         from sklearn.datasets import load_breast_cancer, load_iris
 
         X_, y_ = load_breast_cancer(return_X_y=True)
@@ -244,8 +241,6 @@ class TestDistributedGPU:
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
     def test_categorical(self, local_cuda_client: Client) -> None:
-        import dask_cudf
-
         X, y = make_categorical(local_cuda_client, 10000, 30, 13)
         X = X.to_backend("cudf")
 
@@ -521,41 +516,60 @@ class TestDistributedGPU:
         local_cuda_client.gather(futures)
 
     def test_interface_consistency(self) -> None:
+        """Check parameters are roughly the same between various DMatrices, with the
+        same ordering.
+
+        """
+
+        def comp_dm_qdm(dm_names: List[str], qdm_names: List[str]) -> None:
+            qdm_only = {"max_bin", "ref", "max_quantile_batches"}
+            assert len(dm_names) == len(qdm_names) - len(qdm_only)
+            i, j = 0, 0
+            while i < len(dm_names) and j < len(qdm_names):
+                if qdm_names[j] in qdm_only:
+                    j += 1
+                    continue
+                assert dm_names[i] == qdm_names[j]
+                i += 1
+                j += 1
+
+        # DaskDMatrix <-> DaskQuantileDMatrix
         sig = OrderedDict(signature(dxgb.DaskDMatrix).parameters)
-        del sig["client"]
         ddm_names = list(sig.keys())
+
         sig = OrderedDict(signature(dxgb.DaskQuantileDMatrix).parameters)
-        del sig["client"]
-        del sig["max_bin"]
-        del sig["ref"]
-        ddqdm_names = list(sig.keys())
-        assert len(ddm_names) == len(ddqdm_names)
-
-        # between dask
-        for i in range(len(ddm_names)):
-            assert ddm_names[i] == ddqdm_names[i]
-
-        sig = OrderedDict(signature(xgb.DMatrix).parameters)
-        del sig["nthread"]  # no nthread in dask
-        dm_names = list(sig.keys())
-        sig = OrderedDict(signature(xgb.QuantileDMatrix).parameters)
-        del sig["nthread"]
-        del sig["max_bin"]
-        del sig["ref"]
         dqdm_names = list(sig.keys())
 
-        # between single node
-        assert len(dm_names) == len(dqdm_names)
-        for i in range(len(dm_names)):
-            assert dm_names[i] == dqdm_names[i]
+        comp_dm_qdm(ddm_names, dqdm_names)
 
-        # ddm <-> dm
-        for i in range(len(ddm_names)):
-            assert ddm_names[i] == dm_names[i]
+        # DMatrix <-> QuantileDMatrix
+        sig = OrderedDict(signature(xgb.DMatrix).parameters)
+        dm_names = list(sig.keys())
+        sig = OrderedDict(signature(xgb.QuantileDMatrix).parameters)
+        qdm_names = list(sig.keys())
+        comp_dm_qdm(dm_names, qdm_names)
 
-        # dqdm <-> ddqdm
-        for i in range(len(ddqdm_names)):
-            assert ddqdm_names[i] == dqdm_names[i]
+        def comp_dm_ddm(dm_names: List[str], ddm_names: List[str]) -> None:
+            dm_only = {"nthread", "data_split_mode"}
+            ddm_only = {"client"}
+            assert len(dm_names) - len(dm_only) == len(ddm_names) - len(ddm_only)
+            i, j = 0, 0
+            while i < len(dm_names) and j < len(ddm_names):
+                if dm_names[i] in dm_only:
+                    i += 1
+                    continue
+                elif ddm_names[j] in ddm_only:
+                    j += 1
+                    continue
+                assert dm_names[i] == ddm_names[j]
+                i += 1
+                j += 1
+
+        # DaskDMatrix <-> DMatrix
+        comp_dm_ddm(dm_names, ddm_names)
+
+        # QuantileDMatrix <-> DaskQuantileDMatrix
+        comp_dm_ddm(qdm_names, dqdm_names)
 
         sig = OrderedDict(signature(xgb.XGBRanker.fit).parameters)
         ranker_names = list(sig.keys())
@@ -650,7 +664,9 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         X = X.to_backend("cupy")
         y = y.to_backend("cupy")
 
-        m: xgb.dask.DaskDMatrix = await xgb.dask.DaskQuantileDMatrix(client, X, y)  # type: ignore
+        m: xgb.dask.DaskDMatrix = await xgb.dask.DaskQuantileDMatrix(
+            client, X, y
+        )  # type:ignore
         output = await xgb.dask.train(
             client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
         )
@@ -671,3 +687,13 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
 
         client.shutdown()
         return output
+
+
+def test_invalid_quantile_blocks(local_cuda_client: Client) -> None:
+    X, y, _ = generate_array()
+    client = local_cuda_client
+    X = X.to_backend("cupy")
+    y = y.to_backend("cupy")
+    with pytest.raises(ValueError, match="must be greater than 0."):
+        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, max_quantile_batches=0)
+        xgb.dask.train(client, {"tree_method": "hist", "device": "cuda"}, dtrain=Xy)
