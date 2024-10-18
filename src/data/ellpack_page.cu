@@ -70,7 +70,7 @@ __global__ void CompressBinEllpackKernel(
     // {feature_cuts, ncuts} forms the array of cuts of `feature'.
     const float* feature_cuts = &cuts[cut_ptrs[feature]];
     int ncuts = cut_ptrs[feature + 1] - cut_ptrs[feature];
-    bool is_cat = common::IsCat(feature_types, ifeature);
+    bool is_cat = common::IsCat(feature_types, feature);
     // Assigning the bin in current entry.
     // S.t.: fvalue < feature_cuts[bin]
     if (is_cat) {
