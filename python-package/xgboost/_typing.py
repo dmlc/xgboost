@@ -5,6 +5,7 @@ import os
 from typing import (
     TYPE_CHECKING,
     Any,
+    AnyStr,
     Callable,
     Dict,
     List,
@@ -51,7 +52,7 @@ FPreProcCallable = Callable
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
 c_bst_ulong = ctypes.c_uint64  # pylint: disable=C0103
 
-ModelIn = Union[str, bytearray, os.PathLike]
+ModelIn = Union[os.PathLike[AnyStr], bytearray, str]
 
 CTypeT = TypeVar(
     "CTypeT",
