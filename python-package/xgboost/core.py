@@ -1773,15 +1773,24 @@ class ExtMemQuantileDMatrix(DMatrix):
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else -1
-        self.max_num_device_pages = max_num_device_pages
-        # It's called blocks internally due to block-based quantile sketching.
-        self.max_quantile_blocks = max_quantile_batches
 
-        self._init(data, ref, enable_categorical)
+        self._init(
+            data,
+            ref,
+            enable_categorical=enable_categorical,
+            max_num_device_pages=max_num_device_pages,
+            max_quantile_blocks=max_quantile_batches
+        )
         assert self.handle is not None
 
     def _init(
-        self, it: DataIter, ref: Optional[DMatrix], enable_categorical: bool
+        self,
+        it: DataIter,
+        ref: Optional[DMatrix],
+        *,
+        enable_categorical: bool,
+        max_num_device_pages: Optional[int] = None,
+        max_quantile_blocks: Optional[int] = None,
     ) -> None:
         args = make_jcargs(
             missing=self.missing,
@@ -1790,8 +1799,9 @@ class ExtMemQuantileDMatrix(DMatrix):
             on_host=it.on_host,
             max_bin=self.max_bin,
             min_cache_page_bytes=it.min_cache_page_bytes,
-            max_num_device_pages=self.max_num_device_pages,
-            max_quantile_blocks=self.max_quantile_blocks,
+            max_num_device_pages=max_num_device_pages,
+            # It's called blocks internally due to block-based quantile sketching.
+            max_quantile_blocks=max_quantile_blocks,
         )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)
