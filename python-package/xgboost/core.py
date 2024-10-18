@@ -26,6 +26,7 @@ from typing import (
     Sequence,
     Tuple,
     Type,
+    TypeGuard,
     TypeVar,
     Union,
     cast,
@@ -53,6 +54,7 @@ from ._typing import (
     IterationRange,
     ModelIn,
     NumpyOrCupy,
+    PathLike,
     TransformedData,
     c_bst_ulong,
 )
@@ -1112,7 +1114,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         dispatch_meta_backend(self, data, field, "uint32")
 
-    def save_binary(self, fname: Union[str, os.PathLike], silent: bool = True) -> None:
+    def save_binary(self, fname: PathLike, silent: bool = True) -> None:
         """Save DMatrix to an XGBoost buffer.  Saved binary can be later loaded
         by providing the path to :py:func:`xgboost.DMatrix` as input.
 
@@ -2735,7 +2737,7 @@ class Booster:
             "Data type:" + str(type(data)) + " not supported by inplace prediction."
         )
 
-    def save_model(self, fname: Union[str, os.PathLike]) -> None:
+    def save_model(self, fname: PathLike) -> None:
         """Save the model to a file.
 
         The model is saved in an XGBoost internal format which is universal among the
@@ -2808,9 +2810,12 @@ class Booster:
             Input file name or memory buffer(see also save_raw)
 
         """
-        if isinstance(fname, (str, os.PathLike)):
-            # assume file name, cannot use os.path.exist to check, file can be
-            # from URL.
+
+        def is_pathlike(path: ModelIn) -> TypeGuard[os.PathLike[str]]:
+            return isinstance(path, os.PathLike)
+
+        if isinstance(fname, str) or is_pathlike(fname):
+            # assume file name, cannot use os.path.exist to check, file can be from URL.
             fname = os.fspath(os.path.expanduser(fname))
             _check_call(_LIB.XGBoosterLoadModel(self.handle, c_str(fname)))
         elif isinstance(fname, bytearray):
@@ -2870,8 +2875,8 @@ class Booster:
 
     def dump_model(
         self,
-        fout: Union[str, os.PathLike],
-        fmap: Union[str, os.PathLike] = "",
+        fout: PathLike,
+        fmap: PathLike = "",
         with_stats: bool = False,
         dump_format: str = "text",
     ) -> None:
@@ -2915,7 +2920,7 @@ class Booster:
 
     def get_dump(
         self,
-        fmap: Union[str, os.PathLike] = "",
+        fmap: PathLike = "",
         with_stats: bool = False,
         dump_format: str = "text",
     ) -> List[str]:
@@ -2968,7 +2973,7 @@ class Booster:
         return self.get_score(fmap, importance_type="weight")
 
     def get_score(
-        self, fmap: Union[str, os.PathLike] = "", importance_type: str = "weight"
+        self, fmap: PathLike = "", importance_type: str = "weight"
     ) -> Dict[str, Union[float, List[float]]]:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
@@ -3033,7 +3038,7 @@ class Booster:
         return results
 
     # pylint: disable=too-many-statements
-    def trees_to_dataframe(self, fmap: Union[str, os.PathLike] = "") -> DataFrame:
+    def trees_to_dataframe(self, fmap: PathLike = "") -> DataFrame:
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -3199,7 +3204,7 @@ class Booster:
     def get_split_value_histogram(
         self,
         feature: str,
-        fmap: Union[os.PathLike, str] = "",
+        fmap: PathLike = "",
         bins: Optional[int] = None,
         as_pandas: bool = True,
     ) -> Union[np.ndarray, DataFrame]:
