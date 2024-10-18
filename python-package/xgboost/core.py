@@ -1779,7 +1779,7 @@ class ExtMemQuantileDMatrix(DMatrix):
             ref,
             enable_categorical=enable_categorical,
             max_num_device_pages=max_num_device_pages,
-            max_quantile_blocks=max_quantile_batches
+            max_quantile_blocks=max_quantile_batches,
         )
         assert self.handle is not None
 
