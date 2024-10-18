@@ -22,7 +22,7 @@ namespace xgboost::data {
  * @brief A proxy to external iterator.
  *
  * @note The external iterator is actually 1-based since the first call to @ref Next
- * increases the counter to 1 while it's necessary to at least call the @ref Next method
+ * increases the counter to 1 and it's necessary to call the @ref Next method at least
  * once to get data. We here along with the page source together convert it back to
  * 0-based by calling @ref Next in the page source's constructor.
  */

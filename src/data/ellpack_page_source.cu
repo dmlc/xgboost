@@ -42,7 +42,7 @@ namespace {
 /**
  * Cache
  */
-EllpackHostCache::EllpackHostCache(EllpackCacheInfo cinfo)
+EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo)
     : cache_mapping{std::move(cinfo.cache_mapping)},
       buffer_bytes{std::move(cinfo.buffer_bytes)},
       buffer_rows{std::move(cinfo.buffer_rows)},
@@ -51,19 +51,19 @@ EllpackHostCache::EllpackHostCache(EllpackCacheInfo cinfo)
   CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
 }
 
-EllpackHostCache::~EllpackHostCache() = default;
+EllpackMemCache::~EllpackMemCache() = default;
 
-[[nodiscard]] std::size_t EllpackHostCache::SizeBytes() const {
+[[nodiscard]] std::size_t EllpackMemCache::SizeBytes() const {
   auto it = common::MakeIndexTransformIter([&](auto i) { return pages.at(i)->MemCostBytes(); });
   using T = std::iterator_traits<decltype(it)>::value_type;
   return std::accumulate(it, it + pages.size(), static_cast<T>(0));
 }
 
-[[nodiscard]] EllpackPageImpl const* EllpackHostCache::At(std::int32_t k) const {
+[[nodiscard]] EllpackPageImpl const* EllpackMemCache::At(std::int32_t k) const {
   return this->pages.at(k).get();
 }
 
-[[nodiscard]] std::int64_t EllpackHostCache::NumDevicePages() const {
+[[nodiscard]] std::int64_t EllpackMemCache::NumDevicePages() const {
   return std::count_if(this->pages.cbegin(), this->pages.cend(),
                        [](auto const& page) { return IsDevicePage(page.get()); });
 }
@@ -72,11 +72,11 @@ EllpackHostCache::~EllpackHostCache() = default;
  * Cache stream.
  */
 class EllpackHostCacheStreamImpl {
-  std::shared_ptr<EllpackHostCache> cache_;
+  std::shared_ptr<EllpackMemCache> cache_;
   std::int32_t ptr_{0};
 
  public:
-  explicit EllpackHostCacheStreamImpl(std::shared_ptr<EllpackHostCache> cache)
+  explicit EllpackHostCacheStreamImpl(std::shared_ptr<EllpackMemCache> cache)
       : cache_{std::move(cache)} {}
 
   auto Share() { return cache_; }
@@ -216,12 +216,12 @@ class EllpackHostCacheStreamImpl {
 /**
  * EllpackHostCacheStream
  */
-EllpackHostCacheStream::EllpackHostCacheStream(std::shared_ptr<EllpackHostCache> cache)
+EllpackHostCacheStream::EllpackHostCacheStream(std::shared_ptr<EllpackMemCache> cache)
     : p_impl_{std::make_unique<EllpackHostCacheStreamImpl>(std::move(cache))} {}
 
 EllpackHostCacheStream::~EllpackHostCacheStream() = default;
 
-std::shared_ptr<EllpackHostCache const> EllpackHostCacheStream::Share() const {
+std::shared_ptr<EllpackMemCache const> EllpackHostCacheStream::Share() const {
   return p_impl_->Share();
 }
 
@@ -242,7 +242,7 @@ template <typename S, template <typename> typename F>
 [[nodiscard]] std::unique_ptr<typename EllpackCacheStreamPolicy<S, F>::WriterT>
 EllpackCacheStreamPolicy<S, F>::CreateWriter(StringView, std::uint32_t iter) {
   if (!this->p_cache_) {
-    this->p_cache_ = std::make_unique<EllpackHostCache>(this->CacheInfo());
+    this->p_cache_ = std::make_unique<EllpackMemCache>(this->CacheInfo());
   }
   auto fo = std::make_unique<EllpackHostCacheStream>(this->p_cache_);
   if (iter == 0) {

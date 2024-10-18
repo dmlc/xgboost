@@ -43,7 +43,9 @@ struct EllpackCacheInfo {
 // We need to decouple the storage and the view of the storage so that we can implement
 // concurrent read. As a result, there are two classes, one for cache storage, another one
 // for stream.
-struct EllpackHostCache {
+//
+// This is a memory-based cache. It can be a mixed of the device memory and the host memory.
+struct EllpackMemCache {
   std::vector<std::unique_ptr<EllpackPageImpl>> pages;
   std::vector<std::size_t> offsets;
   // Size of each batch before concatenation.
@@ -56,8 +58,8 @@ struct EllpackHostCache {
   bool const prefer_device;
   std::int64_t const max_num_device_pages;
 
-  explicit EllpackHostCache(EllpackCacheInfo cinfo);
-  ~EllpackHostCache();
+  explicit EllpackMemCache(EllpackCacheInfo cinfo);
+  ~EllpackMemCache();
 
   // The number of bytes for the entire cache.
   [[nodiscard]] std::size_t SizeBytes() const;
@@ -80,12 +82,12 @@ class EllpackHostCacheStream {
   std::unique_ptr<EllpackHostCacheStreamImpl> p_impl_;
 
  public:
-  explicit EllpackHostCacheStream(std::shared_ptr<EllpackHostCache> cache);
+  explicit EllpackHostCacheStream(std::shared_ptr<EllpackMemCache> cache);
   ~EllpackHostCacheStream();
   /**
    * @brief Get a shared handler to the cache.
    */
-  std::shared_ptr<EllpackHostCache const> Share() const;
+  std::shared_ptr<EllpackMemCache const> Share() const;
   /**
    * @brief Stream seek.
    *
@@ -173,7 +175,7 @@ class EllpackFormatPolicy {
 
 template <typename S, template <typename> typename F>
 class EllpackCacheStreamPolicy : public F<S> {
-  std::shared_ptr<EllpackHostCache> p_cache_;
+  std::shared_ptr<EllpackMemCache> p_cache_;
 
  public:
   using WriterT = EllpackHostCacheStream;
