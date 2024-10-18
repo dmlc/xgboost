@@ -19,10 +19,29 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: "true"
-    - run: |
+    - name: Build and run gtest
+      run: |
         sudo apt update && sudo apt install ninja-build
         mkdir build
         cd build
         cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON
+        ninja -v
+        ./testxgboost
+  build-gpu:
+    name: Build GPU
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-gpu
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: "true"
+    - name: Build and run gtest
+      run: |
+        nvidia-smi
+        sudo apt update && sudo apt install ninja-build
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON -DUSE_CUDA=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.4/bin/nvcc -DCMAKE_CUDA_ARCHITECTURES=75
         ninja -v
         ./testxgboost
