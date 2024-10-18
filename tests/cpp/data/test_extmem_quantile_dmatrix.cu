@@ -7,6 +7,7 @@
 #include <tuple>   // for tuple
 #include <vector>  // for vector
 
+#include "../../../src/data/batch_utils.h"     // for StaticBatch
 #include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
 #include "../helpers.h"                        // for RandomDataGenerator
 #include "test_extmem_quantile_dmatrix.h"      // for TestExtMemQdmBasic
@@ -118,4 +119,54 @@ TEST_P(EllpackHostCacheTest, Basic) {
 INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, EllpackHostCacheTest,
                          ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f),
                                             ::testing::Bool()));
+
+class EllpackDeviceCacheTest : public ::testing::TestWithParam<float> {
+ public:
+  void Run() {
+    auto sparsity = this->GetParam();
+    auto ctx = MakeCUDACtx(0);
+    bst_idx_t n_samples = 4096, n_features = 16;
+    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
+                      .Batches(4)
+                      .Device(ctx.Device())
+                      .OnHost(true)
+                      .MinPageCacheBytes(0)
+                      .GenerateExtMemQuantileDMatrix("temp", true);
+
+    auto p_fmat_valid_d = RandomDataGenerator{n_samples, n_features, sparsity}
+                              .Batches(4)
+                              .Device(ctx.Device())
+                              .OnHost(true)
+                              .Ref(p_fmat)
+                              .MinPageCacheBytes(0)
+                              .MaxNumDevicePages(1)
+                              .GenerateExtMemQuantileDMatrix("temp", true);
+    auto p_fmat_valid_h = RandomDataGenerator{n_samples, n_features, sparsity}
+                              .Batches(4)
+                              .Device(ctx.Device())
+                              .OnHost(true)
+                              .Ref(p_fmat)
+                              .MinPageCacheBytes(0)
+                              .MaxNumDevicePages(0)
+                              .GenerateExtMemQuantileDMatrix("temp", true);
+
+    for (auto const& d_page :
+         p_fmat_valid_d->GetBatches<EllpackPage>(&ctx, cuda_impl::StaticBatch(true))) {
+      auto d_impl = d_page.Impl();
+      for (auto const& h_page :
+           p_fmat_valid_h->GetBatches<EllpackPage>(&ctx, cuda_impl::StaticBatch(true))) {
+        auto h_impl = h_page.Impl();
+        ASSERT_EQ(d_impl->n_rows, h_impl->n_rows);
+        ASSERT_EQ(d_impl->info.row_stride, h_impl->info.row_stride);
+        ASSERT_EQ(d_impl->info.n_symbols, h_impl->info.n_symbols);
+        ASSERT_EQ(d_impl->gidx_buffer.size(), h_impl->gidx_buffer.size());
+      }
+    }
+  }
+};
+
+TEST_P(EllpackDeviceCacheTest, Basic) { this->Run(); }
+
+INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, EllpackDeviceCacheTest,
+                         ::testing::Values(0.0f, 0.8f));
 }  // namespace xgboost::data
