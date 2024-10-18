@@ -112,11 +112,11 @@ class EllpackHostCacheStreamImpl {
 
     auto last_page = (orig_ptr + 1) == this->cache_->NumBatchesOrig();
     // No page concatenation is performed. If there's page concatenation, then the number
-    // of pages (will be) in the cache must be smaller than the input number of pages.
+    // of pages in the cache must be smaller than the input number of pages.
     bool no_concat = this->cache_->NumBatchesOrig() == this->cache_->buffer_rows.size();
     // Whether the page should be cached in device. If true, then we don't need to make a
-    // copy during write since new page is alwalys in device when page concatenation is
-    // enabled.
+    // copy during write since the temporary page is already in device when page
+    // concatenation is enabled.
     bool to_device = this->cache_->prefer_device &&
                      this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
 
@@ -194,7 +194,7 @@ class EllpackHostCacheStreamImpl {
   void Read(EllpackPage* out, bool prefetch_copy) const {
     auto page = this->cache_->At(this->ptr_);
     if (IsDevicePage(page)) {
-      // Page is already on device, no need to copy.
+      // Page is already in the device memory, no need to copy.
       prefetch_copy = false;
     }
     auto out_impl = out->Impl();
