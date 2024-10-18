@@ -112,12 +112,14 @@ inline void DeleteCacheFiles(std::map<std::string, std::shared_ptr<Cache>> const
                                            std::string prefix,
                                            std::map<std::string, std::shared_ptr<Cache>>* out) {
   auto& cache_info = *out;
-  auto name = MakeId(prefix, ptr);
+  auto name = MakeId(std::move(prefix), ptr);
   auto id = name + format;
   auto it = cache_info.find(id);
   if (it == cache_info.cend()) {
     cache_info[id].reset(new Cache{false, name, format, on_host});
-    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
+    if (!on_host) {
+      LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
+    }
   }
   return id;
 }

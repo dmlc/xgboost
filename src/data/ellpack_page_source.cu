@@ -118,7 +118,7 @@ class EllpackHostCacheStreamImpl {
     // copy during write since new page is alwalys in device when page concatenation is
     // enabled.
     bool to_device = this->cache_->prefer_device &&
-                     this->cache_->NumDevicePages() <= this->cache_->max_num_device_pages;
+                     this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
 
     auto commit_page = [&ctx](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
@@ -131,7 +131,6 @@ class EllpackHostCacheStreamImpl {
       LOG(INFO) << "Create cache page with size:" << common::HumanMemUnit(new_impl->MemCostBytes());
       return new_impl;
     };
-
     if (no_concat) {
       // Avoid a device->device->host copy.
       CHECK(new_page);
