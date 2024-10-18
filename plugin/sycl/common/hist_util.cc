@@ -130,7 +130,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
   const size_t n_columns = isDense ? gmat.nfeatures : gmat.row_stride;
   const auto* pgh = gpair_device.DataConst();
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
-  const uint32_t* offsets = gmat.index.Offset();
+  const uint32_t* offsets = gmat.cut.cut_ptrs_.ConstDevicePointer();
   const size_t nbins = gmat.nbins;
 
   const size_t max_work_group_size =
@@ -210,7 +210,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
   const GradientPair::ValueT* pgh =
     reinterpret_cast<const GradientPair::ValueT*>(gpair_device.DataConst());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
-  const uint32_t* offsets = gmat.index.Offset();
+  const uint32_t* offsets = gmat.cut.cut_ptrs_.ConstDevicePointer();
   FPType* hist_data = reinterpret_cast<FPType*>(hist->Data());
   const size_t nbins = gmat.nbins;
 
