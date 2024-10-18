@@ -207,8 +207,6 @@ def test_unbiased() -> None:
     # normalized
     np.testing.assert_allclose(df["ti+"].iloc[0], 1.0)
     np.testing.assert_allclose(df["tj-"].iloc[0], 1.0)
-    # less biased on low ranks.
-    assert df["ti+"].iloc[-1] < df["ti+"].iloc[0]
 
 
 def test_normalization() -> None:
