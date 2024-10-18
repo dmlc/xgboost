@@ -314,7 +314,7 @@ class LambdaRankObj : public FitIntercept {
       CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
     }
 
-    if (ti_plus_.Size() == 0 && param_.lambdarank_unbiased) {
+    if ((ti_plus_.Empty() || li_full_.Empty()) && param_.lambdarank_unbiased) {
       CHECK_EQ(iter, 0);
       ti_plus_ = linalg::Constant<double>(ctx_, 1.0, p_cache_->MaxPositionSize());
       tj_minus_ = linalg::Constant<double>(ctx_, 1.0, p_cache_->MaxPositionSize());
