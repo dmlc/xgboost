@@ -453,6 +453,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
       this->on_host_,
       this->min_cache_page_bytes_,
       std::numeric_limits<float>::quiet_NaN(),
+      this->max_num_device_pages_,
       Context{}.Threads(),
   };
   std::shared_ptr<DMatrix> p_fmat{
