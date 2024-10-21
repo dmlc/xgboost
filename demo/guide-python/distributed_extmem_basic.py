@@ -132,6 +132,8 @@ def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> N
             tmpdir=tmpdir,
             rank=coll.get_rank(),
         )
+        # Since we are running two workers on a single node, we should divide the number
+        # of threads between workers.
         n_threads = os.cpu_count()
         assert n_threads is not None
         n_threads = n_threads // coll.get_world_size()
@@ -139,6 +141,7 @@ def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> N
         Xy = xgboost.ExtMemQuantileDMatrix(
             it, missing=np.nan, enable_categorical=False, nthread=n_threads
         )
+        # Check the device is correctly set.
         if device == "cuda":
             assert int(os.environ["CUDA_VISIBLE_DEVICES"]) < coll.get_world_size()
         booster = xgboost.train(
@@ -167,6 +170,7 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
     with get_reusable_executor(
         max_workers=n_workers, initargs=(args.device,), initializer=initializer
     ) as pool:
+        # Pool man's currying
         fn = update_wrapper(
             partial(
                 hist_train, tmpdir=tmpdir, device=args.device, rabit_args=rabit_args
