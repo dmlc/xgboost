@@ -14,6 +14,17 @@ See :doc:`the tutorial </tutorials/external_memory>` for more details.
 
         Added :py:class:`~xgboost.ExtMemQuantileDMatrix`.
 
+To run the example, following packages in addition to XGBoost native dependencies are
+required:
+
+- scikit-learn
+
+If `device` is `cuda`, following are also needed:
+
+- cupy
+- rmm
+- python-cuda
+
 """
 
 import argparse

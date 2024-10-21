@@ -195,7 +195,8 @@ concatenation can be enabled by:
   }
 
 For more information about the sampling algorithm and its use in external memory training,
-see `this paper <https://arxiv.org/abs/2005.09148>`_.
+see `this paper <https://arxiv.org/abs/2005.09148>`_. Lastly, see following sections for
+best practices.
 
 ==========
 NVLink-C2C
