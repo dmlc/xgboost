@@ -171,10 +171,8 @@ void TestHistUpdaterInitData(const xgboost::tree::TrainParam& param, bool has_ne
   USMVector<GradientPair, MemoryType::on_device> gpair(qu, num_rows);
   GenerateRandomGPairs(qu, gpair.Data(), num_rows, has_neg_hess);
 
-  DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, n_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
   RegTree tree;
 
   auto* row_set_collection = updater.TestInitData(gmat, gpair, *p_fmat, tree);
@@ -228,10 +226,8 @@ void TestHistUpdaterBuildHistogramsLossGuide(const xgboost::tree::TrainParam& pa
   auto* gpair_ptr = gpair.Data();
   GenerateRandomGPairs(qu, gpair_ptr, num_rows, false);
 
-  DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, n_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   RegTree tree;
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -290,10 +286,8 @@ void TestHistUpdaterInitNewNode(const xgboost::tree::TrainParam& param, float sp
   auto* gpair_ptr = gpair.Data();
   GenerateRandomGPairs(qu, gpair_ptr, num_rows, false);
 
-  DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, n_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   RegTree tree;
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -348,10 +342,8 @@ void TestHistUpdaterEvaluateSplits(const xgboost::tree::TrainParam& param) {
   auto* gpair_ptr = gpair.Data();
   GenerateRandomGPairs(qu, gpair_ptr, num_rows, false);
 
-  DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, n_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   RegTree tree;
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -371,8 +363,8 @@ void TestHistUpdaterEvaluateSplits(const xgboost::tree::TrainParam& param) {
   // Check all splits manually. Save the best one and compare with the ans
   TreeEvaluator<GradientSumT> tree_evaluator(qu, param, num_columns);
   auto evaluator = tree_evaluator.GetEvaluator();
-  const uint32_t* cut_ptr = gmat.cut_device.Ptrs().DataConst();
-  const size_t size = gmat.cut_device.Ptrs().Size();
+  const uint32_t* cut_ptr = gmat.cut.cut_ptrs_.ConstDevicePointer();
+  const size_t size = gmat.cut.cut_ptrs_.Size();
   int n_better_splits = 0;
   const auto* hist_ptr = (*hist)[0].DataConst();
   std::vector<bst_float> best_loss_chg_des(1, -1);
@@ -412,11 +404,8 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
   auto qu = device_manager.GetQueue(ctx.Device());
 
   auto p_fmat = RandomDataGenerator{num_rows, num_columns, sparsity}.GenerateDMatrix();
-  sycl::DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
-
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, max_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), max_bins);
 
   RegTree tree;
   tree.ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -499,11 +488,8 @@ void TestHistUpdaterExpandWithLossGuide(const xgboost::tree::TrainParam& param) 
 
   std::vector<float> data = {7, 3, 15};
   auto p_fmat = GetDMatrixFromData(data, num_rows, num_columns);
-
-  DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, n_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   std::vector<GradientPair> gpair_host = {{1, 2}, {3, 1}, {1, 1}};
   USMVector<GradientPair, MemoryType::on_device> gpair(qu, gpair_host);
@@ -547,11 +533,8 @@ void TestHistUpdaterExpandWithDepthWise(const xgboost::tree::TrainParam& param) 
 
   std::vector<float> data = {7, 3, 15};
   auto p_fmat = GetDMatrixFromData(data, num_rows, num_columns);
-
-  DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
   common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, n_bins);
+  gmat.Init(qu, &ctx, p_fmat.get(), n_bins);
 
   std::vector<GradientPair> gpair_host = {{1, 2}, {3, 1}, {1, 1}};
   USMVector<GradientPair, MemoryType::on_device> gpair(qu, gpair_host);

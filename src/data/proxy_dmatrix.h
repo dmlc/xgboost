@@ -20,6 +20,11 @@
 namespace xgboost::data {
 /**
  * @brief A proxy to external iterator.
+ *
+ * @note The external iterator is actually 1-based since the first call to @ref Next
+ * increases the counter to 1 and it's necessary to call the @ref Next method at least
+ * once to get data. We here along with the page source together convert it back to
+ * 0-based by calling @ref Next in the page source's constructor.
  */
 template <typename ResetFn, typename NextFn>
 class DataIterProxy {
@@ -144,14 +149,14 @@ inline DMatrixProxy* MakeProxy(DMatrixHandle proxy) {
  * @brief Shape and basic information for data fetched from an external data iterator.
  */
 struct ExternalDataInfo {
-  bst_idx_t n_features = 0;             // The number of columns
-  bst_idx_t n_batches = 0;              // The number of batches
-  bst_idx_t accumulated_rows = 0;       // The total number of rows
-  bst_idx_t nnz = 0;                    // The number of non-missing values
-  std::vector<bst_idx_t> column_sizes;  // The nnz for each column
-  std::vector<bst_idx_t> batch_nnz;     // nnz for each batch
+  bst_idx_t n_features = 0;               // The number of columns
+  bst_idx_t n_batches = 0;                // The number of batches from the external data iterator
+  bst_idx_t accumulated_rows = 0;         // The total number of rows
+  bst_idx_t nnz = 0;                      // The number of non-missing values
+  std::vector<bst_idx_t> column_sizes;    // The nnz for each column
+  std::vector<bst_idx_t> batch_nnz;       // nnz for each batch
   std::vector<bst_idx_t> base_rowids{0};  // base_rowid
-  bst_idx_t row_stride{0};              // Used by ellpack
+  bst_idx_t row_stride{0};                // Used by ellpack, maximum row stride for all batches
 
   void Validate() const {
     CHECK(std::none_of(this->column_sizes.cbegin(), this->column_sizes.cend(), [&](auto f) {

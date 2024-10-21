@@ -1,5 +1,17 @@
 /**
  * Copyright 2024, XGBoost Contributors
+ *
+ * The @ref ExtMemQuantileDMatrix for GPU prefetches 2 pages by default and can optionally
+ * cache page in the device memory for the validation DMatrix. In addition, it can
+ * concatenate user-provded pages to form larger @ref EllpackPage to avoid small GPU
+ * kernels.
+ *
+ * Given 1 training DMatrix and 1 validation DMatrix, with 2 pages from the validation set
+ * cached in device memory, we can have at most 6 pages in the device memory. 2 from
+ * prefetched training DMatrix, 2 from prefetched validation DMatrix, and 2 in the device
+ * cache. If set the minimum @ref EllpackPage to 12GB in a 96GB GPU, 6 pages have 72GB
+ * size in total. Without accounting for memory fragmentation, this should be very close
+ * the upper boundary.
  */
 #include <memory>   // for shared_ptr
 #include <variant>  // for visit, get_if
@@ -27,7 +39,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *ctx,
     std::shared_ptr<DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>> iter,
     DMatrixHandle proxy_handle, BatchParam const &p, std::shared_ptr<DMatrix> ref,
-    ExtMemConfig const &config) {
+    std::int64_t max_quantile_blocks, ExtMemConfig const &config) {
   xgboost_NVTX_FN_RANGE();
 
   // A handle passed to external iterator.
@@ -40,17 +52,20 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->Info(),
-                          &ext_info);
+                          max_quantile_blocks, &ext_info);
   ext_info.SetInfo(ctx, &this->info_);
 
   /**
    * Calculate cache info
    */
-  auto cinfo = EllpackCacheInfo{p, config.missing};
+  // Prefer device storage for validation dataset since we can't hide it's data load
+  // overhead with inference. But the training procedures can confortably overlap with the
+  // data transfer.
+  auto cinfo = EllpackCacheInfo{p, (ref != nullptr), config.max_num_device_pages, config.missing};
   CalcCacheMapping(ctx, this->Info().IsDense(), cuts,
                    DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
-  auto n_batches = cinfo.buffer_rows.size();
+  auto n_batches = cinfo.buffer_rows.size();  // The number of batches after page concatenation.
   LOG(INFO) << "Number of batches after concatenation:" << n_batches;
 
   /**
@@ -85,6 +100,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
 
   if (this->on_host_) {
     CHECK_EQ(this->cache_info_.at(id)->Size(), n_batches);
+  } else {
+    CHECK_EQ(this->cache_info_.at(id)->Size(), ext_info.n_batches);
   }
   this->n_batches_ = this->cache_info_.at(id)->Size();
 }

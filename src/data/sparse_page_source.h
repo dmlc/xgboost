@@ -112,12 +112,14 @@ inline void DeleteCacheFiles(std::map<std::string, std::shared_ptr<Cache>> const
                                            std::string prefix,
                                            std::map<std::string, std::shared_ptr<Cache>>* out) {
   auto& cache_info = *out;
-  auto name = MakeId(prefix, ptr);
+  auto name = MakeId(std::move(prefix), ptr);
   auto id = name + format;
   auto it = cache_info.find(id);
   if (it == cache_info.cend()) {
     cache_info[id].reset(new Cache{false, name, format, on_host});
-    LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
+    if (!on_host) {
+      LOG(INFO) << "Make cache:" << cache_info[id]->ShardName();
+    }
   }
   return id;
 }
@@ -280,7 +282,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
     std::int32_t n_prefetch_batches = std::min(static_cast<bst_idx_t>(n_prefetches), n_batches);
     CHECK_GT(n_prefetch_batches, 0);
     CHECK_LE(n_prefetch_batches, this->param_.n_prefetch_batches);
-    std::size_t fetch_it = count_;
+    std::size_t fetch_it = this->count_;
 
     exce_.Rethrow();
     // Clear out the existing page before loading new ones. This helps reduce memory usage

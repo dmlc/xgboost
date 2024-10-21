@@ -115,7 +115,7 @@ def test_concat_pages_invalid() -> None:
                 "device": "cuda",
                 "subsample": 0.5,
                 "sampling_method": "gradient_based",
-                "extmem_concat_pages": True,
+                "extmem_single_page": True,
                 "objective": "reg:absoluteerror",
             },
             Xy,

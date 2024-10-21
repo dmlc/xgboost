@@ -12,23 +12,29 @@
 #include "test_extmem_quantile_dmatrix.h"      // for TestExtMemQdmBasic
 
 namespace xgboost::data {
+auto AssertEllpackEq(Context const* ctx, EllpackPageImpl const* lhs, EllpackPageImpl const* rhs) {
+  ASSERT_EQ(lhs->n_rows, rhs->n_rows);
+  ASSERT_EQ(lhs->info.row_stride, rhs->info.row_stride);
+  ASSERT_EQ(lhs->info.n_symbols, rhs->info.n_symbols);
+  ASSERT_EQ(lhs->gidx_buffer.size(), rhs->gidx_buffer.size());
+
+  ASSERT_EQ(lhs->Cuts().Values(), rhs->Cuts().Values());
+  ASSERT_EQ(lhs->Cuts().MinValues(), rhs->Cuts().MinValues());
+  ASSERT_EQ(lhs->Cuts().Ptrs(), rhs->Cuts().Ptrs());
+
+  std::vector<common::CompressedByteT> h_buf, d_buf;
+  auto h_acc = rhs->GetHostAccessor(ctx, &h_buf);
+  auto d_acc = rhs->GetHostAccessor(ctx, &d_buf);
+  for (std::size_t i = 0; i < h_acc.n_rows * h_acc.row_stride; ++i) {
+    ASSERT_EQ(h_acc.gidx_iter[i], d_acc.gidx_iter[i]);
+  }
+}
+
 class ExtMemQuantileDMatrixGpu : public ::testing::TestWithParam<std::tuple<float, bool>> {
  public:
   void Run(float sparsity, bool on_host) {
     auto equal = [](Context const* ctx, EllpackPage const& orig, EllpackPage const& sparse) {
-      auto const& orig_cuts = orig.Cuts();
-      auto const& sparse_cuts = sparse.Cuts();
-      ASSERT_EQ(orig_cuts.Values(), sparse_cuts.Values());
-      ASSERT_EQ(orig_cuts.MinValues(), sparse_cuts.MinValues());
-      ASSERT_EQ(orig_cuts.Ptrs(), sparse_cuts.Ptrs());
-
-      std::vector<common::CompressedByteT> h_orig, h_sparse;
-      [[maybe_unused]] auto orig_acc = orig.Impl()->GetHostAccessor(ctx, &h_orig, {});
-      [[maybe_unused]] auto sparse_acc = sparse.Impl()->GetHostAccessor(ctx, &h_sparse, {});
-      ASSERT_EQ(h_orig.size(), h_sparse.size());
-
-      auto equal = std::equal(h_orig.cbegin(), h_orig.cend(), h_sparse.cbegin());
-      ASSERT_TRUE(equal);
+      AssertEllpackEq(ctx, orig.Impl(), sparse.Impl());
     };
     auto no_missing = [](EllpackPage const& page) {
       return page.Impl()->IsDense();
@@ -84,27 +90,16 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
     ASSERT_EQ(p_fmat->Info().num_row_, p_ext_fmat->Info().num_row_);
     for (auto const& page_s : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       auto impl_s = page_s.Impl();
-      auto cuts = impl_s->CutsShared();
-      auto new_impl = std::make_unique<EllpackPageImpl>(&ctx, cuts, sparsity == 0.0,
+      auto cuts_s = impl_s->CutsShared();
+      auto new_impl = std::make_unique<EllpackPageImpl>(&ctx, cuts_s, sparsity == 0.0,
                                                         impl_s->info.row_stride, impl_s->n_rows);
       new_impl->CopyInfo(impl_s);
       bst_idx_t offset = 0;
       for (auto const& page_m : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         auto impl_m = page_m.Impl();
-        auto cuts_m = page_m.Impl()->CutsShared();
-        ASSERT_EQ(cuts->min_vals_.ConstHostVector(), cuts_m->min_vals_.ConstHostVector());
-        ASSERT_EQ(cuts->cut_values_.ConstHostVector(), cuts_m->cut_values_.ConstHostVector());
-        ASSERT_EQ(cuts->cut_ptrs_.ConstHostVector(), cuts_m->cut_ptrs_.ConstHostVector());
         offset += new_impl->Copy(&ctx, impl_m, offset);
       }
-      std::vector<common::CompressedByteT> buffer_s;
-      auto acc_s = impl_s->GetHostAccessor(&ctx, &buffer_s, {});
-      std::vector<common::CompressedByteT> buffer_m;
-      auto acc_m = new_impl->GetHostAccessor(&ctx, &buffer_m, {});
-      ASSERT_EQ(acc_m.row_stride * acc_m.n_rows, acc_s.row_stride * acc_s.n_rows);
-      for (std::size_t i = 0; i < acc_m.row_stride * acc_m.n_rows; ++i) {
-        ASSERT_EQ(acc_s.gidx_iter[i], acc_m.gidx_iter[i]);
-      }
+      AssertEllpackEq(&ctx, impl_s, new_impl.get());
     }
   }
 };
@@ -118,4 +113,68 @@ TEST_P(EllpackHostCacheTest, Basic) {
 INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, EllpackHostCacheTest,
                          ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f),
                                             ::testing::Bool()));
+
+class EllpackDeviceCacheTest : public ::testing::TestWithParam<float> {
+ public:
+  void Run() {
+    auto sparsity = this->GetParam();
+    auto ctx = MakeCUDACtx(0);
+    bst_idx_t n_samples = 2048, n_features = 16;
+    bst_bin_t n_bins = 32;
+    auto p = BatchParam{n_bins, tree::TrainParam::DftSparseThreshold()};
+    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
+                      .Batches(4)
+                      .Device(ctx.Device())
+                      .Bins(p.max_bin)
+                      .OnHost(true)
+                      .MinPageCacheBytes(0)
+                      .GenerateExtMemQuantileDMatrix("temp", true);
+
+    auto p_fmat_valid_d = RandomDataGenerator{n_samples, n_features, sparsity}
+                              .Batches(4)
+                              .Device(ctx.Device())
+                              .Bins(p.max_bin)
+                              .OnHost(true)
+                              .Ref(p_fmat)
+                              .MinPageCacheBytes(0)
+                              .MaxNumDevicePages(4)
+                              .GenerateExtMemQuantileDMatrix("temp", true);
+    ASSERT_EQ(p_fmat_valid_d->NumBatches(), 4);
+    auto p_fmat_valid_h = RandomDataGenerator{n_samples, n_features, sparsity}
+                              .Batches(4)
+                              .Device(ctx.Device())
+                              .Bins(p.max_bin)
+                              .OnHost(true)
+                              .Ref(p_fmat)
+                              .MinPageCacheBytes(0)
+                              .MaxNumDevicePages(0)
+                              .GenerateExtMemQuantileDMatrix("temp", true);
+    ASSERT_EQ(p_fmat_valid_h->NumBatches(), 4);
+
+    auto d_it = p_fmat_valid_d->GetBatches<EllpackPage>(&ctx, p).begin();
+    std::vector<std::shared_ptr<EllpackPage const>> d_pages;
+    auto h_it = p_fmat_valid_h->GetBatches<EllpackPage>(&ctx, p).begin();
+    std::vector<std::shared_ptr<EllpackPage const>> h_pages;
+    for (; !d_it.AtEnd(); ++d_it) {
+      d_pages.push_back(d_it.Page());
+    }
+    for (; !h_it.AtEnd(); ++h_it) {
+      h_pages.push_back(h_it.Page());
+    }
+    ASSERT_EQ(h_pages.size(), d_pages.size());
+    for (std::size_t i = 0; i < h_pages.size(); ++i) {
+      if (sparsity != 0.0) {
+        ASSERT_LT(d_pages[i]->Impl()->info.row_stride, p_fmat_valid_d->Info().num_col_);
+      } else {
+        ASSERT_EQ(d_pages[i]->Impl()->info.row_stride, p_fmat_valid_d->Info().num_col_);
+      }
+      AssertEllpackEq(&ctx, h_pages[i]->Impl(), d_pages[i]->Impl());
+    }
+  }
+};
+
+TEST_P(EllpackDeviceCacheTest, Basic) { this->Run(); }
+
+INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, EllpackDeviceCacheTest,
+                         ::testing::Values(0.0f, 0.8f));
 }  // namespace xgboost::data

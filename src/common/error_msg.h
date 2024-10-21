@@ -108,7 +108,7 @@ inline auto NoCategorical(std::string name) {
 
 inline void NoPageConcat(bool concat_pages) {
   if (concat_pages) {
-    LOG(FATAL) << "`extmem_concat_pages` must be false when there's no sampling or when it's "
+    LOG(FATAL) << "`extmem_single_page` must be false when there's no sampling or when it's "
                   "running on the CPU.";
   }
 }

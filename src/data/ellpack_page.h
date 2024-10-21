@@ -37,8 +37,7 @@ class EllpackPage {
    */
   explicit EllpackPage(Context const* ctx, DMatrix* dmat, const BatchParam& param);
 
-  /*! \brief Destructor. */
-  ~EllpackPage();
+  ~EllpackPage() noexcept(false);
 
   EllpackPage(EllpackPage&& that);
 

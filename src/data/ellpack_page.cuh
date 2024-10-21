@@ -185,8 +185,8 @@ class EllpackPageImpl {
    */
   template <typename AdapterBatch>
   explicit EllpackPageImpl(Context const* ctx, AdapterBatch batch, float missing, bool is_dense,
-                           common::Span<size_t const> row_counts_span,
-                           common::Span<FeatureType const> feature_types, size_t row_stride,
+                           common::Span<bst_idx_t const> row_counts_span,
+                           common::Span<FeatureType const> feature_types, bst_idx_t row_stride,
                            bst_idx_t n_rows, std::shared_ptr<common::HistogramCuts const> cuts);
   /**
    * @brief Constructor from an existing CPU gradient index.

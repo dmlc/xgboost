@@ -16,8 +16,8 @@
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for AllVisibleGPUs, SetDevice
 #include "../common/device_helpers.cuh"
-#include "../common/error_msg.h"    // for InplacePredictProxy
-#include "../data/batch_utils.cuh"  // for StaticBatch
+#include "../common/error_msg.h"  // for InplacePredictProxy
+#include "../data/batch_utils.h"  // for StaticBatch
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
 #include "../data/proxy_dmatrix.h"
@@ -32,7 +32,7 @@
 namespace xgboost::predictor {
 DMLC_REGISTRY_FILE_TAG(gpu_predictor);
 
-using data::cuda_impl::StaticBatch;
+using cuda_impl::StaticBatch;
 
 struct TreeView {
   RegTree::CategoricalSplitMatrix cats;

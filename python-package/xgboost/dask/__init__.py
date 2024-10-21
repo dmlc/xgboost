@@ -34,8 +34,6 @@ Optional dask configuration
 import collections
 import logging
 import platform
-import socket
-import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 from functools import partial, update_wrapper
@@ -683,6 +681,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
         label_upper_bound: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
         enable_categorical: bool = False,
+        max_quantile_batches: Optional[int] = None,
     ) -> None:
         super().__init__(
             client=client,
@@ -702,12 +701,14 @@ class DaskQuantileDMatrix(DaskDMatrix):
             enable_categorical=enable_categorical,
         )
         self.max_bin = max_bin
+        self.max_quantile_batches = max_quantile_batches
         self.is_quantile = True
         self._ref: Optional[int] = id(ref) if ref is not None else None
 
     def _create_fn_args(self, worker_addr: str) -> Dict[str, Any]:
         args = super()._create_fn_args(worker_addr)
         args["max_bin"] = self.max_bin
+        args["max_quantile_batches"] = self.max_quantile_batches
         if self._ref is not None:
             args["ref"] = self._ref
         return args
@@ -723,6 +724,7 @@ def _create_quantile_dmatrix(
     parts: Optional[_DataParts],
     max_bin: int,
     enable_categorical: bool,
+    max_quantile_batches: Optional[int],
     ref: Optional[DMatrix] = None,
 ) -> QuantileDMatrix:
     worker = distributed.get_worker()
@@ -737,6 +739,7 @@ def _create_quantile_dmatrix(
             max_bin=max_bin,
             ref=ref,
             enable_categorical=enable_categorical,
+            max_quantile_batches=max_quantile_batches,
         )
         return d
 
@@ -755,6 +758,7 @@ def _create_quantile_dmatrix(
         max_bin=max_bin,
         ref=ref,
         enable_categorical=enable_categorical,
+        max_quantile_batches=max_quantile_batches,
     )
     return dmatrix
 
