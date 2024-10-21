@@ -431,7 +431,6 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
             n_features=n_features,
             n_categories=n_cats,
             onehot=onehot,
-            sparsity=0.5,
         )
         Xy = xgb.DMatrix(cat, label, enable_categorical=enable_categorical)
     return Xy
