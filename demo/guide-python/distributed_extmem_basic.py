@@ -136,7 +136,7 @@ def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> N
         # of threads between workers.
         n_threads = os.cpu_count()
         assert n_threads is not None
-        n_threads = n_threads // coll.get_world_size()
+        n_threads = max(n_threads // coll.get_world_size(), 1)
         it = Iterator(device, files)
         Xy = xgboost.ExtMemQuantileDMatrix(
             it, missing=np.nan, enable_categorical=False, nthread=n_threads
@@ -145,7 +145,12 @@ def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> N
         if device == "cuda":
             assert int(os.environ["CUDA_VISIBLE_DEVICES"]) < coll.get_world_size()
         booster = xgboost.train(
-            {"tree_method": "hist", "max_depth": 4, "device": it.device},
+            {
+                "tree_method": "hist",
+                "max_depth": 4,
+                "device": it.device,
+                "nthread": n_threads,
+            },
             Xy,
             evals=[(Xy, "Train")],
             num_boost_round=10,

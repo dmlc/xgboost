@@ -118,7 +118,13 @@ def test_cross_validation_demo() -> None:
 
 def test_external_memory_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "external_memory.py")
-    cmd = ["python", script]
+    cmd = ["python", script, "--device=cpu"]
+    subprocess.check_call(cmd)
+
+
+def test_distributed_extmem_basic_demo() -> None:
+    script = os.path.join(PYTHON_DEMO_DIR, "distributed_extmem_basic.py")
+    cmd = ["python", script, "--device=cpu"]
     subprocess.check_call(cmd)
 
 
