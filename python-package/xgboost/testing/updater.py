@@ -2,7 +2,7 @@
 
 import json
 from functools import partial, update_wrapper
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pytest
@@ -10,6 +10,8 @@ import pytest
 import xgboost as xgb
 import xgboost.testing as tm
 from xgboost.data import is_pd_cat_dtype
+
+from ..core import DataIter
 
 
 def get_basescore(model: xgb.XGBModel) -> float:
@@ -346,13 +348,106 @@ USE_ONEHOT = np.iinfo(np.int32).max
 USE_PART = 1
 
 
+class CatIter(DataIter):
+    """An iterator for testing categorical features."""
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        n_samples_per_batch: int,
+        n_features: int,
+        *,
+        n_batches: int,
+        n_cats: int,
+        onehot: bool,
+        device: str,
+    ) -> None:
+        super().__init__(cache_prefix="cache")
+        self.n_samples_per_batch = n_samples_per_batch
+        self.n_features = n_features
+        self.n_batches = n_batches
+        self.n_cats = n_cats
+        self.onehot = onehot
+        self.device = device
+
+        self._it = 0
+
+    def next(self, input_data: Callable) -> bool:
+        if self._it == self.n_batches:
+            # return False to let XGBoost know this is the end of iteration
+            return False
+        cat, y = tm.make_categorical(
+            self.n_samples_per_batch,
+            self.n_features,
+            n_categories=self.n_cats,
+            onehot=self.onehot,
+            random_state=self.n_samples_per_batch * self.n_features * self._it,
+        )
+        if self.device == "cuda":
+            import cudf
+            import cupy
+
+            cat = cudf.DataFrame(cat)
+            y = cupy.array(y)
+        input_data(data=cat, label=y)
+        self._it += 1
+        return True
+
+    def reset(self) -> None:
+        self._it = 0
+
+
+def _create_dmatrix(  # pylint: disable=too-many-arguments
+    n_samples: int,
+    n_features: int,
+    *,
+    n_cats: int,
+    device: str,
+    tree_method: str,
+    onehot: bool,
+    extmem: bool,
+    enable_categorical: bool,
+) -> xgb.DMatrix:
+    if extmem:
+        n_batches = 2 if n_samples >= 2 else 1
+        it = CatIter(
+            n_samples // n_batches,
+            n_features,
+            n_batches=n_batches,
+            n_cats=n_cats,
+            onehot=onehot,
+            device=device,
+        )
+        if tree_method == "hist":
+            Xy: xgb.DMatrix = xgb.ExtMemQuantileDMatrix(
+                it, enable_categorical=enable_categorical
+            )
+        elif tree_method == "approx":
+            Xy = xgb.DMatrix(it, enable_categorical=enable_categorical)
+        else:
+            raise ValueError(f"tree_method {tree_method} not supported.")
+    else:
+        cat, label = tm.make_categorical(
+            n_samples,
+            n_features=n_features,
+            n_categories=n_cats,
+            onehot=onehot,
+            sparsity=0.5,
+        )
+        Xy = xgb.DMatrix(cat, label, enable_categorical=enable_categorical)
+    return Xy
+
+
 def check_categorical_ohe(  # pylint: disable=too-many-arguments
-    *, rows: int, cols: int, rounds: int, cats: int, device: str, tree_method: str
+    *,
+    rows: int,
+    cols: int,
+    rounds: int,
+    cats: int,
+    device: str,
+    tree_method: str,
+    extmem: bool,
 ) -> None:
     "Test for one-hot encoding with categorical data."
-
-    onehot, label = tm.make_categorical(rows, cols, cats, onehot=True)
-    cat, _ = tm.make_categorical(rows, cols, cats, onehot=False)
 
     by_etl_results: Dict[str, Dict[str, List[float]]] = {}
     by_builtin_results: Dict[str, Dict[str, List[float]]] = {}
@@ -364,21 +459,39 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         "device": device,
     }
 
-    m = xgb.DMatrix(onehot, label, enable_categorical=False)
+    Xy_onehot = _create_dmatrix(
+        rows,
+        cols,
+        n_cats=cats,
+        device=device,
+        onehot=True,
+        tree_method=tree_method,
+        extmem=extmem,
+        enable_categorical=False,
+    )
     xgb.train(
         parameters,
-        m,
+        Xy_onehot,
         num_boost_round=rounds,
-        evals=[(m, "Train")],
+        evals=[(Xy_onehot, "Train")],
         evals_result=by_etl_results,
     )
 
-    m = xgb.DMatrix(cat, label, enable_categorical=True)
+    Xy_cat = _create_dmatrix(
+        rows,
+        cols,
+        n_cats=cats,
+        device=device,
+        tree_method=tree_method,
+        onehot=False,
+        extmem=extmem,
+        enable_categorical=True,
+    )
     xgb.train(
         parameters,
-        m,
+        Xy_cat,
         num_boost_round=rounds,
-        evals=[(m, "Train")],
+        evals=[(Xy_cat, "Train")],
         evals_result=by_builtin_results,
     )
 
@@ -398,12 +511,11 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     # switch to partition-based splits
     parameters["max_cat_to_onehot"] = USE_PART
     parameters["reg_lambda"] = 0
-    m = xgb.DMatrix(cat, label, enable_categorical=True)
     xgb.train(
         parameters,
-        m,
+        Xy_cat,
         num_boost_round=rounds,
-        evals=[(m, "Train")],
+        evals=[(Xy_cat, "Train")],
         evals_result=by_grouping,
     )
     rmse_oh = by_builtin_results["Train"]["rmse"]
@@ -416,23 +528,36 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
     by_grouping = {}
     xgb.train(
         parameters,
-        m,
+        Xy_cat,
         num_boost_round=32,
-        evals=[(m, "Train")],
+        evals=[(Xy_cat, "Train")],
         evals_result=by_grouping,
     )
     assert tm.non_increasing(by_grouping["Train"]["rmse"]), by_grouping
 
 
-def check_categorical_missing(
-    rows: int, cols: int, cats: int, device: str, tree_method: str
+def check_categorical_missing(  # pylint: disable=too-many-arguments
+    rows: int,
+    cols: int,
+    cats: int,
+    *,
+    device: str,
+    tree_method: str,
+    extmem: bool,
 ) -> None:
     """Check categorical data with missing values."""
     parameters: Dict[str, Any] = {"tree_method": tree_method, "device": device}
-    cat, label = tm.make_categorical(
-        rows, n_features=cols, n_categories=cats, onehot=False, sparsity=0.5
+    Xy = _create_dmatrix(
+        rows,
+        cols,
+        n_cats=cats,
+        device=device,
+        tree_method=tree_method,
+        onehot=False,
+        extmem=extmem,
+        enable_categorical=True,
     )
-    Xy = xgb.DMatrix(cat, label, enable_categorical=True)
+    label = Xy.get_label()
 
     def run(max_cat_to_onehot: int) -> None:
         # Test with onehot splits

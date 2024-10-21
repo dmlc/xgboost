@@ -392,6 +392,7 @@ def make_categorical(
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
     shuffle: bool = False,
+    random_state: int = 1994,
 ) -> Tuple[ArrayLike, np.ndarray]:
     """Generate categorical features for test.
 
@@ -414,7 +415,7 @@ def make_categorical(
     """
     import pandas as pd
 
-    rng = np.random.RandomState(1994)
+    rng = np.random.RandomState(random_state)
 
     pd_dict = {}
     for i in range(n_features + 1):
