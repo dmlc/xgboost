@@ -176,6 +176,8 @@ def test_quantile_objective(
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
 def test_categorical_missing(tree_method: str) -> None:
     check_categorical_missing(
         1024, 4, 5, device="cuda", tree_method=tree_method, extmem=True
@@ -183,6 +185,8 @@ def test_categorical_missing(tree_method: str) -> None:
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
 def test_categorical_ohe(tree_method: str) -> None:
     check_categorical_ohe(
         rows=1024,
