@@ -26,7 +26,7 @@ def make_batches(
     n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int
 ) -> List[Tuple[str, str]]:
     files: List[Tuple[str, str]] = []
-    rng = np.random.RandomState(1994)
+    rng = np.random.RandomState(rank)
     for i in range(n_batches):
         X, y = make_regression(n_samples_per_batch, n_features, random_state=rng)
         X_path = os.path.join(tmpdir, f"X-r{rank}-{i}.npy")
