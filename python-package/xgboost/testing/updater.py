@@ -383,8 +383,8 @@ class CatIter(DataIter):
             random_state=self.n_samples_per_batch * self.n_features * self._it,
         )
         if self.device == "cuda":
-            import cudf
-            import cupy
+            import cudf  # pylint: disable=import-error
+            import cupy  # pylint: disable=import-error
 
             cat = cudf.DataFrame(cat)
             y = cupy.array(y)
