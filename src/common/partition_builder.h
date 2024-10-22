@@ -11,16 +11,16 @@
 
 #include <algorithm>
 #include <cstddef>  // for size_t
-#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
 
+#include "../tree/sample_position.h"  // for SamplePosition
 #include "categorical.h"
 #include "column_matrix.h"
+#include "row_set.h"  // for RowSetCollection
 #include "xgboost/context.h"
 #include "xgboost/tree_model.h"
-#include "../tree/sample_position.h"  // for SamplePosition
 
 namespace xgboost::common {
 // The builder is required for samples partition to left and rights children for set of nodes

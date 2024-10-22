@@ -61,6 +61,9 @@ class GradientIndexPageSource
         sparse_thresh_{param.sparse_thresh} {
     this->source_ = source;
     this->SetCuts(std::move(cuts));
+    if (this->cuts_.HasCategorical()) {
+      CHECK(!this->feature_types_.empty());
+    }
     this->Fetch();
   }
 
@@ -97,6 +100,9 @@ class ExtGradientIndexPageSource
     this->source_->Reset();
     CHECK(this->source_->Next());
     this->SetCuts(std::move(cuts));
+    if (this->cuts_.HasCategorical()) {
+      CHECK(!this->feature_types_.empty());
+    }
     this->Fetch();
   }
 
