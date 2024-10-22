@@ -349,7 +349,7 @@ USE_ONEHOT = np.iinfo(np.int32).max
 USE_PART = 1
 
 
-class CatIter(DataIter):
+class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
     """An iterator for testing categorical features."""
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -372,7 +372,7 @@ class CatIter(DataIter):
         self.onehot = onehot
         self.device = device
 
-        Xs, ys = [], []
+        xs, ys = [], []
         for i in range(n_batches):
             cat, y = tm.make_categorical(
                 self.n_samples_per_batch,
@@ -382,25 +382,26 @@ class CatIter(DataIter):
                 sparsity=self.sparsity,
                 random_state=self.n_samples_per_batch * self.n_features * i,
             )
-            Xs.append(cat)
+            xs.append(cat)
             ys.append(y)
 
-        self.Xs = Xs
+        self.xs = xs
         self.ys = ys
 
-        self.X = concat(Xs)
+        self.x = concat(xs)
         self.y = concat(ys)
 
         self._it = 0
 
-    def Xy(self) -> tuple:
-        return self.X, self.y
+    def xy(self) -> tuple:
+        """Return the concatenaed data."""
+        return self.x, self.y
 
     def next(self, input_data: Callable) -> bool:
         if self._it == self.n_batches:
             # return False to let XGBoost know this is the end of iteration
             return False
-        X, y = self.Xs[self._it], self.ys[self._it]
+        X, y = self.xs[self._it], self.ys[self._it]
         if self.device == "cuda":
             import cudf  # pylint: disable=import-error
             import cupy  # pylint: disable=import-error
@@ -447,7 +448,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
         else:
             raise ValueError(f"tree_method {tree_method} not supported.")
     else:
-        cat, label = it.Xy()
+        cat, label = it.xy()
         Xy = xgb.DMatrix(cat, label, enable_categorical=enable_categorical)
     return Xy
 
