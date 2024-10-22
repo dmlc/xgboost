@@ -45,3 +45,25 @@ jobs:
         cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON -DUSE_CUDA=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.4/bin/nvcc -DCMAKE_CUDA_ARCHITECTURES=75
         ninja -v
         ./testxgboost
+  build-gpu-win64:
+    name: Build GPU (Windows)
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=windows-gpu
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: "true"
+    - name: Build and run gtest
+      shell: powershell
+      run: |
+        nvcc --version
+        git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
+        mkdir build
+        cd build
+        cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_PREFIX_PATH="$(Get-Location)/../cccl"
+        if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+        cmake --build . --config Release -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
+        if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+        build/testxgboost.exe
+        if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
