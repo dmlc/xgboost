@@ -427,7 +427,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
     extmem: bool,
     enable_categorical: bool,
 ) -> xgb.DMatrix:
-    n_batches = min(2, n_samples)
+    n_batches = max(min(2, n_samples), 1)
     it = CatIter(
         n_samples // n_batches,
         n_features,
