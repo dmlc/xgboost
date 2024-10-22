@@ -104,6 +104,8 @@ def test_extmem_qdm(
     strategies.booleans(),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
 def test_categorical_extmem_qdm(
     n_samples_per_batch: int,
     n_batches: int,
@@ -225,5 +227,7 @@ def test_categorical_ohe(tree_method: str) -> None:
     )
 
 
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
 def test_invalid_cat_batches() -> None:
     check_invalid_cat_batches("cuda")
