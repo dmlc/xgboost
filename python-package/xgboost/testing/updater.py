@@ -206,7 +206,6 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
     n_bins: int,
     device: str,
     on_host: bool,
-    onehot: bool,
     is_cat: bool,
 ) -> None:
     """Basic test for the `ExtMemQuantileDMatrix`."""
@@ -218,7 +217,8 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
             n_batches=n_batches,
             n_cats=5,
             sparsity=0.0,
-            onehot=onehot,
+            cat_ratio=0.5,
+            onehot=False,
             device=device,
             cache="cache",
         )
@@ -249,7 +249,8 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
             n_batches=n_batches,
             n_cats=5,
             sparsity=0.0,
-            onehot=onehot,
+            cat_ratio=0.5,
+            onehot=False,
             device=device,
             cache=None,
         )
@@ -393,6 +394,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
         n_features,
         n_batches=n_batches,
         sparsity=sparsity,
+        cat_ratio=1.0,
         n_cats=n_cats,
         onehot=onehot,
         device=device,

@@ -50,13 +50,13 @@ class CatIter(xgboost.DataIter):  # pylint: disable=too-many-instance-attributes
         n_batches: int,
         n_cats: int,
         sparsity: float,
+        cat_ratio: float,
         onehot: bool,
         device: str,
         cache: Optional[str],
     ) -> None:
         super().__init__(cache_prefix=cache)
         self.n_samples_per_batch = n_samples_per_batch
-        self.n_features = n_features
         self.n_batches = n_batches
         self.n_cats = n_cats
         self.sparsity = sparsity
@@ -67,11 +67,12 @@ class CatIter(xgboost.DataIter):  # pylint: disable=too-many-instance-attributes
         for i in range(n_batches):
             cat, y = tm.make_categorical(
                 self.n_samples_per_batch,
-                self.n_features,
+                n_features,
                 n_categories=self.n_cats,
                 onehot=self.onehot,
+                cat_ratio=cat_ratio,
                 sparsity=self.sparsity,
-                random_state=self.n_samples_per_batch * self.n_features * i,
+                random_state=self.n_samples_per_batch * n_features * i,
             )
             xs.append(cat)
             ys.append(y)

@@ -93,7 +93,6 @@ def test_extmem_qdm(
         device="cuda",
         on_host=on_host,
         is_cat=False,
-        onehot=False,
     )
 
 
@@ -102,7 +101,6 @@ def test_extmem_qdm(
     strategies.integers(1, 4),
     strategies.integers(2, 16),
     strategies.booleans(),
-    strategies.booleans(),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
 def test_categorical_extmem_qdm(
@@ -110,7 +108,6 @@ def test_categorical_extmem_qdm(
     n_batches: int,
     n_bins: int,
     on_host: bool,
-    onehot: bool,
 ) -> None:
     check_extmem_qdm(
         n_samples_per_batch,
@@ -119,7 +116,6 @@ def test_categorical_extmem_qdm(
         n_bins=n_bins,
         device="cuda",
         on_host=on_host,
-        onehot=onehot,
         is_cat=True,
     )
 
