@@ -2,7 +2,7 @@
 
 import json
 from functools import partial, update_wrapper
-from typing import Any, Callable, Dict, List
+from typing import Any, Dict, List
 
 import numpy as np
 import pytest
@@ -11,8 +11,8 @@ import xgboost as xgb
 import xgboost.testing as tm
 from xgboost.data import is_pd_cat_dtype
 
-from ..compat import concat
 from ..core import DataIter
+from .data_iter import CatIter
 
 
 def get_basescore(model: xgb.XGBModel) -> float:
@@ -206,18 +206,32 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
     n_bins: int,
     device: str,
     on_host: bool,
+    onehot: bool,
+    is_cat: bool,
 ) -> None:
     """Basic test for the `ExtMemQuantileDMatrix`."""
 
-    it = tm.IteratorForTest(
-        *tm.make_batches(
-            n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
-        ),
-        cache="cache",
-        on_host=on_host,
-    )
+    if is_cat:
+        it: DataIter = CatIter(
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
+            n_batches=n_batches,
+            n_cats=5,
+            sparsity=0.0,
+            onehot=onehot,
+            device=device,
+            cache="cache",
+        )
+    else:
+        it = tm.IteratorForTest(
+            *tm.make_batches(
+                n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
+            ),
+            cache="cache",
+            on_host=on_host,
+        )
 
-    Xy_it = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins)
+    Xy_it = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
     with pytest.raises(ValueError, match="Only the `hist`"):
         booster_it = xgb.train(
             {"device": device, "tree_method": "approx", "max_bin": n_bins},
@@ -228,13 +242,25 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
     booster_it = xgb.train(
         {"device": device, "max_bin": n_bins}, Xy_it, num_boost_round=8
     )
-    it = tm.IteratorForTest(
-        *tm.make_batches(
-            n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
-        ),
-        cache=None,
-    )
-    Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
+    if is_cat:
+        it = CatIter(
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
+            n_batches=n_batches,
+            n_cats=5,
+            sparsity=0.0,
+            onehot=onehot,
+            device=device,
+            cache=None,
+        )
+    else:
+        it = tm.IteratorForTest(
+            *tm.make_batches(
+                n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
+            ),
+            cache=None,
+        )
+    Xy = xgb.QuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
     booster = xgb.train({"device": device, "max_bin": n_bins}, Xy, num_boost_round=8)
 
     cut_it = Xy_it.get_quantile_cut()
@@ -349,73 +375,6 @@ USE_ONEHOT = np.iinfo(np.int32).max
 USE_PART = 1
 
 
-class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
-    """An iterator for testing categorical features."""
-
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        n_samples_per_batch: int,
-        n_features: int,
-        *,
-        n_batches: int,
-        n_cats: int,
-        sparsity: float,
-        onehot: bool,
-        device: str,
-    ) -> None:
-        super().__init__(cache_prefix="cache")
-        self.n_samples_per_batch = n_samples_per_batch
-        self.n_features = n_features
-        self.n_batches = n_batches
-        self.n_cats = n_cats
-        self.sparsity = sparsity
-        self.onehot = onehot
-        self.device = device
-
-        xs, ys = [], []
-        for i in range(n_batches):
-            cat, y = tm.make_categorical(
-                self.n_samples_per_batch,
-                self.n_features,
-                n_categories=self.n_cats,
-                onehot=self.onehot,
-                sparsity=self.sparsity,
-                random_state=self.n_samples_per_batch * self.n_features * i,
-            )
-            xs.append(cat)
-            ys.append(y)
-
-        self.xs = xs
-        self.ys = ys
-
-        self.x = concat(xs)
-        self.y = concat(ys)
-
-        self._it = 0
-
-    def xy(self) -> tuple:
-        """Return the concatenated data."""
-        return self.x, self.y
-
-    def next(self, input_data: Callable) -> bool:
-        if self._it == self.n_batches:
-            # return False to let XGBoost know this is the end of iteration
-            return False
-        X, y = self.xs[self._it], self.ys[self._it]
-        if self.device == "cuda":
-            import cudf  # pylint: disable=import-error
-            import cupy  # pylint: disable=import-error
-
-            X = cudf.DataFrame(X)
-            y = cupy.array(y)
-        input_data(data=X, label=y)
-        self._it += 1
-        return True
-
-    def reset(self) -> None:
-        self._it = 0
-
-
 def _create_dmatrix(  # pylint: disable=too-many-arguments
     n_samples: int,
     n_features: int,
@@ -437,6 +396,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
         n_cats=n_cats,
         onehot=onehot,
         device=device,
+        cache="cache" if extmem else None,
     )
     if extmem:
         if tree_method == "hist":
