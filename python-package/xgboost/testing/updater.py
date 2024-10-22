@@ -394,7 +394,7 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
         self._it = 0
 
     def xy(self) -> tuple:
-        """Return the concatenaed data."""
+        """Return the concatenated data."""
         return self.x, self.y
 
     def next(self, input_data: Callable) -> bool:
