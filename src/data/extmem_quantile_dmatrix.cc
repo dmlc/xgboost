@@ -107,6 +107,9 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   }
   CHECK_EQ(batch_cnt, ext_info.n_batches);
   CHECK_EQ(n_total_samples, ext_info.accumulated_rows);
+  if (cuts.HasCategorical()) {
+    CHECK(!this->Info().feature_types.Empty());
+  }
 }
 
 [[nodiscard]] BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndexImpl() {
