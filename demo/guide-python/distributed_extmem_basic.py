@@ -175,7 +175,7 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
     with get_reusable_executor(
         max_workers=n_workers, initargs=(args.device,), initializer=initializer
     ) as pool:
-        # Pool man's currying
+        # Poor man's currying
         fn = update_wrapper(
             partial(
                 hist_train, tmpdir=tmpdir, device=args.device, rabit_args=rabit_args

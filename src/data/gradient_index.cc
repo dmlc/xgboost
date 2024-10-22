@@ -217,7 +217,7 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
   }
 
   auto get_bin_val = [&](auto &column) {
-    auto bin_idx = column[ridx];
+    auto bin_idx = column[ridx - this->base_rowid];
     if (bin_idx == common::DenseColumnIter<uint8_t, true>::kMissingId) {
       return std::numeric_limits<float>::quiet_NaN();
     }
@@ -233,7 +233,7 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
       } else {
         return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
           auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
-          auto bin_idx = column[ridx];
+          auto bin_idx = column[ridx - this->base_rowid];
           return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
         });
       }

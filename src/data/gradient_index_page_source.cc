@@ -35,11 +35,16 @@ void ExtGradientIndexPageSource::Fetch() {
     CHECK_NE(cuts_.Values().size(), 0);
     HostAdapterDispatch(proxy_, [this](auto const& value) {
       CHECK(this->proxy_->Ctx()->IsCPU()) << "All batches must use the same device type.";
+      auto h_feature_types = proxy_->Info().feature_types.ConstHostSpan();
       // This does three things:
       // - Generate CSR matrix for gradient index.
       // - Generate the column matrix for gradient index.
       // - Concatenate the meta info.
       common::HistogramCuts cuts{this->cuts_};
+      CHECK_EQ(this->cuts_.MaxCategory(), cuts.MaxCategory());
+      if (this->cuts_.HasCategorical()) {
+        CHECK(!h_feature_types.empty());
+      }
       this->page_.reset();
       // The external iterator has the data when the `next` method is called. Therefore,
       // it's one step ahead of this source.
@@ -54,8 +59,8 @@ void ExtGradientIndexPageSource::Fetch() {
       bst_idx_t rbegin = 0;
       // Use `value.NumRows()` for the size of a single batch. Unlike the
       // `IterativeDMatrix`, external memory doesn't concatenate the pages.
-      this->page_->PushAdapterBatch(ctx_, rbegin, prev_sum, value, this->missing_,
-                                    this->feature_types_, this->p_.sparse_thresh, value.NumRows());
+      this->page_->PushAdapterBatch(ctx_, rbegin, prev_sum, value, this->missing_, h_feature_types,
+                                    this->p_.sparse_thresh, value.NumRows());
       this->page_->PushAdapterBatchColumns(ctx_, value, this->missing_, rbegin);
       this->info_->Extend(proxy_->Info(), false, false);
     });

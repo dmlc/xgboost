@@ -2,7 +2,7 @@
 
 import json
 from functools import partial, update_wrapper
-from typing import Any, Callable, Dict, List
+from typing import Any, Dict, List
 
 import numpy as np
 import pytest
@@ -12,6 +12,7 @@ import xgboost.testing as tm
 from xgboost.data import is_pd_cat_dtype
 
 from ..core import DataIter
+from .data_iter import CatIter
 
 
 def get_basescore(model: xgb.XGBModel) -> float:
@@ -205,18 +206,32 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
     n_bins: int,
     device: str,
     on_host: bool,
+    is_cat: bool,
 ) -> None:
     """Basic test for the `ExtMemQuantileDMatrix`."""
 
-    it = tm.IteratorForTest(
-        *tm.make_batches(
-            n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
-        ),
-        cache="cache",
-        on_host=on_host,
-    )
+    if is_cat:
+        it: DataIter = CatIter(
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
+            n_batches=n_batches,
+            n_cats=5,
+            sparsity=0.0,
+            cat_ratio=0.5,
+            onehot=False,
+            device=device,
+            cache="cache",
+        )
+    else:
+        it = tm.IteratorForTest(
+            *tm.make_batches(
+                n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
+            ),
+            cache="cache",
+            on_host=on_host,
+        )
 
-    Xy_it = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins)
+    Xy_it = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
     with pytest.raises(ValueError, match="Only the `hist`"):
         booster_it = xgb.train(
             {"device": device, "tree_method": "approx", "max_bin": n_bins},
@@ -227,13 +242,26 @@ def check_extmem_qdm(  # pylint: disable=too-many-arguments
     booster_it = xgb.train(
         {"device": device, "max_bin": n_bins}, Xy_it, num_boost_round=8
     )
-    it = tm.IteratorForTest(
-        *tm.make_batches(
-            n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
-        ),
-        cache=None,
-    )
-    Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
+    if is_cat:
+        it = CatIter(
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
+            n_batches=n_batches,
+            n_cats=5,
+            sparsity=0.0,
+            cat_ratio=0.5,
+            onehot=False,
+            device=device,
+            cache=None,
+        )
+    else:
+        it = tm.IteratorForTest(
+            *tm.make_batches(
+                n_samples_per_batch, n_features, n_batches, use_cupy=device != "cpu"
+            ),
+            cache=None,
+        )
+    Xy = xgb.QuantileDMatrix(it, max_bin=n_bins, enable_categorical=is_cat)
     booster = xgb.train({"device": device, "max_bin": n_bins}, Xy, num_boost_round=8)
 
     cut_it = Xy_it.get_quantile_cut()
@@ -348,75 +376,31 @@ USE_ONEHOT = np.iinfo(np.int32).max
 USE_PART = 1
 
 
-class CatIter(DataIter):
-    """An iterator for testing categorical features."""
-
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        n_samples_per_batch: int,
-        n_features: int,
-        *,
-        n_batches: int,
-        n_cats: int,
-        onehot: bool,
-        device: str,
-    ) -> None:
-        super().__init__(cache_prefix="cache")
-        self.n_samples_per_batch = n_samples_per_batch
-        self.n_features = n_features
-        self.n_batches = n_batches
-        self.n_cats = n_cats
-        self.onehot = onehot
-        self.device = device
-
-        self._it = 0
-
-    def next(self, input_data: Callable) -> bool:
-        if self._it == self.n_batches:
-            # return False to let XGBoost know this is the end of iteration
-            return False
-        cat, y = tm.make_categorical(
-            self.n_samples_per_batch,
-            self.n_features,
-            n_categories=self.n_cats,
-            onehot=self.onehot,
-            random_state=self.n_samples_per_batch * self.n_features * self._it,
-        )
-        if self.device == "cuda":
-            import cudf  # pylint: disable=import-error
-            import cupy  # pylint: disable=import-error
-
-            cat = cudf.DataFrame(cat)
-            y = cupy.array(y)
-        input_data(data=cat, label=y)
-        self._it += 1
-        return True
-
-    def reset(self) -> None:
-        self._it = 0
-
-
 def _create_dmatrix(  # pylint: disable=too-many-arguments
     n_samples: int,
     n_features: int,
     *,
     n_cats: int,
     device: str,
+    sparsity: float,
     tree_method: str,
     onehot: bool,
     extmem: bool,
     enable_categorical: bool,
 ) -> xgb.DMatrix:
+    n_batches = max(min(2, n_samples), 1)
+    it = CatIter(
+        n_samples // n_batches,
+        n_features,
+        n_batches=n_batches,
+        sparsity=sparsity,
+        cat_ratio=1.0,
+        n_cats=n_cats,
+        onehot=onehot,
+        device=device,
+        cache="cache" if extmem else None,
+    )
     if extmem:
-        n_batches = 2 if n_samples >= 2 else 1
-        it = CatIter(
-            n_samples // n_batches,
-            n_features,
-            n_batches=n_batches,
-            n_cats=n_cats,
-            onehot=onehot,
-            device=device,
-        )
         if tree_method == "hist":
             Xy: xgb.DMatrix = xgb.ExtMemQuantileDMatrix(
                 it, enable_categorical=enable_categorical
@@ -426,12 +410,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
         else:
             raise ValueError(f"tree_method {tree_method} not supported.")
     else:
-        cat, label = tm.make_categorical(
-            n_samples,
-            n_features=n_features,
-            n_categories=n_cats,
-            onehot=onehot,
-        )
+        cat, label = it.xy()
         Xy = xgb.DMatrix(cat, label, enable_categorical=enable_categorical)
     return Xy
 
@@ -463,6 +442,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         cols,
         n_cats=cats,
         device=device,
+        sparsity=0.0,
         onehot=True,
         tree_method=tree_method,
         extmem=extmem,
@@ -481,6 +461,7 @@ def check_categorical_ohe(  # pylint: disable=too-many-arguments
         cols,
         n_cats=cats,
         device=device,
+        sparsity=0.0,
         tree_method=tree_method,
         onehot=False,
         extmem=extmem,
@@ -550,6 +531,7 @@ def check_categorical_missing(  # pylint: disable=too-many-arguments
         rows,
         cols,
         n_cats=cats,
+        sparsity=0.5,
         device=device,
         tree_method=tree_method,
         onehot=False,

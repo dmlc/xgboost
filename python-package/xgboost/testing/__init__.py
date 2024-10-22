@@ -444,6 +444,7 @@ def make_categorical(
             if is_pd_cat_dtype(df.dtypes.iloc[i]):
                 assert n_categories == np.unique(df.dtypes.iloc[i].categories).size
 
+    assert df.shape[1] == n_features
     if onehot:
         df = pd.get_dummies(df)
 
