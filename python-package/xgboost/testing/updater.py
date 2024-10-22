@@ -11,6 +11,7 @@ import xgboost as xgb
 import xgboost.testing as tm
 from xgboost.data import is_pd_cat_dtype
 
+from ..compat import concat
 from ..core import DataIter
 
 
@@ -367,29 +368,46 @@ class CatIter(DataIter):
         self.n_features = n_features
         self.n_batches = n_batches
         self.n_cats = n_cats
+        self.sparsity = sparsity
         self.onehot = onehot
         self.device = device
 
+        Xs, ys = [], []
+        for i in range(n_batches):
+            cat, y = tm.make_categorical(
+                self.n_samples_per_batch,
+                self.n_features,
+                n_categories=self.n_cats,
+                onehot=self.onehot,
+                sparsity=self.sparsity,
+                random_state=self.n_samples_per_batch * self.n_features * i,
+            )
+            Xs.append(cat)
+            ys.append(y)
+
+        self.Xs = Xs
+        self.ys = ys
+
+        self.X = concat(Xs)
+        self.y = concat(ys)
+
         self._it = 0
+
+    def Xy(self) -> tuple:
+        return self.X, self.y
 
     def next(self, input_data: Callable) -> bool:
         if self._it == self.n_batches:
             # return False to let XGBoost know this is the end of iteration
             return False
-        cat, y = tm.make_categorical(
-            self.n_samples_per_batch,
-            self.n_features,
-            n_categories=self.n_cats,
-            onehot=self.onehot,
-            random_state=self.n_samples_per_batch * self.n_features * self._it,
-        )
+        X, y = self.Xs[self._it], self.ys[self._it]
         if self.device == "cuda":
             import cudf  # pylint: disable=import-error
             import cupy  # pylint: disable=import-error
 
-            cat = cudf.DataFrame(cat)
+            X = cudf.DataFrame(X)
             y = cupy.array(y)
-        input_data(data=cat, label=y)
+        input_data(data=X, label=y)
         self._it += 1
         return True
 
@@ -409,17 +427,17 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
     extmem: bool,
     enable_categorical: bool,
 ) -> xgb.DMatrix:
+    n_batches = min(2, n_samples)
+    it = CatIter(
+        n_samples // n_batches,
+        n_features,
+        n_batches=n_batches,
+        sparsity=sparsity,
+        n_cats=n_cats,
+        onehot=onehot,
+        device=device,
+    )
     if extmem:
-        n_batches = 2 if n_samples >= 2 else 1
-        it = CatIter(
-            n_samples // n_batches,
-            n_features,
-            n_batches=n_batches,
-            sparsity=sparsity,
-            n_cats=n_cats,
-            onehot=onehot,
-            device=device,
-        )
         if tree_method == "hist":
             Xy: xgb.DMatrix = xgb.ExtMemQuantileDMatrix(
                 it, enable_categorical=enable_categorical
@@ -429,13 +447,7 @@ def _create_dmatrix(  # pylint: disable=too-many-arguments
         else:
             raise ValueError(f"tree_method {tree_method} not supported.")
     else:
-        cat, label = tm.make_categorical(
-            n_samples,
-            n_features=n_features,
-            n_categories=n_cats,
-            sparsity=sparsity,
-            onehot=onehot,
-        )
+        cat, label = it.Xy()
         Xy = xgb.DMatrix(cat, label, enable_categorical=enable_categorical)
     return Xy
 

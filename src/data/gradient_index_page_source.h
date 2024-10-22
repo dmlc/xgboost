@@ -79,7 +79,6 @@ class ExtGradientIndexPageSource
   DMatrixProxy* proxy_;
   MetaInfo* info_;
 
-  common::Span<FeatureType const> feature_types_;
   std::vector<bst_idx_t> base_rows_;
 
  public:
@@ -94,15 +93,11 @@ class ExtGradientIndexPageSource
         ctx_{ctx},
         proxy_{proxy},
         info_{info},
-        feature_types_{info_->feature_types.ConstHostSpan()},
         base_rows_{std::move(base_rows)} {
     CHECK(!this->cache_info_->written);
     this->source_->Reset();
     CHECK(this->source_->Next());
     this->SetCuts(std::move(cuts));
-    if (this->cuts_.HasCategorical()) {
-      CHECK(!this->feature_types_.empty());
-    }
     this->Fetch();
   }
 
