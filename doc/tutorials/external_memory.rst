@@ -195,7 +195,8 @@ concatenation can be enabled by:
   }
 
 For more information about the sampling algorithm and its use in external memory training,
-see `this paper <https://arxiv.org/abs/2005.09148>`_.
+see `this paper <https://arxiv.org/abs/2005.09148>`_. Lastly, see following sections for
+best practices.
 
 ==========
 NVLink-C2C
@@ -217,6 +218,16 @@ which has about 350GB/s bandwidth for host to device transfer.
 To run experiments on these platforms, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
 with version ``>=565.47`` is required, it should come with CTK 12.7 and later versions.
+
+********************
+Distributed Training
+********************
+Distributed training is similar to in-core learning, but the work for framework
+integration is still on-going. See :ref:`sphx_glr_python_examples_distributed_extmem_basic.py`
+for an example for using the communicator to build a simple pipeline. Since users can
+define their custom data loader, it's unlikely that existing distributed frameworks
+interface in XGBoost can meet all the use cases, the example can be a starting point for
+users who have custom infrastructure.
 
 **************
 Best Practices
@@ -248,18 +259,19 @@ through the data for inference with memory spilling.
 When external memory is used, the performance of CPU training is limited by disk IO
 (input/output) speed. This means that the disk IO speed primarily determines the training
 speed. Similarly, PCIe bandwidth limits the GPU performance, assuming the CPU memory is
-used as a cache and address translation services (ATS) is unavailable. We recommend using
-regular :py:class:`~xgboost.QuantileDMatrix` over
-:py:class:`~xgboost.ExtMemQuantileDMatrix` for constructing the validation dataset when
-feasible. Running inference is much less computation-intensive than training and, hence,
-much faster. For GPU, the time it takes to read the data from host to device completely
-determines the time it takes to run inference, even if a C2C link is available.
+used as a cache and address translation services (ATS) is unavailable. Running inference
+is much less computation-intensive than training and, hence, much faster. For GPU, the
+time it takes to read the data from host to device completely determines the time it takes
+to run inference, even if a C2C link is available.
 
 .. code-block:: python
 
-    # Try to use `QuantileDMatrix` for the validation if it can be fit into the GPU memory.
     Xy_train = xgboost.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
-    Xy_valid = xgboost.QuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
+    Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
+
+In addition, since the GPU implementation relies on asynchronous memory pool, which is
+subject to memory fragmentation. You might want to start the training with a fresh pool
+instead of starting training right after the ETL process.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some
@@ -351,6 +363,7 @@ undergone multiple development iterations. Here's a brief summary of major chang
 - 3.0 reworked the GPU implementation to support caching data on the host and disk,
   introduced the :py:class:`~xgboost.ExtMemQuantileDMatrix` class, added quantile-based
   objectives support.
+- In addition, we begin support for distributed training in 3.0
 
 ****************
 Text File Inputs

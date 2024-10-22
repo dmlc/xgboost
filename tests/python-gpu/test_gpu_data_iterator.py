@@ -7,7 +7,12 @@ from hypothesis import given, settings, strategies
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing import no_cupy
-from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
+from xgboost.testing.updater import (
+    check_categorical_missing,
+    check_categorical_ohe,
+    check_extmem_qdm,
+    check_quantile_loss_extmem,
+)
 
 sys.path.append("tests/python")
 from test_data_iterator import run_data_iterator
@@ -167,4 +172,28 @@ def test_quantile_objective(
         n_batches,
         "approx",
         "cuda",
+    )
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
+def test_categorical_missing(tree_method: str) -> None:
+    check_categorical_missing(
+        1024, 4, 5, device="cuda", tree_method=tree_method, extmem=True
+    )
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
+def test_categorical_ohe(tree_method: str) -> None:
+    check_categorical_ohe(
+        rows=1024,
+        cols=16,
+        rounds=4,
+        cats=5,
+        device="cuda",
+        tree_method=tree_method,
+        extmem=True,
     )
