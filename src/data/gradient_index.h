@@ -246,7 +246,7 @@ class GHistIndexMatrix {
   /**
    * @brief Get the local row index.
    */
-  [[nodiscard]] std::size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
+  [[nodiscard]] bst_idx_t RowIdx(bst_idx_t ridx) const { return row_ptr[ridx - this->base_rowid]; }
 
   [[nodiscard]] bst_idx_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
   [[nodiscard]] bst_feature_t Features() const { return cut.Ptrs().size() - 1; }
