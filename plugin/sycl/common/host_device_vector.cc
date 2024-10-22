@@ -135,13 +135,11 @@ class HostDeviceVectorImpl {
   DeviceOrd Device() const { return device_; }
 
   T* DevicePointer() {
-    CHECK_EQ(device_.IsSycl(), true);
     SyncDevice(GPUAccess::kWrite);
     return data_d_->Data();
   }
 
   const T* ConstDevicePointer() {
-    CHECK_EQ(device_.IsSycl(), true);
     SyncDevice(GPUAccess::kRead);
     return data_d_->DataConst();
   }

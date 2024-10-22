@@ -114,14 +114,14 @@ namespace xgboost::common {
 
 #if defined(__SYCL_DEVICE_ONLY__)
 
-// SYCL doesn't support termination 
+// SYCL doesn't support termination
 #define SYCL_KERNEL_CHECK(cond)
 
 #define KERNEL_CHECK(cond) SYCL_KERNEL_CHECK(cond)
 
-#else // defined(__SYCL_DEVICE_ONLY__)
+#else  // defined(__SYCL_DEVICE_ONLY__)
 #define KERNEL_CHECK(cond) (XGBOOST_EXPECT((cond), true) ? static_cast<void>(0) : std::terminate())
-#endif // defined(__SYCL_DEVICE_ONLY__)
+#endif  // defined(__SYCL_DEVICE_ONLY__)
 
 #define SPAN_CHECK(cond) KERNEL_CHECK(cond)
 

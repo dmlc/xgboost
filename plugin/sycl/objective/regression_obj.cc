@@ -42,7 +42,6 @@ DMLC_REGISTRY_FILE_TAG(regression_obj_sycl);
 
 template<typename Loss>
 class RegLossObj : public ObjFunction {
- protected:
  public:
   RegLossObj() = default;
 
