@@ -7,8 +7,6 @@ import numpy as np
 import xgboost
 from xgboost import testing as tm
 
-from ..compat import concat
-
 
 def run_mixed_sparsity(device: str) -> None:
     """Check QDM with mixed batches."""
@@ -39,10 +37,50 @@ def run_mixed_sparsity(device: str) -> None:
     assert tm.predictor_equal(Xy_0, Xy_1)
 
 
+def check_invalid_cat_batches(device: str) -> None:
+    """Check error message for inconsistent feature types."""
+
+    class _InvalidCatIter(xgboost.DataIter):
+        def __init__(self) -> None:
+            super().__init__(cache_prefix=None)
+            self._it = 0
+
+        def next(self, input_data: Callable) -> bool:
+            if self._it == 2:
+                return False
+            X, y = tm.make_categorical(
+                64,
+                12,
+                4,
+                onehot=False,
+                sparsity=0.5,
+                cat_ratio=1.0 if self._it == 0 else 0.5,
+            )
+            if device == "cuda":
+                import cudf
+                import cupy
+
+                X = cudf.DataFrame(X)
+                y = cupy.array(y)
+
+            input_data(data=X, label=y)
+            self._it += 1
+            return True
+
+        def reset(self) -> None:
+            self._it = 0
+
+    it = _InvalidCatIter()
+    import pytest
+
+    with pytest.raises(ValueError, match="Inconsistent feature types between batches"):
+        xgboost.ExtMemQuantileDMatrix(it, enable_categorical=True)
+
+
 class CatIter(xgboost.DataIter):  # pylint: disable=too-many-instance-attributes
     """An iterator for testing categorical features."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         n_samples_per_batch: int,
         n_features: int,
@@ -56,32 +94,33 @@ class CatIter(xgboost.DataIter):  # pylint: disable=too-many-instance-attributes
         cache: Optional[str],
     ) -> None:
         super().__init__(cache_prefix=cache)
-        self.n_samples_per_batch = n_samples_per_batch
         self.n_batches = n_batches
-        self.n_cats = n_cats
-        self.sparsity = sparsity
-        self.onehot = onehot
         self.device = device
 
+        n_samples = n_samples_per_batch * n_batches
+        cat, y = tm.make_categorical(
+            n_samples,
+            n_features,
+            n_categories=n_cats,
+            onehot=onehot,
+            cat_ratio=cat_ratio,
+            sparsity=sparsity,
+        )
         xs, ys = [], []
-        for i in range(n_batches):
-            cat, y = tm.make_categorical(
-                self.n_samples_per_batch,
-                n_features,
-                n_categories=self.n_cats,
-                onehot=self.onehot,
-                cat_ratio=cat_ratio,
-                sparsity=self.sparsity,
-                random_state=self.n_samples_per_batch * n_features * i,
-            )
-            xs.append(cat)
-            ys.append(y)
+
+        prev = 0
+        for _ in range(n_batches):
+            n = min(n_samples_per_batch, n_samples - prev)
+            X = cat.iloc[prev : prev + n, :]
+            xs.append(X)
+            ys.append(y[prev : prev + n])
+            prev += n_samples_per_batch
 
         self.xs = xs
         self.ys = ys
 
-        self.x = concat(xs)
-        self.y = concat(ys)
+        self.x = cat
+        self.y = y
 
         self._it = 0
 
@@ -91,8 +130,8 @@ class CatIter(xgboost.DataIter):  # pylint: disable=too-many-instance-attributes
 
     def next(self, input_data: Callable) -> bool:
         if self._it == self.n_batches:
-            # return False to let XGBoost know this is the end of iteration
             return False
+
         X, y = self.xs[self._it], self.ys[self._it]
         if self.device == "cuda":
             import cudf  # pylint: disable=import-error

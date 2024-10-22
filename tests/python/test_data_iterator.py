@@ -12,6 +12,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
+from xgboost.testing.data_iter import check_invalid_cat_batches
 from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
@@ -370,3 +371,7 @@ def test_categorical_ohe(tree_method: str) -> None:
         tree_method=tree_method,
         extmem=True,
     )
+
+
+def test_invalid_cat_batches() -> None:
+    check_invalid_cat_batches("cpu")

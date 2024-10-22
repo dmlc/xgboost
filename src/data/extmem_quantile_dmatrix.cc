@@ -110,6 +110,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   if (cuts.HasCategorical()) {
     CHECK(!this->Info().feature_types.Empty());
   }
+  CHECK_EQ(cuts.HasCategorical(), this->Info().HasCategorical());
 }
 
 [[nodiscard]] BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndexImpl() {
