@@ -55,7 +55,6 @@ class RegLossObj : public ObjFunction {
                    int iter,
                    xgboost::linalg::Matrix<GradientPair>* out_gpair) override {
     if (qu_ == nullptr) {
-      LOG(WARNING) << ctx_->Device();
       qu_ = device_manager.GetQueue(ctx_->Device());
     }
     if (info.labels.Size() == 0) return;
@@ -126,6 +125,7 @@ class RegLossObj : public ObjFunction {
     size_t const ndata = io_preds->Size();
     if (ndata == 0) return;
 
+    io_preds->SetDevice(ctx_->Device());
     bst_float* io_preds_ptr = io_preds->DevicePointer();
     qu_->submit([&](::sycl::handler& cgh) {
       cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {

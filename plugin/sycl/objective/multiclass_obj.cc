@@ -35,15 +35,6 @@ namespace obj {
 DMLC_REGISTRY_FILE_TAG(multiclass_obj_sycl);
 
 class SoftmaxMultiClassObj : public ObjFunction {
-  mutable bool are_buffs_init = false;
-
-  void InitBuffers(const std::vector<int>& sample_rate) const {
-    if (!are_buffs_init) {
-      batch_processor_.InitBuffers(qu_, sample_rate);
-      are_buffs_init = true;
-    }
-  }
-
  public:
   explicit SoftmaxMultiClassObj(bool output_prob)
   : output_prob_(output_prob) {}
@@ -78,26 +69,30 @@ class SoftmaxMultiClassObj : public ObjFunction {
           << "Number of weights should be equal to number of data points.";
     }
 
+    out_gpair->Data()->SetDevice(ctx_->Device());
+    preds.SetDevice(ctx_->Device());
+    info.labels.Data()->SetDevice(ctx_->Device());
+    info.weights_.SetDevice(ctx_->Device());
+
+    GradientPair* out_gpair_ptr = out_gpair->Data()->DevicePointer();
+    const bst_float* preds_ptr = preds.ConstDevicePointer();
+    const bst_float* label_ptr = info.labels.Data()->ConstDevicePointer();
+    const bst_float* weights_ptr = info.weights_.ConstDevicePointer();
+
     int flag = 1;
-    auto objective_fn = [=, &flag]
-                        (const std::vector<::sycl::event>& events,
-                         size_t ndata,
-                         GradientPair* out_gpair,
-                         const bst_float* preds,
-                         const bst_float* labels,
-                         const bst_float* weights) {
-      const size_t wg_size = 32;
-      const size_t nwgs = ndata / wg_size + (ndata % wg_size > 0);
-      return linalg::GroupWiseKernel(qu_, &flag, events, {nwgs, wg_size},
-        [=] (size_t idx, auto flag) {
-          const bst_float* pred = preds + idx * nclass;
+    const size_t wg_size = 32;
+    const size_t nwgs = ndata / wg_size + (ndata % wg_size > 0);
+    linalg::GroupWiseKernel(qu_, &flag, {}, {nwgs, wg_size},
+      [=] (size_t idx, auto flag) {
+        if (idx < ndata) {
+          const bst_float* pred = preds_ptr + idx * nclass;
 
           // Part of Softmax function
           bst_float wmax = std::numeric_limits<bst_float>::min();
           for (int k = 0; k < nclass; k++) { wmax = ::sycl::max(pred[k], wmax); }
           bst_float wsum = 0.0f;
           for (int k = 0; k < nclass; k++) { wsum += ::sycl::exp(pred[k] - wmax); }
-          bst_float label = labels[idx];
+          bst_float label = label_ptr[idx];
 
           if (label < 0 || label >= nclass) {
             AtomicRef<int> flag_ref(flag[0]);
@@ -105,34 +100,16 @@ class SoftmaxMultiClassObj : public ObjFunction {
             label = 0;
           }
 
-          bst_float wt = is_null_weight ? 1.0f : weights[idx];
+          bst_float wt = is_null_weight ? 1.0f : weights_ptr[idx];
           for (int k = 0; k < nclass; ++k) {
             bst_float p = expf(pred[k] - wmax) / static_cast<float>(wsum);
             const float eps = 1e-16f;
             const bst_float h = ::sycl::max(2.0f * p * (1.0f - p) * wt, eps);
             p = label == k ? p - 1.0f : p;
-            out_gpair[idx * nclass + k] = GradientPair(p * wt, h);
+            out_gpair_ptr[idx * nclass + k] = GradientPair(p * wt, h);
           }
-      });
-    };
-
-    // out_gpair and preds have nclass points per sample
-    // labels and weights have 1 points per sample
-    InitBuffers({nclass, nclass, 1, 1});
-    if (is_null_weight) {
-      // Output is passed by pointer
-      // Inputs are passed by const reference
-      batch_processor_.Calculate(std::move(objective_fn),
-                                 out_gpair->Data(),
-                                 preds,
-                                 *(info.labels.Data()));
-    } else {
-      batch_processor_.Calculate(std::move(objective_fn),
-                                 out_gpair->Data(),
-                                 preds,
-                                 *(info.labels.Data()),
-                                 info.weights_);
-    }
+        }
+    });
     qu_->wait_and_throw();
 
     if (flag == 0) {
@@ -154,36 +131,31 @@ class SoftmaxMultiClassObj : public ObjFunction {
     if (io_preds->Size() == 0) return;
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
-    max_preds_.Resize(ndata);
 
-    {
-      ::sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
+    io_preds->SetDevice(ctx_->Device());
+    auto io_preds_span = io_preds->DeviceSpan();
 
-      if (prob) {
-        qu_->submit([&](::sycl::handler& cgh) {
-          auto io_preds_acc = io_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
-          cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
-            int idx = pid[0];
-            auto it = io_preds_acc.begin() + idx * nclass;
-            common::Softmax(it, it + nclass);
-          });
-        }).wait();
-      } else {
-        ::sycl::buffer<bst_float, 1> max_preds_buf(max_preds_.HostPointer(), max_preds_.Size());
+    if (prob) {
+      qu_->submit([&](::sycl::handler& cgh) {
+        cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
+          int idx = pid[0];
+          auto it = io_preds_span.begin() + idx * nclass;
+          common::Softmax(it, it + nclass);
+        });
+      }).wait();
+    } else {
+      max_preds_.SetDevice(ctx_->Device());
+      max_preds_.Resize(ndata);
+      bst_float* max_preds_ptr = max_preds_.DevicePointer();
 
-        qu_->submit([&](::sycl::handler& cgh) {
-          auto io_preds_acc = io_preds_buf.get_access<::sycl::access::mode::read>(cgh);
-          auto max_preds_acc = max_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
-          cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
-            int idx = pid[0];
-            auto it = io_preds_acc.begin() + idx * nclass;
-            max_preds_acc[idx] = common::FindMaxIndex(it, it + nclass) - it;
-          });
-        }).wait();
-      }
-    }
+      qu_->submit([&](::sycl::handler& cgh) {
+        cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
+          int idx = pid[0];
+          auto it = io_preds_span.begin() + idx * nclass;
+          max_preds_ptr[idx] = common::FindMaxIndex(it, it + nclass) - it;
+        });
+      }).wait();
 
-    if (!prob) {
       io_preds->Resize(max_preds_.Size());
       io_preds->Copy(max_preds_);
     }
@@ -216,8 +188,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
   sycl::DeviceManager device_manager;
 
   mutable ::sycl::queue* qu_;
-  static constexpr size_t kBatchSize = 1u << 22;
-  mutable linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3> batch_processor_;
 };
 
 XGBOOST_REGISTER_OBJECTIVE(SoftmaxMultiClass, "multi:softmax_sycl")
