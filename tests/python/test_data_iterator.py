@@ -12,7 +12,12 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
-from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
+from xgboost.testing.updater import (
+    check_categorical_missing,
+    check_categorical_ohe,
+    check_extmem_qdm,
+    check_quantile_loss_extmem,
+)
 
 pytestmark = tm.timeout(30)
 
@@ -323,4 +328,24 @@ def test_extmem_qdm(
         n_bins=n_bins,
         device="cpu",
         on_host=False,
+    )
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_categorical_missing(tree_method: str) -> None:
+    check_categorical_missing(
+        1024, 4, 5, device="cpu", tree_method=tree_method, extmem=True
+    )
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_categorical_ohe(tree_method: str) -> None:
+    check_categorical_ohe(
+        rows=1024,
+        cols=16,
+        rounds=4,
+        cats=5,
+        device="cpu",
+        tree_method=tree_method,
+        extmem=True,
     )

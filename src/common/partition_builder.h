@@ -55,7 +55,7 @@ class PartitionBuilder {
   // Analog of std::stable_partition, but in no-inplace manner
   template <bool default_left, bool any_missing, typename ColumnType, typename Predicate>
   std::pair<size_t, size_t> PartitionKernel(ColumnType* p_column,
-                                            common::Span<const bst_idx_t> row_indices,
+                                            common::Span<bst_idx_t const> row_indices,
                                             common::Span<bst_idx_t> left_part,
                                             common::Span<bst_idx_t> right_part,
                                             bst_idx_t base_rowid, Predicate&& pred) {

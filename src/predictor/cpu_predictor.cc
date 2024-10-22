@@ -231,6 +231,7 @@ struct GHistIndexMatrixView {
         base_rowid{_page.base_rowid} {}
 
   SparsePage::Inst operator[](size_t r) {
+    r += base_rowid;
     auto t = omp_get_thread_num();
     auto const beg = (n_features_ * kUnroll * t) + (current_unroll_[t] * n_features_);
     size_t non_missing{static_cast<std::size_t>(beg)};
