@@ -236,10 +236,11 @@ struct GHistIndexMatrixView {
     auto const beg = (n_features_ * kUnroll * t) + (current_unroll_[t] * n_features_);
     size_t non_missing{static_cast<std::size_t>(beg)};
 
+    auto ws = workspace_.data();
     for (bst_feature_t c = 0; c < n_features_; ++c) {
       float f = page_.GetFvalue(ptrs_, values_, mins_, r, c, common::IsCat(ft_, c));
       if (!common::CheckNAN(f)) {
-        workspace_[non_missing] = Entry{c, f};
+        ws[non_missing] = Entry{c, f};
         ++non_missing;
       }
     }
