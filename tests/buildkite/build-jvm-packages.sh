@@ -24,3 +24,9 @@ buildkite-agent artifact upload "jvm-packages/xgboost4j/target/*.jar"
 buildkite-agent artifact upload "jvm-packages/xgboost4j-spark/target/*.jar"
 buildkite-agent artifact upload "jvm-packages/xgboost4j-flink/target/*.jar"
 buildkite-agent artifact upload "jvm-packages/xgboost4j-example/target/*.jar"
+
+echo "--- Compatibility tests for older Spark versions"
+tests/ci_build/ci_build.sh jvm tests/ci_build/build_jvm_packages.sh 3.1.3
+tests/ci_build/ci_build.sh jvm tests/ci_build/build_jvm_packages.sh 3.2.4
+tests/ci_build/ci_build.sh jvm tests/ci_build/build_jvm_packages.sh 3.3.4
+tests/ci_build/ci_build.sh jvm tests/ci_build/build_jvm_packages.sh 3.4.3

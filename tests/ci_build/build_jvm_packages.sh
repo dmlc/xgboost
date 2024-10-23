@@ -23,11 +23,14 @@ if [ "x$gpu_arch" != "x" ]; then
   export GPU_ARCH_FLAG=$gpu_arch
 fi
 
+# Purge artifacts and set correct Scala version
+pushd ..
 if [ "x$use_scala213" != "x" ]; then
-  cd ..
   python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts
-  cd jvm-packages
+else
+  python dev/change_scala_version.py --scala-version 2.12 --purge-artifacts
 fi
+popd
 
 mvn --no-transfer-progress package -Dspark.version=${spark_version} $gpu_options
 
