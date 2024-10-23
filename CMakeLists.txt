@@ -221,7 +221,9 @@ if(USE_CUDA)
 
   find_package(CUDAToolkit REQUIRED)
   find_package(CCCL CONFIG)
-  if(NOT CCCL_FOUND)
+  if(CCCL_FOUND)
+    message(STATUS "Standalone CCCL found.")
+  else()
     message(STATUS "Standalone CCCL not found. Attempting to use CCCL from CUDA Toolkit...")
     find_package(CCCL CONFIG
       HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
@@ -237,6 +239,10 @@ if(USE_CUDA)
       add_library(CCCL::CCCL INTERFACE IMPORTED GLOBAL)
       target_link_libraries(CCCL::CCCL INTERFACE libcudacxx::libcudacxx CUB::CUB Thrust)
     endif()
+  endif()
+  # Define guard macros to prevent windows.h from conflicting with winsock2.h
+  if(WIN32)
+    target_compile_definitions(CCCL::CCCL INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN _WINSOCKAPI_)
   endif()
 endif()
 

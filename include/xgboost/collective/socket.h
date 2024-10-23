@@ -99,6 +99,7 @@ inline auto ThrowAtError(StringView fn_name, std::int32_t errsv = LastError()) {
 using SocketT = SOCKET;
 #else
 using SocketT = int;
+#define INVALID_SOCKET -1
 #endif  // defined(_WIN32)
 
 #if !defined(xgboost_CHECK_SYS_CALL)
@@ -276,7 +277,7 @@ class TCPSocket {
   SockDomain domain_{SockDomain::kV4};
 #endif
 
-  constexpr static HandleT InvalidSocket() { return -1; }
+  constexpr static HandleT InvalidSocket() { return INVALID_SOCKET; }
 
   explicit TCPSocket(HandleT newfd) : handle_{newfd} {}
 

@@ -65,5 +65,5 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
         cmake --build . --config Release -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
         if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-        build/testxgboost.exe
+        & .\testxgboost.exe
         if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
