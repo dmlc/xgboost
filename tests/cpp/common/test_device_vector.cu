@@ -10,6 +10,7 @@
 #include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy, PinnedMemory
 #include "../../../src/common/device_vector.cuh"
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
+#include "xgboost/windefs.h"  // for xgboost_IS_WIN
 
 namespace dh {
 TEST(DeviceUVector, Basic) {
@@ -109,10 +110,14 @@ TEST(TestVirtualMem, Version) {
   xgboost::curt::DrVersion(&major, &minor);
   LOG(INFO) << "Latest supported CUDA version by the driver:" << major << "." << minor;
   PinnedMemory pinned;
+#if defined(xgboost_IS_WIN)
+  ASSERT_FALSE(pinned.IsVm());
+#else  // defined(xgboost_IS_WIN)
   if (major >= 12 && minor >= 5) {
     ASSERT_TRUE(pinned.IsVm());
   } else {
     ASSERT_FALSE(pinned.IsVm());
   }
+#endif  // defined(xgboost_IS_WIN)
 }
 }  // namespace dh
