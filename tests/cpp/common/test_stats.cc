@@ -148,7 +148,7 @@ void TestSampleMean(Context const* ctx) {
 
   auto device = ctx->Device();
   std::int32_t n_workers =
-      device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : common::AllVisibleGPUs();
+      device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : curt::AllVisibleGPUs();
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
@@ -197,7 +197,7 @@ void TestWeightedSampleMean(Context const* ctx) {
 
   auto device = ctx->Device();
   std::int32_t n_workers =
-      device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : common::AllVisibleGPUs();
+      device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : curt::AllVisibleGPUs();
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
