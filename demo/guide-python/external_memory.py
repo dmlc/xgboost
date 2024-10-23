@@ -71,8 +71,8 @@ class Iterator(xgboost.DataIter):
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
         """Load a single batch of data."""
         X_path, y_path = self._file_paths[self._it]
-        # When the `ExtMemQuantileDMatrix` is used, the device must match. This
-        # constraint will be relaxed in the future.
+        # When the `ExtMemQuantileDMatrix` is used, the device must match. GPU cannot
+        # consume CPU input data and vice-versa.
         if self.device == "cpu":
             X = np.load(X_path)
             y = np.load(y_path)
@@ -92,8 +92,8 @@ class Iterator(xgboost.DataIter):
             # return False to let XGBoost know this is the end of iteration
             return False
 
-        # input_data is a function passed in by XGBoost and has the similar signature to
-        # the ``DMatrix`` constructor.
+        # input_data is a keyword-only function passed in by XGBoost and has the similar
+        # signature to the ``DMatrix`` constructor.
         X, y = self.load_file()
         input_data(data=X, label=y)
         self._it += 1
