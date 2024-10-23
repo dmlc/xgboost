@@ -1,9 +1,11 @@
+# Custom images with CUDA toolkit installed
+# See ops/packer for instructions for building the images
 images:
-  dlami-amd64:
+  linux-amd64:
     platform: "linux"
     arch: "x64"
-    owner: "898082745236"  # AWS
-    name: "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)*"
+    owner: "492475357299"  # XGBooost CI
+    name: "xgboost-ci-runs-on-linux-*"
   windows-amd64:
     platform: "windows"
     arch: "x64"
@@ -17,10 +19,10 @@ runners:
     image: ubuntu24-full-x64
   linux-amd64-gpu:
     family: ["g4dn.xlarge"]
-    image: dlami-amd64
+    image: linux-amd64
   linux-amd64-mgpu:
     family: ["g4dn.12xlarge"]
-    image: dlami-amd64
+    image: linux-amd64
   linux-arm64-cpu:
     family: ["c6g", "c7g"]
     image: ubuntu24-full-arm64

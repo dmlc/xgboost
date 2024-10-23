@@ -38,11 +38,19 @@ jobs:
         submodules: "true"
     - name: Build and run gtest
       run: |
+        cat >> $HOME/.bashrc <<- EOM
+        export PATH=/usr/local/cuda/bin${PATH:+:${PATH}}
+        export LD_LIBRARY_PATH=/usr/local/cuda/lib64\
+                                ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+        EOM
+        source $HOME/.bashrc
         nvidia-smi
+        nvcc --version
         sudo apt update && sudo apt install ninja-build
+        git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
         mkdir build
         cd build
-        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON -DUSE_CUDA=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.4/bin/nvcc -DCMAKE_CUDA_ARCHITECTURES=75
+        cmake .. -GNinja -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON -DUSE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_PREFIX_PATH="$PWD/../cccl"
         ninja -v
         ./testxgboost
   build-gpu-win64:
@@ -57,6 +65,7 @@ jobs:
     - name: Build and run gtest
       shell: powershell
       run: |
+        nvidia-smi
         nvcc --version
         git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
         mkdir build
