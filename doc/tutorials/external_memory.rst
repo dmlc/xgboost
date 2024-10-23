@@ -67,7 +67,7 @@ external memory training, users need to define a data iterator with 2 class meth
 
       """
       if self._it == len(self._file_paths):
-        # return 0 to let XGBoost know this is the end of the iteration
+        # return False to let XGBoost know this is the end of the iteration
         return False
 
       # input_data is a function passed in by XGBoost and has the exact same signature of
