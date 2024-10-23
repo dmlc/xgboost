@@ -561,7 +561,11 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     val featureName = getFeaturesCol
     val missing = getMissing
 
-    val output = dataset.toDF().mapPartitions { rowIter =>
+    // Here, we use RDD instead of DF to avoid different encoders for different
+    // spark versions for the compatibility issue.
+    // 3.5+, Encoders.row(schema)
+    // 3.5-, RowEncoder(schema)
+    val outRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIter =>
       rowIter.grouped(inferBatchSize).flatMap { batchRow =>
         val features = batchRow.iterator.map(row => row.getAs[Vector](
           row.fieldIndex(featureName)))
@@ -573,8 +577,9 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
           dm.delete()
         }
       }
+    }
+    val output = dataset.sparkSession.createDataFrame(outRDD, schema)
 
-    }(Encoders.row(schema))
     bBooster.unpersist(blocking = false)
     postTransform(output, pred).toDF()
   }
