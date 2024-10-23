@@ -561,8 +561,8 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     val featureName = getFeaturesCol
     val missing = getMissing
 
-    // Here, we use rdd instead of DF to avoid different encoders for different
-    // spark versions.
+    // Here, we use RDD instead of DF to avoid different encoders for different
+    // spark versions for the compatibility issue.
     // 3.5+, Encoders.row(schema)
     // 3.5-, RowEncoder(schema)
     val outRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIter =>
