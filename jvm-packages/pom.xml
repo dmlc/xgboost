@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm_2.12</artifactId>
-    <version>2.1.1</version>
+    <version>2.1.2</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>

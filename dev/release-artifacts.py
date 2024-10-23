@@ -1,7 +1,7 @@
 """
 Simple script for managing Python, R, and source release packages.
 
-tqdm, sh are required to run this script.
+tqdm, sh, build, twine are required to run this script.
 """
 
 import argparse
@@ -11,7 +11,7 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.request import urlretrieve
 
 import tqdm
@@ -196,7 +196,6 @@ def download_r_artifacts(
     rpkg_dir.mkdir(exist_ok=True)
 
     artifacts = []
-    branch = branch.split("_")[1]  # release_x.y.z
     urls = {}
 
     for plat in platforms:
