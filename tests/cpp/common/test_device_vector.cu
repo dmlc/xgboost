@@ -124,8 +124,8 @@ TEST(AtomitFetch, Max) {
   decltype(n)::value_type add = 64;
   for (decltype(n_threads) t = 0; t < n_threads; ++t) {
     threads.emplace_back([=, &n] {
-      for (std::size_t i = 0; i < add; ++i) {
-        detail::AtomicFetchMax(n, static_cast<std::int64_t>(t + i));
+      for (decltype(add) i = 0; i < add; ++i) {
+        detail::AtomicFetchMax(n, static_cast<decltype(add)>(t + i));
       }
     });
   }
