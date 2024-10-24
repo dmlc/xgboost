@@ -10,47 +10,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-containers:
+    name: Build CI containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+    strategy:
+      matrix:
+        container_id:
+          - xgb-ci.gpu_build_rockylinux8
+          - xgb-ci.gpu
+    steps:
+      # Restart Docker daemon so that it recognized the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Build ${{ matrix.container_id }}
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: ${{ matrix.container_id }}
+          BRANCH_NAME: ${{ github.event.pull_request.number || github.ref_name }}
+          USE_DOCKER_CACHE: 1
   build-gpu:
     name: Build GPU
+    needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
     steps:
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    - uses: actions/checkout@v4
-      with:
-        submodules: "true"
-    - name: Build container
-      run: |
-        python3 ops/docker_build.py \
-          --container-def gpu_build_rockylinux8 \
-          --container-id xgb-ci.gpu_build_rockylinux8 \
-          --build-arg CUDA_VERSION_ARG=12.5.1 \
-          --build-arg NCCL_VERSION_ARG=2.22.3-1 \
-          --build-arg RAPIDS_VERSION_ARG=24.10 \
-          --cache-from type=s3,blobs_prefix=cache/${{ github.repository }}/,manifests_prefix=cache/${{ github.repository }}/,region=${{ env.RUNS_ON_AWS_REGION }},bucket=${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-          --cache-to type=s3,blobs_prefix=cache/${{ github.repository }}/,manifests_prefix=cache/${{ github.repository }}/,region=${{ env.RUNS_ON_AWS_REGION }},bucket=${{ env.RUNS_ON_S3_BUCKET_CACHE }},mode=max
-    - name: Build gtest
-      run: |
-        git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
-        python3 ops/docker_run.py \
-          --container-id xgb-ci.gpu_build_rockylinux8 \
-          -- tests/ci_build/build_via_cmake.sh \
-          -DCMAKE_PREFIX_PATH="/opt/grpc;/workspace/cccl" \
-          -DUSE_CUDA=ON \
-          -DUSE_OPENMP=ON \
-          -DHIDE_CXX_SYMBOLS=ON \
-          -DPLUGIN_FEDERATED=ON \
-          -DUSE_NCCL=ON \
-          -DUSE_NCCL_LIB_PATH=ON \
-          -DNCCL_INCLUDE_DIR=/usr/include \
-          -DUSE_DLOPEN_NCCL=ON \
-          -DGPU_COMPUTE_VER=75
-    - name: Stash testxgboost
-      run: |
-        aws s3 cp ./build/testxgboost \
-          s3://${{ env.RUNS_ON_S3_BUCKET_CACHE }}/cache/${{ github.repository }}/stash/${{ github.run_id }}/testxgboost
+      # Restart Docker daemon so that it recognized the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.gpu_build_rockylinux8
+          BRANCH_NAME: ${{ github.event.pull_request.number || github.ref_name }}
+          USE_DOCKER_CACHE: 1
+      - name: Build gtest
+        run: |
+          git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
+          python3 ops/docker_run.py \
+            --container-id xgb-ci.gpu_build_rockylinux8 \
+            -- tests/ci_build/build_via_cmake.sh \
+            -DCMAKE_PREFIX_PATH="/opt/grpc;/workspace/cccl" \
+            -DUSE_CUDA=ON \
+            -DUSE_OPENMP=ON \
+            -DHIDE_CXX_SYMBOLS=ON \
+            -DPLUGIN_FEDERATED=ON \
+            -DUSE_NCCL=ON \
+            -DUSE_NCCL_LIB_PATH=ON \
+            -DNCCL_INCLUDE_DIR=/usr/include \
+            -DUSE_DLOPEN_NCCL=ON \
+            -DGPU_COMPUTE_VER=75
+      - name: Stash testxgboost
+        run: |
+          aws s3 cp ./build/testxgboost \
+            s3://${{ env.RUNS_ON_S3_BUCKET_CACHE }}/cache/${{ github.repository }}/stash/${{ github.run_id }}/testxgboost
   test-gpu:
     name: Test GPU
     needs: build-gpu
@@ -60,8 +79,6 @@ jobs:
     steps:
       # Restart Docker daemon so that it recognized the ephemeral disks
       - run: sudo systemctl restart docker
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
       - uses: actions/checkout@v4
         with:
           submodules: "true"
@@ -71,21 +88,19 @@ jobs:
             s3://${{ env.RUNS_ON_S3_BUCKET_CACHE }}/cache/${{ github.repository }}/stash/${{ github.run_id }}/testxgboost \
              ./testxgboost
           chmod +x testxgboost
-      - name: Build container
-        run: |
-          python3 ops/docker_build.py \
-            --container-def gpu \
-            --container-id xgb-ci.gpu \
-            --build-arg CUDA_VERSION_ARG=12.5.1 \
-            --build-arg NCCL_VERSION_ARG=2.22.3-1 \
-            --build-arg RAPIDS_VERSION_ARG=24.10 \
-            --cache-from type=s3,blobs_prefix=cache/${{ github.repository }}/,manifests_prefix=cache/${{ github.repository }}/,region=${{ env.RUNS_ON_AWS_REGION }},bucket=${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --cache-to type=s3,blobs_prefix=cache/${{ github.repository }}/,manifests_prefix=cache/${{ github.repository }}/,region=${{ env.RUNS_ON_AWS_REGION }},bucket=${{ env.RUNS_ON_S3_BUCKET_CACHE }},mode=max
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.gpu
+          BRANCH_NAME: ${{ github.event.pull_request.number || github.ref_name }}
+          USE_DOCKER_CACHE: 1
       - name: Run gtest
         run: |
+          nvidia-smi
           python3 ops/docker_run.py \
             --container-id xgb-ci.gpu \
             --use-gpus \
+            --run-args='--privileged' \
             -- ./testxgboost
 
   build-test-gpu-win64:
@@ -94,20 +109,20 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=windows-gpu
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: "true"
-    - name: Build and run gtest
-      shell: powershell
-      run: |
-        nvidia-smi
-        nvcc --version
-        git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
-        mkdir build
-        cd build
-        cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_PREFIX_PATH="$(Get-Location)/../cccl"
-        if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-        cmake --build . --config Release -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
-        if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-        & .\testxgboost.exe
-        if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Build and run gtest
+        shell: powershell
+        run: |
+          nvidia-smi
+          nvcc --version
+          git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
+          mkdir build
+          cd build
+          cmake .. -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DBUILD_DEPRECATED_CLI=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_PREFIX_PATH="$(Get-Location)/../cccl"
+          if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+          cmake --build . --config Release -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
+          if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
+          & .\testxgboost.exe
+          if ($LASTEXITCODE -ne 0) { throw "Last command failed" }

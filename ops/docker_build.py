@@ -63,7 +63,7 @@ def docker_build(
             str(docker_context_path),
         ]
     )
-    cli_args = ["docker", "buildx", "build"] + docker_build_cli_args
+    cli_args = ["docker", "build"] + docker_build_cli_args
     fancy_print_cli_args(cli_args)
     subprocess.run(cli_args, check=True, encoding="utf-8")
 

@@ -45,3 +45,8 @@ sudo systemctl restart docker
 wget -nv https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -O awscliv2.zip
 unzip awscliv2.zip
 sudo ./aws/install
+
+## Install jq and yq
+sudo apt update && sudo apt install jq
+wget -nv https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64.tar.gz -O - | \
+  tar xz && sudo mv ./yq_linux_amd64 /usr/bin/yq

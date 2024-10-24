@@ -1,0 +1,18 @@
+## List of CI containers with definitions and build arguments
+
+# Each container will be built using the definition from
+# ops/docker/Dockerfile.CONTAINER_DEF
+
+xgb-ci.gpu_build_rockylinux8:
+  container_def: gpu_build_rockylinux8
+  build_args:
+    CUDA_VERSION_ARG: "12.5.1"
+    NCCL_VERSION_ARG: "2.22.3-1"
+    RAPIDS_VERSION_ARG: "24.10"
+
+xgb-ci.gpu:
+  container_def: gpu
+  build_args:
+    CUDA_VERSION_ARG: "12.5.1"
+    NCCL_VERSION_ARG: "2.22.3-1"
+    RAPIDS_VERSION_ARG: "24.10"
