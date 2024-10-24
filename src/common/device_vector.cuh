@@ -56,6 +56,7 @@ std::remove_cv_t<T> AtomicFetchMax(std::atomic<T> &atom, T val,  // NOLINT
 class MemoryLogger {
   // Information for a single device
   struct DeviceStats {
+    // Use signed int to allow out-of-order allocation/deallocation.
     std::atomic<std::int64_t> currently_allocated_bytes{0};
     std::atomic<std::int64_t> peak_allocated_bytes{0};
     void RegisterAllocation(std::int64_t n) {
