@@ -27,7 +27,9 @@
 
 #include <cuda.h>  // for CUmemGenericAllocationHandle
 
+#include <atomic>                  // for atomic, memory_order
 #include <cstddef>                 // for size_t
+#include <cstdint>                 // for int64_t
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
 #include <cub/util_device.cuh>     // for CurrentDevice
 #include <memory>                  // for unique_ptr
@@ -39,9 +41,10 @@
 
 namespace dh {
 namespace detail {
+// std::atomic::fetch_max in c++26
 template <typename T>
-std::remove_cv_t<T> AtomicFetchMax(std::atomic<T> &atom, T val,  // NOLINT
-                                   std::memory_order order = std::memory_order_seq_cst) {
+T AtomicFetchMax(std::atomic<T> &atom, T val,  // NOLINT
+                 std::memory_order order = std::memory_order_seq_cst) {
   auto expected = atom.load();
   auto desired = expected > val ? expected : val;
 
@@ -56,7 +59,7 @@ std::remove_cv_t<T> AtomicFetchMax(std::atomic<T> &atom, T val,  // NOLINT
 class MemoryLogger {
   // Information for a single device
   struct DeviceStats {
-    // Use signed int to allow out-of-order allocation/deallocation.
+    // Use signed int to allow temporary under-flow.
     std::atomic<std::int64_t> currently_allocated_bytes{0};
     std::atomic<std::int64_t> peak_allocated_bytes{0};
     void RegisterAllocation(std::int64_t n) {
@@ -71,20 +74,20 @@ class MemoryLogger {
   /**
    * @brief Register the allocation for logging.
    */
-  void RegisterAllocation(void *, size_t n) {
+  void RegisterAllocation(std::size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    stats_.RegisterAllocation(n);
+    stats_.RegisterAllocation(static_cast<std::int64_t>(n));
   }
   /**
    * @brief Register the deallocation for logging.
    */
-  void RegisterDeallocation(void *, size_t n) {
+  void RegisterDeallocation(std::size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    stats_.RegisterDeallocation(n);
+    stats_.RegisterDeallocation(static_cast<std::int64_t>(n));
   }
   std::int64_t PeakMemory() const { return stats_.peak_allocated_bytes; }
   std::int64_t CurrentlyAllocatedBytes() const { return stats_.currently_allocated_bytes; }
@@ -93,7 +96,7 @@ class MemoryLogger {
     stats_.peak_allocated_bytes = 0;
   }
 
-  void Log() {
+  void Log() const {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
@@ -288,12 +291,11 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     } catch (const std::exception &e) {
       detail::ThrowOOMError(e.what(), n * sizeof(T));
     }
-    // We can't place a lock here as template allocator is transient.
-    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterAllocation(n * sizeof(T));
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
     SuperT::deallocate(ptr, n);
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -342,14 +344,13 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
         detail::ThrowOOMError(e.what(), n * sizeof(T));
       }
     }
-    // We can't place a lock here as template allocator is transient.
-    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterAllocation(n * sizeof(T));
     return thrust_ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
+    GlobalMemoryLogger().RegisterDeallocation(n * sizeof(T));
     if (use_cub_allocator_) {
-      GetGlobalCachingAllocator().DeviceFree(ptr.get());
+      GetGlobalCachingAllocator().DeviceFree(thrust::raw_pointer_cast(ptr));
     } else {
       SuperT::deallocate(ptr, n);
     }
@@ -377,7 +378,9 @@ using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
 template <typename T>
 using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
 
-/** @brief Specialisation of thrust device vector using custom allocator. */
+/** @brief Specialisation of thrust device vector using custom allocator. In addition, it catches
+ *         OOM errors.
+ */
 template <typename T>
 using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;  // NOLINT
 template <typename T>
@@ -408,7 +411,7 @@ class LoggingResource : public rmm::mr::device_memory_resource {
   void *do_allocate(std::size_t bytes, rmm::cuda_stream_view stream) override {  // NOLINT
     try {
       auto const ptr = mr_->allocate(bytes, stream);
-      GlobalMemoryLogger().RegisterAllocation(ptr, bytes);
+      GlobalMemoryLogger().RegisterAllocation(bytes);
       return ptr;
     } catch (rmm::bad_alloc const &e) {
       detail::ThrowOOMError(e.what(), bytes);
@@ -419,7 +422,7 @@ class LoggingResource : public rmm::mr::device_memory_resource {
   void do_deallocate(void *ptr, std::size_t bytes,  // NOLINT
                      rmm::cuda_stream_view stream) override {
     mr_->deallocate(ptr, bytes, stream);
-    GlobalMemoryLogger().RegisterDeallocation(ptr, bytes);
+    GlobalMemoryLogger().RegisterDeallocation(bytes);
   }
 
   [[nodiscard]] bool do_is_equal(  // NOLINT
