@@ -2,6 +2,7 @@
  * Copyright 2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <thread>  // for thread
 
 #include <numeric>                     // for iota
 #include <thrust/detail/sequence.inl>  // for sequence
@@ -114,5 +115,23 @@ TEST(TestVirtualMem, Version) {
   } else {
     ASSERT_FALSE(pinned.IsVm());
   }
+}
+
+TEST(AtomitFetch, Max) {
+  auto n_threads = std::thread::hardware_concurrency();
+  std::vector<std::thread> threads;
+  std::atomic<std::int64_t> n{0};
+  decltype(n)::value_type add = 64;
+  for (decltype(n_threads) t = 0; t < n_threads; ++t) {
+    threads.emplace_back([=, &n] {
+      for (std::size_t i = 0; i < add; ++i) {
+        detail::AtomicFetchMax(n, static_cast<std::int64_t>(t + i));
+      }
+    });
+  }
+  for (auto& t : threads) {
+    t.join();
+  }
+  ASSERT_EQ(n, n_threads - 1 + add - 1);  // 0-based indexing
 }
 }  // namespace dh

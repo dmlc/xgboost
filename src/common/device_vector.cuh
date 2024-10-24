@@ -389,7 +389,6 @@ using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocato
  */
 class LoggingResource : public rmm::mr::device_memory_resource {
   rmm::mr::device_memory_resource *mr_{rmm::mr::get_current_device_resource()};
-  std::mutex lock_;
 
  public:
   LoggingResource() = default;
@@ -407,10 +406,6 @@ class LoggingResource : public rmm::mr::device_memory_resource {
   }
 
   void *do_allocate(std::size_t bytes, rmm::cuda_stream_view stream) override {  // NOLINT
-    std::unique_lock<std::mutex> guard{lock_, std::defer_lock};
-    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-      guard.lock();
-    }
     try {
       auto const ptr = mr_->allocate(bytes, stream);
       GlobalMemoryLogger().RegisterAllocation(ptr, bytes);
@@ -423,10 +418,6 @@ class LoggingResource : public rmm::mr::device_memory_resource {
 
   void do_deallocate(void *ptr, std::size_t bytes,  // NOLINT
                      rmm::cuda_stream_view stream) override {
-    std::unique_lock<std::mutex> guard{lock_, std::defer_lock};
-    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-      guard.lock();
-    }
     mr_->deallocate(ptr, bytes, stream);
     GlobalMemoryLogger().RegisterDeallocation(ptr, bytes);
   }
