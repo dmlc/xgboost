@@ -25,14 +25,12 @@
 
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-#include <cuda.h>
+#include <cuda.h>  // for CUmemGenericAllocationHandle
 
 #include <cstddef>                 // for size_t
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
 #include <cub/util_device.cuh>     // for CurrentDevice
-#include <map>                     // for map
 #include <memory>                  // for unique_ptr
-#include <mutex>                   // for defer_lock
 
 #include "common.h"         // for safe_cuda, HumanMemUnit
 #include "cuda_dr_utils.h"  // for CuDriverApi
@@ -41,92 +39,68 @@
 
 namespace dh {
 namespace detail {
+template <typename T>
+std::remove_cv_t<T> AtomicFetchMax(std::atomic<T> &atom, T val,  // NOLINT
+                                   std::memory_order order = std::memory_order_seq_cst) {
+  auto expected = atom.load();
+  auto desired = expected > val ? expected : val;
+
+  while (desired == val && !atom.compare_exchange_strong(expected, desired, order, order)) {
+    desired = expected > val ? expected : val;
+  }
+
+  return expected;
+}
+
 /** \brief Keeps track of global device memory allocations. Thread safe.*/
 class MemoryLogger {
   // Information for a single device
   struct DeviceStats {
-    std::size_t currently_allocated_bytes{0};
-    size_t peak_allocated_bytes{0};
-    size_t num_allocations{0};
-    size_t num_deallocations{0};
-    std::map<void *, size_t> device_allocations;
-    void RegisterAllocation(void *ptr, size_t n) {
-      auto itr = device_allocations.find(ptr);
-      if (itr != device_allocations.cend()) {
-        LOG(WARNING) << "Attempting to allocate " << n << " bytes."
-                     << " that was already allocated\nptr:" << ptr << "\n"
-                     << dmlc::StackTrace();
-      }
-      device_allocations[ptr] = n;
+    std::atomic<std::int64_t> currently_allocated_bytes{0};
+    std::atomic<std::int64_t> peak_allocated_bytes{0};
+    void RegisterAllocation(std::int64_t n) {
       currently_allocated_bytes += n;
-      peak_allocated_bytes = std::max(peak_allocated_bytes, currently_allocated_bytes);
-      num_allocations++;
-      CHECK_GT(num_allocations, num_deallocations);
+      AtomicFetchMax(peak_allocated_bytes, currently_allocated_bytes.load());
     }
-    void RegisterDeallocation(void *ptr, size_t n, int current_device) {
-      auto itr = device_allocations.find(ptr);
-      if (itr == device_allocations.end()) {
-        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device " << current_device
-                     << " that was never allocated\nptr:" << ptr << "\n"
-                     << dmlc::StackTrace();
-      } else {
-        num_deallocations++;
-        CHECK_LE(num_deallocations, num_allocations);
-        currently_allocated_bytes -= itr->second;
-        device_allocations.erase(itr);
-      }
-    }
+    void RegisterDeallocation(std::int64_t n) { currently_allocated_bytes -= n; }
   };
   DeviceStats stats_;
-  std::mutex mutex_;
 
  public:
   /**
    * @brief Register the allocation for logging.
-   *
-   * @param lock Set to false if the allocator has locking machanism.
    */
-  void RegisterAllocation(void *ptr, size_t n, bool lock) {
+  void RegisterAllocation(void *, size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::unique_lock guard{mutex_, std::defer_lock};
-    if (lock) {
-      guard.lock();
-    }
-    stats_.RegisterAllocation(ptr, n);
+    stats_.RegisterAllocation(n);
   }
   /**
    * @brief Register the deallocation for logging.
-   *
-   * @param lock Set to false if the allocator has locking machanism.
    */
-  void RegisterDeallocation(void *ptr, size_t n, bool lock) {
+  void RegisterDeallocation(void *, size_t n) {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::unique_lock guard{mutex_, std::defer_lock};
-    if (lock) {
-      guard.lock();
-    }
-    stats_.RegisterDeallocation(ptr, n, cub::CurrentDevice());
+    stats_.RegisterDeallocation(n);
   }
-  size_t PeakMemory() const { return stats_.peak_allocated_bytes; }
-  size_t CurrentlyAllocatedBytes() const { return stats_.currently_allocated_bytes; }
-  void Clear() { stats_ = DeviceStats(); }
+  std::int64_t PeakMemory() const { return stats_.peak_allocated_bytes; }
+  std::int64_t CurrentlyAllocatedBytes() const { return stats_.currently_allocated_bytes; }
+  void Clear() {
+    stats_.currently_allocated_bytes = 0;
+    stats_.peak_allocated_bytes = 0;
+  }
 
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
       return;
     }
-    std::lock_guard<std::mutex> guard(mutex_);
-    int current_device;
-    dh::safe_cuda(cudaGetDevice(&current_device));
+    auto current_device = cub::CurrentDevice();
     LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
                  << " ========";
     LOG(CONSOLE) << "Peak memory usage: "
                  << xgboost::common::HumanMemUnit(stats_.peak_allocated_bytes);
-    LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
   }
 };
 
@@ -314,11 +288,11 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
       detail::ThrowOOMError(e.what(), n * sizeof(T));
     }
     // We can't place a lock here as template allocator is transient.
-    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T), true);
+    GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T), true);
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
     SuperT::deallocate(ptr, n);
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -368,11 +342,11 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
       }
     }
     // We can't place a lock here as template allocator is transient.
-    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T), true);
+    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
     return thrust_ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
-    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T), true);
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
     if (use_cub_allocator_) {
       GetGlobalCachingAllocator().DeviceFree(ptr.get());
     } else {
@@ -438,7 +412,7 @@ class LoggingResource : public rmm::mr::device_memory_resource {
     }
     try {
       auto const ptr = mr_->allocate(bytes, stream);
-      GlobalMemoryLogger().RegisterAllocation(ptr, bytes, false);
+      GlobalMemoryLogger().RegisterAllocation(ptr, bytes);
       return ptr;
     } catch (rmm::bad_alloc const &e) {
       detail::ThrowOOMError(e.what(), bytes);
@@ -453,7 +427,7 @@ class LoggingResource : public rmm::mr::device_memory_resource {
       guard.lock();
     }
     mr_->deallocate(ptr, bytes, stream);
-    GlobalMemoryLogger().RegisterDeallocation(ptr, bytes, false);
+    GlobalMemoryLogger().RegisterDeallocation(ptr, bytes);
   }
 
   [[nodiscard]] bool do_is_equal(  // NOLINT
