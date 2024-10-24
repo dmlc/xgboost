@@ -4,7 +4,7 @@ set -euo pipefail
 ## Install basic tools
 echo 'debconf debconf/frontend select Noninteractive' | sudo debconf-set-selections
 sudo apt-get update
-sudo apt-get install -y cmake git build-essential wget ca-certificates curl
+sudo apt-get install -y cmake git build-essential wget ca-certificates curl unzip
 
 ## Install CUDA 12.5 + driver
 echo "Installilng CUDA and driver..."
@@ -40,3 +40,8 @@ sudo apt-get update
 sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
+
+## Install AWS CLI v2
+wget -nv https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -O awscliv2.zip
+unzip awscliv2.zip
+sudo ./aws/install

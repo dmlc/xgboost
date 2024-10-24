@@ -1,6 +1,6 @@
 FROM ubuntu:22.04
-ARG JDK_VERSION=8
-ARG SPARK_VERSION=3.5.1
+ARG JDK_VERSION_ARG=8
+ARG SPARK_VERSION_ARG=3.5.1
 
 # Environment
 ENV DEBIAN_FRONTEND=noninteractive
@@ -11,7 +11,7 @@ RUN \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:openjdk-r/ppa && \
     apt-get update && \
-    apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk libgomp1 && \
+    apt-get install -y tar unzip wget openjdk-$JDK_VERSION_ARG-jdk libgomp1 && \
     # Python
     wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
     bash conda.sh -b -p /opt/miniforge && \
@@ -22,12 +22,12 @@ RUN \
     ln -s /opt/apache-maven-3.9.7/ /opt/maven && \
     # Spark with scala 2.12
     mkdir -p /opt/spark-scala-2.12 && \
-    wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop3.tgz && \
-    tar xvf spark-$SPARK_VERSION-bin-hadoop3.tgz --strip-components=1 -C /opt/spark-scala-2.12 && \
+    wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION_ARG/spark-$SPARK_VERSION_ARG-bin-hadoop3.tgz && \
+    tar xvf spark-$SPARK_VERSION_ARG-bin-hadoop3.tgz --strip-components=1 -C /opt/spark-scala-2.12 && \
     # Spark with scala 2.13
     mkdir -p /opt/spark-scala-2.13 && \
-    wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK_VERSION-bin-hadoop3-scala2.13.tgz && \
-    tar xvf spark-$SPARK_VERSION-bin-hadoop3-scala2.13.tgz --strip-components=1 -C /opt/spark-scala-2.13
+    wget -nv https://archive.apache.org/dist/spark/spark-$SPARK_VERSION_ARG/spark-$SPARK_VERSION_ARG-bin-hadoop3-scala2.13.tgz && \
+    tar xvf spark-$SPARK_VERSION_ARG-bin-hadoop3-scala2.13.tgz --strip-components=1 -C /opt/spark-scala-2.13
 
 ENV PATH=/opt/miniforge/bin:/opt/spark/bin:/opt/maven/bin:$PATH
 
@@ -43,7 +43,7 @@ RUN set -ex; \
     gosu nobody true
 
 # Set default JDK version
-RUN update-java-alternatives -v -s java-1.$JDK_VERSION.0-openjdk-amd64
+RUN update-java-alternatives -v -s java-1.$JDK_VERSION_ARG.0-openjdk-amd64
 
 # Default entry-point to use if running locally
 # It will preserve attributes of created files
