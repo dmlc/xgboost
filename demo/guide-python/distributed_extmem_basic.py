@@ -1,23 +1,14 @@
 """
-Experimental support for external memory
-========================================
+Experimental support for distributed training with external memory
+==================================================================
 
-This is similar to the one in `quantile_data_iterator.py`, but for external memory
-instead of Quantile DMatrix.  The feature is not ready for production use yet.
+    .. versionadded:: 3.0.0
 
-    .. versionadded:: 1.5.0
-
-
-See :doc:`the tutorial </tutorials/external_memory>` for more details.
-
-    .. versionchanged:: 3.0.0
-
-        Added :py:class:`~xgboost.ExtMemQuantileDMatrix`.
-
-To run the example, following packages in addition to XGBoost native dependencies are
-required:
+See :doc:`the tutorial </tutorials/external_memory>` for more details. To run the
+example, following packages in addition to XGBoost native dependencies are required:
 
 - scikit-learn
+- loky
 
 If `device` is `cuda`, following are also needed:
 
@@ -28,28 +19,30 @@ If `device` is `cuda`, following are also needed:
 """
 
 import argparse
+import multiprocessing as mp
 import os
 import tempfile
+from functools import partial, update_wrapper
 from typing import Callable, List, Tuple
 
 import numpy as np
+from loky import get_reusable_executor
 from sklearn.datasets import make_regression
 
 import xgboost
+from xgboost import collective as coll
+from xgboost.tracker import RabitTracker
 
 
 def make_batches(
-    n_samples_per_batch: int,
-    n_features: int,
-    n_batches: int,
-    tmpdir: str,
+    n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int
 ) -> List[Tuple[str, str]]:
     files: List[Tuple[str, str]] = []
-    rng = np.random.RandomState(1994)
+    rng = np.random.RandomState(rank)
     for i in range(n_batches):
         X, y = make_regression(n_samples_per_batch, n_features, random_state=rng)
-        X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
-        y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
+        X_path = os.path.join(tmpdir, f"X-r{rank}-{i}.npy")
+        y_path = os.path.join(tmpdir, f"y-r{rank}-{i}.npy")
         np.save(X_path, X)
         np.save(y_path, y)
         files.append((X_path, y_path))
@@ -104,55 +97,6 @@ class Iterator(xgboost.DataIter):
         self._it = 0
 
 
-def hist_train(it: Iterator) -> None:
-    """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
-    faster initialization and lower memory usage.
-
-    .. versionadded:: 3.0.0
-
-    """
-    # For non-data arguments, specify it here once instead of passing them by the `next`
-    # method.
-    Xy = xgboost.ExtMemQuantileDMatrix(it, missing=np.nan, enable_categorical=False)
-    booster = xgboost.train(
-        {"tree_method": "hist", "max_depth": 4, "device": it.device},
-        Xy,
-        evals=[(Xy, "Train")],
-        num_boost_round=10,
-    )
-    booster.predict(Xy)
-
-
-def approx_train(it: Iterator) -> None:
-    """The approx tree method uses the basic `DMatrix`."""
-
-    # For non-data arguments, specify it here once instead of passing them by the `next`
-    # method.
-    Xy = xgboost.DMatrix(it, missing=np.nan, enable_categorical=False)
-    # ``approx`` is also supported, but less efficient due to sketching. It's
-    # recommended to use `hist` instead.
-    booster = xgboost.train(
-        {"tree_method": "approx", "max_depth": 4, "device": it.device},
-        Xy,
-        evals=[(Xy, "Train")],
-        num_boost_round=10,
-    )
-    booster.predict(Xy)
-
-
-def main(tmpdir: str, args: argparse.Namespace) -> None:
-    """Entry point for training."""
-
-    # generate some random data for demo
-    files = make_batches(
-        n_samples_per_batch=1024, n_features=17, n_batches=31, tmpdir=tmpdir
-    )
-    it = Iterator(args.device, files)
-
-    hist_train(it)
-    approx_train(it)
-
-
 def setup_rmm() -> None:
     """Setup RMM for GPU-based external memory training."""
     import rmm
@@ -169,6 +113,76 @@ def setup_rmm() -> None:
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
+
+
+def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> None:
+    """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
+    faster initialization and lower memory usage.
+
+    .. versionadded:: 3.0.0
+
+    """
+
+    with coll.CommunicatorContext(**rabit_args):
+        # Generate the data for demonstration. The sythetic data is sharded by workers.
+        files = make_batches(
+            n_samples_per_batch=4096,
+            n_features=16,
+            n_batches=17,
+            tmpdir=tmpdir,
+            rank=coll.get_rank(),
+        )
+        # Since we are running two workers on a single node, we should divide the number
+        # of threads between workers.
+        n_threads = os.cpu_count()
+        assert n_threads is not None
+        n_threads = max(n_threads // coll.get_world_size(), 1)
+        it = Iterator(device, files)
+        Xy = xgboost.ExtMemQuantileDMatrix(
+            it, missing=np.nan, enable_categorical=False, nthread=n_threads
+        )
+        # Check the device is correctly set.
+        if device == "cuda":
+            assert int(os.environ["CUDA_VISIBLE_DEVICES"]) < coll.get_world_size()
+        booster = xgboost.train(
+            {
+                "tree_method": "hist",
+                "max_depth": 4,
+                "device": it.device,
+                "nthread": n_threads,
+            },
+            Xy,
+            evals=[(Xy, "Train")],
+            num_boost_round=10,
+        )
+        booster.predict(Xy)
+
+
+def main(tmpdir: str, args: argparse.Namespace) -> None:
+    n_workers = 2
+
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=n_workers)
+    tracker.start()
+    rabit_args = tracker.worker_args()
+
+    def initializer(device: str) -> None:
+        # Set CUDA device before launching child processes.
+        if device == "cuda":
+            lop, sidx = mp.current_process().name.split("-")
+            idx = int(sidx)  # 1-based indexing from loky
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(int(sidx) - 1)
+
+    with get_reusable_executor(
+        max_workers=n_workers, initargs=(args.device,), initializer=initializer
+    ) as pool:
+        # Poor man's currying
+        fn = update_wrapper(
+            partial(
+                hist_train, tmpdir=tmpdir, device=args.device, rabit_args=rabit_args
+            ),
+            hist_train,
+        )
+        pool.map(fn, range(n_workers))
 
 
 if __name__ == "__main__":

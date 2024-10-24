@@ -349,6 +349,9 @@ void EllpackPageSourceImpl<F>::Fetch() {
     this->page_.reset(new EllpackPage{});
     auto* impl = this->page_->Impl();
     Context ctx = Context{}.MakeCUDA(this->Device().ordinal);
+    if (this->GetCuts()->HasCategorical()) {
+      CHECK(!this->feature_types_.empty());
+    }
     *impl = EllpackPageImpl{&ctx, this->GetCuts(), *csr, is_dense_, row_stride_, feature_types_};
     this->page_->SetBaseRowId(csr->base_rowid);
     LOG(INFO) << "Generated an Ellpack page with size: "
@@ -380,7 +383,9 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
       proxy_->Info().feature_types.SetDevice(dh::GetDevice(this->ctx_));
       auto d_feature_types = proxy_->Info().feature_types.ConstDeviceSpan();
       auto n_samples = value.NumRows();
-
+      if (this->GetCuts()->HasCategorical()) {
+        CHECK(!d_feature_types.empty());
+      }
       dh::device_vector<size_t> row_counts(n_samples + 1, 0);
       common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
       bst_idx_t row_stride = GetRowCounts(this->ctx_, value, row_counts_span,

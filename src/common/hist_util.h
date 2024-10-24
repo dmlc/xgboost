@@ -16,7 +16,6 @@
 
 #include "categorical.h"
 #include "quantile.h"
-#include "row_set.h"
 #include "threading_utils.h"
 #include "xgboost/base.h"  // for bst_feature_t, bst_bin_t
 #include "xgboost/data.h"

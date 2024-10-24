@@ -278,6 +278,7 @@ class TestTreeMethod:
             cats=cats,
             device="cpu",
             tree_method="approx",
+            extmem=False,
         )
         check_categorical_ohe(
             rows=rows,
@@ -286,6 +287,7 @@ class TestTreeMethod:
             cats=cats,
             device="cpu",
             tree_method="hist",
+            extmem=False,
         )
 
     @given(
@@ -341,9 +343,13 @@ class TestTreeMethod:
     )
     @settings(deadline=None, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical_missing(self, rows, cols, cats):
-        check_categorical_missing(rows, cols, cats, "cpu", "approx")
-        check_categorical_missing(rows, cols, cats, "cpu", "hist")
+    def test_categorical_missing(self, rows: int, cols: int, cats: int) -> None:
+        check_categorical_missing(
+            rows, cols, cats, device="cpu", tree_method="approx", extmem=False
+        )
+        check_categorical_missing(
+            rows, cols, cats, device="cpu", tree_method="hist", extmem=False
+        )
 
     def run_adaptive(self, tree_method, weighted) -> None:
         rng = np.random.RandomState(1994)

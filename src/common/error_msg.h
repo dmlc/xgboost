@@ -112,5 +112,9 @@ inline void NoPageConcat(bool concat_pages) {
                   "running on the CPU.";
   }
 }
+
+constexpr StringView InconsistentFeatureTypes() {
+  return "Inconsistent feature types between batches.";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_
