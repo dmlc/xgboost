@@ -135,4 +135,11 @@ object SparkUtils {
                             nullable: Boolean = false): StructType = {
     SchemaUtils.appendColumn(schema, colName, dataType, nullable)
   }
+
+  def isVectorType(dt: DataType): Boolean = {
+    dt match {
+      case _: VectorUDT => true
+      case _ => false
+    }
+  }
 }
