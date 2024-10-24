@@ -146,7 +146,7 @@ class TestEvalMetrics:
         score = reg.predict(X)
         gamma_dev = float(booster.eval(xgb.DMatrix(X, y)).split(":")[1].split(":")[0])
         skl_gamma_dev = mean_gamma_deviance(y, score)
-        np.testing.assert_allclose(gamma_dev, skl_gamma_dev, rtol=1e-6)
+        np.testing.assert_allclose(gamma_dev, skl_gamma_dev, atol=1e-6)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_gamma_lik(self) -> None:
