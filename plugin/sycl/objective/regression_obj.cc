@@ -42,17 +42,6 @@ DMLC_REGISTRY_FILE_TAG(regression_obj_sycl);
 
 template<typename Loss>
 class RegLossObj : public ObjFunction {
- protected:
-  HostDeviceVector<int> label_correct_;
-  mutable bool are_buffs_init = false;
-
-  void InitBuffers() const {
-    if (!are_buffs_init) {
-      batch_processor_.InitBuffers(qu_, {1, 1, 1, 1});
-      are_buffs_init = true;
-    }
-  }
-
  public:
   RegLossObj() = default;
 
@@ -65,7 +54,6 @@ class RegLossObj : public ObjFunction {
                    int iter,
                    xgboost::linalg::Matrix<GradientPair>* out_gpair) override {
     if (qu_ == nullptr) {
-      LOG(WARNING) << ctx_->Device();
       qu_ = device_manager.GetQueue(ctx_->Device());
     }
     if (info.labels.Size() == 0) return;
@@ -78,10 +66,6 @@ class RegLossObj : public ObjFunction {
     auto const n_targets = this->Targets(info);
     out_gpair->Reshape(info.num_row_, n_targets);
 
-    // TODO(razdoburdin): add label_correct check
-    label_correct_.Resize(1);
-    label_correct_.Fill(1);
-
     bool is_null_weight = info.weights_.Size() == 0;
 
     auto scale_pos_weight = param_.scale_pos_weight;
@@ -90,21 +74,25 @@ class RegLossObj : public ObjFunction {
         << "Number of weights should be equal to number of data points.";
     }
 
+    out_gpair->Data()->SetDevice(ctx_->Device());
+    preds.SetDevice(ctx_->Device());
+    info.labels.Data()->SetDevice(ctx_->Device());
+    info.weights_.SetDevice(ctx_->Device());
+
+    GradientPair* out_gpair_ptr = out_gpair->Data()->DevicePointer();
+    const bst_float* preds_ptr = preds.ConstDevicePointer();
+    const bst_float* label_ptr = info.labels.Data()->ConstDevicePointer();
+    const bst_float* weights_ptr = info.weights_.ConstDevicePointer();
+
     int flag = 1;
-    auto objective_fn = [=, &flag]
-                        (const std::vector<::sycl::event>& events,
-                         size_t ndata,
-                         GradientPair* out_gpair,
-                         const bst_float* preds,
-                         const bst_float* labels,
-                         const bst_float* weights) {
-      const size_t wg_size = 32;
-      const size_t nwgs = ndata / wg_size + (ndata % wg_size > 0);
-      return linalg::GroupWiseKernel(qu_, &flag, events, {nwgs, wg_size},
-        [=] (size_t idx, auto flag) {
-          const bst_float pred = Loss::PredTransform(preds[idx]);
-          bst_float weight = is_null_weight ? 1.0f : weights[idx/n_targets];
-          const bst_float label = labels[idx];
+    const size_t wg_size = 32;
+    const size_t nwgs = ndata / wg_size + (ndata % wg_size > 0);
+    linalg::GroupWiseKernel(qu_, &flag, {}, {nwgs, wg_size},
+      [=] (size_t idx, auto flag) {
+        if (idx < ndata) {
+          const bst_float pred = Loss::PredTransform(preds_ptr[idx]);
+          bst_float weight = is_null_weight ? 1.0f : weights_ptr[idx/n_targets];
+          const bst_float label = label_ptr[idx];
           if (label == 1.0f) {
             weight *= scale_pos_weight;
           }
@@ -112,26 +100,10 @@ class RegLossObj : public ObjFunction {
             AtomicRef<int> flag_ref(flag[0]);
             flag_ref = 0;
           }
-          out_gpair[idx] = GradientPair(Loss::FirstOrderGradient(pred, label) * weight,
-                                        Loss::SecondOrderGradient(pred, label) * weight);
-      });
-    };
-
-    InitBuffers();
-    if (is_null_weight) {
-      // Output is passed by pointer
-      // Inputs are passed by const reference
-      batch_processor_.Calculate(std::move(objective_fn),
-                                 out_gpair->Data(),
-                                 preds,
-                                 *(info.labels.Data()));
-    } else {
-      batch_processor_.Calculate(std::move(objective_fn),
-                                 out_gpair->Data(),
-                                 preds,
-                                 *(info.labels.Data()),
-                                 info.weights_);
-    }
+          out_gpair_ptr[idx] = GradientPair(Loss::FirstOrderGradient(pred, label) * weight,
+                                            Loss::SecondOrderGradient(pred, label) * weight);
+        }
+    });
     qu_->wait_and_throw();
 
     if (flag == 0) {
@@ -151,19 +123,16 @@ class RegLossObj : public ObjFunction {
     }
     size_t const ndata = io_preds->Size();
     if (ndata == 0) return;
-    InitBuffers();
 
-    batch_processor_.Calculate([=] (const std::vector<::sycl::event>& events,
-                                    size_t ndata,
-                                    bst_float* io_preds) {
-       return qu_->submit([&](::sycl::handler& cgh) {
-        cgh.depends_on(events);
-        cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
-          int idx = pid[0];
-          io_preds[idx] = Loss::PredTransform(io_preds[idx]);
-        });
+    io_preds->SetDevice(ctx_->Device());
+    bst_float* io_preds_ptr = io_preds->DevicePointer();
+    qu_->submit([&](::sycl::handler& cgh) {
+      cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
+        int idx = pid[0];
+        io_preds_ptr[idx] = Loss::PredTransform(io_preds_ptr[idx]);
       });
-    }, io_preds);
+    });
+
     qu_->wait_and_throw();
   }
 
@@ -195,8 +164,6 @@ class RegLossObj : public ObjFunction {
   sycl::DeviceManager device_manager;
 
   mutable ::sycl::queue* qu_ = nullptr;
-  static constexpr size_t kBatchSize = 1u << 22;
-  mutable linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3> batch_processor_;
 };
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression,

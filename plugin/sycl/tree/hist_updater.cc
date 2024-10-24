@@ -63,7 +63,7 @@ void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
     ExpandEntry entry,
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
+    const HostDeviceVector<GradientPair>& gpair) {
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
   nodes_for_explicit_hist_build_.push_back(entry);
@@ -76,7 +76,7 @@ void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
   std::vector<int> sync_ids;
   hist_rows_adder_->AddHistRows(this, &sync_ids, p_tree);
   qu_->wait_and_throw();
-  BuildLocalHistograms(gmat, p_tree, gpair_device);
+  BuildLocalHistograms(gmat, p_tree, gpair);
   hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
 }
 
@@ -84,7 +84,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::BuildLocalHistograms(
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
+    const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("BuildLocalHistograms");
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
   ::sycl::event event;
@@ -93,7 +93,7 @@ void HistUpdater<GradientSumT>::BuildLocalHistograms(
     const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
 
     if (row_set_collection_[nid].Size() > 0) {
-      event = BuildHist(gpair_device, row_set_collection_[nid], gmat, &(hist_[nid]),
+      event = BuildHist(gpair, row_set_collection_[nid], gmat, &(hist_[nid]),
                         &(hist_buffer_.GetDeviceBuffer()), event);
     } else {
       common::InitHist(qu_, &(hist_[nid]), hist_[nid].Size(), &event);
@@ -107,7 +107,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::BuildNodeStats(
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+    const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("BuildNodeStats");
   for (auto const& entry : qexpand_depth_wise_) {
     int nid = entry.nid;
@@ -226,7 +226,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::ExpandWithDepthWise(
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+    const HostDeviceVector<GradientPair>& gpair) {
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
@@ -263,7 +263,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::ExpandWithLossGuide(
     const common::GHistIndexMatrix& gmat,
     RegTree* p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+    const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("ExpandWithLossGuide");
   int num_leaves = 0;
   const auto lr = param_.learning_rate;
@@ -335,7 +335,7 @@ template <typename GradientSumT>
 void HistUpdater<GradientSumT>::Update(
     xgboost::tree::TrainParam const *param,
     const common::GHistIndexMatrix &gmat,
-    const USMVector<GradientPair, MemoryType::on_device>& gpair,
+    const HostDeviceVector<GradientPair>& gpair,
     DMatrix *p_fmat,
     xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
     RegTree *p_tree) {
@@ -427,11 +427,11 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
 
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitSampling(
-      const USMVector<GradientPair, MemoryType::on_device> &gpair,
+      const HostDeviceVector<GradientPair>& gpair,
       USMVector<size_t, MemoryType::on_device>* row_indices) {
   const size_t num_rows = row_indices->Size();
   auto* row_idx = row_indices->Data();
-  const auto* gpair_ptr = gpair.DataConst();
+  const auto* gpair_ptr = gpair.ConstDevicePointer();
   uint64_t num_samples = 0;
   const auto subsample = param_.subsample;
   ::sycl::event event;
@@ -493,7 +493,7 @@ void HistUpdater<GradientSumT>::InitSampling(
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitData(
                                 const common::GHistIndexMatrix& gmat,
-                                const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                                const HostDeviceVector<GradientPair>& gpair,
                                 const DMatrix& fmat,
                                 const RegTree& tree) {
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
@@ -537,7 +537,7 @@ void HistUpdater<GradientSumT>::InitData(
       InitSampling(gpair, row_indices);
     } else {
       int has_neg_hess = 0;
-      const GradientPair* gpair_ptr = gpair.DataConst();
+      const GradientPair* gpair_ptr = gpair.ConstDevicePointer();
       ::sycl::event event;
       {
         ::sycl::buffer<int, 1> flag_buf(&has_neg_hess, 1);
@@ -687,8 +687,7 @@ void HistUpdater<GradientSumT>::ApplySplit(
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::InitNewNode(int nid,
                                             const common::GHistIndexMatrix& gmat,
-                                            const USMVector<GradientPair,
-                                            MemoryType::on_device> &gpair,
+                                            const HostDeviceVector<GradientPair>& gpair,
                                             const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
 
@@ -712,7 +711,7 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
         const common::RowSetCollection::Elem e = row_set_collection_[nid];
         const size_t* row_idxs = e.begin;
         const size_t size = e.Size();
-        const GradientPair* gpair_ptr = gpair.DataConst();
+        const GradientPair* gpair_ptr = gpair.ConstDevicePointer();
 
         ::sycl::buffer<GradStats<GradientSumT>> buff(&grad_stat, 1);
         qu_->submit([&](::sycl::handler& cgh) {
