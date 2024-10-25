@@ -9,17 +9,31 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+  USE_DOCKER_CACHE: 1
+  ARTIFACT_STASH_PREFIX: cache/${{ github.repository }}/stash/${{ github.run_id }}
+
 jobs:
   build-containers:
     name: Build CI containers
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=${{ matrix.runner }}
     strategy:
       matrix:
         container_id:
           - xgb-ci.gpu_build_rockylinux8
           - xgb-ci.gpu
+          - xgb-ci.cpu
+          - xgb-ci.clang_tidy
+          - xgb-ci.manylinux_2_28_x86_64
+          - xgb-ci.manylinux2014_x86_64
+        runner: [linux-amd64-cpu]
+        include:
+          - container_id: xgb-ci.manylinux2014_aarch64
+            runner: linux-arm64-cpu
     steps:
       # Restart Docker daemon so that it recognized the ephemeral disks
       - run: sudo systemctl restart docker
@@ -30,16 +44,80 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: ${{ matrix.container_id }}
-          BRANCH_NAME: ${{ github.event.pull_request.number || github.ref_name }}
-          USE_DOCKER_CACHE: 1
-  build-gpu:
-    name: Build GPU
+
+  clang-tidy:
+    name: Run clang-tidy
     needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
     steps:
-      # Restart Docker daemon so that it recognized the ephemeral disks
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.clang_tidy
+      - run: bash ops/task/run-clang-tidy.sh
+
+  build-cpu:
+    name: Build CPU
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.cpu
+      - run: bash ops/task/build-cpu.sh
+      - name: Stash CLI executable
+        run: bash ops/stash_artifacts.sh ./xgboost
+        env:
+          COMMAND: upload
+          S3_BUCKET: ${{ env.RUNS_ON_S3_BUCKET_CACHE }}
+          PREFIX: ${{ env.ARTIFACT_STASH_PREFIX }}/build-cpu
+
+  build-cpu-arm64:
+    name: Build CPU ARM64 + manylinux_2_28_aarch64 wheel
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-arm64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.aarch64
+      - run: bash ops/task/build-cpu-arm64.sh
+      - name: Stash files
+        run: bash ops/stash_artifacts.sh ./xgboost python-package/dist/*.whl
+        env:
+          COMMAND: upload
+          S3_BUCKET: ${{ env.RUNS_ON_S3_BUCKET_CACHE }}
+          PREFIX: ${{ env.ARTIFACT_STASH_PREFIX }}/build-cpu-arm64
+
+  build-cuda:
+    name: Build CUDA + manylinux_2_28_x86_64 wheel
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
@@ -48,31 +126,100 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.gpu_build_rockylinux8
-          BRANCH_NAME: ${{ github.event.pull_request.number || github.ref_name }}
-          USE_DOCKER_CACHE: 1
-      - name: Build gtest
-        run: |
-          git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
-          python3 ops/docker_run.py \
-            --container-id xgb-ci.gpu_build_rockylinux8 \
-            -- tests/ci_build/build_via_cmake.sh \
-            -DCMAKE_PREFIX_PATH="/opt/grpc;/workspace/cccl" \
-            -DUSE_CUDA=ON \
-            -DUSE_OPENMP=ON \
-            -DHIDE_CXX_SYMBOLS=ON \
-            -DPLUGIN_FEDERATED=ON \
-            -DUSE_NCCL=ON \
-            -DUSE_NCCL_LIB_PATH=ON \
-            -DNCCL_INCLUDE_DIR=/usr/include \
-            -DUSE_DLOPEN_NCCL=ON \
-            -DGPU_COMPUTE_VER=75
-      - name: Stash testxgboost
-        run: |
-          aws s3 cp ./build/testxgboost \
-            s3://${{ env.RUNS_ON_S3_BUCKET_CACHE }}/cache/${{ github.repository }}/stash/${{ github.run_id }}/testxgboost
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
+      - run: bash ops/task/build-cuda.sh
+      - name: Stash files
+        run: bash ops/stash_artifacts.sh build/testxgboost python-package/dist/*.whl
+        env:
+          COMMAND: upload
+          S3_BUCKET: ${{ env.RUNS_ON_S3_BUCKET_CACHE }}
+          PREFIX: ${{ env.ARTIFACT_STASH_PREFIX }}/build-cuda
+
+  build-cuda-with-rmm:
+    name: Build CUDA with RMM
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.gpu_build_rockylinux8
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
+      - run: bash ops/task/build-cuda-with-rmm.sh
+      - name: Stash files
+        run: bash ops/stash_artifacts.sh build/testxgboost python-package/dist/*.whl
+        env:
+          COMMAND: upload
+          S3_BUCKET: ${{ env.RUNS_ON_S3_BUCKET_CACHE }}
+          PREFIX: ${{ env.ARTIFACT_STASH_PREFIX }}/build-cuda-with-rmm
+
+  build-jvm-manylinux2014:
+    name: Build libxgboost4j.so targeting gblic 2.17
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+        - arch: x86_64
+          runner: linux-amd64-cpu
+
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
+      - run: bash ops/task/build-jvm-manylinux2014.sh ${{ matrix.arch }}
+
+  build-manylinux2014:
+    name: Build manylinux2024_${{ matrix.arch }} wheel
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+        - arch: x86_64
+          runner: linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
+      - run: bash ops/task/build-manylinux2014.sh ${{ matrix.arch }}
+
   test-gpu:
     name: Test GPU
-    needs: build-gpu
+    needs: build-cuda
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-gpu
@@ -82,18 +229,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Unstash testxgboost
+      - name: Unstash gtest executable
         run: |
-          aws s3 cp \
-            s3://${{ env.RUNS_ON_S3_BUCKET_CACHE }}/cache/${{ github.repository }}/stash/${{ github.run_id }}/testxgboost \
-             ./testxgboost
-          chmod +x testxgboost
+          bash ops/stash_artifacts.sh ./testxgboost
+          chmod +x ./testxgboost
+        env:
+          COMMAND: download
+          S3_BUCKET: ${{ env.RUNS_ON_S3_BUCKET_CACHE }}
+          PREFIX: ${{ env.ARTIFACT_STASH_PREFIX }}/build-cuda
       - name: Fetch container from cache
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.gpu
-          BRANCH_NAME: ${{ github.event.pull_request.number || github.ref_name }}
-          USE_DOCKER_CACHE: 1
       - name: Run gtest
         run: |
           nvidia-smi

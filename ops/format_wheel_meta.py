@@ -2,6 +2,7 @@
 Script to generate meta.json to store metadata for a nightly build of
 XGBoost Python package.
 """
+
 import json
 import pathlib
 from argparse import ArgumentParser
@@ -13,7 +14,7 @@ def main(args):
         raise ValueError(f"Wheel cannot be found at path {wheel_path}")
     if not wheel_path.is_file():
         raise ValueError(f"Path {wheel_path} is not a valid file")
-    wheel_dir, wheel_name = wheel_path.parent, wheel_path.name
+    wheel_name = wheel_path.name
 
     meta_path = pathlib.Path(args.meta_path)
     if not meta_path.exists():

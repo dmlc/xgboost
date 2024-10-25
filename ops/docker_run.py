@@ -25,7 +25,7 @@ TEXT_WRAPPER = textwrap.TextWrapper(
 
 
 def parse_run_args(raw_run_args: str) -> list[str]:
-    return [x for x in raw_run_args.split(" ") if x]
+    return [x for x in raw_run_args.split() if x]
 
 
 def compute_container_id(container_name: str, build_args: list[dict[str, str]]) -> str:
