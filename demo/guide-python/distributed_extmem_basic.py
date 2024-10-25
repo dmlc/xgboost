@@ -165,6 +165,7 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
     def initializer(device: str) -> None:
         # Set CUDA device before launching child processes.
         if device == "cuda":
+            # name: LokyProcess-1
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx)  # 1-based indexing from loky
             os.environ["CUDA_VISIBLE_DEVICES"] = str(idx - 1)
