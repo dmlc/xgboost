@@ -208,7 +208,7 @@ class MeanAbsoluteError : public ObjFunction {
   }
 
   void GetGradient(HostDeviceVector<float> const& preds, const MetaInfo& info,
-                   std::int32_t /*iter*/, xgboost::linalg::Matrix<GradientPair>* out_gpair) override {
+                   std::int32_t, xgboost::linalg::Matrix<GradientPair>* out_gpair) override {
     if (qu_ == nullptr) {
       qu_ = device_manager.GetQueue(ctx_->Device());
     }
@@ -265,6 +265,7 @@ class MeanAbsoluteError : public ObjFunction {
   void LoadConfig(Json const& in) override {
     CHECK_EQ(StringView{get<String const>(in["name"])}, StringView{"reg:absoluteerror"});
   }
+
  protected:
   sycl::DeviceManager device_manager;
   mutable ::sycl::queue* qu_ = nullptr;
