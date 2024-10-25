@@ -14,7 +14,6 @@ If `device` is `cuda`, following are also needed:
 
 - cupy
 - rmm
-- python-cuda
 
 """
 
@@ -100,7 +99,6 @@ class Iterator(xgboost.DataIter):
 def setup_rmm() -> None:
     """Setup RMM for GPU-based external memory training."""
     import rmm
-    from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
 
     if not xgboost.build_info()["USE_RMM"]:
@@ -170,7 +168,8 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
         if device == "cuda":
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx)  # 1-based indexing from loky
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(int(sidx) - 1)
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(int(idx) - 1)
+            setup_rmm()
 
     with get_reusable_executor(
         max_workers=n_workers, initargs=(args.device,), initializer=initializer
