@@ -167,7 +167,7 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
         if device == "cuda":
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx)  # 1-based indexing from loky
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(int(idx) - 1)
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(idx - 1)
             setup_rmm()
 
     with get_reusable_executor(
