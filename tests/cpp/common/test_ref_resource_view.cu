@@ -1,6 +1,8 @@
 /**
  * Copyright 2024, XGBoost Contributors
  */
+#if defined(__linux__)
+
 #include <gtest/gtest.h>
 #include <thrust/equal.h>                       // for equal
 #include <thrust/fill.h>                        // for fill_n
@@ -43,3 +45,5 @@ TEST_P(TestCudaGrowOnly, Resize) { this->Run(this->GetParam()); }
 
 INSTANTIATE_TEST_SUITE_P(RefResourceView, TestCudaGrowOnly, ::testing::Values(1 << 20, 1 << 21));
 }  // namespace xgboost::common
+
+#endif  // defined(__linux__)
