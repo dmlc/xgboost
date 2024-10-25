@@ -45,11 +45,23 @@ TEST(SyclObjective, LogisticRawGPair) {
   TestsLogisticRawGPair(&ctx);
 }
 
+TEST(SyclObjective, AbsoluteError) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestAbsoluteError(&ctx);
+}
+
+TEST(SyclObjective, AbsoluteErrorLeaf) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestAbsoluteErrorLeaf(&ctx);
+}
+
 TEST(SyclObjective, CPUvsSycl) {
   Context ctx_sycl;
   ctx_sycl.UpdateAllowUnknown(Args{{"device", "sycl"}});
   ObjFunction * obj_sycl =
-      ObjFunction::Create("reg:squarederror_sycl", &ctx_sycl);
+      ObjFunction::Create("reg:squarederror", &ctx_sycl);
 
   Context ctx_cpu;
   ctx_cpu.UpdateAllowUnknown(Args{{"device", "cpu"}});
