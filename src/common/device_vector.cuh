@@ -134,6 +134,45 @@ struct GrowOnlyPinnedMemoryImpl {
   }
 };
 
+class HostMemPool {
+  cudaMemPool_t pool_;
+
+ public:
+  HostMemPool() {
+    cudaMemPoolProps props;
+    std::memset(&props, '\0', sizeof(props));
+    props.allocType = cudaMemAllocationTypePinned;
+    props.location.type = cudaMemLocationTypeHostNuma;
+    std::int32_t numa_id = -1;
+    safe_cuda(cudaDeviceGetAttribute(&numa_id, cudaDevAttrNumaId, cub::CurrentDevice()));
+    CHECK_GE(numa_id, 0);
+    props.location.id = numa_id;
+
+    safe_cuda(cudaMemPoolCreate(&pool_, &props));
+  }
+
+  auto Handle() { return pool_; }
+  ~HostMemPool() { safe_cuda(cudaMemPoolDestroy(pool_)); }
+};
+
+/**
+ * @brief Pinned host memory using CUDA memory pool.
+ */
+struct GrowOnlyPinnedMemPool {
+  HostMemPool pool;
+  void *storage{nullptr};
+  std::size_t cur_n_bytes{0};
+
+  void Grow(std::size_t n_bytes);
+
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(std::size_t size) {
+    auto n_bytes = size * sizeof(T);
+    this->Grow(n_bytes);
+    return xgboost::common::Span<T>(static_cast<T *>(storage), size);
+  }
+};
+
 /**
  * @brief Use low-level virtual memory functions from CUDA driver API for grow-only memory
  *        allocation.

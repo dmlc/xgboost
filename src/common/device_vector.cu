@@ -29,6 +29,14 @@ void ThrowOOMError(std::string const &err, std::size_t bytes) {
   return std::accumulate(it, it + this->handles_.size(), static_cast<std::size_t>(0));
 }
 
+void GrowOnlyPinnedMemPool::Grow(std::size_t n_bytes) {
+  if (n_bytes > this->cur_n_bytes) {
+    return;
+  }
+  safe_cuda(cudaFreeAsync(storage, dh::DefaultStream()));
+  safe_cuda(cudaMallocFromPoolAsync(&storage, n_bytes, pool.Handle(), dh::DefaultStream()));
+}
+
 void GrowOnlyVirtualMemVec::Reserve(std::size_t new_size) {
   auto va_capacity = this->Capacity();
   if (new_size < va_capacity) {
