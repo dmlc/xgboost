@@ -190,12 +190,8 @@ class GHistBuildingManager {
 
 #ifdef XGBOOST_SVE_PRESENT
 template <typename BinIdxType>
-__attribute__((target("arch=armv8-a+sve")))
-inline svuint32_t load_index_vec(svbool_t pg, BinIdxType *d) {
-    std::cout << "Missing template for type " << typeid(BinIdxType).name() << std::endl;
-    assert(0);
-    return svindex_u32(0, 2);  // dummy
-}
+__attribute__((target("arch=armv8-a+sve"))) inline svuint32_t load_index_vec(svbool_t pg,
+                                                                             BinIdxType *d);
 
 template <>
 __attribute__((target("arch=armv8-a+sve")))
