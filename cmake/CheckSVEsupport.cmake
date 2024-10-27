@@ -1,5 +1,5 @@
 function(check_xgboost_sve_support)
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
     include(CheckCSourceCompiles)
 
     # Save the original C_FLAGS to restore later
@@ -16,17 +16,17 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
         return 0;
     }
     #endif
-    " XGBOOST_COMPILER_HAS_ARM_SVE)
+    " XGBOOST_SVE_PRESENT)
 
-    if(XGBOOST_COMPILER_HAS_ARM_SVE)
-        message(STATUS "ARM SVE compiler support detected")
+    if(XGBOOST_SVE_PRESENT)
+      message(STATUS "ARM SVE compiler support detected")
     else()
-        message(STATUS "ARM SVE compiler support not detected")
+      message(STATUS "ARM SVE compiler support not detected")
     endif()
 
     # Restore the original C_FLAGS
     set(CMAKE_C_FLAGS "${ORIGINAL_C_FLAGS}")
-else()
+  else()
     message(STATUS "Not an aarch64 architecture")
-endif()
+  endif()
 endfunction()

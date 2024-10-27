@@ -21,7 +21,7 @@
 #define PR_SVE_GET_VL 51
 #endif
 
-#ifdef XGBOOST_SVE_COMPILER_SUPPORT
+#ifdef XGBOOST_SVE_PRESENT
 #include <arm_sve.h>  // to leverage sve intrinsics
 #endif
 
@@ -188,7 +188,7 @@ class GHistBuildingManager {
   }
 };
 
-#ifdef XGBOOST_SVE_COMPILER_SUPPORT
+#ifdef XGBOOST_SVE_PRESENT
 template <typename BinIdxType>
 __attribute__((target("arch=armv8-a+sve")))
 inline svuint32_t load_index_vec(svbool_t pg, BinIdxType *d) {
@@ -349,24 +349,24 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
     }
     const BinIdxType *gr_index_local = gradient_index + icol_start;
 
-    #ifdef XGBOOST_SVE_COMPILER_SUPPORT
-      if (sve_enabled) {
-        UpdateHistogramWithSVE(row_size, gr_index_local, offsets, hist_data, p_gpair, idx_gh, two,
-                        kAnyMissing);
-      } else {
-    #endif
-        // The trick with pgh_t buffer helps the compiler to generate faster binary.
-        const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
-        for (size_t j = 0; j < row_size; ++j) {
-          const uint32_t idx_bin =
-              two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
-          auto hist_local = hist_data + idx_bin;
-          *(hist_local) += pgh_t[0];
-          *(hist_local + 1) += pgh_t[1];
-        }
-    #ifdef XGBOOST_SVE_COMPILER_SUPPORT
+#ifdef XGBOOST_SVE_PRESENT
+    if (sve_enabled) {
+      UpdateHistogramWithSVE(row_size, gr_index_local, offsets, hist_data, p_gpair, idx_gh, two,
+                             kAnyMissing);
+    } else {
+#endif
+      // The trick with pgh_t buffer helps the compiler to generate faster binary.
+      const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
+      for (size_t j = 0; j < row_size; ++j) {
+        const uint32_t idx_bin =
+            two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
+        auto hist_local = hist_data + idx_bin;
+        *(hist_local) += pgh_t[0];
+        *(hist_local + 1) += pgh_t[1];
+      }
+#ifdef XGBOOST_SVE_PRESENT
     }
-    #endif
+#endif
   }
 }
 
