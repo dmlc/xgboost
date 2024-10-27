@@ -6,6 +6,7 @@ from distributed.utils_test import gen_cluster
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost import dask as dxgb
 from xgboost.testing.dask import check_external_memory
 
 
@@ -16,7 +17,7 @@ async def test_external_memory(
 ) -> None:
     workers = tm.get_client_workers(client)
     args = await client.sync(
-        xgb.dask._get_rabit_args,
+        dxgb._get_rabit_args,
         len(workers),
         None,
         client,

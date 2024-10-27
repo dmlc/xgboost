@@ -301,18 +301,18 @@ class TestDistributedGPU:
         X, y = make_categorical(client, 1, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
 
-        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
-        Xy_valid = xgb.dask.DaskQuantileDMatrix(
+        Xy = dxgb.DaskQuantileDMatrix(client, X, y, enable_categorical=True)
+        Xy_valid = dxgb.DaskQuantileDMatrix(
             client, X_valid, y_valid, ref=Xy, enable_categorical=True
         )
-        result = xgb.dask.train(
+        result = dxgb.train(
             client,
             {"tree_method": "hist", "device": "cuda", "debug_synchronize": True},
             Xy,
             num_boost_round=10,
             evals=[(Xy_valid, "Valid")],
         )
-        predt = xgb.dask.inplace_predict(client, result["booster"], X).compute()
+        predt = dxgb.inplace_predict(client, result["booster"], X).compute()
         np.testing.assert_allclose(y.compute(), predt)
         rmse = result["history"]["Valid"]["rmse"][-1]
         assert rmse < 32.0
@@ -420,7 +420,7 @@ class TestDistributedGPU:
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
         dtrain = dxgb.DaskQuantileDMatrix(local_cuda_client, X, y)
-        bst_empty = xgb.dask.train(
+        bst_empty = dxgb.train(
             local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
         )
         predt_empty = dxgb.predict(local_cuda_client, bst_empty, X).compute().values
@@ -432,7 +432,7 @@ class TestDistributedGPU:
         X = ddf[ddf.columns.difference(["y"])]
         y = ddf[["y"]]
         dtrain = dxgb.DaskQuantileDMatrix(local_cuda_client, X, y)
-        bst = xgb.dask.train(
+        bst = dxgb.train(
             local_cuda_client, parameters, dtrain, evals=[(dtrain, "train")]
         )
 
@@ -573,7 +573,7 @@ class TestDistributedGPU:
 
         sig = OrderedDict(signature(xgb.XGBRanker.fit).parameters)
         ranker_names = list(sig.keys())
-        sig = OrderedDict(signature(xgb.dask.DaskXGBRanker.fit).parameters)
+        sig = OrderedDict(signature(dxgb.DaskXGBRanker.fit).parameters)
         dranker_names = list(sig.keys())
 
         for rn, drn in zip(ranker_names, dranker_names):
@@ -664,16 +664,16 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         X = X.to_backend("cupy")
         y = y.to_backend("cupy")
 
-        m: xgb.dask.DaskDMatrix = await xgb.dask.DaskQuantileDMatrix(
+        m: dxgb.DaskDMatrix = await dxgb.DaskQuantileDMatrix(
             client, X, y
         )  # type:ignore
-        output = await xgb.dask.train(
+        output = await dxgb.train(
             client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
         )
 
-        with_m = await xgb.dask.predict(client, output, m)
-        with_X = await xgb.dask.predict(client, output, X)
-        inplace = await xgb.dask.inplace_predict(client, output, X)
+        with_m = await dxgb.predict(client, output, m)
+        with_X = await dxgb.predict(client, output, X)
+        inplace = await dxgb.inplace_predict(client, output, X)
         assert isinstance(with_m, da.Array)
         assert isinstance(with_X, da.Array)
         assert isinstance(inplace, da.Array)
@@ -695,5 +695,5 @@ def test_invalid_quantile_blocks(local_cuda_client: Client) -> None:
     X = X.to_backend("cupy")
     y = y.to_backend("cupy")
     with pytest.raises(ValueError, match="must be greater than 0."):
-        Xy = xgb.dask.DaskQuantileDMatrix(client, X, y, max_quantile_batches=0)
-        xgb.dask.train(client, {"tree_method": "hist", "device": "cuda"}, dtrain=Xy)
+        Xy = dxgb.DaskQuantileDMatrix(client, X, y, max_quantile_batches=0)
+        dxgb.train(client, {"tree_method": "hist", "device": "cuda"}, dtrain=Xy)
