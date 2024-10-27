@@ -1143,9 +1143,7 @@ def test_predict_with_meta(client: "Client") -> None:
     margin = da.random.random(kRows, partition_size) + 1e4
 
     dtrain = DaskDMatrix(client, X, y, weight=w, base_margin=margin)
-    booster: xgb.Booster = dxgb.train(client, {}, dtrain, num_boost_round=4)[
-        "booster"
-    ]
+    booster: xgb.Booster = dxgb.train(client, {}, dtrain, num_boost_round=4)["booster"]
 
     prediction = dxgb.predict(client, model=booster, data=dtrain)
     assert prediction.ndim == 1
@@ -1185,9 +1183,7 @@ def run_aft_survival(client: "Client", dmatrix_t: Type) -> None:
         params = base_params
         params.update({"aft_loss_distribution": dist})
         evals_result = {}
-        out = dxgb.train(
-            client, params, m, num_boost_round=100, evals=[(m, "train")]
-        )
+        out = dxgb.train(client, params, m, num_boost_round=100, evals=[(m, "train")])
         evals_result = out["history"]
         nloglik_rec[dist] = evals_result["train"]["aft-nloglik"]
         # AFT metric (negative log likelihood) improve monotonically
@@ -1334,9 +1330,7 @@ class TestWithDask:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             workers = tm.get_client_workers(client)
-            rabit_args = client.sync(
-                dxgb._get_rabit_args, len(workers), None, client
-            )
+            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
             futures = []
             for w in workers:
                 # same argument for each worker, must set pure to False otherwise dask
@@ -1348,9 +1342,7 @@ class TestWithDask:
                 futures.append(f)
             client.gather(futures)
 
-            rabit_args = client.sync(
-                dxgb._get_rabit_args, len(workers), None, client
-            )
+            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
             futures = []
             for w in workers:
                 f = client.submit(
@@ -1398,9 +1390,9 @@ class TestWithDask:
                 assert xgb.config.get_config()[config_key] == config_value
                 return False
 
-        dxgb.train(
-            client, {}, dtrain, num_boost_round=4, callbacks=[TestCallback()]
-        )["booster"]
+        dxgb.train(client, {}, dtrain, num_boost_round=4, callbacks=[TestCallback()])[
+            "booster"
+        ]
 
         with open(before_fname, "r") as before, open(after_fname, "r") as after:
             assert before.read() == str(config_value)
@@ -1630,9 +1622,7 @@ class TestWithDask:
                 dy = client.persist(dy, workers=workers[1])
                 valid = dxgb.DaskDMatrix(client, dX, dy)
 
-                merged = dxgb._get_workers_from_data(
-                    train, evals=[(valid, "Valid")]
-                )
+                merged = dxgb._get_workers_from_data(train, evals=[(valid, "Valid")])
                 assert len(merged) == 2
 
     @pytest.mark.skipif(**tm.no_dask())
@@ -1812,9 +1802,7 @@ class TestWithDask:
         test_Xy = dxgb.DaskDMatrix(client, X, y)
 
         shap = dxgb.predict(client, booster, test_Xy, pred_contribs=True).compute()
-        margin = dxgb.predict(
-            client, booster, test_Xy, output_margin=True
-        ).compute()
+        margin = dxgb.predict(client, booster, test_Xy, output_margin=True).compute()
         assert_shape(shap.shape)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
@@ -1844,9 +1832,7 @@ class TestWithDask:
         test_Xy = dxgb.DaskDMatrix(client, X, y)
 
         shap = dxgb.predict(client, booster, test_Xy, pred_contribs=True).compute()
-        margin = dxgb.predict(
-            client, booster, test_Xy, output_margin=True
-        ).compute()
+        margin = dxgb.predict(client, booster, test_Xy, output_margin=True).compute()
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
         shap = dxgb.predict(client, booster, X, pred_contribs=True).compute()
@@ -1881,18 +1867,14 @@ class TestWithDask:
 
         test_Xy = dxgb.DaskDMatrix(client, X, y)
 
-        shap = dxgb.predict(
-            client, booster, test_Xy, pred_interactions=True
-        ).compute()
+        shap = dxgb.predict(client, booster, test_Xy, pred_interactions=True).compute()
 
         assert len(shap.shape) == 3
         assert shap.shape[0] == rows
         assert shap.shape[1] == cols + 1
         assert shap.shape[2] == cols + 1
 
-        margin = dxgb.predict(
-            client, booster, test_Xy, output_margin=True
-        ).compute()
+        margin = dxgb.predict(client, booster, test_Xy, output_margin=True).compute()
         assert np.allclose(
             np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
             margin,
@@ -1958,9 +1940,7 @@ def test_dask_unsupported_features(client: "Client") -> None:
     X, y, _ = generate_array()
     # gblinear doesn't support distributed training.
     with pytest.raises(NotImplementedError, match="gblinear"):
-        dxgb.train(
-            client, {"booster": "gblinear"}, dxgb.DaskDMatrix(client, X, y)
-        )
+        dxgb.train(client, {"booster": "gblinear"}, dxgb.DaskDMatrix(client, X, y))
 
 
 def test_parallel_submits(client: "Client") -> None:

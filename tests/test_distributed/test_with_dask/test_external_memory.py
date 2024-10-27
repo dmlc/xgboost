@@ -5,8 +5,8 @@ from distributed import Client, Scheduler, Worker
 from distributed.utils_test import gen_cluster
 
 import xgboost as xgb
-from xgboost import testing as tm
 from xgboost import dask as dxgb
+from xgboost import testing as tm
 from xgboost.testing.dask import check_external_memory
 
 
