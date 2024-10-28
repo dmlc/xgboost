@@ -19,7 +19,7 @@ The 2.1.2 patch release makes the following bug fixes:
 2.1.1 Patch Release (2024 Jul 31)
 #################################
 
-The 2.1.1 patch release make the following bug fixes:
+The 2.1.1 patch release makes the following bug fixes:
 
 - [Dask] Disable broadcast in the scatter call so that predict function won't hang (#10632)
 - [Dask] Handle empty partitions correctly (#10559)
