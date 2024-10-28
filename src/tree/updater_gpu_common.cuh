@@ -56,7 +56,7 @@ enum DefaultDirection {
 };
 
 struct DeviceSplitCandidate {
-  float loss_chg {-FLT_MAX};
+  float loss_chg {-std::numeric_limits<float>::max()};
   DefaultDirection dir {kLeftDir};
   int findex {-1};
   float fvalue {0};
