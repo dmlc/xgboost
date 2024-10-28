@@ -136,10 +136,5 @@ object SparkUtils {
     SchemaUtils.appendColumn(schema, colName, dataType, nullable)
   }
 
-  def isVectorType(dt: DataType): Boolean = {
-    dt match {
-      case _: VectorUDT => true
-      case _ => false
-    }
-  }
+  def isVectorType(dataType: DataType): Boolean = dataType.isInstanceOf[VectorUDT]
 }
