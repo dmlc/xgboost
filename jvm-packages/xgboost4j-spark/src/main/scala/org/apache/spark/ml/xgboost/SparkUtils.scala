@@ -135,4 +135,6 @@ object SparkUtils {
                             nullable: Boolean = false): StructType = {
     SchemaUtils.appendColumn(schema, colName, dataType, nullable)
   }
+
+  def isVectorType(dataType: DataType): Boolean = dataType.isInstanceOf[VectorUDT]
 }

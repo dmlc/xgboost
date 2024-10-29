@@ -187,16 +187,21 @@ private[spark] trait XGBoostEstimator[
    * @return
    */
   private[spark] def preprocess(dataset: Dataset[_]): (Dataset[_], ColumnIndices) = {
+    val schema = dataset.schema
+    validateFeatureType(schema)
+    val featureIsArray: Boolean = featureIsArrayType(schema)
 
     // Columns to be selected for XGBoost training
     val selectedCols: ArrayBuffer[Column] = ArrayBuffer.empty
-    val schema = dataset.schema
 
     def selectCol(c: Param[String], targetType: DataType) = {
       if (isDefinedNonEmpty(c)) {
-        // Validation col should be a boolean column.
         if (c == featuresCol) {
-          selectedCols.append(col($(c)))
+          // If feature is array type, we force to cast it to array of float
+          val featureCol = if (featureIsArray) {
+            col($(featuresCol)).cast(ArrayType(FloatType))
+          } else col($(featuresCol))
+          selectedCols.append(featureCol)
         } else {
           selectedCols.append(castIfNeeded(schema, $(c), targetType))
         }
@@ -219,22 +224,33 @@ private[spark] trait XGBoostEstimator[
                                        columnIndexes: ColumnIndices): RDD[XGBLabeledPoint] = {
     val isSetMissing = isSet(missing)
     dataset.toDF().rdd.map { row =>
-      val features = row.getAs[Vector](columnIndexes.featureId.get)
       val label = row.getFloat(columnIndexes.labelId)
       val weight = columnIndexes.weightId.map(row.getFloat).getOrElse(1.0f)
       val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
       val group = columnIndexes.groupId.map(row.getInt).getOrElse(-1)
-      // To make "0" meaningful, we convert sparse vector if possible to dense to create DMatrix.
-      features match {
-        case _: SparseVector => if (!isSetMissing) {
-          throw new IllegalArgumentException("We've detected sparse vectors in the dataset that " +
-            "need conversion to dense format. However, we can't assume 0 for missing values as " +
-            "it may be meaningful. Please specify the missing value explicitly to ensure " +
-            "accurate data representation for analysis.")
-        }
-        case _ =>
+
+      val values = row.schema(columnIndexes.featureId.get).dataType match {
+        case ArrayType(_, _) =>
+          // The driver has casted the array(*) to array(float), so it's safe to
+          // specify it as WrappedArray[Float] directly
+          row.getAs[mutable.WrappedArray[Float]](columnIndexes.featureId.get).toArray
+        case other =>
+          if (!SparkUtils.isVectorType(other)) {
+            throw new IllegalArgumentException("Feature must be array or vector type")
+          }
+          val features = row.getAs[Vector](columnIndexes.featureId.get)
+          features match {
+            case _: SparseVector => if (!isSetMissing) {
+              throw new IllegalArgumentException("We've detected sparse vectors in the dataset " +
+                "that need conversion to dense format. However, we can't assume 0 for missing " +
+                "values as it may be meaningful. Please specify the missing value explicitly to" +
+                "ensure accurate data representation for analysis.")
+            }
+            case _ => // DenseVector
+          }
+          // To make "0" meaningful, we convert sparse vector if possible to dense.
+          features.toArray.map(_.toFloat)
       }
-      val values = features.toArray.map(_.toFloat)
       XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
     }
   }
@@ -581,18 +597,19 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {
-
     if (getPlugin.isDefined) {
       return getPlugin.get.transform(this, dataset)
     }
-
+    validateFeatureType(dataset.schema)
     val (schema, pred) = preprocess(dataset)
+    // Broadcast the booster to each executor.
     val bBooster = dataset.sparkSession.sparkContext.broadcast(nativeBooster)
     // TODO configurable
     val inferBatchSize = 32 << 10
-    // Broadcast the booster to each executor.
     val featureName = getFeaturesCol
     val missing = getMissing
+
+    val featureIsArray = featureIsArrayType(dataset.schema)
 
     // Here, we use RDD instead of DF to avoid different encoders for different
     // spark versions for the compatibility issue.
@@ -600,10 +617,26 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     // 3.5-, RowEncoder(schema)
     val outRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIter =>
       rowIter.grouped(inferBatchSize).flatMap { batchRow =>
-        val features = batchRow.iterator.map(row => row.getAs[Vector](
-          row.fieldIndex(featureName)))
+        val features = batchRow.iterator.map(row => {
+          if (!featureIsArray) {
+            // Vector type
+            row.getAs[Vector](row.fieldIndex(featureName)).asXGB
+          } else {
+            // Array type
+            val values: Array[Float] = row.get(row.fieldIndex(featureName)) match {
+              case v: mutable.WrappedArray[_] =>
+                v.array match {
+                  case f: Array[java.lang.Float] => f.map(_.toFloat)
+                  case d: Array[java.lang.Double] => d.map(_.toFloat)
+                  case _ => throw new RuntimeException("Unsupported feature array type")
+                }
+              case _ => throw new RuntimeException("Unsupported feature type")
+            }
+            XGBLabeledPoint(0.0f, values.size, null, values)
+          }
+        })
         // DMatrix used to prediction
-        val dm = new DMatrix(features.map(_.asXGB), null, missing)
+        val dm = new DMatrix(features, null, missing)
         try {
           predictInternal(bBooster.value, dm, pred, batchRow.toIterator)
         } finally {
