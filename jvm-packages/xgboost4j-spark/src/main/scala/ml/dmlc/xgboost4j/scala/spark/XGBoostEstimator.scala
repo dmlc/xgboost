@@ -504,7 +504,6 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
   private[spark] def preprocess(dataset: Dataset[_]): (StructType, PredictedColumns) = {
     // Be careful about the order of columns
     var schema = dataset.schema
-    validateFeatureType(schema)
 
     /** If the parameter is defined, add it to schema and turn true */
     def addToSchema(param: Param[String], colName: Option[String] = None): Boolean = {
@@ -601,7 +600,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
     if (getPlugin.isDefined) {
       return getPlugin.get.transform(this, dataset)
     }
-
+    validateFeatureType(dataset.schema)
     val (schema, pred) = preprocess(dataset)
     // Broadcast the booster to each executor.
     val bBooster = dataset.sparkSession.sparkContext.broadcast(nativeBooster)
