@@ -30,8 +30,10 @@ fi
 if [[ $BRANCH_NAME == "master" || $BRANCH_NAME == "release_"* || $BRANCH_NAME == "federated-secure" ]]
 then
   is_release_branch=1
+  enforce_daily_budget=0
 else
   is_release_branch=0
+  enforce_daily_budget=1
 fi
 
 if [[ -n ${DISABLE_RELEASE:-} ]]
