@@ -58,7 +58,7 @@ class ForwardLoggingMonitor(EvaluationMonitor):
         )
 
 
-class WorkEventMonitor(EvaluationMonitor):
+class WorkerEventMonitor(EvaluationMonitor):
     """Use :py:meth:`distributed.print` to forward the log. A downside is that not only
     all clients connected to the cluster can see the log, the logs are also printed on
     the worker. If you use a local cluster, the log is duplicated.
@@ -118,5 +118,5 @@ if __name__ == "__main__":
 
             # Use distributed.print, the logs in this demo are duplicated as the same
             # log is printed in all workers along with the client.
-            monitor = WorkEventMonitor()
+            monitor = WorkerEventMonitor()
             hist_train(client, X, y, monitor).compute()
