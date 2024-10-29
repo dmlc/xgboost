@@ -25,7 +25,8 @@ namespace xgboost::data {
 namespace {
 [[nodiscard]] bool IsDevicePage(EllpackPageImpl const* page) {
   switch (page->gidx_buffer.Resource()->Type()) {
-    case common::ResourceHandler::kCudaMalloc: {
+    case common::ResourceHandler::kCudaMalloc:
+    case common::ResourceHandler::kCudaGrowOnly: {
       return true;
     }
     case common::ResourceHandler::kCudaHostCache:

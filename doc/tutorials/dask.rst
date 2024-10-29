@@ -633,6 +633,20 @@ environment variable depending on the setting of the cluster. Please note that I
 support is Unix only.
 
 
+******************************
+Logging the evaluation results
+******************************
+
+By default, the Dask interface prints evaluation results in the scheduler process. This
+makes it difficult for a user to monitor training progress. We can define custom
+evaluation monitors using callback functions. See
+:ref:`sphx_glr_python_dask-examples_forward_logging.py` for a worked example on how to
+forward the logs to the client process. In the example, there are two potential solutions
+using Dask builtin methods, including :py:meth:`distributed.Client.forward_logging` and
+:py:func:`distributed.print`. Both of them have some caveats but can be a good starting
+point for developing more sophisticated methods like writing to files.
+
+
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
 *****************************************************************************

@@ -5,8 +5,6 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
-#include <numeric>  // for iota
-
 #include "../../../src/objective/adaptive.h"
 #include "../../../src/tree/param.h"  // for TrainParam
 #include "../helpers.h"
