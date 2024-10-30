@@ -20,11 +20,13 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
+      - spot=false
     strategy:
       matrix:
         container_id:
           - xgb-ci.gpu_build_rockylinux8
           - xgb-ci.gpu
+          - xgb-ci.gpu_dev_ver
           - xgb-ci.cpu
           - xgb-ci.clang_tidy
           - xgb-ci.manylinux_2_28_x86_64
@@ -62,7 +64,7 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.clang_tidy
-      - run: bash ops/task/run-clang-tidy.sh
+      - run: bash ops/pipeline/run-clang-tidy.sh
 
   build-cpu:
     name: Build CPU
@@ -80,7 +82,7 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.cpu
-      - run: bash ops/task/build-cpu.sh
+      - run: bash ops/pipeline/build-cpu.sh
       - name: Stash CLI executable
         run: bash ops/stash_artifacts.sh ./xgboost
         env:
@@ -103,7 +105,7 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.aarch64
-      - run: bash ops/task/build-cpu-arm64.sh
+      - run: bash ops/pipeline/build-cpu-arm64.sh
       - name: Stash files
         run: bash ops/stash_artifacts.sh ./xgboost python-package/dist/*.whl
         env:
@@ -116,6 +118,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
+      - spot=false
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -130,9 +133,11 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
-      - run: bash ops/task/build-cuda.sh
+      - run: bash ops/pipeline/build-cuda.sh
       - name: Stash files
-        run: bash ops/stash_artifacts.sh build/testxgboost python-package/dist/*.whl
+        run: |
+          bash ops/stash_artifacts.sh \
+            build/testxgboost ./xgboost python-package/dist/*.whl
         env:
           COMMAND: upload
           KEY: build-cuda
@@ -157,7 +162,7 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
-      - run: bash ops/task/build-cuda-with-rmm.sh
+      - run: bash ops/pipeline/build-cuda-with-rmm.sh
       - name: Stash files
         run: bash ops/stash_artifacts.sh build/testxgboost
         env:
@@ -188,7 +193,7 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
-      - run: bash ops/task/build-jvm-manylinux2014.sh ${{ matrix.arch }}
+      - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
 
   build-manylinux2014:
     name: Build manylinux2024_${{ matrix.arch }} wheel
@@ -213,7 +218,7 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
-      - run: bash ops/task/build-manylinux2014.sh ${{ matrix.arch }}
+      - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
 
   test-cpp-gpu:
     name: Run Google Tests with GPU(s)
@@ -250,7 +255,7 @@ jobs:
         env:
           COMMAND: download
           KEY: ${{ matrix.artifact_from }}
-      - run: bash ops/task/test-cpp-gpu.sh ${{ matrix.suite }}
+      - run: bash ops/pipeline/test-cpp-gpu.sh ${{ matrix.suite }}
 
   test-python:
     name: Run Python tests
@@ -302,9 +307,11 @@ jobs:
         env:
           CONTAINER_ID: ${{ matrix.container }}
       - name: Unstash Python wheel
-        run: bash ops/stash_artifacts.sh python-package/dist/*.whl
+        run: |
+          bash ops/stash_artifacts.sh python-package/dist/*.whl ./xgboost
+          chmod +x ./xgboost
         env:
           COMMAND: download
-          KEY: build-cuda
+          KEY: ${{ matrix.artifact_from }}
       - name: Run Python tests, ${{ matrix.description }}
-        run: bash ops/task/test-python.sh ${{ matrix.suite }} ${{ matrix.container }}
+        run: bash ops/pipeline/test-python.sh ${{ matrix.suite }} ${{ matrix.container }}

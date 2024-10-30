@@ -24,25 +24,9 @@ steps:
       queue: linux-amd64-cpu
   - wait
   #### -------- BUILD --------
-  - label: ":console: Build CUDA"
-    command: "tests/buildkite/build-cuda.sh"
-    key: build-cuda
-    agents:
-      queue: linux-amd64-cpu
   - label: ":console: Build and test JVM packages with CUDA"
     command: "tests/buildkite/build-jvm-packages-gpu.sh"
     key: build-jvm-packages-gpu
     agents:
       queue: linux-amd64-mgpu
   - wait
-  #### -------- TEST --------
-  - label: ":console: Run Google Tests"
-    command: "tests/buildkite/test-cpp-mgpu.sh"
-    key: test-cpp-mgpu
-    agents:
-      queue: linux-amd64-mgpu
-  - label: ":console: Test Python package, 4 GPUs"
-    command: "tests/buildkite/test-python-gpu.sh mgpu"
-    key: test-python-mgpu
-    agents:
-      queue: linux-amd64-mgpu

@@ -2,7 +2,7 @@
 ## Build a CI container and cache the layers in AWS ECR (Elastic Container Registry).
 ## This script provides a convenient wrapper for ops/docker_build.py.
 ## Build-time variables (--build-arg) and container defintion are fetched from
-## ops/matrix/ci_container.yml.
+## ops/docker/ci_container.yml.
 ##
 ## Note. This script takes in all inputs via environment variables.
 
@@ -48,7 +48,7 @@ do
 done
 
 # Fetch CONTAINER_DEF and BUILD_ARGS
-source <(ops/matrix/extract_build_args.sh ${CONTAINER_ID} | tee /dev/stderr) 2>&1
+source <(ops/docker/extract_build_args.sh ${CONTAINER_ID} | tee /dev/stderr) 2>&1
 
 if [[ "${USE_DOCKER_CACHE:-}" != "1" ]]   # Any value other than 1 is considered false
 then
@@ -59,8 +59,8 @@ if [[ ${USE_DOCKER_CACHE} -eq 0 ]]
 then
   echo "USE_DOCKER_CACHE not set; caching disabled"
 else
-  DOCKER_CACHE_ECR_ID=$(yq ".DOCKER_CACHE_ECR_ID" ops/matrix/docker_cache_ecr.yml)
-  DOCKER_CACHE_ECR_REGION=$(yq ".DOCKER_CACHE_ECR_REGION" ops/matrix/docker_cache_ecr.yml)
+  DOCKER_CACHE_ECR_ID=$(yq ".DOCKER_CACHE_ECR_ID" ops/docker/docker_cache_ecr.yml)
+  DOCKER_CACHE_ECR_REGION=$(yq ".DOCKER_CACHE_ECR_REGION" ops/docker/docker_cache_ecr.yml)
   DOCKER_CACHE_REPO="${DOCKER_CACHE_ECR_ID}.dkr.ecr.${DOCKER_CACHE_ECR_REGION}.amazonaws.com"
   echo "Using AWS ECR; repo URL = ${DOCKER_CACHE_REPO}"
   # Login for Docker registry

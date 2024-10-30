@@ -28,7 +28,7 @@ rm -rf ../build/
 mvn --no-transfer-progress package deploy -P default,gpu,release-to-s3 -Dspark.version=${spark_version} -DskipTests
 # Deploy scala 2.13 to S3 bucket xgboost-maven-repo
 cd ..
-python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts
+python ops/change_scala_version.py --scala-version 2.13 --purge-artifacts
 cd jvm-packages/
 mvn --no-transfer-progress package deploy -P default,gpu,release-to-s3 -Dspark.version=${spark_version} -DskipTests
 

@@ -18,7 +18,7 @@ Inputs
 
 $ErrorActionPreference = "Stop"
 
-. ops/task/enforce-ci.ps1
+. ops/pipeline/enforce-ci.ps1
 
 foreach ($env in "COMMAND", "KEY", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
                  "RUNS_ON_S3_BUCKET_CACHE") {

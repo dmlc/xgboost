@@ -70,7 +70,9 @@ def docker_build(
 
 def main(args: argparse.Namespace) -> None:
     # Dockerfile to be used in docker build
-    dockerfile_path = SCRIPT_DIR / "docker" / f"Dockerfile.{args.container_def}"
+    dockerfile_path = (
+        SCRIPT_DIR / "docker" / "dockerfile" / f"Dockerfile.{args.container_def}"
+    )
     docker_context_path = SCRIPT_DIR / "docker"
 
     build_args = parse_build_args(args.build_arg)
@@ -93,7 +95,8 @@ if __name__ == "__main__":
         required=True,
         help=(
             "String uniquely identifying the container definition. The container "
-            "definition will be fetched from docker/Dockerfile.CONTAINER_DEF."
+            "definition will be fetched from "
+            "docker/dockerfile/Dockerfile.CONTAINER_DEF."
         ),
     )
     parser.add_argument(

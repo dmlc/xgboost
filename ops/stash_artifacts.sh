@@ -13,7 +13,7 @@ EOF
 
 set -euo pipefail
 
-source ops/task/enforce-ci.sh
+source ops/pipeline/enforce-ci.sh
 
 if [ "$#" -lt 1 ]; then
   echo "Usage: $0 [artifact] [artifact ...]"

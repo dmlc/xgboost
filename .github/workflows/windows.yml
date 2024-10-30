@@ -26,11 +26,12 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=windows-cpu
+      - spot=false
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - run: powershell ops/task/build-win64-gpu.ps1
+      - run: powershell ops/pipeline/build-win64-gpu.ps1
       - name: Stash files
         run: |
           powershell ops/stash_artifacts.ps1 `
@@ -56,4 +57,4 @@ jobs:
         env:
           COMMAND: download
           KEY: build-win64-gpu
-      - run: powershell ops/task/test-win64-gpu.ps1
+      - run: powershell ops/pipeline/test-win64-gpu.ps1

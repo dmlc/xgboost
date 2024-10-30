@@ -1,0 +1,46 @@
+## List of CI containers with definitions and build arguments
+
+# Each container will be built using the definition from
+# ops/docker/dockerfile/Dockerfile.CONTAINER_DEF
+
+xgb-ci.gpu_build_rockylinux8:
+  container_def: gpu_build_rockylinux8
+  build_args:
+    CUDA_VERSION_ARG: "12.5.1"
+    NCCL_VERSION_ARG: "2.22.3-1"
+    RAPIDS_VERSION_ARG: "24.10"
+
+xgb-ci.gpu:
+  container_def: gpu
+  build_args:
+    CUDA_VERSION_ARG: "12.5.1"
+    NCCL_VERSION_ARG: "2.22.3-1"
+    RAPIDS_VERSION_ARG: "24.10"
+
+xgb-ci.gpu_dev_ver:
+  container_def: gpu
+  build_args:
+    CUDA_VERSION_ARG: "12.5.1"
+    NCCL_VERSION_ARG: "2.22.3-1"
+    RAPIDS_VERSION_ARG: "24.12"
+    RAPIDSAI_CONDA_CHANNEL_ARG: "rapidsai-nightly"
+
+xgb-ci.clang_tidy:
+  container_def: clang_tidy
+  build_args:
+    CUDA_VERSION_ARG: "12.5.1"
+
+xgb-ci.cpu:
+  container_def: cpu
+
+xgb-ci.aarch64:
+  container_def: aarch64
+
+xgb-ci.manylinux_2_28_x86_64:
+  container_def: manylinux_2_28_x86_64
+
+xgb-ci.manylinux2014_x86_64:
+  container_def: manylinux2014_x86_64
+
+xgb-ci.manylinux2014_aarch64:
+  container_def: manylinux2014_aarch64

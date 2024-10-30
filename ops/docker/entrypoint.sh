@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 
-# This script is a wrapper creating the same user inside container as the one
-# running the ci_build.sh outside the container. It also set the home directory
-# for the user inside container to match the same absolute path as the workspace
-# outside of container.  Do not run this manually. It does not make sense. It is
-# intended to be called by ci_build.sh only.
+# This wrapper script
 
-set -e
+set -euo pipefail
 
 COMMAND=("$@")
 
@@ -19,7 +15,8 @@ else
   rm /this_is_writable_file_system
 fi
 
-if [[ -n $CI_BUILD_UID ]] && [[ -n $CI_BUILD_GID ]]; then
+if [[ -n ${CI_BUILD_UID:-} ]] && [[ -n ${CI_BUILD_GID:-} ]]
+then
     groupadd -o -g "${CI_BUILD_GID}" "${CI_BUILD_GROUP}" || true
     useradd -o -m -g "${CI_BUILD_GID}" -u "${CI_BUILD_UID}" \
         "${CI_BUILD_USER}" || true
