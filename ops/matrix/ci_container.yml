@@ -17,13 +17,21 @@ xgb-ci.gpu:
     NCCL_VERSION_ARG: "2.22.3-1"
     RAPIDS_VERSION_ARG: "24.10"
 
-xgb-ci.cpu:
-  container_def: cpu
+xgb-ci.gpu_dev_ver:
+  container_def: gpu
+  build_args:
+    CUDA_VERSION_ARG: "12.5.1"
+    NCCL_VERSION_ARG: "2.22.3-1"
+    RAPIDS_VERSION_ARG: "24.12"
+    RAPIDSAI_CONDA_CHANNEL_ARG: "rapidsai-nightly"
 
 xgb-ci.clang_tidy:
   container_def: clang_tidy
   build_args:
     CUDA_VERSION_ARG: "12.5.1"
+
+xgb-ci.cpu:
+  container_def: cpu
 
 xgb-ci.aarch64:
   container_def: aarch64

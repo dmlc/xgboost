@@ -216,11 +216,23 @@ jobs:
       - run: bash ops/task/build-manylinux2014.sh ${{ matrix.arch }}
 
   test-cpp-gpu:
-    name: Run Google Tests
-    needs: build-cuda
+    name: Run Google Tests with GPU(s)
+    needs: [build-cuda, build-cuda-with-rmm]
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-gpu
+      - runner=${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - suite: gpu
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda
+          - suite: gpu-rmm
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda-with-rmm
+          - suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: build-cuda
     steps:
       # Restart Docker daemon so that it recognized the ephemeral disks
       - run: sudo systemctl restart docker
@@ -237,13 +249,62 @@ jobs:
           chmod +x build/testxgboost
         env:
           COMMAND: download
-          KEY: build-cuda
-      - run: bash ops/task/test-cpp-gpu.sh build-cuda
-      - name: Unstash gtest
-        run: |
-          bash ops/stash_artifacts.sh build/testxgboost
-          chmod +x build/testxgboost
+          KEY: ${{ matrix.artifact_from }}
+      - run: bash ops/task/test-cpp-gpu.sh ${{ matrix.suite }}
+
+  test-python:
+    name: Run Python tests
+    needs: [build-cuda]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - description: "single GPU"
+            container: xgb-ci.gpu
+            suite: gpu
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda
+          - description: "single GPU, nightly deps"
+            container: xgb-ci.gpu_dev_ver
+            suite: gpu
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda
+          - description: "multiple GPUs"
+            container: xgb-ci.gpu
+            suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: build-cuda
+          - description: "multiple GPUs, nightly deps"
+            container: xgb-ci.gpu_dev_ver
+            suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: build-cuda
+          - description: "CPU"
+            container: xgb-ci.cpu
+            suite: cpu
+            runner: linux-amd64-cpu
+            artifact_from: build-cuda
+          - description: "CPU ARM64"
+            container: xgb-ci.aarch64
+            suite: cpu-arm64
+            runner: linux-arm64-cpu
+            artifact_from: build-cpu-arm64
+    steps:
+      # Restart Docker daemon so that it recognized the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: ${{ matrix.container }}
+      - name: Unstash Python wheel
+        run: bash ops/stash_artifacts.sh python-package/dist/*.whl
         env:
           COMMAND: download
-          KEY: build-cuda-with-rmm
-      - run: bash ops/task/test-cpp-gpu.sh build-cuda-with-rmm
+          KEY: build-cuda
+      - name: Run Python tests, ${{ matrix.description }}
+        run: bash ops/task/test-python.sh ${{ matrix.suite }} ${{ matrix.container }}
