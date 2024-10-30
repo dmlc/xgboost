@@ -13,7 +13,6 @@ env:
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
   USE_DOCKER_CACHE: 1
-  ARTIFACT_STASH_PREFIX: cache/${{ github.repository }}/stash/${{ github.run_id }}
 
 jobs:
   build-containers:
@@ -83,12 +82,10 @@ jobs:
           CONTAINER_ID: xgb-ci.cpu
       - run: bash ops/task/build-cpu.sh
       - name: Stash CLI executable
-        run: |
-          python3 ops/stash_artifacts.py \
-            --command upload  \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix ${{ env.ARTIFACT_STASH_PREFIX }}/build-cpu \
-            -- ./xgboost
+        run: bash ops/stash_artifacts.sh ./xgboost
+        env:
+          COMMAND: upload
+          KEY: build-cpu
 
   build-cpu-arm64:
     name: Build CPU ARM64 + manylinux_2_28_aarch64 wheel
@@ -108,12 +105,10 @@ jobs:
           CONTAINER_ID: xgb-ci.aarch64
       - run: bash ops/task/build-cpu-arm64.sh
       - name: Stash files
-        run: |
-          python3 ops/stash_artifacts.py \
-            --command upload  \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix ${{ env.ARTIFACT_STASH_PREFIX }}/build-cpu-arm64 \
-            -- ./xgboost python-package/dist/*.whl
+        run: bash ops/stash_artifacts.sh ./xgboost python-package/dist/*.whl
+        env:
+          COMMAND: upload
+          KEY: build-cpu-arm64
 
   build-cuda:
     name: Build CUDA + manylinux_2_28_x86_64 wheel
@@ -137,12 +132,10 @@ jobs:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
       - run: bash ops/task/build-cuda.sh
       - name: Stash files
-        run: |
-          python3 ops/stash_artifacts.py \
-            --command upload  \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix ${{ env.ARTIFACT_STASH_PREFIX }}/build-cuda \
-            -- build/testxgboost python-package/dist/*.whl
+        run: bash ops/stash_artifacts.sh build/testxgboost python-package/dist/*.whl
+        env:
+          COMMAND: upload
+          KEY: build-cuda
 
   build-cuda-with-rmm:
     name: Build CUDA with RMM
@@ -166,12 +159,10 @@ jobs:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
       - run: bash ops/task/build-cuda-with-rmm.sh
       - name: Stash files
-        run: |
-          python3 ops/stash_artifacts.py \
-            --command upload  \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix ${{ env.ARTIFACT_STASH_PREFIX }}/build-cuda-with-rmm \
-            -- build/testxgboost
+        run: bash ops/stash_artifacts.sh build/testxgboost
+        env:
+          COMMAND: upload
+          KEY: build-cuda-with-rmm
 
   build-jvm-manylinux2014:
     name: Build libxgboost4j.so targeting gblic 2.17
@@ -242,19 +233,17 @@ jobs:
           CONTAINER_ID: xgb-ci.gpu
       - name: Unstash gtest
         run: |
-          python3 ops/stash_artifacts.py \
-            --command download  \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix ${{ env.ARTIFACT_STASH_PREFIX }}/build-cuda \
-            -- build/testxgboost
+          bash ops/stash_artifacts.sh build/testxgboost
           chmod +x build/testxgboost
+        env:
+          COMMAND: download
+          KEY: build-cuda
       - run: bash ops/task/test-cpp-gpu.sh build-cuda
       - name: Unstash gtest
         run: |
-          python3 ops/stash_artifacts.py \
-            --command download  \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix ${{ env.ARTIFACT_STASH_PREFIX }}/build-cuda-with-rmm \
-            -- build/testxgboost
+          bash ops/stash_artifacts.sh build/testxgboost
           chmod +x build/testxgboost
+        env:
+          COMMAND: download
+          KEY: build-cuda-with-rmm
       - run: bash ops/task/test-cpp-gpu.sh build-cuda-with-rmm
