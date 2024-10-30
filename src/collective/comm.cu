@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <algorithm>  // for sort
@@ -11,6 +11,7 @@
 #include <vector>     // for vector
 
 #include "../common/cuda_context.cuh"    // for CUDAContext
+#include "../common/cuda_rt_utils.h"     // for SetDevice
 #include "../common/device_helpers.cuh"  // for DefaultStream
 #include "../common/type.h"              // for EraseType
 #include "comm.cuh"                      // for NCCLComm
@@ -47,7 +48,7 @@ void GetCudaUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid, 
   std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), sizeof(prob.uuid));
 }
 
-static std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid) {
+std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid) {
   std::stringstream ss;
   for (auto v : uuid) {
     ss << std::hex << v;
@@ -72,7 +73,7 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
     return;
   }
 
-  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+  curt::SetDevice(ctx->Ordinal());
   stub_ = std::make_shared<NcclStub>(nccl_path);
 
   std::vector<std::uint64_t> uuids(root.World() * kUuidLength, 0);
@@ -98,10 +99,16 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
       << "Multiple processes within communication group running on same CUDA "
       << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
 
-  rc = std::move(rc) << [&] { return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_); } <<
-       [&] {
-         return this->stub_->CommInitRank(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank());
-       };
+  rc = std::move(rc) << [&] {
+    return GetUniqueId(root, this->stub_, pimpl, &nccl_unique_id_);
+  } << [&] {
+    ncclConfig_t config = NCCL_CONFIG_INITIALIZER;
+    config.blocking = 0;
+    return this->stub_->CommInitRankConfig(&nccl_comm_, root.World(), nccl_unique_id_, root.Rank(),
+                                           &config);
+  } << [&] {
+    return BusyWait(this->stub_, this->nccl_comm_, this->Timeout());
+  };
   SafeColl(rc);
 
   for (std::int32_t r = 0; r < root.World(); ++r) {
@@ -112,9 +119,22 @@ NCCLComm::NCCLComm(Context const* ctx, Comm const& root, std::shared_ptr<Coll> p
 
 NCCLComm::~NCCLComm() {
   if (nccl_comm_) {
-    auto rc = stub_->CommDestroy(nccl_comm_);
-    SafeColl(rc);
+    auto rc = Success() << [this] {
+      return this->stub_->CommFinalize(this->nccl_comm_);
+    } << [this] {
+      auto rc = BusyWait(this->stub_, this->nccl_comm_, this->Timeout());
+      if (!rc.OK()) {
+        return std::move(rc) + this->stub_->CommAbort(this->nccl_comm_);
+      }
+      return rc;
+    } << [this] {
+      return this->stub_->CommDestroy(this->nccl_comm_);
+    };
+    if (!rc.OK()) {
+      LOG(WARNING) << rc.Report();
+    }
   }
+  nccl_comm_ = nullptr;
 }
 }  // namespace xgboost::collective
 #endif  // defined(XGBOOST_USE_NCCL)

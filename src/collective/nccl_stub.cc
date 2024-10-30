@@ -1,26 +1,36 @@
 /**
- * Copyright 2023, XGBoost Contributors
+ * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include "nccl_stub.h"
 
+#if defined(XGBOOST_USE_DLOPEN_NCCL)
+
+#include <dlfcn.h>  // for dlclose, dlsym, dlopen
+
+#include <cstdint>  // for int32_t
+
+#include "xgboost/logging.h"
+
+#endif  // defined(XGBOOST_USE_DLOPEN_NCCL)
+
 #include <cuda.h>              // for CUDA_VERSION
 #include <cuda_runtime_api.h>  // for cudaPeekAtLastError
-#include <dlfcn.h>             // for dlclose, dlsym, dlopen
 #include <nccl.h>
 #include <thrust/system/cuda/error.h>  // for cuda_category
 #include <thrust/system_error.h>       // for system_error
 
-#include <cstdint>  // for int32_t
+#include <memory>   // for shared_ptr
 #include <sstream>  // for stringstream
 #include <string>   // for string
+#include <thread>   // for this_thread
 #include <utility>  // for move
 
-#include "xgboost/logging.h"
+#include "../common/timer.h"  // for Timer
 
 namespace xgboost::collective {
-Result NcclStub::GetNcclResult(ncclResult_t code) const {
-  if (code == ncclSuccess) {
+[[nodiscard]] Result NcclStub::GetNcclResult(ncclResult_t code) const {
+  if (code == ncclSuccess || code == ncclInProgress) {
     return Success();
   }
 
@@ -83,7 +93,11 @@ no long bundles NCCL in the binary wheel.
   broadcast_ = safe_load(broadcast_, "ncclBroadcast");
   allgather_ = safe_load(allgather_, "ncclAllGather");
   comm_init_rank_ = safe_load(comm_init_rank_, "ncclCommInitRank");
+  comm_init_rank_config_ = safe_load(comm_init_rank_config_, "ncclCommInitRankConfig");
   comm_destroy_ = safe_load(comm_destroy_, "ncclCommDestroy");
+  comm_finalize_ = safe_load(comm_finalize_, "ncclCommFinalize");
+  comm_get_async_error_ = safe_load(comm_get_async_error_, "ncclCommGetAsyncError");
+  comm_abort_ = safe_load(comm_abort_, "ncclCommAbort");
   get_uniqueid_ = safe_load(get_uniqueid_, "ncclGetUniqueId");
   send_ = safe_load(send_, "ncclSend");
   recv_ = safe_load(recv_, "ncclRecv");
@@ -105,7 +119,11 @@ no long bundles NCCL in the binary wheel.
   broadcast_ = ncclBroadcast;
   allgather_ = ncclAllGather;
   comm_init_rank_ = ncclCommInitRank;
+  comm_init_rank_config_ = ncclCommInitRankConfig;
   comm_destroy_ = ncclCommDestroy;
+  comm_finalize_ = ncclCommFinalize;
+  comm_get_async_error_ = ncclCommGetAsyncError;
+  comm_abort_ = ncclCommAbort;
   get_uniqueid_ = ncclGetUniqueId;
   send_ = ncclSend;
   recv_ = ncclRecv;
@@ -126,6 +144,29 @@ NcclStub::~NcclStub() {  // NOLINT
   }
   handle_ = nullptr;
 #endif  // defined(XGBOOST_USE_DLOPEN_NCCL)
+}
+
+[[nodiscard]] Result BusyWait(std::shared_ptr<NcclStub> nccl, ncclComm_t comm,
+                              std::chrono::seconds timeout) {
+  using namespace std::chrono_literals;  // NOLINT
+  common::Timer timer;
+  ncclResult_t async_error = ncclSuccess;
+  timer.Start();
+  do {
+    auto rc = nccl->CommGetAsyncError(comm, &async_error);
+    if (!rc.OK()) {
+      return rc;
+    }
+    if (async_error == ncclInProgress) {
+      if (timer.Duration().count() < timeout.count()) {
+        std::this_thread::sleep_for(20ms);
+      } else {
+        return Fail("Timeout, elapsed:" + std::to_string(timer.Duration().count()));
+      }
+    }
+  } while (async_error == ncclInProgress);
+
+  return nccl->GetNcclResult(async_error);
 }
 }  // namespace xgboost::collective
 #endif  // defined(XGBOOST_USE_NCCL)
