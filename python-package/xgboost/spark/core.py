@@ -123,6 +123,8 @@ _pyspark_specific_params = [
     "pred_contrib_col",
     "use_gpu",
     "launch_tracker_on_driver",
+    "tracker_host",
+    "tracker_port",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -1020,21 +1022,29 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         )
         return rdd.withResources(rp)
 
-    def _get_tracker_args_on_driver(self) -> Dict[str, Any]:
+    def _get_tracker_args(self) -> Tuple[bool, Dict[str, Any]]:
         """Start the tracker and return the tracker envs on the driver side"""
-        if self.isDefined(self.tracker_host):
-            tracker_host = self.getOrDefault(self.tracker_port)
-        else:
-            tracker_host = (
-                _get_spark_session().sparkContext.getConf().get("spark.driver.host")
-            )
-        assert tracker_host is not None
-        tracker_port = 0
-        if self.isDefined(self.tracker_port):
-            tracker_port = self.getOrDefault(self.tracker_port)
+        launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
+        rabit_args = {}
+        if launch_tracker_on_driver:
+            if self.isDefined(self.tracker_host):
+                tracker_host = self.getOrDefault(self.tracker_host)
+            else:
+                tracker_host = (
+                    _get_spark_session().sparkContext.getConf().get("spark.driver.host")
+                )
+            assert tracker_host is not None
+            tracker_port = 0
+            if self.isDefined(self.tracker_port):
+                tracker_port = self.getOrDefault(self.tracker_port)
 
-        num_workers = self.getOrDefault(self.num_workers)
-        return _get_rabit_args(tracker_host, num_workers, tracker_port)
+            num_workers = self.getOrDefault(self.num_workers)
+            rabit_args.update(_get_rabit_args(tracker_host, num_workers, tracker_port))
+        else:
+            if self.isDefined(self.tracker_host) or self.isDefined(self.tracker_port):
+                raise ValueError("You must enable launch_tracker_on_driver to use "
+                                 "tracker_host and tracker_port")
+        return launch_tracker_on_driver, rabit_args
 
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
         # pylint: disable=too-many-statements, too-many-locals
@@ -1054,11 +1064,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         num_workers = self.getOrDefault(self.num_workers)
 
-        launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
-
-        rabit_args = {}
-        if launch_tracker_on_driver:
-            rabit_args.update(self._get_tracker_args_on_driver())
+        launch_tracker_on_driver, rabit_args = self._get_tracker_args_on_driver()
 
         log_level = get_logger_level(_LOG_TAG)
 
