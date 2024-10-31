@@ -1064,7 +1064,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         num_workers = self.getOrDefault(self.num_workers)
 
-        launch_tracker_on_driver, rabit_args = self._get_tracker_args_on_driver()
+        launch_tracker_on_driver, rabit_args = self._get_tracker_args()
 
         log_level = get_logger_level(_LOG_TAG)
 
