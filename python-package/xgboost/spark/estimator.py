@@ -161,7 +161,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         Boolean value to specify if enabling sparse data optimization, if True,
         Xgboost DMatrix object will be constructed from sparse matrix instead of
         dense matrix.
-    tracker_on_driver:
+    launch_tracker_on_driver:
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
 
@@ -218,7 +218,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        tracker_on_driver: bool = True,
+        launch_tracker_on_driver: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -345,7 +345,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         Boolean value to specify if enabling sparse data optimization, if True,
         Xgboost DMatrix object will be constructed from sparse matrix instead of
         dense matrix.
-    tracker_on_driver:
+    launch_tracker_on_driver:
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
 
@@ -402,7 +402,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        tracker_on_driver: bool = True,
+        launch_tracker_on_driver: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -532,7 +532,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         Boolean value to specify if enabling sparse data optimization, if True,
         Xgboost DMatrix object will be constructed from sparse matrix instead of
         dense matrix.
-    tracker_on_driver:
+    launch_tracker_on_driver:
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
 
@@ -595,7 +595,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         force_repartition: bool = False,
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
-        tracker_on_driver: bool = True,
+        launch_tracker_on_driver: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__()

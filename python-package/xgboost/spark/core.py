@@ -122,7 +122,7 @@ _pyspark_specific_params = [
     "repartition_random_shuffle",
     "pred_contrib_col",
     "use_gpu",
-    "tracker_on_driver",
+    "launch_tracker_on_driver",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -248,12 +248,26 @@ class _SparkXGBParams(
         "A list of str to specify feature names.",
         TypeConverters.toList,
     )
-    tracker_on_driver = Param(
+    launch_tracker_on_driver = Param(
         Params._dummy(),
-        "tracker_on_driver",
-        "A boolean variable. Set tracker_on_driver to true if you want the tracker to be launched "
-        "on the driver side; otherwise, it will be launched on the executor side.",
+        "launch_tracker_on_driver",
+        "A boolean variable. Set launch_tracker_on_driver to true if you want the tracker to be "
+        "launched on the driver side; otherwise, it will be launched on the executor side.",
         TypeConverters.toBoolean,
+    )
+    tracker_host = Param(
+        Params._dummy(),
+        "tracker_host",
+        "A string variable. The tracker host IP address. To set tracker host ip, you need to "
+        "enable launch_tracker_on_driver to be true first",
+        TypeConverters.toString,
+    )
+    tracker_port = Param(
+        Params._dummy(),
+        "tracker_port",
+        "A string variable. The port number tracker listens on. To set tracker host port, you need "
+        "to enable launch_tracker_on_driver first",
+        TypeConverters.toInt,
     )
 
     def set_device(self, value: str) -> "_SparkXGBParams":
@@ -626,7 +640,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             feature_names=None,
             feature_types=None,
             arbitrary_params_dict={},
-            tracker_on_driver=True,
+            launch_tracker_on_driver=True,
         )
 
         self.logger = get_logger(self.__class__.__name__)
@@ -1006,6 +1020,22 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         )
         return rdd.withResources(rp)
 
+    def _get_tracker_args_on_driver(self) -> Dict[str, Any]:
+        """Start the tracker and return the tracker envs on the driver side"""
+        if self.isDefined(self.tracker_host):
+            tracker_host = self.getOrDefault(self.tracker_port)
+        else:
+            tracker_host = (
+                _get_spark_session().sparkContext.getConf().get("spark.driver.host")
+            )
+        assert tracker_host is not None
+        tracker_port = 0
+        if self.isDefined(self.tracker_port):
+            tracker_port = self.getOrDefault(self.tracker_port)
+
+        num_workers = self.getOrDefault(self.num_workers)
+        return _get_rabit_args(tracker_host, num_workers, tracker_port)
+
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
         # pylint: disable=too-many-statements, too-many-locals
         self._validate_params()
@@ -1024,15 +1054,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         num_workers = self.getOrDefault(self.num_workers)
 
-        run_tracker_on_driver = self.getOrDefault(self.tracker_on_driver)
+        launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
 
         rabit_args = {}
-        if run_tracker_on_driver:
-            driver_host = (
-                _get_spark_session().sparkContext.getConf().get("spark.driver.host")
-            )
-            assert driver_host is not None
-            rabit_args = _get_rabit_args(driver_host, num_workers)
+        if launch_tracker_on_driver:
+            rabit_args.update(self._get_tracker_args_on_driver())
 
         log_level = get_logger_level(_LOG_TAG)
 
@@ -1075,7 +1101,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             _rabit_args = rabit_args
             if context.partitionId() == 0:
-                if not run_tracker_on_driver:
+                if not launch_tracker_on_driver:
                     _rabit_args = _get_rabit_args(_get_host_ip(context), num_workers)
                 get_logger(_LOG_TAG, log_level).info(msg)
 
@@ -1083,14 +1109,14 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 "use_qdm": use_qdm,
             }
 
-            if not run_tracker_on_driver:
+            if not launch_tracker_on_driver:
                 worker_message["rabit_msg"] = _rabit_args
 
             messages = context.allGather(message=json.dumps(worker_message))
             if len(set(json.loads(x)["use_qdm"] for x in messages)) != 1:
                 raise RuntimeError("The workers' cudf environments are in-consistent ")
 
-            if not run_tracker_on_driver:
+            if not launch_tracker_on_driver:
                 _rabit_args = json.loads(messages[0])["rabit_msg"]
 
             evals_result: Dict[str, Any] = {}
