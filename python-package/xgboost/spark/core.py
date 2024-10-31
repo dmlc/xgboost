@@ -1027,6 +1027,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
         rabit_args = {}
         if launch_tracker_on_driver:
+            tracker_host: Optional[str] = None
             if self.isDefined(self.tracker_host):
                 tracker_host = self.getOrDefault(self.tracker_host)
             else:
