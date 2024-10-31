@@ -1043,8 +1043,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             rabit_args.update(_get_rabit_args(tracker_host, num_workers, tracker_port))
         else:
             if self.isDefined(self.tracker_host) or self.isDefined(self.tracker_port):
-                raise ValueError("You must enable launch_tracker_on_driver to use "
-                                 "tracker_host and tracker_port")
+                raise ValueError(
+                    "You must enable launch_tracker_on_driver to use "
+                    "tracker_host and tracker_port"
+                )
         return launch_tracker_on_driver, rabit_args
 
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
