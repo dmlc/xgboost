@@ -96,6 +96,8 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
 
     cp.testing.assert_allclose(predt.values.compute(), single_node)
 
+    # Work around https://github.com/dmlc/xgboost/issues/10752
+    X.columns = X.columns.astype("object")
     # Make sure the output can be integrated back to original dataframe
     X["predict"] = predictions
     X["inplace_predict"] = series_predictions
