@@ -25,6 +25,7 @@ jobs:
       matrix:
         container_id:
           - xgb-ci.gpu_build_rockylinux8
+          - xgb-ci.gpu_build_r_rockylinux8
           - xgb-ci.gpu
           - xgb-ci.gpu_dev_ver
           - xgb-ci.cpu
@@ -219,6 +220,24 @@ jobs:
         env:
           CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
       - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
+
+  build-gpu-rpkg:
+    name: Build GPU-enabled R package
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-gpu
+    steps:
+      # Restart Docker daemon so that it recognized the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.gpu_build_r_rockylinux8
+      - run: bash ops/pipeline/build-gpu-rpkg.sh
 
   test-cpp-gpu:
     name: Run Google Tests with GPU(s)

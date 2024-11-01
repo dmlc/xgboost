@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -euox pipefail
 
 WHEEL_TAG=manylinux_2_28_x86_64
 
@@ -16,6 +16,7 @@ echo "--- Build with CUDA"
 #fi
 
 echo "--- Build libxgboost from the source"
+set -x
 git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
 python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_rockylinux8 \

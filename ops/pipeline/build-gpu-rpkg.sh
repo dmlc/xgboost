@@ -1,13 +1,13 @@
 #!/bin/bash
 
-set -euo pipefail
+set -euox pipefail
 
 source ops/pipeline/enforce-ci.sh
 
 echo "--- Build XGBoost R package with CUDA"
 python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_r_rockylinux8 \
-  -- tests/ci_build/build_r_pkg_with_cuda.sh \
+  -- ops/build_r_pkg_with_cuda.sh \
   ${GITHUB_SHA}
 
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]

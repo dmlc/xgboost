@@ -13,7 +13,7 @@ fi
 suite="$1"
 container_id="$2"
 
-tee test-python-wrapper.sh <<-'EOF'
+cat > test-python-wrapper.sh <<-'EOF'
 #!/bin/bash
 source activate "$1"
 
@@ -32,7 +32,9 @@ case "$suite" in
     echo "
       python -c 'from cupy.cuda import jitify; jitify._init_module()'
       pytest -v -s -rxXs --fulltrace --durations=0 -m 'not mgpu' tests/python-gpu
-    " | tee -a test-python-wrapper.sh
+    " >> test-python-wrapper.sh
+    set -x
+    cat test-python-wrapper.sh
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
       --run-args='--privileged' \
       -- bash test-python-wrapper.sh gpu_test
@@ -46,7 +48,9 @@ case "$suite" in
       pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_with_dask
       pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_with_spark
       pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_federated
-    " | tee -a test-python-wrapper.sh
+    " >> test-python-wrapper.sh
+    set -x
+    cat test-python-wrapper.sh
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
       --run-args='--privileged --shm-size=4g' \
       -- bash test-python-wrapper.sh gpu_test
@@ -60,7 +64,9 @@ case "$suite" in
       pytest -v -s -rxXs --fulltrace --durations=0 tests/test_distributed/test_with_dask
       pytest -v -s -rxXs --fulltrace --durations=0 tests/test_distributed/test_with_spark
       pytest -v -s -rxXs --fulltrace --durations=0 tests/test_distributed/test_federated
-    " | tee -a test-python-wrapper.sh
+    " >> test-python-wrapper.sh
+    set -x
+    cat test-python-wrapper.sh
     python3 ops/docker_run.py --container-id "${container_id}" \
       -- bash test-python-wrapper.sh linux_cpu_test
     ;;
@@ -71,7 +77,9 @@ case "$suite" in
       pytest -v -s -rxXs --fulltrace --durations=0 \\
         tests/python/test_basic.py tests/python/test_basic_models.py \\
         tests/python/test_model_compatibility.py
-    " | tee -a test-python-wrapper.sh
+    " >> test-python-wrapper.sh
+    set -x
+    cat test-python-wrapper.sh
     python3 ops/docker_run.py --container-id "${container_id}" \
       -- bash test-python-wrapper.sh aarch64_test
     ;;

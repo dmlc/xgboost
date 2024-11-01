@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -euox pipefail
 
 WHEEL_TAG=manylinux_2_28_x86_64
 

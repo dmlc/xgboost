@@ -33,8 +33,7 @@ RUN \
         numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel \
         python-kubernetes urllib3 graphviz hypothesis loky \
         "pyspark>=3.4.0" cloudpickle cuda-python && \
-    mamba clean --all --yes && \
-    conda run --no-capture-output -n gpu_test pip install buildkite-test-collector
+    mamba clean --all --yes
 
 ENV GOSU_VERSION=1.10
 ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
