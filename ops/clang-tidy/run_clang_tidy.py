@@ -19,7 +19,7 @@ def call(args: list[str]) -> tuple[int, int, str, list[str]]:
     # `workspace` is a name used in the CI container.  Normally we should keep the dir
     # as `xgboost`.
     matched = re.search(
-        "(workspace|xgboost)/.*(src|tests|include)/.*warning:", error_msg, re.MULTILINE
+        "(workspace|xgboost)/.*(ops|src|tests|include)/.*warning:", error_msg, re.MULTILINE
     )
 
     if matched is None:
@@ -265,7 +265,7 @@ def test_tidy(args: argparse.Namespace) -> None:
     """
     root_path = os.path.abspath(os.path.curdir)
     tidy_file = os.path.join(root_path, ".clang-tidy")
-    test_file_path = os.path.join(root_path, "tests", "ci_build", "test_tidy.cc")
+    test_file_path = os.path.join(root_path, "ops", "clang-tidy", "test_tidy.cc")
 
     tidy_config = "--config-file=" + tidy_file
     if not args.tidy_version:
@@ -274,8 +274,8 @@ def test_tidy(args: argparse.Namespace) -> None:
         tidy = "clang-tidy-" + str(args.tidy_version)
     cmd = [tidy, tidy_config, test_file_path]
     (proc_code, tidy_status, error_msg, _) = call(cmd)
-    assert proc_code == 0
-    assert tidy_status == 1
+    if proc_code != 0 or tidy_status != 1:
+        raise RuntimeError(error_msg)
     print("clang-tidy is working.")
 
 

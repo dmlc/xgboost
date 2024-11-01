@@ -42,7 +42,7 @@ def pack_rpackage() -> Path:
     else:
         would_remove = output.stdout.decode("utf-8").strip().split("\n")
 
-    if would_remove and not all(f.find("tests/ci_build") != -1 for f in would_remove):
+    if would_remove and not all(f.find("ops") != -1 for f in would_remove):
         raise ValueError(
             "\n".join(would_remove) + "\nPlease cleanup the working git repository."
         )

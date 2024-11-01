@@ -75,7 +75,7 @@ def print_time() -> None:
 
 ROOT = os.path.normpath(
     os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), os.path.pardir, os.path.pardir
+        os.path.dirname(os.path.abspath(__file__)), os.path.pardir
     )
 )
 R_PACKAGE = os.path.join(ROOT, "R-package")

@@ -226,7 +226,7 @@ jobs:
     needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-gpu
+      - runner=linux-amd64-cpu
     steps:
       # Restart Docker daemon so that it recognized the ephemeral disks
       - run: sudo systemctl restart docker

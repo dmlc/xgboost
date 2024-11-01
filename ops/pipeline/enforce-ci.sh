@@ -5,8 +5,6 @@
 
 set -euo pipefail
 
-set -x
-
 if [[ -z ${GITHUB_ACTION:-} ]]
 then
   echo "$0 is not meant to run locally; it should run inside GitHub Actions."
@@ -40,5 +38,3 @@ if [[ -n ${DISABLE_RELEASE:-} ]]
 then
   is_release_branch=0
 fi
-
-set +x
