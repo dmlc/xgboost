@@ -141,8 +141,10 @@ def test_broadcast():
 def test_rank_assignment() -> None:
     from distributed import Client, LocalCluster
 
+    from xgboost import dask as dxgb
+
     def local_test(worker_id):
-        with xgb.dask.CommunicatorContext(**args) as ctx:
+        with dxgb.CommunicatorContext(**args) as ctx:
             task_id = ctx["DMLC_TASK_ID"]
             matched = re.search(".*-([0-9]).*", task_id)
             rank = collective.get_rank()
@@ -154,7 +156,7 @@ def test_rank_assignment() -> None:
         with Client(cluster) as client:
             workers = tm.get_client_workers(client)
             args = client.sync(
-                xgb.dask._get_rabit_args,
+                dxgb._get_rabit_args,
                 len(workers),
                 None,
                 client,

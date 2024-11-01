@@ -23,6 +23,13 @@ template <typename T>
 }
 
 template <typename T>
+[[nodiscard]] RefResourceView<T> MakeCudaGrowOnly(std::size_t n_elements) {
+  auto resource = std::make_shared<common::CudaGrowOnlyResource>(n_elements * sizeof(T));
+  auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
+  return ref;
+}
+
+template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithCudaMalloc(Context const* ctx,
                                                             std::size_t n_elements, T const& init) {
   auto ref = MakeFixedVecWithCudaMalloc<T>(n_elements);

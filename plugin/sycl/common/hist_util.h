@@ -155,7 +155,7 @@ class GHistBuilder {
   GHistBuilder(::sycl::queue* qu, uint32_t nbins) : qu_{qu}, nbins_{nbins} {}
 
   // Construct a histogram via histogram aggregation
-  ::sycl::event BuildHist(const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+  ::sycl::event BuildHist(const HostDeviceVector<GradientPair>& gpair,
                           const RowSetCollection::Elem& row_indices,
                           const GHistIndexMatrix& gmat,
                           GHistRowT<MemoryType::on_device>* HistCollection,

@@ -2,6 +2,7 @@ html
 latex
 *.sh
 _*
+sg_execution_times.rst
 doxygen
 parser.py
 *.pyc

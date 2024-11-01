@@ -23,6 +23,9 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkException
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
+import org.apache.spark.ml.xgboost.SparkUtils
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.types.{ArrayType, DoubleType, FloatType}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.parseJson
 import org.scalatest.funsuite.AnyFunSuite
@@ -551,5 +554,97 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     }
 
     exception.getMessage.contains("SoftmaxMultiClassObj: label must be in [0, num_class).")
+  }
+
+  test("Support array(float)") {
+    val df = smallBinaryClassificationArray
+    val matched = df.schema("features").dataType match {
+      case ArrayType(DoubleType, _) => true
+      case _ => false
+    }
+    assert(matched)
+
+    val newDf = df.withColumn("features", col("features").cast(ArrayType(FloatType)))
+    val matched1 = newDf.schema("features").dataType match {
+      case ArrayType(FloatType, _) => true
+      case _ => false
+    }
+    assert(matched1)
+
+    val classifier = new XGBoostClassifier()
+    assert(classifier.featureIsArrayType(df.schema))
+
+    val (processed, _) = classifier.preprocess(df)
+    val matched2 = processed.schema("features").dataType match {
+      case ArrayType(FloatType, _) => true
+      case _ => false
+    }
+    assert(matched2)
+  }
+
+  test("Support array(double)") {
+    val df = smallBinaryClassificationArray
+    val matched = df.schema("features").dataType match {
+      case ArrayType(DoubleType, _) => true
+      case _ => false
+    }
+    assert(matched)
+
+    val classifier = new XGBoostClassifier()
+    assert(classifier.featureIsArrayType(df.schema))
+
+    val (processed, _) = classifier.preprocess(df)
+    val matched1 = processed.schema("features").dataType match {
+      case ArrayType(FloatType, _) => true
+      case _ => false
+    }
+    assert(matched1)
+  }
+
+  test("Fit and transform with array type") {
+    val df = smallBinaryClassificationArray
+    val classifier = new XGBoostClassifier().setNumRound(2)
+    val transformedDf = classifier.fit(df).transform(df)
+
+    // transform shouldn't change the features type
+    val matched = transformedDf.schema("features").dataType match {
+      case ArrayType(DoubleType, _) => true
+      case _ => false
+    }
+    assert(matched)
+
+    // No exception happened
+    transformedDf.collect()
+  }
+
+  test("Fit with array and transform with vector type") {
+    val df = smallBinaryClassificationArray
+    val classifier = new XGBoostClassifier().setNumRound(2)
+    val model = classifier.fit(df)
+
+    val vectorDf = smallBinaryClassificationVector
+    assert(SparkUtils.isVectorType(vectorDf.schema("features").dataType))
+
+    val transformedDf = model.transform(vectorDf)
+    assert(SparkUtils.isVectorType(transformedDf.schema("features").dataType))
+
+    // No exception
+    transformedDf.collect()
+  }
+
+  test("Fit with vector and transform with array type") {
+    val vectorDf = smallBinaryClassificationVector
+
+    val classifier = new XGBoostClassifier().setNumRound(2)
+    val model = classifier.fit(vectorDf)
+
+    val arrayDf = smallBinaryClassificationArray
+    assert(classifier.featureIsArrayType(arrayDf.schema))
+
+    val transformedDf = model.transform(arrayDf)
+    assert(classifier.featureIsArrayType(transformedDf.schema))
+
+    // No exception
+    transformedDf.collect()
   }
 }

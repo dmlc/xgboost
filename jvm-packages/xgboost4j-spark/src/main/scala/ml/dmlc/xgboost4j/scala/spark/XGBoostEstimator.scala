@@ -136,6 +136,7 @@ private[spark] trait XGBoostEstimator[
 
   /**
    * Sort partition for Ranker issue.
+   *
    * @param dataset
    * @return
    */
@@ -186,16 +187,21 @@ private[spark] trait XGBoostEstimator[
    * @return
    */
   private[spark] def preprocess(dataset: Dataset[_]): (Dataset[_], ColumnIndices) = {
+    val schema = dataset.schema
+    validateFeatureType(schema)
+    val featureIsArray: Boolean = featureIsArrayType(schema)
 
     // Columns to be selected for XGBoost training
     val selectedCols: ArrayBuffer[Column] = ArrayBuffer.empty
-    val schema = dataset.schema
 
     def selectCol(c: Param[String], targetType: DataType) = {
       if (isDefinedNonEmpty(c)) {
-        // Validation col should be a boolean column.
         if (c == featuresCol) {
-          selectedCols.append(col($(c)))
+          // If feature is array type, we force to cast it to array of float
+          val featureCol = if (featureIsArray) {
+            col($(featuresCol)).cast(ArrayType(FloatType))
+          } else col($(featuresCol))
+          selectedCols.append(featureCol)
         } else {
           selectedCols.append(castIfNeeded(schema, $(c), targetType))
         }
@@ -218,22 +224,33 @@ private[spark] trait XGBoostEstimator[
                                        columnIndexes: ColumnIndices): RDD[XGBLabeledPoint] = {
     val isSetMissing = isSet(missing)
     dataset.toDF().rdd.map { row =>
-      val features = row.getAs[Vector](columnIndexes.featureId.get)
       val label = row.getFloat(columnIndexes.labelId)
       val weight = columnIndexes.weightId.map(row.getFloat).getOrElse(1.0f)
       val baseMargin = columnIndexes.marginId.map(row.getFloat).getOrElse(Float.NaN)
       val group = columnIndexes.groupId.map(row.getInt).getOrElse(-1)
-      // To make "0" meaningful, we convert sparse vector if possible to dense to create DMatrix.
-      features match {
-        case _: SparseVector => if (!isSetMissing) {
-          throw new IllegalArgumentException("We've detected sparse vectors in the dataset that " +
-            "need conversion to dense format. However, we can't assume 0 for missing values as " +
-            "it may be meaningful. Please specify the missing value explicitly to ensure " +
-            "accurate data representation for analysis.")
-        }
-        case _ =>
+
+      val values = row.schema(columnIndexes.featureId.get).dataType match {
+        case ArrayType(_, _) =>
+          // The driver has casted the array(*) to array(float), so it's safe to
+          // specify it as WrappedArray[Float] directly
+          row.getAs[mutable.WrappedArray[Float]](columnIndexes.featureId.get).toArray
+        case other =>
+          if (!SparkUtils.isVectorType(other)) {
+            throw new IllegalArgumentException("Feature must be array or vector type")
+          }
+          val features = row.getAs[Vector](columnIndexes.featureId.get)
+          features match {
+            case _: SparseVector => if (!isSetMissing) {
+              throw new IllegalArgumentException("We've detected sparse vectors in the dataset " +
+                "that need conversion to dense format. However, we can't assume 0 for missing " +
+                "values as it may be meaningful. Please specify the missing value explicitly to" +
+                "ensure accurate data representation for analysis.")
+            }
+            case _ => // DenseVector
+          }
+          // To make "0" meaningful, we convert sparse vector if possible to dense.
+          features.toArray.map(_.toFloat)
       }
-      val values = features.toArray.map(_.toFloat)
       XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
     }
   }
@@ -320,6 +337,7 @@ private[spark] trait XGBoostEstimator[
       trainRDD.zipPartitions(evalRDD) { (left, right) =>
         new Iterator[Watches] {
           override def hasNext: Boolean = left.hasNext
+
           override def next(): Watches = {
             val trainDMatrix = buildDMatrix(left)
             val evalDMatrix = buildDMatrix(right)
@@ -332,6 +350,7 @@ private[spark] trait XGBoostEstimator[
       trainRDD.mapPartitions { iter =>
         new Iterator[Watches] {
           override def hasNext: Boolean = iter.hasNext
+
           override def next(): Watches = {
             val dm = buildDMatrix(iter)
             new Watches(Array(dm), Array(Utils.TRAIN_NAME), None)
@@ -527,54 +546,106 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
 
   /** Predict */
   private[spark] def predictInternal(booster: Booster, dm: DMatrix, pred: PredictedColumns,
-                                     batchRow: Iterator[Row]): Seq[Row] = {
-    var tmpOut = batchRow.toSeq.map(_.toSeq)
-    val zip = (left: Seq[Seq[_]], right: Array[Array[Float]]) => left.zip(right).map {
-      case (a, b) => a ++ Seq(b)
-    }
+                                     originalRowIter: Iterator[Row]): Iterator[Row] = {
+    val tmpIters: ArrayBuffer[Iterator[Row]] = ArrayBuffer.empty
     if (pred.predLeaf) {
-      tmpOut = zip(tmpOut, booster.predictLeaf(dm))
+      tmpIters += booster.predictLeaf(dm).map(Row(_)).iterator
     }
     if (pred.predContrib) {
-      tmpOut = zip(tmpOut, booster.predictContrib(dm))
+      tmpIters += booster.predictContrib(dm).map(Row(_)).iterator
     }
     if (pred.predRaw) {
-      tmpOut = zip(tmpOut, booster.predict(dm, outPutMargin = true))
+      tmpIters += booster.predict(dm, outPutMargin = true).map(Row(_)).iterator
     }
     if (pred.predTmp) {
-      tmpOut = zip(tmpOut, booster.predict(dm, outPutMargin = false))
+      tmpIters += booster.predict(dm, outPutMargin = false).map(Row(_)).iterator
     }
-    tmpOut.map(Row.fromSeq)
+
+    // This is not so efficient considering that toSeq from first iterators will be called
+    // many times.
+    //    tmpIters.foldLeft(originalRowIter) { case (accIter, nextIter) =>
+    //      // Zip the accumulated iterator with the next iterator
+    //      accIter.zip(nextIter).map { case (a: Row, b: Row) =>
+    //        Row.fromSeq(a.toSeq ++ b.toSeq)
+    //      }
+    //    }
+
+    tmpIters.size match {
+      case 4 =>
+        originalRowIter.zip(tmpIters(0)).zip(tmpIters(1)).zip(tmpIters(2)).zip(tmpIters(3)).map {
+          case ((((a: Row, b: Row), c: Row), d: Row), e: Row) =>
+            Row.fromSeq(a.toSeq ++ b.toSeq ++ c.toSeq ++ d.toSeq ++ e.toSeq)
+        }
+      case 3 =>
+        originalRowIter.zip(tmpIters(0)).zip(tmpIters(1)).zip(tmpIters(2)).map {
+          case (((a: Row, b: Row), c: Row), d: Row) =>
+            Row.fromSeq(a.toSeq ++ b.toSeq ++ c.toSeq ++ d.toSeq)
+        }
+      case 2 =>
+        originalRowIter.zip(tmpIters(0)).zip(tmpIters(1)).map {
+          case ((a: Row, b: Row), c: Row) =>
+            Row.fromSeq(a.toSeq ++ b.toSeq ++ c.toSeq)
+        }
+      case 1 =>
+        originalRowIter.zip(tmpIters(0)).map {
+          case (a: Row, b: Row) =>
+            Row.fromSeq(a.toSeq ++ b.toSeq)
+        }
+      case 0 => originalRowIter
+      case _ => throw new RuntimeException("Unexpected array size") // never reach here
+    }
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {
-
     if (getPlugin.isDefined) {
       return getPlugin.get.transform(this, dataset)
     }
-
+    validateFeatureType(dataset.schema)
     val (schema, pred) = preprocess(dataset)
+    // Broadcast the booster to each executor.
     val bBooster = dataset.sparkSession.sparkContext.broadcast(nativeBooster)
     // TODO configurable
     val inferBatchSize = 32 << 10
-    // Broadcast the booster to each executor.
     val featureName = getFeaturesCol
     val missing = getMissing
 
-    val output = dataset.toDF().mapPartitions { rowIter =>
+    val featureIsArray = featureIsArrayType(dataset.schema)
+
+    // Here, we use RDD instead of DF to avoid different encoders for different
+    // spark versions for the compatibility issue.
+    // 3.5+, Encoders.row(schema)
+    // 3.5-, RowEncoder(schema)
+    val outRDD = dataset.asInstanceOf[Dataset[Row]].rdd.mapPartitions { rowIter =>
       rowIter.grouped(inferBatchSize).flatMap { batchRow =>
-        val features = batchRow.iterator.map(row => row.getAs[Vector](
-          row.fieldIndex(featureName)))
+        val features = batchRow.iterator.map(row => {
+          if (!featureIsArray) {
+            // Vector type
+            row.getAs[Vector](row.fieldIndex(featureName)).asXGB
+          } else {
+            // Array type
+            val values: Array[Float] = row.get(row.fieldIndex(featureName)) match {
+              case v: mutable.WrappedArray[_] =>
+                v.array match {
+                  case f: Array[java.lang.Float] => f.map(_.toFloat)
+                  case d: Array[java.lang.Double] => d.map(_.toFloat)
+                  case _ => throw new RuntimeException("Unsupported feature array type")
+                }
+              case _ => throw new RuntimeException("Unsupported feature type")
+            }
+            XGBLabeledPoint(0.0f, values.size, null, values)
+          }
+        })
         // DMatrix used to prediction
-        val dm = new DMatrix(features.map(_.asXGB), null, missing)
+        val dm = new DMatrix(features, null, missing)
         try {
           predictInternal(bBooster.value, dm, pred, batchRow.toIterator)
         } finally {
           dm.delete()
         }
       }
+    }
+    val output = dataset.sparkSession.createDataFrame(outRDD, schema)
 
-    }(Encoders.row(schema))
     bBooster.unpersist(blocking = false)
     postTransform(output, pred).toDF()
   }

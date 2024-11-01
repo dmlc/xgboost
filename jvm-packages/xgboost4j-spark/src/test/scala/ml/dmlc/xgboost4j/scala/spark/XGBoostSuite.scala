@@ -100,29 +100,32 @@ class XGBoostSuite extends AnyFunSuite with PerTest {
       .config("spark.executor.cores", 4)
       .config("spark.executor.resource.gpu.amount", 1)
       .config("spark.task.resource.gpu.amount", 0.25)
-
     val ss = builder.getOrCreate()
-
-    try {
-      val df = ss.range(1, 10)
-      val rdd = df.rdd
-
-      val runtimeParams = new XGBoostClassifier(
-        Map("device" -> "cuda")).setNumWorkers(1).setNumRound(1)
-        .getRuntimeParameters(true)
-      assert(runtimeParams.runOnGpu)
-
-      val finalRDD = FakedXGBoost.tryStageLevelScheduling(ss.sparkContext, runtimeParams,
-        rdd.asInstanceOf[RDD[(Booster, Map[String, Array[Float]])]])
-
-      val taskResources = finalRDD.getResourceProfile().taskResources
-      assert(taskResources.contains("cpus"))
-      assert(taskResources.get("cpus").get.amount == 3)
-
-      assert(taskResources.contains("gpu"))
-      assert(taskResources.get("gpu").get.amount == 1.0)
-    } finally {
+    if (ss.version < "3.4.1") {
+      // Pass
       ss.stop()
+    } else {
+      try {
+        val df = ss.range(1, 10)
+        val rdd = df.rdd
+
+        val runtimeParams = new XGBoostClassifier(
+          Map("device" -> "cuda")).setNumWorkers(1).setNumRound(1)
+          .getRuntimeParameters(true)
+        assert(runtimeParams.runOnGpu)
+
+        val finalRDD = FakedXGBoost.tryStageLevelScheduling(ss.sparkContext, runtimeParams,
+          rdd.asInstanceOf[RDD[(Booster, Map[String, Array[Float]])]])
+
+        val taskResources = finalRDD.getResourceProfile().taskResources
+        assert(taskResources.contains("cpus"))
+        assert(taskResources.get("cpus").get.amount == 3)
+
+        assert(taskResources.contains("gpu"))
+        assert(taskResources.get("gpu").get.amount == 1.0)
+      } finally {
+        ss.stop()
+      }
     }
   }
 }

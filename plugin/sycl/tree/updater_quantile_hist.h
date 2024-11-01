@@ -108,8 +108,6 @@ class QuantileHistMaker: public TreeUpdater {
   ::sycl::queue* qu_;
   DeviceManager device_manager;
   ObjInfo const *task_{nullptr};
-
-  USMVector<GradientPair, MemoryType::on_device> gpair_device_;
 };
 
 

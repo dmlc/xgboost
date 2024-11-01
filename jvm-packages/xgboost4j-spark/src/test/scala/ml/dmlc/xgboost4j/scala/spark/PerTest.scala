@@ -112,6 +112,15 @@ trait PerTest extends BeforeAndAfterEach {
     (1.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
   ))).toDF("label", "margin", "weight", "features")
 
+  def smallBinaryClassificationArray: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 0.5, 1.0, Seq(1.0, 2.0, 3.0)),
+    (0.0, 0.4, -3.0, Seq(0.0, 0.0, 0.0)),
+    (0.0, 0.3, 1.0, Seq(0.0, 3.0, 0.0)),
+    (1.0, 1.2, 0.2, Seq(2.0, 0.0, 4.0)),
+    (0.0, -0.5, 0.0, Seq(0.2, 1.2, 2.0)),
+    (1.0, -0.4, -2.1, Seq(0.5, 2.2, 1.7))
+  ))).toDF("label", "margin", "weight", "features")
+
   def smallMultiClassificationVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
     (1.0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
     (0.0, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),
@@ -120,7 +129,6 @@ trait PerTest extends BeforeAndAfterEach {
     (0.0, -0.5, 0.0, Vectors.dense(0.2, 1.2, 2.0)),
     (2.0, -0.4, -2.1, Vectors.dense(0.5, 2.2, 1.7))
   ))).toDF("label", "margin", "weight", "features")
-
 
   def smallGroupVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
     (1.0, 0, 0.5, 2.0, Vectors.dense(1.0, 2.0, 3.0)),

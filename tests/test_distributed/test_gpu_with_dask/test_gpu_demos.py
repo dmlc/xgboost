@@ -25,3 +25,11 @@ def test_dask_sklearn_demo():
     script = os.path.join(tm.demo_dir(__file__), "dask", "sklearn_gpu_training.py")
     cmd = ["python", script]
     subprocess.check_call(cmd)
+
+
+@pytest.mark.mgpu
+@pytest.mark.skipif(**tm.no_cupy())
+def test_forward_logging_demo():
+    script = os.path.join(tm.demo_dir(__file__), "dask", "forward_logging.py")
+    cmd = ["python", script]
+    subprocess.check_call(cmd)

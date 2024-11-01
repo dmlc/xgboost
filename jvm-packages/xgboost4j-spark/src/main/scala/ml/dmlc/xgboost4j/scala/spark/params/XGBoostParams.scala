@@ -20,7 +20,8 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.ml.param._
 import org.apache.spark.ml.param.shared._
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.ml.xgboost.SparkUtils
+import org.apache.spark.sql.types.{ArrayType, StructType}
 
 import ml.dmlc.xgboost4j.scala.{EvalTrait, ObjectiveTrait}
 
@@ -222,6 +223,19 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setFeatureNames(value: Array[String]): T = set(featureNames, value).asInstanceOf[T]
 
   def setFeatureTypes(value: Array[String]): T = set(featureTypes, value).asInstanceOf[T]
+
+  protected[spark] def featureIsArrayType(schema: StructType): Boolean =
+    schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]
+
+  protected[spark] def validateFeatureType(schema: StructType) = {
+    // Features cols must be Vector or Array.
+    val featureDataType = schema(getFeaturesCol).dataType
+
+    // Features column must be either ArrayType or VectorType.
+    if (!featureDataType.isInstanceOf[ArrayType] && !SparkUtils.isVectorType(featureDataType)) {
+      throw new IllegalArgumentException("Feature type must be either ArrayType or VectorType")
+    }
+  }
 }
 
 private[spark] trait SchemaValidationTrait {

@@ -115,8 +115,7 @@ function(xgboost_set_cuda_flags target)
   else()
     # If the downstream user is dynamically linking with libxgboost, it does not
     # need to link with CCCL and CUDA runtime.
-    target_link_libraries(${target}
-      PRIVATE CCCL::CCCL CUDA::cudart_static)
+    target_link_libraries(${target} PRIVATE CCCL::CCCL CUDA::cudart_static)
   endif()
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
