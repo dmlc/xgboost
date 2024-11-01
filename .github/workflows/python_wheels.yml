@@ -34,7 +34,7 @@ jobs:
       run: brew install libomp
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         python-version: 3.9
         use-mamba: true
