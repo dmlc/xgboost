@@ -364,6 +364,7 @@ template<typename GradientSumT>
 bool HistUpdater<GradientSumT>::UpdatePredictionCache(
     const DMatrix* data,
     linalg::MatrixView<float> out_preds) {
+  CHECK(out_preds.Device().IsSycl());
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
   if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
@@ -371,23 +372,6 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
   }
   builder_monitor_.Start("UpdatePredictionCache");
   CHECK_GT(out_preds.Size(), 0U);
-
-  const size_t stride = out_preds.Stride(0);
-  const bool is_first_group = (out_pred_ptr == nullptr);
-  const size_t gid = out_pred_ptr == nullptr ? 0 : &out_preds(0) - out_pred_ptr;
-  const bool is_last_group = (gid + 1 == stride);
-
-  const int buffer_size = out_preds.Size() *stride;
-  if (buffer_size == 0) return true;
-
-  ::sycl::event event;
-  if (is_first_group) {
-    out_preds_buf_.ResizeNoCopy(qu_, buffer_size);
-    out_pred_ptr = &out_preds(0);
-    event = qu_->memcpy(out_preds_buf_.Data(), out_pred_ptr,
-                        buffer_size * sizeof(bst_float), event);
-  }
-  auto* out_preds_buf_ptr = out_preds_buf_.Data();
 
   size_t n_nodes = row_set_collection_.Size();
   std::vector<::sycl::event> events(n_nodes);
@@ -408,16 +392,13 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
       const size_t num_rows = rowset.Size();
 
       events[node] = qu_->submit([&](::sycl::handler& cgh) {
-        cgh.depends_on(event);
         cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::item<1> pid) {
-          out_preds_buf_ptr[rid[pid.get_id(0)]*stride + gid] += leaf_value;
+          size_t row_id = rid[pid.get_id(0)];
+          float& val = const_cast<float&>(out_preds(row_id));
+          val += leaf_value;
         });
       });
     }
-  }
-  if (is_last_group) {
-    qu_->memcpy(out_pred_ptr, out_preds_buf_ptr, buffer_size * sizeof(bst_float), events);
-    out_pred_ptr = nullptr;
   }
   qu_->wait();
 
