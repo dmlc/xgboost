@@ -1,5 +1,6 @@
 import re
 from functools import partial, update_wrapper
+from platform import system
 from typing import Dict, Union
 
 import numpy as np
@@ -19,6 +20,9 @@ def test_rabit_tracker() -> None:
     with collective.CommunicatorContext(**tracker.worker_args()):
         ret = collective.broadcast("test1234", 0)
         assert str(ret) == "test1234"
+
+    if system() == "Windows":
+        pytest.skip("Windows is not supported.")
 
     with pytest.raises(ValueError, match="Failed to bind socket"):
         RabitTracker(host_ip="127.0.0.1", port=port, n_workers=1)
