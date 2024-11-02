@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies
 
-import xgboost as xgb
 from xgboost import RabitTracker, collective
 from xgboost import testing as tm
 
