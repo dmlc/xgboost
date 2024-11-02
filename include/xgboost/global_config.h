@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023, XGBoost Contributors
+ * Copyright 2020-2024, XGBoost Contributors
  * \file global_config.h
  * \brief Global configuration for XGBoost
  * \author Hyunsu Cho
@@ -27,6 +27,12 @@ struct GlobalConfiguration : public XGBoostParameter<GlobalConfiguration> {
 };
 
 using GlobalConfigThreadLocalStore = dmlc::ThreadLocalStore<GlobalConfiguration>;
+
+struct InitNewThread {
+  GlobalConfiguration config = *GlobalConfigThreadLocalStore::Get();
+
+  void operator()() const;
+};
 }  // namespace xgboost
 
 #endif  // XGBOOST_GLOBAL_CONFIG_H_
