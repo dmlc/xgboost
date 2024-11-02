@@ -554,16 +554,6 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
                                                       char const *config, DMatrixHandle *out);
 
 /*!
- * \brief Create a Device Quantile DMatrix with data iterator.
- * \deprecated since 1.7.0
- * \see XGQuantileDMatrixCreateFromCallback()
- */
-XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy,
-                                                      DataIterResetCallback *reset,
-                                                      XGDMatrixCallbackNext *next, float missing,
-                                                      int nthread, int max_bin, DMatrixHandle *out);
-
-/*!
  * \brief Set data on a DMatrix proxy.
  *
  * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
@@ -1320,7 +1310,6 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
  *               - "format": str
  *                 - json: Output booster will be encoded as JSON.
  *                 - ubj:  Output booster will be encoded as Universal binary JSON.
- *                 - deprecated: Output booster will be encoded as old custom binary format.  Do not use
  *                   this format except for compatibility reasons.
  * \param out_len  The argument to hold the output length
  * \param out_dptr The argument to hold the output data pointer
