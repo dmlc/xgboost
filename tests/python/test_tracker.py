@@ -14,15 +14,14 @@ from xgboost import testing as tm
 def test_rabit_tracker() -> None:
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=1)
     tracker.start()
+    args = tracker.worker_args()
+    port = args["dmlc_tracker_port"]
     with collective.CommunicatorContext(**tracker.worker_args()):
         ret = collective.broadcast("test1234", 0)
         assert str(ret) == "test1234"
 
-
-@pytest.mark.skipif(**tm.not_linux())
-def test_rabit_tracker_invalid() -> None:
     with pytest.raises(ValueError, match="Failed to bind socket"):
-        RabitTracker(host_ip="127.0.0.1", port=22, n_workers=1)
+        RabitTracker(host_ip="127.0.0.1", port=port, n_workers=1)
 
 
 @pytest.mark.skipif(**tm.not_linux())
