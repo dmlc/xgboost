@@ -1,5 +1,4 @@
 import re
-import sys
 from functools import partial, update_wrapper
 from typing import Dict, Union
 
@@ -12,7 +11,7 @@ from xgboost import RabitTracker, collective
 from xgboost import testing as tm
 
 
-def test_rabit_tracker():
+def test_rabit_tracker() -> None:
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=1)
     tracker.start()
     with collective.CommunicatorContext(**tracker.worker_args()):
@@ -21,7 +20,13 @@ def test_rabit_tracker():
 
 
 @pytest.mark.skipif(**tm.not_linux())
-def test_socket_error():
+def test_rabit_tracker_invalid() -> None:
+    with pytest.raises(ValueError, match="Failed to bind socket"):
+        RabitTracker(host_ip="127.0.0.1", port=22, n_workers=1)
+
+
+@pytest.mark.skipif(**tm.not_linux())
+def test_socket_error() -> None:
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
     tracker.start()
     env = tracker.worker_args()
