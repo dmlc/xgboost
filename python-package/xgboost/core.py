@@ -158,7 +158,11 @@ def _log_callback(msg: bytes) -> None:
     """Redirect logs from native library into Python console"""
     smsg = py_str(msg)
     if smsg.find("WARNING:") != -1:
-        warnings.warn(smsg, UserWarning)
+        # Stacklevel:
+        # 1: This line
+        # 2: XGBoost C functions like `_LIB.XGBoosterTrainOneIter`.
+        # 3: The Python function that calls the C function.
+        warnings.warn(smsg, UserWarning, stacklevel=3)
         return
     print(smsg)
 
