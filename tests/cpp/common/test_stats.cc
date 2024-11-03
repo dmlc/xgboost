@@ -157,6 +157,7 @@ void TestSampleMean(Context const* ctx) {
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
+    collective::GetWorkerLocalThreads(collective::GetWorldSize(), &ctx);
     linalg::Matrix<float> data({m, n}, ctx.Device());
     auto h_data = data.HostView();
     for (std::size_t i = 0; i < m; ++i) {
@@ -211,6 +212,7 @@ void TestWeightedSampleMean(Context const* ctx) {
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
+    collective::GetWorkerLocalThreads(collective::GetWorldSize(), &ctx);
     linalg::Matrix<float> data({m, n}, ctx.Device());
     auto h_data = data.HostView();
     for (std::size_t i = 0; i < m; ++i) {
