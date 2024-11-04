@@ -14,7 +14,6 @@ If `device` is `cuda`, following are also needed:
 
 - cupy
 - rmm
-- python-cuda
 
 """
 
@@ -64,8 +63,8 @@ class Iterator(xgboost.DataIter):
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
         """Load a single batch of data."""
         X_path, y_path = self._file_paths[self._it]
-        # When the `ExtMemQuantileDMatrix` is used, the device must match. This
-        # constraint will be relaxed in the future.
+        # When the `ExtMemQuantileDMatrix` is used, the device must match. GPU cannot
+        # consume CPU input data and vice-versa.
         if self.device == "cpu":
             X = np.load(X_path)
             y = np.load(y_path)
@@ -85,8 +84,8 @@ class Iterator(xgboost.DataIter):
             # return False to let XGBoost know this is the end of iteration
             return False
 
-        # input_data is a function passed in by XGBoost and has the similar signature to
-        # the ``DMatrix`` constructor.
+        # input_data is a keyword-only function passed in by XGBoost and has the similar
+        # signature to the ``DMatrix`` constructor.
         X, y = self.load_file()
         input_data(data=X, label=y)
         self._it += 1
@@ -100,7 +99,6 @@ class Iterator(xgboost.DataIter):
 def setup_rmm() -> None:
     """Setup RMM for GPU-based external memory training."""
     import rmm
-    from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
 
     if not xgboost.build_info()["USE_RMM"]:
@@ -119,11 +117,10 @@ def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> N
     """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
     faster initialization and lower memory usage.
 
-    .. versionadded:: 3.0.0
-
     """
 
-    with coll.CommunicatorContext(**rabit_args):
+    # Make sure XGBoost is using RMM for all allocations.
+    with coll.CommunicatorContext(**rabit_args), xgboost.config_context(use_rmm=True):
         # Generate the data for demonstration. The sythetic data is sharded by workers.
         files = make_batches(
             n_samples_per_batch=4096,
@@ -168,14 +165,16 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
     def initializer(device: str) -> None:
         # Set CUDA device before launching child processes.
         if device == "cuda":
+            # name: LokyProcess-1
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx)  # 1-based indexing from loky
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(int(sidx) - 1)
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(idx - 1)
+            setup_rmm()
 
     with get_reusable_executor(
         max_workers=n_workers, initargs=(args.device,), initializer=initializer
     ) as pool:
-        # Pool man's currying
+        # Poor man's currying
         fn = update_wrapper(
             partial(
                 hist_train, tmpdir=tmpdir, device=args.device, rabit_args=rabit_args
@@ -196,10 +195,8 @@ if __name__ == "__main__":
         # external memory to improve performance. If XGBoost is not built with RMM
         # support, a warning is raised when constructing the `DMatrix`.
         setup_rmm()
-        # Make sure XGBoost is using RMM for all allocations.
-        with xgboost.config_context(use_rmm=True):
-            with tempfile.TemporaryDirectory() as tmpdir:
-                main(tmpdir, args)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            main(tmpdir, args)
     else:
         with tempfile.TemporaryDirectory() as tmpdir:
             main(tmpdir, args)

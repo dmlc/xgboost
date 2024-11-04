@@ -51,11 +51,11 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
 
   auto builder = GHistBuilder<GradientSumT>(qu, n_bins);
 
-  std::vector<GradientPair> gpair = {
+  HostDeviceVector<GradientPair> gpair({
       {0.1f, 0.2f}, {0.3f, 0.4f}, {0.5f, 0.6f}, {0.7f, 0.8f},
-      {0.9f, 0.1f}, {0.2f, 0.3f}, {0.4f, 0.5f}, {0.6f, 0.7f}};
-  CHECK_EQ(gpair.size(), num_rows);
-  USMVector<GradientPair, MemoryType::on_device> gpair_device(qu, gpair);
+      {0.9f, 0.1f}, {0.2f, 0.3f}, {0.4f, 0.5f}, {0.6f, 0.7f}},
+      ctx.Device());
+  CHECK_EQ(gpair.Size(), num_rows);
 
   std::vector<GradientSumT> hist_host(2*n_bins);
   GHistRow<GradientSumT, MemoryType::on_device> hist(qu, 2 * n_bins);
@@ -67,7 +67,7 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
   InitHist(qu, &hist, hist.Size(), &event);
   InitHist(qu, &hist_buffer, hist_buffer.Size(), &event);
 
-  event = builder.BuildHist(gpair_device, row_set_collection[0], gmat_sycl, &hist,
+  event = builder.BuildHist(gpair, row_set_collection[0], gmat_sycl, &hist,
                             sparsity < eps , &hist_buffer, event, force_atomic_use);
   qu->memcpy(hist_host.data(), hist.Data(),
             2 * n_bins * sizeof(GradientSumT), event);
@@ -80,8 +80,8 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
     const size_t iend = gmat.row_ptr[rid + 1];
     for (size_t i = ibegin; i < iend; ++i) {
       const size_t bin_idx = gmat.index[i];
-      hist_desired[2*bin_idx]   += gpair[rid].GetGrad();
-      hist_desired[2*bin_idx+1] += gpair[rid].GetHess();
+      hist_desired[2*bin_idx]   += gpair.HostVector()[rid].GetGrad();
+      hist_desired[2*bin_idx+1] += gpair.HostVector()[rid].GetHess();
     }
   }
 

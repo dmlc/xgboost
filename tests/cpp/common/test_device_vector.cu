@@ -2,6 +2,7 @@
  * Copyright 2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
+#include <thread>  // for thread
 
 #include <numeric>                     // for iota
 #include <thrust/detail/sequence.inl>  // for sequence
@@ -10,6 +11,7 @@
 #include "../../../src/common/device_helpers.cuh"  // for CachingThrustPolicy, PinnedMemory
 #include "../../../src/common/device_vector.cuh"
 #include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
+#include "xgboost/windefs.h"  // for xgboost_IS_WIN
 
 namespace dh {
 TEST(DeviceUVector, Basic) {
@@ -30,6 +32,9 @@ class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
  public:
   void Run() {
     auto type = this->GetParam();
+    if (type == CU_MEM_LOCATION_TYPE_HOST_NUMA) {
+      GTEST_SKIP_("Host numa might require special system capabilities, skipping for now.");
+    }
     detail::GrowOnlyVirtualMemVec vec{type};
     auto prop = xgboost::cudr::MakeAllocProp(type);
     auto gran = xgboost::cudr::GetAllocGranularity(&prop);
@@ -109,10 +114,24 @@ TEST(TestVirtualMem, Version) {
   xgboost::curt::DrVersion(&major, &minor);
   LOG(INFO) << "Latest supported CUDA version by the driver:" << major << "." << minor;
   PinnedMemory pinned;
-  if (major >= 12 && minor >= 5) {
-    ASSERT_TRUE(pinned.IsVm());
-  } else {
-    ASSERT_FALSE(pinned.IsVm());
+  ASSERT_FALSE(pinned.IsVm());
+}
+
+TEST(AtomitFetch, Max) {
+  auto n_threads = std::thread::hardware_concurrency();
+  std::vector<std::thread> threads;
+  std::atomic<std::int64_t> n{0};
+  decltype(n)::value_type add = 64;
+  for (decltype(n_threads) t = 0; t < n_threads; ++t) {
+    threads.emplace_back([=, &n] {
+      for (decltype(add) i = 0; i < add; ++i) {
+        detail::AtomicFetchMax(n, static_cast<decltype(add)>(t + i));
+      }
+    });
   }
+  for (auto& t : threads) {
+    t.join();
+  }
+  ASSERT_EQ(n, n_threads - 1 + add - 1);  // 0-based indexing
 }
 }  // namespace dh

@@ -38,13 +38,14 @@ class AlignedFileWriteStream;
 class GHistIndexMatrix {
   // Get the size of each row
   template <typename AdapterBatchT>
-  auto GetRowCounts(AdapterBatchT const& batch, float missing, int32_t n_threads) {
+  static auto GetRowCounts(AdapterBatchT const& batch, float missing, int32_t n_threads) {
     std::vector<size_t> valid_counts(batch.Size(), 0);
+    auto is_valid = data::IsValidFunctor{missing};
     common::ParallelFor(batch.Size(), n_threads, [&](size_t i) {
       auto line = batch.GetLine(i);
       for (size_t j = 0; j < line.Size(); ++j) {
         data::COOTuple elem = line.GetElement(j);
-        if (data::IsValidFunctor {missing}(elem)) {
+        if (is_valid(elem)) {
           valid_counts[i]++;
         }
       }
@@ -246,7 +247,7 @@ class GHistIndexMatrix {
   /**
    * @brief Get the local row index.
    */
-  [[nodiscard]] std::size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
+  [[nodiscard]] bst_idx_t RowIdx(bst_idx_t ridx) const { return row_ptr[ridx - this->base_rowid]; }
 
   [[nodiscard]] bst_idx_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
   [[nodiscard]] bst_feature_t Features() const { return cut.Ptrs().size() - 1; }

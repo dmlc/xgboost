@@ -104,6 +104,10 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
     CHECK_EQ(this->cache_info_.at(id)->Size(), ext_info.n_batches);
   }
   this->n_batches_ = this->cache_info_.at(id)->Size();
+  if (cuts->HasCategorical()) {
+    CHECK(!this->Info().feature_types.Empty());
+  }
+  CHECK_EQ(cuts->HasCategorical(), this->Info().HasCategorical());
 }
 
 [[nodiscard]] BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl() {

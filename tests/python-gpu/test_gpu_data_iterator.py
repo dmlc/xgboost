@@ -7,6 +7,7 @@ from hypothesis import given, settings, strategies
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing import no_cupy
+from xgboost.testing.data_iter import check_invalid_cat_batches
 from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
@@ -92,6 +93,33 @@ def test_extmem_qdm(
         n_bins=n_bins,
         device="cuda",
         on_host=on_host,
+        is_cat=False,
+    )
+
+
+@given(
+    strategies.integers(1, 2048),
+    strategies.integers(1, 4),
+    strategies.integers(2, 16),
+    strategies.booleans(),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
+def test_categorical_extmem_qdm(
+    n_samples_per_batch: int,
+    n_batches: int,
+    n_bins: int,
+    on_host: bool,
+) -> None:
+    check_extmem_qdm(
+        n_samples_per_batch,
+        4,
+        n_batches=n_batches,
+        n_bins=n_bins,
+        device="cuda",
+        on_host=on_host,
+        is_cat=True,
     )
 
 
@@ -197,3 +225,9 @@ def test_categorical_ohe(tree_method: str) -> None:
         tree_method=tree_method,
         extmem=True,
     )
+
+
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
+def test_invalid_cat_batches() -> None:
+    check_invalid_cat_batches("cuda")

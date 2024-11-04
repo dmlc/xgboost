@@ -54,42 +54,43 @@ external memory training, users need to define a data iterator with 2 class meth
   from sklearn.datasets import load_svmlight_file
 
   class Iterator(xgboost.DataIter):
-    def __init__(self, svm_file_paths: List[str]):
+    def __init__(self, svm_file_paths: List[str]) -> None:
       self._file_paths = svm_file_paths
       self._it = 0
       # XGBoost will generate some cache files under the current directory with the prefix
       # "cache"
       super().__init__(cache_prefix=os.path.join(".", "cache"))
 
-    def next(self, input_data: Callable):
+    def next(self, input_data: Callable) -> bool:
       """Advance the iterator by 1 step and pass the data to XGBoost. This function is
       called by XGBoost during the construction of ``DMatrix``
 
       """
       if self._it == len(self._file_paths):
-        # return 0 to let XGBoost know this is the end of the iteration
-        return 0
+        # return False to let XGBoost know this is the end of the iteration
+        return False
 
       # input_data is a function passed in by XGBoost and has the exact same signature of
       # ``DMatrix``
       X, y = load_svmlight_file(self._file_paths[self._it])
+      # Keyword-only arguments, see the ``DMatrix`` class for accepted arguments.
       input_data(data=X, label=y)
       self._it += 1
-      # Return 1 to let XGBoost know we haven't seen all the files yet.
-      return 1
+      # Return True to let XGBoost know we haven't seen all the files yet.
+      return True
 
-    def reset(self):
+    def reset(self) -> None:
       """Reset the iterator to its beginning"""
       self._it = 0
 
   it = Iterator(["file_0.svm", "file_1.svm", "file_2.svm"])
 
+  # Use the ``ExtMemQuantileDMatrix`` for the hist tree method.
   Xy = xgboost.ExtMemQuantileDMatrix(it)
   booster = xgboost.train({"tree_method": "hist"}, Xy)
 
   # The ``approx`` tree method also works, but with lower performance and cannot be used
   # with the quantile DMatrix.
-
   Xy = xgboost.DMatrix(it)
   booster = xgboost.train({"tree_method": "approx"}, Xy)
 
@@ -127,7 +128,7 @@ is here for experimental purposes only. In addition,
 and memory usage.
 
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
-the GPU. This is a current limitation we aim to address in the future.
+the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_memory.py`:
 
 .. code-block:: python
 
@@ -147,6 +148,7 @@ the GPU. This is a current limitation we aim to address in the future.
 	# ...
 	# Build the ExtMemQuantileDMatrix and start training
 	Xy_train = xgboost.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
+	# Use the training DMatrix as a reference
 	Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
 	booster = xgboost.train(
 	    {
@@ -170,7 +172,8 @@ to change :py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device
 and ``min_cache_page_bytes``, they are automatically configured based on the device and
 don't change model accuracy. However, the ``max_quantile_batches`` can be useful if
 :py:class:`~xgboost.ExtMemQuantileDMatrix` is running out of device memory during
-construction, see :py:class:`~xgboost.QuantileDMatrix` for more info.
+construction, see :py:class:`~xgboost.QuantileDMatrix` and the following sections for more
+info.
 
 In addition to the batch-based data fetching, the GPU version supports concatenating
 batches into a single blob for the training data to improve performance. For GPUs
@@ -222,6 +225,7 @@ with version ``>=565.47`` is required, it should come with CTK 12.7 and later ve
 ********************
 Distributed Training
 ********************
+
 Distributed training is similar to in-core learning, but the work for framework
 integration is still on-going. See :ref:`sphx_glr_python_examples_distributed_extmem_basic.py`
 for an example for using the communicator to build a simple pipeline. Since users can
@@ -259,10 +263,14 @@ through the data for inference with memory spilling.
 When external memory is used, the performance of CPU training is limited by disk IO
 (input/output) speed. This means that the disk IO speed primarily determines the training
 speed. Similarly, PCIe bandwidth limits the GPU performance, assuming the CPU memory is
-used as a cache and address translation services (ATS) is unavailable. Running inference
-is much less computation-intensive than training and, hence, much faster. For GPU, the
-time it takes to read the data from host to device completely determines the time it takes
-to run inference, even if a C2C link is available.
+used as a cache and address translation services (ATS) is unavailable. During development,
+we observed that typical data transfer in XGBoost with PCIe4x16 has about 24GB/s
+bandwidth, which is significantly lower than the GPU processing performance. Whereas with
+a C2C-enabled machine, the performance of data transfer and processing in training are
+similar. Running inference is much less computation-intensive than training and, hence,
+much faster. As a result, the performance bottleneck of inference is back to data
+transfer. For GPU, the time it takes to read the data from host to device completely
+determines the time it takes to run inference, even if a C2C link is available.
 
 .. code-block:: python
 
@@ -270,8 +278,13 @@ to run inference, even if a C2C link is available.
     Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
 
 In addition, since the GPU implementation relies on asynchronous memory pool, which is
-subject to memory fragmentation. You might want to start the training with a fresh pool
-instead of starting training right after the ETL process.
+subject to memory fragmentation even if the ``CudaAsyncMemoryResource`` is used. You might
+want to start the training with a fresh pool instead of starting training right after the
+ETL process. If you run into out-of-memory errors and you are convinced that the pool is
+not full yet (pool memory usage can be profiled with ``nsight-system``), consider tuning
+the RMM memory resource like using ``rmm.mr.CudaAsyncMemoryResource`` in conjunction with
+``rmm.mr.BinningMemoryResource(mr, 21, 25)`` instead of the
+``rmm.mr.PoolMemoryResource(mr)`` shown in the example.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some

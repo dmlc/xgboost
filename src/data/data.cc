@@ -745,6 +745,10 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
     this->feature_names = that.feature_names;
   }
 
+  if (!this->feature_types.Empty()) {
+    data::CheckFeatureTypes(this->feature_types, that.feature_types);
+  }
+
   if (!that.feature_type_names.empty()) {
     this->feature_type_names = that.feature_type_names;
     auto& h_feature_types = feature_types.HostVector();

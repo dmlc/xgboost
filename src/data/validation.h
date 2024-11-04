@@ -1,5 +1,5 @@
-/*!
- * Copyright 2021 by XGBoost Contributors
+/**
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_VALIDATION_H_
 #define XGBOOST_DATA_VALIDATION_H_
@@ -7,10 +7,11 @@
 #include <vector>
 
 #include "xgboost/base.h"
+#include "xgboost/data.h"                // for FeatureType
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/logging.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 struct LabelsCheck {
   XGBOOST_DEVICE bool operator()(float y) {
 #if defined(__CUDA_ARCH__)
@@ -25,7 +26,7 @@ struct WeightsCheck {
   XGBOOST_DEVICE bool operator()(float w) { return LabelsCheck{}(w) || w < 0; }  // NOLINT
 };
 
-inline void ValidateQueryGroup(std::vector<bst_group_t> const &group_ptr_) {
+inline void ValidateQueryGroup(std::vector<bst_group_t> const& group_ptr_) {
   bool valid_query_group = true;
   for (size_t i = 1; i < group_ptr_.size(); ++i) {
     valid_query_group = valid_query_group && group_ptr_[i] >= group_ptr_[i - 1];
@@ -35,6 +36,12 @@ inline void ValidateQueryGroup(std::vector<bst_group_t> const &group_ptr_) {
   }
   CHECK(valid_query_group) << "Invalid group structure.";
 }
-}  // namespace data
-}  // namespace xgboost
+namespace cuda_impl {
+void CheckFeatureTypes(HostDeviceVector<FeatureType> const& lhs,
+                       HostDeviceVector<FeatureType> const& rhs);
+}
+
+void CheckFeatureTypes(HostDeviceVector<FeatureType> const& lhs,
+                       HostDeviceVector<FeatureType> const& rhs);
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_VALIDATION_H_

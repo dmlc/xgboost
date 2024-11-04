@@ -16,14 +16,15 @@
 
 package org.apache.spark.ml.xgboost
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkContext, SparkException}
 import org.apache.spark.ml.classification.ProbabilisticClassifierParams
 import org.apache.spark.ml.linalg.VectorUDT
 import org.apache.spark.ml.param.Params
-import org.apache.spark.ml.util.{DatasetUtils, DefaultParamsReader, DefaultParamsWriter, SchemaUtils}
+import org.apache.spark.ml.util.{DefaultParamsReader, DefaultParamsWriter, MetadataUtils, SchemaUtils}
 import org.apache.spark.ml.util.DefaultParamsReader.Metadata
-import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
+import org.apache.spark.sql.{Column, Dataset, Row}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.{DataType, DoubleType, IntegerType, StructType}
 import org.json4s.{JObject, JValue}
 
 import ml.dmlc.xgboost4j.scala.spark.params.NonXGBoostParams
@@ -57,8 +58,52 @@ trait XGBProbabilisticClassifierParams[T <: Params]
 /** Utils to access the spark internal functions */
 object SparkUtils {
 
+  private def checkClassificationLabels(
+      labelCol: String,
+      numClasses: Option[Int]): Column = {
+    val casted = col(labelCol).cast(DoubleType)
+    numClasses match {
+      case Some(2) =>
+        when(casted.isNull || casted.isNaN, raise_error(lit("Labels MUST NOT be Null or NaN")))
+          .when(casted =!= 0 && casted =!= 1,
+            raise_error(concat(lit("Labels MUST be in {0, 1}, but got "), casted)))
+          .otherwise(casted)
+
+      case _ =>
+        val n = numClasses.getOrElse(Int.MaxValue)
+        require(0 < n && n <= Int.MaxValue)
+        when(casted.isNull || casted.isNaN, raise_error(lit("Labels MUST NOT be Null or NaN")))
+          .when(casted < 0 || casted >= n,
+            raise_error(concat(lit(s"Labels MUST be in [0, $n), but got "), casted)))
+          .when(casted =!= casted.cast(IntegerType),
+            raise_error(concat(lit("Labels MUST be Integers, but got "), casted)))
+          .otherwise(casted)
+    }
+  }
+
+  // Copied from DatasetUtils of Spark to compatible with spark below 3.4
   def getNumClasses(dataset: Dataset[_], labelCol: String, maxNumClasses: Int = 100): Int = {
-    DatasetUtils.getNumClasses(dataset, labelCol, maxNumClasses)
+    MetadataUtils.getNumClasses(dataset.schema(labelCol)) match {
+      case Some(n: Int) => n
+      case None =>
+        // Get number of classes from dataset itself.
+        val maxLabelRow: Array[Row] = dataset
+          .select(max(checkClassificationLabels(labelCol, Some(maxNumClasses))))
+          .take(1)
+        if (maxLabelRow.isEmpty || maxLabelRow(0).get(0) == null) {
+          throw new SparkException("ML algorithm was given empty dataset.")
+        }
+        val maxDoubleLabel: Double = maxLabelRow.head.getDouble(0)
+        require((maxDoubleLabel + 1).isValidInt, s"Classifier found max label value =" +
+          s" $maxDoubleLabel but requires integers in range [0, ... ${Int.MaxValue})")
+        val numClasses = maxDoubleLabel.toInt + 1
+        require(numClasses <= maxNumClasses, s"Classifier inferred $numClasses from label values" +
+          s" in column $labelCol, but this exceeded the max numClasses ($maxNumClasses) allowed" +
+          s" to be inferred from values.  To avoid this error for labels with > $maxNumClasses" +
+          s" classes, specify numClasses explicitly in the metadata; this can be done by applying" +
+          s" StringIndexer to the label column.")
+        numClasses
+    }
   }
 
   def checkNumericType(schema: StructType, colName: String, msg: String = ""): Unit = {
@@ -90,4 +135,6 @@ object SparkUtils {
                             nullable: Boolean = false): StructType = {
     SchemaUtils.appendColumn(schema, colName, dataType, nullable)
   }
+
+  def isVectorType(dataType: DataType): Boolean = dataType.isInstanceOf[VectorUDT]
 }
