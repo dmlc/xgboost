@@ -404,28 +404,14 @@ template <typename T>
 using Deleter = std::function<void(T *)>;
 } // anonymous namespace
 
-XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
-                                                           jobject jiter,
-                                                           jfloat jmissing,
-                                                           jint jmax_bin, jint jnthread,
-                                                           jlongArray jout) {
-  xgboost::jni::DataIteratorProxy proxy(jiter);
-  DMatrixHandle result;
-  auto ret = XGDeviceQuantileDMatrixCreateFromCallback(
-      &proxy, proxy.GetDMatrixHandle(), Reset, Next, jmissing, jnthread,
-      jmax_bin, &result);
-  setHandle(jenv, jout, result);
-  return ret;
-}
-
-XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
-                                                     jobject jdata_iter, jlongArray jref,
-                                                     char const *config, jlongArray jout) {
+XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass, jobject jdata_iter,
+                                                    jlongArray jref, char const *config,
+                                                    jlongArray jout) {
   xgboost::jni::DataIteratorProxy proxy(jdata_iter);
   DMatrixHandle result;
   DMatrixHandle ref{nullptr};
 
-  if (jref != NULL) {
+  if (jref != nullptr) {
     std::unique_ptr<jlong, Deleter<jlong>> refptr{jenv->GetLongArrayElements(jref, nullptr),
                                                   [&](jlong *ptr) {
                                                     jenv->ReleaseLongArrayElements(jref, ptr, 0);
@@ -434,8 +420,8 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
     ref = reinterpret_cast<DMatrixHandle>(refptr.get()[0]);
   }
 
-  auto ret = XGQuantileDMatrixCreateFromCallback(
-      &proxy, proxy.GetDMatrixHandle(), ref, Reset, Next, config, &result);
+  auto ret = XGQuantileDMatrixCreateFromCallback(&proxy, proxy.GetDMatrixHandle(), ref, Reset, Next,
+                                                 config, &result);
   setHandle(jenv, jout, result);
   return ret;
 }
