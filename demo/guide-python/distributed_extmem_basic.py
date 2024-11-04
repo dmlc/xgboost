@@ -13,6 +13,7 @@ example, following packages in addition to XGBoost native dependencies are requi
 If `device` is `cuda`, following are also needed:
 
 - cupy
+- python-cuda
 - rmm
 
 """
@@ -25,6 +26,7 @@ from functools import partial, update_wrapper
 from typing import Callable, List, Tuple
 
 import numpy as np
+from cuda import cudart
 from loky import get_reusable_executor
 from sklearn.datasets import make_regression
 
@@ -104,11 +106,21 @@ def setup_rmm() -> None:
     if not xgboost.build_info()["USE_RMM"]:
         return
 
-    # The combination of pool and async is by design. As XGBoost needs to allocate large
-    # pages repeatly, it's not easy to handle fragmentation. We can use more experiments
-    # here.
-    mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
-    rmm.mr.set_current_device_resource(mr)
+    try:
+        from rmm.mr import ArenaMemoryResource
+
+        status, free, total = cudart.cudaMemGetInfo()
+        if status != cudart.cudaError_t.cudaSuccess:
+            raise RuntimeError(cudart.cudaGetErrorString(status))
+
+        mr = rmm.mr.CudaMemoryResource()
+        mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
+    except ImportError:
+        # The combination of pool and async is by design. As XGBoost needs to allocate
+        # large pages repeatly, it's not easy to handle fragmentation. We can use more
+        # experiments here.
+        mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
+        rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
