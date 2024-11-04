@@ -280,15 +280,15 @@ determines the time it takes to run inference, even if a C2C link is available.
     Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
 
 In addition, since the GPU implementation relies on asynchronous memory pool, which is
-subject to memory fragmentation even if the :py:class:`CudaAsyncMemoryResource` is
+subject to memory fragmentation even if the :py:class:`~rmm.mr.CudaAsyncMemoryResource` is
 used. You might want to start the training with a fresh pool instead of starting training
 right after the ETL process. If you run into out-of-memory errors and you are convinced
 that the pool is not full yet (pool memory usage can be profiled with ``nsight-system``),
 consider tuning the RMM memory resource like using
-:py:class:`rmm.mr.CudaAsyncMemoryResource` in conjunction with
-:py:class:`rmm.mr.BinningMemoryResource(mr, 21, 25)` instead of the
-:py:class:`rmm.mr.PoolMemoryResource(mr)`. Alternately, the
-:py:class:`rmm.mr.ArenaMemoryResource` is also an excellent option.
+:py:class:`~rmm.mr.CudaAsyncMemoryResource` in conjunction with
+:py:class:`BinningMemoryResource(mr, 21, 25) <rmm.mr.BinningMemoryResource>` instead of
+the :py:class:`~rmm.mr.PoolMemoryResource`. Alternately, the
+:py:class:`~rmm.mr.ArenaMemoryResource` is also an excellent option.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some
