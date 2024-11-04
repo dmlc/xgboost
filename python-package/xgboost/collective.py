@@ -4,8 +4,9 @@ import ctypes
 import logging
 import os
 import pickle
+from dataclasses import dataclass
 from enum import IntEnum, unique
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional, TypeAlias, Union
 
 import numpy as np
 
@@ -15,7 +16,41 @@ from .core import _LIB, _check_call, build_info, c_str, make_jcargs, py_str
 LOGGER = logging.getLogger("[xgboost.collective]")
 
 
-def init(**args: Any) -> None:
+_ArgVals: TypeAlias = Optional[Union[int, str]]
+_Args: TypeAlias = Dict[str, _ArgVals]
+
+
+@dataclass
+class Config:
+    """User configuration for the communicator context.
+
+    .. versionadded:: 3.0
+
+    Attributes
+    ----------
+    retry : See `dmlc_retry` in :py:meth:`init`.
+    timeout : See `dmlc_timeout` in :py:meth:`init`.
+    tracker_host : See :py:class:`~xgboost.tracker.RabitTracker`.
+    tracker_port : See :py:class:`~xgboost.tracker.RabitTracker`.
+
+    """
+
+    retry: Optional[int] = None
+    timeout: Optional[int | None] = None
+
+    tracker_host: Optional[str] = None
+    tracker_port: Optional[int] = None
+
+    def get_comm_config(self, args: _Args) -> _Args:
+        """Update the arguments for the communicator."""
+        if self.retry is not None:
+            args["dmlc_retry"] = self.retry
+        if self.timeout is not None:
+            args["dmlc_timeout"] = self.timeout
+        return args
+
+
+def init(**args: _ArgVals) -> None:
     """Initialize the collective library with arguments.
 
     Parameters
@@ -117,7 +152,6 @@ def get_processor_name() -> str:
     name_str = ctypes.c_char_p()
     _check_call(_LIB.XGCommunicatorGetProcessorName(ctypes.byref(name_str)))
     value = name_str.value
-    assert value
     return py_str(value)
 
 
@@ -247,7 +281,7 @@ def signal_error() -> None:
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, **args: Any) -> None:
+    def __init__(self, **args: _ArgVals) -> None:
         self.args = args
         key = "dmlc_nccl_path"
         if args.get(key, None) is not None:
@@ -275,12 +309,12 @@ class CommunicatorContext:
         except ImportError:
             pass
 
-    def __enter__(self) -> Dict[str, Any]:
+    def __enter__(self) -> _Args:
         init(**self.args)
         assert is_distributed()
         LOGGER.debug("-------------- communicator say hello ------------------")
         return self.args
 
-    def __exit__(self, *args: List) -> None:
+    def __exit__(self, *args: Any) -> None:
         finalize()
         LOGGER.debug("--------------- communicator say bye ------------------")

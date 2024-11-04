@@ -1,6 +1,6 @@
 """Tests for dask shared by different test modules."""
 
-from typing import List, Literal, cast
+from typing import Dict, List, Literal, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -168,3 +168,8 @@ def check_external_memory(  # pylint: disable=too-many-locals
     np.testing.assert_allclose(
         results["Train"]["rmse"], results_local["Train"]["rmse"], rtol=1e-4
     )
+
+
+def get_rabit_args(client: Client, n_workers: int) -> Dict[str, Union[str, int]]:
+    """Get RABIT collective communicator arguments for tests."""
+    return client.sync(dxgb._get_rabit_args, client, n_workers)

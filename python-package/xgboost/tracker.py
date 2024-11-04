@@ -20,6 +20,18 @@ class RabitTracker:
 
     Parameters
     ..........
+    n_workers:
+
+        The total number of workers in the communication group.
+
+    host_ip:
+        The IP address of the tracker node. XGBoost can try to guess one by probing with
+        sockets. But it's best to explicitly pass an address.
+
+    port:
+        The port this tracker should listen to. XGBoost can query an available port from
+        the OS, this configuration is useful for restricted network environments.
+
     sortby:
 
         How to sort the workers for rank assignment. The default is host, but users can
