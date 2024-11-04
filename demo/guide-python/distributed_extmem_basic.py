@@ -26,7 +26,6 @@ from functools import partial, update_wrapper
 from typing import Callable, List, Tuple
 
 import numpy as np
-from cuda import cudart
 from loky import get_reusable_executor
 from sklearn.datasets import make_regression
 
@@ -107,6 +106,7 @@ def setup_rmm() -> None:
         return
 
     try:
+        from cuda import cudart
         from rmm.mr import ArenaMemoryResource
 
         status, free, total = cudart.cudaMemGetInfo()
