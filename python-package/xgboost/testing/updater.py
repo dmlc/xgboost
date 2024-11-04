@@ -2,7 +2,7 @@
 
 import json
 from functools import partial, update_wrapper
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Union, overload
 
 import numpy as np
 import pytest
@@ -14,12 +14,21 @@ from xgboost.data import is_pd_cat_dtype
 from ..core import DataIter
 
 
-def get_basescore(model: xgb.XGBModel) -> float:
+@overload
+def get_basescore(model: xgb.XGBModel) -> float: ...
+
+
+@overload
+def get_basescore(model: xgb.Booster) -> float: ...
+
+
+def get_basescore(model: Union[xgb.XGBModel, xgb.Booster]) -> float:
     """Get base score from an XGBoost sklearn estimator."""
+    if isinstance(model, xgb.XGBModel):
+        model = model.get_booster()
+
     base_score = float(
-        json.loads(model.get_booster().save_config())["learner"]["learner_model_param"][
-            "base_score"
-        ]
+        json.loads(model.save_config())["learner"]["learner_model_param"]["base_score"]
     )
     return base_score
 
