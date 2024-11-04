@@ -2,7 +2,7 @@
 
 import json
 from functools import partial, update_wrapper
-from typing import Any, Callable, Dict, List, Union, overload
+from typing import Any, Dict, List, Union, overload
 
 import numpy as np
 import pytest
