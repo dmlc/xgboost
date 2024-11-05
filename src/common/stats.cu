@@ -109,7 +109,7 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split,
                                                   [=] XGBOOST_DEVICE(std::size_t i) -> double {
                                                     auto cidx = i / n_rows;
                                                     auto ridx = i % n_rows;
-                                                    return d_v(ridx, cidx) * d_w(ridx) / sum_w;
+                                                    return d_v(ridx, cidx) / sum_w * d_w(ridx);
                                                   });
   thrust::reduce_by_key(cuctx->CTP(), column_it, column_it + d_v.Size(), val_it,
                         thrust::make_discard_iterator(), d_out.Values().data(),
