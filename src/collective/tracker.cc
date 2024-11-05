@@ -30,6 +30,7 @@
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Result, Fail, Success
 #include "xgboost/collective/socket.h"      // for GetHostName, FailWithCode, MakeSockAddress, ...
+#include "xgboost/global_config.h"          // for InitNewThread
 #include "xgboost/json.h"                   // for Json
 
 namespace xgboost::collective {
@@ -141,7 +142,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     auto& worker = workers[r];
     auto next = BootstrapNext(r, n_workers_);
     auto const& next_w = workers[next];
-    bootstrap_threads.emplace_back([next, &worker, &next_w] {
+    bootstrap_threads.emplace_back([next, &worker, &next_w, init = InitNewThread{}] {
+      init();
       auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
       std::string str;
       Json::Dump(jnext, &str);
@@ -255,7 +257,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     return Success();
   };
 
-  return std::async(std::launch::async, [this, handle_error] {
+  return std::async(std::launch::async, [this, handle_error, init = InitNewThread{}] {
+    init();
     State state{this->n_workers_};
 
     auto select_accept = [&](TCPSocket* sock, auto* addr) {

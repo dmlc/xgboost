@@ -37,8 +37,4 @@ std::string MakeCachePrefix(std::string cache_prefix) {
   }
   return cache_prefix;
 }
-
-#if !defined(XGBOOST_USE_CUDA)
-void InitNewThread::operator()() const { *GlobalConfigThreadLocalStore::Get() = config; }
-#endif
 }  // namespace xgboost::data

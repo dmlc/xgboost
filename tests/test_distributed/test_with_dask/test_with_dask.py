@@ -34,9 +34,8 @@ pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_dask())]
 import dask
 import dask.array as da
 import dask.dataframe as dd
-from distributed import Client, LocalCluster, Nanny, Worker, wait
+from distributed import Client, LocalCluster, Nanny, Worker
 from distributed.utils_test import async_poll_for, gen_cluster
-from toolz import sliding_window  # dependency of dask
 
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import check_init_estimation, check_uneven_nan
