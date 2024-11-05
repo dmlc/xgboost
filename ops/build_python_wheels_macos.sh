@@ -1,7 +1,6 @@
 #!/bin/bash
 
-set -e
-set -x
+set -euox pipefail
 
 if [[ $# -ne 2 ]]; then
   echo "Usage: $0 [platform_id] [commit ID]"
