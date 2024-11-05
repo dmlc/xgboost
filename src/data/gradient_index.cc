@@ -94,12 +94,12 @@ void GHistIndexMatrix::PushBatch(SparsePage const &batch, common::Span<FeatureTy
 }
 
 GHistIndexMatrix::GHistIndexMatrix(SparsePage const &batch, common::Span<FeatureType const> ft,
-                                   common::HistogramCuts cuts, int32_t max_bins_per_feat,
-                                   bool isDense, double sparse_thresh, int32_t n_threads)
+                                   common::HistogramCuts cuts, bst_bin_t max_bins_per_feat,
+                                   bool is_dense, double sparse_thresh, std::int32_t n_threads)
     : cut{std::move(cuts)},
       max_numeric_bins_per_feat{max_bins_per_feat},
       base_rowid{batch.base_rowid},
-      isDense_{isDense} {
+      isDense_{is_dense} {
   CHECK_GE(n_threads, 1);
   CHECK_EQ(row_ptr.size(), 0);
   row_ptr = common::MakeFixedVecWithMalloc(batch.Size() + 1, std::size_t{0});
@@ -189,13 +189,13 @@ common::ColumnMatrix const &GHistIndexMatrix::Transpose() const {
 bst_bin_t GHistIndexMatrix::GetGindex(size_t ridx, size_t fidx) const {
   auto begin = RowIdx(ridx);
   if (IsDense()) {
-    return static_cast<bst_bin_t>(index[begin + fidx]);
+    return static_cast<bst_bin_t>(this->index[begin + fidx]);
   }
   auto end = RowIdx(ridx + 1);
   auto const& cut_ptrs = cut.Ptrs();
   auto f_begin = cut_ptrs[fidx];
   auto f_end = cut_ptrs[fidx + 1];
-  return BinarySearchBin(begin, end, index, f_begin, f_end);
+  return BinarySearchBin(begin, end, this->index, f_begin, f_end);
 }
 
 float GHistIndexMatrix::GetFvalue(size_t ridx, size_t fidx, bool is_cat) const {
@@ -217,7 +217,7 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
   }
 
   auto get_bin_val = [&](auto &column) {
-    auto bin_idx = column[ridx];
+    auto bin_idx = column[ridx - this->base_rowid];
     if (bin_idx == common::DenseColumnIter<uint8_t, true>::kMissingId) {
       return std::numeric_limits<float>::quiet_NaN();
     }
@@ -233,7 +233,7 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
       } else {
         return common::DispatchBinType(columns_->GetTypeSize(), [&](auto dtype) {
           auto column = columns_->DenseColumn<decltype(dtype), false>(fidx);
-          auto bin_idx = column[ridx];
+          auto bin_idx = column[ridx - this->base_rowid];
           return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
         });
       }

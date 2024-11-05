@@ -6,14 +6,15 @@
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 
-#include <string>
 #include <set>
+#include <string>
 
-#include "xgboost/logging.h"
-#include "xgboost/span.h"
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/device_helpers.cuh"
 #include "constraints.cuh"
 #include "param.h"
-#include "../common/device_helpers.cuh"
+#include "xgboost/logging.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 
@@ -130,9 +131,9 @@ FeatureInteractionConstraintDevice::FeatureInteractionConstraintDevice(
   this->Configure(param, n_features);
 }
 
-void FeatureInteractionConstraintDevice::Reset() {
+void FeatureInteractionConstraintDevice::Reset(Context const* ctx) {
   for (auto& node : node_constraints_storage_) {
-    thrust::fill(node.begin(), node.end(), 0);
+    thrust::fill(ctx->CUDACtx()->CTP(), node.begin(), node.end(), 0);
   }
 }
 
@@ -158,7 +159,8 @@ void FeatureInteractionConstraintDevice::ClearBuffers() {
       output_buffer_bits_, input_buffer_bits_);
 }
 
-common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(int32_t node_id) {
+common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(Context const* ctx,
+                                                                          bst_node_t node_id) {
   if (!has_constraint_) { return {}; }
   CHECK_LT(node_id, s_node_constraints_.size());
 
@@ -170,10 +172,7 @@ common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(int32_
   LBitField64 node_constraints = s_node_constraints_[node_id];
 
   thrust::device_ptr<bst_feature_t> const out_end = thrust::copy_if(
-      thrust::device,
-      begin, end,
-      p_result_buffer,
-      [=]__device__(int32_t pos) {
+      ctx->CUDACtx()->CTP(), begin, end, p_result_buffer, [=] __device__(int32_t pos) {
         bool res = node_constraints.Check(pos);
         return res;
       });

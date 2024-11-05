@@ -1161,14 +1161,24 @@ def test_feature_weights(tree_method):
 
     parser_path = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
     poly_increasing = get_feature_weights(
-        X, y, fw, parser_path, tree_method, xgb.XGBRegressor
+        X=X,
+        y=y,
+        fw=fw,
+        parser_path=parser_path,
+        tree_method=tree_method,
+        model=xgb.XGBRegressor,
     )
 
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(kCols - i)
     poly_decreasing = get_feature_weights(
-        X, y, fw, parser_path, tree_method, xgb.XGBRegressor
+        X=X,
+        y=y,
+        fw=fw,
+        parser_path=parser_path,
+        tree_method=tree_method,
+        model=xgb.XGBRegressor,
     )
 
     # Approxmated test, this is dependent on the implementation of random

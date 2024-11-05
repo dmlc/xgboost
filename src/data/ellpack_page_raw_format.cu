@@ -55,10 +55,9 @@ template <typename T>
   xgboost_NVTX_FN_RANGE();
   auto* impl = page->Impl();
 
-  impl->SetCuts(this->cuts_);
   RET_IF_NOT(fi->Read(&impl->n_rows));
   RET_IF_NOT(fi->Read(&impl->is_dense));
-  RET_IF_NOT(fi->Read(&impl->row_stride));
+  RET_IF_NOT(fi->Read(&impl->info.row_stride));
 
   if (this->param_.prefetch_copy || !has_hmm_ats_) {
     RET_IF_NOT(ReadDeviceVec(fi, &impl->gidx_buffer));
@@ -66,6 +65,12 @@ template <typename T>
     RET_IF_NOT(common::ReadVec(fi, &impl->gidx_buffer));
   }
   RET_IF_NOT(fi->Read(&impl->base_rowid));
+  bst_idx_t n_symbols{0};
+  RET_IF_NOT(fi->Read(&n_symbols));
+  impl->SetNumSymbols(n_symbols);
+
+  impl->SetCuts(this->cuts_);
+
   dh::DefaultStream().Sync();
   return true;
 }
@@ -78,12 +83,14 @@ template <typename T>
   auto* impl = page.Impl();
   bytes += fo->Write(impl->n_rows);
   bytes += fo->Write(impl->is_dense);
-  bytes += fo->Write(impl->row_stride);
+  bytes += fo->Write(impl->info.row_stride);
   std::vector<common::CompressedByteT> h_gidx_buffer;
-  Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
+  Context ctx = Context{}.MakeCUDA(curt::CurrentDevice());
   [[maybe_unused]] auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx_buffer);
   bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);
+  bytes += fo->Write(impl->NumSymbols());
+
   dh::DefaultStream().Sync();
   return bytes;
 }
@@ -93,9 +100,10 @@ template <typename T>
 
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
-  impl->SetCuts(this->cuts_);
 
   fi->Read(page, this->param_.prefetch_copy || !this->has_hmm_ats_);
+  impl->SetCuts(this->cuts_);
+
   dh::DefaultStream().Sync();
 
   return true;
@@ -105,11 +113,14 @@ template <typename T>
                                                       EllpackHostCacheStream* fo) const {
   xgboost_NVTX_FN_RANGE();
 
-  fo->Write(page);
+  bool new_page = fo->Write(page);
   dh::DefaultStream().Sync();
 
-  auto* impl = page.Impl();
-  return impl->MemCostBytes();
+  if (new_page) {
+    return fo->Share()->pages.back()->MemCostBytes();
+  } else {
+    return InvalidPageSize();
+  }
 }
 
 #undef RET_IF_NOT

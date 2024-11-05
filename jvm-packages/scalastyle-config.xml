@@ -82,19 +82,27 @@ This file is divided into 3 sections:
   </check>
 
   <check level="error" class="org.scalastyle.scalariform.ClassNamesChecker" enabled="true">
-    <parameters><parameter name="regex"><![CDATA[[A-Z][A-Za-z]*]]></parameter></parameters>
+    <parameters>
+      <parameter name="regex"><![CDATA[[A-Z][A-Za-z]*]]></parameter>
+    </parameters>
   </check>
 
   <check level="error" class="org.scalastyle.scalariform.ObjectNamesChecker" enabled="true">
-    <parameters><parameter name="regex"><![CDATA[[A-Z][A-Za-z]*]]></parameter></parameters>
+    <parameters>
+      <parameter name="regex"><![CDATA[[A-Z][A-Za-z]*]]></parameter>
+    </parameters>
   </check>
 
   <check level="error" class="org.scalastyle.scalariform.PackageObjectNamesChecker" enabled="true">
-    <parameters><parameter name="regex"><![CDATA[^[a-z][A-Za-z]*$]]></parameter></parameters>
+    <parameters>
+      <parameter name="regex"><![CDATA[^[a-z][A-Za-z]*$]]></parameter>
+    </parameters>
   </check>
 
   <check level="error" class="org.scalastyle.scalariform.ParameterNumberChecker" enabled="true">
-    <parameters><parameter name="maxParameters"><![CDATA[10]]></parameter></parameters>
+    <parameters>
+      <parameter name="maxParameters"><![CDATA[10]]></parameter>
+    </parameters>
   </check>
 
   <check level="error" class="org.scalastyle.scalariform.NoFinalizeChecker" enabled="false"></check>
@@ -121,14 +129,16 @@ This file is divided into 3 sections:
   <check level="error" class="org.scalastyle.scalariform.SpaceAfterCommentStartChecker" enabled="true"></check>
 
   <check level="error" class="org.scalastyle.scalariform.EnsureSingleSpaceBeforeTokenChecker" enabled="true">
-   <parameters>
-     <parameter name="tokens">ARROW, EQUALS, ELSE, TRY, CATCH, FINALLY, LARROW, RARROW</parameter>
-   </parameters>
+    <parameters>
+      <parameter name="tokens">ARROW, EQUALS, ELSE, TRY, CATCH, FINALLY, LARROW, RARROW</parameter>
+    </parameters>
   </check>
 
   <check level="error" class="org.scalastyle.scalariform.EnsureSingleSpaceAfterTokenChecker" enabled="true">
     <parameters>
-     <parameter name="tokens">ARROW, EQUALS, COMMA, COLON, IF, ELSE, DO, WHILE, FOR, MATCH, TRY, CATCH, FINALLY, LARROW, RARROW</parameter>
+      <parameter name="tokens">ARROW, EQUALS, COMMA, COLON, IF, ELSE, DO, WHILE, FOR, MATCH, TRY, CATCH, FINALLY,
+        LARROW, RARROW
+      </parameter>
     </parameters>
   </check>
 
@@ -136,14 +146,18 @@ This file is divided into 3 sections:
   <check level="error" class="org.scalastyle.scalariform.NotImplementedErrorUsage" enabled="true"></check>
 
   <check customId="visiblefortesting" level="error" class="org.scalastyle.file.RegexChecker" enabled="true">
-    <parameters><parameter name="regex">@VisibleForTesting</parameter></parameters>
+    <parameters>
+      <parameter name="regex">@VisibleForTesting</parameter>
+    </parameters>
     <customMessage><![CDATA[
       @VisibleForTesting causes classpath issues. Please note this in the java doc instead (SPARK-11615).
     ]]></customMessage>
   </check>
 
   <check customId="runtimeaddshutdownhook" level="error" class="org.scalastyle.file.RegexChecker" enabled="true">
-    <parameters><parameter name="regex">Runtime\.getRuntime\.addShutdownHook</parameter></parameters>
+    <parameters>
+      <parameter name="regex">Runtime\.getRuntime\.addShutdownHook</parameter>
+    </parameters>
     <customMessage><![CDATA[
       Are you sure that you want to use Runtime.getRuntime.addShutdownHook? In most cases, you should use
       ShutdownHookManager.addShutdownHook instead.
@@ -155,7 +169,9 @@ This file is divided into 3 sections:
   </check>
 
   <check customId="mutablesynchronizedbuffer" level="error" class="org.scalastyle.file.RegexChecker" enabled="true">
-    <parameters><parameter name="regex">mutable\.SynchronizedBuffer</parameter></parameters>
+    <parameters>
+      <parameter name="regex">mutable\.SynchronizedBuffer</parameter>
+    </parameters>
     <customMessage><![CDATA[
       Are you sure that you want to use mutable.SynchronizedBuffer? In most cases, you should use
       java.util.concurrent.ConcurrentLinkedQueue instead.
@@ -167,7 +183,9 @@ This file is divided into 3 sections:
   </check>
 
   <check customId="classforname" level="error" class="org.scalastyle.file.RegexChecker" enabled="true">
-    <parameters><parameter name="regex">Class\.forName</parameter></parameters>
+    <parameters>
+      <parameter name="regex">Class\.forName</parameter>
+    </parameters>
     <customMessage><![CDATA[
       Are you sure that you want to use Class.forName? In most cases, you should use Utils.classForName instead.
       If you must use Class.forName, wrap the code block with
@@ -179,17 +197,20 @@ This file is divided into 3 sections:
 
   <!-- As of SPARK-9613 JavaConversions should be replaced with JavaConverters -->
   <check customId="javaconversions" level="error" class="org.scalastyle.scalariform.TokenChecker" enabled="true">
-    <parameters><parameter name="regex">JavaConversions</parameter></parameters>
+    <parameters>
+      <parameter name="regex">JavaConversions</parameter>
+    </parameters>
     <customMessage>Instead of importing implicits in scala.collection.JavaConversions._, import
-    scala.collection.JavaConverters._ and use .asScala / .asJava methods</customMessage>
+      scala.collection.JavaConverters._ and use .asScala / .asJava methods
+    </customMessage>
   </check>
 
   <check level="error" class="org.scalastyle.scalariform.ImportOrderChecker" enabled="true">
     <parameters>
-      <parameter name="groups">java,scala,3rdParty,spark</parameter>
+      <parameter name="groups">java,scala,3rdParty,dmlc</parameter>
       <parameter name="group.java">javax?\..*</parameter>
       <parameter name="group.scala">scala\..*</parameter>
-      <parameter name="group.3rdParty">(?!ml\.dmlc\.xgboost4j\.).*</parameter>
+      <parameter name="group.3rdParty">(?!ml\.dmlc\.xgboost4j).*</parameter>
       <parameter name="group.dmlc">ml.dmlc.xgboost4j.*</parameter>
     </parameters>
   </check>
@@ -213,7 +234,7 @@ This file is divided into 3 sections:
   <!-- Maybe we should update it to allow basic symbolic names, and then we are good to go. -->
   <check level="error" class="org.scalastyle.scalariform.MethodNamesChecker" enabled="false">
     <parameters>
-    <parameter name="regex"><![CDATA[^[a-z][A-Za-z0-9]*$]]></parameter>
+      <parameter name="regex"><![CDATA[^[a-z][A-Za-z0-9]*$]]></parameter>
     </parameters>
   </check>
 
@@ -225,7 +246,9 @@ This file is divided into 3 sections:
   <!-- ================================================================================ -->
 
   <check level="error" class="org.scalastyle.scalariform.IllegalImportsChecker" enabled="false">
-    <parameters><parameter name="illegalImports"><![CDATA[sun._,java.awt._]]></parameter></parameters>
+    <parameters>
+      <parameter name="illegalImports"><![CDATA[sun._,java.awt._]]></parameter>
+    </parameters>
   </check>
 
   <!-- We want the opposite of this: NewLineAtEofChecker -->
@@ -245,33 +268,81 @@ This file is divided into 3 sections:
 
   <!-- Doesn't seem super big deal here ... -->
   <check level="error" class="org.scalastyle.file.FileLengthChecker" enabled="false">
-    <parameters><parameter name="maxFileLength">800></parameter></parameters>
+    <parameters>
+      <parameter name="maxFileLength">800></parameter>
+    </parameters>
   </check>
 
   <!-- Doesn't seem super big deal here ... -->
   <check level="error" class="org.scalastyle.scalariform.NumberOfTypesChecker" enabled="false">
-    <parameters><parameter name="maxTypes">30</parameter></parameters>
+    <parameters>
+      <parameter name="maxTypes">30</parameter>
+    </parameters>
   </check>
 
   <!-- Doesn't seem super big deal here ... -->
   <check level="error" class="org.scalastyle.scalariform.CyclomaticComplexityChecker" enabled="false">
-    <parameters><parameter name="maximum">10</parameter></parameters>
+    <parameters>
+      <parameter name="maximum">10</parameter>
+    </parameters>
   </check>
 
   <!-- Doesn't seem super big deal here ... -->
   <check level="error" class="org.scalastyle.scalariform.MethodLengthChecker" enabled="false">
-    <parameters><parameter name="maxLength">50</parameter></parameters>
+    <parameters>
+      <parameter name="maxLength">50</parameter>
+    </parameters>
   </check>
 
   <!-- Not exactly feasible to enforce this right now. -->
   <!-- It is also infrequent that somebody introduces a new class with a lot of methods. -->
   <check level="error" class="org.scalastyle.scalariform.NumberOfMethodsInTypeChecker" enabled="false">
-    <parameters><parameter name="maxMethods"><![CDATA[30]]></parameter></parameters>
+    <parameters>
+      <parameter name="maxMethods"><![CDATA[30]]></parameter>
+    </parameters>
   </check>
 
   <!-- Doesn't seem super big deal here, and we have a lot of magic numbers ... -->
   <check level="error" class="org.scalastyle.scalariform.MagicNumberChecker" enabled="false">
-    <parameters><parameter name="ignore">-1,0,1,2,3</parameter></parameters>
+    <parameters>
+      <parameter name="ignore">-1,0,1,2,3</parameter>
+    </parameters>
   </check>
 
+  <check level="error" class="org.scalastyle.scalariform.IllegalImportsChecker" enabled="true">
+    <parameters>
+      <parameter name="illegalImports"><![CDATA[scala.collection.Seq,scala.collection.IndexedSeq]]></parameter>
+    </parameters>
+    <customMessage><![CDATA[
+        Don't import scala.collection.Seq and scala.collection.IndexedSeq as it may cause issues with cross-build between Scala 2.12 and 2.13.
+
+        Please refer below page to see the details of changes around Seq / IndexedSeq.
+        https://docs.scala-lang.org/overviews/core/collections-migration-213.html
+
+        If you really need to use scala.collection.Seq or scala.collection.IndexedSeq, please use the fully-qualified name instead.
+        ]]></customMessage>
+  </check>
+  <check level="error" class="org.scalastyle.scalariform.ProcedureDeclarationChecker" enabled="true">
+    <customMessage>procedure syntax is deprecated in Scala 2.13: add return type `: Unit` and `=`</customMessage>
+  </check>
+  <check level="error" class="org.scalastyle.file.RegexChecker" enabled="true">
+    <parameters>
+      <parameter name="regex">ArrayBuilder.make\[(.+)\]\(\)</parameter>
+      <parameter name="line">false</parameter>
+    </parameters>
+    <customMessage>ArrayBuilder.make does not accept parens anymore in Scala 2.13</customMessage>
+  </check>
+
+  <check level="warning" class="org.scalastyle.file.RegexChecker" enabled="false">
+    <parameters>
+      <parameter name="regex">(: |\[)(Indexed)?Seq\[[A-Za-z0-9_]+\]</parameter>
+      <parameter name="line">false</parameter>
+    </parameters>
+    <customMessage><![CDATA[NOTE: Scala 2.12 defaults scala.(Indexed)Seq to scala.collection.(Indexed)Seq while Scala 2.13 defaults
+        scala.(Indexed)Seq to scala.collection.immutable.(Indexed)Seq
+
+        Please refer below page to see the details of changes around Seq / IndexedSeq.
+        https://docs.scala-lang.org/overviews/core/collections-migration-213.html
+        ]]></customMessage>
+  </check>
 </scalastyle>

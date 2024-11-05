@@ -329,7 +329,6 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
 
     auto gptr = p_cache->DataGroupPtr(ctx_);
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
-    auto h_predt = linalg::MakeTensorView(ctx_, &predt, predt.Size());
     auto rank_idx = p_cache->SortedIdx(ctx_, predt.ConstHostSpan());
 
     auto weight = common::MakeOptionalWeights(ctx_, info.weights_);
@@ -433,7 +432,6 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
 
     auto gptr = p_cache->DataGroupPtr(ctx_);
     auto h_label = info.labels.HostView().Slice(linalg::All(), 0);
-    auto h_predt = linalg::MakeTensorView(ctx_, &predt, predt.Size());
 
     auto map_gloc = p_cache->Map(ctx_);
     std::fill_n(map_gloc.data(), map_gloc.size(), 0.0);

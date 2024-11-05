@@ -211,8 +211,8 @@ class MetaInfo {
   bool HasCategorical() const { return has_categorical_; }
 
  private:
-  void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
-  void SetInfoFromCUDA(Context const& ctx, StringView key, Json arr);
+  void SetInfoFromHost(Context const* ctx, StringView key, Json arr);
+  void SetInfoFromCUDA(Context const* ctx, StringView key, Json arr);
 
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
@@ -517,6 +517,33 @@ class BatchSet {
 
 struct XGBAPIThreadLocalEntry;
 
+// Configuration for external memoroy DMatrix.
+struct ExtMemConfig {
+  // Cache prefix, not used if the cache is in the host memory. (on_host is true)
+  std::string cache;
+  // Whether the ellpack page is stored in the host memory.
+  bool on_host{true};
+  // Minimum number of of bytes for each ellpack page in cache. Only used for in-host
+  // ExtMemQdm.
+  std::int64_t min_cache_page_bytes{0};
+  // Missing value.
+  float missing{std::numeric_limits<float>::quiet_NaN()};
+  // Maximum number of pages cached in device.
+  std::int64_t max_num_device_pages{0};
+  // The number of CPU threads.
+  std::int32_t n_threads{0};
+
+  ExtMemConfig() = default;
+  ExtMemConfig(std::string cache, bool on_host, std::int64_t min_cache, float missing,
+               std::int64_t max_num_d, std::int32_t n_threads)
+      : cache{std::move(cache)},
+        on_host{on_host},
+        min_cache_page_bytes{min_cache},
+        missing{missing},
+        max_num_device_pages{max_num_d},
+        n_threads{n_threads} {}
+};
+
 /**
  * @brief Internal data structured used by XGBoost to hold all external data.
  *
@@ -623,7 +650,7 @@ class DMatrix {
             typename XGDMatrixCallbackNext>
   static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
                          DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
-                         std::int32_t nthread, bst_bin_t max_bin);
+                         std::int32_t nthread, bst_bin_t max_bin, std::int64_t max_quantile_blocks);
 
   /**
    * @brief Create an external memory DMatrix with callbacks.
@@ -637,18 +664,14 @@ class DMatrix {
    * @param proxy   A hanlde to ProxyDMatrix
    * @param reset   Callback for reset
    * @param next    Callback for next
-   * @param missing Value that should be treated as missing.
-   * @param nthread number of threads used for initialization.
-   * @param cache   Prefix of cache file path.
-   * @param on_host Used for GPU, whether the data should be cached on host memory.
+   * @param config  Configuration for the cache.
    *
    * @return A created external memory DMatrix.
    */
   template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
             typename XGDMatrixCallbackNext>
   static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback* reset,
-                         XGDMatrixCallbackNext* next, float missing, std::int32_t nthread,
-                         std::string cache, bool on_host);
+                         XGDMatrixCallbackNext* next, ExtMemConfig const& config);
 
   /**
    * @brief Create an external memory quantile DMatrix with callbacks.
@@ -660,8 +683,9 @@ class DMatrix {
   template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
             typename XGDMatrixCallbackNext>
   static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
-                         DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
-                         std::int32_t nthread, bst_bin_t max_bin, std::string cache, bool on_host);
+                         DataIterResetCallback* reset, XGDMatrixCallbackNext* next,
+                         bst_bin_t max_bin, std::int64_t max_quantile_blocks,
+                         ExtMemConfig const& config);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
 

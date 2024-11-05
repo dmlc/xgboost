@@ -25,7 +25,7 @@ namespace xgboost::data {
 IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                                    std::shared_ptr<DMatrix> ref, DataIterResetCallback* reset,
                                    XGDMatrixCallbackNext* next, float missing, int nthread,
-                                   bst_bin_t max_bin)
+                                   bst_bin_t max_bin, std::int64_t max_quantile_blocks)
     : proxy_{proxy}, reset_{reset}, next_{next} {
   // fetch the first batch
   auto iter =
@@ -42,13 +42,16 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
   if (ctx.IsCUDA()) {
-    this->InitFromCUDA(&ctx, p, iter_handle, missing, ref);
+    this->InitFromCUDA(&ctx, p, max_quantile_blocks, iter_handle, missing, ref);
   } else {
     this->InitFromCPU(&ctx, p, iter_handle, missing, ref);
   }
 
   this->fmat_ctx_ = ctx;
   this->batch_ = p;
+
+  LOG(INFO) << "Finished constructing the `IterativeDMatrix`: (" << this->Info().num_row_ << ", "
+            << this->Info().num_col_ << ", " << this->Info().num_nonzero_ << ").";
 }
 
 void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
@@ -192,8 +195,8 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, DataIterHandle, float,
-                                           std::shared_ptr<DMatrix>) {
+inline void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t,
+                                           DataIterHandle, float, std::shared_ptr<DMatrix>) {
   // silent the warning about unused variables.
   (void)(proxy_);
   (void)(reset_);

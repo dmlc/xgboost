@@ -16,7 +16,6 @@
 
 #include "categorical.h"
 #include "quantile.h"
-#include "row_set.h"
 #include "threading_utils.h"
 #include "xgboost/base.h"  // for bst_feature_t, bst_bin_t
 #include "xgboost/data.h"
@@ -84,6 +83,10 @@ class HistogramCuts {
   [[nodiscard]] bst_bin_t FeatureBins(bst_feature_t feature) const {
     return cut_ptrs_.ConstHostVector().at(feature + 1) - cut_ptrs_.ConstHostVector()[feature];
   }
+  [[nodiscard]] bst_feature_t NumFeatures() const {
+    CHECK_EQ(this->min_vals_.Size(), this->cut_ptrs_.Size() - 1);
+    return this->min_vals_.Size();
+  }
 
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_.ConstHostVector();   }
   std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
@@ -101,8 +104,10 @@ class HistogramCuts {
     has_categorical_ = has_cat;
     max_cat_ = max_cat;
   }
-
-  [[nodiscard]] bst_bin_t TotalBins() const { return cut_ptrs_.ConstHostVector().back(); }
+  /**
+   * @brief The total number of histogram bins (excluding min values.)
+   */
+  [[nodiscard]] bst_bin_t TotalBins() const { return this->cut_values_.Size(); }
 
   // Return the index of a cut point that is strictly greater than the input
   // value, or the last available index if none exists

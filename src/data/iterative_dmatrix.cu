@@ -14,8 +14,8 @@
 
 namespace xgboost::data {
 void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
-                                    DataIterHandle iter_handle, float missing,
-                                    std::shared_ptr<DMatrix> ref) {
+                                    std::int64_t max_quantile_blocks, DataIterHandle iter_handle,
+                                    float missing, std::shared_ptr<DMatrix> ref) {
   // A handle passed to external iterator.
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
@@ -42,7 +42,8 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
    */
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
-  cuda_impl::MakeSketches(ctx, &iter, proxy, ref, p, missing, cuts, this->Info(), &ext_info);
+  cuda_impl::MakeSketches(ctx, &iter, proxy, ref, p, missing, cuts, this->Info(),
+                          max_quantile_blocks, &ext_info);
   ext_info.SetInfo(ctx, &this->info_);
 
   auto init_page = [this, &cuts, &ext_info]() {
@@ -58,9 +59,9 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   /**
    * Generate gradient index.
    */
-  size_t offset = 0;
+  bst_idx_t offset = 0;
   iter.Reset();
-  size_t n_batches_for_verification = 0;
+  bst_idx_t n_batches_for_verification = 0;
   while (iter.Next()) {
     init_page();
     dh::safe_cuda(cudaSetDevice(dh::GetDevice(ctx).ordinal));
@@ -68,17 +69,18 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     dh::device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
     cuda_impl::Dispatch(proxy, [=](auto const& value) {
-      return GetRowCounts(value, row_counts_span, dh::GetDevice(ctx), missing);
+      return GetRowCounts(ctx, value, row_counts_span, dh::GetDevice(ctx), missing);
     });
     auto is_dense = this->IsDense();
 
     proxy->Info().feature_types.SetDevice(dh::GetDevice(ctx));
     auto d_feature_types = proxy->Info().feature_types.ConstDeviceSpan();
     auto new_impl = cuda_impl::Dispatch(proxy, [&](auto const& value) {
-      return EllpackPageImpl(&fmat_ctx_, value, missing, is_dense, row_counts_span, d_feature_types,
-                             ext_info.row_stride, rows, cuts);
+      return EllpackPageImpl{
+          &fmat_ctx_,          value, missing, is_dense, row_counts_span, d_feature_types,
+          ext_info.row_stride, rows,  cuts};
     });
-    std::size_t num_elements = ellpack_->Impl()->Copy(&fmat_ctx_, &new_impl, offset);
+    bst_idx_t num_elements = ellpack_->Impl()->Copy(&fmat_ctx_, &new_impl, offset);
     offset += num_elements;
 
     proxy->Info().num_row_ = BatchSamples(proxy);

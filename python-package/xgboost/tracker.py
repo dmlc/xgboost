@@ -6,7 +6,7 @@ import socket
 from enum import IntEnum, unique
 from typing import Dict, Optional, Union
 
-from .core import _LIB, _check_call, make_jcargs
+from .core import _LIB, _check_call, _deprecate_positional_args, make_jcargs
 
 
 def get_family(addr: str) -> int:
@@ -48,11 +48,13 @@ class RabitTracker:
         HOST = 0
         TASK = 1
 
+    @_deprecate_positional_args
     def __init__(  # pylint: disable=too-many-arguments
         self,
         n_workers: int,
         host_ip: Optional[str],
         port: int = 0,
+        *,
         sortby: str = "host",
         timeout: int = 0,
     ) -> None:

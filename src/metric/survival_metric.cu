@@ -20,8 +20,7 @@
 #include "xgboost/metric.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/execution_policy.h>  // thrust::cuda::par
-#include "../common/device_helpers.cuh"
+#include "../common/cuda_context.cuh"  // for CUDAContext
 #endif  // XGBOOST_USE_CUDA
 
 using AFTParam = xgboost::common::AFTParam;
@@ -78,11 +77,11 @@ class ElementWiseSurvivalMetricsReduction {
 
 #if defined(XGBOOST_USE_CUDA)
 
-  PackedReduceResult DeviceReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels_lower_bound,
-      const HostDeviceVector<bst_float>& labels_upper_bound,
-      const HostDeviceVector<bst_float>& preds) {
+  PackedReduceResult DeviceReduceMetrics(Context const* ctx,
+                                         const HostDeviceVector<bst_float>& weights,
+                                         const HostDeviceVector<bst_float>& labels_lower_bound,
+                                         const HostDeviceVector<bst_float>& labels_upper_bound,
+                                         const HostDeviceVector<bst_float>& preds) {
     size_t ndata = labels_lower_bound.Size();
     CHECK_EQ(ndata, labels_upper_bound.Size());
 
@@ -98,48 +97,42 @@ class ElementWiseSurvivalMetricsReduction {
 
     auto d_policy = policy_;
 
-    dh::XGBCachingDeviceAllocator<char> alloc;
     PackedReduceResult result = thrust::transform_reduce(
-      thrust::cuda::par(alloc),
-      begin, end,
-      [=] XGBOOST_DEVICE(size_t idx) {
-        double weight = is_null_weight ? 1.0 : static_cast<double>(s_weights[idx]);
-        double residue = d_policy.EvalRow(
-            static_cast<double>(s_label_lower_bound[idx]),
-            static_cast<double>(s_label_upper_bound[idx]),
-            static_cast<double>(s_preds[idx]));
-        residue *= weight;
-        return PackedReduceResult{residue, weight};
-      },
-      PackedReduceResult(),
-      thrust::plus<PackedReduceResult>());
+        ctx->CUDACtx()->CTP(), begin, end,
+        [=] XGBOOST_DEVICE(size_t idx) {
+          double weight = is_null_weight ? 1.0 : static_cast<double>(s_weights[idx]);
+          double residue = d_policy.EvalRow(static_cast<double>(s_label_lower_bound[idx]),
+                                            static_cast<double>(s_label_upper_bound[idx]),
+                                            static_cast<double>(s_preds[idx]));
+          residue *= weight;
+          return PackedReduceResult{residue, weight};
+        },
+        PackedReduceResult(), thrust::plus<PackedReduceResult>());
 
     return result;
   }
 
 #endif  // XGBOOST_USE_CUDA
 
-  PackedReduceResult Reduce(
-      const Context &ctx,
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels_lower_bound,
-      const HostDeviceVector<bst_float>& labels_upper_bound,
-      const HostDeviceVector<bst_float>& preds) {
+  PackedReduceResult Reduce(Context const* ctx, const HostDeviceVector<bst_float>& weights,
+                            const HostDeviceVector<bst_float>& labels_lower_bound,
+                            const HostDeviceVector<bst_float>& labels_upper_bound,
+                            const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (!ctx.IsCUDA()) {
-      result = CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound,
-                                preds, ctx.Threads());
+    if (ctx->IsCPU()) {
+      result =
+          CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound, preds, ctx->Threads());
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      preds.SetDevice(ctx.Device());
-      labels_lower_bound.SetDevice(ctx.Device());
-      labels_upper_bound.SetDevice(ctx.Device());
-      weights.SetDevice(ctx.Device());
+      preds.SetDevice(ctx->Device());
+      labels_lower_bound.SetDevice(ctx->Device());
+      labels_upper_bound.SetDevice(ctx->Device());
+      weights.SetDevice(ctx->Device());
 
-      dh::safe_cuda(cudaSetDevice(ctx.Ordinal()));
-      result = DeviceReduceMetrics(weights, labels_lower_bound, labels_upper_bound, preds);
+      dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+      result = DeviceReduceMetrics(ctx, weights, labels_lower_bound, labels_upper_bound, preds);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
@@ -206,7 +199,7 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
     CHECK(ctx_);
-    auto result = reducer_.Reduce(*ctx_, info.weights_, info.labels_lower_bound_,
+    auto result = reducer_.Reduce(ctx_, info.weights_, info.labels_lower_bound_,
                                   info.labels_upper_bound_, preds);
 
     std::array<double, 2> dat{result.Residue(), result.Weights()};

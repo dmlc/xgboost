@@ -23,6 +23,30 @@ using ::sycl::ext::oneapi::minimum;
 using ::sycl::ext::oneapi::maximum;
 
 template <typename GradientSumT>
+void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
+                                            size_t nbins) {
+  if (reduce_buffer_.size() < sync_ids.size() * nbins) {
+    reduce_buffer_.resize(sync_ids.size() * nbins);
+  }
+  for (size_t i = 0; i < sync_ids.size(); i++) {
+    auto& this_hist = hist_[sync_ids[i]];
+    const GradientPairT* psrc = reinterpret_cast<const GradientPairT*>(this_hist.DataConst());
+    qu_->memcpy(reduce_buffer_.data() + i * nbins, psrc, nbins*sizeof(GradientPairT)).wait();
+  }
+
+  auto buffer_vec = linalg::MakeVec(reinterpret_cast<GradientSumT*>(reduce_buffer_.data()),
+                                    2 * nbins * sync_ids.size());
+  auto rc = collective::Allreduce(ctx_, buffer_vec, collective::Op::kSum);
+  SafeColl(rc);
+
+  for (size_t i = 0; i < sync_ids.size(); i++) {
+    auto& this_hist = hist_[sync_ids[i]];
+    GradientPairT* psrc = reinterpret_cast<GradientPairT*>(this_hist.Data());
+    qu_->memcpy(psrc, reduce_buffer_.data() + i * nbins, nbins*sizeof(GradientPairT)).wait();
+  }
+}
+
+template <typename GradientSumT>
 void HistUpdater<GradientSumT>::SetHistSynchronizer(
     HistSynchronizer<GradientSumT> *sync) {
   hist_synchronizer_.reset(sync);
@@ -39,7 +63,7 @@ void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
     ExpandEntry entry,
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
+    const HostDeviceVector<GradientPair>& gpair) {
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
   nodes_for_explicit_hist_build_.push_back(entry);
@@ -51,8 +75,8 @@ void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
 
   std::vector<int> sync_ids;
   hist_rows_adder_->AddHistRows(this, &sync_ids, p_tree);
-  qu_.wait_and_throw();
-  BuildLocalHistograms(gmat, p_tree, gpair_device);
+  qu_->wait_and_throw();
+  BuildLocalHistograms(gmat, p_tree, gpair);
   hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
 }
 
@@ -60,7 +84,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::BuildLocalHistograms(
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
+    const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("BuildLocalHistograms");
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
   ::sycl::event event;
@@ -69,13 +93,13 @@ void HistUpdater<GradientSumT>::BuildLocalHistograms(
     const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
 
     if (row_set_collection_[nid].Size() > 0) {
-      event = BuildHist(gpair_device, row_set_collection_[nid], gmat, &(hist_[nid]),
+      event = BuildHist(gpair, row_set_collection_[nid], gmat, &(hist_[nid]),
                         &(hist_buffer_.GetDeviceBuffer()), event);
     } else {
       common::InitHist(qu_, &(hist_[nid]), hist_[nid].Size(), &event);
     }
   }
-  qu_.wait_and_throw();
+  qu_->wait_and_throw();
   builder_monitor_.Stop("BuildLocalHistograms");
 }
 
@@ -83,7 +107,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::BuildNodeStats(
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+    const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("BuildNodeStats");
   for (auto const& entry : qexpand_depth_wise_) {
     int nid = entry.nid;
@@ -202,7 +226,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::ExpandWithDepthWise(
     const common::GHistIndexMatrix &gmat,
     RegTree *p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+    const HostDeviceVector<GradientPair>& gpair) {
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
@@ -239,7 +263,7 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::ExpandWithLossGuide(
     const common::GHistIndexMatrix& gmat,
     RegTree* p_tree,
-    const USMVector<GradientPair, MemoryType::on_device> &gpair) {
+    const HostDeviceVector<GradientPair>& gpair) {
   builder_monitor_.Start("ExpandWithLossGuide");
   int num_leaves = 0;
   const auto lr = param_.learning_rate;
@@ -311,7 +335,7 @@ template <typename GradientSumT>
 void HistUpdater<GradientSumT>::Update(
     xgboost::tree::TrainParam const *param,
     const common::GHistIndexMatrix &gmat,
-    const USMVector<GradientPair, MemoryType::on_device>& gpair,
+    const HostDeviceVector<GradientPair>& gpair,
     DMatrix *p_fmat,
     xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
     RegTree *p_tree) {
@@ -340,6 +364,7 @@ template<typename GradientSumT>
 bool HistUpdater<GradientSumT>::UpdatePredictionCache(
     const DMatrix* data,
     linalg::MatrixView<float> out_preds) {
+  CHECK(out_preds.Device().IsSycl());
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
   if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
@@ -347,22 +372,6 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
   }
   builder_monitor_.Start("UpdatePredictionCache");
   CHECK_GT(out_preds.Size(), 0U);
-
-  const size_t stride = out_preds.Stride(0);
-  const bool is_first_group = (out_pred_ptr == nullptr);
-  const size_t gid = out_pred_ptr == nullptr ? 0 : &out_preds(0) - out_pred_ptr;
-  const bool is_last_group = (gid + 1 == stride);
-
-  const int buffer_size = out_preds.Size() *stride;
-  if (buffer_size == 0) return true;
-
-  ::sycl::event event;
-  if (is_first_group) {
-    out_preds_buf_.ResizeNoCopy(&qu_, buffer_size);
-    out_pred_ptr = &out_preds(0);
-    event = qu_.memcpy(out_preds_buf_.Data(), out_pred_ptr, buffer_size * sizeof(bst_float), event);
-  }
-  auto* out_preds_buf_ptr = out_preds_buf_.Data();
 
   size_t n_nodes = row_set_collection_.Size();
   std::vector<::sycl::event> events(n_nodes);
@@ -382,19 +391,16 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
       const size_t* rid = rowset.begin;
       const size_t num_rows = rowset.Size();
 
-      events[node] = qu_.submit([&](::sycl::handler& cgh) {
-        cgh.depends_on(event);
+      events[node] = qu_->submit([&](::sycl::handler& cgh) {
         cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::item<1> pid) {
-          out_preds_buf_ptr[rid[pid.get_id(0)]*stride + gid] += leaf_value;
+          size_t row_id = rid[pid.get_id(0)];
+          float& val = const_cast<float&>(out_preds(row_id));
+          val += leaf_value;
         });
       });
     }
   }
-  if (is_last_group) {
-    qu_.memcpy(out_pred_ptr, out_preds_buf_ptr, buffer_size * sizeof(bst_float), events);
-    out_pred_ptr = nullptr;
-  }
-  qu_.wait();
+  qu_->wait();
 
   builder_monitor_.Stop("UpdatePredictionCache");
   return true;
@@ -402,11 +408,11 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
 
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitSampling(
-      const USMVector<GradientPair, MemoryType::on_device> &gpair,
+      const HostDeviceVector<GradientPair>& gpair,
       USMVector<size_t, MemoryType::on_device>* row_indices) {
   const size_t num_rows = row_indices->Size();
   auto* row_idx = row_indices->Data();
-  const auto* gpair_ptr = gpair.DataConst();
+  const auto* gpair_ptr = gpair.ConstDevicePointer();
   uint64_t num_samples = 0;
   const auto subsample = param_.subsample;
   ::sycl::event event;
@@ -423,7 +429,7 @@ void HistUpdater<GradientSumT>::InitSampling(
     */
     if (has_fp64_support_) {
       // Use oneDPL bernoulli_distribution for better perf
-      event = qu_.submit([&](::sycl::handler& cgh) {
+      event = qu_->submit([&](::sycl::handler& cgh) {
         auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
         cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
                                             [=](::sycl::item<1> pid) {
@@ -441,7 +447,7 @@ void HistUpdater<GradientSumT>::InitSampling(
       });
     } else {
       // Use oneDPL uniform, as far as bernoulli_distribution uses fp64
-      event = qu_.submit([&](::sycl::handler& cgh) {
+      event = qu_->submit([&](::sycl::handler& cgh) {
         auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
         cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
                                             [=](::sycl::item<1> pid) {
@@ -461,14 +467,14 @@ void HistUpdater<GradientSumT>::InitSampling(
     /* After calling a destructor for flag_buf,  content will be copyed to num_samples */
   }
 
-  row_indices->Resize(&qu_, num_samples, 0, &event);
-  qu_.wait();
+  row_indices->Resize(qu_, num_samples, 0, &event);
+  qu_->wait();
 }
 
 template<typename GradientSumT>
 void HistUpdater<GradientSumT>::InitData(
                                 const common::GHistIndexMatrix& gmat,
-                                const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                                const HostDeviceVector<GradientPair>& gpair,
                                 const DMatrix& fmat,
                                 const RegTree& tree) {
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
@@ -492,6 +498,7 @@ void HistUpdater<GradientSumT>::InitData(
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     hist_.Init(qu_, nbins);
+    hist_local_worker_.Init(qu_, nbins);
 
     hist_buffer_.Init(qu_, nbins);
     size_t buffer_size = kBufferSize;
@@ -501,7 +508,7 @@ void HistUpdater<GradientSumT>::InitData(
     hist_builder_ = common::GHistBuilder<GradientSumT>(qu_, nbins);
 
     USMVector<size_t, MemoryType::on_device>* row_indices = &(row_set_collection_.Data());
-    row_indices->Resize(&qu_, info.num_row_);
+    row_indices->Resize(qu_, info.num_row_);
     size_t* p_row_indices = row_indices->Data();
     // mark subsample and build list of member rows
     if (param_.subsample < 1.0f) {
@@ -511,11 +518,11 @@ void HistUpdater<GradientSumT>::InitData(
       InitSampling(gpair, row_indices);
     } else {
       int has_neg_hess = 0;
-      const GradientPair* gpair_ptr = gpair.DataConst();
+      const GradientPair* gpair_ptr = gpair.ConstDevicePointer();
       ::sycl::event event;
       {
         ::sycl::buffer<int, 1> flag_buf(&has_neg_hess, 1);
-        event = qu_.submit([&](::sycl::handler& cgh) {
+        event = qu_->submit([&](::sycl::handler& cgh) {
           auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(info.num_row_)),
                                             [=](::sycl::item<1> pid) {
@@ -533,7 +540,7 @@ void HistUpdater<GradientSumT>::InitData(
         size_t max_idx = 0;
         {
           ::sycl::buffer<size_t, 1> flag_buf(&max_idx, 1);
-          event = qu_.submit([&](::sycl::handler& cgh) {
+          event = qu_->submit([&](::sycl::handler& cgh) {
             cgh.depends_on(event);
             auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
             cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(info.num_row_)),
@@ -546,9 +553,9 @@ void HistUpdater<GradientSumT>::InitData(
             });
           });
         }
-        row_indices->Resize(&qu_, max_idx, 0, &event);
+        row_indices->Resize(qu_, max_idx, 0, &event);
       }
-      qu_.wait_and_throw();
+      qu_->wait_and_throw();
     }
   }
   row_set_collection_.Init();
@@ -636,7 +643,7 @@ void HistUpdater<GradientSumT>::ApplySplit(
   std::vector<int32_t> split_conditions(n_nodes);
   CommonRowPartitioner::FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
 
-  partition_builder_.Init(&qu_, n_nodes, [&](size_t node_in_set) {
+  partition_builder_.Init(qu_, n_nodes, [&](size_t node_in_set) {
     const int32_t nid = nodes[node_in_set].nid;
     return row_set_collection_[nid].Size();
   });
@@ -644,14 +651,14 @@ void HistUpdater<GradientSumT>::ApplySplit(
   ::sycl::event event;
   partition_builder_.Partition(gmat, nodes, row_set_collection_,
                                split_conditions, p_tree, &event);
-  qu_.wait_and_throw();
+  qu_->wait_and_throw();
 
   for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
     const int32_t nid = nodes[node_in_set].nid;
     size_t* data_result = const_cast<size_t*>(row_set_collection_[nid].begin);
     partition_builder_.MergeToArray(node_in_set, data_result, &event);
   }
-  qu_.wait_and_throw();
+  qu_->wait_and_throw();
 
   AddSplitsToRowSet(nodes, p_tree);
 
@@ -661,8 +668,7 @@ void HistUpdater<GradientSumT>::ApplySplit(
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::InitNewNode(int nid,
                                             const common::GHistIndexMatrix& gmat,
-                                            const USMVector<GradientPair,
-                                            MemoryType::on_device> &gpair,
+                                            const HostDeviceVector<GradientPair>& gpair,
                                             const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
 
@@ -677,7 +683,7 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
         const auto* hist = reinterpret_cast<GradStats<GradientSumT>*>(hist_[nid].Data());
 
         std::vector<GradStats<GradientSumT>> ets(iend - ibegin);
-        qu_.memcpy(ets.data(), hist + ibegin,
+        qu_->memcpy(ets.data(), hist + ibegin,
                    (iend - ibegin) * sizeof(GradStats<GradientSumT>)).wait_and_throw();
         for (const auto& et : ets) {
           grad_stat += et;
@@ -686,10 +692,10 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
         const common::RowSetCollection::Elem e = row_set_collection_[nid];
         const size_t* row_idxs = e.begin;
         const size_t size = e.Size();
-        const GradientPair* gpair_ptr = gpair.DataConst();
+        const GradientPair* gpair_ptr = gpair.ConstDevicePointer();
 
         ::sycl::buffer<GradStats<GradientSumT>> buff(&grad_stat, 1);
-        qu_.submit([&](::sycl::handler& cgh) {
+        qu_->submit([&](::sycl::handler& cgh) {
           auto reduction = ::sycl::reduction(buff, cgh, ::sycl::plus<>());
           cgh.parallel_for<>(::sycl::range<1>(size), reduction,
                             [=](::sycl::item<1> pid, auto& sum) {
@@ -761,28 +767,27 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
   }
   const size_t total_features = pos;
 
-  split_queries_device_.Resize(&qu_, total_features);
-  auto event = qu_.memcpy(split_queries_device_.Data(), split_queries_host_.data(),
+  split_queries_device_.Resize(qu_, total_features);
+  auto event = qu_->memcpy(split_queries_device_.Data(), split_queries_host_.data(),
                           total_features * sizeof(SplitQuery));
 
   auto evaluator = tree_evaluator_.GetEvaluator();
   SplitQuery* split_queries_device = split_queries_device_.Data();
-  const uint32_t* cut_ptr = gmat.cut_device.Ptrs().DataConst();
-  const bst_float* cut_val = gmat.cut_device.Values().DataConst();
-  const bst_float* cut_minval = gmat.cut_device.MinValues().DataConst();
+  const uint32_t* cut_ptr = gmat.cut.cut_ptrs_.ConstDevicePointer();
+  const bst_float* cut_val = gmat.cut.cut_values_.ConstDevicePointer();
 
-  snode_device_.ResizeNoCopy(&qu_, snode_host_.size());
-  event = qu_.memcpy(snode_device_.Data(), snode_host_.data(),
+  snode_device_.ResizeNoCopy(qu_, snode_host_.size());
+  event = qu_->memcpy(snode_device_.Data(), snode_host_.data(),
                      snode_host_.size() * sizeof(NodeEntry<GradientSumT>), event);
   const NodeEntry<GradientSumT>* snode = snode_device_.Data();
 
   const float min_child_weight = param_.min_child_weight;
 
-  best_splits_device_.ResizeNoCopy(&qu_, total_features);
+  best_splits_device_.ResizeNoCopy(qu_, total_features);
   if (best_splits_host_.size() < total_features) best_splits_host_.resize(total_features);
   SplitEntry<GradientSumT>* best_splits = best_splits_device_.Data();
 
-  event = qu_.submit([&](::sycl::handler& cgh) {
+  event = qu_->submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(total_features, sub_group_size_),
                                            ::sycl::range<2>(1, sub_group_size_)),
@@ -798,10 +803,10 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
                      &(best_splits[i]), fid, nid, evaluator, min_child_weight);
     });
   });
-  event = qu_.memcpy(best_splits_host_.data(), best_splits,
+  event = qu_->memcpy(best_splits_host_.data(), best_splits,
                      total_features * sizeof(SplitEntry<GradientSumT>), event);
 
-  qu_.wait();
+  qu_->wait();
   for (size_t i = 0; i < total_features; i++) {
     int nid = split_queries_host_[i].nid;
     snode_host_[nid].best.Update(best_splits_host_[i]);

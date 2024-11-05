@@ -37,7 +37,7 @@ TEST_F(CommGroupTest, Basic) {
 
 #if defined(XGBOOST_USE_NCCL)
 TEST_F(CommGroupTest, BasicGPU) {
-  std::int32_t n_workers = common::AllVisibleGPUs();
+  std::int32_t n_workers = curt::AllVisibleGPUs();
   TestDistributed(n_workers, [&](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     auto ctx = MakeCUDACtx(r);

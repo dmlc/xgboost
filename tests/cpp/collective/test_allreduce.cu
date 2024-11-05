@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 #include <thrust/host_vector.h>  // for host_vector
 
-#include "../../../src/common/common.h"            // for AllVisibleGPUs
+#include "../../../src/common/cuda_rt_utils.h"     // for AllVisibleGPUs
 #include "../../../src/common/device_helpers.cuh"  // for ToSpan,  device_vector
 #include "../../../src/common/type.h"              // for EraseType
 #include "test_worker.cuh"                         // for NCCLWorkerForTest
@@ -46,7 +46,7 @@ class Worker : public NCCLWorkerForTest {
 }  // namespace
 
 TEST_F(MGPUAllreduceTest, BitOr) {
-  auto n_workers = common::AllVisibleGPUs();
+  auto n_workers = curt::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     Worker w{host, port, timeout, n_workers, r};
@@ -56,7 +56,7 @@ TEST_F(MGPUAllreduceTest, BitOr) {
 }
 
 TEST_F(MGPUAllreduceTest, Sum) {
-  auto n_workers = common::AllVisibleGPUs();
+  auto n_workers = curt::AllVisibleGPUs();
   TestDistributed(n_workers, [=](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     Worker w{host, port, timeout, n_workers, r};

@@ -1,9 +1,9 @@
-// Copyright (c) 2019 by Contributors
+/**
+ * Copyright 2019-2024, XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include "../../../src/data/adapter.h"
-#include "../../../src/data/simple_dmatrix.h"
-#include "../../../src/common/timer.h"
 #include "../helpers.h"
 #include <thrust/device_vector.h>
 #include "../../../src/data/device_adapter.cuh"
@@ -64,7 +64,7 @@ TEST(DeviceAdapter, GetRowCounts) {
     auto adapter = CupyAdapter{str_arr};
     HostDeviceVector<bst_idx_t> offset(adapter.NumRows() + 1, 0);
     offset.SetDevice(ctx.Device());
-    auto rstride = GetRowCounts(adapter.Value(), offset.DeviceSpan(), ctx.Device(),
+    auto rstride = GetRowCounts(&ctx, adapter.Value(), offset.DeviceSpan(), ctx.Device(),
                                 std::numeric_limits<float>::quiet_NaN());
     ASSERT_EQ(rstride, n_features);
   }

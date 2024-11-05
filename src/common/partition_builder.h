@@ -11,16 +11,16 @@
 
 #include <algorithm>
 #include <cstddef>  // for size_t
-#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
 
+#include "../tree/sample_position.h"  // for SamplePosition
 #include "categorical.h"
 #include "column_matrix.h"
+#include "row_set.h"  // for RowSetCollection
 #include "xgboost/context.h"
 #include "xgboost/tree_model.h"
-#include "../tree/sample_position.h"  // for SamplePosition
 
 namespace xgboost::common {
 // The builder is required for samples partition to left and rights children for set of nodes
@@ -55,7 +55,7 @@ class PartitionBuilder {
   // Analog of std::stable_partition, but in no-inplace manner
   template <bool default_left, bool any_missing, typename ColumnType, typename Predicate>
   std::pair<size_t, size_t> PartitionKernel(ColumnType* p_column,
-                                            common::Span<const bst_idx_t> row_indices,
+                                            common::Span<bst_idx_t const> row_indices,
                                             common::Span<bst_idx_t> left_part,
                                             common::Span<bst_idx_t> right_part,
                                             bst_idx_t base_rowid, Predicate&& pred) {

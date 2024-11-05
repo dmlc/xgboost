@@ -2,13 +2,14 @@
  * Copyright 2024, XGBoost contributors
  */
 #pragma once
+#include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
 
 #if defined(XGBOOST_USE_NVTX)
 #include <nvtx3/nvtx3.hpp>
 #endif  // defined(XGBOOST_USE_NVTX)
 
-namespace xgboost::common {
+namespace xgboost::curt {
 std::int32_t AllVisibleGPUs();
 
 std::int32_t CurrentDevice();
@@ -23,6 +24,17 @@ bool SupportsAts();
 void CheckComputeCapability();
 
 void SetDevice(std::int32_t device);
+
+/**
+ * @brief Total device memory size.
+ */
+[[nodiscard]] std::size_t TotalMemory();
+
+// Returns the CUDA Runtime version.
+void RtVersion(std::int32_t* major, std::int32_t* minor);
+
+// Returns the latest version of CUDA supported by the driver.
+void DrVersion(std::int32_t* major, std::int32_t* minor);
 
 struct NvtxDomain {
   static constexpr char const *name{"libxgboost"};  // NOLINT
@@ -49,10 +61,10 @@ class NvtxRgb {
   explicit NvtxRgb(Args &&...) {}
 };
 #endif  // defined(XGBOOST_USE_NVTX)
-}  // namespace xgboost::common
+}  // namespace xgboost::curt
 
 #if defined(XGBOOST_USE_NVTX)
-#define xgboost_NVTX_FN_RANGE() NVTX3_FUNC_RANGE_IN(::xgboost::common::NvtxDomain)
+#define xgboost_NVTX_FN_RANGE() NVTX3_FUNC_RANGE_IN(::xgboost::curt::NvtxDomain)
 #else
 #define xgboost_NVTX_FN_RANGE()
 #endif  // defined(XGBOOST_USE_NVTX)

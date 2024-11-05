@@ -49,6 +49,8 @@ from xgboost.testing.data import (
     memory,
 )
 
+from .._typing import PathLike
+
 hypothesis = pytest.importorskip("hypothesis")
 
 # pylint:disable=wrong-import-position,wrong-import-order
@@ -224,19 +226,25 @@ class IteratorForTest(xgb.core.DataIter):
         X: Sequence,
         y: Sequence,
         w: Optional[Sequence],
+        *,
         cache: Optional[str],
         on_host: bool = False,
+        min_cache_page_bytes: Optional[int] = None,
     ) -> None:
         assert len(X) == len(y)
         self.X = X
         self.y = y
         self.w = w
         self.it = 0
-        super().__init__(cache_prefix=cache, on_host=on_host)
+        super().__init__(
+            cache_prefix=cache,
+            on_host=on_host,
+            min_cache_page_bytes=min_cache_page_bytes,
+        )
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         if self.it == len(self.X):
-            return 0
+            return False
 
         with pytest.raises(TypeError, match="Keyword argument"):
             input_data(self.X[self.it], self.y[self.it], None)
@@ -249,7 +257,7 @@ class IteratorForTest(xgb.core.DataIter):
         )
         gc.collect()  # clear up the copy, see if XGBoost access freed memory.
         self.it += 1
-        return 1
+        return True
 
     def reset(self) -> None:
         self.it = 0
@@ -379,10 +387,12 @@ def make_categorical(
     n_samples: int,
     n_features: int,
     n_categories: int,
+    *,
     onehot: bool,
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
     shuffle: bool = False,
+    random_state: int = 1994,
 ) -> Tuple[ArrayLike, np.ndarray]:
     """Generate categorical features for test.
 
@@ -405,7 +415,7 @@ def make_categorical(
     """
     import pandas as pd
 
-    rng = np.random.RandomState(1994)
+    rng = np.random.RandomState(random_state)
 
     pd_dict = {}
     for i in range(n_features + 1):
@@ -434,6 +444,7 @@ def make_categorical(
             if is_pd_cat_dtype(df.dtypes.iloc[i]):
                 assert n_categories == np.unique(df.dtypes.iloc[i].categories).size
 
+    assert df.shape[1] == n_features
     if onehot:
         df = pd.get_dummies(df)
 
@@ -487,7 +498,9 @@ def _cat_sampled_from() -> strategies.SearchStrategy:
         sparsity = args[3]
         return TestDataset(
             f"{n_samples}x{n_features}-{n_cats}-{sparsity}",
-            lambda: make_categorical(n_samples, n_features, n_cats, False, sparsity),
+            lambda: make_categorical(
+                n_samples, n_features, n_cats, onehot=False, sparsity=sparsity
+            ),
             "reg:squarederror",
             "rmse",
         )
@@ -737,7 +750,7 @@ class DirectoryExcursion:
 
     """
 
-    def __init__(self, path: Union[os.PathLike, str], cleanup: bool = False):
+    def __init__(self, path: PathLike, cleanup: bool = False):
         self.path = path
         self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
         self.cleanup = cleanup

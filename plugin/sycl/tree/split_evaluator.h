@@ -42,11 +42,11 @@ class TreeEvaluator {
   USMVector<GradType> upper_bounds_;
   USMVector<int> monotone_;
   TrainParam param_;
-  ::sycl::queue qu_;
+  ::sycl::queue* qu_;
   bool has_constraint_;
 
  public:
-  void Reset(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
+  void Reset(::sycl::queue* qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
     qu_ = qu;
 
     has_constraint_ = false;
@@ -58,13 +58,13 @@ class TreeEvaluator {
     }
 
     if (has_constraint_) {
-      monotone_.Resize(&qu_, n_features, 0);
-      qu_.memcpy(monotone_.Data(), p.monotone_constraints.data(),
+      monotone_.Resize(qu_, n_features, 0);
+      qu_->memcpy(monotone_.Data(), p.monotone_constraints.data(),
                  sizeof(int) * p.monotone_constraints.size());
-      qu_.wait();
+      qu_->wait();
 
-      lower_bounds_.Resize(&qu_, p.MaxNodes(), std::numeric_limits<GradType>::lowest());
-      upper_bounds_.Resize(&qu_, p.MaxNodes(), std::numeric_limits<GradType>::max());
+      lower_bounds_.Resize(qu_, p.MaxNodes(), std::numeric_limits<GradType>::lowest());
+      upper_bounds_.Resize(qu_, p.MaxNodes(), std::numeric_limits<GradType>::max());
     }
     param_ = TrainParam(p);
   }
@@ -73,7 +73,7 @@ class TreeEvaluator {
     return has_constraint_;
   }
 
-  TreeEvaluator(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
+  TreeEvaluator(::sycl::queue* qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
     Reset(qu, p, n_features);
   }
 

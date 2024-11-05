@@ -8,6 +8,7 @@
 
 #include "categorical.h"
 #include "cuda_context.cuh"  // for CUDAContext
+#include "cuda_rt_utils.h"   // for SetDevice
 #include "device_helpers.cuh"
 #include "error_msg.h"  // for InvalidMaxBin
 #include "quantile.h"
@@ -15,9 +16,7 @@
 #include "xgboost/data.h"
 #include "xgboost/span.h"
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 class HistogramCuts;
 using WQSketch = WQuantileSketch<bst_float, bst_float>;
 using SketchEntry = WQSketch::Entry;
@@ -46,7 +45,6 @@ class SketchContainer {
   bst_idx_t num_rows_;
   bst_feature_t num_columns_;
   int32_t num_bins_;
-  DeviceOrd device_;
 
   // Double buffer as neither prune nor merge can be performed inplace.
   dh::device_vector<SketchEntry> entries_a_;
@@ -100,12 +98,12 @@ class SketchContainer {
    */
   SketchContainer(HostDeviceVector<FeatureType> const& feature_types, bst_bin_t max_bin,
                   bst_feature_t num_columns, bst_idx_t num_rows, DeviceOrd device)
-      : num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
+      : num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin} {
     CHECK(device.IsCUDA());
     // Initialize Sketches for this dmatrix
-    this->columns_ptr_.SetDevice(device_);
+    this->columns_ptr_.SetDevice(device);
     this->columns_ptr_.Resize(num_columns + 1, 0);
-    this->columns_ptr_b_.SetDevice(device_);
+    this->columns_ptr_b_.SetDevice(device);
     this->columns_ptr_b_.Resize(num_columns + 1, 0);
 
     this->feature_types_.Resize(feature_types.Size());
@@ -123,8 +121,25 @@ class SketchContainer {
 
     timer_.Init(__func__);
   }
-  /* \brief Return GPU ID for this container. */
-  [[nodiscard]] DeviceOrd DeviceIdx() const { return device_; }
+  /**
+   * @brief Calculate the memory cost of the container.
+   */
+  [[nodiscard]] std::size_t MemCapacityBytes() const {
+    auto constexpr kE = sizeof(typename decltype(this->entries_a_)::value_type);
+    auto n_bytes = (this->entries_a_.capacity() + this->entries_b_.capacity()) * kE;
+    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_b_.Size()) * sizeof(OffsetT);
+    n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
+
+    return n_bytes;
+  }
+  [[nodiscard]] std::size_t MemCostBytes() const {
+    auto constexpr kE = sizeof(typename decltype(this->entries_a_)::value_type);
+    auto n_bytes = (this->entries_a_.size() + this->entries_b_.size()) * kE;
+    n_bytes += (this->columns_ptr_.Size() + this->columns_ptr_b_.Size()) * sizeof(OffsetT);
+    n_bytes += this->feature_types_.Size() * sizeof(FeatureType);
+
+    return n_bytes;
+  }
   /* \brief Whether the predictor matrix contains categorical features. */
   bool HasCategorical() const { return has_categorical_; }
   /* \brief Accumulate weights of duplicated entries in input. */
@@ -143,17 +158,31 @@ class SketchContainer {
    */
   void Push(Context const* ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
             common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights = {});
-  /* \brief Prune the quantile structure.
+  /**
+   * @brief Prune the quantile structure.
    *
-   * \param to The maximum size of pruned quantile.  If the size of quantile
-   * structure is already less than `to`, then no operation is performed.
+   * @param to The maximum size of pruned quantile.  If the size of quantile structure is
+   *           already less than `to`, then no operation is performed.
    */
   void Prune(Context const* ctx, size_t to);
-  /* \brief Merge another set of sketch.
-   * \param that columns of other.
+  /**
+   * @brief Merge another set of sketch.
+   *
+   * @param that_columns_ptr Column pointer of the quantile summary being merged.
+   * @param that Columns of the other quantile summary.
    */
   void Merge(Context const* ctx, Span<OffsetT const> that_columns_ptr,
              Span<SketchEntry const> that);
+  /**
+   * @brief Shrink the internal data structure to reduce memory usage. Can be used after
+   *        prune.
+   */
+  void ShrinkToFit() {
+    this->Current().shrink_to_fit();
+    this->Other().clear();
+    this->Other().shrink_to_fit();
+    LOG(DEBUG) << "Quantile memory cost:" << this->MemCapacityBytes();
+  }
 
   /* \brief Merge quantiles from other GPU workers. */
   void AllReduce(Context const* ctx, bool is_column_split);
@@ -177,13 +206,13 @@ class SketchContainer {
   template <typename KeyComp = thrust::equal_to<size_t>>
   size_t Unique(Context const* ctx, KeyComp key_comp = thrust::equal_to<size_t>{}) {
     timer_.Start(__func__);
-    dh::safe_cuda(cudaSetDevice(device_.ordinal));
-    this->columns_ptr_.SetDevice(device_);
+    curt::SetDevice(ctx->Ordinal());
+    this->columns_ptr_.SetDevice(ctx->Device());
     Span<OffsetT> d_column_scan = this->columns_ptr_.DeviceSpan();
     CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
     Span<SketchEntry> entries = dh::ToSpan(this->Current());
     HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-    scan_out.SetDevice(device_);
+    scan_out.SetDevice(ctx->Device());
     auto d_scan_out = scan_out.DeviceSpan();
 
     d_column_scan = this->columns_ptr_.DeviceSpan();
@@ -199,7 +228,6 @@ class SketchContainer {
     return n_uniques;
   }
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 
 #endif  // XGBOOST_COMMON_QUANTILE_CUH_

@@ -309,7 +309,7 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
 
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
                            common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {
-  common::SetDevice(device_.ordinal);
+  curt::SetDevice(ctx->Ordinal());
   Span<SketchEntry> out;
   dh::device_vector<SketchEntry> cuts;
   bool first_window = this->Current().empty();
@@ -354,7 +354,7 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
     this->FixError();
   } else {
     this->Current().resize(n_uniques);
-    this->columns_ptr_.SetDevice(device_);
+    this->columns_ptr_.SetDevice(ctx->Device());
     this->columns_ptr_.Resize(cuts_ptr.size());
 
     auto d_cuts_ptr = this->columns_ptr_.DeviceSpan();
@@ -369,7 +369,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
    * pruning or merging. We preserve the first type and remove the second type.
    */
   timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_.ordinal));
+  curt::SetDevice(ctx->Ordinal());
   CHECK_EQ(d_columns_ptr_in.size(), num_columns_ + 1);
 
   auto key_it = dh::MakeTransformIterator<size_t>(
@@ -408,7 +408,7 @@ size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
 
 void SketchContainer::Prune(Context const* ctx, std::size_t to) {
   timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_.ordinal));
+  curt::SetDevice(ctx->Ordinal());
 
   OffsetT to_total = 0;
   auto& h_columns_ptr = columns_ptr_b_.HostVector();
@@ -443,7 +443,12 @@ void SketchContainer::Prune(Context const* ctx, std::size_t to) {
 
 void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_columns_ptr,
                             Span<SketchEntry const> that) {
-  common::SetDevice(device_.ordinal);
+  curt::SetDevice(ctx->Ordinal());
+  auto self = dh::ToSpan(this->Current());
+  LOG(DEBUG) << "Merge: self:" << HumanMemUnit(self.size_bytes()) << ". "
+             << "That:" << HumanMemUnit(that.size_bytes()) << ". "
+             << "This capacity:" << HumanMemUnit(this->MemCapacityBytes()) << "." << std::endl;
+
   timer_.Start(__func__);
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
@@ -478,7 +483,6 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
 }
 
 void SketchContainer::FixError() {
-  dh::safe_cuda(cudaSetDevice(device_.ordinal));
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   auto in = dh::ToSpan(this->Current());
   dh::LaunchN(in.size(), [=] __device__(size_t idx) {
@@ -503,7 +507,7 @@ void SketchContainer::FixError() {
 }
 
 void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
-  dh::safe_cuda(cudaSetDevice(device_.ordinal));
+  curt::SetDevice(ctx->Ordinal());
   auto world = collective::GetWorldSize();
   if (world == 1 || is_column_split) {
     return;
@@ -541,7 +545,7 @@ void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
   std::vector<std::int64_t> recv_lengths;
   HostDeviceVector<std::int8_t> recvbuf;
   rc = collective::AllgatherV(
-      ctx, linalg::MakeVec(this->Current().data().get(), this->Current().size(), device_),
+      ctx, linalg::MakeVec(this->Current().data().get(), this->Current().size(), ctx->Device()),
       &recv_lengths, &recvbuf);
   collective::SafeColl(rc);
   for (std::size_t i = 0; i < recv_lengths.size() - 1; ++i) {
@@ -563,9 +567,8 @@ void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
   }
 
   // Merge them into a new sketch.
-  SketchContainer new_sketch(this->feature_types_, num_bins_,
-                             this->num_columns_, global_sum_rows,
-                             this->device_);
+  SketchContainer new_sketch(this->feature_types_, num_bins_, this->num_columns_, global_sum_rows,
+                             ctx->Device());
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
     auto worker_ptr =
@@ -593,7 +596,7 @@ struct InvalidCatOp {
 
 void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool is_column_split) {
   timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_.ordinal));
+  curt::SetDevice(ctx->Ordinal());
   p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.
@@ -606,12 +609,12 @@ void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool i
   // Set up inputs
   auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
 
-  p_cuts->min_vals_.SetDevice(device_);
+  p_cuts->min_vals_.SetDevice(ctx->Device());
   auto d_min_values = p_cuts->min_vals_.DeviceSpan();
   auto const in_cut_values = dh::ToSpan(this->Current());
 
   // Set up output ptr
-  p_cuts->cut_ptrs_.SetDevice(device_);
+  p_cuts->cut_ptrs_.SetDevice(ctx->Device());
   auto& h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
   h_out_columns_ptr.clear();
   h_out_columns_ptr.push_back(0);
@@ -689,7 +692,7 @@ void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool i
   auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
 
   size_t total_bins = h_out_columns_ptr.back();
-  p_cuts->cut_values_.SetDevice(device_);
+  p_cuts->cut_values_.SetDevice(ctx->Device());
   p_cuts->cut_values_.Resize(total_bins);
   auto out_cut_values = p_cuts->cut_values_.DeviceSpan();
 

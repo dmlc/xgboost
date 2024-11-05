@@ -759,7 +759,7 @@ void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args 
 
   auto world_size{3};
   if (use_gpu) {
-    world_size = common::AllVisibleGPUs();
+    world_size = curt::AllVisibleGPUs();
     // Simulate MPU on a single GPU. Federated doesn't use nccl, can run multiple
     // instances on the same GPU.
     if (world_size == 1 && federated) {

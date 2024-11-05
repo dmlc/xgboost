@@ -8,8 +8,9 @@
 #include "../helpers.h"               // for RandomDataGenerator
 
 namespace xgboost::data {
-template <typename Page, typename Equal>
-void TestExtMemQdmBasic(Context const* ctx, bool on_host, float sparsity, Equal&& check_equal) {
+template <typename Page, typename Equal, typename NoMissing>
+void TestExtMemQdmBasic(Context const* ctx, bool on_host, float sparsity, Equal&& check_equal,
+                        NoMissing&& no_missing) {
   bst_idx_t n_samples = 256, n_features = 16, n_batches = 4;
   bst_bin_t max_bin = 64;
   bst_target_t n_targets = 3;
@@ -31,7 +32,7 @@ void TestExtMemQdmBasic(Context const* ctx, bool on_host, float sparsity, Equal&
     ++batch_cnt;
     base_cnt += n_samples / n_batches;
     row_cnt += page.Size();
-    ASSERT_EQ((sparsity == 0.0f), page.IsDense());
+    ASSERT_EQ((sparsity == 0.0f), no_missing(page));
   }
   ASSERT_EQ(n_batches, batch_cnt);
   ASSERT_EQ(p_fmat->Info().num_row_, n_samples);

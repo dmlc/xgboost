@@ -1,5 +1,5 @@
-/*!
- * Copyright 2020 by XGBoost Contributors
+/**
+ * Copyright 2020-2024, XGBoost Contributors
  */
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
@@ -8,9 +8,8 @@
 #include "../../common/categorical.h"
 #include "../../common/cuda_pinned_allocator.h"
 #include "../split_evaluator.h"
-#include "../updater_gpu_common.cuh"
+#include "../updater_gpu_common.cuh"  // for DeviceSplitCandidate
 #include "expand_entry.cuh"
-#include "histogram.cuh"
 
 namespace xgboost {
 namespace common {
@@ -138,9 +137,9 @@ class GPUHistEvaluator {
   /**
    * \brief Reset the evaluator, should be called before any use.
    */
-  void Reset(common::HistogramCuts const &cuts, common::Span<FeatureType const> ft,
-             bst_feature_t n_features, TrainParam const &param, bool is_column_split,
-             DeviceOrd device);
+  void Reset(Context const *ctx, common::HistogramCuts const &cuts,
+             common::Span<FeatureType const> ft, bst_feature_t n_features, TrainParam const &param,
+             bool is_column_split);
 
   /**
    * \brief Get host category storage for nidx.  Different from the internal version, this
@@ -154,8 +153,8 @@ class GPUHistEvaluator {
   }
 
   [[nodiscard]] auto GetDeviceNodeCats(bst_node_t nidx) {
-    copy_stream_.View().Sync();
     if (has_categoricals_) {
+      copy_stream_.View().Sync();
       CatAccessor accessor = {dh::ToSpan(split_cats_), node_categorical_storage_size_};
       return common::KCatBitField{accessor.GetNodeCatStorage(nidx)};
     } else {

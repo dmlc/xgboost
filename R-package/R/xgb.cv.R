@@ -24,7 +24,7 @@
 #'   for model training by the objective.
 #'
 #'   Note that only the basic `xgb.DMatrix` class is supported - variants such as `xgb.QuantileDMatrix`
-#'   or `xgb.ExternalDMatrix` are not supported here.
+#'   or `xgb.ExtMemDMatrix` are not supported here.
 #' @param nrounds The max number of iterations.
 #' @param nfold The original dataset is randomly partitioned into `nfold` equal size subsamples.
 #' @param prediction A logical value indicating whether to return the test fold predictions

@@ -34,7 +34,7 @@
 #endif
 
 #if defined(__CUDACC__)
-#define GPUIDX (common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank())
+#define GPUIDX (curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank())
 #else
 #define GPUIDX (-1)
 #endif
@@ -54,7 +54,7 @@ class GradientBooster;
 
 template <typename Float>
 Float RelError(Float l, Float r) {
-  static_assert(std::is_floating_point<Float>::value);
+  static_assert(std::is_floating_point_v<Float>);
   return std::abs(1.0f - l / r);
 }
 
@@ -166,8 +166,7 @@ class SimpleRealUniformDistribution {
   /*! \brief Over-simplified version of std::generate_canonical. */
   template <size_t Bits, typename GeneratorT>
   ResultT GenerateCanonical(GeneratorT* rng) const {
-    static_assert(std::is_floating_point<ResultT>::value,
-                  "Result type must be floating point.");
+    static_assert(std::is_floating_point_v<ResultT>, "Result type must be floating point.");
     long double const r = (static_cast<long double>(rng->Max())
                            - static_cast<long double>(rng->Min())) + 1.0L;
     auto const log2r = static_cast<size_t>(std::log(r) / std::log(2.0L));
@@ -240,6 +239,9 @@ class RandomDataGenerator {
   std::vector<FeatureType> ft_;
   bst_cat_t max_cat_{32};
   bool on_host_{false};
+  std::shared_ptr<DMatrix> ref_{nullptr};
+  std::int64_t min_cache_page_bytes_{0};
+  std::int64_t max_num_device_pages_{1};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
@@ -267,6 +269,18 @@ class RandomDataGenerator {
   }
   RandomDataGenerator& OnHost(bool on_host) {
     on_host_ = on_host;
+    return *this;
+  }
+  RandomDataGenerator& Ref(std::shared_ptr<DMatrix> ref) {
+    this->ref_ = std::move(ref);
+    return *this;
+  }
+  RandomDataGenerator& MinPageCacheBytes(std::int64_t min_cache_page_bytes) {
+    this->min_cache_page_bytes_ = min_cache_page_bytes;
+    return *this;
+  }
+  RandomDataGenerator& MaxNumDevicePages(std::int64_t max_num_device_pages) {
+    this->max_num_device_pages_ = max_num_device_pages;
     return *this;
   }
   RandomDataGenerator& Seed(uint64_t s) {

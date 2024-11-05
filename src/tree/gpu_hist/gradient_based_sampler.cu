@@ -148,19 +148,8 @@ class PoissonSampling : public thrust::binary_function<GradientPair, size_t, Gra
   CombineGradientPair combine_;
 };
 
-NoSampling::NoSampling(BatchParam batch_param) : batch_param_(std::move(batch_param)) {}
-
 GradientBasedSample NoSampling::Sample(Context const*, common::Span<GradientPair> gpair,
-                                       DMatrix* dmat) {
-  return {dmat, gpair};
-}
-
-ExternalMemoryNoSampling::ExternalMemoryNoSampling(BatchParam batch_param)
-    : batch_param_{std::move(batch_param)} {}
-
-GradientBasedSample ExternalMemoryNoSampling::Sample(Context const*,
-                                                     common::Span<GradientPair> gpair,
-                                                     DMatrix* p_fmat) {
+                                       DMatrix* p_fmat) {
   return {p_fmat, gpair};
 }
 
@@ -216,8 +205,8 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(Context const* ctx,
   auto batch_iterator = dmat->GetBatches<EllpackPage>(ctx, batch_param_);
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
-  *page = EllpackPageImpl{ctx, first_page->CutsShared(), first_page->is_dense,
-                          first_page->row_stride, sample_rows};
+  *page = EllpackPageImpl{ctx, first_page->CutsShared(), first_page->IsDense(),
+                          first_page->info.row_stride, sample_rows};
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), page->gidx_buffer.begin(), page->gidx_buffer.end(), 0);
@@ -246,9 +235,10 @@ GradientBasedSampling::GradientBasedSampling(std::size_t n_rows, BatchParam batc
       grad_sum_(n_rows, 0.0f) {}
 
 GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
-                                                  common::Span<GradientPair> gpair, DMatrix* dmat) {
+                                                  common::Span<GradientPair> gpair,
+                                                  DMatrix* p_fmat) {
   auto cuctx = ctx->CUDACtx();
-  size_t n_rows = dmat->Info().num_row_;
+  size_t n_rows = p_fmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       ctx, gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
 
@@ -257,7 +247,7 @@ GradientBasedSample GradientBasedSampling::Sample(Context const* ctx,
                     thrust::counting_iterator<size_t>(0), dh::tbegin(gpair),
                     PoissonSampling(dh::ToSpan(threshold_), threshold_index,
                                     RandomWeight(common::GlobalRandom()())));
-  return {dmat, gpair};
+  return {p_fmat, gpair};
 }
 
 ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(size_t n_rows,
@@ -300,8 +290,8 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
   auto first_page = (*batch_iterator.begin()).Impl();
   // Create a new ELLPACK page with empty rows.
 
-  *page = EllpackPageImpl{ctx, first_page->CutsShared(), dmat->IsDense(), first_page->row_stride,
-                          sample_rows};
+  *page = EllpackPageImpl{ctx, first_page->CutsShared(), dmat->IsDense(),
+                          first_page->info.row_stride, sample_rows};
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(cuctx->CTP(), page->gidx_buffer.begin(), page->gidx_buffer.end(), 0);
   for (auto& batch : batch_iterator) {
@@ -323,46 +313,46 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(Context const* c
 
 GradientBasedSampler::GradientBasedSampler(Context const* /*ctx*/, size_t n_rows,
                                            const BatchParam& batch_param, float subsample,
-                                           int sampling_method, bool is_external_memory) {
+                                           int sampling_method, bool concat_pages) {
   // The ctx is kept here for future development of stream-based operations.
-  monitor_.Init("gradient_based_sampler");
+  monitor_.Init(__func__);
 
   bool is_sampling = subsample < 1.0;
 
-  if (is_sampling) {
-    switch (sampling_method) {
-      case TrainParam::kUniform:
-        if (is_external_memory) {
-          strategy_.reset(new ExternalMemoryUniformSampling(n_rows, batch_param, subsample));
-        } else {
-          strategy_.reset(new UniformSampling(batch_param, subsample));
-        }
-        break;
-      case TrainParam::kGradientBased:
-        if (is_external_memory) {
-          strategy_.reset(new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
-        } else {
-          strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
-        }
-        break;
-      default:
-        LOG(FATAL) << "unknown sampling method";
+  if (!is_sampling) {
+    strategy_.reset(new NoSampling{});
+    error::NoPageConcat(concat_pages);
+    return;
+  }
+
+  switch (sampling_method) {
+    case TrainParam::kUniform: {
+      if (concat_pages) {
+        strategy_.reset(new ExternalMemoryUniformSampling(n_rows, batch_param, subsample));
+      } else {
+        strategy_.reset(new UniformSampling(batch_param, subsample));
+      }
+      break;
     }
-  } else {
-    if (is_external_memory) {
-      strategy_.reset(new ExternalMemoryNoSampling(batch_param));
-    } else {
-      strategy_.reset(new NoSampling(batch_param));
+    case TrainParam::kGradientBased: {
+      if (concat_pages) {
+        strategy_.reset(new ExternalMemoryGradientBasedSampling(n_rows, batch_param, subsample));
+      } else {
+        strategy_.reset(new GradientBasedSampling(n_rows, batch_param, subsample));
+      }
+      break;
     }
+    default:
+      LOG(FATAL) << "unknown sampling method";
   }
 }
 
 // Sample a DMatrix based on the given gradient pairs.
 GradientBasedSample GradientBasedSampler::Sample(Context const* ctx,
                                                  common::Span<GradientPair> gpair, DMatrix* dmat) {
-  monitor_.Start("Sample");
+  monitor_.Start(__func__);
   GradientBasedSample sample = strategy_->Sample(ctx, gpair, dmat);
-  monitor_.Stop("Sample");
+  monitor_.Stop(__func__);
   return sample;
 }
 

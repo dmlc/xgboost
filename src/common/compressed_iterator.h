@@ -1,12 +1,11 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \file compressed_iterator.h
  */
 #pragma once
 #include <xgboost/base.h>
 
-#include <algorithm>
-#include <cmath>
+#include <cmath>    // for ceil, log2
 #include <cstddef>  // for size_t
 
 #include "common.h"
@@ -15,9 +14,7 @@
 #include "device_helpers.cuh"
 #endif  // __CUDACC__
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 using CompressedByteT = unsigned char;
 
 namespace detail {
@@ -77,25 +74,22 @@ class CompressedBufferWriter {
   static size_t CalculateBufferSize(size_t num_elements, size_t num_symbols) {
     constexpr int kBitsPerByte = 8;
     size_t compressed_size = static_cast<size_t>(std::ceil(
-        static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) /
-        kBitsPerByte));
+        static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) / kBitsPerByte));
     // Handle atomicOr where input must be unsigned int, hence 4 bytes aligned.
-    size_t ret =
-        std::ceil(static_cast<double>(compressed_size + detail::kPadding) /
-                  static_cast<double>(sizeof(unsigned int))) *
-        sizeof(unsigned int);
+    size_t ret = std::ceil(static_cast<double>(compressed_size + detail::kPadding) /
+                           static_cast<double>(sizeof(std::uint32_t))) *
+                 sizeof(std::uint32_t);
     return ret;
   }
 
   template <typename T>
   void WriteSymbol(CompressedByteT *buffer, T symbol, size_t offset) {
-    const int bits_per_byte = 8;
+    constexpr std::int32_t kBitsPerByte = 8;
 
     for (size_t i = 0; i < symbol_bits_; i++) {
-      size_t byte_idx = ((offset + 1) * symbol_bits_ - (i + 1)) / bits_per_byte;
+      size_t byte_idx = ((offset + 1) * symbol_bits_ - (i + 1)) / kBitsPerByte;
       byte_idx += detail::kPadding;
-      size_t bit_idx =
-          ((bits_per_byte + i) - ((offset + 1) * symbol_bits_)) % bits_per_byte;
+      size_t bit_idx = ((kBitsPerByte + i) - ((offset + 1) * symbol_bits_)) % kBitsPerByte;
 
       if (detail::CheckBit(symbol, i)) {
         detail::SetBit(&buffer[byte_idx], bit_idx);
@@ -183,16 +177,14 @@ class CompressedIterator {
   typedef value_type reference;             // NOLINT
 
  private:
-  const CompressedByteT *buffer_ {nullptr};
-  size_t symbol_bits_ {0};
+  CompressedByteT const *buffer_{nullptr};
+  bst_idx_t const symbol_bits_{0};
   size_t offset_ {0};
 
  public:
   CompressedIterator() = default;
-  CompressedIterator(const CompressedByteT *buffer, size_t num_symbols)
-      : buffer_(buffer) {
-    symbol_bits_ = detail::SymbolBits(num_symbols);
-  }
+  CompressedIterator(CompressedByteT const *buffer, bst_idx_t num_symbols)
+      : buffer_{buffer}, symbol_bits_{detail::SymbolBits(num_symbols)} {}
 
   XGBOOST_DEVICE reference operator*() const {
     const int bits_per_byte = 8;
@@ -220,5 +212,4 @@ class CompressedIterator {
     return *offset;
   }
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

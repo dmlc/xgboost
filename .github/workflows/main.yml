@@ -81,7 +81,7 @@ jobs:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         activate-environment: linux_sycl_test
         environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
@@ -123,7 +123,7 @@ jobs:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         activate-environment: cpp_test
         environment-file: tests/ci_build/conda_env/cpp_test.yml
@@ -180,13 +180,13 @@ jobs:
     - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
-    - uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
+    - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
       with:
         python-version: "3.10"
         architecture: 'x64'
     - name: Install Python packages
       run: |
-        python -m pip install wheel setuptools cmakelint cpplint pylint
+        python -m pip install wheel setuptools cmakelint cpplint==1.6.1 pylint
     - name: Run lint
       run: |
         python3 tests/ci_build/lint_cpp.py
