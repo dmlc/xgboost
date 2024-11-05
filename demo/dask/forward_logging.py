@@ -1,4 +1,5 @@
-"""Example of forwarding evaluation logs to the client
+"""
+Example of forwarding evaluation logs to the client
 ===================================================
 
 The example runs on GPU. Two classes are defined to show how to use Dask builtins to

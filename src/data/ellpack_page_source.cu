@@ -404,8 +404,9 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
                                              this->GetCuts()};
       this->info_->Extend(proxy_->Info(), false, true);
     });
-    // The size of ellpack is logged in write cache.
-    LOG(INFO) << "Estimated batch size:"
+    LOG(INFO) << "Generated an Ellpack page with size: "
+              << common::HumanMemUnit(this->page_->Impl()->MemCostBytes())
+              << " from an batch with estimated size: "
               << cuda_impl::Dispatch<false>(proxy_, [](auto const& adapter) {
                    return common::HumanMemUnit(adapter->SizeBytes());
                  });
