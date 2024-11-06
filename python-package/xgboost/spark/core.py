@@ -597,6 +597,9 @@ FeatureProp = namedtuple(
 )
 
 
+_MODEL_CHUNK_SIZE = 4096 * 1024
+
+
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
     _input_kwargs: Dict[str, Any]
 
@@ -1099,10 +1102,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 yield pd.DataFrame({"data": [config]})
                 booster = booster.save_raw("json").decode("utf-8")
 
-                chunk_size = 4096 * 1024
-
-                for offset in range(0, len(booster), chunk_size):
-                    booster_chunk = booster[offset: offset + chunk_size]
+                for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
+                    booster_chunk = booster[offset: offset + _MODEL_CHUNK_SIZE]
                     yield pd.DataFrame({"data": [booster_chunk]})
 
         def _run_job() -> Tuple[str, str]:
@@ -1699,10 +1700,8 @@ class SparkXGBModelWriter(MLWriter):
         booster = xgb_model.get_booster().save_raw("json").decode("utf-8")
         booster_chunks = []
 
-        chunk_size = 4096 * 1024
-
-        for offset in range(0, len(booster), chunk_size):
-            booster_chunks.append(booster[offset: offset + chunk_size])
+        for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
+            booster_chunks.append(booster[offset: offset + _MODEL_CHUNK_SIZE])
 
         _get_spark_session().sparkContext.parallelize(booster_chunks, 1).saveAsTextFile(
             model_save_path
