@@ -29,9 +29,10 @@ import xgboost as xgb
 from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost import testing as tm
+
+from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import check_init_estimation, check_uneven_nan, get_rabit_args
-from xgboost.collective import Config as CollConfig
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
