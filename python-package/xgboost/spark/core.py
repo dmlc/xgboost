@@ -1110,7 +1110,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             rdd = (
                 dataset.mapInPandas(
                     _train_booster,  # type: ignore
-                    schema="config string, booster string",
+                    schema="data string",
                 )
                 .rdd.barrier()
                 .mapPartitions(lambda x: x)
