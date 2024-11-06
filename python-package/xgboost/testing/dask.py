@@ -14,6 +14,7 @@ from xgboost.compat import concat
 from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
+from ..dask import _get_rabit_args
 
 
 def check_init_estimation_clf(
@@ -172,4 +173,4 @@ def check_external_memory(  # pylint: disable=too-many-locals
 
 def get_rabit_args(client: Client, n_workers: int) -> Dict[str, Union[str, int]]:
     """Get RABIT collective communicator arguments for tests."""
-    return client.sync(dxgb._get_rabit_args, client, n_workers)
+    return client.sync(_get_rabit_args, client, n_workers)

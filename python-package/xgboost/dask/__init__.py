@@ -83,11 +83,14 @@ from dask import array as da
 from dask import bag as db
 from dask import dataframe as dd
 
-from xgboost import collective, config
-from xgboost._typing import _T, FeatureNames, FeatureTypes, IterationRange
-from xgboost.callback import TrainingCallback
-from xgboost.compat import DataFrame, concat, lazy_isinstance
-from xgboost.core import (
+from .. import collective, config
+from .._typing import _T, FeatureNames, FeatureTypes, IterationRange
+from ..callback import TrainingCallback
+from ..collective import Config as CollConfig
+from ..collective import _Args as CollArgs
+from ..collective import _ArgVals as CollArgsVals
+from ..compat import DataFrame, concat, lazy_isinstance
+from ..core import (
     Booster,
     DataIter,
     DMatrix,
@@ -99,8 +102,8 @@ from xgboost.core import (
     _deprecate_positional_args,
     _expect,
 )
-from xgboost.data import _is_cudf_ser, _is_cupy_alike
-from xgboost.sklearn import (
+from ..data import _is_cudf_ser, _is_cupy_alike
+from ..sklearn import (
     XGBClassifier,
     XGBClassifierBase,
     XGBModel,
@@ -114,12 +117,8 @@ from xgboost.sklearn import (
     _wrap_evaluation_matrices,
     xgboost_model_doc,
 )
-from xgboost.tracker import RabitTracker
-from xgboost.training import train as worker_train
-
-from ..collective import Config as CollConfig
-from ..collective import _Args as CollArgs
-from ..collective import _ArgVals as CollArgsVals
+from ..tracker import RabitTracker
+from ..training import train as worker_train
 from .utils import get_address_from_user, get_n_threads
 
 _DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
