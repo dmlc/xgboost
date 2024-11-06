@@ -1117,7 +1117,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             )
             rdd_with_resource = self._try_stage_level_scheduling(rdd)
             ret = rdd_with_resource.collect()
-            return ret[0], "".join(ret[1:])
+            data = [v[0] for v in ret]
+            return data[0], "".join(data[1:])
 
         get_logger(_LOG_TAG).info(
             "Running xgboost-%s on %s workers with"
