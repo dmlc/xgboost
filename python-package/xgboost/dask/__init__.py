@@ -510,7 +510,6 @@ class DaskDMatrix:
 
 _P = ParamSpec("_P")
 _MapRetT = TypeVar("_MapRetT")
-_P = ParamSpec("_P")
 
 
 async def map_worker_partitions(

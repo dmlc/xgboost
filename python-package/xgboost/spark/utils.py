@@ -14,12 +14,12 @@ import pyspark
 from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, TaskContext
 from pyspark.sql.session import SparkSession
 
-from xgboost import Booster, XGBModel
-from xgboost.collective import CommunicatorContext as CCtx
-from xgboost.tracker import RabitTracker
-
+from ..collective import CommunicatorContext as CCtx
 from ..collective import _Args as CollArgs
 from ..collective import _ArgVals as CollArgsVals
+from ..core import Booster
+from ..sklearn import XGBModel
+from ..tracker import RabitTracker
 
 
 def get_class_name(cls: Type) -> str:
