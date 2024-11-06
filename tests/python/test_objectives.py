@@ -1,7 +1,6 @@
 import numpy as np
-from sklearn.datasets import make_classification
-
 import xgboost as xgb
+from sklearn.datasets import make_classification
 from xgboost.testing.updater import get_basescore
 
 
@@ -16,6 +15,5 @@ def test_exp_family() -> None:
     clf1 = xgb.train(
         {"objective": "binary:logitraw"}, xgb.QuantileDMatrix(X, y), num_boost_round=1
     )
-    np.testing.assert_allclose(
-        [get_basescore(m) for m in (reg, clf, clf1)], get_basescore(clf)
-    )
+    # The base score stored in the booster model is un-transformed
+    np.testing.assert_allclose([get_basescore(m) for m in (reg, clf, clf1)], y.mean())
