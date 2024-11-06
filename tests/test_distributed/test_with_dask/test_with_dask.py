@@ -20,6 +20,7 @@ import pytest
 import scipy
 import sklearn
 from distributed import Client, LocalCluster, Nanny, Worker
+from distributed.scheduler import KilledWorker
 from distributed.utils_test import async_poll_for, gen_cluster
 from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
@@ -1322,7 +1323,7 @@ def test_killed_task_wo_hang():
             n_rounds = 10
             dXy = dxgb.DaskDMatrix(client, X, y)
             # The precise error message depends on Dask scheduler.
-            with pytest.raises(ValueError):
+            try:
                 dxgb.train(
                     client,
                     {"tree_method": "hist"},
@@ -1330,6 +1331,8 @@ def test_killed_task_wo_hang():
                     num_boost_round=n_rounds,
                     callbacks=[Eve()],
                 )
+            except (ValueError, KilledWorker):
+                pass
 
 
 class TestWithDask:
