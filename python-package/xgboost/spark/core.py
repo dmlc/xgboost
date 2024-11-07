@@ -1100,10 +1100,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             if context.partitionId() == 0:
                 config = booster.save_config()
                 yield pd.DataFrame({"data": [config]})
-                booster = booster.save_raw("json").decode("utf-8")
+                booster_json = booster.save_raw("json").decode("utf-8")
 
-                for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
-                    booster_chunk = booster[offset: offset + _MODEL_CHUNK_SIZE]
+                for offset in range(0, len(booster_json), _MODEL_CHUNK_SIZE):
+                    booster_chunk = booster_json[offset: offset + _MODEL_CHUNK_SIZE]
                     yield pd.DataFrame({"data": [booster_chunk]})
 
         def _run_job() -> Tuple[str, str]:
