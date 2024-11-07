@@ -19,3 +19,4 @@ dependencies:
 - pytest-cov
 - dpcpp_linux-64
 - onedpl-devel
+- intel-openmp
