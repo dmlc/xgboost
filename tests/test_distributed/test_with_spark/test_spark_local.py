@@ -1630,6 +1630,24 @@ class XgboostLocalTest(SparkTestCase):
         with pytest.raises(ValueError, match="evals_result"):
             SparkXGBClassifier(evals_result={})
 
+    def test_with_small_model_chunk_size(self, reg_data: RegData, monkeypatch) -> None:
+        import xgboost.spark.core
+        monkeypatch.setattr(xgboost.spark.core, "_MODEL_CHUNK_SIZE", 4)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = "file:" + tmpdir
+            regressor = SparkXGBRegressor(**reg_data.reg_params)
+            model = regressor.fit(reg_data.reg_df_train)
+            model.save(path)
+            loaded_model = SparkXGBRegressorModel.load(path)
+            assert model.uid == loaded_model.uid
+            for k, v in reg_data.reg_params.items():
+                assert loaded_model.getOrDefault(k) == v
+
+            pred_result = loaded_model.transform(reg_data.reg_df_test).collect()
+            for row in pred_result:
+                assert np.isclose(
+                    row.prediction, row.expected_prediction_with_params, atol=1e-3
+                )
 
 LTRData = namedtuple("LTRData", ("df_train", "df_test", "df_train_1"))
 
