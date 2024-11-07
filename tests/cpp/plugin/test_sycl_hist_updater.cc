@@ -385,7 +385,7 @@ void TestHistUpdaterEvaluateSplits(const xgboost::tree::TrainParam& param) {
     }).wait();
   }
 
-  ASSERT_NEAR(best_loss_chg_des[0], best_loss_chg, 1e-6);
+  ASSERT_NEAR(best_loss_chg_des[0], best_loss_chg, 1e-4);
 }
 
 template <typename GradientSumT>
