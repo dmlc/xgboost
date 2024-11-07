@@ -58,7 +58,7 @@ DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 
 
 template<typename Loss>
-class RegLossObj : public FitIntercept {
+class RegLossObj : public FitInterceptGlmLike {
  protected:
   HostDeviceVector<float> additional_input_;
 
@@ -310,7 +310,7 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
 };
 
 // poisson regression for count
-class PoissonRegression : public FitIntercept {
+class PoissonRegression : public FitInterceptGlmLike {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
@@ -511,7 +511,7 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 };
 
 // tweedie regression
-class TweedieRegression : public FitIntercept {
+class TweedieRegression : public FitInterceptGlmLike {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {

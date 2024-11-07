@@ -19,7 +19,7 @@
 #include "../src/tree/param.h"
 #pragma GCC diagnostic pop
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {

@@ -806,6 +806,8 @@ process.x.and.col.args <- function(
 #'   If not `NULL`, should be passed as a numeric vector with length matching to the number of rows in `x`.
 #' @param verbosity Verbosity of printing messages. Valid values of 0 (silent), 1 (warning),
 #'   2 (info), and 3 (debug).
+#' @param monitor_training Whether to monitor objective optimization progress on the input data.
+#' Note that same 'x' and 'y' data are used for both model fitting and evaluation.
 #' @param nthreads Number of parallel threads to use. If passing zero, will use all CPU threads.
 #' @param seed Seed to use for random number generation. If passing `NULL`, will draw a random
 #'   number using R's PRNG system to use as seed.
@@ -892,6 +894,7 @@ xgboost <- function(
   nrounds = 100L,
   weights = NULL,
   verbosity = 0L,
+  monitor_training = verbosity > 0,
   nthreads = parallel::detectCores(),
   seed = 0L,
   monotone_constraints = NULL,
@@ -929,11 +932,16 @@ xgboost <- function(
 
   fn_dm <- if (use_qdm) xgb.QuantileDMatrix else xgb.DMatrix
   dm <- do.call(fn_dm, lst_args$dmatrix_args)
+  evals <- list()
+  if (monitor_training) {
+    evals <- list(train = dm)
+  }
   model <- xgb.train(
     params = params,
     data = dm,
     nrounds = nrounds,
-    verbose = verbosity
+    verbose = verbosity,
+    evals = evals
   )
   attributes(model)$metadata <- lst_args$metadata
   attributes(model)$call <- match.call()

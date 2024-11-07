@@ -1,13 +1,14 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include "stats.h"
 
-#include <cstddef>                       // std::size_t
-#include <numeric>                       // std::accumulate
+#include <cstddef>  // std::size_t
+#include <numeric>  // std::accumulate
 
-#include "common.h"                      // OptionalWeights
-#include "linalg_op.h"
+#include "../collective/aggregator.h"    // for GlobalSum
+#include "linalg_op.h"                   // for Matrix
+#include "optional_weight.h"             // OptionalWeights
 #include "threading_utils.h"             // ParallelFor, MemStackAllocator
 #include "transform_iterator.h"          // MakeIndexTransformIter
 #include "xgboost/context.h"             // Context
@@ -16,7 +17,7 @@
 #include "xgboost/logging.h"             // CHECK_EQ
 
 namespace xgboost::common {
-void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
+void Median(Context const* ctx, linalg::Matrix<float> const& t,
             HostDeviceVector<float> const& weights, linalg::Tensor<float, 1>* out) {
   if (ctx->IsCUDA()) {
     weights.SetDevice(ctx->Device());
@@ -59,6 +60,60 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
                 [&](auto i) { tloc[omp_get_thread_num()] += h_v(i) / n; });
     auto ret = std::accumulate(tloc.cbegin(), tloc.cend(), .0f);
     out->HostView()(0) = ret;
+  }
+}
+
+void SampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> const& v,
+                linalg::Vector<float>* out) {
+  *out = linalg::Zeros<float>(ctx, std::max(v.Shape(1), decltype(v.Shape(1)){1}));
+  if (ctx->IsCPU()) {
+    auto h_v = v.HostView();
+    CHECK(h_v.CContiguous());
+    std::int64_t n_samples = v.Shape(0);
+    SafeColl(collective::GlobalSum(ctx, is_column_split, linalg::MakeVec(&n_samples, 1)));
+    auto n_columns = v.Shape(1);
+    auto h_out = out->HostView();
+
+    auto n_rows_f64 = static_cast<double>(n_samples);
+    for (std::size_t j = 0; j < n_columns; ++j) {
+      MemStackAllocator<double, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0);
+      ParallelFor(v.Shape(0), ctx->Threads(),
+                  [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) / n_rows_f64); });
+      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
+      h_out(j) = mean;
+    }
+    SafeColl(collective::GlobalSum(ctx, is_column_split, h_out));
+  } else {
+    auto d_v = v.View(ctx->Device());
+    auto d_out = out->View(ctx->Device());
+    cuda_impl::SampleMean(ctx, is_column_split, d_v, d_out);
+  }
+}
+
+void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> const& v,
+                        HostDeviceVector<float> const& w, linalg::Vector<float>* out) {
+  *out = linalg::Zeros<float>(ctx, std::max(v.Shape(1), decltype(v.Shape(1)){1}));
+  CHECK_EQ(v.Shape(0), w.Size());
+  if (ctx->IsCPU()) {
+    auto h_v = v.HostView();
+    auto h_w = w.ConstHostSpan();
+    auto sum_w = std::accumulate(h_w.data(), h_w.data() + h_w.size(), 0.0);
+    SafeColl(collective::GlobalSum(ctx, is_column_split, linalg::MakeVec(&sum_w, 1)));
+    auto h_out = out->HostView();
+    for (std::size_t j = 0; j < v.Shape(1); ++j) {
+      MemStackAllocator<double, DefaultMaxThreads()> mean_tloc(ctx->Threads(), 0.0);
+      ParallelFor(v.Shape(0), ctx->Threads(),
+                  [&](auto i) { mean_tloc[omp_get_thread_num()] += (h_v(i, j) / sum_w * h_w(i)); });
+      auto mean = std::accumulate(mean_tloc.cbegin(), mean_tloc.cend(), 0.0);
+      h_out(j) = mean;
+    }
+    SafeColl(collective::GlobalSum(ctx, is_column_split, h_out));
+  } else {
+    auto d_v = v.View(ctx->Device());
+    w.SetDevice(ctx->Device());
+    auto d_w = w.ConstDeviceSpan();
+    auto d_out = out->View(ctx->Device());
+    cuda_impl::WeightedSampleMean(ctx, is_column_split, d_v, d_w, d_out);
   }
 }
 }  // namespace xgboost::common
