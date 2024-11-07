@@ -159,6 +159,7 @@ def to_graphviz(
     no_color: Optional[str] = None,
     condition_node_params: Optional[dict] = None,
     leaf_node_params: Optional[dict] = None,
+    with_stats: bool = False,
     **kwargs: Any,
 ) -> GraphvizSource:
     """Convert specified tree to graphviz instance. IPython can automatically plot
@@ -196,6 +197,12 @@ def to_graphviz(
             {'shape': 'box',
              'style': 'filled',
              'fillcolor': '#e48038'}
+
+    with_stats :
+
+        .. versionadded:: 3.0
+
+        Controls whether the split statistics should be included.
 
     kwargs :
         Other keywords passed to graphviz graph_attr, e.g. ``graph [ {key} = {value} ]``
@@ -243,17 +250,22 @@ def to_graphviz(
     if kwargs:
         parameters += ":"
         parameters += json.dumps(kwargs)
-    tree = booster.get_dump(fmap=fmap, dump_format=parameters)[num_trees]
+    tree = booster.get_dump(fmap=fmap, dump_format=parameters, with_stats=with_stats)[
+        num_trees
+    ]
     g = Source(tree)
     return g
 
 
+@_deprecate_positional_args
 def plot_tree(
     booster: Booster,
+    *,
     fmap: PathLike = "",
     num_trees: int = 0,
     rankdir: Optional[str] = None,
     ax: Optional[Axes] = None,
+    with_stats: bool = False,
     **kwargs: Any,
 ) -> Axes:
     """Plot specified tree.
@@ -270,6 +282,13 @@ def plot_tree(
         Passed to graphviz via graph_attr
     ax : matplotlib Axes, default None
         Target axes instance. If None, new figure and axes will be created.
+
+    with_stats :
+
+        .. versionadded:: 3.0
+
+        See :py:func:`to_graphviz`.
+
     kwargs :
         Other keywords passed to to_graphviz
 
@@ -287,7 +306,14 @@ def plot_tree(
     if ax is None:
         _, ax = plt.subplots(1, 1)
 
-    g = to_graphviz(booster, fmap=fmap, num_trees=num_trees, rankdir=rankdir, **kwargs)
+    g = to_graphviz(
+        booster,
+        fmap=fmap,
+        num_trees=num_trees,
+        rankdir=rankdir,
+        with_stats=with_stats,
+        **kwargs,
+    )
 
     s = BytesIO()
     s.write(g.pipe(format="png"))
