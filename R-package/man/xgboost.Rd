@@ -11,6 +11,7 @@ xgboost(
   nrounds = 100L,
   weights = NULL,
   verbosity = 0L,
+  monitor_training = verbosity > 0,
   nthreads = parallel::detectCores(),
   seed = 0L,
   monotone_constraints = NULL,
@@ -98,6 +99,9 @@ If not \code{NULL}, should be passed as a numeric vector with length matching to
 
 \item{verbosity}{Verbosity of printing messages. Valid values of 0 (silent), 1 (warning),
 2 (info), and 3 (debug).}
+
+\item{monitor_training}{Whether to monitor objective optimization progress on the input data.
+Note that same 'x' and 'y' data are used for both model fitting and evaluation.}
 
 \item{nthreads}{Number of parallel threads to use. If passing zero, will use all CPU threads.}
 
