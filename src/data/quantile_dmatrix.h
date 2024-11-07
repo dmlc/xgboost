@@ -110,6 +110,6 @@ void MakeSketches(Context const *ctx,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> *iter,
                   DMatrixProxy *proxy, std::shared_ptr<DMatrix> ref, BatchParam const &p,
                   float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const &info,
-                  ExternalDataInfo *p_ext_info);
+                  std::int64_t max_quantile_blocks, ExternalDataInfo *p_ext_info);
 }  // namespace cuda_impl
 }  // namespace xgboost::data

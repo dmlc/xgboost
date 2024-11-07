@@ -448,9 +448,16 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(
-      static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), prefix, on_host_)};
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      this->max_num_device_pages_,
+      Context{}.Threads(),
+  };
+  std::shared_ptr<DMatrix> p_fmat{
+      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
   auto row_page_path =
       data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix*>(p_fmat.get())) + ".row.page";
@@ -491,9 +498,17 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   CHECK(iter);
 
-  std::shared_ptr<DMatrix> p_fmat{DMatrix::Create(
-      static_cast<DataIterHandle>(iter.get()), iter->Proxy(), nullptr, Reset, Next,
-      std::numeric_limits<float>::quiet_NaN(), 0, this->bins_, prefix, this->on_host_)};
+  auto config = ExtMemConfig{
+      prefix,
+      this->on_host_,
+      this->min_cache_page_bytes_,
+      std::numeric_limits<float>::quiet_NaN(),
+      this->max_num_device_pages_,
+      Context{}.Threads(),
+  };
+  std::shared_ptr<DMatrix> p_fmat{
+      DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), this->ref_, Reset,
+                      Next, this->bins_, std::numeric_limits<std::int64_t>::max(), config)};
 
   auto page_path = data::MakeId(prefix, p_fmat.get());
   page_path += device_.IsCPU() ? ".gradient_index.page" : ".ellpack.page";
@@ -512,14 +527,14 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateQuantileDMatrix(bool with_
 
   if (this->device_.IsCPU()) {
     NumpyArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-    p_fmat =
-        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+    p_fmat = std::make_shared<data::IterativeDMatrix>(
+        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+        bins_, std::numeric_limits<std::int64_t>::max());
   } else {
     CudaArrayIterForTest iter{this->sparsity_, this->rows_, this->cols_, 1};
-    p_fmat =
-        std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                 std::numeric_limits<float>::quiet_NaN(), 0, bins_);
+    p_fmat = std::make_shared<data::IterativeDMatrix>(
+        &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+        bins_, std::numeric_limits<std::int64_t>::max());
   }
 
   if (with_label) {
@@ -655,7 +670,7 @@ class RMMAllocator {
   std::vector<std::unique_ptr<CUDAMemoryResource>> cuda_mr;
   std::vector<std::unique_ptr<PoolMemoryResource>> pool_mr;
   int n_gpu;
-  RMMAllocator() : n_gpu(common::AllVisibleGPUs()) {
+  RMMAllocator() : n_gpu(curt::AllVisibleGPUs()) {
     int current_device;
     CHECK_EQ(cudaGetDevice(&current_device), cudaSuccess);
     for (int i = 0; i < n_gpu; ++i) {
@@ -697,5 +712,5 @@ void DeleteRMMResource(RMMAllocator*) {}
 RMMAllocatorPtr SetUpRMMResourceForCppTests(int, char**) { return {nullptr, DeleteRMMResource}; }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 
-std::int32_t DistGpuIdx() { return common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank(); }
+std::int32_t DistGpuIdx() { return curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank(); }
 } // namespace xgboost

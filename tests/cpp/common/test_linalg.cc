@@ -117,9 +117,8 @@ TEST(Linalg, TensorView) {
   {
     // Don't assign the initial dimension, tensor should be able to deduce the correct dim
     // for Slice.
-    auto t = MakeTensorView(&ctx, data, 2, 3, 4);
-    auto s = t.Slice(1, 2, All());
-    static_assert(decltype(s)::kDimension == 1);
+    static_assert(decltype(MakeTensorView(&ctx, data, 2, 3, 4).Slice(1, 2, All()))::kDimension ==
+                  1);
   }
   {
     auto t = MakeTensorView(&ctx, data, 2, 3, 4);

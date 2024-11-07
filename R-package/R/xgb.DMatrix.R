@@ -418,10 +418,10 @@ xgb.QuantileDMatrix <- function(
 #' This function is responsible for generating an R object structure containing callback
 #' functions and an environment shared with them.
 #'
-#' The output structure from this function is then meant to be passed to [xgb.ExternalDMatrix()],
+#' The output structure from this function is then meant to be passed to [xgb.ExtMemDMatrix()],
 #' which will consume the data and create a DMatrix from it by executing the callback functions.
 #'
-#' For more information, and for a usage example, see the documentation for [xgb.ExternalDMatrix()].
+#' For more information, and for a usage example, see the documentation for [xgb.ExtMemDMatrix()].
 #'
 #' @param env An R environment to pass to the callback functions supplied here, which can be
 #'   used to keep track of variables to determine how to handle the batches.
@@ -443,8 +443,8 @@ xgb.QuantileDMatrix <- function(
 #'   Note that, after resetting the iterator, the batches will be accessed again, so the same data
 #'   (and in the same order) must be passed in subsequent iterations.
 #' @return An `xgb.DataIter` object, containing the same inputs supplied here, which can then
-#'   be passed to [xgb.ExternalDMatrix()].
-#' @seealso [xgb.ExternalDMatrix()], [xgb.DataBatch()].
+#'   be passed to [xgb.ExtMemDMatrix()].
+#' @seealso [xgb.ExtMemDMatrix()], [xgb.DataBatch()].
 #' @export
 xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
   if (!is.function(f_next)) {
@@ -512,7 +512,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #'
 #' @description
 #' Helper function to supply data in batches of a data iterator when
-#' constructing a DMatrix from external memory through [xgb.ExternalDMatrix()]
+#' constructing a DMatrix from external memory through [xgb.ExtMemDMatrix()]
 #' or through [xgb.QuantileDMatrix.from_iterator()].
 #'
 #' This function is **only** meant to be called inside of a callback function (which
@@ -524,7 +524,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #' an `xgb.DMatrix` - i.e. cannot be used to train a model, nor to get predictions - only
 #' possible usage is to supply data to an iterator, from which a DMatrix is then constructed.
 #'
-#' For more information and for example usage, see the documentation for [xgb.ExternalDMatrix()].
+#' For more information and for example usage, see the documentation for [xgb.ExtMemDMatrix()].
 #' @inheritParams xgb.DMatrix
 #' @param data Batch of data belonging to this batch.
 #'
@@ -532,7 +532,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #'   to pass here. Supported types are:
 #'   - `matrix`, with types `numeric`, `integer`, and `logical`. Note that for types
 #'     `integer` and `logical`, missing values might not be automatically recognized as
-#'     as such - see the documentation for parameter `missing` in [xgb.ExternalDMatrix()]
+#'     as such - see the documentation for parameter `missing` in [xgb.ExtMemDMatrix()]
 #'     for details on this.
 #'   - `data.frame`, with the same types as supported by 'xgb.DMatrix' and same
 #'     conversions applied to it. See the documentation for parameter `data` in
@@ -540,7 +540,7 @@ xgb.DataIter <- function(env = new.env(), f_next, f_reset) {
 #'   - CSR matrices, as class `dgRMatrix` from package "Matrix".
 #' @return An object of class `xgb.DataBatch`, which is just a list containing the
 #'   data and parameters passed here. It does **not** inherit from `xgb.DMatrix`.
-#' @seealso [xgb.DataIter()], [xgb.ExternalDMatrix()].
+#' @seealso [xgb.DataIter()], [xgb.ExtMemDMatrix()].
 #' @export
 xgb.DataBatch <- function(
   data,
@@ -643,10 +643,10 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
 #'
 #'   For example, in R `integer` types, missing values are represented by integer number `-2147483648`
 #'   (since machine 'integer' types do not have an inherent 'NA' value) - hence, if one passes `NA`,
-#'   which is interpreted as a floating-point NaN by [xgb.ExternalDMatrix()] and by
+#'   which is interpreted as a floating-point NaN by [xgb.ExtMemDMatrix()] and by
 #'   [xgb.QuantileDMatrix.from_iterator()], these integer missing values will not be treated as missing.
 #'   This should not pose any problem for `numeric` types, since they do have an inheret NaN value.
-#' @return An 'xgb.DMatrix' object, with subclass 'xgb.ExternalDMatrix', in which the data is not
+#' @return An 'xgb.DMatrix' object, with subclass 'xgb.ExtMemDMatrix', in which the data is not
 #'   held internally but accessed through the iterator when needed.
 #' @seealso [xgb.DataIter()], [xgb.DataBatch()], [xgb.QuantileDMatrix.from_iterator()]
 #' @examples
@@ -706,7 +706,7 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
 #' cache_prefix <- tempdir()
 #'
 #' # DMatrix will be constructed from the iterator's batches
-#' dm <- xgb.ExternalDMatrix(data_iterator, cache_prefix, nthread = 1)
+#' dm <- xgb.ExtMemDMatrix(data_iterator, cache_prefix, nthread = 1)
 #'
 #' # After construction, can be used as a regular DMatrix
 #' params <- list(nthread = 1, objective = "reg:squarederror")
@@ -717,7 +717,7 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
 #' pred_dm <- predict(model, dm)
 #' pred_mat <- predict(model, as.matrix(mtcars[, -1]))
 #' @export
-xgb.ExternalDMatrix <- function(
+xgb.ExtMemDMatrix <- function(
   data_iterator,
   cache_prefix = tempdir(),
   missing = NA,
@@ -753,7 +753,7 @@ xgb.ExternalDMatrix <- function(
   )
 
   attributes(dmat) <- list(
-    class = c("xgb.DMatrix", "xgb.ExternalDMatrix"),
+    class = c("xgb.DMatrix", "xgb.ExtMemDMatrix"),
     fields = attributes(proxy_handle)$fields
   )
   return(dmat)
@@ -766,7 +766,7 @@ xgb.ExternalDMatrix <- function(
 #' Create an `xgb.QuantileDMatrix` object (exact same class as would be returned by
 #' calling function [xgb.QuantileDMatrix()], with the same advantages and limitations) from
 #' external data supplied by [xgb.DataIter()], potentially passed in batches from
-#' a bigger set that might not fit entirely in memory, same way as [xgb.ExternalDMatrix()].
+#' a bigger set that might not fit entirely in memory, same way as [xgb.ExtMemDMatrix()].
 #'
 #' Note that, while external data will only be loaded through the iterator (thus the full data
 #' might not be held entirely in-memory), the quantized representation of the data will get
@@ -776,10 +776,10 @@ xgb.ExternalDMatrix <- function(
 #'
 #' For more information, see the guide 'Using XGBoost External Memory Version':
 #' \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
-#' @inheritParams xgb.ExternalDMatrix
+#' @inheritParams xgb.ExtMemDMatrix
 #' @inheritParams xgb.QuantileDMatrix
 #' @return An 'xgb.DMatrix' object, with subclass 'xgb.QuantileDMatrix'.
-#' @seealso [xgb.DataIter()], [xgb.DataBatch()], [xgb.ExternalDMatrix()],
+#' @seealso [xgb.DataIter()], [xgb.DataBatch()], [xgb.ExtMemDMatrix()],
 #' [xgb.QuantileDMatrix()]
 #' @export
 xgb.QuantileDMatrix.from_iterator <- function( # nolint
@@ -1318,8 +1318,8 @@ print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
   }
   class_print <- if (inherits(x, "xgb.QuantileDMatrix")) {
     "xgb.QuantileDMatrix"
-  } else if (inherits(x, "xgb.ExternalDMatrix")) {
-    "xgb.ExternalDMatrix"
+  } else if (inherits(x, "xgb.ExtMemDMatrix")) {
+    "xgb.ExtMemDMatrix"
   } else if (inherits(x, "xgb.ProxyDMatrix")) {
     "xgb.ProxyDMatrix"
   } else {

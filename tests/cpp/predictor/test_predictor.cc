@@ -320,7 +320,7 @@ void TestPredictionWithLesserFeaturesColumnSplit(bool use_gpu) {
   auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).Seed(rank).GenerateDMatrix(true);
   Context ctx;
   if (use_gpu) {
-    ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : rank);
+    ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : rank);
   }
   auto learner = LearnerForTest(&ctx, m_train, kIters);
   auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
@@ -354,7 +354,7 @@ void GBTreeModelForTest(gbm::GBTreeModel *model, uint32_t split_ind,
 void TestCategoricalPrediction(bool use_gpu, bool is_column_split) {
   Context ctx;
   if (use_gpu) {
-    ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
+    ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
   }
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
@@ -507,11 +507,9 @@ void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
   auto const rank = collective::GetRank();
   Context ctx;
   if (use_gpu) {
-    ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : rank);
+    ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : rank);
   }
-  auto n_threads = collective::GetWorkerLocalThreads(world_size);
-  ctx.UpdateAllowUnknown(
-      Args{{"nthread", std::to_string(n_threads)}, {"device", ctx.DeviceName()}});
+  collective::GetWorkerLocalThreads(world_size, &ctx);
 
   auto dmat = RandomDataGenerator(rows, cols, 0).Classes(classes).GenerateDMatrix(true);
   std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};
@@ -679,7 +677,7 @@ void VerifySparsePredictionColumnSplit(bool use_gpu, Json const &model, std::siz
                                        std::vector<float> const &expected_predt) {
   Context ctx;
   if (use_gpu) {
-    ctx = MakeCUDACtx(common::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
+    ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : collective::GetRank());
   }
   auto Xy = RandomDataGenerator(rows, cols, sparsity).GenerateDMatrix(true);
   std::shared_ptr<DMatrix> sliced{Xy->SliceCol(collective::GetWorldSize(), collective::GetRank())};
@@ -810,9 +808,9 @@ void TestVectorLeafPrediction(Context const *ctx) {
 
       auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
                                         static_cast<std::size_t>(1)};
-      p_fmat =
-          std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                   std::numeric_limits<float>::quiet_NaN(), 0, 256);
+      p_fmat = std::make_shared<data::IterativeDMatrix>(
+          &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+          256, std::numeric_limits<std::int64_t>::max());
 
       cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
       cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);

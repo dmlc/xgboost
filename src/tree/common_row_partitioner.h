@@ -148,9 +148,10 @@ class CommonRowPartitioner {
   template <typename ExpandEntry, typename GHistIndexMatrixT>
   static void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
                                   GHistIndexMatrixT const& gmat,
-                                  std::vector<int32_t>* split_conditions) {
+                                  std::vector<int32_t>* p_split_conditions) {
     auto const& ptrs = gmat.cut.Ptrs();
     auto const& vals = gmat.cut.Values();
+    auto& split_conditions = *p_split_conditions;
 
     for (std::size_t i = 0; i < nodes.size(); ++i) {
       bst_node_t const nidx = nodes[i].nid;
@@ -167,7 +168,7 @@ class CommonRowPartitioner {
           split_cond = static_cast<bst_bin_t>(bound);
         }
       }
-      (*split_conditions)[i] = split_cond;
+      split_conditions[i] = split_cond;
     }
   }
 

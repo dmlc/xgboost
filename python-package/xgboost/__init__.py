@@ -4,7 +4,7 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 """
 
 from . import tracker  # noqa
-from . import collective, dask
+from . import collective
 from .core import (
     Booster,
     DataIter,
@@ -60,8 +60,6 @@ __all__ = [
     "XGBRanker",
     "XGBRFClassifier",
     "XGBRFRegressor",
-    # dask
-    "dask",
     # collective
     "collective",
 ]

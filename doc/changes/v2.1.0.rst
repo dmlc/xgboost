@@ -1,3 +1,42 @@
+#################################
+2.1.2 Patch Release (2024 Oct 23)
+#################################
+
+The 2.1.2 patch release makes the following bug fixes:
+
+- Clean up and modernize release-artifacts.py (#10818)
+- Fix ellpack categorical feature with missing values. (#10906)
+- Fix unbiased ltr with training continuation. (#10908)
+- Fix potential race in feature constraint. (#10719)
+- Fix boolean array for arrow-backed DF. (#10527)
+- Ensure that pip check does not fail due to a bad platform tag (#10755)
+- Check cub errors (#10721)
+- Limit the maximum number of threads. (#10872)
+- Fixes for large size clusters. (#10880)
+- POSIX compliant poll.h and mmap (#10767)
+
+#################################
+2.1.1 Patch Release (2024 Jul 31)
+#################################
+
+The 2.1.1 patch release makes the following bug fixes:
+
+- [Dask] Disable broadcast in the scatter call so that predict function won't hang (#10632)
+- [Dask] Handle empty partitions correctly (#10559)
+- Fix federated learning for the encrypted GRPC backend (#10503)
+- Fix a race condition in column splitter (#10572)
+- Gracefully handle cases where system files like /sys/fs/cgroup/cpu.max are not readable by the user (#10623)
+- Fix build and C++ tests for FreeBSD (#10480)
+- Clarify the requirement Pandas 1.2+ (#10476)
+- More robust endianness detection in R package build (#10642)
+
+In addition, it contains several enhancements:
+
+- Publish JVM packages targeting Linux ARM64 (#10487)
+- Publish a CPU-only wheel under name xgboost-cpu (#10603)
+- Support building with CUDA Toolkit 12.5 and latest CCCL (#10624, #10633, #10574)
+
+
 ###################
 2.1.0 (2024 Jun 20)
 ###################

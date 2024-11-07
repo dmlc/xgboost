@@ -1,9 +1,25 @@
+/**
+ * Copyright 2017-2024, XGBoost contributors
+ */
 #include "../../../src/common/compressed_iterator.h"
 #include "gtest/gtest.h"
 #include <algorithm>
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
+TEST(CompressedIterator, Size) {
+  bst_idx_t n = 2048;
+  {
+    bst_idx_t n_symbols = 256;
+    auto n_bytes = CompressedBufferWriter::CalculateBufferSize(n, n_symbols);
+    ASSERT_EQ(n_bytes, 2052);
+  }
+  {
+    bst_idx_t n_symbols = 64;
+    auto n_bytes = CompressedBufferWriter::CalculateBufferSize(n, n_symbols);
+    ASSERT_EQ(n_bytes, 1540);
+  }
+}
+
 TEST(CompressedIterator, Test) {
   ASSERT_TRUE(detail::SymbolBits(256) == 8);
   ASSERT_TRUE(detail::SymbolBits(150) == 8);
@@ -50,6 +66,4 @@ TEST(CompressedIterator, Test) {
     }
   }
 }
-
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

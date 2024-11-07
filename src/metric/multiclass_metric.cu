@@ -16,11 +16,11 @@
 #include "metric_common.h"  // MetricNoCache
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/execution_policy.h>  // thrust::cuda::par
 #include <thrust/functional.h>        // thrust::plus<>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/transform_reduce.h>
 
+#include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/device_helpers.cuh"
 #endif  // XGBOOST_USE_CUDA
 
@@ -82,11 +82,11 @@ class MultiClassMetricsReduction {
 
 #if defined(XGBOOST_USE_CUDA)
 
-  PackedReduceResult DeviceReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
-      const HostDeviceVector<bst_float>& preds,
-      const size_t n_class) {
+  PackedReduceResult DeviceReduceMetrics(Context const* ctx,
+                                         const HostDeviceVector<bst_float>& weights,
+                                         const HostDeviceVector<bst_float>& labels,
+                                         const HostDeviceVector<bst_float>& preds,
+                                         const size_t n_class) {
     size_t n_data = labels.Size();
 
     thrust::counting_iterator<size_t> begin(0);
@@ -100,9 +100,8 @@ class MultiClassMetricsReduction {
     auto s_label_error = label_error_.GetSpan<int32_t>(1);
     s_label_error[0] = 0;
 
-    dh::XGBCachingDeviceAllocator<char> alloc;
     PackedReduceResult result = thrust::transform_reduce(
-        thrust::cuda::par(alloc),
+        ctx->CUDACtx()->CTP(),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
@@ -125,25 +124,23 @@ class MultiClassMetricsReduction {
 
 #endif  // XGBOOST_USE_CUDA
 
-  PackedReduceResult Reduce(const Context& ctx, DeviceOrd device, size_t n_class,
+  PackedReduceResult Reduce(Context const* ctx, size_t n_class,
                             const HostDeviceVector<bst_float>& weights,
                             const HostDeviceVector<bst_float>& labels,
                             const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (!device.IsCUDA()) {
-      result =
-          CpuReduceMetrics(weights, labels, preds, n_class, ctx.Threads());
+    if (ctx->IsCPU()) {
+      result = CpuReduceMetrics(weights, labels, preds, n_class, ctx->Threads());
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      device_ = ctx.Device();
-      preds.SetDevice(device_);
-      labels.SetDevice(device_);
-      weights.SetDevice(device_);
+      preds.SetDevice(ctx->Device());
+      labels.SetDevice(ctx->Device());
+      weights.SetDevice(ctx->Device());
 
-      dh::safe_cuda(cudaSetDevice(device_.ordinal));
-      result = DeviceReduceMetrics(weights, labels, preds, n_class);
+      dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+      result = DeviceReduceMetrics(ctx, weights, labels, preds, n_class);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
@@ -152,7 +149,6 @@ class MultiClassMetricsReduction {
  private:
 #if defined(XGBOOST_USE_CUDA)
   dh::PinnedMemory label_error_;
-  DeviceOrd device_{DeviceOrd::CPU()};
 #endif  // defined(XGBOOST_USE_CUDA)
 };
 
@@ -174,9 +170,7 @@ struct EvalMClassBase : public MetricNoCache {
       CHECK_GE(nclass, 1U)
           << "mlogloss and merror are only used for multi-class classification,"
           << " use logloss for binary classification";
-      auto device = ctx_->Device();
-      auto result =
-          reducer_.Reduce(*ctx_, device, nclass, info.weights_, *info.labels.Data(), preds);
+      auto result = reducer_.Reduce(this->ctx_, nclass, info.weights_, *info.labels.Data(), preds);
       dat[0] = result.Residue();
       dat[1] = result.Weights();
     }

@@ -57,7 +57,7 @@ template <typename T>
 
   RET_IF_NOT(fi->Read(&impl->n_rows));
   RET_IF_NOT(fi->Read(&impl->is_dense));
-  RET_IF_NOT(fi->Read(&impl->row_stride));
+  RET_IF_NOT(fi->Read(&impl->info.row_stride));
 
   if (this->param_.prefetch_copy || !has_hmm_ats_) {
     RET_IF_NOT(ReadDeviceVec(fi, &impl->gidx_buffer));
@@ -83,9 +83,9 @@ template <typename T>
   auto* impl = page.Impl();
   bytes += fo->Write(impl->n_rows);
   bytes += fo->Write(impl->is_dense);
-  bytes += fo->Write(impl->row_stride);
+  bytes += fo->Write(impl->info.row_stride);
   std::vector<common::CompressedByteT> h_gidx_buffer;
-  Context ctx = Context{}.MakeCUDA(common::CurrentDevice());
+  Context ctx = Context{}.MakeCUDA(curt::CurrentDevice());
   [[maybe_unused]] auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx_buffer);
   bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);
@@ -113,10 +113,14 @@ template <typename T>
                                                       EllpackHostCacheStream* fo) const {
   xgboost_NVTX_FN_RANGE();
 
-  fo->Write(page);
+  bool new_page = fo->Write(page);
   dh::DefaultStream().Sync();
 
-  return page.Impl()->MemCostBytes();
+  if (new_page) {
+    return fo->Share()->pages.back()->MemCostBytes();
+  } else {
+    return InvalidPageSize();
+  }
 }
 
 #undef RET_IF_NOT

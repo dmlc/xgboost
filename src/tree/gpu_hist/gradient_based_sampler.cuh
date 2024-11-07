@@ -24,31 +24,29 @@ class SamplingStrategy {
   virtual GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                                      DMatrix* dmat) = 0;
   virtual ~SamplingStrategy() = default;
+  /**
+   * @brief Whether pages are concatenated after sampling.
+   */
+  [[nodiscard]] virtual bool ConcatPages() const { return false; }
 };
 
-/*! \brief No sampling in in-memory mode. */
+class ExtMemSamplingStrategy : public SamplingStrategy {
+ public:
+  [[nodiscard]] bool ConcatPages() const final { return true; }
+};
+
+/**
+ * @brief No-op.
+ */
 class NoSampling : public SamplingStrategy {
  public:
-  explicit NoSampling(BatchParam batch_param);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
                              DMatrix* dmat) override;
-
- private:
-  BatchParam batch_param_;
 };
 
-/*! \brief No sampling in external memory mode. */
-class ExternalMemoryNoSampling : public SamplingStrategy {
- public:
-  explicit ExternalMemoryNoSampling(BatchParam batch_param);
-  GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
-                             DMatrix* dmat) override;
-
- private:
-  BatchParam batch_param_;
-};
-
-/*! \brief Uniform sampling in in-memory mode. */
+/**
+ * @brief Uniform sampling in in-memory mode.
+ */
 class UniformSampling : public SamplingStrategy {
  public:
   UniformSampling(BatchParam batch_param, float subsample);
@@ -61,7 +59,7 @@ class UniformSampling : public SamplingStrategy {
 };
 
 /*! \brief No sampling in external memory mode. */
-class ExternalMemoryUniformSampling : public SamplingStrategy {
+class ExternalMemoryUniformSampling : public ExtMemSamplingStrategy {
  public:
   ExternalMemoryUniformSampling(size_t n_rows, BatchParam batch_param, float subsample);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
@@ -91,7 +89,7 @@ class GradientBasedSampling : public SamplingStrategy {
 };
 
 /*! \brief Gradient-based sampling in external memory mode.. */
-class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
+class ExternalMemoryGradientBasedSampling : public ExtMemSamplingStrategy {
  public:
   ExternalMemoryGradientBasedSampling(size_t n_rows, BatchParam batch_param, float subsample);
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair,
@@ -120,7 +118,7 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
 class GradientBasedSampler {
  public:
   GradientBasedSampler(Context const* ctx, size_t n_rows, const BatchParam& batch_param,
-                       float subsample, int sampling_method, bool is_external_memory);
+                       float subsample, int sampling_method, bool concat_pages);
 
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   GradientBasedSample Sample(Context const* ctx, common::Span<GradientPair> gpair, DMatrix* dmat);
@@ -129,6 +127,8 @@ class GradientBasedSampler {
   static size_t CalculateThresholdIndex(Context const* ctx, common::Span<GradientPair> gpair,
                                         common::Span<float> threshold, common::Span<float> grad_sum,
                                         size_t sample_rows);
+
+  [[nodiscard]] bool ConcatPages() const { return this->strategy_->ConcatPages(); }
 
  private:
   common::Monitor monitor_;

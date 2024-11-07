@@ -7,6 +7,7 @@
 #include "../../collective/allgather.h"
 #include "../../collective/communicator-inl.h"  // for GetWorldSize, GetRank
 #include "../../common/categorical.h"
+#include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "evaluate_splits.cuh"
 #include "expand_entry.cuh"
 
@@ -472,8 +473,8 @@ void GPUHistEvaluator::EvaluateSplits(Context const *ctx, const std::vector<bst_
 
 GPUExpandEntry GPUHistEvaluator::EvaluateSingleSplit(Context const *ctx, EvaluateSplitInputs input,
                                                      EvaluateSplitSharedInputs shared_inputs) {
-  dh::device_vector<EvaluateSplitInputs> inputs(1);
-  dh::safe_cuda(cudaMemcpyAsync(inputs.data().get(), &input, sizeof(input), cudaMemcpyDefault));
+  dh::CachingDeviceUVector<EvaluateSplitInputs> inputs(1);
+  dh::safe_cuda(cudaMemcpyAsync(inputs.data(), &input, sizeof(input), cudaMemcpyDefault));
 
   dh::TemporaryArray<GPUExpandEntry> out_entries(1);
   this->EvaluateSplits(ctx, {input.nidx}, input.feature_set.size(), dh::ToSpan(inputs),

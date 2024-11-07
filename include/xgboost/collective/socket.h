@@ -99,6 +99,7 @@ inline auto ThrowAtError(StringView fn_name, std::int32_t errsv = LastError()) {
 using SocketT = SOCKET;
 #else
 using SocketT = int;
+#define INVALID_SOCKET -1
 #endif  // defined(_WIN32)
 
 #if !defined(xgboost_CHECK_SYS_CALL)
@@ -276,7 +277,7 @@ class TCPSocket {
   SockDomain domain_{SockDomain::kV4};
 #endif
 
-  constexpr static HandleT InvalidSocket() { return -1; }
+  constexpr static HandleT InvalidSocket() { return INVALID_SOCKET; }
 
   explicit TCPSocket(HandleT newfd) : handle_{newfd} {}
 
@@ -538,13 +539,10 @@ class TCPSocket {
   [[nodiscard]] HandleT const &Handle() const { return handle_; }
   /**
    * @brief Listen to incoming requests. Should be called after bind.
+   *
+   *   Both the default and minimum backlog is set to 256.
    */
-  [[nodiscard]] Result Listen(std::int32_t backlog = 16) {
-    if (listen(handle_, backlog) != 0) {
-      return system::FailWithCode("Failed to listen.");
-    }
-    return Success();
-  }
+  [[nodiscard]] Result Listen(std::int32_t backlog = 256);
   /**
    * @brief Bind socket to INADDR_ANY, return the port selected by the OS.
    */
@@ -601,10 +599,15 @@ class TCPSocket {
       return std::make_pair(Success(), std::int32_t{ntohs(res_addr.sin6_port)});
     }
   }
-
+  /**
+   * @brief Bind the socket to the address.
+   *
+   * @param ip[in]        The IP address.
+   * @param port [in,out] Let the system choose a port if this parameter is set to 0.
+   */
   [[nodiscard]] Result Bind(StringView ip, std::int32_t *port) {
     // bind socket handle_ to ip
-    auto addr = MakeSockAddress(ip, 0);
+    auto addr = MakeSockAddress(ip, *port);
     std::int32_t errc{0};
     if (addr.IsV4()) {
       auto handle = reinterpret_cast<sockaddr const *>(&addr.V4().Handle());
@@ -620,7 +623,13 @@ class TCPSocket {
     if (!rc.OK()) {
       return std::move(rc);
     }
-    *port = new_port;
+    if (*port == 0) {
+      *port = new_port;
+      return Success();
+    }
+    if (*port != new_port) {
+      return Fail("Got an invalid port from bind.");
+    }
     return Success();
   }
 

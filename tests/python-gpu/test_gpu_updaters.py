@@ -140,7 +140,15 @@ class TestGPUUpdaters:
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical_ohe(self, rows, cols, rounds, cats):
-        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
+        check_categorical_ohe(
+            rows=rows,
+            cols=cols,
+            rounds=rounds,
+            cats=cats,
+            device="cuda",
+            tree_method="hist",
+            extmem=False,
+        )
 
     @given(
         tm.categorical_dataset_strategy,
@@ -211,9 +219,13 @@ class TestGPUUpdaters:
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_categorical_missing(self, rows, cols, cats):
-        check_categorical_missing(rows, cols, cats, "cuda", "approx")
-        check_categorical_missing(rows, cols, cats, "cuda", "hist")
+    def test_categorical_missing(self, rows: int, cols: int, cats: int) -> None:
+        check_categorical_missing(
+            rows, cols, cats, device="cuda", tree_method="approx", extmem=False
+        )
+        check_categorical_missing(
+            rows, cols, cats, device="cuda", tree_method="hist", extmem=False
+        )
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_max_cat(self) -> None:
@@ -222,10 +234,15 @@ class TestGPUUpdaters:
     def test_categorical_32_cat(self):
         """32 hits the bound of integer bitset, so special test"""
         rows = 1000
-        cols = 10
-        cats = 32
-        rounds = 4
-        check_categorical_ohe(rows, cols, rounds, cats, "cuda", "hist")
+        check_categorical_ohe(
+            rows=rows,
+            cols=10,
+            rounds=4,
+            cats=32,
+            device="cuda",
+            tree_method="hist",
+            extmem=False,
+        )
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_invalid_category(self):

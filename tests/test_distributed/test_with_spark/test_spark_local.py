@@ -1168,6 +1168,30 @@ class TestPySparkLocal:
                         "3.5.1", conf
                     )
 
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_empty_train_data(self, spark: SparkSession, tree_method: str) -> None:
+        df_train = spark.createDataFrame(
+            [
+                (Vectors.dense(10.1, 11.2, 11.3), 0, True),
+                (Vectors.dense(1, 1.2, 1.3), 1, True),
+                (Vectors.dense(14.0, 15.0, 16.0), 0, True),
+                (Vectors.dense(1.1, 1.2, 1.3), 1, False),
+            ],
+            ["features", "label", "val_col"],
+        )
+        classifier = SparkXGBRegressor(
+            num_workers=2,
+            min_child_weight=0.0,
+            reg_alpha=0,
+            reg_lambda=0,
+            tree_method=tree_method,
+            validation_indicator_col="val_col",
+        )
+        model = classifier.fit(df_train)
+        pred_result = model.transform(df_train).collect()
+        for row in pred_result:
+            assert row.prediction == 1.0
+
 
 class XgboostLocalTest(SparkTestCase):
     def setUp(self):
@@ -1579,33 +1603,6 @@ class XgboostLocalTest(SparkTestCase):
             for row in pred_result:
                 self.assertEqual(row.prediction, row.label)
 
-    def test_empty_train_data(self) -> None:
-        for tree_method in [
-            "hist",
-            "approx",
-        ]:  # pytest.mark conflict with python unittest
-            df_train = self.session.createDataFrame(
-                [
-                    (Vectors.dense(10.1, 11.2, 11.3), 0, True),
-                    (Vectors.dense(1, 1.2, 1.3), 1, True),
-                    (Vectors.dense(14.0, 15.0, 16.0), 0, True),
-                    (Vectors.dense(1.1, 1.2, 1.3), 1, False),
-                ],
-                ["features", "label", "val_col"],
-            )
-            classifier = SparkXGBClassifier(
-                num_workers=2,
-                min_child_weight=0.0,
-                reg_alpha=0,
-                reg_lambda=0,
-                tree_method=tree_method,
-                validation_indicator_col="val_col",
-            )
-            model = classifier.fit(df_train)
-            pred_result = model.transform(df_train).collect()
-            for row in pred_result:
-                assert row.prediction == 1.0
-
     def test_empty_partition(self):
         # raw_df.repartition(4) will result int severe data skew, actually,
         # there is no any data in reducer partition 1, reducer partition 2
@@ -1629,6 +1626,34 @@ class XgboostLocalTest(SparkTestCase):
     def test_unsupported_params(self):
         with pytest.raises(ValueError, match="evals_result"):
             SparkXGBClassifier(evals_result={})
+
+    def test_tracker(self):
+        classifier = SparkXGBClassifier(
+            launch_tracker_on_driver=True,
+            tracker_host="192.168.1.32",
+            tracker_port=59981,
+        )
+        with pytest.raises(Exception, match="Failed to bind socket"):
+            classifier._get_tracker_args()
+
+        classifier = SparkXGBClassifier(
+            launch_tracker_on_driver=False, tracker_host="127.0.0.1", tracker_port=58892
+        )
+        with pytest.raises(
+            ValueError, match="You must enable launch_tracker_on_driver"
+        ):
+            classifier._get_tracker_args()
+
+        classifier = SparkXGBClassifier(
+            launch_tracker_on_driver=True,
+            tracker_host="127.0.0.1",
+            tracker_port=58892,
+            num_workers=2,
+        )
+        launch_tracker_on_driver, rabit_envs = classifier._get_tracker_args()
+        assert launch_tracker_on_driver == True
+        assert rabit_envs["n_workers"] == 2
+        assert rabit_envs["dmlc_tracker_uri"] == "127.0.0.1"
 
 
 LTRData = namedtuple("LTRData", ("df_train", "df_test", "df_train_1"))

@@ -8,11 +8,13 @@
 #include <numeric>     // for partial_sum
 #include <string>      // for string
 
+#include "../collective/communicator-inl.h"  // for IsDistributed, GetRank
+
 namespace xgboost::data {
 void Cache::Commit() {
-  if (!written) {
-    std::partial_sum(offset.begin(), offset.end(), offset.begin());
-    written = true;
+  if (!this->written) {
+    std::partial_sum(this->offset.begin(), this->offset.end(), this->offset.begin());
+    this->written = true;
   }
 }
 
@@ -28,7 +30,11 @@ void TryDeleteCacheFile(const std::string& file) {
   }
 }
 
-#if !defined(XGBOOST_USE_CUDA)
-void InitNewThread::operator()() const { *GlobalConfigThreadLocalStore::Get() = config; }
-#endif
+std::string MakeCachePrefix(std::string cache_prefix) {
+  cache_prefix = cache_prefix.empty() ? "DMatrix" : cache_prefix;
+  if (collective::IsDistributed()) {
+    cache_prefix += ("-r" + std::to_string(collective::GetRank()));
+  }
+  return cache_prefix;
+}
 }  // namespace xgboost::data

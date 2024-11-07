@@ -82,10 +82,12 @@ class ObjFunction : public Configurable {
    */
   [[nodiscard]] virtual bst_float ProbToMargin(bst_float base_score) const { return base_score; }
   /**
-   * \brief Make initialize estimation of prediction.
+   * @brief Obtain the initial estimation of prediction.
    *
-   * \param info MetaInfo that contains label.
-   * \param base_score Output estimation.
+   *   The output in `base_score` represents prediction after apply the inverse link function.
+   *
+   * @param info MetaInfo that contains label.
+   * @param base_score Output estimation.
    */
   virtual void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const;
   /*!

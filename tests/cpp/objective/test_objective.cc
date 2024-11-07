@@ -29,19 +29,23 @@ TEST(Objective, PredTransform) {
   size_t n = 100;
 
   for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
-    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create(entry->name, &tparam)};
-    if (entry->name.find("multi") != std::string::npos) {
-      obj->Configure(Args{{"num_class", "2"}});
+    // SYCL implementations are skipped for this test
+    const std::string sycl_postfix = "sycl";
+    if ((entry->name.size() >= sycl_postfix.size()) && !std::equal(sycl_postfix.rbegin(), sycl_postfix.rend(), entry->name.rbegin())) {
+      std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create(entry->name, &tparam)};
+      if (entry->name.find("multi") != std::string::npos) {
+        obj->Configure(Args{{"num_class", "2"}});
+      }
+      if (entry->name.find("quantile") != std::string::npos) {
+        obj->Configure(Args{{"quantile_alpha", "0.5"}});
+      }
+      HostDeviceVector<float> predts;
+      predts.Resize(n, 3.14f);  // prediction is performed on host.
+      ASSERT_FALSE(predts.DeviceCanRead());
+      obj->PredTransform(&predts);
+      ASSERT_FALSE(predts.DeviceCanRead());
+      ASSERT_TRUE(predts.HostCanWrite());
     }
-    if (entry->name.find("quantile") != std::string::npos) {
-      obj->Configure(Args{{"quantile_alpha", "0.5"}});
-    }
-    HostDeviceVector<float> predts;
-    predts.Resize(n, 3.14f);  // prediction is performed on host.
-    ASSERT_FALSE(predts.DeviceCanRead());
-    obj->PredTransform(&predts);
-    ASSERT_FALSE(predts.DeviceCanRead());
-    ASSERT_TRUE(predts.HostCanWrite());
   }
 }
 

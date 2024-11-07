@@ -18,7 +18,7 @@ void Monitor::Start(std::string const &name) {
     auto &stats = statistics_map_[name];
     stats.timer.Start();
 #if defined(XGBOOST_USE_NVTX)
-    auto range_handle = nvtx3::start_range_in<common::NvtxDomain>(label_ + "::" + name);
+    auto range_handle = nvtx3::start_range_in<curt::NvtxDomain>(label_ + "::" + name);
     stats.nvtx_id = range_handle.get_value();
 #endif  // defined(XGBOOST_USE_NVTX)
   }
@@ -30,7 +30,7 @@ void Monitor::Stop(const std::string &name) {
     stats.timer.Stop();
     stats.count++;
 #if defined(XGBOOST_USE_NVTX)
-    nvtx3::end_range_in<common::NvtxDomain>(nvtx3::range_handle{stats.nvtx_id});
+    nvtx3::end_range_in<curt::NvtxDomain>(nvtx3::range_handle{stats.nvtx_id});
 #endif  // defined(XGBOOST_USE_NVTX)
   }
 }

@@ -2,6 +2,7 @@
  * Copyright 2020-2024, XGBoost Contributors
  */
 #include <algorithm>  // for max
+#include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
 #include <utility>    // for pair
 #include <vector>     // for vector
@@ -28,7 +29,7 @@ void MakeSketches(Context const* ctx,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter,
                   DMatrixProxy* proxy, std::shared_ptr<DMatrix> ref, BatchParam const& p,
                   float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const& info,
-                  ExternalDataInfo* p_ext_info) {
+                  std::int64_t max_quantile_blocks, ExternalDataInfo* p_ext_info) {
   xgboost_NVTX_FN_RANGE();
   /**
    * A variant of: A Fast Algorithm for Approximate Quantiles in High Speed Data Streams
@@ -48,6 +49,13 @@ void MakeSketches(Context const* ctx,
                               data::BatchSamples(proxy), dh::GetDevice(ctx)),
                           0);
   };
+  auto total_capacity = [&] {
+    bst_idx_t n_bytes = 0;
+    for (auto const& sk : sketches) {
+      n_bytes += sk.first->MemCapacityBytes();
+    }
+    return n_bytes;
+  };
 
   // Workaround empty input with CPU ctx.
   Context new_ctx;
@@ -64,15 +72,15 @@ void MakeSketches(Context const* ctx,
      * Get the data shape.
      */
     // We use do while here as the first batch is fetched in ctor
-    CHECK_LT(ctx->Ordinal(), common::AllVisibleGPUs());
-    common::SetDevice(dh::GetDevice(ctx).ordinal);
+    CHECK_LT(ctx->Ordinal(), curt::AllVisibleGPUs());
+    curt::SetDevice(dh::GetDevice(ctx).ordinal);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
       auto rc = collective::Allreduce(ctx, linalg::MakeVec(&ext_info.n_features, 1),
                                       collective::Op::kMax);
       SafeColl(rc);
     } else {
-      CHECK_EQ(ext_info.n_features, ::xgboost::data::BatchColumns(proxy))
+      CHECK_EQ(ext_info.n_features, data::BatchColumns(proxy))
           << "Inconsistent number of columns.";
     }
 
@@ -83,10 +91,14 @@ void MakeSketches(Context const* ctx,
      * Handle sketching.
      */
     if (!ref) {
+      CHECK_LE(max_quantile_blocks, std::numeric_limits<bst_idx_t>::max());
+      CHECK_GT(max_quantile_blocks, 0) << "`max_quantile_blocks` must be greater than 0.";
       if (sketches.empty()) {
         lazy_init_sketch();
       }
-      if (sketches.back().second > (1ul << (sketches.size() - 1))) {
+      if (sketches.back().second > (1ul << (sketches.size() - 1)) ||
+          sketches.back().second == static_cast<bst_idx_t>(max_quantile_blocks)) {
+        // Cut the sub-stream.
         auto n_cuts_per_feat =
             common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
         // Prune to a single block
@@ -97,11 +109,12 @@ void MakeSketches(Context const* ctx,
         lazy_init_sketch();  // Add a new level.
       }
       proxy->Info().weights_.SetDevice(dh::GetDevice(ctx));
-      cuda_impl::Dispatch(proxy, [&](auto const& value) {
+      Dispatch(proxy, [&](auto const& value) {
         common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing,
                                     sketches.back().first.get());
         sketches.back().second++;
       });
+      LOG(DEBUG) << "Total capacity:" << common::HumanMemUnit(total_capacity());
     }
 
     /**
@@ -110,21 +123,21 @@ void MakeSketches(Context const* ctx,
     dh::device_vector<size_t> row_counts(batch_rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
     ext_info.row_stride =
-        std::max(ext_info.row_stride, cuda_impl::Dispatch(proxy, [=](auto const& value) {
-                   return GetRowCounts(value, row_counts_span, dh::GetDevice(ctx), missing);
+        std::max(ext_info.row_stride, Dispatch(proxy, [=](auto const& value) {
+                   return GetRowCounts(ctx, value, row_counts_span, dh::GetDevice(ctx), missing);
                  }));
     ext_info.nnz += thrust::reduce(ctx->CUDACtx()->CTP(), row_counts.begin(), row_counts.end());
     ext_info.n_batches++;
-    ext_info.base_rows.push_back(batch_rows);
+    ext_info.base_rowids.push_back(batch_rows);
   } while (iter->Next());
   iter->Reset();
 
   CHECK_GE(ext_info.n_features, 1) << "Data must has at least 1 column.";
-  std::partial_sum(ext_info.base_rows.cbegin(), ext_info.base_rows.cend(),
-                   ext_info.base_rows.begin());
+  std::partial_sum(ext_info.base_rowids.cbegin(), ext_info.base_rowids.cend(),
+                   ext_info.base_rowids.begin());
 
   // Get reference
-  common::SetDevice(dh::GetDevice(ctx).ordinal);
+  curt::SetDevice(dh::GetDevice(ctx).ordinal);
   if (!ref) {
     HostDeviceVector<FeatureType> ft;
     common::SketchContainer final_sketch(
@@ -151,6 +164,8 @@ void MakeSketches(Context const* ctx,
   } else {
     GetCutsFromRef(ctx, ref, ext_info.n_features, p, cuts.get());
   }
+
+  ctx->CUDACtx()->Stream().Sync();
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::data

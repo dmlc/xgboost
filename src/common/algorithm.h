@@ -75,7 +75,7 @@ void Sort(Context const *ctx, Iter begin, Iter end, Comp comp) {
 template <typename Idx, typename Iter, typename V = typename std::iterator_traits<Iter>::value_type,
           typename Comp = std::less<V>>
 std::vector<Idx> ArgSort(Context const *ctx, Iter begin, Iter end, Comp comp = std::less<V>{}) {
-  CHECK(ctx->IsCPU());
+  CHECK(!ctx->IsCUDA());
   auto n = std::distance(begin, end);
   std::vector<Idx> result(n);
   Iota(ctx, result.begin(), result.end(), 0);

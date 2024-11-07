@@ -258,9 +258,9 @@ inline std::int32_t OmpGetThreadLimit() {
 std::int32_t GetCfsCPUCount() noexcept;
 
 /**
- * \brief Get the number of available threads based on n_threads specified by users.
+ * @brief Get the number of available threads based on n_threads specified by users.
  */
-std::int32_t OmpGetNumThreads(std::int32_t n_threads);
+std::int32_t OmpGetNumThreads(std::int32_t n_threads) noexcept(true);
 
 /*!
  * \brief A C-style array with in-stack allocation. As long as the array is smaller than
@@ -306,9 +306,15 @@ class MemStackAllocator {
 };
 
 /**
- * \brief Constant that can be used for initializing static thread local memory.
+ * @brief Constant that can be used for initializing static thread local memory.
  */
 std::int32_t constexpr DefaultMaxThreads() { return 128; }
+
+/**
+ * @brief Get numa node on Linux. Other platforms are not supported. Returns false if the
+ *        call fails.
+ */
+[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa);
 
 /**
  * @brief Give the thread a name. Supports only pthread on linux.

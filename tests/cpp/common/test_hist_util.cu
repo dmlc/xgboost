@@ -65,7 +65,9 @@ TEST(HistUtil, SketchBatchNumElements) {
   auto per_elem = detail::BytesPerElement(false);
   auto avail_elem = avail / per_elem;
   size_t rows = avail_elem / kCols * 10;
-  auto batch = detail::SketchBatchNumElements(0, rows, kCols, rows * kCols, device, 256, false);
+  auto shape = detail::SketchShape{rows, kCols, rows * kCols};
+  auto batch = detail::SketchBatchNumElements(detail::UnknownSketchNumElements(), shape, device,
+                                              256, false, 0);
   ASSERT_EQ(batch, avail_elem);
 }
 
@@ -576,7 +578,7 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
 
 namespace {
 auto MakeData(Context const* ctx, std::size_t n_samples, bst_feature_t n_features) {
-  common::SetDevice(ctx->Ordinal());
+  curt::SetDevice(ctx->Ordinal());
   auto n = n_samples * n_features;
   std::vector<float> x;
   x.resize(n);

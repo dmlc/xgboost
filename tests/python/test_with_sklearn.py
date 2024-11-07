@@ -1070,7 +1070,7 @@ def test_parameter_validation():
 def test_deprecate_position_arg():
     from sklearn.datasets import load_digits
     X, y = load_digits(return_X_y=True, n_class=2)
-    w = y
+    w = np.random.default_rng(0).uniform(size=y.size)
     with pytest.warns(FutureWarning):
         xgb.XGBRegressor(3, learning_rate=0.1)
     model = xgb.XGBRegressor(n_estimators=1)
@@ -1161,14 +1161,24 @@ def test_feature_weights(tree_method):
 
     parser_path = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
     poly_increasing = get_feature_weights(
-        X, y, fw, parser_path, tree_method, xgb.XGBRegressor
+        X=X,
+        y=y,
+        fw=fw,
+        parser_path=parser_path,
+        tree_method=tree_method,
+        model=xgb.XGBRegressor,
     )
 
     fw = np.ones(shape=(kCols,))
     for i in range(kCols):
         fw[i] *= float(kCols - i)
     poly_decreasing = get_feature_weights(
-        X, y, fw, parser_path, tree_method, xgb.XGBRegressor
+        X=X,
+        y=y,
+        fw=fw,
+        parser_path=parser_path,
+        tree_method=tree_method,
+        model=xgb.XGBRegressor,
     )
 
     # Approxmated test, this is dependent on the implementation of random
