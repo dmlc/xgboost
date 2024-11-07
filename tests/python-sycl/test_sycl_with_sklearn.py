@@ -5,9 +5,6 @@ import numpy as np
 
 from xgboost import testing as tm
 
-sys.path.append("tests/python")
-import test_with_sklearn as twskl  # noqa
-
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
 rng = np.random.RandomState(1994)
