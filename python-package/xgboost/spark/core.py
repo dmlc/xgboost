@@ -1103,7 +1103,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 booster_json = booster.save_raw("json").decode("utf-8")
 
                 for offset in range(0, len(booster_json), _MODEL_CHUNK_SIZE):
-                    booster_chunk = booster_json[offset: offset + _MODEL_CHUNK_SIZE]
+                    booster_chunk = booster_json[offset : offset + _MODEL_CHUNK_SIZE]
                     yield pd.DataFrame({"data": [booster_chunk]})
 
         def _run_job() -> Tuple[str, str]:
@@ -1702,7 +1702,7 @@ class SparkXGBModelWriter(MLWriter):
         booster_chunks = []
 
         for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
-            booster_chunks.append(booster[offset: offset + _MODEL_CHUNK_SIZE])
+            booster_chunks.append(booster[offset : offset + _MODEL_CHUNK_SIZE])
 
         _get_spark_session().sparkContext.parallelize(booster_chunks, 1).saveAsTextFile(
             model_save_path
@@ -1735,8 +1735,8 @@ class SparkXGBModelReader(MLReader):
         )
         model_load_path = os.path.join(path, "model")
 
-        ser_xgb_model = (
-            "".join(_get_spark_session().sparkContext.textFile(model_load_path).collect())
+        ser_xgb_model = "".join(
+            _get_spark_session().sparkContext.textFile(model_load_path).collect()
         )
 
         def create_xgb_model() -> "XGBModel":
