@@ -869,6 +869,7 @@ class TestPySparkLocal:
 
     def test_with_small_model_chunk_size(self, reg_data: RegData, monkeypatch) -> None:
         import xgboost.spark.core
+
         monkeypatch.setattr(xgboost.spark.core, "_MODEL_CHUNK_SIZE", 4)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = "file:" + tmpdir
