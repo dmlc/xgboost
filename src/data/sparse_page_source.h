@@ -28,7 +28,7 @@
 #include "sparse_page_writer.h"     // for SparsePageFormat
 #include "xgboost/base.h"           // for bst_feature_t
 #include "xgboost/data.h"           // for SparsePage, CSCPage, SortedCSCPage
-#include "xgboost/global_config.h"  // for GlobalConfigThreadLocalStore
+#include "xgboost/global_config.h"  // for InitNewThread
 #include "xgboost/logging.h"        // for CHECK_EQ
 
 namespace xgboost::data {
@@ -217,12 +217,6 @@ class DefaultFormatPolicy {
     std::unique_ptr<FormatT> fmt{::xgboost::data::CreatePageFormat<S>("raw")};
     return fmt;
   }
-};
-
-struct InitNewThread {
-  GlobalConfiguration config = *GlobalConfigThreadLocalStore::Get();
-
-  void operator()() const;
 };
 
 /**

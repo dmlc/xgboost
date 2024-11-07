@@ -509,9 +509,7 @@ void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
   if (use_gpu) {
     ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : rank);
   }
-  auto n_threads = collective::GetWorkerLocalThreads(world_size);
-  ctx.UpdateAllowUnknown(
-      Args{{"nthread", std::to_string(n_threads)}, {"device", ctx.DeviceName()}});
+  collective::GetWorkerLocalThreads(world_size, &ctx);
 
   auto dmat = RandomDataGenerator(rows, cols, 0).Classes(classes).GenerateDMatrix(true);
   std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};

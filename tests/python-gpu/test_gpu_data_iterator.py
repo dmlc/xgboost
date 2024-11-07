@@ -7,7 +7,7 @@ from hypothesis import given, settings, strategies
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing import no_cupy
-from xgboost.testing.data_iter import check_invalid_cat_batches
+from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
 from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
@@ -231,3 +231,7 @@ def test_categorical_ohe(tree_method: str) -> None:
 @pytest.mark.skipif(**tm.no_cupy())
 def test_invalid_cat_batches() -> None:
     check_invalid_cat_batches("cuda")
+
+
+def test_uneven_sizes() -> None:
+    check_uneven_sizes("cuda")

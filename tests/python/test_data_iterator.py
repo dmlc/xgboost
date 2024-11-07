@@ -12,7 +12,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
-from xgboost.testing.data_iter import check_invalid_cat_batches
+from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
 from xgboost.testing.updater import (
     check_categorical_missing,
     check_categorical_ohe,
@@ -375,3 +375,8 @@ def test_categorical_ohe(tree_method: str) -> None:
 
 def test_invalid_cat_batches() -> None:
     check_invalid_cat_batches("cpu")
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+def test_uneven_sizes() -> None:
+    check_uneven_sizes("cpu")
