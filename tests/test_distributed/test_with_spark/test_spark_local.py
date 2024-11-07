@@ -1674,7 +1674,6 @@ class XgboostLocalTest(SparkTestCase):
         assert rabit_envs["n_workers"] == 2
         assert rabit_envs["dmlc_tracker_uri"] == "127.0.0.1"
 
->>>>>>> master
 
 LTRData = namedtuple("LTRData", ("df_train", "df_test", "df_train_1"))
 
