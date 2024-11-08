@@ -45,7 +45,7 @@ public class CustomObjective {
     /**
      * simple sigmoid func
      *
-     * @param input
+     * @param input Sigmod(x)
      * @return Note: this func is not concern about numerical stability, only used as example
      */
     public float sigmoid(float input) {
