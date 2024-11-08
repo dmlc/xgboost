@@ -1,4 +1,6 @@
 /**
+ * Copyright 2024, XGBoost Contributors
+ *
  * @brief RAII guard, simplified version of absl::Cleanup
  */
 #pragma once

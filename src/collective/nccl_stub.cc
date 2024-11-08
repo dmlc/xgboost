@@ -26,7 +26,8 @@
 #include <thread>   // for this_thread
 #include <utility>  // for move
 
-#include "../common/timer.h"  // for Timer
+#include "../common/error_msg.h"  // for OldNccl
+#include "../common/timer.h"      // for Timer
 
 namespace xgboost::collective {
 [[nodiscard]] Result NcclStub::GetNcclResult(ncclResult_t code) const {
@@ -132,6 +133,10 @@ no long bundles NCCL in the binary wheel.
   get_error_string_ = ncclGetErrorString;
   get_version_ = ncclGetVersion;
 #endif
+
+  std::int32_t major = 0, minor = 0, patch = 0;
+  SafeColl(this->GetVersion(&major, &minor, &patch));
+  error::CheckOldNccl(major, minor, patch);
 };
 
 NcclStub::~NcclStub() {  // NOLINT

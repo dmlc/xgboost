@@ -2,20 +2,29 @@
  * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
+#include <chrono>       // for chrono, chrono_literals
+#include <cstddef>      // for size_t
 #include <cstdint>      // for int8_t, int64_t
+#include <future>       // for future, future_status
+#include <memory>       // for shared_ptr
+#include <mutex>        // for mutex, unique_lock
+#include <string>       // for string
+#include <thread>       // for this_thread
 #include <type_traits>  // for invoke_result_t, is_same_v, enable_if_t
+#include <utility>      // for move
 
-#include "../common/cleanup.h"  // for Cleanup
-#include "../common/device_helpers.cuh"
-#include "../common/threadpool.h"  // for ThreadPool
-#include "../data/array_interface.h"
-#include "allgather.h"  // for AllgatherVOffset
-#include "coll.cuh"
-#include "comm.cuh"
-#include "nccl.h"
-#include "xgboost/collective/result.h"  // for Result
-#include "xgboost/global_config.h"      // for InitNewThread
-#include "xgboost/span.h"               // for Span
+#include "../common/cleanup.h"           // for Cleanup
+#include "../common/device_helpers.cuh"  // for CUDAStreamView, CUDAEvent, device_vector
+#include "../common/threadpool.h"        // for ThreadPool
+#include "../data/array_interface.h"     // for ArrayInterfaceHandler
+#include "allgather.h"                   // for AllgatherVOffset
+#include "coll.cuh"                      // for NCCLColl
+#include "comm.cuh"                      // for NCCLComm
+#include "nccl.h"                        // for ncclHalf, ncclFloat32, ...
+#include "nccl_stub.h"                   // for BusyWait
+#include "xgboost/collective/result.h"   // for Result, Fail
+#include "xgboost/global_config.h"       // for InitNewThread
+#include "xgboost/span.h"                // for Span
 
 namespace xgboost::collective {
 Coll* Coll::MakeCUDAVar() { return new NCCLColl{}; }

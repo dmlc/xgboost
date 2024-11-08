@@ -67,4 +67,22 @@ This warning will only be shown once.
 )";
   });
 }
+
+void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch) {
+  auto msg = [&] {
+    std::stringstream ss;
+    ss << "NCCL version too old: " << "(" << major << "." << minor << "." << patch << ")"
+       << ". Install NCCL >= 2.23.4 .";
+    return ss.str();
+  };
+
+  // Minimum required version.
+  CHECK_GE(major, 2) << msg();
+  CHECK_GE(minor, 21) << msg();
+
+  // With 2.23.4+, we can abort the NCCL communicator after timeout.
+  if (minor < 23) {
+    LOG(WARNING) << msg();
+  }
+}
 }  // namespace xgboost::error
