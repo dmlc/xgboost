@@ -1,7 +1,7 @@
 """Tests for dask shared by different test modules."""
 
 import os
-from typing import List, Literal, Optional, Tuple, cast
+from typing import List, Literal, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -49,10 +49,10 @@ def check_init_estimation_reg(
     tree_method: str, device: Literal["cpu", "cuda"], client: Client
 ) -> None:
     """Test init estimation for regressor."""
-    from sklearn.datasets import make_regression
+    from sklearn.datasets import make_regression as skl_make_reg
 
     # pylint: disable=unbalanced-tuple-unpacking
-    X, y = make_regression(n_samples=4096 * 2, n_features=32, random_state=1994)
+    X, y = skl_make_reg(n_samples=4096 * 2, n_features=32, random_state=1994)
     reg = xgb.XGBRegressor(
         n_estimators=1, max_depth=1, tree_method=tree_method, device=device
     )
@@ -188,6 +188,8 @@ def check_killed_task_wo_hang(client: Client, device: str) -> None:
     "Test that aborting a worker doesn't lead to hang."
 
     class Eve(xgb.callback.TrainingCallback):
+        """Callback for abort."""
+
         def after_iteration(
             self, model: xgb.Booster, epoch: int, evals_log: dict
         ) -> bool:
@@ -197,13 +199,12 @@ def check_killed_task_wo_hang(client: Client, device: str) -> None:
 
     X, y = make_regression(device)
     n_rounds = 10
-    dXy = dxgb.DaskDMatrix(client, X, y)
     # The precise error message depends on Dask scheduler.
     try:
         dxgb.train(
             client,
             {"tree_method": "hist", "device": device},
-            dXy,
+            dxgb.DaskQuantileDMatrix(client, X, y),
             num_boost_round=n_rounds,
             callbacks=[Eve()],
         )
