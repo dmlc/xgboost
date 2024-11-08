@@ -10,9 +10,6 @@ fi
 
 spark_version=$1
 
-# Initialize local Maven repository
-./tests/ci_build/initialize_maven.sh
-
 cd jvm-packages
 rm -rf $(find . -name target)
 rm -rf ../build/

@@ -13,9 +13,6 @@ if [ "x$use_cuda" == "x-Duse.cuda=ON" ]; then
   gpu_options="$use_cuda -Pgpu"
 fi
 
-# Initialize local Maven repository
-./tests/ci_build/initialize_maven.sh
-
 rm -rf build/
 cd jvm-packages
 
