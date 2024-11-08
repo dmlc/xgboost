@@ -2,9 +2,35 @@
 
 set -euo pipefail
 
+if [ "$#" -lt 1 ]
+then
+  mode=stable
+  exit 1
+else
+  mode=$1
+fi
+
 WHEEL_TAG=manylinux_2_28_x86_64
 
 source tests/buildkite/conftest.sh
+
+
+case "${mode}" in
+  stable)
+    container_tag='gpu_build_rockylinux8'
+    rapids_version=$RAPIDS_VERSION
+    ;;
+
+  dev)
+    container_tag='gpu_dev_ver'
+    rapids_version=$DEV_RAPIDS_VERSION
+    ;;
+
+  *)
+    echo "Unrecognized mode ID: ${mode}"
+    exit 2
+    ;;
+esac
 
 echo "--- Build with CUDA ${CUDA_VERSION} with RMM"
 
@@ -15,10 +41,10 @@ else
   arch_flag=""
 fi
 
-command_wrapper="tests/ci_build/ci_build.sh gpu_build_rockylinux8 --build-arg "`
+command_wrapper="tests/ci_build/ci_build.sh $container_tag --build-arg "`
                 `"CUDA_VERSION_ARG=$CUDA_VERSION --build-arg "`
                 `"NCCL_VERSION_ARG=$NCCL_VERSION --build-arg "`
-                `"RAPIDS_VERSION_ARG=$RAPIDS_VERSION"
+                `"RAPIDS_VERSION_ARG=$rapids_version"
 
 echo "--- Build libxgboost from the source"
 $command_wrapper tests/ci_build/build_via_cmake.sh \
