@@ -90,6 +90,9 @@ TEST_F(MGPUAllreduceTest, Sum) {
 
 TEST_F(MGPUAllreduceTest, Timeout) {
   auto n_workers = curt::AllVisibleGPUs();
+  if (n_workers <= 1) {
+    GTEST_SKIP_("Requires more than one GPU to run.");
+  }
   using std::chrono_literals::operator""s;
 
   TestDistributed(
