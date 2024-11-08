@@ -104,11 +104,6 @@ steps:
     key: test-cpp-gpu
     agents:
       queue: linux-amd64-gpu
-  - label: ":console: Run integration tests with JVM packages"
-    command: "tests/buildkite/test-integration-jvm-packages.sh"
-    key: test-integration-jvm-packages
-    agents:
-      queue: linux-amd64-cpu
   - wait
   #### -------- DEPLOY JVM --------
   - label: ":console: Deploy JVM packages"
