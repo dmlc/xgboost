@@ -3,6 +3,7 @@
  */
 #pragma once
 #include <gtest/gtest.h>
+#include <xgboost/global_config.h>  // for InitNewThread
 
 #include <chrono>   // for seconds
 #include <cstdint>  // for int32_t
@@ -111,9 +112,8 @@ inline Json MakeTrackerConfig(std::string host, std::int32_t n_workers,
 }
 
 template <typename WorkerFn>
-void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
-  std::chrono::seconds timeout{2};
-
+void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn,
+                     std::chrono::seconds timeout = std::chrono::seconds{2}) {
   std::string host;
   auto rc = GetHostAddress(&host);
   SafeColl(rc);
@@ -125,7 +125,10 @@ void TestDistributed(std::int32_t n_workers, WorkerFn worker_fn) {
   std::int32_t port = tracker.Port();
 
   for (std::int32_t i = 0; i < n_workers; ++i) {
-    workers.emplace_back([=] { worker_fn(host, port, timeout, i); });
+    workers.emplace_back([=, init = InitNewThread{}] {
+      init();
+      worker_fn(host, port, timeout, i);
+    });
   }
 
   for (auto& t : workers) {
@@ -164,8 +167,10 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
   std::int32_t port = tracker.Port();
 
   for (std::int32_t i = 0; i < n_workers; ++i) {
-    workers.emplace_back([=] {
+    workers.emplace_back([=, init = InitNewThread{}] {
+      init();
       auto fut = std::async(std::launch::async, [=] {
+        init();
         auto config = MakeDistributedTestConfig(host, port, poll_timeout, i);
         Init(config);
         worker_fn();
@@ -190,10 +195,16 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
   system::SocketFinalize();
 }
 
-inline std::int32_t GetWorkerLocalThreads(std::int32_t n_workers) {
+[[nodiscard]] inline std::int32_t GetWorkerLocalThreads(std::int32_t n_workers) {
   std::int32_t n_total_threads = std::thread::hardware_concurrency();
   auto n_threads = std::max(n_total_threads / n_workers, 1);
   return n_threads;
+}
+
+inline void GetWorkerLocalThreads(std::int32_t n_workers, Context* ctx) {
+  auto n_threads = GetWorkerLocalThreads(n_workers);
+  ctx->UpdateAllowUnknown(
+      Args{{"nthread", std::to_string(n_threads)}, {"device", ctx->DeviceName()}});
 }
 
 class BaseMGPUTest : public ::testing::Test {

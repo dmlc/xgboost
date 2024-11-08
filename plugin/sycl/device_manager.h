@@ -10,7 +10,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"

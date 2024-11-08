@@ -1,6 +1,6 @@
 import re
-import sys
 from functools import partial, update_wrapper
+from platform import system
 from typing import Dict, Union
 
 import numpy as np
@@ -12,16 +12,24 @@ from xgboost import RabitTracker, collective
 from xgboost import testing as tm
 
 
-def test_rabit_tracker():
+def test_rabit_tracker() -> None:
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=1)
     tracker.start()
+    args = tracker.worker_args()
+    port = args["dmlc_tracker_port"]
     with collective.CommunicatorContext(**tracker.worker_args()):
         ret = collective.broadcast("test1234", 0)
         assert str(ret) == "test1234"
 
+    if system() == "Windows":
+        pytest.skip("Windows is not supported.")
+
+    with pytest.raises(ValueError, match="Failed to bind socket"):
+        RabitTracker(host_ip="127.0.0.1", port=port, n_workers=1)
+
 
 @pytest.mark.skipif(**tm.not_linux())
-def test_socket_error():
+def test_socket_error() -> None:
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
     tracker.start()
     env = tracker.worker_args()
@@ -141,8 +149,10 @@ def test_broadcast():
 def test_rank_assignment() -> None:
     from distributed import Client, LocalCluster
 
+    from xgboost import dask as dxgb
+
     def local_test(worker_id):
-        with xgb.dask.CommunicatorContext(**args) as ctx:
+        with dxgb.CommunicatorContext(**args) as ctx:
             task_id = ctx["DMLC_TASK_ID"]
             matched = re.search(".*-([0-9]).*", task_id)
             rank = collective.get_rank()
@@ -154,7 +164,7 @@ def test_rank_assignment() -> None:
         with Client(cluster) as client:
             workers = tm.get_client_workers(client)
             args = client.sync(
-                xgb.dask._get_rabit_args,
+                dxgb._get_rabit_args,
                 len(workers),
                 None,
                 client,

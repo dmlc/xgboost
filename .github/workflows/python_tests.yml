@@ -26,7 +26,7 @@ jobs:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         activate-environment: python_lint
         environment-file: tests/ci_build/conda_env/python_lint.yml
@@ -58,7 +58,7 @@ jobs:
         submodules: 'true'
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         activate-environment: sdist_test
         environment-file: tests/ci_build/conda_env/sdist_test.yml
@@ -130,7 +130,7 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         activate-environment: macos_cpu_test
         environment-file: tests/ci_build/conda_env/macos_cpu_test.yml
@@ -227,7 +227,7 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         activate-environment: linux_cpu_test
         environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
@@ -280,7 +280,7 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
       with:
-        miniforge-variant: Mambaforge
+        miniforge-variant: Miniforge3
         miniforge-version: latest
         activate-environment: linux_sycl_test
         environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
@@ -319,7 +319,7 @@ jobs:
           submodules: 'true'
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: "3.10"
 

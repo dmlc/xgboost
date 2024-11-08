@@ -5,6 +5,7 @@ from dask_cuda import LocalCUDACluster
 from distributed import Client
 
 import xgboost as xgb
+from xgboost import dask as dxgb
 from xgboost.testing.dask import check_external_memory
 
 
@@ -14,7 +15,7 @@ def test_external_memory(is_qdm: bool) -> None:
     with LocalCUDACluster(n_workers=2) as cluster:
         with Client(cluster) as client:
             args = client.sync(
-                xgb.dask._get_rabit_args,
+                dxgb._get_rabit_args,
                 2,
                 None,
                 client,

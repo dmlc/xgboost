@@ -21,7 +21,7 @@
 #include "../../src/common/math.h"
 #include "../../src/tree/param.h"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {

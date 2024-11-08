@@ -383,13 +383,13 @@ namespace {
 // Workaround int is not the same as jint. For some reason, if constexpr couldn't dispatch
 // the following.
 template <typename T>
-auto SliaceDMatrixWinWar(DMatrixHandle handle, T *ptr, std::size_t len, DMatrixHandle *result) {
+auto SliceDMatrixWinWar(DMatrixHandle handle, T *ptr, std::size_t len, DMatrixHandle *result) {
   // default to not allowing slicing with group ID specified -- feel free to add if necessary
   return XGDMatrixSliceDMatrixEx(handle, ptr, len, result, 0);
 }
 
 template <>
-auto SliaceDMatrixWinWar<long>(DMatrixHandle handle, long *ptr, std::size_t len, DMatrixHandle *result) {
+auto SliceDMatrixWinWar<long>(DMatrixHandle handle, long *ptr, std::size_t len, DMatrixHandle *result) {
   std::vector<std::int32_t> copy(len);
   std::copy_n(ptr, len, copy.begin());
   // default to not allowing slicing with group ID specified -- feel free to add if necessary
@@ -412,7 +412,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSliceDMat
                                                   jenv->ReleaseIntArrayElements(jindexset, ptr, 0);
                                                 }};
   auto len = static_cast<bst_ulong>(jenv->GetArrayLength(jindexset));
-  auto ret = SliaceDMatrixWinWar(handle, indexset.get(), len, &result);
+  auto ret = SliceDMatrixWinWar(handle, indexset.get(), len, &result);
   JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;
@@ -1304,30 +1304,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorAllred
   return 0;
 }
 
-namespace xgboost {
-namespace jni {
-  XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
-                                                            jobject jiter,
-                                                            jfloat jmissing,
-                                                            jint jmax_bin, jint jnthread,
-                                                            jlongArray jout);
-  XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
-                                                      jobject jdata_iter, jobject jref_iter,
-                                                      char const *config, jlongArray jout);
-} // namespace jni
-} // namespace xgboost
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDeviceQuantileDMatrixCreateFromCallback
- * Signature: (Ljava/util/Iterator;FII[J)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDeviceQuantileDMatrixCreateFromCallback
-    (JNIEnv *jenv, jclass jcls, jobject jiter, jfloat jmissing, jint jmax_bin,
-     jint jnthread, jlongArray jout) {
-  return xgboost::jni::XGDeviceQuantileDMatrixCreateFromCallbackImpl(
-      jenv, jcls, jiter, jmissing, jmax_bin, jnthread, jout);
-}
+namespace xgboost::jni {
+XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls, jobject jdata_iter,
+                                                    jobject jref_iter, char const *config,
+                                                    jlongArray jout);
+}  // namespace xgboost::jni
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI

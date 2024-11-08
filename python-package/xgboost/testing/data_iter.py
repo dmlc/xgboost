@@ -6,7 +6,7 @@ import numpy as np
 
 from xgboost import testing as tm
 
-from ..core import DataIter, ExtMemQuantileDMatrix, QuantileDMatrix
+from ..core import DataIter, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 
 
 def run_mixed_sparsity(device: str) -> None:
@@ -76,6 +76,24 @@ def check_invalid_cat_batches(device: str) -> None:
 
     with pytest.raises(ValueError, match="Inconsistent feature types between batches"):
         ExtMemQuantileDMatrix(it, enable_categorical=True)
+
+
+def check_uneven_sizes(device: str) -> None:
+    """Tests for having irregular data shapes."""
+    batches = [
+        tm.make_regression(n_samples, 16, use_cupy=device == "cuda")
+        for n_samples in [512, 256, 1024]
+    ]
+    unzip = list(zip(*batches))
+    it = tm.IteratorForTest(unzip[0], unzip[1], None, cache="cache", on_host=True)
+
+    Xy = DMatrix(it)
+    assert Xy.num_col() == 16
+    assert Xy.num_row() == sum(x.shape[0] for x in unzip[0])
+
+    Xy = ExtMemQuantileDMatrix(it)
+    assert Xy.num_col() == 16
+    assert Xy.num_row() == sum(x.shape[0] for x in unzip[0])
 
 
 class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes

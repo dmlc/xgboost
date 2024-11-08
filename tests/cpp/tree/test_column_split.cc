@@ -7,7 +7,6 @@
 #include <xgboost/tree_model.h>    // for RegTree
 #include <xgboost/tree_updater.h>  // for TreeUpdater
 
-#include <thread>  // for hardware_concurrency
 #include <vector>  // for vector
 
 #include "../../../src/tree/param.h"    // for TrainParam
@@ -36,8 +35,7 @@ void TestColumnSplit(bst_target_t n_targets, bool categorical, std::string name,
 
   auto verify = [&] {
     Context ctx;
-    ctx.UpdateAllowUnknown(
-        Args{{"nthread", std::to_string(collective::GetWorkerLocalThreads(kWorldSize))}});
+    collective::GetWorkerLocalThreads(kWorldSize, &ctx);
 
     auto p_dmat = GenerateCatDMatrix(kRows, kCols, sparsity, categorical);
     auto gpair = GenerateRandomGradients(&ctx, kRows, n_targets);
