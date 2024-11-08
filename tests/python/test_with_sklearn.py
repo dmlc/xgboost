@@ -1070,7 +1070,7 @@ def test_parameter_validation():
 def test_deprecate_position_arg():
     from sklearn.datasets import load_digits
     X, y = load_digits(return_X_y=True, n_class=2)
-    w = y
+    w = np.random.default_rng(0).uniform(size=y.size)
     with pytest.warns(FutureWarning):
         xgb.XGBRegressor(3, learning_rate=0.1)
     model = xgb.XGBRegressor(n_estimators=1)

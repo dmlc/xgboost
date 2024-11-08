@@ -146,10 +146,10 @@ def locate_or_build_libxgboost(
             p.expanduser().resolve() for p in sys_prefix_candidates
         ]
         for candidate_dir in sys_prefix_candidates:
-            libtreelite_sys = candidate_dir / _lib_name()
-            if libtreelite_sys.exists():
-                logger.info("Using system XGBoost: %s", str(libtreelite_sys))
-                return libtreelite_sys
+            libxgboost_sys = candidate_dir / _lib_name()
+            if libxgboost_sys.exists():
+                logger.info("Using system XGBoost: %s", str(libxgboost_sys))
+                return libxgboost_sys
         raise RuntimeError(
             f"use_system_libxgboost was specified but {_lib_name()} is "
             f"not found. Paths searched (in order): \n"

@@ -15,7 +15,7 @@
 #include "../../src/common/hist_util.h"
 #include "../data/gradient_index.h"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {

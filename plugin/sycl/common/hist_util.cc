@@ -9,7 +9,7 @@
 #include "../data/gradient_index.h"
 #include "hist_util.h"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {

@@ -599,10 +599,15 @@ class TCPSocket {
       return std::make_pair(Success(), std::int32_t{ntohs(res_addr.sin6_port)});
     }
   }
-
+  /**
+   * @brief Bind the socket to the address.
+   *
+   * @param ip[in]        The IP address.
+   * @param port [in,out] Let the system choose a port if this parameter is set to 0.
+   */
   [[nodiscard]] Result Bind(StringView ip, std::int32_t *port) {
     // bind socket handle_ to ip
-    auto addr = MakeSockAddress(ip, 0);
+    auto addr = MakeSockAddress(ip, *port);
     std::int32_t errc{0};
     if (addr.IsV4()) {
       auto handle = reinterpret_cast<sockaddr const *>(&addr.V4().Handle());
@@ -618,7 +623,13 @@ class TCPSocket {
     if (!rc.OK()) {
       return std::move(rc);
     }
-    *port = new_port;
+    if (*port == 0) {
+      *port = new_port;
+      return Success();
+    }
+    if (*port != new_port) {
+      return Fail("Got an invalid port from bind.");
+    }
     return Success();
   }
 

@@ -5,6 +5,7 @@
 #include <numeric>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-W#pragma-messages"
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include <xgboost/host_device_vector.h>
 #pragma GCC diagnostic pop
 
