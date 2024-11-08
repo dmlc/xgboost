@@ -30,11 +30,7 @@ from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost import testing as tm
 from xgboost.dask import DaskDMatrix
-from xgboost.testing.dask import (
-    check_init_estimation,
-    check_killed_task_wo_hang,
-    check_uneven_nan,
-)
+from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
@@ -1314,9 +1310,29 @@ def test_dask_iteration_range(client: "Client"):
 
 
 def test_killed_task_wo_hang():
+    # Test that aborting a worker doesn't lead to hang.
+    class Eve(xgb.callback.TrainingCallback):
+        def after_iteration(self, model, epoch: int, evals_log) -> bool:
+            if coll.get_rank() == 1:
+                os.abort()
+            return False
+
     with LocalCluster(n_workers=2) as cluster:
         with Client(cluster) as client:
-            check_killed_task_wo_hang(client, "cpu")
+            X, y, _ = generate_array()
+            n_rounds = 10
+            dXy = dxgb.DaskDMatrix(client, X, y)
+            # The precise error message depends on Dask scheduler.
+            try:
+                dxgb.train(
+                    client,
+                    {"tree_method": "hist"},
+                    dXy,
+                    num_boost_round=n_rounds,
+                    callbacks=[Eve()],
+                )
+            except (ValueError, KilledWorker):
+                pass
 
 
 class TestWithDask:

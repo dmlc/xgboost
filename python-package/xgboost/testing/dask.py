@@ -1,20 +1,18 @@
 """Tests for dask shared by different test modules."""
 
-import os
-from typing import List, Literal, Tuple, cast
+from typing import List, Literal, cast
 
 import numpy as np
 import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
-from distributed import Client, KilledWorker, get_worker
+from distributed import Client, get_worker
 
 import xgboost as xgb
 import xgboost.testing as tm
 from xgboost.compat import concat
 from xgboost.testing.updater import get_basescore
 
-from .. import collective as coll
 from .. import dask as dxgb
 
 
@@ -49,10 +47,10 @@ def check_init_estimation_reg(
     tree_method: str, device: Literal["cpu", "cuda"], client: Client
 ) -> None:
     """Test init estimation for regressor."""
-    from sklearn.datasets import make_regression as skl_make_reg
+    from sklearn.datasets import make_regression
 
     # pylint: disable=unbalanced-tuple-unpacking
-    X, y = skl_make_reg(n_samples=4096 * 2, n_features=32, random_state=1994)
+    X, y = make_regression(n_samples=4096 * 2, n_features=32, random_state=1994)
     reg = xgb.XGBRegressor(
         n_estimators=1, max_depth=1, tree_method=tree_method, device=device
     )
@@ -113,7 +111,7 @@ def check_external_memory(  # pylint: disable=too-many-locals
     use_cupy = device != "cpu"
 
     n_threads = get_worker().state.nthreads
-    with coll.CommunicatorContext(dmlc_communicator="rabit", **comm_args):
+    with xgb.collective.CommunicatorContext(dmlc_communicator="rabit", **comm_args):
         it = tm.IteratorForTest(
             *tm.make_batches(
                 n_samples_per_batch,
@@ -170,43 +168,3 @@ def check_external_memory(  # pylint: disable=too-many-locals
     np.testing.assert_allclose(
         results["Train"]["rmse"], results_local["Train"]["rmse"], rtol=1e-4
     )
-
-
-def make_regression(
-    device: str, n_samples: int = 1024, n_features: int = 16, chunk_size: int = 20
-) -> Tuple[da.Array, da.Array]:
-    "Make a simple regression dataset for testing with Dask."
-    rng = da.random.RandomState(1994)
-    X = rng.random_sample((n_samples, n_features), chunks=(chunk_size, -1))
-    if device == "cuda":
-        X = X.to_backend("cupy")
-    y = X.sum(axis=1)
-    return X, y
-
-
-def check_killed_task_wo_hang(client: Client, device: str) -> None:
-    "Test that aborting a worker doesn't lead to hang."
-
-    class Eve(xgb.callback.TrainingCallback):
-        """Callback for abort."""
-
-        def after_iteration(
-            self, model: xgb.Booster, epoch: int, evals_log: dict
-        ) -> bool:
-            if coll.get_rank() == 1:
-                os.abort()
-            return False
-
-    X, y = make_regression(device)
-    n_rounds = 10
-    # The precise error message depends on Dask scheduler.
-    try:
-        dxgb.train(
-            client,
-            {"tree_method": "hist", "device": device},
-            dxgb.DaskQuantileDMatrix(client, X, y),
-            num_boost_round=n_rounds,
-            callbacks=[Eve()],
-        )
-    except (ValueError, KilledWorker):
-        pass

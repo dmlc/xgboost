@@ -14,7 +14,6 @@ from hypothesis._settings import duration
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
-from xgboost.testing.dask import check_killed_task_wo_hang
 from xgboost.testing.params import hist_parameter_strategy
 
 pytestmark = [
@@ -211,12 +210,6 @@ def test_tree_stats() -> None:
             distributed = run_tree_stats(client, "hist", "cuda")
 
     assert local == distributed
-
-
-def test_killed_task_wo_hang() -> None:
-    with LocalCUDACluster(n_workers=2) as cluster:
-        with Client(cluster) as client:
-            check_killed_task_wo_hang(client, "cuda")
 
 
 class TestDistributedGPU:
