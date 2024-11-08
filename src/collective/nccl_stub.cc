@@ -106,15 +106,6 @@ no long bundles NCCL in the binary wheel.
   group_end_ = safe_load(group_end_, "ncclGroupEnd");
   get_error_string_ = safe_load(get_error_string_, "ncclGetErrorString");
   get_version_ = safe_load(get_version_, "ncclGetVersion");
-
-  std::int32_t v;
-  CHECK_EQ(get_version_(&v), ncclSuccess);
-  auto patch = v % 100;
-  auto minor = (v / 100) % 100;
-  auto major = v / 10000;
-
-  LOG(INFO) << "Loaded shared NCCL " << major << "." << minor << "." << patch << ":`" << path_
-            << "`" << std::endl;
 #else
   allreduce_ = ncclAllReduce;
   broadcast_ = ncclBroadcast;
@@ -136,6 +127,9 @@ no long bundles NCCL in the binary wheel.
 
   std::int32_t major = 0, minor = 0, patch = 0;
   SafeColl(this->GetVersion(&major, &minor, &patch));
+  LOG(INFO) << "Loaded shared NCCL " << major << "." << minor << "." << patch << ":`" << path_
+            << "`" << std::endl;
+
   error::CheckOldNccl(major, minor, patch);
 };
 
