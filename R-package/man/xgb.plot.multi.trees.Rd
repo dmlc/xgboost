@@ -24,6 +24,8 @@ by default 5.}
 \item{plot_width, plot_height}{Width and height of the graph in pixels.
 The values are passed to \code{DiagrammeR::render_graph()}.}
 
+\item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
+
 \item{...}{Currently not used.}
 }
 \value{
