@@ -116,5 +116,7 @@ inline void NoPageConcat(bool concat_pages) {
 constexpr StringView InconsistentFeatureTypes() {
   return "Inconsistent feature types between batches.";
 }
+
+void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch);
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

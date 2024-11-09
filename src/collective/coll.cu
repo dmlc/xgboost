@@ -2,21 +2,36 @@
  * Copyright 2023-2024, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
-#include <cstdint>  // for int8_t, int64_t
+#include <chrono>       // for chrono, chrono_literals
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int8_t, int64_t
+#include <future>       // for future, future_status
+#include <memory>       // for shared_ptr
+#include <mutex>        // for mutex, unique_lock
+#include <string>       // for string
+#include <thread>       // for this_thread
+#include <type_traits>  // for invoke_result_t, is_same_v, enable_if_t
+#include <utility>      // for move
 
-#include "../common/device_helpers.cuh"
-#include "../data/array_interface.h"
-#include "allgather.h"  // for AllgatherVOffset
-#include "coll.cuh"
-#include "comm.cuh"
-#include "nccl.h"
-#include "xgboost/collective/result.h"  // for Result
-#include "xgboost/span.h"               // for Span
+#include "../common/cleanup.h"           // for Cleanup
+#include "../common/device_helpers.cuh"  // for CUDAStreamView, CUDAEvent, device_vector
+#include "../common/threadpool.h"        // for ThreadPool
+#include "../data/array_interface.h"     // for ArrayInterfaceHandler
+#include "allgather.h"                   // for AllgatherVOffset
+#include "coll.cuh"                      // for NCCLColl
+#include "comm.cuh"                      // for NCCLComm
+#include "nccl.h"                        // for ncclHalf, ncclFloat32, ...
+#include "nccl_stub.h"                   // for BusyWait
+#include "xgboost/collective/result.h"   // for Result, Fail
+#include "xgboost/global_config.h"       // for InitNewThread
+#include "xgboost/span.h"                // for Span
 
 namespace xgboost::collective {
 Coll* Coll::MakeCUDAVar() { return new NCCLColl{}; }
 
+NCCLColl::NCCLColl() : pool_{StringView{"nccl-w"}, 2, InitNewThread{}} {}
 NCCLColl::~NCCLColl() = default;
+
 namespace {
 auto GetNCCLType(ArrayInterfaceHandler::Type type) {
   auto fatal = [] {
@@ -53,6 +68,113 @@ auto GetNCCLType(ArrayInterfaceHandler::Type type) {
   return fatal();
 }
 
+namespace {
+struct Chan {
+  std::mutex cv_lock;
+  std::condition_variable cv;
+  // Whether the collective operator is called.
+  std::atomic<bool> called{false};
+
+  void Notify() {
+    std::unique_lock lock{this->cv_lock};
+    this->called = true;
+    this->cv.notify_one();
+  }
+  void WaitFor(std::chrono::seconds timeout) {
+    std::unique_lock lock{cv_lock};
+    cv.wait_for(lock, timeout, [&] { return static_cast<bool>(this->called); });
+  }
+};
+}  // namespace
+
+template <typename Fn, typename R = std::invoke_result_t<Fn, dh::CUDAStreamView>>
+[[nodiscard]] std::enable_if_t<std::is_same_v<R, Result>, Result> AsyncLaunch(
+    common::ThreadPool* pool, NCCLComm const* nccl, std::shared_ptr<NcclStub> stub,
+    dh::CUDAStreamView stream, Fn&& fn) {
+  dh::CUDAEvent e0;
+  e0.Record(nccl->Stream());
+  stream.Wait(e0);
+
+  auto cleanup = common::MakeCleanup([&] {
+    dh::CUDAEvent e1;
+    e1.Record(stream);
+    nccl->Stream().Wait(e1);
+  });
+
+  Chan chan;
+
+  auto busy_wait = [&](ncclResult_t* async_error) {
+    using std::chrono_literals::operator""ms;
+    do {
+      auto rc = GetCUDAResult(stream.Sync(false));
+      if (!rc.OK()) {
+        return rc;
+      }
+      // async_error is set to success if abort is called.
+      rc = stub->CommGetAsyncError(nccl->Handle(), async_error);
+      if (!rc.OK()) {
+        return rc;
+      }
+      if (*async_error == ncclInProgress) {
+        std::this_thread::sleep_for(5ms);
+      }
+    } while (*async_error == ncclInProgress);
+    return stub->GetNcclResult(*async_error);
+  };
+
+  std::future<Result> fut = pool->Submit([&] {
+    ncclResult_t async_error = ncclSuccess;
+    return Success() << [&] {
+      ncclResult_t async_error;
+      auto rc = stub->CommGetAsyncError(nccl->Handle(), &async_error);
+      if (!rc.OK()) {
+        return rc;
+      }
+      CHECK_NE(async_error, ncclInProgress);
+
+      rc = fn(stream);
+
+      chan.Notify();
+
+      return rc;
+    } << [&] {
+      return busy_wait(&async_error);
+    } << [&] {
+      auto rc = stub->CommGetAsyncError(nccl->Handle(), &async_error);
+      if (async_error == ncclInProgress) {
+        return Fail("In progress after async wait.", std::move(rc));
+      }
+      return rc;
+    };
+  });
+
+  chan.WaitFor(nccl->Timeout());
+
+  auto abort = [&](std::string msg) {
+    auto rc = stub->CommAbort(nccl->Handle());
+    fut.wait();  // Must block, otherwise the thread might access freed memory.
+    return Fail(std::move(msg)) + std::move(rc);
+  };
+  if (!chan.called) {
+    // Timeout waiting for the NCCL op to return. With older versions of NCCL, the op
+    // might block even if the config is set to nonblocking.
+    return abort("NCCL future timeout.");
+  }
+
+  // This actually includes the time for prior kernels due to CUDA async calls.
+  switch (fut.wait_for(nccl->Timeout())) {
+    case std::future_status::timeout:
+      // Timeout waiting for the NCCL op to finish.
+      return abort("NCCL timeout.");
+    case std::future_status::ready:
+      return fut.get();
+    case std::future_status::deferred:
+      return Fail("Invalid future status.");
+  }
+
+  return Fail("Unreachable");
+}
+
 bool IsBitwiseOp(Op const& op) {
   return op == Op::kBitwiseAND || op == Op::kBitwiseOR || op == Op::kBitwiseXOR;
 }
@@ -70,16 +192,17 @@ void RunBitwiseAllreduce(dh::CUDAStreamView stream, common::Span<std::int8_t> ou
   });
 }
 
-[[nodiscard]] Result BitwiseAllReduce(NCCLComm const* pcomm, ncclComm_t handle,
-                                      common::Span<std::int8_t> data, Op op) {
+[[nodiscard]] Result BitwiseAllReduce(common::ThreadPool* pool, NCCLComm const* pcomm,
+                                      common::Span<std::int8_t> data, Op op,
+                                      dh::CUDAStreamView stream) {
   dh::device_vector<std::int8_t> buffer(data.size() * pcomm->World());
   auto* device_buffer = buffer.data().get();
   auto stub = pcomm->Stub();
 
   // First gather data from all the workers.
-  CHECK(handle);
-  auto rc =
-      stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, handle, pcomm->Stream());
+  auto rc = AsyncLaunch(pool, pcomm, stub, stream, [&](dh::CUDAStreamView s) {
+    return stub->Allgather(data.data(), device_buffer, data.size(), ncclInt8, pcomm->Handle(), s);
+  });
   if (!rc.OK()) {
     return rc;
   }
@@ -134,16 +257,21 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   return Success() << [&] {
     if (IsBitwiseOp(op)) {
-      return BitwiseAllReduce(nccl, nccl->Handle(), data, op);
+      return BitwiseAllReduce(&this->pool_, nccl, data, op, this->stream_.View());
     } else {
-      return DispatchDType(type, [=](auto t) {
+      return DispatchDType(type, [&](auto t) {
         using T = decltype(t);
         auto rdata = common::RestoreType<T>(data);
-        return stub->Allreduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
-                               GetNCCLRedOp(op), nccl->Handle(), nccl->Stream());
+        return AsyncLaunch(
+            &this->pool_, nccl, stub, this->stream_.View(), [&](dh::CUDAStreamView s) {
+              return stub->Allreduce(data.data(), data.data(), rdata.size(), GetNCCLType(type),
+                                     GetNCCLRedOp(op), nccl->Handle(), s);
+            });
       });
     }
-  } << [&] { return nccl->Block(); };
+  } << [&] {
+    return nccl->Block();
+  };
 }
 
 [[nodiscard]] Result NCCLColl::Broadcast(Comm const& comm, common::Span<std::int8_t> data,
@@ -156,9 +284,14 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
   auto stub = nccl->Stub();
 
   return Success() << [&] {
-    return stub->Broadcast(data.data(), data.data(), data.size_bytes(), ncclInt8, root,
-                           nccl->Handle(), nccl->Stream());
-  } << [&] { return nccl->Block(); };
+    return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(),
+                       [data, nccl, root, stub](dh::CUDAStreamView s) {
+                         return stub->Broadcast(data.data(), data.data(), data.size_bytes(),
+                                                ncclInt8, root, nccl->Handle(), s);
+                       });
+  } << [&] {
+    return nccl->Block();
+  };
 }
 
 [[nodiscard]] Result NCCLColl::Allgather(Comm const& comm, common::Span<std::int8_t> data) {
@@ -172,9 +305,14 @@ ncclRedOp_t GetNCCLRedOp(Op const& op) {
 
   auto send = data.subspan(comm.Rank() * size, size);
   return Success() << [&] {
-    return stub->Allgather(send.data(), data.data(), size, ncclInt8, nccl->Handle(),
-                           nccl->Stream());
-  } << [&] { return nccl->Block(); };
+    return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(),
+                       [send, data, size, nccl, stub](dh::CUDAStreamView s) {
+                         return stub->Allgather(send.data(), data.data(), size, ncclInt8,
+                                                nccl->Handle(), s);
+                       });
+  } << [&] {
+    return nccl->Block();
+  };
 }
 
 namespace cuda_impl {
@@ -183,22 +321,27 @@ namespace cuda_impl {
  *
  * https://arxiv.org/abs/1812.05964
  */
-Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const> data,
+Result BroadcastAllgatherV(NCCLComm const* comm, dh::CUDAStreamView s,
+                           common::Span<std::int8_t const> data,
                            common::Span<std::int64_t const> sizes, common::Span<std::int8_t> recv) {
   auto stub = comm->Stub();
-  return Success() << [&stub] { return stub->GroupStart(); } << [&] {
+  return Success() << [&stub] {
+    return stub->GroupStart();
+  } << [&] {
     std::size_t offset = 0;
     for (std::int32_t r = 0; r < comm->World(); ++r) {
       auto as_bytes = sizes[r];
       auto rc = stub->Broadcast(data.data(), recv.subspan(offset, as_bytes).data(), as_bytes,
-                                ncclInt8, r, comm->Handle(), comm->Stream());
+                                ncclInt8, r, comm->Handle(), s);
       if (!rc.OK()) {
         return rc;
       }
       offset += as_bytes;
     }
     return Success();
-  } << [&] { return stub->GroupEnd(); };
+  } << [&] {
+    return stub->GroupEnd();
+  };
 }
 }  // namespace cuda_impl
 
@@ -215,7 +358,9 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
 
   switch (algo) {
     case AllgatherVAlgo::kRing: {
-      return Success() << [&] { return stub->GroupStart(); } << [&] {
+      return Success() << [&] {
+        return stub->GroupStart();
+      } << [&] {
         // get worker offset
         detail::AllgatherVOffset(sizes, recv_segments);
         // copy data
@@ -227,10 +372,16 @@ Result BroadcastAllgatherV(NCCLComm const* comm, common::Span<std::int8_t const>
         return detail::RingAllgatherV(comm, sizes, recv_segments, recv);
       } << [&] {
         return stub->GroupEnd();
-      } << [&] { return nccl->Block(); };
+      } << [&] {
+        return nccl->Block();
+      } << [&] {
+        return BusyWait(stub, nccl->Handle(), nccl->Timeout());
+      };
     }
     case AllgatherVAlgo::kBcast: {
-      return cuda_impl::BroadcastAllgatherV(nccl, data, sizes, recv);
+      return AsyncLaunch(&this->pool_, nccl, stub, this->stream_.View(), [&](dh::CUDAStreamView s) {
+        return cuda_impl::BroadcastAllgatherV(nccl, s, data, sizes, recv);
+      });
     }
     default: {
       return Fail("Unknown algorithm for allgather-v");
