@@ -32,6 +32,7 @@ class Config:
     timeout : See `dmlc_timeout` in :py:meth:`init`.
     tracker_host : See :py:class:`~xgboost.tracker.RabitTracker`.
     tracker_port : See :py:class:`~xgboost.tracker.RabitTracker`.
+    tracker_timeout : See :py:class:`~xgboost.tracker.RabitTracker`.
 
     """
 
@@ -51,6 +52,7 @@ class Config:
         return args
 
     def to_dict(self) -> _Args:
+        "Convert the configuration into a dictionary."
         return {
             k: getattr(self, k)
             for k in (
@@ -64,6 +66,7 @@ class Config:
 
     @staticmethod
     def from_dict(cfg: _Args) -> "Config":
+        "Create a configuration from a dictionary."
         T = TypeVar("T", str, int)
 
         def to_t(key: str, typ: T) -> Optional[T]:
