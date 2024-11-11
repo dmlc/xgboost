@@ -1,6 +1,4 @@
 import socket
-import sys
-from threading import Thread
 
 import numpy as np
 import pytest
@@ -9,6 +7,7 @@ from loky import get_reusable_executor
 import xgboost as xgb
 from xgboost import RabitTracker, build_info, federated
 from xgboost import testing as tm
+from xgboost.collective import Config
 
 
 def run_rabit_worker(rabit_env: dict, world_size: int) -> int:
@@ -79,3 +78,11 @@ def test_federated_communicator():
             workers.append(worker)
         for worker in workers:
             assert worker.result() == 0
+
+
+def test_config_serialization() -> None:
+    cfg = Config(
+        retry=1, timeout=2, tracker_host="127.0.0.1", tracker_port=None, tracker_timeout=3
+    )
+    cfg1 = Config.from_dict(cfg.to_dict())
+    assert cfg == cfg1

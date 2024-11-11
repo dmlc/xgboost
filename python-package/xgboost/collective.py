@@ -6,7 +6,7 @@ import os
 import pickle
 from dataclasses import dataclass
 from enum import IntEnum, unique
-from typing import Any, Dict, Optional, TypeAlias, Union
+from typing import Any, Dict, Optional, TypeAlias, TypeVar, Union
 
 import numpy as np
 
@@ -40,6 +40,7 @@ class Config:
 
     tracker_host: Optional[str] = None
     tracker_port: Optional[int] = None
+    tracker_timeout: Optional[int] = None
 
     def get_comm_config(self, args: _Args) -> _Args:
         """Update the arguments for the communicator."""
@@ -48,6 +49,40 @@ class Config:
         if self.timeout is not None:
             args["dmlc_timeout"] = self.timeout
         return args
+
+    def to_dict(self) -> _Args:
+        return {
+            k: getattr(self, k)
+            for k in (
+                "retry",
+                "timeout",
+                "tracker_host",
+                "tracker_port",
+                "tracker_timeout",
+            )
+        }
+
+    @staticmethod
+    def from_dict(cfg: _Args) -> "Config":
+        T = TypeVar("T", str, int)
+
+        def to_t(key: str, typ: T) -> Optional[T]:
+            v = cfg.get(key, None)
+            if v is None:
+                return v
+            if not isinstance(v, type(typ)):
+                raise TypeError(
+                    f"Invalid type for configuration {v}, expecting {typ}, got {type(v)}"
+                )
+            return v
+
+        return Config(
+            retry=to_t("retry", int()),
+            timeout=to_t("timeout", int()),
+            tracker_host=to_t("tracker_host", str()),
+            tracker_port=to_t("tracker_port", int()),
+            tracker_timeout=to_t("tracker_timeout", int()),
+        )
 
 
 def init(**args: _ArgVals) -> None:

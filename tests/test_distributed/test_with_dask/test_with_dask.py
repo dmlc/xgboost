@@ -29,7 +29,6 @@ import xgboost as xgb
 from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost import testing as tm
-
 from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
 from xgboost.testing.dask import check_init_estimation, check_uneven_nan, get_rabit_args
@@ -1335,6 +1334,7 @@ def test_killed_task_wo_hang():
                 )
             except (ValueError, KilledWorker):
                 pass
+
 
 def test_invalid_addr(client: "Client") -> None:
     X, y, _ = generate_array()
