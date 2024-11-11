@@ -172,6 +172,7 @@ LOGGER = logging.getLogger("[xgboost.dask]")
 def _try_start_tracker(
     n_workers: int,
     addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
+    timeout: Optional[int],
 ) -> CollArgs:
     env: CollArgs = {}
     try:
@@ -183,12 +184,16 @@ def _try_start_tracker(
                 host_ip=host_ip,
                 port=port,
                 sortby="task",
+                timeout=0 if timeout is None else timeout,
             )
         else:
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
             rabit_tracker = RabitTracker(
-                n_workers=n_workers, host_ip=addr, sortby="task"
+                n_workers=n_workers,
+                host_ip=addr,
+                sortby="task",
+                timeout=0 if timeout is None else timeout,
             )
 
         rabit_tracker.start()
@@ -206,7 +211,7 @@ def _try_start_tracker(
             str(addrs[1]),
             str(e),
         )
-        env = _try_start_tracker(n_workers, addrs[1:])
+        env = _try_start_tracker(n_workers, addrs[1:], timeout)
 
     return env
 
@@ -215,9 +220,10 @@ def _start_tracker(
     n_workers: int,
     addr_from_dask: Optional[str],
     addr_from_user: Optional[Tuple[str, int]],
+    timeout: Optional[int],
 ) -> CollArgs:
     """Start Rabit tracker, recurse to try different addresses."""
-    env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask])
+    env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask], timeout)
     return env
 
 
@@ -893,7 +899,7 @@ async def _get_rabit_args(
 
     # We assume the scheduler is a fair process and run the tracker there.
     env = await client.run_on_scheduler(
-        _start_tracker, n_workers, sched_addr, user_addr
+        _start_tracker, n_workers, sched_addr, user_addr, coll_config.tracker_timeout
     )
     env = coll_config.get_comm_config(env)
     return env

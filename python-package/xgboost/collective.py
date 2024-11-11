@@ -75,7 +75,8 @@ class Config:
                 return v
             if not isinstance(v, type(typ)):
                 raise TypeError(
-                    f"Invalid type for configuration {v}, expecting {typ}, got {type(v)}"
+                    f"Invalid type for configuration `{key}`, "
+                    f"expecting {type(typ).__name__}, got {type(v).__name__}."
                 )
             return v
 

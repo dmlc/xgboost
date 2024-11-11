@@ -86,3 +86,12 @@ def test_config_serialization() -> None:
     )
     cfg1 = Config.from_dict(cfg.to_dict())
     assert cfg == cfg1
+
+    d = cfg.to_dict()
+    with pytest.raises(TypeError, match="retry"):
+        d.update({"retry": "2"})
+        cfg1 = Config.from_dict(d)
+    d = cfg.to_dict()
+    with pytest.raises(TypeError, match="tracker_host"):
+        d.update({"tracker_host": 123})
+        cfg1 = Config.from_dict(d)
