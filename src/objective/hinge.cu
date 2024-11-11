@@ -12,7 +12,7 @@
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/linalg_op.cuh"
 #endif
-#if defined(XGBOOST_USE_SYCL) 
+#if defined(XGBOOST_USE_SYCL)
 #include "../../plugin/sycl/common/linalg_op.h"
 #endif
 #include "../common/linalg_op.h"

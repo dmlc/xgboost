@@ -27,7 +27,7 @@
 
 #endif                              // defined(XGBOOST_USE_CUDA)
 
-#if defined(XGBOOST_USE_SYCL) 
+#if defined(XGBOOST_USE_SYCL)
 #include "../../plugin/sycl/common/linalg_op.h"  // ElementWiseKernel
 #endif
 
