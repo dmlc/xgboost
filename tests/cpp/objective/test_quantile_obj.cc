@@ -1,7 +1,6 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2017-2024 by XGBoost contributors
  */
-#include <gtest/gtest.h>
 #include <xgboost/base.h>       // Args
 #include <xgboost/context.h>    // Context
 #include <xgboost/objective.h>  // ObjFunction
@@ -12,19 +11,20 @@
 
 #include "../helpers.h"         // CheckConfigReload,MakeCUDACtx,DeclareUnifiedTest
 
-namespace xgboost {
-TEST(Objective, DeclareUnifiedTest(Quantile)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
+#include "test_quantile_obj.h"
 
-  {
+namespace xgboost {
+
+void TestQuantile(const Context* ctx) {
+{
     Args args{{"quantile_alpha", "[0.6, 0.8]"}};
-    std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", &ctx)};
+    std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
     obj->Configure(args);
     CheckConfigReload(obj, "reg:quantileerror");
   }
 
   Args args{{"quantile_alpha", "0.6"}};
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", &ctx)};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "reg:quantileerror");
 
@@ -36,16 +36,15 @@ TEST(Objective, DeclareUnifiedTest(Quantile)) {
   CheckObjFunction(obj, predts, labels, weights, grad, hess);
 }
 
-TEST(Objective, DeclareUnifiedTest(QuantileIntercept)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
+void TestQuantileIntercept(const Context* ctx) {
   Args args{{"quantile_alpha", "[0.6, 0.8]"}};
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", &ctx)};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:quantileerror", ctx)};
   obj->Configure(args);
 
   MetaInfo info;
   info.num_row_ = 10;
   info.labels.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
-    data->SetDevice(ctx.Device());
+    data->SetDevice(ctx->Device());
     data->Resize(info.num_row_);
     shape[0] = info.num_row_;
     shape[1] = 1;

@@ -57,6 +57,12 @@ TEST(SyclObjective, AbsoluteErrorLeaf) {
   TestAbsoluteErrorLeaf(&ctx);
 }
 
+TEST(SyclObjective, DeclareUnifiedTest(PseudoHuber)) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestPseudoHuber(&ctx);
+}
+
 TEST(SyclObjective, CPUvsSycl) {
   Context ctx_sycl;
   ctx_sycl.UpdateAllowUnknown(Args{{"device", "sycl"}});

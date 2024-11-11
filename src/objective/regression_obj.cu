@@ -43,6 +43,10 @@
 #include "../common/linalg_op.cuh"
 #endif  // defined(XGBOOST_USE_CUDA)
 
+#if defined(XGBOOST_USE_SYCL) 
+#include "../../plugin/sycl/common/linalg_op.h"
+#endif
+
 namespace xgboost::obj {
 namespace {
 void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
@@ -58,7 +62,7 @@ DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 
 
 template<typename Loss>
-class RegLossObj : public FitInterceptGlmLike {
+class RegLossObj : public FitIntercept {
  protected:
   HostDeviceVector<float> additional_input_;
 
@@ -253,8 +257,8 @@ class PseudoHuberRegression : public FitIntercept {
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
 
     info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
-                                                  : info.weights_.ConstHostSpan()};
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
 
     linalg::ElementWiseKernel(
         ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -310,7 +314,7 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
 };
 
 // poisson regression for count
-class PoissonRegression : public FitInterceptGlmLike {
+class PoissonRegression : public FitIntercept {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
@@ -511,7 +515,7 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 };
 
 // tweedie regression
-class TweedieRegression : public FitInterceptGlmLike {
+class TweedieRegression : public FitIntercept {
  public:
   // declare functions
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
@@ -632,8 +636,8 @@ class MeanAbsoluteError : public ObjFunction {
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
     info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
-                                                  : info.weights_.ConstHostSpan()};
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
 
     linalg::ElementWiseKernel(
         ctx_, labels, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
