@@ -149,6 +149,7 @@ def test_rank_assignment() -> None:
     from distributed import Client, LocalCluster
 
     from xgboost import dask as dxgb
+    from xgboost.testing.dask import get_rabit_args
 
     def local_test(worker_id):
         with dxgb.CommunicatorContext(**args) as ctx:
@@ -162,13 +163,7 @@ def test_rank_assignment() -> None:
     with LocalCluster(n_workers=8) as cluster:
         with Client(cluster) as client:
             workers = tm.get_client_workers(client)
-            args = client.sync(
-                dxgb._get_rabit_args,
-                len(workers),
-                None,
-                client,
-            )
-
+            args = get_rabit_args(client, len(workers))
             futures = client.map(local_test, range(len(workers)), workers=workers)
             client.gather(futures)
 
