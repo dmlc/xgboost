@@ -720,8 +720,9 @@ class CPUPredictor : public Predictor {
     CHECK_NE(ngroup, 0);
     size_t const ncolumns = num_feature + 1;
     CHECK_NE(ncolumns, 0);
-    auto base_margin = info.base_margin_.View(ctx_->Device());
-    auto base_score = model.learner_model_param->BaseScore(ctx_->Device())(0);
+    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+    auto base_margin = info.base_margin_.View(device);
+    auto base_score = model.learner_model_param->BaseScore(device)(0);
 
     // parallel over local batch
     common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
