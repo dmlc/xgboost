@@ -899,7 +899,7 @@ async def _get_rabit_args(
 
     # We assume the scheduler is a fair process and run the tracker there.
     env = await client.run_on_scheduler(
-        _start_tracker, n_workers, sched_addr, user_addr, coll_config.tracker_timeout
+        _start_tracker, n_workers, sched_addr, user_addr, coll_config.timeout
     )
     env = coll_config.get_comm_config(env)
     return env

@@ -65,7 +65,7 @@ def test_federated_communicator():
     port = 9091
     world_size = 2
     with get_reusable_executor(max_workers=world_size+1) as pool:
-        kwargs={"port": port, "n_workers": world_size, "blocking": False}
+        kwargs = {"port": port, "n_workers": world_size, "blocking": False}
         tracker = pool.submit(federated.run_federated_server, **kwargs)
         if not tracker.running():
             raise RuntimeError("Error starting Federated Learning server")
@@ -82,7 +82,7 @@ def test_federated_communicator():
 
 def test_config_serialization() -> None:
     cfg = Config(
-        retry=1, timeout=2, tracker_host="127.0.0.1", tracker_port=None, tracker_timeout=3
+        retry=1, timeout=2, tracker_host="127.0.0.1", tracker_port=None
     )
     cfg1 = Config.from_dict(cfg.to_dict())
     assert cfg == cfg1

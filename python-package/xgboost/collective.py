@@ -29,10 +29,14 @@ class Config:
     Attributes
     ----------
     retry : See `dmlc_retry` in :py:meth:`init`.
-    timeout : See `dmlc_timeout` in :py:meth:`init`.
+
+    timeout :
+        See `dmlc_timeout` in :py:meth:`init`. This is used for both the tracker and the
+        communicators.
+
     tracker_host : See :py:class:`~xgboost.tracker.RabitTracker`.
+
     tracker_port : See :py:class:`~xgboost.tracker.RabitTracker`.
-    tracker_timeout : See :py:class:`~xgboost.tracker.RabitTracker`.
 
     """
 
@@ -41,7 +45,6 @@ class Config:
 
     tracker_host: Optional[str] = None
     tracker_port: Optional[int] = None
-    tracker_timeout: Optional[int] = None
 
     def get_comm_config(self, args: _Args) -> _Args:
         """Update the arguments for the communicator."""
@@ -60,7 +63,6 @@ class Config:
                 "timeout",
                 "tracker_host",
                 "tracker_port",
-                "tracker_timeout",
             )
         }
 
@@ -85,7 +87,6 @@ class Config:
             timeout=to_t("timeout", int()),
             tracker_host=to_t("tracker_host", str()),
             tracker_port=to_t("tracker_port", int()),
-            tracker_timeout=to_t("tracker_timeout", int()),
         )
 
 
