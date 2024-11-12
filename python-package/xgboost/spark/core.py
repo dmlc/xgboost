@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from collections import namedtuple
+from dataclasses import asdict
 from typing import (
     Any,
     Callable,
@@ -67,6 +68,7 @@ from xgboost.sklearn import DEFAULT_N_ESTIMATORS, XGBModel, _can_use_qdm
 from xgboost.training import train as worker_train
 
 from .._typing import ArrayLike
+from ..collective import Config
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
     alias,
@@ -123,8 +125,7 @@ _pyspark_specific_params = [
     "pred_contrib_col",
     "use_gpu",
     "launch_tracker_on_driver",
-    "tracker_host_ip",
-    "tracker_port",
+    "tracker",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -257,20 +258,19 @@ class _SparkXGBParams(
         "launched on the driver side; otherwise, it will be launched on the executor side.",
         TypeConverters.toBoolean,
     )
-    tracker_host_ip = Param(
+    tracker = Param(
         Params._dummy(),
-        "tracker_host_ip",
-        "A string variable. The tracker host IP address. To set tracker host ip, you need to "
-        "enable launch_tracker_on_driver to be true first",
-        TypeConverters.toString,
-    )
-    tracker_port = Param(
-        Params._dummy(),
-        "tracker_port",
-        "A string variable. The port number tracker listens on. To set tracker host port, you need "
+        "tracker",
+        "xgboost.collective.Config. The communicator configuration, you need "
         "to enable launch_tracker_on_driver first",
-        TypeConverters.toInt,
+        TypeConverters.identity,
     )
+
+    def set_tracker(self, value: Config) -> "_SparkXGBParams":
+        """Set communicator configuration"""
+        assert isinstance(value, Config)
+        self.set(self.tracker, value)
+        return self
 
     def set_device(self, value: str) -> "_SparkXGBParams":
         """Set device, optional value: cpu, cuda, gpu"""
@@ -620,7 +620,6 @@ FeatureProp = namedtuple(
     "FeatureProp",
     ("enable_sparse_data_optim", "has_validation_col", "features_cols_names"),
 )
-
 
 _MODEL_CHUNK_SIZE = 4096 * 1024
 
@@ -1030,30 +1029,26 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
         rabit_args = {}
         if launch_tracker_on_driver:
-            tracker_host_ip: Optional[str] = None
-            if self.isDefined(self.tracker_host_ip):
-                tracker_host_ip = self.getOrDefault(self.tracker_host_ip)
-            else:
-                tracker_host_ip = (
+            tracker = Config()
+            if self.isDefined(self.tracker):
+                tracker = self.getOrDefault(self.tracker)
+                assert isinstance(tracker, Config)
+
+            if tracker.tracker_host_ip is None:
+                tracker.tracker_host_ip = (
                     _get_spark_session().sparkContext.getConf().get("spark.driver.host")
                 )
-            assert tracker_host_ip is not None
-            tracker_port = 0
-            if self.isDefined(self.tracker_port):
-                tracker_port = self.getOrDefault(self.tracker_port)
-
             num_workers = self.getOrDefault(self.num_workers)
-            rabit_args.update(
-                _get_rabit_args(tracker_host_ip, num_workers, tracker_port)
-            )
+            rabit_args.update(_get_rabit_args(tracker, num_workers))
         else:
-            if self.isDefined(self.tracker_host_ip) or self.isDefined(
-                self.tracker_port
-            ):
-                raise ValueError(
-                    "You must enable launch_tracker_on_driver to use "
-                    "tracker_host_ip and tracker_port"
-                )
+            if self.isDefined(self.tracker):
+                tracker = self.getOrDefault(self.tracker)
+                assert isinstance(tracker, Config)
+                if tracker.tracker_host_ip is not None:
+                    raise ValueError(
+                        f"You must enable launch_tracker_on_driver to use "
+                        f"tracker host: {tracker.tracker_host_ip}"
+                    )
         return launch_tracker_on_driver, rabit_args
 
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
@@ -1075,6 +1070,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         num_workers = self.getOrDefault(self.num_workers)
 
         launch_tracker_on_driver, rabit_args = self._get_tracker_args()
+        tracker: Optional[Config] = (
+            self.getOrDefault(self.tracker) if self.isSet(self.tracker) else None
+        )
 
         log_level = get_logger_level(_LOG_TAG)
 
@@ -1114,11 +1112,12 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
-
             _rabit_args = rabit_args
             if context.partitionId() == 0:
                 if not launch_tracker_on_driver:
-                    _rabit_args = _get_rabit_args(_get_host_ip(context), num_workers)
+                    _tracker = tracker if tracker is not None else Config()
+                    _tracker.tracker_host_ip = _get_host_ip(context)
+                    _rabit_args = _get_rabit_args(_tracker, num_workers)
                 get_logger(_LOG_TAG, log_level).info(msg)
 
             worker_message: Dict[str, Any] = {
@@ -1629,7 +1628,7 @@ class _SparkXGBSharedReadWrite:
         xgboost.spark._SparkXGBModel.
         """
         instance._validate_params()
-        skipParams = ["callbacks", "xgb_model"]
+        skipParams = ["callbacks", "xgb_model", "tracker"]
         jsonParams = {}
         for p, v in instance._paramMap.items():  # pylint: disable=protected-access
             if p.name not in skipParams:
@@ -1650,6 +1649,12 @@ class _SparkXGBSharedReadWrite:
         init_booster = instance.getOrDefault("xgb_model")
         if init_booster is not None:
             extraMetadata["init_booster"] = _INIT_BOOSTER_SAVE_PATH
+
+        if instance.isDefined("tracker"):
+            tracker_conf: Config = instance.getOrDefault("tracker")
+            if tracker_conf is not None:
+                extraMetadata["tracker_conf"] = asdict(tracker_conf)
+
         DefaultParamsWriter.saveMetadata(
             instance, path, sc, extraMetadata=extraMetadata, paramMap=jsonParams
         )
@@ -1691,6 +1696,8 @@ class _SparkXGBSharedReadWrite:
                     f"Fails to load the callbacks param due to {e}. Please set the "
                     "callbacks param manually for the loaded estimator."
                 )
+        if "tracker_conf" in metadata:
+            pyspark_xgb.set_tracker(Config(**metadata["tracker_conf"]))
 
         if "init_booster" in metadata:
             load_path = os.path.join(path, metadata["init_booster"])
