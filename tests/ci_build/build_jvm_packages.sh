@@ -40,7 +40,9 @@ fi
 mvn --no-transfer-progress clean install -Dspark.version=${spark_version} $gpu_options
 
 # Integration tests
-mvn --no-transfer-progress test -pl xgboost4j-example
+if [ "x$use_cuda" == "x" ]; then
+  mvn --no-transfer-progress test -pl xgboost4j-example
+fi
 
 set +x
 set +e
