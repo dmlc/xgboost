@@ -23,7 +23,7 @@ function set_buildkite_env_vars_in_container {
 set -x
 
 CUDA_VERSION=12.4.1
-NCCL_VERSION=2.22.3-1
+NCCL_VERSION=2.23.4-1
 RAPIDS_VERSION=24.10
 DEV_RAPIDS_VERSION=24.12
 SPARK_VERSION=3.5.1

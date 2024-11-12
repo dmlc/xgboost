@@ -5,14 +5,20 @@
 
 #include <cstdint>  // for int8_t, int64_t
 
-#include "../data/array_interface.h"  // for ArrayInterfaceHandler
-#include "coll.h"                     // for Coll
-#include "comm.h"                     // for Comm
-#include "xgboost/span.h"             // for Span
+#include "../common/device_helpers.cuh"  // for CUDAStream
+#include "../common/threadpool.h"        // for ThreadPool
+#include "../data/array_interface.h"     // for ArrayInterfaceHandler
+#include "coll.h"                        // for Coll
+#include "comm.h"                        // for Comm
+#include "xgboost/span.h"                // for Span
 
 namespace xgboost::collective {
 class NCCLColl : public Coll {
+  common::ThreadPool pool_;
+  dh::CUDAStream stream_;
+
  public:
+  NCCLColl();
   ~NCCLColl() override;
 
   [[nodiscard]] Result Allreduce(Comm const& comm, common::Span<std::int8_t> data,

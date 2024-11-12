@@ -966,7 +966,9 @@ async def _train_async(
     _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
     _check_distributed_params(params)
 
-    def dispatched_train(  # pylint: disable=too-many-positional-arguments
+    # This function name is displayed in the Dask dashboard task status, let's make it
+    # clear that it's XGBoost training.
+    def do_train(  # pylint: disable=too-many-positional-arguments
         parameters: Dict,
         rabit_args: Dict[str, Union[str, int]],
         train_id: int,
@@ -1030,7 +1032,7 @@ async def _train_async(
 
         result = await map_worker_partitions(
             client,
-            dispatched_train,
+            do_train,
             # extra function parameters
             params,
             _rabit_args,
