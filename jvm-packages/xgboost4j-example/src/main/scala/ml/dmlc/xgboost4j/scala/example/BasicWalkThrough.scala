@@ -36,8 +36,8 @@ object BasicWalkThrough {
   }
 
   def main(args: Array[String]): Unit = {
-    val trainMax = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
-    val testMax = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
+    val trainMax = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm&indexing_mode=1")
+    val testMax = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm&indexing_mode=1")
 
     val params = new mutable.HashMap[String, Any]()
     params += "eta" -> 1.0
@@ -61,7 +61,7 @@ object BasicWalkThrough {
     }
     booster.saveModel(file.getAbsolutePath + "/xgb.model")
     // dump model with feature map
-    val modelInfos = booster.getModelDump(file.getAbsolutePath + "/featmap.txt", false)
+    val modelInfos = booster.getModelDump("../../demo/data/featmap.txt", false)
     saveDumpModel(file.getAbsolutePath + "/dump.raw.txt", modelInfos)
     // save dmatrix into binary buffer
     testMax.saveBinary(file.getAbsolutePath + "/dtest.buffer")
@@ -76,9 +76,9 @@ object BasicWalkThrough {
 
     // build dmatrix from CSR Sparse Matrix
     println("start build dmatrix from csr sparse data ...")
-    val spData = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train?format=libsvm")
+    val spData = DataLoader.loadSVMFile("../../demo/data/agaricus.txt.train")
     val trainMax2 = new DMatrix(spData.rowHeaders, spData.colIndex, spData.data,
-      JDMatrix.SparseType.CSR)
+      JDMatrix.SparseType.CSR, 127)
     trainMax2.setLabel(spData.labels)
 
     // specify watchList
