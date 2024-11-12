@@ -137,9 +137,9 @@ class TestSYCLPredict(unittest.TestCase):
         test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
         bst.set_param({"device": "sycl"})
         shap = bst.predict(test_dmat, pred_contribs=True)
-        # margin = bst.predict(test_dmat, output_margin=True)
-        # assume(len(dataset.y) > 0)
-        # assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
+        margin = bst.predict(test_dmat, output_margin=True)
+        assume(len(dataset.y) > 0)
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)
 
     @given(
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
