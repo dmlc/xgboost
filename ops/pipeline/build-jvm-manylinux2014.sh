@@ -1,4 +1,5 @@
 #!/bin/bash
+## Build libxgboost4j.so targeting glibc 2.17 systems
 
 set -euox pipefail
 

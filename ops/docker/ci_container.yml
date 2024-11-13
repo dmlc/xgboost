@@ -50,3 +50,6 @@ xgb-ci.manylinux2014_x86_64:
 
 xgb-ci.manylinux2014_aarch64:
   container_def: manylinux2014_aarch64
+
+xgb-ci.jvm:
+  container_def: jvm

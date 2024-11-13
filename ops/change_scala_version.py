@@ -20,6 +20,9 @@ def main(args):
             if target.is_dir():
                 print(f"Removing {target}...")
                 shutil.rmtree(target)
+        for target in pathlib.Path("jvm-packages/").glob("**/*.so"):
+            print(f"Removing {target}...")
+            target.unlink()
 
     # Update pom.xml
     for pom in pathlib.Path("jvm-packages/").glob("**/pom.xml"):

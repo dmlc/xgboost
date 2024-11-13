@@ -32,6 +32,7 @@ jobs:
           - xgb-ci.clang_tidy
           - xgb-ci.manylinux_2_28_x86_64
           - xgb-ci.manylinux2014_x86_64
+          - xgb-ci.jvm
         runner: [linux-amd64-cpu]
         include:
           - container_id: xgb-ci.manylinux2014_aarch64
@@ -39,7 +40,7 @@ jobs:
           - container_id: xgb-ci.aarch64
             runner: linux-arm64-cpu
     steps:
-      # Restart Docker daemon so that it recognized the ephemeral disks
+      # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
@@ -197,7 +198,7 @@ jobs:
       - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
 
   build-manylinux2014:
-    name: Build manylinux2024_${{ matrix.arch }} wheel
+    name: Build manylinux2014_${{ matrix.arch }} wheel
     needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -228,7 +229,7 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
     steps:
-      # Restart Docker daemon so that it recognized the ephemeral disks
+      # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
@@ -238,6 +239,29 @@ jobs:
         env:
           CONTAINER_ID: xgb-ci.gpu_build_r_rockylinux8
       - run: bash ops/pipeline/build-gpu-rpkg.sh
+
+  build-test-jvm-packages:
+    name: Build and test JVM packages
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.jvm
+      - run: bash ops/pipeline/build-test-jvm-packages.sh
+        env:
+          SCALA_VERSION: 2.12
+      - run: bash ops/pipeline/build-test-jvm-packages.sh
+        env:
+          SCALA_VERSION: 2.13
 
   test-cpp-gpu:
     name: Run Google Tests with GPU(s)
@@ -258,7 +282,7 @@ jobs:
             runner: linux-amd64-mgpu
             artifact_from: build-cuda
     steps:
-      # Restart Docker daemon so that it recognized the ephemeral disks
+      # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
@@ -316,7 +340,7 @@ jobs:
             runner: linux-arm64-cpu
             artifact_from: build-cpu-arm64
     steps:
-      # Restart Docker daemon so that it recognized the ephemeral disks
+      # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:

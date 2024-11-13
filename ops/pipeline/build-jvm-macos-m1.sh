@@ -1,4 +1,5 @@
 #!/bin/bash
+## Build libxgboost4j.dylib targeting MacOS
 
 set -euox pipefail
 
