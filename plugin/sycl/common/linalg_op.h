@@ -56,7 +56,7 @@ auto call(Fn&& fn, TupleType t) {
     return call(fn, t, std::make_index_sequence<size>{});
 }
 
-template <typename T, std::int32_t D, typename Fn>
+template <typename T, int32_t D, typename Fn>
 void ElementWiseKernel(TensorView<T, D> t, Fn&& fn) {
   sycl::DeviceManager device_manager;
   auto* qu = device_manager.GetQueue(t.Device());
