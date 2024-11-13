@@ -1894,6 +1894,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             verbose_eval=verbose,
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
+            coll_config=self.coll_config,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -2002,6 +2003,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             verbose_eval=verbose,
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
+            coll_config=self.coll_config,
             xgb_model=model,
         )
         self._Booster = results["booster"]
