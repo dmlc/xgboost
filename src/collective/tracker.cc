@@ -361,9 +361,6 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   Json args{Object{}};
   args["dmlc_tracker_uri"] = String{host_};
   args["dmlc_tracker_port"] = this->Port();
-  if (HasTimeout(this->Timeout())) {
-    args["dmlc_timeout"] = static_cast<Integer::Int>(this->Timeout().count());
-  }
   return args;
 }
 

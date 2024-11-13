@@ -1336,7 +1336,7 @@ def test_killed_task_wo_hang():
                 pass
 
 
-def test_invalid_addr(client: "Client") -> None:
+def test_invalid_config(client: "Client") -> None:
     X, y, _ = generate_array()
     dtrain = DaskDMatrix(client, X, y)
 
@@ -1355,7 +1355,7 @@ def test_invalid_addr(client: "Client") -> None:
         cfg = CollConfig(tracker_host="127.0.0.1", tracker_port=port)
         dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 
-    with pytest.raises(ValueError, match=r".*timeout >= 0.*"):
+    with pytest.raises(ValueError, match=r"comm_group.*timeout >= 0.*"):
         cfg = CollConfig(tracker_host="127.0.0.1", tracker_port=0, timeout=-1)
         dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 

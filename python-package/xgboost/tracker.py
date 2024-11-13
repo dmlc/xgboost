@@ -53,6 +53,18 @@ class RabitTracker:
         the tracker even if the tracker is still being used. A value error is raised
         when timeout is reached.
 
+    Examples
+    --------
+
+    .. code-block:: python
+
+        tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
+        tracker.start()
+
+        with collective.CommunicatorContext(**tracker.worker_args()):
+            ret = collective.broadcast("msg", 0)
+            assert str(ret) == "msg"
+
     """
 
     @unique

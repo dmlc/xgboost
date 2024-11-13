@@ -24,7 +24,20 @@ def test_rabit_tracker() -> None:
         pytest.skip("Windows is not supported.")
 
     with pytest.raises(ValueError, match="Failed to bind socket"):
+        # Port is already being used
         RabitTracker(host_ip="127.0.0.1", port=port, n_workers=1)
+
+
+@pytest.mark.skipif(**tm.not_linux())
+def test_wait() -> None:
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
+    tracker.start()
+
+    with pytest.raises(ValueError, match="Timeout waiting for the tracker"):
+        tracker.wait_for(1)
+
+    with pytest.raises(ValueError, match="Failed to accept"):
+        tracker.free()
 
 
 @pytest.mark.skipif(**tm.not_linux())

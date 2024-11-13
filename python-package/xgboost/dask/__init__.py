@@ -197,6 +197,7 @@ def _try_start_tracker(
             )
 
         rabit_tracker.start()
+        # No timeout since we don't want to abort the training
         thread = Thread(target=rabit_tracker.wait_for)
         thread.daemon = True
         thread.start()
@@ -899,7 +900,7 @@ async def _get_rabit_args(
 
     # We assume the scheduler is a fair process and run the tracker there.
     env = await client.run_on_scheduler(
-        _start_tracker, n_workers, sched_addr, user_addr, coll_cfg.timeout
+        _start_tracker, n_workers, sched_addr, user_addr, coll_cfg.tracker_timeout
     )
     env = coll_cfg.get_comm_config(env)
     return env
