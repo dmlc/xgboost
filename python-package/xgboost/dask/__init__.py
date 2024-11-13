@@ -20,10 +20,10 @@ https://github.com/dask/dask-xgboost
 Optional dask configuration
 ===========================
 
-- **coll_config**:
+- **coll_cfg**:
     Specify the scheduler address along with communicator configurations. This can be
     used as a replacement of the existing global Dask configuration
-    `xgboost.scheduler_address` (see below).
+    `xgboost.scheduler_address` (see below). See :ref:`tracker-ip` for more info.
 
   .. versionadded:: 3.0.0
 
@@ -32,15 +32,15 @@ Optional dask configuration
     from xgboost import dask as dxgb
     from xgboost.collective import Config
 
-    coll_config = Config(
+    coll_cfg = Config(
         retry=1, timeout=20, tracker_host="10.23.170.98", tracker_port=0
     )
 
-    clf = dxgb.DaskXGBClassifier(coll_config=coll_config)
+    clf = dxgb.DaskXGBClassifier(coll_cfg=coll_cfg)
     # or
-    dxgb.train(client, {}, Xy, num_boost_round=10, coll_config=coll_config)
+    dxgb.train(client, {}, Xy, num_boost_round=10, coll_cfg=coll_cfg)
 
-- **xgboost.scheduler_address**: Specify the scheduler address, see :ref:`tracker-ip`.
+- **xgboost.scheduler_address**: Specify the scheduler address
 
   .. versionadded:: 1.6.0
 
@@ -514,8 +514,8 @@ class DaskDMatrix:
         return self._n_cols
 
 
-_P = ParamSpec("_P")
 _MapRetT = TypeVar("_MapRetT")
+_P = ParamSpec("_P")
 
 
 async def map_worker_partitions(
@@ -869,7 +869,7 @@ async def _get_rabit_args(
     client: "distributed.Client",
     n_workers: int,
     dconfig: Optional[Dict[str, Any]] = None,
-    coll_config: Optional[CollConfig] = None,
+    coll_cfg: Optional[CollConfig] = None,
 ) -> Dict[str, Union[str, int]]:
     """Get rabit context arguments from data distribution in DaskDMatrix."""
     # There are 3 possible different addresses:
@@ -879,10 +879,10 @@ async def _get_rabit_args(
     # We try 1 and 3 if 1 is available, otherwise 2 and 3.
 
     # See if user config is available
-    coll_config = CollConfig() if coll_config is None else coll_config
+    coll_cfg = CollConfig() if coll_cfg is None else coll_cfg
     host_ip: Optional[str] = None
     port: int = 0
-    host_ip, port = get_address_from_user(dconfig, coll_config)
+    host_ip, port = get_address_from_user(dconfig, coll_cfg)
 
     if host_ip is not None:
         user_addr = (host_ip, port)
@@ -899,9 +899,9 @@ async def _get_rabit_args(
 
     # We assume the scheduler is a fair process and run the tracker there.
     env = await client.run_on_scheduler(
-        _start_tracker, n_workers, sched_addr, user_addr, coll_config.timeout
+        _start_tracker, n_workers, sched_addr, user_addr, coll_cfg.timeout
     )
-    env = coll_config.get_comm_config(env)
+    env = coll_cfg.get_comm_config(env)
     return env
 
 
@@ -988,12 +988,12 @@ async def _train_async(
     xgb_model: Optional[Booster],
     callbacks: Optional[Sequence[TrainingCallback]],
     custom_metric: Optional[Metric],
-    coll_config: Optional[CollConfig],
+    coll_cfg: Optional[CollConfig],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
     await _check_workers_are_alive(workers, client)
     coll_args = await _get_rabit_args(
-        client, len(workers), dconfig=dconfig, coll_config=coll_config
+        client, len(workers), dconfig=dconfig, coll_cfg=coll_cfg
     )
     _check_distributed_params(params)
 
@@ -1092,7 +1092,7 @@ def train(  # pylint: disable=unused-argument
     verbose_eval: Union[int, bool] = True,
     callbacks: Optional[Sequence[TrainingCallback]] = None,
     custom_metric: Optional[Metric] = None,
-    coll_config: Optional[CollConfig] = None,
+    coll_cfg: Optional[CollConfig] = None,
 ) -> Any:
     """Train XGBoost model.
 
@@ -1679,12 +1679,10 @@ class DaskScikitLearnBase(XGBModel):
 
     _client = None
 
-    def __init__(
-        self, *, coll_config: Optional[CollConfig] = None, **kwargs: Any
-    ) -> None:
+    def __init__(self, *, coll_cfg: Optional[CollConfig] = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
-        self.coll_config = coll_config
+        self.coll_cfg = coll_cfg
 
     async def _predict_async(
         self,
@@ -1894,7 +1892,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             verbose_eval=verbose,
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
-            coll_config=self.coll_config,
+            coll_cfg=self.coll_cfg,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -2003,7 +2001,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             verbose_eval=verbose,
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
-            coll_config=self.coll_config,
+            coll_cfg=self.coll_cfg,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -2125,12 +2123,12 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         self,
         *,
         objective: str = "rank:pairwise",
-        coll_config: Optional[CollConfig] = None,
+        coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
     ) -> None:
         if callable(objective):
             raise ValueError("Custom objective function not supported by XGBRanker.")
-        super().__init__(objective=objective, coll_config=coll_config, **kwargs)
+        super().__init__(objective=objective, coll_cfg=coll_cfg, **kwargs)
 
     async def _fit_async(
         self,
@@ -2150,7 +2148,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         xgb_model: Optional[Union[XGBModel, Booster]],
         feature_weights: Optional[_DaskCollection],
     ) -> "DaskXGBRanker":
-        msg = "Use `qid` instead of `group` on dask interface."
+        msg = "Use the `qid` instead of the `group` with the dask interface."
         if not (group is None and eval_group is None):
             raise ValueError(msg)
         if qid is None:
@@ -2195,6 +2193,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
             xgb_model=model,
+            coll_cfg=self.coll_cfg,
         )
         self._Booster = results["booster"]
         self.evals_result_ = results["history"]
@@ -2249,7 +2248,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         subsample: Optional[float] = 0.8,
         colsample_bynode: Optional[float] = 0.8,
         reg_lambda: Optional[float] = 1e-5,
-        coll_config: Optional[CollConfig] = None,
+        coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -2257,7 +2256,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
-            coll_config=coll_config,
+            coll_cfg=coll_cfg,
             **kwargs,
         )
 
@@ -2311,7 +2310,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         subsample: Optional[float] = 0.8,
         colsample_bynode: Optional[float] = 0.8,
         reg_lambda: Optional[float] = 1e-5,
-        coll_config: Optional[CollConfig] = None,
+        coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -2319,7 +2318,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
-            coll_config=coll_config,
+            coll_cfg=coll_cfg,
             **kwargs,
         )
 

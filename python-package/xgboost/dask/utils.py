@@ -26,7 +26,7 @@ def get_n_threads(local_param: Dict[str, Any], worker: "distributed.Worker") -> 
 
 
 def get_address_from_user(
-    dconfig: Optional[Dict[str, Any]], coll_config: Config
+    dconfig: Optional[Dict[str, Any]], coll_cfg: Config
 ) -> Tuple[Optional[str], int]:
     """Get the tracker address from the optional user configuration.
 
@@ -35,7 +35,7 @@ def get_address_from_user(
     dconfig :
         Dask global configuration.
 
-    coll_config :
+    coll_cfg :
         Collective configuration.
 
     Returns
@@ -66,26 +66,26 @@ def get_address_from_user(
         except ValueError:
             pass
 
-    if coll_config is None:
-        coll_config = Config()
-    if coll_config.tracker_host is not None:
-        if host_ip is not None and coll_config.tracker_host != host_ip:
+    if coll_cfg is None:
+        coll_cfg = Config()
+    if coll_cfg.tracker_host is not None:
+        if host_ip is not None and coll_cfg.tracker_host != host_ip:
             raise ValueError(
                 "Conflicting host IP addresses from the dask configuration and the "
-                f"collective configuration: {host_ip} v.s. {coll_config.tracker_host}."
+                f"collective configuration: {host_ip} v.s. {coll_cfg.tracker_host}."
             )
-        host_ip = coll_config.tracker_host
-    if coll_config.tracker_port is not None:
+        host_ip = coll_cfg.tracker_host
+    if coll_cfg.tracker_port is not None:
         if (
             port != 0
             and port is not None
-            and coll_config.tracker_port != 0
-            and port != coll_config.tracker_port
+            and coll_cfg.tracker_port != 0
+            and port != coll_cfg.tracker_port
         ):
             raise ValueError(
                 "Conflicting ports from the dask configuration and the "
-                f"collective configuration: {port} v.s. {coll_config.tracker_port}."
+                f"collective configuration: {port} v.s. {coll_cfg.tracker_port}."
             )
-        port = coll_config.tracker_port
+        port = coll_cfg.tracker_port
 
     return host_ip, port

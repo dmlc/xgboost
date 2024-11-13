@@ -42,12 +42,12 @@ class RabitTracker:
 
     timeout :
 
-        Timeout for constructing the communication group and waiting for the tracker to
-        shutdown when it's instructed to, doesn't apply to communication when tracking
-        is running.
+        Timeout for constructing (bootstrap) and shutting down the communication group,
+        doesn't apply to communication when the group is up and running.
 
         The timeout value should take the time of data loading and pre-processing into
-        account, due to potential lazy execution.
+        account, due to potential lazy execution. By default the Tracker doesn't have
+        any timeout to avoid pre-mature aborting.
 
         The :py:meth:`.wait_for` method has a different timeout parameter that can stop
         the tracker even if the tracker is still being used. A value error is raised

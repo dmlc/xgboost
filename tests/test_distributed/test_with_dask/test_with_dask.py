@@ -1352,12 +1352,12 @@ def test_invalid_addr(client: "Client") -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-        config = CollConfig(tracker_host="127.0.0.1", tracker_port=port)
-        dxgb.train(client, {}, dtrain, num_boost_round=1, coll_config=config)
+        cfg = CollConfig(tracker_host="127.0.0.1", tracker_port=port)
+        dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 
     with pytest.raises(ValueError, match=r".*timeout >= 0.*"):
-        config = CollConfig(tracker_host="127.0.0.1", tracker_port=0, timeout=-1)
-        dxgb.train(client, {}, dtrain, num_boost_round=1, coll_config=config)
+        cfg = CollConfig(tracker_host="127.0.0.1", tracker_port=0, timeout=-1)
+        dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 
 
 class TestWithDask:

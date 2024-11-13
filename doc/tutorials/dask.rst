@@ -548,10 +548,10 @@ Troubleshooting
     from xgboost.collective import Config
 
     # let xgboost know the scheduler address
-    coll_config = Config(retry=1, timeout=20, tracker_host="10.23.170.98", tracker_port=0)
+    coll_cfg = Config(retry=1, timeout=20, tracker_host="10.23.170.98", tracker_port=0)
 
     with Client(scheduler_file="sched.json") as client:
-        reg = dxgb.DaskXGBRegressor(coll_config=coll_config)
+        reg = dxgb.DaskXGBRegressor(coll_cfg=coll_cfg)
 
 - Please note that XGBoost requires a different port than dask. By default, on a unix-like
   system XGBoost uses the port 0 to find available ports, which may fail if a user is

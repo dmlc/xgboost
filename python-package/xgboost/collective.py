@@ -22,7 +22,9 @@ _Args: TypeAlias = Dict[str, _ArgVals]
 
 @dataclass
 class Config:
-    """User configuration for the communicator context.
+    """User configuration for the communicator context. This is used for easier
+    integration with distributed frameworks. Users of the collective module can pass the
+    parameters directly into tracker and the communicator.
 
     .. versionadded:: 3.0
 
@@ -41,7 +43,7 @@ class Config:
     """
 
     retry: Optional[int] = None
-    timeout: Optional[int | None] = None
+    timeout: Optional[int] = None
 
     tracker_host: Optional[str] = None
     tracker_port: Optional[int] = None
@@ -50,8 +52,7 @@ class Config:
         """Update the arguments for the communicator."""
         if self.retry is not None:
             args["dmlc_retry"] = self.retry
-        if self.timeout is not None:
-            args["dmlc_timeout"] = self.timeout
+        # Timeout is handled by the tracker arguments
         return args
 
     def to_dict(self) -> _Args:
