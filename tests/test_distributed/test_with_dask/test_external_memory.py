@@ -15,7 +15,7 @@ async def test_external_memory(
 ) -> None:
     workers = tm.get_client_workers(client)
     n_workers = len(workers)
-    args = get_rabit_args(client, n_workers)
+    args = await get_rabit_args(client, n_workers)
 
     futs = client.map(
         check_external_memory,
