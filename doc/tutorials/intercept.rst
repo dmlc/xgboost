@@ -109,7 +109,7 @@ Offset
 ******
 
 The ``base_margin`` is a form of ``offset`` in GLM. Using the Poisson objective as an
-example, we might want to mode the rate instead of the count.
+example, we might want to model the rate instead of the count:
 
 .. math::
 
@@ -117,13 +117,13 @@ example, we might want to mode the rate instead of the count.
 
 And the offset is defined as log link applied to the exposure variable:
 :math:`\ln{exposure}`. Let :math:`c` be the count and :math:`\beta` be the exposure,
-substituting the response :math:`y` in our formulation of base margin:
+substituting the response :math:`y` in our previous formulation of base margin:
 
 .. math::
 
    g{\frac{E[c_i]}{\beta_i}} = F(x_i)
 
-Substitute :math:`g` with :math:`\ln` for Poisson:
+Substitute :math:`g` with :math:`\ln` for Poisson regression:
 
 .. math::
 
