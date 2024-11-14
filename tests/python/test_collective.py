@@ -1,4 +1,5 @@
 import socket
+from dataclasses import asdict
 
 import numpy as np
 import pytest
@@ -58,13 +59,13 @@ def run_federated_worker(port: int, world_size: int, rank: int) -> int:
 
 @pytest.mark.skipif(**tm.skip_win())
 @pytest.mark.skipif(**tm.no_loky())
-def test_federated_communicator():
+def test_federated_communicator() -> None:
     if not build_info()["USE_FEDERATED"]:
         pytest.skip("XGBoost not built with federated learning enabled")
 
     port = 9091
     world_size = 2
-    with get_reusable_executor(max_workers=world_size+1) as pool:
+    with get_reusable_executor(max_workers=world_size + 1) as pool:
         kwargs = {"port": port, "n_workers": world_size, "blocking": False}
         tracker = pool.submit(federated.run_federated_server, **kwargs)
         if not tracker.running():
@@ -81,17 +82,6 @@ def test_federated_communicator():
 
 
 def test_config_serialization() -> None:
-    cfg = Config(
-        retry=1, timeout=2, tracker_host="127.0.0.1", tracker_port=None
-    )
-    cfg1 = Config.from_dict(cfg.to_dict())
+    cfg = Config(retry=1, timeout=2, tracker_host="127.0.0.1", tracker_port=None)
+    cfg1 = Config(**asdict(cfg))
     assert cfg == cfg1
-
-    d = cfg.to_dict()
-    with pytest.raises(TypeError, match="retry"):
-        d.update({"retry": "2"})
-        cfg1 = Config.from_dict(d)
-    d = cfg.to_dict()
-    with pytest.raises(TypeError, match="tracker_host"):
-        d.update({"tracker_host": 123})
-        cfg1 = Config.from_dict(d)
