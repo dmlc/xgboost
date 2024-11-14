@@ -45,6 +45,8 @@ namespace {
 template <typename Fn>
 PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
   PackedReduceResult result;
+  // This function doesn't have sycl-specific implementation yet.
+  // For that reason we transfer data to host in case of sycl is used for propper execution.
   auto labels = info.labels.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
