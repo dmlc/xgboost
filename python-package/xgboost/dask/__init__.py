@@ -23,7 +23,8 @@ Optional dask configuration
 - **coll_cfg**:
     Specify the scheduler address along with communicator configurations. This can be
     used as a replacement of the existing global Dask configuration
-    `xgboost.scheduler_address` (see below). See :ref:`tracker-ip` for more info.
+    `xgboost.scheduler_address` (see below). See :ref:`tracker-ip` for more info. The
+    `tracker_host_ip` should specify the IP address of the Dask scheduler node.
 
   .. versionadded:: 3.0.0
 
@@ -43,6 +44,8 @@ Optional dask configuration
 - **xgboost.scheduler_address**: Specify the scheduler address
 
   .. versionadded:: 1.6.0
+
+  .. deprecated:: 3.0.0
 
   .. code-block:: python
 

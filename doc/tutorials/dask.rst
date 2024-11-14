@@ -536,7 +536,7 @@ Troubleshooting
 - In some environments XGBoost might fail to resolve the IP address of the scheduler, a
   symptom is user receiving ``OSError: [Errno 99] Cannot assign requested address`` error
   during training.  A quick workaround is to specify the address explicitly.  To do that
-  dask config is used:
+  the collective :py:class:`~xgboost.collective.Config` is used:
 
   .. versionadded:: 3.0.0
 
