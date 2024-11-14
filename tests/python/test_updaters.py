@@ -54,6 +54,25 @@ class TestTreeMethod:
             num_boost_round=2,
         )
 
+    def test_hist_colsample_rng(self) -> None:
+        """Test rng has an effect on column sampling."""
+        X, y, _ = tm.make_regression(128, 16, use_cupy=False)
+        reg0 = xgb.XGBRegressor(
+            n_estimators=2,
+            colsample_bynode=0.5,
+            random_state=42,
+        )
+        reg0.fit(X, y)
+
+        reg1 = xgb.XGBRegressor(
+            n_estimators=2,
+            colsample_bynode=0.5,
+            random_state=43,
+        )
+        reg1.fit(X, y)
+
+        assert list(reg0.feature_importances_) != list(reg1.feature_importances_)
+
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,
