@@ -6,8 +6,8 @@
 xgb-ci.gpu_build_rockylinux8:
   container_def: gpu_build_rockylinux8
   build_args:
-    CUDA_VERSION_ARG: "12.5.1"
-    NCCL_VERSION_ARG: "2.22.3-1"
+    CUDA_VERSION_ARG: "12.4.1"
+    NCCL_VERSION_ARG: "2.23.4-1"
     RAPIDS_VERSION_ARG: "24.10"
 
 xgb-ci.gpu_build_r_rockylinux8:
@@ -19,22 +19,22 @@ xgb-ci.gpu_build_r_rockylinux8:
 xgb-ci.gpu:
   container_def: gpu
   build_args:
-    CUDA_VERSION_ARG: "12.5.1"
-    NCCL_VERSION_ARG: "2.22.3-1"
+    CUDA_VERSION_ARG: "12.4.1"
+    NCCL_VERSION_ARG: "2.23.4-1"
     RAPIDS_VERSION_ARG: "24.10"
 
 xgb-ci.gpu_dev_ver:
   container_def: gpu
   build_args:
-    CUDA_VERSION_ARG: "12.5.1"
-    NCCL_VERSION_ARG: "2.22.3-1"
+    CUDA_VERSION_ARG: "12.4.1"
+    NCCL_VERSION_ARG: "2.23.4-1"
     RAPIDS_VERSION_ARG: "24.12"
     RAPIDSAI_CONDA_CHANNEL_ARG: "rapidsai-nightly"
 
 xgb-ci.clang_tidy:
   container_def: clang_tidy
   build_args:
-    CUDA_VERSION_ARG: "12.5.1"
+    CUDA_VERSION_ARG: "12.4.1"
 
 xgb-ci.cpu:
   container_def: cpu
@@ -53,3 +53,9 @@ xgb-ci.manylinux2014_aarch64:
 
 xgb-ci.jvm:
   container_def: jvm
+
+xgb-ci.jvm_gpu_build:
+  container_def: jvm_gpu_build
+  build_args:
+    CUDA_VERSION_ARG: "12.4.1"
+    NCCL_VERSION_ARG: "2.23.4-1"

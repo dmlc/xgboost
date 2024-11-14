@@ -31,12 +31,15 @@ case "$suite" in
     echo "-- Run Python tests, using a single GPU"
     echo "
       python -c 'from cupy.cuda import jitify; jitify._init_module()'
-      pytest -v -s -rxXs --fulltrace --durations=0 -m 'not mgpu' tests/python-gpu
+      pytest -v -sx -rxXs --fulltrace --durations=0 -m 'not mgpu' tests/python-gpu
     " >> test-python-wrapper.sh
     set -x
     cat test-python-wrapper.sh
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
-      --run-args='--privileged' \
+      -- nvidia-smi
+    python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
+      -- bash -c "source activate gpu_test && python -c 'from numba import cuda; cuda.detect()'"
+    python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
       -- bash test-python-wrapper.sh gpu_test
     ;;
 
@@ -44,15 +47,19 @@ case "$suite" in
     echo "-- Run Python tests, using multiple GPUs"
     echo "
       python -c 'from cupy.cuda import jitify; jitify._init_module()'
-      pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/python-gpu
-      pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_with_dask
-      pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_with_spark
-      pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_federated
+      pytest -v -sx -rxXs --fulltrace --durations=0 -m 'mgpu' tests/python-gpu
+      pytest -v -sx -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_with_dask
+      pytest -v -sx -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_with_spark
+      pytest -v -sx -rxXs --fulltrace --durations=0 -m 'mgpu' tests/test_distributed/test_gpu_federated
     " >> test-python-wrapper.sh
     set -x
     cat test-python-wrapper.sh
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
-      --run-args='--privileged --shm-size=4g' \
+      -- nvidia-smi
+    python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
+      -- bash -c "source activate gpu_test && python -c 'from numba import cuda; cuda.detect()'"
+    python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
+      --run-args='--shm-size=4g' \
       -- bash test-python-wrapper.sh gpu_test
     ;;
 

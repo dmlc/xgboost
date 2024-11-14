@@ -17,6 +17,8 @@ echo "--- Build with CUDA"
 
 echo "--- Build libxgboost from the source"
 set -x
+# Work around https://github.com/NVIDIA/cccl/issues/1956
+# TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
 git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
 python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_rockylinux8 \

@@ -11,6 +11,8 @@ nvcc --version
 #  $arch_flag = ""
 #}
 
+# Work around https://github.com/NVIDIA/cccl/issues/1956
+# TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
 git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
 mkdir build
 cd build

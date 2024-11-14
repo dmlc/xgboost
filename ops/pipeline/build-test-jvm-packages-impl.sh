@@ -8,8 +8,6 @@ cat <<-EOF
 Inputs
   - SCALA_VERSION:     Scala version, either 2.12 or 2.13 (Required)
   - USE_CUDA:          Set to 1 to enable CUDA
-  - CUDA_ARCH:         Semicolon separated list of GPU compute capability targets
-                       (e.g. '35;61') Only applicable if USE_CUDA=1
   - SKIP_NATIVE_BUILD: Set to 1 to have the JVM packages use an externally provided
                        libxgboost4j.so. (Usually Maven will invoke create_jni.py to
                        build it from scratch.) When using this option, make sure to
@@ -40,10 +38,31 @@ else
 fi
 
 # If SKIP_NATIVE_BUILD is set, copy in libxgboost4j.so from lib/
+# Also copy in other files needed for testing. (Usually create_jni.py would perform this
+# step, but we need to do it manually here.)
 if [[ "${SKIP_NATIVE_BUILD:-}" == "1" ]]
 then
   echo "Using externally provided libxgboost4j.so. Locating one from lib/..."
-  cp -v lib/libxgboost4j.so ./jvm-packages/xgboost4j/src/main/resources/lib/linux/x86_64/
+  mkdir -p jvm-packages/xgboost4j/src/main/resources/lib/linux/x86_64/
+  cp -v lib/libxgboost4j.so jvm-packages/xgboost4j/src/main/resources/lib/linux/x86_64/
+  mkdir -p jvm-packages/xgboost4j/src/test/resources
+  mkdir -p jvm-packages/xgboost4j-spark/src/test/resources
+  mkdir -p jvm-packages/xgboost4j-spark-gpu/src/test/resources
+
+  # Generate machine.txt.* files from the CLI regression demo
+  # TODO(hcho3): Remove once CLI is removed
+  pushd demo/CLI/regression
+  python3 mapfeat.py
+  python3 mknfold.py machine.txt 1
+  popd
+
+  cp -v demo/data/agaricus.* \
+    jvm-packages/xgboost4j/src/test/resources
+  cp -v demo/CLI/regression/machine.txt.t* demo/data/agaricus.* \
+    jvm-packages/xgboost4j-spark/src/test/resources
+  cp -v demo/data/veterans_lung_cancer.csv \
+    jvm-packages/xgboost4j-spark/src/test/resources/rank.train.csv \
+    jvm-packages/xgboost4j-spark-gpu/src/test/resources
 fi
 
 cd jvm-packages/
@@ -69,11 +88,6 @@ then
   mvn_options="${mvn_options} -Dskip.native.build=true"
 fi
 set -x
-
-if [[ -n "${CUDA_ARCH:-}" ]]
-then
-  export GPU_ARCH_FLAG="-DGPU_COMPUTE_VER='${CUDA_ARCH}'"
-fi
 
 mvn --no-transfer-progress clean install ${mvn_options}
 
