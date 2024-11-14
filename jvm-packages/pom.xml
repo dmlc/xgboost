@@ -30,6 +30,10 @@
             <name>Hyunsu Cho</name>
             <email>chohyu01@cs.washington.edu</email>
         </developer>
+        <developer>
+            <name>CodingCat</name>
+            <email>codingcat@apache.org</email>
+        </developer>
     </developers>
     <scm>
         <connection>scm:git:git:/github.com/dmlc/xgboost.git</connection>
