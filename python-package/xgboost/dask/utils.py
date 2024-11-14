@@ -54,14 +54,13 @@ def get_address_from_user(
         for k in dconfig:
             if k not in valid_config:
                 raise ValueError(f"Unknown configuration: {k}")
-            else:
-                warnings.warn(
-                    (
-                        "Use `coll_cfg` instead of the Dask global configuration store"
-                        f" for the XGBoost tracker configuration: {k}."
-                    ),
-                    FutureWarning,
-                )
+            warnings.warn(
+                (
+                    "Use `coll_cfg` instead of the Dask global configuration store"
+                    f" for the XGBoost tracker configuration: {k}."
+                ),
+                FutureWarning,
+            )
     else:
         dconfig = {}
 

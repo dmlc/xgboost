@@ -1043,9 +1043,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 tracker_port = self.getOrDefault(self.tracker_port)
 
             num_workers = self.getOrDefault(self.num_workers)
-            rabit_args.update(_get_rabit_args(tracker_host_ip, num_workers, tracker_port))
+            rabit_args.update(
+                _get_rabit_args(tracker_host_ip, num_workers, tracker_port)
+            )
         else:
-            if self.isDefined(self.tracker_host_ip) or self.isDefined(self.tracker_port):
+            if self.isDefined(self.tracker_host_ip) or self.isDefined(
+                self.tracker_port
+            ):
                 raise ValueError(
                     "You must enable launch_tracker_on_driver to use "
                     "tracker_host_ip and tracker_port"

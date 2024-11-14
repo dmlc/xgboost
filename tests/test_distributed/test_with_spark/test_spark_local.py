@@ -1657,7 +1657,9 @@ class XgboostLocalTest(SparkTestCase):
             classifier._get_tracker_args()
 
         classifier = SparkXGBClassifier(
-            launch_tracker_on_driver=False, tracker_host_ip="127.0.0.1", tracker_port=58892
+            launch_tracker_on_driver=False,
+            tracker_host_ip="127.0.0.1",
+            tracker_port=58892,
         )
         with pytest.raises(
             ValueError, match="You must enable launch_tracker_on_driver"
