@@ -68,13 +68,13 @@ def get_address_from_user(
 
     if coll_cfg is None:
         coll_cfg = Config()
-    if coll_cfg.tracker_host is not None:
-        if host_ip is not None and coll_cfg.tracker_host != host_ip:
+    if coll_cfg.tracker_host_ip is not None:
+        if host_ip is not None and coll_cfg.tracker_host_ip != host_ip:
             raise ValueError(
                 "Conflicting host IP addresses from the dask configuration and the "
-                f"collective configuration: {host_ip} v.s. {coll_cfg.tracker_host}."
+                f"collective configuration: {host_ip} v.s. {coll_cfg.tracker_host_ip}."
             )
-        host_ip = coll_cfg.tracker_host
+        host_ip = coll_cfg.tracker_host_ip
     if coll_cfg.tracker_port is not None:
         if (
             port != 0

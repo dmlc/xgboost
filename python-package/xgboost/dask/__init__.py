@@ -33,7 +33,7 @@ Optional dask configuration
     from xgboost.collective import Config
 
     coll_cfg = Config(
-        retry=1, timeout=20, tracker_host="10.23.170.98", tracker_port=0
+        retry=1, timeout=20, tracker_host_ip="10.23.170.98", tracker_port=0
     )
 
     clf = dxgb.DaskXGBClassifier(coll_cfg=coll_cfg)
@@ -1110,6 +1110,10 @@ def train(  # pylint: disable=unused-argument
     client :
         Specify the dask client used for training.  Use default client returned from
         dask if it's set to None.
+
+    coll_cfg :
+        Configuration for the communicator used during training. See
+        :py:class:`~xgboost.collective.Config`.
 
     Returns
     -------

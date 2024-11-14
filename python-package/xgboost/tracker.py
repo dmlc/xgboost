@@ -19,24 +19,29 @@ class RabitTracker:
     workers.
 
     Parameters
-    ..........
+    ----------
+
     n_workers:
 
         The total number of workers in the communication group.
 
     host_ip:
+
         The IP address of the tracker node. XGBoost can try to guess one by probing with
         sockets. But it's best to explicitly pass an address.
 
     port:
+
         The port this tracker should listen to. XGBoost can query an available port from
         the OS, this configuration is useful for restricted network environments.
 
     sortby:
 
         How to sort the workers for rank assignment. The default is host, but users can
-        set the `DMLC_TASK_ID` via RABIT initialization arguments and obtain
-        deterministic rank assignment. Available options are:
+        set the `DMLC_TASK_ID` via arguments of :py:meth:`~xgboost.collective.init` and
+        obtain deterministic rank assignment through sorting by task name. Available
+        options are:
+
           - host
           - task
 
@@ -58,11 +63,14 @@ class RabitTracker:
 
     .. code-block:: python
 
+        from xgboost.tracker import RabitTracker
+        from xgboost import collective as coll
+
         tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
         tracker.start()
 
-        with collective.CommunicatorContext(**tracker.worker_args()):
-            ret = collective.broadcast("msg", 0)
+        with coll.CommunicatorContext(**tracker.worker_args()):
+            ret = coll.broadcast("msg", 0)
             assert str(ret) == "msg"
 
     """

@@ -548,7 +548,7 @@ Troubleshooting
     from xgboost.collective import Config
 
     # let xgboost know the scheduler address
-    coll_cfg = Config(retry=1, timeout=20, tracker_host="10.23.170.98", tracker_port=0)
+    coll_cfg = Config(retry=1, timeout=20, tracker_host_ip="10.23.170.98", tracker_port=0)
 
     with Client(scheduler_file="sched.json") as client:
         reg = dxgb.DaskXGBRegressor(coll_cfg=coll_cfg)

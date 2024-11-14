@@ -38,7 +38,7 @@ class Config:
         only the time for starting and finalizing the communication group, whereas the
         timeout for communicators limits the time used for collective operations.
 
-    tracker_host : See :py:class:`~xgboost.tracker.RabitTracker`.
+    tracker_host_ip : See :py:class:`~xgboost.tracker.RabitTracker`.
 
     tracker_port : See :py:class:`~xgboost.tracker.RabitTracker`.
 
@@ -49,7 +49,7 @@ class Config:
     retry: Optional[int] = None
     timeout: Optional[int] = None
 
-    tracker_host: Optional[str] = None
+    tracker_host_ip: Optional[str] = None
     tracker_port: Optional[int] = None
     tracker_timeout: Optional[int] = None
 
@@ -83,9 +83,7 @@ def init(**args: _ArgVals) -> None:
           - dmlc_timeout: Timeout in seconds.
           - dmlc_nccl_path: Path to load (dlopen) nccl for GPU-based communication.
 
-        Only applicable to the Federated communicator (use upper case for environment
-        variables, use lower case for runtime configuration):
-
+        Only applicable to the Federated communicator:
           - federated_server_address: Address of the federated server.
           - federated_world_size: Number of federated workers.
           - federated_rank: Rank of the current worker.
@@ -94,6 +92,9 @@ def init(**args: _ArgVals) -> None:
           - federated_client_key: Client key file path. Only needed for the SSL mode.
           - federated_client_cert: Client certificate file path. Only needed for the SSL
             mode.
+
+        Use upper case for environment variables, use lower case for runtime configuration.
+
     """
     _check_call(_LIB.XGCommunicatorInit(make_jcargs(**args)))
 

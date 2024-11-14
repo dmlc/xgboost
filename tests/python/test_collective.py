@@ -82,6 +82,6 @@ def test_federated_communicator() -> None:
 
 
 def test_config_serialization() -> None:
-    cfg = Config(retry=1, timeout=2, tracker_host="127.0.0.1", tracker_port=None)
+    cfg = Config(retry=1, timeout=2, tracker_host_ip="127.0.0.1", tracker_port=None)
     cfg1 = Config(**asdict(cfg))
     assert cfg == cfg1

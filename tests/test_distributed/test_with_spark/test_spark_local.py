@@ -1650,14 +1650,14 @@ class XgboostLocalTest(SparkTestCase):
     def test_tracker(self):
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
-            tracker_host="192.168.1.32",
+            tracker_host_ip="192.168.1.32",
             tracker_port=59981,
         )
         with pytest.raises(Exception, match="Failed to bind socket"):
             classifier._get_tracker_args()
 
         classifier = SparkXGBClassifier(
-            launch_tracker_on_driver=False, tracker_host="127.0.0.1", tracker_port=58892
+            launch_tracker_on_driver=False, tracker_host_ip="127.0.0.1", tracker_port=58892
         )
         with pytest.raises(
             ValueError, match="You must enable launch_tracker_on_driver"
@@ -1666,7 +1666,7 @@ class XgboostLocalTest(SparkTestCase):
 
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
-            tracker_host="127.0.0.1",
+            tracker_host_ip="127.0.0.1",
             num_workers=2,
         )
         launch_tracker_on_driver, rabit_envs = classifier._get_tracker_args()

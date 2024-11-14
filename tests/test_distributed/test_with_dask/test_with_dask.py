@@ -1352,11 +1352,11 @@ def test_invalid_config(client: "Client") -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-        cfg = CollConfig(tracker_host="127.0.0.1", tracker_port=port)
+        cfg = CollConfig(tracker_host_ip="127.0.0.1", tracker_port=port)
         dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 
     with pytest.raises(ValueError, match=r"comm_group.*timeout >= 0.*"):
-        cfg = CollConfig(tracker_host="127.0.0.1", tracker_port=0, timeout=-1)
+        cfg = CollConfig(tracker_host_ip="127.0.0.1", tracker_port=0, timeout=-1)
         dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
 
 
