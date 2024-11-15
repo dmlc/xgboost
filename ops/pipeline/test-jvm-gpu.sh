@@ -14,5 +14,5 @@ set -x
 python3 ops/docker_run.py --container-id xgb-ci.jvm_gpu_build --use-gpus \
   -- nvidia-smi
 python3 ops/docker_run.py --container-id xgb-ci.jvm_gpu_build --use-gpus \
-  --run-args "-e SCALA_VERSION=${SCALA_VERSION} -e USE_CUDA=1 -e SKIP_NATIVE_BUILD=1" \
+  --run-args "-e SCALA_VERSION=${SCALA_VERSION} -e USE_CUDA=1 -e SKIP_NATIVE_BUILD=1 --privileged" \
   -- ops/pipeline/build-test-jvm-packages-impl.sh

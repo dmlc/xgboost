@@ -17,6 +17,7 @@ case "${arg}" in
     python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
       -- nvidia-smi
     python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
+      --run-args='--privileged' \
       -- build/testxgboost
     ;;
 
@@ -25,6 +26,7 @@ case "${arg}" in
     python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
       -- nvidia-smi
     python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
+      --run-args='--privileged' \
       -- build/testxgboost --use-rmm-pool
     ;;
 
@@ -33,7 +35,7 @@ case "${arg}" in
     python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
       -- nvidia-smi
     python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
-      --run-args='--shm-size=4g' \
+      --run-args='--shm-size=4g --privileged' \
       -- build/testxgboost --gtest_filter=*MGPU*
     ;;
 

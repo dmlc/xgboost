@@ -28,7 +28,8 @@ RUN \
     mamba create -y -n gpu_test -c ${RAPIDSAI_CONDA_CHANNEL_ARG} -c conda-forge -c nvidia \
         python=3.10 "cudf=$RAPIDS_VERSION_ARG.*" "rmm=$RAPIDS_VERSION_ARG.*" cuda-version=$CUDA_SHORT_VER \
         "nccl>=${NCCL_SHORT_VER}" \
-        dask \
+        "dask<=2024.10.0" \
+        "distributed<=2024.10.0" \
         "dask-cuda=$RAPIDS_VERSION_ARG.*" "dask-cudf=$RAPIDS_VERSION_ARG.*" cupy \
         numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel \
         python-kubernetes urllib3 graphviz hypothesis loky \
