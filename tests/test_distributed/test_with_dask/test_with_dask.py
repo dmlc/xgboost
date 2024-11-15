@@ -20,7 +20,7 @@ import pytest
 import scipy
 import sklearn
 from distributed import Client, LocalCluster, Nanny, Worker
-from distributed.scheduler import KilledWorker
+from distributed.scheduler import KilledWorker, Scheduler
 from distributed.utils_test import async_poll_for, gen_cluster
 from hypothesis import HealthCheck, assume, given, note, settings
 from sklearn.datasets import make_classification, make_regression
@@ -29,8 +29,9 @@ import xgboost as xgb
 from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost import testing as tm
+from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
-from xgboost.testing.dask import check_init_estimation, check_uneven_nan
+from xgboost.testing.dask import check_init_estimation, check_uneven_nan, get_rabit_args
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
@@ -992,7 +993,7 @@ def test_empty_dmatrix(tree_method) -> None:
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
     async with Client(scheduler_address, asynchronous=True) as client:
         X, y, _ = generate_array()
-        m = await DaskDMatrix(client, X, y)
+        m = await DaskDMatrix(client, X, y)  # type: ignore
         output = await dxgb.train(client, {}, dtrain=m)
 
         with_m = await dxgb.predict(client, output, m)
@@ -1097,8 +1098,8 @@ async def generate_concurrent_trainings() -> None:
         ) as cluster:
             async with Client(cluster, asynchronous=True) as client:
                 X, y, w = generate_array(with_weights=True)
-                dtrain = await DaskDMatrix(client, X, y, weight=w)
-                dvalid = await DaskDMatrix(client, X, y, weight=w)
+                dtrain = await DaskDMatrix(client, X, y, weight=w)  # type: ignore
+                dvalid = await DaskDMatrix(client, X, y, weight=w)  # type: ignore
                 output = await dxgb.train(client, {}, dtrain=dtrain)
                 await dxgb.predict(client, output, data=dvalid)
 
@@ -1335,6 +1336,30 @@ def test_killed_task_wo_hang():
                 pass
 
 
+def test_invalid_config(client: "Client") -> None:
+    X, y, _ = generate_array()
+    dtrain = DaskDMatrix(client, X, y)
+
+    with dask.config.set({"xgboost.foo": "bar"}):
+        with pytest.raises(ValueError, match=r"Unknown configuration.*"):
+            dxgb.train(client, {}, dtrain, num_boost_round=4)
+
+    with dask.config.set({"xgboost.scheduler_address": "127.0.0.1:foo"}):
+        with pytest.raises(socket.gaierror, match=r".*not known.*"):
+            dxgb.train(client, {}, dtrain, num_boost_round=1)
+
+    # No failure only because we are also using the Dask scheduler address.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        cfg = CollConfig(tracker_host_ip="127.0.0.1", tracker_port=port)
+        dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
+
+    with pytest.raises(ValueError, match=r"comm_group.*timeout >= 0.*"):
+        cfg = CollConfig(tracker_host_ip="127.0.0.1", tracker_port=0, timeout=-1)
+        dxgb.train(client, {}, dtrain, num_boost_round=1, coll_cfg=cfg)
+
+
 class TestWithDask:
     def test_dmatrix_binary(self, client: "Client") -> None:
         def save_dmatrix(rabit_args: Dict[str, Union[int, str]], tmpdir: str) -> None:
@@ -1355,7 +1380,7 @@ class TestWithDask:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             workers = tm.get_client_workers(client)
-            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
+            rabit_args = get_rabit_args(client, len(workers))
             futures = []
             for w in workers:
                 # same argument for each worker, must set pure to False otherwise dask
@@ -1367,7 +1392,7 @@ class TestWithDask:
                 futures.append(f)
             client.gather(futures)
 
-            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), None, client)
+            rabit_args = get_rabit_args(client, len(workers))
             futures = []
             for w in workers:
                 f = client.submit(
@@ -1425,14 +1450,6 @@ class TestWithDask:
 
         os.remove(before_fname)
         os.remove(after_fname)
-
-        with dask.config.set({"xgboost.foo": "bar"}):
-            with pytest.raises(ValueError, match=r"Unknown configuration.*"):
-                dxgb.train(client, {}, dtrain, num_boost_round=4)
-
-        with dask.config.set({"xgboost.scheduler_address": "127.0.0.1:foo"}):
-            with pytest.raises(socket.gaierror, match=r".*not known.*"):
-                dxgb.train(client, {}, dtrain, num_boost_round=1)
 
     def run_updater_test(
         self,
@@ -1619,9 +1636,7 @@ class TestWithDask:
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
                 workers = tm.get_client_workers(client)
-                rabit_args = client.sync(
-                    dxgb._get_rabit_args, len(workers), None, client
-                )
+                rabit_args = get_rabit_args(client, len(workers))
                 futures = []
                 for i, _ in enumerate(workers):
                     f = client.submit(local_test, rabit_args, i)
@@ -1757,9 +1772,7 @@ class TestWithDask:
                 n_partitions = X.npartitions
                 m = dxgb.DaskDMatrix(client, X, y)
                 workers = tm.get_client_workers(client)
-                rabit_args = client.sync(
-                    dxgb._get_rabit_args, len(workers), None, client
-                )
+                rabit_args = get_rabit_args(client, len(workers))
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:
@@ -2259,11 +2272,11 @@ class TestDaskCallbacks:
     clean_kwargs={"processes": False, "threads": False},
     allow_unclosed=True,
 )
-async def test_worker_left(c, s, a, b):
+async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker):
     async with Worker(s.address):
         dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
         dy = da.random.random((1000,)).rechunk(chunks=(10,))
-        d_train = await dxgb.DaskDMatrix(
+        d_train = await dxgb.DaskDMatrix(  # type: ignore
             c,
             dx,
             dy,

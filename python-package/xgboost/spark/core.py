@@ -123,7 +123,7 @@ _pyspark_specific_params = [
     "pred_contrib_col",
     "use_gpu",
     "launch_tracker_on_driver",
-    "tracker_host",
+    "tracker_host_ip",
     "tracker_port",
 ]
 
@@ -257,9 +257,9 @@ class _SparkXGBParams(
         "launched on the driver side; otherwise, it will be launched on the executor side.",
         TypeConverters.toBoolean,
     )
-    tracker_host = Param(
+    tracker_host_ip = Param(
         Params._dummy(),
-        "tracker_host",
+        "tracker_host_ip",
         "A string variable. The tracker host IP address. To set tracker host ip, you need to "
         "enable launch_tracker_on_driver to be true first",
         TypeConverters.toString,
@@ -1030,25 +1030,29 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
         rabit_args = {}
         if launch_tracker_on_driver:
-            tracker_host: Optional[str] = None
-            if self.isDefined(self.tracker_host):
-                tracker_host = self.getOrDefault(self.tracker_host)
+            tracker_host_ip: Optional[str] = None
+            if self.isDefined(self.tracker_host_ip):
+                tracker_host_ip = self.getOrDefault(self.tracker_host_ip)
             else:
-                tracker_host = (
+                tracker_host_ip = (
                     _get_spark_session().sparkContext.getConf().get("spark.driver.host")
                 )
-            assert tracker_host is not None
+            assert tracker_host_ip is not None
             tracker_port = 0
             if self.isDefined(self.tracker_port):
                 tracker_port = self.getOrDefault(self.tracker_port)
 
             num_workers = self.getOrDefault(self.num_workers)
-            rabit_args.update(_get_rabit_args(tracker_host, num_workers, tracker_port))
+            rabit_args.update(
+                _get_rabit_args(tracker_host_ip, num_workers, tracker_port)
+            )
         else:
-            if self.isDefined(self.tracker_host) or self.isDefined(self.tracker_port):
+            if self.isDefined(self.tracker_host_ip) or self.isDefined(
+                self.tracker_port
+            ):
                 raise ValueError(
                     "You must enable launch_tracker_on_driver to use "
-                    "tracker_host and tracker_port"
+                    "tracker_host_ip and tracker_port"
                 )
         return launch_tracker_on_driver, rabit_args
 

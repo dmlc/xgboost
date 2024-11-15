@@ -1,6 +1,6 @@
 """Tests for dask shared by different test modules."""
 
-from typing import List, Literal, cast
+from typing import Any, List, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,7 @@ from xgboost.compat import concat
 from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
+from ..dask import _get_rabit_args
 
 
 def check_init_estimation_clf(
@@ -168,3 +169,8 @@ def check_external_memory(  # pylint: disable=too-many-locals
     np.testing.assert_allclose(
         results["Train"]["rmse"], results_local["Train"]["rmse"], rtol=1e-4
     )
+
+
+def get_rabit_args(client: Client, n_workers: int) -> Any:
+    """Get RABIT collective communicator arguments for tests."""
+    return client.sync(_get_rabit_args, client, n_workers)

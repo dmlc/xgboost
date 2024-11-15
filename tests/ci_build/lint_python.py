@@ -21,6 +21,7 @@ class LintersPaths:
         # tests
         "tests/python/test_config.py",
         "tests/python/test_callback.py",
+        "tests/python/test_collective.py",
         "tests/python/test_data_iterator.py",
         "tests/python/test_dmatrix.py",
         "tests/python/test_dt.py",
@@ -94,6 +95,7 @@ class LintersPaths:
         # core
         "python-package/",
         # tests
+        "tests/python/test_collective.py",
         "tests/python/test_dt.py",
         "tests/python/test_demos.py",
         "tests/python/test_data_iterator.py",

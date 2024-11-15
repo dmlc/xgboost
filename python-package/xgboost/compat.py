@@ -1,10 +1,10 @@
-# pylint: disable= invalid-name,  unused-import
+# pylint: disable=invalid-name,unused-import
 """For compatibility and optional dependencies."""
 import importlib.util
 import logging
 import sys
 import types
-from typing import Any, Dict, List, Optional, Sequence, cast
+from typing import Any, Sequence, cast
 
 import numpy as np
 
@@ -13,8 +13,9 @@ from ._typing import _T
 assert sys.version_info[0] == 3, "Python 2 is no longer supported."
 
 
-def py_str(x: bytes) -> str:
+def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
+    assert x is not None  # ctypes might return None
     return x.decode("utf-8")  # type: ignore
 
 

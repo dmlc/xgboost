@@ -4,8 +4,9 @@ import ctypes
 import logging
 import os
 import pickle
+from dataclasses import dataclass
 from enum import IntEnum, unique
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional, TypeAlias, Union
 
 import numpy as np
 
@@ -15,7 +16,53 @@ from .core import _LIB, _check_call, build_info, c_str, make_jcargs, py_str
 LOGGER = logging.getLogger("[xgboost.collective]")
 
 
-def init(**args: Any) -> None:
+_ArgVals: TypeAlias = Optional[Union[int, str]]
+_Args: TypeAlias = Dict[str, _ArgVals]
+
+
+@dataclass
+class Config:
+    """User configuration for the communicator context. This is used for easier
+    integration with distributed frameworks. Users of the collective module can pass the
+    parameters directly into tracker and the communicator.
+
+    .. versionadded:: 3.0
+
+    Attributes
+    ----------
+    retry : See `dmlc_retry` in :py:meth:`init`.
+
+    timeout :
+        See `dmlc_timeout` in :py:meth:`init`. This is only used for communicators, not
+        the tracker. They are different parameters since the timeout for tracker limits
+        only the time for starting and finalizing the communication group, whereas the
+        timeout for communicators limits the time used for collective operations.
+
+    tracker_host_ip : See :py:class:`~xgboost.tracker.RabitTracker`.
+
+    tracker_port : See :py:class:`~xgboost.tracker.RabitTracker`.
+
+    tracker_timeout : See :py:class:`~xgboost.tracker.RabitTracker`.
+
+    """
+
+    retry: Optional[int] = None
+    timeout: Optional[int] = None
+
+    tracker_host_ip: Optional[str] = None
+    tracker_port: Optional[int] = None
+    tracker_timeout: Optional[int] = None
+
+    def get_comm_config(self, args: _Args) -> _Args:
+        """Update the arguments for the communicator."""
+        if self.retry is not None:
+            args["dmlc_retry"] = self.retry
+        if self.timeout is not None:
+            args["dmlc_timeout"] = self.timeout
+        return args
+
+
+def init(**args: _ArgVals) -> None:
     """Initialize the collective library with arguments.
 
     Parameters
@@ -36,9 +83,7 @@ def init(**args: Any) -> None:
           - dmlc_timeout: Timeout in seconds.
           - dmlc_nccl_path: Path to load (dlopen) nccl for GPU-based communication.
 
-        Only applicable to the Federated communicator (use upper case for environment
-        variables, use lower case for runtime configuration):
-
+        Only applicable to the Federated communicator:
           - federated_server_address: Address of the federated server.
           - federated_world_size: Number of federated workers.
           - federated_rank: Rank of the current worker.
@@ -47,6 +92,9 @@ def init(**args: Any) -> None:
           - federated_client_key: Client key file path. Only needed for the SSL mode.
           - federated_client_cert: Client certificate file path. Only needed for the SSL
             mode.
+
+        Use upper case for environment variables, use lower case for runtime configuration.
+
     """
     _check_call(_LIB.XGCommunicatorInit(make_jcargs(**args)))
 
@@ -117,7 +165,6 @@ def get_processor_name() -> str:
     name_str = ctypes.c_char_p()
     _check_call(_LIB.XGCommunicatorGetProcessorName(ctypes.byref(name_str)))
     value = name_str.value
-    assert value
     return py_str(value)
 
 
@@ -247,7 +294,7 @@ def signal_error() -> None:
 class CommunicatorContext:
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, **args: Any) -> None:
+    def __init__(self, **args: _ArgVals) -> None:
         self.args = args
         key = "dmlc_nccl_path"
         if args.get(key, None) is not None:
@@ -275,12 +322,12 @@ class CommunicatorContext:
         except ImportError:
             pass
 
-    def __enter__(self) -> Dict[str, Any]:
+    def __enter__(self) -> _Args:
         init(**self.args)
         assert is_distributed()
         LOGGER.debug("-------------- communicator say hello ------------------")
         return self.args
 
-    def __exit__(self, *args: List) -> None:
+    def __exit__(self, *args: Any) -> None:
         finalize()
         LOGGER.debug("--------------- communicator say bye ------------------")
