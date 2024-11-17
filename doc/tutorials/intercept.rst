@@ -116,24 +116,24 @@ example, we might want to model the rate instead of the count:
    rate = \frac{count}{exposure}
 
 And the offset is defined as log link applied to the exposure variable:
-:math:`\ln{exposure}`. Let :math:`c` be the count and :math:`\beta` be the exposure,
+:math:`\ln{exposure}`. Let :math:`c` be the count and :math:`\gamma` be the exposure,
 substituting the response :math:`y` in our previous formulation of base margin:
 
 .. math::
 
-   g{\frac{E[c_i]}{\beta_i}} = F(x_i)
+   g(\frac{E[c_i]}{\gamma_i}) = F(x_i)
 
 Substitute :math:`g` with :math:`\ln` for Poisson regression:
 
 .. math::
 
-   \ln{\frac{E[c_i]}{\beta_i}} = F(x_i)
+   \ln{\frac{E[c_i]}{\gamma_i}} = F(x_i)
 
 We have:
 
 .. math::
 
-   E[c_i] &= \exp{F(x_i) + \ln{\beta_i}} \\
-   E[c_i] &= g^{-1}(F(x_i) + g(\beta_i))
+   E[c_i] &= \exp{(F(x_i) + \ln{\gamma_i})} \\
+   E[c_i] &= g^{-1}(F(x_i) + g(\gamma_i))
 
 As you can see, we can use the ``base_margin`` for modeling with offset similar to GLMs
