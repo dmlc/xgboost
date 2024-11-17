@@ -63,6 +63,17 @@ build {
   sources = ["source.amazon-ebs.runs-on-linux"]
 
   provisioner "shell" {
-    script = "bootstrap.sh"
+    script      = "install_drivers.sh"
+    pause_after = "30s"
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    inline            = ["echo 'Reboot VM'", "sudo reboot"]
+  }
+
+  provisioner "shell" {
+    pause_before = "1m0s"
+    script       = "bootstrap.sh"
   }
 }

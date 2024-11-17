@@ -1,21 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-## Install basic tools
-echo 'debconf debconf/frontend select Noninteractive' | sudo debconf-set-selections
-sudo apt-get update
-sudo apt-get install -y cmake git build-essential wget ca-certificates curl unzip
-
-## Install CUDA 12.5 + driver
-echo "Installilng CUDA and driver..."
-wget -nv https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-ubuntu2404.pin
-sudo mv cuda-ubuntu2404.pin /etc/apt/preferences.d/cuda-repository-pin-600
-wget -nv https://developer.download.nvidia.com/compute/cuda/12.5.1/local_installers/cuda-repo-ubuntu2404-12-5-local_12.5.1-555.42.06-1_amd64.deb
-sudo dpkg -i cuda-repo-ubuntu2404-12-5-local_12.5.1-555.42.06-1_amd64.deb
-sudo cp /var/cuda-repo-ubuntu2404-12-5-local/cuda-*-keyring.gpg /usr/share/keyrings/
-sudo apt-get update
-sudo apt-get install -y cuda-toolkit-12-5 nvidia-driver-555-open cuda-drivers-555
-
 ## Install Docker
 # Add Docker's official GPG key:
 sudo install -m 0755 -d /etc/apt/keyrings
@@ -31,6 +16,12 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 # Allow users to use Docker without sudo
 sudo usermod -aG docker ubuntu
 
+# Start Docker daemon
+sudo systemctl is-active --quiet docker.service || sudo systemctl start docker.service
+sudo systemctl is-enabled --quiet docker.service || sudo systemctl enable docker.service
+sleep 10  # Docker daemon takes time to come up after installing
+sudo docker info
+
 ## Install NVIDIA Container Toolkit
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
   && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
@@ -41,12 +32,21 @@ sudo apt-get install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 
+sleep 10
+sudo docker run --rm --gpus all ubuntu nvidia-smi
+sudo systemctl stop docker
+
 ## Install AWS CLI v2
 wget -nv https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -O awscliv2.zip
-unzip awscliv2.zip
+unzip -q awscliv2.zip
 sudo ./aws/install
+rm -rf ./aws/ ./awscliv2.zip
 
 ## Install jq and yq
 sudo apt update && sudo apt install jq
+mkdir yq/
+pushd yq/
 wget -nv https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64.tar.gz -O - | \
   tar xz && sudo mv ./yq_linux_amd64 /usr/bin/yq
+popd
+rm -rf yq/
