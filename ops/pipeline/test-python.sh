@@ -38,7 +38,6 @@ case "$suite" in
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
       -- nvidia-smi
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
-      --run-args='--privileged' \
       -- bash test-python-wrapper.sh gpu_test
     ;;
 
@@ -56,7 +55,7 @@ case "$suite" in
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
       -- nvidia-smi
     python3 ops/docker_run.py --container-id "${container_id}" --use-gpus \
-      --run-args='--shm-size=4g --privileged' \
+      --run-args='--shm-size=4g' \
       -- bash test-python-wrapper.sh gpu_test
     ;;
 
