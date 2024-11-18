@@ -113,6 +113,22 @@
         </profile>
 
         <profile>
+            <id>docs</id>
+            <properties>
+               <use.cuda>ON</use.cuda>
+               <skipTests>true</skipTests>
+               <maven.test.skip>true</maven.test.skip>
+               <skip.native.build>true</skip.native.build>
+            </properties>
+            <modules>
+                <module>xgboost4j</module>
+                <module>xgboost4j-spark</module>
+                <module>xgboost4j-spark-gpu</module>
+                <module>xgboost4j-flink</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>release</id>
             <build>
                 <plugins>

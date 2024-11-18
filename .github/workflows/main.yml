@@ -20,7 +20,6 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
-      - spot=false
     strategy:
       matrix:
         container_id:
@@ -121,7 +120,6 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - spot=false
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -262,6 +260,29 @@ jobs:
         env:
           COMMAND: upload
           KEY: build-jvm-gpu
+
+  build-jvm-docs:
+    name: Build docs for JVM packages
+    needs: [build-jvm-gpu]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: xgb-ci.jvm_gpu_build
+      - name: Unstash files
+        run: bash ops/stash_artifacts.sh lib/libxgboost4j.so
+        env:
+          COMMAND: download
+          KEY: build-jvm-gpu
+      - run: bash ops/pipeline/build-jvm-doc.sh
 
   build-test-jvm-packages:
     name: Build and test JVM packages

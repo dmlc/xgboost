@@ -26,7 +26,6 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=windows-cpu
-      - spot=false
     steps:
       - uses: actions/checkout@v4
         with:
