@@ -7,7 +7,7 @@ source ops/pipeline/enforce-ci.sh
 echo "--- Build XGBoost R package with CUDA"
 python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_r_rockylinux8 \
-  -- ops/build_r_pkg_with_cuda.sh \
+  -- ops/pipeline/build-gpu-rpkg-impl.sh \
   ${GITHUB_SHA}
 
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
