@@ -31,7 +31,7 @@ pip install --user -v "pip>=23"
 pip --version
 pip wheel --no-deps -v . --wheel-dir dist/
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-python ../ops/rename_whl.py `
+python ../ops/script/rename_whl.py `
     --wheel-path (Get-ChildItem dist/*.whl | Select-Object -Expand FullName) `
     --commit-hash $Env:GITHUB_SHA `
     --platform-tag win_amd64

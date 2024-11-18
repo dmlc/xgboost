@@ -30,7 +30,7 @@ git checkout python-package/pyproject.toml python-package/xgboost/core.py
 python3 ops/docker_run.py \
   --container-id ${image} \
   -- auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
-python3 ops/rename_whl.py  \
+python3 ops/script/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
   --commit-hash ${GITHUB_SHA}  \
   --platform-tag ${WHEEL_TAG}
@@ -51,7 +51,7 @@ git checkout python-package/pyproject.toml  # discard the patch
 python3 ops/docker_run.py \
   --container-id ${image} \
   -- auditwheel repair --plat ${WHEEL_TAG} python-package/dist/xgboost_cpu-*.whl
-python3 ops/rename_whl.py  \
+python3 ops/script/rename_whl.py  \
   --wheel-path wheelhouse/xgboost_cpu-*.whl  \
   --commit-hash ${GITHUB_SHA}  \
   --platform-tag ${WHEEL_TAG}

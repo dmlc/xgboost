@@ -43,7 +43,7 @@ export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate
 
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
-python tests/ci_build/rename_whl.py  \
+python ops/script/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
   --commit-hash ${commit_id}  \
   --platform-tag ${wheel_tag}

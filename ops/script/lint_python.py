@@ -16,8 +16,6 @@ class LintersPaths:
     BLACK = (
         # core
         "python-package/",
-        # CI
-        "tests/ci_build/tidy.py",
         # tests
         "tests/python/test_config.py",
         "tests/python/test_callback.py",
@@ -66,10 +64,11 @@ class LintersPaths:
         "demo/guide-python/update_process.py",
         "demo/aft_survival/aft_survival_viz_demo.py",
         # CI
-        "tests/ci_build/lint_python.py",
-        "tests/ci_build/test_r_package.py",
-        "tests/ci_build/test_utils.py",
-        "tests/ci_build/change_version.py",
+        "ops/script/run_clang_tidy.py",
+        "ops/script/lint_python.py",
+        "ops/script/test_r_package.py",
+        "ops/script/test_utils.py",
+        "ops/script/change_version.py",
     )
 
     ISORT = (
@@ -79,7 +78,7 @@ class LintersPaths:
         "tests/test_distributed/",
         "tests/python/",
         "tests/python-gpu/",
-        "tests/ci_build/",
+        "ops/script/",
         # demo
         "demo/",
         # misc
@@ -123,11 +122,11 @@ class LintersPaths:
         "demo/guide-python/learning_to_rank.py",
         "demo/aft_survival/aft_survival_viz_demo.py",
         # CI
-        "tests/ci_build/tidy.py",
-        "tests/ci_build/lint_python.py",
-        "tests/ci_build/test_r_package.py",
-        "tests/ci_build/test_utils.py",
-        "tests/ci_build/change_version.py",
+        "ops/script/run_clang_tidy.py",
+        "ops/script/lint_python.py",
+        "ops/script/test_r_package.py",
+        "ops/script/test_utils.py",
+        "ops/script/change_version.py",
     )
 
 

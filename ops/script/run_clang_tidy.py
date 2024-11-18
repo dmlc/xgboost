@@ -265,7 +265,7 @@ def test_tidy(args: argparse.Namespace) -> None:
     """
     root_path = os.path.abspath(os.path.curdir)
     tidy_file = os.path.join(root_path, ".clang-tidy")
-    test_file_path = os.path.join(root_path, "ops", "clang-tidy", "test_tidy.cc")
+    test_file_path = os.path.join(root_path, "ops", "script", "test_tidy.cc")
 
     tidy_config = "--config-file=" + tidy_file
     if not args.tidy_version:

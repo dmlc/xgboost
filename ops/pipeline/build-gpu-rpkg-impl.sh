@@ -14,7 +14,7 @@ fi
 
 commit_hash="$1"
 
-python3 ops/test_r_package.py --task=pack
+python3 ops/script/test_r_package.py --task=pack
 mv xgboost/ xgboost_rpack/
 
 mkdir build

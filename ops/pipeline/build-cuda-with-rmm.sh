@@ -18,7 +18,7 @@ echo "--- Build with CUDA with RMM"
 echo "--- Build libxgboost from the source"
 python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_rockylinux8 \
-  -- ops/build_via_cmake.sh \
+  -- ops/script/build_via_cmake.sh \
   -DCMAKE_PREFIX_PATH="/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake" \
   -DUSE_CUDA=ON \
   -DUSE_OPENMP=ON \
@@ -36,7 +36,7 @@ python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_rockylinux8 \
   -- bash -c \
   "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
-python3 ops/rename_whl.py  \
+python3 ops/script/rename_whl.py  \
   --wheel-path python-package/dist/*.whl  \
   --commit-hash ${GITHUB_SHA}  \
   --platform-tag ${WHEEL_TAG}
@@ -46,7 +46,7 @@ python3 ops/docker_run.py \
   --container-id xgb-ci.$WHEEL_TAG \
   -- auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
-python3 ops/rename_whl.py  \
+python3 ops/script/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
   --commit-hash ${GITHUB_SHA}  \
   --platform-tag ${WHEEL_TAG}

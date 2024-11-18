@@ -22,7 +22,7 @@ set -x
 git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
 python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_rockylinux8 \
-  -- ops/build_via_cmake.sh \
+  -- ops/script/build_via_cmake.sh \
   -DCMAKE_PREFIX_PATH="/opt/grpc;/workspace/cccl" \
   -DUSE_CUDA=ON \
   -DUSE_OPENMP=ON \
@@ -39,7 +39,7 @@ python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_rockylinux8 \
   -- bash -c \
   "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
-python3 ops/rename_whl.py  \
+python3 ops/script/rename_whl.py  \
   --wheel-path python-package/dist/*.whl  \
   --commit-hash ${GITHUB_SHA}  \
   --platform-tag ${WHEEL_TAG}
@@ -49,7 +49,7 @@ python3 ops/docker_run.py \
   --container-id xgb-ci.manylinux_2_28_x86_64 \
   -- auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
-python3 ops/rename_whl.py  \
+python3 ops/script/rename_whl.py  \
   --wheel-path wheelhouse/*.whl  \
   --commit-hash ${GITHUB_SHA}  \
   --platform-tag ${WHEEL_TAG}
@@ -68,7 +68,7 @@ then
   # Generate the meta info which includes xgboost version and the commit info
   python3 ops/docker_run.py \
   --container-id xgb-ci.gpu_build_rockylinux8 \
-  -- python ops/format_wheel_meta.py \
+  -- python ops/script/format_wheel_meta.py \
     --wheel-path python-package/dist/*.whl  \
     --commit-hash ${GITHUB_SHA}  \
     --platform-tag ${WHEEL_TAG}  \

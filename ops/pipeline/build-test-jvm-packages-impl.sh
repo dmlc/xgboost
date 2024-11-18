@@ -31,7 +31,7 @@ set -x
 # Set Scala version
 if [[ "${SCALA_VERSION}" == "2.12" || "${SCALA_VERSION}" == "2.13" ]]
 then
-  python ops/change_scala_version.py --scala-version ${SCALA_VERSION} --purge-artifacts
+  python ops/script/change_scala_version.py --scala-version ${SCALA_VERSION} --purge-artifacts
 else
   echo "Error: SCALA_VERSION must be either 2.12 or 2.13"
   exit 2

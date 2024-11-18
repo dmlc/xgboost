@@ -18,7 +18,7 @@ echo "--- Run Google Test with sanitizer enabled"
 sudo sysctl vm.mmap_rnd_bits=28
 python3 ops/docker_run.py \
   --container-id xgb-ci.cpu \
-  -- ops/build_via_cmake.sh \
+  -- ops/script/build_via_cmake.sh \
   -DUSE_SANITIZER=ON \
   -DENABLED_SANITIZERS="address;leak;undefined" \
   -DCMAKE_BUILD_TYPE=Debug \
@@ -35,7 +35,7 @@ python3 ops/docker_run.py \
 echo "--- Run Google Test"
 python3 ops/docker_run.py \
   --container-id xgb-ci.cpu \
-  -- ops/build_via_cmake.sh \
+  -- ops/script/build_via_cmake.sh \
   -DCMAKE_PREFIX_PATH=/opt/grpc \
 	-DPLUGIN_FEDERATED=ON
 python3 ops/docker_run.py \
