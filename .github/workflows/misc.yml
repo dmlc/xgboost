@@ -16,11 +16,7 @@ env:
 jobs:
   gtest-cpu:
     name: Test Google C++ test (CPU)
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-13]
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -42,11 +38,7 @@ jobs:
 
   gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -68,15 +60,10 @@ jobs:
 
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash -l {0}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.10"]
     steps:
       - uses: actions/checkout@v4.2.2
         with:

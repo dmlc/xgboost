@@ -20,11 +20,7 @@ env:
 jobs:
   gtest-cpu-sycl:
     name: Test Google C++ unittest (CPU SYCL)
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4.2.2
       with:
@@ -53,14 +49,9 @@ jobs:
         ./testxgboost
 
   python-sycl-tests-on-ubuntu:
-    name: Test XGBoost Python package with SYCL on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Test XGBoost Python package with SYCL
+    runs-on: ubuntu-latest
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-
     steps:
       - uses: actions/checkout@v4.2.2
         with:

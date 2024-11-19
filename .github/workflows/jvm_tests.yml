@@ -21,6 +21,7 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
     strategy:
+      max-parallel: 2
       matrix:
         container_id:
           - xgb-ci.manylinux2014_x86_64

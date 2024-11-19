@@ -15,26 +15,20 @@ env:
 
 jobs:
   build-containers:
-    name: Build CI containers (${{ matrix.container_id }})
+    name: Build CI containers
+    env:
+      CONTAINER_ID: xgb-ci.clang_tidy
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - container_id: xgb-ci.clang_tidy
-            runner: linux-amd64-cpu
+      - runner=linux-amd64-cpu
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
       - uses: actions/checkout@v4.2.2
         with:
           submodules: "true"
-      - name: Build ${{ matrix.container_id }}
+      - name: Build ${{ env.CONTAINER_ID }}
         run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: ${{ matrix.container_id }}
 
   clang-tidy:
     name: Run clang-tidy
@@ -106,17 +100,10 @@ jobs:
           bash ops/script/lint_cmake.sh
 
   lintr:
-    runs-on: ${{ matrix.os }}
-    name: Run R linters on OS ${{ matrix.os }}, R ${{ matrix.r }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            r: "release"
+    runs-on: ubuntu-latest
+    name: Run R linters on Ubuntu
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -124,14 +111,14 @@ jobs:
 
       - uses: r-lib/actions/setup-r@v2.11.0
         with:
-          r-version: ${{ matrix.r }}
+          r-version: "release"
 
       - name: Cache R packages
         uses: actions/cache@v4.1.2
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-${{ matrix.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
-          restore-keys: ${{ runner.os }}-r-${{ matrix.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
+          key: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
+          restore-keys: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
 
       - name: Install dependencies
         shell: Rscript {0}

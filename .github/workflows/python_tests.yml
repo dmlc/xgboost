@@ -15,12 +15,8 @@ concurrency:
 
 jobs:
   python-sdist-test-on-Linux:
-    runs-on: ${{ matrix.os }}
-    name: Test installing XGBoost Python source package on ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
+    name: Test installing XGBoost Python source package
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -85,14 +81,9 @@ jobs:
           python -c 'import xgboost'
 
   python-tests-on-macos:
-    name: Test XGBoost Python package on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Test XGBoost Python package on macos-13
+    runs-on: macos-13
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-13]
-
     steps:
       - uses: actions/checkout@v4.2.2
         with:
@@ -138,13 +129,8 @@ jobs:
           pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
 
   python-system-installation-on-ubuntu:
-    name: Test XGBoost Python package System Installation on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-
+    name: Test XGBoost Python package System Installation on Ubuntu
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
         with:

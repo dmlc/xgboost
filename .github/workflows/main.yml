@@ -21,6 +21,7 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
     strategy:
+      max-parallel: 2
       matrix:
         container_id:
           - xgb-ci.gpu_build_rockylinux8
@@ -203,6 +204,7 @@ jobs:
       - runner=${{ matrix.runner }}
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         include:
           - suite: gpu
@@ -241,6 +243,7 @@ jobs:
       - runner=${{ matrix.runner }}
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         include:
           - description: "single GPU"
