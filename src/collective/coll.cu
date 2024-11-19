@@ -153,19 +153,19 @@ template <typename Fn, typename R = std::invoke_result_t<Fn, dh::CUDAStreamView>
   auto abort = [&](std::string msg) {
     auto rc = stub->CommAbort(nccl->Handle());
     fut.wait();  // Must block, otherwise the thread might access freed memory.
-    return Fail(std::move(msg)) + std::move(rc);
+    return Fail(msg + ": " + std::to_string(nccl->Timeout().count()) + "s.") + std::move(rc);
   };
   if (!chan.called) {
     // Timeout waiting for the NCCL op to return. With older versions of NCCL, the op
     // might block even if the config is set to nonblocking.
-    return abort("NCCL future timeout.");
+    return abort("NCCL future timeout");
   }
 
   // This actually includes the time for prior kernels due to CUDA async calls.
   switch (fut.wait_for(nccl->Timeout())) {
     case std::future_status::timeout:
       // Timeout waiting for the NCCL op to finish.
-      return abort("NCCL timeout.");
+      return abort("NCCL timeout");
     case std::future_status::ready:
       return fut.get();
     case std::future_status::deferred:

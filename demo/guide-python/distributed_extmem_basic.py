@@ -106,7 +106,8 @@ def setup_rmm() -> None:
         return
 
     try:
-        from cuda import cudart
+        # Use the arena pool if available
+        from cuda.bindings import runtime as cudart
         from rmm.mr import ArenaMemoryResource
 
         status, free, total = cudart.cudaMemGetInfo()
