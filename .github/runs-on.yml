@@ -34,7 +34,3 @@ runners:
     cpu: 32
     family: ["c7i-flex", "c7i", "c7a", "c5", "c5a"]
     image: windows-amd64
-<<<<<<< HEAD
-=======
-
->>>>>>> upstream/master
