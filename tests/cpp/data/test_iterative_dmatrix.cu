@@ -16,8 +16,9 @@ void TestEquivalent(float sparsity) {
   auto ctx = MakeCUDACtx(0);
 
   CudaArrayIterForTest iter{sparsity};
-  IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                     std::numeric_limits<float>::quiet_NaN(), 0, 256);
+  IterativeDMatrix m{&iter, iter.Proxy(), nullptr, Reset, Next,
+                     std::numeric_limits<float>::quiet_NaN(), 0, 256,
+                     std::numeric_limits<std::int64_t>::max()};
   std::size_t offset = 0;
   auto first = (*m.GetEllpackBatches(&ctx, {}).begin()).Impl();
   std::unique_ptr<EllpackPageImpl> page_concatenated{new EllpackPageImpl{
@@ -74,8 +75,9 @@ TEST(IterativeDeviceDMatrix, Basic) {
 
 TEST(IterativeDeviceDMatrix, RowMajor) {
   CudaArrayIterForTest iter(0.0f);
-  IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                     std::numeric_limits<float>::quiet_NaN(), 0, 256);
+  IterativeDMatrix m{&iter, iter.Proxy(), nullptr,
+                     Reset, Next,         std::numeric_limits<float>::quiet_NaN(),
+                     0,     256,          std::numeric_limits<std::int64_t>::max()};
   size_t n_batches = 0;
   std::string interface_str = iter.AsArray();
   Context ctx{MakeCUDACtx(0)};
@@ -127,8 +129,9 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
   auto ptr =
       thrust::device_ptr<float>(reinterpret_cast<float*>(get<Integer>(j_interface["data"][0])));
   thrust::copy(h_data.cbegin(), h_data.cend(), ptr);
-  IterativeDMatrix m{
-      &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0, 256};
+  IterativeDMatrix m{&iter, iter.Proxy(), nullptr,
+                     Reset, Next,         std::numeric_limits<float>::quiet_NaN(),
+                     0,     256,          std::numeric_limits<std::int64_t>::max()};
   auto ctx = MakeCUDACtx(0);
   auto& ellpack =
       *m.GetBatches<EllpackPage>(&ctx, BatchParam{256, tree::TrainParam::DftSparseThreshold()})
@@ -154,7 +157,8 @@ TEST(IterativeDeviceDMatrix, IsDense) {
   auto test = [num_bins](float sparsity) {
     CudaArrayIterForTest iter(sparsity);
     IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                       std::numeric_limits<float>::quiet_NaN(), 0, num_bins);
+                       std::numeric_limits<float>::quiet_NaN(), 0, num_bins,
+                       std::numeric_limits<std::int64_t>::max());
     if (sparsity == 0.0) {
       ASSERT_TRUE(m.IsDense());
     } else {

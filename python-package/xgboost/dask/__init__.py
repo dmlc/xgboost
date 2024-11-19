@@ -20,9 +20,32 @@ https://github.com/dask/dask-xgboost
 Optional dask configuration
 ===========================
 
-- **xgboost.scheduler_address**: Specify the scheduler address, see :ref:`tracker-ip`.
+- **coll_cfg**:
+    Specify the scheduler address along with communicator configurations. This can be
+    used as a replacement of the existing global Dask configuration
+    `xgboost.scheduler_address` (see below). See :ref:`tracker-ip` for more info. The
+    `tracker_host_ip` should specify the IP address of the Dask scheduler node.
+
+  .. versionadded:: 3.0.0
+
+  .. code-block:: python
+
+    from xgboost import dask as dxgb
+    from xgboost.collective import Config
+
+    coll_cfg = Config(
+        retry=1, timeout=20, tracker_host_ip="10.23.170.98", tracker_port=0
+    )
+
+    clf = dxgb.DaskXGBClassifier(coll_cfg=coll_cfg)
+    # or
+    dxgb.train(client, {}, Xy, num_boost_round=10, coll_cfg=coll_cfg)
+
+- **xgboost.scheduler_address**: Specify the scheduler address
 
   .. versionadded:: 1.6.0
+
+  .. deprecated:: 3.0.0
 
   .. code-block:: python
 
@@ -33,15 +56,11 @@ Optional dask configuration
 """
 import collections
 import logging
-import platform
-import socket
-import warnings
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import partial, update_wrapper
+from functools import partial, update_wrapper, wraps
 from threading import Thread
 from typing import (
-    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
@@ -50,21 +69,31 @@ from typing import (
     Iterable,
     List,
     Optional,
+    ParamSpec,
     Sequence,
     Set,
     Tuple,
+    TypeAlias,
     TypedDict,
     TypeVar,
     Union,
 )
 
+import dask
+import distributed
 import numpy
+from dask import array as da
+from dask import bag as db
+from dask import dataframe as dd
 
-from xgboost import collective, config
-from xgboost._typing import _T, FeatureNames, FeatureTypes, IterationRange
-from xgboost.callback import TrainingCallback
-from xgboost.compat import DataFrame, LazyLoader, concat, lazy_isinstance
-from xgboost.core import (
+from .. import collective, config
+from .._typing import _T, FeatureNames, FeatureTypes, IterationRange
+from ..callback import TrainingCallback
+from ..collective import Config as CollConfig
+from ..collective import _Args as CollArgs
+from ..collective import _ArgVals as CollArgsVals
+from ..compat import DataFrame, concat, lazy_isinstance
+from ..core import (
     Booster,
     DataIter,
     DMatrix,
@@ -76,8 +105,8 @@ from xgboost.core import (
     _deprecate_positional_args,
     _expect,
 )
-from xgboost.data import _is_cudf_ser, _is_cupy_alike
-from xgboost.sklearn import (
+from ..data import _is_cudf_ser, _is_cupy_alike
+from ..sklearn import (
     XGBClassifier,
     XGBClassifierBase,
     XGBModel,
@@ -91,26 +120,12 @@ from xgboost.sklearn import (
     _wrap_evaluation_matrices,
     xgboost_model_doc,
 )
-from xgboost.tracker import RabitTracker
-from xgboost.training import train as worker_train
+from ..tracker import RabitTracker
+from ..training import train as worker_train
+from .utils import get_address_from_user, get_n_threads
 
-from .utils import get_n_threads
-
-if TYPE_CHECKING:
-    import dask
-    import distributed
-    from dask import array as da
-    from dask import bag as db
-    from dask import dataframe as dd
-else:
-    dd = LazyLoader("dd", globals(), "dask.dataframe")
-    da = LazyLoader("da", globals(), "dask.array")
-    db = LazyLoader("db", globals(), "dask.bag")
-    dask = LazyLoader("dask", globals(), "dask")
-    distributed = LazyLoader("distributed", globals(), "dask.distributed")
-
-_DaskCollection = Union["da.Array", "dd.DataFrame", "dd.Series"]
-_DataT = Union["da.Array", "dd.DataFrame"]  # do not use series as predictor
+_DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
+_DataT: TypeAlias = Union[da.Array, dd.DataFrame]  # do not use series as predictor
 TrainReturnT = TypedDict(
     "TrainReturnT",
     {
@@ -160,8 +175,9 @@ LOGGER = logging.getLogger("[xgboost.dask]")
 def _try_start_tracker(
     n_workers: int,
     addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
-) -> Dict[str, Union[int, str]]:
-    env: Dict[str, Union[int, str]] = {}
+    timeout: Optional[int],
+) -> CollArgs:
+    env: CollArgs = {}
     try:
         if isinstance(addrs[0], tuple):
             host_ip = addrs[0][0]
@@ -171,15 +187,20 @@ def _try_start_tracker(
                 host_ip=host_ip,
                 port=port,
                 sortby="task",
+                timeout=0 if timeout is None else timeout,
             )
         else:
             addr = addrs[0]
             assert isinstance(addr, str) or addr is None
             rabit_tracker = RabitTracker(
-                n_workers=n_workers, host_ip=addr, sortby="task"
+                n_workers=n_workers,
+                host_ip=addr,
+                sortby="task",
+                timeout=0 if timeout is None else timeout,
             )
 
         rabit_tracker.start()
+        # No timeout since we don't want to abort the training
         thread = Thread(target=rabit_tracker.wait_for)
         thread.daemon = True
         thread.start()
@@ -194,7 +215,7 @@ def _try_start_tracker(
             str(addrs[1]),
             str(e),
         )
-        env = _try_start_tracker(n_workers, addrs[1:])
+        env = _try_start_tracker(n_workers, addrs[1:], timeout)
 
     return env
 
@@ -203,31 +224,19 @@ def _start_tracker(
     n_workers: int,
     addr_from_dask: Optional[str],
     addr_from_user: Optional[Tuple[str, int]],
-) -> Dict[str, Union[int, str]]:
+    timeout: Optional[int],
+) -> CollArgs:
     """Start Rabit tracker, recurse to try different addresses."""
-    env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask])
+    env = _try_start_tracker(n_workers, [addr_from_user, addr_from_dask], timeout)
     return env
-
-
-def _assert_dask_support() -> None:
-    try:
-        import dask  # pylint: disable=W0621,W0611
-    except ImportError as e:
-        raise ImportError(
-            "Dask needs to be installed in order to use this module"
-        ) from e
-
-    if platform.system() == "Windows":
-        msg = "Windows is not officially supported for dask/xgboost,"
-        msg += " contribution are welcomed."
-        LOGGER.warning(msg)
 
 
 class CommunicatorContext(collective.CommunicatorContext):
     """A context controlling collective communicator initialization and finalization."""
 
-    def __init__(self, **args: Any) -> None:
+    def __init__(self, **args: CollArgsVals) -> None:
         super().__init__(**args)
+
         worker = distributed.get_worker()
         with distributed.worker_client() as client:
             info = client.scheduler_info()
@@ -248,7 +257,7 @@ def dconcat(value: Sequence[_T]) -> _T:
         return dd.multi.concat(list(value), axis=0)
 
 
-def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Client":
+def _get_client(client: Optional["distributed.Client"]) -> "distributed.Client":
     """Simple wrapper around testing None."""
     if not isinstance(client, (type(distributed.get_client()), type(None))):
         raise TypeError(
@@ -309,8 +318,7 @@ class DaskDMatrix:
         feature_weights: Optional[_DaskCollection] = None,
         enable_categorical: bool = False,
     ) -> None:
-        _assert_dask_support()
-        client = _xgb_get_client(client)
+        client = _get_client(client)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
@@ -389,8 +397,9 @@ class DaskDMatrix:
             )
 
         def to_delayed(d: _DaskCollection) -> List[Delayed]:
-            """Breaking data into partitions, a trick borrowed from dask_xgboost. `to_delayed`
-            downgrades high-level objects into numpy or pandas equivalents .
+            """Breaking data into partitions, a trick borrowed from
+            dask_xgboost. `to_delayed` downgrades high-level objects into numpy or
+            pandas equivalents.
 
             """
             d = client.persist(d)
@@ -510,18 +519,19 @@ class DaskDMatrix:
 
 
 _MapRetT = TypeVar("_MapRetT")
+_P = ParamSpec("_P")
 
 
 async def map_worker_partitions(
     client: Optional["distributed.Client"],
-    func: Callable[..., _MapRetT],
+    func: Callable[_P, _MapRetT],
     *refs: Any,
     workers: Sequence[str],
 ) -> _MapRetT:
     """Map a function onto partitions of each worker."""
     # Note for function purity:
     # XGBoost is sensitive to data partition and uses random number generator.
-    client = _xgb_get_client(client)
+    client = _get_client(client)
     futures = []
     for addr in workers:
         args = []
@@ -531,13 +541,46 @@ async def map_worker_partitions(
                 args.append(ref._create_fn_args(addr))
             else:
                 args.append(ref)
+
+        @wraps(func)
+        def fn(
+            *args: _P.args, address: str = addr, **kwargs: _P.kwargs
+        ) -> List[_MapRetT]:
+            # Turn result into a list for bag construction
+            worker = distributed.get_worker()
+
+            if worker.address != address:
+                raise ValueError(
+                    f"Invalid worker address: {worker.address}, expecting {address}. "
+                    "This is likely caused by one of the workers died and Dask "
+                    "re-scheduled a different one. Resilience is not yet supported."
+                )
+            return [func(*args, **kwargs)]
+
+        # XGBoost requires all workers running training tasks to be unique. Meaning, we
+        # can't run 2 training jobs on the same node. This at best leads to an error
+        # (NCCL unique check), at worst leads to extremely slow training performance
+        # without any warning.
+        #
+        # See disitributed.scheduler.decide_worker for `allow_other_workers`. In
+        # summary, the scheduler chooses a worker from the valid set that has the task
+        # dependencies. Each XGBoost's training task has all dependencies in a single
+        # worker. As a result, the right worker should be picked by the scheduler even
+        # if `allow_other_workers` is set to True.
+        #
+        # In addition, the scheduler only discards the valid set (the `workers` arg) if
+        # there's no candidate can be found. This is likely caused by killed workers. In
+        # that case, the check in `fn` should be able to stop the task. If we don't
+        # relax the constraint and prevent Dask from choosing an invalid worker, the
+        # task will simply hangs. We prefer a quick error here.
+        #
+
         fut = client.submit(
-            # turn result into a list for bag construction
-            lambda *args, **kwargs: [func(*args, **kwargs)],
+            fn,
             *args,
             pure=False,
             workers=[addr],
-            allow_other_workers=False,
+            allow_other_workers=True,
         )
         futures.append(fut)
 
@@ -683,6 +726,7 @@ class DaskQuantileDMatrix(DaskDMatrix):
         label_upper_bound: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
         enable_categorical: bool = False,
+        max_quantile_batches: Optional[int] = None,
     ) -> None:
         super().__init__(
             client=client,
@@ -702,12 +746,14 @@ class DaskQuantileDMatrix(DaskDMatrix):
             enable_categorical=enable_categorical,
         )
         self.max_bin = max_bin
+        self.max_quantile_batches = max_quantile_batches
         self.is_quantile = True
         self._ref: Optional[int] = id(ref) if ref is not None else None
 
     def _create_fn_args(self, worker_addr: str) -> Dict[str, Any]:
         args = super()._create_fn_args(worker_addr)
         args["max_bin"] = self.max_bin
+        args["max_quantile_batches"] = self.max_quantile_batches
         if self._ref is not None:
             args["ref"] = self._ref
         return args
@@ -723,6 +769,7 @@ def _create_quantile_dmatrix(
     parts: Optional[_DataParts],
     max_bin: int,
     enable_categorical: bool,
+    max_quantile_batches: Optional[int],
     ref: Optional[DMatrix] = None,
 ) -> QuantileDMatrix:
     worker = distributed.get_worker()
@@ -737,6 +784,7 @@ def _create_quantile_dmatrix(
             max_bin=max_bin,
             ref=ref,
             enable_categorical=enable_categorical,
+            max_quantile_batches=max_quantile_batches,
         )
         return d
 
@@ -755,6 +803,7 @@ def _create_quantile_dmatrix(
         max_bin=max_bin,
         ref=ref,
         enable_categorical=enable_categorical,
+        max_quantile_batches=max_quantile_batches,
     )
     return dmatrix
 
@@ -821,7 +870,10 @@ def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
 
 
 async def _get_rabit_args(
-    n_workers: int, dconfig: Optional[Dict[str, Any]], client: "distributed.Client"
+    client: "distributed.Client",
+    n_workers: int,
+    dconfig: Optional[Dict[str, Any]] = None,
+    coll_cfg: Optional[CollConfig] = None,
 ) -> Dict[str, Union[str, int]]:
     """Get rabit context arguments from data distribution in DaskDMatrix."""
     # There are 3 possible different addresses:
@@ -829,23 +881,12 @@ async def _get_rabit_args(
     # 2. Guessed by xgboost `get_host_ip` function
     # 3. From dask scheduler
     # We try 1 and 3 if 1 is available, otherwise 2 and 3.
-    valid_config = ["scheduler_address"]
+
     # See if user config is available
+    coll_cfg = CollConfig() if coll_cfg is None else coll_cfg
     host_ip: Optional[str] = None
     port: int = 0
-    if dconfig is not None:
-        for k in dconfig:
-            if k not in valid_config:
-                raise ValueError(f"Unknown configuration: {k}")
-        host_ip = dconfig.get("scheduler_address", None)
-        if host_ip is not None and host_ip.startswith("[") and host_ip.endswith("]"):
-            # convert dask bracket format to proper IPv6 address.
-            host_ip = host_ip[1:-1]
-        if host_ip is not None:
-            try:
-                host_ip, port = distributed.comm.get_address_host_port(host_ip)
-            except ValueError:
-                pass
+    host_ip, port = get_address_from_user(dconfig, coll_cfg)
 
     if host_ip is not None:
         user_addr = (host_ip, port)
@@ -860,9 +901,11 @@ async def _get_rabit_args(
     except Exception:  # pylint: disable=broad-except
         sched_addr = None
 
+    # We assume the scheduler is a fair process and run the tracker there.
     env = await client.run_on_scheduler(
-        _start_tracker, n_workers, sched_addr, user_addr
+        _start_tracker, n_workers, sched_addr, user_addr, coll_cfg.tracker_timeout
     )
+    env = coll_cfg.get_comm_config(env)
     return env
 
 
@@ -910,9 +953,12 @@ def _get_dmatrices(
     evals_name: Sequence[str],
     n_threads: int,
 ) -> Tuple[DMatrix, List[Tuple[DMatrix, str]]]:
+    # Create training DMatrix
     Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
+    # Create evaluation DMatrices
     evals: List[Tuple[DMatrix, str]] = []
     for i, ref in enumerate(refs):
+        # Same DMatrix as the training
         if evals_id[i] == train_id:
             evals.append((Xy, evals_name[i]))
             continue
@@ -946,15 +992,20 @@ async def _train_async(
     xgb_model: Optional[Booster],
     callbacks: Optional[Sequence[TrainingCallback]],
     custom_metric: Optional[Metric],
+    coll_cfg: Optional[CollConfig],
 ) -> Optional[TrainReturnT]:
     workers = _get_workers_from_data(dtrain, evals)
     await _check_workers_are_alive(workers, client)
-    _rabit_args = await _get_rabit_args(len(workers), dconfig, client)
+    coll_args = await _get_rabit_args(
+        client, len(workers), dconfig=dconfig, coll_cfg=coll_cfg
+    )
     _check_distributed_params(params)
 
-    def dispatched_train(  # pylint: disable=too-many-positional-arguments
+    # This function name is displayed in the Dask dashboard task status, let's make it
+    # clear that it's XGBoost training.
+    def do_train(  # pylint: disable=too-many-positional-arguments
         parameters: Dict,
-        rabit_args: Dict[str, Union[str, int]],
+        coll_args: Dict[str, Union[str, int]],
         train_id: int,
         evals_name: List[str],
         evals_id: List[int],
@@ -968,7 +1019,7 @@ async def _train_async(
 
         local_history: TrainingCallback.EvalsLog = {}
 
-        with CommunicatorContext(**rabit_args), config.config_context(**global_config):
+        with CommunicatorContext(**coll_args), config.config_context(**global_config):
             Xy, evals = _get_dmatrices(
                 train_ref,
                 train_id,
@@ -1016,10 +1067,10 @@ async def _train_async(
 
         result = await map_worker_partitions(
             client,
-            dispatched_train,
+            do_train,
             # extra function parameters
             params,
-            _rabit_args,
+            coll_args,
             id(dtrain),
             evals_name,
             evals_id,
@@ -1045,6 +1096,7 @@ def train(  # pylint: disable=unused-argument
     verbose_eval: Union[int, bool] = True,
     callbacks: Optional[Sequence[TrainingCallback]] = None,
     custom_metric: Optional[Metric] = None,
+    coll_cfg: Optional[CollConfig] = None,
 ) -> Any:
     """Train XGBoost model.
 
@@ -1062,6 +1114,10 @@ def train(  # pylint: disable=unused-argument
         Specify the dask client used for training.  Use default client returned from
         dask if it's set to None.
 
+    coll_cfg :
+        Configuration for the communicator used during training. See
+        :py:class:`~xgboost.collective.Config`.
+
     Returns
     -------
     results: dict
@@ -1075,8 +1131,7 @@ def train(  # pylint: disable=unused-argument
                          'eval': {'logloss': ['0.480385', '0.357756']}}}
 
     """
-    _assert_dask_support()
-    client = _xgb_get_client(client)
+    client = _get_client(client)
     args = locals()
     return client.sync(
         _train_async,
@@ -1455,8 +1510,7 @@ def predict(  # pylint: disable=unused-argument
         shape.
 
     """
-    _assert_dask_support()
-    client = _xgb_get_client(client)
+    client = _get_client(client)
     return client.sync(_predict_async, global_config=config.get_config(), **locals())
 
 
@@ -1473,7 +1527,7 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
     base_margin: Optional[_DaskCollection],
     strict_shape: bool,
 ) -> _DaskCollection:
-    client = _xgb_get_client(client)
+    client = _get_client(client)
     booster = await _get_model_future(client, model)
     if not isinstance(data, (da.Array, dd.DataFrame)):
         raise TypeError(_expect([da.Array, dd.DataFrame], type(data)))
@@ -1578,8 +1632,7 @@ def inplace_predict(  # pylint: disable=unused-argument
         shape.
 
     """
-    _assert_dask_support()
-    client = _xgb_get_client(client)
+    client = _get_client(client)
     # When used in asynchronous environment, the `client` object should have
     # `asynchronous` attribute as True.  When invoked by the skl interface, it's
     # responsible for setting up the client.
@@ -1634,6 +1687,11 @@ class DaskScikitLearnBase(XGBModel):
 
     _client = None
 
+    def __init__(self, *, coll_cfg: Optional[CollConfig] = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+
+        self.coll_cfg = coll_cfg
+
     async def _predict_async(
         self,
         data: _DataT,
@@ -1685,7 +1743,6 @@ class DaskScikitLearnBase(XGBModel):
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
-        _assert_dask_support()
         return self.client.sync(
             self._predict_async,
             X,
@@ -1721,7 +1778,6 @@ class DaskScikitLearnBase(XGBModel):
         X: _DataT,
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
-        _assert_dask_support()
         return self.client.sync(self._apply_async, X, iteration_range=iteration_range)
 
     def __await__(self) -> Awaitable[Any]:
@@ -1739,13 +1795,13 @@ class DaskScikitLearnBase(XGBModel):
 
     @property
     def client(self) -> "distributed.Client":
-        """The dask client used in this model.  The `Client` object can not be serialized for
-        transmission, so if task is launched from a worker instead of directly from the
-        client process, this attribute needs to be set at that worker.
+        """The dask client used in this model.  The `Client` object can not be
+        serialized for transmission, so if task is launched from a worker instead of
+        directly from the client process, this attribute needs to be set at that worker.
 
         """
 
-        client = _xgb_get_client(self._client)
+        client = _get_client(self._client)
         return client
 
     @client.setter
@@ -1844,6 +1900,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             verbose_eval=verbose,
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
+            coll_cfg=self.coll_cfg,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -1866,7 +1923,6 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRegressor":
-        _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
@@ -1953,6 +2009,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             verbose_eval=verbose,
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
+            coll_cfg=self.coll_cfg,
             xgb_model=model,
         )
         self._Booster = results["booster"]
@@ -1976,7 +2033,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBClassifier":
-        _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
@@ -2012,7 +2068,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
-        _assert_dask_support()
         return self._client_sync(
             self._predict_proba_async,
             X=X,
@@ -2072,10 +2127,16 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 )
 class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
     @_deprecate_positional_args
-    def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
+    def __init__(
+        self,
+        *,
+        objective: str = "rank:pairwise",
+        coll_cfg: Optional[CollConfig] = None,
+        **kwargs: Any,
+    ) -> None:
         if callable(objective):
             raise ValueError("Custom objective function not supported by XGBRanker.")
-        super().__init__(objective=objective, **kwargs)
+        super().__init__(objective=objective, coll_cfg=coll_cfg, **kwargs)
 
     async def _fit_async(
         self,
@@ -2095,7 +2156,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         xgb_model: Optional[Union[XGBModel, Booster]],
         feature_weights: Optional[_DaskCollection],
     ) -> "DaskXGBRanker":
-        msg = "Use `qid` instead of `group` on dask interface."
+        msg = "Use the `qid` instead of the `group` with the dask interface."
         if not (group is None and eval_group is None):
             raise ValueError(msg)
         if qid is None:
@@ -2140,6 +2201,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             early_stopping_rounds=self.early_stopping_rounds,
             callbacks=self.callbacks,
             xgb_model=model,
+            coll_cfg=self.coll_cfg,
         )
         self._Booster = results["booster"]
         self.evals_result_ = results["history"]
@@ -2165,7 +2227,6 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRanker":
-        _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         return self._client_sync(self._fit_async, **args)
 
@@ -2195,6 +2256,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         subsample: Optional[float] = 0.8,
         colsample_bynode: Optional[float] = 0.8,
         reg_lambda: Optional[float] = 1e-5,
+        coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -2202,6 +2264,7 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
+            coll_cfg=coll_cfg,
             **kwargs,
         )
 
@@ -2228,7 +2291,6 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRFRegressor":
-        _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
         super().fit(**args)
@@ -2256,6 +2318,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         subsample: Optional[float] = 0.8,
         colsample_bynode: Optional[float] = 0.8,
         reg_lambda: Optional[float] = 1e-5,
+        coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -2263,6 +2326,7 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
+            coll_cfg=coll_cfg,
             **kwargs,
         )
 
@@ -2289,7 +2353,6 @@ class DaskXGBRFClassifier(DaskXGBClassifier):
         base_margin_eval_set: Optional[Sequence[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
     ) -> "DaskXGBRFClassifier":
-        _assert_dask_support()
         args = {k: v for k, v in locals().items() if k not in ("self", "__class__")}
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
         super().fit(**args)

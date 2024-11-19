@@ -18,6 +18,7 @@
 #include "protocol.h"                   // for kMagic
 #include "xgboost/base.h"               // for XGBOOST_STRICT_R_MODE
 #include "xgboost/collective/socket.h"  // for TCPSocket
+#include "xgboost/global_config.h"      // for InitNewThread
 #include "xgboost/json.h"               // for Json, Object
 #include "xgboost/string_view.h"        // for StringView
 
@@ -266,7 +267,8 @@ Comm* RabitComm::MakeCUDAVar(Context const*, std::shared_ptr<Coll>) const {
   }
   error_port_ = eport;
 
-  error_worker_ = std::thread{[error_sock = std::move(error_sock)] {
+  error_worker_ = std::thread{[error_sock = std::move(error_sock), init = InitNewThread{}] {
+    init();
     TCPSocket conn;
     SockAddress addr;
     auto rc = error_sock->Accept(&conn, &addr);

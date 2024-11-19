@@ -30,6 +30,7 @@
 #include "xgboost/collective/poll_utils.h"  // for PollHelper
 #include "xgboost/collective/result.h"      // for Result, Fail, Success
 #include "xgboost/collective/socket.h"      // for GetHostName, FailWithCode, MakeSockAddress, ...
+#include "xgboost/global_config.h"          // for InitNewThread
 #include "xgboost/json.h"                   // for Json
 
 namespace xgboost::collective {
@@ -69,6 +70,8 @@ Result Tracker::WaitUntilReady() const {
 
 RabitTracker::WorkerProxy::WorkerProxy(std::int32_t world, TCPSocket sock, SockAddress addr)
     : sock_{std::move(sock)} {
+  LOG(DEBUG) << "[tracker]: Connected by the worker: "
+             << (addr.IsV4() ? addr.V4().Addr() : addr.V6().Addr());
   std::int32_t rank{0};
   Json jcmd;
   std::int32_t port{0};
@@ -139,7 +142,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     auto& worker = workers[r];
     auto next = BootstrapNext(r, n_workers_);
     auto const& next_w = workers[next];
-    bootstrap_threads.emplace_back([next, &worker, &next_w] {
+    bootstrap_threads.emplace_back([next, &worker, &next_w, init = InitNewThread{}] {
+      init();
       auto jnext = proto::PeerInfo{next_w.Host(), next_w.Port(), next}.ToJson();
       std::string str;
       Json::Dump(jnext, &str);
@@ -228,8 +232,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
   auto handle_error = [&](WorkerProxy const& worker) {
     auto msg = worker.Msg();
     auto code = worker.Code();
-    LOG(WARNING) << "Recieved error from [" << worker.Host() << ":" << worker.Rank() << "]: " << msg
-                 << " code:" << code;
+    LOG(WARNING) << "[tracker]: Recieved error from [" << worker.Host() << ":" << worker.Rank()
+                 << "]: " << msg << " code:" << code;
     auto host = worker.Host();
     // We signal all workers for the error, if they haven't aborted already.
     for (auto& w : worker_error_handles_) {
@@ -253,7 +257,8 @@ Result RabitTracker::Bootstrap(std::vector<WorkerProxy>* p_workers) {
     return Success();
   };
 
-  return std::async(std::launch::async, [this, handle_error] {
+  return std::async(std::launch::async, [this, handle_error, init = InitNewThread{}] {
+    init();
     State state{this->n_workers_};
 
     auto select_accept = [&](TCPSocket* sock, auto* addr) {

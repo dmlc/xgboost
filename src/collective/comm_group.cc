@@ -77,6 +77,7 @@ CommGroup::CommGroup()
   auto retry = get_param("dmlc_retry", static_cast<Integer::Int>(DefaultRetry()), Integer{});
   auto timeout =
       get_param("dmlc_timeout", static_cast<Integer::Int>(DefaultTimeoutSec()), Integer{});
+  CHECK_GE(timeout, 0);
   auto task_id = get_param("dmlc_task_id", std::string{}, String{});
 
   if (type == "rabit") {

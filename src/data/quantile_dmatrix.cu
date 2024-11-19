@@ -2,6 +2,7 @@
  * Copyright 2020-2024, XGBoost Contributors
  */
 #include <algorithm>  // for max
+#include <limits>     // for numeric_limits
 #include <numeric>    // for partial_sum
 #include <utility>    // for pair
 #include <vector>     // for vector
@@ -28,7 +29,7 @@ void MakeSketches(Context const* ctx,
                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter,
                   DMatrixProxy* proxy, std::shared_ptr<DMatrix> ref, BatchParam const& p,
                   float missing, std::shared_ptr<common::HistogramCuts> cuts, MetaInfo const& info,
-                  ExternalDataInfo* p_ext_info) {
+                  std::int64_t max_quantile_blocks, ExternalDataInfo* p_ext_info) {
   xgboost_NVTX_FN_RANGE();
   /**
    * A variant of: A Fast Algorithm for Approximate Quantiles in High Speed Data Streams
@@ -90,10 +91,14 @@ void MakeSketches(Context const* ctx,
      * Handle sketching.
      */
     if (!ref) {
+      CHECK_LE(max_quantile_blocks, std::numeric_limits<bst_idx_t>::max());
+      CHECK_GT(max_quantile_blocks, 0) << "`max_quantile_blocks` must be greater than 0.";
       if (sketches.empty()) {
         lazy_init_sketch();
       }
-      if (sketches.back().second > (1ul << (sketches.size() - 1))) {
+      if (sketches.back().second > (1ul << (sketches.size() - 1)) ||
+          sketches.back().second == static_cast<bst_idx_t>(max_quantile_blocks)) {
+        // Cut the sub-stream.
         auto n_cuts_per_feat =
             common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);
         // Prune to a single block

@@ -1,6 +1,6 @@
 """Tests for dask shared by different test modules."""
 
-from typing import List, Literal, cast
+from typing import Any, List, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -12,6 +12,9 @@ import xgboost as xgb
 import xgboost.testing as tm
 from xgboost.compat import concat
 from xgboost.testing.updater import get_basescore
+
+from .. import dask as dxgb
+from ..dask import _get_rabit_args
 
 
 def check_init_estimation_clf(
@@ -29,7 +32,7 @@ def check_init_estimation_clf(
 
     dx = da.from_array(X).rechunk(chunks=(32, None))
     dy = da.from_array(y).rechunk(chunks=(32,))
-    dclf = xgb.dask.DaskXGBClassifier(
+    dclf = dxgb.DaskXGBClassifier(
         n_estimators=1,
         max_depth=1,
         tree_method=tree_method,
@@ -57,7 +60,7 @@ def check_init_estimation_reg(
 
     dx = da.from_array(X).rechunk(chunks=(32, None))
     dy = da.from_array(y).rechunk(chunks=(32,))
-    dreg = xgb.dask.DaskXGBRegressor(
+    dreg = dxgb.DaskXGBRegressor(
         n_estimators=1, max_depth=1, tree_method=tree_method, device=device
     )
     dreg.client = client
@@ -81,7 +84,7 @@ def check_uneven_nan(
     assert n_workers >= 2
 
     with client.as_current():
-        clf = xgb.dask.DaskXGBClassifier(tree_method=tree_method, device=device)
+        clf = dxgb.DaskXGBClassifier(tree_method=tree_method, device=device)
         X = pd.DataFrame({"a": range(10000), "b": range(10000, 0, -1)})
         y = pd.Series([*[0] * 5000, *[1] * 5000])
 
@@ -166,3 +169,8 @@ def check_external_memory(  # pylint: disable=too-many-locals
     np.testing.assert_allclose(
         results["Train"]["rmse"], results_local["Train"]["rmse"], rtol=1e-4
     )
+
+
+def get_rabit_args(client: Client, n_workers: int) -> Any:
+    """Get RABIT collective communicator arguments for tests."""
+    return client.sync(_get_rabit_args, client, n_workers)

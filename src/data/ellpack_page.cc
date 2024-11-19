@@ -27,7 +27,7 @@ EllpackPage::EllpackPage(Context const*, DMatrix*, const BatchParam&) {
                 "EllpackPage is required";
 }
 
-EllpackPage::~EllpackPage() {
+EllpackPage::~EllpackPage() noexcept(false) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
 }

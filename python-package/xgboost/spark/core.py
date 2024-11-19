@@ -86,6 +86,7 @@ from .utils import (
     CommunicatorContext,
     _get_default_params_from_func,
     _get_gpu_id,
+    _get_host_ip,
     _get_max_num_concurrent_tasks,
     _get_rabit_args,
     _get_spark_session,
@@ -121,6 +122,9 @@ _pyspark_specific_params = [
     "repartition_random_shuffle",
     "pred_contrib_col",
     "use_gpu",
+    "launch_tracker_on_driver",
+    "tracker_host_ip",
+    "tracker_port",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -245,6 +249,27 @@ class _SparkXGBParams(
         "feature_names",
         "A list of str to specify feature names.",
         TypeConverters.toList,
+    )
+    launch_tracker_on_driver = Param(
+        Params._dummy(),
+        "launch_tracker_on_driver",
+        "A boolean variable. Set launch_tracker_on_driver to true if you want the tracker to be "
+        "launched on the driver side; otherwise, it will be launched on the executor side.",
+        TypeConverters.toBoolean,
+    )
+    tracker_host_ip = Param(
+        Params._dummy(),
+        "tracker_host_ip",
+        "A string variable. The tracker host IP address. To set tracker host ip, you need to "
+        "enable launch_tracker_on_driver to be true first",
+        TypeConverters.toString,
+    )
+    tracker_port = Param(
+        Params._dummy(),
+        "tracker_port",
+        "A string variable. The port number tracker listens on. To set tracker host port, you need "
+        "to enable launch_tracker_on_driver first",
+        TypeConverters.toInt,
     )
 
     def set_device(self, value: str) -> "_SparkXGBParams":
@@ -597,6 +622,9 @@ FeatureProp = namedtuple(
 )
 
 
+_MODEL_CHUNK_SIZE = 4096 * 1024
+
+
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
     _input_kwargs: Dict[str, Any]
 
@@ -617,6 +645,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             feature_names=None,
             feature_types=None,
             arbitrary_params_dict={},
+            launch_tracker_on_driver=True,
         )
 
         self.logger = get_logger(self.__class__.__name__)
@@ -996,6 +1025,37 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         )
         return rdd.withResources(rp)
 
+    def _get_tracker_args(self) -> Tuple[bool, Dict[str, Any]]:
+        """Start the tracker and return the tracker envs on the driver side"""
+        launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
+        rabit_args = {}
+        if launch_tracker_on_driver:
+            tracker_host_ip: Optional[str] = None
+            if self.isDefined(self.tracker_host_ip):
+                tracker_host_ip = self.getOrDefault(self.tracker_host_ip)
+            else:
+                tracker_host_ip = (
+                    _get_spark_session().sparkContext.getConf().get("spark.driver.host")
+                )
+            assert tracker_host_ip is not None
+            tracker_port = 0
+            if self.isDefined(self.tracker_port):
+                tracker_port = self.getOrDefault(self.tracker_port)
+
+            num_workers = self.getOrDefault(self.num_workers)
+            rabit_args.update(
+                _get_rabit_args(tracker_host_ip, num_workers, tracker_port)
+            )
+        else:
+            if self.isDefined(self.tracker_host_ip) or self.isDefined(
+                self.tracker_port
+            ):
+                raise ValueError(
+                    "You must enable launch_tracker_on_driver to use "
+                    "tracker_host_ip and tracker_port"
+                )
+        return launch_tracker_on_driver, rabit_args
+
     def _fit(self, dataset: DataFrame) -> "_SparkXGBModel":
         # pylint: disable=too-many-statements, too-many-locals
         self._validate_params()
@@ -1014,6 +1074,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         num_workers = self.getOrDefault(self.num_workers)
 
+        launch_tracker_on_driver, rabit_args = self._get_tracker_args()
+
         log_level = get_logger_level(_LOG_TAG)
 
         def _train_booster(
@@ -1026,6 +1088,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             from pyspark import BarrierTaskContext
 
             context = BarrierTaskContext.get()
+            context.barrier()
 
             dev_ordinal = None
             use_qdm = _can_use_qdm(
@@ -1052,21 +1115,25 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             if use_qdm and (booster_params.get("max_bin", None) is not None):
                 dmatrix_kwargs["max_bin"] = booster_params["max_bin"]
 
-            _rabit_args = {}
+            _rabit_args = rabit_args
             if context.partitionId() == 0:
-                _rabit_args = _get_rabit_args(context, num_workers)
+                if not launch_tracker_on_driver:
+                    _rabit_args = _get_rabit_args(_get_host_ip(context), num_workers)
                 get_logger(_LOG_TAG, log_level).info(msg)
 
-            worker_message = {
-                "rabit_msg": _rabit_args,
+            worker_message: Dict[str, Any] = {
                 "use_qdm": use_qdm,
             }
+
+            if not launch_tracker_on_driver:
+                worker_message["rabit_msg"] = _rabit_args
 
             messages = context.allGather(message=json.dumps(worker_message))
             if len(set(json.loads(x)["use_qdm"] for x in messages)) != 1:
                 raise RuntimeError("The workers' cudf environments are in-consistent ")
 
-            _rabit_args = json.loads(messages[0])["rabit_msg"]
+            if not launch_tracker_on_driver:
+                _rabit_args = json.loads(messages[0])["rabit_msg"]
 
             evals_result: Dict[str, Any] = {}
             with CommunicatorContext(context, **_rabit_args):
@@ -1094,25 +1161,27 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if context.partitionId() == 0:
-                yield pd.DataFrame(
-                    data={
-                        "config": [booster.save_config()],
-                        "booster": [booster.save_raw("json").decode("utf-8")],
-                    }
-                )
+                config = booster.save_config()
+                yield pd.DataFrame({"data": [config]})
+                booster_json = booster.save_raw("json").decode("utf-8")
+
+                for offset in range(0, len(booster_json), _MODEL_CHUNK_SIZE):
+                    booster_chunk = booster_json[offset : offset + _MODEL_CHUNK_SIZE]
+                    yield pd.DataFrame({"data": [booster_chunk]})
 
         def _run_job() -> Tuple[str, str]:
             rdd = (
                 dataset.mapInPandas(
                     _train_booster,  # type: ignore
-                    schema="config string, booster string",
+                    schema="data string",
                 )
                 .rdd.barrier()
                 .mapPartitions(lambda x: x)
             )
             rdd_with_resource = self._try_stage_level_scheduling(rdd)
-            ret = rdd_with_resource.collect()[0]
-            return ret[0], ret[1]
+            ret = rdd_with_resource.collect()
+            data = [v[0] for v in ret]
+            return data[0], "".join(data[1:])
 
         get_logger(_LOG_TAG).info(
             "Running xgboost-%s on %s workers with"
@@ -1693,7 +1762,12 @@ class SparkXGBModelWriter(MLWriter):
         _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
         model_save_path = os.path.join(path, "model")
         booster = xgb_model.get_booster().save_raw("json").decode("utf-8")
-        _get_spark_session().sparkContext.parallelize([booster], 1).saveAsTextFile(
+        booster_chunks = []
+
+        for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
+            booster_chunks.append(booster[offset : offset + _MODEL_CHUNK_SIZE])
+
+        _get_spark_session().sparkContext.parallelize(booster_chunks, 1).saveAsTextFile(
             model_save_path
         )
 
@@ -1724,8 +1798,8 @@ class SparkXGBModelReader(MLReader):
         )
         model_load_path = os.path.join(path, "model")
 
-        ser_xgb_model = (
-            _get_spark_session().sparkContext.textFile(model_load_path).collect()[0]
+        ser_xgb_model = "".join(
+            _get_spark_session().sparkContext.textFile(model_load_path).collect()
         )
 
         def create_xgb_model() -> "XGBModel":

@@ -1,6 +1,5 @@
 import socket
-import sys
-from threading import Thread
+from dataclasses import asdict
 
 import numpy as np
 import pytest
@@ -9,6 +8,7 @@ from loky import get_reusable_executor
 import xgboost as xgb
 from xgboost import RabitTracker, build_info, federated
 from xgboost import testing as tm
+from xgboost.collective import Config
 
 
 def run_rabit_worker(rabit_env: dict, world_size: int) -> int:
@@ -59,14 +59,14 @@ def run_federated_worker(port: int, world_size: int, rank: int) -> int:
 
 @pytest.mark.skipif(**tm.skip_win())
 @pytest.mark.skipif(**tm.no_loky())
-def test_federated_communicator():
+def test_federated_communicator() -> None:
     if not build_info()["USE_FEDERATED"]:
         pytest.skip("XGBoost not built with federated learning enabled")
 
     port = 9091
     world_size = 2
-    with get_reusable_executor(max_workers=world_size+1) as pool:
-        kwargs={"port": port, "n_workers": world_size, "blocking": False}
+    with get_reusable_executor(max_workers=world_size + 1) as pool:
+        kwargs = {"port": port, "n_workers": world_size, "blocking": False}
         tracker = pool.submit(federated.run_federated_server, **kwargs)
         if not tracker.running():
             raise RuntimeError("Error starting Federated Learning server")
@@ -79,3 +79,9 @@ def test_federated_communicator():
             workers.append(worker)
         for worker in workers:
             assert worker.result() == 0
+
+
+def test_config_serialization() -> None:
+    cfg = Config(retry=1, timeout=2, tracker_host_ip="127.0.0.1", tracker_port=None)
+    cfg1 = Config(**asdict(cfg))
+    assert cfg == cfg1

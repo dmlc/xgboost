@@ -16,6 +16,8 @@ import xgboost.federated
 from xgboost import testing as tm
 from xgboost.training import TrainingCallback
 
+from ..collective import _Args as CollArgs
+
 SERVER_KEY = "server-key.pem"
 SERVER_CERT = "server-cert.pem"
 CLIENT_KEY = "client-key.pem"
@@ -40,23 +42,23 @@ def run_worker(
     port: int, world_size: int, rank: int, with_ssl: bool, device: str
 ) -> None:
     """Run federated client worker for test."""
-    communicator_env = {
+    comm_env: CollArgs = {
         "dmlc_communicator": "federated",
         "federated_server_address": f"localhost:{port}",
         "federated_world_size": world_size,
         "federated_rank": rank,
     }
     if with_ssl:
-        communicator_env["federated_server_cert_path"] = SERVER_CERT
-        communicator_env["federated_client_key_path"] = CLIENT_KEY
-        communicator_env["federated_client_cert_path"] = CLIENT_CERT
+        comm_env["federated_server_cert_path"] = SERVER_CERT
+        comm_env["federated_client_key_path"] = CLIENT_KEY
+        comm_env["federated_client_cert_path"] = CLIENT_CERT
 
     cpu_count = os.cpu_count()
     assert cpu_count is not None
     n_threads = cpu_count // world_size
 
     # Always call this before using distributed module
-    with xgb.collective.CommunicatorContext(**communicator_env):
+    with xgb.collective.CommunicatorContext(**comm_env):
         # Load file, file will not be sharded in federated mode.
         X, y = load_svmlight_file(f"agaricus.txt-{rank}.train")
         dtrain = xgb.DMatrix(X, y)

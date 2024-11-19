@@ -38,8 +38,8 @@ class IterativeDMatrix : public QuantileDMatrix {
   DataIterResetCallback *reset_;
   XGDMatrixCallbackNext *next_;
 
-  void InitFromCUDA(Context const *ctx, BatchParam const &p, DataIterHandle iter_handle,
-                    float missing, std::shared_ptr<DMatrix> ref);
+  void InitFromCUDA(Context const *ctx, BatchParam const &p, std::int64_t max_quantile_blocks,
+                    DataIterHandle iter_handle, float missing, std::shared_ptr<DMatrix> ref);
   void InitFromCPU(Context const *ctx, BatchParam const &p, DataIterHandle iter_handle,
                    float missing, std::shared_ptr<DMatrix> ref);
 
@@ -47,7 +47,7 @@ class IterativeDMatrix : public QuantileDMatrix {
   explicit IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
                             std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                             XGDMatrixCallbackNext *next, float missing, int nthread,
-                            bst_bin_t max_bin);
+                            bst_bin_t max_bin, std::int64_t max_quantile_blocks);
   /**
    * @param Directly construct a QDM from an existing one.
    */

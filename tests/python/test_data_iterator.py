@@ -12,7 +12,13 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.data import SingleBatchInternalIter as SingleBatch
 from xgboost.testing import IteratorForTest, make_batches, non_increasing
-from xgboost.testing.updater import check_extmem_qdm, check_quantile_loss_extmem
+from xgboost.testing.data_iter import check_invalid_cat_batches, check_uneven_sizes
+from xgboost.testing.updater import (
+    check_categorical_missing,
+    check_categorical_ohe,
+    check_extmem_qdm,
+    check_quantile_loss_extmem,
+)
 
 pytestmark = tm.timeout(30)
 
@@ -323,4 +329,54 @@ def test_extmem_qdm(
         n_bins=n_bins,
         device="cpu",
         on_host=False,
+        is_cat=False,
     )
+
+
+@given(
+    strategies.integers(1, 4096),
+    strategies.integers(1, 4),
+    strategies.integers(2, 16),
+)
+@settings(deadline=None, max_examples=10, print_blob=True)
+def test_categorical_extmem_qdm(
+    n_samples_per_batch: int, n_batches: int, n_bins: int
+) -> None:
+    check_extmem_qdm(
+        n_samples_per_batch,
+        4,
+        n_batches=n_batches,
+        n_bins=n_bins,
+        device="cpu",
+        on_host=False,
+        is_cat=True,
+    )
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_categorical_missing(tree_method: str) -> None:
+    check_categorical_missing(
+        1024, 4, 5, device="cpu", tree_method=tree_method, extmem=True
+    )
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_categorical_ohe(tree_method: str) -> None:
+    check_categorical_ohe(
+        rows=1024,
+        cols=16,
+        rounds=4,
+        cats=5,
+        device="cpu",
+        tree_method=tree_method,
+        extmem=True,
+    )
+
+
+def test_invalid_cat_batches() -> None:
+    check_invalid_cat_batches("cpu")
+
+
+@pytest.mark.skipif(**tm.no_cupy())
+def test_uneven_sizes() -> None:
+    check_uneven_sizes("cpu")

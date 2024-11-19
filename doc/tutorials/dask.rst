@@ -536,25 +536,22 @@ Troubleshooting
 - In some environments XGBoost might fail to resolve the IP address of the scheduler, a
   symptom is user receiving ``OSError: [Errno 99] Cannot assign requested address`` error
   during training.  A quick workaround is to specify the address explicitly.  To do that
-  dask config is used:
+  the collective :py:class:`~xgboost.collective.Config` is used:
 
-  .. versionadded:: 1.6.0
+  .. versionadded:: 3.0.0
 
 .. code-block:: python
 
     import dask
     from distributed import Client
     from xgboost import dask as dxgb
+    from xgboost.collective import Config
+
     # let xgboost know the scheduler address
-    dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
+    coll_cfg = Config(retry=1, timeout=20, tracker_host_ip="10.23.170.98", tracker_port=0)
 
     with Client(scheduler_file="sched.json") as client:
-        reg = dxgb.DaskXGBRegressor()
-
-    # We can specify the port for XGBoost as well
-    with dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"}):
-        reg = dxgb.DaskXGBRegressor()
-
+        reg = dxgb.DaskXGBRegressor(coll_cfg=coll_cfg)
 
 - Please note that XGBoost requires a different port than dask. By default, on a unix-like
   system XGBoost uses the port 0 to find available ports, which may fail if a user is
@@ -631,6 +628,20 @@ When GPU is used, XGBoost employs `NCCL <https://developer.nvidia.com/nccl>`_ as
 underlying communication framework, which may require some additional configuration via
 environment variable depending on the setting of the cluster. Please note that IPv6
 support is Unix only.
+
+
+******************************
+Logging the evaluation results
+******************************
+
+By default, the Dask interface prints evaluation results in the scheduler process. This
+makes it difficult for a user to monitor training progress. We can define custom
+evaluation monitors using callback functions. See
+:ref:`sphx_glr_python_dask-examples_forward_logging.py` for a worked example on how to
+forward the logs to the client process. In the example, there are two potential solutions
+using Dask builtin methods, including :py:meth:`distributed.Client.forward_logging` and
+:py:func:`distributed.print`. Both of them have some caveats but can be a good starting
+point for developing more sophisticated methods like writing to files.
 
 
 *****************************************************************************

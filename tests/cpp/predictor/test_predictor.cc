@@ -509,9 +509,7 @@ void VerifyIterationRangeColumnSplit(bool use_gpu, Json const &ranged_model,
   if (use_gpu) {
     ctx = MakeCUDACtx(curt::AllVisibleGPUs() == 1 ? 0 : rank);
   }
-  auto n_threads = collective::GetWorkerLocalThreads(world_size);
-  ctx.UpdateAllowUnknown(
-      Args{{"nthread", std::to_string(n_threads)}, {"device", ctx.DeviceName()}});
+  collective::GetWorkerLocalThreads(world_size, &ctx);
 
   auto dmat = RandomDataGenerator(rows, cols, 0).Classes(classes).GenerateDMatrix(true);
   std::shared_ptr<DMatrix> Xy{dmat->SliceCol(world_size, rank)};
@@ -810,9 +808,9 @@ void TestVectorLeafPrediction(Context const *ctx) {
 
       auto iter = NumpyArrayIterForTest{ctx, *p_data, kRows, static_cast<bst_feature_t>(kCols),
                                         static_cast<std::size_t>(1)};
-      p_fmat =
-          std::make_shared<data::IterativeDMatrix>(&iter, iter.Proxy(), nullptr, Reset, Next,
-                                                   std::numeric_limits<float>::quiet_NaN(), 0, 256);
+      p_fmat = std::make_shared<data::IterativeDMatrix>(
+          &iter, iter.Proxy(), nullptr, Reset, Next, std::numeric_limits<float>::quiet_NaN(), 0,
+          256, std::numeric_limits<std::int64_t>::max());
 
       cpu_predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
       cpu_predictor->PredictBatch(p_fmat.get(), &predt_cache, model, 0, 1);

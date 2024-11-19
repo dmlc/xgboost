@@ -85,6 +85,6 @@ if __name__ == "__main__":
             assert isinstance(y, dask_cudf.Series)
 
             print("Using DaskQuantileDMatrix")
-            from_ddqdm = using_quantile_device_dmatrix(client, X, y)
+            from_ddqdm = using_quantile_device_dmatrix(client, X, y).compute()
             print("Using DMatrix")
-            from_dmatrix = using_dask_matrix(client, X, y)
+            from_dmatrix = using_dask_matrix(client, X, y).compute()

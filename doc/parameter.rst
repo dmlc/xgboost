@@ -245,7 +245,7 @@ Parameters for Non-Exact Tree Methods
     trees. After 3.0, this parameter affects GPU algorithms as well.
 
 
-* ``extmem_concat_pages``, [default = ``false``]
+* ``extmem_single_page``, [default = ``false``]
 
   This parameter is only used for the ``hist`` tree method with ``device=cuda`` and
   ``subsample != 1.0``. Before 3.0, pages were always concatenated.

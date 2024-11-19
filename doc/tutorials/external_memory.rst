@@ -25,7 +25,7 @@ The external memory support has undergone multiple development iterations. Like 
 :py:class:`~xgboost.QuantileDMatrix` with :py:class:`~xgboost.DataIter`, XGBoost loads
 data batch-by-batch using a custom iterator supplied by the user. However, unlike the
 :py:class:`~xgboost.QuantileDMatrix`, external memory does not concatenate the batches
-(unless specified by the ``extmem_concat_pages``) . Instead, it caches all batches in the
+(unless specified by the ``extmem_single_page``) . Instead, it caches all batches in the
 external memory and fetch them on-demand. Go to the end of the document to see a
 comparison between :py:class:`~xgboost.QuantileDMatrix` and the external memory version of
 :py:class:`~xgboost.ExtMemQuantileDMatrix`.
@@ -54,42 +54,43 @@ external memory training, users need to define a data iterator with 2 class meth
   from sklearn.datasets import load_svmlight_file
 
   class Iterator(xgboost.DataIter):
-    def __init__(self, svm_file_paths: List[str]):
+    def __init__(self, svm_file_paths: List[str]) -> None:
       self._file_paths = svm_file_paths
       self._it = 0
       # XGBoost will generate some cache files under the current directory with the prefix
       # "cache"
       super().__init__(cache_prefix=os.path.join(".", "cache"))
 
-    def next(self, input_data: Callable):
+    def next(self, input_data: Callable) -> bool:
       """Advance the iterator by 1 step and pass the data to XGBoost. This function is
       called by XGBoost during the construction of ``DMatrix``
 
       """
       if self._it == len(self._file_paths):
-        # return 0 to let XGBoost know this is the end of the iteration
-        return 0
+        # return False to let XGBoost know this is the end of the iteration
+        return False
 
       # input_data is a function passed in by XGBoost and has the exact same signature of
       # ``DMatrix``
       X, y = load_svmlight_file(self._file_paths[self._it])
+      # Keyword-only arguments, see the ``DMatrix`` class for accepted arguments.
       input_data(data=X, label=y)
       self._it += 1
-      # Return 1 to let XGBoost know we haven't seen all the files yet.
-      return 1
+      # Return True to let XGBoost know we haven't seen all the files yet.
+      return True
 
-    def reset(self):
+    def reset(self) -> None:
       """Reset the iterator to its beginning"""
       self._it = 0
 
   it = Iterator(["file_0.svm", "file_1.svm", "file_2.svm"])
 
+  # Use the ``ExtMemQuantileDMatrix`` for the hist tree method.
   Xy = xgboost.ExtMemQuantileDMatrix(it)
   booster = xgboost.train({"tree_method": "hist"}, Xy)
 
   # The ``approx`` tree method also works, but with lower performance and cannot be used
   # with the quantile DMatrix.
-
   Xy = xgboost.DMatrix(it)
   booster = xgboost.train({"tree_method": "approx"}, Xy)
 
@@ -120,11 +121,14 @@ the ``hist`` tree method is employed. For a GPU device, the main memory is the d
 memory, whereas the external memory can be either a disk or the CPU memory. XGBoost stages
 the cache on CPU memory by default. Users can change the backing storage to disk by
 specifying the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using
-the disk is not recommended. It's likely to make the GPU slower than the CPU. The option is
-here for experimental purposes only.
+the disk is not recommended as it's likely to make the GPU slower than the CPU. The option
+is here for experimental purposes only. In addition,
+:py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device_pages``,
+``min_cache_page_bytes``, and ``max_quantile_batches`` can help control the data placement
+and memory usage.
 
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
-the GPU. This is a current limitation we aim to address in the future.
+the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_memory.py`:
 
 .. code-block:: python
 
@@ -134,6 +138,8 @@ the GPU. This is a current limitation we aim to address in the future.
 
     # It's important to use RMM for GPU-based external memory to improve performance.
     # If XGBoost is not built with RMM support, a warning will be raised.
+    # We use the pool memory resource here, you can also try the `ArenaMemoryResource` for
+    # improved memory fragmentation handling.
     mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
@@ -144,6 +150,7 @@ the GPU. This is a current limitation we aim to address in the future.
 	# ...
 	# Build the ExtMemQuantileDMatrix and start training
 	Xy_train = xgboost.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
+	# Use the training DMatrix as a reference
 	Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
 	booster = xgboost.train(
 	    {
@@ -157,12 +164,18 @@ the GPU. This is a current limitation we aim to address in the future.
 	    evals=[(Xy_train, "Train"), (Xy_valid, "Valid")]
 	)
 
-It's crucial to use `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ for
-all memory allocation when training with external memory. XGBoost relies on the memory
-pool to reduce the overhead for data fetching. In addition, the open source `NVIDIA Linux
-driver
+It's crucial to use `RAPIDS Memory Manager (RMM) <https://github.com/rapidsai/rmm>`__ with
+an asynchronous memory resource for all memory allocation when training with external
+memory. XGBoost relies on the asynchronous memory pool to reduce the overhead of data
+fetching. In addition, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
-is required for ``Heterogeneous memory management (HMM)`` support.
+is required for ``Heterogeneous memory management (HMM)`` support. Usually, users need not
+to change :py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device_pages``
+and ``min_cache_page_bytes``, they are automatically configured based on the device and
+don't change model accuracy. However, the ``max_quantile_batches`` can be useful if
+:py:class:`~xgboost.ExtMemQuantileDMatrix` is running out of device memory during
+construction, see :py:class:`~xgboost.QuantileDMatrix` and the following sections for more
+info.
 
 In addition to the batch-based data fetching, the GPU version supports concatenating
 batches into a single blob for the training data to improve performance. For GPUs
@@ -181,13 +194,14 @@ concatenation can be enabled by:
 
   param = {
     "device": "cuda",
-    "extmem_concat_pages": true,
+    "extmem_single_page": true,
     'subsample': 0.2,
     'sampling_method': 'gradient_based',
   }
 
 For more information about the sampling algorithm and its use in external memory training,
-see `this paper <https://arxiv.org/abs/2005.09148>`_.
+see `this paper <https://arxiv.org/abs/2005.09148>`_. Lastly, see following sections for
+best practices.
 
 ==========
 NVLink-C2C
@@ -200,7 +214,7 @@ interconnect between the CPU and the GPU. With the host memory serving as the da
 XGBoost can retrieve data with significantly lower overhead. When the input data is dense,
 there's minimal to no performance loss for training, except for the initial construction
 of the :py:class:`~xgboost.ExtMemQuantileDMatrix`.  The initial construction iterates
-through the input data twice, as a result, the most significantly overhead compared to
+through the input data twice, as a result, the most significant overhead compared to
 in-core training is one additional data read when the data is dense. Please note that
 there are multiple variants of the platform and they come with different C2C
 bandwidths. During initial development of the feature, we used the LPDDR5 480G version,
@@ -209,6 +223,17 @@ which has about 350GB/s bandwidth for host to device transfer.
 To run experiments on these platforms, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
 with version ``>=565.47`` is required, it should come with CTK 12.7 and later versions.
+
+********************
+Distributed Training
+********************
+
+Distributed training is similar to in-core learning, but the work for framework
+integration is still on-going. See :ref:`sphx_glr_python_examples_distributed_extmem_basic.py`
+for an example for using the communicator to build a simple pipeline. Since users can
+define their custom data loader, it's unlikely that existing distributed frameworks
+interface in XGBoost can meet all the use cases, the example can be a starting point for
+users who have custom infrastructure.
 
 **************
 Best Practices
@@ -240,18 +265,30 @@ through the data for inference with memory spilling.
 When external memory is used, the performance of CPU training is limited by disk IO
 (input/output) speed. This means that the disk IO speed primarily determines the training
 speed. Similarly, PCIe bandwidth limits the GPU performance, assuming the CPU memory is
-used as a cache and address translation services (ATS) is unavailable. We recommend using
-regular :py:class:`~xgboost.QuantileDMatrix` over
-:py:class:`~xgboost.ExtMemQuantileDMatrix` for constructing the validation dataset when
-feasible. Running inference is much less computation-intensive than training and, hence,
-much faster. For GPU, the time it takes to read the data from host to device completely
+used as a cache and address translation services (ATS) is unavailable. During development,
+we observed that typical data transfer in XGBoost with PCIe4x16 has about 24GB/s
+bandwidth, which is significantly lower than the GPU processing performance. Whereas with
+a C2C-enabled machine, the performance of data transfer and processing in training are
+similar. Running inference is much less computation-intensive than training and, hence,
+much faster. As a result, the performance bottleneck of inference is back to data
+transfer. For GPU, the time it takes to read the data from host to device completely
 determines the time it takes to run inference, even if a C2C link is available.
 
 .. code-block:: python
 
-    # Try to use `QuantileDMatrix` for the validation if it can be fit into the GPU memory.
     Xy_train = xgboost.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
-    Xy_valid = xgboost.QuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
+    Xy_valid = xgboost.ExtMemQuantileDMatrix(it_valid, max_bin=n_bins, ref=Xy_train)
+
+In addition, since the GPU implementation relies on asynchronous memory pool, which is
+subject to memory fragmentation even if the :py:class:`~rmm.mr.CudaAsyncMemoryResource` is
+used. You might want to start the training with a fresh pool instead of starting training
+right after the ETL process. If you run into out-of-memory errors and you are convinced
+that the pool is not full yet (pool memory usage can be profiled with ``nsight-system``),
+consider tuning the RMM memory resource like using
+:py:class:`~rmm.mr.CudaAsyncMemoryResource` in conjunction with
+:py:class:`BinningMemoryResource(mr, 21, 25) <rmm.mr.BinningMemoryResource>` instead of
+the :py:class:`~rmm.mr.PoolMemoryResource`. Alternately, the
+:py:class:`~rmm.mr.ArenaMemoryResource` is also an excellent option.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some
@@ -343,6 +380,7 @@ undergone multiple development iterations. Here's a brief summary of major chang
 - 3.0 reworked the GPU implementation to support caching data on the host and disk,
   introduced the :py:class:`~xgboost.ExtMemQuantileDMatrix` class, added quantile-based
   objectives support.
+- In addition, we begin support for distributed training in 3.0
 
 ****************
 Text File Inputs

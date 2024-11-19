@@ -49,6 +49,8 @@ from xgboost.testing.data import (
     memory,
 )
 
+from .._typing import PathLike
+
 hypothesis = pytest.importorskip("hypothesis")
 
 # pylint:disable=wrong-import-position,wrong-import-order
@@ -390,6 +392,7 @@ def make_categorical(
     sparsity: float = 0.0,
     cat_ratio: float = 1.0,
     shuffle: bool = False,
+    random_state: int = 1994,
 ) -> Tuple[ArrayLike, np.ndarray]:
     """Generate categorical features for test.
 
@@ -412,7 +415,7 @@ def make_categorical(
     """
     import pandas as pd
 
-    rng = np.random.RandomState(1994)
+    rng = np.random.RandomState(random_state)
 
     pd_dict = {}
     for i in range(n_features + 1):
@@ -441,6 +444,7 @@ def make_categorical(
             if is_pd_cat_dtype(df.dtypes.iloc[i]):
                 assert n_categories == np.unique(df.dtypes.iloc[i].categories).size
 
+    assert df.shape[1] == n_features
     if onehot:
         df = pd.get_dummies(df)
 
@@ -746,7 +750,7 @@ class DirectoryExcursion:
 
     """
 
-    def __init__(self, path: Union[os.PathLike, str], cleanup: bool = False):
+    def __init__(self, path: PathLike, cleanup: bool = False):
         self.path = path
         self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
         self.cleanup = cleanup
