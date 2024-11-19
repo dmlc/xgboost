@@ -22,28 +22,28 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@v4.2.2
-      with:
-        submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@v3.1.0
-      with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: sdist_test
-        environment-file: ops/conda_env/sdist_test.yml
-        use-mamba: true
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
-    - name: Build and install XGBoost
-      run: |
-        cd python-package
-        python --version
-        python -m build --sdist
-        pip install -v ./dist/xgboost-*.tar.gz --config-settings use_openmp=False
-        cd ..
-        python -c 'import xgboost'
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: 'true'
+      - uses: conda-incubator/setup-miniconda@v3.1.0
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: sdist_test
+          environment-file: ops/conda_env/sdist_test.yml
+          use-mamba: true
+      - name: Display Conda env
+        run: |
+          conda info
+          conda list
+      - name: Build and install XGBoost
+        run: |
+          cd python-package
+          python --version
+          python -m build --sdist
+          pip install -v ./dist/xgboost-*.tar.gz --config-settings use_openmp=False
+          cd ..
+          python -c 'import xgboost'
 
   python-sdist-test:
     # Use system toolchain instead of conda toolchain for macos and windows.
@@ -56,33 +56,33 @@ jobs:
         os: [macos-13, windows-latest]
         python-version: ["3.10"]
     steps:
-    - uses: actions/checkout@v4.2.2
-      with:
-        submodules: 'true'
-    - name: Install osx system dependencies
-      if: matrix.os == 'macos-13'
-      run: |
-        brew install ninja libomp
-    - uses: conda-incubator/setup-miniconda@v3.1.0
-      with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
-        activate-environment: test
-    - name: Install build
-      run: |
-        conda install -c conda-forge python-build
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
-    - name: Build and install XGBoost
-      run: |
-        cd python-package
-        python --version
-        python -m build --sdist
-        pip install -v ./dist/xgboost-*.tar.gz
-        cd ..
-        python -c 'import xgboost'
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: 'true'
+      - name: Install osx system dependencies
+        if: matrix.os == 'macos-13'
+        run: |
+          brew install ninja libomp
+      - uses: conda-incubator/setup-miniconda@v3.1.0
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+          activate-environment: test
+      - name: Install build
+        run: |
+          conda install -c conda-forge python-build
+      - name: Display Conda env
+        run: |
+          conda info
+          conda list
+      - name: Build and install XGBoost
+        run: |
+          cd python-package
+          python --version
+          python -m build --sdist
+          pip install -v ./dist/xgboost-*.tar.gz
+          cd ..
+          python -c 'import xgboost'
 
   python-tests-on-macos:
     name: Test XGBoost Python package on ${{ matrix.os }}
@@ -94,48 +94,48 @@ jobs:
         os: [macos-13]
 
     steps:
-    - uses: actions/checkout@v4.2.2
-      with:
-        submodules: 'true'
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@v3.1.0
-      with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: macos_cpu_test
-        environment-file: ops/conda_env/macos_cpu_test.yml
-        use-mamba: true
+      - uses: conda-incubator/setup-miniconda@v3.1.0
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: macos_cpu_test
+          environment-file: ops/conda_env/macos_cpu_test.yml
+          use-mamba: true
 
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
+      - name: Display Conda env
+        run: |
+          conda info
+          conda list
 
-    - name: Build XGBoost on macos
-      run: |
-        brew install ninja
+      - name: Build XGBoost on macos
+        run: |
+          brew install ninja
 
-        mkdir build
-        cd build
-        # Set prefix, to use OpenMP library from Conda env
-        # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
-        # to learn why we don't use libomp from Homebrew.
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
-        ninja
+          mkdir build
+          cd build
+          # Set prefix, to use OpenMP library from Conda env
+          # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
+          # to learn why we don't use libomp from Homebrew.
+          cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
+          ninja
 
-    - name: Install Python package
-      run: |
-        cd python-package
-        python --version
-        pip install -v .
+      - name: Install Python package
+        run: |
+          cd python-package
+          python --version
+          pip install -v .
 
-    - name: Test Python package
-      run: |
-        pytest -s -v -rxXs --durations=0 ./tests/python
+      - name: Test Python package
+        run: |
+          pytest -s -v -rxXs --durations=0 ./tests/python
 
-    - name: Test Dask Interface
-      run: |
-        pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+      - name: Test Dask Interface
+        run: |
+          pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
 
   python-system-installation-on-ubuntu:
     name: Test XGBoost Python package System Installation on ${{ matrix.os }}

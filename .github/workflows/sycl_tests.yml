@@ -62,34 +62,34 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
-    - uses: actions/checkout@v4.2.2
-      with:
-        submodules: 'true'
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@v3.1.0
-      with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: linux_sycl_test
-        environment-file: ops/conda_env/linux_sycl_test.yml
-        use-mamba: true
+      - uses: conda-incubator/setup-miniconda@v3.1.0
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: linux_sycl_test
+          environment-file: ops/conda_env/linux_sycl_test.yml
+          use-mamba: true
 
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
-    - name: Build XGBoost on Ubuntu
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc \
-          -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -GNinja
-        ninja
-    - name: Install Python package
-      run: |
-        cd python-package
-        python --version
-        pip install -v .
-    - name: Test Python package
-      run: |
-        pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
+      - name: Display Conda env
+        run: |
+          conda info
+          conda list
+      - name: Build XGBoost on Ubuntu
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -GNinja
+          ninja
+      - name: Install Python package
+        run: |
+          cd python-package
+          python --version
+          pip install -v .
+      - name: Test Python package
+        run: |
+          pytest -s -v -rxXs --durations=0 ./tests/python-sycl/

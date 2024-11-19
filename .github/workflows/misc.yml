@@ -22,23 +22,23 @@ jobs:
       matrix:
         os: [macos-13]
     steps:
-    - uses: actions/checkout@v4.2.2
-      with:
-        submodules: 'true'
-    - name: Install system packages
-      run: |
-        brew install ninja libomp
-    - name: Build gtest binary
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
-        ninja -v
-    - name: Run gtest binary
-      run: |
-        cd build
-        ./testxgboost
-        ctest -R TestXGBoostCLI --extra-verbose
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: 'true'
+      - name: Install system packages
+        run: |
+          brew install ninja libomp
+      - name: Build gtest binary
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          ninja -v
+      - name: Run gtest binary
+        run: |
+          cd build
+          ./testxgboost
+          ctest -R TestXGBoostCLI --extra-verbose
 
   gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
@@ -48,23 +48,23 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - uses: actions/checkout@v4.2.2
-      with:
-        submodules: 'true'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends ninja-build
-    - name: Build and install XGBoost
-      shell: bash -l {0}
-      run: |
-        mkdir build
-        cd build
-        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF -DBUILD_DEPRECATED_CLI=ON
-        ninja -v
-    - name: Run gtest binary
-      run: |
-        cd build
-        ctest --extra-verbose
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: 'true'
+      - name: Install system packages
+        run: |
+          sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Build and install XGBoost
+        shell: bash -l {0}
+        run: |
+          mkdir build
+          cd build
+          cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF -DBUILD_DEPRECATED_CLI=ON
+          ninja -v
+      - name: Run gtest binary
+        run: |
+          cd build
+          ctest --extra-verbose
 
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
@@ -78,56 +78,56 @@ jobs:
         os: ["ubuntu-latest"]
         python-version: ["3.10"]
     steps:
-    - uses: actions/checkout@v4.2.2
-      with:
-        submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@v3.1.0
-      with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: cpp_test
-        environment-file: ops/conda_env/cpp_test.yml
-        use-mamba: true
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
-    - name: Build and install XGBoost static library
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
-        ninja -v install
-        cd -
-    - name: Build and run C API demo with static
-      run: |
-        pushd .
-        cd demo/c-api/
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        ninja -v
-        ctest
-        cd ..
-        rm -rf ./build
-        popd
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: 'true'
+      - uses: conda-incubator/setup-miniconda@v3.1.0
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: cpp_test
+          environment-file: ops/conda_env/cpp_test.yml
+          use-mamba: true
+      - name: Display Conda env
+        run: |
+          conda info
+          conda list
+      - name: Build and install XGBoost static library
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+          ninja -v install
+          cd -
+      - name: Build and run C API demo with static
+        run: |
+          pushd .
+          cd demo/c-api/
+          mkdir build
+          cd build
+          cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+          ninja -v
+          ctest
+          cd ..
+          rm -rf ./build
+          popd
 
-    - name: Build and install XGBoost shared library
-      run: |
-        cd build
-        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja -DPLUGIN_FEDERATED=ON -DGOOGLE_TEST=ON
-        ninja -v install
-        ./testxgboost
-        cd -
-    - name: Build and run C API demo with shared
-      run: |
-        pushd .
-        cd demo/c-api/
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        ninja -v
-        ctest
-        popd
-        ./ops/script/verify_link.sh ./demo/c-api/build/basic/api-demo
-        ./ops/script/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
+      - name: Build and install XGBoost shared library
+        run: |
+          cd build
+          cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja -DPLUGIN_FEDERATED=ON -DGOOGLE_TEST=ON
+          ninja -v install
+          ./testxgboost
+          cd -
+      - name: Build and run C API demo with shared
+        run: |
+          pushd .
+          cd demo/c-api/
+          mkdir build
+          cd build
+          cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+          ninja -v
+          ctest
+          popd
+          ./ops/script/verify_link.sh ./demo/c-api/build/basic/api-demo
+          ./ops/script/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
