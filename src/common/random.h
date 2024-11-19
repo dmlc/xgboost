@@ -230,7 +230,7 @@ class ColumnSampler {
 };
 
 inline auto MakeColumnSampler(Context const* ctx) {
-  std::uint32_t seed = common::GlobalRandomEngine()();
+  std::uint32_t seed = common::GlobalRandom()();
   auto rc = collective::Broadcast(ctx, linalg::MakeVec(&seed, 1), 0);
   collective::SafeColl(rc);
   auto cs = std::make_shared<common::ColumnSampler>(seed);
