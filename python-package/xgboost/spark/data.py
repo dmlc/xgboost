@@ -7,17 +7,17 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
 
-from xgboost import DataIter, DMatrix, QuantileDMatrix, XGBModel
-from xgboost.compat import concat
-
 from .._typing import ArrayLike
-from .utils import get_logger  # type: ignore
+from ..compat import concat
+from ..core import DataIter, DMatrix, QuantileDMatrix
+from ..sklearn import XGBModel
+from .utils import get_logger
 
 
 def stack_series(series: pd.Series) -> np.ndarray:
     """Stack a series of arrays."""
     array = series.to_numpy(copy=False)
-    array = np.stack(array)
+    array = np.stack(array)  # type: ignore
     return array
 
 
