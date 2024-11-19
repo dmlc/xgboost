@@ -7,12 +7,12 @@ source ops/pipeline/enforce-ci.sh
 
 echo "--- Build libxgboost4j.so with CUDA"
 
-# if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]
-#then
+if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]
+then
   arch_flag="-DGPU_COMPUTE_VER=75"
-#else
-#  arch_flag=""
-#fi
+else
+  arch_flag=""
+fi
 
 COMMAND=$(
 cat <<-EOF
