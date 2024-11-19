@@ -867,6 +867,26 @@ class TestPySparkLocal:
                 )
             assert_model_compatible(model.stages[0], tmpdir)
 
+    def test_with_small_model_chunk_size(self, reg_data: RegData, monkeypatch) -> None:
+        import xgboost.spark.core
+
+        monkeypatch.setattr(xgboost.spark.core, "_MODEL_CHUNK_SIZE", 4)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = "file:" + tmpdir
+            regressor = SparkXGBRegressor(**reg_data.reg_params)
+            model = regressor.fit(reg_data.reg_df_train)
+            model.save(path)
+            loaded_model = SparkXGBRegressorModel.load(path)
+            assert model.uid == loaded_model.uid
+            for k, v in reg_data.reg_params.items():
+                assert loaded_model.getOrDefault(k) == v
+
+            pred_result = loaded_model.transform(reg_data.reg_df_test).collect()
+            for row in pred_result:
+                assert np.isclose(
+                    row.prediction, row.expected_prediction_with_params, atol=1e-3
+                )
+
     def test_device_param(self, reg_data: RegData, clf_data: ClfData) -> None:
         clf = SparkXGBClassifier(device="cuda", tree_method="exact")
         with pytest.raises(ValueError, match="not supported for distributed"):

@@ -597,6 +597,9 @@ FeatureProp = namedtuple(
 )
 
 
+_MODEL_CHUNK_SIZE = 4096 * 1024
+
+
 class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
     _input_kwargs: Dict[str, Any]
 
@@ -1091,25 +1094,27 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if context.partitionId() == 0:
-                yield pd.DataFrame(
-                    data={
-                        "config": [booster.save_config()],
-                        "booster": [booster.save_raw("json").decode("utf-8")],
-                    }
-                )
+                config = booster.save_config()
+                yield pd.DataFrame({"data": [config]})
+                booster_json = booster.save_raw("json").decode("utf-8")
+
+                for offset in range(0, len(booster_json), _MODEL_CHUNK_SIZE):
+                    booster_chunk = booster_json[offset : offset + _MODEL_CHUNK_SIZE]
+                    yield pd.DataFrame({"data": [booster_chunk]})
 
         def _run_job() -> Tuple[str, str]:
             rdd = (
                 dataset.mapInPandas(
                     _train_booster,  # type: ignore
-                    schema="config string, booster string",
+                    schema="data string",
                 )
                 .rdd.barrier()
                 .mapPartitions(lambda x: x)
             )
             rdd_with_resource = self._try_stage_level_scheduling(rdd)
-            ret = rdd_with_resource.collect()[0]
-            return ret[0], ret[1]
+            ret = rdd_with_resource.collect()
+            data = [v[0] for v in ret]
+            return data[0], "".join(data[1:])
 
         get_logger(_LOG_TAG).info(
             "Running xgboost-%s on %s workers with"
@@ -1690,7 +1695,12 @@ class SparkXGBModelWriter(MLWriter):
         _SparkXGBSharedReadWrite.saveMetadata(self.instance, path, self.sc, self.logger)
         model_save_path = os.path.join(path, "model")
         booster = xgb_model.get_booster().save_raw("json").decode("utf-8")
-        _get_spark_session().sparkContext.parallelize([booster], 1).saveAsTextFile(
+        booster_chunks = []
+
+        for offset in range(0, len(booster), _MODEL_CHUNK_SIZE):
+            booster_chunks.append(booster[offset : offset + _MODEL_CHUNK_SIZE])
+
+        _get_spark_session().sparkContext.parallelize(booster_chunks, 1).saveAsTextFile(
             model_save_path
         )
 
@@ -1721,8 +1731,8 @@ class SparkXGBModelReader(MLReader):
         )
         model_load_path = os.path.join(path, "model")
 
-        ser_xgb_model = (
-            _get_spark_session().sparkContext.textFile(model_load_path).collect()[0]
+        ser_xgb_model = "".join(
+            _get_spark_session().sparkContext.textFile(model_load_path).collect()
         )
 
         def create_xgb_model() -> "XGBModel":
