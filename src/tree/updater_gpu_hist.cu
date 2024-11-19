@@ -867,12 +867,7 @@ class GPUHistMaker : public TreeUpdater {
     CHECK_GE(ctx_->Ordinal(), 0) << "Must have at least one device";
     info_ = &dmat->Info();
 
-    // Synchronise the column sampling seed
-    uint32_t column_sampling_seed = common::GlobalRandom()();
-    auto rc = collective::Broadcast(
-        ctx_, linalg::MakeVec(&column_sampling_seed, sizeof(column_sampling_seed)), 0);
-    SafeColl(rc);
-    this->column_sampler_ = std::make_shared<common::ColumnSampler>(column_sampling_seed);
+    this->column_sampler_ = common::MakeColumnSampler(ctx_);
 
     auto batch_param = BatchParam{param->max_bin, TrainParam::DftSparseThreshold()};
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
@@ -1012,8 +1007,7 @@ class GPUGlobalApproxMaker : public TreeUpdater {
 
     monitor_.Start(__func__);
     CHECK(ctx_->IsCUDA()) << error::InvalidCUDAOrdinal();
-    uint32_t column_sampling_seed = common::GlobalRandom()();
-    this->column_sampler_ = std::make_shared<common::ColumnSampler>(column_sampling_seed);
+    this->column_sampler_ = common::MakeColumnSampler(ctx_);
 
     p_last_fmat_ = p_fmat;
     initialised_ = true;
