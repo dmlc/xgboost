@@ -31,8 +31,6 @@ jobs:
           - xgb-ci.clang_tidy
           - xgb-ci.manylinux_2_28_x86_64
           - xgb-ci.manylinux2014_x86_64
-          - xgb-ci.jvm
-          - xgb-ci.jvm_gpu_build
         runner: [linux-amd64-cpu]
         include:
           - container_id: xgb-ci.manylinux2014_aarch64
@@ -213,102 +211,6 @@ jobs:
           CONTAINER_ID: xgb-ci.gpu_build_r_rockylinux8
       - run: bash ops/pipeline/build-gpu-rpkg.sh
 
-  build-jvm-manylinux2014:
-    name: Build libxgboost4j.so targeting glibc 2.17
-    needs: build-containers
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-        - arch: aarch64
-          runner: linux-arm64-cpu
-        - arch: x86_64
-          runner: linux-amd64-cpu
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
-      - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
-
-  build-jvm-gpu:
-    name: Build libxgboost4j.so with CUDA
-    needs: build-containers
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm_gpu_build
-      - run: bash ops/pipeline/build-jvm-gpu.sh
-      - name: Stash files
-        run: bash ops/stash_artifacts.sh lib/libxgboost4j.so
-        env:
-          COMMAND: upload
-          KEY: build-jvm-gpu
-
-  build-jvm-docs:
-    name: Build docs for JVM packages
-    needs: [build-jvm-gpu]
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm_gpu_build
-      - name: Unstash files
-        run: bash ops/stash_artifacts.sh lib/libxgboost4j.so
-        env:
-          COMMAND: download
-          KEY: build-jvm-gpu
-      - run: bash ops/pipeline/build-jvm-doc.sh
-
-  build-test-jvm-packages:
-    name: Build and test JVM packages
-    needs: build-containers
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm
-      - name: Build and test JVM packages (Scala 2.12)
-        run: bash ops/pipeline/build-test-jvm-packages.sh
-        env:
-          SCALA_VERSION: 2.12
-      - name: Build and test JVM packages (Scala 2.13)
-        run: bash ops/pipeline/build-test-jvm-packages.sh
-        env:
-          SCALA_VERSION: 2.13
-
   test-cpp-gpu:
     name: Run Google Tests with GPU(s)
     needs: [build-cuda, build-cuda-with-rmm]
@@ -348,7 +250,7 @@ jobs:
 
   test-python:
     name: Run Python tests
-    needs: [build-cuda]
+    needs: [build-cuda, build-cpu-arm64]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=${{ matrix.runner }}
@@ -404,26 +306,3 @@ jobs:
           KEY: ${{ matrix.artifact_from }}
       - name: Run Python tests, ${{ matrix.description }}
         run: bash ops/pipeline/test-python.sh ${{ matrix.suite }} ${{ matrix.container }}
-
-  test-jvm-packages-gpu:
-    name: Test JVM packages with CUDA
-    needs: [build-jvm-gpu]
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-mgpu
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm_gpu_build
-      - name: Unstash files
-        run: bash ops/stash_artifacts.sh lib/libxgboost4j.so
-        env:
-          COMMAND: download
-          KEY: build-jvm-gpu
-      - run: bash ops/pipeline/test-jvm-gpu.sh
