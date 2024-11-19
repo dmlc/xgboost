@@ -76,7 +76,7 @@ RUN set -ex; \
 
 # Default entry-point to use if running locally
 # It will preserve attributes of created files
-COPY entrypoint.sh /scripts/
+COPY docker/entrypoint.sh /scripts/
 
 WORKDIR /workspace
 ENTRYPOINT ["/scripts/entrypoint.sh"]

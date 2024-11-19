@@ -5,6 +5,10 @@ on: [push, pull_request]
 permissions:
   contents: read  # to fetch code (actions/checkout)
 
+defaults:
+  run:
+    shell: bash -l {0}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -37,20 +41,16 @@ jobs:
         conda info
         conda list
     - name: Build and install XGBoost
-      shell: bash -l {0}
       run: |
         mkdir build
         cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
-        make -j$(nproc)
-    - name: Run gtest binary for SYCL
+        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ \
+          -DCMAKE_C_COMPILER=gcc -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        ninja
+    - name: Run gtest
       run: |
         cd build
-        ./testxgboost --gtest_filter=Sycl*
-    - name: Run gtest binary for non SYCL
-      run: |
-        cd build
-        ./testxgboost --gtest_filter=-Sycl*
+        ./testxgboost
 
   python-sycl-tests-on-ubuntu:
     name: Test XGBoost Python package with SYCL on ${{ matrix.os }}
@@ -82,8 +82,9 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        make -j$(nproc)
+        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc \
+          -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -GNinja
+        ninja
     - name: Install Python package
       run: |
         cd python-package
