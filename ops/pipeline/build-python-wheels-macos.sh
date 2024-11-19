@@ -30,7 +30,6 @@ if [[ "$platform_id" == macosx_* ]]; then
     # Set up environment variables to configure cibuildwheel
     export CIBW_BUILD=cp${cpython_ver}-${platform_id}
     export CIBW_ARCHS=${cibw_archs}
-    export CIBW_ENVIRONMENT=${setup_env_var}
     export CIBW_TEST_SKIP='*-macosx_arm64'
     export CIBW_BUILD_VERBOSITY=3
 else

@@ -13,7 +13,7 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Set up Python env"
 conda activate
 $env_name = -join("win64_", (New-Guid).ToString().replace("-", ""))
-mamba env create -n ${env_name} --file=ops/docker/conda_env/win64_test.yml
+mamba env create -n ${env_name} --file=ops/conda_env/win64_test.yml
 conda activate ${env_name}
 python -m pip install `
   (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)

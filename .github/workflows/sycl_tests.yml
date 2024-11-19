@@ -1,0 +1,94 @@
+name: XGBoost CI (oneAPI)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  gtest-cpu-sycl:
+    name: Test Google C++ unittest (CPU SYCL)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@v4.2.2
+      with:
+        submodules: 'true'
+    - uses: conda-incubator/setup-miniconda@v3.1.0
+      with:
+        miniforge-variant: Miniforge3
+        miniforge-version: latest
+        activate-environment: linux_sycl_test
+        environment-file: ops/conda_env/linux_sycl_test.yml
+        use-mamba: true
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
+        make -j$(nproc)
+    - name: Run gtest binary for SYCL
+      run: |
+        cd build
+        ./testxgboost --gtest_filter=Sycl*
+    - name: Run gtest binary for non SYCL
+      run: |
+        cd build
+        ./testxgboost --gtest_filter=-Sycl*
+
+  python-sycl-tests-on-ubuntu:
+    name: Test XGBoost Python package with SYCL on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v4.2.2
+      with:
+        submodules: 'true'
+
+    - uses: conda-incubator/setup-miniconda@v3.1.0
+      with:
+        miniforge-variant: Miniforge3
+        miniforge-version: latest
+        activate-environment: linux_sycl_test
+        environment-file: ops/conda_env/linux_sycl_test.yml
+        use-mamba: true
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+    - name: Build XGBoost on Ubuntu
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        make -j$(nproc)
+    - name: Install Python package
+      run: |
+        cd python-package
+        python --version
+        pip install -v .
+    - name: Test Python package
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/python-sycl/

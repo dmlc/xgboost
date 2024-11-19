@@ -2,9 +2,16 @@
 
 set -euo pipefail
 
-if [[ "$1" == --conda-env=* ]]
+if [[ "$#" -lt 1 ]]
 then
-  conda_env=$(echo "$1" | sed 's/^--conda-env=//g' -)
+  conda_env=""
+else
+  conda_env="$1"
+fi
+
+if [[ "${conda_env}" == --conda-env=* ]]
+then
+  conda_env=$(echo "${conda_env}" | sed 's/^--conda-env=//g' -)
   echo "Activating Conda environment ${conda_env}"
   shift 1
   cmake_args="$@"

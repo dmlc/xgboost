@@ -19,7 +19,9 @@ def call(args: list[str]) -> tuple[int, int, str, list[str]]:
     # `workspace` is a name used in the CI container.  Normally we should keep the dir
     # as `xgboost`.
     matched = re.search(
-        "(workspace|xgboost)/.*(ops|src|tests|include)/.*warning:", error_msg, re.MULTILINE
+        "(workspace|xgboost)/.*(ops|src|tests|include)/.*warning:",
+        error_msg,
+        re.MULTILINE,
     )
 
     if matched is None:

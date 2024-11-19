@@ -12,8 +12,8 @@ import subprocess
 import sys
 import textwrap
 
-SCRIPT_DIR = pathlib.Path(__file__).expanduser().resolve().parent
-PROJECT_ROOT_DIR = SCRIPT_DIR.parent
+OPS_DIR = pathlib.Path(__file__).expanduser().resolve().parent
+PROJECT_ROOT_DIR = OPS_DIR.parent
 LINEWIDTH = 88
 TEXT_WRAPPER = textwrap.TextWrapper(
     width=LINEWIDTH,

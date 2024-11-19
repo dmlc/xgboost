@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 cmake_files=$(
     find . -name CMakeLists.txt -o -path "./cmake/*.cmake" \

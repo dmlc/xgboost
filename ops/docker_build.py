@@ -9,7 +9,7 @@ import subprocess
 import sys
 from typing import Optional
 
-from docker_run import SCRIPT_DIR, fancy_print_cli_args
+from docker_run import OPS_DIR, fancy_print_cli_args
 
 
 def parse_build_args(raw_build_args: list[str]) -> list[dict[str, str]]:
@@ -71,9 +71,9 @@ def docker_build(
 def main(args: argparse.Namespace) -> None:
     # Dockerfile to be used in docker build
     dockerfile_path = (
-        SCRIPT_DIR / "docker" / "dockerfile" / f"Dockerfile.{args.container_def}"
+        OPS_DIR / "docker" / "dockerfile" / f"Dockerfile.{args.container_def}"
     )
-    docker_context_path = SCRIPT_DIR / "docker"
+    docker_context_path = OPS_DIR
 
     build_args = parse_build_args(args.build_arg)
 

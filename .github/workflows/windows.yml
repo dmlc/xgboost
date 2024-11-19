@@ -1,4 +1,4 @@
-name: Nextgen XGBoost CI Windows
+name: XGBoost CI (Windows)
 
 on: [push, pull_request]
 
@@ -27,7 +27,7 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=windows-cpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
         with:
           submodules: "true"
       - run: powershell ops/pipeline/build-win64-gpu.ps1
@@ -39,6 +39,7 @@ jobs:
         env:
           COMMAND: upload
           KEY: build-win64-gpu
+
   test-win64-gpu:
     name: Test XGBoost on Windows
     needs: build-win64-gpu
@@ -46,7 +47,7 @@ jobs:
       - runs-on=${{ github.run_id }}
       - runner=windows-gpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
         with:
           submodules: "true"
       - name: Unstash files

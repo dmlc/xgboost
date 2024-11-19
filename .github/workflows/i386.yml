@@ -19,7 +19,7 @@ jobs:
         ports:
           - 5000:5000
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+    - uses: actions/checkout@v4.2.2
       with:
         submodules: 'true'
     - name: Set up Docker Buildx
@@ -30,7 +30,7 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: .
-        file: tests/ci_build/Dockerfile.i386
+        file: ops/docker/dockerfile/Dockerfile.i386
         push: true
         tags: localhost:5000/xgboost/build-32bit:latest
         cache-from: type=gha
@@ -40,4 +40,4 @@ jobs:
         docker run --rm -v $PWD:/workspace -w /workspace \
           -e CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move' \
           localhost:5000/xgboost/build-32bit:latest \
-          tests/ci_build/build_via_cmake.sh
+          bash ops/script/build_via_cmake.sh
