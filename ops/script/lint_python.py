@@ -68,11 +68,7 @@ class LintersPaths:
         "demo/guide-python/update_process.py",
         "demo/aft_survival/aft_survival_viz_demo.py",
         # CI
-        "ops/script/run_clang_tidy.py",
-        "ops/script/lint_python.py",
-        "ops/script/test_r_package.py",
-        "ops/script/test_utils.py",
-        "ops/script/change_version.py",
+        "ops/",
     )
 
     ISORT = (
@@ -82,12 +78,13 @@ class LintersPaths:
         "tests/test_distributed/",
         "tests/python/",
         "tests/python-gpu/",
-        "ops/script/",
         # demo
         "demo/",
         # misc
         "dev/",
         "doc/",
+        # CI
+        "ops/",
     )
 
     MYPY = (
@@ -129,11 +126,7 @@ class LintersPaths:
         "demo/guide-python/learning_to_rank.py",
         "demo/aft_survival/aft_survival_viz_demo.py",
         # CI
-        "ops/script/run_clang_tidy.py",
-        "ops/script/lint_python.py",
-        "ops/script/test_r_package.py",
-        "ops/script/test_utils.py",
-        "ops/script/change_version.py",
+        "ops/",
     )
 
 

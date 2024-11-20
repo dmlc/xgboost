@@ -84,7 +84,7 @@ def aws_s3_download_with_wildcard(src: str, dest: Path) -> None:
     )
 
 
-def upload(args):
+def upload(args: argparse.Namespace) -> None:
     print(f"Uploading artifacts with prefix {args.prefix}...")
     for artifact in args.artifacts:
         artifact_path = Path(artifact)
@@ -92,7 +92,7 @@ def upload(args):
         aws_s3_upload(artifact_path, s3_url)
 
 
-def download(args):
+def download(args: argparse.Namespace) -> None:
     print(f"Downloading artifacts with prefix {args.prefix}...")
     for artifact in args.artifacts:
         artifact_path = Path(artifact)

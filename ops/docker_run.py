@@ -28,19 +28,6 @@ def parse_run_args(raw_run_args: str) -> list[str]:
     return [x for x in raw_run_args.split() if x]
 
 
-def compute_container_id(container_name: str, build_args: list[dict[str, str]]) -> str:
-    container_id = f"xgb-ci.{container_name}"
-    # For some build arguments, append special suffixies
-    for arg_name, suffix in [
-        ("CUDA_VERSION_ARG", "cuda"),
-        ("RAPIDS_VERSION_ARG", "rapids"),
-        ("JDK_VERSION_ARG", "jdk"),
-    ]:
-        if arg_name in build_args:
-            container_id += f"_{suffix}{build_args[arg_name]}"
-    return container_id
-
-
 def get_user_ids() -> dict[str, str]:
     uid = os.getuid()
     gid = os.getgid()

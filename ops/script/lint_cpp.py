@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import sys
+from typing import TextIO
 
 import cpplint
 from cpplint import _cpplint_state
@@ -9,7 +10,7 @@ from cpplint import _cpplint_state
 CXX_SUFFIX = set(["cc", "c", "cpp", "h", "cu", "hpp"])
 
 
-def filepath_enumerate(paths):
+def filepath_enumerate(paths: list[str]) -> list[str]:
     """Enumerate the file paths of all subfiles of the list of paths"""
     out = []
     for path in paths:
@@ -22,7 +23,7 @@ def filepath_enumerate(paths):
     return out
 
 
-def get_header_guard_dmlc(filename):
+def get_header_guard_dmlc(filename: str) -> str:
     """Get Header Guard Convention for DMLC Projects.
 
     For headers in include, directly use the path
@@ -54,11 +55,10 @@ def get_header_guard_dmlc(filename):
 
 
 class Lint:
-    def __init__(self):
+    def __init__(self) -> None:
         self.project_name = "xgboost"
-        self.cpp_header_map = {}
-        self.cpp_src_map = {}
-        self.python_map = {}
+        self.cpp_header_map: dict[str, dict[str, int]] = {}
+        self.cpp_src_map: dict[str, dict[str, int]] = {}
 
         self.pylint_cats = set(["error", "warning", "convention", "refactor"])
         # setup cpp lint
@@ -78,7 +78,7 @@ class Lint:
         cpplint._SetCountingStyle("toplevel")
         cpplint._line_length = 100
 
-    def process_cpp(self, path, suffix):
+    def process_cpp(self, path: str, suffix: str) -> None:
         """Process a cpp file."""
         _cpplint_state.ResetErrorCounts()
         cpplint.ProcessFile(str(path), _cpplint_state.verbose_level)
@@ -91,7 +91,9 @@ class Lint:
             self.cpp_src_map[str(path)] = errors
 
     @staticmethod
-    def _print_summary_map(strm, result_map, ftype):
+    def _print_summary_map(
+        strm: TextIO, result_map: dict[str, dict[str, int]], ftype: str
+    ) -> int:
         """Print summary of certain result map."""
         if len(result_map) == 0:
             return 0
@@ -105,7 +107,7 @@ class Lint:
             )
         return len(result_map) - npass
 
-    def print_summary(self, strm):
+    def print_summary(self, strm: TextIO) -> int:
         """Print summary of lint."""
         nerr = 0
         nerr += Lint._print_summary_map(strm, self.cpp_header_map, "cpp-header")
@@ -122,7 +124,7 @@ _HELPER = Lint()
 cpplint.GetHeaderGuardCPPVariable = get_header_guard_dmlc
 
 
-def process(fname, allow_type):
+def process(fname: str, allow_type: list[str]) -> None:
     """Process a file."""
     fname = str(fname)
     arr = fname.rsplit(".", 1)
@@ -132,13 +134,19 @@ def process(fname, allow_type):
         _HELPER.process_cpp(fname, arr[-1])
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="run cpp lint")
     parser.add_argument(
         "path",
         nargs="*",
         help="Path to traverse",
-        default=["src", "include", os.path.join("R-package", "src"), "python-package", "plugin/sycl"],
+        default=[
+            "src",
+            "include",
+            os.path.join("R-package", "src"),
+            "python-package",
+            "plugin/sycl",
+        ],
     )
     parser.add_argument(
         "--exclude_path",
@@ -149,7 +157,7 @@ def main():
     args = parser.parse_args()
     excluded_paths = filepath_enumerate(args.exclude_path)
 
-    allow_type = []
+    allow_type: list[str] = []
     allow_type += CXX_SUFFIX
 
     for path in args.path:

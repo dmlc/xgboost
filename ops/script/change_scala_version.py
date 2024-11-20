@@ -4,7 +4,7 @@ import re
 import shutil
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     if args.scala_version == "2.12":
         scala_ver = "2.12"
         scala_patchver = "2.12.18"

@@ -100,8 +100,6 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     # Work around https://github.com/dmlc/xgboost/issues/10752
     X.columns = X.columns.astype("object")
     # Make sure the output can be integrated back to original dataframe
-    X.columns = X.columns.astype("object")
-    # Work around https://github.com/dmlc/xgboost/issues/10752
     X["predict"] = predictions
     X["inplace_predict"] = series_predictions
 

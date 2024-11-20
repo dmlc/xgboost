@@ -1,8 +1,8 @@
+import argparse
 import pathlib
-from argparse import ArgumentParser
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     wheel_path = pathlib.Path(args.wheel_path).expanduser().resolve()
     if not wheel_path.exists():
         raise ValueError(f"Wheel cannot be found at path {wheel_path}")
@@ -43,7 +43,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(
+    parser = argparse.ArgumentParser(
         description="Format a Python wheel's name using the git commit hash and platform tag"
     )
     parser.add_argument(

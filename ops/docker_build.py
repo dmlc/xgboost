@@ -12,7 +12,7 @@ from typing import Optional
 from docker_run import OPS_DIR, fancy_print_cli_args
 
 
-def parse_build_args(raw_build_args: list[str]) -> list[dict[str, str]]:
+def parse_build_args(raw_build_args: list[str]) -> dict[str, str]:
     parsed_build_args = dict()
     for arg in raw_build_args:
         try:
@@ -28,7 +28,7 @@ def parse_build_args(raw_build_args: list[str]) -> list[dict[str, str]]:
 def docker_build(
     container_id: str,
     *,
-    build_args: list[dict[str, str]],
+    build_args: dict[str, str],
     dockerfile_path: pathlib.Path,
     docker_context_path: pathlib.Path,
     cache_from: Optional[str],
