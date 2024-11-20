@@ -3,13 +3,9 @@
 ## the user has already built libxgboost4j.so with CUDA support
 ## and place it in the lib/ directory.
 
-set -euo pipefail
-
-# source ops/pipeline/enforce-ci.sh
+set -euox pipefail
 
 SCALA_VERSION=2.12
-
-set -x
 
 python3 ops/docker_run.py --container-id xgb-ci.jvm_gpu_build --use-gpus \
   -- nvidia-smi

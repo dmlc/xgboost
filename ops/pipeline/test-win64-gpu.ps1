@@ -1,7 +1,5 @@
 $ErrorActionPreference = "Stop"
 
-. ops/pipeline/enforce-ci.ps1
-
 Write-Host "--- Test XGBoost on Windows with CUDA"
 
 nvcc --version

@@ -2,8 +2,6 @@
 
 set -euox pipefail
 
-source ops/pipeline/enforce-ci.sh
-
 if [[ "$#" -lt 1 ]]
 then
   echo "Usage: $0 {gpu,gpu-rmm,mgpu}"

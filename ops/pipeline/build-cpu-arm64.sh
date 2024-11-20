@@ -2,11 +2,15 @@
 
 set -euox pipefail
 
+if [[ -z "${GITHUB_SHA:-}" ]]
+then
+  echo "Make sure to set environment variable GITHUB_SHA"
+  exit 1
+fi
+
 WHEEL_TAG=manylinux_2_28_aarch64
 
 echo "--- Build CPU code targeting ARM64"
-
-source ops/pipeline/enforce-ci.sh
 
 echo "--- Build libxgboost from the source"
 python3 ops/docker_run.py \
@@ -46,10 +50,3 @@ python3 ops/docker_run.py \
   --container-id xgb-ci.aarch64 \
   -- bash -c \
   "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
-
-echo "--- Upload Python wheel"
-if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-then
-  aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
-    --acl public-read --no-progress
-fi

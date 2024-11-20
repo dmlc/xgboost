@@ -2,9 +2,15 @@
 
 set -euox pipefail
 
-WHEEL_TAG=manylinux_2_28_x86_64
+if [[ -z "${GITHUB_SHA:-}" ]]
+then
+  echo "Make sure to set environment variable GITHUB_SHA"
+  exit 1
+fi
 
-source ops/pipeline/enforce-ci.sh
+source ops/pipeline/classify-git-branch.sh
+
+WHEEL_TAG=manylinux_2_28_x86_64
 
 echo "--- Build with CUDA with RMM"
 
@@ -43,7 +49,7 @@ python3 ops/script/rename_whl.py  \
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 python3 ops/docker_run.py \
-  --container-id xgb-ci.$WHEEL_TAG \
+  --container-id xgb-ci.${WHEEL_TAG} \
   -- auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 python3 ops/script/rename_whl.py  \
@@ -53,13 +59,6 @@ python3 ops/script/rename_whl.py  \
 mv -v wheelhouse/*.whl python-package/dist/
 # Make sure that libgomp.so is vendored in the wheel
 python3 ops/docker_run.py \
-  --container-id xgb-ci.$WHEEL_TAG \
+  --container-id xgb-ci.${WHEEL_TAG} \
   -- bash -c \
   "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
-
-echo "--- Upload Python wheel"
-if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-then
-  aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/experimental_build_with_rmm/ \
-    --acl public-read --no-progress
-fi

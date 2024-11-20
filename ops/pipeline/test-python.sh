@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-source ops/pipeline/enforce-ci.sh
-
 if [[ "$#" -lt 2 ]]
 then
   echo "Usage: $0 {gpu|mgpu|cpu|cpu-arm64} {container_id}"

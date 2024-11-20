@@ -69,6 +69,12 @@ jobs:
         env:
           CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
       - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
+      - name: Upload libxgboost4j.so
+        run: |
+          libname=lib/libxgboost4j_linux_${{ matrix.arch }}_${{ github.sha }}.so
+          mv -v lib/libxgboost4j.so ${libname}
+          bash ops/pipeline/publish-artifact.sh ${libname} \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
 
   build-jvm-gpu:
     name: Build libxgboost4j.so with CUDA
@@ -102,15 +108,22 @@ jobs:
         include:
           - description: "MacOS (Apple Silicon)"
             script: ops/pipeline/build-jvm-macos-apple-silicon.sh
+            libname: libxgboost4j_m1_${{ github.sha }}.dylib
             runner: macos-14
           - description: "MacOS (Intel)"
             script: ops/pipeline/build-jvm-macos-intel.sh
+            libname: libxgboost4j_intel_${{ github.sha }}.dylib
             runner: macos-13
     steps:
       - uses: actions/checkout@v4.2.2
         with:
           submodules: "true"
       - run: bash ${{ matrix.script }}
+      - name: Upload libxgboost4j.dylib
+        run: |
+          mv -v lib/libxgboost4j.dylib ${{ matrix.libname }}
+          bash ops/pipeline/publish-artifact.sh ${{ matrix.libname }} \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
@@ -137,6 +150,10 @@ jobs:
           COMMAND: download
           KEY: build-jvm-gpu
       - run: bash ops/pipeline/build-jvm-doc.sh
+      - name: Upload JVM doc
+        run: |
+          bash ops/pipeline/publish-artifact.sh jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2 \
+            s3://xgboost-docs/
 
   build-test-jvm-packages:
     name: Build and test JVM packages (Linux)
@@ -279,6 +296,6 @@ jobs:
           COMMAND: download
           KEY: ${{ matrix.artifact_from }}
       - name: Deploy JVM packages to S3
-        run: >-
+        run: |
           bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant }} \
             ${{ matrix.container_id }}

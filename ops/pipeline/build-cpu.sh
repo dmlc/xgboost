@@ -2,8 +2,6 @@
 
 set -euox pipefail
 
-source ops/pipeline/enforce-ci.sh
-
 echo "--- Build CPU code"
 
 # This step is not necessary, but here we include it, to ensure that

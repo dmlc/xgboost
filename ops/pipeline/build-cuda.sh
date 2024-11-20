@@ -2,9 +2,15 @@
 
 set -euox pipefail
 
+if [[ -z "${GITHUB_SHA:-}" ]]
+then
+  echo "Make sure to set environment variable GITHUB_SHA"
+  exit 1
+fi
+
 WHEEL_TAG=manylinux_2_28_x86_64
 
-source ops/pipeline/enforce-ci.sh
+source ops/pipeline/classify-git-branch.sh
 
 echo "--- Build with CUDA"
 
@@ -59,21 +65,20 @@ python3 ops/docker_run.py \
   --container-id xgb-ci.manylinux_2_28_x86_64 \
   -- bash -c "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
 
+# Generate the meta info which includes xgboost version and the commit info
+python3 ops/docker_run.py \
+--container-id xgb-ci.gpu_build_rockylinux8 \
+-- python ops/script/format_wheel_meta.py \
+  --wheel-path python-package/dist/*.whl  \
+  --commit-hash ${GITHUB_SHA}  \
+  --platform-tag ${WHEEL_TAG}  \
+  --meta-path python-package/dist/
+
 echo "--- Upload Python wheel"
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then
   aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
     --acl public-read --no-progress
-
-  # Generate the meta info which includes xgboost version and the commit info
-  python3 ops/docker_run.py \
-  --container-id xgb-ci.gpu_build_rockylinux8 \
-  -- python ops/script/format_wheel_meta.py \
-    --wheel-path python-package/dist/*.whl  \
-    --commit-hash ${GITHUB_SHA}  \
-    --platform-tag ${WHEEL_TAG}  \
-    --meta-path python-package/dist/
   aws s3 cp python-package/dist/meta.json s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
     --acl public-read --no-progress
 fi
-echo "-- Stash C++ test executable (testxgboost)"

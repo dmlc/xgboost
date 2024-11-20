@@ -12,8 +12,6 @@ EOF
 
 set -euo pipefail
 
-source ops/pipeline/enforce-ci.sh
-
 for arg in "SCALA_VERSION"
 do
   if [[ -z "${!arg:-}" ]]

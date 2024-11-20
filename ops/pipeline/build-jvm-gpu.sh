@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-source ops/pipeline/enforce-ci.sh
+source ops/pipeline/classify-git-branch.sh
 
 echo "--- Build libxgboost4j.so with CUDA"
 

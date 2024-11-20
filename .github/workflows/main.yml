@@ -93,6 +93,10 @@ jobs:
         env:
           COMMAND: upload
           KEY: build-cpu-arm64
+      - name: Upload Python wheel
+        run: |
+          bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
 
   build-cuda:
     name: Build CUDA + manylinux_2_28_x86_64 wheel
@@ -122,6 +126,13 @@ jobs:
         env:
           COMMAND: upload
           KEY: build-cuda
+      - name: Upload Python wheel
+        run: |
+          for file in python-package/dist/*.whl python-package/dist/meta.json
+          do
+            bash ops/pipeline/publish-artifact.sh "${file}" \
+              s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+          done
 
   build-cuda-with-rmm:
     name: Build CUDA with RMM
@@ -149,6 +160,10 @@ jobs:
         env:
           COMMAND: upload
           KEY: build-cuda-with-rmm
+      - name: Upload Python wheel
+        run: |
+          bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
+            s3://xgboost-nightly-builds/experimental_build_with_rmm/
 
   build-manylinux2014:
     name: Build manylinux2014_${{ matrix.arch }} wheel
@@ -175,6 +190,13 @@ jobs:
         env:
           CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
       - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
+      - name: Upload Python wheel
+        run: |
+          for wheel in python-package/dist/*.whl
+          do
+            bash ops/pipeline/publish-artifact.sh "${wheel}" \
+              s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+          done
 
   build-gpu-rpkg:
     name: Build GPU-enabled R package
@@ -193,6 +215,11 @@ jobs:
         env:
           CONTAINER_ID: xgb-ci.gpu_build_r_rockylinux8
       - run: bash ops/pipeline/build-gpu-rpkg.sh
+      - name: Upload R tarball
+        run: |
+          bash ops/pipeline/publish-artifact.sh xgboost_r_gpu_linux_*.tar.gz \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+
 
   test-cpp-gpu:
     name: >-
