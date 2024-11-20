@@ -24,7 +24,7 @@ def plot_importance(
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     title: str = "Feature importance",
-    xlabel: str = "F score",
+    xlabel: str = "Importance score",
     ylabel: str = "Features",
     fmap: PathLike = "",
     importance_type: str = "weight",
