@@ -125,7 +125,7 @@ _pyspark_specific_params = [
     "pred_contrib_col",
     "use_gpu",
     "launch_tracker_on_driver",
-    "tracker",
+    "collective_conf",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -258,18 +258,17 @@ class _SparkXGBParams(
         "launched on the driver side; otherwise, it will be launched on the executor side.",
         TypeConverters.toBoolean,
     )
-    tracker = Param(
+    collective_conf = Param(
         Params._dummy(),
-        "tracker",
-        "xgboost.collective.Config. The communicator configuration, you need "
-        "to enable launch_tracker_on_driver first",
+        "collective_conf",
+        "xgboost.collective.Config. The communicator configuration.",
         TypeConverters.identity,
     )
 
-    def set_tracker(self, value: Config) -> "_SparkXGBParams":
+    def set_collective_conf(self, value: Config) -> "_SparkXGBParams":
         """Set communicator configuration"""
         assert isinstance(value, Config)
-        self.set(self.tracker, value)
+        self.set(self.collective_conf, value)
         return self
 
     def set_device(self, value: str) -> "_SparkXGBParams":
@@ -1029,25 +1028,25 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         launch_tracker_on_driver = self.getOrDefault(self.launch_tracker_on_driver)
         rabit_args = {}
         if launch_tracker_on_driver:
-            tracker = Config()
-            if self.isDefined(self.tracker):
-                tracker = self.getOrDefault(self.tracker)
-                assert isinstance(tracker, Config)
+            conf = Config()
+            if self.isDefined(self.collective_conf):
+                conf = self.getOrDefault(self.collective_conf)
+                assert isinstance(conf, Config)
 
-            if tracker.tracker_host_ip is None:
-                tracker.tracker_host_ip = (
+            if conf.tracker_host_ip is None:
+                conf.tracker_host_ip = (
                     _get_spark_session().sparkContext.getConf().get("spark.driver.host")
                 )
             num_workers = self.getOrDefault(self.num_workers)
-            rabit_args.update(_get_rabit_args(tracker, num_workers))
+            rabit_args.update(_get_rabit_args(conf, num_workers))
         else:
-            if self.isDefined(self.tracker):
-                tracker = self.getOrDefault(self.tracker)
-                assert isinstance(tracker, Config)
-                if tracker.tracker_host_ip is not None:
+            if self.isDefined(self.collective_conf):
+                conf = self.getOrDefault(self.collective_conf)
+                assert isinstance(conf, Config)
+                if conf.tracker_host_ip is not None:
                     raise ValueError(
                         f"You must enable launch_tracker_on_driver to use "
-                        f"tracker host: {tracker.tracker_host_ip}"
+                        f"tracker host: {conf.tracker_host_ip}"
                     )
         return launch_tracker_on_driver, rabit_args
 
@@ -1070,8 +1069,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         num_workers = self.getOrDefault(self.num_workers)
 
         launch_tracker_on_driver, rabit_args = self._get_tracker_args()
-        tracker: Optional[Config] = (
-            self.getOrDefault(self.tracker) if self.isSet(self.tracker) else None
+        conf: Optional[Config] = (
+            self.getOrDefault(self.collective_conf)
+            if self.isSet(self.collective_conf)
+            else None
         )
 
         log_level = get_logger_level(_LOG_TAG)
@@ -1115,9 +1116,9 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             _rabit_args = rabit_args
             if context.partitionId() == 0:
                 if not launch_tracker_on_driver:
-                    _tracker = tracker if tracker is not None else Config()
-                    _tracker.tracker_host_ip = _get_host_ip(context)
-                    _rabit_args = _get_rabit_args(_tracker, num_workers)
+                    _conf = conf if conf is not None else Config()
+                    _conf.tracker_host_ip = _get_host_ip(context)
+                    _rabit_args = _get_rabit_args(_conf, num_workers)
                 get_logger(_LOG_TAG, log_level).info(msg)
 
             worker_message: Dict[str, Any] = {
@@ -1628,7 +1629,7 @@ class _SparkXGBSharedReadWrite:
         xgboost.spark._SparkXGBModel.
         """
         instance._validate_params()
-        skipParams = ["callbacks", "xgb_model", "tracker"]
+        skipParams = ["callbacks", "xgb_model", "collective_conf"]
         jsonParams = {}
         for p, v in instance._paramMap.items():  # pylint: disable=protected-access
             if p.name not in skipParams:
@@ -1650,10 +1651,10 @@ class _SparkXGBSharedReadWrite:
         if init_booster is not None:
             extraMetadata["init_booster"] = _INIT_BOOSTER_SAVE_PATH
 
-        if instance.isDefined("tracker"):
-            tracker_conf: Config = instance.getOrDefault("tracker")
-            if tracker_conf is not None:
-                extraMetadata["tracker_conf"] = asdict(tracker_conf)
+        if instance.isDefined("collective_conf"):
+            conf: Config = instance.getOrDefault("collective_conf")
+            if conf is not None:
+                extraMetadata["collective_conf"] = asdict(conf)
 
         DefaultParamsWriter.saveMetadata(
             instance, path, sc, extraMetadata=extraMetadata, paramMap=jsonParams
@@ -1696,8 +1697,8 @@ class _SparkXGBSharedReadWrite:
                     f"Fails to load the callbacks param due to {e}. Please set the "
                     "callbacks param manually for the loaded estimator."
                 )
-        if "tracker_conf" in metadata:
-            pyspark_xgb.set_tracker(Config(**metadata["tracker_conf"]))
+        if "collective_conf" in metadata:
+            pyspark_xgb.set_collective_conf(Config(**metadata["collective_conf"]))
 
         if "init_booster" in metadata:
             load_path = os.path.join(path, metadata["init_booster"])
