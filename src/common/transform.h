@@ -23,7 +23,7 @@
 
 #if defined (SYCL_LANGUAGE_VERSION)
 #include "../plugin/sycl/common/transform.h"
-#endif // defined (SYCL_LANGUAGE_VERSION)
+#endif  // defined (SYCL_LANGUAGE_VERSION)
 
 namespace xgboost {
 namespace common {
