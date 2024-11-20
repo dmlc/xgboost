@@ -12,9 +12,8 @@ from pyspark import keyword_only
 from pyspark.ml.param import Param, Params
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 
-from xgboost import XGBClassifier, XGBRanker, XGBRegressor
-
 from ..collective import Config
+from ..sklearn import XGBClassifier, XGBRanker, XGBRegressor
 from .core import (  # type: ignore
     _ClassificationModel,
     _SparkXGBEstimator,
