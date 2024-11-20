@@ -59,14 +59,12 @@ from pyspark.sql.types import (
 )
 from scipy.special import expit, softmax  # pylint: disable=no-name-in-module
 
-import xgboost
-from xgboost import XGBClassifier
-from xgboost.compat import is_cudf_available, is_cupy_available
-from xgboost.core import Booster, _check_distributed_params
-from xgboost.sklearn import DEFAULT_N_ESTIMATORS, XGBModel, _can_use_qdm
-from xgboost.training import train as worker_train
-
 from .._typing import ArrayLike
+from ..compat import is_cudf_available, is_cupy_available
+from ..config import config_context
+from ..core import Booster, _check_distributed_params, _py_version
+from ..sklearn import DEFAULT_N_ESTIMATORS, XGBClassifier, XGBModel, _can_use_qdm
+from ..training import train as worker_train
 from .data import (
     _read_csr_matrix_from_unwrapped_spark_vec,
     alias,
@@ -765,7 +763,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         cls, train_params: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         xgb_train_default_args = _get_default_params_from_func(
-            xgboost.train, _unsupported_train_params
+            worker_train, _unsupported_train_params
         )
         booster_params, kwargs_params = {}, {}
         for key, value in train_params.items():
@@ -1136,17 +1134,18 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 _rabit_args = json.loads(messages[0])["rabit_msg"]
 
             evals_result: Dict[str, Any] = {}
-            with CommunicatorContext(context, **_rabit_args):
-                with xgboost.config_context(verbosity=verbosity):
-                    dtrain, dvalid = create_dmatrix_from_partitions(
-                        iterator=pandas_df_iter,
-                        feature_cols=feature_prop.features_cols_names,
-                        dev_ordinal=dev_ordinal,
-                        use_qdm=use_qdm,
-                        kwargs=dmatrix_kwargs,
-                        enable_sparse_data_optim=feature_prop.enable_sparse_data_optim,
-                        has_validation_col=feature_prop.has_validation_col,
-                    )
+            with config_context(verbosity=verbosity), CommunicatorContext(
+                context, **_rabit_args
+            ):
+                dtrain, dvalid = create_dmatrix_from_partitions(
+                    iterator=pandas_df_iter,
+                    feature_cols=feature_prop.features_cols_names,
+                    dev_ordinal=dev_ordinal,
+                    use_qdm=use_qdm,
+                    kwargs=dmatrix_kwargs,
+                    enable_sparse_data_optim=feature_prop.enable_sparse_data_optim,
+                    has_validation_col=feature_prop.has_validation_col,
+                )
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]
                 else:
@@ -1188,7 +1187,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             "\n\tbooster params: %s"
             "\n\ttrain_call_kwargs_params: %s"
             "\n\tdmatrix_kwargs: %s",
-            xgboost._py_version(),
+            _py_version(),
             num_workers,
             booster_params,
             train_call_kwargs_params,
