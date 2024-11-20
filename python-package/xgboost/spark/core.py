@@ -123,7 +123,7 @@ _pyspark_specific_params = [
     "pred_contrib_col",
     "use_gpu",
     "launch_tracker_on_driver",
-    "collective_conf",
+    "coll_cfg",
 ]
 
 _non_booster_params = ["missing", "n_estimators", "feature_types", "feature_weights"]
@@ -256,17 +256,17 @@ class _SparkXGBParams(
         "launched on the driver side; otherwise, it will be launched on the executor side.",
         TypeConverters.toBoolean,
     )
-    collective_conf = Param(
+    coll_cfg = Param(
         Params._dummy(),
-        "collective_conf",
+        "coll_cfg",
         "xgboost.collective.Config. The collective configuration.",
         TypeConverters.identity,
     )
 
-    def set_collective_conf(self, value: Config) -> "_SparkXGBParams":
+    def set_coll_cfg(self, value: Config) -> "_SparkXGBParams":
         """Set collective configuration"""
         assert isinstance(value, Config)
-        self.set(self.collective_conf, value)
+        self.set(self.coll_cfg, value)
         return self
 
     def set_device(self, value: str) -> "_SparkXGBParams":
@@ -1027,8 +1027,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         rabit_args = {}
         if launch_tracker_on_driver:
             conf = Config()
-            if self.isDefined(self.collective_conf):
-                conf = self.getOrDefault(self.collective_conf)
+            if self.isDefined(self.coll_cfg):
+                conf = self.getOrDefault(self.coll_cfg)
                 assert isinstance(conf, Config)
 
             if conf.tracker_host_ip is None:
@@ -1038,8 +1038,8 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             num_workers = self.getOrDefault(self.num_workers)
             rabit_args.update(_get_rabit_args(conf, num_workers))
         else:
-            if self.isDefined(self.collective_conf):
-                conf = self.getOrDefault(self.collective_conf)
+            if self.isDefined(self.coll_cfg):
+                conf = self.getOrDefault(self.coll_cfg)
                 assert isinstance(conf, Config)
                 if conf.tracker_host_ip is not None:
                     raise ValueError(
@@ -1068,9 +1068,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
         launch_tracker_on_driver, rabit_args = self._get_tracker_args()
         conf: Optional[Config] = (
-            self.getOrDefault(self.collective_conf)
-            if self.isSet(self.collective_conf)
-            else None
+            self.getOrDefault(self.coll_cfg) if self.isSet(self.coll_cfg) else None
         )
 
         log_level = get_logger_level(_LOG_TAG)
@@ -1628,7 +1626,7 @@ class _SparkXGBSharedReadWrite:
         xgboost.spark._SparkXGBModel.
         """
         instance._validate_params()
-        skipParams = ["callbacks", "xgb_model", "collective_conf"]
+        skipParams = ["callbacks", "xgb_model", "coll_cfg"]
         jsonParams = {}
         for p, v in instance._paramMap.items():  # pylint: disable=protected-access
             if p.name not in skipParams:
@@ -1650,10 +1648,10 @@ class _SparkXGBSharedReadWrite:
         if init_booster is not None:
             extraMetadata["init_booster"] = _INIT_BOOSTER_SAVE_PATH
 
-        if instance.isDefined("collective_conf"):
-            conf: Config = instance.getOrDefault("collective_conf")
+        if instance.isDefined("coll_cfg"):
+            conf: Config = instance.getOrDefault("coll_cfg")
             if conf is not None:
-                extraMetadata["collective_conf"] = asdict(conf)
+                extraMetadata["coll_cfg"] = asdict(conf)
 
         DefaultParamsWriter.saveMetadata(
             instance, path, sc, extraMetadata=extraMetadata, paramMap=jsonParams
@@ -1696,8 +1694,8 @@ class _SparkXGBSharedReadWrite:
                     f"Fails to load the callbacks param due to {e}. Please set the "
                     "callbacks param manually for the loaded estimator."
                 )
-        if "collective_conf" in metadata:
-            pyspark_xgb.set_collective_conf(Config(**metadata["collective_conf"]))
+        if "coll_cfg" in metadata:
+            pyspark_xgb.set_coll_cfg(Config(**metadata["coll_cfg"]))
 
         if "init_booster" in metadata:
             load_path = os.path.join(path, metadata["init_booster"])
