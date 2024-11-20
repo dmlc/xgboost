@@ -66,7 +66,7 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
 void SampleMean(Context const* ctx, bool is_column_split, linalg::Matrix<float> const& v,
                 linalg::Vector<float>* out) {
   *out = linalg::Zeros<float>(ctx, std::max(v.Shape(1), decltype(v.Shape(1)){1}));
-  if (ctx->IsCPU()) {
+  if (!ctx->IsCUDA()) {
     auto h_v = v.HostView();
     CHECK(h_v.CContiguous());
     std::int64_t n_samples = v.Shape(0);
@@ -94,7 +94,7 @@ void WeightedSampleMean(Context const* ctx, bool is_column_split, linalg::Matrix
                         HostDeviceVector<float> const& w, linalg::Vector<float>* out) {
   *out = linalg::Zeros<float>(ctx, std::max(v.Shape(1), decltype(v.Shape(1)){1}));
   CHECK_EQ(v.Shape(0), w.Size());
-  if (ctx->IsCPU()) {
+  if (!ctx->IsCUDA()) {
     auto h_v = v.HostView();
     auto h_w = w.ConstHostSpan();
     auto sum_w = std::accumulate(h_w.data(), h_w.data() + h_w.size(), 0.0);

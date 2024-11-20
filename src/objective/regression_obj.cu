@@ -87,6 +87,15 @@ class RegLossObj : public FitInterceptGlmLike {
           common::AssertGPUSupport();
           return false;
 #endif  // defined(XGBOOST_USE_CUDA)
+        },
+        [&] {
+#if defined(XGBOOST_USE_SYCL)
+          return sycl::linalg::Validate(ctx_->Device(), label,
+                                        [](float y) -> bool { return Loss::CheckLabel(y); });
+#else
+          common::AssertSYCLSupport();
+          return false;
+#endif  // defined(XGBOOST_USE_SYCL)
         });
     if (!valid) {
       LOG(FATAL) << Loss::LabelErrorMsg();

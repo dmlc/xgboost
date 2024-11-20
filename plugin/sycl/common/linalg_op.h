@@ -8,6 +8,8 @@
 #include <vector>
 #include <utility>
 
+#include "../../../src/common/linalg_op.h"
+
 #include "../data.h"
 #include "../device_manager.h"
 
@@ -67,6 +69,28 @@ void ElementWiseKernel(TensorView<T, D> t, Fn&& fn) {
       call(const_cast<Fn&&>(fn), xgboost::linalg::UnravelIndex(idx, t.Shape()));
     });
   }).wait_and_throw();
+}
+
+template <typename T, int32_t D, typename Fn>
+bool Validate(DeviceOrd device, TensorView<T, D> t, Fn&& fn) {
+  sycl::DeviceManager device_manager;
+  auto* qu = device_manager.GetQueue(t.Device());
+
+  int flag = 0;
+  {
+    ::sycl::buffer<int> buff(&flag, 1);
+    size_t size = xgboost::linalg::cend(t) - xgboost::linalg::cbegin(t);
+    qu->submit([&](::sycl::handler& cgh) {
+      auto reduction = ::sycl::reduction(buff, cgh, ::sycl::maximum<>());
+      cgh.parallel_for<>(::sycl::range<1>(size), reduction,
+                        [=](::sycl::id<1> pid, auto& max) {
+        const size_t i = pid[0];
+        auto it = xgboost::linalg::cbegin(t) + i;
+        max.combine(!const_cast<Fn&&>(fn)(*it));
+      });
+    }).wait_and_throw();
+  }
+  return (flag == 0);
 }
 
 }  // namespace linalg
