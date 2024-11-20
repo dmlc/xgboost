@@ -16,8 +16,8 @@ fi
 artifact="$1"
 s3_url="$2"
 
-#if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
-#then
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
   echo "aws s3 cp ${artifact} ${s3_url} --acl public-read --no-progress"
   aws s3 cp "${artifact}" "${s3_url}" --acl public-read --no-progress
-#fi
+fi
