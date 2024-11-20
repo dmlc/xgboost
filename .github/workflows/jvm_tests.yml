@@ -162,6 +162,11 @@ jobs:
         run: bash ops/pipeline/build-test-jvm-packages.sh
         env:
           SCALA_VERSION: 2.13
+      - name: Stash files
+        run: bash ops/stash_artifacts.sh lib/libxgboost4j.so
+        env:
+          COMMAND: upload
+          KEY: build-test-jvm-packages
 
   build-test-jvm-packages-other-os:
     name: Build and test JVM packages (${{ matrix.os }})
@@ -239,3 +244,41 @@ jobs:
           COMMAND: download
           KEY: build-jvm-gpu
       - run: bash ops/pipeline/test-jvm-gpu.sh
+
+  deploy-jvm-packages:
+    name: Deploy JVM packages to S3 (${{ matrix.variant }})
+    needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: cpu
+            container_id: xgb-ci.jvm
+            artifact_from: build-test-jvm-packages
+          - variant: gpu
+            container_id: xgb-ci.jvm_gpu_build
+            artifact_from: build-jvm-gpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4.2.2
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh
+        env:
+          CONTAINER_ID: ${{ matrix.container_id }}
+      - name: Unstash files
+        run: |
+          bash ops/stash_artifacts.sh lib/libxgboost4j.so
+          ls -lh lib/libxgboost4j.so
+        env:
+          COMMAND: download
+          KEY: ${{ matrix.artifact_from }}
+      - name: Deploy JVM packages to S3
+        run: >-
+          bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant }} \
+            ${{ matrix.container_id }}
