@@ -3,12 +3,16 @@
 # Each container will be built using the definition from
 # ops/docker/dockerfile/Dockerfile.CONTAINER_DEF
 
+rapids_versions:
+  stable: &rapids_version "24.10"
+  dev: &dev_rapids_version "24.12"
+
 xgb-ci.gpu_build_rockylinux8:
   container_def: gpu_build_rockylinux8
   build_args:
     CUDA_VERSION_ARG: "12.4.1"
     NCCL_VERSION_ARG: "2.23.4-1"
-    RAPIDS_VERSION_ARG: "24.10"
+    RAPIDS_VERSION_ARG: *rapids_version
 
 xgb-ci.gpu_build_r_rockylinux8:
   container_def: gpu_build_r_rockylinux8
@@ -21,14 +25,14 @@ xgb-ci.gpu:
   build_args:
     CUDA_VERSION_ARG: "12.4.1"
     NCCL_VERSION_ARG: "2.23.4-1"
-    RAPIDS_VERSION_ARG: "24.10"
+    RAPIDS_VERSION_ARG: *rapids_version
 
 xgb-ci.gpu_dev_ver:
   container_def: gpu
   build_args:
     CUDA_VERSION_ARG: "12.4.1"
     NCCL_VERSION_ARG: "2.23.4-1"
-    RAPIDS_VERSION_ARG: "24.12"
+    RAPIDS_VERSION_ARG: *dev_rapids_version
     RAPIDSAI_CONDA_CHANNEL_ARG: "rapidsai-nightly"
 
 xgb-ci.clang_tidy:

@@ -30,7 +30,7 @@ jobs:
           submodules: 'true'
       - name: Check latest RAPIDS and update conftest.sh
         run: |
-          bash tests/buildkite/update-rapids.sh
+          bash ops/script/update_rapids.sh
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         if: github.ref == 'refs/heads/master'
