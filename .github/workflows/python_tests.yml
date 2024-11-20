@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Test installing XGBoost Python source package
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: conda-incubator/setup-miniconda@v3.1.0
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-variant: Miniforge3
           miniforge-version: latest
@@ -52,14 +52,14 @@ jobs:
         os: [macos-13, windows-latest]
         python-version: ["3.10"]
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
       - name: Install osx system dependencies
         if: matrix.os == 'macos-13'
         run: |
           brew install ninja libomp
-      - uses: conda-incubator/setup-miniconda@v3.1.0
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
@@ -85,11 +85,11 @@ jobs:
     runs-on: macos-13
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - uses: conda-incubator/setup-miniconda@v3.1.0
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-variant: Miniforge3
           miniforge-version: latest
@@ -132,12 +132,12 @@ jobs:
     name: Test XGBoost Python package System Installation on Ubuntu
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 

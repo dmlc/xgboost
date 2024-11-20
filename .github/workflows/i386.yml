@@ -19,11 +19,11 @@ jobs:
         ports:
           - 5000:5000
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.7.1
+        uses: docker/setup-buildx-action@v3
         with:
           driver-opts: network=host
       - name: Build and push container

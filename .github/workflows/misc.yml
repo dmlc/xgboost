@@ -18,7 +18,7 @@ jobs:
     name: Test Google C++ test (CPU)
     runs-on: macos-13
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
       - name: Install system packages
@@ -40,7 +40,7 @@ jobs:
     name: Test Google C++ unittest (CPU Non-OMP)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
       - name: Install system packages
@@ -65,10 +65,10 @@ jobs:
       run:
         shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: conda-incubator/setup-miniconda@v3.1.0
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-variant: Miniforge3
           miniforge-version: latest

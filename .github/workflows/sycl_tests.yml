@@ -22,10 +22,10 @@ jobs:
     name: Test Google C++ unittest (CPU SYCL)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4.2.2
+    - uses: actions/checkout@v4
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@v3.1.0
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-variant: Miniforge3
         miniforge-version: latest
@@ -53,11 +53,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - uses: conda-incubator/setup-miniconda@v3.1.0
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-variant: Miniforge3
           miniforge-version: latest

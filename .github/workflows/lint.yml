@@ -24,7 +24,7 @@ jobs:
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: "true"
       - name: Build ${{ env.CONTAINER_ID }}
@@ -39,7 +39,7 @@ jobs:
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: "true"
       - name: Fetch container from cache
@@ -52,10 +52,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Type and format checks for the Python package
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: conda-incubator/setup-miniconda@v3.1.0
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-variant: Miniforge3
           miniforge-version: latest
@@ -84,10 +84,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Code linting for C++
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: actions/setup-python@v5.3.0
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           architecture: 'x64'
@@ -105,16 +105,16 @@ jobs:
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - uses: r-lib/actions/setup-r@v2.11.0
+      - uses: r-lib/actions/setup-r@v2
         with:
           r-version: "release"
 
       - name: Cache R packages
-        uses: actions/cache@v4.1.2
+        uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
           key: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
