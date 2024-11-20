@@ -66,7 +66,7 @@ jobs:
           CONTAINER_ID: xgb-ci.cpu
       - run: bash ops/pipeline/build-cpu.sh
       - name: Stash CLI executable
-        run: bash ops/stash_artifacts.sh ./xgboost
+        run: bash ops/pipeline/stash-artifacts.sh ./xgboost
         env:
           COMMAND: upload
           KEY: build-cpu
@@ -89,7 +89,7 @@ jobs:
           CONTAINER_ID: xgb-ci.aarch64
       - run: bash ops/pipeline/build-cpu-arm64.sh
       - name: Stash files
-        run: bash ops/stash_artifacts.sh ./xgboost python-package/dist/*.whl
+        run: bash ops/pipeline/stash-artifacts.sh ./xgboost python-package/dist/*.whl
         env:
           COMMAND: upload
           KEY: build-cpu-arm64
@@ -117,7 +117,7 @@ jobs:
       - run: bash ops/pipeline/build-cuda.sh
       - name: Stash files
         run: |
-          bash ops/stash_artifacts.sh \
+          bash ops/pipeline/stash-artifacts.sh \
             build/testxgboost ./xgboost python-package/dist/*.whl
         env:
           COMMAND: upload
@@ -145,7 +145,7 @@ jobs:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
       - run: bash ops/pipeline/build-cuda-with-rmm.sh
       - name: Stash files
-        run: bash ops/stash_artifacts.sh build/testxgboost
+        run: bash ops/pipeline/stash-artifacts.sh build/testxgboost
         env:
           COMMAND: upload
           KEY: build-cuda-with-rmm
@@ -228,7 +228,7 @@ jobs:
           CONTAINER_ID: xgb-ci.gpu
       - name: Unstash gtest
         run: |
-          bash ops/stash_artifacts.sh build/testxgboost
+          bash ops/pipeline/stash-artifacts.sh build/testxgboost
           chmod +x build/testxgboost
         env:
           COMMAND: download
@@ -288,7 +288,7 @@ jobs:
           CONTAINER_ID: ${{ matrix.container }}
       - name: Unstash Python wheel
         run: |
-          bash ops/stash_artifacts.sh python-package/dist/*.whl ./xgboost
+          bash ops/pipeline/stash-artifacts.sh python-package/dist/*.whl ./xgboost
           chmod +x ./xgboost
         env:
           COMMAND: download

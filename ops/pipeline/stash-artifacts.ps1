@@ -7,7 +7,7 @@ Param(
     )][string[]]$artifacts
 )
 
-## Convenience wrapper for ops/stash_artifacts.py
+## Convenience wrapper for ops/pipeline/stash-artifacts.py
 ## Meant to be used inside GitHub Actions
 
 $ENV_VAR_DOC = @'
@@ -34,13 +34,13 @@ $artifact_stash_prefix = "cache/${Env:GITHUB_REPOSITORY}/stash/${Env:GITHUB_RUN_
 conda activate
 
 Write-Host @"
-python ops/stash_artifacts.py `
+python ops/pipeline/stash-artifacts.py `
   --command "${Env:COMMAND}"  `
   --s3-bucket "${Env:RUNS_ON_S3_BUCKET_CACHE}" `
   --prefix "${artifact_stash_prefix}/${Env:KEY}" `
   -- $artifacts
 "@
-python ops/stash_artifacts.py `
+python ops/pipeline/stash-artifacts.py `
   --command "${Env:COMMAND}"  `
   --s3-bucket "${Env:RUNS_ON_S3_BUCKET_CACHE}" `
   --prefix "${artifact_stash_prefix}/${Env:KEY}" `

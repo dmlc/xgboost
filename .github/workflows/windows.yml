@@ -33,7 +33,7 @@ jobs:
       - run: powershell ops/pipeline/build-win64-gpu.ps1
       - name: Stash files
         run: |
-          powershell ops/stash_artifacts.ps1 `
+          powershell ops/pipeline/stash-artifacts.ps1 `
             build/testxgboost.exe xgboost.exe `
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
         env:
@@ -52,7 +52,7 @@ jobs:
           submodules: "true"
       - name: Unstash files
         run: |
-          powershell ops/stash_artifacts.ps1 `
+          powershell ops/pipeline/stash-artifacts.ps1 `
             build/testxgboost.exe xgboost.exe python-package/dist/*.whl
         env:
           COMMAND: download

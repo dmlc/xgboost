@@ -108,7 +108,7 @@ def download(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     # Ensure that the current working directory is the project root
     if not (Path.cwd() / "ops").is_dir() or not path_equals(
-        Path(__file__).parent, Path.cwd() / "ops"
+        Path(__file__).parent.parent, Path.cwd() / "ops"
     ):
         x = Path(__file__).name
         raise RuntimeError(f"Script {x} must be run at the project's root directory")

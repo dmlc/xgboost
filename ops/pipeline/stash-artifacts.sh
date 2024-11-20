@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## Convenience wrapper for ops/stash_artifacts.py
+## Convenience wrapper for ops/pipeline/stash-artifacts.py
 ## Meant to be used inside GitHub Actions
 
 ENV_VAR_DOC=$(
@@ -32,7 +32,7 @@ done
 artifact_stash_prefix="cache/${GITHUB_REPOSITORY}/stash/${GITHUB_RUN_ID}"
 
 set -x
-python3 ops/stash_artifacts.py \
+python3 ops/pipeline/stash-artifacts.py \
   --command "${COMMAND}"  \
   --s3-bucket "${RUNS_ON_S3_BUCKET_CACHE}" \
   --prefix "${artifact_stash_prefix}/${KEY}" \
