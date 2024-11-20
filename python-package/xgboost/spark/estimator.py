@@ -165,7 +165,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
     collective_conf:
-        The communicator configuration. See :py:class:`~xgboost.collective.Config`
+        The collective configuration. See :py:class:`~xgboost.collective.Config`
 
     kwargs:
         A dictionary of xgboost parameters, please refer to
@@ -352,7 +352,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
     collective_conf:
-        The communicator configuration. See :py:class:`~xgboost.collective.Config`
+        The collective configuration. See :py:class:`~xgboost.collective.Config`
 
     kwargs:
         A dictionary of xgboost parameters, please refer to
@@ -542,7 +542,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
     collective_conf:
-        The communicator configuration. See :py:class:`~xgboost.collective.Config`
+        The collective configuration. See :py:class:`~xgboost.collective.Config`
 
     kwargs:
         A dictionary of xgboost parameters, please refer to

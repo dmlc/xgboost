@@ -259,12 +259,12 @@ class _SparkXGBParams(
     collective_conf = Param(
         Params._dummy(),
         "collective_conf",
-        "xgboost.collective.Config. The communicator configuration.",
+        "xgboost.collective.Config. The collective configuration.",
         TypeConverters.identity,
     )
 
     def set_collective_conf(self, value: Config) -> "_SparkXGBParams":
-        """Set communicator configuration"""
+        """Set collective configuration"""
         assert isinstance(value, Config)
         self.set(self.collective_conf, value)
         return self
