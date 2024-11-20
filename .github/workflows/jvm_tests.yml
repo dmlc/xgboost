@@ -18,8 +18,10 @@ jobs:
   build-containers:
     name: Build CI containers (${{ matrix.container_id }})
     runs-on:
-      - runs-on=${{ github.run_id }}
+      - runs-on
       - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=jvm-tests-build-containers-${{ matrix.container_id }}
     strategy:
       max-parallel: 2
       matrix:
@@ -48,8 +50,10 @@ jobs:
       (arch ${{ matrix.arch }}, runner ${{ matrix.runner }})
     needs: build-containers
     runs-on:
-      - runs-on=${{ github.run_id }}
+      - runs-on
       - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=jvm-tests-build-jvm-manylinux2014-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -266,8 +270,10 @@ jobs:
     name: Deploy JVM packages to S3 (${{ matrix.variant }})
     needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
     runs-on:
-      - runs-on=${{ github.run_id }}
+      - runs-on
       - runner=linux-amd64-cpu
+      - run-id=${{ github.run_id }}
+      - tag=jvm-tests-deploy-jvm-packages-${{ matrix.variant }}
     strategy:
       fail-fast: false
       matrix:

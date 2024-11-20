@@ -18,8 +18,10 @@ jobs:
   build-containers:
     name: Build CI containers (${{ matrix.container_id }})
     runs-on:
-      - runs-on=${{ github.run_id }}
+      - runs-on
       - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-build-containers-${{ matrix.container_id }}
     strategy:
       max-parallel: 2
       matrix:
@@ -169,8 +171,10 @@ jobs:
     name: Build manylinux2014_${{ matrix.arch }} wheel
     needs: build-containers
     runs-on:
-      - runs-on=${{ github.run_id }}
+      - runs-on
       - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-build-manylinux2014-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -227,8 +231,10 @@ jobs:
       (Suite ${{ matrix.suite }}, Runner ${{ matrix.runner }})
     needs: [build-cuda, build-cuda-with-rmm]
     runs-on:
-      - runs-on=${{ github.run_id }}
+      - runs-on
       - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-test-cpp-gpu-${{ matrix.suite }}
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -266,39 +272,41 @@ jobs:
     name: Run Python tests (${{ matrix.description }})
     needs: [build-cuda, build-cpu-arm64]
     runs-on:
-      - runs-on=${{ github.run_id }}
+      - runs-on
       - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-test-python-${{ matrix.description }}
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
         include:
-          - description: "single GPU"
+          - description: single-gpu
             container: xgb-ci.gpu
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: build-cuda
-          - description: "single GPU, nightly deps"
+          - description: single-gpu-nightly-deps
             container: xgb-ci.gpu_dev_ver
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: build-cuda
-          - description: "multiple GPUs"
+          - description: multiple-gpu
             container: xgb-ci.gpu
             suite: mgpu
             runner: linux-amd64-mgpu
             artifact_from: build-cuda
-          - description: "multiple GPUs, nightly deps"
+          - description: multiple-gpu-nightly-deps
             container: xgb-ci.gpu_dev_ver
             suite: mgpu
             runner: linux-amd64-mgpu
             artifact_from: build-cuda
-          - description: "CPU"
+          - description: cpu-amd64
             container: xgb-ci.cpu
             suite: cpu
             runner: linux-amd64-cpu
             artifact_from: build-cuda
-          - description: "CPU ARM64"
+          - description: cpu-arm64
             container: xgb-ci.aarch64
             suite: cpu-arm64
             runner: linux-arm64-cpu
