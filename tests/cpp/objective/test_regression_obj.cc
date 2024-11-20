@@ -6,6 +6,8 @@
 #include <xgboost/json.h>
 #include <xgboost/objective.h>
 
+#include <numeric>  // for iota
+
 #include "../../../src/common/linalg_op.h"  // for begin, end
 #include "../../../src/objective/adaptive.h"
 #include "../../../src/tree/param.h"        // for TrainParam
