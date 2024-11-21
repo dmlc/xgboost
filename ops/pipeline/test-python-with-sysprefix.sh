@@ -6,9 +6,10 @@ set -euox pipefail
 sudo apt-get update && sudo apt-get install -y ninja-build
 
 mkdir build
-cd build
+pushd build
 cmake .. -GNinja
 ninja
+popd
 
 # Copy libxgboost.so to system prefix
 cp -v lib/* "$(python -c 'import sys; print(sys.base_prefix)')/lib"
