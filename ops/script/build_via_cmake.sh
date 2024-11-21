@@ -17,7 +17,7 @@ then
   cmake_args="$@"
 
   # Workaround for file permission error
-  if [[ -n $CI_BUILD_UID ]]
+  if [[ -n ${CI_BUILD_UID:-} ]]
   then
     gosu root chown -R "${CI_BUILD_UID}:${CI_BUILD_GID}" /opt/miniforge/envs
   fi
