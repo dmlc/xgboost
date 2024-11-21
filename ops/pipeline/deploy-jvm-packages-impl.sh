@@ -11,8 +11,10 @@ then
 fi
 
 variant="$1"
-
 maven_options="-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
+
+bash ops/script/inject_jvm_lib.sh
+
 case "$variant" in
   cpu)
     # CPU variant

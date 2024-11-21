@@ -3,7 +3,7 @@
 
 set -euox pipefail
 
-source ops/pipeline/enforce-ci.sh
+# source ops/pipeline/enforce-ci.sh
 
 if [[ "$#" -lt 2 ]]
 then
