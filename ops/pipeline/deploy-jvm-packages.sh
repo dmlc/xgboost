@@ -1,4 +1,5 @@
 #!/bin/bash
+## Deploy JVM packages to S3 bucket
 
 set -euox pipefail
 

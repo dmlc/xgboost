@@ -1,4 +1,5 @@
 #!/bin/bash
+## Companion script for ops/pipeline/test-python-wheel.sh
 
 set -eo pipefail
 

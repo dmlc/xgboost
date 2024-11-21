@@ -1,5 +1,6 @@
 #!/bin/bash
-## Deploy JVM packages to xgboost-maven-repo S3 bucket
+## Deploy JVM packages to S3 bucket
+## Companion script for ops/pipeline/deploy-jvm-packages.sh
 
 set -euox pipefail
 

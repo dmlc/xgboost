@@ -9,5 +9,3 @@ dependencies:
 - cmake
 - ninja
 - python-build
-- c-compiler
-- cxx-compiler

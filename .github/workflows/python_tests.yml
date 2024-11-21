@@ -14,9 +14,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python-sdist-test-on-Linux:
-    runs-on: ubuntu-latest
-    name: Test installing XGBoost Python source package
+  python-sdist-test:
+    runs-on: ${{ matrix.os }}
+    name: Test installing Python XGBoost from the source distribution (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-13, windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,53 +36,12 @@ jobs:
         run: |
           conda info
           conda list
-      - name: Build and install XGBoost
+      - name: Install extra package for MacOS
         run: |
-          cd python-package
-          python --version
-          python -m build --sdist
-          pip install -v ./dist/xgboost-*.tar.gz --config-settings use_openmp=False
-          cd ..
-          python -c 'import xgboost'
-
-  python-sdist-test:
-    # Use system toolchain instead of conda toolchain for macos and windows.
-    # MacOS has linker error if clang++ from conda-forge is used
-    runs-on: ${{ matrix.os }}
-    name: Test installing XGBoost Python source package on ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-13, windows-latest]
-        python-version: ["3.10"]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-      - name: Install osx system dependencies
+          mamba install -c conda-forge llvm-openmp
         if: matrix.os == 'macos-13'
-        run: |
-          brew install ninja libomp
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          auto-update-conda: true
-          python-version: ${{ matrix.python-version }}
-          activate-environment: test
-      - name: Install build
-        run: |
-          conda install -c conda-forge python-build
-      - name: Display Conda env
-        run: |
-          conda info
-          conda list
       - name: Build and install XGBoost
-        run: |
-          cd python-package
-          python --version
-          python -m build --sdist
-          pip install -v ./dist/xgboost-*.tar.gz
-          cd ..
-          python -c 'import xgboost'
+        run: bash ops/pipeline/test-python-sdist.sh
 
   python-tests-on-macos:
     name: Test XGBoost Python package on macos-13
@@ -102,31 +65,7 @@ jobs:
           conda info
           conda list
 
-      - name: Build XGBoost on macos
-        run: |
-          brew install ninja
-
-          mkdir build
-          cd build
-          # Set prefix, to use OpenMP library from Conda env
-          # See https://github.com/dmlc/xgboost/issues/7039#issuecomment-1025038228
-          # to learn why we don't use libomp from Homebrew.
-          cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_DEPRECATED_CLI=ON
-          ninja
-
-      - name: Install Python package
-        run: |
-          cd python-package
-          python --version
-          pip install -v .
-
-      - name: Test Python package
-        run: |
-          pytest -s -v -rxXs --durations=0 ./tests/python
-
-      - name: Test Dask Interface
-        run: |
-          pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+      - run: bash ops/pipeline/test-python-macos.sh
 
   python-system-installation-on-ubuntu:
     name: Test XGBoost Python package System Installation on Ubuntu
@@ -135,32 +74,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-
-      - name: Install ninja
-        run: |
-          sudo apt-get update && sudo apt-get install -y ninja-build
-
-      - name: Build XGBoost on Ubuntu
-        run: |
-          mkdir build
-          cd build
-          cmake .. -GNinja
-          ninja
-
-      - name: Copy lib to system lib
-        run: |
-          cp lib/* "$(python -c 'import sys; print(sys.base_prefix)')/lib"
-
-      - name: Install XGBoost in Virtual Environment
-        run: |
-          cd python-package
-          pip install virtualenv
-          virtualenv venv
-          source venv/bin/activate && \
-            pip install -v . --config-settings use_system_libxgboost=True && \
-            python -c 'import xgboost'
+      - run: bash ops/pipeline/test-python-with-sysprefix.sh

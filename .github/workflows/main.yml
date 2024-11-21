@@ -268,14 +268,14 @@ jobs:
           KEY: ${{ matrix.artifact_from }}
       - run: bash ops/pipeline/test-cpp-gpu.sh ${{ matrix.suite }}
 
-  test-python:
+  test-python-wheel:
     name: Run Python tests (${{ matrix.description }})
     needs: [build-cuda, build-cpu-arm64]
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
       - run-id=${{ github.run_id }}
-      - tag=main-test-python-${{ matrix.description }}
+      - tag=main-test-python-wheel-${{ matrix.description }}
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -329,4 +329,4 @@ jobs:
           COMMAND: download
           KEY: ${{ matrix.artifact_from }}
       - name: Run Python tests, ${{ matrix.description }}
-        run: bash ops/pipeline/test-python.sh ${{ matrix.suite }} ${{ matrix.container }}
+        run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.container }}

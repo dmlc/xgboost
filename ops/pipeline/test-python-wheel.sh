@@ -1,4 +1,5 @@
 #!/bin/bash
+## Test XGBoost Python wheel on the Linux platform
 
 set -euo pipefail
 
@@ -20,4 +21,4 @@ fi
 
 python3 ops/docker_run.py --container-id "${container_id}" ${gpu_option} \
   --run-args='--shm-size=4g' \
-  -- bash ops/pipeline/test-python-impl.sh "${suite}"
+  -- bash ops/pipeline/test-python-wheel-impl.sh "${suite}"

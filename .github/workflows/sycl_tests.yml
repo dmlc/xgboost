@@ -38,15 +38,9 @@ jobs:
         conda list
     - name: Build and install XGBoost
       run: |
-        mkdir build
-        cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ \
-          -DCMAKE_C_COMPILER=gcc -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
-        ninja
+        bash ops/script/build_via_cmake.sh --conda-env=linux_sycl_test -DPLUGIN_SYCL=ON
     - name: Run gtest
-      run: |
-        cd build
-        ./testxgboost
+      run: ./build/testxgboost
 
   python-sycl-tests-on-ubuntu:
     name: Test XGBoost Python package with SYCL
@@ -56,7 +50,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-variant: Miniforge3
@@ -64,23 +57,15 @@ jobs:
           activate-environment: linux_sycl_test
           environment-file: ops/conda_env/linux_sycl_test.yml
           use-mamba: true
-
       - name: Display Conda env
         run: |
           conda info
           conda list
-      - name: Build XGBoost on Ubuntu
+      - name: Build and install XGBoost
         run: |
-          mkdir build
-          cd build
-          cmake .. -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc \
-            -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -GNinja
-          ninja
-      - name: Install Python package
-        run: |
+          bash ops/script/build_via_cmake.sh --conda-env=linux_sycl_test -DPLUGIN_SYCL=ON
           cd python-package
           python --version
           pip install -v .
       - name: Test Python package
-        run: |
-          pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
+        run: pytest -s -v -rxXs --durations=0 ./tests/python-sycl/

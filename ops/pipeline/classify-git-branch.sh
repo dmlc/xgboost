@@ -1,6 +1,5 @@
 #!/bin/bash
-
-## Detect whether the current git branch is a pull request or a release branch.
+## Detect whether the current git branch is a pull request or a release branch
 
 set -euo pipefail
 

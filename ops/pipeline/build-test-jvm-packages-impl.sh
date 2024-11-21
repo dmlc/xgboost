@@ -1,5 +1,6 @@
 #!/bin/bash
 ## Build and test JVM packages.
+## Companion script for build-test-jvm-packages.sh.
 ##
 ## Note. This script takes in all inputs via environment variables.
 
