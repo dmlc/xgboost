@@ -27,6 +27,10 @@
 
 #endif                              // defined(XGBOOST_USE_CUDA)
 
+#if defined(XGBOOST_USE_SYCL)
+#include "../../plugin/sycl/common/linalg_op.h"  // ElementWiseKernel
+#endif
+
 namespace xgboost::obj {
 class QuantileRegression : public ObjFunction {
   common::QuantileLossParam param_;
@@ -71,14 +75,14 @@ class QuantileRegression : public ObjFunction {
     auto gpair = out_gpair->View(ctx_->Device());
 
     info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
-                                                  : info.weights_.ConstHostSpan()};
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
 
     preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
     alpha_.SetDevice(ctx_->Device());
-    auto alpha = ctx_->IsCUDA() ? alpha_.ConstDeviceSpan() : alpha_.ConstHostSpan();
+    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
 
     linalg::ElementWiseKernel(ctx_, gpair,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {

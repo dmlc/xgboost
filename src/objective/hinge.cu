@@ -12,6 +12,9 @@
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/linalg_op.cuh"
 #endif
+#if defined(XGBOOST_USE_SYCL)
+#include "../../plugin/sycl/common/linalg_op.h"
+#endif
 #include "../common/linalg_op.h"
 #include "../common/optional_weight.h"   // for OptionalWeights
 #include "../common/transform.h"         // for Transform
@@ -58,8 +61,8 @@ class HingeObj : public FitIntercept {
     auto labels = info.labels.View(ctx_->Device());
 
     info.weights_.SetDevice(ctx_->Device());
-    common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
-                                                  : info.weights_.ConstHostSpan()};
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
 
     linalg::ElementWiseKernel(this->ctx_, labels,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {

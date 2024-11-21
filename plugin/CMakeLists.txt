@@ -1,6 +1,10 @@
 if(PLUGIN_SYCL)
   set(CMAKE_CXX_COMPILER "icpx")
   file(GLOB_RECURSE SYCL_SOURCES "sycl/*.cc")
+    list(APPEND SYCL_SOURCES
+    ${xgboost_SOURCE_DIR}/src/objective/regression_obj.cc
+    ${xgboost_SOURCE_DIR}/src/objective/hinge.cc
+    ${xgboost_SOURCE_DIR}/src/objective/quantile_obj.cc)
   add_library(plugin_sycl OBJECT ${SYCL_SOURCES})
   target_include_directories(plugin_sycl
     PRIVATE
