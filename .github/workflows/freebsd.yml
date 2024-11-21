@@ -24,7 +24,7 @@ jobs:
         with:
           usesh: true
           prepare: |
-            pkg install -y cmake git ninja googletest
+            pkg install -y cmake git ninja googletest bash
 
           run: |
             bash ops/script/build_via_cmake.sh
