@@ -12,6 +12,7 @@ from pyspark import SparkConf
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.collective import Config
 from xgboost.spark.data import pred_contribs
 
 pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
@@ -1647,19 +1648,17 @@ class XgboostLocalTest(SparkTestCase):
         with pytest.raises(ValueError, match="evals_result"):
             SparkXGBClassifier(evals_result={})
 
-    def test_tracker(self):
+    def test_collective_conf(self):
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
-            tracker_host_ip="192.168.1.32",
-            tracker_port=59981,
+            coll_cfg=Config(tracker_host_ip="192.168.1.32", tracker_port=59981),
         )
         with pytest.raises(Exception, match="Failed to bind socket"):
             classifier._get_tracker_args()
 
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=False,
-            tracker_host_ip="127.0.0.1",
-            tracker_port=58892,
+            coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=58892),
         )
         with pytest.raises(
             ValueError, match="You must enable launch_tracker_on_driver"
@@ -1668,13 +1667,40 @@ class XgboostLocalTest(SparkTestCase):
 
         classifier = SparkXGBClassifier(
             launch_tracker_on_driver=True,
-            tracker_host_ip="127.0.0.1",
+            coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=58893),
             num_workers=2,
         )
         launch_tracker_on_driver, rabit_envs = classifier._get_tracker_args()
         assert launch_tracker_on_driver is True
         assert rabit_envs["n_workers"] == 2
         assert rabit_envs["dmlc_tracker_uri"] == "127.0.0.1"
+        assert rabit_envs["dmlc_tracker_port"] == 58893
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = "file:" + tmpdir
+            classifier = SparkXGBClassifier(
+                launch_tracker_on_driver=True,
+                coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=58894),
+                num_workers=1,
+                n_estimators=1,
+            )
+
+            def check_conf(conf: Config) -> None:
+                assert conf.tracker_host_ip == "127.0.0.1"
+                assert conf.tracker_port == 58894
+
+            check_conf(classifier.getOrDefault(classifier.coll_cfg))
+            classifier.write().overwrite().save(path)
+
+            loaded_classifier = SparkXGBClassifier.load(path)
+            check_conf(loaded_classifier.getOrDefault(loaded_classifier.coll_cfg))
+
+            model = classifier.fit(self.cls_df_sparse_train)
+            check_conf(model.getOrDefault(model.coll_cfg))
+
+            model.write().overwrite().save(path)
+            loaded_model = SparkXGBClassifierModel.load(path)
+            check_conf(loaded_model.getOrDefault(loaded_model.coll_cfg))
 
 
 LTRData = namedtuple("LTRData", ("df_train", "df_test", "df_train_1"))
