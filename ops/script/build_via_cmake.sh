@@ -22,7 +22,11 @@ then
     gosu root chown -R "${CI_BUILD_UID}:${CI_BUILD_GID}" /opt/miniforge/envs
   fi
 
-  source activate ${conda_env}
+  # Don't activate Conda env if it's already activated
+  if [[ -z ${CONDA_PREFIX:-} ]]
+  then
+    source activate ${conda_env}
+  fi
   cmake_prefix_flag="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
 else
   cmake_args="$@"
