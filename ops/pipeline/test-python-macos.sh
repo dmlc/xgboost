@@ -18,5 +18,6 @@ cd python-package
 python --version
 pip install -v .
 
+cd ..
 pytest -s -v -rxXs --durations=0 ./tests/python
 pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
