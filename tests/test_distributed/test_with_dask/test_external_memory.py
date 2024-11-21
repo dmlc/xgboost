@@ -13,7 +13,7 @@ from xgboost.testing.dask import check_external_memory, get_rabit_args
 async def test_external_memory(
     client: Client, s: Scheduler, a: Worker, b: Worker, is_qdm: bool
 ) -> None:
-    workers = tm.get_client_workers(client)
+    workers = tm.dask.get_client_workers(client)
     n_workers = len(workers)
     args = await get_rabit_args(client, n_workers)
 
