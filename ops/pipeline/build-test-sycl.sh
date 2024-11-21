@@ -27,6 +27,7 @@ case "$suite" in
     cd python-package
     python --version
     pip install -v .
+    cd ..
     pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
     ;;
 esac
