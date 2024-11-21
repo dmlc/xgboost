@@ -25,7 +25,5 @@ jobs:
           usesh: true
           prepare: |
             pkg install -y cmake git ninja googletest bash
-
           run: |
-            bash ops/script/build_via_cmake.sh
-            ./build/testxgboost
+            bash ops/pipeline/test-freebsd.sh

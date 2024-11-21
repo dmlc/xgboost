@@ -36,11 +36,8 @@ jobs:
       run: |
         conda info
         conda list
-    - name: Build and install XGBoost
-      run: |
-        bash ops/script/build_via_cmake.sh --conda-env=linux_sycl_test -DPLUGIN_SYCL=ON
     - name: Run gtest
-      run: ./build/testxgboost
+      run: bash ops/pipeline/build-test-sycl.sh gtest
 
   python-sycl-tests-on-ubuntu:
     name: Test XGBoost Python package with SYCL
@@ -61,11 +58,5 @@ jobs:
         run: |
           conda info
           conda list
-      - name: Build and install XGBoost
-        run: |
-          bash ops/script/build_via_cmake.sh --conda-env=linux_sycl_test -DPLUGIN_SYCL=ON
-          cd python-package
-          python --version
-          pip install -v .
       - name: Test Python package
-        run: pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
+        run: bash ops/pipeline/build-test-sycl.sh pytest
