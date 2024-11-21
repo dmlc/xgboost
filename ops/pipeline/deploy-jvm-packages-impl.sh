@@ -13,18 +13,17 @@ fi
 variant="$1"
 maven_options="-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
 
-bash ops/script/inject_jvm_lib.sh
-
 case "$variant" in
   cpu)
     # CPU variant
     for scala_version in 2.12 2.13
     do
       python ops/script/change_scala_version.py --scala-version ${scala_version} --purge-artifacts
+      bash ops/script/inject_jvm_lib.sh
       pushd jvm-packages
       mvn --no-transfer-progress deploy -Pdefault,release-to-s3 ${maven_options}
       mvn clean
-      mvn clean -Pdefault,release-to-s3
+      mvn clean -Pdefault,release-to-s3      
       popd
     done
     ;;
@@ -33,6 +32,7 @@ case "$variant" in
     for scala_version in 2.12 2.13
     do
       python ops/script/change_scala_version.py --scala-version ${scala_version} --purge-artifacts
+      bash ops/script/inject_jvm_lib.sh
       pushd jvm-packages
       mvn --no-transfer-progress install -Pgpu ${maven_options}
       mvn --no-transfer-progress deploy -Pgpu,release-to-s3 -pl xgboost4j-spark-gpu ${maven_options}
