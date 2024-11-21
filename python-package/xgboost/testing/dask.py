@@ -1,6 +1,6 @@
 """Tests for dask shared by different test modules."""
 
-from typing import Any, List, Literal, Tuple, cast
+from typing import Any, List, Literal, cast
 
 import numpy as np
 import pandas as pd
