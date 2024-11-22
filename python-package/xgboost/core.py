@@ -3201,11 +3201,7 @@ class Booster:
             }
         )
 
-        if callable(getattr(df, "sort_values", None)):
-            # pylint: disable=no-member
-            return df.sort_values(["Tree", "Node"]).reset_index(drop=True)
-        # pylint: disable=no-member
-        return df.sort(["Tree", "Node"]).reset_index(drop=True)
+        return df.sort_values(["Tree", "Node"]).reset_index(drop=True)
 
     def _assign_dmatrix_features(self, data: DMatrix) -> None:
         if data.num_row() == 0:

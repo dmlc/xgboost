@@ -192,26 +192,25 @@ def sort_data_by_qid(**kwargs: List[Any]) -> Dict[str, List[Any]]:
     else:
         from pandas import DataFrame
 
-    def get_dict(i: int) -> dict:
-        def _get(attr: Optional[List[Any]]) -> Optional[Any]:
+    def get_dict(i: int) -> Dict[str, list]:
+        """Return a dictionary containing all the meta info and all partitions."""
+
+        def _get(attr: Optional[List[Any]]) -> Optional[list]:
             if attr is not None:
                 return attr[i]
             return None
 
-        data = {k: _get(kwargs.get(k, None)) for k in meta}
-        data = {k: v for k, v in data.items() if v is not None}
+        data_opt = {name: _get(kwargs.get(name, None)) for name in meta}
+        # Filter out None values.
+        data = {k: v for k, v in data_opt.items() if v is not None}
         return data
 
-    # This function was created for the `dd.from_mapq constructor for sorting with a
-    # Dask DF. We did not proceed with that route but kept some of the utilities. It
-    # might be necessary to try again in the future since concatenating and sorting is
-    # extremely expensive in terms of memory usage.
     def map_fn(i: int) -> pd.DataFrame:
         data = get_dict(i)
         return DataFrame(data)
 
-    qid_parts = [map_fn(i) for i in range(n_parts)]
-    dfq = concat(qid_parts)
+    meta_parts = [map_fn(i) for i in range(n_parts)]
+    dfq = concat(meta_parts)
     if dfq.qid.is_monotonic_increasing:
         return kwargs
 
