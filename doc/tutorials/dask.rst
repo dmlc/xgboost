@@ -543,7 +543,7 @@ Learning to Rank
 
 There are two operation modes in the Dask learning to rank for performance reasons. The
 difference is whether a distributed global sort is needed. Please see :ref:`ltr-dist` for
-how rankings work with distributed training in general. Below we will discuss some of the
+how ranking works with distributed training in general. Below we will discuss some of the
 Dask-specific features.
 
 First, if you use the :py:class:`~xgboost.dask.DaskQuantileDMatrix` interface or the
@@ -552,11 +552,12 @@ XGBoost will try to sort and group the samples for each worker based on the quer
 mode tries to skip the global sort and sort only worker-local data, and hence no
 inter-worker data shuffle. Please note that even worker-local sort is costly, particularly
 in terms of memory usage as there's no spilling when
-:py:meth:`~pandas.DataFrame.sort_values` is used. XGBoost first checks whether the QID is
-already sorted before actually performing the sorting operation. One can choose this if
-the query groups are relatively consecutive, meaning most of the samples within a query
-group are close to each other and are likely to be resided to the same worker. Don't use
-this if you have performed a random shuffle on your data.
+:py:meth:`~pandas.DataFrame.sort_values` is used, and we need to concatenate the
+data. XGBoost first checks whether the QID is already sorted before actually performing
+the sorting operation. One can choose this if the query groups are relatively consecutive,
+meaning most of the samples within a query group are close to each other and are likely to
+be resided to the same worker. Don't use this if you have performed a random shuffle on
+your data.
 
 If the input data is random, then there's no way we can guarantee most of data within the
 same group being in the same worker. For large query groups, this might not be an
@@ -565,7 +566,8 @@ samples from their group for all groups, which can lead to disastrous performanc
 case, we can partition the data according to query group, which is the default behavior of
 the :py:class:`~xgboost.dask.DaskXGBRanker` unless the ``allow_group_split`` is set to
 ``True``. This mode performs a sort and a groupby on the entire dataset in addition to an
-encoding operation for the query group IDs, which can lead to slow performance. See
+encoding operation for the query group IDs. Along with partition fragmentation, this
+option can lead to slow performance. See
 :ref:`sphx_glr_python_dask-examples_dask_learning_to_rank.py` for a worked example.
 
 .. _tracker-ip:

@@ -1907,7 +1907,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
         Whether a query group can be split among multiple workers. When set to `False`,
         inputs must be Dask dataframes or series. If you have many small query groups,
-        this can significantly increase the fragmentation of the data.
+        this can significantly increase the fragmentation of the data, and the internal
+        DMatrix construction can take longer.
 
         .. warning::
 
