@@ -121,7 +121,6 @@ class RegLossObj : public FitInterceptGlmLike {
     if (iter == 0) {
       ValidateLabel(info);
     }
-
     size_t const ndata = preds.Size();
     out_gpair->SetDevice(ctx_->Device());
     auto device = ctx_->Device();
@@ -132,7 +131,7 @@ class RegLossObj : public FitInterceptGlmLike {
     additional_input_.HostVector().begin()[1] = is_null_weight;
 
     const size_t nthreads = ctx_->Threads();
-    bool on_device = device.IsCUDA();
+    bool on_device = !device.IsCPU();
     // On CPU we run the transformation each thread processing a contigious block of data
     // for better performance.
     const size_t n_data_blocks = std::max(static_cast<size_t>(1), (on_device ? ndata : nthreads));

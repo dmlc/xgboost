@@ -78,18 +78,22 @@ bool Validate(DeviceOrd device, TensorView<T, D> t, Fn&& fn) {
 
   int flag = 0;
   {
-    ::sycl::buffer<int> buff(&flag, 1);
-    size_t size = xgboost::linalg::cend(t) - xgboost::linalg::cbegin(t);
+    ::sycl::buffer<int, 1> flag_buf(&flag, 1);
     qu->submit([&](::sycl::handler& cgh) {
-      auto reduction = ::sycl::reduction(buff, cgh, ::sycl::maximum<>());
-      cgh.parallel_for<>(::sycl::range<1>(size), reduction,
-                        [=](::sycl::id<1> pid, auto& max) {
-        const size_t i = pid[0];
-        auto it = xgboost::linalg::cbegin(t) + i;
-        max.combine(!const_cast<Fn&&>(fn)(*it));
+      auto flag_acc  = flag_buf.get_access<::sycl::access::mode::write>(cgh);
+      cgh.parallel_for<>(::sycl::range<1>(t.Size()),
+                         [=](::sycl::id<1> pid) {
+        const size_t idx = pid[0];
+        const T& value = call(t, xgboost::linalg::UnravelIndex(idx, t.Shape()));
+        bool is_valid = const_cast<Fn&&>(fn)(value);
+        if (!is_valid) {
+          AtomicRef<int> flag_ref(flag_acc[0]);
+          flag_ref = 1;
+        }
       });
-    }).wait_and_throw();
+    });
   }
+  qu->wait_and_throw();
   return (flag == 0);
 }
 
