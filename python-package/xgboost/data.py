@@ -1497,7 +1497,7 @@ def _proxy_transform(
     enable_categorical: bool,
 ) -> TransformedData:
     if _is_cudf_pandas_df(data) or _is_cudf_pandas_ser(data):
-        data = data._fsproxy_fast
+        data = data._fsproxy_fast  # pylint: disable=protected-access
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical

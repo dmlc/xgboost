@@ -2681,7 +2681,7 @@ class Booster:
         )
 
         if _is_cudf_pandas_df(data) or _is_cudf_pandas_ser(data):
-            data = data._fsproxy_fast
+            data = data._fsproxy_fast  # pylint: disable=protected-access
 
         enable_categorical = True
         if _is_arrow(data):
