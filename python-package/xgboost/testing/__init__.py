@@ -457,7 +457,11 @@ def make_categorical(
 
 
 def make_ltr(
-    n_samples: int, n_features: int, n_query_groups: int, max_rel: int
+    n_samples: int,
+    n_features: int,
+    n_query_groups: int,
+    max_rel: int,
+    sort_qid: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Make a dataset for testing LTR."""
     rng = np.random.default_rng(1994)
@@ -470,7 +474,8 @@ def make_ltr(
     w = rng.normal(0, 1.0, size=n_query_groups)
     w -= np.min(w)
     w /= np.max(w)
-    qid = np.sort(qid)
+    if sort_qid:
+        qid = np.sort(qid)
     return X, y, qid, w
 
 
@@ -635,6 +640,10 @@ multi_dataset_strategy = make_datasets_with_margin(
 
 def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+def non_decreasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
+    return all((y - x) >= -tolerance for x, y in zip(L, L[1:]))
 
 
 def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:

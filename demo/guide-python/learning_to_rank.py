@@ -12,8 +12,8 @@ This is a two-part demo, the first one contains a basic example of using XGBoost
 train on relevance degree, and the second part simulates click data and enable the
 position debiasing training.
 
-For an overview of learning to rank in XGBoost, please see
-:doc:`Learning to Rank </tutorials/learning_to_rank>`.
+For an overview of learning to rank in XGBoost, please see :doc:`Learning to Rank
+</tutorials/learning_to_rank>`.
 """
 
 from __future__ import annotations

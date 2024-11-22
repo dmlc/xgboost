@@ -1,6 +1,6 @@
 """Tests for dask shared by different test modules."""
 
-from typing import Any, List, Literal, cast
+from typing import Any, List, Literal, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -179,3 +179,41 @@ def get_client_workers(client: Any) -> List[str]:
     "Get workers from a dask client."
     workers = client.scheduler_info()["workers"]
     return list(workers.keys())
+
+
+def make_ltr(
+    client: Client, n_samples: int, n_features: int, n_query_groups: int, max_rel: int
+) -> Tuple[dd.DataFrame, dd.Series, dd.Series]:
+    """Synthetic dataset for learning to rank."""
+    workers = get_client_workers(client)
+    n_samples_per_worker = n_samples // len(workers)
+
+    def make(n: int, seed: int) -> pd.DataFrame:
+        rng = np.random.default_rng(seed)
+        X, y = make_classification(
+            n, n_features, n_informative=n_features, n_redundant=0, n_classes=max_rel
+        )
+        qid = rng.integers(size=(n,), low=0, high=n_query_groups)
+        df = pd.DataFrame(X, columns=[f"f{i}" for i in range(n_features)])
+        df["qid"] = qid
+        df["y"] = y
+        return df
+
+    futures = []
+    i = 0
+    for k in range(0, n_samples, n_samples_per_worker):
+        fut = client.submit(
+            make, n=n_samples_per_worker, seed=k, workers=[workers[i % len(workers)]]
+        )
+        futures.append(fut)
+        i += 1
+
+    last = n_samples - (n_samples_per_worker * len(workers))
+    if last != 0:
+        fut = client.submit(make, n=last, seed=n_samples_per_worker * len(workers))
+        futures.append(fut)
+
+    meta = make(1, 0)
+    df = dd.from_delayed(futures, meta=meta)
+    assert isinstance(df, dd.DataFrame)
+    return df.drop(["qid", "y"], axis=1), df.y, df.qid

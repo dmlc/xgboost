@@ -11,6 +11,7 @@ from distributed import Client, LocalCluster
 
 from xgboost import dask as dxgb
 from xgboost import testing as tm
+from xgboost.testing import dask as dtm
 
 
 @pytest.fixture(scope="module")
@@ -59,7 +60,10 @@ def test_dask_ranking(client: Client) -> None:
     qid_test = qid_test.astype(np.uint32)
 
     rank = dxgb.DaskXGBRanker(
-        n_estimators=2500, eval_metric=["ndcg"], early_stopping_rounds=10
+        n_estimators=2500,
+        eval_metric=["ndcg"],
+        early_stopping_rounds=10,
+        allow_group_split=True,
     )
     rank.fit(
         x_train,
@@ -71,3 +75,24 @@ def test_dask_ranking(client: Client) -> None:
     )
     assert rank.n_features_in_ == 46
     assert rank.best_score > 0.98
+
+
+@pytest.mark.filterwarnings("error")
+def test_no_group_split(client: Client) -> None:
+    X_tr, q_tr, y_tr = dtm.make_ltr(client, 4096, 128, 4, 5)
+    X_va, q_va, y_va = dtm.make_ltr(client, 1024, 128, 4, 5)
+
+    ltr = dxgb.DaskXGBRanker(allow_group_split=False, n_estimators=32)
+    ltr.fit(
+        X_tr,
+        y_tr,
+        qid=q_tr,
+        eval_set=[(X_tr, y_tr), (X_va, y_va)],
+        eval_qid=[q_tr, q_va],
+        verbose=True,
+    )
+
+    assert ltr.n_features_in_ == 128
+    assert X_tr.shape[1] == ltr.n_features_in_  # no change
+    ndcg = ltr.evals_result()["validation_0"]["ndcg@32"]
+    assert tm.non_decreasing(ndcg, tolerance=1e-2), ndcg
