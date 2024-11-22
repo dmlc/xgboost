@@ -130,7 +130,7 @@ def ranking_wo_split_demo(client: Client, args: argparse.Namespace) -> None:
 
     # `allow_group_split=False` makes sure data is partitioned according the the query
     # groups.
-    ltr = dxgb.DaskXGBRanker(allow_group_split=False)
+    ltr = dxgb.DaskXGBRanker(allow_group_split=False, device=args.device)
     ltr.client = client
     ltr = ltr.fit(
         X_tr,
@@ -144,12 +144,9 @@ def ranking_wo_split_demo(client: Client, args: argparse.Namespace) -> None:
     wait([df_te])
 
     X_te = df_te[df_te.columns.difference(["y", "qid"])]
-    predt = ltr.predict(X_te).compute()
-    y = client.compute(df_te.y).result()
-
-    # No available group-based evaluation metric outside of XGBoost we can use, RMSE
-    # here only for demostration.
-    print("RMSE:", root_mean_squared_error(y, predt))
+    predt = ltr.predict(X_te)
+    y = client.compute(df_te.y)
+    wait([predt, y])
 
 
 @contextmanager
@@ -161,7 +158,11 @@ def gen_client(device: str) -> Generator[Client, None, None]:
             with LocalCUDACluster() as cluster:
                 with Client(cluster) as client:
                     with dask.config.set(
-                        {"array.backend": "cupy", "dataframe.backend": "cudf"}
+                        {
+                            "array.backend": "cupy",
+                            "dataframe.backend": "cudf",
+                            "dataframe.shuffle.method": "tasks",
+                        }
                     ):
                         yield client
         case "cpu":

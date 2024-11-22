@@ -1906,18 +1906,20 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         .. versionadded:: 3.0.0
 
         Whether a query group can be split among multiple workers. When set to `False`,
-        inputs must be Dask dataframes or series.
+        inputs must be Dask dataframes or series. If you have many small query groups,
+        this can significantly increase the fragmentation of the data.
 
         .. warning::
 
-            GPU is not yet supported when the `dask-expr` is enabled. In addition, async
-            environment may not work.
+            GPU `p2p` shuffle is not yet supported when the `dask-expr` is enabled, use
+            the `tasks` shuffle method if you run into errors for categorical dtypes. In
+            addition, async environment may not work.
 
 """,
     end_note="""
         .. note::
 
-            For dask implementation, group is not supported, use qid instead.
+            For the dask implementation, group is not supported, use qid instead.
 """,
 )
 class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
