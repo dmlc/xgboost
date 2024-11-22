@@ -181,10 +181,11 @@ def get_client_workers(client: Any) -> List[str]:
     return list(workers.keys())
 
 
-def make_ltr(
+def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     client: Client,
     n_samples: int,
     n_features: int,
+    *,
     n_query_groups: int,
     max_rel: int,
     device: str,
@@ -230,8 +231,13 @@ def make_ltr(
 
 
 def check_no_group_split(client: Client, device: str) -> None:
-    X_tr, q_tr, y_tr = make_ltr(client, 4096, 128, 4, 5, device=device)
-    X_va, q_va, y_va = make_ltr(client, 1024, 128, 4, 5, device=device)
+    """Test for the allow_group_split parameter."""
+    X_tr, q_tr, y_tr = make_ltr(
+        client, 4096, 128, n_query_groups=4, max_rel=5, device=device
+    )
+    X_va, q_va, y_va = make_ltr(
+        client, 1024, 128, n_query_groups=4, max_rel=5, device=device
+    )
 
     ltr = dxgb.DaskXGBRanker(allow_group_split=False, n_estimators=32, device=device)
     ltr.fit(
