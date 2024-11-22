@@ -79,20 +79,4 @@ def test_dask_ranking(client: Client) -> None:
 
 @pytest.mark.filterwarnings("error")
 def test_no_group_split(client: Client) -> None:
-    X_tr, q_tr, y_tr = dtm.make_ltr(client, 4096, 128, 4, 5)
-    X_va, q_va, y_va = dtm.make_ltr(client, 1024, 128, 4, 5)
-
-    ltr = dxgb.DaskXGBRanker(allow_group_split=False, n_estimators=32)
-    ltr.fit(
-        X_tr,
-        y_tr,
-        qid=q_tr,
-        eval_set=[(X_tr, y_tr), (X_va, y_va)],
-        eval_qid=[q_tr, q_va],
-        verbose=True,
-    )
-
-    assert ltr.n_features_in_ == 128
-    assert X_tr.shape[1] == ltr.n_features_in_  # no change
-    ndcg = ltr.evals_result()["validation_0"]["ndcg@32"]
-    assert tm.non_decreasing(ndcg, tolerance=1e-2), ndcg
+    dtm.check_no_group_split(client, "cpu")
