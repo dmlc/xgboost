@@ -845,6 +845,12 @@ def _arrow_transform(data: DataType) -> Any:
 def _is_cudf_df(data: DataType) -> bool:
     return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
 
+def _is_cudf_pandas_df(data: DataType) -> bool:
+    return str(type(data)) == "<class 'pandas.core.frame.DataFrame'>" and str(type(type(data))) == "<class 'cudf.pandas.fast_slow_proxy._FastSlowProxyMeta'>"
+
+def _is_cudf_pandas_ser(data: DataType) -> bool:
+    return str(type(data)) == "<class 'pandas.core.series.Series'>" and str(type(type(data))) == "<class 'cudf.pandas.fast_slow_proxy._FastSlowProxyMeta'>"
+
 
 def _get_cudf_cat_predicate() -> Callable[[Any], bool]:
     try:
@@ -1480,6 +1486,8 @@ def _proxy_transform(
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> TransformedData:
+    if _is_cudf_pandas_df(data) or _is_cudf_pandas_ser(data):
+        data = data._fsproxy_fast
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical
