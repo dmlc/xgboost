@@ -71,7 +71,8 @@ nb-configuration*
 .classpath
 .pydevproject
 .settings/
-build
+/build
+/build-gpu
 /xgboost
 *.data
 build_plugin

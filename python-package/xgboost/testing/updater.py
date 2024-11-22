@@ -339,8 +339,8 @@ def check_get_quantile_cut_device(tree_method: str, use_cupy: bool) -> None:
         n_samples, n_features, n_categories, onehot=False, sparsity=0.8
     )
     if use_cupy:
-        import cudf  # pylint: disable=import-error
-        import cupy as cp  # pylint: disable=import-error
+        import cudf
+        import cupy as cp
 
         X = cudf.from_pandas(X)
         y = cp.array(y)

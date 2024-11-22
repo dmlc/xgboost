@@ -23,9 +23,12 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <configuration>
+                  <createDependencyReducedPom>true</createDependencyReducedPom>
+                  <useDependencyReducedPomInJar>true</useDependencyReducedPomInJar>
                   <shadedArtifactAttached>false</shadedArtifactAttached>
                   <artifactSet>
                     <includes>
+                      <include>ml.dmlc:xgboost4j_${scala.binary.version}</include>
                       <include>ml.dmlc:xgboost4j-spark_${scala.binary.version}</include>
                     </includes>
                   </artifactSet>

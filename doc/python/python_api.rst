@@ -192,3 +192,17 @@ PySpark API
     :members:
     :inherited-members:
     :show-inheritance:
+
+
+Collective
+----------
+
+.. automodule:: xgboost.collective
+
+.. autoclass:: xgboost.collective.Config
+
+.. autofunction:: xgboost.collective.init
+
+.. automodule:: xgboost.tracker
+
+.. autoclass:: xgboost.tracker.RabitTracker

@@ -13,9 +13,6 @@ if [ "x$use_cuda" == "x-Duse.cuda=ON" ]; then
   gpu_options="$use_cuda -Pgpu"
 fi
 
-# Initialize local Maven repository
-./tests/ci_build/initialize_maven.sh
-
 rm -rf build/
 cd jvm-packages
 
@@ -40,8 +37,12 @@ if [ "x$gpu_options" == "x" ] && [ "x$use_scala213" == "x" ]; then
   mvn --no-transfer-progress clean package -Dspark.version=3.4.3 -pl xgboost4j,xgboost4j-spark
 fi
 
-mvn --no-transfer-progress clean package -Dspark.version=${spark_version} $gpu_options
+mvn --no-transfer-progress clean install -Dspark.version=${spark_version} $gpu_options
 
+# Integration tests
+if [ "x$use_cuda" == "x" ]; then
+  mvn --no-transfer-progress test -pl xgboost4j-example
+fi
 
 set +x
 set +e

@@ -19,6 +19,18 @@
     </licenses>
     <developers>
         <developer>
+            <name>Bobby Wang</name>
+            <email>wbo4958@gmail.com</email>
+        </developer>
+        <developer>
+            <name>Jiaming Yuan</name>
+            <email>jm.yuan@outlook.com</email>
+        </developer>
+        <developer>
+            <name>Hyunsu Cho</name>
+            <email>chohyu01@cs.washington.edu</email>
+        </developer>
+        <developer>
             <name>CodingCat</name>
             <email>codingcat@apache.org</email>
         </developer>
@@ -106,13 +118,6 @@
 
         <profile>
             <id>release</id>
-            <modules>
-                <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
-                <module>xgboost4j-spark</module>
-                <module>xgboost4j-flink</module>
-                <module>xgboost4j-spark-gpu</module>
-            </modules>
             <build>
                 <plugins>
                     <plugin>
@@ -180,98 +185,6 @@
                             <serverId>ossrh</serverId>
                             <nexusUrl>https://oss.sonatype.org/</nexusUrl>
                             <autoReleaseAfterClose>false</autoReleaseAfterClose>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <skipTests>true</skipTests>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>assembly</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <version>3.7.1</version>
-                        <configuration>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <skipAssembly>true</skipAssembly>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>make-assembly</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>single</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>release-to-github</id>
-            <distributionManagement>
-                <repository>
-                    <id>github.repo</id>
-                    <name>Temporary Staging Repository</name>
-                    <url>file://${project.build.directory}/mvn-repo</url>
-                </repository>
-            </distributionManagement>
-            <properties>
-                <github.global.server>github</github.global.server>
-            </properties>
-            <modules>
-                <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
-                <module>xgboost4j-spark</module>
-                <module>xgboost4j-flink</module>
-                <module>xgboost4j-spark-gpu</module>
-            </modules>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.github.github</groupId>
-                        <artifactId>site-maven-plugin</artifactId>
-                        <version>0.12</version>
-                        <configuration>
-                            <message>Maven artifacts for ${project.version}</message>
-                            <noJekyll>true</noJekyll>
-                            <outputDirectory>${project.build.directory}/mvn-repo</outputDirectory>
-                            <branch>refs/heads/maven-repo</branch>
-                            <excludes>
-                                <exclude>*-with-dependencies.jar</exclude>
-                            </excludes>
-                            <repositoryName>xgboost</repositoryName>
-                            <repositoryOwner>CodingCat</repositoryOwner>
-                            <merge>true</merge>
-                        </configuration>
-                        <executions>
-                            <!-- run site-maven-plugin's 'site' target as part of the build's normal 'deploy' phase -->
-                            <execution>
-                                <goals>
-                                    <goal>site</goal>
-                                </goals>
-                                <phase>deploy</phase>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-deploy-plugin</artifactId>
-                        <version>3.1.3</version>
-                        <configuration>
-                            <altDeploymentRepository>internal.repo::default::file://${project.build.directory}/mvn-repo</altDeploymentRepository>
                         </configuration>
                     </plugin>
                     <plugin>

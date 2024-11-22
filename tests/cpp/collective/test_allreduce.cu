@@ -111,7 +111,7 @@ TEST_F(MGPUAllreduceTest, Timeout) {
         auto rc = w->NoCheck();
         if (r == 1) {
           auto rep = rc.Report();
-          ASSERT_NE(rep.find("NCCL timeout."), std::string::npos) << rep;
+          ASSERT_NE(rep.find("NCCL timeout:"), std::string::npos) << rep;
         }
 
         w.reset();
@@ -131,7 +131,7 @@ TEST_F(MGPUAllreduceTest, Timeout) {
         // Only one of the workers is doing allreduce.
         if (r == 0) {
           auto rc = w->NoCheck();
-          ASSERT_NE(rc.Report().find("NCCL timeout."), std::string::npos) << rc.Report();
+          ASSERT_NE(rc.Report().find("NCCL timeout:"), std::string::npos) << rc.Report();
         }
 
         w.reset();

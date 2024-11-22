@@ -19,27 +19,59 @@ class RabitTracker:
     workers.
 
     Parameters
-    ..........
+    ----------
+
+    n_workers:
+
+        The total number of workers in the communication group.
+
+    host_ip:
+
+        The IP address of the tracker node. XGBoost can try to guess one by probing with
+        sockets. But it's best to explicitly pass an address.
+
+    port:
+
+        The port this tracker should listen to. XGBoost can query an available port from
+        the OS, this configuration is useful for restricted network environments.
+
     sortby:
 
         How to sort the workers for rank assignment. The default is host, but users can
-        set the `DMLC_TASK_ID` via RABIT initialization arguments and obtain
-        deterministic rank assignment. Available options are:
+        set the `DMLC_TASK_ID` via arguments of :py:meth:`~xgboost.collective.init` and
+        obtain deterministic rank assignment through sorting by task name. Available
+        options are:
+
           - host
           - task
 
     timeout :
 
-        Timeout for constructing the communication group and waiting for the tracker to
-        shutdown when it's instructed to, doesn't apply to communication when tracking
-        is running.
+        Timeout for constructing (bootstrap) and shutting down the communication group,
+        doesn't apply to communication when the group is up and running.
 
         The timeout value should take the time of data loading and pre-processing into
-        account, due to potential lazy execution.
+        account, due to potential lazy execution. By default the Tracker doesn't have
+        any timeout to avoid pre-mature aborting.
 
         The :py:meth:`.wait_for` method has a different timeout parameter that can stop
         the tracker even if the tracker is still being used. A value error is raised
         when timeout is reached.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        from xgboost.tracker import RabitTracker
+        from xgboost import collective as coll
+
+        tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
+        tracker.start()
+
+        with coll.CommunicatorContext(**tracker.worker_args()):
+            ret = coll.broadcast("msg", 0)
+            assert str(ret) == "msg"
 
     """
 

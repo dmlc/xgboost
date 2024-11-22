@@ -14,13 +14,8 @@ from hypothesis._settings import duration
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
+from xgboost.testing.dask import get_rabit_args
 from xgboost.testing.params import hist_parameter_strategy
-
-pytestmark = [
-    pytest.mark.skipif(**tm.no_dask()),
-    pytest.mark.skipif(**tm.no_dask_cuda()),
-    tm.timeout(60),
-]
 
 from ..test_with_dask.test_with_dask import generate_array
 from ..test_with_dask.test_with_dask import kCols as random_cols
@@ -37,6 +32,12 @@ from ..test_with_dask.test_with_dask import (
     run_tree_stats,
     suppress,
 )
+
+pytestmark = [
+    pytest.mark.skipif(**tm.no_dask()),
+    pytest.mark.skipif(**tm.no_dask_cuda()),
+    tm.timeout(60),
+]
 
 try:
     import cudf
@@ -468,7 +469,7 @@ class TestDistributedGPU:
         np.testing.assert_allclose(predt, in_predt)
 
     def test_empty_dmatrix_auc(self, local_cuda_client: Client) -> None:
-        n_workers = len(tm.get_client_workers(local_cuda_client))
+        n_workers = len(tm.dask.get_client_workers(local_cuda_client))
         run_empty_dmatrix_auc(local_cuda_client, "cuda", n_workers)
 
     def test_auc(self, local_cuda_client: Client) -> None:
@@ -493,10 +494,8 @@ class TestDistributedGPU:
         fw = fw - fw.min()
         m = dxgb.DaskDMatrix(local_cuda_client, X, y, feature_weights=fw)
 
-        workers = tm.get_client_workers(local_cuda_client)
-        rabit_args = local_cuda_client.sync(
-            dxgb._get_rabit_args, len(workers), None, local_cuda_client
-        )
+        workers = tm.dask.get_client_workers(local_cuda_client)
+        rabit_args = get_rabit_args(local_cuda_client, len(workers))
 
         def worker_fn(worker_addr: str, data_ref: Dict) -> None:
             with dxgb.CommunicatorContext(**rabit_args):
@@ -596,10 +595,8 @@ def test_with_asyncio(local_cuda_client: Client) -> None:
 )
 def test_invalid_nccl(local_cuda_client: Client) -> None:
     client = local_cuda_client
-    workers = tm.get_client_workers(client)
-    args = client.sync(
-        dxgb._get_rabit_args, len(workers), dxgb._get_dask_config(), client
-    )
+    workers = tm.dask.get_client_workers(client)
+    args = get_rabit_args(client, len(workers))
 
     def run(wid: int) -> None:
         ctx = CommunicatorContext(dmlc_nccl_path="foo", **args)
@@ -637,10 +634,8 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
         assert err.getvalue().find("NCCL") == -1
 
     client = local_cuda_client
-    workers = tm.get_client_workers(client)
-    args = client.sync(
-        dxgb._get_rabit_args, len(workers), dxgb._get_dask_config(), client
-    )
+    workers = tm.dask.get_client_workers(client)
+    args = get_rabit_args(client, len(workers))
 
     # nccl is loaded
     def run(wid: int) -> None:

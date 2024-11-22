@@ -3,7 +3,7 @@ change without notice.
 
 """
 
-# pylint: disable=invalid-name,missing-function-docstring,import-error
+# pylint: disable=invalid-name,missing-function-docstring
 import gc
 import importlib.util
 import os
@@ -832,12 +832,6 @@ def setup_rmm_pool(_: Any, pytestconfig: pytest.Config) -> None:
             initial_pool_size=1024 * 1024 * 1024,
             devices=list(range(get_n_gpus())),
         )
-
-
-def get_client_workers(client: Any) -> List[str]:
-    "Get workers from a dask client."
-    workers = client.scheduler_info()["workers"]
-    return list(workers.keys())
 
 
 def demo_dir(path: str) -> str:

@@ -660,7 +660,7 @@ def test_sklearn_plotting():
     ax = xgb.plot_importance(classifier)
     assert isinstance(ax, Axes)
     assert ax.get_title() == 'Feature importance'
-    assert ax.get_xlabel() == 'F score'
+    assert ax.get_xlabel() == 'Importance score'
     assert ax.get_ylabel() == 'Features'
     assert len(ax.patches) == 4
 

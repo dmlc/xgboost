@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies
 
-import xgboost as xgb
 from xgboost import RabitTracker, collective
 from xgboost import testing as tm
 
@@ -25,7 +24,20 @@ def test_rabit_tracker() -> None:
         pytest.skip("Windows is not supported.")
 
     with pytest.raises(ValueError, match="Failed to bind socket"):
+        # Port is already being used
         RabitTracker(host_ip="127.0.0.1", port=port, n_workers=1)
+
+
+@pytest.mark.skipif(**tm.not_linux())
+def test_wait() -> None:
+    tracker = RabitTracker(host_ip="127.0.0.1", n_workers=2)
+    tracker.start()
+
+    with pytest.raises(ValueError, match="Timeout waiting for the tracker"):
+        tracker.wait_for(1)
+
+    with pytest.raises(ValueError, match="Failed to accept"):
+        tracker.free()
 
 
 @pytest.mark.skipif(**tm.not_linux())
@@ -150,6 +162,7 @@ def test_rank_assignment() -> None:
     from distributed import Client, LocalCluster
 
     from xgboost import dask as dxgb
+    from xgboost.testing.dask import get_rabit_args
 
     def local_test(worker_id):
         with dxgb.CommunicatorContext(**args) as ctx:
@@ -162,14 +175,8 @@ def test_rank_assignment() -> None:
 
     with LocalCluster(n_workers=8) as cluster:
         with Client(cluster) as client:
-            workers = tm.get_client_workers(client)
-            args = client.sync(
-                dxgb._get_rabit_args,
-                len(workers),
-                None,
-                client,
-            )
-
+            workers = tm.dask.get_client_workers(client)
+            args = get_rabit_args(client, len(workers))
             futures = client.map(local_test, range(len(workers)), workers=workers)
             client.gather(futures)
 

@@ -14,9 +14,13 @@ import pyspark
 from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, TaskContext
 from pyspark.sql.session import SparkSession
 
-from xgboost import Booster, XGBModel
-from xgboost.collective import CommunicatorContext as CCtx
-from xgboost.tracker import RabitTracker
+from ..collective import CommunicatorContext as CCtx
+from ..collective import Config
+from ..collective import _Args as CollArgs
+from ..collective import _ArgVals as CollArgsVals
+from ..core import Booster
+from ..sklearn import XGBModel
+from ..tracker import RabitTracker
 
 
 def get_class_name(cls: Type) -> str:
@@ -46,14 +50,14 @@ def _get_default_params_from_func(
 class CommunicatorContext(CCtx):  # pylint: disable=too-few-public-methods
     """Context with PySpark specific task ID."""
 
-    def __init__(self, context: BarrierTaskContext, **args: Any) -> None:
+    def __init__(self, context: BarrierTaskContext, **args: CollArgsVals) -> None:
         args["dmlc_task_id"] = str(context.partitionId())
         super().__init__(**args)
 
 
-def _start_tracker(host: str, n_workers: int, port: int = 0) -> Dict[str, Any]:
+def _start_tracker(host: str, n_workers: int, port: int = 0) -> CollArgs:
     """Start Rabit tracker with n_workers"""
-    args: Dict[str, Any] = {"n_workers": n_workers}
+    args: CollArgs = {"n_workers": n_workers}
     tracker = RabitTracker(n_workers=n_workers, host_ip=host, sortby="task", port=port)
     tracker.start()
     thread = Thread(target=tracker.wait_for)
@@ -63,9 +67,11 @@ def _start_tracker(host: str, n_workers: int, port: int = 0) -> Dict[str, Any]:
     return args
 
 
-def _get_rabit_args(host: str, n_workers: int, port: int = 0) -> Dict[str, Any]:
+def _get_rabit_args(conf: Config, n_workers: int) -> CollArgs:
     """Get rabit context arguments to send to each worker."""
-    env = _start_tracker(host, n_workers, port)
+    assert conf.tracker_host_ip is not None
+    port = 0 if conf.tracker_port is None else conf.tracker_port
+    env = _start_tracker(conf.tracker_host_ip, n_workers, port)
     return env
 
 
