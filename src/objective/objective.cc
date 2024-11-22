@@ -48,7 +48,6 @@ std::string ObjFunction::GetSyclImplementationName(const std::string& name) {
     return name + sycl_postfix;
   } else {
     // Function hasn't specific sycl implementation
-    LOG(FATAL) << "`" << name << "` doesn't have sycl implementation yet\n";
     return name;
   }
 }

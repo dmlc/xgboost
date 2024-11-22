@@ -48,7 +48,7 @@ void ElementWiseKernelHost(linalg::TensorView<T, D> t, std::int32_t n_threads, F
   }
 }
 
-#if !defined(XGBOOST_USE_CUDA)
+#if !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernelDevice(linalg::TensorView<T, D>, Fn&&, void* = nullptr) {
   common::AssertGPUSupport();
@@ -66,7 +66,7 @@ void ElementWiseKernel(Context const* ctx, linalg::TensorView<T, D> t, Fn&& fn) 
   }
   ElementWiseKernelHost(t, ctx->Threads(), fn);
 }
-#endif  // !defined(XGBOOST_USE_CUDA)
+#endif  // !defined(XGBOOST_USE_CUDA) && !defined(XGBOOST_USE_SYCL)
 
 template <typename T, std::int32_t kDim>
 auto cbegin(TensorView<T, kDim> const& v) {  // NOLINT

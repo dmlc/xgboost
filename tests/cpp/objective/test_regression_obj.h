@@ -22,6 +22,8 @@ void TestAbsoluteError(const Context* ctx);
 
 void TestAbsoluteErrorLeaf(const Context* ctx);
 
+void TestPseudoHuber(const Context* ctx);
+
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_REGRESSION_OBJ_H_

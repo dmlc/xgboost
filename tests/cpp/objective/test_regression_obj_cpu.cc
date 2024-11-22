@@ -23,31 +23,7 @@ TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
 
 TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
   Context ctx = MakeCUDACtx(GPUIDX);
-  Args args;
-
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:pseudohubererror", &ctx)};
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:pseudohubererror");
-
-  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
-                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
-  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
-                   {},                                                           // empty weights
-                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
-  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
-
-  obj->Configure({{"huber_slope", "0.1"}});
-  CheckConfigReload(obj, "reg:pseudohubererror");
-  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
-                   {-0.099388f, -0.099228f, -0.098639f, -0.089443f, 0.098639f},  // out_grad
-                   {0.0013467f, 0.001908f, 0.004443f, 0.089443f, 0.004443f});    // out_hess
+  TestPseudoHuber(&ctx);
 }
 
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {

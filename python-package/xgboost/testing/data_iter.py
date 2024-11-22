@@ -6,6 +6,7 @@ import numpy as np
 
 from xgboost import testing as tm
 
+from ..compat import import_cupy
 from ..core import DataIter, DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 
 
@@ -21,7 +22,7 @@ def run_mixed_sparsity(device: str) -> None:
     y = [y_0, y_1, y_2]
 
     if device.startswith("cuda"):
-        import cupy as cp  # pylint: disable=import-error
+        cp = import_cupy()
 
         X = [cp.array(batch) for batch in X]
 
@@ -58,8 +59,8 @@ def check_invalid_cat_batches(device: str) -> None:
                 cat_ratio=1.0 if self._it == 0 else 0.5,
             )
             if device == "cuda":
-                import cudf  # pylint: disable=import-error
-                import cupy  # pylint: disable=import-error
+                import cudf
+                import cupy
 
                 X = cudf.DataFrame(X)
                 y = cupy.array(y)
@@ -153,8 +154,8 @@ class CatIter(DataIter):  # pylint: disable=too-many-instance-attributes
 
         X, y = self.xs[self._it], self.ys[self._it]
         if self.device == "cuda":
-            import cudf  # pylint: disable=import-error
-            import cupy  # pylint: disable=import-error
+            import cudf
+            import cupy
 
             X = cudf.DataFrame(X)
             y = cupy.array(y)

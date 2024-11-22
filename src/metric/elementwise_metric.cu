@@ -45,7 +45,9 @@ namespace {
 template <typename Fn>
 PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
   PackedReduceResult result;
-  auto labels = info.labels.View(ctx->Device());
+  // This function doesn't have sycl-specific implementation yet.
+  // For that reason we transfer data to host in case of sycl is used for propper execution.
+  auto labels = info.labels.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
     thrust::counting_iterator<size_t> begin(0);
@@ -182,10 +184,11 @@ class PseudoErrorLoss : public MetricNoCache {
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
     CHECK_EQ(info.labels.Shape(0), info.num_row_);
-    auto labels = info.labels.View(ctx_->Device());
-    preds.SetDevice(ctx_->Device());
+    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+    auto labels = info.labels.View(device);
+    preds.SetDevice(device);
     auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan() : preds.ConstHostSpan();
-    info.weights_.SetDevice(ctx_->Device());
+    info.weights_.SetDevice(device);
     common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
                                                    : info.weights_.ConstHostSpan());
     float slope = this->param_.huber_slope;
@@ -349,11 +352,12 @@ struct EvalEWiseBase : public MetricNoCache {
     if (info.labels.Size() != 0) {
       CHECK_NE(info.labels.Shape(1), 0);
     }
-    auto labels = info.labels.View(ctx_->Device());
-    info.weights_.SetDevice(ctx_->Device());
+    auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+    auto labels = info.labels.View(device);
+    info.weights_.SetDevice(device);
     common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
                                                    : info.weights_.ConstHostSpan());
-    preds.SetDevice(ctx_->Device());
+    preds.SetDevice(device);
     auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan() : preds.ConstHostSpan();
 
     auto d_policy = policy_;

@@ -84,8 +84,8 @@ class PartIter(DataIter):
             return None
 
         if self._device_id is not None:
-            import cudf  # pylint: disable=import-error
-            import cupy as cp  # pylint: disable=import-error
+            import cudf
+            import cupy as cp
 
             # We must set the device after import cudf, which will change the device id to 0
             # See https://github.com/rapidsai/cudf/issues/11386

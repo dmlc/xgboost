@@ -12,6 +12,7 @@ from pyspark import keyword_only
 from pyspark.ml.param import Param, Params
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 
+from ..collective import Config
 from ..sklearn import XGBClassifier, XGBRanker, XGBRegressor
 from .core import (  # type: ignore
     _ClassificationModel,
@@ -163,6 +164,8 @@ class SparkXGBRegressor(_SparkXGBEstimator):
     launch_tracker_on_driver:
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
+    coll_cfg:
+        The collective configuration. See :py:class:`~xgboost.collective.Config`
 
     kwargs:
         A dictionary of xgboost parameters, please refer to
@@ -218,6 +221,7 @@ class SparkXGBRegressor(_SparkXGBEstimator):
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
         launch_tracker_on_driver: bool = True,
+        coll_cfg: Optional[Config] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -347,6 +351,8 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
     launch_tracker_on_driver:
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
+    coll_cfg:
+        The collective configuration. See :py:class:`~xgboost.collective.Config`
 
     kwargs:
         A dictionary of xgboost parameters, please refer to
@@ -402,6 +408,7 @@ class SparkXGBClassifier(_SparkXGBEstimator, HasProbabilityCol, HasRawPrediction
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
         launch_tracker_on_driver: bool = True,
+        coll_cfg: Optional[Config] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()
@@ -534,6 +541,8 @@ class SparkXGBRanker(_SparkXGBEstimator):
     launch_tracker_on_driver:
         Boolean value to indicate whether the tracker should be launched on the driver side or
         the executor side.
+    coll_cfg:
+        The collective configuration. See :py:class:`~xgboost.collective.Config`
 
     kwargs:
         A dictionary of xgboost parameters, please refer to
@@ -595,6 +604,7 @@ class SparkXGBRanker(_SparkXGBEstimator):
         repartition_random_shuffle: bool = False,
         enable_sparse_data_optim: bool = False,
         launch_tracker_on_driver: bool = True,
+        coll_cfg: Optional[Config] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__()

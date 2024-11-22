@@ -6,11 +6,12 @@
 #include <limits>
 
 #include "../helpers.h"
+#include "test_hinge.h"
 #include "../../../src/common/linalg_op.h"
 namespace xgboost {
-TEST(Objective, DeclareUnifiedTest(HingeObj)) {
-  Context ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:hinge", &ctx)};
+
+void TestHingeObj(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("binary:hinge", ctx)};
 
   float eps = std::numeric_limits<xgboost::bst_float>::min();
   std::vector<float> predt{-1.0f, -0.5f, 0.5f, 1.0f, -1.0f, -0.5f, 0.5f, 1.0f};

@@ -1,1 +1,1 @@
-#include "test_hinge.cc"
+#include "test_hinge_cpu.cc"

@@ -32,15 +32,12 @@ def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
 
 # pandas
 try:
-    from pandas import DataFrame, MultiIndex, Series
-    from pandas import concat as pandas_concat
+    from pandas import DataFrame, Series
 
     PANDAS_INSTALLED = True
 except ImportError:
-    MultiIndex = object
     DataFrame = object
     Series = object
-    pandas_concat = None
     PANDAS_INSTALLED = False
 
 
@@ -106,7 +103,7 @@ def import_cupy() -> types.ModuleType:
     if not is_cupy_available():
         raise ImportError("`cupy` is required for handling CUDA buffer.")
 
-    import cupy  # pylint: disable=import-error
+    import cupy
 
     return cupy
 
@@ -132,17 +129,19 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
         # other sparse format will be converted to CSR.
         return scipy_sparse.vstack(value, format="csr")
     if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
-        return pandas_concat(value, axis=0)
+        from pandas import concat as pd_concat
+
+        return pd_concat(value, axis=0)
     if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
         value[0], "cudf.core.series", "Series"
     ):
-        from cudf import concat as CUDF_concat  # pylint: disable=import-error
+        from cudf import concat as CUDF_concat
 
         return CUDF_concat(value, axis=0)
     from .data import _is_cupy_alike
 
     if _is_cupy_alike(value[0]):
-        import cupy  # pylint: disable=import-error
+        import cupy
 
         # pylint: disable=c-extension-no-member,no-member
         d = cupy.cuda.runtime.getDevice()

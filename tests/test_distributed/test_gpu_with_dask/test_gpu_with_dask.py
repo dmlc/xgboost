@@ -469,7 +469,7 @@ class TestDistributedGPU:
         np.testing.assert_allclose(predt, in_predt)
 
     def test_empty_dmatrix_auc(self, local_cuda_client: Client) -> None:
-        n_workers = len(tm.get_client_workers(local_cuda_client))
+        n_workers = len(tm.dask.get_client_workers(local_cuda_client))
         run_empty_dmatrix_auc(local_cuda_client, "cuda", n_workers)
 
     def test_auc(self, local_cuda_client: Client) -> None:
@@ -494,7 +494,7 @@ class TestDistributedGPU:
         fw = fw - fw.min()
         m = dxgb.DaskDMatrix(local_cuda_client, X, y, feature_weights=fw)
 
-        workers = tm.get_client_workers(local_cuda_client)
+        workers = tm.dask.get_client_workers(local_cuda_client)
         rabit_args = get_rabit_args(local_cuda_client, len(workers))
 
         def worker_fn(worker_addr: str, data_ref: Dict) -> None:
@@ -595,7 +595,7 @@ def test_with_asyncio(local_cuda_client: Client) -> None:
 )
 def test_invalid_nccl(local_cuda_client: Client) -> None:
     client = local_cuda_client
-    workers = tm.get_client_workers(client)
+    workers = tm.dask.get_client_workers(client)
     args = get_rabit_args(client, len(workers))
 
     def run(wid: int) -> None:
@@ -634,7 +634,7 @@ def test_nccl_load(local_cuda_client: Client, tree_method: str) -> None:
         assert err.getvalue().find("NCCL") == -1
 
     client = local_cuda_client
-    workers = tm.get_client_workers(client)
+    workers = tm.dask.get_client_workers(client)
     args = get_rabit_args(client, len(workers))
 
     # nccl is loaded

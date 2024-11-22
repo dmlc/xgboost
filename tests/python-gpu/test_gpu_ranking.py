@@ -115,7 +115,7 @@ def test_with_mq2008(objective, metric) -> None:
         x_valid,
         y_valid,
         qid_valid,
-    ) = tm.data.get_mq2008(os.path.join(os.path.join(tm.demo_dir(__file__), "rank")))
+    ) = tm.data.get_mq2008(tm.demo_dir(__file__))
 
     if metric.find("map") != -1 or objective.find("map") != -1:
         y_train[y_train <= 1] = 0.0

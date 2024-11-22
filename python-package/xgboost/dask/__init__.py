@@ -2,7 +2,6 @@
 # pylint: disable=missing-class-docstring, invalid-name
 # pylint: disable=too-many-lines
 # pylint: disable=too-few-public-methods
-# pylint: disable=import-error
 """
 Dask extensions for distributed training
 ----------------------------------------
@@ -54,7 +53,6 @@ Optional dask configuration
       dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"})
 
 """
-import collections
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
@@ -87,19 +85,17 @@ from dask import bag as db
 from dask import dataframe as dd
 
 from .. import collective, config
-from .._typing import _T, FeatureNames, FeatureTypes, IterationRange
+from .._typing import FeatureNames, FeatureTypes, IterationRange
 from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
 from ..collective import _ArgVals as CollArgsVals
-from ..compat import DataFrame, concat, lazy_isinstance
+from ..compat import DataFrame, lazy_isinstance
 from ..core import (
     Booster,
-    DataIter,
     DMatrix,
     Metric,
     Objective,
-    QuantileDMatrix,
     XGBoostError,
     _check_distributed_params,
     _deprecate_positional_args,
@@ -122,6 +118,7 @@ from ..sklearn import (
 )
 from ..tracker import RabitTracker
 from ..training import train as worker_train
+from .data import _create_dmatrix, _create_quantile_dmatrix
 from .utils import get_address_from_user, get_n_threads
 
 _DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
@@ -247,14 +244,6 @@ class CommunicatorContext(collective.CommunicatorContext):
         # worker ID. This outsources the rank assignment to dask and prevents
         # non-deterministic issue.
         self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{wid}]:" + str(worker.address)
-
-
-def dconcat(value: Sequence[_T]) -> _T:
-    """Concatenate sequence of partitions."""
-    try:
-        return concat(value)
-    except TypeError:
-        return dd.multi.concat(list(value), axis=0)
 
 
 def _get_client(client: Optional["distributed.Client"]) -> "distributed.Client":
@@ -597,111 +586,6 @@ async def map_worker_partitions(
     return result
 
 
-_DataParts = List[Dict[str, Any]]
-
-
-def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
-    assert isinstance(list_of_parts, list)
-    result: Dict[str, List[Any]] = {}
-
-    def append(i: int, name: str) -> None:
-        if name in list_of_parts[i]:
-            part = list_of_parts[i][name]
-        else:
-            part = None
-        if part is not None:
-            if name not in result:
-                result[name] = []
-            result[name].append(part)
-
-    for i, _ in enumerate(list_of_parts):
-        append(i, "data")
-        append(i, "label")
-        append(i, "weight")
-        append(i, "base_margin")
-        append(i, "qid")
-        append(i, "label_lower_bound")
-        append(i, "label_upper_bound")
-
-    return result
-
-
-class DaskPartitionIter(DataIter):  # pylint: disable=R0902
-    """A data iterator for `DaskQuantileDMatrix`."""
-
-    def __init__(
-        self,
-        data: List[Any],
-        label: Optional[List[Any]] = None,
-        *,
-        weight: Optional[List[Any]] = None,
-        base_margin: Optional[List[Any]] = None,
-        qid: Optional[List[Any]] = None,
-        label_lower_bound: Optional[List[Any]] = None,
-        label_upper_bound: Optional[List[Any]] = None,
-        feature_names: Optional[FeatureNames] = None,
-        feature_types: Optional[Union[Any, List[Any]]] = None,
-        feature_weights: Optional[Any] = None,
-    ) -> None:
-        self._data = data
-        self._label = label
-        self._weight = weight
-        self._base_margin = base_margin
-        self._qid = qid
-        self._label_lower_bound = label_lower_bound
-        self._label_upper_bound = label_upper_bound
-        self._feature_names = feature_names
-        self._feature_types = feature_types
-        self._feature_weights = feature_weights
-
-        assert isinstance(self._data, collections.abc.Sequence)
-
-        types = (collections.abc.Sequence, type(None))
-        assert isinstance(self._label, types)
-        assert isinstance(self._weight, types)
-        assert isinstance(self._base_margin, types)
-        assert isinstance(self._label_lower_bound, types)
-        assert isinstance(self._label_upper_bound, types)
-
-        self._iter = 0  # set iterator to 0
-        super().__init__(release_data=True)
-
-    def _get(self, attr: str) -> Optional[Any]:
-        if getattr(self, attr) is not None:
-            return getattr(self, attr)[self._iter]
-        return None
-
-    def data(self) -> Any:
-        """Utility function for obtaining current batch of data."""
-        return self._data[self._iter]
-
-    def reset(self) -> None:
-        """Reset the iterator"""
-        self._iter = 0
-
-    def next(self, input_data: Callable) -> bool:
-        """Yield next batch of data"""
-        if self._iter == len(self._data):
-            # Return False when there's no more batch.
-            return False
-
-        input_data(
-            data=self.data(),
-            label=self._get("_label"),
-            weight=self._get("_weight"),
-            group=None,
-            qid=self._get("_qid"),
-            base_margin=self._get("_base_margin"),
-            label_lower_bound=self._get("_label_lower_bound"),
-            label_upper_bound=self._get("_label_upper_bound"),
-            feature_names=self._feature_names,
-            feature_types=self._feature_types,
-            feature_weights=self._feature_weights,
-        )
-        self._iter += 1
-        return True
-
-
 class DaskQuantileDMatrix(DaskDMatrix):
     """A dask version of :py:class:`QuantileDMatrix`."""
 
@@ -757,110 +641,6 @@ class DaskQuantileDMatrix(DaskDMatrix):
         if self._ref is not None:
             args["ref"] = self._ref
         return args
-
-
-def _create_quantile_dmatrix(
-    *,
-    feature_names: Optional[FeatureNames],
-    feature_types: Optional[Union[Any, List[Any]]],
-    feature_weights: Optional[Any],
-    missing: float,
-    nthread: int,
-    parts: Optional[_DataParts],
-    max_bin: int,
-    enable_categorical: bool,
-    max_quantile_batches: Optional[int],
-    ref: Optional[DMatrix] = None,
-) -> QuantileDMatrix:
-    worker = distributed.get_worker()
-    if parts is None:
-        msg = f"worker {worker.address} has an empty DMatrix."
-        LOGGER.warning(msg)
-
-        d = QuantileDMatrix(
-            numpy.empty((0, 0)),
-            feature_names=feature_names,
-            feature_types=feature_types,
-            max_bin=max_bin,
-            ref=ref,
-            enable_categorical=enable_categorical,
-            max_quantile_batches=max_quantile_batches,
-        )
-        return d
-
-    unzipped_dict = _get_worker_parts(parts)
-    it = DaskPartitionIter(
-        **unzipped_dict,
-        feature_types=feature_types,
-        feature_names=feature_names,
-        feature_weights=feature_weights,
-    )
-
-    dmatrix = QuantileDMatrix(
-        it,
-        missing=missing,
-        nthread=nthread,
-        max_bin=max_bin,
-        ref=ref,
-        enable_categorical=enable_categorical,
-        max_quantile_batches=max_quantile_batches,
-    )
-    return dmatrix
-
-
-def _create_dmatrix(
-    *,
-    feature_names: Optional[FeatureNames],
-    feature_types: Optional[Union[Any, List[Any]]],
-    feature_weights: Optional[Any],
-    missing: float,
-    nthread: int,
-    enable_categorical: bool,
-    parts: Optional[_DataParts],
-) -> DMatrix:
-    """Get data that local to worker from DaskDMatrix.
-
-    Returns
-    -------
-    A DMatrix object.
-
-    """
-    worker = distributed.get_worker()
-    list_of_parts = parts
-    if list_of_parts is None:
-        msg = f"worker {worker.address} has an empty DMatrix."
-        LOGGER.warning(msg)
-        d = DMatrix(
-            numpy.empty((0, 0)),
-            feature_names=feature_names,
-            feature_types=feature_types,
-            enable_categorical=enable_categorical,
-        )
-        return d
-
-    T = TypeVar("T")
-
-    def concat_or_none(data: Sequence[Optional[T]]) -> Optional[T]:
-        if any(part is None for part in data):
-            return None
-        return dconcat(data)
-
-    unzipped_dict = _get_worker_parts(list_of_parts)
-    concated_dict: Dict[str, Any] = {}
-    for key, value in unzipped_dict.items():
-        v = concat_or_none(value)
-        concated_dict[key] = v
-
-    dmatrix = DMatrix(
-        **concated_dict,
-        missing=missing,
-        feature_names=feature_names,
-        feature_types=feature_types,
-        nthread=nthread,
-        enable_categorical=enable_categorical,
-        feature_weights=feature_weights,
-    )
-    return dmatrix
 
 
 def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:

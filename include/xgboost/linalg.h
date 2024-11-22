@@ -855,22 +855,22 @@ class Tensor {
    * @brief Get a @ref TensorView for this tensor.
    */
   auto View(DeviceOrd device) {
-    if (device.IsCUDA()) {
-      data_.SetDevice(device);
-      auto span = data_.DeviceSpan();
+    if (device.IsCPU()) {
+      auto span = data_.HostSpan();
       return TensorView<T, kDim>{span, shape_, device, order_};
     } else {
-      auto span = data_.HostSpan();
+      data_.SetDevice(device);
+      auto span = data_.DeviceSpan();
       return TensorView<T, kDim>{span, shape_, device, order_};
     }
   }
   auto View(DeviceOrd device) const {
-    if (device.IsCUDA()) {
-      data_.SetDevice(device);
-      auto span = data_.ConstDeviceSpan();
+    if (device.IsCPU()) {
+      auto span = data_.ConstHostSpan();
       return TensorView<T const, kDim>{span, shape_, device, order_};
     } else {
-      auto span = data_.ConstHostSpan();
+      data_.SetDevice(device);
+      auto span = data_.ConstDeviceSpan();
       return TensorView<T const, kDim>{span, shape_, device, order_};
     }
   }

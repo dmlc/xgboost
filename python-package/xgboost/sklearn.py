@@ -14,6 +14,7 @@ from typing import (
     Optional,
     Protocol,
     Sequence,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -29,7 +30,13 @@ from .callback import TrainingCallback
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
-from .compat import SKLEARN_INSTALLED, XGBClassifierBase, XGBModelBase, XGBRegressorBase
+from .compat import (
+    SKLEARN_INSTALLED,
+    XGBClassifierBase,
+    XGBModelBase,
+    XGBRegressorBase,
+    import_cupy,
+)
 from .config import config_context
 from .core import (
     Booster,
@@ -827,6 +834,19 @@ class XGBModel(XGBModelBase):
         base = "https://xgboost.readthedocs.io/en"
         return f"{base}/{rel}/python/python_api.html#{module}.{name}"
 
+    def _wrapper_params(self) -> Set[str]:
+        wrapper_specific = {
+            "importance_type",
+            "kwargs",
+            "missing",
+            "n_estimators",
+            "enable_categorical",
+            "early_stopping_rounds",
+            "callbacks",
+            "feature_types",
+        }
+        return wrapper_specific
+
     def get_booster(self) -> Booster:
         """Get the underlying xgboost Booster of this model.
 
@@ -905,16 +925,7 @@ class XGBModel(XGBModelBase):
         params: Dict[str, Any] = self.get_params()
 
         # Parameters that should not go into native learner.
-        wrapper_specific = {
-            "importance_type",
-            "kwargs",
-            "missing",
-            "n_estimators",
-            "enable_categorical",
-            "early_stopping_rounds",
-            "callbacks",
-            "feature_types",
-        }
+        wrapper_specific = self._wrapper_params()
         filtered = {}
         for k, v in params.items():
             if k not in wrapper_specific and not callable(v):
@@ -1231,9 +1242,9 @@ class XGBModel(XGBModelBase):
                         validate_features=validate_features,
                     )
                     if _is_cupy_alike(predts):
-                        import cupy  # pylint: disable=import-error
+                        cp = import_cupy()
 
-                        predts = cupy.asnumpy(predts)  # ensure numpy array is used.
+                        predts = cp.asnumpy(predts)  # ensure numpy array is used.
                     return predts
                 except TypeError:
                     # coo, csc, dt
@@ -1508,13 +1519,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             # booster in a Python property. This way we can have efficient and
             # thread-safe prediction.
             if _is_cudf_df(y) or _is_cudf_ser(y):
-                import cupy as cp  # pylint: disable=E0401
+                cp = import_cupy()
 
                 classes = cp.unique(y.values)
                 self.n_classes_ = len(classes)
                 expected_classes = cp.array(self.classes_)
             elif _is_cupy_alike(y):
-                import cupy as cp  # pylint: disable=E0401
+                cp = import_cupy()
 
                 classes = cp.unique(y)
                 self.n_classes_ = len(classes)

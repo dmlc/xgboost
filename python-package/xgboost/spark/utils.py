@@ -15,6 +15,7 @@ from pyspark import BarrierTaskContext, SparkConf, SparkContext, SparkFiles, Tas
 from pyspark.sql.session import SparkSession
 
 from ..collective import CommunicatorContext as CCtx
+from ..collective import Config
 from ..collective import _Args as CollArgs
 from ..collective import _ArgVals as CollArgsVals
 from ..core import Booster
@@ -66,9 +67,11 @@ def _start_tracker(host: str, n_workers: int, port: int = 0) -> CollArgs:
     return args
 
 
-def _get_rabit_args(host: str, n_workers: int, port: int = 0) -> CollArgs:
+def _get_rabit_args(conf: Config, n_workers: int) -> CollArgs:
     """Get rabit context arguments to send to each worker."""
-    env = _start_tracker(host, n_workers, port)
+    assert conf.tracker_host_ip is not None
+    port = 0 if conf.tracker_port is None else conf.tracker_port
+    env = _start_tracker(conf.tracker_host_ip, n_workers, port)
     return env
 
 
