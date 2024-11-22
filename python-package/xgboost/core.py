@@ -2669,6 +2669,8 @@ class Booster:
             _arrow_transform,
             _is_arrow,
             _is_cudf_df,
+            _is_cudf_pandas_df,
+            _is_cudf_pandas_ser,
             _is_cupy_alike,
             _is_list,
             _is_np_array_like,
@@ -2677,6 +2679,8 @@ class Booster:
             _is_tuple,
             _transform_pandas_df,
         )
+        if _is_cudf_pandas_df(data) or _is_cudf_pandas_ser(data):
+            data = data._fsproxy_fast
 
         enable_categorical = True
         if _is_arrow(data):
