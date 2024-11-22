@@ -45,7 +45,8 @@ You can reproduce the same testing environment as the CI pipelines by running Do
 Prerequisites
 =============
 1. Install Docker: https://docs.docker.com/engine/install/ubuntu/
-2. Install NVIDIA Docker runtime: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#installing-on-ubuntu-and-debian
+2. Install NVIDIA Docker runtime:
+   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html.
    The runtime lets you access NVIDIA GPUs inside a Docker container.
 
 .. _build_run_docker_locally:
@@ -73,11 +74,11 @@ the script will use the corresponding entry from ``ci_container.yml``:
 .. code-block:: yaml
 
   xgb-ci.gpu:
-  container_def: gpu
-  build_args:
-    CUDA_VERSION_ARG: "12.4.1"
-    NCCL_VERSION_ARG: "2.23.4-1"
-    RAPIDS_VERSION_ARG: "24.10"
+    container_def: gpu
+    build_args:
+      CUDA_VERSION_ARG: "12.4.1"
+      NCCL_VERSION_ARG: "2.23.4-1"
+      RAPIDS_VERSION_ARG: "24.10"
 
 The ``container_def`` entry indicates where the Dockerfile is located. The container
 definition will be fetched from ``ops/docker/dockerfile/Dockerfile.CONTAINER_DEF`` where
@@ -171,7 +172,7 @@ Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker r
     --run-args='--shm-size=4g --privileged' \
     -- bash ops/pipeline/test-python-wheel-impl.sh gpu
 
-which is translated to
+which translates to
 
 .. code-block:: bash
 
@@ -183,12 +184,16 @@ which is translated to
     xgb-ci.gpu \
     bash ops/pipeline/test-python-wheel-impl.sh gpu
 
-********************************************************************
-The Lay of the Land: how CI pipelines are organized in the code base
-********************************************************************
+*******************************************************************
+The Lay of the Land: how CI pipelines are organized in the codebase
+*******************************************************************
 The XGBoost project stores the configuration for its CI pipelines as part of the codebase.
 The git repository therefore stores not only the change history for its source code but also
 the change history for the CI pipelines.
+
+=================
+File Organization
+=================
 
 The CI pipelines are organized into the following directories and files:
 
@@ -209,7 +214,7 @@ The CI pipelines are organized into the following directories and files:
 * ``ops/docker_build.*``: Wrapper scripts to build and test CI containers. See
   :ref:`build_run_docker_locally` for the detailed description.
 
-To inspect a given CI pipeline, open files in the following order:
+To inspect a given CI pipeline, inspect files in the following order:
 
 .. plot::
   :nofigs:
@@ -217,9 +222,9 @@ To inspect a given CI pipeline, open files in the following order:
   from graphviz import Source
   source = r"""
     digraph ci_graph {
-      graph [fontname = "helvetica"];
-      node [fontname = "helvetica"];
-      edge [fontname = "helvetica"];
+      graph [fontname = "monospace"];
+      node [fontname = "monospace"];
+      edge [fontname = "monospace"];
       0 [label=<.github/workflows/*.yml>, shape=box];
       1 [label=<ops/pipeline/*.sh>, shape=box];
       2 [label=<ops/pipeline/*-impl.sh>, shape=box];
@@ -288,6 +293,6 @@ the S3 bucket whose path matches the pattern.
   export COMMAND="download"
   export KEY="build-cuda"
   # Download all files whose path matches pattern
-  # python-package/dist/*.whl
+  #   python-package/dist/*.whl
   bash ops/pipeline/stash-artifacts.sh \
     python-package/dist/*.whl
