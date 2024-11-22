@@ -219,7 +219,7 @@ class TestRanking:
         """
         Download and setup the test fixtures
         """
-        cls.dpath = 'demo/rank/'
+        cls.dpath = "demo/"
         (x_train, y_train, qid_train, x_test, y_test, qid_test,
          x_valid, y_valid, qid_valid) = tm.data.get_mq2008(cls.dpath)
 

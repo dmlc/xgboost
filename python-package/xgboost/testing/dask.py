@@ -7,6 +7,7 @@ import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
 from distributed import Client, get_worker
+from sklearn.datasets import make_classification
 
 import xgboost as xgb
 import xgboost.testing as tm
@@ -21,8 +22,6 @@ def check_init_estimation_clf(
     tree_method: str, device: Literal["cpu", "cuda"], client: Client
 ) -> None:
     """Test init estimation for classsifier."""
-    from sklearn.datasets import make_classification
-
     X, y = make_classification(n_samples=4096 * 2, n_features=32, random_state=1994)
     clf = xgb.XGBClassifier(
         n_estimators=1, max_depth=1, tree_method=tree_method, device=device
@@ -174,3 +173,9 @@ def check_external_memory(  # pylint: disable=too-many-locals
 def get_rabit_args(client: Client, n_workers: int) -> Any:
     """Get RABIT collective communicator arguments for tests."""
     return client.sync(_get_rabit_args, client, n_workers)
+
+
+def get_client_workers(client: Any) -> List[str]:
+    "Get workers from a dask client."
+    workers = client.scheduler_info()["workers"]
+    return list(workers.keys())

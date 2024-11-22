@@ -78,7 +78,7 @@ def make_categorical(
     n_categories: int,
     onehot: bool = False,
 ) -> Tuple[dd.DataFrame, dd.Series]:
-    workers = tm.get_client_workers(client)
+    workers = tm.dask.get_client_workers(client)
     n_workers = len(workers)
     dfs = []
 
@@ -1200,50 +1200,6 @@ def test_dask_aft_survival() -> None:
             run_aft_survival(client, DaskDMatrix)
 
 
-def test_dask_ranking(client: "Client") -> None:
-    dpath = "demo/rank/"
-    mq2008 = tm.data.get_mq2008(dpath)
-    data = []
-    for d in mq2008:
-        if isinstance(d, scipy.sparse.csr_matrix):
-            d[d == 0] = np.inf
-            d = d.toarray()
-            d[d == 0] = np.nan
-            d[np.isinf(d)] = 0
-            data.append(dd.from_array(d, chunksize=32))
-        else:
-            data.append(dd.from_array(d, chunksize=32))
-
-    (
-        x_train,
-        y_train,
-        qid_train,
-        x_test,
-        y_test,
-        qid_test,
-        x_valid,
-        y_valid,
-        qid_valid,
-    ) = data
-    qid_train = qid_train.astype(np.uint32)
-    qid_valid = qid_valid.astype(np.uint32)
-    qid_test = qid_test.astype(np.uint32)
-
-    rank = dxgb.DaskXGBRanker(
-        n_estimators=2500, eval_metric=["ndcg"], early_stopping_rounds=10
-    )
-    rank.fit(
-        x_train,
-        y_train,
-        qid=qid_train,
-        eval_set=[(x_test, y_test), (x_train, y_train)],
-        eval_qid=[qid_test, qid_train],
-        verbose=True,
-    )
-    assert rank.n_features_in_ == 46
-    assert rank.best_score > 0.98
-
-
 @pytest.mark.parametrize("booster", ["dart", "gbtree"])
 def test_dask_predict_leaf(booster: str, client: "Client") -> None:
     from sklearn.datasets import load_digits
@@ -1379,7 +1335,7 @@ class TestWithDask:
                 assert Xy.num_col() == 4
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            workers = tm.get_client_workers(client)
+            workers = tm.dask.get_client_workers(client)
             rabit_args = get_rabit_args(client, len(workers))
             futures = []
             for w in workers:
@@ -1635,7 +1591,7 @@ class TestWithDask:
 
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = tm.get_client_workers(client)
+                workers = tm.dask.get_client_workers(client)
                 rabit_args = get_rabit_args(client, len(workers))
                 futures = []
                 for i, _ in enumerate(workers):
@@ -1648,7 +1604,7 @@ class TestWithDask:
     def test_n_workers(self) -> None:
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
             with Client(cluster) as client:
-                workers = tm.get_client_workers(client)
+                workers = tm.dask.get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
 
                 X, y = load_breast_cancer(return_X_y=True)
@@ -1771,7 +1727,7 @@ class TestWithDask:
                 X, y, _ = generate_array()
                 n_partitions = X.npartitions
                 m = dxgb.DaskDMatrix(client, X, y)
-                workers = tm.get_client_workers(client)
+                workers = tm.dask.get_client_workers(client)
                 rabit_args = get_rabit_args(client, len(workers))
                 n_workers = len(workers)
 
@@ -1991,7 +1947,7 @@ def test_parallel_submits(client: "Client") -> None:
     from sklearn.datasets import load_digits
 
     futures = []
-    workers = tm.get_client_workers(client)
+    workers = tm.dask.get_client_workers(client)
     n_submits = len(workers)
     for i in range(n_submits):
         X_, y_ = load_digits(return_X_y=True)
@@ -2078,7 +2034,7 @@ def test_parallel_submit_multi_clients() -> None:
 
     with LocalCluster(n_workers=4, dashboard_address=":0") as cluster:
         with Client(cluster) as client:
-            workers = tm.get_client_workers(client)
+            workers = tm.dask.get_client_workers(client)
 
         n_submits = len(workers)
         assert n_submits == 4

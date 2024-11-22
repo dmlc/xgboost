@@ -175,7 +175,7 @@ def test_rank_assignment() -> None:
 
     with LocalCluster(n_workers=8) as cluster:
         with Client(cluster) as client:
-            workers = tm.get_client_workers(client)
+            workers = tm.dask.get_client_workers(client)
             args = get_rabit_args(client, len(workers))
             futures = client.map(local_test, range(len(workers)), workers=workers)
             client.gather(futures)
