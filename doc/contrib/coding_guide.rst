@@ -107,7 +107,7 @@ C++ interface of the R package, please make corresponding changes in ``src/init.
 Generating the Package and Running Tests
 ========================================
 
-The source layout of XGBoost is a bit unusual to normal R packages as XGBoost is primarily written in C++ with multiple language bindings in mind. As a result, some special cares need to be taken to generate a standard R tarball. Most of the tests are being run on CI, and as a result, the best way to see how things work is by looking at the CI configuration files (GitHub action, at the time of writing). There are helper scripts in ``tests/ci_build`` and ``R-package/tests/helper_scripts`` for running various checks including linter and making the standard tarball.
+The source layout of XGBoost is a bit unusual to normal R packages as XGBoost is primarily written in C++ with multiple language bindings in mind. As a result, some special cares need to be taken to generate a standard R tarball. Most of the tests are being run on CI, and as a result, the best way to see how things work is by looking at the CI configuration files (GitHub action, at the time of writing). There are helper scripts in ``ops/script`` and ``R-package/tests/helper_scripts`` for running various checks including linter and making the standard tarball.
 
 *********************************
 Running Formatting Checks Locally
@@ -127,7 +127,7 @@ To run checks for Python locally, install the checkers mentioned previously and 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python ./tests/ci_build/lint_python.py --fix
+  python ./ops/script/lint_python.py --fix
 
 To run checks for R:
 
@@ -135,21 +135,21 @@ To run checks for R:
 
   cd /path/to/xgboost/
   R CMD INSTALL R-package/
-  Rscript tests/ci_build/lint_r.R $(pwd)
+  Rscript ops/script/lint_r.R $(pwd)
 
 To run checks for cpplint locally:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python ./tests/ci_build/lint_cpp.py
+  python ./ops/script/lint_cpp.py
 
 
 See next section for clang-tidy. For CMake scripts:
 
 .. code-block:: bash
 
-  bash ./tests/ci_build/lint_cmake.sh
+  bash ./ops/script/lint_cmake.sh
 
 Lastly, the linter for jvm-packages is integrated into the maven build process.
 
@@ -163,21 +163,21 @@ To run this check locally, run the following command from the top level source t
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 tests/ci_build/tidy.py
+  python3 ops/script/run_clang_tidy.py
 
 Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``--cuda``. By default they are both set to 1, meaning that both C++ and CUDA code will be checked. If the CUDA toolkit is not installed on your machine, you'll encounter an error. To exclude CUDA source from linting, use:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 tests/ci_build/tidy.py --cuda=0
+  python3 ops/script/run_clang_tidy.py --cuda=0
 
 Similarly, if you want to exclude C++ source from linting:
 
 .. code-block:: bash
 
   cd /path/to/xgboost/
-  python3 tests/ci_build/tidy.py --cpp=0
+  python3 ops/script/run_clang_tidy.py --cpp=0
 
 **********************************
 Guide for handling user input data

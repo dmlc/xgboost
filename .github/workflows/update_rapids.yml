@@ -36,7 +36,7 @@ jobs:
         if: github.ref == 'refs/heads/master'
         with:
           add-paths: |
-            tests/buildkite
+            ops/docker
           branch: create-pull-request/update-rapids
           base: master
           title: "[CI] Update RAPIDS to latest stable"

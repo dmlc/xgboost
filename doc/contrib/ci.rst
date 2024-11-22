@@ -14,11 +14,9 @@ project.
 **************
 GitHub Actions
 **************
-The configuration files are located under the directory
-`.github/workflows <https://github.com/dmlc/xgboost/tree/master/.github/workflows>`_.
-
-Most of the tests listed in the configuration files run automatically for every incoming pull
-requests and every update to branches. A few tests however require manual activation:
+We make the extensive use of `GitHub Actions <https://github.com/features/actions>`_ to host our
+CI pipelines. Most of the tests listed in the configuration files run automatically for every
+incoming pull requests and every update to branches. A few tests however require manual activation:
 
 * R tests with ``noLD`` option: Run R tests using a custom-built R with compilation flag
   ``--disable-long-double``. See `this page <https://blog.r-hub.io/2019/05/21/nold/>`_ for more
@@ -26,18 +24,16 @@ requests and every update to branches. A few tests however require manual activa
   To invoke this test suite for a particular pull request, simply add a review comment
   ``/gha run r-nold-test``. (Ordinary comment won't work. It needs to be a review comment.)
 
-GitHub Actions is also used to build Python wheels targeting MacOS Intel and Apple Silicon. See
-`.github/workflows/python_wheels.yml
-<https://github.com/dmlc/xgboost/tree/master/.github/workflows/python_wheels.yml>`_. The
-``python_wheels`` pipeline sets up environment variables prefixed ``CIBW_*`` to indicate the target
-OS and processor. The pipeline then invokes the script ``build_python_wheels.sh``, which in turns
-calls ``cibuildwheel`` to build the wheel. The ``cibuildwheel`` is a library that sets up a
-suitable Python environment for each OS and processor target. Since we don't have Apple Silicon
-machine in GitHub Actions, cross-compilation is needed; ``cibuildwheel`` takes care of the complex
-task of cross-compiling a Python wheel. (Note that ``cibuildwheel`` will call
-``pip wheel``. Since XGBoost has a native library component, we created a customized build
-backend that hooks into ``pip``. The customized backend contains the glue code to compile the native
-library on the fly.)
+*******************************
+Self-Hosted Runners with RunsOn
+*******************************
+
+`RunsOn <https://runs-on.com/>`_ is a SaaS (Software as a Service) app that lets us to easily create
+self-hosted runners to use with GitHub Actions pipelines. RunsOn uses
+`Amazon Web Services (AWS) <https://aws.amazon.com/>`_ under the hood to provision runners with
+access to various amount of CPUs, memory, and NVIDIA GPUs. Thanks to this app, we are able to test
+GPU-accelerated and distributed algorithms of XGBoost while using the familar interface of
+GitHub Actions.
 
 *********************************************************
 Reproduce CI testing environments using Docker containers
@@ -52,113 +48,246 @@ Prerequisites
 2. Install NVIDIA Docker runtime: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#installing-on-ubuntu-and-debian
    The runtime lets you access NVIDIA GPUs inside a Docker container.
 
+.. _build_run_docker_locally:
 ==============================================
 Building and Running Docker containers locally
 ==============================================
-For your convenience, we provide the wrapper script ``tests/ci_build/ci_build.sh``. You can use it as follows:
+For your convenience, we provide three wrapper scripts:
+
+* ``ops/docker_build.py``: Build a Docker container
+* ``ops/docker_build.sh``: Wrapper for ``ops/docker_build.py`` with a more concise interface
+* ``ops/docker_run.py``: Run a command inside a Docker container
+
+**To build a Docker container**, invoke ``docker_build.sh`` as follows:
 
 .. code-block:: bash
 
-  tests/ci_build/ci_build.sh <CONTAINER_TYPE> --use-gpus --build-arg <BUILD_ARG> \
-    <COMMAND> ...
+  export CONTAINER_ID="ID of the container"
+  export BRANCH_NAME="master"  # Relevant for CI, for local testing, use "master"
+  bash ops/docker_build.sh
 
-where:
+where ``CONTAINER_ID`` identifies for the container. The wrapper script will look up the YAML file
+``ops/docker/ci_container.yml``. For example, when ``CONTAINER_ID`` is set to ``xgb-ci.gpu``,
+the script will use the corresponding entry from ``ci_container.yml``:
 
-* ``<CONTAINER_TYPE>`` is the identifier for the container. The wrapper script will use the
-  container definition (Dockerfile) located at ``tests/ci_build/Dockerfile.<CONTAINER_TYPE>``.
-  For example, setting the container type to ``gpu`` will cause the script to load the Dockerfile
-  ``tests/ci_build/Dockerfile.gpu``.
-* Specify ``--use-gpus`` to run any GPU code. This flag will grant the container access to all NVIDIA GPUs in the base machine. Omit the flag if the access to GPUs is not necessary.
-* ``<BUILD_ARG>`` is a build argument to be passed to Docker. Must be of form ``VAR=VALUE``.
-  Example: ``--build-arg CUDA_VERSION_ARG=11.0``. You can pass multiple ``--build-arg``.
-* ``<COMMAND>`` is the command to run inside the Docker container. This can be more than one argument.
-  Example: ``tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON``.
+.. code-block:: yaml
 
-Optionally, you can set the environment variable ``CI_DOCKER_EXTRA_PARAMS_INIT`` to pass extra
-arguments to Docker. For example:
+  xgb-ci.gpu:
+  container_def: gpu
+  build_args:
+    CUDA_VERSION_ARG: "12.4.1"
+    NCCL_VERSION_ARG: "2.23.4-1"
+    RAPIDS_VERSION_ARG: "24.10"
+
+The ``container_def`` entry indicates where the Dockerfile is located. The container
+definition will be fetched from ``ops/docker/dockerfile/Dockerfile.CONTAINER_DEF`` where
+``CONTAINER_DEF`` is the value of ``container_def`` entry. In this example, the Dockerfile
+is ``ops/docker/dockerfile/Dockerfile.gpu``.
+
+The ``build_args`` entry lists all the build arguments for the Docker build. In this example,
+the build arguments are:
+
+.. code-block::
+
+  --build-arg CUDA_VERSION_ARG=12.4.1 --build-arg NCCL_VERSION_ARG=2.23.4-1 \
+    --build-arg RAPIDS_VERSION_ARG=24.10
+
+The build arguments provide inputs to the ``ARG`` instructions in the Dockerfile.
+
+.. note:: Inspect the logs from the CI pipeline to find what's going on under the hood
+
+  When invoked, ``ops/docker_build.sh`` logs the precise commands that it runs under the hood.
+  Using the example above:
+
+  .. code-block:: bash
+
+    # docker_build.sh calls docker_build.py...
+    python3 ops/docker_build.py --container-def gpu --container-id xgb-ci.gpu \
+      --build-arg CUDA_VERSION_ARG=12.4.1 --build-arg NCCL_VERSION_ARG=2.23.4-1 \
+      --build-arg RAPIDS_VERSION_ARG=24.10
+
+    ...
+
+    # .. and docker_build.py in turn calls "docker build"...
+    docker build --build-arg CUDA_VERSION_ARG=12.4.1 \
+      --build-arg NCCL_VERSION_ARG=2.23.4-1 \
+      --build-arg RAPIDS_VERSION_ARG=24.10 \
+      --load --progress=plain \
+      --ulimit nofile=1024000:1024000 \
+      -t xgb-ci.gpu \
+      -f ops/docker/dockerfile/Dockerfile.gpu \
+      ops/
+  
+  The logs come in handy when debugging the container builds. In addition, you can change
+  the build arguments to make changes to the container.
+
+**To run commands within a Docker container**, invoke ``docker_run.py`` as follows:
+
+.. code-block:: bash
+
+  python3 ops/docker_run.py --container-id "ID of the container" [--use-gpus] \
+    -- "command to run inside the container"
+
+where ``--use-gpus`` should be specified to expose NVIDIA GPUs to the Docker container.
+
+For example:
+
+.. code-block:: bash
+
+  # Run without GPU
+  python3 ops/docker_run.py --container-id xgb-ci.cpu \
+    -- bash ops/script/build_via_cmake.sh
+
+  # Run with NVIDIA GPU
+  python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
+    -- bash ops/pipeline/test-python-wheel-impl.sh gpu
+
+The ``docker_run.py`` script will convert these commands to the following invocations
+of ``docker run``:
+
+.. code-block:: bash
+
+  docker run --rm --pid=host \
+    -w /workspace -v /path/to/xgboost:/workspace \
+    -e CI_BUILD_UID=<uid> -e CI_BUILD_USER=<user_name> \
+    -e CI_BUILD_GID=<gid> -e CI_BUILD_GROUP=<group_name> \
+    xgb-ci.cpu \
+    bash ops/script/build_via_cmake.sh
+
+  docker run --rm --pid=host --gpus all \
+    -w /workspace -v /path/to/xgboost:/workspace \
+    -e CI_BUILD_UID=<uid> -e CI_BUILD_USER=<user_name> \
+    -e CI_BUILD_GID=<gid> -e CI_BUILD_GROUP=<group_name> \
+    xgb-ci.gpu \
+    bash ops/pipeline/test-python-wheel-impl.sh gpu
+
+Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker run``:
 
 .. code-block:: bash
 
   # Allocate extra space in /dev/shm to enable NCCL
-  export CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'
-  # Run multi-GPU test suite
-  tests/ci_build/ci_build.sh gpu --use-gpus --build-arg CUDA_VERSION_ARG=11.0 \
-    tests/ci_build/test_python.sh mgpu
+  # Also run the container with elevated privileges
+  python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
+    --run-args='--shm-size=4g --privileged' \
+    -- bash ops/pipeline/test-python-wheel-impl.sh gpu
 
-To pass multiple extra arguments:
+which is translated to
 
 .. code-block:: bash
 
-  export CI_DOCKER_EXTRA_PARAMS_INIT='-e VAR1=VAL1 -e VAR2=VAL2 -e VAR3=VAL3'
+  docker run --rm --pid=host --gpus all \
+    -w /workspace -v /path/to/xgboost:/workspace \
+    -e CI_BUILD_UID=<uid> -e CI_BUILD_USER=<user_name> \
+    -e CI_BUILD_GID=<gid> -e CI_BUILD_GROUP=<group_name> \
+    --shm-size=4g --privileged \
+    xgb-ci.gpu \
+    bash ops/pipeline/test-python-wheel-impl.sh gpu
 
-********************************************
-Update pipeline definitions for BuildKite CI
-********************************************
+********************************************************************
+The Lay of the Land: how CI pipelines are organized in the code base
+********************************************************************
+The XGBoost project stores the configuration for its CI pipelines as part of the codebase.
+The git repository therefore stores not only the change history for its source code but also
+the change history for the CI pipelines.
 
-`BuildKite <https://buildkite.com/home>`_ is a SaaS (Software as a Service) platform that orchestrates
-cloud machines to host CI pipelines. The BuildKite platform allows us to define CI pipelines as a
-declarative YAML file.
+The CI pipelines are organized into the following directories and files:
 
-The pipeline definitions are found in ``tests/buildkite/``:
+* ``.github/workflows/``: Definition of CI pipelines, using the GitHub Actions syntax
+* ``.github/runs-on.yml``: Configuration for the RunsOn service. Specifies the spec for
+  the self-hosted CI runners.
+* ``ops/conda_env/``: Definitions for Conda environments
+* ``ops/packer/``: Packer scripts to build machine images for Amazon EC2
+* ``ops/patch/``: Patch files
+* ``ops/pipeline/``: Shell scripts defining CI/CD pipelines. Most of these scripts can be run
+  locally (to assist with development and debugging); a few must run in the CI.
+* ``ops/script/``: Various utility scripts useful for testing
+* ``ops/docker/dockerfile/``: Dockerfiles to define containers
+* ``ops/docker/ci_container.yml``: Defines the mapping between Dockerfiles and containers.
+  Also specifies the build arguments to be used with each container. See
+  :ref:`build_run_docker_locally` to learn how this YAML file is used in the context of
+  a container build.
+* ``ops/docker_build.*``: Wrapper scripts to build and test CI containers. See
+  :ref:`build_run_docker_locally` for the detailed description.
 
-* ``tests/buildkite/pipeline-win64.yml``: This pipeline builds and tests XGBoost for the Windows platform.
-* ``tests/buildkite/pipeline-mgpu.yml``: This pipeline builds and tests XGBoost with access to multiple
-  NVIDIA GPUs.
-* ``tests/buildkite/pipeline.yml``: This pipeline builds and tests XGBoost with access to a single
-  NVIDIA GPU. Most tests are located here.
+To inspect a given CI pipeline, open files in the following order:
 
-****************************************
-Managing Elastic CI Stack with BuildKite
-****************************************
+.. plot::
+  :nofigs:
 
-BuildKite allows us to define cloud resources in
-a declarative fashion. Every configuration step is now documented explicitly as code.
+  from graphviz import Source
+  source = r"""
+    digraph ci_graph {
+      graph [fontname = "helvetica"];
+      node [fontname = "helvetica"];
+      edge [fontname = "helvetica"];
+      0 [label=<.github/workflows/*.yml>, shape=box];
+      1 [label=<ops/pipeline/*.sh>, shape=box];
+      2 [label=<ops/pipeline/*-impl.sh>, shape=box];
+      3 [label=<ops/script/*.sh>, shape=box];
+      0 -> 1 [xlabel="Calls"];
+      1 -> 2 [xlabel="Calls,\nvia docker_run.py"];
+      2 -> 3 [xlabel="Calls"];
+      1 -> 3 [xlabel="Calls"];
+    }
+  """
+  Source(source, format='png').render('../_static/ci_graph', view=False)
+  Source(source, format='svg').render('../_static/ci_graph', view=False)
 
-**Prerequisite**: You should have some knowledge of `CloudFormation <https://aws.amazon.com/cloudformation/>`_.
-CloudFormation lets us define a stack of cloud resources (EC2 machines, Lambda functions, S3 etc) using
-a single YAML file.
+.. figure:: ../_static/ci_graph.svg
+   :align: center
+   :figwidth: 80 %
 
-**Prerequisite**: Gain access to the XGBoost project's AWS account (``admin@xgboost-ci.net``), and then
-set up a credential pair in order to provision resources on AWS. See
-`Creating an IAM user in your AWS account <https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html>`_.
+===================================
+Primitives used in the CI pipelines
+===================================
 
-* Option 1. Give full admin privileges to your IAM user. This is the simplest option.
-* Option 2. Give limited set of permissions to your IAM user, to reduce the possibility of messing up other resources.
-  For this, use the script ``tests/buildkite/infrastructure/service-user/create_service_user.py``.
+------------------------
+Build and run containers
+------------------------
 
-=====================
-Worker Image Pipeline
-=====================
-Building images for worker machines used to be a chore: you'd provision an EC2 machine, SSH into it, and
-manually install the necessary packages. This process is not only laborious but also error-prone. You may
-forget to install a package or change a system configuration.
+See :ref:`build_run_docker_locally`.
 
-No more. Now we have an automated pipeline for building images for worker machines.
+------------------------------------------
+Stash artifacts, to move them between jobs
+------------------------------------------
 
-* Run ``tests/buildkite/infrastructure/worker-image-pipeline/create_worker_image_pipelines.py`` in order to provision
-  CloudFormation stacks named ``buildkite-linux-amd64-gpu-worker`` and ``buildkite-windows-gpu-worker``. They are
-  pipelines that create AMIs (Amazon Machine Images) for Linux and Windows workers, respectively.
-* Navigate to the CloudFormation web console to verify that the image builder pipelines have been provisioned. It may
-  take some time.
-* Once they pipelines have been fully provisioned, run the script
-  ``tests/buildkite/infrastructure/worker-image-pipeline/run_pipelines.py`` to execute the pipelines. New AMIs will be
-  uploaded to the EC2 service. You can locate them in the EC2 console.
-* Make sure to modify ``tests/buildkite/infrastructure/aws-stack-creator/metadata.py`` to use the correct AMI IDs.
-  (For ``linux-amd64-cpu`` and ``linux-arm64-cpu``, use the AMIs provided by BuildKite. Consult the ``AWSRegion2AMI``
-  section of https://s3.amazonaws.com/buildkite-aws-stack/latest/aws-stack.yml.)
+This primitive is useful when one pipeline job needs to consume the output
+from another job.
+We use `Amazon S3 <https://aws.amazon.com/s3/>`_ to store the stashed files.
 
-======================
-EC2 Autoscaling Groups
-======================
-In EC2, you can create auto-scaling groups, where you can dynamically adjust the number of worker instances according to
-workload. When a pull request is submitted, the following steps take place:
+**To stash a file**:
 
-1. GitHub sends a signal to the registered webhook, which connects to the BuildKite server.
-2. BuildKite sends a signal to a `Lambda <https://aws.amazon.com/lambda/>`_ function named ``Autoscaling``.
-3. The Lambda function sends a signal to the auto-scaling group. The group scales up and adds additional worker instances.
-4. New worker instances run the test jobs. Test results are reported back to BuildKite.
-5. When the test jobs complete, BuildKite sends a signal to ``Autoscaling``, which in turn requests the autoscaling group
-   to scale down. Idle worker instances are shut down.
+.. code-block:: bash
 
-To set up the auto-scaling group, run the script ``tests/buildkite/infrastructure/aws-stack-creator/create_stack.py``.
-Check the CloudFormation web console to verify successful provision of auto-scaling groups.
+  export COMMAND="upload"
+  export KEY="unique key to identify a group of files"
+  bash ops/pipeline/stash-artifacts.sh path/to/file
+
+You can upload multiple files, possibly with wildcard globbing:
+
+.. code-block:: bash
+
+  export COMMAND="upload"
+  export KEY="build-cuda"
+  bash ops/pipeline/stash-artifacts.sh \
+    build/testxgboost python-package/dist/*.whl
+
+**To unstash a file**:
+
+.. code-block:: bash
+
+  export COMMAND="download"
+  export KEY="unique key to identify a group of files"
+  bash ops/pipeline/stash-artifacts.sh path/to/file
+
+You can also use the wildcard globbing. The script will search for files in
+the S3 bucket whose path matches the pattern.
+
+.. code-block:: bash
+
+  export COMMAND="download"
+  export KEY="build-cuda"
+  # Download all files whose path matches pattern
+  # python-package/dist/*.whl
+  bash ops/pipeline/stash-artifacts.sh \
+    python-package/dist/*.whl
