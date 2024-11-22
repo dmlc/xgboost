@@ -2679,6 +2679,7 @@ class Booster:
             _is_tuple,
             _transform_pandas_df,
         )
+
         if _is_cudf_pandas_df(data) or _is_cudf_pandas_ser(data):
             data = data._fsproxy_fast
 
