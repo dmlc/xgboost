@@ -16,9 +16,6 @@ defaults:
 env:
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
-  ARTIFACT_STASH_PREFIX: cache/${{ github.repository }}/stash/${{ github.run_id }}
-  # TODO(hcho3): Remove
-  RUNS_ON_S3_BUCKET_CACHE: runs-on-s3bucketcache-dv5n3gmnaius
 
 jobs:
   build-win64-gpu:
