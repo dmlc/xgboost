@@ -1,7 +1,7 @@
 """Copyright 2024, XGBoost contributors"""
 
-import pytest
 import dask
+import pytest
 from distributed import Client
 
 from xgboost.testing import dask as dtm
