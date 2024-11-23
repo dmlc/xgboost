@@ -194,6 +194,10 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     workers = get_client_workers(client)
     n_samples_per_worker = n_samples // len(workers)
 
+    if device != "cpu":
+        # Avoid importing it in Dask tasks, which may result in an ImportError
+        import cudf
+
     def make(n: int, seed: int) -> pd.DataFrame:
         rng = np.random.default_rng(seed)
         X, y = make_classification(
@@ -203,8 +207,6 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
         if device == "cpu":
             df = pd.DataFrame(X, columns=[f"f{i}" for i in range(n_features)])
         else:
-            import cudf
-
             df = cudf.DataFrame(X, columns=[f"f{i}" for i in range(n_features)])
         df["qid"] = qid
         df["y"] = y

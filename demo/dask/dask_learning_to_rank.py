@@ -161,6 +161,7 @@ def gen_client(device: str) -> Generator[Client, None, None]:
                         {
                             "array.backend": "cupy",
                             "dataframe.backend": "cudf",
+                            # This is required as of dask_cuda 24.12
                             "dataframe.shuffle.method": "tasks",
                         }
                     ):
