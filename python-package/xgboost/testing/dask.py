@@ -175,7 +175,7 @@ def get_rabit_args(client: Client, n_workers: int) -> Any:
     return client.sync(_get_rabit_args, client, n_workers)
 
 
-def get_client_workers(client: Any) -> List[str]:
+def get_client_workers(client: Client) -> List[str]:
     "Get workers from a dask client."
     workers = client.scheduler_info()["workers"]
     return list(workers.keys())
@@ -194,9 +194,10 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
     workers = get_client_workers(client)
     n_samples_per_worker = n_samples // len(workers)
 
-    if device != "cpu":
-        # Avoid importing it in Dask tasks, which may result in an ImportError
-        import cudf
+    if device == "cpu":
+        from pandas import DataFrame as DF
+    else:
+        from cudf import DataFrame as DF
 
     def make(n: int, seed: int) -> pd.DataFrame:
         rng = np.random.default_rng(seed)
@@ -205,9 +206,9 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
         )
         qid = rng.integers(size=(n,), low=0, high=n_query_groups)
         if device == "cpu":
-            df = pd.DataFrame(X, columns=[f"f{i}" for i in range(n_features)])
+            df = DF(X, columns=[f"f{i}" for i in range(n_features)])
         else:
-            df = cudf.DataFrame(X, columns=[f"f{i}" for i in range(n_features)])
+            df = DF(X, columns=[f"f{i}" for i in range(n_features)])
         df["qid"] = qid
         df["y"] = y
         return df
