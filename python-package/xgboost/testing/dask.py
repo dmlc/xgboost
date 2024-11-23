@@ -205,10 +205,7 @@ def make_ltr(  # pylint: disable=too-many-locals,too-many-arguments
             n, n_features, n_informative=n_features, n_redundant=0, n_classes=max_rel
         )
         qid = rng.integers(size=(n,), low=0, high=n_query_groups)
-        if device == "cpu":
-            df = DF(X, columns=[f"f{i}" for i in range(n_features)])
-        else:
-            df = DF(X, columns=[f"f{i}" for i in range(n_features)])
+        df = DF(X, columns=[f"f{i}" for i in range(n_features)])
         df["qid"] = qid
         df["y"] = y
         return df
