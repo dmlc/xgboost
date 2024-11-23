@@ -128,7 +128,7 @@ def ranking_wo_split_demo(client: Client, args: argparse.Namespace) -> None:
     X_tr = df_tr[df_tr.columns.difference(["y", "qid"])]
     X_va = df_va[df_va.columns.difference(["y", "qid"])]
 
-    # `allow_group_split=False` makes sure data is partitioned according the the query
+    # `allow_group_split=False` makes sure data is partitioned according to the query
     # groups.
     ltr = dxgb.DaskXGBRanker(allow_group_split=False, device=args.device)
     ltr.client = client
