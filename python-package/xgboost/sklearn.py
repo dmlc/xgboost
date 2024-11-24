@@ -805,6 +805,44 @@ class XGBModel(XGBModelBase):
             tags["non_deterministic"] = True
         return tags
 
+    # TODO: type hints
+    @staticmethod
+    def _update_sklearn_tags_from_dict(
+        *,
+        tags,
+        tags_dict,
+    ):
+        """Update ``sklearn.utils.Tags`` inherited from ``scikit-learn`` base classes.
+
+        ``scikit-learn`` 1.6 introduced a dataclass-based interface for estimator tags.
+        ref: https://github.com/scikit-learn/scikit-learn/pull/29677
+
+        This method handles updating that instance based on the value in ``self._more_tags()``.
+        """
+        tags.non_deterministic = tags_dict.get("non_deterministic", False)
+        tags.no_validation = tags_dict["no_validation"]
+        tags.input_tags.allow_nan = tags_dict["allow_nan"]
+        return tags
+
+    # TODO: actually test with older scikit-learn
+    # TODO: type hints
+    def __sklearn_tags__(self):
+        # XGBModelBase.__sklearn_tags__() cannot be called unconditionally,
+        # because that method isn't defined for scikit-learn<1.6
+        if not hasattr(XGBModelBase, "__sklearn_tags__"):
+            err_msg = (
+                "__sklearn_tags__() should not be called when using scikit-learn<1.6. "
+                f"Detected version: {_sklearn_version}"
+            )
+            raise AttributeError(err_msg)
+
+        # take whatever tags are provided by BaseEstimator, then modify
+        # them with XGBoost-specific values
+        return self._update_sklearn_tags_from_dict(
+            tags=XGBModelBase.__sklearn_tags__(self),
+            tags_dict=self._more_tags(),
+        )
+
     def __sklearn_is_fitted__(self) -> bool:
         return hasattr(self, "_Booster")
 
