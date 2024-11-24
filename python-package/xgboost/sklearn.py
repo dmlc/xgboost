@@ -946,8 +946,22 @@ class XGBModel(XGBModelBase):
         # 2. Return whatever in `**kwargs`.
         # 3. Merge them.
         params = super().get_params(deep)
+        # [DEBUG] this only contains {'objective': 'reg:squarederror'}
+        #raise RuntimeError(params)
+        # XGBRegressor -> XGBModel -> BaseEstimator
+        # XGBModel -> BaseEstimator
         cp = copy.copy(self)
-        cp.__class__ = cp.__class__.__bases__[0]
+        # [DEBUG] this points to <class 'xgboost.sklearn.XGBRegressor'>
+        # raise RuntimeError(cp.__class__)
+        # [DEBUG] this is (<class 'sklearn.base.RegressorMixin'>, <class 'xgboost.sklearn.XGBModel'>)
+        #raise RuntimeError(cp.__class__.__bases__)
+        # TODO: make this less fragile
+        if len(cp.__class__.__bases__) == 1:
+            cp.__class__ = cp.__class__.__bases__[0]
+        else:
+            cp.__class__ = cp.__class__.__bases__[1]
+        # [DEBUG] this is finding RegressorMixin rn
+        #raise RuntimeError(cp.__class__)
         params.update(cp.__class__.get_params(cp, deep))
         # if kwargs is a dict, update params accordingly
         if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
@@ -1819,7 +1833,7 @@ class XGBRFClassifier(XGBClassifier):
     "Implementation of the scikit-learn API for XGBoost regression.",
     ["estimators", "model", "objective"],
 )
-class XGBRegressor(XGBModel, XGBRegressorBase):
+class XGBRegressor(XGBRegressorBase, XGBModel):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -1839,7 +1853,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
         tags.regressor_tags = _sklearn_RegressorTags()
         # TODO: get this information from self._more_tags()
         tags.target_tags.multi_output = True
-        tags.target_tags.single_output = False
+        tags.target_tags.single_output = True
         return tags
 
 
@@ -1868,7 +1882,7 @@ class XGBRFRegressor(XGBRegressor):
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
-            **kwargs,g
+            **kwargs,
         )
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
 
