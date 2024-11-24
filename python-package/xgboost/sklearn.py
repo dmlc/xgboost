@@ -53,6 +53,11 @@ from .core import (
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
 
+# TODO: put in compat.py
+from sklearn.utils import (
+    ClassifierTags as _sklearn_ClassifierTags,
+    RegressorTags as _sklearn_RegressorTags
+)
 
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
     """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn
@@ -1535,6 +1540,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         tags["multilabel"] = True
         return tags
 
+    def __sklearn_tags__(self) -> "_sklearn_Tags":
+        tags = XGBModel.__sklearn_tags__(self)
+        tags.estimator_type = "classifier"
+        # TODO: get this information from self._more_tags()
+        tags.classifier_tags = _sklearn_ClassifierTags(multi_label=True)
+        return tags
+
     @_deprecate_positional_args
     def fit(
         self,
@@ -1821,6 +1833,15 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
         tags["multioutput_only"] = False
         return tags
 
+    def __sklearn_tags__(self) -> "_sklearn_Tags":
+        tags = XGBModel.__sklearn_tags__(self)
+        tags.estimator_type = "regressor"
+        tags.regressor_tags = _sklearn_RegressorTags()
+        # TODO: get this information from self._more_tags()
+        tags.target_tags.multi_output = True
+        tags.target_tags.single_output = False
+        return tags
+
 
 @xgboost_model_doc(
     "scikit-learn API for XGBoost random forest regression.",
@@ -1847,7 +1868,7 @@ class XGBRFRegressor(XGBRegressor):
             subsample=subsample,
             colsample_bynode=colsample_bynode,
             reg_lambda=reg_lambda,
-            **kwargs,
+            **kwargs,g
         )
         _check_rf_callback(self.early_stopping_rounds, self.callbacks)
 
