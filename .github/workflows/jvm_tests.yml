@@ -86,6 +86,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
+      - tag=jvm-tests-build-jvm-gpu
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -138,6 +139,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
+      - tag=jvm-tests-build-jvm-docs
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -165,6 +167,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
+      - tag=jvm-tests-build-test-jvm-packages
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -248,6 +251,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-mgpu
+      - tag=jvm-tests-test-jvm-packages-gpu
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker

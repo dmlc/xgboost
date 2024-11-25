@@ -23,6 +23,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=windows-cpu
+      - tag=windows-build-win64-gpu
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +44,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=windows-gpu
+      - tag=windows-test-win64-gpu
     steps:
       - uses: actions/checkout@v4
         with:
