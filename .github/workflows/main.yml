@@ -155,8 +155,9 @@ jobs:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
       - run: bash ops/pipeline/build-cuda-with-rmm.sh
       - name: Stash files
-        run: bash ops/pipeline/stash-artifacts.sh  \
-          stash build-cuda-with-rmm build/testxgboost
+        run: |
+          bash ops/pipeline/stash-artifacts.sh  \
+            stash build-cuda-with-rmm build/testxgboost
       - name: Upload Python wheel
         run: |
           bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
