@@ -264,35 +264,38 @@ We use `Amazon S3 <https://aws.amazon.com/s3/>`_ to store the stashed files.
 
 .. code-block:: bash
 
-  export COMMAND="upload"
-  export KEY="unique key to identify a group of files"
-  bash ops/pipeline/stash-artifacts.sh path/to/file
+  REMOTE_PREFIX="remote directory to place the artifact(s)"
+  bash ops/pipeline/stash-artifacts.sh stash "${REMOTE_PREFIX}" path/to/file
+
+The ``REMOTE_PREFIX`` argument, which is the second command-line argument
+for ``stash-artifacts.sh``, specifies the remote directory in which the artifact(s)
+should be placed. More precisely, the artifact(s) will be placed in
+``s3://{RUNS_ON_S3_BUCKET_CACHE}/cache/{GITHUB_REPOSITORY}/stash/{GITHUB_RUN_ID}/{REMOTE_PREFIX}/``
+where ``RUNS_ON_S3_BUCKET_CACHE``, ``GITHUB_REPOSITORY``, and ``GITHUB_RUN_ID`` are set by
+the CI. (RunsOn provisions an S3 bucket to stage cache, and its name is stored in the environment
+variable ``RUNS_ON_S3_BUCKET_CACHE``.)
 
 You can upload multiple files, possibly with wildcard globbing:
 
 .. code-block:: bash
 
-  export COMMAND="upload"
-  export KEY="build-cuda"
-  bash ops/pipeline/stash-artifacts.sh \
+  REMOTE_PREFIX="build-cuda"
+  bash ops/pipeline/stash-artifacts.sh stash "${REMOTE_PREFIX}" \
     build/testxgboost python-package/dist/*.whl
 
 **To unstash a file**:
 
 .. code-block:: bash
 
-  export COMMAND="download"
-  export KEY="unique key to identify a group of files"
-  bash ops/pipeline/stash-artifacts.sh path/to/file
+  REMOTE_PREFIX="unique key to identify a group of files"
+  bash ops/pipeline/stash-artifacts.sh unstash "${REMOTE_PREFIX}" path/to/file
 
-You can also use the wildcard globbing. The script will search for files in
-the S3 bucket whose path matches the pattern.
+You can also use the wildcard globbing. The script will download the matching artifacts
+from the remote directory.
 
 .. code-block:: bash
 
-  export COMMAND="download"
-  export KEY="build-cuda"
-  # Download all files whose path matches pattern
-  #   python-package/dist/*.whl
-  bash ops/pipeline/stash-artifacts.sh \
+  REMOTE_PREFIX="build-cuda"
+  # Download all files whose path matches the wildcard pattern python-package/dist/*.whl
+  bash ops/pipeline/stash-artifacts.sh unstash "${REMOTE_PREFIX}" \
     python-package/dist/*.whl

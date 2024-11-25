@@ -85,7 +85,7 @@ def aws_s3_download_with_wildcard(src: str, dest: Path) -> None:
 
 
 def upload(args: argparse.Namespace) -> None:
-    print(f"Uploading artifacts with prefix {args.prefix}...")
+    print(f"Stashing artifacts to prefix {args.prefix}...")
     for artifact in args.artifacts:
         artifact_path = Path(artifact)
         s3_url = compute_s3_url(args.s3_bucket, args.prefix, artifact_path)
@@ -93,7 +93,7 @@ def upload(args: argparse.Namespace) -> None:
 
 
 def download(args: argparse.Namespace) -> None:
-    print(f"Downloading artifacts with prefix {args.prefix}...")
+    print(f"Unstashing artifacts from prefix {args.prefix}...")
     for artifact in args.artifacts:
         artifact_path = Path(artifact)
         print(f"mkdir -p {str(artifact_path.parent)}")
@@ -117,9 +117,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--command",
         type=str,
-        choices=["upload", "download"],
+        choices=["stash", "unstash"],
         required=True,
-        help="Whether to upload or download the artifact (upload/download)",
+        help="Whether to stash or unstash the artifact",
     )
     parser.add_argument(
         "--s3-bucket",
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("artifacts", type=str, nargs="+", metavar="artifact")
     parsed_args = parser.parse_args()
-    if parsed_args.command == "upload":
+    if parsed_args.command == "stash":
         upload(parsed_args)
-    elif parsed_args.command == "download":
+    elif parsed_args.command == "unstash":
         download(parsed_args)

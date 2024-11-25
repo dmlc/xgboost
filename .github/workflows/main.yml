@@ -69,10 +69,7 @@ jobs:
           CONTAINER_ID: xgb-ci.cpu
       - run: bash ops/pipeline/build-cpu.sh
       - name: Stash CLI executable
-        run: bash ops/pipeline/stash-artifacts.sh ./xgboost
-        env:
-          COMMAND: upload
-          KEY: build-cpu
+        run: bash ops/pipeline/stash-artifacts.sh stash build-cpu ./xgboost
 
   build-cpu-arm64:
     name: Build CPU ARM64 + manylinux_2_28_aarch64 wheel
@@ -93,10 +90,9 @@ jobs:
           CONTAINER_ID: xgb-ci.aarch64
       - run: bash ops/pipeline/build-cpu-arm64.sh
       - name: Stash files
-        run: bash ops/pipeline/stash-artifacts.sh ./xgboost python-package/dist/*.whl
-        env:
-          COMMAND: upload
-          KEY: build-cpu-arm64
+        run: |
+          bash ops/pipeline/stash-artifacts.sh stash build-cpu-arm64 \
+          ./xgboost python-package/dist/*.whl
       - name: Upload Python wheel
         run: |
           bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
@@ -126,11 +122,8 @@ jobs:
       - run: bash ops/pipeline/build-cuda.sh
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh \
+          bash ops/pipeline/stash-artifacts.sh stash build-cuda \
             build/testxgboost ./xgboost python-package/dist/*.whl
-        env:
-          COMMAND: upload
-          KEY: build-cuda
       - name: Upload Python wheel
         run: |
           for file in python-package/dist/*.whl python-package/dist/meta.json
@@ -162,10 +155,8 @@ jobs:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
       - run: bash ops/pipeline/build-cuda-with-rmm.sh
       - name: Stash files
-        run: bash ops/pipeline/stash-artifacts.sh build/testxgboost
-        env:
-          COMMAND: upload
-          KEY: build-cuda-with-rmm
+        run: bash ops/pipeline/stash-artifacts.sh  \
+          stash build-cuda-with-rmm build/testxgboost
       - name: Upload Python wheel
         run: |
           bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
@@ -266,11 +257,9 @@ jobs:
           CONTAINER_ID: xgb-ci.gpu
       - name: Unstash gtest
         run: |
-          bash ops/pipeline/stash-artifacts.sh build/testxgboost
+          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }}  \
+            build/testxgboost
           chmod +x build/testxgboost
-        env:
-          COMMAND: download
-          KEY: ${{ matrix.artifact_from }}
       - run: bash ops/pipeline/test-cpp-gpu.sh ${{ matrix.suite }}
 
   test-python-wheel:
@@ -328,10 +317,8 @@ jobs:
           CONTAINER_ID: ${{ matrix.container }}
       - name: Unstash Python wheel
         run: |
-          bash ops/pipeline/stash-artifacts.sh python-package/dist/*.whl ./xgboost
+          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }} \
+            python-package/dist/*.whl ./xgboost
           chmod +x ./xgboost
-        env:
-          COMMAND: download
-          KEY: ${{ matrix.artifact_from }}
       - name: Run Python tests, ${{ matrix.description }}
         run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.container }}

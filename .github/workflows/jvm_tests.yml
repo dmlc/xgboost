@@ -99,10 +99,8 @@ jobs:
           CONTAINER_ID: xgb-ci.jvm_gpu_build
       - run: bash ops/pipeline/build-jvm-gpu.sh
       - name: Stash files
-        run: bash ops/pipeline/stash-artifacts.sh lib/libxgboost4j.so
-        env:
-          COMMAND: upload
-          KEY: build-jvm-gpu
+        run: |
+          bash ops/pipeline/stash-artifacts.sh stash build-jvm-gpu lib/libxgboost4j.so
 
   build-jvm-mac:
     name: "Build libxgboost4j.dylib for ${{ matrix.description }}"
@@ -151,14 +149,13 @@ jobs:
         env:
           CONTAINER_ID: xgb-ci.jvm_gpu_build
       - name: Unstash files
-        run: bash ops/pipeline/stash-artifacts.sh lib/libxgboost4j.so
-        env:
-          COMMAND: download
-          KEY: build-jvm-gpu
+        run: |
+          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
       - run: bash ops/pipeline/build-jvm-doc.sh
       - name: Upload JVM doc
         run: |
-          bash ops/pipeline/publish-artifact.sh jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2 \
+          bash ops/pipeline/publish-artifact.sh \
+            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2 \
             s3://xgboost-docs/
 
   build-test-jvm-packages:
@@ -187,10 +184,9 @@ jobs:
         env:
           SCALA_VERSION: 2.13
       - name: Stash files
-        run: bash ops/pipeline/stash-artifacts.sh lib/libxgboost4j.so
-        env:
-          COMMAND: upload
-          KEY: build-test-jvm-packages
+        run: |
+          bash ops/pipeline/stash-artifacts.sh stash \
+            build-test-jvm-packages lib/libxgboost4j.so
 
   build-test-jvm-packages-other-os:
     name: Build and test JVM packages (${{ matrix.os }})
@@ -263,10 +259,8 @@ jobs:
         env:
           CONTAINER_ID: xgb-ci.jvm_gpu_build
       - name: Unstash files
-        run: bash ops/pipeline/stash-artifacts.sh lib/libxgboost4j.so
-        env:
-          COMMAND: download
-          KEY: build-jvm-gpu
+        run: |
+          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
       - run: bash ops/pipeline/test-jvm-gpu.sh
 
   deploy-jvm-packages:
@@ -299,11 +293,10 @@ jobs:
           CONTAINER_ID: ${{ matrix.container_id }}
       - name: Unstash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh lib/libxgboost4j.so
+          bash ops/pipeline/stash-artifacts.sh \
+            unstash ${{ matrix.artifact_from }} \
+            lib/libxgboost4j.so
           ls -lh lib/libxgboost4j.so
-        env:
-          COMMAND: download
-          KEY: ${{ matrix.artifact_from }}
       - name: Deploy JVM packages to S3
         run: |
           bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant }} \

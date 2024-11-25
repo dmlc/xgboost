@@ -31,12 +31,9 @@ jobs:
       - run: powershell ops/pipeline/build-win64-gpu.ps1
       - name: Stash files
         run: |
-          powershell ops/pipeline/stash-artifacts.ps1 `
+          powershell ops/pipeline/stash-artifacts.ps1 stash build-win64-gpu `
             build/testxgboost.exe xgboost.exe `
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
-        env:
-          COMMAND: upload
-          KEY: build-win64-gpu
 
   test-win64-gpu:
     name: Test XGBoost on Windows
@@ -51,9 +48,6 @@ jobs:
           submodules: "true"
       - name: Unstash files
         run: |
-          powershell ops/pipeline/stash-artifacts.ps1 `
+          powershell ops/pipeline/stash-artifacts.ps1 unstash build-wind64-gpu `
             build/testxgboost.exe xgboost.exe python-package/dist/*.whl
-        env:
-          COMMAND: download
-          KEY: build-win64-gpu
       - run: powershell ops/pipeline/test-win64-gpu.ps1
