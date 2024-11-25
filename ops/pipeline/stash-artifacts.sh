@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-# source ops/pipeline/enforce-ci.sh
+source ops/pipeline/enforce-ci.sh
 
 if [ "$#" -lt 3 ]; then
   echo "Usage: $0 {stash,unstash} [remote_prefix] [artifact] [artifact ...]"
