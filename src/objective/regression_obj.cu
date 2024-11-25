@@ -121,6 +121,7 @@ class RegLossObj : public FitInterceptGlmLike {
     if (iter == 0) {
       ValidateLabel(info);
     }
+
     size_t const ndata = preds.Size();
     out_gpair->SetDevice(ctx_->Device());
     auto device = ctx_->Device();
