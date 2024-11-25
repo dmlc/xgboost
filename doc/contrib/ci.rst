@@ -287,7 +287,7 @@ You can upload multiple files, possibly with wildcard globbing:
 
 .. code-block:: bash
 
-  REMOTE_PREFIX="unique key to identify a group of files"
+  REMOTE_PREFIX="remote directory to place the artifact(s)"
   bash ops/pipeline/stash-artifacts.sh unstash "${REMOTE_PREFIX}" path/to/file
 
 You can also use the wildcard globbing. The script will download the matching artifacts
