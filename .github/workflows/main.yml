@@ -23,7 +23,6 @@ jobs:
       - run-id=${{ github.run_id }}
       - tag=main-build-containers-${{ matrix.container_id }}
     strategy:
-      max-parallel: 2
       matrix:
         container_id:
           - xgb-ci.gpu_build_rockylinux8
@@ -234,7 +233,6 @@ jobs:
       - tag=main-test-cpp-gpu-${{ matrix.suite }}
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         include:
           - suite: gpu
@@ -273,7 +271,6 @@ jobs:
       - tag=main-test-python-wheel-${{ matrix.description }}
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         include:
           - description: single-gpu

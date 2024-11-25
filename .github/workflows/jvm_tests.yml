@@ -23,7 +23,6 @@ jobs:
       - run-id=${{ github.run_id }}
       - tag=jvm-tests-build-containers-${{ matrix.container_id }}
     strategy:
-      max-parallel: 2
       matrix:
         container_id:
           - xgb-ci.manylinux2014_x86_64
