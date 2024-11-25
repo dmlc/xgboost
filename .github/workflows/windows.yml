@@ -48,6 +48,6 @@ jobs:
           submodules: "true"
       - name: Unstash files
         run: |
-          powershell ops/pipeline/stash-artifacts.ps1 unstash build-wind64-gpu `
+          powershell ops/pipeline/stash-artifacts.ps1 unstash build-win64-gpu `
             build/testxgboost.exe xgboost.exe python-package/dist/*.whl
       - run: powershell ops/pipeline/test-win64-gpu.ps1

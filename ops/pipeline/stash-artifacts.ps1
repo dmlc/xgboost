@@ -46,3 +46,4 @@ python ops/pipeline/stash-artifacts.py `
   --s3-bucket "${Env:RUNS_ON_S3_BUCKET_CACHE}" `
   --prefix "${artifact_stash_prefix}/${remote_prefix}" `
   -- $artifacts
+if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
