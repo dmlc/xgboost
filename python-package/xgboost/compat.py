@@ -76,22 +76,14 @@ except ImportError:
     class XGBModelBase:  # type: ignore[no-redef]
         """Dummy class for sklearn.base.BaseEstimator."""
 
-        pass
-
     class XGBClassifierBase:  # type: ignore[no-redef]
         """Dummy class for sklearn.base.ClassifierMixin."""
-
-        pass
 
     class XGBRegressorBase:  # type: ignore[no-redef]
         """Dummy class for sklearn.base.RegressorMixin."""
 
-        pass
-
     class LabelEncoder:  # type: ignore[no-redef]
         """Dummy class for sklearn.preprocessing.LabelEncoder."""
-
-        pass
 
     XGBKFold = None
     XGBStratifiedKFold = None
