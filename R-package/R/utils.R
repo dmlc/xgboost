@@ -573,7 +573,7 @@ check.deprecation <- function(..., env = parent.frame()) {
     }
     .Deprecated(new_par, old = old_par, package = 'xgboost')
     if (new_par != 'NULL') {
-      eval(parse(text = paste(new_par, '<-', pars[[pars_par]])), envir = env)
+      stop()
     }
   }
 }
