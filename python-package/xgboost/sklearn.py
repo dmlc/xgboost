@@ -820,7 +820,7 @@ class XGBModel(XGBModelBase):
         ``scikit-learn`` 1.6 introduced a dataclass-based interface for estimator tags.
         ref: https://github.com/scikit-learn/scikit-learn/pull/29677
 
-        This method handles updating that instance based on the value in ``self._more_tags()``.
+        This method handles updating that instance based on the values in ``self._more_tags()``.
         """
         tags.non_deterministic = tags_dict.get("non_deterministic", False)
         tags.no_validation = tags_dict["no_validation"]
@@ -937,19 +937,26 @@ class XGBModel(XGBModelBase):
         """Get parameters."""
         # Based on: https://stackoverflow.com/questions/59248211
         # The basic flow in `get_params` is:
-        # 0. Return parameters in subclass first, by using inspect.
-        # 1. Return parameters in `XGBModel` (the base class).
+        # 0. Return parameters in subclass (self.__class__) first, by using inspect.
+        # 1. Return parameters in all parent classes (especially `XGBModel`).
         # 2. Return whatever in `**kwargs`.
         # 3. Merge them.
+        #
+        # This needs to accommodate being called recursively in the following
+        # inheritance graphs (and similar for classification and ranking):
+        #
+        #   XGBRFRegressor -> XGBRegressor -> XGBModel -> BaseEstimator
+        #                     XGBRegressor -> XGBModel -> BaseEstimator
+        #                                     XGBModel -> BaseEstimator
+        #
         params = super().get_params(deep)
         cp = copy.copy(self)
-        # XGBRegressor -> XGBModel -> BaseEstimator
-        # XGBModel -> BaseEstimator
-        # TODO: make this less fragile
-        if len(cp.__class__.__bases__) == 1:
-            cp.__class__ = cp.__class__.__bases__[0]
-        else:
+        # if the immediate parent is a mixin, skip it (mixins don't define get_params())
+        if cp.__class__.__bases__[0] in (XGBClassifierBase, XGBRankerMixIn, XGBRegressorBase):
             cp.__class__ = cp.__class__.__bases__[1]
+        # otherwise, run get_params() from the immediate parent class
+        else:
+            cp.__class__ = cp.__class__.__bases__[0]
         params.update(cp.__class__.get_params(cp, deep))
         # if kwargs is a dict, update params accordingly
         if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):

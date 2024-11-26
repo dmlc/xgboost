@@ -1517,13 +1517,65 @@ def test_tags() -> None:
         assert tags["multioutput"] is True
         assert tags["multioutput_only"] is False
 
-    for clf in [xgb.XGBClassifier()]:
+    for clf in [xgb.XGBClassifier(), xgb.XGBRFClassifier()]:
         tags = clf._more_tags()
         assert "multioutput" not in tags
         assert tags["multilabel"] is True
 
     tags = xgb.XGBRanker()._more_tags()
     assert "multioutput" not in tags
+
+
+# the try-excepts in this test should be removed once xgboost's
+# minimum supported scikit-learn version is at least 1.6
+def test_sklearn_tags():
+
+    def _assert_has_xgbmodel_tags(tags):
+        # values set by XGBModel.__sklearn_tags__()
+        assert tags.non_deterministic is False
+        assert tags.no_validation is True
+        assert tags.input_tags.allow_nan is True
+
+    for reg in [xgb.XGBRegressor(), xgb.XGBRFRegressor()]:
+        try:
+            # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
+            # and so the actual effects of __sklearn_tags__() should be tested
+            tags = reg.__sklearn_tags__()
+            _assert_has_xgbmodel_tags(tags)
+            # regressor-specific values
+            assert tags.estimator_type == "regressor"
+            assert tags.regressor_tags is not None
+            assert tags.classifier_tags is None
+            assert tags.target_tags.multi_output is True
+            assert tags.target_tags.single_output is True
+        except AttributeError as err:
+            # only the exact error we expected to be raised should be raised
+            assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
+
+    for clf in [xgb.XGBClassifier(), xgb.XGBRFClassifier()]:
+        try:
+            # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
+            # and so the actual effects of __sklearn_tags__() should be tested
+            tags = clf.__sklearn_tags__()
+            _assert_has_xgbmodel_tags(tags)
+            # classifier-specific values
+            assert tags.estimator_type == "classifier"
+            assert tags.regressor_tags is None
+            assert tags.classifier_tags is not None
+            assert tags.classifier_tags.multi_label is True
+        except AttributeError as err:
+            # only the exact error we expected to be raised should be raised
+            assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
+
+    for rnk in [xgb.XGBRanker(),]:
+        try:
+            # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
+            # and so the actual effects of __sklearn_tags__() should be tested
+            tags = rnk.__sklearn_tags__()
+            _assert_has_xgbmodel_tags(tags)
+        except AttributeError as err:
+            # only the exact error we expected to be raised should be raised
+            assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
 
 
 def test_doc_link() -> None:
