@@ -13,8 +13,6 @@ def test_no_group_split(local_cuda_client: Client) -> None:
         {
             "array.backend": "cupy",
             "dataframe.backend": "cudf",
-            # This is required as of dask_cuda 24.12
-            "dataframe.shuffle.method": "tasks",
         }
     ):
         dtm.check_no_group_split(local_cuda_client, "cuda")
