@@ -203,7 +203,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '8'
-      - uses: dmlc/xgboost/actions/miniforge-setup@master
+      - uses: dmlc/xgboost-devops/miniforge-setup@main
         with:
           environment-name: minimal
           environment-file: ops/conda_env/minimal.yml

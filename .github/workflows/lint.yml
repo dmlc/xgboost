@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: dmlc/xgboost/actions/miniforge-setup@master
+      - uses: dmlc/xgboost-devops/miniforge-setup@main
         with:
           environment-name: python_lint
           environment-file: ops/conda_env/python_lint.yml
