@@ -952,7 +952,11 @@ class XGBModel(XGBModelBase):
         params = super().get_params(deep)
         cp = copy.copy(self)
         # if the immediate parent is a mixin, skip it (mixins don't define get_params())
-        if cp.__class__.__bases__[0] in (XGBClassifierBase, XGBRankerMixIn, XGBRegressorBase):
+        if cp.__class__.__bases__[0] in (
+            XGBClassifierBase,
+            XGBRankerMixIn,
+            XGBRegressorBase,
+        ):
             cp.__class__ = cp.__class__.__bases__[1]
         # otherwise, run get_params() from the immediate parent class
         else:
