@@ -58,7 +58,7 @@ from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
 
 
-class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
+class XGBRankerMixIn:
     """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn
     base classes.
 
@@ -83,7 +83,7 @@ def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     return tree_method in ("hist", "gpu_hist", None, "auto") and not_sycl
 
 
-class _SklObjWProto(Protocol):  # pylint: disable=too-few-public-methods
+class _SklObjWProto(Protocol):
     def __call__(
         self,
         y_true: ArrayLike,
