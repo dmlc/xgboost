@@ -323,7 +323,7 @@ In a workflow file, we'd refer to ``dmlc/xgboost-devops/{custom-action}@main``. 
 Each custom action consists of two components:
 
 * Main script (``dmlc/xgboost-devops/{custom-action}/action.yml``): dispatches to a specific version
-  of the implementation script (see the next item). The main script can clone ``xgboost-devops`` from
+  of the implementation script (see the next item). The main script clones ``xgboost-devops`` from
   a specified fork at a particular ref, allowing us to easily test changes to the custom action.
 * Implementation script (``dmlc/xgboost-devops/impls/{custom-action}/action.yml``): Implements the
   custom script.
