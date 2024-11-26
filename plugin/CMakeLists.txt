@@ -4,7 +4,8 @@ if(PLUGIN_SYCL)
     list(APPEND SYCL_SOURCES
     ${xgboost_SOURCE_DIR}/src/objective/regression_obj.cc
     ${xgboost_SOURCE_DIR}/src/objective/hinge.cc
-    ${xgboost_SOURCE_DIR}/src/objective/quantile_obj.cc)
+    ${xgboost_SOURCE_DIR}/src/objective/quantile_obj.cc
+    ${xgboost_SOURCE_DIR}/src/objective/multiclass_obj.cc)
   add_library(plugin_sycl OBJECT ${SYCL_SOURCES})
   target_include_directories(plugin_sycl
     PRIVATE
