@@ -41,16 +41,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: dmlc/xgboost/actions/miniforge-setup@master
         with:
-          miniforge-variant: Miniforge3
-          miniforge-version: latest
-          activate-environment: cpp_test
+          environment-name: cpp_test
           environment-file: ops/conda_env/cpp_test.yml
-          use-mamba: true
-      - name: Display Conda env
-        run: |
-          conda info
-          conda list
       - name: Build and run C API demo with shared
         run: bash ops/pipeline/test-c-api-demo.sh

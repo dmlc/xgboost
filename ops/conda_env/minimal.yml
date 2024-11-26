@@ -1,4 +1,4 @@
-name: jvm_tests
+name: minimal
 channels:
 - conda-forge
 dependencies:

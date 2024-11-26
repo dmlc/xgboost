@@ -195,37 +195,28 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-13]
-
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '8'
-
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: dmlc/xgboost/actions/miniforge-setup@master
         with:
-          miniforge-variant: Miniforge3
-          miniforge-version: latest
-          activate-environment: jvm_tests
-          environment-file: ops/conda_env/jvm_tests.yml
-          use-mamba: true
-
+          environment-name: minimal
+          environment-file: ops/conda_env/minimal.yml
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-
       - name: Test XGBoost4J (Core)
         run: |
           cd jvm-packages
           mvn test -B -pl :xgboost4j_2.12
-
       - name: Publish artifact xgboost4j.dll to S3
         run: |
           cd lib/

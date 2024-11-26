@@ -37,12 +37,10 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@13341b4d5e459a98bbe0b122b12c11bf90518cc8
       - name: Install libomp
         run: brew install libomp
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: dmlc/xgboost/actions/miniforge-setup@master
         with:
-          miniforge-variant: Miniforge3
-          miniforge-version: latest
-          python-version: "3.10"
-          use-mamba: true
+          environment-name: minimal
+          environment-file: ops/conda_env/minimal.yml
       - name: Build wheels
         run: bash ops/pipeline/build-python-wheels-macos.sh ${{ matrix.platform_id }} ${{ github.sha }}
       - name: Upload Python wheel

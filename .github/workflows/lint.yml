@@ -57,18 +57,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: dmlc/xgboost/actions/miniforge-setup@master
         with:
-          miniforge-variant: Miniforge3
-          miniforge-version: latest
-          activate-environment: python_lint
+          environment-name: python_lint
           environment-file: ops/conda_env/python_lint.yml
-          use-mamba: true
-      - name: Display Conda env
-        shell: bash -el {0}
-        run: |
-          conda info
-          conda list
       - name: Run mypy
         shell: bash -el {0}
         run: |
@@ -110,23 +102,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: "release"
-
       - name: Cache R packages
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
           key: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
           restore-keys: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
-
       - name: Install dependencies
         shell: Rscript {0}
         run: |
           source("./R-package/tests/helper_scripts/install_deps.R")
-
       - name: Run lintr
         run: |
           MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/

@@ -25,17 +25,10 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@v3
+    - uses: dmlc/xgboost/actions/miniforge-setup@master
       with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: linux_sycl_test
+        environment-name: linux_sycl_test
         environment-file: ops/conda_env/linux_sycl_test.yml
-        use-mamba: true
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
     - name: Run gtest
       run: bash ops/pipeline/build-test-sycl.sh gtest
 
@@ -47,16 +40,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: dmlc/xgboost/actions/miniforge-setup@master
         with:
-          miniforge-variant: Miniforge3
-          miniforge-version: latest
-          activate-environment: linux_sycl_test
+          environment-name: linux_sycl_test
           environment-file: ops/conda_env/linux_sycl_test.yml
-          use-mamba: true
-      - name: Display Conda env
-        run: |
-          conda info
-          conda list
       - name: Test Python package
         run: bash ops/pipeline/build-test-sycl.sh pytest
