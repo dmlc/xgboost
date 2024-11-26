@@ -158,12 +158,16 @@ jobs:
             s3://xgboost-docs/
 
   build-test-jvm-packages:
-    name: Build and test JVM packages (Linux)
+    name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
     needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - tag=jvm-tests-build-test-jvm-packages
+      - tag=jvm-tests-build-test-jvm-packages-scala${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12", "2.13"]
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -174,18 +178,15 @@ jobs:
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.jvm
-      - name: Build and test JVM packages (Scala 2.12)
+      - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
         run: bash ops/pipeline/build-test-jvm-packages.sh
         env:
-          SCALA_VERSION: 2.12
-      - name: Build and test JVM packages (Scala 2.13)
-        run: bash ops/pipeline/build-test-jvm-packages.sh
-        env:
-          SCALA_VERSION: 2.13
+          SCALA_VERSION: ${{ matrix.scala_version }}
       - name: Stash files
         run: |
           bash ops/pipeline/stash-artifacts.sh stash \
             build-test-jvm-packages lib/libxgboost4j.so
+        if: matrix.scala_version == '2.13'
 
   build-test-jvm-packages-other-os:
     name: Build and test JVM packages (${{ matrix.os }})
@@ -232,12 +233,16 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
   test-jvm-packages-gpu:
-    name: Test JVM packages with CUDA
+    name: Test JVM packages with CUDA (Scala ${{ matrix.scala_version }})
     needs: [build-jvm-gpu]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-mgpu
-      - tag=jvm-tests-test-jvm-packages-gpu
+      - tag=jvm-tests-test-jvm-packages-gpu-scala${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12", "2.13"]
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -252,6 +257,8 @@ jobs:
         run: |
           bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
       - run: bash ops/pipeline/test-jvm-gpu.sh
+        env:
+          SCALA_VERSION: ${{ matrix.scala_version }}
 
   deploy-jvm-packages:
     name: Deploy JVM packages to S3 (${{ matrix.variant }})

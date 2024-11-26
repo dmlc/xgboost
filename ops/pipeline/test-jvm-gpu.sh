@@ -3,9 +3,27 @@
 ## the user has already built libxgboost4j.so with CUDA support
 ## and place it in the lib/ directory.
 
-set -euox pipefail
+## Note. This script takes in all inputs via environment variables.
 
-SCALA_VERSION=2.12
+INPUT_DOC=$(
+cat <<-EOF
+Inputs
+  - SCALA_VERSION: Scala version, either 2.12 or 2.13 (Required)
+EOF
+)
+
+set -euo pipefail
+
+for arg in "SCALA_VERSION"
+do
+  if [[ -z "${!arg:-}" ]]
+  then
+    echo -e "Error: $arg must be set.\n${INPUT_DOC}"
+    exit 1
+  fi
+done
+
+set -x
 
 python3 ops/docker_run.py --container-id xgb-ci.jvm_gpu_build --use-gpus \
   -- nvidia-smi
