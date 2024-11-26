@@ -50,6 +50,7 @@ Prerequisites
    The runtime lets you access NVIDIA GPUs inside a Docker container.
 
 .. _build_run_docker_locally:
+
 ==============================================
 Building and Running Docker containers locally
 ==============================================
@@ -299,3 +300,33 @@ from the remote directory.
   # Download all files whose path matches the wildcard pattern python-package/dist/*.whl
   bash ops/pipeline/stash-artifacts.sh unstash "${REMOTE_PREFIX}" \
     python-package/dist/*.whl
+
+-----------------------------------------
+Custom actions in ``dmlc/xgboost-devops``
+-----------------------------------------
+
+XGBoost implements a few custom
+`composite actions <https://docs.github.com/en/actions/sharing-automations/creating-actions/creating-a-composite-action>`_
+to reduce duplicated code within workflow YAML files. The custom actions are hosted in a separate repository,
+`dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_, to make it easy to test changes to the custom actions in
+a pull request or a fork.
+
+In a workflow file, we'd refer to ``dmlc/xgboost-devops/{custom-action}@main``. For example:
+
+.. code-block:: yaml
+
+  - uses: dmlc/xgboost-devops/miniforge-setup@main
+    with:
+      environment-name: cpp_test
+      environment-file: ops/conda_env/cpp_test.yml
+
+Each custom action consists of two components:
+
+* Main script (``dmlc/xgboost-devops/{custom-action}/action.yml``): dispatches to a specific version
+  of the implementation script (see the next item). The main script can clone ``xgboost-devops`` from
+  a specified fork at a particular ref, allowing us to easily test changes to the custom action.
+* Implementation script (``dmlc/xgboost-devops/impls/{custom-action}/action.yml``): Implements the
+  custom script.
+
+This design was inspired by Mike Sarahan's work in
+`rapidsai/shared-actions <https://github.com/rapidsai/shared-actions>`_.
