@@ -1,4 +1,5 @@
 #!/bin/bash
+## Build XGBoost with CUDA
 
 set -euox pipefail
 

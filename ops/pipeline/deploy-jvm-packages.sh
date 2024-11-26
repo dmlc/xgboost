@@ -7,7 +7,7 @@ source ops/pipeline/enforce-ci.sh
 
 if [[ "$#" -lt 3 ]]
 then
-  echo "Usage: $0 {cpu,gpu} {container_id} {scala_version}"
+  echo "Usage: $0 {cpu,gpu} [container_id] [scala_version]"
   exit 1
 fi
 

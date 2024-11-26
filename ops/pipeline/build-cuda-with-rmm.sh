@@ -1,4 +1,5 @@
 #!/bin/bash
+## Build XGBoost with CUDA + RMM support
 
 set -euox pipefail
 
@@ -7,6 +8,13 @@ then
   echo "Make sure to set environment variable GITHUB_SHA"
   exit 1
 fi
+
+if [[ "$#" -lt 1 ]]
+then
+  echo "Usage: $0 [container_id]"
+  exit 1
+fi
+container_id="$1"
 
 source ops/pipeline/classify-git-branch.sh
 
@@ -23,7 +31,7 @@ fi
 
 echo "--- Build libxgboost from the source"
 python3 ops/docker_run.py \
-  --container-id xgb-ci.gpu_build_rockylinux8 \
+  --container-id "${container_id}" \
   -- ops/script/build_via_cmake.sh \
   -DCMAKE_PREFIX_PATH="/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake" \
   -DUSE_CUDA=ON \
@@ -39,7 +47,7 @@ python3 ops/docker_run.py \
 
 echo "--- Build binary wheel"
 python3 ops/docker_run.py \
-  --container-id xgb-ci.gpu_build_rockylinux8 \
+  --container-id "${container_id}" \
   -- bash -c \
   "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
 python3 ops/script/rename_whl.py  \

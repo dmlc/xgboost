@@ -8,13 +8,13 @@ then
   exit 1
 fi
 
-if [[ $# -ne 1 ]]
+if [[ "$#" -lt 1 ]]
 then
   echo "Usage: $0 {x86_64,aarch64}"
   exit 1
 fi
 
-arch=$1
+arch="$1"
 
 WHEEL_TAG="manylinux2014_${arch}"
 image="xgb-ci.${WHEEL_TAG}"

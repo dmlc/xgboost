@@ -5,7 +5,7 @@ set -euo pipefail
 
 if [[ "$#" -lt 2 ]]
 then
-  echo "Usage: $0 {gpu|mgpu|cpu|cpu-arm64} {container_id}"
+  echo "Usage: $0 {gpu|mgpu|cpu|cpu-arm64} [container_id]"
   exit 1
 fi
   

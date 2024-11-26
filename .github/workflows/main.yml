@@ -132,12 +132,20 @@ jobs:
           done
 
   build-cuda-with-rmm:
-    name: Build CUDA with RMM
+    name: Build CUDA with RMM (${{ matrix.config.name }})
     needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - tag=main-build-cuda-with-rmm
+      - tag=main-build-cuda-with-rmm-${{ matrix.config.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - name: stable
+          container_id: xgb-ci.gpu_build_rockylinux8
+        - name: dev
+          container_id: xgb-ci.gpu_dev_ver
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -147,20 +155,23 @@ jobs:
       - name: Fetch container from cache
         run: bash ops/docker_build.sh
         env:
-          CONTAINER_ID: xgb-ci.gpu_build_rockylinux8
+          CONTAINER_ID: ${{ matrix.config.container_id }}
       - name: Fetch container from cache
         run: bash ops/docker_build.sh
         env:
           CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
-      - run: bash ops/pipeline/build-cuda-with-rmm.sh
+      - run: |
+          bash ops/pipeline/build-cuda-with-rmm.sh ${{ matrix.config.container_id }}
       - name: Stash files
         run: |
           bash ops/pipeline/stash-artifacts.sh  \
             stash build-cuda-with-rmm build/testxgboost
+        if: matrix.config.name == 'stable'
       - name: Upload Python wheel
         run: |
           bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
             s3://xgboost-nightly-builds/experimental_build_with_rmm/
+        if: matrix.config.name == 'stable'
 
   build-manylinux2014:
     name: Build manylinux2014_${{ matrix.arch }} wheel
