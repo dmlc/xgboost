@@ -135,7 +135,7 @@ def _add_column(
     return df, uid
 
 
-def no_group_split(
+def no_group_split(  # pylint: disable=too-many-positional-arguments
     device: str | None,
     df: dd.DataFrame,
     qid: dd.Series,
