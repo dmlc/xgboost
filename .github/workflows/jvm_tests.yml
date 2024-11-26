@@ -261,23 +261,24 @@ jobs:
           SCALA_VERSION: ${{ matrix.scala_version }}
 
   deploy-jvm-packages:
-    name: Deploy JVM packages to S3 (${{ matrix.variant }})
+    name: Deploy JVM packages to S3 (${{ matrix.variant.name }})
     needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
     runs-on:
       - runs-on
       - runner=linux-amd64-cpu
       - run-id=${{ github.run_id }}
-      - tag=jvm-tests-deploy-jvm-packages-${{ matrix.variant }}
+      - tag=jvm-tests-deploy-jvm-packages-${{ matrix.variant.name }}-scala${{ matrix.scala_version }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - variant: cpu
+        variant:
+          - name: cpu
             container_id: xgb-ci.jvm
             artifact_from: build-test-jvm-packages
-          - variant: gpu
+          - name: gpu
             container_id: xgb-ci.jvm_gpu_build
             artifact_from: build-jvm-gpu
+        scala_version: ['2.12', '2.13']
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -287,14 +288,14 @@ jobs:
       - name: Fetch container from cache
         run: bash ops/docker_build.sh
         env:
-          CONTAINER_ID: ${{ matrix.container_id }}
+          CONTAINER_ID: ${{ matrix.variant.container_id }}
       - name: Unstash files
         run: |
           bash ops/pipeline/stash-artifacts.sh \
-            unstash ${{ matrix.artifact_from }} \
+            unstash ${{ matrix.variant.artifact_from }} \
             lib/libxgboost4j.so
           ls -lh lib/libxgboost4j.so
       - name: Deploy JVM packages to S3
         run: |
-          bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant }} \
-            ${{ matrix.container_id }}
+          bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} \
+            ${{ matrix.variant.container_id }} ${{ matrix.scala_version }}
