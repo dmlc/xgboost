@@ -16,6 +16,7 @@ from typing import (
     overload,
 )
 
+import dask
 import distributed
 import numpy as np
 import pandas as pd
@@ -135,6 +136,7 @@ def _add_column(
 
 
 def no_group_split(
+    device: str | None,
     df: dd.DataFrame,
     qid: dd.Series,
     y: dd.Series,
@@ -154,21 +156,23 @@ def no_group_split(
     df, w_uid = _add_column(df, sample_weight)
     df, bm_uid = _add_column(df, base_margin)
 
-    df = df.persist()
-    # Encode the QID to make it dense.
-    df[qid_uid] = df[qid_uid].astype("category").cat.as_known().cat.codes
-    # The shuffle here is costly.
-    df = df.sort_values(by=qid_uid)
-    cnt = df.groupby(qid_uid)[qid_uid].count()
-    div = cnt.index.compute().values.tolist()
-    div = sorted(div)
-    div = tuple(div + [div[-1] + 1])
+    # `tasks` shuffle is required as of rapids 24.12
+    shuffle = "p2p" if device is None or device == "cpu" else "tasks"
+    with dask.config.set({"dataframe.shuffle.method": shuffle}):
+        # Encode the QID to make it dense.
+        df[qid_uid] = df[qid_uid].astype("category").cat.as_known().cat.codes
+        # The shuffle here is costly.
+        df = df.sort_values(by=qid_uid)
+        cnt = df.groupby(qid_uid)[qid_uid].count()
+        div = cnt.index.compute().values.tolist()
+        div = sorted(div)
+        div = tuple(div + [div[-1] + 1])
 
-    df = df.set_index(
-        qid_uid,
-        drop=False,
-        divisions=div,
-    ).persist()
+        df = df.set_index(
+            qid_uid,
+            drop=False,
+            divisions=div,
+        ).persist()
 
     qid = df[qid_uid]
     y = df[y_uid]

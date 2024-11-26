@@ -1910,12 +1910,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         this can significantly increase the fragmentation of the data, and the internal
         DMatrix construction can take longer.
 
-        .. warning::
-
-            GPU `p2p` shuffle is not yet supported when the `dask-expr` is enabled, use
-            the `tasks` shuffle method if you run into errors for categorical dtypes. In
-            addition, async environment may not work.
-
 """,
     end_note="""
         .. note::
@@ -2060,6 +2054,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             assert qid is not None and y is not None
             X_id = id(X)
             X, qid, y, sample_weight, base_margin = no_group_split(
+                self.device,
                 X,
                 qid,
                 y=y,
@@ -2088,7 +2083,9 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
                     )
                     assert qe is not None and ye is not None
                     if id(Xe) != X_id:
-                        Xe, qe, ye, we, be = no_group_split(Xe, qe, ye, we, be)
+                        Xe, qe, ye, we, be = no_group_split(
+                            self.device, Xe, qe, ye, we, be
+                        )
                     else:
                         Xe, qe, ye, we, be = X, qid, y, sample_weight, base_margin
 

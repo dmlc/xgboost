@@ -22,11 +22,9 @@ from typing import Generator
 
 import dask
 import numpy as np
-from dask import array as da
 from dask import dataframe as dd
 from distributed import Client, LocalCluster, wait
 from sklearn.datasets import load_svmlight_file
-from sklearn.metrics import root_mean_squared_error
 
 from xgboost import dask as dxgb
 
@@ -161,8 +159,6 @@ def gen_client(device: str) -> Generator[Client, None, None]:
                         {
                             "array.backend": "cupy",
                             "dataframe.backend": "cudf",
-                            # This is required as of dask_cuda 24.12
-                            "dataframe.shuffle.method": "tasks",
                         }
                     ):
                         yield client
