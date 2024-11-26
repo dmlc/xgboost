@@ -572,8 +572,6 @@ check.deprecation <- function(..., env = parent.frame()) {
       warning("'", pars_par, "' was partially matched to '", old_par, "'")
     }
     .Deprecated(new_par, old = old_par, package = 'xgboost')
-    if (new_par != 'NULL') {
-      stop()
-    }
+    stop()
   }
 }
