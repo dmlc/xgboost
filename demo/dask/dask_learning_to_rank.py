@@ -136,6 +136,7 @@ def ranking_wo_split_demo(client: Client, args: argparse.Namespace) -> None:
         qid=df_tr.qid,
         eval_set=[(X_tr, df_tr.y), (X_va, df_va.y)],
         eval_qid=[df_tr.qid, df_va.qid],
+        verbose=True,
     )
 
     df_te = df_te.persist()

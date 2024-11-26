@@ -159,6 +159,7 @@ def no_group_split(
     # `tasks` shuffle is required as of rapids 24.12
     shuffle = "p2p" if device is None or device == "cpu" else "tasks"
     with dask.config.set({"dataframe.shuffle.method": shuffle}):
+        df = df.persist()
         # Encode the QID to make it dense.
         df[qid_uid] = df[qid_uid].astype("category").cat.as_known().cat.codes
         # The shuffle here is costly.
