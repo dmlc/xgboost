@@ -835,6 +835,16 @@ def _is_cudf_df(data: DataType) -> bool:
     return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
 
 
+def _is_cudf_pandas(data: DataType) -> bool:
+    """Must go before both pandas and cudf checks."""
+    return (
+        lazy_isinstance(data, "pandas.core.frame", "DataFrame")
+        or lazy_isinstance(data, "pandas.core.series", "Series")
+    ) and lazy_isinstance(
+        type(data), "cudf.pandas.fast_slow_proxy", "_FastSlowProxyMeta"
+    )
+
+
 def _get_cudf_cat_predicate() -> Callable[[Any], bool]:
     try:
         from cudf import CategoricalDtype
@@ -1187,6 +1197,8 @@ def dispatch_data_backend(
         )
     if _is_arrow(data):
         data = _arrow_transform(data)
+    if _is_cudf_pandas(data):
+        data = data._fsproxy_fast  # pylint: disable=protected-access
     if _is_pandas_series(data):
         import pandas as pd
 
@@ -1327,6 +1339,8 @@ def dispatch_meta_backend(
         return
     if _is_arrow(data):
         data = _arrow_transform(data)
+    if _is_cudf_pandas(data):
+        data = data._fsproxy_fast  # pylint: disable=protected-access
     if _is_pandas_df(data):
         _meta_from_pandas_df(data, name, dtype=dtype, handle=handle)
         return
@@ -1398,6 +1412,8 @@ def _proxy_transform(
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> TransformedData:
+    if _is_cudf_pandas(data):
+        data = data._fsproxy_fast  # pylint: disable=protected-access
     if _is_cudf_df(data) or _is_cudf_ser(data):
         return _transform_cudf_df(
             data, feature_names, feature_types, enable_categorical
