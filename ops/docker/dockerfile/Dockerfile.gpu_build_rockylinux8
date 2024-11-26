@@ -53,7 +53,7 @@ RUN git clone -b v1.65.4 https://github.com/grpc/grpc.git \
 # Install RMM
 # Patch out -Werror
 # Patch CCCL 2.5.0 to apply https://github.com/NVIDIA/cccl/pull/1957
-RUN git clone -b v${RAPIDS_VERSION_ARG}.00 https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
+RUN git clone -b branch-${RAPIDS_VERSION_ARG} https://github.com/rapidsai/rmm.git --recurse-submodules --depth 1 && \
     pushd rmm && \
     find . -name CMakeLists.txt -print0 | xargs -0 sed -i 's/-Werror//g' && \
     mkdir build && \

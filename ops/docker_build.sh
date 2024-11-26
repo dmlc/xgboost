@@ -4,12 +4,13 @@
 ## Build-time variables (--build-arg) and container defintion are fetched from
 ## ops/docker/ci_container.yml.
 ##
-## Note. This script takes in all inputs via environment variables.
+## Note. This script takes in some inputs via environment variables.
 
-INPUT_DOC=$(
+USAGE_DOC=$(
 cat <<-EOF
-Inputs
-  - CONTAINER_ID:     String ID uniquely identifying the container (Required)
+Usage: ops/docker_build.sh [container_id]
+
+In addition, the following environment variables should be set.
   - BRANCH_NAME:      Name of the current git branch or pull request (Required)
   - USE_DOCKER_CACHE: If set to 1, enable caching
 EOF
@@ -38,14 +39,21 @@ EOF
 
 set -euo pipefail
 
-for arg in "CONTAINER_ID" "BRANCH_NAME"
+for arg in "BRANCH_NAME"
 do
   if [[ -z "${!arg:-}" ]]
   then
-    echo -e "Error: $arg must be set.\n${INPUT_DOC}"
+    echo -e "Error: $arg must be set.\n\n${USAGE_DOC}"
     exit 1
   fi
 done
+
+if [[ "$#" -lt 1 ]]
+then
+  echo "${USAGE_DOC}"
+  exit 2
+fi
+CONTAINER_ID="$1"
 
 # Fetch CONTAINER_DEF and BUILD_ARGS
 source <(ops/docker/extract_build_args.sh ${CONTAINER_ID} | tee /dev/stderr) 2>&1

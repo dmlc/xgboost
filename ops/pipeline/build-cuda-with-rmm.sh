@@ -1,7 +1,7 @@
 #!/bin/bash
 ## Build XGBoost with CUDA + RMM support
 
-set -euox pipefail
+set -euo pipefail
 
 if [[ -z "${GITHUB_SHA:-}" ]]
 then
@@ -17,6 +17,8 @@ fi
 container_id="$1"
 
 source ops/pipeline/classify-git-branch.sh
+
+set -x
 
 WHEEL_TAG=manylinux_2_28_x86_64
 

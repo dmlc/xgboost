@@ -26,6 +26,7 @@ jobs:
       matrix:
         container_id:
           - xgb-ci.gpu_build_rockylinux8
+          - xgb-ci.gpu_build_rockylinux8_dev_ver
           - xgb-ci.gpu_build_r_rockylinux8
           - xgb-ci.gpu
           - xgb-ci.gpu_dev_ver
@@ -45,9 +46,7 @@ jobs:
         with:
           submodules: "true"
       - name: Build ${{ matrix.container_id }}
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: ${{ matrix.container_id }}
+        run: bash ops/docker_build.sh ${{ matrix.container_id }}
 
   build-cpu:
     name: Build CPU
@@ -63,9 +62,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.cpu
+        run: bash ops/docker_build.sh xgb-ci.cpu
       - run: bash ops/pipeline/build-cpu.sh
       - name: Stash CLI executable
         run: bash ops/pipeline/stash-artifacts.sh stash build-cpu ./xgboost
@@ -84,9 +81,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.aarch64
+        run: bash ops/docker_build.sh xgb-ci.aarch64
       - run: bash ops/pipeline/build-cpu-arm64.sh
       - name: Stash files
         run: |
@@ -111,13 +106,9 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.gpu_build_rockylinux8
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_rockylinux8
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
+        run: bash ops/docker_build.sh xgb-ci.manylinux_2_28_x86_64
       - run: bash ops/pipeline/build-cuda.sh
       - name: Stash files
         run: |
@@ -145,13 +136,9 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.gpu_build_rockylinux8
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_rockylinux8
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
+        run: bash ops/docker_build.sh xgb-ci.manylinux_2_28_x86_64
       - run: |
           bash ops/pipeline/build-cuda-with-rmm.sh xgb-ci.gpu_build_rockylinux8
       - name: Stash files
@@ -177,15 +164,11 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.gpu_dev_ver
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_rockylinux8_dev_ver
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.manylinux_2_28_x86_64
+        run: bash ops/docker_build.sh xgb-ci.manylinux_2_28_x86_64
       - run: |
-          bash ops/pipeline/build-cuda-with-rmm.sh xgb-ci.gpu_dev_ver
+          bash ops/pipeline/build-cuda-with-rmm.sh xgb-ci.gpu_build_rockylinux8_dev_ver
 
   build-manylinux2014:
     name: Build manylinux2014_${{ matrix.arch }} wheel
@@ -210,9 +193,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
+        run: bash ops/docker_build.sh xgb-ci.manylinux2014_${{ matrix.arch }}
       - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
       - name: Upload Python wheel
         run: |
@@ -236,9 +217,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.gpu_build_r_rockylinux8
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_r_rockylinux8
       - run: bash ops/pipeline/build-gpu-rpkg.sh
       - name: Upload R tarball
         run: |
@@ -276,9 +255,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.gpu
+        run: bash ops/docker_build.sh xgb-ci.gpu
       - name: Unstash gtest
         run: |
           bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }}  \
@@ -335,9 +312,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: ${{ matrix.container }}
+        run: bash ops/docker_build.sh ${{ matrix.container }}
       - name: Unstash Python wheel
         run: |
           bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }} \

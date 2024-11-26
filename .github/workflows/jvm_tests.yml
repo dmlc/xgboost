@@ -39,9 +39,7 @@ jobs:
         with:
           submodules: "true"
       - name: Build ${{ matrix.container_id }}
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: ${{ matrix.container_id }}
+        run: bash ops/docker_build.sh ${{ matrix.container_id }}
 
   build-jvm-manylinux2014:
     name: >-
@@ -68,9 +66,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.manylinux2014_${{ matrix.arch }}
+        run: bash ops/docker_build.sh xgb-ci.manylinux2014_${{ matrix.arch }}
       - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
       - name: Upload libxgboost4j.so
         run: |
@@ -93,9 +89,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm_gpu_build
+        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
       - run: bash ops/pipeline/build-jvm-gpu.sh
       - name: Stash files
         run: |
@@ -144,9 +138,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm_gpu_build
+        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
       - name: Unstash files
         run: |
           bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
@@ -175,9 +167,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm
+        run: bash ops/docker_build.sh xgb-ci.jvm
       - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
         run: bash ops/pipeline/build-test-jvm-packages.sh
         env:
@@ -250,9 +240,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: xgb-ci.jvm_gpu_build
+        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
       - name: Unstash files
         run: |
           bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
@@ -286,9 +274,7 @@ jobs:
         with:
           submodules: "true"
       - name: Fetch container from cache
-        run: bash ops/docker_build.sh
-        env:
-          CONTAINER_ID: ${{ matrix.variant.container_id }}
+        run: bash ops/docker_build.sh ${{ matrix.variant.container_id }}
       - name: Unstash files
         run: |
           bash ops/pipeline/stash-artifacts.sh \

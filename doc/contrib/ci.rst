@@ -64,9 +64,8 @@ For your convenience, we provide three wrapper scripts:
 
 .. code-block:: bash
 
-  export CONTAINER_ID="ID of the container"
   export BRANCH_NAME="master"  # Relevant for CI, for local testing, use "master"
-  bash ops/docker_build.sh
+  bash ops/docker_build.sh CONTAINER_ID
 
 where ``CONTAINER_ID`` identifies for the container. The wrapper script will look up the YAML file
 ``ops/docker/ci_container.yml``. For example, when ``CONTAINER_ID`` is set to ``xgb-ci.gpu``,
