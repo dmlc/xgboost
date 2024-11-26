@@ -43,6 +43,7 @@ except ImportError:
 
 # sklearn
 try:
+    from sklearn import __version__ as _sklearn_version
     from sklearn.base import BaseEstimator as XGBModelBase
     from sklearn.base import ClassifierMixin as XGBClassifierBase
     from sklearn.base import RegressorMixin as XGBRegressorBase
@@ -54,6 +55,17 @@ try:
     except ImportError:
         from sklearn.cross_validation import KFold as XGBKFold
         from sklearn.cross_validation import StratifiedKFold as XGBStratifiedKFold
+
+    # sklearn.utils Tags types can be imported unconditionally once
+    # xgboost's minimum scikit-learn version is 1.6 or higher
+    try:
+        from sklearn.utils import ClassifierTags as _sklearn_ClassifierTags
+        from sklearn.utils import RegressorTags as _sklearn_RegressorTags
+        from sklearn.utils import Tags as _sklearn_Tags
+    except ImportError:
+        _sklearn_ClassifierTags = object
+        _sklearn_RegressorTags = object
+        _sklearn_Tags = object
 
     SKLEARN_INSTALLED = True
 
@@ -68,6 +80,11 @@ except ImportError:
 
     XGBKFold = None
     XGBStratifiedKFold = None
+
+    _sklearn_ClassifierTags = object
+    _sklearn_RegressorTags = object
+    _sklearn_Tags = object
+    _sklearn_version = object
 
 
 _logger = logging.getLogger(__name__)

@@ -35,6 +35,10 @@ from .compat import (
     XGBClassifierBase,
     XGBModelBase,
     XGBRegressorBase,
+    _sklearn_ClassifierTags,
+    _sklearn_RegressorTags,
+    _sklearn_Tags,
+    _sklearn_version,
     import_cupy,
 )
 from .config import config_context
@@ -53,11 +57,6 @@ from .core import (
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
 
-# TODO: put in compat.py
-from sklearn.utils import (
-    ClassifierTags as _sklearn_ClassifierTags,
-    RegressorTags as _sklearn_RegressorTags
-)
 
 class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
     """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn
@@ -810,13 +809,12 @@ class XGBModel(XGBModelBase):
             tags["non_deterministic"] = True
         return tags
 
-    # TODO: type hints
     @staticmethod
     def _update_sklearn_tags_from_dict(
         *,
-        tags,
-        tags_dict,
-    ):
+        tags: _sklearn_Tags,
+        tags_dict: Dict[str, bool],
+    ) -> _sklearn_Tags:
         """Update ``sklearn.utils.Tags`` inherited from ``scikit-learn`` base classes.
 
         ``scikit-learn`` 1.6 introduced a dataclass-based interface for estimator tags.
@@ -829,9 +827,7 @@ class XGBModel(XGBModelBase):
         tags.input_tags.allow_nan = tags_dict["allow_nan"]
         return tags
 
-    # TODO: actually test with older scikit-learn
-    # TODO: type hints
-    def __sklearn_tags__(self):
+    def __sklearn_tags__(self) -> _sklearn_Tags:
         # XGBModelBase.__sklearn_tags__() cannot be called unconditionally,
         # because that method isn't defined for scikit-learn<1.6
         if not hasattr(XGBModelBase, "__sklearn_tags__"):
@@ -946,22 +942,14 @@ class XGBModel(XGBModelBase):
         # 2. Return whatever in `**kwargs`.
         # 3. Merge them.
         params = super().get_params(deep)
-        # [DEBUG] this only contains {'objective': 'reg:squarederror'}
-        #raise RuntimeError(params)
+        cp = copy.copy(self)
         # XGBRegressor -> XGBModel -> BaseEstimator
         # XGBModel -> BaseEstimator
-        cp = copy.copy(self)
-        # [DEBUG] this points to <class 'xgboost.sklearn.XGBRegressor'>
-        # raise RuntimeError(cp.__class__)
-        # [DEBUG] this is (<class 'sklearn.base.RegressorMixin'>, <class 'xgboost.sklearn.XGBModel'>)
-        #raise RuntimeError(cp.__class__.__bases__)
         # TODO: make this less fragile
         if len(cp.__class__.__bases__) == 1:
             cp.__class__ = cp.__class__.__bases__[0]
         else:
             cp.__class__ = cp.__class__.__bases__[1]
-        # [DEBUG] this is finding RegressorMixin rn
-        #raise RuntimeError(cp.__class__)
         params.update(cp.__class__.get_params(cp, deep))
         # if kwargs is a dict, update params accordingly
         if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
@@ -1538,7 +1526,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
         Number of boosting rounds.
 """,
 )
-class XGBClassifier(XGBModel, XGBClassifierBase):
+class XGBClassifier(XGBClassifierBase, XGBModel):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
@@ -1554,11 +1542,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         tags["multilabel"] = True
         return tags
 
-    def __sklearn_tags__(self) -> "_sklearn_Tags":
+    def __sklearn_tags__(self) -> _sklearn_Tags:
         tags = XGBModel.__sklearn_tags__(self)
         tags.estimator_type = "classifier"
-        # TODO: get this information from self._more_tags()
-        tags.classifier_tags = _sklearn_ClassifierTags(multi_label=True)
+        tags_dict = self._more_tags()
+        tags.classifier_tags = _sklearn_ClassifierTags(
+            multi_label=tags_dict["multilabel"]
+        )
         return tags
 
     @_deprecate_positional_args
@@ -1847,13 +1837,13 @@ class XGBRegressor(XGBRegressorBase, XGBModel):
         tags["multioutput_only"] = False
         return tags
 
-    def __sklearn_tags__(self) -> "_sklearn_Tags":
+    def __sklearn_tags__(self) -> _sklearn_Tags:
         tags = XGBModel.__sklearn_tags__(self)
         tags.estimator_type = "regressor"
+        tags_dict = self._more_tags()
         tags.regressor_tags = _sklearn_RegressorTags()
-        # TODO: get this information from self._more_tags()
-        tags.target_tags.multi_output = True
-        tags.target_tags.single_output = True
+        tags.target_tags.multi_output = tags_dict["multioutput"]
+        tags.target_tags.single_output = not tags_dict["multioutput_only"]
         return tags
 
 
@@ -1983,7 +1973,7 @@ See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an introducion.
         `qid` can be a special column of input `X` instead of a separated parameter, see
         :py:meth:`fit` for more info.""",
 )
-class XGBRanker(XGBModel, XGBRankerMixIn):
+class XGBRanker(XGBRankerMixIn, XGBModel):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     @_deprecate_positional_args
     def __init__(self, *, objective: str = "rank:ndcg", **kwargs: Any):
