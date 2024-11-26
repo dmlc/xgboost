@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import random
+import re
 import tempfile
 import warnings
 from typing import Callable, Optional

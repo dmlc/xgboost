@@ -73,10 +73,25 @@ except ImportError:
     SKLEARN_INSTALLED = False
 
     # used for compatibility without sklearn
-    XGBModelBase = object
-    XGBClassifierBase = object
-    XGBRegressorBase = object
-    LabelEncoder = object
+    class XGBModelBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.BaseEstimator."""
+
+        pass
+
+    class XGBClassifierBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.ClassifierMixin."""
+
+        pass
+
+    class XGBRegressorBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.RegressorMixin."""
+
+        pass
+
+    class LabelEncoder:  # type: ignore[no-redef]
+        """Dummy class for sklearn.preprocessing.LabelEncoder."""
+
+        pass
 
     XGBKFold = None
     XGBStratifiedKFold = None
