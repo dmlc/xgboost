@@ -840,7 +840,7 @@ class XGBModel(XGBModelBase):
         # take whatever tags are provided by BaseEstimator, then modify
         # them with XGBoost-specific values
         return self._update_sklearn_tags_from_dict(
-            tags=XGBModelBase.__sklearn_tags__(self),
+            tags=XGBModelBase.__sklearn_tags__(self),  # pylint: disable=no-member
             tags_dict=self._more_tags(),
         )
 
