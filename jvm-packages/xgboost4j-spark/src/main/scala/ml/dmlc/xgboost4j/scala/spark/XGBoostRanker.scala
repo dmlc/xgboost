@@ -22,6 +22,7 @@ import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.util.{DefaultParamsReadable, Identifiable, MLReadable, MLReader}
 import org.apache.spark.ml.xgboost.SparkUtils
 import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{DataType, DoubleType, StructType}
 
 import ml.dmlc.xgboost4j.scala.Booster
@@ -59,6 +60,22 @@ class XGBoostRanker(override val uid: String,
         s"Wrong objective for XGBoostRanker, supported objs: ${RANKER_OBJS.mkString(",")}")
     } else {
       setObjective("rank:ndcg")
+    }
+  }
+
+  /**
+   * Repartition the dataset to the numWorkers if needed.
+   *
+   * @param dataset to be repartition
+   * @return the repartitioned dataset
+   */
+  override private[spark] def repartitionIfNeeded(dataset: Dataset[_]) = {
+    val numPartitions = dataset.rdd.getNumPartitions
+    if (getForceRepartition || getNumWorkers != numPartitions) {
+      // Please note that the output of repartitionByRange is not deterministic
+      dataset.repartitionByRange(getNumWorkers, col(getGroupCol))
+    } else {
+      dataset
     }
   }
 
