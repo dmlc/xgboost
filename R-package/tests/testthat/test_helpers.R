@@ -537,14 +537,12 @@ test_that("check.deprecation works", {
   }
   res <- ttt(a = 1, DUMMY = 2, z = 3)
   expect_equal(res, list(a = 1, DUMMY = 2))
-  expect_warning(
-    res <- ttt(a = 1, dummy = 22, z = 3)
-  , "\'dummy\' is deprecated")
-  expect_equal(res, list(a = 1, DUMMY = 22))
-  expect_warning(
-    res <- ttt(a = 1, dumm = 22, z = 3)
-  , "\'dumm\' was partially matched to \'dummy\'")
-  expect_equal(res, list(a = 1, DUMMY = 22))
+  expect_error(
+    res <- ttt(a = 1, dummy = 22, z = 3),
+  )
+  expect_error(
+    res <- ttt(a = 1, dumm = 22, z = 3),
+  )
 })
 
 test_that('convert.labels works', {
