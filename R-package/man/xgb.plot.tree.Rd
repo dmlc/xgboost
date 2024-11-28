@@ -18,7 +18,7 @@ xgb.plot.tree(
 (they can be set through \code{\link[=setinfo]{setinfo()}}, they will be used in the
 output from this function.}
 
-\item{tree_idx}{An integer vector of tree indices that should be used. This
+\item{tree_idx}{An integer of the tree index that should be used. This
 is an 1-based index.}
 
 \item{plot_width, plot_height}{Width and height of the graph in pixels.
