@@ -2,6 +2,7 @@
 # pylint: disable=too-many-branches
 """Plotting Library."""
 import json
+import warnings
 from io import BytesIO
 from typing import Any, Optional, Union
 
@@ -153,13 +154,14 @@ def to_graphviz(
     booster: Union[Booster, XGBModel],
     *,
     fmap: PathLike = "",
-    num_trees: int = 0,
+    num_trees: Optional[int] = None,
     rankdir: Optional[str] = None,
     yes_color: Optional[str] = None,
     no_color: Optional[str] = None,
     condition_node_params: Optional[dict] = None,
     leaf_node_params: Optional[dict] = None,
     with_stats: bool = False,
+    tree_idx: int = 0,
     **kwargs: Any,
 ) -> GraphvizSource:
     """Convert specified tree to graphviz instance. IPython can automatically plot
@@ -173,7 +175,11 @@ def to_graphviz(
     fmap :
        The name of feature map file
     num_trees :
+
+        .. deprecated:: 3.0
+
         Specify the ordinal number of target tree
+
     rankdir :
         Passed to graphviz via graph_attr
     yes_color :
@@ -203,6 +209,12 @@ def to_graphviz(
         .. versionadded:: 3.0
 
         Controls whether the split statistics should be included.
+
+    tree_idx :
+
+        .. versionadded:: 3.0
+
+        Specify the ordinal index of target tree.
 
     kwargs :
         Other keywords passed to graphviz graph_attr, e.g. ``graph [ {key} = {value} ]``
@@ -250,8 +262,20 @@ def to_graphviz(
     if kwargs:
         parameters += ":"
         parameters += json.dumps(kwargs)
+
+    if num_trees is not None:
+        warnings.warn(
+            "The `num_trees` parameter is deprecated, use `tree_idx` insetad. ",
+            FutureWarning,
+        )
+        if tree_idx != 0 and tree_idx != num_trees:
+            raise ValueError(
+                "Both `num_trees` and `tree_idx` are used, prefer `tree_idx` instead."
+            )
+        tree_idx = num_trees
+
     tree = booster.get_dump(fmap=fmap, dump_format=parameters, with_stats=with_stats)[
-        num_trees
+        tree_idx
     ]
     g = Source(tree)
     return g
@@ -259,25 +283,28 @@ def to_graphviz(
 
 @_deprecate_positional_args
 def plot_tree(
-    booster: Booster,
+    booster: Union[Booster, XGBModel],
     *,
     fmap: PathLike = "",
-    num_trees: int = 0,
+    num_trees: Optional[int] = None,
     rankdir: Optional[str] = None,
     ax: Optional[Axes] = None,
     with_stats: bool = False,
+    tree_idx: int = 0,
     **kwargs: Any,
 ) -> Axes:
     """Plot specified tree.
 
     Parameters
     ----------
-    booster : Booster, XGBModel
+    booster :
         Booster or XGBModel instance
     fmap: str (optional)
        The name of feature map file
-    num_trees : int, default 0
-        Specify the ordinal number of target tree
+    num_trees :
+
+        .. deprecated:: 3.0
+
     rankdir : str, default "TB"
         Passed to graphviz via graph_attr
     ax : matplotlib Axes, default None
@@ -289,8 +316,14 @@ def plot_tree(
 
         See :py:func:`to_graphviz`.
 
+    tree_idx :
+
+        .. versionadded:: 3.0
+
+        See :py:func:`to_graphviz`.
+
     kwargs :
-        Other keywords passed to to_graphviz
+        Other keywords passed to :py:func:`to_graphviz`
 
     Returns
     -------
@@ -312,6 +345,7 @@ def plot_tree(
         num_trees=num_trees,
         rankdir=rankdir,
         with_stats=with_stats,
+        tree_idx=tree_idx,
         **kwargs,
     )
 

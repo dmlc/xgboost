@@ -15,7 +15,7 @@ xgb.plot.multi.trees(
 }
 \arguments{
 \item{model}{Object of class \code{xgb.Booster}. If it contains feature names
-(they can be set through #'   \code{\link[=setinfo]{setinfo()}}, they will be used in the
+(they can be set through \code{\link[=setinfo]{setinfo()}}, they will be used in the
 output from this function.}
 
 \item{features_keep}{Number of features to keep in each position of the multi trees,

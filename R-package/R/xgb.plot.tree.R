@@ -19,9 +19,9 @@
 #' backend.
 #'
 #' @param model Object of class `xgb.Booster`. If it contains feature names
-#'   (they can be set through #'   [setinfo()], they will be used in the
+#'   (they can be set through [setinfo()], they will be used in the
 #'   output from this function.
-#' @param tree_idx An integer vector of tree indices that should be used. This
+#' @param tree_idx An integer of the tree index that should be used. This
 #'   is an 1-based index.
 #' @param plot_width,plot_height Width and height of the graph in pixels.
 #'   The values are passed to `DiagrammeR::render_graph()`.
@@ -72,7 +72,7 @@ xgb.plot.tree <- function(model,
     stop("model has to be an object of the class xgb.Booster")
   }
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
-    stop("DiagrammeR package is required for xgb.plot.tree", call. = FALSE)
+    stop("The DiagrammeR package is required for xgb.plot.tree", call. = FALSE)
   }
 
   txt <- xgb.dump(model, dump_format = "dot", with_stats = with_stats)
