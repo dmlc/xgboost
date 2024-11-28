@@ -268,7 +268,7 @@ def to_graphviz(
             "The `num_trees` parameter is deprecated, use `tree_idx` insetad. ",
             FutureWarning,
         )
-        if tree_idx != 0 and tree_idx != num_trees:
+        if tree_idx not in (0, num_trees):
             raise ValueError(
                 "Both `num_trees` and `tree_idx` are used, prefer `tree_idx` instead."
             )
