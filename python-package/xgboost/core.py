@@ -2669,6 +2669,7 @@ class Booster:
             _arrow_transform,
             _is_arrow,
             _is_cudf_df,
+            _is_cudf_pandas,
             _is_cupy_alike,
             _is_list,
             _is_np_array_like,
@@ -2677,6 +2678,9 @@ class Booster:
             _is_tuple,
             _transform_pandas_df,
         )
+
+        if _is_cudf_pandas(data):
+            data = data._fsproxy_fast  # pylint: disable=protected-access
 
         enable_categorical = True
         if _is_arrow(data):
