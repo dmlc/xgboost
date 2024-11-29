@@ -26,16 +26,13 @@ jobs:
         shell: bash
         run: |
           apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
-
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-
       - name: Install dependencies
         shell: bash -l {0}
         run: |
           /tmp/R-devel/bin/Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
-
       - name: Run R tests
         shell: bash
         run: |
