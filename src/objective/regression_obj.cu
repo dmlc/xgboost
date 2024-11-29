@@ -87,6 +87,15 @@ class RegLossObj : public FitInterceptGlmLike {
           common::AssertGPUSupport();
           return false;
 #endif  // defined(XGBOOST_USE_CUDA)
+        },
+        [&] {
+#if defined(XGBOOST_USE_SYCL)
+          return sycl::linalg::Validate(ctx_->Device(), label,
+                                        [](float y) -> bool { return Loss::CheckLabel(y); });
+#else
+          common::AssertSYCLSupport();
+          return false;
+#endif  // defined(XGBOOST_USE_SYCL)
         });
     if (!valid) {
       LOG(FATAL) << Loss::LabelErrorMsg();
@@ -123,7 +132,7 @@ class RegLossObj : public FitInterceptGlmLike {
     additional_input_.HostVector().begin()[1] = is_null_weight;
 
     const size_t nthreads = ctx_->Threads();
-    bool on_device = device.IsCUDA();
+    bool on_device = !device.IsCPU();
     // On CPU we run the transformation each thread processing a contigious block of data
     // for better performance.
     const size_t n_data_blocks = std::max(static_cast<size_t>(1), (on_device ? ndata : nthreads));
