@@ -16,8 +16,7 @@ iteration number in the file name. E.g., with \code{save_name = 'xgboost_\%04d.m
 the file saved at iteration 50 would be named "xgboost_0050.model".}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}},
-but \strong{not} to \code{\link[=xgb.cv]{xgb.cv()}}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 This callback function allows to save an xgb-model file, either periodically

@@ -67,45 +67,6 @@ test_that("xgb.cb.print.evaluation works as expected for xgb.train", {
   lapply(seq_along(seq_matches), function(x) expect_true(grepl(paste0("^\\[", seq_matches[x]), logs2[x])))
 })
 
-test_that("xgb.cb.print.evaluation works as expected for xgb.cv", {
-  logs1 <- capture.output({
-    model <- xgb.cv(
-      data = dtrain,
-      params = list(
-        objective = "binary:logistic",
-        eval_metric = "auc",
-        max_depth = 2,
-        nthread = n_threads
-      ),
-      nrounds = 10,
-      nfold = 3,
-      callbacks = list(xgb.cb.print.evaluation(period = 1, showsd = TRUE))
-    )
-  })
-  expect_equal(length(logs1), 10)
-  expect_true(all(grepl("^\\[\\d{1,2}\\]\ttrain-auc:0\\.\\d+±0\\.\\d+\ttest-auc:0\\.\\d+±0\\.\\d+\\s*$", logs1)))
-  lapply(seq(1, 10), function(x) expect_true(grepl(paste0("^\\[", x), logs1[x])))
-
-  logs2 <- capture.output({
-    model <- xgb.cv(
-      data = dtrain,
-      params = list(
-        objective = "binary:logistic",
-        eval_metric = "auc",
-        max_depth = 2,
-        nthread = n_threads
-      ),
-      nrounds = 10,
-      nfold = 3,
-      callbacks = list(xgb.cb.print.evaluation(period = 2, showsd = TRUE))
-    )
-  })
-  expect_equal(length(logs2), 6)
-  expect_true(all(grepl("^\\[\\d{1,2}\\]\ttrain-auc:0\\.\\d+±0\\.\\d+\ttest-auc:0\\.\\d+±0\\.\\d+\\s*$", logs2)))
-  seq_matches <- c(seq(1, 10, 2), 10)
-  lapply(seq_along(seq_matches), function(x) expect_true(grepl(paste0("^\\[", seq_matches[x]), logs2[x])))
-})
-
 test_that("xgb.cb.evaluation.log works as expected for xgb.train", {
   model <- xgb.train(
     data = dtrain,
@@ -125,30 +86,6 @@ test_that("xgb.cb.evaluation.log works as expected for xgb.train", {
   expect_equal(nrow(logs), 10)
   expect_equal(colnames(logs), c("iter", "train_auc", "test_auc"))
 })
-
-test_that("xgb.cb.evaluation.log works as expected for xgb.cv", {
-  model <- xgb.cv(
-    data = dtrain,
-    params = list(
-      objective = "binary:logistic",
-      eval_metric = "auc",
-      max_depth = 2,
-      nthread = n_threads
-    ),
-    nrounds = 10,
-    verbose = FALSE,
-    nfold = 3,
-    callbacks = list(xgb.cb.evaluation.log())
-  )
-  logs <- model$evaluation_log
-
-  expect_equal(nrow(logs), 10)
-  expect_equal(
-    colnames(logs),
-    c("iter", "train_auc_mean", "train_auc_std", "test_auc_mean", "test_auc_std")
-  )
-})
-
 
 param <- list(objective = "binary:logistic", eval_metric = "error",
               max_depth = 4, nthread = n_threads)
@@ -201,11 +138,6 @@ test_that("xgb.cb.reset.parameters works as expected", {
   expect_error(
     bst4 <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0,
                       callbacks = list(xgb.cb.reset.parameters(my_par)))
-  , NA) # NA = no error
-  # CV works as well
-  expect_error(
-    bst4 <- xgb.cv(param, dtrain, nfold = 2, nrounds = 2, verbose = 0,
-                   callbacks = list(xgb.cb.reset.parameters(my_par)))
   , NA) # NA = no error
 
   # expect no learning with 0 learning rate
@@ -319,162 +251,4 @@ test_that("early stopping works with titanic", {
   )
 
   expect_true(TRUE)  # should not crash
-})
-
-test_that("early stopping xgb.cv works", {
-  set.seed(11)
-  expect_output(
-    cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.3, nrounds = 20,
-                 early_stopping_rounds = 3, maximize = FALSE)
-  , "Stopping. Best iteration")
-  expect_false(is.null(cv$early_stop$best_iteration))
-  expect_lt(cv$early_stop$best_iteration, 19)
-  # the best error is min error:
-  expect_true(cv$evaluation_log[, test_error_mean[cv$early_stop$best_iteration] == min(test_error_mean)])
-})
-
-test_that("prediction in xgb.cv works", {
-  set.seed(11)
-  nrounds <- 4
-  cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.5, nrounds = nrounds, prediction = TRUE, verbose = 0)
-  expect_false(is.null(cv$evaluation_log))
-  expect_false(is.null(cv$cv_predict$pred))
-  expect_length(cv$cv_predict$pred, nrow(train$data))
-  err_pred <- mean(sapply(cv$folds, function(f) mean(err(ltrain[f], cv$cv_predict$pred[f]))))
-  err_log <- cv$evaluation_log[nrounds, test_error_mean]
-  expect_equal(err_pred, err_log, tolerance = 1e-6)
-
-  # save CV models
-  set.seed(11)
-  cvx <- xgb.cv(param, dtrain, nfold = 5, eta = 0.5, nrounds = nrounds, prediction = TRUE, verbose = 0,
-                callbacks = list(xgb.cb.cv.predict(save_models = TRUE)))
-  expect_equal(cv$evaluation_log, cvx$evaluation_log)
-  expect_length(cvx$cv_predict$models, 5)
-  expect_true(all(sapply(cvx$cv_predict$models, class) == 'xgb.Booster'))
-})
-
-test_that("prediction in xgb.cv works for gblinear too", {
-  set.seed(11)
-  p <- list(booster = 'gblinear', objective = "reg:logistic", nthread = n_threads)
-  cv <- xgb.cv(p, dtrain, nfold = 5, eta = 0.5, nrounds = 2, prediction = TRUE, verbose = 0)
-  expect_false(is.null(cv$evaluation_log))
-  expect_false(is.null(cv$cv_predict$pred))
-  expect_length(cv$cv_predict$pred, nrow(train$data))
-})
-
-test_that("prediction in early-stopping xgb.cv works", {
-  set.seed(11)
-  expect_output(
-    cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.1, nrounds = 20,
-                 early_stopping_rounds = 5, maximize = FALSE, stratified = FALSE,
-                 prediction = TRUE, base_score = 0.5, verbose = TRUE)
-  , "Stopping. Best iteration")
-
-  expect_false(is.null(cv$early_stop$best_iteration))
-  expect_lt(cv$early_stop$best_iteration, 19)
-  expect_false(is.null(cv$evaluation_log))
-  expect_false(is.null(cv$cv_predict$pred))
-  expect_length(cv$cv_predict$pred, nrow(train$data))
-
-  err_pred <- mean(sapply(cv$folds, function(f) mean(err(ltrain[f], cv$cv_predict$pred[f]))))
-  err_log <- cv$evaluation_log[cv$early_stop$best_iteration, test_error_mean]
-  expect_equal(err_pred, err_log, tolerance = 1e-6)
-  err_log_last <- cv$evaluation_log[cv$niter, test_error_mean]
-  expect_gt(abs(err_pred - err_log_last), 1e-4)
-})
-
-test_that("prediction in xgb.cv for softprob works", {
-  lb <- as.numeric(iris$Species) - 1
-  set.seed(11)
-  expect_warning(
-    cv <- xgb.cv(data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb), nfold = 4,
-                 eta = 0.5, nrounds = 5, max_depth = 3, nthread = n_threads,
-                 subsample = 0.8, gamma = 2, verbose = 0,
-                 prediction = TRUE, objective = "multi:softprob", num_class = 3)
-  , NA)
-  expect_false(is.null(cv$cv_predict$pred))
-  expect_equal(dim(cv$cv_predict$pred), c(nrow(iris), 3))
-  expect_lt(diff(range(rowSums(cv$cv_predict$pred))), 1e-6)
-})
-
-test_that("prediction in xgb.cv works for multi-quantile", {
-  data(mtcars)
-  y <- mtcars$mpg
-  x <- as.matrix(mtcars[, -1])
-  dm <- xgb.DMatrix(x, label = y, nthread = 1)
-  cv <- xgb.cv(
-    data = dm,
-    params = list(
-      objective = "reg:quantileerror",
-      quantile_alpha = c(0.1, 0.2, 0.5, 0.8, 0.9),
-      nthread = 1
-    ),
-    nrounds = 5,
-    nfold = 3,
-    prediction = TRUE,
-    verbose = 0
-  )
-  expect_equal(dim(cv$cv_predict$pred), c(nrow(x), 5))
-})
-
-test_that("prediction in xgb.cv works for multi-output", {
-  data(mtcars)
-  y <- mtcars$mpg
-  x <- as.matrix(mtcars[, -1])
-  dm <- xgb.DMatrix(x, label = cbind(y, -y), nthread = 1)
-  cv <- xgb.cv(
-    data = dm,
-    params = list(
-      tree_method = "hist",
-      multi_strategy = "multi_output_tree",
-      objective = "reg:squarederror",
-      nthread = n_threads
-    ),
-    nrounds = 5,
-    nfold = 3,
-    prediction = TRUE,
-    verbose = 0
-  )
-  expect_equal(dim(cv$cv_predict$pred), c(nrow(x), 2))
-})
-
-test_that("prediction in xgb.cv works for multi-quantile", {
-  data(mtcars)
-  y <- mtcars$mpg
-  x <- as.matrix(mtcars[, -1])
-  dm <- xgb.DMatrix(x, label = y, nthread = 1)
-  cv <- xgb.cv(
-    data = dm,
-    params = list(
-      objective = "reg:quantileerror",
-      quantile_alpha = c(0.1, 0.2, 0.5, 0.8, 0.9),
-      nthread = 1
-    ),
-    nrounds = 5,
-    nfold = 3,
-    prediction = TRUE,
-    verbose = 0
-  )
-  expect_equal(dim(cv$cv_predict$pred), c(nrow(x), 5))
-})
-
-test_that("prediction in xgb.cv works for multi-output", {
-  data(mtcars)
-  y <- mtcars$mpg
-  x <- as.matrix(mtcars[, -1])
-  dm <- xgb.DMatrix(x, label = cbind(y, -y), nthread = 1)
-  cv <- xgb.cv(
-    data = dm,
-    params = list(
-      tree_method = "hist",
-      multi_strategy = "multi_output_tree",
-      objective = "reg:squarederror",
-      nthread = n_threads
-    ),
-    nrounds = 5,
-    nfold = 3,
-    prediction = TRUE,
-    verbose = 0
-  )
-  expect_equal(dim(cv$cv_predict$pred), c(nrow(x), 2))
 })

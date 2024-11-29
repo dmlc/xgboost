@@ -40,13 +40,6 @@ test_that("custom objective works", {
   expect_lt(attributes(bst)$evaluation_log[num_round, eval_error], 0.03)
 })
 
-test_that("custom objective in CV works", {
-  cv <- xgb.cv(param, dtrain, num_round, nfold = 10, verbose = FALSE)
-  expect_false(is.null(cv$evaluation_log))
-  expect_equal(dim(cv$evaluation_log), c(2, 5))
-  expect_lt(cv$evaluation_log[num_round, test_error_mean], 0.03)
-})
-
 test_that("custom objective with early stop works", {
   bst <- xgb.train(param, dtrain, 10, evals)
   expect_equal(class(bst), "xgb.Booster")

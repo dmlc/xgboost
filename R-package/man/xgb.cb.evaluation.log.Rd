@@ -7,7 +7,7 @@
 xgb.cb.evaluation.log()
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 Callback for logging the evaluation history

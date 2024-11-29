@@ -12,7 +12,7 @@ xgb.cb.print.evaluation(period = 1, showsd = TRUE)
 \item{showsd}{Whether standard deviations should be printed (when available).}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 The callback function prints the result of evaluation at every \code{period} iterations.

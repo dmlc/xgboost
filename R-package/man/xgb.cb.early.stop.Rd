@@ -33,7 +33,7 @@ in the resulting object. If passing \code{FALSE}, will only keep the boosting ro
 up to the detected best iteration, discarding the ones that come after.}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 This callback function determines the condition for early stopping.

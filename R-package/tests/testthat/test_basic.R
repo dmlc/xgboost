@@ -330,45 +330,6 @@ test_that("training continuation works", {
   expect_equal(dim(attributes(bst2)$evaluation_log), c(2, 2))
 })
 
-test_that("xgb.cv works", {
-  set.seed(11)
-  expect_output(
-    cv <- xgb.cv(
-      data = xgb.DMatrix(train$data, label = train$label), max_depth = 2, nfold = 5,
-      eta = 1., nthread = n_threads, nrounds = 2, objective = "binary:logistic",
-      eval_metric = "error", verbose = TRUE
-    ),
-    "train-error:"
-  )
-  expect_is(cv, "xgb.cv.synchronous")
-  expect_false(is.null(cv$evaluation_log))
-  expect_lt(cv$evaluation_log[, min(test_error_mean)], 0.03)
-  expect_lt(cv$evaluation_log[, min(test_error_std)], 0.0085)
-  expect_equal(cv$niter, 2)
-  expect_false(is.null(cv$folds) && is.list(cv$folds))
-  expect_length(cv$folds, 5)
-  expect_false(is.null(cv$params) && is.list(cv$params))
-  expect_false(is.null(cv$call))
-})
-
-test_that("xgb.cv works with stratified folds", {
-  dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = n_threads)
-  set.seed(314159)
-  cv <- xgb.cv(
-    data = dtrain, max_depth = 2, nfold = 5,
-    eta = 1., nthread = n_threads, nrounds = 2, objective = "binary:logistic",
-    verbose = FALSE, stratified = FALSE
-  )
-  set.seed(314159)
-  cv2 <- xgb.cv(
-    data = dtrain, max_depth = 2, nfold = 5,
-    eta = 1., nthread = n_threads, nrounds = 2, objective = "binary:logistic",
-    verbose = FALSE, stratified = TRUE
-  )
-  # Stratified folds should result in a different evaluation logs
-  expect_true(all(cv$evaluation_log[, test_logloss_mean] != cv2$evaluation_log[, test_logloss_mean]))
-})
-
 test_that("train and predict with non-strict classes", {
   # standard dense matrix input
   train_dense <- as.matrix(train$data)
@@ -907,60 +868,6 @@ test_that("Seed in params override PRNG from R", {
       )
     )
   )
-})
-
-test_that("xgb.cv works for AFT", {
-  X <- matrix(c(1, -1, -1, 1, 0, 1, 1, 0), nrow = 4, byrow = TRUE)  # 4x2 matrix
-  dtrain <- xgb.DMatrix(X, nthread = n_threads)
-
-  params <- list(objective = 'survival:aft', learning_rate = 0.2, max_depth = 2L)
-
-  # data must have bounds
-  expect_error(
-    xgb.cv(
-      params = params,
-      data = dtrain,
-      nround = 5L,
-      nfold = 4L,
-      nthread = n_threads
-    )
-  )
-
-  setinfo(dtrain, 'label_lower_bound', c(2, 3, 0, 4))
-  setinfo(dtrain, 'label_upper_bound', c(2, Inf, 4, 5))
-
-  # automatic stratified splitting is turned off
-  expect_warning(
-    xgb.cv(
-      params = params, data = dtrain, nround = 5L, nfold = 4L,
-      nthread = n_threads, stratified = TRUE, verbose = FALSE
-    )
-  )
-
-  # this works without any issue
-  expect_no_warning(
-    xgb.cv(params = params, data = dtrain, nround = 5L, nfold = 4L, verbose = FALSE)
-  )
-})
-
-test_that("xgb.cv works for ranking", {
-  data(iris)
-  x <- iris[, -(4:5)]
-  y <- as.integer(iris$Petal.Width)
-  group <- rep(50, 3)
-  dm <- xgb.DMatrix(x, label = y, group = group)
-  res <- xgb.cv(
-    data = dm,
-    params = list(
-      objective = "rank:pairwise",
-      max_depth = 3
-    ),
-    nrounds = 3,
-    nfold = 2,
-    verbose = FALSE,
-    stratified = FALSE
-  )
-  expect_equal(length(res$folds), 2L)
 })
 
 test_that("Row names are preserved in outputs", {

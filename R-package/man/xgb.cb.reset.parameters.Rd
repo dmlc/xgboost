@@ -15,7 +15,7 @@ which returns a new parameter value by using the current iteration number
 and the total number of boosting rounds.}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 Callback for resetting booster parameters at each iteration

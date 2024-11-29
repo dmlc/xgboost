@@ -20,7 +20,7 @@ xgb.Callback(
 
 If the callback produces some non-NULL result (from executing the function passed under
 \code{f_after_training}), that result will be added as an R attribute to the resulting booster
-(or as a named element in the result of CV), with the attribute name specified here.
+, with the attribute name specified here.
 
 Names of callbacks must be unique - i.e. there cannot be two callbacks with the same name.}
 
@@ -54,11 +54,10 @@ Return values of \code{NULL} will be interpreted as \code{FALSE}.}
 
 This function can optionally output something non-NULL, which will become part of the R
 attributes of the booster (assuming one passes \code{keep_extra_attributes=TRUE} to \code{\link[=xgb.train]{xgb.train()}})
-under the name supplied for parameter \code{cb_name} imn the case of \code{\link[=xgb.train]{xgb.train()}}; or a part
-of the named elements in the result of \code{\link[=xgb.cv]{xgb.cv()}}.}
+under the name supplied for parameter \code{cb_name} imn the case of \code{\link[=xgb.train]{xgb.train()}}.}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 Constructor for defining the structure of callback functions that can be executed
@@ -75,17 +74,7 @@ across iterations or similar.
 
 This environment is only used by the functions supplied to the callback, and will
 not be kept after the model fitting function terminates (see parameter \code{f_after_training}).
-\item model The booster object when using \code{\link[=xgb.train]{xgb.train()}}, or the folds when using \code{\link[=xgb.cv]{xgb.cv()}}.
-
-For \code{\link[=xgb.cv]{xgb.cv()}}, folds are a list with a structure as follows:
-\itemize{
-\item \code{dtrain}: The training data for the fold (as an \code{xgb.DMatrix} object).
-\item \code{bst}: Rhe \code{xgb.Booster} object for the fold.
-\item \code{evals}: A list containing two DMatrices, with names \code{train} and \code{test}
-(\code{test} is the held-out data for the fold).
-\item \code{index}: The indices of the hold-out data for that fold (base-1 indexing),
-from which the \code{test} entry in \code{evals} was obtained.
-}
+\item model The booster object when using \code{\link[=xgb.train]{xgb.train()}}.
 
 This object should \strong{not} be in-place modified in ways that conflict with the
 training (e.g. resetting the parameters for a training update in a way that resets
@@ -99,12 +88,7 @@ of the iterations and after the training is done.
 
 For keeping variables across iterations, it's recommended to use \code{env} instead.
 \item data The data to which the model is being fit, as an \code{xgb.DMatrix} object.
-
-Note that, for \code{\link[=xgb.cv]{xgb.cv()}}, this will be the full data, while data for the specific
-folds can be found in the \code{model} object.
 \item evals The evaluation data, as passed under argument \code{evals} to \code{\link[=xgb.train]{xgb.train()}}.
-
-For \code{\link[=xgb.cv]{xgb.cv()}}, this will always be \code{NULL}.
 \item begin_iteration Index of the first boosting iteration that will be executed (base-1 indexing).
 
 This will typically be '1', but when using training continuation, depending on the
@@ -113,7 +97,7 @@ model ended, in which case this will be larger than 1.
 \item end_iteration Index of the last boostign iteration that will be executed
 (base-1 indexing, inclusive of this end).
 
-It should match with argument \code{nrounds} passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
+It should match with argument \code{nrounds} passed to \code{\link[=xgb.train]{xgb.train()}}.
 
 Note that boosting might be interrupted before reaching this last iteration, for
 example by using the early stopping callback \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}}.
@@ -126,10 +110,6 @@ For \code{\link[=xgb.train]{xgb.train()}}, this will be a named vector with one 
 \code{evals}, where the names are determined as 'evals name' + '-' + 'metric name' - for
 example, if \code{evals} contains an entry named "tr" and the metric is "rmse",
 this will be a one-element vector with name "tr-rmse".
-
-For \code{\link[=xgb.cv]{xgb.cv()}}, this will be a 2d matrix with dimensions \verb{[length(evals), nfolds]},
-where the row names will follow the same naming logic as the one-dimensional vector
-that is passed in \code{\link[=xgb.train]{xgb.train()}}.
 
 Note that, internally, the built-in callbacks such as \link{xgb.cb.print.evaluation} summarize
 this table by calculating the row-wise means and standard deviations.
@@ -146,8 +126,6 @@ which will append the new rows to the previous table.
 
 If no such previous callback result is available (which it never will when fitting
 a model from start instead of updating an existing model), this will be \code{NULL}.
-
-For \code{\link[=xgb.cv]{xgb.cv()}}, which doesn't support training continuation, this will always be \code{NULL}.
 }
 
 The following names (\code{cb_name} values) are reserved for internal callbacks:
@@ -157,7 +135,6 @@ The following names (\code{cb_name} values) are reserved for internal callbacks:
 \item reset_parameters
 \item early_stop
 \item save_model
-\item cv_predict
 \item gblinear_history
 }
 
@@ -237,7 +214,6 @@ Built-in callbacks:
 \item \link{xgb.cb.reset.parameters}
 \item \link{xgb.cb.early.stop}
 \item \link{xgb.cb.save.model}
-\item \link{xgb.cb.cv.predict}
 \item \link{xgb.cb.gblinear.history}
 }
 }

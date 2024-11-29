@@ -377,7 +377,7 @@ xgb.train <- function(params = list(), data, nrounds, evals = list(),
   }
 
   # callbacks
-  tmp <- .process.callbacks(callbacks, is_cv = FALSE)
+  tmp <- .process.callbacks(callbacks)
   callbacks <- tmp$callbacks
   cb_names <- tmp$cb_names
   rm(tmp)

@@ -13,7 +13,7 @@ when using the "thrifty" feature selector with fairly small number of top featur
 selected per iteration.}
 }
 \value{
-An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
+An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}}.
 }
 \description{
 Callback for collecting coefficients history of a gblinear booster
@@ -38,7 +38,6 @@ one coefficient per feature) the names will be composed as 'column name' + ':' +
 (so e.g. column 'c1' for class '0' will be named 'c1:0').
 
 With \code{\link[=xgb.train]{xgb.train()}}, the output is either a dense or a sparse matrix.
-With with \code{\link[=xgb.cv]{xgb.cv()}}, it is a list (one element per each fold) of such matrices.
 
 Function \link{xgb.gblinear.history} provides an easy way to retrieve the
 outputs from this callback.
@@ -103,18 +102,6 @@ matplot(xgb.gblinear.history(bst), type = "l")
 # Try experimenting with various values of top_k, eta, nrounds,
 # as well as different feature_selectors.
 
-# For xgb.cv:
-bst <- xgb.cv(
-  param,
-  dtrain,
-  nfold = 5,
-  nrounds = 100,
-  eta = 0.8,
-  callbacks = list(xgb.cb.gblinear.history())
-)
-# coefficients in the CV fold #3
-matplot(xgb.gblinear.history(bst)[[3]], type = "l")
-
 
 #### Multiclass classification:
 dtrain <- xgb.DMatrix(scale(x), label = as.numeric(iris$Species) - 1, nthread = nthread)
@@ -143,18 +130,6 @@ bst <- xgb.train(
 matplot(xgb.gblinear.history(bst, class_index = 0), type = "l")
 matplot(xgb.gblinear.history(bst, class_index = 1), type = "l")
 matplot(xgb.gblinear.history(bst, class_index = 2), type = "l")
-
-# CV:
-bst <- xgb.cv(
-  param,
-  dtrain,
-  nfold = 5,
-  nrounds = 70,
-  eta = 0.5,
-  callbacks = list(xgb.cb.gblinear.history(FALSE))
-)
-# 1st fold of 1st class
-matplot(xgb.gblinear.history(bst, class_index = 0)[[1]], type = "l")
 
 }
 \seealso{

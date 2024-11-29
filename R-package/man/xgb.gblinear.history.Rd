@@ -7,9 +7,8 @@
 xgb.gblinear.history(model, class_index = NULL)
 }
 \arguments{
-\item{model}{Either an \code{xgb.Booster} or a result of \code{\link[=xgb.cv]{xgb.cv()}}, trained
-using the \link{xgb.cb.gblinear.history} callback, but \strong{not} a booster
-loaded from \code{\link[=xgb.load]{xgb.load()}} or \code{\link[=xgb.load.raw]{xgb.load.raw()}}.}
+\item{model}{Either an \code{xgb.Booster}, trained using the \link{xgb.cb.gblinear.history}
+callback, but \strong{not} a booster loaded from \code{\link[=xgb.load]{xgb.load()}} or \code{\link[=xgb.load.raw]{xgb.load.raw()}}.}
 
 \item{class_index}{zero-based class index to extract the coefficients for only that
 specific class in a multinomial multiclass model. When it is \code{NULL}, all the
@@ -18,9 +17,6 @@ coefficients are returned. Has no effect in non-multiclass models.}
 \value{
 For an \code{\link[=xgb.train]{xgb.train()}} result, a matrix (either dense or sparse) with the columns
 corresponding to iteration's coefficients and the rows corresponding to boosting iterations.
-
-For an \code{\link[=xgb.cv]{xgb.cv()}} result, a list of such matrices is returned with the elements
-corresponding to CV folds.
 
 When there is more than one coefficient per feature (e.g. multi-class classification)
 and \code{class_index} is not provided,
