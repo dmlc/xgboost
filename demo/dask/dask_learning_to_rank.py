@@ -29,7 +29,7 @@ from sklearn.datasets import load_svmlight_file
 from xgboost import dask as dxgb
 
 
-def load_mlsr_10k(
+def load_mslr_10k(
     device: str, data_path: str, cache_path: str
 ) -> tuple[dd.DataFrame, dd.DataFrame, dd.DataFrame]:
     """Load the MSLR10k dataset from data_path and save parquet files in the cache_path."""
@@ -98,7 +98,7 @@ def load_mlsr_10k(
 
 def ranking_demo(client: Client, args: argparse.Namespace) -> None:
     """Learning to rank with data sorted locally."""
-    df_tr, df_va, _ = load_mlsr_10k(args.device, args.data, args.cache)
+    df_tr, df_va, _ = load_mslr_10k(args.device, args.data, args.cache)
 
     X_train: dd.DataFrame = df_tr[df_tr.columns.difference(["y", "qid"])]
     y_train = df_tr[["y", "qid"]]
@@ -121,7 +121,7 @@ def ranking_demo(client: Client, args: argparse.Namespace) -> None:
 
 def ranking_wo_split_demo(client: Client, args: argparse.Namespace) -> None:
     """Learning to rank with data partitioned according to query groups."""
-    df_tr, df_va, df_te = load_mlsr_10k(args.device, args.data, args.cache)
+    df_tr, df_va, df_te = load_mslr_10k(args.device, args.data, args.cache)
 
     X_tr = df_tr[df_tr.columns.difference(["y", "qid"])]
     X_va = df_va[df_va.columns.difference(["y", "qid"])]
