@@ -2994,7 +2994,7 @@ class Booster:
         fmap :
             Name of the file containing feature map names.
         with_stats :
-            Controls whether the split statistics are output.
+            Controls whether the split statistics should be included.
         dump_format :
             Format of model dump. Can be 'text', 'json' or 'dot'.
 

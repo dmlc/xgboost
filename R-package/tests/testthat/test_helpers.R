@@ -408,6 +408,19 @@ test_that("xgb.plot.tree works with and without feature names", {
   .skip_if_vcd_not_available()
   expect_silent(xgb.plot.tree(feature_names = feature.names, model = bst.Tree.unnamed))
   expect_silent(xgb.plot.tree(model = bst.Tree))
+
+  ## Categorical
+  y <- rnorm(100)
+  x <- sample(3, size = 100 * 3, replace = TRUE) |> matrix(nrow = 100)
+  x <- x - 1
+  dm <- xgb.DMatrix(data = x, label = y)
+  setinfo(dm, "feature_type", c("c", "c", "c"))
+  model <- xgb.train(
+    data = dm,
+    params = list(tree_method = "hist"),
+    nrounds = 2
+  )
+  expect_silent(xgb.plot.tree(model = model))
 })
 
 test_that("xgb.plot.multi.trees works with and without feature names", {

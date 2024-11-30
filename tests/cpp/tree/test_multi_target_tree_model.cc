@@ -60,7 +60,7 @@ TEST(MultiTargetTree, DumpDot) {
     auto name = "feat_" + std::to_string(f);
     fmap.PushBack(f, name.c_str(), "q");
   }
-  auto str = tree->DumpModel(fmap, true, "dot");
+  auto str = tree->DumpModel(fmap, false, "dot");
   ASSERT_NE(str.find("leaf=[2, 3, 4]"), std::string::npos);
   ASSERT_NE(str.find("leaf=[3, 4, 5]"), std::string::npos);
 
@@ -71,7 +71,7 @@ TEST(MultiTargetTree, DumpDot) {
     linalg::Vector<float> weight{{1.0f, 2.0f, 3.0f, 4.0f}, {4ul}, DeviceOrd::CPU()};
     tree.ExpandNode(RegTree::kRoot, /*split_idx=*/1, 0.5f, true, weight.HostView(),
                     weight.HostView(), weight.HostView());
-    auto str = tree.DumpModel(fmap, true, "dot");
+    auto str = tree.DumpModel(fmap, false, "dot");
     ASSERT_NE(str.find("leaf=[1, 2, ..., 4]"), std::string::npos);
   }
 }
