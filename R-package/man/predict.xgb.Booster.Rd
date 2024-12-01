@@ -80,7 +80,9 @@ predict using only the first one.
 If passing \code{NULL}, will either stop at the best iteration if the model used early stopping, or use all
 of the iterations (rounds) otherwise.
 
-If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.}
+If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.
+
+Not applicable to \code{gblinear} booster.}
 
 \item{strict_shape}{Whether to always return an array with the same dimensions for the given prediction mode
 regardless of the model type - meaning that, for example, both a multi-class and a binary classification
@@ -118,7 +120,13 @@ and come in the same order as in the training data.
 Note that this check might add some sizable latency to the predictions, so it's
 recommended to disable it for performance-sensitive applications.}
 
-\item{base_margin}{Base margin used for boosting from existing model.
+\item{base_margin}{Base margin used for boosting from existing model (raw score that gets added to
+all observations independently of the trees in the model).
+
+If supplied, should be either a vector with length equal to the number of rows in \code{newdata}
+(for objectives which produces a single score per observation), or a matrix with number of
+rows matching to the number rows in \code{newdata} and number of columns matching to the number
+of scores estimated by the model (e.g. number of classes for multi-class classification).
 
 Note that, if \code{newdata} is an \code{xgb.DMatrix} object, this argument will
 be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
@@ -162,7 +170,7 @@ If passing \code{strict_shape=FALSE}, the result is always an array:
 \item For normal predictions, the dimension is \verb{[nrows, ngroups]}.
 \item For \code{predcontrib=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1]}.
 \item For \code{predinteraction=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1, nfeats+1]}.
-\item For \code{predleaf=TRUE}, the dimension is \verb{[nrows, niter, ngroups, num_parallel_tree]}.
+\item For \code{predleaf=TRUE}, the dimension is \verb{[nrows, niter * ngroups * num_parallel_tree]}.
 }
 
 If passing \code{avoid_transpose=TRUE}, then the dimensions in all cases will be in reverse order - for

@@ -126,6 +126,8 @@ xgb.get.handle <- function(object) {
 #'   of the iterations (rounds) otherwise.
 #'
 #'   If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.
+#'
+#'   Not applicable to `gblinear` booster.
 #' @param strict_shape Whether to always return an array with the same dimensions for the given prediction mode
 #'   regardless of the model type - meaning that, for example, both a multi-class and a binary classification
 #'   model would generate output arrays with the same number of dimensions, with the 'class' dimension having
@@ -144,7 +146,13 @@ xgb.get.handle <- function(object) {
 #'
 #'   If passing `TRUE`, then the result will have dimensions in reverse order - for example, rows
 #'   will be the last dimensions instead of the first dimension.
-#' @param base_margin Base margin used for boosting from existing model.
+#' @param base_margin Base margin used for boosting from existing model (raw score that gets added to
+#'   all observations independently of the trees in the model).
+#'
+#'   If supplied, should be either a vector with length equal to the number of rows in `newdata`
+#'   (for objectives which produces a single score per observation), or a matrix with number of
+#'   rows matching to the number rows in `newdata` and number of columns matching to the number
+#'   of scores estimated by the model (e.g. number of classes for multi-class classification).
 #'
 #'   Note that, if `newdata` is an `xgb.DMatrix` object, this argument will
 #'   be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
@@ -226,7 +234,7 @@ xgb.get.handle <- function(object) {
 #' - For normal predictions, the dimension is `[nrows, ngroups]`.
 #' - For `predcontrib=TRUE`, the dimension is `[nrows, ngroups, nfeats+1]`.
 #' - For `predinteraction=TRUE`, the dimension is `[nrows, ngroups, nfeats+1, nfeats+1]`.
-#' - For `predleaf=TRUE`, the dimension is `[nrows, niter, ngroups, num_parallel_tree]`.
+#' - For `predleaf=TRUE`, the dimension is `[nrows, niter * ngroups * num_parallel_tree]`.
 #'
 #' If passing `avoid_transpose=TRUE`, then the dimensions in all cases will be in reverse order - for
 #' example, for `predinteraction`, they will be `[nfeats+1, nfeats+1, ngroups, nrows]`
