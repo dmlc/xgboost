@@ -1160,7 +1160,7 @@ predict.xgboost <- function(
       names_use <- attributes(object)$metadata$y_names
     } else if (NROW(attributes(object)$params$quantile_alpha) > 1L) {
       names_use <- paste0("q", attributes(object)$params$quantile_alpha)
-      if (length(unique(names_use)) < length(names_use)) {
+      if (anyDuplicated(names_use)) {
         warning("Cannot add quantile names to output due to clashes in their character conversions")
         names_use <- NULL
       }
