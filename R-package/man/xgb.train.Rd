@@ -129,7 +129,7 @@ the Hessian will be clipped, so one might consider using the expected Hessian (F
 objective is non-convex.
 
 See the tutorials \href{https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html}{Custom Objective and Evaluation Metric}
-and \href{https://xgboost.readthedocs.io/en/stable/tutorials/advanced_custom_obj}{Advanced Usage of Custom Objectives}
+and \href{https://xgboost.readthedocs.io/en/latest/tutorials/advanced_custom_obj.html}{Advanced Usage of Custom Objectives}
 for more information about custom objectives.
 \item \code{base_score}: The initial prediction score of all instances, global bias. Default: 0.5.
 \item \code{eval_metric}: Evaluation metrics for validation data.

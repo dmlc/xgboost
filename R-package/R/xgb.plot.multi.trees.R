@@ -23,6 +23,7 @@
 #' @inheritParams xgb.plot.tree
 #' @param features_keep Number of features to keep in each position of the multi trees,
 #'   by default 5.
+#' @param render Should the graph be rendered or not? The default is `TRUE`.
 #' @inherit xgb.plot.tree return
 #'
 #' @examples

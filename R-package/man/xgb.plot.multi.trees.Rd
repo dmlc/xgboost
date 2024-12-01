@@ -14,8 +14,9 @@ xgb.plot.multi.trees(
 )
 }
 \arguments{
-\item{model}{Object of class \code{xgb.Booster}. If it contains feature names (they can be set through
-\code{\link[=setinfo]{setinfo()}}, they will be used in the output from this function.}
+\item{model}{Object of class \code{xgb.Booster}. If it contains feature names
+(they can be set through \code{\link[=setinfo]{setinfo()}}, they will be used in the
+output from this function.}
 
 \item{features_keep}{Number of features to keep in each position of the multi trees,
 by default 5.}
@@ -28,15 +29,9 @@ The values are passed to \code{DiagrammeR::render_graph()}.}
 \item{...}{Currently not used.}
 }
 \value{
-The value depends on the \code{render} parameter:
-\itemize{
-\item If \code{render = TRUE} (default): Rendered graph object which is an htmlwidget of
-class \code{grViz}. Similar to "ggplot" objects, it needs to be printed when not
-running from the command line.
-\item If \code{render = FALSE}: Graph object which is of DiagrammeR's class \code{dgr_graph}.
-This could be useful if one wants to modify some of the graph attributes
-before rendering the graph with \code{DiagrammeR::render_graph()}.
-}
+Rendered graph object which is an htmlwidget of ' class \code{grViz}. Similar to
+"ggplot" objects, it needs to be printed when not running from the command
+line.
 }
 \description{
 Visualization of the ensemble of trees as a single collective unit.
