@@ -1,11 +1,12 @@
-// Copyright by Contributors
+/**
+ * Copyright 2018-2024, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"
 #include "../filesystem.h"
 #include "../helpers.h"
-#include "xgboost/json_io.h"
 #include "xgboost/tree_model.h"
 
 namespace xgboost {
@@ -449,7 +450,8 @@ TEST(Tree, DumpDot) {
   fmap.PushBack(2, "feat_2", "int");
 
   str = tree.DumpModel(fmap, true, "dot");
-  ASSERT_NE(str.find(R"("feat_0")"), std::string::npos);
+  ASSERT_NE(str.find(R"("feat_0)"), std::string::npos);
+  ASSERT_EQ(str.find(R"("feat_0")"), std::string::npos);  // newline
   ASSERT_NE(str.find(R"(feat_1<1)"), std::string::npos);
   ASSERT_NE(str.find(R"(feat_2<2)"), std::string::npos);
 

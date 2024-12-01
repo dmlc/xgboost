@@ -103,7 +103,7 @@
 #'      objective is non-convex.
 #'
 #'      See the tutorials [Custom Objective and Evaluation Metric](https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html)
-#'      and [Advanced Usage of Custom Objectives](https://xgboost.readthedocs.io/en/stable/tutorials/advanced_custom_obj)
+#'      and [Advanced Usage of Custom Objectives](https://xgboost.readthedocs.io/en/latest/tutorials/advanced_custom_obj.html)
 #'      for more information about custom objectives.
 #'
 #'   - `base_score`: The initial prediction score of all instances, global bias. Default: 0.5.

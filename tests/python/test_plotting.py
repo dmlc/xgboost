@@ -54,10 +54,10 @@ class TestPlotting:
         assert ax.patches[2].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
         assert ax.patches[3].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
 
-        g = xgb.to_graphviz(booster, num_trees=0)
+        g = xgb.to_graphviz(booster, tree_idx=0)
         assert isinstance(g, Source)
 
-        ax = xgb.plot_tree(booster, num_trees=0)
+        ax = xgb.plot_tree(booster, tree_idx=0)
         assert isinstance(ax, Axes)
 
     def test_importance_plot_lim(self):
@@ -86,9 +86,9 @@ class TestPlotting:
                 j_tree["split_condition"], list
             )
 
-        graph = xgb.to_graphviz(reg, num_trees=len(j_tree) - 1)
+        graph = xgb.to_graphviz(reg, tree_idx=len(j_tree) - 1)
         assert isinstance(graph, Source)
-        ax = xgb.plot_tree(reg, num_trees=len(j_tree) - 1)
+        ax = xgb.plot_tree(reg, tree_idx=len(j_tree) - 1)
         assert isinstance(ax, Axes)
 
     @pytest.mark.skipif(**tm.no_pandas())

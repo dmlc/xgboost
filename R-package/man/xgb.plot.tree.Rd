@@ -5,95 +5,57 @@
 \title{Plot boosted trees}
 \usage{
 xgb.plot.tree(
-  model = NULL,
-  trees = NULL,
+  model,
+  tree_idx = 1,
   plot_width = NULL,
   plot_height = NULL,
-  render = TRUE,
-  show_node_id = FALSE,
-  style = c("R", "xgboost"),
+  with_stats = FALSE,
   ...
 )
 }
 \arguments{
-\item{model}{Object of class \code{xgb.Booster}. If it contains feature names (they can be set through
-\code{\link[=setinfo]{setinfo()}}, they will be used in the output from this function.}
+\item{model}{Object of class \code{xgb.Booster}. If it contains feature names
+(they can be set through \code{\link[=setinfo]{setinfo()}}, they will be used in the
+output from this function.}
 
-\item{trees}{An integer vector of tree indices that should be used.
-The default (\code{NULL}) uses all trees.
-Useful, e.g., in multiclass classification to get only
-the trees of one class. \emph{Important}: the tree index in XGBoost models
-is zero-based (e.g., use \code{trees = 0:2} for the first three trees).}
+\item{tree_idx}{An integer of the tree index that should be used. This
+is an 1-based index.}
 
 \item{plot_width, plot_height}{Width and height of the graph in pixels.
 The values are passed to \code{DiagrammeR::render_graph()}.}
 
-\item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
-
-\item{show_node_id}{a logical flag for whether to show node id's in the graph.}
-
-\item{style}{Style to use for the plot:
-\itemize{
-\item \code{"xgboost"}: will use the plot style defined in the core XGBoost library,
-which is shared between different interfaces through the 'dot' format. This
-style was not available before version 2.1.0 in R. It always plots the trees
-vertically (from top to bottom).
-\item \code{"R"}: will use the style defined from XGBoost's R interface, which predates
-the introducition of the standardized style from the core library. It might plot
-the trees horizontally (from left to right).
-}
-
-Note that \code{style="xgboost"} is only supported when all of the following conditions are met:
-\itemize{
-\item Only a single tree is being plotted.
-\item Node IDs are not added to the graph.
-\item The graph is being returned as \code{htmlwidget} (\code{render=TRUE}).
-}}
+\item{with_stats}{Whether to dump some additional statistics about the
+splits.  When this option is on, the model dump contains two additional
+values: gain is the approximate loss function gain we get in each split;
+cover is the sum of second order gradient in each node.}
 
 \item{...}{Currently not used.}
 }
 \value{
-The value depends on the \code{render} parameter:
-\itemize{
-\item If \code{render = TRUE} (default): Rendered graph object which is an htmlwidget of
-class \code{grViz}. Similar to "ggplot" objects, it needs to be printed when not
-running from the command line.
-\item If \code{render = FALSE}: Graph object which is of DiagrammeR's class \code{dgr_graph}.
-This could be useful if one wants to modify some of the graph attributes
-before rendering the graph with \code{DiagrammeR::render_graph()}.
-}
+Rendered graph object which is an htmlwidget of ' class \code{grViz}. Similar to
+"ggplot" objects, it needs to be printed when not running from the command
+line.
 }
 \description{
 Read a tree model text dump and plot the model.
 }
 \details{
-When using \code{style="xgboost"}, the content of each node is visualized as follows:
+The content of each node is visualized as follows:
 \itemize{
-\item For non-terminal nodes, it will display the split condition (number or name if
-available, and the condition that would decide to which node to go next).
-\item Those nodes will be connected to their children by arrows that indicate whether the
-branch corresponds to the condition being met or not being met.
+\item For non-terminal nodes, it will display the split condition (number or name
+if available, and the condition that would decide to which node to go
+next).
+\item Those nodes will be connected to their children by arrows that indicate
+whether the branch corresponds to the condition being met or not being met.
 \item Terminal (leaf) nodes contain the margin to add when ending there.
 }
-
-When using \code{style="R"}, the content of each node is visualized like this:
-\itemize{
-\item \emph{Feature name}.
-\item \emph{Cover:} The sum of second order gradients of training data.
-For the squared loss, this simply corresponds to the number of instances in the node.
-The deeper in the tree, the lower the value.
-\item \emph{Gain} (for split nodes): Information gain metric of a split
-(corresponds to the importance of the node in the model).
-\item \emph{Value} (for leaves): Margin value that the leaf may contribute to the prediction.
-}
-
-The tree root nodes also indicate the tree index (0-based).
 
 The "Yes" branches are marked by the "< split_value" label.
 The branches also used for missing values are marked as bold
 (as in "carrying extra capacity").
 
-This function uses \href{https://www.graphviz.org/}{GraphViz} as DiagrammeR backend.
+This function uses \href{https://www.graphviz.org/}{GraphViz} as DiagrammeR
+backend.
 }
 \examples{
 data(agaricus.train, package = "xgboost")
@@ -107,27 +69,17 @@ bst <- xgb.train(
   objective = "binary:logistic"
 )
 
-# plot the first tree, using the style from xgboost's core library
-# (this plot should look identical to the ones generated from other
-# interfaces like the python package for xgboost)
-xgb.plot.tree(model = bst, trees = 1, style = "xgboost")
+# plot the first tree
+xgb.plot.tree(model = bst, tree_idx = 1)
 
-# plot all the trees
-xgb.plot.tree(model = bst, trees = NULL)
-
-# plot only the first tree and display the node ID:
-xgb.plot.tree(model = bst, trees = 0, show_node_id = TRUE)
 
 \dontrun{
 # Below is an example of how to save this plot to a file.
-# Note that for export_graph() to work, the {DiagrammeRsvg}
-# and {rsvg} packages must also be installed.
 
 library(DiagrammeR)
 
-gr <- xgb.plot.tree(model = bst, trees = 0:1, render = FALSE)
-export_graph(gr, "tree.pdf", width = 1500, height = 1900)
-export_graph(gr, "tree.png", width = 1500, height = 1900)
+gr <- xgb.plot.tree(model = bst, tree_idx = 1)
+htmlwidgets::saveWidget(gr, 'plot.html')
 }
 
 }
