@@ -35,8 +35,6 @@ from .compat import (
     XGBClassifierBase,
     XGBModelBase,
     XGBRegressorBase,
-    _sklearn_ClassifierTags,
-    _sklearn_RegressorTags,
     _sklearn_Tags,
     _sklearn_version,
     import_cupy,
@@ -840,7 +838,7 @@ class XGBModel(XGBModelBase):
         # take whatever tags are provided by BaseEstimator, then modify
         # them with XGBoost-specific values
         return self._update_sklearn_tags_from_dict(
-            tags=XGBModelBase.__sklearn_tags__(self),  # pylint: disable=no-member
+            tags=super().__sklearn_tags__(),  # pylint: disable=no-member
             tags_dict=self._more_tags(),
         )
 
@@ -1554,12 +1552,9 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
         return tags
 
     def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = XGBModel.__sklearn_tags__(self)
-        tags.estimator_type = "classifier"
+        tags = super().__sklearn_tags__()
         tags_dict = self._more_tags()
-        tags.classifier_tags = _sklearn_ClassifierTags(
-            multi_label=tags_dict["multilabel"]
-        )
+        tags.classifier_tags.multi_label = tags_dict["multilabel"]
         return tags
 
     @_deprecate_positional_args
@@ -1849,10 +1844,8 @@ class XGBRegressor(XGBRegressorBase, XGBModel):
         return tags
 
     def __sklearn_tags__(self) -> _sklearn_Tags:
-        tags = XGBModel.__sklearn_tags__(self)
-        tags.estimator_type = "regressor"
+        tags = super().__sklearn_tags__()
         tags_dict = self._more_tags()
-        tags.regressor_tags = _sklearn_RegressorTags()
         tags.target_tags.multi_output = tags_dict["multioutput"]
         tags.target_tags.single_output = not tags_dict["multioutput_only"]
         return tags

@@ -826,6 +826,32 @@ def test_parameters_access():
     assert clf.get_params()["tree_method"] is None
 
 
+def test_get_params_works_as_expected():
+    # XGBModel -> BaseEstimator
+    params = xgb.XGBModel(max_depth=2).get_params()
+    assert params["max_depth"] == 2
+    # 'objective' defaults to None in the signature of XGBModel
+    assert params["objective"] is None
+
+    # XGBRegressor -> XGBModel -> BaseEstimator
+    params = xgb.XGBRegressor(max_depth=3).get_params()
+    assert params["max_depth"] == 3
+    # 'objective' defaults to 'reg:squarederror' in the signature of XGBRegressor
+    assert params["objective"] == "reg:squarederror"
+    # 'colsample_bynode' defaults to 'None' for XGBModel (which XGBRegressor inherits from), so it
+    # should be in get_params() output
+    assert params["colsample_bynode"] is None
+
+    # XGBRFRegressor -> XGBRegressor -> XGBModel -> BaseEstimator
+    params = xgb.XGBRFRegressor(max_depth=4, objective="reg:tweedie").get_params()
+    assert params["max_depth"] == 4
+    # 'objective' is a keyword argument for XGBRegressor, so it should be in get_params() output
+    # ... but values passed through kwargs should override the default from the signature of XGBRegressor
+    assert params["objective"] == "reg:tweedie"
+    # 'colsample_bynode' defaults to 0.8 for XGBRFRegressor...that should be preferred to the None from XGBRegressor
+    assert params["colsample_bynode"] == 0.8
+
+
 def test_kwargs_error():
     params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
     with pytest.raises(TypeError):
