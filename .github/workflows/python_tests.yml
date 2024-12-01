@@ -24,7 +24,7 @@ jobs:
     - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
       with:
         miniforge-variant: Miniforge3
         miniforge-version: latest
@@ -56,7 +56,7 @@ jobs:
     - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       with:
         submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
       with:
         miniforge-variant: Miniforge3
         miniforge-version: latest
@@ -93,7 +93,7 @@ jobs:
       if: matrix.os == 'macos-13'
       run: |
         brew install ninja libomp
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d # v3.1.0
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
@@ -128,7 +128,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
       with:
         miniforge-variant: Miniforge3
         miniforge-version: latest
@@ -181,7 +181,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d # v3.1.0
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
@@ -225,7 +225,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
       with:
         miniforge-variant: Miniforge3
         miniforge-version: latest
@@ -278,7 +278,7 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
       with:
         miniforge-variant: Miniforge3
         miniforge-version: latest
