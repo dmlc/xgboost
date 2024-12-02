@@ -67,8 +67,6 @@ the baseline).
 Output will be a numeric matrix with shape \verb{[nrows, nfeatures+1]}, with the intercept being the
 last feature, or \verb{[nrows, nscores, nfeatures+1]} if the model produces more than one score per
 observation.
-\item \code{"approxcontrib"}: same as \code{"contrib"}, but uses a fast approximation for the computation of
-contributions.
 \item \code{"interaction"}: similar to \code{"contrib"}, but computing SHAP values of contributions of
 interaction of each pair of features. Note that this operation might be rather expensive in
 terms of compute and memory.
@@ -79,8 +77,6 @@ selection of the most important features first.
 Output will be a numeric matrix of shape \verb{[nrows, nfeatures+1, nfeatures+1]}, or shape
 \verb{[nrows, nscores, nfeatures+1, nfeatures+1]} (for objectives that produce more than one score
 per observation).
-\item \code{"approxinteraction"}: similar to \code{"interaction"}, but uses a fast approximation for the
-computation of contributions, just like \code{"approxcontrib"}.
 }}
 
 \item{base_margin}{Base margin used for boosting from existing model (raw score that gets added to
