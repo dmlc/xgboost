@@ -998,8 +998,6 @@ xgboost <- function(
 #'   Output will be a numeric matrix with shape `[nrows, nfeatures+1]`, with the intercept being the
 #'   last feature, or `[nrows, nscores, nfeatures+1]` if the model produces more than one score per
 #'   observation.
-#' - `"approxcontrib"`: same as `"contrib"`, but uses a fast approximation for the computation of
-#'   contributions.
 #' - `"interaction"`: similar to `"contrib"`, but computing SHAP values of contributions of
 #'   interaction of each pair of features. Note that this operation might be rather expensive in
 #'   terms of compute and memory.
@@ -1010,8 +1008,6 @@ xgboost <- function(
 #'   Output will be a numeric matrix of shape `[nrows, nfeatures+1, nfeatures+1]`, or shape
 #'   `[nrows, nscores, nfeatures+1, nfeatures+1]` (for objectives that produce more than one score
 #'   per observation).
-#' - `"approxinteraction"`: similar to `"interaction"`, but uses a fast approximation for the
-#'   computation of contributions, just like `"approxcontrib"`.
 #' @param base_margin Base margin used for boosting from existing model (raw score that gets added to
 #' all observations independently of the trees in the model).
 #'
@@ -1082,7 +1078,6 @@ predict.xgboost <- function(
   outputmargin <- FALSE
   predleaf <- FALSE
   predcontrib <- FALSE
-  approxcontrib <- FALSE
   predinteraction <- FALSE
   pred_class <- FALSE
   allowed_types <- c(
@@ -1091,9 +1086,7 @@ predict.xgboost <- function(
     "class",
     "leaf",
     "contrib",
-    "approxcontrib",
-    "interaction",
-    "approxinteraction"
+    "interaction"
   )
   type <- head(type, 1L)
   if (!is.character(type) || !(type %in% allowed_types)) {
@@ -1115,14 +1108,8 @@ predict.xgboost <- function(
         predleaf <- TRUE
       }, "contrib" = {
         predcontrib <- TRUE
-      }, "approxcontrib" = {
-        predcontrib <- TRUE
-        approxcontrib <- TRUE
       }, "interaction" = {
         predinteraction <- TRUE
-      }, "approxinteraction" = {
-        predinteraction <- TRUE
-        approxcontrib <- TRUE
       }
     )
   }
@@ -1132,7 +1119,6 @@ predict.xgboost <- function(
     outputmargin = outputmargin,
     predleaf = predleaf,
     predcontrib = predcontrib,
-    approxcontrib = approxcontrib,
     predinteraction = predinteraction,
     iterationrange = iteration_range,
     validate_features = validate_features,

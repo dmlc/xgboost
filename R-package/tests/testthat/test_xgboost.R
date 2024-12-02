@@ -736,9 +736,7 @@ test_that("Column names from multiclass are added to non-class predictions", {
     "response",
     "raw",
     "contrib",
-    "approxcontrib",
-    "interaction",
-    "approxinteraction"
+    "interaction"
   )
 
   for (pred_type in pred_types_with_colnames) {
@@ -761,9 +759,7 @@ test_that("Column names from multitarget are added to predictions", {
     "response",
     "raw",
     "contrib",
-    "approxcontrib",
-    "interaction",
-    "approxinteraction"
+    "interaction"
   )
 
   for (pred_type in pred_types_with_colnames) {
@@ -791,9 +787,7 @@ test_that("Column names from multiquantile are added to predictions", {
     "response",
     "raw",
     "contrib",
-    "approxcontrib",
-    "interaction",
-    "approxinteraction"
+    "interaction"
   )
 
   for (pred_type in pred_types_with_colnames) {
