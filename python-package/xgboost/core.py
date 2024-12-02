@@ -2109,7 +2109,11 @@ class Booster:
         return copy.copy(self)
 
     def reset(self) -> "Booster":
-        """Reset the booster object to release data caches used for training."""
+        """Reset the booster object to release data caches used for training.
+
+        .. versionadded:: 3.0.0
+
+        """
         _check_call(_LIB.XGBoosterReset(self.handle))
         return self
 
