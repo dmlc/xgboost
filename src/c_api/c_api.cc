@@ -980,6 +980,13 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle) {
   API_END();
 }
 
+XGB_DLL int XGBoosterReset(BoosterHandle handle) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  static_cast<Learner *>(handle)->Reset();
+  API_END();
+}
+
 XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
                               const char *name,
                               const char *value) {

@@ -901,6 +901,11 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
  * @example c-api-demo.c inference.c external_memory.c
  */
 
+/**
+ * @brief Reset the booster object to release data caches used for training.
+ */
+XGB_DLL int XGBoosterFree(BoosterHandle handle);
+
 /*!
  * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
  *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
