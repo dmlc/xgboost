@@ -116,6 +116,7 @@ def ranking_demo(client: Client, args: argparse.Namespace) -> None:
         {"objective": "rank:ndcg", "device": args.device},
         Xy_train,
         evals=[(Xy_train, "Train"), (Xy_valid, "Valid")],
+        num_boost_round=100,
     )
 
 
