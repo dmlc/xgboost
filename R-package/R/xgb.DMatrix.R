@@ -13,9 +13,9 @@
 #' @param data Data from which to create a DMatrix, which can then be used for fitting models or
 #' for getting predictions out of a fitted model.
 #'
-#' Supported input types are as follows:\itemize{
-#' \item `matrix` objects, with types `numeric`, `integer`, or `logical`.
-#' \item `data.frame` objects, with columns of types `numeric`, `integer`, `logical`, or `factor`}
+#' Supported input types are as follows:
+#' - `matrix` objects, with types `numeric`, `integer`, or `logical`.
+#' - `data.frame` objects, with columns of types `numeric`, `integer`, `logical`, or `factor`
 #'
 #' Note that xgboost uses base-0 encoding for categorical types, hence `factor` types (which use base-1
 #' encoding') will be converted inside the function call. Be aware that the encoding used for `factor`

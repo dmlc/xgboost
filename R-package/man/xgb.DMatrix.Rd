@@ -45,9 +45,11 @@ xgb.QuantileDMatrix(
 \item{data}{Data from which to create a DMatrix, which can then be used for fitting models or
 for getting predictions out of a fitted model.
 
-Supported input types are as follows:\itemize{
+Supported input types are as follows:
+\itemize{
 \item \code{matrix} objects, with types \code{numeric}, \code{integer}, or \code{logical}.
-\item \code{data.frame} objects, with columns of types \code{numeric}, \code{integer}, \code{logical}, or \code{factor}}
+\item \code{data.frame} objects, with columns of types \code{numeric}, \code{integer}, \code{logical}, or \code{factor}
+}
 
 Note that xgboost uses base-0 encoding for categorical types, hence \code{factor} types (which use base-1
 encoding') will be converted inside the function call. Be aware that the encoding used for \code{factor}
