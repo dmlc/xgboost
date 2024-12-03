@@ -949,16 +949,13 @@ class XGBModel(XGBModelBase):
         #
         params = super().get_params(deep)
         cp = copy.copy(self)
-        # if the immediate parent is a mixin, skip it (mixins don't define get_params())
-        if cp.__class__.__bases__[0] in (
-            XGBClassifierBase,
-            XGBRankerMixIn,
-            XGBRegressorBase,
-        ):
-            cp.__class__ = cp.__class__.__bases__[1]
-        # otherwise, run get_params() from the immediate parent class
-        else:
+        # If the immediate parent defines get_params(), use that.
+        if callable(getattr(cp.__class__.__bases__[0], "get_params", None)):
             cp.__class__ = cp.__class__.__bases__[0]
+        # Otherwise, skip it and assume the next class will have it.
+        # This is here primarily for cases where the first class in MRO is a scikit-learn mixin.
+        else:
+            cp.__class__ = cp.__class__.__bases__[1]
         params.update(cp.__class__.get_params(cp, deep))
         # if kwargs is a dict, update params accordingly
         if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
