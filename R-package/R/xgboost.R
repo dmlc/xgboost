@@ -996,8 +996,8 @@ xgboost <- function(
 #'   the baseline).
 #'
 #'   Output will be a numeric matrix with shape `[nrows, nfeatures+1]`, with the intercept being the
-#'   last feature, or `[nrows, nscores, nfeatures+1]` if the model produces more than one score per
-#'   observation.
+#'   last feature, or a numeric array with shape `[nrows, nscores, nfeatures+1]` if the model
+#'   produces more than one score per observation.
 #' - `"interaction"`: similar to `"contrib"`, but computing SHAP values of contributions of
 #'   interaction of each pair of features. Note that this operation might be rather expensive in
 #'   terms of compute and memory.
@@ -1005,7 +1005,7 @@ xgboost <- function(
 #'   Since it quadratically depends on the number of features, it is recommended to perform
 #'   selection of the most important features first.
 #'
-#'   Output will be a numeric matrix of shape `[nrows, nfeatures+1, nfeatures+1]`, or shape
+#'   Output will be a numeric array of shape `[nrows, nfeatures+1, nfeatures+1]`, or shape
 #'   `[nrows, nscores, nfeatures+1, nfeatures+1]` (for objectives that produce more than one score
 #'   per observation).
 #' @param base_margin Base margin used for boosting from existing model (raw score that gets added to
@@ -1039,8 +1039,9 @@ xgboost <- function(
 #' Note that this check might add some sizable latency to the predictions, so it's
 #' recommended to disable it for performance-sensitive applications.
 #' @param ... Not used.
-#' @return Either a numeric vector, numeric matrix, or `factor` (see `type` for details about what
-#' the output type and shape will be).
+#' @return Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array
+#' (for 3D and higher), or `factor` (see `type` for details about what the output type and shape
+#' will be).
 #' @method predict xgboost
 #' @export
 #' @examples

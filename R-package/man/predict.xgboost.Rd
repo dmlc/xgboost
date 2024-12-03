@@ -65,8 +65,8 @@ untransformed margin (e.g., for binary classification, the values are log-odds d
 the baseline).
 
 Output will be a numeric matrix with shape \verb{[nrows, nfeatures+1]}, with the intercept being the
-last feature, or \verb{[nrows, nscores, nfeatures+1]} if the model produces more than one score per
-observation.
+last feature, or a numeric array with shape \verb{[nrows, nscores, nfeatures+1]} if the model
+produces more than one score per observation.
 \item \code{"interaction"}: similar to \code{"contrib"}, but computing SHAP values of contributions of
 interaction of each pair of features. Note that this operation might be rather expensive in
 terms of compute and memory.
@@ -74,7 +74,7 @@ terms of compute and memory.
 Since it quadratically depends on the number of features, it is recommended to perform
 selection of the most important features first.
 
-Output will be a numeric matrix of shape \verb{[nrows, nfeatures+1, nfeatures+1]}, or shape
+Output will be a numeric array of shape \verb{[nrows, nfeatures+1, nfeatures+1]}, or shape
 \verb{[nrows, nscores, nfeatures+1, nfeatures+1]} (for objectives that produce more than one score
 per observation).
 }}
@@ -115,8 +115,9 @@ recommended to disable it for performance-sensitive applications.}
 \item{...}{Not used.}
 }
 \value{
-Either a numeric vector, numeric matrix, or \code{factor} (see \code{type} for details about what
-the output type and shape will be).
+Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array
+(for 3D and higher), or \code{factor} (see \code{type} for details about what the output type and shape
+will be).
 }
 \description{
 Predict values on data based on XGBoost model.
