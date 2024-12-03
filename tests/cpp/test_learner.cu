@@ -14,6 +14,8 @@
 
 namespace xgboost {
 TEST(Learner, Reset) {
+  dh::GlobalMemoryLogger().Clear();
+
   auto verbosity = GlobalConfigThreadLocalStore::Get()->verbosity;
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto p_fmat = RandomDataGenerator{1024, 32, 0.0}.GenerateDMatrix(true);
@@ -23,6 +25,7 @@ TEST(Learner, Reset) {
   for (std::int32_t i = 0; i < 2; ++i) {
     learner->UpdateOneIter(i, p_fmat);
   }
+
   auto cur = dh::GlobalMemoryLogger().CurrentlyAllocatedBytes();
   p_fmat.reset();
   auto after_p_fmat_reset = dh::GlobalMemoryLogger().CurrentlyAllocatedBytes();
