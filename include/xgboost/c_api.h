@@ -903,8 +903,10 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
 
 /**
  * @brief Reset the booster object to release data caches used for training.
+ *
+ * @since 3.0.0
  */
-XGB_DLL int XGBoosterFree(BoosterHandle handle);
+XGB_DLL int XGBoosterReset(BoosterHandle handle);
 
 /*!
  * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
