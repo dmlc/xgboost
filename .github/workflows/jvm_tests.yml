@@ -24,12 +24,12 @@ jobs:
       with:
         submodules: 'true'
 
-    - uses: actions/setup-java@b36c23c0d998641eff861008f374ee103c25ac73  # v4.4.0
+    - uses: actions/setup-java@8df1039502a15bceb9433410b1a100fbe190c53b  # v4.5.0
       with:
         distribution: 'temurin'
         java-version: '8'
 
-    - uses: conda-incubator/setup-miniconda@a4260408e20b96e80095f42ff7f1a15b27dd94ca  # v3.0.4
+    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
       with:
         miniforge-variant: Miniforge3
         miniforge-version: latest
