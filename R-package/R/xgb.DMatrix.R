@@ -27,7 +27,7 @@
 #' - CSR matrices, as class `dgRMatrix` from package `Matrix`.
 #' - CSC matrices, as class `dgCMatrix` from package `Matrix`.
 #'
-#' These are **not** supported by the `xgb.QuantileDMatrix`.
+#' These are **not** supported by `xgb.QuantileDMatrix`.
 #' - XGBoost's own binary format for DMatrices, as produced by [xgb.DMatrix.save()].
 #' - Single-row CSR matrices, as class `dsparseVector` from package `Matrix`, which is interpreted
 #'   as a single row (only when making predictions from a fitted model).
