@@ -35,6 +35,19 @@ access to various amount of CPUs, memory, and NVIDIA GPUs. Thanks to this app, w
 GPU-accelerated and distributed algorithms of XGBoost while using the familar interface of
 GitHub Actions.
 
+In GitHub Actions, jobs run on Microsoft-hosted runners by default.
+To opt into self-hosted runners (enabled by RunsOn), we use the following special syntax:
+
+.. code-block:: yaml
+
+  runs-on:
+    - runs-on
+    - runner=runner-name
+    - run-id=${{ github.run_id }}
+    - tag=[unique tag that uniquely identifies the job in the GH Action workflow]
+
+where the runner is defined in ``.github/runs-on.yml``.
+
 *********************************************************
 Reproduce CI testing environments using Docker containers
 *********************************************************
@@ -201,7 +214,7 @@ The CI pipelines are organized into the following directories and files:
 * ``.github/runs-on.yml``: Configuration for the RunsOn service. Specifies the spec for
   the self-hosted CI runners.
 * ``ops/conda_env/``: Definitions for Conda environments
-* ``ops/packer/``: Packer scripts to build machine images for Amazon EC2
+* ``ops/packer/``: Packer scripts to build VM images for Amazon EC2
 * ``ops/patch/``: Patch files
 * ``ops/pipeline/``: Shell scripts defining CI/CD pipelines. Most of these scripts can be run
   locally (to assist with development and debugging); a few must run in the CI.
@@ -250,7 +263,18 @@ Primitives used in the CI pipelines
 Build and run containers
 ------------------------
 
-See :ref:`build_run_docker_locally`.
+See :ref:`build_run_docker_locally` to learn about the utility scripts for building and
+using containers.
+
+**What's the relationship between the VM image (for Amazon EC2) and the container image?**
+In ``ops/packer/`` directory, we define Packer scripts to build VM images for Amazon EC2.
+The VM image contains the minimal set of drivers and system software that are needed to
+run the containers.
+
+We update container images much more often than VM images. Whereas VM images are
+updated sparingly (once in a few months), container images are updated each time a branch
+or a pull request is updated. This way, developers can make changes to containers and
+see the results of the changes immediately in the CI run.
 
 ------------------------------------------
 Stash artifacts, to move them between jobs
