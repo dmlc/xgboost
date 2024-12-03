@@ -798,44 +798,103 @@ test_that("Column names from multiquantile are added to predictions", {
   }
 })
 
+test_that("Leaf predictions have multiple dimensions when needed", {
+  # single score, multiple trees
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = 0.5
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+
+  # single score, single tree
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = 0.5
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+
+  # multiple score, multiple trees
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L, 3L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
+
+  # multiple score, single tree
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 3L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
+
+  # parallel trees, single tree, single score
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "count:poisson",
+    num_parallel_tree = 2L
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 2L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+  expect_null(dimnames(pred)[[3L]])
+
+  # num_parallel_tree>1 + multiple scores is not supported at the moment so no test for it.
+})
+
 test_that("Column names from multiclass are added to leaf predictions", {
   y <- iris$Species
   x <- iris[, -5L]
   model <- xgboost(x, y, nthreads = 1L, nrounds = 4L, max_depth = 2L)
   pred <- predict(model, x, type = "leaf")
-  expect_equal(nrow(pred), nrow(x))
-  expect_equal(ncol(pred), 12) # 4 trees x 3 classes
-  expect_equal(
-    colnames(pred),
-    c(
-      "setosa:1",
-      "setosa:2",
-      "setosa:3",
-      "setosa:4",
-      "versicolor:1",
-      "versicolor:2",
-      "versicolor:3",
-      "versicolor:4",
-      "virginica:1",
-      "virginica:2",
-      "virginica:3",
-      "virginica:4"
-    )
-  )
+  expect_equal(dim(pred), c(nrow(x), 4L, 3L))
+  expect_equal(dimnames(pred)[[3L]], levels(y))
 
   # Check also for a single tree
   model <- xgboost(x, y, nthreads = 1L, nrounds = 1L, max_depth = 2L)
   pred <- predict(model, x, type = "leaf")
-  expect_equal(nrow(pred), nrow(x))
-  expect_equal(ncol(pred), 3) # 1 tree x 3 classes
-  expect_equal(
-    colnames(pred),
-    c(
-      "setosa:1",
-      "versicolor:1",
-      "virginica:1"
-    )
-  )
+  expect_equal(dim(pred), c(nrow(x), 1L, 3L))
+  expect_equal(dimnames(pred)[[3L]], levels(y))
 })
 
 test_that("Column names from multitarget are added to leaf predictions", {
@@ -846,34 +905,14 @@ test_that("Column names from multitarget are added to leaf predictions", {
   x <- mtcars[, -1L]
   model <- xgboost(x, y, nthreads = 1L, nrounds = 4L, max_depth = 2L)
   pred <- predict(model, x, type = "leaf")
-  expect_equal(nrow(pred), nrow(x))
-  expect_equal(ncol(pred), 8) # 4 trees x 2 targets
-  expect_equal(
-    colnames(pred),
-    c(
-      "ylog:1",
-      "ylog:2",
-      "ylog:3",
-      "ylog:4",
-      "ysqrt:1",
-      "ysqrt:2",
-      "ysqrt:3",
-      "ysqrt:4"
-    )
-  )
+  expect_equal(dim(pred), c(nrow(x), 4L, 2L))
+  expect_equal(dimnames(pred)[[3L]], colnames(y))
 
   # Check also for a single tree
   model <- xgboost(x, y, nthreads = 1L, nrounds = 1L, max_depth = 2L)
   pred <- predict(model, x, type = "leaf")
-  expect_equal(nrow(pred), nrow(x))
-  expect_equal(ncol(pred), 2) # 1 tree x 2 targets
-  expect_equal(
-    colnames(pred),
-    c(
-      "ylog:1",
-      "ysqrt:1"
-    )
-  )
+  expect_equal(dim(pred), c(nrow(x), 1L, 2L))
+  expect_equal(dimnames(pred)[[3L]], colnames(y))
 })
 
 test_that("Column names from multiquantile are added to leaf predictions", {
@@ -889,25 +928,8 @@ test_that("Column names from multiquantile are added to leaf predictions", {
     quantile_alpha = c(0.25, 0.5, 0.75)
   )
   pred <- predict(model, x, type = "leaf")
-  expect_equal(nrow(pred), nrow(x))
-  expect_equal(ncol(pred), 12) # 4 trees x 3 quantiles
-  expect_equal(
-    colnames(pred),
-    c(
-      "q0.25:1",
-      "q0.25:2",
-      "q0.25:3",
-      "q0.25:4",
-      "q0.5:1",
-      "q0.5:2",
-      "q0.5:3",
-      "q0.5:4",
-      "q0.75:1",
-      "q0.75:2",
-      "q0.75:3",
-      "q0.75:4"
-    )
-  )
+  expect_equal(dim(pred), c(nrow(x), 4L, 3L))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
 
   # Check also for a single tree
   model <- xgboost(
@@ -920,14 +942,6 @@ test_that("Column names from multiquantile are added to leaf predictions", {
     quantile_alpha = c(0.25, 0.5, 0.75)
   )
   pred <- predict(model, x, type = "leaf")
-  expect_equal(nrow(pred), nrow(x))
-  expect_equal(ncol(pred), 3) # 1 tree x 3 quantiles
-  expect_equal(
-    colnames(pred),
-    c(
-      "q0.25:1",
-      "q0.5:1",
-      "q0.75:1"
-    )
-  )
+  expect_equal(dim(pred), c(nrow(x), 1L, 3L))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
 })

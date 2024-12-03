@@ -149,6 +149,9 @@ Note that objective variant \code{multi:softmax} defaults towards predicting mos
 For multi-class / multi-target, they will be arranged so that columns in the output will have
 the leafs from one group followed by leafs of the other group (e.g. order will be \code{group1:feat1},
 \code{group1:feat2}, ..., \code{group2:feat1}, \code{group2:feat2}, ...).
+
+If there is more than one parallel tree (e.g. random forests), the parallel trees will be the
+last grouping in the resulting order, which will still be 2D.
 \item For \code{predcontrib}: when not multi-class / multi-target, a matrix with dimensions
 \verb{[nrows, nfeats+1]}. The last "+ 1" column corresponds to the baseline value.
 
@@ -165,12 +168,12 @@ dimension should produce practically the same result as \code{predcontrib = TRUE
 For multi-class and multi-target, will be a 4D array with dimensions \verb{[nrows, ngroups, nfeats+1, nfeats+1]}
 }
 
-If passing \code{strict_shape=FALSE}, the result is always an array:
+If passing \code{strict_shape=TRUE}, the result is always a matrix (if 2D) or array (if 3D or higher):
 \itemize{
 \item For normal predictions, the dimension is \verb{[nrows, ngroups]}.
 \item For \code{predcontrib=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1]}.
 \item For \code{predinteraction=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1, nfeats+1]}.
-\item For \code{predleaf=TRUE}, the dimension is \verb{[nrows, niter * ngroups * num_parallel_tree]}.
+\item For \code{predleaf=TRUE}, the dimension is \verb{[nrows, niter, ngroups, num_parallel_tree]}.
 }
 
 If passing \code{avoid_transpose=TRUE}, then the dimensions in all cases will be in reverse order - for

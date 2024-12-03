@@ -50,13 +50,10 @@ observation such as multi-class classification or multi-quantile regression).
 \item \code{"class"}: will output the class with the highest predicted probability, returned as a \code{factor}
 (only applicable to classification objectives) with length matching to rows in \code{newdata}.
 \item \code{"leaf"}: will output the terminal node indices of each observation across each tree, as an
-integer matrix of shape \verb{[nrows(newdata), ntrees * nscores * n_parallel_trees]}.
-
-If the model produces more than one score per observation, columns will be arranged by putting
-all the leafs for one of the scores first, followed by all of the leafs for the next score, and
-so on (e.g. output for a multi-class classifier will have columns ordered as 'class1:tree1',
-'class1:tree2', ..., 'class2:tree1', 'class2:tree2', etc.). If there are more than 1 parallel
-trees (e.g. in a random forest), then that will be the last element in the sequence.
+integer matrix of shape \verb{[nrows(newdata), ntrees]}, or as an integer array with an extra one or
+two dimensions, up to \verb{[nrows(newdata), ntrees, nscores, n_parallel_trees]} for models that
+produce more than one score per tree and/or which have more than one parallel tree (e.g.
+random forests).
 
 Only applicable to tree-based boosters (not \code{gblinear}).
 \item \code{"contrib"}: will produce per-feature contribution estimates towards the model score for a
@@ -116,8 +113,8 @@ recommended to disable it for performance-sensitive applications.}
 }
 \value{
 Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array
-(for 3D and higher), or \code{factor} (see \code{type} for details about what the output type and shape
-will be).
+(for 3D and higher), or \code{factor} (for class predictions). See documentation for parameter \code{type}
+for details about what the output type and shape will be.
 }
 \description{
 Predict values on data based on XGBoost model.

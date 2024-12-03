@@ -981,13 +981,10 @@ xgboost <- function(
 #' - `"class"`: will output the class with the highest predicted probability, returned as a `factor`
 #'   (only applicable to classification objectives) with length matching to rows in `newdata`.
 #' - `"leaf"`: will output the terminal node indices of each observation across each tree, as an
-#'   integer matrix of shape `[nrows(newdata), ntrees * nscores * n_parallel_trees]`.
-#'
-#'   If the model produces more than one score per observation, columns will be arranged by putting
-#'   all the leafs for one of the scores first, followed by all of the leafs for the next score, and
-#'   so on (e.g. output for a multi-class classifier will have columns ordered as 'class1:tree1',
-#'   'class1:tree2', ..., 'class2:tree1', 'class2:tree2', etc.). If there are more than 1 parallel
-#'   trees (e.g. in a random forest), then that will be the last element in the sequence.
+#'   integer matrix of shape `[nrows(newdata), ntrees]`, or as an integer array with an extra one or
+#'   two dimensions, up to `[nrows(newdata), ntrees, nscores, n_parallel_trees]` for models that
+#'   produce more than one score per tree and/or which have more than one parallel tree (e.g.
+#'   random forests).
 #'
 #'   Only applicable to tree-based boosters (not `gblinear`).
 #' - `"contrib"`: will produce per-feature contribution estimates towards the model score for a
@@ -1040,8 +1037,8 @@ xgboost <- function(
 #' recommended to disable it for performance-sensitive applications.
 #' @param ... Not used.
 #' @return Either a numeric vector (for 1D outputs), numeric matrix (for 2D outputs), numeric array
-#' (for 3D and higher), or `factor` (see `type` for details about what the output type and shape
-#' will be).
+#' (for 3D and higher), or `factor` (for class predictions). See documentation for parameter `type`
+#' for details about what the output type and shape will be.
 #' @method predict xgboost
 #' @export
 #' @examples
@@ -1081,6 +1078,7 @@ predict.xgboost <- function(
   predcontrib <- FALSE
   predinteraction <- FALSE
   pred_class <- FALSE
+  strict_shape <- FALSE
   allowed_types <- c(
     "response",
     "raw",
@@ -1107,6 +1105,7 @@ predict.xgboost <- function(
         outputmargin <- TRUE
       }, "leaf" = {
         predleaf <- TRUE
+        strict_shape <- TRUE # required for 3D and 4D outputs
       }, "contrib" = {
         predcontrib <- TRUE
       }, "interaction" = {
@@ -1122,9 +1121,27 @@ predict.xgboost <- function(
     predcontrib = predcontrib,
     predinteraction = predinteraction,
     iterationrange = iteration_range,
+    strict_shape = strict_shape,
     validate_features = validate_features,
     base_margin = base_margin
   )
+
+  if (strict_shape) {
+    # Should only end up here for leaf predictions
+    out_dims <- dim(out)
+    dims_remove <- integer()
+    if (out_dims[3L] == 1L) {
+      dims_remove <- c(dims_remove, -3L)
+    }
+    if (length(out_dims) >= 4L && out_dims[4L] == 1L) {
+      dims_remove <- c(dims_remove, -4L)
+    }
+    if (length(dims_remove)) {
+      new_dimnames <- dimnames(out)[dims_remove]
+      dim(out) <- out_dims[dims_remove]
+      dimnames(out) <- new_dimnames
+    }
+  }
 
   if (pred_class) {
 
@@ -1138,7 +1155,7 @@ predict.xgboost <- function(
     attr_out$levels <- attributes(object)$metadata$y_levels
     attributes(out) <- attr_out
 
-  } else if (NCOL(out) > 1L || type == "leaf") {
+  } else if (NCOL(out) > 1L || (strict_shape && length(dim(out)) >= 3L)) {
 
     names_use <- NULL
     if (NROW(attributes(object)$metadata$y_levels) > 2L) {
@@ -1153,14 +1170,9 @@ predict.xgboost <- function(
       }
     }
     if (NROW(names_use)) {
-      if (type == "leaf") {
-        num_per_target <- ncol(out) / length(names_use)
-        names_use <- unlist(
-          lapply(names_use, function(x) paste(x, seq(1L, num_per_target), sep = ":"))
-        )
-      }
       dimnames_out <- dimnames(out)
-      dimnames_out[[2L]] <- names_use
+      dim_with_names <- if (type == "leaf") 3L else 2L
+      dimnames_out[[dim_with_names]] <- names_use
       .Call(XGSetArrayDimNamesInplace_R, out, dimnames_out)
     }
 
