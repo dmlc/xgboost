@@ -32,8 +32,8 @@ observation.
 }
 
 In the case of data frames, if there are any categorical features, they should be of class
-\code{factor} and have the same levels as the \code{factor} columns of the data from which the model was
-constructued.
+\code{factor} and should have the same levels as the \code{factor} columns of the data from which the model
+was constructed.
 
 If there are named columns and the model was fitted to data with named columns, they will be
 matched by name by default (see \code{validate_features}).}
