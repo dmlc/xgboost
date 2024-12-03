@@ -63,7 +63,7 @@ Other column types are not supported.
 \item CSC matrices, as class \code{dgCMatrix} from package \code{Matrix}.
 }
 
-These are \strong{not} supported by the \code{xgb.QuantileDMatrix}.
+These are \strong{not} supported by \code{xgb.QuantileDMatrix}.
 \itemize{
 \item XGBoost's own binary format for DMatrices, as produced by \code{\link[=xgb.DMatrix.save]{xgb.DMatrix.save()}}.
 \item Single-row CSR matrices, as class \code{dsparseVector} from package \code{Matrix}, which is interpreted
