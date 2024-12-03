@@ -151,6 +151,54 @@ class XGBoostRankerSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite
     }}
   }
 
+  test("Same group must be in the same partition") {
+    val spark = ss
+    import spark.implicits._
+    val num_workers = 3
+    val df = ss.createDataFrame(sc.parallelize(Seq(
+      (0.1, Vectors.dense(1.0, 2.0, 3.0), 0),
+      (0.1, Vectors.dense(0.0, 0.0, 0.0), 0),
+      (0.1, Vectors.dense(0.0, 3.0, 0.0), 0),
+      (0.1, Vectors.dense(2.0, 0.0, 4.0), 1),
+      (0.1, Vectors.dense(0.2, 1.2, 2.0), 1),
+      (0.1, Vectors.dense(0.5, 2.2, 1.7), 1),
+      (0.1, Vectors.dense(0.5, 2.2, 1.7), 2),
+      (0.1, Vectors.dense(0.5, 2.2, 1.7), 2),
+      (0.1, Vectors.dense(0.5, 2.2, 1.7), 2)), 1)).toDF("label", "features", "group")
+
+    // The original pattern will repartition df in a RoundRobin manner
+    val oriRows = df.repartition(num_workers)
+      .sortWithinPartitions(df.col("group"))
+      .select("group")
+      .mapPartitions { case iter =>
+        val tmp: ArrayBuffer[Int] = ArrayBuffer.empty
+        while (iter.hasNext) {
+          val r = iter.next()
+          tmp.append(r.getInt(0))
+        }
+        Iterator.single(tmp.mkString(","))
+      }.collect()
+    assert(oriRows.length == 3)
+    assert(oriRows.contains("0,1,2"))
+
+    // The fix has replaced repartition with repartitionByRange which will put the
+    // instances with same group into the same partition
+    val ranker = new XGBoostRanker().setGroupCol("group").setNumWorkers(num_workers)
+    val (processedDf, _) = ranker.preprocess(df)
+    val rows = processedDf
+      .select("group")
+      .mapPartitions { case iter =>
+        val tmp: ArrayBuffer[Int] = ArrayBuffer.empty
+        while (iter.hasNext) {
+          val r = iter.next()
+          tmp.append(r.getInt(0))
+        }
+        Iterator.single(tmp.mkString(","))
+      }.collect()
+
+    rows.forall(Seq("0,0,0", "1,1,1", "2,2,2").contains)
+  }
+
   private def runLengthEncode(input: Seq[Int]): Seq[Int] = {
     if (input.isEmpty) return Seq(0)
 
