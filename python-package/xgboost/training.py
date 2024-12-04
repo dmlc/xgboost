@@ -95,15 +95,22 @@ def train(
 
     verbose_eval :
         Requires at least one item in **evals**.
+
         If **verbose_eval** is True then the evaluation metric on the validation set is
         printed at each boosting stage.
-        If **verbose_eval** is an integer then the evaluation metric on the validation set
-        is printed at every given **verbose_eval** boosting stage. The last boosting stage
-        / the boosting stage found by using **early_stopping_rounds** is also printed.
-        Example: with ``verbose_eval=4`` and at least one item in **evals**, an evaluation metric
-        is printed every 4 boosting stages, instead of every boosting stage.
+
+        If **verbose_eval** is an integer then the evaluation metric on the validation
+        set is printed at every given **verbose_eval** boosting stage. The last boosting
+        stage / the boosting stage found by using **early_stopping_rounds** is also
+        printed.
+
+        Example: with ``verbose_eval=4`` and at least one item in **evals**, an
+        evaluation metric is printed every 4 boosting stages, instead of every boosting
+        stage.
+
     xgb_model :
         Xgb model to be loaded before training (allows training continuation).
+
     callbacks :
         List of callback functions that are applied at end of each iteration.
         It is possible to use predefined callbacks by using
@@ -400,7 +407,6 @@ def cv(
     folds: XGBStratifiedKFold = None,
     metrics: Sequence[str] = (),
     obj: Optional[Objective] = None,
-    feval: Optional[Metric] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     fpreproc: Optional[FPreProcCallable] = None,
@@ -441,11 +447,9 @@ def cv(
         Custom objective function.  See :doc:`Custom Objective
         </tutorials/custom_metric_obj>` for details.
 
-    feval : function
-        .. deprecated:: 1.6.0
-            Use `custom_metric` instead.
     maximize : bool
-        Whether to maximize feval.
+        Whether to maximize the evaluataion metric (score or error).
+
     early_stopping_rounds: int
         Activates early stopping. Cross-Validation metric (average of validation
         metric computed over CV folds) needs to improve at least once in

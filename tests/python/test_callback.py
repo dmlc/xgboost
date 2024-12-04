@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from collections import namedtuple
 from typing import Union
 
 import pytest
@@ -12,21 +13,24 @@ from xgboost import testing as tm
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
 
+BreastCancer = namedtuple("BreastCancer", ["full", "tr", "va"])
+
+
+@pytest.fixture
+def breast_cancer() -> BreastCancer:
+    from sklearn.datasets import load_breast_cancer
+
+    X, y = load_breast_cancer(return_X_y=True)
+
+    split = int(X.shape[0] * 0.8)
+    return BreastCancer(
+        full=(X, y),
+        tr=(X[:split, ...], y[:split, ...]),
+        va=(X[split:, ...], y[split:, ...]),
+    )
+
+
 class TestCallbacks:
-    @classmethod
-    def setup_class(cls):
-        from sklearn.datasets import load_breast_cancer
-
-        X, y = load_breast_cancer(return_X_y=True)
-        cls.X = X
-        cls.y = y
-
-        split = int(X.shape[0] * 0.8)
-        cls.X_train = X[:split, ...]
-        cls.y_train = y[:split, ...]
-        cls.X_valid = X[split:, ...]
-        cls.y_valid = y[split:, ...]
-
     def run_evaluation_monitor(
         self,
         D_train: xgb.DMatrix,
@@ -70,9 +74,9 @@ class TestCallbacks:
             output = out.getvalue().strip()
             check_output(output)
 
-    def test_evaluation_monitor(self):
-        D_train = xgb.DMatrix(self.X_train, self.y_train)
-        D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
+    def test_evaluation_monitor(self, breast_cancer: BreastCancer) -> None:
+        D_train = xgb.DMatrix(breast_cancer.tr[0], breast_cancer.tr[1])
+        D_valid = xgb.DMatrix(breast_cancer.va[0], breast_cancer.va[1])
         evals_result = {}
         rounds = 10
         xgb.train(
@@ -91,9 +95,9 @@ class TestCallbacks:
         self.run_evaluation_monitor(D_train, D_valid, rounds, 4)
         self.run_evaluation_monitor(D_train, D_valid, rounds, rounds + 1)
 
-    def test_early_stopping(self):
-        D_train = xgb.DMatrix(self.X_train, self.y_train)
-        D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
+    def test_early_stopping(self, breast_cancer: BreastCancer) -> None:
+        D_train = xgb.DMatrix(breast_cancer.tr[0], breast_cancer.tr[1])
+        D_valid = xgb.DMatrix(breast_cancer.va[0], breast_cancer.va[1])
         evals_result = {}
         rounds = 30
         early_stopping_rounds = 5
@@ -109,9 +113,9 @@ class TestCallbacks:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-    def test_early_stopping_custom_eval(self):
-        D_train = xgb.DMatrix(self.X_train, self.y_train)
-        D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
+    def test_early_stopping_custom_eval(self, breast_cancer: BreastCancer) -> None:
+        D_train = xgb.DMatrix(breast_cancer.tr[0], breast_cancer.tr[1])
+        D_valid = xgb.DMatrix(breast_cancer.va[0], breast_cancer.va[1])
         early_stopping_rounds = 5
         booster = xgb.train(
             {
@@ -129,9 +133,9 @@ class TestCallbacks:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-    def test_early_stopping_customize(self):
-        D_train = xgb.DMatrix(self.X_train, self.y_train)
-        D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
+    def test_early_stopping_customize(self, breast_cancer: BreastCancer) -> None:
+        D_train = xgb.DMatrix(breast_cancer.tr[0], breast_cancer.tr[1])
+        D_valid = xgb.DMatrix(breast_cancer.va[0], breast_cancer.va[1])
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(
             rounds=early_stopping_rounds, metric_name="CustomErr", data_name="Train"
@@ -179,10 +183,8 @@ class TestCallbacks:
         assert booster.best_iteration == 0
         assert booster.num_boosted_rounds() == 1
 
-    def test_early_stopping_skl(self):
-        from sklearn.datasets import load_breast_cancer
-
-        X, y = load_breast_cancer(return_X_y=True)
+    def test_early_stopping_skl(self, breast_cancer: BreastCancer) -> None:
+        X, y = breast_cancer.full
         early_stopping_rounds = 5
         cls = xgb.XGBClassifier(
             early_stopping_rounds=early_stopping_rounds, eval_metric="error"
@@ -192,10 +194,8 @@ class TestCallbacks:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-    def test_early_stopping_custom_eval_skl(self):
-        from sklearn.datasets import load_breast_cancer
-
-        X, y = load_breast_cancer(return_X_y=True)
+    def test_early_stopping_custom_eval_skl(self, breast_cancer: BreastCancer) -> None:
+        X, y = breast_cancer.full
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds)
         cls = xgb.XGBClassifier(
@@ -206,10 +206,8 @@ class TestCallbacks:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-    def test_early_stopping_save_best_model(self):
-        from sklearn.datasets import load_breast_cancer
-
-        X, y = load_breast_cancer(return_X_y=True)
+    def test_early_stopping_save_best_model(self, breast_cancer: BreastCancer) -> None:
+        X, y = breast_cancer.full
         n_estimators = 100
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(
@@ -248,10 +246,8 @@ class TestCallbacks:
             callbacks=[early_stop],
         ).fit(X, y, eval_set=[(X, y)])
 
-    def test_early_stopping_continuation(self):
-        from sklearn.datasets import load_breast_cancer
-
-        X, y = load_breast_cancer(return_X_y=True)
+    def test_early_stopping_continuation(self, breast_cancer: BreastCancer) -> None:
+        X, y = breast_cancer.full
 
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(
@@ -283,7 +279,7 @@ class TestCallbacks:
                 == booster.best_iteration + early_stopping_rounds + 1
             )
 
-    def run_eta_decay(self, tree_method):
+    def run_eta_decay(self, tree_method: str) -> None:
         """Test learning rate scheduler, used by both CPU and GPU tests."""
         scheduler = xgb.callback.LearningRateScheduler
 
@@ -457,10 +453,8 @@ class TestCallbacks:
     def test_eta_decay_leaf_output(self, tree_method: str, objective: str) -> None:
         self.run_eta_decay_leaf_output(tree_method, objective)
 
-    def test_check_point(self) -> None:
-        from sklearn.datasets import load_breast_cancer
-
-        X, y = load_breast_cancer(return_X_y=True)
+    def test_check_point(self, breast_cancer: BreastCancer) -> None:
+        X, y = breast_cancer.full
         m = xgb.DMatrix(X, y)
         with tempfile.TemporaryDirectory() as tmpdir:
             check_point = xgb.callback.TrainingCheckPoint(
@@ -509,10 +503,8 @@ class TestCallbacks:
             )
         assert len(callbacks) == 1
 
-    def test_attribute_error(self) -> None:
-        from sklearn.datasets import load_breast_cancer
-
-        X, y = load_breast_cancer(return_X_y=True)
+    def test_attribute_error(self, breast_cancer: BreastCancer) -> None:
+        X, y = breast_cancer.full
 
         clf = xgb.XGBClassifier(n_estimators=8)
         clf.fit(X, y, eval_set=[(X, y)])
