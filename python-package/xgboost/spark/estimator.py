@@ -1,7 +1,6 @@
 """Xgboost pyspark integration submodule for estimator API."""
 
-# pylint: disable=too-many-ancestors
-# pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
+# pylint: disable=fixme, protected-access, no-member, invalid-name
 # pylint: disable=unused-argument, too-many-locals
 
 import warnings

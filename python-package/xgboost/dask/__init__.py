@@ -1,7 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals
 # pylint: disable=missing-class-docstring, invalid-name
 # pylint: disable=too-many-lines
-# pylint: disable=too-few-public-methods
 """
 Dask extensions for distributed training
 ----------------------------------------
