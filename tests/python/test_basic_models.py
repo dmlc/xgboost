@@ -70,8 +70,9 @@ class TestModels:
                 np.log(np.where(labels, preds, 1 - preds)))
 
         # check whether custom evaluation metrics work
-        bst = xgb.train(param, dtrain, num_round, watchlist,
-                        feval=my_logloss)
+        bst = xgb.train(
+            param, dtrain, num_round, evals=watchlist, custom_metric=my_logloss
+        )
         preds3 = bst.predict(dtest, iteration_range=(0, num_round))
         assert all(preds3 == preds)
 
@@ -84,7 +85,7 @@ class TestModels:
                   for p1 in ['tree', 'forest']]:
             param['sample_type'] = p[0]
             param['normalize_type'] = p[1]
-            bst = xgb.train(param, dtrain, num_round, watchlist)
+            bst = xgb.train(param, dtrain, num_round, evals=watchlist)
             preds = bst.predict(dtest, iteration_range=(0, num_round))
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
@@ -154,21 +155,22 @@ class TestModels:
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 10
 
-        def logregobj(preds, dtrain):
+        def logregobj(preds: np.ndarray, dtrain: xgb.DMatrix):
             labels = dtrain.get_label()
             preds = 1.0 / (1.0 + np.exp(-preds))
             grad = preds - labels
             hess = preds * (1.0 - preds)
             return grad, hess
 
-        def evalerror(preds, dtrain):
+        def evalerror(preds: np.ndarray, dtrain: xgb.DMatrix):
             labels = dtrain.get_label()
             preds = 1.0 / (1.0 + np.exp(-preds))
             return 'error', float(sum(labels != (preds > 0.5))) / len(labels)
 
         # test custom_objective in training
-        bst = xgb.train(param, dtrain, num_round, watchlist, obj=logregobj,
-                        feval=evalerror)
+        bst = xgb.train(
+            param, dtrain, num_round, watchlist, obj=logregobj, custom_metric=evalerror
+        )
         assert isinstance(bst, xgb.core.Booster)
         preds = bst.predict(dtest)
         labels = dtest.get_label()
@@ -177,8 +179,15 @@ class TestModels:
         assert err < 0.1
 
         # test custom_objective in cross-validation
-        xgb.cv(param, dtrain, num_round, nfold=5, seed=0,
-               obj=logregobj, feval=evalerror)
+        xgb.cv(
+            param,
+            dtrain,
+            num_round,
+            nfold=5,
+            seed=0,
+            obj=logregobj,
+            custom_metric=evalerror
+        )
 
         # test maximize parameter
         def neg_evalerror(preds, dtrain):

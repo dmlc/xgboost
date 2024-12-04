@@ -125,7 +125,8 @@ class TestCallbacks:
             },
             D_train,
             evals=[(D_train, "Train"), (D_valid, "Valid")],
-            feval=tm.eval_error_metric,
+            # No custom objective, transformed output
+            custom_metric=tm.eval_error_metric,
             num_boost_round=1000,
             early_stopping_rounds=early_stopping_rounds,
             verbose_eval=False,
@@ -149,7 +150,8 @@ class TestCallbacks:
             },
             D_train,
             evals=[(D_train, "Train"), (D_valid, "Valid")],
-            feval=tm.eval_error_metric,
+            # No custom objective, transformed output
+            custom_metric=tm.eval_error_metric,
             num_boost_round=1000,
             callbacks=[early_stop],
             verbose_eval=False,
@@ -174,7 +176,8 @@ class TestCallbacks:
             },
             D_train,
             evals=[(D_train, "Train"), (D_valid, "Valid")],
-            feval=tm.eval_error_metric,
+            # No custom objective, transformed output
+            custom_metric=tm.eval_error_metric,
             num_boost_round=rounds,
             callbacks=[early_stop],
             verbose_eval=False,
