@@ -2164,7 +2164,7 @@ class TestDaskCallbacks:
             },
             m,
             evals=[(m, "Train"), (valid, "Valid")],
-            feval=tm.eval_error_metric,
+            custom_metric=tm.eval_error_metric,
             num_boost_round=1000,
             early_stopping_rounds=early_stopping_rounds,
         )["booster"]

@@ -56,6 +56,7 @@ class LintersPaths:
         "demo/guide-python/callbacks.py",
         "demo/guide-python/categorical.py",
         "demo/guide-python/cat_pipeline.py",
+        "demo/guide-python/cross_validation.py",
         "demo/guide-python/feature_weights.py",
         "demo/guide-python/sklearn_parallel.py",
         "demo/guide-python/sklearn_examples.py",

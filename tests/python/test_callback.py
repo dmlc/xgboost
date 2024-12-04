@@ -2,8 +2,9 @@ import json
 import os
 import tempfile
 from collections import namedtuple
-from typing import Union
+from typing import Tuple, Union
 
+import numpy as np
 import pytest
 
 import xgboost as xgb
@@ -28,6 +29,11 @@ def breast_cancer() -> BreastCancer:
         tr=(X[:split, ...], y[:split, ...]),
         va=(X[split:, ...], y[split:, ...]),
     )
+
+
+def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
+    # No custom objective, recieve transformed output
+    return tm.eval_error_metric(predt, dtrain, rev_link=False)
 
 
 class TestCallbacks:
@@ -125,8 +131,7 @@ class TestCallbacks:
             },
             D_train,
             evals=[(D_train, "Train"), (D_valid, "Valid")],
-            # No custom objective, transformed output
-            custom_metric=tm.eval_error_metric,
+            custom_metric=eval_error_metric,
             num_boost_round=1000,
             early_stopping_rounds=early_stopping_rounds,
             verbose_eval=False,
@@ -150,8 +155,7 @@ class TestCallbacks:
             },
             D_train,
             evals=[(D_train, "Train"), (D_valid, "Valid")],
-            # No custom objective, transformed output
-            custom_metric=tm.eval_error_metric,
+            custom_metric=eval_error_metric,
             num_boost_round=1000,
             callbacks=[early_stop],
             verbose_eval=False,
@@ -177,7 +181,7 @@ class TestCallbacks:
             D_train,
             evals=[(D_train, "Train"), (D_valid, "Valid")],
             # No custom objective, transformed output
-            custom_metric=tm.eval_error_metric,
+            custom_metric=eval_error_metric,
             num_boost_round=rounds,
             callbacks=[early_stop],
             verbose_eval=False,

@@ -9,14 +9,6 @@ from typing import Generator, Sequence
 import numpy as np
 import pytest
 from pyspark import SparkConf
-
-import xgboost as xgb
-from xgboost import testing as tm
-from xgboost.collective import Config
-from xgboost.spark.data import pred_contribs
-
-pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
-
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.feature import VectorAssembler
@@ -26,7 +18,10 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as spark_sql_func
 
+import xgboost as xgb
 from xgboost import XGBClassifier, XGBModel, XGBRegressor
+from xgboost import testing as tm
+from xgboost.collective import Config
 from xgboost.spark import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
@@ -35,10 +30,13 @@ from xgboost.spark import (
     SparkXGBRegressorModel,
 )
 from xgboost.spark.core import _non_booster_params
+from xgboost.spark.data import pred_contribs
 
 from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
+
+pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
 
 
 def no_sparse_unwrap() -> tm.PytestSkip:

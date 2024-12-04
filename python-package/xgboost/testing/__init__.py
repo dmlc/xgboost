@@ -653,9 +653,20 @@ def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
 M = TypeVar("M", xgb.Booster, xgb.XGBModel)
 
 
-def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
-    """Evaluation metric for xgb.train"""
+def eval_error_metric(
+    predt: np.ndarray, dtrain: xgb.DMatrix, rev_link: bool = True
+) -> Tuple[str, np.float64]:
+    """Evaluation metric for xgb.train.
+
+    Parameters
+    ----------
+    rev_link : Whether the metric needs to apply the reverse link function (activation).
+
+    """
     label = dtrain.get_label()
+    if rev_link:
+        predt = 1.0 / (1.0 + np.exp(-predt))
+
     r = np.zeros(predt.shape)
     gt = predt > 0.5
     if predt.size == 0:
