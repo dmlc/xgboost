@@ -621,7 +621,6 @@ def _transform_pandas_df(
     feature_types: Optional[FeatureTypes] = None,
     meta: Optional[str] = None,
 ) -> Tuple[PandasTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
-    # pandas_check_dtypes(data, enable_categorical)
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 
