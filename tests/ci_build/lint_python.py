@@ -27,6 +27,7 @@ class LintersPaths:
         "tests/python/test_dt.py",
         "tests/python/test_demos.py",
         "tests/python/test_eval_metrics.py",
+        "tests/python/test_early_stopping.py",
         "tests/python/test_multi_target.py",
         "tests/python/test_objectives.py",
         "tests/python/test_predict.py",

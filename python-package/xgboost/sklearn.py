@@ -424,7 +424,7 @@ __model_doc = f"""
 
         Metric used for monitoring the training result and early stopping.  It can be a
         string or list of strings as names of predefined metric in XGBoost (See
-        doc/parameter.rst), one of the metrics in :py:mod:`sklearn.metrics`, or any
+        :doc:`/parameter`), one of the metrics in :py:mod:`sklearn.metrics`, or any
         other user defined metric that looks like `sklearn.metrics`.
 
         If custom objective is also provided, then custom metric should implement the
