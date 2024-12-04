@@ -564,7 +564,7 @@ class RelDataCV(NamedTuple):
         return self.max_rel == 1
 
 
-class PBM:  # pylint: disable=too-few-public-methods
+class PBM:
     """Simulate click data with position bias model. There are other models available in
     `ULTRA <https://github.com/ULTR-Community/ULTRA.git>`_ like the cascading model.
 

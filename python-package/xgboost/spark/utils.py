@@ -43,7 +43,7 @@ def _get_default_params_from_func(
     return filtered_params_dict
 
 
-class CommunicatorContext(CCtx):  # pylint: disable=too-few-public-methods
+class CommunicatorContext(CCtx):
     """Context with PySpark specific task ID."""
 
     def __init__(self, context: BarrierTaskContext, **args: Any) -> None:

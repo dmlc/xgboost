@@ -45,17 +45,22 @@ except ImportError:
 
 # sklearn
 try:
+    from sklearn import __version__ as _sklearn_version
     from sklearn.base import BaseEstimator as XGBModelBase
     from sklearn.base import ClassifierMixin as XGBClassifierBase
     from sklearn.base import RegressorMixin as XGBRegressorBase
-    from sklearn.preprocessing import LabelEncoder
 
     try:
-        from sklearn.model_selection import KFold as XGBKFold
         from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
     except ImportError:
-        from sklearn.cross_validation import KFold as XGBKFold
         from sklearn.cross_validation import StratifiedKFold as XGBStratifiedKFold
+
+    # sklearn.utils Tags types can be imported unconditionally once
+    # xgboost's minimum scikit-learn version is 1.6 or higher
+    try:
+        from sklearn.utils import Tags as _sklearn_Tags
+    except ImportError:
+        _sklearn_Tags = object
 
     SKLEARN_INSTALLED = True
 
@@ -63,13 +68,19 @@ except ImportError:
     SKLEARN_INSTALLED = False
 
     # used for compatibility without sklearn
-    XGBModelBase = object
-    XGBClassifierBase = object
-    XGBRegressorBase = object
-    LabelEncoder = object
+    class XGBModelBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.BaseEstimator."""
 
-    XGBKFold = None
+    class XGBClassifierBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.ClassifierMixin."""
+
+    class XGBRegressorBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.RegressorMixin."""
+
     XGBStratifiedKFold = None
+
+    _sklearn_Tags = object
+    _sklearn_version = object
 
 
 _logger = logging.getLogger(__name__)
