@@ -86,7 +86,7 @@
 #' @export
 xgb.create.features <- function(model, data, ...) {
   check.deprecation(...)
-  pred_with_leaf <- predict(model, data, predleaf = TRUE)
+  pred_with_leaf <- predict.xgb.Booster(model, data, predleaf = TRUE)
   cols <- lapply(as.data.frame(pred_with_leaf), factor)
   cbind(data, sparse.model.matrix(~ . -1, cols)) # nolint
 }
