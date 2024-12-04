@@ -512,12 +512,12 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
 
 
 @functools.cache
-def _has_npdtypes() -> bool:
+def _lazy_has_npdtypes() -> bool:
     return np.lib.NumpyVersion(np.__version__) > np.lib.NumpyVersion("1.25.0")
 
 
 @functools.cache
-def _lazy_pd_floats() -> tuple:
+def _lazy_load_pd_floats() -> tuple:
     from pandas import Float32Dtype, Float64Dtype
 
     return Float32Dtype, Float64Dtype
@@ -525,10 +525,10 @@ def _lazy_pd_floats() -> tuple:
 
 def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
     """Handle categorical dtype and extension types from pandas."""
-    Float32Dtype, Float64Dtype = _lazy_pd_floats()
+    Float32Dtype, Float64Dtype = _lazy_load_pd_floats()
 
     result: List[np.ndarray] = []
-    np_dtypes = _has_npdtypes()
+    np_dtypes = _lazy_has_npdtypes()
 
     def cat_codes(ser: PdSeries) -> np.ndarray:
         return _ensure_np_dtype(
