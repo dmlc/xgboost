@@ -2008,7 +2008,8 @@ class Booster:
         self.__dict__.update(state)
 
     def __getitem__(self, val: Union[Integer, tuple, slice, EllipsisType]) -> "Booster":
-        """Get a slice of the tree-based model.
+        """Get a slice of the tree-based model. Attributes like `best_iteration` and
+        `best_score` are removed in the resulting booster.
 
         .. versionadded:: 1.3.0
 
@@ -2106,6 +2107,15 @@ class Booster:
             A copied booster model
         """
         return copy.copy(self)
+
+    def reset(self) -> "Booster":
+        """Reset the booster object to release data caches used for training.
+
+        .. versionadded:: 3.0.0
+
+        """
+        _check_call(_LIB.XGBoosterReset(self.handle))
+        return self
 
     def attr(self, key: str) -> Optional[str]:
         """Get attribute string from the Booster.

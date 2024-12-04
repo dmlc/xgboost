@@ -249,6 +249,10 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                                              std::string format) = 0;
 
   virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
+  /**
+   * @brief Reset the booster object to release data caches used for training.
+   */
+  virtual void Reset() = 0;
   /*!
    * \brief Create a new instance of learner.
    * \param cache_data The matrix to cache the prediction.

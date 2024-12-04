@@ -187,9 +187,7 @@ def train(
     if evals_result is not None:
         evals_result.update(cb_container.history)
 
-    # Copy to serialise and unserialise booster to reset state and free
-    # training memory
-    return bst.copy()
+    return bst.reset()
 
 
 class CVPack:
