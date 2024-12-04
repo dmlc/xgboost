@@ -3,7 +3,6 @@
 """Training Library containing training routines."""
 import copy
 import os
-import warnings
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
@@ -28,26 +27,6 @@ from .core import (
 _CVFolds = Sequence["CVPack"]
 
 
-def _configure_custom_metric(
-    feval: Optional[Metric], custom_metric: Optional[Metric]
-) -> Optional[Metric]:
-    if feval is not None:
-        link = (
-            "https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html"
-        )
-        warnings.warn(
-            "`feval` is deprecated, use `custom_metric` instead.  They have "
-            "different behavior when custom objective is also used."
-            f"See {link} for details on the `custom_metric`."
-        )
-    if feval is not None and custom_metric is not None:
-        raise ValueError(
-            "Both `feval` and `custom_metric` are supplied.  Use `custom_metric` instead."
-        )
-    eval_metric = custom_metric if custom_metric is not None else feval
-    return eval_metric
-
-
 @_deprecate_positional_args
 def train(
     params: Dict[str, Any],
@@ -56,7 +35,6 @@ def train(
     *,
     evals: Optional[Sequence[Tuple[DMatrix, str]]] = None,
     obj: Optional[Objective] = None,
-    feval: Optional[Metric] = None,
     maximize: Optional[bool] = None,
     early_stopping_rounds: Optional[int] = None,
     evals_result: Optional[TrainingCallback.EvalsLog] = None,
@@ -81,23 +59,27 @@ def train(
     obj
         Custom objective function.  See :doc:`Custom Objective
         </tutorials/custom_metric_obj>` for details.
-    feval :
-        .. deprecated:: 1.6.0
-            Use `custom_metric` instead.
     maximize :
-        Whether to maximize feval.
+        Whether to maximize custom_metric.
+
     early_stopping_rounds :
+
         Activates early stopping. Validation metric needs to improve at least once in
         every **early_stopping_rounds** round(s) to continue training.
+
         Requires at least one item in **evals**.
+
         The method returns the model from the last iteration (not the best one).  Use
-        custom callback or model slicing if the best model is desired.
-        If there's more than one item in **evals**, the last entry will be used for early
-        stopping.
+        custom callback :py:class:`~xgboost.callback.EarlyStopping` or :py:meth:`model
+        slicing <xgboost.Booster.__getitem__>` if the best model is desired.  If there's
+        more than one item in **evals**, the last entry will be used for early stopping.
+
         If there's more than one metric in the **eval_metric** parameter given in
         **params**, the last metric will be used for early stopping.
+
         If early stopping occurs, the model will have two additional fields:
         ``bst.best_score``, ``bst.best_iteration``.
+
     evals_result :
         This dictionary stores the evaluation results of all the items in watchlist.
 
@@ -150,10 +132,10 @@ def train(
     Returns
     -------
     Booster : a trained booster model
+
     """
 
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
-    metric_fn = _configure_custom_metric(feval, custom_metric)
     evals = list(evals) if evals else []
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
@@ -165,12 +147,7 @@ def train(
     if early_stopping_rounds:
         callbacks.append(EarlyStopping(rounds=early_stopping_rounds, maximize=maximize))
     cb_container = CallbackContainer(
-        callbacks,
-        metric=metric_fn,
-        # For old `feval` parameter, the behavior is unchanged.  For the new
-        # `custom_metric`, it will receive proper prediction result when custom objective
-        # is not used.
-        output_margin=callable(obj) or metric_fn is feval,
+        callbacks, metric=custom_metric, output_margin=callable(obj)
     )
 
     bst = cb_container.before_training(bst)
@@ -559,8 +536,6 @@ def cv(
         shuffle=shuffle,
     )
 
-    metric_fn = _configure_custom_metric(feval, custom_metric)
-
     # setup callbacks
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
 
@@ -570,10 +545,7 @@ def cv(
     if early_stopping_rounds:
         callbacks.append(EarlyStopping(rounds=early_stopping_rounds, maximize=maximize))
     callbacks_container = CallbackContainer(
-        callbacks,
-        metric=metric_fn,
-        is_cv=True,
-        output_margin=callable(obj) or metric_fn is feval,
+        callbacks, metric=custom_metric, is_cv=True, output_margin=callable(obj)
     )
 
     booster = _PackedBooster(cvfolds)
