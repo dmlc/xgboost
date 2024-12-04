@@ -653,6 +653,15 @@ def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
 M = TypeVar("M", xgb.Booster, xgb.XGBModel)
 
 
+def logregobj(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[np.ndarray, np.ndarray]:
+    """Binary regression custom objective."""
+    labels = dtrain.get_label()
+    preds = 1.0 / (1.0 + np.exp(-preds))
+    grad = preds - labels
+    hess = preds * (1.0 - preds)
+    return grad, hess
+
+
 def eval_error_metric(
     predt: np.ndarray, dtrain: xgb.DMatrix, rev_link: bool = True
 ) -> Tuple[str, np.float64]:
@@ -677,8 +686,14 @@ def eval_error_metric(
     return "CustomErr", np.sum(r)
 
 
-def eval_error_metric_skl(y_true: np.ndarray, y_score: np.ndarray) -> np.float64:
+def eval_error_metric_skl(
+    y_true: np.ndarray, y_score: np.ndarray, rev_link: bool = False
+) -> np.float64:
     """Evaluation metric that looks like metrics provided by sklearn."""
+
+    if rev_link:
+        y_score = 1.0 / (1.0 + np.exp(-y_score))
+
     r = np.zeros(y_score.shape)
     gt = y_score > 0.5
     r[gt] = 1 - y_true[gt]

@@ -90,4 +90,6 @@ def evalerror(preds, dtrain):
 
 param = {"max_depth": 2, "eta": 1}
 # train with customized objective
-xgb.cv(param, dtrain, num_round, nfold=5, seed=0, obj=logregobj, custom_metric=evalerror)
+xgb.cv(
+    param, dtrain, num_round, nfold=5, seed=0, obj=logregobj, custom_metric=evalerror
+)
