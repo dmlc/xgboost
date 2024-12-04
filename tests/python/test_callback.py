@@ -286,6 +286,22 @@ class TestCallbacks:
                 == booster.best_iteration + early_stopping_rounds + 1
             )
 
+    def test_early_stopping_multiple_metrics(self):
+        from sklearn.datasets import make_classification
+
+        X, y = make_classification(random_state=1994)
+        # AUC approaches 1.0 real quick.
+        clf = xgb.XGBClassifier(eval_metric=["logloss", "auc"], early_stopping_rounds=2)
+        clf.fit(X, y, eval_set=[(X, y)])
+        assert clf.best_iteration < 8
+        assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
+
+        clf = xgb.XGBClassifier(eval_metric=["auc", "logloss"], early_stopping_rounds=2)
+        clf.fit(X, y, eval_set=[(X, y)])
+
+        assert clf.best_iteration > 50
+        assert clf.evals_result()["validation_0"]["auc"][-1] > 0.99
+
     def run_eta_decay(self, tree_method: str) -> None:
         """Test learning rate scheduler, used by both CPU and GPU tests."""
         scheduler = xgb.callback.LearningRateScheduler

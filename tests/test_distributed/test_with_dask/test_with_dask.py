@@ -2153,6 +2153,9 @@ class TestDaskCallbacks:
         X, y = da.from_array(X), da.from_array(y)
         m = dxgb.DaskDMatrix(client, X, y)
 
+        def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix):
+            return tm.eval_error_metric(predt, dtrain, rev_link=False)
+
         valid = dxgb.DaskDMatrix(client, X, y)
         early_stopping_rounds = 5
         booster = dxgb.train(
@@ -2164,7 +2167,7 @@ class TestDaskCallbacks:
             },
             m,
             evals=[(m, "Train"), (valid, "Valid")],
-            custom_metric=tm.eval_error_metric,
+            custom_metric=eval_error_metric,
             num_boost_round=1000,
             early_stopping_rounds=early_stopping_rounds,
         )["booster"]

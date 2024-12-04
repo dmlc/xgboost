@@ -663,7 +663,7 @@ def logregobj(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[np.ndarray, np.nd
 
 
 def eval_error_metric(
-    predt: np.ndarray, dtrain: xgb.DMatrix, rev_link: bool = True
+    predt: np.ndarray, dtrain: xgb.DMatrix, rev_link: bool
 ) -> Tuple[str, np.float64]:
     """Evaluation metric for xgb.train.
 
@@ -675,7 +675,7 @@ def eval_error_metric(
     label = dtrain.get_label()
     if rev_link:
         predt = 1.0 / (1.0 + np.exp(-predt))
-
+    assert (0.0 <= predt).all() and (predt <= 1.0).all()
     r = np.zeros(predt.shape)
     gt = predt > 0.5
     if predt.size == 0:
@@ -693,6 +693,7 @@ def eval_error_metric_skl(
 
     if rev_link:
         y_score = 1.0 / (1.0 + np.exp(-y_score))
+    assert (0.0 <= y_score).all() and (y_score <= 1.0).all()
 
     r = np.zeros(y_score.shape)
     gt = y_score > 0.5
