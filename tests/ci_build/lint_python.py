@@ -111,8 +111,7 @@ class LintersPaths:
         "tests/test_distributed/test_with_dask/test_external_memory.py",
         "tests/test_distributed/test_with_spark/test_data.py",
         "tests/test_distributed/test_gpu_with_spark/test_data.py",
-        "tests/test_distributed/test_gpu_with_dask/test_gpu_with_dask.py",
-        "tests/test_distributed/test_gpu_with_dask/test_gpu_external_memory.py",
+        "tests/test_distributed/test_gpu_with_dask/",
         # demo
         "demo/dask/",
         "demo/json-model/json_parser.py",
