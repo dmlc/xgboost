@@ -174,7 +174,7 @@ def test_quantile_reg() -> None:
 
 @pytest.mark.skipif(**tm.no_ubjson())
 def test_json_model() -> None:
-    script = os.path.join(DEMO_DIR, "json-model", "json_parser.py")
+    script = os.path.join(PYTHON_DEMO_DIR, "model_parser.py")
 
     def run_test(reg: xgboost.XGBRegressor) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

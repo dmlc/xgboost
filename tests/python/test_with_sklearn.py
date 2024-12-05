@@ -1186,7 +1186,7 @@ def test_feature_weights(tree_method):
     for i in range(kCols):
         fw[i] *= float(i)
 
-    parser_path = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
+    parser_path = os.path.join(tm.demo_dir(__file__), "guide-python", "model_parser.py")
     poly_increasing = get_feature_weights(
         X=X,
         y=y,
