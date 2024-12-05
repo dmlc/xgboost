@@ -6,7 +6,7 @@ import functools
 import json
 import os
 import warnings
-from typing import Any, Callable, List, Optional, Sequence, Tuple, Type, TypeGuard, cast
+from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeGuard, cast
 
 import numpy as np
 
