@@ -52,6 +52,7 @@ Debug
 *.bak
 #.Rbuildignore
 R-package.Rproj
+R-package/build/*
 *.cache*
 .mypy_cache/
 doxygen
@@ -144,11 +145,13 @@ credentials.csv
 .bloop
 
 # python tests
+*.bin
 demo/**/*.txt
 *.dmatrix
 .hypothesis
 __MACOSX/
 model*.json
+/tests/python/models/models/
 
 # R tests
 *.htm

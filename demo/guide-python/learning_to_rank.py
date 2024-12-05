@@ -12,8 +12,8 @@ This is a two-part demo, the first one contains a basic example of using XGBoost
 train on relevance degree, and the second part simulates click data and enable the
 position debiasing training.
 
-For an overview of learning to rank in XGBoost, please see
-:doc:`Learning to Rank </tutorials/learning_to_rank>`.
+For an overview of learning to rank in XGBoost, please see :doc:`Learning to Rank
+</tutorials/learning_to_rank>`.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ import xgboost as xgb
 from xgboost.testing.data import RelDataCV, simulate_clicks, sort_ltr_samples
 
 
-def load_mlsr_10k(data_path: str, cache_path: str) -> RelDataCV:
+def load_mslr_10k(data_path: str, cache_path: str) -> RelDataCV:
     """Load the MSLR10k dataset from data_path and cache a pickle object in cache_path.
 
     Returns
@@ -89,7 +89,7 @@ def load_mlsr_10k(data_path: str, cache_path: str) -> RelDataCV:
 
 def ranking_demo(args: argparse.Namespace) -> None:
     """Demonstration for learning to rank with relevance degree."""
-    data = load_mlsr_10k(args.data, args.cache)
+    data = load_mslr_10k(args.data, args.cache)
 
     # Sort data according to query index
     X_train, y_train, qid_train = data.train
@@ -123,7 +123,7 @@ def ranking_demo(args: argparse.Namespace) -> None:
 
 def click_data_demo(args: argparse.Namespace) -> None:
     """Demonstration for learning to rank with click data."""
-    data = load_mlsr_10k(args.data, args.cache)
+    data = load_mslr_10k(args.data, args.cache)
     train, test = simulate_clicks(data)
     assert test is not None
 

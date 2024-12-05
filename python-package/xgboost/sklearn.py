@@ -35,6 +35,8 @@ from .compat import (
     XGBClassifierBase,
     XGBModelBase,
     XGBRegressorBase,
+    _sklearn_Tags,
+    _sklearn_version,
     import_cupy,
 )
 from .config import config_context
@@ -54,7 +56,7 @@ from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
 from .training import train
 
 
-class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
+class XGBRankerMixIn:
     """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn
     base classes.
 
@@ -79,7 +81,7 @@ def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     return tree_method in ("hist", "gpu_hist", None, "auto") and not_sycl
 
 
-class _SklObjWProto(Protocol):  # pylint: disable=too-few-public-methods
+class _SklObjWProto(Protocol):
     def __call__(
         self,
         y_true: ArrayLike,
@@ -805,6 +807,41 @@ class XGBModel(XGBModelBase):
             tags["non_deterministic"] = True
         return tags
 
+    @staticmethod
+    def _update_sklearn_tags_from_dict(
+        *,
+        tags: _sklearn_Tags,
+        tags_dict: Dict[str, bool],
+    ) -> _sklearn_Tags:
+        """Update ``sklearn.utils.Tags`` inherited from ``scikit-learn`` base classes.
+
+        ``scikit-learn`` 1.6 introduced a dataclass-based interface for estimator tags.
+        ref: https://github.com/scikit-learn/scikit-learn/pull/29677
+
+        This method handles updating that instance based on the values in ``self._more_tags()``.
+        """
+        tags.non_deterministic = tags_dict.get("non_deterministic", False)
+        tags.no_validation = tags_dict["no_validation"]
+        tags.input_tags.allow_nan = tags_dict["allow_nan"]
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        # XGBModelBase.__sklearn_tags__() cannot be called unconditionally,
+        # because that method isn't defined for scikit-learn<1.6
+        if not hasattr(XGBModelBase, "__sklearn_tags__"):
+            err_msg = (
+                "__sklearn_tags__() should not be called when using scikit-learn<1.6. "
+                f"Detected version: {_sklearn_version}"
+            )
+            raise AttributeError(err_msg)
+
+        # take whatever tags are provided by BaseEstimator, then modify
+        # them with XGBoost-specific values
+        return self._update_sklearn_tags_from_dict(
+            tags=super().__sklearn_tags__(),  # pylint: disable=no-member
+            tags_dict=self._more_tags(),
+        )
+
     def __sklearn_is_fitted__(self) -> bool:
         return hasattr(self, "_Booster")
 
@@ -898,13 +935,27 @@ class XGBModel(XGBModelBase):
         """Get parameters."""
         # Based on: https://stackoverflow.com/questions/59248211
         # The basic flow in `get_params` is:
-        # 0. Return parameters in subclass first, by using inspect.
-        # 1. Return parameters in `XGBModel` (the base class).
+        # 0. Return parameters in subclass (self.__class__) first, by using inspect.
+        # 1. Return parameters in all parent classes (especially `XGBModel`).
         # 2. Return whatever in `**kwargs`.
         # 3. Merge them.
+        #
+        # This needs to accommodate being called recursively in the following
+        # inheritance graphs (and similar for classification and ranking):
+        #
+        #   XGBRFRegressor -> XGBRegressor -> XGBModel -> BaseEstimator
+        #                     XGBRegressor -> XGBModel -> BaseEstimator
+        #                                     XGBModel -> BaseEstimator
+        #
         params = super().get_params(deep)
         cp = copy.copy(self)
-        cp.__class__ = cp.__class__.__bases__[0]
+        # If the immediate parent defines get_params(), use that.
+        if callable(getattr(cp.__class__.__bases__[0], "get_params", None)):
+            cp.__class__ = cp.__class__.__bases__[0]
+        # Otherwise, skip it and assume the next class will have it.
+        # This is here primarily for cases where the first class in MRO is a scikit-learn mixin.
+        else:
+            cp.__class__ = cp.__class__.__bases__[1]
         params.update(cp.__class__.get_params(cp, deep))
         # if kwargs is a dict, update params accordingly
         if hasattr(self, "kwargs") and isinstance(self.kwargs, dict):
@@ -1481,7 +1532,7 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
         Number of boosting rounds.
 """,
 )
-class XGBClassifier(XGBModel, XGBClassifierBase):
+class XGBClassifier(XGBClassifierBase, XGBModel):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     @_deprecate_positional_args
     def __init__(
@@ -1495,6 +1546,12 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def _more_tags(self) -> Dict[str, bool]:
         tags = super()._more_tags()
         tags["multilabel"] = True
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.classifier_tags.multi_label = tags_dict["multilabel"]
         return tags
 
     @_deprecate_positional_args
@@ -1769,7 +1826,7 @@ class XGBRFClassifier(XGBClassifier):
     "Implementation of the scikit-learn API for XGBoost regression.",
     ["estimators", "model", "objective"],
 )
-class XGBRegressor(XGBModel, XGBRegressorBase):
+class XGBRegressor(XGBRegressorBase, XGBModel):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
     def __init__(
@@ -1781,6 +1838,13 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
         tags = super()._more_tags()
         tags["multioutput"] = True
         tags["multioutput_only"] = False
+        return tags
+
+    def __sklearn_tags__(self) -> _sklearn_Tags:
+        tags = super().__sklearn_tags__()
+        tags_dict = self._more_tags()
+        tags.target_tags.multi_output = tags_dict["multioutput"]
+        tags.target_tags.single_output = not tags_dict["multioutput_only"]
         return tags
 
 
@@ -1910,7 +1974,7 @@ See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an introducion.
         `qid` can be a special column of input `X` instead of a separated parameter, see
         :py:meth:`fit` for more info.""",
 )
-class XGBRanker(XGBModel, XGBRankerMixIn):
+class XGBRanker(XGBRankerMixIn, XGBModel):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     @_deprecate_positional_args
     def __init__(self, *, objective: str = "rank:ndcg", **kwargs: Any):

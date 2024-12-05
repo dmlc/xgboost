@@ -1633,7 +1633,7 @@ class TestWithDask:
         for i in range(kCols):
             fw[i] *= float(i)
         fw = da.from_array(fw)
-        parser = os.path.join(tm.demo_dir(__file__), "json-model", "json_parser.py")
+        parser = os.path.join(tm.demo_dir(__file__), "guide-python", "model_parser.py")
         poly_increasing = get_feature_weights(
             X=X,
             y=y,
