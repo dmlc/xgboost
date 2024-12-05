@@ -51,7 +51,7 @@ Only used when \code{features = NULL}.}
 averages the SHAP values over all classes. Pass a (0-based) class index
 to show only SHAP values of that class.}
 
-\item{approxcontrib}{Passed to \code{predict()} when \code{shap_contrib = NULL}.}
+\item{approxcontrib}{Passed to \code{\link[=predict.xgb.Booster]{predict.xgb.Booster()}} when \code{shap_contrib = NULL}.}
 
 \item{subsample}{Fraction of data points randomly picked for plotting.
 The default (\code{NULL}) will use up to 100k data points.}
