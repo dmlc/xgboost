@@ -772,7 +772,13 @@ process.eval.set <- function(eval_set, lst_args) {
     # set from the remaining rows. The procedure here is quite inefficient, but there aren't
     # enough random-related functions in base R to be able to construct an efficient version.
     if (is_classif && length(unique(processed_y[idx_train])) < length(lst_args$metadata$y_levels)) {
-      # nolint start: object_usage_linter.
+      # These are defined in order to avoid NOTEs from CRAN checks
+      # when using non-standard data.table evaluation with column names.
+      idx <- NULL
+      y <- NULL
+      ranked_idx <- NULL
+      chosen <- NULL
+
       dt <- data.table::data.table(y = processed_y, idx = seq(1L, nrows))[
         , .(
             ranked_idx = seq(1L, .N),
@@ -791,7 +797,6 @@ process.eval.set <- function(eval_set, lst_args) {
         idx_eval <- rem_idx[seq(1L, nrow_eval)]
         idx_train <- c(min_idx_train, rem_idx[seq(nrow_eval + 1L, length(rem_idx))])
       }
-      # nolint: end
     }
 
   } else {
