@@ -37,6 +37,7 @@ Core Data Structure
 .. autoclass:: xgboost.Booster
     :members:
     :show-inheritance:
+    :special-members: __getitem__
 
 .. autoclass:: xgboost.DataIter
     :members:

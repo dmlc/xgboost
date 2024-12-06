@@ -340,6 +340,7 @@ void TestCategoricalTreeDump(std::string format, std::string sep) {
   ASSERT_NE(pos, std::string::npos);
   pos = str.find(cond_str, pos + 1);
   ASSERT_NE(pos, std::string::npos);
+  ASSERT_NE(str.find("gain"), std::string::npos);
 
   if (format == "json") {
     // Make sure it's valid JSON
