@@ -29,7 +29,6 @@ jobs:
           - xgb-ci.gpu_build_rockylinux8_dev_ver
           - xgb-ci.gpu_build_r_rockylinux8
           - xgb-ci.gpu
-          - xgb-ci.gpu_dev_ver
           - xgb-ci.cpu
           - xgb-ci.manylinux_2_28_x86_64
           - xgb-ci.manylinux2014_x86_64
@@ -280,18 +279,8 @@ jobs:
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: build-cuda
-          - description: single-gpu-nightly-deps
-            container: xgb-ci.gpu_dev_ver
-            suite: gpu
-            runner: linux-amd64-gpu
-            artifact_from: build-cuda
           - description: multiple-gpu
             container: xgb-ci.gpu
-            suite: mgpu
-            runner: linux-amd64-mgpu
-            artifact_from: build-cuda
-          - description: multiple-gpu-nightly-deps
-            container: xgb-ci.gpu_dev_ver
             suite: mgpu
             runner: linux-amd64-mgpu
             artifact_from: build-cuda
