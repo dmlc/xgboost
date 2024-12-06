@@ -423,7 +423,7 @@ NULL
 #'
 #' @description
 #' When it comes to serializing XGBoost models, it's possible to use R serializers such as
-#' [save()] or [saveRDS()] to serialize an XGBoost R model, but XGBoost also provides
+#' [save()] or [saveRDS()] to serialize an XGBoost model object, but XGBoost also provides
 #' its own serializers with better compatibility guarantees, which allow loading
 #' said models in other language bindings of XGBoost.
 #'
@@ -451,14 +451,15 @@ NULL
 #' not used for prediction / importance / plotting / etc.
 #' These R attributes are only preserved when using R's serializers.
 #'
-#' In addition to the regular `xgb.Booster` objects producted by [xgb.train()], the
-#' function [xgboost()] produces a different subclass `xgboost`, which keeps other
-#' additional metadata as R attributes such as class names in classification problems,
-#' and which has a dedicated `predict` method that uses different defaults. XGBoost's
+#' In addition to the regular `xgb.Booster` objects produced by [xgb.train()], the
+#' function [xgboost()] produces objects with a different subclass `xgboost` (which
+#' inherits from `xgb.Booster`), which keeps other additional metadata as R attributes
+#' such as class names in classification problems, and which has a dedicated `predict`
+#' method that uses different defaults and takes different argument names. XGBoost's
 #' own serializers can work with this `xgboost` class, but as they do not keep R
 #' attributes, the resulting object, when deserialized, is downcasted to the regular
 #' `xgb.Booster` class (i.e. it loses the metadata, and the resulting object will use
-#' `predict.xgb.Booster` instead of `predict.xgboost`) - for these `xgboost` objects,
+#' [predict.xgb.Booster()] instead of [predict.xgboost()]) - for these `xgboost` objects,
 #' `saveRDS` might thus be a better option if the extra functionalities are needed.
 #'
 #' Note that XGBoost models in R starting from version `2.1.0` and onwards, and
@@ -466,8 +467,8 @@ NULL
 #' are incompatible with each other. Hence, models that were saved with R serializers
 #' like [saveRDS()] or [save()] before version `2.1.0` will not work with latter
 #' `xgboost` versions and vice versa. Be aware that the structure of R model objects
-#' could in theory change again in the future, so XGBoost's serializers
-#' should be preferred for long-term storage.
+#' could in theory change again in the future, so XGBoost's serializers should be
+#' preferred for long-term storage.
 #'
 #' Furthermore, note that using the package `qs` for serialization will require
 #' version 0.26 or higher of said package, and will have the same compatibility

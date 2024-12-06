@@ -80,7 +80,9 @@ predict using only the first one.
 If passing \code{NULL}, will either stop at the best iteration if the model used early stopping, or use all
 of the iterations (rounds) otherwise.
 
-If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.}
+If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.
+
+Not applicable to \code{gblinear} booster.}
 
 \item{strict_shape}{Whether to always return an array with the same dimensions for the given prediction mode
 regardless of the model type - meaning that, for example, both a multi-class and a binary classification
@@ -118,7 +120,13 @@ and come in the same order as in the training data.
 Note that this check might add some sizable latency to the predictions, so it's
 recommended to disable it for performance-sensitive applications.}
 
-\item{base_margin}{Base margin used for boosting from existing model.
+\item{base_margin}{Base margin used for boosting from existing model (raw score that gets added to
+all observations independently of the trees in the model).
+
+If supplied, should be either a vector with length equal to the number of rows in \code{newdata}
+(for objectives which produces a single score per observation), or a matrix with number of
+rows matching to the number rows in \code{newdata} and number of columns matching to the number
+of scores estimated by the model (e.g. number of classes for multi-class classification).
 
 Note that, if \code{newdata} is an \code{xgb.DMatrix} object, this argument will
 be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
@@ -141,6 +149,9 @@ Note that objective variant \code{multi:softmax} defaults towards predicting mos
 For multi-class / multi-target, they will be arranged so that columns in the output will have
 the leafs from one group followed by leafs of the other group (e.g. order will be \code{group1:feat1},
 \code{group1:feat2}, ..., \code{group2:feat1}, \code{group2:feat2}, ...).
+
+If there is more than one parallel tree (e.g. random forests), the parallel trees will be the
+last grouping in the resulting order, which will still be 2D.
 \item For \code{predcontrib}: when not multi-class / multi-target, a matrix with dimensions
 \verb{[nrows, nfeats+1]}. The last "+ 1" column corresponds to the baseline value.
 
@@ -157,7 +168,7 @@ dimension should produce practically the same result as \code{predcontrib = TRUE
 For multi-class and multi-target, will be a 4D array with dimensions \verb{[nrows, ngroups, nfeats+1, nfeats+1]}
 }
 
-If passing \code{strict_shape=FALSE}, the result is always an array:
+If passing \code{strict_shape=TRUE}, the result is always a matrix (if 2D) or array (if 3D or higher):
 \itemize{
 \item For normal predictions, the dimension is \verb{[nrows, ngroups]}.
 \item For \code{predcontrib=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1]}.

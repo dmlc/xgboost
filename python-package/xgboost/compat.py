@@ -161,4 +161,4 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
             d_v = arr.device.id
             assert d_v == d, "Concatenating arrays on different devices."
         return cupy.concatenate(value, axis=0)
-    raise TypeError("Unknown type.")
+    raise TypeError(f"Unknown type: {type(value[0])}")

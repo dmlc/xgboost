@@ -4,7 +4,7 @@ import random
 import tempfile
 import uuid
 from collections import namedtuple
-from typing import Generator, Sequence
+from typing import Generator, Iterable, List, Sequence
 
 import numpy as np
 import pytest
@@ -1794,3 +1794,16 @@ class TestPySparkLocalLETOR:
         assert ranker.getOrDefault(ranker.objective) == "rank:ndcg"
         model = ranker.fit(ltr_data.df_train_1)
         model.transform(ltr_data.df_test).collect()
+
+    def test_ranker_same_qid_in_same_partition(self, ltr_data: LTRData) -> None:
+        ranker = SparkXGBRanker(qid_col="qid", num_workers=4, force_repartition=True)
+        df, _ = ranker._prepare_input(ltr_data.df_train_1)
+
+        def f(iterator: Iterable) -> List[int]:
+            yield list(set(iterator))
+
+        rows = df.select("qid").rdd.mapPartitions(f).collect()
+        assert len(rows) == 4
+        for row in rows:
+            assert len(row) == 1
+            assert row[0].qid in [6, 7, 8, 9]

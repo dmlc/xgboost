@@ -234,7 +234,7 @@ def check_path() -> None:
 
 
 def make_src_tarball(release: str, outdir: Path) -> Tuple[str, str]:
-    tarball_name = f"xgboost-{release}.tar.gz"
+    tarball_name = f"xgboost-src-{release}.tar.gz"
     tarball_path = outdir / tarball_name
     if tarball_path.exists():
         tarball_path.unlink()
@@ -301,7 +301,7 @@ echo "<hash> <artifact>" | shasum -a 256 --check
 * xgboost_r_gpu_linux_{release}.tar.gz: [Download]({r_gpu_linux_url})
 
 **Source tarball**
-* xgboost.tar.gz: [Download]({src_tarball})"""
+* {tarball_name}: [Download]({src_tarball})"""
     print(end_note)
     with open(outdir / "end_note.md", "w") as f:
         f.write(end_note)

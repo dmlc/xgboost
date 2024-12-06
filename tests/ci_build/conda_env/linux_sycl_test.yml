@@ -17,7 +17,7 @@ dependencies:
 - pytest
 - pytest-timeout
 - pytest-cov
-- dask
+- dask=2024.11
 - dpcpp_linux-64
 - onedpl-devel
 - intel-openmp
