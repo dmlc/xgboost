@@ -181,9 +181,15 @@ Note that setting \code{verbose > 0} automatically engages the
 Default is 1 which means all messages are printed. This parameter is passed to the
 \code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
 
-\item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
-If set to an integer \code{k}, training with a validation set will stop if the performance
-doesn't improve for \code{k} rounds. Setting this parameter engages the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
+\item{early_stopping_rounds}{Number of boosting rounds after which training will be stopped
+if there is no improvement in performance (as measured by the evaluatiation metric that is
+supplied or selected by default for the objective) on the evaluation data passed under
+\code{evals}.
+
+Must pass \code{evals} in order to use this functionality. Setting this parameter adds the
+\code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.
+
+If \code{NULL}, early stopping will not be used.}
 
 \item{maximize}{If \code{feval} and \code{early_stopping_rounds} are set, then this parameter must be set as well.
 When it is \code{TRUE}, it means the larger the evaluation score the better.

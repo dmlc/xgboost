@@ -12,6 +12,8 @@ xgboost(
   weights = NULL,
   verbosity = 0L,
   monitor_training = verbosity > 0,
+  eval_set = NULL,
+  early_stopping_rounds = NULL,
   nthreads = parallel::detectCores(),
   seed = 0L,
   monotone_constraints = NULL,
@@ -102,6 +104,32 @@ If not \code{NULL}, should be passed as a numeric vector with length matching to
 
 \item{monitor_training}{Whether to monitor objective optimization progress on the input data.
 Note that same 'x' and 'y' data are used for both model fitting and evaluation.}
+
+\item{eval_set}{Subset of the data to use as evaluation set. Can be passed as:
+\itemize{
+\item A vector of row indices (base-1 numeration) indicating the observations that are to be designed
+as evaluation data.
+\item A number between zero and one indicating a random fraction of the input data to use as
+evaluation data. Note that the selection will be done uniformly at random, regardless of
+argument \code{weights}.
+}
+
+If passed, this subset of the data will be excluded from the training procedure, and a default
+metric for the selected objective will be calculated on this dataset after each boosting
+iteration (pass \code{verbosity>0} to have these metrics printed during training).
+
+If passing a fraction, in classification problems, the evaluation set will be chosen in such a
+way that at least one observation of each class will be kept in the training data.
+
+For more elaborate evaluation variants (e.g. custom metrics, multiple evaluation sets, etc.),
+one might want to use \code{\link[=xgb.train]{xgb.train()}} instead.}
+
+\item{early_stopping_rounds}{Number of boosting rounds after which training will be stopped
+if there is no improvement in performance (as measured by the default evaluatiation metric
+for the objective) on the evaluation data from \code{eval_set}. Must pass \code{eval_set} in order to use
+this functionality.
+
+If \code{NULL}, early stopping will not be used.}
 
 \item{nthreads}{Number of parallel threads to use. If passing zero, will use all CPU threads.}
 
