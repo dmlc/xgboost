@@ -1,100 +1,287 @@
-name: XGBoost-JVM-Tests
+name: XGBoost CI (JVM packages)
 
 on: [push, pull_request]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: read  # to fetch code (actions/checkout)
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+  USE_DOCKER_CACHE: 1
+
 jobs:
-  test-with-jvm:
-    name: Test JVM on OS ${{ matrix.os }}
+  build-containers:
+    name: Build CI containers (${{ matrix.container_id }})
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=jvm-tests-build-containers-${{ matrix.container_id }}
+    strategy:
+      matrix:
+        container_id:
+          - xgb-ci.manylinux2014_x86_64
+          - xgb-ci.jvm
+          - xgb-ci.jvm_gpu_build
+        runner: [linux-amd64-cpu]
+        include:
+          - container_id: xgb-ci.manylinux2014_aarch64
+            runner: linux-arm64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Build ${{ matrix.container_id }}
+        run: bash ops/docker_build.sh ${{ matrix.container_id }}
+
+  build-jvm-manylinux2014:
+    name: >-
+      Build libxgboost4j.so targeting glibc 2.17
+      (arch ${{ matrix.arch }}, runner ${{ matrix.runner }})
+    needs: build-containers
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=jvm-tests-build-jvm-manylinux2014-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+        - arch: x86_64
+          runner: linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.manylinux2014_${{ matrix.arch }}
+      - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
+      - name: Upload libxgboost4j.so
+        run: |
+          libname=lib/libxgboost4j_linux_${{ matrix.arch }}_${{ github.sha }}.so
+          mv -v lib/libxgboost4j.so ${libname}
+          bash ops/pipeline/publish-artifact.sh ${libname} \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
+
+  build-jvm-gpu:
+    name: Build libxgboost4j.so with CUDA
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=jvm-tests-build-jvm-gpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
+      - run: bash ops/pipeline/build-jvm-gpu.sh
+      - name: Stash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh stash build-jvm-gpu lib/libxgboost4j.so
+
+  build-jvm-mac:
+    name: "Build libxgboost4j.dylib for ${{ matrix.description }}"
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - description: "MacOS (Apple Silicon)"
+            script: ops/pipeline/build-jvm-macos-apple-silicon.sh
+            libname: libxgboost4j_m1_${{ github.sha }}.dylib
+            runner: macos-14
+          - description: "MacOS (Intel)"
+            script: ops/pipeline/build-jvm-macos-intel.sh
+            libname: libxgboost4j_intel_${{ github.sha }}.dylib
+            runner: macos-13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - run: bash ${{ matrix.script }}
+      - name: Upload libxgboost4j.dylib
+        run: |
+          mv -v lib/libxgboost4j.dylib ${{ matrix.libname }}
+          bash ops/pipeline/publish-artifact.sh ${{ matrix.libname }} \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+  build-jvm-docs:
+    name: Build docs for JVM packages
+    needs: [build-jvm-gpu]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=jvm-tests-build-jvm-docs
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
+      - name: Unstash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
+      - run: bash ops/pipeline/build-jvm-doc.sh
+      - name: Upload JVM doc
+        run: |
+          bash ops/pipeline/publish-artifact.sh \
+            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2 \
+            s3://xgboost-docs/
+
+  build-test-jvm-packages:
+    name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=jvm-tests-build-test-jvm-packages-scala${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12", "2.13"]
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.jvm
+      - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
+        run: bash ops/pipeline/build-test-jvm-packages.sh
+        env:
+          SCALA_VERSION: ${{ matrix.scala_version }}
+      - name: Stash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh stash \
+            build-test-jvm-packages lib/libxgboost4j.so
+        if: matrix.scala_version == '2.13'
+
+  build-test-jvm-packages-other-os:
+    name: Build and test JVM packages (${{ matrix.os }})
     timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-13]
-
+        os: [windows-latest, macos-13]
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '8'
+      - uses: dmlc/xgboost-devops/miniforge-setup@main
+        with:
+          environment-name: minimal
+          environment-file: ops/conda_env/minimal.yml
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+      - name: Test XGBoost4J (Core)
+        run: |
+          cd jvm-packages
+          mvn test -B -pl :xgboost4j_2.12
+      - name: Publish artifact xgboost4j.dll to S3
+        run: |
+          cd lib/
+          Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
+          python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll `
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/ `
+            --acl public-read --region us-west-2
+        if: |
+          (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
+          matrix.os == 'windows-latest'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
-    - uses: actions/setup-java@8df1039502a15bceb9433410b1a100fbe190c53b  # v4.5.0
-      with:
-        distribution: 'temurin'
-        java-version: '8'
+  test-jvm-packages-gpu:
+    name: Test JVM packages with CUDA (Scala ${{ matrix.scala_version }})
+    needs: [build-jvm-gpu]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-mgpu
+      - tag=jvm-tests-test-jvm-packages-gpu-scala${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12", "2.13"]
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
+      - name: Unstash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
+      - run: bash ops/pipeline/test-jvm-gpu.sh
+        env:
+          SCALA_VERSION: ${{ matrix.scala_version }}
 
-    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
-      with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: jvm_tests
-        environment-file: tests/ci_build/conda_env/jvm_tests.yml
-        use-mamba: true
-
-    - name: Cache Maven packages
-      uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-
-    - name: Test XGBoost4J (Core)
-      run: |
-        cd jvm-packages
-        mvn test -B -pl :xgboost4j_2.12
-
-    - name: Test XGBoost4J (Core, Spark, Examples)
-      run: |
-        rm -rfv build/
-        cd jvm-packages
-        mvn -B test
-      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
-
-    - name: Extract branch name
-      shell: bash
-      run: |
-        echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
-      id: extract_branch
-      if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        (matrix.os == 'windows-latest' || matrix.os == 'macos-13')
-
-    - name: Publish artifact xgboost4j.dll to S3
-      run: |
-        cd lib/
-        Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
-        dir
-        python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
-      if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        matrix.os == 'windows-latest'
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-    - name: Publish artifact libxgboost4j.dylib to S3
-      shell: bash -l {0}
-      run: |
-        cd lib/
-        mv -v libxgboost4j.dylib libxgboost4j_${{ github.sha }}.dylib
-        ls
-        python -m awscli s3 cp libxgboost4j_${{ github.sha }}.dylib s3://xgboost-nightly-builds/${{ steps.extract_branch.outputs.branch }}/libxgboost4j/ --acl public-read --region us-west-2
-      if: |
-        (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
-        matrix.os == 'macos-13'
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-    - name: Build and Test XGBoost4J with scala 2.13
-      run: |
-        rm -rfv build/
-        cd jvm-packages
-        mvn -B clean install test -Pdefault,scala-2.13
-      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
+  deploy-jvm-packages:
+    name: Deploy JVM packages to S3 (${{ matrix.variant.name }})
+    needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
+    runs-on:
+      - runs-on
+      - runner=linux-amd64-cpu
+      - run-id=${{ github.run_id }}
+      - tag=jvm-tests-deploy-jvm-packages-${{ matrix.variant.name }}-scala${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - name: cpu
+            container_id: xgb-ci.jvm
+            artifact_from: build-test-jvm-packages
+          - name: gpu
+            container_id: xgb-ci.jvm_gpu_build
+            artifact_from: build-jvm-gpu
+        scala_version: ['2.12', '2.13']
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh ${{ matrix.variant.container_id }}
+      - name: Unstash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh \
+            unstash ${{ matrix.variant.artifact_from }} \
+            lib/libxgboost4j.so
+          ls -lh lib/libxgboost4j.so
+      - name: Deploy JVM packages to S3
+        run: |
+          bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} \
+            ${{ matrix.variant.container_id }} ${{ matrix.scala_version }}

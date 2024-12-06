@@ -32,9 +32,6 @@ class TestVirtualMem : public ::testing::TestWithParam<CUmemLocationType> {
  public:
   void Run() {
     auto type = this->GetParam();
-    if (type == CU_MEM_LOCATION_TYPE_HOST_NUMA) {
-      GTEST_SKIP_("Host numa might require special system capabilities, skipping for now.");
-    }
     detail::GrowOnlyVirtualMemVec vec{type};
     auto prop = xgboost::cudr::MakeAllocProp(type);
     auto gran = xgboost::cudr::GetAllocGranularity(&prop);
@@ -114,7 +111,15 @@ TEST(TestVirtualMem, Version) {
   xgboost::curt::DrVersion(&major, &minor);
   LOG(INFO) << "Latest supported CUDA version by the driver:" << major << "." << minor;
   PinnedMemory pinned;
+#if defined(xgboost_IS_WIN)
   ASSERT_FALSE(pinned.IsVm());
+#else  // defined(xgboost_IS_WIN)
+  if (major >= 12 && minor >= 5) {
+    ASSERT_TRUE(pinned.IsVm());
+  } else {
+    ASSERT_FALSE(pinned.IsVm());
+  }
+#endif  // defined(xgboost_IS_WIN)
 }
 
 TEST(AtomitFetch, Max) {

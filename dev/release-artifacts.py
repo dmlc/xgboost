@@ -123,7 +123,7 @@ def make_python_sdist(
     with DirectoryExcursion(ROOT):
         with open("python-package/pyproject.toml", "r") as f:
             orig_pyproj_lines = f.read()
-        with open("tests/buildkite/remove_nccl_dep.patch", "r") as f:
+        with open("ops/patch/remove_nccl_dep.patch", "r") as f:
             patch_lines = f.read()
         subprocess.run(
             ["patch", "-p0"], input=patch_lines, check=True, text=True, encoding="utf-8"

@@ -17,7 +17,7 @@ Making a Release
 -----------------
 
 1. Create an issue for the release, noting the estimated date and expected features or major fixes, pin that issue.
-2. Create a release branch if this is a major release. Bump release version. There's a helper script ``tests/ci_build/change_version.py``.
+2. Create a release branch if this is a major release. Bump release version. There's a helper script ``ops/script/change_version.py``.
 3. Commit the change, create a PR on GitHub on release branch.  Port the bumped version to default branch, optionally with the postfix ``SNAPSHOT``.
 4. Create a tag on release branch, either on GitHub or locally.
 5. Make a release on GitHub tag page, which might be done with previous step if the tag is created on GitHub.

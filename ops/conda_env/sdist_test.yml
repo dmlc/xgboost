@@ -1,0 +1,11 @@
+# conda environment for source distribution test.
+name: sdist_test
+channels:
+- conda-forge
+dependencies:
+- python=3.10
+- pip
+- wheel
+- cmake
+- ninja
+- python-build

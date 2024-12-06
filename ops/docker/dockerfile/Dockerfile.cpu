@@ -1,0 +1,57 @@
+FROM ubuntu:22.04
+
+# Environment
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+# Install all basic requirements
+RUN \
+    apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
+    apt-get update && \
+    apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libidn12 cmake ninja-build gcc-10 g++-10 openjdk-8-jdk-headless && \
+    # Python
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/miniforge
+
+ENV PATH=/opt/miniforge/bin:$PATH
+ENV CC=gcc-10
+ENV CXX=g++-10
+ENV CPP=cpp-10
+
+ENV GOSU_VERSION=1.10
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+
+# Install gRPC
+# Patch Abseil to apply https://github.com/abseil/abseil-cpp/issues/1629
+RUN git clone -b v1.65.4 https://github.com/grpc/grpc.git \
+      --recurse-submodules --depth 1 && \
+    pushd grpc && \
+    pushd third_party/abseil-cpp && \
+    git fetch origin master && \
+    git cherry-pick -n cfde5f74e276049727f9556f13473a59fe77d9eb && \
+    popd && \
+    cmake -S . -B build -GNinja -DCMAKE_INSTALL_PREFIX=/opt/grpc -DCMAKE_CXX_VISIBILITY_PRESET=hidden && \
+    cmake --build build --target install && \
+    popd && \
+    rm -rf grpc
+
+# Create new Conda environment
+COPY conda_env/linux_cpu_test.yml /scripts/
+RUN mamba create -n linux_cpu_test && \
+    mamba env update -n linux_cpu_test --file=/scripts/linux_cpu_test.yml && \
+    mamba clean --all --yes
+
+# Install lightweight sudo (not bound to TTY)
+RUN set -ex; \
+    wget -nv -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY docker/entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]

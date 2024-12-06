@@ -1,0 +1,54 @@
+ARG CUDA_VERSION_ARG=notset
+FROM nvidia/cuda:$CUDA_VERSION_ARG-runtime-ubuntu22.04
+ARG CUDA_VERSION_ARG
+ARG RAPIDS_VERSION_ARG
+  # Should be first 4 digits (e.g. 24.06)
+ARG NCCL_VERSION_ARG
+ARG RAPIDSAI_CONDA_CHANNEL_ARG="rapidsai"
+
+# Environment
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+
+# Install all basic requirements
+RUN \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
+    apt-get update && \
+    apt-get install -y wget unzip bzip2 libgomp1 build-essential openjdk-8-jdk-headless && \
+    apt-get install libnccl2 libnccl-dev -y --allow-change-held-packages && \
+    # Python
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/miniforge
+
+ENV PATH=/opt/miniforge/bin:$PATH
+
+# Create new Conda environment with cuDF, Dask, and cuPy
+RUN \
+    export NCCL_SHORT_VER=$(echo "$NCCL_VERSION_ARG" | cut -d "-" -f 1) && \
+    export CUDA_SHORT_VER=$(echo "$CUDA_VERSION_ARG" | grep -o -E '[0-9]+\.[0-9]') && \
+    mamba create -y -n gpu_test -c ${RAPIDSAI_CONDA_CHANNEL_ARG} -c conda-forge -c nvidia \
+        python=3.10 "cudf=$RAPIDS_VERSION_ARG.*" "rmm=$RAPIDS_VERSION_ARG.*" cuda-version=$CUDA_SHORT_VER \
+        "nccl>=${NCCL_SHORT_VER}" \
+        "dask<=2024.10.0" \
+        "distributed<=2024.10.0" \
+        "dask-cuda=$RAPIDS_VERSION_ARG.*" "dask-cudf=$RAPIDS_VERSION_ARG.*" cupy \
+        numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel \
+        python-kubernetes urllib3 graphviz hypothesis loky \
+        "pyspark>=3.4.0" cloudpickle cuda-python && \
+    mamba clean --all --yes
+
+ENV GOSU_VERSION=1.10
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+
+# Install lightweight sudo (not bound to TTY)
+RUN set -ex; \
+    wget -nv -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY docker/entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]

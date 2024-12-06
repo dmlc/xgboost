@@ -203,7 +203,7 @@ def main():
     )
     print(
         "5. Remove the Scala 2.12 artifacts and build Scala 2.13 artifacts:\n"
-        "   python dev/change_scala_version.py --scala-version 2.13 --purge-artifacts\n"
+        "   python ops/script/change_scala_version.py --scala-version 2.13 --purge-artifacts\n"
         "   GPG_TTY=$(tty) mvn deploy -Prelease -DskipTests -Dskip.native.build=true"
     )
     print(

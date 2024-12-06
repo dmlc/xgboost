@@ -1,0 +1,58 @@
+ARG CUDA_VERSION_ARG=notset
+FROM nvcr.io/nvidia/cuda:$CUDA_VERSION_ARG-devel-rockylinux8
+ARG CUDA_VERSION_ARG
+ARG R_VERSION_ARG
+
+# Install all basic requirements
+RUN \
+    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/D42D0685.pub | sed '/^Version/d' \
+        > /etc/pki/rpm-gpg/RPM-GPG-KEY-NVIDIA && \
+    dnf -y update && \
+    dnf -y install dnf-plugins-core && \
+    dnf config-manager --set-enabled powertools && \
+    dnf install -y tar unzip wget xz git which ninja-build readline-devel libX11-devel libXt-devel \
+                   xorg-x11-server-devel openssl-devel zlib-devel bzip2-devel xz-devel \
+                   pcre2-devel libcurl-devel texlive-* \
+                   gcc-toolset-10-gcc gcc-toolset-10-binutils gcc-toolset-10-gcc-c++ \
+                   gcc-toolset-10-gcc-gfortran gcc-toolset-10-libquadmath-devel \
+                   gcc-toolset-10-runtime gcc-toolset-10-libstdc++-devel
+
+ENV PATH=/opt/miniforge/bin:/usr/local/ninja:/opt/software/packages/bin:/opt/R/$R_VERSION_ARG/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/software/packages/lib:/opt/R/$R_VERSION_ARG/lib64:$LD_LIBRARY_PATH
+ENV CC=/opt/rh/gcc-toolset-10/root/usr/bin/gcc
+ENV CXX=/opt/rh/gcc-toolset-10/root/usr/bin/c++
+ENV CPP=/opt/rh/gcc-toolset-10/root/usr/bin/cpp
+ENV F77=/opt/rh/gcc-toolset-10/root/usr/bin/gfortran
+ENV FC=/opt/rh/gcc-toolset-10/root/usr/bin/gfortran
+
+RUN \
+    wget -nv -nc https://cran.r-project.org/src/base/R-4/R-$R_VERSION_ARG.tar.gz  && \
+    tar xf R-$R_VERSION_ARG.tar.gz  && \
+    cd R-$R_VERSION_ARG  && \
+    ./configure --prefix=/opt/R/$R_VERSION_ARG --enable-R-shlib --with-pcrel  && \
+    make -j$(nproc)  && \
+    make install
+
+run \
+    # Python
+    wget -nv -O conda.sh https://github.com/conda-forge/miniforge/releases/download/24.3.0-0/Miniforge3-24.3.0-0-Linux-x86_64.sh && \
+    bash conda.sh -b -p /opt/miniforge && \
+    /opt/miniforge/bin/python -m pip install auditwheel awscli && \
+    # CMake
+    wget -nv -nc https://cmake.org/files/v3.29/cmake-3.29.5-linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.29.5-linux-x86_64.sh --skip-license --prefix=/usr
+
+ENV GOSU_VERSION=1.10
+
+# Install lightweight sudo (not bound to TTY)
+RUN set -ex; \
+    wget -nv -nc -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY docker/entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]
