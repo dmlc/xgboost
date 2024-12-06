@@ -1,5 +1,8 @@
 library(survival)
 library(data.table)
+data("iris")
+data("mtcars")
+data("ToothGrowth")
 
 test_that("Auto determine objective", {
   y_num <- seq(1, 10)
@@ -620,4 +623,325 @@ test_that("Whole function works", {
   expect_true(any(grepl("monotone_constraints", txt, fixed = TRUE)))
   expect_true(any(grepl("Number of iterations: 5", txt, fixed = TRUE)))
   expect_true(any(grepl("Number of features: 8", txt, fixed = TRUE)))
+})
+
+test_that("Can predict probabilities and raw scores", {
+  y <- ToothGrowth$supp
+  x <- ToothGrowth[, -2L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+  pred_prob <- predict(model, x, type = "response")
+  pred_raw <- predict(model, x, type = "raw")
+  expect_true(is.vector(pred_prob))
+  expect_equal(length(pred_prob), nrow(x))
+  expect_true(min(pred_prob) >= 0)
+  expect_true(max(pred_prob) <= 1)
+
+  expect_equal(length(pred_raw), nrow(x))
+  expect_true(is.vector(pred_raw))
+  expect_true(min(pred_raw) < 0)
+  expect_true(max(pred_raw) > 0)
+
+  expect_equal(
+    pred_prob,
+    1 / (1 + exp(-pred_raw)),
+    tolerance = 1e-6
+  )
+})
+
+test_that("Can predict class", {
+  y <- iris$Species
+  x <- iris[, -5L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+  pred_class <- predict(model, x, type = "class")
+  expect_true(is.factor(pred_class))
+  expect_equal(levels(pred_class), levels(y))
+
+  y <- ToothGrowth$supp
+  x <- ToothGrowth[, -2L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+  pred_class <- predict(model, x, type = "class")
+  expect_true(is.factor(pred_class))
+  expect_equal(levels(pred_class), levels(y))
+
+  probs <- predict(model, x, type = "response")
+  expect_true(all(pred_class[probs >= 0.5] == levels(y)[[2L]]))
+  expect_true(all(pred_class[probs < 0.5] == levels(y)[[1L]]))
+
+  # Check that it fails for regression models
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+  expect_error({
+    predict(model, x, type = "class")
+  })
+})
+
+test_that("Metadata survives serialization", {
+  y <- iris$Species
+  x <- iris[, -5L]
+  model_fresh <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+  temp_file <- file.path(tempdir(), "xgb_model.Rds")
+  saveRDS(model_fresh, temp_file)
+  model <- readRDS(temp_file)
+  pred_class <- predict(model, x, type = "class")
+  expect_true(is.factor(pred_class))
+  expect_equal(levels(pred_class), levels(y))
+})
+
+test_that("Column names aren't added when not appropriate", {
+  pred_types <- c(
+    "response",
+    "raw",
+    "leaf"
+  )
+  for (pred_type in pred_types) {
+    y <- mtcars$mpg
+    x <- mtcars[, -1L]
+    model <- xgboost(
+      x,
+      y,
+      nthreads = 1L,
+      nrounds = 3L,
+      max_depth = 2L,
+      objective = "reg:quantileerror",
+      quantile_alpha = 0.5
+    )
+    pred <- predict(model, x, type = pred_type)
+    if (pred_type %in% c("raw", "response")) {
+      expect_true(is.vector(pred))
+    } else {
+      expect_true(length(dim(pred)) >= 2L)
+      expect_null(colnames(pred))
+    }
+
+    y <- ToothGrowth$supp
+    x <- ToothGrowth[, -2L]
+    model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+    pred <- predict(model, x, type = pred_type)
+    if (pred_type %in% c("raw", "response")) {
+      expect_true(is.vector(pred))
+    } else {
+      expect_true(length(dim(pred)) >= 2L)
+      expect_null(colnames(pred))
+    }
+  }
+})
+
+test_that("Column names from multiclass are added to non-class predictions", {
+  y <- iris$Species
+  x <- iris[, -5L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+
+  pred_types_with_colnames <- c(
+    "response",
+    "raw",
+    "contrib",
+    "interaction"
+  )
+
+  for (pred_type in pred_types_with_colnames) {
+    pred <- predict(model, x, type = pred_type)
+    expect_equal(nrow(pred), nrow(x))
+    expect_equal(ncol(pred), 3L)
+    expect_equal(colnames(pred), levels(y))
+  }
+})
+
+test_that("Column names from multitarget are added to predictions", {
+  y <- data.frame(
+    ylog = log(mtcars$mpg),
+    ysqrt = sqrt(mtcars$mpg)
+  )
+  x <- mtcars[, -1L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+
+  pred_types_with_colnames <- c(
+    "response",
+    "raw",
+    "contrib",
+    "interaction"
+  )
+
+  for (pred_type in pred_types_with_colnames) {
+    pred <- predict(model, x, type = pred_type)
+    expect_equal(nrow(pred), nrow(x))
+    expect_equal(ncol(pred), 2L)
+    expect_equal(colnames(pred), colnames(y))
+  }
+})
+
+test_that("Column names from multiquantile are added to predictions", {
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 3L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = c(0.25, 0.5, 0.75)
+  )
+
+  pred_types_with_colnames <- c(
+    "response",
+    "raw",
+    "contrib",
+    "interaction"
+  )
+
+  for (pred_type in pred_types_with_colnames) {
+    pred <- predict(model, x, type = pred_type)
+    expect_equal(nrow(pred), nrow(x))
+    expect_equal(ncol(pred), 3L)
+    expect_equal(colnames(pred), c("q0.25", "q0.5", "q0.75"))
+  }
+})
+
+test_that("Leaf predictions have multiple dimensions when needed", {
+  # single score, multiple trees
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = 0.5
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+
+  # single score, single tree
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = 0.5
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+
+  # multiple score, multiple trees
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L, 3L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
+
+  # multiple score, single tree
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 3L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
+
+  # parallel trees, single tree, single score
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "count:poisson",
+    num_parallel_tree = 2L
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 2L))
+  expect_equal(row.names(pred), row.names(x))
+  expect_null(colnames(pred))
+  expect_null(dimnames(pred)[[3L]])
+
+  # num_parallel_tree>1 + multiple scores is not supported at the moment so no test for it.
+})
+
+test_that("Column names from multiclass are added to leaf predictions", {
+  y <- iris$Species
+  x <- iris[, -5L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 4L, max_depth = 2L)
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L, 3L))
+  expect_equal(dimnames(pred)[[3L]], levels(y))
+
+  # Check also for a single tree
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 1L, max_depth = 2L)
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 3L))
+  expect_equal(dimnames(pred)[[3L]], levels(y))
+})
+
+test_that("Column names from multitarget are added to leaf predictions", {
+  y <- data.frame(
+    ylog = log(mtcars$mpg),
+    ysqrt = sqrt(mtcars$mpg)
+  )
+  x <- mtcars[, -1L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 4L, max_depth = 2L)
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L, 2L))
+  expect_equal(dimnames(pred)[[3L]], colnames(y))
+
+  # Check also for a single tree
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 1L, max_depth = 2L)
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 2L))
+  expect_equal(dimnames(pred)[[3L]], colnames(y))
+})
+
+test_that("Column names from multiquantile are added to leaf predictions", {
+  y <- mtcars$mpg
+  x <- mtcars[, -1L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 4L, 3L))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
+
+  # Check also for a single tree
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 1L,
+    max_depth = 2L,
+    objective = "reg:quantileerror",
+    quantile_alpha = c(0.25, 0.5, 0.75)
+  )
+  pred <- predict(model, x, type = "leaf")
+  expect_equal(dim(pred), c(nrow(x), 1L, 3L))
+  expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
 })

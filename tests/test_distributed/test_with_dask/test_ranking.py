@@ -11,6 +11,7 @@ from distributed import Client, LocalCluster
 
 from xgboost import dask as dxgb
 from xgboost import testing as tm
+from xgboost.testing import dask as dtm
 
 
 @pytest.fixture(scope="module")
@@ -59,7 +60,10 @@ def test_dask_ranking(client: Client) -> None:
     qid_test = qid_test.astype(np.uint32)
 
     rank = dxgb.DaskXGBRanker(
-        n_estimators=2500, eval_metric=["ndcg"], early_stopping_rounds=10
+        n_estimators=2500,
+        eval_metric=["ndcg"],
+        early_stopping_rounds=10,
+        allow_group_split=True,
     )
     rank.fit(
         x_train,
@@ -71,3 +75,8 @@ def test_dask_ranking(client: Client) -> None:
     )
     assert rank.n_features_in_ == 46
     assert rank.best_score > 0.98
+
+
+@pytest.mark.filterwarnings("error")
+def test_no_group_split(client: Client) -> None:
+    dtm.check_no_group_split(client, "cpu")

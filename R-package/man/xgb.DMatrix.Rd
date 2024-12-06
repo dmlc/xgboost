@@ -45,9 +45,11 @@ xgb.QuantileDMatrix(
 \item{data}{Data from which to create a DMatrix, which can then be used for fitting models or
 for getting predictions out of a fitted model.
 
-Supported input types are as follows:\itemize{
+Supported input types are as follows:
+\itemize{
 \item \code{matrix} objects, with types \code{numeric}, \code{integer}, or \code{logical}.
-\item \code{data.frame} objects, with columns of types \code{numeric}, \code{integer}, \code{logical}, or \code{factor}.
+\item \code{data.frame} objects, with columns of types \code{numeric}, \code{integer}, \code{logical}, or \code{factor}
+}
 
 Note that xgboost uses base-0 encoding for categorical types, hence \code{factor} types (which use base-1
 encoding') will be converted inside the function call. Be aware that the encoding used for \code{factor}
@@ -56,32 +58,16 @@ responsibility to ensure that factor columns have the same levels as the ones fr
 was constructed.
 
 Other column types are not supported.
+\itemize{
 \item CSR matrices, as class \code{dgRMatrix} from package \code{Matrix}.
-\item CSC matrices, as class \code{dgCMatrix} from package \code{Matrix}. These are \strong{not} supported for
-'xgb.QuantileDMatrix'.
-\item Single-row CSR matrices, as class \code{dsparseVector} from package \code{Matrix}, which is interpreted
-as a single row (only when making predictions from a fitted model).
-\item Text files in a supported format, passed as a \code{character} variable containing the URI path to
-the file, with an optional format specifier.
-
-These are \strong{not} supported for \code{xgb.QuantileDMatrix}. Supported formats are:\itemize{
-\item XGBoost's own binary format for DMatrices, as produced by \code{\link[=xgb.DMatrix.save]{xgb.DMatrix.save()}}.
-\item SVMLight (a.k.a. LibSVM) format for CSR matrices. This format can be signaled by suffix
-\code{?format=libsvm} at the end of the file path. It will be the default format if not
-otherwise specified.
-\item CSV files (comma-separated values). This format can be specified by adding suffix
-\code{?format=csv} at the end ofthe file path. It will \strong{not} be auto-deduced from file extensions.
+\item CSC matrices, as class \code{dgCMatrix} from package \code{Matrix}.
 }
 
-Be aware that the format of the file will not be auto-deduced - for example, if a file is named 'file.csv',
-it will not look at the extension or file contents to determine that it is a comma-separated value.
-Instead, the format must be specified following the URI format, so the input to \code{data} should be passed
-like this: \code{"file.csv?format=csv"} (or \code{"file.csv?format=csv&label_column=0"} if the first column
-corresponds to the labels).
-
-For more information about passing text files as input, see the articles
-\href{https://xgboost.readthedocs.io/en/stable/tutorials/input_format.html}{Text Input Format of DMatrix} and
-\href{https://xgboost.readthedocs.io/en/stable/python/python_intro.html#python-data-interface}{Data Interface}.
+These are \strong{not} supported by \code{xgb.QuantileDMatrix}.
+\itemize{
+\item XGBoost's own binary format for DMatrices, as produced by \code{\link[=xgb.DMatrix.save]{xgb.DMatrix.save()}}.
+\item Single-row CSR matrices, as class \code{dsparseVector} from package \code{Matrix}, which is interpreted
+as a single row (only when making predictions from a fitted model).
 }}
 
 \item{label}{Label of the training data. For classification problems, should be passed encoded as
@@ -144,13 +130,7 @@ not be saved, so make sure that \code{factor} columns passed to \code{predict} h
 
 \item{feature_weights}{Set feature weights for column sampling.}
 
-\item{data_split_mode}{When passing a URI (as R \code{character}) as input, this signals
-whether to split by row or column. Allowed values are \code{"row"} and \code{"col"}.
-
-In distributed mode, the file is split accordingly; otherwise this is only an indicator on
-how the file was split beforehand. Default to row.
-
-This is not used when \code{data} is not a URI.}
+\item{data_split_mode}{Not used yet. This parameter is for distributed training, which is not yet available for the R package.}
 
 \item{ref}{The training dataset that provides quantile information, needed when creating
 validation/test dataset with \code{\link[=xgb.QuantileDMatrix]{xgb.QuantileDMatrix()}}. Supplying the training DMatrix
@@ -163,8 +143,8 @@ applied to the validation/test data}
 This is only supported when constructing a QuantileDMatrix.}
 }
 \value{
-An 'xgb.DMatrix' object. If calling 'xgb.QuantileDMatrix', it will have additional
-subclass 'xgb.QuantileDMatrix'.
+An 'xgb.DMatrix' object. If calling \code{xgb.QuantileDMatrix}, it will have additional
+subclass \code{xgb.QuantileDMatrix}.
 }
 \description{
 Construct an 'xgb.DMatrix' object from a given data source, which can then be passed to functions

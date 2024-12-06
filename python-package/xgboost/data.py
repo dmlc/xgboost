@@ -2,6 +2,7 @@
 # pylint: disable=too-many-return-statements
 """Data dispatching for DMatrix."""
 import ctypes
+import functools
 import json
 import os
 import warnings
@@ -21,7 +22,9 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import DataFrame, lazy_isinstance
+from .compat import DataFrame
+from .compat import Series as PdSeries
+from .compat import lazy_isinstance
 from .core import (
     _LIB,
     DataIter,
@@ -377,23 +380,39 @@ def pandas_feature_info(
         else:
             feature_names = list(data.columns.map(str))
 
-    # handle feature types
+    # handle feature types and dtype validation
+    new_feature_types = []
+    need_sparse_extension_warn = True
+    for dtype in data.dtypes:
+        if is_pd_sparse_dtype(dtype):
+            new_feature_types.append(_pandas_dtype_mapper[dtype.subtype.name])
+            if need_sparse_extension_warn:
+                warnings.warn("Sparse arrays from pandas are converted into dense.")
+                need_sparse_extension_warn = False
+        elif (
+            is_pd_cat_dtype(dtype) or is_pa_ext_categorical_dtype(dtype)
+        ) and enable_categorical:
+            new_feature_types.append(CAT_T)
+        else:
+            try:
+                new_feature_types.append(_pandas_dtype_mapper[dtype.name])
+            except KeyError:
+                _invalid_dataframe_dtype(data)
+
     if feature_types is None and meta is None:
-        feature_types = []
-        for dtype in data.dtypes:
-            if is_pd_sparse_dtype(dtype):
-                feature_types.append(_pandas_dtype_mapper[dtype.subtype.name])
-            elif (
-                is_pd_cat_dtype(dtype) or is_pa_ext_categorical_dtype(dtype)
-            ) and enable_categorical:
-                feature_types.append(CAT_T)
-            else:
-                feature_types.append(_pandas_dtype_mapper[dtype.name])
+        feature_types = new_feature_types
+
     return feature_names, feature_types
 
 
 def is_nullable_dtype(dtype: PandasDType) -> bool:
     """Whether dtype is a pandas nullable type."""
+
+    from pandas.api.extensions import ExtensionDtype
+
+    if not isinstance(dtype, ExtensionDtype):
+        return False
+
     from pandas.api.types import is_bool_dtype, is_float_dtype, is_integer_dtype
 
     is_int = is_integer_dtype(dtype) and dtype.name in pandas_nullable_mapper
@@ -415,8 +434,8 @@ def is_pa_ext_categorical_dtype(dtype: Any) -> bool:
     )
 
 
-def is_pd_cat_dtype(dtype: PandasDType) -> bool:
-    """Wrapper for testing pandas category type."""
+@functools.cache
+def _lazy_load_pd_is_cat() -> Callable[[PandasDType], bool]:
     import pandas as pd
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
@@ -424,15 +443,23 @@ def is_pd_cat_dtype(dtype: PandasDType) -> bool:
         if Version(pd.__version__) >= Version("2.1.0"):
             from pandas import CategoricalDtype
 
-            return isinstance(dtype, CategoricalDtype)
+            def pd_is_cat_210(dtype: PandasDType) -> bool:
+                return isinstance(dtype, CategoricalDtype)
 
+            return pd_is_cat_210
     from pandas.api.types import is_categorical_dtype  # type: ignore
 
-    return is_categorical_dtype(dtype)
+    return is_categorical_dtype
 
 
-def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
-    """Wrapper for testing pandas sparse type."""
+def is_pd_cat_dtype(dtype: PandasDType) -> bool:
+    """Wrapper for testing pandas category type."""
+    is_cat = _lazy_load_pd_is_cat()
+    return is_cat(dtype)
+
+
+@functools.cache
+def _lazy_load_pd_is_sparse() -> Callable[[PandasDType], bool]:
     import pandas as pd
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
@@ -440,9 +467,19 @@ def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
         if Version(pd.__version__) >= Version("2.1.0"):
             from pandas import SparseDtype
 
-            return isinstance(dtype, SparseDtype)
+            def pd_is_sparse_210(dtype: PandasDType) -> bool:
+                return isinstance(dtype, SparseDtype)
+
+            return pd_is_sparse_210
 
     from pandas.api.types import is_sparse  # type: ignore
+
+    return is_sparse
+
+
+def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
+    """Wrapper for testing pandas sparse type."""
+    is_sparse = _lazy_load_pd_is_sparse()
 
     return is_sparse(dtype)
 
@@ -474,33 +511,34 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     return arr
 
 
-def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
-    """Handle categorical dtype and extension types from pandas."""
-    import pandas as pd
+@functools.cache
+def _lazy_has_npdtypes() -> bool:
+    return np.lib.NumpyVersion(np.__version__) > np.lib.NumpyVersion("1.25.0")
+
+
+@functools.cache
+def _lazy_load_pd_floats() -> tuple:
     from pandas import Float32Dtype, Float64Dtype
 
+    return Float32Dtype, Float64Dtype
+
+
+def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
+    """Handle categorical dtype and extension types from pandas."""
+    Float32Dtype, Float64Dtype = _lazy_load_pd_floats()
+
     result: List[np.ndarray] = []
+    np_dtypes = _lazy_has_npdtypes()
 
-    def cat_codes(ser: pd.Series) -> np.ndarray:
-        if is_pd_cat_dtype(ser.dtype):
-            return _ensure_np_dtype(
-                ser.cat.codes.astype(np.float32)
-                .replace(-1.0, np.nan)
-                .to_numpy(na_value=np.nan),
-                np.float32,
-            )[0]
-        # Not yet supported, the index is not ordered for some reason. Alternately:
-        # `combine_chunks().to_pandas().cat.codes`. The result is the same.
-        assert is_pa_ext_categorical_dtype(ser.dtype)
-        return (
-            ser.array.__arrow_array__()
-            .combine_chunks()
-            .dictionary_encode()
-            .indices.astype(np.float32)
+    def cat_codes(ser: PdSeries) -> np.ndarray:
+        return _ensure_np_dtype(
+            ser.cat.codes.astype(np.float32)
             .replace(-1.0, np.nan)
-        )
+            .to_numpy(na_value=np.nan),
+            np.float32,
+        )[0]
 
-    def nu_type(ser: pd.Series) -> np.ndarray:
+    def nu_type(ser: PdSeries) -> np.ndarray:
         # Avoid conversion when possible
         if isinstance(dtype, Float32Dtype):
             res_dtype: NumpyDType = np.float32
@@ -512,10 +550,9 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
             ser.to_numpy(dtype=res_dtype, na_value=np.nan), res_dtype
         )[0]
 
-    def oth_type(ser: pd.Series) -> np.ndarray:
+    def oth_type(ser: PdSeries) -> np.ndarray:
         # The dtypes module is added in 1.25.
-        npdtypes = np.lib.NumpyVersion(np.__version__) > np.lib.NumpyVersion("1.25.0")
-        npdtypes = npdtypes and isinstance(
+        npdtypes = np_dtypes and isinstance(
             ser.dtype,
             (
                 # pylint: disable=no-member
@@ -545,7 +582,7 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
         elif is_nullable_dtype(dtype):
             result.append(nu_type(data[col]))
         elif is_pd_sparse_dtype(dtype):
-            arr = cast(pd.arrays.SparseArray, data[col].values)
+            arr = data[col].values
             arr = arr.to_dense()
             if _is_np_array_like(arr):
                 arr, _ = _ensure_np_dtype(arr, arr.dtype)
@@ -557,26 +594,6 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
     # IPC format for pandas so that we can apply the data transformation inside XGBoost
     # for better memory efficiency.
     return result
-
-
-def pandas_check_dtypes(data: DataFrame, enable_categorical: bool) -> None:
-    """Validate the input types, returns True if the dataframe is backed by arrow."""
-    sparse_extension = False
-
-    for dtype in data.dtypes:
-        if not (
-            (dtype.name in _pandas_dtype_mapper)
-            or is_pd_sparse_dtype(dtype)
-            or (is_pd_cat_dtype(dtype) and enable_categorical)
-            or is_pa_ext_dtype(dtype)
-        ):
-            _invalid_dataframe_dtype(data)
-
-        if is_pd_sparse_dtype(dtype):
-            sparse_extension = True
-
-    if sparse_extension:
-        warnings.warn("Sparse arrays from pandas are converted into dense.")
 
 
 class PandasTransformed:
@@ -604,7 +621,6 @@ def _transform_pandas_df(
     feature_types: Optional[FeatureTypes] = None,
     meta: Optional[str] = None,
 ) -> Tuple[PandasTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
-    pandas_check_dtypes(data, enable_categorical)
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 

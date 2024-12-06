@@ -430,7 +430,7 @@ def c_array(
 def from_array_interface(interface: dict) -> NumpyOrCupy:
     """Convert array interface to numpy or cupy array"""
 
-    class Array:  # pylint: disable=too-few-public-methods
+    class Array:
         """Wrapper type for communicating with numpy and cupy."""
 
         _interface: Optional[dict] = None
@@ -2008,7 +2008,8 @@ class Booster:
         self.__dict__.update(state)
 
     def __getitem__(self, val: Union[Integer, tuple, slice, EllipsisType]) -> "Booster":
-        """Get a slice of the tree-based model.
+        """Get a slice of the tree-based model. Attributes like `best_iteration` and
+        `best_score` are removed in the resulting booster.
 
         .. versionadded:: 1.3.0
 
@@ -2106,6 +2107,15 @@ class Booster:
             A copied booster model
         """
         return copy.copy(self)
+
+    def reset(self) -> "Booster":
+        """Reset the booster object to release data caches used for training.
+
+        .. versionadded:: 3.0.0
+
+        """
+        _check_call(_LIB.XGBoosterReset(self.handle))
+        return self
 
     def attr(self, key: str) -> Optional[str]:
         """Get attribute string from the Booster.
@@ -3205,11 +3215,7 @@ class Booster:
             }
         )
 
-        if callable(getattr(df, "sort_values", None)):
-            # pylint: disable=no-member
-            return df.sort_values(["Tree", "Node"]).reset_index(drop=True)
-        # pylint: disable=no-member
-        return df.sort(["Tree", "Node"]).reset_index(drop=True)
+        return df.sort_values(["Tree", "Node"]).reset_index(drop=True)
 
     def _assign_dmatrix_features(self, data: DMatrix) -> None:
         if data.num_row() == 0:
