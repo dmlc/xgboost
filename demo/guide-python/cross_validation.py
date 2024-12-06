@@ -2,6 +2,7 @@
 Demo for using cross validation
 ===============================
 """
+
 import os
 
 import numpy as np
@@ -83,9 +84,12 @@ def logregobj(preds, dtrain):
 
 def evalerror(preds, dtrain):
     labels = dtrain.get_label()
+    preds = 1.0 / (1.0 + np.exp(-preds))
     return "error", float(sum(labels != (preds > 0.0))) / len(labels)
 
 
 param = {"max_depth": 2, "eta": 1}
 # train with customized objective
-xgb.cv(param, dtrain, num_round, nfold=5, seed=0, obj=logregobj, feval=evalerror)
+xgb.cv(
+    param, dtrain, num_round, nfold=5, seed=0, obj=logregobj, custom_metric=evalerror
+)

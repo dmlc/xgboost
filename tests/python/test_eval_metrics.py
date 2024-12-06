@@ -92,7 +92,7 @@ class TestEvalMetrics:
             10,
             watchlist,
             early_stopping_rounds=2,
-            feval=self.evalerror_01,
+            custom_metric=self.evalerror_01,
         )
         gbdt_02 = xgb.train(
             self.xgb_params_02,
@@ -100,7 +100,7 @@ class TestEvalMetrics:
             10,
             watchlist,
             early_stopping_rounds=2,
-            feval=self.evalerror_02,
+            custom_metric=self.evalerror_02,
         )
         gbdt_03 = xgb.train(
             self.xgb_params_03,
@@ -108,7 +108,7 @@ class TestEvalMetrics:
             10,
             watchlist,
             early_stopping_rounds=2,
-            feval=self.evalerror_03,
+            custom_metric=self.evalerror_03,
         )
         gbdt_04 = xgb.train(
             self.xgb_params_04,
@@ -116,7 +116,7 @@ class TestEvalMetrics:
             10,
             watchlist,
             early_stopping_rounds=2,
-            feval=self.evalerror_04,
+            custom_metric=self.evalerror_04,
         )
         assert gbdt_01.predict(dvalid)[0] == gbdt_02.predict(dvalid)[0]
         assert gbdt_01.predict(dvalid)[0] == gbdt_03.predict(dvalid)[0]
