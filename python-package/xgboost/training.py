@@ -134,7 +134,7 @@ def train(
         .. versionadded 1.6.0
 
         Custom metric function.  See :doc:`Custom Metric </tutorials/custom_metric_obj>`
-        for details. The metric receives transformed predictioin (after applying the
+        for details. The metric receives transformed prediction (after applying the
         reverse link function) when using a builtin objective, and raw output when using
         a custom objective.
 
