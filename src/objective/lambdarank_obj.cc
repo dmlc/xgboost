@@ -113,8 +113,8 @@ class LambdaRankObj : public FitIntercept {
                                               lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
                                               &li_, &lj_, p_cache_);
     } else {
-      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->Device()),
-                                             lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
+      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device()),
+                                             lj_full_.View(ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device()), &ti_plus_, &tj_minus_,
                                              &li_, &lj_, p_cache_);
     }
 

@@ -56,7 +56,6 @@ void TestNDCGGPair(Context const* ctx) {
                             {0, 2, 4},
                             {2.06611f, -2.06611f, 0.0f, 0.0f},
                             {2.169331f, 2.169331f, 0.0f, 0.0f});
-
     CheckRankingObjFunction(obj,
                             {0, 0.1f, 0, 0.1f},
                             {0,   1, 0, 1},
@@ -65,7 +64,6 @@ void TestNDCGGPair(Context const* ctx) {
                             {2.06611f, -2.06611f, 2.06611f, -2.06611f},
                             {2.169331f, 2.169331f, 2.169331f, 2.169331f});
   }
-
   std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
   obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
 
@@ -246,9 +244,9 @@ void TestMAPStat(Context const* ctx) {
 
     predt.SetDevice(ctx->Device());
     auto rank_idx =
-        p_cache->SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+        p_cache->SortedIdx(ctx, !ctx->IsCUDA() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
 
-    if (ctx->IsCPU()) {
+    if (!ctx->IsCUDA()) {
       obj::cpu_impl::MAPStat(ctx, info.labels.HostView().Slice(linalg::All(), 0), rank_idx,
                              p_cache);
     } else {
@@ -283,9 +281,9 @@ void TestMAPStat(Context const* ctx) {
 
     predt.SetDevice(ctx->Device());
     auto rank_idx =
-        p_cache->SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+        p_cache->SortedIdx(ctx, !ctx->IsCUDA() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
 
-    if (ctx->IsCPU()) {
+    if (!ctx->IsCUDA()) {
       obj::cpu_impl::MAPStat(ctx, info.labels.HostView().Slice(linalg::All(), 0), rank_idx,
                              p_cache);
     } else {
