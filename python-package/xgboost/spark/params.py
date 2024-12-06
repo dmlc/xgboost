@@ -2,7 +2,6 @@
 
 from typing import Dict
 
-# pylint: disable=too-few-public-methods
 from pyspark.ml.param import TypeConverters
 from pyspark.ml.param.shared import Param, Params
 

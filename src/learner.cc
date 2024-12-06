@@ -860,6 +860,7 @@ class LearnerIO : public LearnerConfiguration {
   // Will be removed once JSON takes over.  Right now we still loads some RDS files from R.
   std::string const serialisation_header_ { u8"CONFIG-offset:" };
 
+ protected:
   void ClearCaches() { this->prediction_container_ = PredictionContainer{}; }
 
  public:
@@ -1262,6 +1263,28 @@ class LearnerImpl : public LearnerIO {
     erase_attr("best_iteration");
     erase_attr("best_score");
     return out_impl;
+  }
+
+  void Reset() override {
+    this->Configure();
+    this->CheckModelInitialized();
+    // Global data
+    auto local_map = LearnerAPIThreadLocalStore::Get();
+    if (local_map->find(this) != local_map->cend()) {
+      local_map->erase(this);
+    }
+
+    // Model
+    std::string buf;
+    common::MemoryBufferStream fo(&buf);
+    this->Save(&fo);
+
+    common::MemoryFixSizeBuffer fs(buf.data(), buf.size());
+    this->Load(&fs);
+
+    // Learner self cache. Prediction is cleared in the load method
+    CHECK(this->prediction_container_.Container().empty());
+    this->gpair_ = decltype(this->gpair_){};
   }
 
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {

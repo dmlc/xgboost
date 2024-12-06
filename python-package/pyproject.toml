@@ -63,6 +63,8 @@ disable = [
     "import-error",
     "attribute-defined-outside-init",
     "import-outside-toplevel",
+    "too-few-public-methods",
+    "too-many-ancestors",
     "too-many-nested-blocks",
     "unsubscriptable-object",
     "useless-object-inheritance"

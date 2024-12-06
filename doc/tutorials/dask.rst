@@ -355,15 +355,18 @@ Working with asyncio
 
 .. versionadded:: 1.2.0
 
-XGBoost's dask interface supports the new ``asyncio`` in Python and can be integrated into
-asynchronous workflows.  For using dask with asynchronous operations, please refer to
-`this dask example <https://examples.dask.org/applications/async-await.html>`_ and document in
-`distributed <https://distributed.dask.org/en/latest/asynchronous.html>`_. To use XGBoost's
-dask interface asynchronously, the ``client`` which is passed as an argument for training and
-prediction must be operating in asynchronous mode by specifying ``asynchronous=True`` when the
-``client`` is created (example below). All functions (including ``DaskDMatrix``) provided
-by the functional interface will then return coroutines which can then be awaited to retrieve
-their result.
+XGBoost's dask interface supports the new :py:mod:`asyncio` in Python and can be
+integrated into asynchronous workflows.  For using dask with asynchronous operations,
+please refer to `this dask example
+<https://examples.dask.org/applications/async-await.html>`_ and document in `distributed
+<https://distributed.dask.org/en/latest/asynchronous.html>`_. To use XGBoost's Dask
+interface asynchronously, the ``client`` which is passed as an argument for training and
+prediction must be operating in asynchronous mode by specifying ``asynchronous=True`` when
+the ``client`` is created (example below). All functions (including ``DaskDMatrix``)
+provided by the functional interface will then return coroutines which can then be awaited
+to retrieve their result. Please note that XGBoost is a compute-bounded application, where
+parallelism is more important than concurrency. The support for `asyncio` is more about
+compatibility instead of performance gain.
 
 Functional interface:
 
@@ -525,6 +528,47 @@ Hyper-parameter tuning
 See https://github.com/coiled/dask-xgboost-nyctaxi for a set of examples of using XGBoost
 with dask and optuna.
 
+
+.. _ltr-dask:
+
+****************
+Learning to Rank
+****************
+
+  .. versionadded:: 3.0.0
+
+  .. note::
+
+     Position debiasing is not yet supported.
+
+There are two operation modes in the Dask learning to rank for performance reasons. The
+difference is whether a distributed global sort is needed. Please see :ref:`ltr-dist` for
+how ranking works with distributed training in general. Below we will discuss some of the
+Dask-specific features.
+
+First, if you use the :py:class:`~xgboost.dask.DaskQuantileDMatrix` interface or the
+:py:class:`~xgboost.dask.DaskXGBRanker` with ``allow_group_split`` set to ``True``,
+XGBoost will try to sort and group the samples for each worker based on the query ID. This
+mode tries to skip the global sort and sort only worker-local data, and hence no
+inter-worker data shuffle. Please note that even worker-local sort is costly, particularly
+in terms of memory usage as there's no spilling when
+:py:meth:`~pandas.DataFrame.sort_values` is used, and we need to concatenate the
+data. XGBoost first checks whether the QID is already sorted before actually performing
+the sorting operation. One can choose this if the query groups are relatively consecutive,
+meaning most of the samples within a query group are close to each other and are likely to
+be resided to the same worker. Don't use this if you have performed a random shuffle on
+your data.
+
+If the input data is random, then there's no way we can guarantee most of data within the
+same group being in the same worker. For large query groups, this might not be an
+issue. But for small query groups, it's possible that each worker gets only one or two
+samples from their group for all groups, which can lead to disastrous performance. In that
+case, we can partition the data according to query group, which is the default behavior of
+the :py:class:`~xgboost.dask.DaskXGBRanker` unless the ``allow_group_split`` is set to
+``True``. This mode performs a sort and a groupby on the entire dataset in addition to an
+encoding operation for the query group IDs. Along with partition fragmentation, this
+option can lead to slow performance. See
+:ref:`sphx_glr_python_dask-examples_dask_learning_to_rank.py` for a worked example.
 
 .. _tracker-ip:
 

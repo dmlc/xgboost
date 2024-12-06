@@ -5,7 +5,7 @@
 \title{Model Serialization and Compatibility}
 \description{
 When it comes to serializing XGBoost models, it's possible to use R serializers such as
-\code{\link[=save]{save()}} or \code{\link[=saveRDS]{saveRDS()}} to serialize an XGBoost R model, but XGBoost also provides
+\code{\link[=save]{save()}} or \code{\link[=saveRDS]{saveRDS()}} to serialize an XGBoost model object, but XGBoost also provides
 its own serializers with better compatibility guarantees, which allow loading
 said models in other language bindings of XGBoost.
 
@@ -35,14 +35,15 @@ the model was fit, or saving the R call that produced the model, but are otherwi
 not used for prediction / importance / plotting / etc.
 These R attributes are only preserved when using R's serializers.
 
-In addition to the regular \code{xgb.Booster} objects producted by \code{\link[=xgb.train]{xgb.train()}}, the
-function \code{\link[=xgboost]{xgboost()}} produces a different subclass \code{xgboost}, which keeps other
-additional metadata as R attributes such as class names in classification problems,
-and which has a dedicated \code{predict} method that uses different defaults. XGBoost's
+In addition to the regular \code{xgb.Booster} objects produced by \code{\link[=xgb.train]{xgb.train()}}, the
+function \code{\link[=xgboost]{xgboost()}} produces objects with a different subclass \code{xgboost} (which
+inherits from \code{xgb.Booster}), which keeps other additional metadata as R attributes
+such as class names in classification problems, and which has a dedicated \code{predict}
+method that uses different defaults and takes different argument names. XGBoost's
 own serializers can work with this \code{xgboost} class, but as they do not keep R
 attributes, the resulting object, when deserialized, is downcasted to the regular
 \code{xgb.Booster} class (i.e. it loses the metadata, and the resulting object will use
-\code{predict.xgb.Booster} instead of \code{predict.xgboost}) - for these \code{xgboost} objects,
+\code{\link[=predict.xgb.Booster]{predict.xgb.Booster()}} instead of \code{\link[=predict.xgboost]{predict.xgboost()}}) - for these \code{xgboost} objects,
 \code{saveRDS} might thus be a better option if the extra functionalities are needed.
 
 Note that XGBoost models in R starting from version \verb{2.1.0} and onwards, and
@@ -50,8 +51,8 @@ XGBoost models before version \verb{2.1.0}; have a very different R object struc
 are incompatible with each other. Hence, models that were saved with R serializers
 like \code{\link[=saveRDS]{saveRDS()}} or \code{\link[=save]{save()}} before version \verb{2.1.0} will not work with latter
 \code{xgboost} versions and vice versa. Be aware that the structure of R model objects
-could in theory change again in the future, so XGBoost's serializers
-should be preferred for long-term storage.
+could in theory change again in the future, so XGBoost's serializers should be
+preferred for long-term storage.
 
 Furthermore, note that using the package \code{qs} for serialization will require
 version 0.26 or higher of said package, and will have the same compatibility
