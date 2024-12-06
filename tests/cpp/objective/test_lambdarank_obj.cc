@@ -56,6 +56,7 @@ void TestNDCGGPair(Context const* ctx) {
                             {0, 2, 4},
                             {2.06611f, -2.06611f, 0.0f, 0.0f},
                             {2.169331f, 2.169331f, 0.0f, 0.0f});
+
     CheckRankingObjFunction(obj,
                             {0, 0.1f, 0, 0.1f},
                             {0,   1, 0, 1},
@@ -64,6 +65,7 @@ void TestNDCGGPair(Context const* ctx) {
                             {2.06611f, -2.06611f, 2.06611f, -2.06611f},
                             {2.169331f, 2.169331f, 2.169331f, 2.169331f});
   }
+
   std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
   obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
 
