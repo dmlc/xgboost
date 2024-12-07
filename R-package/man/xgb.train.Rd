@@ -115,40 +115,17 @@ An object of class \code{xgb.Booster}.
 The \code{\link[=xgboost]{xgboost()}} function is a simpler wrapper for \code{xgb.train()}.
 }
 \details{
-These are the training functions for \code{\link[=xgboost]{xgboost()}}.
-
-The \code{xgb.train()} interface supports advanced features such as \code{evals},
-customized objective and evaluation metric functions, therefore it is more flexible
-than the \code{\link[=xgboost]{xgboost()}} interface.
+Compared to \code{\link[=xgboost]{xgboost()}}, the \code{xgb.train()} interface supports advanced features such as
+\code{evals}, customized objective and evaluation metric functions, among others, with the
+difference these work \code{xgb.DMatrix} objects and do not follow typical R idioms.
 
 Parallelization is automatically enabled if OpenMP is present.
 Number of threads can also be manually specified via the \code{nthread} parameter.
 
-While in other interfaces, the default random seed defaults to zero, in R, if a parameter \code{seed}
+While in XGBoost language bindings, the default random seed defaults to zero, in R, if a parameter \code{seed}
 is not manually supplied, it will generate a random seed through R's own random number generator,
 whose seed in turn is controllable through \code{set.seed}. If \code{seed} is passed, it will override the
 RNG from R.
-
-The evaluation metric is chosen automatically by XGBoost (according to the objective)
-when the \code{eval_metric} parameter is not provided.
-User may set one or several \code{eval_metric} parameters.
-Note that when using a customized metric, only this single metric can be used.
-The following is the list of built-in metrics for which XGBoost provides optimized implementation:
-\itemize{
-\item \code{rmse}: Root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
-\item \code{logloss}: Negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
-\item \code{mlogloss}: Multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
-\item \code{error}: Binary classification error rate. It is calculated as \verb{(# wrong cases) / (# all cases)}.
-By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
-Different threshold (e.g., 0.) could be specified as \verb{error@0}.
-\item \code{merror}: Multiclass classification error rate. It is calculated as \verb{(# wrong cases) / (# all cases)}.
-\item \code{mae}: Mean absolute error.
-\item \code{mape}: Mean absolute percentage error.
-\item \code{auc}: Area under the curve.
-\url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
-\item \code{aucpr}: Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
-\item \code{ndcg}: Normalized Discounted Cumulative Gain (for ranking task). \url{https://en.wikipedia.org/wiki/NDCG}
-}
 
 The following callbacks are automatically created when certain parameters are set:
 \itemize{
