@@ -1,5 +1,6 @@
 # pylint: disable=invalid-name,unused-import
 """For compatibility and optional dependencies."""
+import functools
 import importlib.util
 import logging
 import sys
@@ -43,17 +44,22 @@ except ImportError:
 
 # sklearn
 try:
+    from sklearn import __version__ as _sklearn_version
     from sklearn.base import BaseEstimator as XGBModelBase
     from sklearn.base import ClassifierMixin as XGBClassifierBase
     from sklearn.base import RegressorMixin as XGBRegressorBase
-    from sklearn.preprocessing import LabelEncoder
 
     try:
-        from sklearn.model_selection import KFold as XGBKFold
         from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
     except ImportError:
-        from sklearn.cross_validation import KFold as XGBKFold
         from sklearn.cross_validation import StratifiedKFold as XGBStratifiedKFold
+
+    # sklearn.utils Tags types can be imported unconditionally once
+    # xgboost's minimum scikit-learn version is 1.6 or higher
+    try:
+        from sklearn.utils import Tags as _sklearn_Tags
+    except ImportError:
+        _sklearn_Tags = object
 
     SKLEARN_INSTALLED = True
 
@@ -61,18 +67,25 @@ except ImportError:
     SKLEARN_INSTALLED = False
 
     # used for compatibility without sklearn
-    XGBModelBase = object
-    XGBClassifierBase = object
-    XGBRegressorBase = object
-    LabelEncoder = object
+    class XGBModelBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.BaseEstimator."""
 
-    XGBKFold = None
+    class XGBClassifierBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.ClassifierMixin."""
+
+    class XGBRegressorBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.RegressorMixin."""
+
     XGBStratifiedKFold = None
+
+    _sklearn_Tags = object
+    _sklearn_version = object
 
 
 _logger = logging.getLogger(__name__)
 
 
+@functools.cache
 def is_cudf_available() -> bool:
     """Check cuDF package available or not"""
     if importlib.util.find_spec("cudf") is None:
@@ -86,6 +99,7 @@ def is_cudf_available() -> bool:
         return False
 
 
+@functools.cache
 def is_cupy_available() -> bool:
     """Check cupy package available or not"""
     if importlib.util.find_spec("cupy") is None:
@@ -98,6 +112,7 @@ def is_cupy_available() -> bool:
         return False
 
 
+@functools.cache
 def import_cupy() -> types.ModuleType:
     """Import cupy."""
     if not is_cupy_available():
@@ -150,4 +165,4 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
             d_v = arr.device.id
             assert d_v == d, "Concatenating arrays on different devices."
         return cupy.concatenate(value, axis=0)
-    raise TypeError("Unknown type.")
+    raise TypeError(f"Unknown type: {type(value[0])}")

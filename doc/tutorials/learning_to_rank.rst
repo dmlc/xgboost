@@ -165,10 +165,26 @@ On the other hand, if you have comparatively small amount of training data:
 
 For any method chosen, you can modify ``lambdarank_num_pair_per_sample`` to control the amount of pairs generated.
 
+.. _ltr-dist:
+
 ********************
 Distributed Training
 ********************
-XGBoost implements distributed learning-to-rank with integration of multiple frameworks including Dask, Spark, and PySpark. The interface is similar to the single-node counterpart. Please refer to document of the respective XGBoost interface for details. Scattering a query group onto multiple workers is theoretically sound but can affect the model accuracy. For most of the use cases, the small discrepancy is not an issue, as the amount of training data is usually large when distributed training is used. As a result, users don't need to partition the data based on query groups. As long as each data partition is correctly sorted by query IDs, XGBoost can aggregate sample gradients accordingly.
+
+XGBoost implements distributed learning-to-rank with integration of multiple frameworks
+including :doc:`Dask </tutorials/dask>`, :doc:`Spark </jvm/xgboost4j_spark_tutorial>`, and
+:doc:`PySpark </tutorials/spark_estimator>`. The interface is similar to the single-node
+counterpart. Please refer to document of the respective XGBoost interface for details.
+
+.. warning::
+
+   Position-debiasing is not yet supported for existing distributed interfaces.
+
+XGBoost works with collective operations, which means data is scattered to multiple workers. We can divide the data partitions by query group and ensure no query group is split among workers. However, this requires a costly sort and groupby operation and might only be necessary for selected use cases. Splitting and scattering a query group to multiple workers is theoretically sound but can affect the model's accuracy. If there are only a small number of groups sitting at the boundaries of workers, the small discrepancy is not an issue, as the amount of training data is usually large when distributed training is used.
+
+For a longer explanation, assuming the pairwise ranking method is used, we calculate the gradient based on relevance degree by constructing pairs within a query group. If a single query group is split among workers and we use worker-local data for gradient calculation, then we are simply sampling pairs from a smaller group for each worker to calculate the gradient and the evaluation metric. The comparison between each pair doesn't change because a group is split into sub-groups, what changes is the number of total and effective pairs and normalizers like `IDCG`. One can generate more pairs from a large group than it's from two smaller subgroups. As a result, the obtained gradient is still valid from a theoretical standpoint but might not be optimal. As long as each data partitions within a worker are correctly sorted by query IDs, XGBoost can aggregate sample gradients accordingly. And both the (Py)Spark interface and the Dask interface can sort the data according to query ID, please see respected tutorials for more information.
+
+However, it's possible that a distributed framework shuffles the data during map reduce and splits every query group into multiple workers. In that case, the performance would be disastrous. As a result, it depends on the data and the framework for whether a sorted groupby is needed.
 
 *******************
 Reproducible Result

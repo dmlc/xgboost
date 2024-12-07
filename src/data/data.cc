@@ -539,7 +539,9 @@ void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
   } else if (key == "label") {
     CopyTensorInfoImpl(ctx, arr, &this->labels);
     if (this->num_row_ != 0 && this->labels.Shape(0) != this->num_row_) {
-      CHECK_EQ(this->labels.Size() % this->num_row_, 0) << "Incorrect size for labels.";
+      CHECK_EQ(this->labels.Size() % this->num_row_, 0)
+          << "Incorrect size for labels: (" << this->labels.Shape(0) << "," << this->labels.Shape(1)
+          << ") v.s. " << this->num_row_;
       size_t n_targets = this->labels.Size() / this->num_row_;
       this->labels.Reshape(this->num_row_, n_targets);
     }

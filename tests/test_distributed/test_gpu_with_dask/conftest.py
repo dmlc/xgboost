@@ -1,4 +1,4 @@
-from typing import Generator, Sequence
+from typing import Any, Generator, Sequence
 
 import pytest
 
@@ -6,12 +6,12 @@ from xgboost import testing as tm
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_rmm_pool(request, pytestconfig: pytest.Config) -> None:
+def setup_rmm_pool(request: Any, pytestconfig: pytest.Config) -> None:
     tm.setup_rmm_pool(request, pytestconfig)
 
 
 @pytest.fixture(scope="class")
-def local_cuda_client(request, pytestconfig: pytest.Config) -> Generator:
+def local_cuda_client(request: Any, pytestconfig: pytest.Config) -> Generator:
     kwargs = {}
     if hasattr(request, "param"):
         kwargs.update(request.param)

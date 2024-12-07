@@ -4,19 +4,11 @@ import random
 import tempfile
 import uuid
 from collections import namedtuple
-from typing import Generator, Sequence
+from typing import Generator, Iterable, List, Sequence
 
 import numpy as np
 import pytest
 from pyspark import SparkConf
-
-import xgboost as xgb
-from xgboost import testing as tm
-from xgboost.collective import Config
-from xgboost.spark.data import pred_contribs
-
-pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
-
 from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.feature import VectorAssembler
@@ -26,7 +18,10 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as spark_sql_func
 
+import xgboost as xgb
 from xgboost import XGBClassifier, XGBModel, XGBRegressor
+from xgboost import testing as tm
+from xgboost.collective import Config
 from xgboost.spark import (
     SparkXGBClassifier,
     SparkXGBClassifierModel,
@@ -35,10 +30,13 @@ from xgboost.spark import (
     SparkXGBRegressorModel,
 )
 from xgboost.spark.core import _non_booster_params
+from xgboost.spark.data import pred_contribs
 
 from .utils import SparkTestCase
 
 logging.getLogger("py4j").setLevel(logging.INFO)
+
+pytestmark = [tm.timeout(60), pytest.mark.skipif(**tm.no_spark())]
 
 
 def no_sparse_unwrap() -> tm.PytestSkip:
@@ -1794,3 +1792,16 @@ class TestPySparkLocalLETOR:
         assert ranker.getOrDefault(ranker.objective) == "rank:ndcg"
         model = ranker.fit(ltr_data.df_train_1)
         model.transform(ltr_data.df_test).collect()
+
+    def test_ranker_same_qid_in_same_partition(self, ltr_data: LTRData) -> None:
+        ranker = SparkXGBRanker(qid_col="qid", num_workers=4, force_repartition=True)
+        df, _ = ranker._prepare_input(ltr_data.df_train_1)
+
+        def f(iterator: Iterable) -> List[int]:
+            yield list(set(iterator))
+
+        rows = df.select("qid").rdd.mapPartitions(f).collect()
+        assert len(rows) == 4
+        for row in rows:
+            assert len(row) == 1
+            assert row[0].qid in [6, 7, 8, 9]

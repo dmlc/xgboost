@@ -13,138 +13,91 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lintr:
-    runs-on: ${{ matrix.config.os }}
-    name: Run R linters on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
-    strategy:
-      matrix:
-        config:
-          - {os: ubuntu-latest, r: 'release'}
-    env:
-      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-      RSPM: ${{ matrix.config.rspm }}
-
-    steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-
-    - uses: r-lib/actions/setup-r@929c772977a3a13c8733b363bf5a2f685c25dd91 # v2.9.0
-      with:
-        r-version: ${{ matrix.config.r }}
-
-    - name: Cache R packages
-      uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
-      with:
-        path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
-
-    - name: Install dependencies
-      shell: Rscript {0}
-      run: |
-        source("./R-package/tests/helper_scripts/install_deps.R")
-
-    - name: Run lintr
-      run: |
-        MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
-        Rscript tests/ci_build/lint_r.R $(pwd)
-
   test-Rpkg:
-    runs-on: ${{ matrix.config.os }}
-    name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
+    runs-on: ${{ matrix.os }}
+    name: Test R on OS ${{ matrix.os }}, R ${{ matrix.r }}, Compiler ${{ matrix.compiler }}, Build ${{ matrix.build }}
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
-          - {os: ubuntu-latest, r: 'release', compiler: 'none', build: 'cmake'}
+        include:
+          - os: windows-latest
+            r: release
+            compiler: mingw
+            build: autotools
+          - os: ubuntu-latest
+            r: release
+            compiler: none
+            build: cmake
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-      RSPM: ${{ matrix.config.rspm }}
-
     steps:
-    - name: Install system dependencies
-      run: |
-        sudo apt update
-        sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev
-      if: matrix.config.os == 'ubuntu-latest'
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-
-    - uses: r-lib/actions/setup-r@929c772977a3a13c8733b363bf5a2f685c25dd91 # v2.9.0
-      with:
-        r-version: ${{ matrix.config.r }}
-
-    - name: Cache R packages
-      uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
-      with:
-        path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
-
-    - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-      with:
-        python-version: "3.10"
-        architecture: 'x64'
-
-    - uses: r-lib/actions/setup-tinytex@v2
-
-    - name: Install dependencies
-      shell: Rscript {0}
-      run: |
-        source("./R-package/tests/helper_scripts/install_deps.R")
-
-    - name: Test R
-      run: |
-        python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool="${{ matrix.config.build }}" --task=check
-      if: matrix.config.compiler != 'none'
-
-    - name: Test R
-      run: |
-        python tests/ci_build/test_r_package.py --build-tool="${{ matrix.config.build }}" --task=check
-      if: matrix.config.compiler == 'none'
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev
+        if: matrix.os == 'ubuntu-latest'
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.r }}
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-r-${{ matrix.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
+          restore-keys: ${{ runner.os }}-r-${{ matrix.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: 'x64'
+      - uses: r-lib/actions/setup-tinytex@v2
+      - name: Install dependencies
+        shell: Rscript {0}
+        run: |
+          source("./R-package/tests/helper_scripts/install_deps.R")
+      - name: Test R
+        run: |
+          python ops/script/test_r_package.py --compiler='${{ matrix.compiler }}' --build-tool="${{ matrix.build }}" --task=check
+        if: matrix.compiler != 'none'
+      - name: Test R
+        run: |
+          python ops/script/test_r_package.py --build-tool="${{ matrix.build }}" --task=check
+        if: matrix.compiler == 'none'
 
   test-R-on-Debian:
     name: Test R package on Debian
     runs-on: ubuntu-latest
     container:
       image: rhub/debian-gcc-release
-
     steps:
-    - name: Install system dependencies
-      run: |
-        # Must run before checkout to have the latest git installed.
-        # No need to add pandoc, the container has it figured out.
-        apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
-
-    - name: Trust git cloning project sources
-      run: |
-        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-
-    - name: Install dependencies
-      shell: bash -l {0}
-      run: |
-        Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
-
-    - name: Test R
-      shell: bash -l {0}
-      run: |
-        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --build-tool=autotools --task=check
-
-    - uses: dorny/paths-filter@v3
-      id: changes
-      with:
-        filters: |
-          r_package:
-            - 'R-package/**'
-
-    - name: Run document check
-      if: steps.changes.outputs.r_package == 'true'
-      run: |
-        python3 tests/ci_build/test_r_package.py --r=/usr/bin/R --task=doc
+      - name: Install system dependencies
+        run: |
+          # Must run before checkout to have the latest git installed.
+          # No need to add pandoc, the container has it figured out.
+          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git -y
+      - name: Trust git cloning project sources
+        run: |
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Install dependencies
+        shell: bash -l {0}
+        run: |
+          Rscript -e "source('./R-package/tests/helper_scripts/install_deps.R')"
+      - name: Test R
+        shell: bash -l {0}
+        run: |
+          python3 ops/script/test_r_package.py --r=/usr/bin/R --build-tool=autotools --task=check
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            r_package:
+              - 'R-package/**'
+      - name: Run document check
+        if: steps.changes.outputs.r_package == 'true'
+        run: |
+          python3 ops/script/test_r_package.py --r=/usr/bin/R --task=doc

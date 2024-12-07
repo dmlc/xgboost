@@ -27,6 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "numpy",
@@ -63,6 +64,8 @@ disable = [
     "import-error",
     "attribute-defined-outside-init",
     "import-outside-toplevel",
+    "too-few-public-methods",
+    "too-many-ancestors",
     "too-many-nested-blocks",
     "unsubscriptable-object",
     "useless-object-inheritance"

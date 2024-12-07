@@ -19,25 +19,25 @@ jobs:
         ports:
           - 5000:5000
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3.7.1
-      with:
-        driver-opts: network=host
-    - name: Build and push container
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: tests/ci_build/Dockerfile.i386
-        push: true
-        tags: localhost:5000/xgboost/build-32bit:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-    - name: Build XGBoost
-      run: |
-        docker run --rm -v $PWD:/workspace -w /workspace \
-          -e CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move' \
-          localhost:5000/xgboost/build-32bit:latest \
-          tests/ci_build/build_via_cmake.sh
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+      - name: Build and push container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ops/docker/dockerfile/Dockerfile.i386
+          push: true
+          tags: localhost:5000/xgboost/build-32bit:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build XGBoost
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace \
+            -e CXXFLAGS='-Wno-error=overloaded-virtual -Wno-error=maybe-uninitialized -Wno-error=redundant-move' \
+            localhost:5000/xgboost/build-32bit:latest \
+            bash ops/script/build_via_cmake.sh

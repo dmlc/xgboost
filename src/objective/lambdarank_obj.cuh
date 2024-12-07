@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 XGBoost contributors
+ * Copyright 2023-2024, XGBoost contributors
  */
 #ifndef XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_CUH_
 #define XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_CUH_
@@ -71,13 +71,13 @@ struct KernelInputs {
   std::int32_t iter;
 };
 /**
- * \brief Functor for generating pairs
+ * @brief Functor for generating pairs
  */
 template <bool has_truncation>
 struct MakePairsOp {
   KernelInputs args;
   /**
-   * \brief Make pair for the topk pair method.
+   * @brief Make pair for the topk pair method.
    */
   [[nodiscard]] XGBOOST_DEVICE std::tuple<std::size_t, std::size_t> WithTruncation(
       std::size_t idx, bst_group_t g) const {
@@ -86,9 +86,6 @@ struct MakePairsOp {
 
     auto data_group_begin = static_cast<std::size_t>(args.d_group_ptr[g]);
     std::size_t n_data = args.d_group_ptr[g + 1] - data_group_begin;
-    // obtain group segment data.
-    auto g_label = args.labels.Slice(linalg::Range(data_group_begin, data_group_begin + n_data), 0);
-    auto g_sorted_idx = args.d_sorted_idx.subspan(data_group_begin, n_data);
 
     std::size_t i = 0, j = 0;
     common::UnravelTrapeziodIdx(idx_in_thread_group, n_data, &i, &j);
@@ -97,7 +94,7 @@ struct MakePairsOp {
     return std::make_tuple(rank_high, rank_low);
   }
   /**
-   * \brief Make pair for the mean pair method
+   * @brief Make pair for the mean pair method
    */
   XGBOOST_DEVICE std::tuple<std::size_t, std::size_t> WithSampling(std::size_t idx,
                                                                    bst_group_t g) const {

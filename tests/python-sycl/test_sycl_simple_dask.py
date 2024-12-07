@@ -1,8 +1,6 @@
 from xgboost import dask as dxgb
 from xgboost import testing as tm
 
-from hypothesis import given, strategies, assume, settings, note
-
 import dask.array as da
 import dask.distributed
 
@@ -32,10 +30,12 @@ class TestSYCLDask:
         param["objective"] = "reg:squarederror"
 
         # X and y must be Dask dataframes or arrays
-        num_obs = 1e4
+        num_obs = int(1e4)
         num_features = 20
-        X = da.random.random(size=(num_obs, num_features), chunks=(1000, num_features))
-        y = da.random.random(size=(num_obs, 1), chunks=(1000, 1))
+
+        rng = da.random.RandomState(1994)
+        X = rng.random_sample((num_obs, num_features), chunks=(1000, -1))
+        y = X.sum(axis=1)
         dtrain = dxgb.DaskDMatrix(client, X, y)
 
         result = train_result(client, param, dtrain, 10)

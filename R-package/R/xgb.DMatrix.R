@@ -9,12 +9,13 @@
 #' method (`tree_method = "hist"`, which is the default algorithm), but is not usable for the
 #' sorted-indices method (`tree_method = "exact"`), nor for the approximate method
 #' (`tree_method = "approx"`).
+#'
 #' @param data Data from which to create a DMatrix, which can then be used for fitting models or
 #' for getting predictions out of a fitted model.
 #'
-#' Supported input types are as follows:\itemize{
-#' \item `matrix` objects, with types `numeric`, `integer`, or `logical`.
-#' \item `data.frame` objects, with columns of types `numeric`, `integer`, `logical`, or `factor`.
+#' Supported input types are as follows:
+#' - `matrix` objects, with types `numeric`, `integer`, or `logical`.
+#' - `data.frame` objects, with columns of types `numeric`, `integer`, `logical`, or `factor`
 #'
 #' Note that xgboost uses base-0 encoding for categorical types, hence `factor` types (which use base-1
 #' encoding') will be converted inside the function call. Be aware that the encoding used for `factor`
@@ -23,33 +24,14 @@
 #' was constructed.
 #'
 #' Other column types are not supported.
-#' \item CSR matrices, as class `dgRMatrix` from package `Matrix`.
-#' \item CSC matrices, as class `dgCMatrix` from package `Matrix`. These are **not** supported for
-#' 'xgb.QuantileDMatrix'.
-#' \item Single-row CSR matrices, as class `dsparseVector` from package `Matrix`, which is interpreted
-#' as a single row (only when making predictions from a fitted model).
-#' \item Text files in a supported format, passed as a `character` variable containing the URI path to
-#' the file, with an optional format specifier.
+#' - CSR matrices, as class `dgRMatrix` from package `Matrix`.
+#' - CSC matrices, as class `dgCMatrix` from package `Matrix`.
 #'
-#' These are **not** supported for `xgb.QuantileDMatrix`. Supported formats are:\itemize{
-#'   \item XGBoost's own binary format for DMatrices, as produced by [xgb.DMatrix.save()].
-#'   \item SVMLight (a.k.a. LibSVM) format for CSR matrices. This format can be signaled by suffix
-#'     `?format=libsvm` at the end of the file path. It will be the default format if not
-#'     otherwise specified.
-#'   \item CSV files (comma-separated values). This format can be specified by adding suffix
-#'     `?format=csv` at the end ofthe file path. It will **not** be auto-deduced from file extensions.
-#'   }
+#' These are **not** supported by `xgb.QuantileDMatrix`.
+#' - XGBoost's own binary format for DMatrices, as produced by [xgb.DMatrix.save()].
+#' - Single-row CSR matrices, as class `dsparseVector` from package `Matrix`, which is interpreted
+#'   as a single row (only when making predictions from a fitted model).
 #'
-#' Be aware that the format of the file will not be auto-deduced - for example, if a file is named 'file.csv',
-#' it will not look at the extension or file contents to determine that it is a comma-separated value.
-#' Instead, the format must be specified following the URI format, so the input to `data` should be passed
-#' like this: `"file.csv?format=csv"` (or `"file.csv?format=csv&label_column=0"` if the first column
-#' corresponds to the labels).
-#'
-#' For more information about passing text files as input, see the articles
-#' \href{https://xgboost.readthedocs.io/en/stable/tutorials/input_format.html}{Text Input Format of DMatrix} and
-#' \href{https://xgboost.readthedocs.io/en/stable/python/python_intro.html#python-data-interface}{Data Interface}.
-#' }
 #' @param label Label of the training data. For classification problems, should be passed encoded as
 #' integers with numeration starting at zero.
 #' @param weight Weight for each instance.
@@ -95,15 +77,9 @@
 #' @param label_lower_bound Lower bound for survival training.
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
-#' @param data_split_mode When passing a URI (as R `character`) as input, this signals
-#'   whether to split by row or column. Allowed values are `"row"` and `"col"`.
-#'
-#'   In distributed mode, the file is split accordingly; otherwise this is only an indicator on
-#'   how the file was split beforehand. Default to row.
-#'
-#'   This is not used when `data` is not a URI.
-#' @return An 'xgb.DMatrix' object. If calling 'xgb.QuantileDMatrix', it will have additional
-#' subclass 'xgb.QuantileDMatrix'.
+#' @param data_split_mode Not used yet. This parameter is for distributed training, which is not yet available for the R package.
+#' @return An 'xgb.DMatrix' object. If calling `xgb.QuantileDMatrix`, it will have additional
+#' subclass `xgb.QuantileDMatrix`.
 #'
 #' @details
 #' Note that DMatrix objects are not serializable through R functions such as [saveRDS()] or [save()].
@@ -144,6 +120,9 @@ xgb.DMatrix <- function(
 ) {
   if (!is.null(group) && !is.null(qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
+  }
+  if (data_split_mode != "row") {
+    stop("'data_split_mode' is not supported yet.")
   }
   nthread <- as.integer(NVL(nthread, -1L))
   if (typeof(data) == "character") {

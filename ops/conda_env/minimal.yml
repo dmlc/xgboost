@@ -1,0 +1,6 @@
+name: minimal
+channels:
+- conda-forge
+dependencies:
+- python=3.10
+- awscli

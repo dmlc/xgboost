@@ -457,7 +457,11 @@ def make_categorical(
 
 
 def make_ltr(
-    n_samples: int, n_features: int, n_query_groups: int, max_rel: int
+    n_samples: int,
+    n_features: int,
+    n_query_groups: int,
+    max_rel: int,
+    sort_qid: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Make a dataset for testing LTR."""
     rng = np.random.default_rng(1994)
@@ -470,7 +474,8 @@ def make_ltr(
     w = rng.normal(0, 1.0, size=n_query_groups)
     w -= np.min(w)
     w /= np.max(w)
-    qid = np.sort(qid)
+    if sort_qid:
+        qid = np.sort(qid)
     return X, y, qid, w
 
 
@@ -637,6 +642,10 @@ def non_increasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
 
 
+def non_decreasing(L: Sequence[float], tolerance: float = 1e-4) -> bool:
+    return all((y - x) >= -tolerance for x, y in zip(L, L[1:]))
+
+
 def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
     """Assert whether two DMatrices contain the same predictors."""
     lcsr = lhs.get_data()
@@ -653,9 +662,29 @@ def predictor_equal(lhs: xgb.DMatrix, rhs: xgb.DMatrix) -> bool:
 M = TypeVar("M", xgb.Booster, xgb.XGBModel)
 
 
-def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
-    """Evaluation metric for xgb.train"""
+def logregobj(preds: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[np.ndarray, np.ndarray]:
+    """Binary regression custom objective."""
+    labels = dtrain.get_label()
+    preds = 1.0 / (1.0 + np.exp(-preds))
+    grad = preds - labels
+    hess = preds * (1.0 - preds)
+    return grad, hess
+
+
+def eval_error_metric(
+    predt: np.ndarray, dtrain: xgb.DMatrix, rev_link: bool
+) -> Tuple[str, np.float64]:
+    """Evaluation metric for xgb.train.
+
+    Parameters
+    ----------
+    rev_link : Whether the metric needs to apply the reverse link function (activation).
+
+    """
     label = dtrain.get_label()
+    if rev_link:
+        predt = 1.0 / (1.0 + np.exp(-predt))
+    assert (0.0 <= predt).all() and (predt <= 1.0).all()
     r = np.zeros(predt.shape)
     gt = predt > 0.5
     if predt.size == 0:
@@ -666,8 +695,15 @@ def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.f
     return "CustomErr", np.sum(r)
 
 
-def eval_error_metric_skl(y_true: np.ndarray, y_score: np.ndarray) -> np.float64:
+def eval_error_metric_skl(
+    y_true: np.ndarray, y_score: np.ndarray, rev_link: bool = False
+) -> np.float64:
     """Evaluation metric that looks like metrics provided by sklearn."""
+
+    if rev_link:
+        y_score = 1.0 / (1.0 + np.exp(-y_score))
+    assert (0.0 <= y_score).all() and (y_score <= 1.0).all()
+
     r = np.zeros(y_score.shape)
     gt = y_score > 0.5
     r[gt] = 1 - y_true[gt]

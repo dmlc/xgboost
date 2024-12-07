@@ -542,6 +542,55 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     }
   }
 
+  test("Same group must be in the same partition") {
+    val num_workers = 3
+    withGpuSparkSession() { spark =>
+      import spark.implicits._
+      val df = spark.createDataFrame(spark.sparkContext.parallelize(Seq(
+        (0.1, 1, 0),
+        (0.1, 1, 0),
+        (0.1, 1, 0),
+        (0.1, 1, 1),
+        (0.1, 1, 1),
+        (0.1, 1, 1),
+        (0.1, 1, 2),
+        (0.1, 1, 2),
+        (0.1, 1, 2)), 1)).toDF("label", "f1", "group")
+
+      // The original pattern will repartition df in a RoundRobin manner
+      val oriRows = df.repartition(num_workers)
+        .sortWithinPartitions(df.col("group"))
+        .select("group")
+        .mapPartitions { case iter =>
+          val tmp: ArrayBuffer[Int] = ArrayBuffer.empty
+          while (iter.hasNext) {
+            val r = iter.next()
+            tmp.append(r.getInt(0))
+          }
+          Iterator.single(tmp.mkString(","))
+        }.collect()
+      assert(oriRows.length == 3)
+      assert(oriRows.contains("0,1,2"))
+
+      // The fix has replaced repartition with repartitionByRange which will put the
+      // instances with same group into the same partition
+      val ranker = new XGBoostRanker().setGroupCol("group").setNumWorkers(num_workers)
+      val processedDf = ranker.getPlugin.get.asInstanceOf[GpuXGBoostPlugin].preprocess(ranker, df)
+      val rows = processedDf
+        .select("group")
+        .mapPartitions { case iter =>
+          val tmp: ArrayBuffer[Int] = ArrayBuffer.empty
+          while (iter.hasNext) {
+            val r = iter.next()
+            tmp.append(r.getInt(0))
+          }
+          Iterator.single(tmp.mkString(","))
+        }.collect()
+
+      rows.forall(Seq("0,0,0", "1,1,1", "2,2,2").contains)
+    }
+  }
+
   test("Ranker: XGBoost-Spark should match xgboost4j") {
     withGpuSparkSession() { spark =>
       import spark.implicits._

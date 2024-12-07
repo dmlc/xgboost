@@ -2,8 +2,8 @@
 
 import base64
 
-# pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
-# pylint: disable=too-few-public-methods, too-many-lines, too-many-branches
+# pylint: disable=fixme, protected-access, no-member, invalid-name
+# pylint: disable=too-many-lines, too-many-branches
 import json
 import logging
 import os
@@ -475,10 +475,7 @@ class _SparkXGBParams(
                 )
 
         if self.getOrDefault("early_stopping_rounds") is not None:
-            if not (
-                self.isDefined(self.validationIndicatorCol)
-                and self.getOrDefault(self.validationIndicatorCol) != ""
-            ):
+            if not self._col_is_defined_not_empty(self.validationIndicatorCol):
                 raise ValueError(
                     "If 'early_stopping_rounds' param is set, you need to set "
                     "'validation_indicator_col' param as well."
@@ -516,6 +513,9 @@ class _SparkXGBParams(
             or self.getOrDefault(self.use_gpu)
             or self.getOrDefault(self.getParam("tree_method")) == "gpu_hist"
         )
+
+    def _col_is_defined_not_empty(self, param: "Param[str]") -> bool:
+        return self.isDefined(param) and self.getOrDefault(param) != ""
 
 
 def _validate_and_convert_feature_col_as_float_col_list(
@@ -805,16 +805,13 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 )
                 select_cols.append(features_array_col)
 
-        if self.isDefined(self.weightCol) and self.getOrDefault(self.weightCol) != "":
+        if self._col_is_defined_not_empty(self.weightCol):
             select_cols.append(
                 col(self.getOrDefault(self.weightCol)).alias(alias.weight)
             )
 
         has_validation_col = False
-        if (
-            self.isDefined(self.validationIndicatorCol)
-            and self.getOrDefault(self.validationIndicatorCol) != ""
-        ):
+        if self._col_is_defined_not_empty(self.validationIndicatorCol):
             select_cols.append(
                 col(self.getOrDefault(self.validationIndicatorCol)).alias(alias.valid)
             )
@@ -823,15 +820,12 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             # which will cause exception or hanging issue when creating DMatrix.
             has_validation_col = True
 
-        if (
-            self.isDefined(self.base_margin_col)
-            and self.getOrDefault(self.base_margin_col) != ""
-        ):
+        if self._col_is_defined_not_empty(self.base_margin_col):
             select_cols.append(
                 col(self.getOrDefault(self.base_margin_col)).alias(alias.margin)
             )
 
-        if self.isDefined(self.qid_col) and self.getOrDefault(self.qid_col) != "":
+        if self._col_is_defined_not_empty(self.qid_col):
             select_cols.append(col(self.getOrDefault(self.qid_col)).alias(alias.qid))
 
         feature_prop = FeatureProp(
@@ -862,17 +856,22 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             )
 
         if self._repartition_needed(dataset):
-            # If validationIndicatorCol defined, and if user unionise train and validation
-            # dataset, users must set force_repartition to true to force repartition.
-            # Or else some partitions might contain only train or validation dataset.
-            if self.getOrDefault(self.repartition_random_shuffle):
-                # In some cases, spark round-robin repartition might cause data skew
-                # use random shuffle can address it.
-                dataset = dataset.repartition(num_workers, rand(1))
+            if self._col_is_defined_not_empty(self.qid_col):
+                # For ranking problem, we need to try best the put the instances with
+                # same group into the same partition
+                dataset = dataset.repartitionByRange(num_workers, alias.qid)
             else:
-                dataset = dataset.repartition(num_workers)
+                # If validationIndicatorCol defined, and if user unionise train and validation
+                # dataset, users must set force_repartition to true to force repartition.
+                # Or else some partitions might contain only train or validation dataset.
+                if self.getOrDefault(self.repartition_random_shuffle):
+                    # In some cases, spark round-robin repartition might cause data skew
+                    # use random shuffle can address it.
+                    dataset = dataset.repartition(num_workers, rand(1))
+                else:
+                    dataset = dataset.repartition(num_workers)
 
-        if self.isDefined(self.qid_col) and self.getOrDefault(self.qid_col) != "":
+        if self._col_is_defined_not_empty(self.qid_col):
             # XGBoost requires qid to be sorted for each partition
             dataset = dataset.sortWithinPartitions(alias.qid, ascending=True)
 
@@ -1306,10 +1305,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
     def _get_pred_contrib_col_name(self) -> Optional[str]:
         """Return the pred_contrib_col col name"""
         pred_contrib_col_name = None
-        if (
-            self.isDefined(self.pred_contrib_col)
-            and self.getOrDefault(self.pred_contrib_col) != ""
-        ):
+        if self._col_is_defined_not_empty(self.pred_contrib_col):
             pred_contrib_col_name = self.getOrDefault(self.pred_contrib_col)
 
         return pred_contrib_col_name
@@ -1413,10 +1409,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         xgb_sklearn_model = self._xgb_sklearn_model
 
         base_margin_col = None
-        if (
-            self.isDefined(self.base_margin_col)
-            and self.getOrDefault(self.base_margin_col) != ""
-        ):
+        if self._col_is_defined_not_empty(self.base_margin_col):
             base_margin_col = col(self.getOrDefault(self.base_margin_col)).alias(
                 alias.margin
             )
