@@ -872,7 +872,8 @@ def _is_cudf_pandas(data: DataType) -> bool:
     )
 
 
-def _get_cudf_cat_predicate() -> Callable[[Any], bool]:
+@functools.cache
+def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
     try:
         from cudf import CategoricalDtype
 
@@ -895,7 +896,7 @@ def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
     array interface is finished.
 
     """
-    is_categorical_dtype = _get_cudf_cat_predicate()
+    is_categorical_dtype = _lazy_load_cudf_is_cat()
     interfaces = []
 
     def append(interface: dict) -> None:
@@ -933,7 +934,7 @@ def _transform_cudf_df(
     except ImportError:
         from pandas.api.types import is_bool_dtype
 
-    is_categorical_dtype = _get_cudf_cat_predicate()
+    is_categorical_dtype = _lazy_load_cudf_is_cat()
     # Work around https://github.com/dmlc/xgboost/issues/10181
     if _is_cudf_ser(data):
         if is_bool_dtype(data.dtype):
