@@ -5,7 +5,7 @@
 \title{eXtreme Gradient Boosting Training}
 \usage{
 xgb.train(
-  params = list(),
+  params = xgb.params(),
   data,
   nrounds,
   evals = list(),
@@ -23,124 +23,21 @@ xgb.train(
 )
 }
 \arguments{
-\item{params}{the list of parameters. The complete list of parameters is
-available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}.
-Below is a shorter summary:
+\item{params}{List of XGBoost parameters which control the model building process.
+See the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}
+and the documentation for \code{\link[=xgb.params]{xgb.params()}} for details.
 
-\strong{1. General Parameters}
-\itemize{
-\item \code{booster}: Which booster to use, can be \code{gbtree} or \code{gblinear}. Default: \code{gbtree}.
-}
+Should be passed as list with named entries. Parameters that are not specified in this
+list will use their default values. Alternatively, parameters may be passed directly
+as function arguments (accepted through \code{...}).
 
-\strong{2. Booster Parameters}
-
-\strong{2.1. Parameters for Tree Booster}
-\itemize{
-\item \code{eta}: The learning rate: scale the contribution of each tree by a factor of \verb{0 < eta < 1}
-when it is added to the current approximation.
-Used to prevent overfitting by making the boosting process more conservative.
-Lower value for \code{eta} implies larger value for \code{nrounds}: low \code{eta} value means model
-more robust to overfitting but slower to compute. Default: 0.3.
-\item \code{gamma}: Minimum loss reduction required to make a further partition on a leaf node of the tree.
-the larger, the more conservative the algorithm will be.
-\item \code{max_depth}: Maximum depth of a tree. Default: 6.
-\item \code{min_child_weight}: Minimum sum of instance weight (hessian) needed in a child.
-If the tree partition step results in a leaf node with the sum of instance weight less than min_child_weight,
-then the building process will give up further partitioning.
-In linear regression mode, this simply corresponds to minimum number of instances needed to be in each node.
-The larger, the more conservative the algorithm will be. Default: 1.
-\item \code{subsample}: Subsample ratio of the training instance.
-Setting it to 0.5 means that xgboost randomly collected half of the data instances to grow trees
-and this will prevent overfitting. It makes computation shorter (because less data to analyse).
-It is advised to use this parameter with \code{eta} and increase \code{nrounds}. Default: 1.
-\item \code{colsample_bytree}: Subsample ratio of columns when constructing each tree. Default: 1.
-\item \code{lambda}: L2 regularization term on weights. Default: 1.
-\item \code{alpha}: L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0.
-\item \code{num_parallel_tree}: Experimental parameter. number of trees to grow per round.
-Useful to test Random Forest through XGBoost.
-(set \code{colsample_bytree < 1}, \code{subsample  < 1} and \code{round = 1}) accordingly.
-Default: 1.
-\item \code{monotone_constraints}: A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length
-equals to the number of features in the training data.
-\code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.
-\item \code{interaction_constraints}: A list of vectors specifying feature indices of permitted interactions.
-Each item of the list represents one permitted interaction where specified features are allowed to interact with each other.
-Feature index values should start from \code{0} (\code{0} references the first column).
-Leave argument unspecified for no interaction constraints.
-}
-
-\strong{2.2. Parameters for Linear Booster}
-\itemize{
-\item \code{lambda}: L2 regularization term on weights. Default: 0.
-\item \code{lambda_bias}: L2 regularization term on bias. Default: 0.
-\item \code{alpha}: L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0.
-}
-
-\strong{3. Task Parameters}
-\itemize{
-\item \code{objective}: Specifies the learning task and the corresponding learning objective.
-users can pass a self-defined function to it. The default objective options are below:
-\itemize{
-\item \code{reg:squarederror}: Regression with squared loss (default).
-\item \code{reg:squaredlogerror}: Regression with squared log loss \eqn{1/2 \cdot (\log(pred + 1) - \log(label + 1))^2}.
-All inputs are required to be greater than -1.
-Also, see metric rmsle for possible issue with this objective.
-\item \code{reg:logistic}: Logistic regression.
-\item \code{reg:pseudohubererror}: Regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
-\item \code{binary:logistic}: Logistic regression for binary classification. Output probability.
-\item \code{binary:logitraw}: Logistic regression for binary classification, output score before logistic transformation.
-\item \code{binary:hinge}: Hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-\item \code{count:poisson}: Poisson regression for count data, output mean of Poisson distribution.
-The parameter \code{max_delta_step} is set to 0.7 by default in poisson regression
-(used to safeguard optimization).
-\item \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored).
-Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional
-hazard function \eqn{h(t) = h_0(t) \cdot HR}.
-\item \code{survival:aft}: Accelerated failure time model for censored survival time data. See
-\href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time}
-for details.
-The parameter \code{aft_loss_distribution} specifies the Probability Density Function
-used by \code{survival:aft} and the \code{aft-nloglik} metric.
-\item \code{multi:softmax}: Set xgboost to do multiclass classification using the softmax objective.
-Class is represented by a number and should be from 0 to \code{num_class - 1}.
-\item \code{multi:softprob}: Same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be
-further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging
-to each class.
-\item \code{rank:pairwise}: Set XGBoost to do ranking task by minimizing the pairwise loss.
-\item \code{rank:ndcg}: Use LambdaMART to perform list-wise ranking where
-\href{https://en.wikipedia.org/wiki/Discounted_cumulative_gain}{Normalized Discounted Cumulative Gain (NDCG)} is maximized.
-\item \code{rank:map}: Use LambdaMART to perform list-wise ranking where
-\href{https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision}{Mean Average Precision (MAP)}
-is maximized.
-\item \code{reg:gamma}: Gamma regression with log-link. Output is a mean of gamma distribution.
-It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be
-\href{https://en.wikipedia.org/wiki/Gamma_distribution#Applications}{gamma-distributed}.
-\item \code{reg:tweedie}: Tweedie regression with log-link.
-It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be
-\href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.
-}
-
-For custom objectives, one should pass a function taking as input the current predictions (as a numeric
-vector or matrix) and the training data (as an \code{xgb.DMatrix} object) that will return a list with elements
-\code{grad} and \code{hess}, which should be numeric vectors or matrices with number of rows matching to the numbers
-of rows in the training data (same shape as the predictions that are passed as input to the function).
-For multi-valued custom objectives, should have shape \verb{[nrows, ntargets]}. Note that negative values of
-the Hessian will be clipped, so one might consider using the expected Hessian (Fisher information) if the
-objective is non-convex.
-
-See the tutorials \href{https://xgboost.readthedocs.io/en/stable/tutorials/custom_metric_obj.html}{Custom Objective and Evaluation Metric}
-and \href{https://xgboost.readthedocs.io/en/latest/tutorials/advanced_custom_obj.html}{Advanced Usage of Custom Objectives}
-for more information about custom objectives.
-\item \code{base_score}: The initial prediction score of all instances, global bias. Default: 0.5.
-\item \code{eval_metric}: Evaluation metrics for validation data.
-Users can pass a self-defined function to it.
-Default: metric will be assigned according to objective
-(rmse for regression, and error for classification, mean average precision for ranking).
-List is provided in detail section.
-}}
+A list of named parameters can be created through the function \code{\link[=xgb.params]{xgb.params()}}, which
+accepts all valid parameters as function arguments.}
 
 \item{data}{Training dataset. \code{xgb.train()} accepts only an \code{xgb.DMatrix} as the input.
-\code{\link[=xgboost]{xgboost()}}, in addition, also accepts \code{matrix}, \code{dgCMatrix}, or name of a local data file.}
+
+Note that there is a function \code{\link[=xgboost]{xgboost()}} which is meant to accept R data objects
+as inputs, such as data frames and matrices.}
 
 \item{nrounds}{Max number of boosting iterations.}
 
@@ -208,7 +105,7 @@ such as an evaluation log (a \code{data.table} object) - be aware that these obj
 as R attributes, and thus do not get saved when using XGBoost's own serializaters like
 \code{\link[=xgb.save]{xgb.save()}} (but are kept when using R serializers like \code{\link[=saveRDS]{saveRDS()}}).}
 
-\item{...}{other parameters to pass to \code{params}.}
+\item{...}{Other parameters to pass to \code{params}. See \code{\link[=xgb.params]{xgb.params()}} for more details.}
 }
 \value{
 An object of class \code{xgb.Booster}.
@@ -275,7 +172,7 @@ Be aware that one such R attribute that is automatically added is \code{params} 
 is assigned from the \code{params} argument to this function, and is only meant to serve as a
 reference for what went into the booster, but is not used in other methods that take a booster
 object - so for example, changing the booster's configuration requires calling \verb{xgb.config<-}
-or \verb{xgb.parameters<-}, while simply modifying \verb{attributes(model)$params$<...>} will have no
+or \verb{xgb.model.parameters<-}, while simply modifying \verb{attributes(model)$params$<...>} will have no
 effect elsewhere.
 }
 \examples{
@@ -349,7 +246,7 @@ bst <- xgb.train(
 
 
 ## An xgb.train example of using variable learning rates at each iteration:
-param <- list(
+param <- xgb.params(
   max_depth = 2,
   eta = 1,
   nthread = nthread,
@@ -371,17 +268,6 @@ bst <- xgb.train(
 bst <- xgb.train(
   param, dtrain, nrounds = 25, evals = evals, early_stopping_rounds = 3
 )
-
-## An 'xgboost' interface example:
-bst <- xgboost(
-  x = agaricus.train$data,
-  y = factor(agaricus.train$label),
-  params = list(max_depth = 2, eta = 1),
-  nthread = nthread,
-  nrounds = 2
-)
-pred <- predict(bst, agaricus.test$data)
-
 }
 \references{
 Tianqi Chen and Carlos Guestrin, "XGBoost: A Scalable Tree Boosting System",

@@ -20,20 +20,20 @@ xgb.Booster <- function(params, cachelist, modelfile) {
       .Call(XGBoosterLoadModel_R, xgb.get.handle(bst), enc2utf8(modelfile[1]))
       niter <- xgb.get.num.boosted.rounds(bst)
       if (length(params) > 0) {
-        xgb.parameters(bst) <- params
+        xgb.model.parameters(bst) <- params
       }
       return(list(bst = bst, niter = niter))
     } else if (is.raw(modelfile)) {
       ## A memory buffer
       bst <- xgb.load.raw(modelfile)
       niter <- xgb.get.num.boosted.rounds(bst)
-      xgb.parameters(bst) <- params
+      xgb.model.parameters(bst) <- params
       return(list(bst = bst, niter = niter))
     } else if (inherits(modelfile, "xgb.Booster")) {
       ## A booster object
       bst <- .Call(XGDuplicate_R, modelfile)
       niter <- xgb.get.num.boosted.rounds(bst)
-      xgb.parameters(bst) <- params
+      xgb.model.parameters(bst) <- params
       return(list(bst = bst, niter = niter))
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
@@ -42,7 +42,7 @@ xgb.Booster <- function(params, cachelist, modelfile) {
   ## Create new model
   bst <- .Call(XGBoosterCreate_R, cachelist)
   if (length(params) > 0) {
-    xgb.parameters(bst) <- params
+    xgb.model.parameters(bst) <- params
   }
   return(list(bst = bst, niter = 0L))
 }
@@ -196,7 +196,7 @@ xgb.get.handle <- function(object) {
 #' of the most important features first. See below about the format of the returned results.
 #'
 #' The `predict()` method uses as many threads as defined in `xgb.Booster` object (all by default).
-#' If you want to change their number, assign a new number to `nthread` using [xgb.parameters<-()].
+#' If you want to change their number, assign a new number to `nthread` using [xgb.model.parameters<-()].
 #' Note that converting a matrix to [xgb.DMatrix()] uses multiple threads too.
 #'
 #' @return
@@ -631,7 +631,7 @@ validate.features <- function(bst, newdata) {
 #' and its serialization is handled externally.
 #' Also, setting an attribute that has the same name as one of XGBoost's parameters wouldn't
 #' change the value of that parameter for a model.
-#' Use [xgb.parameters<-()] to set or change model parameters.
+#' Use [xgb.model.parameters<-()] to set or change model parameters.
 #'
 #' The `xgb.attributes<-` setter either updates the existing or adds one or several attributes,
 #' but it doesn't delete the other existing attributes.
@@ -828,11 +828,11 @@ xgb.config <- function(object) {
 #'   objective = "binary:logistic"
 #' )
 #'
-#' xgb.parameters(bst) <- list(eta = 0.1)
+#' xgb.model.parameters(bst) <- list(eta = 0.1)
 #'
-#' @rdname xgb.parameters
+#' @rdname xgb.model.parameters
 #' @export
-`xgb.parameters<-` <- function(object, value) {
+`xgb.model.parameters<-` <- function(object, value) {
   if (length(value) == 0) return(object)
   p <- as.list(value)
   if (is.null(names(p)) || any(nchar(names(p)) == 0)) {
@@ -897,7 +897,7 @@ setinfo.xgb.Booster <- function(object, name, info) {
 #' @param model,x A fitted `xgb.Booster` model.
 #' @return The number of rounds saved in the model as an integer.
 #' @details Note that setting booster parameters related to training
-#' continuation / updates through [xgb.parameters<-()] will reset the
+#' continuation / updates through [xgb.model.parameters<-()] will reset the
 #' number of rounds to zero.
 #' @export
 #' @rdname xgb.get.num.boosted.rounds
@@ -936,7 +936,7 @@ length.xgb.Booster <- function(x) {
 #' x <- as.matrix(mtcars[, -1])
 #'
 #' dm <- xgb.DMatrix(x, label = y, nthread = 1)
-#' model <- xgb.train(data = dm, params = list(nthread = 1), nrounds = 5)
+#' model <- xgb.train(data = dm, params = xgb.params(nthread = 1), nrounds = 5)
 #' model_slice <- xgb.slice.Booster(model, 1, 3)
 #' # Prediction for first three rounds
 #' predict(model, x, predleaf = TRUE)[, 1:3]
@@ -1163,7 +1163,7 @@ coef.xgb.Booster <- function(object, ...) {
 #'
 #' model <- xgb.train(
 #'   data = dm,
-#'   params = list(nthread = 1),
+#'   params = xgb.params(nthread = 1),
 #'   nround = 3
 #' )
 #'
@@ -1225,7 +1225,7 @@ xgb.copy.Booster <- function(model) {
 #' x <- as.matrix(mtcars[, -1])
 #'
 #' model <- xgb.train(
-#'   params = list(nthread = 1),
+#'   params = xgb.params(nthread = 1),
 #'   data = xgb.DMatrix(x, label = y, nthread = 1),
 #'   nround = 3
 #' )

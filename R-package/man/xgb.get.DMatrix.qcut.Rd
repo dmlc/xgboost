@@ -44,7 +44,7 @@ dm <- xgb.DMatrix(x, label = y, nthread = 1)
 # DMatrix is not quantized right away, but will be once a hist model is generated
 model <- xgb.train(
   data = dm,
-  params = list(tree_method = "hist", max_bin = 8, nthread = 1),
+  params = xgb.params(tree_method = "hist", max_bin = 8, nthread = 1),
   nrounds = 3
 )
 

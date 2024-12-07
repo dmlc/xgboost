@@ -2,24 +2,7 @@
 #'
 #' The cross validation function of xgboost.
 #'
-#' @param params The list of parameters. The complete list of parameters is available in the
-#'   [online documentation](http://xgboost.readthedocs.io/en/latest/parameter.html).
-#'   Below is a shorter summary:
-#'   - `objective`: Objective function, common ones are
-#'      - `reg:squarederror`: Regression with squared loss.
-#'      - `binary:logistic`: Logistic regression for classification.
-#'
-#'     See [xgb.train()] for complete list of objectives.
-#'   - `eta`: Step size of each boosting step
-#'   - `max_depth`: Maximum depth of the tree
-#'   - `nthread`: Number of threads used in training. If not set, all threads are used
-#'
-#'   See [xgb.train()] for further details.
-#'   See also demo for walkthrough example in R.
-#'
-#'   Note that, while `params` accepts a `seed` entry and will use such parameter for model training if
-#'   supplied, this seed is not used for creation of train-test splits, which instead rely on R's own RNG
-#'   system - thus, for reproducible results, one needs to call the [set.seed()] function beforehand.
+#' @inheritParams xgb.train
 #' @param data An `xgb.DMatrix` object, with corresponding fields like `label` or bounds as required
 #'   for model training by the objective.
 #'
@@ -84,8 +67,6 @@
 #'   See [xgb.Callback()]. Some of the callbacks are automatically created depending on the
 #'   parameters' values. User can provide either existing or their own callback methods in order
 #'   to customize the training process.
-#' @param ... Other parameters to pass to `params`.
-#'
 #' @details
 #' The original sample is randomly partitioned into `nfold` equal size subsamples.
 #'
@@ -133,13 +114,14 @@
 #'   nfold = 5,
 #'   metrics = list("rmse","auc"),
 #'   max_depth = 3,
-#'   eta = 1,objective = "binary:logistic"
+#'   eta = 1,
+#'   objective = "binary:logistic"
 #' )
 #' print(cv)
 #' print(cv, verbose = TRUE)
 #'
 #' @export
-xgb.cv <- function(params = list(), data, nrounds, nfold,
+xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
                    prediction = FALSE, showsd = TRUE, metrics = list(),
                    obj = NULL, feval = NULL, stratified = "auto", folds = NULL, train_folds = NULL,
                    verbose = TRUE, print_every_n = 1L,
