@@ -732,110 +732,6 @@ def _from_pandas_series(
     )
 
 
-def _is_dt_df(data: DataType) -> bool:
-    return lazy_isinstance(data, "datatable", "Frame") or lazy_isinstance(
-        data, "datatable", "DataTable"
-    )
-
-
-def _transform_dt_df(
-    data: DataType,
-    feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
-    meta: Optional[str] = None,
-    meta_type: Optional[NumpyDType] = None,
-) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
-    """Validate feature names and types if data table"""
-    _dt_type_mapper = {"bool": "bool", "int": "int", "real": "float"}
-    _dt_type_mapper2 = {"bool": "i", "int": "int", "real": "float"}
-    if meta and data.shape[1] > 1:
-        raise ValueError("DataTable for meta info cannot have multiple columns")
-    if meta:
-        meta_type = "float" if meta_type is None else meta_type
-        # below requires new dt version
-        # extract first column
-        data = data.to_numpy()[:, 0].astype(meta_type)
-        return data, None, None
-
-    data_types_names = tuple(lt.name for lt in data.ltypes)
-    bad_fields = [
-        data.names[i]
-        for i, type_name in enumerate(data_types_names)
-        if type_name not in _dt_type_mapper
-    ]
-    if bad_fields:
-        msg = """DataFrame.types for data must be int, float or bool.
-                Did not expect the data types in fields """
-        raise ValueError(msg + ", ".join(bad_fields))
-
-    if feature_names is None and meta is None:
-        feature_names = data.names
-
-        # always return stypes for dt ingestion
-        if feature_types is not None:
-            raise ValueError("DataTable has own feature types, cannot pass them in.")
-        feature_types = np.vectorize(_dt_type_mapper2.get)(data_types_names).tolist()
-
-    return data, feature_names, feature_types
-
-
-def _from_dt_df(
-    *,
-    data: DataType,
-    missing: Optional[FloatCompatible],
-    nthread: int,
-    feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
-    enable_categorical: bool,
-) -> DispatchedDataBackendReturnType:
-    if enable_categorical:
-        raise ValueError("categorical data in datatable is not supported yet.")
-    data, feature_names, feature_types = _transform_dt_df(
-        data=data,
-        feature_names=feature_names,
-        feature_types=feature_types,
-        meta=None,
-        meta_type=None,
-    )
-
-    ptrs = (ctypes.c_void_p * data.ncols)()
-    if hasattr(data, "internal") and hasattr(data.internal, "column"):
-        # datatable>0.8.0
-        for icol in range(data.ncols):
-            col = data.internal.column(icol)
-            ptr = col.data_pointer
-            ptrs[icol] = ctypes.c_void_p(ptr)
-    else:
-        # datatable<=0.8.0
-        from datatable.internal import (
-            frame_column_data_r,  # pylint: disable=no-name-in-module
-        )
-
-        for icol in range(data.ncols):
-            ptrs[icol] = frame_column_data_r(data, icol)
-
-    # always return stypes for dt ingestion
-    feature_type_strings = (ctypes.c_char_p * data.ncols)()
-    for icol in range(data.ncols):
-        feature_type_strings[icol] = ctypes.c_char_p(
-            data.stypes[icol].name.encode("utf-8")
-        )
-
-    _warn_unused_missing(data, missing)
-    handle = ctypes.c_void_p()
-    _check_call(
-        _LIB.XGDMatrixCreateFromDT(
-            ptrs,
-            feature_type_strings,
-            c_bst_ulong(data.shape[0]),
-            c_bst_ulong(data.shape[1]),
-            ctypes.byref(handle),
-            ctypes.c_int(nthread),
-        )
-    )
-    return handle, feature_names, feature_types
-
-
 def _is_arrow(data: DataType) -> bool:
     return lazy_isinstance(data, "pyarrow.lib", "Table") or lazy_isinstance(
         data, "pyarrow._dataset", "Dataset"
@@ -1296,16 +1192,6 @@ def dispatch_data_backend(
         raise TypeError("cupyx CSC is not supported yet.")
     if _is_dlpack(data):
         return _from_dlpack(data, missing, threads, feature_names, feature_types)
-    if _is_dt_df(data):
-        _warn_unused_missing(data, missing)
-        return _from_dt_df(
-            data=data,
-            missing=missing,
-            nthread=threads,
-            feature_names=feature_names,
-            feature_types=feature_types,
-            enable_categorical=enable_categorical,
-        )
     if _is_modin_df(data):
         return _from_pandas_df(
             data=data,
@@ -1408,15 +1294,6 @@ def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
-def _meta_from_dt(
-    data: DataType, field: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
-) -> None:
-    data, _, _ = _transform_dt_df(
-        data=data, feature_names=None, feature_types=None, meta=field, meta_type=dtype
-    )
-    _meta_from_numpy(data, field, dtype, handle)
-
-
 def dispatch_meta_backend(
     matrix: DMatrix, data: DataType, name: str, dtype: Optional[NumpyDType] = None
 ) -> None:
@@ -1457,9 +1334,6 @@ def dispatch_meta_backend(
         return
     if _is_cudf_df(data):
         _meta_from_cudf_df(data, name, handle)
-        return
-    if _is_dt_df(data):
-        _meta_from_dt(data, name, dtype, handle)
         return
     if _is_modin_df(data):
         _meta_from_pandas_df(data, name, dtype=dtype, handle=handle)
