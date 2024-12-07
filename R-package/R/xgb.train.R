@@ -714,6 +714,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - `"thrifty"`: Thrifty, approximately-greedy feature selector. Prior to cyclic updates, reorders features in descending magnitude of their univariate weight changes. This operation is multithreaded and is a linear complexity approximation of the quadratic greedy selection. It allows restricting the selection to `top_k` features per group with the largest magnitude of univariate weight change, by setting the `top_k` parameter.
 #' @param top_k (for Linear Booster) (default=0)
 #' The number of top features to select in `greedy` and `thrifty` feature selector. The value of 0 means using all the features.
+#' @param num_class Number of classes when using multi-class classification objectives (e.g. `objective="multi:softprob"`)
 #' @param tweedie_variance_power (for Tweedie Regression (`"objective=reg:tweedie"`)) (default=1.5)
 #' - Parameter that controls the variance of the Tweedie distribution `var(y) ~ E(y)^tweedie_variance_power`
 #' - range: \eqn{(1,2)}
@@ -795,6 +796,7 @@ xgb.params <- function(
   skip_drop = NULL,
   feature_selector = NULL,
   top_k = NULL,
+  num_class = NULL,
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,

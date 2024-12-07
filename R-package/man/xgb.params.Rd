@@ -54,6 +54,7 @@ xgb.params(
   skip_drop = NULL,
   feature_selector = NULL,
   top_k = NULL,
+  num_class = NULL,
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
@@ -470,6 +471,8 @@ Feature selection and ordering method
 
 \item{top_k}{(for Linear Booster) (default=0)
 The number of top features to select in \code{greedy} and \code{thrifty} feature selector. The value of 0 means using all the features.}
+
+\item{num_class}{Number of classes when using multi-class classification objectives (e.g. \code{objective="multi:softprob"})}
 
 \item{tweedie_variance_power}{(for Tweedie Regression (\code{"objective=reg:tweedie"})) (default=1.5)
 \itemize{
