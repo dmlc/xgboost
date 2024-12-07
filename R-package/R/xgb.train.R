@@ -403,6 +403,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
   return(bst)
 }
 
+# nolint start: line_length_linter
 #' @title XGBoost Parameters
 #' @description Convenience function to generate a list of named XGBoost parameters, which
 #' can be passed as argument `params` to [xgb.train()]. See the [online documentation](
@@ -826,6 +827,7 @@ xgb.params <- function(
   lambdarank_bias_norm = NULL,
   ndcg_exp_gain = NULL
 ) {
+# nolint end
   out <- as.list(environment())
   out <- out[!sapply(out, is.null)]
   return(out)
