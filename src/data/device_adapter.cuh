@@ -16,9 +16,7 @@
 #include "adapter.h"
 #include "array_interface.h"
 
-namespace xgboost {
-namespace data {
-
+namespace xgboost::data {
 class CudfAdapterBatch : public detail::NoMetaInfo {
   friend class CudfAdapter;
 
@@ -114,7 +112,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     CHECK_EQ(typestr.size(), 3) << ArrayInterfaceErrors::TypestrFormat();
     std::vector<ArrayInterface<1>> columns;
     auto first_column = ArrayInterface<1>(get<Object const>(json_columns[0]));
-    num_rows_ = first_column.Shape(0);
+    num_rows_ = first_column.Shape<0>();
     if (num_rows_ == 0) {
       return;
     }
@@ -124,12 +122,12 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     dh::safe_cuda(cudaSetDevice(device_.ordinal));
     for (auto& json_col : json_columns) {
       auto column = ArrayInterface<1>(get<Object const>(json_col));
-      n_bytes_ += column.ElementSize() * column.Shape(0);
+      n_bytes_ += column.ElementSize() * column.Shape<0>();
       columns.push_back(column);
-      num_rows_ = std::max(num_rows_, column.Shape(0));
+      num_rows_ = std::max(num_rows_, column.Shape<0>());
       CHECK_EQ(device_.ordinal, dh::CudaGetPointerDevice(column.data))
           << "All columns should use the same device.";
-      CHECK_EQ(num_rows_, column.Shape(0))
+      CHECK_EQ(num_rows_, column.Shape<0>())
           << "All columns should have same number of rows.";
     }
     columns_ = columns;
@@ -161,12 +159,13 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
   CupyAdapterBatch() = default;
   explicit CupyAdapterBatch(ArrayInterface<2> array_interface)
     : array_interface_(std::move(array_interface)) {}
+  // The total number of elements.
   [[nodiscard]] std::size_t Size() const {
-    return array_interface_.Shape(0) * array_interface_.Shape(1);
+    return array_interface_.Shape<0>() * array_interface_.Shape<1>();
   }
   [[nodiscard]]__device__ COOTuple GetElement(size_t idx) const {
-    size_t column_idx = idx % array_interface_.Shape(1);
-    size_t row_idx = idx / array_interface_.Shape(1);
+    size_t column_idx = idx % array_interface_.Shape<1>();
+    size_t row_idx = idx / array_interface_.Shape<1>();
     float value = array_interface_(row_idx, column_idx);
     return {row_idx, column_idx, value};
   }
@@ -175,8 +174,8 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
     return value;
   }
 
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return array_interface_.Shape(0); }
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return array_interface_.Shape(1); }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return array_interface_.Shape<0>(); }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return array_interface_.Shape<1>(); }
 
  private:
   ArrayInterface<2> array_interface_;
@@ -188,20 +187,20 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
     Json json_array_interface = Json::Load(cuda_interface_str);
     array_interface_ = ArrayInterface<2>(get<Object const>(json_array_interface));
     batch_ = CupyAdapterBatch(array_interface_);
-    if (array_interface_.Shape(0) == 0) {
+    if (array_interface_.Shape<0>() == 0) {
       return;
     }
     device_ = DeviceOrd::CUDA(dh::CudaGetPointerDevice(array_interface_.data));
     this->n_bytes_ =
-        array_interface_.Shape(0) * array_interface_.Shape(1) * array_interface_.ElementSize();
+        array_interface_.Shape<0>() * array_interface_.Shape<1>() * array_interface_.ElementSize();
     CHECK(device_.IsCUDA());
   }
   explicit CupyAdapter(std::string cuda_interface_str)
       : CupyAdapter{StringView{cuda_interface_str}} {}
   [[nodiscard]] const CupyAdapterBatch& Value() const override { return batch_; }
 
-  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
-  [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape(1); }
+  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape<0>(); }
+  [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape<1>(); }
   [[nodiscard]] DeviceOrd Device() const { return device_; }
   [[nodiscard]] bst_idx_t SizeBytes() const { return  this->n_bytes_; }
 
@@ -279,6 +278,5 @@ bool NoInfInData(Context const* ctx, AdapterBatchT const& batch, IsValidFunctor 
                           thrust::logical_and<>{});
   return valid;
 }
-};  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_DEVICE_ADAPTER_H_
