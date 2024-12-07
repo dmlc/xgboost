@@ -97,7 +97,7 @@ void CopyInterface(std::vector<xgboost::ArrayInterface<1>> &interface_arr,
         Json{Boolean{false}}};
 
     out["data"] = Array(std::move(j_data));
-    out["shape"] = Array(std::vector<Json>{Json(Integer(interface.Shape(0)))});
+    out["shape"] = Array(std::vector<Json>{Json(Integer(interface.Shape<0>()))});
 
     if (interface.valid.Data()) {
       CopyColumnMask(interface, columns, kind, c, &mask, &out, stream);
@@ -113,7 +113,7 @@ void CopyMetaInfo(Json *p_interface, dh::device_vector<T> *out, cudaStream_t str
   CHECK_EQ(get<Array const>(j_interface).size(), 1);
   auto object = get<Object>(get<Array>(j_interface)[0]);
   ArrayInterface<1> interface(object);
-  out->resize(interface.Shape(0));
+  out->resize(interface.Shape<0>());
   size_t element_size = interface.ElementSize();
   size_t size = element_size * interface.n;
   dh::safe_cuda(cudaMemcpyAsync(RawPtr(*out), interface.data, size,
