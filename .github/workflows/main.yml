@@ -15,32 +15,8 @@ env:
   USE_DOCKER_CACHE: 1
 
 jobs:
-  build-containers:
-    name: Build CI containers (${{ matrix.container_id }})
-    runs-on:
-      - runs-on
-      - runner=${{ matrix.runner }}
-      - run-id=${{ github.run_id }}
-      - tag=main-build-containers-${{ matrix.container_id }}
-    strategy:
-      matrix:
-        container_id:
-          - xgb-ci.gpu_build_rockylinux8
-          - xgb-ci.gpu
-          - xgb-ci.manylinux_2_28_x86_64
-        runner: [linux-amd64-cpu]
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Build ${{ matrix.container_id }}
-        run: bash ops/docker_build.sh ${{ matrix.container_id }}
-
   build-cuda:
     name: Build CUDA + manylinux_2_28_x86_64 wheel
-    needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
@@ -51,10 +27,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.gpu_build_rockylinux8
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.manylinux_2_28_x86_64
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-cuda.sh
       - name: Stash files
         run: |
@@ -87,8 +61,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.gpu
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash gtest
         run: |
           bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }}  \
@@ -124,8 +98,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh ${{ matrix.container }}
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash Python wheel
         run: |
           bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }} \
