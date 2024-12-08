@@ -223,6 +223,9 @@ macro(xgboost_target_defs target)
       PRIVATE
       -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
   endif()
+  if (XGBOOST_SVE_PRESENT)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_SVE_PRESENT=1)
+  endif ()
 
   if(PLUGIN_RMM)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
