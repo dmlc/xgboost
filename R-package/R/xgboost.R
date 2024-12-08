@@ -960,6 +960,12 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #'   this functionality.
 #'
 #'   If `NULL`, early stopping will not be used.
+#' @param print_every_n When passing `verbosity>0` and either `monitor_training=TRUE` or `eval_set`,
+#' evaluation logs (metrics calculated on the training and/or evaluation data) will be printed every
+#' nth iteration according to the value passed here. The first and last iteration are always
+#' included regardless of this 'n'.
+#'
+#' Only has an effect when passing `verbosity>0`.
 #' @param nthreads Number of parallel threads to use. If passing zero, will use all CPU threads.
 #' @param seed Seed to use for random number generation. If passing `NULL`, will draw a random
 #'   number using R's PRNG system to use as seed.
@@ -1049,6 +1055,7 @@ xgboost <- function(
   monitor_training = verbosity > 0,
   eval_set = NULL,
   early_stopping_rounds = NULL,
+  print_every_n = 1L,
   nthreads = parallel::detectCores(),
   seed = 0L,
   monotone_constraints = NULL,
@@ -1103,6 +1110,7 @@ xgboost <- function(
     data = dm,
     nrounds = nrounds,
     verbose = verbosity,
+    print_every_n = print_every_n,
     evals = evals
   )
   attributes(model)$metadata <- lst_args$metadata

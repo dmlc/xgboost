@@ -177,9 +177,12 @@ If 2, some additional information will be printed out.
 Note that setting \code{verbose > 0} automatically engages the
 \code{xgb.cb.print.evaluation(period=1)} callback function.}
 
-\item{print_every_n}{Print each nth iteration evaluation messages when \code{verbose>0}.
-Default is 1 which means all messages are printed. This parameter is passed to the
-\code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
+\item{print_every_n}{When passing \code{verbose>0}, evaluation logs (metrics calculated on the
+data passed under \code{evals}) will be printed every nth iteration according to the value passed
+here. The first and last iteration are always included regardless of this 'n'.
+
+Only has an effect when passing data under \code{evals} and when passing \code{verbose>0}. The parameter
+is passed to the \code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
 
 \item{early_stopping_rounds}{Number of boosting rounds after which training will be stopped
 if there is no improvement in performance (as measured by the evaluatiation metric that is

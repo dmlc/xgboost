@@ -14,6 +14,7 @@ xgboost(
   monitor_training = verbosity > 0,
   eval_set = NULL,
   early_stopping_rounds = NULL,
+  print_every_n = 1L,
   nthreads = parallel::detectCores(),
   seed = 0L,
   monotone_constraints = NULL,
@@ -130,6 +131,13 @@ for the objective) on the evaluation data from \code{eval_set}. Must pass \code{
 this functionality.
 
 If \code{NULL}, early stopping will not be used.}
+
+\item{print_every_n}{When passing \code{verbosity>0} and either \code{monitor_training=TRUE} or \code{eval_set},
+evaluation logs (metrics calculated on the training and/or evaluation data) will be printed every
+nth iteration according to the value passed here. The first and last iteration are always
+included regardless of this 'n'.
+
+Only has an effect when passing \code{verbosity>0}.}
 
 \item{nthreads}{Number of parallel threads to use. If passing zero, will use all CPU threads.}
 
