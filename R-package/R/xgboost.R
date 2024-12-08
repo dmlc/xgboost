@@ -1091,6 +1091,7 @@ xgboost <- function(
   lst_args$params$seed <- seed
 
   params <- c(lst_args$params, params)
+  params$verbosity <- verbosity
 
   fn_dm <- if (use_qdm) xgb.QuantileDMatrix else xgb.DMatrix
   dm <- do.call(fn_dm, lst_args$dmatrix_args)
