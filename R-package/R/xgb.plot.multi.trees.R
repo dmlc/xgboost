@@ -2,6 +2,8 @@
 #'
 #' Visualization of the ensemble of trees as a single collective unit.
 #'
+#' Note that this function does not work with models that were fitted to
+#' categorical data.
 #' @details
 #' This function tries to capture the complexity of a gradient boosted tree model
 #' in a cohesive way by compressing an ensemble of trees into a single tree-graph representation.
@@ -66,6 +68,12 @@ xgb.plot.multi.trees <- function(model, features_keep = 5, plot_width = NULL, pl
     stop("DiagrammeR is required for xgb.plot.multi.trees")
   }
   check.deprecation(...)
+  if (xgb.has_categ_features(model)) {
+    stop(
+      "Cannot use 'xgb.plot.multi.trees' for models with categorical features.",
+      " Try 'xgb.plot.tree' instead."
+    )
+  }
   tree.matrix <- xgb.model.dt.tree(model = model)
 
   # first number of the path represents the tree, then the following numbers are related to the path to follow
