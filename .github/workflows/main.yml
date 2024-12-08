@@ -32,7 +32,9 @@ jobs:
       - run: bash ops/pipeline/build-cuda.sh
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh stash build-cuda \
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda \
             build/testxgboost ./xgboost python-package/dist/*.whl
 
   test-cpp-gpu:
@@ -65,8 +67,11 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash gtest
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }}  \
-            build/testxgboost
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir build \
+            testxgboost
           chmod +x build/testxgboost
       - run: bash ops/pipeline/test-cpp-gpu.sh ${{ matrix.suite }}
 
@@ -102,8 +107,16 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash Python wheel
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }} \
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir . \
             python-package/dist/*.whl ./xgboost
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir wheelhouse \
+            *.whl
           chmod +x ./xgboost
       - name: Run Python tests, ${{ matrix.description }}
         run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.container }}
