@@ -28,7 +28,13 @@ is zero-based (e.g., use \code{trees = 0:4} for the first five trees).}
 "Missing" should be represented as integers (when \code{TRUE}) or as "Tree-Node"
 character strings (when \code{FALSE}, default).}
 
-\item{...}{Currently not used.}
+\item{...}{Not used.
+
+Some arguments are currently deprecated or have been renamed. If a deprecated argument
+is passed, will throw a warning and use its current equivalent.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated argument, an error will be thrown.}
 }
 \value{
 A \code{data.table} with detailed information about tree nodes. It has the following columns:
@@ -64,11 +70,13 @@ data.table::setDTthreads(nthread)
 
 bst <- xgb.train(
   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-  max_depth = 2,
-  eta = 1,
-  nthread = nthread,
   nrounds = 2,
-  objective = "binary:logistic"
+  params = xgb.params(
+    max_depth = 2,
+    eta = 1,
+    nthread = nthread,
+    objective = "binary:logistic"
+  )
 )
 
 # This bst model already has feature_names stored with it, so those would be used when

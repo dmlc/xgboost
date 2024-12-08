@@ -90,11 +90,13 @@ data.table::setDTthreads(nthread)
 
 bst <- xgb.train(
   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-  max_depth = 3,
-  eta = 1,
-  nthread = nthread,
   nrounds = 2,
-  objective = "binary:logistic"
+  params = xgb.params(
+    max_depth = 3,
+    eta = 1,
+    nthread = nthread,
+    objective = "binary:logistic"
+  )
 )
 
 importance_matrix <- xgb.importance(colnames(agaricus.train$data), model = bst)

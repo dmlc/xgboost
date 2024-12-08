@@ -33,7 +33,13 @@ cover is the sum of second order gradient in each node.}
 Format 'dot' for a single tree can be passed directly to packages that consume this format
 for graph visualization, such as function \code{DiagrammeR::grViz()}}
 
-\item{...}{Currently not used}
+\item{...}{Not used.
+
+Some arguments are currently deprecated or have been renamed. If a deprecated argument
+is passed, will throw a warning and use its current equivalent.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated argument, an error will be thrown.}
 }
 \value{
 If fname is not provided or set to \code{NULL} the function will return the model
@@ -52,11 +58,13 @@ test <- agaricus.test
 
 bst <- xgb.train(
   data = xgb.DMatrix(train$data, label = train$label),
-  max_depth = 2,
-  eta = 1,
-  nthread = 2,
   nrounds = 2,
-  objective = "binary:logistic"
+  params = xgb.params(
+    max_depth = 2,
+    eta = 1,
+    nthread = 2,
+    objective = "binary:logistic"
+  )
 )
 
 # save the model in file 'xgb.model.dump'

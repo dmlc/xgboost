@@ -42,7 +42,6 @@
 #'
 #' @param model Decision tree boosting model learned on the original data.
 #' @param data Original data (usually provided as a `dgCMatrix` matrix).
-#' @param ... Currently not used.
 #'
 #' @return A `dgCMatrix` matrix including both the original data and the new features.
 #'
@@ -53,10 +52,10 @@
 #' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 #' dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
 #'
-#' param <- list(max_depth = 2, eta = 1, objective = 'binary:logistic')
+#' param <- list(max_depth = 2, eta = 1, objective = 'binary:logistic', nthread = 1)
 #' nrounds = 4
 #'
-#' bst <- xgb.train(params = param, data = dtrain, nrounds = nrounds, nthread = 2)
+#' bst <- xgb.train(params = param, data = dtrain, nrounds = nrounds)
 #'
 #' # Model accuracy without new features
 #' accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) /
@@ -68,12 +67,12 @@
 #'
 #' # learning with new features
 #' new.dtrain <- xgb.DMatrix(
-#'   data = new.features.train, label = agaricus.train$label, nthread = 2
+#'   data = new.features.train, label = agaricus.train$label
 #' )
 #' new.dtest <- xgb.DMatrix(
-#'   data = new.features.test, label = agaricus.test$label, nthread = 2
+#'   data = new.features.test, label = agaricus.test$label
 #' )
-#' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds, nthread = 2)
+#' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds)
 #'
 #' # Model accuracy with new features
 #' accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) /
@@ -84,8 +83,7 @@
 #'           accuracy.after, "!\n"))
 #'
 #' @export
-xgb.create.features <- function(model, data, ...) {
-  check.deprecation(...)
+xgb.create.features <- function(model, data) {
   pred_with_leaf <- predict.xgb.Booster(model, data, predleaf = TRUE)
   cols <- lapply(as.data.frame(pred_with_leaf), factor)
   cbind(data, sparse.model.matrix(~ . -1, cols)) # nolint

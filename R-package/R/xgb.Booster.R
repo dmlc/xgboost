@@ -264,11 +264,13 @@ xgb.get.handle <- function(object) {
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
-#'   max_depth = 2,
-#'   eta = 0.5,
-#'   nthread = nthread,
 #'   nrounds = 5,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 0.5,
+#'     nthread = nthread,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' # use all trees by default
@@ -307,13 +309,15 @@ xgb.get.handle <- function(object) {
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
-#'   max_depth = 4,
-#'   eta = 0.5,
-#'   nthread = 2,
 #'   nrounds = 10,
-#'   subsample = 0.5,
-#'   objective = "multi:softprob",
-#'   num_class = num_class
+#'   params = xgb.params(
+#'     max_depth = 4,
+#'     eta = 0.5,
+#'     nthread = 2,
+#'     subsample = 0.5,
+#'     objective = "multi:softprob",
+#'     num_class = num_class
+#'   )
 #' )
 #'
 #' # predict for softmax returns num_class probability numbers per case:
@@ -329,13 +333,15 @@ xgb.get.handle <- function(object) {
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
-#'   max_depth = 4,
-#'   eta = 0.5,
-#'   nthread = 2,
 #'   nrounds = 10,
-#'   subsample = 0.5,
-#'   objective = "multi:softmax",
-#'   num_class = num_class
+#'   params = xgb.params(
+#'     max_depth = 4,
+#'     eta = 0.5,
+#'     nthread = 2,
+#'     subsample = 0.5,
+#'     objective = "multi:softmax",
+#'     num_class = num_class
+#'   )
 #' )
 #'
 #' pred <- predict(bst, as.matrix(iris[, -5]))
@@ -662,11 +668,13 @@ validate.features <- function(bst, newdata) {
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = 2,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = 2,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' xgb.attr(bst, "my_attribute") <- "my attribute value"
@@ -768,11 +776,13 @@ xgb.attributes <- function(object) {
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = nthread,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = nthread,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' config <- xgb.config(bst)
@@ -821,11 +831,13 @@ xgb.config <- function(object) {
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = 2,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = 2,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' xgb.model.parameters(bst) <- list(eta = 0.1)
@@ -1080,7 +1092,7 @@ xgb.best_iteration <- function(bst) {
 #' x <- as.matrix(mtcars[, -1])
 #'
 #' dm <- xgb.DMatrix(data = x, label = y, nthread = 1)
-#' params <- list(booster = "gblinear", nthread = 1)
+#' params <- xgb.params(booster = "gblinear", nthread = 1)
 #' model <- xgb.train(data = dm, params = params, nrounds = 2)
 #' coef(model)
 #' @export
@@ -1164,7 +1176,7 @@ coef.xgb.Booster <- function(object, ...) {
 #' model <- xgb.train(
 #'   data = dm,
 #'   params = xgb.params(nthread = 1),
-#'   nround = 3
+#'   nrounds = 3
 #' )
 #'
 #' # Set an arbitrary attribute kept at the C level
@@ -1227,7 +1239,7 @@ xgb.copy.Booster <- function(model) {
 #' model <- xgb.train(
 #'   params = xgb.params(nthread = 1),
 #'   data = xgb.DMatrix(x, label = y, nthread = 1),
-#'   nround = 3
+#'   nrounds = 3
 #' )
 #'
 #' model_shallow_copy <- model
@@ -1266,11 +1278,13 @@ xgb.is.same.Booster <- function(obj1, obj2) {
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = 2,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = 2,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' attr(bst, "myattr") <- "memo"

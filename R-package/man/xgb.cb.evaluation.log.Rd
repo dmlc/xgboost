@@ -14,7 +14,7 @@ Callback for logging the evaluation history
 }
 \details{
 This callback creates a table with per-iteration evaluation metrics (see parameters
-\code{evals} and \code{feval} in \code{\link[=xgb.train]{xgb.train()}}).
+\code{evals} and \code{custom_metric} in \code{\link[=xgb.train]{xgb.train()}}).
 
 Note: in the column names of the final data.table, the dash '-' character is replaced with
 the underscore '_' in order to make the column names more like regular R identifiers.

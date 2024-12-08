@@ -6,7 +6,8 @@ test_that("Poisson regression works", {
   data(mtcars)
   bst <- xgb.train(
     data = xgb.DMatrix(as.matrix(mtcars[, -11]), label = mtcars[, 11]),
-    objective = 'count:poisson', nrounds = 10, verbose = 0, nthread = 2
+    nrounds = 10, verbose = 0,
+    params = xgb.params(objective = 'count:poisson',  nthread = 2)
   )
   expect_equal(class(bst), "xgb.Booster")
   pred <- predict(bst, as.matrix(mtcars[, -11]))
@@ -21,7 +22,7 @@ test_that("Poisson regression is centered around mean", {
   x <- matrix(rnorm(m * n), nrow = m)
   model <- xgb.train(
     data = xgb.DMatrix(x, label = y),
-    params = list(objective = "count:poisson", gamma = 1e4),
+    params = xgb.params(objective = "count:poisson", gamma = 1e4),
     nrounds = 1
   )
   model_json <- xgb.save.raw(model, "json") |> rawToChar() |> jsonlite::fromJSON()
@@ -41,7 +42,7 @@ test_that("Poisson regression is centered around mean", {
   w <- y + 1
   model_weighted <- xgb.train(
     data = xgb.DMatrix(x, label = y, weight = w),
-    params = list(objective = "count:poisson", gamma = 1e4),
+    params = xgb.params(objective = "count:poisson", gamma = 1e4),
     nrounds = 1
   )
   model_json <- xgb.save.raw(model_weighted, "json") |> rawToChar() |> jsonlite::fromJSON()

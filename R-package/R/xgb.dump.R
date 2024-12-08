@@ -16,8 +16,7 @@
 #'
 #'   Format 'dot' for a single tree can be passed directly to packages that consume this format
 #'   for graph visualization, such as function `DiagrammeR::grViz()`
-#' @param ... Currently not used
-#'
+#' @inheritParams xgb.train
 #' @return
 #' If fname is not provided or set to `NULL` the function will return the model
 #' as a character vector. Otherwise it will return `TRUE`.
@@ -32,11 +31,13 @@
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = 2,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = 2,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' # save the model in file 'xgb.model.dump'
@@ -56,7 +57,7 @@
 #' @export
 xgb.dump <- function(model, fname = NULL, fmap = "", with_stats = FALSE,
                      dump_format = c("text", "json", "dot"), ...) {
-  check.deprecation(...)
+  check.deprecation(deprecated_dump_params, match.call(), ...)
   dump_format <- match.arg(dump_format)
   if (!inherits(model, "xgb.Booster"))
     stop("model: argument must be of type xgb.Booster")

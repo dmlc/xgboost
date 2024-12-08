@@ -108,7 +108,7 @@ cache_prefix <- tempdir()
 dm <- xgb.ExtMemDMatrix(data_iterator, cache_prefix, nthread = 1)
 
 # After construction, can be used as a regular DMatrix
-params <- list(nthread = 1, objective = "reg:squarederror")
+params <- xgb.params(nthread = 1, objective = "reg:squarederror")
 model <- xgb.train(data = dm, nrounds = 2, params = params)
 
 # Predictions can also be called on it, and should be the same
