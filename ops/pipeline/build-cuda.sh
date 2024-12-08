@@ -63,8 +63,8 @@ python3 ops/script/format_wheel_meta.py \
 echo "--- Upload Python wheel"
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then
-  aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
-    --acl public-read --no-progress
-  aws s3 cp python-package/dist/meta.json s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
-    --acl public-read --no-progress
+  python3 ops/pipeline/manage-artifacts.py upload \
+    --s3-bucket xgboost-nightly-builds \
+    --prefix ${BRANCH_NAME} --make-public \
+    python-package/dist/*.whl python-package/dist/meta.json
 fi

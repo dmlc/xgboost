@@ -27,8 +27,10 @@ def compute_s3_url(*, s3_bucket: str, prefix: str, artifact: str) -> str:
     return f"s3://{s3_bucket}/{prefix}/{artifact}"
 
 
-def aws_s3_upload(*, src: Path, dest: str) -> None:
+def aws_s3_upload(*, src: Path, dest: str, make_public=bool) -> None:
     cli_args = ["aws", "s3", "cp", "--no-progress", str(src), dest]
+    if make_public:
+        cli_args.extend(["--acl", "public-read"])
     print(" ".join(cli_args))
     subprocess.run(
         cli_args,
@@ -83,10 +85,11 @@ def aws_s3_download_with_wildcard(*, src: str, dest_dir: Path) -> None:
 def upload(*, args: argparse.Namespace) -> None:
     print(f"Uploading artifacts to prefix {args.prefix}...")
     for artifact in args.artifacts:
+        artifact_path = Path(artifact)
         s3_url = compute_s3_url(
-            s3_bucket=args.s3_bucket, prefix=args.prefix, artifact=artifact
+            s3_bucket=args.s3_bucket, prefix=args.prefix, artifact=artifact_path.name
         )
-        aws_s3_upload(src=Path(artifact), dest=s3_url)
+        aws_s3_upload(src=artifact_path, dest=s3_url, make_public=args.make_public)
 
 
 def download(*, args: argparse.Namespace) -> None:
@@ -140,6 +143,9 @@ if __name__ == "__main__":
             help=f"Artifact(s) to {command}",
         )
 
+    parsers["upload"].add_argument(
+        "--make-public", action="store_true", help="Make artifact publicly accessible"
+    )
     parsers["download"].add_argument(
         "--dest-dir", type=str, required=True, help="Where to download artifact(s)"
     )
