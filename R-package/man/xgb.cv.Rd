@@ -5,7 +5,7 @@
 \title{Cross Validation}
 \usage{
 xgb.cv(
-  params = list(),
+  params = xgb.params(),
   data,
   nrounds,
   nfold,
@@ -26,28 +26,16 @@ xgb.cv(
 )
 }
 \arguments{
-\item{params}{The list of parameters. The complete list of parameters is available in the
-\href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}.
-Below is a shorter summary:
-\itemize{
-\item \code{objective}: Objective function, common ones are
-\itemize{
-\item \code{reg:squarederror}: Regression with squared loss.
-\item \code{binary:logistic}: Logistic regression for classification.
-}
+\item{params}{List of XGBoost parameters which control the model building process.
+See the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}
+and the documentation for \code{\link[=xgb.params]{xgb.params()}} for details.
 
-See \code{\link[=xgb.train]{xgb.train()}} for complete list of objectives.
-\item \code{eta}: Step size of each boosting step
-\item \code{max_depth}: Maximum depth of the tree
-\item \code{nthread}: Number of threads used in training. If not set, all threads are used
-}
+Should be passed as list with named entries. Parameters that are not specified in this
+list will use their default values. Alternatively, parameters may be passed directly
+as function arguments (accepted through \code{...}).
 
-See \code{\link[=xgb.train]{xgb.train()}} for further details.
-See also demo for walkthrough example in R.
-
-Note that, while \code{params} accepts a \code{seed} entry and will use such parameter for model training if
-supplied, this seed is not used for creation of train-test splits, which instead rely on R's own RNG
-system - thus, for reproducible results, one needs to call the \code{\link[=set.seed]{set.seed()}} function beforehand.}
+A list of named parameters can be created through the function \code{\link[=xgb.params]{xgb.params()}}, which
+accepts all valid parameters as function arguments.}
 
 \item{data}{An \code{xgb.DMatrix} object, with corresponding fields like \code{label} or bounds as required
 for model training by the objective.
@@ -131,7 +119,7 @@ See \code{\link[=xgb.Callback]{xgb.Callback()}}. Some of the callbacks are autom
 parameters' values. User can provide either existing or their own callback methods in order
 to customize the training process.}
 
-\item{...}{Other parameters to pass to \code{params}.}
+\item{...}{Other parameters to pass to \code{params}. See \code{\link[=xgb.params]{xgb.params()}} for more details.}
 }
 \value{
 An object of class 'xgb.cv.synchronous' with the following elements:
@@ -185,7 +173,8 @@ cv <- xgb.cv(
   nfold = 5,
   metrics = list("rmse","auc"),
   max_depth = 3,
-  eta = 1,objective = "binary:logistic"
+  eta = 1,
+  objective = "binary:logistic"
 )
 print(cv)
 print(cv, verbose = TRUE)

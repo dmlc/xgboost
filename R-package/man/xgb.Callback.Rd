@@ -220,7 +220,7 @@ x <- as.matrix(mtcars[, -1])
 dm <- xgb.DMatrix(x, label = y, nthread = 1)
 model <- xgb.train(
   data = dm,
-  params = list(objective = "reg:squarederror", nthread = 1),
+  params = xgb.params(objective = "reg:squarederror", nthread = 1),
   nrounds = 5,
   callbacks = list(ssq_callback),
   keep_extra_attributes = TRUE

@@ -475,7 +475,7 @@ An interesting test to see how identical our saved model is to the original one 
 # can be modified like this:
 RhpcBLASctl::omp_set_num_threads(1)
 bst2 <- xgb.load(fname)
-xgb.parameters(bst2) <- list(nthread = 2)
+xgb.model.parameters(bst2) <- list(nthread = 2)
 pred2 <- predict(bst2, test$data)
 
 # And now the test
@@ -500,7 +500,7 @@ print(class(rawVec))
 
 # load binary model to R
 bst3 <- xgb.load.raw(rawVec)
-xgb.parameters(bst3) <- list(nthread = 2)
+xgb.model.parameters(bst3) <- list(nthread = 2)
 pred3 <- predict(bst3, test$data)
 
 # pred2 should be identical to pred

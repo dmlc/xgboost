@@ -20,6 +20,6 @@ Get number of boosting in a fitted booster
 }
 \details{
 Note that setting booster parameters related to training
-continuation / updates through \code{\link[=xgb.parameters<-]{xgb.parameters<-()}} will reset the
+continuation / updates through \code{\link[=xgb.model.parameters<-]{xgb.model.parameters<-()}} will reset the
 number of rounds to zero.
 }
