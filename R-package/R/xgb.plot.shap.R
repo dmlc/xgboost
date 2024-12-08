@@ -16,7 +16,7 @@
 #' @param target_class Only relevant for multiclass models. The default (`NULL`)
 #'   averages the SHAP values over all classes. Pass a (0-based) class index
 #'   to show only SHAP values of that class.
-#' @param approxcontrib Passed to `predict()` when `shap_contrib = NULL`.
+#' @param approxcontrib Passed to [predict.xgb.Booster()] when `shap_contrib = NULL`.
 #' @param subsample Fraction of data points randomly picked for plotting.
 #'   The default (`NULL`) will use up to 100k data points.
 #' @param n_col Number of columns in a grid of plots.
@@ -353,7 +353,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   }
 
   if (is.null(shap_contrib)) {
-    shap_contrib <- predict(
+    shap_contrib <- predict.xgb.Booster(
       model,
       newdata = data,
       predcontrib = TRUE,

@@ -13,9 +13,9 @@ DMLC/XGBoost has grown from a research project incubated in academia to one of t
 
 A robust and efficient **continuous integration (CI)** infrastructure is one of the most critical solutions to address the above challenge. A CI service will monitor an open-source repository and run a suite of integration tests for every incoming contribution. This way, the CI ensures that every proposed change in the codebase is compatible with existing functionalities. Furthermore, XGBoost can enable more thorough tests with a powerful CI infrastructure to cover cases which are closer to the production environment.
 
-There are several CI services available free to open source projects, such as Travis CI and AppVeyor. The XGBoost project already utilizes GitHub Actions. However, the XGBoost project has needs that these free services do not adequately address. In particular, the limited usage quota of resources such as CPU and memory leaves XGBoost developers unable to bring "too-intensive" tests. In addition, they do not offer test machines with GPUs for testing XGBoost-GPU code base which has been attracting more and more interest across many organizations. Consequently, the XGBoost project uses a cloud-hosted test farm. We use `BuildKite <https://buildkite.com/xgboost>`_ to organize CI pipelines.
+There are several CI services available free to open source projects, such as Travis CI and AppVeyor. The XGBoost project already utilizes GitHub Actions. However, the XGBoost project has needs that these free services do not adequately address. In particular, the limited usage quota of resources such as CPU and memory leaves XGBoost developers unable to bring "too-intensive" tests. In addition, they do not offer test machines with GPUs for testing XGBoost-GPU code base which has been attracting more and more interest across many organizations. Consequently, the XGBoost project uses a cloud-hosted test farm. We host `Amazon Web Services (AWS) <https://aws.amazon.com/>`_ to host the test machines, along with `GitHub Actions <https://github.com/features/actions>`_ and `RunsOn <https://runs-on.com/>`_ (SaaS app) to organize the CI pipelines.
 
-The cloud-hosted test farm has recurring operating expenses. It utilizes a leading cloud provider (AWS) to accommodate variable workload. BuildKite launches worker machines on AWS on demand, to run the test suite on incoming contributions. To save cost, the worker machines are terminated when they are no longer needed.
+The cloud-hosted test farm has recurring operating expenses. RunsOn launches worker machines on AWS on demand to run the test suite on incoming contributions. To save cost, the worker machines are terminated when they are no longer needed.
 
 To help defray the hosting cost, the XGBoost project seeks donations from third parties.
 
@@ -29,9 +29,9 @@ The Project Management Committee (PMC) of the XGBoost project appointed `Open So
 
 All expenses incurred for hosting CI will be submitted to the fiscal host with receipts. Only the expenses in the following categories will be approved for reimbursement:
 
-* Cloud expenses for the cloud test farm (https://buildkite.com/xgboost)
+* Cloud expenses for the cloud test farm
 * Cost of domain https://xgboost-ci.net
-* Monthly cost of using BuildKite
+* Annual subscription for RunsOn
 * Hosting cost of the User Forum (https://discuss.xgboost.ai)
 
 Administration of cloud CI infrastructure

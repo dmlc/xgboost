@@ -32,7 +32,7 @@ def cd(path):
     path = normpath(path)
     cwd = os.getcwd()
     os.chdir(path)
-    print("cd " + path)
+    print("cd " + path, flush=True)
     try:
         yield path
     finally:
@@ -41,7 +41,7 @@ def cd(path):
 
 def maybe_makedirs(path):
     path = normpath(path)
-    print("mkdir -p " + path)
+    print("mkdir -p " + path, flush=True)
     try:
         os.makedirs(path)
     except OSError as e:
@@ -50,14 +50,14 @@ def maybe_makedirs(path):
 
 
 def run(command, **kwargs):
-    print(command)
+    print(command, flush=True)
     subprocess.run(command, shell=True, check=True, env=os.environ, **kwargs)
 
 
 def cp(source, target):
     source = normpath(source)
     target = normpath(target)
-    print("cp {0} {1}".format(source, target))
+    print("cp {0} {1}".format(source, target), flush=True)
     shutil.copy(source, target)
 
 
@@ -78,7 +78,7 @@ def native_build(args):
             subprocess.check_output("/usr/libexec/java_home").strip().decode()
         )
 
-    print("building Java wrapper")
+    print("building Java wrapper", flush=True)
     with cd(".."):
         build_dir = "build-gpu" if cli_args.use_cuda == "ON" else "build"
         maybe_makedirs(build_dir)
@@ -123,7 +123,7 @@ def native_build(args):
                         run("cmake .. " + " ".join(args + [generator]))
                         break
                     except subprocess.CalledProcessError as e:
-                        print(f"Failed to build with generator: {generator}", e)
+                        print(f"Failed to build with generator: {generator}", e, flush=True)
                         with cd(os.path.pardir):
                             shutil.rmtree(build_dir)
                             maybe_makedirs(build_dir)
@@ -132,7 +132,7 @@ def native_build(args):
             run("cmake --build . --config Release" + maybe_parallel_build)
 
 
-    print("copying native library")
+    print("copying native library", flush=True)
     library_name, os_folder = {
         "Windows": ("xgboost4j.dll", "windows"),
         "Darwin": ("libxgboost4j.dylib", "macos"),
@@ -153,7 +153,7 @@ def native_build(args):
     maybe_makedirs(output_folder)
     cp("../lib/" + library_name, output_folder)
 
-    print("copying train/test files")
+    print("copying train/test files", flush=True)
 
     # for xgboost4j
     maybe_makedirs("xgboost4j/src/test/resources")

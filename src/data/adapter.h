@@ -1,22 +1,22 @@
 /**
- *  Copyright 2019-2023, XGBoost Contributors
+ *  Copyright 2019-2024, XGBoost Contributors
  * \file adapter.h
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
 #define XGBOOST_DATA_ADAPTER_H_
 #include <dmlc/data.h>
 
-#include <algorithm>
-#include <cstddef>  // for size_t
-#include <functional>
-#include <limits>
-#include <map>
-#include <memory>
-#include <string>
-#include <utility>  // std::move
-#include <vector>
+#include <algorithm>  // for transform, all_of
+#include <cmath>      // for isfinite
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint8_t
+#include <iterator>   // for back_inserter
+#include <limits>     // for numeric_limits
+#include <memory>     // for unique_ptr, make_unique
+#include <string>     // for string
+#include <utility>    // for move
+#include <vector>     // for vector
 
-#include "../common/error_msg.h"  // for MaxFeatureSize
 #include "../common/math.h"
 #include "array_interface.h"
 #include "xgboost/base.h"
@@ -256,7 +256,7 @@ class ArrayAdapterBatch : public detail::NoMetaInfo {
     Line(ArrayInterface<2> array_interface, size_t ridx)
         : array_interface_{std::move(array_interface)}, ridx_{ridx} {}
 
-    size_t Size() const { return array_interface_.Shape(1); }
+    size_t Size() const { return array_interface_.Shape<1>(); }
 
     COOTuple GetElement(size_t idx) const {
       return {ridx_, idx, array_interface_(ridx_, idx)};
@@ -269,8 +269,8 @@ class ArrayAdapterBatch : public detail::NoMetaInfo {
     return Line{array_interface_, idx};
   }
 
-  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
-  [[nodiscard]] std::size_t NumCols() const { return array_interface_.Shape(1); }
+  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape<0>(); }
+  [[nodiscard]] std::size_t NumCols() const { return array_interface_.Shape<1>(); }
   [[nodiscard]] std::size_t Size() const { return this->NumRows(); }
 
   explicit ArrayAdapterBatch(ArrayInterface<2> array_interface)
@@ -290,8 +290,8 @@ class ArrayAdapter : public detail::SingleBatchDataIter<ArrayAdapterBatch> {
     batch_ = ArrayAdapterBatch{array_interface_};
   }
   [[nodiscard]] ArrayAdapterBatch const& Value() const override { return batch_; }
-  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape(0); }
-  [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape(1); }
+  [[nodiscard]] std::size_t NumRows() const { return array_interface_.Shape<0>(); }
+  [[nodiscard]] std::size_t NumColumns() const { return array_interface_.Shape<1>(); }
 
  private:
   ArrayAdapterBatch batch_;
@@ -321,7 +321,7 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
     }
 
     [[nodiscard]] std::size_t Size() const {
-      return values_.Shape(0);
+      return values_.Shape<0>();
     }
   };
 
@@ -339,7 +339,7 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
   }
 
   size_t NumRows() const {
-    size_t size = indptr_.Shape(0);
+    size_t size = indptr_.Shape<0>();
     size = size == 0 ? 0 : size - 1;
     return size;
   }
@@ -381,9 +381,9 @@ class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch>
     return batch_;
   }
   size_t NumRows() const {
-    size_t size = indptr_.Shape(0);
+    size_t size = indptr_.Shape<0>();
     size = size == 0 ? 0 : size - 1;
-    return  size;
+    return size;
   }
   size_t NumColumns() const { return num_cols_; }
 
@@ -479,7 +479,7 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
           values_{std::move(values)},
           offset_{offset} {}
 
-    std::size_t Size() const { return values_.Shape(0); }
+    std::size_t Size() const { return values_.Shape<0>(); }
     COOTuple GetElement(std::size_t idx) const {
       return {TypedIndex<std::size_t, 1>{row_idx_}(offset_ + idx), column_idx_,
               values_(offset_ + idx)};
@@ -684,7 +684,7 @@ class ColumnarAdapterBatch : public detail::NoMetaInfo {
       : columns_{columns} {}
   [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, ridx}; }
   [[nodiscard]] std::size_t Size() const {
-    return columns_.empty() ? 0 : columns_.front().Shape(0);
+    return columns_.empty() ? 0 : columns_.front().Shape<0>();
   }
   [[nodiscard]] std::size_t NumCols() const { return columns_.empty() ? 0 : columns_.size(); }
   [[nodiscard]] std::size_t NumRows() const { return this->Size(); }
@@ -707,7 +707,7 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
     bool consistent =
         columns_.empty() ||
         std::all_of(columns_.cbegin(), columns_.cend(), [&](ArrayInterface<1, false> const& array) {
-          return array.Shape(0) == columns_[0].Shape(0);
+          return array.Shape<0>() == columns_[0].Shape<0>();
         });
     CHECK(consistent) << "Size of columns should be the same.";
     batch_ = ColumnarAdapterBatch{columns_};

@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include <thrust/transform.h>  // for transform
 
@@ -78,7 +78,7 @@ void CopyGradientFromCUDAArrays(Context const *ctx, ArrayInterface<2, false> con
   CHECK_EQ(grad_dev, hess_dev) << "gradient and hessian should be on the same device.";
   auto &gpair = *out_gpair;
   gpair.SetDevice(DeviceOrd::CUDA(grad_dev));
-  gpair.Reshape(grad.Shape(0), grad.Shape(1));
+  gpair.Reshape(grad.Shape<0>(), grad.Shape<1>());
   auto d_gpair = gpair.View(DeviceOrd::CUDA(grad_dev));
   auto cuctx = ctx->CUDACtx();
 

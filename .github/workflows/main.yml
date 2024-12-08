@@ -1,193 +1,311 @@
-# This is a basic workflow to help you get started with Actions
+name: XGBoost CI
 
-name: XGBoost-CI
-
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
 on: [push, pull_request]
 
 permissions:
-  contents: read # to fetch code (actions/checkout)
+  contents: read  # to fetch code (actions/checkout)
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+  USE_DOCKER_CACHE: 1
+
 jobs:
-  gtest-cpu:
-    name: Test Google C++ test (CPU)
-    runs-on: ${{ matrix.os }}
+  build-containers:
+    name: Build CI containers (${{ matrix.container_id }})
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-build-containers-${{ matrix.container_id }}
+    strategy:
+      matrix:
+        container_id:
+          - xgb-ci.gpu_build_rockylinux8
+          - xgb-ci.gpu_build_rockylinux8_dev_ver
+          - xgb-ci.gpu_build_r_rockylinux8
+          - xgb-ci.gpu
+          - xgb-ci.cpu
+          - xgb-ci.manylinux_2_28_x86_64
+          - xgb-ci.manylinux2014_x86_64
+        runner: [linux-amd64-cpu]
+        include:
+          - container_id: xgb-ci.manylinux2014_aarch64
+            runner: linux-arm64-cpu
+          - container_id: xgb-ci.aarch64
+            runner: linux-arm64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Build ${{ matrix.container_id }}
+        run: bash ops/docker_build.sh ${{ matrix.container_id }}
+
+  build-cpu:
+    name: Build CPU
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.cpu
+      - run: bash ops/pipeline/build-cpu.sh
+      - name: Stash CLI executable
+        run: bash ops/pipeline/stash-artifacts.sh stash build-cpu ./xgboost
+
+  build-cpu-arm64:
+    name: Build CPU ARM64 + manylinux_2_28_aarch64 wheel
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-arm64-cpu
+      - tag=build-cpu-arm64
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.aarch64
+      - run: bash ops/pipeline/build-cpu-arm64.sh
+      - name: Stash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh stash build-cpu-arm64 \
+          ./xgboost python-package/dist/*.whl
+      - name: Upload Python wheel
+        run: |
+          bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+
+  build-cuda:
+    name: Build CUDA + manylinux_2_28_x86_64 wheel
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_rockylinux8
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.manylinux_2_28_x86_64
+      - run: bash ops/pipeline/build-cuda.sh
+      - name: Stash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh stash build-cuda \
+            build/testxgboost ./xgboost python-package/dist/*.whl
+      - name: Upload Python wheel
+        run: |
+          for file in python-package/dist/*.whl python-package/dist/meta.json
+          do
+            bash ops/pipeline/publish-artifact.sh "${file}" \
+              s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+          done
+
+  build-cuda-with-rmm:
+    name: Build CUDA with RMM
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda-with-rmm
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_rockylinux8
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.manylinux_2_28_x86_64
+      - run: |
+          bash ops/pipeline/build-cuda-with-rmm.sh xgb-ci.gpu_build_rockylinux8
+      - name: Stash files
+        run: |
+          bash ops/pipeline/stash-artifacts.sh  \
+            stash build-cuda-with-rmm build/testxgboost
+      - name: Upload Python wheel
+        run: |
+          bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
+            s3://xgboost-nightly-builds/experimental_build_with_rmm/
+
+  build-cuda-with-rmm-dev:
+    name: Build CUDA with RMM (dev)
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda-with-rmm-dev
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_rockylinux8_dev_ver
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.manylinux_2_28_x86_64
+      - run: |
+          bash ops/pipeline/build-cuda-with-rmm.sh xgb-ci.gpu_build_rockylinux8_dev_ver
+
+  build-manylinux2014:
+    name: Build manylinux2014_${{ matrix.arch }} wheel
+    needs: build-containers
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-build-manylinux2014-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-12]
+        include:
+        - arch: aarch64
+          runner: linux-arm64-cpu
+        - arch: x86_64
+          runner: linux-amd64-cpu
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-    - name: Install system packages
-      run: |
-        brew install ninja libomp
-    - name: Build gtest binary
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja -DBUILD_DEPRECATED_CLI=ON -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
-        ninja -v
-    - name: Run gtest binary
-      run: |
-        cd build
-        ./testxgboost
-        ctest -R TestXGBoostCLI --extra-verbose
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.manylinux2014_${{ matrix.arch }}
+      - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
+      - name: Upload Python wheel
+        run: |
+          for wheel in python-package/dist/*.whl
+          do
+            bash ops/pipeline/publish-artifact.sh "${wheel}" \
+              s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+          done
 
-  gtest-cpu-nonomp:
-    name: Test Google C++ unittest (CPU Non-OMP)
-    runs-on: ${{ matrix.os }}
+  build-gpu-rpkg:
+    name: Build GPU-enabled R package
+    needs: build-containers
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-gpu-rpkg
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.gpu_build_r_rockylinux8
+      - run: bash ops/pipeline/build-gpu-rpkg.sh
+      - name: Upload R tarball
+        run: |
+          bash ops/pipeline/publish-artifact.sh xgboost_r_gpu_linux_*.tar.gz \
+            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+
+
+  test-cpp-gpu:
+    name: >-
+      Run Google Tests with GPUs
+      (Suite ${{ matrix.suite }}, Runner ${{ matrix.runner }})
+    needs: [build-cuda, build-cuda-with-rmm]
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-test-cpp-gpu-${{ matrix.suite }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        include:
+          - suite: gpu
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda
+          - suite: gpu-rmm
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda-with-rmm
+          - suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: build-cuda
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends ninja-build
-    - name: Build and install XGBoost
-      shell: bash -l {0}
-      run: |
-        mkdir build
-        cd build
-        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF -DBUILD_DEPRECATED_CLI=ON
-        ninja -v
-    - name: Run gtest binary
-      run: |
-        cd build
-        ctest --extra-verbose
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh xgb-ci.gpu
+      - name: Unstash gtest
+        run: |
+          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }}  \
+            build/testxgboost
+          chmod +x build/testxgboost
+      - run: bash ops/pipeline/test-cpp-gpu.sh ${{ matrix.suite }}
 
-  gtest-cpu-sycl:
-    name: Test Google C++ unittest (CPU SYCL)
-    runs-on: ${{ matrix.os }}
+  test-python-wheel:
+    name: Run Python tests (${{ matrix.description }})
+    needs: [build-cuda, build-cpu-arm64]
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-test-python-wheel-${{ matrix.description }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.10"]
+        include:
+          - description: single-gpu
+            container: xgb-ci.gpu
+            suite: gpu
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda
+          - description: multiple-gpu
+            container: xgb-ci.gpu
+            suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: build-cuda
+          - description: cpu-amd64
+            container: xgb-ci.cpu
+            suite: cpu
+            runner: linux-amd64-cpu
+            artifact_from: build-cuda
+          - description: cpu-arm64
+            container: xgb-ci.aarch64
+            suite: cpu-arm64
+            runner: linux-arm64-cpu
+            artifact_from: build-cpu-arm64
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
-      with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: linux_sycl_test
-        environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
-        use-mamba: true
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
-    - name: Build and install XGBoost
-      shell: bash -l {0}
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
-        make -j$(nproc)
-    - name: Run gtest binary for SYCL
-      run: |
-        cd build
-        ./testxgboost --gtest_filter=Sycl*
-    - name: Run gtest binary for non SYCL
-      run: |
-        cd build
-        ./testxgboost --gtest_filter=-Sycl*
-
-  c-api-demo:
-    name: Test installing XGBoost lib + building the C API demo
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash -l {0}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.10"]
-    steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-    - uses: conda-incubator/setup-miniconda@d2e6a045a86077fb6cad6f5adf368e9076ddaa8d  # v3.1.0
-      with:
-        miniforge-variant: Miniforge3
-        miniforge-version: latest
-        activate-environment: cpp_test
-        environment-file: tests/ci_build/conda_env/cpp_test.yml
-        use-mamba: true
-    - name: Display Conda env
-      run: |
-        conda info
-        conda list
-
-    - name: Build and install XGBoost static library
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
-        ninja -v install
-        cd -
-    - name: Build and run C API demo with static
-      run: |
-        pushd .
-        cd demo/c-api/
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        ninja -v
-        ctest
-        cd ..
-        rm -rf ./build
-        popd
-
-    - name: Build and install XGBoost shared library
-      run: |
-        cd build
-        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja -DPLUGIN_FEDERATED=ON -DGOOGLE_TEST=ON
-        ninja -v install
-        ./testxgboost
-        cd -
-    - name: Build and run C API demo with shared
-      run: |
-        pushd .
-        cd demo/c-api/
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        ninja -v
-        ctest
-        popd
-        ./tests/ci_build/verify_link.sh ./demo/c-api/build/basic/api-demo
-        ./tests/ci_build/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
-
-  cpp-lint:
-    runs-on: ubuntu-latest
-    name: Code linting for C++
-    steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-    - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
-      with:
-        python-version: "3.10"
-        architecture: 'x64'
-    - name: Install Python packages
-      run: |
-        python -m pip install wheel setuptools cmakelint cpplint==1.6.1 pylint
-    - name: Run lint
-      run: |
-        python3 tests/ci_build/lint_cpp.py
-        sh ./tests/ci_build/lint_cmake.sh
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Fetch container from cache
+        run: bash ops/docker_build.sh ${{ matrix.container }}
+      - name: Unstash Python wheel
+        run: |
+          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }} \
+            python-package/dist/*.whl ./xgboost
+          chmod +x ./xgboost
+      - name: Run Python tests, ${{ matrix.description }}
+        run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.container }}

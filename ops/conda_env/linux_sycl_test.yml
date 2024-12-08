@@ -1,0 +1,24 @@
+name: linux_sycl_test
+channels:
+- conda-forge
+- https://software.repos.intel.com/python/conda/
+dependencies:
+- python=3.10
+- cmake
+- c-compiler
+- cxx-compiler
+- pip
+- wheel
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- hypothesis>=6.46
+- pytest
+- pytest-timeout
+- pytest-cov
+- dask=2024.11
+- ninja
+- dpcpp_linux-64
+- onedpl-devel
+- intel-openmp

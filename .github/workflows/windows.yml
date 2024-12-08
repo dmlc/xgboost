@@ -1,0 +1,53 @@
+name: XGBoost CI (Windows)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: powershell
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  build-win64-gpu:
+    name: Build XGBoost for Windows with CUDA
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=windows-cpu
+      - tag=windows-build-win64-gpu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - run: powershell ops/pipeline/build-win64-gpu.ps1
+      - name: Stash files
+        run: |
+          powershell ops/pipeline/stash-artifacts.ps1 stash build-win64-gpu `
+            build/testxgboost.exe xgboost.exe `
+            (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
+
+  test-win64-gpu:
+    name: Test XGBoost on Windows
+    needs: build-win64-gpu
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=windows-gpu
+      - tag=windows-test-win64-gpu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Unstash files
+        run: |
+          powershell ops/pipeline/stash-artifacts.ps1 unstash build-win64-gpu `
+            build/testxgboost.exe xgboost.exe python-package/dist/*.whl
+      - run: powershell ops/pipeline/test-win64-gpu.ps1

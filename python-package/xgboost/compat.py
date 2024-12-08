@@ -1,5 +1,6 @@
 # pylint: disable=invalid-name,unused-import
 """For compatibility and optional dependencies."""
+import functools
 import importlib.util
 import logging
 import sys
@@ -84,6 +85,7 @@ except ImportError:
 _logger = logging.getLogger(__name__)
 
 
+@functools.cache
 def is_cudf_available() -> bool:
     """Check cuDF package available or not"""
     if importlib.util.find_spec("cudf") is None:
@@ -97,6 +99,7 @@ def is_cudf_available() -> bool:
         return False
 
 
+@functools.cache
 def is_cupy_available() -> bool:
     """Check cupy package available or not"""
     if importlib.util.find_spec("cupy") is None:
@@ -109,6 +112,7 @@ def is_cupy_available() -> bool:
         return False
 
 
+@functools.cache
 def import_cupy() -> types.ModuleType:
     """Import cupy."""
     if not is_cupy_available():
@@ -161,4 +165,4 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
             d_v = arr.device.id
             assert d_v == d, "Concatenating arrays on different devices."
         return cupy.concatenate(value, axis=0)
-    raise TypeError("Unknown type.")
+    raise TypeError(f"Unknown type: {type(value[0])}")

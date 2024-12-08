@@ -63,7 +63,7 @@ Run
 
 .. code-block:: bash
 
-  python ./tests/ci_build/test_r_package.py --task=check
+  python ./ops/script/test_r_package.py --task=check
 
 at the root of the project directory. The command builds and checks the XGBoost
 r-package. Alternatively, if you want to just run the tests, you can use the following
