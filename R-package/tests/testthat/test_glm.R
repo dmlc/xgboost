@@ -21,12 +21,12 @@ test_that("gblinear works", {
   VERB <- 0      # chatterbox switch
 
   param$updater <- 'shotgun'
-  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'shuffle')
+  bst <- xgb.train(c(param, list(feature_selector = 'shuffle')), dtrain, n, evals, verbose = VERB)
   ypred <- predict(bst, dtest)
   expect_equal(length(getinfo(dtest, 'label')), 1611)
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'cyclic',
+  bst <- xgb.train(c(param, list(feature_selector = 'cyclic')), dtrain, n, evals, verbose = VERB,
                    callbacks = list(xgb.cb.gblinear.history()))
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
   h <- xgb.gblinear.history(bst)
@@ -34,17 +34,17 @@ test_that("gblinear works", {
   expect_is(h, "matrix")
 
   param$updater <- 'coord_descent'
-  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'cyclic')
+  bst <- xgb.train(c(param, list(feature_selector = 'cyclic')), dtrain, n, evals, verbose = VERB)
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'shuffle')
+  bst <- xgb.train(c(param, list(feature_selector = 'shuffle')), dtrain, n, evals, verbose = VERB)
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, 2, evals, verbose = VERB, feature_selector = 'greedy')
+  bst <- xgb.train(c(param, list(feature_selector = 'greedy')), dtrain, 2, evals, verbose = VERB)
   expect_lt(attributes(bst)$evaluation_log$eval_error[2], ERR_UL)
 
-  bst <- xgb.train(param, dtrain, n, evals, verbose = VERB, feature_selector = 'thrifty',
-                   top_k = 50, callbacks = list(xgb.cb.gblinear.history(sparse = TRUE)))
+  bst <- xgb.train(c(param, list(feature_selector = 'thrifty', top_k = 50)), dtrain, n, evals, verbose = VERB,
+                   callbacks = list(xgb.cb.gblinear.history(sparse = TRUE)))
   expect_lt(attributes(bst)$evaluation_log$eval_error[n], ERR_UL)
   h <- xgb.gblinear.history(bst)
   expect_equal(dim(h), c(n, ncol(dtrain) + 1))

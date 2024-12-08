@@ -12,8 +12,8 @@ xgb.cv(
   prediction = FALSE,
   showsd = TRUE,
   metrics = list(),
-  obj = NULL,
-  feval = NULL,
+  objective = NULL,
+  custom_metric = NULL,
   stratified = "auto",
   folds = NULL,
   train_folds = NULL,
@@ -31,8 +31,7 @@ See the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online doc
 and the documentation for \code{\link[=xgb.params]{xgb.params()}} for details.
 
 Should be passed as list with named entries. Parameters that are not specified in this
-list will use their default values. Alternatively, parameters may be passed directly
-as function arguments (accepted through \code{...}).
+list will use their default values.
 
 A list of named parameters can be created through the function \code{\link[=xgb.params]{xgb.params()}}, which
 accepts all valid parameters as function arguments.}
@@ -43,7 +42,7 @@ for model training by the objective.
 Note that only the basic \code{xgb.DMatrix} class is supported - variants such as \code{xgb.QuantileDMatrix}
 or \code{xgb.ExtMemDMatrix} are not supported here.}
 
-\item{nrounds}{The max number of iterations.}
+\item{nrounds}{Max number of boosting iterations.}
 
 \item{nfold}{The original dataset is randomly partitioned into \code{nfold} equal size subsamples.}
 
@@ -66,11 +65,24 @@ Possible options are:
 \item \code{merror}: Exact matching error used to evaluate multi-class classification
 }}
 
-\item{obj}{Customized objective function. Returns gradient and second order
-gradient with given prediction and dtrain.}
+\item{objective}{Customized objective function. Should take two arguments: the first one will be the
+current predictions (either a numeric vector or matrix depending on the number of targets / classes),
+and the second one will be the \code{data} DMatrix object that is used for training.
 
-\item{feval}{Customized evaluation function. Returns
-\code{list(metric='metric-name', value='metric-value')} with given prediction and dtrain.}
+It should return a list with two elements \code{grad} and \code{hess} (in that order), as either
+numeric vectors or numeric matrices depending on the number of targets / classes (same
+dimension as the predictions that are passed as first argument).}
+
+\item{custom_metric}{Customized evaluation function. Just like \code{objective}, should take two arguments,
+with the first one being the predictions and the second one the \code{data} DMatrix.
+
+Should return a list with two elements \code{metric} (name that will be displayed for this metric,
+should be a string / character), and \code{value} (the number that the function calculates, should
+be a numeric scalar).
+
+Note that even if passing \code{custom_metric}, objectives also have an associated default metric that
+will be evaluated in addition to it. In order to disable the built-in metric, one can pass
+parameter \code{disable_default_eval_metric = TRUE}.}
 
 \item{stratified}{Logical flag indicating whether sampling of folds should be stratified
 by the values of outcome labels. For real-valued labels in regression objectives,
@@ -98,19 +110,20 @@ the resulting DMatrices.}
 
 This is not supported when \code{data} has \code{group} field.}
 
-\item{verbose}{Logical flag. Should statistics be printed during the process?}
+\item{verbose}{If 0, xgboost will stay silent. If 1, it will print information about performance.
+If 2, some additional information will be printed out.
+Note that setting \code{verbose > 0} automatically engages the
+\code{xgb.cb.print.evaluation(period=1)} callback function.}
 
-\item{print_every_n}{Print each nth iteration evaluation messages when \code{verbose > 0}.
+\item{print_every_n}{Print each nth iteration evaluation messages when \code{verbose>0}.
 Default is 1 which means all messages are printed. This parameter is passed to the
 \code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
 
 \item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
 If set to an integer \code{k}, training with a validation set will stop if the performance
-doesn't improve for \code{k} rounds.
-Setting this parameter engages the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
+doesn't improve for \code{k} rounds. Setting this parameter engages the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
 
-\item{maximize}{If \code{feval} and \code{early_stopping_rounds} are set,
-then this parameter must be set as well.
+\item{maximize}{If \code{custom_metric} and \code{early_stopping_rounds} are set, then this parameter must be set as well.
 When it is \code{TRUE}, it means the larger the evaluation score the better.
 This parameter is passed to the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
 
@@ -119,7 +132,13 @@ See \code{\link[=xgb.Callback]{xgb.Callback()}}. Some of the callbacks are autom
 parameters' values. User can provide either existing or their own callback methods in order
 to customize the training process.}
 
-\item{...}{Other parameters to pass to \code{params}. See \code{\link[=xgb.params]{xgb.params()}} for more details.}
+\item{...}{Not used.
+
+Some arguments are currently deprecated or have been renamed. If a deprecated argument
+is passed, will throw a warning and use its current equivalent.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated argument, an error will be thrown.}
 }
 \value{
 An object of class 'xgb.cv.synchronous' with the following elements:
@@ -169,12 +188,14 @@ dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 cv <- xgb.cv(
   data = dtrain,
   nrounds = 3,
-  nthread = 2,
+  params = xgb.params(
+    nthread = 2,
+    max_depth = 3,
+    eta = 1,
+    objective = "binary:logistic"
+  ),
   nfold = 5,
-  metrics = list("rmse","auc"),
-  max_depth = 3,
-  eta = 1,
-  objective = "binary:logistic"
+  metrics = list("rmse","auc")
 )
 print(cv)
 print(cv, verbose = TRUE)
