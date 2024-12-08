@@ -1051,7 +1051,7 @@ xgboost <- function(
   objective = NULL,
   nrounds = 100L,
   weights = NULL,
-  verbosity = 0L,
+  verbosity = if (is.null(eval_set)) 0L else 1L,
   monitor_training = verbosity > 0,
   eval_set = NULL,
   early_stopping_rounds = NULL,
