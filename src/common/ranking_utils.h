@@ -320,7 +320,9 @@ class NDCGCache : public RankingCache {
   }
 
   linalg::VectorView<double const> InvIDCG(Context const* ctx) const {
-    return inv_idcg_.View(ctx->Device());
+  // This function doesn't have sycl-specific implementation yet.
+  // For that reason we transfer data to host in case of sycl is used for propper execution.
+    return inv_idcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   }
   common::Span<double const> Discount(Context const* ctx) const {
     return ctx->IsCUDA() ? discounts_.ConstDeviceSpan() : discounts_.ConstHostSpan();
@@ -330,7 +332,7 @@ class NDCGCache : public RankingCache {
       dcg_.SetDevice(ctx->Device());
       dcg_.Reshape(this->Groups());
     }
-    return dcg_.View(ctx->Device());
+    return dcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   }
 };
 

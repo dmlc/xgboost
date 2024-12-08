@@ -112,8 +112,11 @@ class LambdaRankObj : public FitIntercept {
                                               lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
                                               &li_, &lj_, p_cache_);
     } else {
-      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(ctx_->Device()),
-                                             lj_full_.View(ctx_->Device()), &ti_plus_, &tj_minus_,
+      // This function doesn't have sycl-specific implementation yet.
+      // For that reason we transfer data to host in case of sycl is used for propper execution.
+      auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
+      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(device),
+                                             lj_full_.View(device), &ti_plus_, &tj_minus_,
                                              &li_, &lj_, p_cache_);
     }
 
