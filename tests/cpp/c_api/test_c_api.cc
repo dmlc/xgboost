@@ -25,34 +25,6 @@
 #include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
 #include "../helpers.h"
 
-TEST(CAPI, XGDMatrixCreateFromMatDT) {
-  std::vector<int> col0 = {0, -1, 3};
-  std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
-  const char *col0_type = "int32";
-  const char *col1_type = "float32";
-  std::vector<void *> data = {col0.data(), col1.data()};
-  std::vector<const char *> types = {col0_type, col1_type};
-  DMatrixHandle handle;
-  XGDMatrixCreateFromDT(data.data(), types.data(), 3, 2, &handle,
-                        0);
-  std::shared_ptr<xgboost::DMatrix> *dmat =
-      static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  xgboost::MetaInfo &info = (*dmat)->Info();
-  ASSERT_EQ(info.num_col_, 2ul);
-  ASSERT_EQ(info.num_row_, 3ul);
-  ASSERT_EQ(info.num_nonzero_, 6ul);
-
-  for (const auto &batch : (*dmat)->GetBatches<xgboost::SparsePage>()) {
-    auto page = batch.GetView();
-    ASSERT_EQ(page[0][0].fvalue, 0.0f);
-    ASSERT_EQ(page[0][1].fvalue, -4.0f);
-    ASSERT_EQ(page[2][0].fvalue, 3.0f);
-    ASSERT_EQ(page[2][1].fvalue, 0.0f);
-  }
-
-  delete dmat;
-}
-
 TEST(CAPI, XGDMatrixCreateFromMatOmp) {
   std::vector<bst_ulong> num_rows = {100, 11374, 15000};
   for (auto row : num_rows) {

@@ -43,7 +43,6 @@ repository = "https://github.com/dmlc/xgboost"
 pandas = ["pandas>=1.2"]
 scikit-learn = ["scikit-learn"]
 dask = ["dask", "pandas", "distributed"]
-datatable = ["datatable"]
 plotting = ["graphviz", "matplotlib"]
 pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
 
