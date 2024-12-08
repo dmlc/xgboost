@@ -52,11 +52,13 @@
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-#'   max_depth = 3,
-#'   eta = 1,
-#'   nthread = nthread,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 3,
+#'     eta = 1,
+#'     nthread = nthread,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' importance_matrix <- xgb.importance(colnames(agaricus.train$data), model = bst)
@@ -74,7 +76,7 @@
 #' @export
 xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL,
                                 rel_to_first = FALSE, left_margin = 10, cex = NULL, plot = TRUE, ...) {
-  check.deprecation(...)
+  check.deprecation(deprecated_plot_params, match.call(), ..., allow_unrecognized = TRUE)
   if (!is.data.table(importance_matrix))  {
     stop("importance_matrix: must be a data.table")
   }

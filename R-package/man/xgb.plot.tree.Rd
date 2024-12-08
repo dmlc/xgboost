@@ -29,7 +29,13 @@ splits.  When this option is on, the model dump contains two additional
 values: gain is the approximate loss function gain we get in each split;
 cover is the sum of second order gradient in each node.}
 
-\item{...}{Currently not used.}
+\item{...}{Not used.
+
+Some arguments are currently deprecated or have been renamed. If a deprecated argument
+is passed, will throw a warning and use its current equivalent.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated argument, an error will be thrown.}
 }
 \value{
 Rendered graph object which is an htmlwidget of ' class \code{grViz}. Similar to
@@ -62,11 +68,13 @@ data(agaricus.train, package = "xgboost")
 
 bst <- xgb.train(
   data = xgb.DMatrix(agaricus.train$data, agaricus.train$label),
-  max_depth = 3,
-  eta = 1,
-  nthread = 2,
   nrounds = 2,
-  objective = "binary:logistic"
+  params = xgb.params(
+    max_depth = 3,
+    eta = 1,
+    nthread = 2,
+    objective = "binary:logistic"
+  )
 )
 
 # plot the first tree

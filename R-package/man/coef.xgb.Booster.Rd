@@ -48,7 +48,7 @@ y <- mtcars[, 1]
 x <- as.matrix(mtcars[, -1])
 
 dm <- xgb.DMatrix(data = x, label = y, nthread = 1)
-params <- list(booster = "gblinear", nthread = 1)
+params <- xgb.params(booster = "gblinear", nthread = 1)
 model <- xgb.train(data = dm, params = params, nrounds = 2)
 coef(model)
 }
