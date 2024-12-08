@@ -249,7 +249,8 @@ test_that("train and predict RF", {
       objective = "binary:logistic", eval_metric = "error",
       num_parallel_tree = 20, subsample = 0.6, colsample_bytree = 0.1
     ),
-    evals = list(train = xgb.DMatrix(train$data, label = lb))
+    evals = list(train = xgb.DMatrix(train$data, label = lb)),
+    verbose = 0
   )
   expect_equal(xgb.get.num.boosted.rounds(bst), 1)
 
@@ -488,9 +489,9 @@ test_that("max_delta_step works", {
   )
   nrounds <- 5
   # model with no restriction on max_delta_step
-  bst1 <- xgb.train(params, dtrain, nrounds, evals = evals, verbose = 1)
+  bst1 <- xgb.train(params, dtrain, nrounds, evals = evals, verbose = 0)
   # model with restricted max_delta_step
-  bst2 <- xgb.train(c(params, list(max_delta_step = 1)), dtrain, nrounds, evals = evals, verbose = 1)
+  bst2 <- xgb.train(c(params, list(max_delta_step = 1)), dtrain, nrounds, evals = evals, verbose = 0)
   # the no-restriction model is expected to have consistently lower loss during the initial iterations
   expect_true(all(attributes(bst1)$evaluation_log$train_logloss < attributes(bst2)$evaluation_log$train_logloss))
   expect_lt(mean(attributes(bst1)$evaluation_log$train_logloss) / mean(attributes(bst2)$evaluation_log$train_logloss), 0.8)
