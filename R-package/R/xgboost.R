@@ -955,11 +955,11 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' For more elaborate evaluation variants (e.g. custom metrics, multiple evaluation sets, etc.),
 #' one might want to use [xgb.train()] instead.
 #' @param early_stopping_rounds Number of boosting rounds after which training will be stopped
-#'   if there is no improvement in performance (as measured by the default evaluatiation metric
-#'   for the objective) on the evaluation data from `eval_set`. Must pass `eval_set` in order to use
-#'   this functionality.
+#' if there is no improvement in performance (as measured by the last metric passed under
+#' `eval_metric`, or by the default metric for the objective if `eval_metric` is not passed) on the
+#' evaluation data from `eval_set`. Must pass `eval_set` in order to use this functionality.
 #'
-#'   If `NULL`, early stopping will not be used.
+#' If `NULL`, early stopping will not be used.
 #' @param print_every_n When passing `verbosity>0` and either `monitor_training=TRUE` or `eval_set`,
 #' evaluation logs (metrics calculated on the training and/or evaluation data) will be printed every
 #' nth iteration according to the value passed here. The first and last iteration are always

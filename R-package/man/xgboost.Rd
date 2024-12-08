@@ -126,9 +126,9 @@ For more elaborate evaluation variants (e.g. custom metrics, multiple evaluation
 one might want to use \code{\link[=xgb.train]{xgb.train()}} instead.}
 
 \item{early_stopping_rounds}{Number of boosting rounds after which training will be stopped
-if there is no improvement in performance (as measured by the default evaluatiation metric
-for the objective) on the evaluation data from \code{eval_set}. Must pass \code{eval_set} in order to use
-this functionality.
+if there is no improvement in performance (as measured by the last metric passed under
+\code{eval_metric}, or by the default metric for the objective if \code{eval_metric} is not passed) on the
+evaluation data from \code{eval_set}. Must pass \code{eval_set} in order to use this functionality.
 
 If \code{NULL}, early stopping will not be used.}
 
