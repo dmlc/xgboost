@@ -49,7 +49,7 @@ would not be saved by \code{\link[=xgb.save]{xgb.save()}} because an XGBoost mod
 and its serialization is handled externally.
 Also, setting an attribute that has the same name as one of XGBoost's parameters wouldn't
 change the value of that parameter for a model.
-Use \code{\link[=xgb.parameters<-]{xgb.parameters<-()}} to set or change model parameters.
+Use \code{\link[=xgb.model.parameters<-]{xgb.model.parameters<-()}} to set or change model parameters.
 
 The \verb{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
 but it doesn't delete the other existing attributes.

@@ -204,7 +204,7 @@
 #' dm <- xgb.DMatrix(x, label = y, nthread = 1)
 #' model <- xgb.train(
 #'   data = dm,
-#'   params = list(objective = "reg:squarederror", nthread = 1),
+#'   params = xgb.params(objective = "reg:squarederror", nthread = 1),
 #'   nrounds = 5,
 #'   callbacks = list(ssq_callback),
 #'   keep_extra_attributes = TRUE
@@ -563,7 +563,7 @@ xgb.cb.reset.parameters <- function(new_params) {
       }
     },
     f_before_iter = function(env, model, data, evals, iteration) {
-      pars <- lapply(env$new_params, function(p) {
+      params <- lapply(env$new_params, function(p) {
         if (is.function(p)) {
           return(p(iteration, env$end_iteration))
         } else {
@@ -572,10 +572,10 @@ xgb.cb.reset.parameters <- function(new_params) {
       })
 
       if (inherits(model, "xgb.Booster")) {
-        xgb.parameters(model) <- pars
+        xgb.model.parameters(model) <- params
       } else {
         for (fd in model) {
-          xgb.parameters(fd$bst) <- pars
+          xgb.model.parameters(fd$bst) <- params
         }
       }
       return(FALSE)

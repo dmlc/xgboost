@@ -908,7 +908,7 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' @param objective Optimization objective to minimize based on the supplied data, to be passed
 #'   by name as a string / character (e.g. `reg:absoluteerror`). See the
 #'   [Learning Task Parameters](https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters)
-#'   page for more detailed information on allowed values.
+#'   page and the [xgb.params()] documentation for more detailed information on allowed values.
 #'
 #'   If `NULL` (the default), will be automatically determined from `y` according to the following
 #'   logic:

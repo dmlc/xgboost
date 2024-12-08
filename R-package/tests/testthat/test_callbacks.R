@@ -228,10 +228,10 @@ test_that("xgb.cb.save.model works as expected", {
   expect_true(file.exists(files[1]))
   expect_true(file.exists(files[2]))
   b1 <- xgb.load(files[1])
-  xgb.parameters(b1) <- list(nthread = 2)
+  xgb.model.parameters(b1) <- list(nthread = 2)
   expect_equal(xgb.get.num.boosted.rounds(b1), 1)
   b2 <- xgb.load(files[2])
-  xgb.parameters(b2) <- list(nthread = 2)
+  xgb.model.parameters(b2) <- list(nthread = 2)
   expect_equal(xgb.get.num.boosted.rounds(b2), 2)
 
   xgb.config(b2) <- xgb.config(bst)

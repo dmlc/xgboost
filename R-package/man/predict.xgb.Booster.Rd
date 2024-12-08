@@ -205,7 +205,7 @@ Since it quadratically depends on the number of features, it is recommended to p
 of the most important features first. See below about the format of the returned results.
 
 The \code{predict()} method uses as many threads as defined in \code{xgb.Booster} object (all by default).
-If you want to change their number, assign a new number to \code{nthread} using \code{\link[=xgb.parameters<-]{xgb.parameters<-()}}.
+If you want to change their number, assign a new number to \code{nthread} using \code{\link[=xgb.model.parameters<-]{xgb.model.parameters<-()}}.
 Note that converting a matrix to \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} uses multiple threads too.
 }
 \examples{
