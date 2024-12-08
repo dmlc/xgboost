@@ -583,17 +583,6 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
-                                  xgboost::bst_ulong nrow,
-                                  xgboost::bst_ulong ncol, DMatrixHandle* out,
-                                  int nthread) {
-  API_BEGIN();
-  data::DataTableAdapter adapter(data, feature_stypes, nrow, ncol);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), nthread));
-  API_END();
-}
-
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle, const int *idxset, xgboost::bst_ulong len,
                                   DMatrixHandle *out) {
   xgboost_CHECK_C_ARG_PTR(out);
