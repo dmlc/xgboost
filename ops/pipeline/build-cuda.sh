@@ -32,23 +32,7 @@ set -x
 git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
 python3 ops/docker_run.py \
   --container-tag ${BUILD_CONTAINER_TAG} \
-  -- ops/script/build_via_cmake.sh \
-  -DCMAKE_PREFIX_PATH="/opt/grpc;/workspace/cccl" \
-  -DUSE_CUDA=ON \
-  -DUSE_OPENMP=ON \
-  -DHIDE_CXX_SYMBOLS=ON \
-  -DPLUGIN_FEDERATED=ON \
-  -DUSE_NCCL=ON \
-  -DUSE_NCCL_LIB_PATH=ON \
-  -DNCCL_INCLUDE_DIR=/usr/include \
-  -DUSE_DLOPEN_NCCL=ON \
-  ${arch_flag}
-
-echo "--- Build binary wheel"
-python3 ops/docker_run.py \
-  --container-tag ${BUILD_CONTAINER_TAG} \
-  -- bash -c \
-  "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
+  -- ops/pipeline/build-cuda-impl.sh
 python3 ops/script/rename_whl.py  \
   --wheel-path python-package/dist/*.whl  \
   --commit-hash ${GITHUB_SHA}  \
