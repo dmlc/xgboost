@@ -400,7 +400,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' @return A list with the entries that were passed non-NULL values. It is intended to
 #' be passed as argument `params` to [xgb.train()] or [xgb.cv()].
 #' @export
-#' @param objective (default="reg:squarederror")
+#' @param objective (default=`"reg:squarederror"`)
 #' Specify the learning task and the corresponding learning objective or a custom objective function to be used.
 #'
 #' For custom objective, see [Custom Objective and Evaluation Metric](https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html)

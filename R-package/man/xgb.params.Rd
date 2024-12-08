@@ -68,7 +68,7 @@ xgb.params(
 )
 }
 \arguments{
-\item{objective}{(default=reg:squarederror)
+\item{objective}{(default=\code{"reg:squarederror"})
 Specify the learning task and the corresponding learning objective or a custom objective function to be used.
 
 For custom objective, see \href{https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html}{Custom Objective and Evaluation Metric}
