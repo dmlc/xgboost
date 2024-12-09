@@ -18,6 +18,20 @@ void TestLogisticRegressionBasic(const Context* ctx);
 
 void TestsLogisticRawGPair(const Context* ctx);
 
+void TestPoissonRegressionGPair(const Context* ctx);
+
+void TestPoissonRegressionBasic(const Context* ctx);
+
+void TestGammaRegressionGPair(const Context* ctx);
+
+void TestGammaRegressionBasic(const Context* ctx);
+
+void TestTweedieRegressionGPair(const Context* ctx);
+
+void TestTweedieRegressionBasic(const Context* ctx);
+
+void TestCoxRegressionGPair(const Context* ctx);
+
 void TestAbsoluteError(const Context* ctx);
 
 void TestAbsoluteErrorLeaf(const Context* ctx);
