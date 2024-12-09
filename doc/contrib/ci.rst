@@ -320,6 +320,8 @@ hosts the code for building the CI containers. The repository is organized as fo
 * ``containers/ci_container.yml``: Defines the mapping between Dockerfiles and containers.
   Also specifies the build arguments to be used with each container.
 * ``containers/docker_build.{py,sh}``: Wrapper scripts to build and test CI containers.
+* ``vm_images/``: Defines bootstrap scripts to build VM images for Amazon EC2. See
+  :ref:`vm_images` to learn about how VM images relate to container images.
 
 See :ref:`build_run_docker_locally` to learn about the utility scripts for building and
 using containers.
@@ -413,15 +415,17 @@ This design was inspired by Mike Sarahan's work in
 
 .. _ci_container_infra:
 
-===============================================
-Infra for building and publishing CI containers
-===============================================
+=============================================================
+Infra for building and publishing CI containers and VM images
+=============================================================
 
 --------------------------
-CI pipeline for containers
+Notes on Docker containers
 --------------------------
+**CI pipeline for containers**
+
 The `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_ repo hosts a CI pipeline to build new
-containers at a regular schedule. New containers are built in the following occasions:
+Docker containers at a regular schedule. New containers are built in the following occasions:
 
 * New commits are added to the ``main`` branch of ``dmlc/xgboost-devops``.
 * New pull requests are submitted to ``dmlc/xgboost-devops``.
@@ -429,9 +433,7 @@ containers at a regular schedule. New containers are built in the following occa
 
 This setup ensures that the CI containers remain up-to-date.
 
-------------------------
-How wrapper scripts work
-------------------------
+**How wrapper scripts work**
 
 The wrapper scripts ``docker_build.sh``, ``docker_build.py`` (in ``dmlc/xgboost-devops``) and ``docker_run.py``
 (in ``dmlc/xgboost``) are designed to transparently log what commands are being carried out under the hood.
@@ -495,3 +497,32 @@ which are translated to the following ``docker run`` invocations:
     --shm-size=4g --privileged \
     492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     bash ops/pipeline/test-python-wheel-impl.sh gpu
+
+
+.. _vm_images:
+------------------
+Notes on VM images
+------------------
+In the ``vm_images/`` directory of `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_,
+we define Packer scripts to build images for Virtual Machines (VM) on
+`Amazon EC2 <https://aws.amazon.com/ec2/>`_.
+The VM image contains the minimal set of drivers and system software that are needed to
+run the containers.
+
+We update container images much more often than VM images. Whereas it takes only 10 minutes to
+build a new container image, it takes 1-2 hours to build a new VM image.
+
+To enable quick development iteration cycle, we place the most of
+the development environment in containers and keep VM images small.
+Packages need for testing should be baked into containers, not VM images.
+Developers can make changes to containers and see the results of the changes quickly.
+
+.. note:: Special note for the Windows platform
+
+  We do not use containers when testing XGBoost on Windows. All software must be baked into
+  the VM image. Containers are not used because
+  `NVIDIA Container Toolkit <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html>`_
+  does not yet support Windows natively.
+
+The `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_ repo hosts a CI pipeline to build new
+VM images at a regular schedule (currently monthly).
