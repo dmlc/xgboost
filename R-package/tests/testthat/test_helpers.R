@@ -464,6 +464,7 @@ test_that("xgb.plot.multi.trees works with and without feature names", {
   .skip_if_vcd_not_available()
   xgb.plot.multi.trees(model = bst.Tree.unnamed, features_keep = 3)
   xgb.plot.multi.trees(model = bst.Tree, features_keep = 3)
+  expect_true(TRUE)
 })
 
 test_that("xgb.plot.deepness works", {

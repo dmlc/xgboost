@@ -61,7 +61,7 @@ test_that("gblinear early stopping works", {
     agaricus.test$data, label = agaricus.test$label, nthread = n_threads
   )
 
-  param <- list(
+  param <- xgb.params(
     objective = "binary:logistic", eval_metric = "error", booster = "gblinear",
     nthread = n_threads, eta = 0.8, alpha = 0.0001, lambda = 0.0001,
     updater = "coord_descent"
@@ -70,14 +70,16 @@ test_that("gblinear early stopping works", {
   es_round <- 1
   n <- 10
   booster <- xgb.train(
-    param, dtrain, n, list(eval = dtest, train = dtrain), early_stopping_rounds = es_round
+    param, dtrain, nrounds = n, evals = list(eval = dtest, train = dtrain),
+    early_stopping_rounds = es_round, verbose = 0
   )
   expect_equal(xgb.attr(booster, "best_iteration"), 4)
   predt_es <- predict(booster, dtrain)
 
   n <- xgb.attr(booster, "best_iteration") + es_round + 1
   booster <- xgb.train(
-    param, dtrain, n, list(eval = dtest, train = dtrain), early_stopping_rounds = es_round
+    param, dtrain, nrounds = n, evals = list(eval = dtest, train = dtrain),
+    early_stopping_rounds = es_round, verbose = 0
   )
   predt <- predict(booster, dtrain)
   expect_equal(predt_es, predt)
