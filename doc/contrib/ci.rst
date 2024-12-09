@@ -69,7 +69,10 @@ containers locally.
    https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html.
    The runtime lets you access NVIDIA GPUs inside a Docker container.
 
-**To build a Docker container**, clone the repository `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_
+---------------------------
+To build a Docker container
+---------------------------
+Clone the repository `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_
 and invoke ``containers/docker_build.sh`` as follows:
 
 .. code-block:: bash
@@ -113,8 +116,10 @@ When ``containers/docker_build.sh`` completes, you will have access to the conta
 ``492475357299.dkr.ecr.us-west-2.amazonaws.com/`` was added so that the container could
 later be uploaded to AWS Elastic Container Registry (ECR), a private Docker registry.
 
-**To run commands within a Docker container**, invoke ``ops/docker_run.py`` from
-the main ``dmlc/xgboost`` repo as follows:
+-----------------------------------------
+To run commands within a Docker container
+-----------------------------------------
+Invoke ``ops/docker_run.py`` from the main ``dmlc/xgboost`` repo as follows:
 
 .. code-block:: bash
 
@@ -132,7 +137,7 @@ For example:
   # Run without GPU
   python3 ops/docker_run.py \
     --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
-    -- bash ops/script/build_via_cmake.sh
+    -- bash ops/pipeline/build-cpu-impl.sh
 
   # Run with NVIDIA GPU
   python3 ops/docker_run.py \
@@ -153,6 +158,75 @@ Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker r
     -- bash ops/pipeline/test-python-wheel-impl.sh gpu
 
 See :ref:`ci_container_infra` to read about how containers are built and managed in the CI pipelines.
+
+--------------------------------------------
+Examples: useful tasks for local development
+--------------------------------------------
+
+* Build XGBoost with GPU support + package it as a Python wheel
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --container-tag ${DOCKER_REGISTRY}/xgb-ci.gpu_build_rockylinux8:main \
+      -- ops/pipeline/build-cuda-impl.sh
+
+* Run Python tests
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --container-tag ${DOCKER_REGISTRY}/xgb-ci.cpu:main \
+      -- ops/pipeline/test-python-wheel-impl.sh cpu
+
+* Run Python tests with GPU algorithm
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --container-tag ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
+      --use-gpus \
+      -- ops/pipeline/test-python-wheel-impl.sh gpu
+
+* Run Python tests with GPU algorithm, with multiple GPUs
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    python3 ops/docker_run.py \
+      --container-tag ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
+      --use-gpus \
+      --run-args='--shm-size=4g' \
+      -- ops/pipeline/test-python-wheel-impl.sh mgpu
+      # --shm-size=4g is needed for multi-GPU algorithms to function
+
+* Build and test JVM packages
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    export SCALA_VERSION=2.12  # Specify Scala version (2.12 or 2.13)
+    python3 ops/docker_run.py \
+      --container-tag ${DOCKER_REGISTRY}/xgb-ci.jvm:main \
+      --run-args "-e SCALA_VERSION" \
+      -- ops/pipeline/build-test-jvm-packages-impl.sh
+
+* Build and test JVM packages, with GPU support
+
+  .. code-block:: bash
+
+    export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
+    export SCALA_VERSION=2.12  # Specify Scala version (2.12 or 2.13)
+    export USE_CUDA=1
+    python3 ops/docker_run.py \
+      --container-tag ${DOCKER_REGISTRY}/xgb-ci.jvm_gpu_build:main \
+      --use-gpus \
+      --run-args "-e SCALA_VERSION -e USE_CUDA --shm-size=4g" \
+      -- ops/pipeline/build-test-jvm-packages-impl.sh
+      # --shm-size=4g is needed for multi-GPU algorithms to function
 
 *****************************
 Tour of the CI infrastructure
