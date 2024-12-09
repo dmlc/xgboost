@@ -110,13 +110,9 @@ jobs:
           python3 ops/pipeline/manage-artifacts.py download \
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
             --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
-            --dest-dir . \
-            python-package/dist/*.whl ./xgboost
-          python3 ops/pipeline/manage-artifacts.py download \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
             --dest-dir wheelhouse \
-            *.whl
+            *.whl xgboost
+          mv -v wheelhouse/xgboost .
           chmod +x ./xgboost
       - name: Run Python tests, ${{ matrix.description }}
         run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.container }}
