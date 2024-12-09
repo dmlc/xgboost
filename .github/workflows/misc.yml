@@ -24,12 +24,8 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get install -y --no-install-recommends ninja-build
-      - name: Build and install XGBoost
-        run: bash ops/script/build_via_cmake.sh -DUSE_OPENMP=OFF
-      - name: Run gtest binary
-        run: |
-          cd build
-          ctest --extra-verbose
+      - name: Build and test XGBoost
+        run: bash ops/pipeline/build-test-cpu-nonomp.sh
 
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo

@@ -1,4 +1,5 @@
 #!/bin/bash
+## Build and test XGBoost with AMD64 CPU
 
 set -euo pipefail
 
@@ -16,32 +17,20 @@ set -x
 # include/dmlc/build_config_default.h.
 rm -fv dmlc-core/include/dmlc/build_config_default.h
 
-# Sanitizer tests
-echo "--- Run Google Test with sanitizer enabled"
+# Test with sanitizer
+export ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
+export ASAN_OPTIONS='symbolize=1'
+export UBSAN_OPTIONS='print_stacktrace=1:log_path=ubsan_error.log'
 # Work around https://github.com/google/sanitizers/issues/1614
 sudo sysctl vm.mmap_rnd_bits=28
 python3 ops/docker_run.py \
   --container-tag ${CONTAINER_TAG} \
-  -- ops/script/build_via_cmake.sh \
-  -DUSE_SANITIZER=ON \
-  -DENABLED_SANITIZERS="address;leak;undefined" \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
-python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
-  --run-args '-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
-  -e ASAN_OPTIONS=symbolize=1
-  -e UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log
-  --cap-add SYS_PTRACE' \
-  -- bash -c \
-  "cd build && ./testxgboost --gtest_filter=-*DeathTest*"
+  --run-args '-e ASAN_SYMBOLIZER_PATH -e ASAN_OPTIONS -e UBSAN_OPTIONS
+    --cap-add SYS_PTRACE' \
+  -- bash ops/pipeline/build-cpu-impl.sh cpu-sanitizer
 
-echo "--- Run Google Test"
+# Test without sanitizer
+rm -rf build/
 python3 ops/docker_run.py \
   --container-tag ${CONTAINER_TAG} \
-  -- ops/script/build_via_cmake.sh \
-  -DCMAKE_PREFIX_PATH=/opt/grpc \
-	-DPLUGIN_FEDERATED=ON
-python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
-  -- bash -c "cd build && ctest --extra-verbose"
+  -- bash ops/pipeline/build-cpu-impl.sh cpu

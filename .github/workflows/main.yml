@@ -70,7 +70,8 @@ jobs:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-cuda.sh
+      - run: |
+          bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 disable-rmm
       - name: Stash files
         run: |
           bash ops/pipeline/stash-artifacts.sh stash build-cuda \
@@ -98,7 +99,7 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: |
-          bash ops/pipeline/build-cuda-with-rmm.sh xgb-ci.gpu_build_rockylinux8
+          bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 enable-rmm
       - name: Stash files
         run: |
           bash ops/pipeline/stash-artifacts.sh  \
@@ -123,7 +124,8 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: |
-          bash ops/pipeline/build-cuda-with-rmm.sh xgb-ci.gpu_build_rockylinux8_dev_ver
+          bash ops/pipeline/build-cuda.sh \
+            xgb-ci.gpu_build_rockylinux8_dev_ver enable-rmm
 
   build-manylinux2014:
     name: Build manylinux2014_${{ matrix.arch }} wheel

@@ -137,7 +137,7 @@ For example:
   # Run without GPU
   python3 ops/docker_run.py \
     --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
-    -- bash ops/pipeline/build-cpu-impl.sh
+    -- bash ops/pipeline/build-cpu-impl.sh cpu
 
   # Run with NVIDIA GPU
   python3 ops/docker_run.py \
@@ -479,7 +479,7 @@ Here is an example with ``docker_run.py``:
   # Run without GPU
   python3 ops/docker_run.py \
     --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
-    -- bash ops/script/build_via_cmake.sh
+    -- bash ops/pipeline/build-cpu-impl.sh cpu
 
   # Run with NVIDIA GPU
   # Allocate extra space in /dev/shm to enable NCCL
@@ -499,7 +499,7 @@ which are translated to the following ``docker run`` invocations:
     -e CI_BUILD_UID=<uid> -e CI_BUILD_USER=<user_name> \
     -e CI_BUILD_GID=<gid> -e CI_BUILD_GROUP=<group_name> \
     492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
-    bash ops/script/build_via_cmake.sh
+    bash ops/pipeline/build-cpu-impl.sh cpu
 
   docker run --rm --pid=host --gpus all \
     -w /workspace -v /path/to/xgboost:/workspace \

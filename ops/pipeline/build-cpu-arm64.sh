@@ -1,4 +1,5 @@
 #!/bin/bash
+## Build and test XGBoost with ARM64 CPU
 
 set -euo pipefail
 
@@ -16,24 +17,9 @@ CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:main
 
 echo "--- Build CPU code targeting ARM64"
 set -x
-echo "--- Build libxgboost from the source"
 python3 ops/docker_run.py \
   --container-tag ${BUILD_CONTAINER_TAG} \
-  -- ops/script/build_via_cmake.sh \
-  --conda-env=aarch64_test \
-  -DUSE_OPENMP=ON \
-  -DHIDE_CXX_SYMBOL=ON
-
-echo "--- Run Google Test"
-python3 ops/docker_run.py \
-  --container-tag ${BUILD_CONTAINER_TAG} \
-  -- bash -c "cd build && ctest --extra-verbose"
-
-echo "--- Build binary wheel"
-python3 ops/docker_run.py \
-  --container-tag ${BUILD_CONTAINER_TAG} \
-  -- bash -c \
-  "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
+  -- ops/pipeline/build-cpu-arm64-impl.sh
 python3 ops/script/rename_whl.py  \
   --wheel-path python-package/dist/*.whl  \
   --commit-hash ${GITHUB_SHA}  \

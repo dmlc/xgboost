@@ -9,46 +9,57 @@ then
   exit 1
 fi
 
+if [[ "$#" -lt 2 ]]
+then
+  echo "Usage: $0 [container_id] {enable-rmm,disable-rmm}"
+  exit 2
+fi
+container_id="$1"
+rmm_flag="$2"
+
+# Validate RMM flag
+case "${rmm_flag}" in
+  enable-rmm)
+    export USE_RMM=1
+    ;;
+  disable-rmm)
+    export USE_RMM=0
+    ;;
+  *)
+    echo "Unrecognized argument: $rmm_flag"
+    exit 3
+    ;;
+esac
+
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
 WHEEL_TAG=manylinux_2_28_x86_64
-BUILD_CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.gpu_build_rockylinux8:main
-MANYLINUX_CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:main
+BUILD_CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
+MANYLINUX_CONTAINER_TAG="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:main"
 
 echo "--- Build with CUDA"
 
 if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]
 then
-  arch_flag="-DGPU_COMPUTE_VER=75"
+  export BUILD_ONLY_SM75=1
 else
-  arch_flag=""
+  export BUILD_ONLY_SM75=0
 fi
 
-echo "--- Build libxgboost from the source"
-set -x
-# Work around https://github.com/NVIDIA/cccl/issues/1956
-# TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
-git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
-python3 ops/docker_run.py \
-  --container-tag ${BUILD_CONTAINER_TAG} \
-  -- ops/script/build_via_cmake.sh \
-  -DCMAKE_PREFIX_PATH="/opt/grpc;/workspace/cccl" \
-  -DUSE_CUDA=ON \
-  -DUSE_OPENMP=ON \
-  -DHIDE_CXX_SYMBOLS=ON \
-  -DPLUGIN_FEDERATED=ON \
-  -DUSE_NCCL=ON \
-  -DUSE_NCCL_LIB_PATH=ON \
-  -DNCCL_INCLUDE_DIR=/usr/include \
-  -DUSE_DLOPEN_NCCL=ON \
-  ${arch_flag}
+if [[ ${USE_RMM} == 0 ]]
+then
+  # Work around https://github.com/NVIDIA/cccl/issues/1956
+  # TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
+  git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
+fi
 
-echo "--- Build binary wheel"
+set -x
+
 python3 ops/docker_run.py \
   --container-tag ${BUILD_CONTAINER_TAG} \
-  -- bash -c \
-  "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
+  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM' \
+  -- ops/pipeline/build-cuda-impl.sh
 python3 ops/script/rename_whl.py  \
   --wheel-path python-package/dist/*.whl  \
   --commit-hash ${GITHUB_SHA}  \
@@ -69,18 +80,22 @@ if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
   exit -1
 fi
 
-# Generate the meta info which includes xgboost version and the commit info
-python3 ops/script/format_wheel_meta.py \
-  --wheel-path python-package/dist/*.whl  \
-  --commit-hash ${GITHUB_SHA}  \
-  --platform-tag ${WHEEL_TAG}  \
-  --meta-path python-package/dist/
-
-echo "--- Upload Python wheel"
-if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+if [[ $USE_RMM == 0 ]]
 then
-  aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
-    --acl public-read --no-progress
-  aws s3 cp python-package/dist/meta.json s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
-    --acl public-read --no-progress
+  # Generate the meta info which includes xgboost version and the commit info
+  echo "--- Generate meta info"
+  python3 ops/script/format_wheel_meta.py \
+    --wheel-path python-package/dist/*.whl  \
+    --commit-hash ${GITHUB_SHA}  \
+    --platform-tag ${WHEEL_TAG}  \
+    --meta-path python-package/dist/
+
+  echo "--- Upload Python wheel"
+  if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+  then
+    aws s3 cp python-package/dist/*.whl s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
+      --acl public-read --no-progress
+    aws s3 cp python-package/dist/meta.json s3://xgboost-nightly-builds/${BRANCH_NAME}/ \
+      --acl public-read --no-progress
+  fi
 fi
