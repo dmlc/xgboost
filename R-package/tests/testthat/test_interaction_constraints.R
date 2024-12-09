@@ -13,9 +13,15 @@ train <- matrix(c(x1, x2, x3), ncol = 3)
 
 test_that("interaction constraints for regression", {
   # Fit a model that only allows interaction between x1 and x2
-  bst <- xgb.train(data = xgb.DMatrix(train, label = y), max_depth = 3,
-                   eta = 0.1, nthread = 2, nrounds = 100, verbose = 0,
-                   interaction_constraints = list(c(0, 1)))
+  bst <- xgb.train(
+    data = xgb.DMatrix(train, label = y),
+    nrounds = 100, verbose = 0,
+    params = xgb.params(
+      max_depth = 3,
+      eta = 0.1, nthread = 2,
+      interaction_constraints = list(c(0, 1))
+    )
+  )
 
   # Set all observations to have the same x3 values then increment
   #  by the same amount
@@ -52,13 +58,20 @@ test_that("interaction constraints scientific representation", {
 
   with_inc <- xgb.train(
     data = dtrain,
-    tree_method = 'hist',
-    interaction_constraints = inc,
     nrounds = 10,
-    nthread = n_threads
+    params = xgb.params(
+      tree_method = 'hist',
+      interaction_constraints = inc,
+      nthread = n_threads
+    )
   )
   without_inc <- xgb.train(
-    data = dtrain, tree_method = 'hist', nrounds = 10, nthread = n_threads
+    data = dtrain,
+    nrounds = 10,
+    params = xgb.params(
+      tree_method = 'hist',
+      nthread = n_threads
+    )
   )
   expect_equal(xgb.save.raw(with_inc), xgb.save.raw(without_inc))
 })
