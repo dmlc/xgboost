@@ -20,9 +20,9 @@ echo "--- Build with CUDA"
 
 if [[ ($is_pull_request == 1) || ($is_release_branch == 0) ]]
 then
-  arch_flag="-DGPU_COMPUTE_VER=75"
+  export BUILD_ONLY_SM75=1
 else
-  arch_flag=""
+  export BUILD_ONLY_SM75=0
 fi
 
 echo "--- Build libxgboost from the source"
@@ -32,6 +32,7 @@ set -x
 git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
 python3 ops/docker_run.py \
   --container-tag ${BUILD_CONTAINER_TAG} \
+  --run-args='-e BUILD_ONLY_SM75' \
   -- ops/pipeline/build-cuda-impl.sh
 python3 ops/script/rename_whl.py  \
   --wheel-path python-package/dist/*.whl  \
