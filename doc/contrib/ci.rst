@@ -332,53 +332,64 @@ Artifact sharing between jobs via Amazon S3
 
 We make artifacts from one workflow job available to another job, by uploading the
 artifacts to `Amazon S3 <https://aws.amazon.com/s3/>`_. In the CI, we utilize the
-script ``ops/pipeline/stash-artifacts.sh`` to coordinate artifact sharing.
+script ``ops/pipeline/manage-artifacts.py`` to coordinate artifact sharing.
 
-**To stash a file**: In the workflow YAML, add the following lines:
+**To upload files to S3**: In the workflow YAML, add the following lines:
 
 .. code-block:: yaml
 
-  - name: Stash files
+  - name: Upload files to S3
     run: |
       REMOTE_PREFIX="remote directory to place the artifact(s)"
-      bash ops/pipeline/stash-artifacts.sh stash "${REMOTE_PREFIX}" path/to/file
+      python3 ops/pipeline/manage-artifacts.py upload \
+        --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+        --prefix cache/${{ github.run_id }}/${REMOTE_PREFIX} \
+        path/to/file
 
-The ``REMOTE_PREFIX`` argument, which is the second command-line argument
-for ``stash-artifacts.sh``, specifies the remote directory in which the artifact(s)
-should be placed. More precisely, the artifact(s) will be placed in
-``s3://{RUNS_ON_S3_BUCKET_CACHE}/cache/{GITHUB_REPOSITORY}/stash/{GITHUB_RUN_ID}/{REMOTE_PREFIX}/``
-where ``RUNS_ON_S3_BUCKET_CACHE``, ``GITHUB_REPOSITORY``, and ``GITHUB_RUN_ID`` are set by
-the CI. (RunsOn provisions an S3 bucket to stage cache, and its name is stored in the environment
-variable ``RUNS_ON_S3_BUCKET_CACHE``.)
+The ``--prefix`` argument specifies the remote directory in which the artifact(s)
+should be placed. The artifact(s) will be placed in
+``s3://{RUNS_ON_S3_BUCKET_CACHE}/cache/{GITHUB_RUN_ID}/{REMOTE_PREFIX}/``
+where ``RUNS_ON_S3_BUCKET_CACHE`` and ``GITHUB_RUN_ID`` are set by the CI.
 
 You can upload multiple files, possibly with wildcard globbing:
 
 .. code-block:: yaml
 
-  - name: Stash files
+  - name: Upload files to S3
     run: |
-      bash ops/pipeline/stash-artifacts.sh stash build-cuda \
+      python3 ops/pipeline/manage-artifacts.py upload \
+        --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+        --prefix cache/${{ github.run_id }}/build-cuda \
         build/testxgboost python-package/dist/*.whl
 
-**To unstash a file**:
+**To download files from S3**: In the workflow YAML, add the following lines:
 
 .. code-block:: yaml
 
-  - name: Stash files
+  - name: Download files from S3
     run: |
-      REMOTE_PREFIX="remote directory to place the artifact(s)"
-      bash ops/pipeline/stash-artifacts.sh unstash "${REMOTE_PREFIX}" path/to/file
+      REMOTE_PREFIX="remote directory where the artifact(s) were placed"
+      python3 ops/pipeline/manage-artifacts.py download \
+        --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+        --prefix cache/${{ github.run_id }}/${REMOTE_PREFIX} \
+        --dest-dir path/to/destination_directory \
+        artifacts
 
-You can also use the wildcard globbing. The script will download the matching artifacts
-from the remote directory.
+You can also use the wildcard globbing. The script will locate all artifacts
+under the given prefix that matches the wildcard pattern.
 
 .. code-block:: yaml
 
-  - name: Stash files
+  - name: Download files from S3
     run: |
-      # Download all files whose path matches the wildcard pattern python-package/dist/*.whl
-      bash ops/pipeline/stash-artifacts.sh unstash build-cuda \
-        python-package/dist/*.whl
+      # Locate all artifacts with name *.whl under prefix
+      # cache/${GITHUB_RUN_ID}/${REMOTE_PREFIX} and
+      # download them to wheelhouse/.
+      python3 ops/pipeline/manage-artifacts.py download \
+        --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+        --prefix cache/${{ github.run_id }}/${REMOTE_PREFIX} \
+        --dest-dir wheelhouse/ \
+        *.whl
 
 .. _custom_actions:
 
