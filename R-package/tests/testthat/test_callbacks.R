@@ -277,7 +277,7 @@ test_that("early stopping xgb.train works", {
   )
   expect_equal(attributes(bst)$evaluation_log, attributes(bst0)$evaluation_log)
 
-  fname <- file.path(tempdir(), "model.bin")
+  fname <- file.path(tempdir(), "model.ubj")
   xgb.save(bst, fname)
   loaded <- xgb.load(fname)
 
@@ -335,6 +335,7 @@ test_that("early stopping works with titanic", {
     ),
     nrounds = 100,
     early_stopping_rounds = 3,
+    verbose = 0,
     evals = list(train = xgb.DMatrix(dtx, label = dty))
   )
 
