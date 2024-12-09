@@ -103,8 +103,10 @@ test_that("xgb.DMatrix: saving, loading", {
   on.exit(unlink(tmp_file))
   expect_true(xgb.DMatrix.save(dtest1, tmp_file))
   # read from a local file
+  xgb.set.config(verbosity = 2)
   expect_output(dtest3 <- xgb.DMatrix(tmp_file), "entries loaded from")
-  expect_output(dtest3 <- xgb.DMatrix(tmp_file, silent = TRUE), NA)
+  xgb.set.config(verbosity = 1)
+  expect_output(dtest3 <- xgb.DMatrix(tmp_file), NA)
   unlink(tmp_file)
   expect_equal(getinfo(dtest1, 'label'), getinfo(dtest3, 'label'))
 

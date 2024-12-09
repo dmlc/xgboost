@@ -30,7 +30,7 @@ dm <- xgb.DMatrix(x, label = y, nthread = 1)
 
 model <- xgb.train(
   data = dm,
-  params = list(nthread = 1),
+  params = xgb.params(nthread = 1),
   nround = 3
 )
 
