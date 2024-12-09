@@ -17,10 +17,13 @@ fi
 container_id="$1"
 
 source ops/pipeline/classify-git-branch.sh
-
-set -x
+source ops/pipeline/get-docker-registry-details.sh
 
 WHEEL_TAG=manylinux_2_28_x86_64
+BUILD_CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
+MANYLINUX_CONTAINER_TAG="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:main"
+
+set -x
 
 echo "--- Build with CUDA with RMM"
 
@@ -33,7 +36,7 @@ fi
 
 echo "--- Build libxgboost from the source"
 python3 ops/docker_run.py \
-  --container-id "${container_id}" \
+  --container-tag "${BUILD_CONTAINER_TAG}" \
   -- ops/script/build_via_cmake.sh \
   -DCMAKE_PREFIX_PATH="/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake" \
   -DUSE_CUDA=ON \
@@ -49,7 +52,7 @@ python3 ops/docker_run.py \
 
 echo "--- Build binary wheel"
 python3 ops/docker_run.py \
-  --container-id "${container_id}" \
+  --container-tag "${BUILD_CONTAINER_TAG}" \
   -- bash -c \
   "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
 python3 ops/script/rename_whl.py  \
@@ -59,7 +62,7 @@ python3 ops/script/rename_whl.py  \
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 python3 ops/docker_run.py \
-  --container-id xgb-ci.${WHEEL_TAG} \
+  --container-tag "${MANYLINUX_CONTAINER_TAG}" \
   -- auditwheel repair \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 python3 ops/script/rename_whl.py  \
@@ -67,8 +70,7 @@ python3 ops/script/rename_whl.py  \
   --commit-hash ${GITHUB_SHA}  \
   --platform-tag ${WHEEL_TAG}
 mv -v wheelhouse/*.whl python-package/dist/
-# Make sure that libgomp.so is vendored in the wheel
-python3 ops/docker_run.py \
-  --container-id xgb-ci.${WHEEL_TAG} \
-  -- bash -c \
-  "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
+if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
+  echo "error: libgomp.so was not vendored in the wheel"
+  exit -1
+fi

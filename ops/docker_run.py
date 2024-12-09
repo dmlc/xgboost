@@ -24,7 +24,7 @@ TEXT_WRAPPER = textwrap.TextWrapper(
 )
 
 
-def parse_run_args(raw_run_args: str) -> list[str]:
+def parse_run_args(*, raw_run_args: str) -> list[str]:
     return [x for x in raw_run_args.split() if x]
 
 
@@ -39,7 +39,7 @@ def get_user_ids() -> dict[str, str]:
     }
 
 
-def fancy_print_cli_args(cli_args: list[str]) -> None:
+def fancy_print_cli_args(*, cli_args: list[str]) -> None:
     print(
         "=" * LINEWIDTH
         + "\n"
@@ -52,9 +52,9 @@ def fancy_print_cli_args(cli_args: list[str]) -> None:
 
 
 def docker_run(
-    container_id: str,
-    command_args: list[str],
     *,
+    container_tag: str,
+    command_args: list[str],
     use_gpus: bool,
     workdir: pathlib.Path,
     user_ids: dict[str, str],
@@ -71,16 +71,16 @@ def docker_run(
         itertools.chain.from_iterable([["-e", f"{k}={v}"] for k, v in user_ids.items()])
     )
     docker_run_cli_args.extend(extra_args)
-    docker_run_cli_args.append(container_id)
+    docker_run_cli_args.append(container_tag)
     docker_run_cli_args.extend(command_args)
 
     cli_args = ["docker", "run"] + docker_run_cli_args
-    fancy_print_cli_args(cli_args)
+    fancy_print_cli_args(cli_args=cli_args)
     subprocess.run(cli_args, check=True, encoding="utf-8")
 
 
-def main(args: argparse.Namespace) -> None:
-    run_args = parse_run_args(args.run_args)
+def main(*, args: argparse.Namespace) -> None:
+    run_args = parse_run_args(raw_run_args=args.run_args)
     user_ids = get_user_ids()
 
     if args.use_gpus:
@@ -90,8 +90,8 @@ def main(args: argparse.Namespace) -> None:
         run_args.append("-it")
 
     docker_run(
-        args.container_id,
-        args.command_args,
+        container_tag=args.container_tag,
+        command_args=args.command_args,
         use_gpus=args.use_gpus,
         workdir=args.workdir,
         user_ids=user_ids,
@@ -102,17 +102,20 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         usage=(
-            f"{sys.argv[0]} --container-id CONTAINER_ID [--use-gpus] [--interactive] "
+            f"{sys.argv[0]} --container-tag CONTAINER_TAG [--use-gpus] [--interactive] "
             "[--workdir WORKDIR] [--run-args RUN_ARGS] -- COMMAND_ARG "
             "[COMMAND_ARG ...]"
         ),
         description="Run tasks inside a Docker container",
     )
     parser.add_argument(
-        "--container-id",
+        "--container-tag",
         type=str,
         required=True,
-        help="String ID of the container to run.",
+        help=(
+            "Container tag to identify the container, e.g. "
+            "492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main"
+        ),
     )
     parser.add_argument(
         "--use-gpus",
@@ -165,4 +168,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     parsed_args = parser.parse_args()
-    main(parsed_args)
+    main(args=parsed_args)

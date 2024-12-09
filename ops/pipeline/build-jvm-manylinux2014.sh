@@ -1,7 +1,7 @@
 #!/bin/bash
 ## Build libxgboost4j.so targeting glibc 2.17 systems
 
-set -euox pipefail
+set -euo pipefail
 
 if [[ $# -ne 1 ]]
 then
@@ -10,15 +10,18 @@ then
 fi
 
 arch=$1
+container_id="xgb-ci.manylinux2014_${arch}"
 
-image="xgb-ci.manylinux2014_${arch}"
+source ops/pipeline/get-docker-registry-details.sh
+
+CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
 
 # Build XGBoost4J binary
 echo "--- Build libxgboost4j.so (targeting glibc 2.17)"
 set -x
 mkdir build
 python3 ops/docker_run.py \
-  --container-id ${image} \
+  --container-tag "${CONTAINER_TAG}" \
   -- bash -c \
   "cd build && cmake .. -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && make -j$(nproc)"
 ldd lib/libxgboost4j.so
