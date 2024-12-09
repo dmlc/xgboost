@@ -1043,6 +1043,10 @@ xgb.best_iteration <- function(bst) {
   return(out)
 }
 
+xgb.has_categ_features <- function(bst) {
+  return("c" %in% xgb.feature_types(bst))
+}
+
 #' Extract coefficients from linear booster
 #'
 #' @description
