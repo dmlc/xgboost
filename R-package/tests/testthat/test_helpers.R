@@ -659,3 +659,35 @@ test_that("validate.features works as expected", {
     validate.features(model, tmp)
   }, "Feature types")
 })
+
+test_that("Parameters constructor works as expected", {
+  empty_list <- list()
+  names(empty_list) <- character()
+
+  params <- xgb.params()
+  expect_equal(params, empty_list)
+
+  params <- xgb.params(max_depth = 2)
+  expect_equal(params, list(max_depth = 2))
+
+  params <- xgb.params(max_depth = NULL)
+  expect_equal(params, empty_list)
+
+  max_depth <- 3
+  params <- xgb.params(max_depth = max_depth)
+  expect_equal(params, list(max_depth = 3))
+
+  four <- 4L
+  params <- xgb.params(max_depth = four)
+  expect_equal(params, list(max_depth = 4L))
+
+  params <- xgb.params(objective = "binary:logistic", nthread = 10)
+  expect_equal(params, list(objective = "binary:logistic", nthread = 10))
+
+  expect_error({
+    xgb.params(max_xgboost = 10)
+  })
+  expect_error({
+    xgb.params(max_depth = 2, max_depth = 3)
+  })
+})
