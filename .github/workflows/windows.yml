@@ -33,7 +33,7 @@ jobs:
         shell: powershell
         run: |
           conda activate
-          python3 ops/pipeline/manage-artifacts.py upload `
+          python ops/pipeline/manage-artifacts.py upload `
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
             --prefix cache/${{ github.run_id }}/build-win64-gpu `
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
@@ -53,7 +53,7 @@ jobs:
         shell: powershell
         run: |
           conda activate
-          python3 ops/pipeline/manage-artifacts.py download `
+          python ops/pipeline/manage-artifacts.py download `
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
             --prefix cache/${{ github.run_id }}/build-win64-gpu `
             --dest-dir python-package/dist `
