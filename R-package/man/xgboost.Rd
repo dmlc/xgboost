@@ -115,9 +115,9 @@ evaluation data. Note that the selection will be done uniformly at random, regar
 argument \code{weights}.
 }
 
-If passed, this subset of the data will be excluded from the training procedure, and a default
-metric for the selected objective will be calculated on this dataset after each boosting
-iteration (pass \code{verbosity>0} to have these metrics printed during training).
+If passed, this subset of the data will be excluded from the training procedure, and the
+evaluation metric(s) supplied under \code{eval_metric} will be calculated on this dataset after each
+boosting iteration (pass \code{verbosity>0} to have these metrics printed during training).
 
 If passing a fraction, in classification problems, the evaluation set will be chosen in such a
 way that at least one observation of each class will be kept in the training data.
