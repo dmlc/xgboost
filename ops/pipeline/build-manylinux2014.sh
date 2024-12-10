@@ -16,6 +16,11 @@ fi
 
 arch="$1"
 
+if [[ "${arch:-}" == "aarch64" ]]
+then
+  sudo pip3 install wheel
+fi
+
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
