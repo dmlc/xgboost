@@ -8,8 +8,7 @@
 #' and the documentation for [xgb.params()] for details.
 #'
 #' Should be passed as list with named entries. Parameters that are not specified in this
-#' list will use their default values. Alternatively, parameters may be passed directly
-#' as function arguments (accepted through `...`).
+#' list will use their default values.
 #'
 #' A list of named parameters can be created through the function [xgb.params()], which
 #' accepts all valid parameters as function arguments.
@@ -19,28 +18,30 @@
 #' as inputs, such as data frames and matrices.
 #' @param nrounds Max number of boosting iterations.
 #' @param evals Named list of `xgb.DMatrix` datasets to use for evaluating model performance.
-#'   Metrics specified in either `eval_metric` or `feval` will be computed for each
-#'   of these datasets during each boosting iteration, and stored in the end as a field named
-#'   `evaluation_log` in the resulting object. When either `verbose>=1` or
-#'   [xgb.cb.print.evaluation()] callback is engaged, the performance results are continuously
-#'   printed out during the training.
+#'   Metrics specified in either `eval_metric` (under params) or `custom_metric` (function
+#'   argument here) will be computed for each of these datasets during each boosting iteration,
+#'   and stored in the end as a field named `evaluation_log` in the resulting object.
+#'
+#'   When either `verbose>=1` or [xgb.cb.print.evaluation()] callback is engaged, the performance
+#'   results are continuously printed out during the training.
+#'
 #'   E.g., specifying `evals=list(validation1=mat1, validation2=mat2)` allows to track
-#'   the performance of each round's model on mat1 and mat2.
-#' @param obj Customized objective function. Should take two arguments: the first one will be the
+#'   the performance of each round's model on `mat1` and `mat2`.
+#' @param objective Customized objective function. Should take two arguments: the first one will be the
 #'   current predictions (either a numeric vector or matrix depending on the number of targets / classes),
 #'   and the second one will be the `data` DMatrix object that is used for training.
 #'
 #'   It should return a list with two elements `grad` and `hess` (in that order), as either
 #'   numeric vectors or numeric matrices depending on the number of targets / classes (same
 #'   dimension as the predictions that are passed as first argument).
-#' @param feval Customized evaluation function. Just like `obj`, should take two arguments, with
-#'   the first one being the predictions and the second one the `data` DMatrix.
+#' @param custom_metric Customized evaluation function. Just like `objective`, should take two arguments,
+#'   with the first one being the predictions and the second one the `data` DMatrix.
 #'
 #'   Should return a list with two elements `metric` (name that will be displayed for this metric,
 #'   should be a string / character), and `value` (the number that the function calculates, should
 #'   be a numeric scalar).
 #'
-#'   Note that even if passing `feval`, objectives also have an associated default metric that
+#'   Note that even if passing `custom_metric`, objectives also have an associated default metric that
 #'   will be evaluated in addition to it. In order to disable the built-in metric, one can pass
 #'   parameter `disable_default_eval_metric = TRUE`.
 #' @param verbose If 0, xgboost will stay silent. If 1, it will print information about performance.
@@ -80,7 +81,13 @@
 #'   such as an evaluation log (a `data.table` object) - be aware that these objects are kept
 #'   as R attributes, and thus do not get saved when using XGBoost's own serializaters like
 #'   [xgb.save()] (but are kept when using R serializers like [saveRDS()]).
-#' @param ... Other parameters to pass to `params`. See [xgb.params()] for more details.
+#' @param ... Not used.
+#'
+#' Some arguments are currently deprecated or have been renamed. If a deprecated argument
+#' is passed, will throw a warning and use its current equivalent.
+#'
+#' If some additional argument is passed that is neither a current function argument nor
+#' a deprecated argument, an error will be thrown.
 #' @return An object of class `xgb.Booster`.
 #' @details
 #' Compared to [xgboost()], the `xgb.train()` interface supports advanced features such as
@@ -141,7 +148,7 @@
 #' evals <- list(train = dtrain, eval = dtest)
 #'
 #' ## A simple xgb.train example:
-#' param <- list(
+#' param <- xgb.params(
 #'   max_depth = 2,
 #'   eta = 1,
 #'   nthread = nthread,
@@ -165,9 +172,9 @@
 #'   return(list(metric = "error", value = err))
 #' }
 #'
-#' # These functions could be used by passing them either:
-#' #  as 'objective' and 'eval_metric' parameters in the params list:
-#' param <- list(
+#' # These functions could be used by passing them as 'objective' and
+#' # 'eval_metric' parameters in the params list:
+#' param <- xgb.params(
 #'   max_depth = 2,
 #'   eta = 1,
 #'   nthread = nthread,
@@ -176,21 +183,11 @@
 #' )
 #' bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0)
 #'
-#' #  or through the ... arguments:
-#' param <- list(max_depth = 2, eta = 1, nthread = nthread)
+#' # ... or as dedicated 'objective' and 'custom_metric' parameters of xgb.train:
 #' bst <- xgb.train(
-#'   param,
-#'   dtrain,
-#'   nrounds = 2,
-#'   evals = evals,
-#'   verbose = 0,
-#'   objective = logregobj,
-#'   eval_metric = evalerror
-#' )
-#'
-#' #  or as dedicated 'obj' and 'feval' parameters of xgb.train:
-#' bst <- xgb.train(
-#'   param, dtrain, nrounds = 2, evals = evals, obj = logregobj, feval = evalerror
+#'   within(param, rm("objective", "eval_metric")),
+#'   dtrain, nrounds = 2, evals = evals,
+#'   objective = logregobj, custom_metric = evalerror
 #' )
 #'
 #'
@@ -219,17 +216,19 @@
 #' )
 #' @export
 xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
-                      obj = NULL, feval = NULL, verbose = 1, print_every_n = 1L,
+                      objective = NULL, custom_metric = NULL, verbose = 1, print_every_n = 1L,
                       early_stopping_rounds = NULL, maximize = NULL,
                       save_period = NULL, save_name = "xgboost.model",
                       xgb_model = NULL, callbacks = list(), ...) {
+  check.deprecation(deprecated_train_params, match.call(), ...)
 
-  check.deprecation(...)
-
-  params <- check.booster.params(params, ...)
-
-  check.custom.obj()
-  check.custom.eval()
+  params <- check.booster.params(params)
+  tmp <- check.custom.obj(params, objective)
+  params <- tmp$params
+  objective <- tmp$objective
+  tmp <- check.custom.eval(params, custom_metric, maximize, early_stopping_rounds, callbacks)
+  params <- tmp$params
+  custom_metric <- tmp$custom_metric
 
   # data & evals checks
   dtrain <- data
@@ -334,7 +333,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
       bst = bst,
       dtrain = dtrain,
       iter = iteration - 1,
-      obj = obj
+      objective = objective
     )
 
     bst_evaluation <- NULL
@@ -343,7 +342,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
         bst = bst,
         evals = evals,
         iter = iteration - 1,
-        feval = feval
+        custom_metric = custom_metric
       )
     }
 

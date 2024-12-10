@@ -24,36 +24,31 @@ Code Examples
 -------------
 ### Features Walkthrough
 
+_Note: for the R package, see the in-package examples and vignettes instead_
+
 This is a list of short codes introducing different functionalities of xgboost packages.
 
 * Basic walkthrough of packages
   [python](guide-python/basic_walkthrough.py)
-  [R](../R-package/demo/basic_walkthrough.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/basic_walkthrough.jl)
   [PHP](https://github.com/bpachev/xgboost-php/blob/master/demo/titanic_demo.php)
 * Customize loss function, and evaluation metric
   [python](guide-python/custom_objective.py)
-  [R](../R-package/demo/custom_objective.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/custom_objective.jl)
 * Boosting from existing prediction
   [python](guide-python/boost_from_prediction.py)
-  [R](../R-package/demo/boost_from_prediction.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/boost_from_prediction.jl)
 * Predicting using first n trees
   [python](guide-python/predict_first_ntree.py)
-  [R](../R-package/demo/predict_first_ntree.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/predict_first_ntree.jl)
 * Generalized Linear Model
   [python](guide-python/generalized_linear_model.py)
-  [R](../R-package/demo/generalized_linear_model.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/generalized_linear_model.jl)
 * Cross validation
   [python](guide-python/cross_validation.py)
-  [R](../R-package/demo/cross_validation.R)
   [Julia](https://github.com/antinucleon/XGBoost.jl/blob/master/demo/cross_validation.jl)
 * Predicting leaf indices
   [python](guide-python/predict_leaf_indices.py)
-  [R](../R-package/demo/predict_leaf_indices.R)
 
 ### Basic Examples by Tasks
 

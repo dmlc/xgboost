@@ -254,22 +254,6 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,  // NOLINT
                                        bst_ulong nrow, bst_ulong ncol,
                                        float missing, DMatrixHandle *out,
                                        int nthread);
-/*!
- * \brief create matrix content from python data table
- * \param data pointer to pointer to column data
- * \param feature_stypes pointer to strings
- * \param nrow number of rows
- * \param ncol number columns
- * \param out created dmatrix
- * \param nthread number of threads (up to maximum cores available, if <=0 use all cores)
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGDMatrixCreateFromDT(void** data,
-                                  const char ** feature_stypes,
-                                  bst_ulong nrow,
-                                  bst_ulong ncol,
-                                  DMatrixHandle* out,
-                                  int nthread);
 
 /*!
  * \brief Create DMatrix from CUDA columnar format. (cuDF)
