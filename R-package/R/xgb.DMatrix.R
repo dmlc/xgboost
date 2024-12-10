@@ -688,7 +688,7 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
 #' dm <- xgb.ExtMemDMatrix(data_iterator, cache_prefix, nthread = 1)
 #'
 #' # After construction, can be used as a regular DMatrix
-#' params <- list(nthread = 1, objective = "reg:squarederror")
+#' params <- xgb.params(nthread = 1, objective = "reg:squarederror")
 #' model <- xgb.train(data = dm, nrounds = 2, params = params)
 #'
 #' # Predictions can also be called on it, and should be the same
@@ -1136,7 +1136,7 @@ setinfo.xgb.DMatrix <- function(object, name, info) {
 #' # DMatrix is not quantized right away, but will be once a hist model is generated
 #' model <- xgb.train(
 #'   data = dm,
-#'   params = list(tree_method = "hist", max_bin = 8, nthread = 1),
+#'   params = xgb.params(tree_method = "hist", max_bin = 8, nthread = 1),
 #'   nrounds = 3
 #' )
 #'

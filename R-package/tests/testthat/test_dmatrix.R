@@ -41,13 +41,13 @@ test_that("xgb.DMatrix: basic construction", {
 
   params <- list(tree_method = "hist", nthread = n_threads)
   bst_fd <- xgb.train(
-    params, nrounds = 8, fd, evals = list(train = fd)
+    params, nrounds = 8, fd, evals = list(train = fd), verbose = 0
   )
   bst_dgr <- xgb.train(
-    params, nrounds = 8, fdgr, evals = list(train = fdgr)
+    params, nrounds = 8, fdgr, evals = list(train = fdgr), verbose = 0
   )
   bst_dgc <- xgb.train(
-    params, nrounds = 8, fdgc, evals = list(train = fdgc)
+    params, nrounds = 8, fdgc, evals = list(train = fdgc), verbose = 0
   )
 
   raw_fd <- xgb.save.raw(bst_fd, raw_format = "ubj")
@@ -103,8 +103,10 @@ test_that("xgb.DMatrix: saving, loading", {
   on.exit(unlink(tmp_file))
   expect_true(xgb.DMatrix.save(dtest1, tmp_file))
   # read from a local file
+  xgb.set.config(verbosity = 2)
   expect_output(dtest3 <- xgb.DMatrix(tmp_file), "entries loaded from")
-  expect_output(dtest3 <- xgb.DMatrix(tmp_file, silent = TRUE), NA)
+  xgb.set.config(verbosity = 1)
+  expect_output(dtest3 <- xgb.DMatrix(tmp_file), NA)
   unlink(tmp_file)
   expect_equal(getinfo(dtest1, 'label'), getinfo(dtest3, 'label'))
 
@@ -128,6 +130,7 @@ test_that("xgb.DMatrix: saving, loading", {
   expect_equal(length(cnames), 126)
   tmp_file <- tempfile('xgb.DMatrix_')
   xgb.DMatrix.save(dtrain, tmp_file)
+  xgb.set.config(verbosity = 0)
   dtrain <- xgb.DMatrix(tmp_file)
   expect_equal(colnames(dtrain), cnames)
 

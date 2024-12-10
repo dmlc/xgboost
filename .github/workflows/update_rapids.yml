@@ -25,20 +25,20 @@ jobs:
     name: Check latest RAPIDS
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-      with:
-        submodules: 'true'
-    - name: Check latest RAPIDS and update conftest.sh
-      run: |
-        bash tests/buildkite/update-rapids.sh
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v7
-      if: github.ref == 'refs/heads/master'
-      with:
-        add-paths: |
-          tests/buildkite
-        branch: create-pull-request/update-rapids
-        base: master
-        title: "[CI] Update RAPIDS to latest stable"
-        commit-message: "[CI] Update RAPIDS to latest stable"
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Check latest RAPIDS and update conftest.sh
+        run: |
+          bash ops/script/update_rapids.sh
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        if: github.ref == 'refs/heads/master'
+        with:
+          add-paths: |
+            ops/docker
+          branch: create-pull-request/update-rapids
+          base: master
+          title: "[CI] Update RAPIDS to latest stable"
+          commit-message: "[CI] Update RAPIDS to latest stable"
       

@@ -15,20 +15,15 @@ jobs:
     timeout-minutes: 20
     name: A job to run test in FreeBSD
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'true'
-    - name: Test in FreeBSD
-      id: test
-      uses: vmactions/freebsd-vm@v1
-      with:
-        usesh: true
-        prepare: |
-          pkg install -y cmake git ninja googletest
-
-        run: |
-          mkdir build
-          cd build
-          cmake .. -GNinja -DGOOGLE_TEST=ON
-          ninja -v
-          ./testxgboost
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Test in FreeBSD
+        id: test
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y cmake git ninja googletest bash
+          run: |
+            bash ops/pipeline/test-freebsd.sh

@@ -583,17 +583,6 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
-                                  xgboost::bst_ulong nrow,
-                                  xgboost::bst_ulong ncol, DMatrixHandle* out,
-                                  int nthread) {
-  API_BEGIN();
-  data::DataTableAdapter adapter(data, feature_stypes, nrow, ncol);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), nthread));
-  API_END();
-}
-
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle, const int *idxset, xgboost::bst_ulong len,
                                   DMatrixHandle *out) {
   xgboost_CHECK_C_ARG_PTR(out);
@@ -1098,18 +1087,18 @@ XGB_DLL int XGBoosterTrainOneIter(BoosterHandle handle, DMatrixHandle dtrain, in
   ArrayInterface<2, false> i_grad{StringView{grad}};
   ArrayInterface<2, false> i_hess{StringView{hess}};
   StringView msg{"Mismatched shape between the gradient and hessian."};
-  CHECK_EQ(i_grad.Shape(0), i_hess.Shape(0)) << msg;
-  CHECK_EQ(i_grad.Shape(1), i_hess.Shape(1)) << msg;
+  CHECK_EQ(i_grad.Shape<0>(), i_hess.Shape<0>()) << msg;
+  CHECK_EQ(i_grad.Shape<1>(), i_hess.Shape<1>()) << msg;
   linalg::Matrix<GradientPair> gpair;
   auto grad_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_grad.data);
   auto hess_is_cuda = ArrayInterfaceHandler::IsCudaPtr(i_hess.data);
-  CHECK_EQ(i_grad.Shape(0), p_fmat->Info().num_row_)
+  CHECK_EQ(i_grad.Shape<0>(), p_fmat->Info().num_row_)
       << "Mismatched size between the gradient and training data.";
   CHECK_EQ(grad_is_cuda, hess_is_cuda) << "gradient and hessian should be on the same device.";
   auto *learner = static_cast<Learner *>(handle);
   auto ctx = learner->Ctx();
   if (!grad_is_cuda) {
-    gpair.Reshape(i_grad.Shape(0), i_grad.Shape(1));
+    gpair.Reshape(i_grad.Shape<0>(), i_grad.Shape<1>());
     auto h_gpair = gpair.HostView();
     DispatchDType(i_grad, DeviceOrd::CPU(), [&](auto &&t_grad) {
       DispatchDType(i_hess, DeviceOrd::CPU(), [&](auto &&t_hess) {

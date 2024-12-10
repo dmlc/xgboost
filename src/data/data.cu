@@ -69,12 +69,12 @@ void CopyGroupInfoImpl(ArrayInterface<1> column, std::vector<bst_group_t>* out) 
 
   auto ptr_device = SetDeviceToPtr(column.data);
   CHECK_EQ(ptr_device, dh::CurrentDevice());
-  dh::TemporaryArray<bst_group_t> temp(column.Shape(0));
+  dh::TemporaryArray<bst_group_t> temp(column.Shape<0>());
   auto d_tmp = temp.data().get();
 
-  dh::LaunchN(column.Shape(0),
+  dh::LaunchN(column.Shape<0>(),
               [=] __device__(size_t idx) { d_tmp[idx] = TypedIndex<size_t, 1>{column}(idx); });
-  auto length = column.Shape(0);
+  auto length = column.Shape<0>();
   out->resize(length + 1);
   out->at(0) = 0;
   thrust::copy(temp.data(), temp.data() + length, out->begin() + 1);
@@ -93,7 +93,7 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
   auto d = DeviceOrd::CUDA(SetDeviceToPtr(array_interface.data));
   auto cuctx = ctx->CUDACtx();
   dh::LaunchN(1, cuctx->Stream(), [=] __device__(size_t) { d_flag[0] = true; });
-  dh::LaunchN(array_interface.Shape(0) - 1, cuctx->Stream(), [=] __device__(size_t i) {
+  dh::LaunchN(array_interface.Shape<0>() - 1, cuctx->Stream(), [=] __device__(size_t i) {
     auto typed = TypedIndex<uint32_t, 1>{array_interface};
     if (typed(i) > typed(i + 1)) {
       d_flag[0] = false;
@@ -104,15 +104,15 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
                            cudaMemcpyDeviceToHost));
   CHECK(non_dec) << "`qid` must be sorted in increasing order along with data.";
   size_t bytes = 0;
-  dh::caching_device_vector<uint32_t> out(array_interface.Shape(0));
-  dh::caching_device_vector<uint32_t> cnt(array_interface.Shape(0));
+  dh::caching_device_vector<uint32_t> out(array_interface.Shape<0>());
+  dh::caching_device_vector<uint32_t> cnt(array_interface.Shape<0>());
   HostDeviceVector<int> d_num_runs_out(1, 0, d);
   cub::DeviceRunLengthEncode::Encode(nullptr, bytes, it, out.begin(), cnt.begin(),
-                                     d_num_runs_out.DevicePointer(), array_interface.Shape(0),
+                                     d_num_runs_out.DevicePointer(), array_interface.Shape<0>(),
                                      cuctx->Stream());
   dh::CachingDeviceUVector<char> tmp(bytes);
   cub::DeviceRunLengthEncode::Encode(tmp.data(), bytes, it, out.begin(), cnt.begin(),
-                                     d_num_runs_out.DevicePointer(), array_interface.Shape(0),
+                                     d_num_runs_out.DevicePointer(), array_interface.Shape<0>(),
                                      cuctx->Stream());
 
   auto h_num_runs_out = d_num_runs_out.HostSpan()[0];

@@ -1520,20 +1520,20 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetQuanti
 
   ArrayInterface<1> indptr{StringView{str_indptr}};
   ArrayInterface<1> data{StringView{str_data}};
-  CHECK_GE(indptr.Shape(0), 2);
+  CHECK_GE(indptr.Shape<0>(), 2);
 
   // Cut ptr
-  auto j_indptr_array = jenv->NewLongArray(indptr.Shape(0));
+  auto j_indptr_array = jenv->NewLongArray(indptr.Shape<0>());
   CHECK_EQ(indptr.type, ArrayInterfaceHandler::Type::kU8);
-  CHECK_LT(indptr(indptr.Shape(0) - 1),
+  CHECK_LT(indptr(indptr.Shape<0>() - 1),
            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()));
   static_assert(sizeof(jlong) == sizeof(std::uint64_t));
-  jenv->SetLongArrayRegion(j_indptr_array, 0, indptr.Shape(0),
+  jenv->SetLongArrayRegion(j_indptr_array, 0, indptr.Shape<0>(),
                            static_cast<jlong const *>(indptr.data));
   jenv->SetObjectArrayElement(j_indptr, 0, j_indptr_array);
 
   // Cut values
-  auto n_cuts = indptr(indptr.Shape(0) - 1);
+  auto n_cuts = indptr(indptr.Shape<0>() - 1);
   jfloatArray jcuts_array = jenv->NewFloatArray(n_cuts);
   CHECK_EQ(data.type, ArrayInterfaceHandler::Type::kF4);
   jenv->SetFloatArrayRegion(jcuts_array, 0, n_cuts, static_cast<float const *>(data.data));

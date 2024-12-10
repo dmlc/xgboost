@@ -14,8 +14,8 @@ TEST(ArrayInterface, Initialize) {
   HostDeviceVector<float> storage;
   auto array = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
   auto arr_interface = ArrayInterface<2>(StringView{array});
-  ASSERT_EQ(arr_interface.Shape(0), kRows);
-  ASSERT_EQ(arr_interface.Shape(1), kCols);
+  ASSERT_EQ(arr_interface.Shape<0>(), kRows);
+  ASSERT_EQ(arr_interface.Shape<1>(), kCols);
   ASSERT_EQ(arr_interface.data, storage.ConstHostPointer());
   ASSERT_EQ(arr_interface.ElementSize(), 4);
   ASSERT_EQ(arr_interface.type, ArrayInterfaceHandler::kF4);
@@ -106,7 +106,7 @@ TEST(ArrayInterface, TrivialDim) {
   {
     ArrayInterface<1> arr_i{interface_str};
     ASSERT_EQ(arr_i.n, kRows);
-    ASSERT_EQ(arr_i.Shape(0), kRows);
+    ASSERT_EQ(arr_i.Shape<0>(), kRows);
   }
 
   std::swap(kRows, kCols);
@@ -114,7 +114,7 @@ TEST(ArrayInterface, TrivialDim) {
   {
     ArrayInterface<1> arr_i{interface_str};
     ASSERT_EQ(arr_i.n, kCols);
-    ASSERT_EQ(arr_i.Shape(0), kCols);
+    ASSERT_EQ(arr_i.Shape<0>(), kCols);
   }
 }
 

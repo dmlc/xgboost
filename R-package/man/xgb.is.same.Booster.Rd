@@ -40,9 +40,9 @@ y <- mtcars$mpg
 x <- as.matrix(mtcars[, -1])
 
 model <- xgb.train(
-  params = list(nthread = 1),
+  params = xgb.params(nthread = 1),
   data = xgb.DMatrix(x, label = y, nthread = 1),
-  nround = 3
+  nrounds = 3
 )
 
 model_shallow_copy <- model

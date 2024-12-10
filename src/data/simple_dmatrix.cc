@@ -357,8 +357,6 @@ template SimpleDMatrix::SimpleDMatrix(CSCArrayAdapter* adapter, float missing, i
                                       DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing, int nthread,
                                       DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing, int nthread,
                                       DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(ColumnarAdapter* adapter, float missing, int nthread,

@@ -7,11 +7,6 @@
 
 namespace dh {
 PinnedMemory::PinnedMemory() {
-  // Use the `GrowOnlyPinnedMemoryImpl` as the only option for now.
-  // See https://github.com/dmlc/xgboost/issues/10933
-  this->impl_.emplace<detail::GrowOnlyPinnedMemoryImpl>();
-  return;
-
 #if defined(xgboost_IS_WIN)
   this->impl_.emplace<detail::GrowOnlyPinnedMemoryImpl>();
 #else

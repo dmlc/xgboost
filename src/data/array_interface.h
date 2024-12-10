@@ -501,8 +501,16 @@ class ArrayInterface {
     }
   }
 
-  [[nodiscard]] XGBOOST_DEVICE std::size_t Shape(size_t i) const { return shape[i]; }
-  [[nodiscard]] XGBOOST_DEVICE std::size_t Stride(size_t i) const { return strides[i]; }
+  template <std::size_t i>
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Shape() const {
+    static_assert(i < D);
+    return shape[i];
+  }
+  template <std::size_t i>
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Stride() const {
+    static_assert(i < D);
+    return strides[i];
+  }
 
   template <typename Fn>
   XGBOOST_HOST_DEV_INLINE decltype(auto) DispatchCall(Fn func) const {
