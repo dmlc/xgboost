@@ -6,7 +6,7 @@ dependencies:
 - numpy
 - scipy
 - matplotlib
-- scikit-learn
+- scikit-learn<=1.5.2
 - pandas
 - pytest
 - boto3

@@ -34,7 +34,7 @@ export PYSPARK_DRIVER_PYTHON=$(which python)
 export PYSPARK_PYTHON=$(which python)
 export SPARK_TESTING=1
 
-pip install -v ./python-package/dist/*.whl
+pip install -v ./wheelhouse/*.whl
 
 case "$suite" in
   gpu)
