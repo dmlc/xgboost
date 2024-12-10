@@ -36,6 +36,7 @@ jobs:
           python ops/pipeline/manage-artifacts.py upload `
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
             --prefix cache/${{ github.run_id }}/build-win64-gpu `
+            build/testxgboost.exe xgboost.exe `
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
 
   test-win64-gpu:
@@ -56,6 +57,9 @@ jobs:
           python ops/pipeline/manage-artifacts.py download `
             --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
             --prefix cache/${{ github.run_id }}/build-win64-gpu `
-            --dest-dir python-package/dist `
-            *.whl
+            --dest-dir build `
+            *.whl testxgboost.exe xgboost.exe
+          Move-Item -Path build/xgboost.exe -Destination .
+          Move-Item -Path (Get-ChildItem build/*.whl | Select-Object -Expand FullName) `
+            -Destination python-package/dist/
       - run: powershell ops/pipeline/test-win64-gpu.ps1
