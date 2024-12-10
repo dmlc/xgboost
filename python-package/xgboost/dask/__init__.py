@@ -1619,7 +1619,7 @@ class DaskScikitLearnBase(XGBModel):
 @xgboost_model_doc(
     """Implementation of the Scikit-Learn API for XGBoost.""", ["estimators", "model"]
 )
-class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
+class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
     """dummy doc string to workaround pylint, replaced by the decorator."""
 
     async def _fit_async(
@@ -1711,7 +1711,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ["estimators", "model"],
 )
-class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
+class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
     # pylint: disable=missing-class-docstring
     async def _fit_async(
         self,
@@ -1916,7 +1916,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             For the dask implementation, group is not supported, use qid instead.
 """,
 )
-class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
+class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
     @_deprecate_positional_args
     def __init__(
         self,
