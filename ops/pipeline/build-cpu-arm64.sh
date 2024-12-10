@@ -18,12 +18,12 @@ CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:main
 echo "--- Build CPU code targeting ARM64"
 set -x
 python3 ops/docker_run.py \
-  --container-tag ${BUILD_CONTAINER_TAG} \
+  --container-tag ${CONTAINER_TAG} \
   -- ops/pipeline/build-cpu-arm64-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 python3 ops/docker_run.py \
-  --container-tag ${BUILD_CONTAINER_TAG} \
+  --container-tag ${CONTAINER_TAG} \
   -- auditwheel repair --only-plat \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
