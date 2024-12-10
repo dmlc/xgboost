@@ -3,4 +3,4 @@
  */
 // Dummy file to keep the CUDA tests.
 
-#include "test_aft_obj.cc"
+#include "test_aft_obj_cpu.cc"
