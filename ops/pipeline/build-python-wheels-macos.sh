@@ -42,8 +42,6 @@ export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate
 
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
-python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
-  wheelhouse/*.whl
 
 # List dependencies of libxgboost.dylib
 mkdir tmp
