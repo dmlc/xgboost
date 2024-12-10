@@ -20,7 +20,7 @@ else
 fi
 
 source ops/pipeline/get-docker-registry-details.sh
-CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:PR-5"
+CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
 
 set -x
 python3 ops/docker_run.py --container-tag "${CONTAINER_TAG}" ${gpu_option} \
