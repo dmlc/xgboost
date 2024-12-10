@@ -60,6 +60,7 @@ jobs:
             --dest-dir build `
             *.whl testxgboost.exe xgboost.exe
           Move-Item -Path build/xgboost.exe -Destination .
+          New-Item -ItemType Directory -Path python-package/dist/ -Force
           Move-Item -Path (Get-ChildItem build/*.whl | Select-Object -Expand FullName) `
             -Destination python-package/dist/
       - run: powershell ops/pipeline/test-win64-gpu.ps1
