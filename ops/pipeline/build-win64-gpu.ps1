@@ -31,10 +31,9 @@ pip install --user -v "pip>=23"
 pip --version
 pip wheel --no-deps -v . --wheel-dir dist/
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-python ../ops/script/rename_whl.py `
-    --wheel-path (Get-ChildItem dist/*.whl | Select-Object -Expand FullName) `
-    --commit-hash $Env:GITHUB_SHA `
-    --platform-tag win_amd64
+python -m wheel tags --python-tag py3 --abi-tag none `
+  --platform win_amd64 --remove \
+  (Get-ChildItem dist/*.whl | Select-Object -Expand FullName)
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Upload Python wheel"

@@ -38,11 +38,10 @@ git checkout python-package/pyproject.toml python-package/xgboost/core.py
 
 python3 ops/docker_run.py \
   --container-tag "${CONTAINER_TAG}" \
-  -- auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
-python3 ops/script/rename_whl.py  \
-  --wheel-path wheelhouse/*.whl  \
-  --commit-hash ${GITHUB_SHA}  \
-  --platform-tag ${WHEEL_TAG}
+  -- auditwheel repair --only-plat \
+  --plat ${WHEEL_TAG} python-package/dist/*.whl
+python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
+  wheelhouse/*.whl
 rm -rf python-package/dist/
 mkdir python-package/dist/
 mv -v wheelhouse/*.whl python-package/dist/
@@ -59,11 +58,10 @@ git checkout python-package/pyproject.toml  # discard the patch
 
 python3 ops/docker_run.py \
   --container-tag "${CONTAINER_TAG}" \
-  -- auditwheel repair --plat ${WHEEL_TAG} python-package/dist/xgboost_cpu-*.whl
-python3 ops/script/rename_whl.py  \
-  --wheel-path wheelhouse/xgboost_cpu-*.whl  \
-  --commit-hash ${GITHUB_SHA}  \
-  --platform-tag ${WHEEL_TAG}
+  -- auditwheel repair --only-plat \
+  --plat ${WHEEL_TAG} python-package/dist/xgboost_cpu-*.whl
+python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
+  wheelhouse/xgboost_cpu-*.whl
 rm -v python-package/dist/xgboost_cpu-*.whl
 mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
 
