@@ -5,7 +5,12 @@ images:
     platform: "linux"
     arch: "x64"
     owner: "492475357299"  # XGBooost CI
-    name: "xgboost-ci-runs-on-linux-*"
+    name: "xgboost-ci-runs-on-linux-amd64-*"
+  linux-arm64:
+    platform: "linux"
+    arch: "arm64"
+    owner: "492475357299"  # XGBooost CI
+    name: "xgboost-ci-runs-on-linux-arm64-*"
   windows-amd64:
     platform: "windows"
     arch: "x64"
@@ -26,7 +31,7 @@ runners:
   linux-arm64-cpu:
     cpu: 16
     family: ["c6g", "c7g"]
-    image: ubuntu24-full-arm64
+    image: linux-arm64
   windows-gpu:
     family: ["g4dn.2xlarge"]
     image: windows-amd64
