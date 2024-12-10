@@ -87,7 +87,7 @@ test_that("Models from previous versions of XGBoost can be loaded", {
         booster <- readRDS(model_file)
       } else {
         booster <- xgb.load(model_file)
-        xgb.parameters(booster) <- list(nthread = 2)
+        xgb.model.parameters(booster) <- list(nthread = 2)
       }
       predict(booster, newdata = pred_data)
       run_booster_check(booster, name)

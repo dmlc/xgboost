@@ -72,11 +72,13 @@ data(agaricus.train, package = "xgboost")
 
 bst <- xgb.train(
   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-  max_depth = 2,
-  eta = 1,
-  nthread = 2,
   nrounds = 2,
-  objective = "binary:logistic"
+  params = xgb.params(
+    max_depth = 2,
+    eta = 1,
+    nthread = 2,
+    objective = "binary:logistic"
+  )
 )
 
 xgb.importance(model = bst)
@@ -84,10 +86,13 @@ xgb.importance(model = bst)
 # binomial classification using "gblinear":
 bst <- xgb.train(
   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-  booster = "gblinear",
-  eta = 0.3,
-  nthread = 1,
-  nrounds = 20,objective = "binary:logistic"
+  nrounds = 20,
+  params = xgb.params(
+    booster = "gblinear",
+    eta = 0.3,
+    nthread = 1,
+    objective = "binary:logistic"
+  )
 )
 
 xgb.importance(model = bst)
@@ -100,12 +105,14 @@ mbst <- xgb.train(
     as.matrix(iris[, -5]),
     label = as.numeric(iris$Species) - 1
   ),
-  max_depth = 3,
-  eta = 0.2,
-  nthread = 2,
   nrounds = nrounds,
-  objective = "multi:softprob",
-  num_class = nclass
+  params = xgb.params(
+    max_depth = 3,
+    eta = 0.2,
+    nthread = 2,
+    objective = "multi:softprob",
+    num_class = nclass
+  )
 )
 
 # all classes clumped together:
@@ -128,12 +135,14 @@ mbst <- xgb.train(
     scale(as.matrix(iris[, -5])),
     label = as.numeric(iris$Species) - 1
   ),
-  booster = "gblinear",
-  eta = 0.2,
-  nthread = 1,
   nrounds = 15,
-  objective = "multi:softprob",
-  num_class = nclass
+  params = xgb.params(
+    booster = "gblinear",
+    eta = 0.2,
+    nthread = 1,
+    objective = "multi:softprob",
+    num_class = nclass
+  )
 )
 
 xgb.importance(model = mbst)

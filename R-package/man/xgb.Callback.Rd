@@ -120,7 +120,7 @@ example by using the early stopping callback \code{\link[=xgb.cb.early.stop]{xgb
 \item iteration Index of the iteration number that is being executed (first iteration
 will be the same as parameter \code{begin_iteration}, then next one will add +1, and so on).
 \item iter_feval Evaluation metrics for \code{evals} that were supplied, either
-determined by the objective, or by parameter \code{feval}.
+determined by the objective, or by parameter \code{custom_metric}.
 
 For \code{\link[=xgb.train]{xgb.train()}}, this will be a named vector with one entry per element in
 \code{evals}, where the names are determined as 'evals name' + '-' + 'metric name' - for
@@ -220,10 +220,9 @@ x <- as.matrix(mtcars[, -1])
 dm <- xgb.DMatrix(x, label = y, nthread = 1)
 model <- xgb.train(
   data = dm,
-  params = list(objective = "reg:squarederror", nthread = 1),
+  params = xgb.params(objective = "reg:squarederror", nthread = 1),
   nrounds = 5,
-  callbacks = list(ssq_callback),
-  keep_extra_attributes = TRUE
+  callbacks = list(ssq_callback)
 )
 
 # Result from 'f_after_iter' will be available as an attribute

@@ -66,7 +66,7 @@ set as the last level.}
 \item{objective}{Optimization objective to minimize based on the supplied data, to be passed
 by name as a string / character (e.g. \code{reg:absoluteerror}). See the
 \href{https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters}{Learning Task Parameters}
-page for more detailed information on allowed values.
+page and the \code{\link[=xgb.params]{xgb.params()}} documentation for more detailed information on allowed values.
 
 If \code{NULL} (the default), will be automatically determined from \code{y} according to the following
 logic:

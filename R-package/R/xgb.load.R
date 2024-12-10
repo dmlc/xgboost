@@ -32,11 +32,13 @@
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(train$data, label = train$label),
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = nthread,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = nthread,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' fname <- file.path(tempdir(), "xgb.ubj")
