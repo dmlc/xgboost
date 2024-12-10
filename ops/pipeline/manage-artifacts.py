@@ -26,7 +26,7 @@ def compute_s3_url(*, s3_bucket: str, prefix: str, artifact: str) -> str:
     return f"s3://{s3_bucket}/{prefix}/{artifact}"
 
 
-def aws_s3_upload(*, src: Path, dest: str, make_public=bool) -> None:
+def aws_s3_upload(*, src: Path, dest: str, make_public: bool) -> None:
     cli_args = ["aws", "s3", "cp", "--no-progress", str(src), dest]
     if make_public:
         cli_args.extend(["--acl", "public-read"])
