@@ -117,7 +117,8 @@ argument \code{weights}.
 
 If passed, this subset of the data will be excluded from the training procedure, and the
 evaluation metric(s) supplied under \code{eval_metric} will be calculated on this dataset after each
-boosting iteration (pass \code{verbosity>0} to have these metrics printed during training).
+boosting iteration (pass \code{verbosity>0} to have these metrics printed during training). If
+\code{eval_metric} is not passed, a default metric will be selected according to \code{objective}.
 
 If passing a fraction, in classification problems, the evaluation set will be chosen in such a
 way that at least one observation of each class will be kept in the training data.
