@@ -187,9 +187,9 @@ jobs:
           mvn test -B -pl :xgboost4j_2.12
       - name: Publish artifact xgboost4j.dll to S3
         run: |
-          python ops/pipeline/manage-artifacts.py upload \
-            --s3-bucket xgboost-nightly-builds \
-            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public \
+          python ops/pipeline/manage-artifacts.py upload `
+            --s3-bucket xgboost-nightly-builds `
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public `
             lib/xgboost4j.dll
         if: |
           (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
