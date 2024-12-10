@@ -1,8 +1,8 @@
 diff --git python-package/pyproject.toml python-package/pyproject.toml
-index 20d3f9974..953087ff4 100644
+index b9f08dda6..32abff1c6 100644
 --- python-package/pyproject.toml
 +++ python-package/pyproject.toml
-@@ -30,7 +30,6 @@ classifiers = [
+@@ -32,7 +32,6 @@ classifiers = [
  dependencies = [
      "numpy",
      "scipy",
