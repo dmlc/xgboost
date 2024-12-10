@@ -51,8 +51,8 @@ To make changes to the CI container, carry out the following steps:
    ``492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:PR-204``.
 6. Now submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_. The CI will
    run tests using the new container. Verify that all tests pass.
-7. Merge the pull request in ``dmlc/xgboost-devops``. Wait the CI completes on the ``main`` branch.
-8. Go back to the the pull request for ``dmlc/xgboost`` and change the container reference back
+7. Merge the pull request in ``dmlc/xgboost-devops``. Wait until the CI completes on the ``main`` branch.
+8. Go back to the the pull request for ``dmlc/xgboost`` and change the container references back
    to ``:main``.
 9. Merge the pull request in ``dmlc/xgboost``.
 
