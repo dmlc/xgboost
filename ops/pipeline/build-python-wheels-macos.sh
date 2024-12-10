@@ -13,13 +13,13 @@ commit_id=$2
 if [[ "$platform_id" == macosx_* ]]; then
     if [[ "$platform_id" == macosx_arm64 ]]; then
         # MacOS, Apple Silicon
-        wheel_tag=macosx_12_0_arm64
+        WHEEL_TAG=macosx_12_0_arm64
         cpython_ver=310
         cibw_archs=arm64
         export MACOSX_DEPLOYMENT_TARGET=12.0
     elif [[ "$platform_id" == macosx_x86_64 ]]; then
         # MacOS, Intel
-        wheel_tag=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
+        WHEEL_TAG=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
         cpython_ver=310
         cibw_archs=x86_64
         export MACOSX_DEPLOYMENT_TARGET=10.15
@@ -42,10 +42,6 @@ export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate
 
 python -m pip install cibuildwheel
 python -m cibuildwheel python-package --output-dir wheelhouse
-python ops/script/rename_whl.py  \
-  --wheel-path wheelhouse/*.whl  \
-  --commit-hash ${commit_id}  \
-  --platform-tag ${wheel_tag}
 
 # List dependencies of libxgboost.dylib
 mkdir tmp
