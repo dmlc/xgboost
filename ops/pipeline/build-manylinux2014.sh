@@ -18,7 +18,7 @@ arch="$1"
 
 if [[ "${arch:-}" == "aarch64" ]]
 then
-  sudo pip3 install wheel
+  sudo python3 -m pip install wheel
 fi
 
 source ops/pipeline/classify-git-branch.sh
