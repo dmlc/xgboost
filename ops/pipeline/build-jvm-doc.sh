@@ -3,9 +3,7 @@
 ## Note: this script assumes that the user has already built libxgboost4j.so
 ## and place it in the lib/ directory.
 
-set -euox pipefail
-
-echo "--- Build JVM packages doc"
+set -euo pipefail
 
 if [[ -z ${BRANCH_NAME:-} ]]
 then
@@ -19,6 +17,12 @@ then
   exit 2
 fi
 
+source ops/pipeline/get-docker-registry-details.sh
+
+CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:main
+
+echo "--- Build JVM packages doc"
+set -x
 python3 ops/docker_run.py \
-  --container-id xgb-ci.jvm_gpu_build \
+  --container-tag ${CONTAINER_TAG} \
   -- ops/pipeline/build-jvm-doc-impl.sh ${BRANCH_NAME}

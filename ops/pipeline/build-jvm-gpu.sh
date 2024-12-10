@@ -4,6 +4,9 @@
 set -euo pipefail
 
 source ops/pipeline/classify-git-branch.sh
+source ops/pipeline/get-docker-registry-details.sh
+
+CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:main
 
 echo "--- Build libxgboost4j.so with CUDA"
 
@@ -29,5 +32,5 @@ mkdir -p build-gpu/
 # TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
 git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet --depth 1
 python3 ops/docker_run.py \
-  --container-id xgb-ci.jvm_gpu_build \
+  --container-tag ${CONTAINER_TAG} \
   -- bash -c "${COMMAND}"

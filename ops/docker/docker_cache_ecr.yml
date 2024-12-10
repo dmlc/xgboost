@@ -1,4 +1,0 @@
-## Constants for AWS ECR (Elastic Container Registry), used for the Docker cache
-
-DOCKER_CACHE_ECR_ID: "492475357299"
-DOCKER_CACHE_ECR_REGION: "us-west-2"

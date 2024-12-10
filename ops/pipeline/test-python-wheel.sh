@@ -19,7 +19,10 @@ else
   gpu_option=""
 fi
 
+source ops/pipeline/get-docker-registry-details.sh
+CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
+
 set -x
-python3 ops/docker_run.py --container-id "${container_id}" ${gpu_option} \
+python3 ops/docker_run.py --container-tag "${CONTAINER_TAG}" ${gpu_option} \
   --run-args='--shm-size=4g --privileged' \
   -- bash ops/pipeline/test-python-wheel-impl.sh "${suite}"

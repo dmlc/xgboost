@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-if [[ -z ${GITHUB_ACTION:-} ]]
+if [[ -z ${GITHUB_ACTIONS:-} ]]
 then
   echo "$0 is not meant to run locally; it should run inside GitHub Actions."
   echo "Please inspect the content of $0 and locate the desired command manually."

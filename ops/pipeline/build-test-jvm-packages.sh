@@ -12,6 +12,8 @@ EOF
 
 set -euo pipefail
 
+source ops/pipeline/get-docker-registry-details.sh
+
 for arg in "SCALA_VERSION"
 do
   if [[ -z "${!arg:-}" ]]
@@ -21,8 +23,10 @@ do
   fi
 done
 
+CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.jvm:main
+
 set -x
 
-python3 ops/docker_run.py --container-id xgb-ci.jvm \
+python3 ops/docker_run.py --container-tag ${CONTAINER_TAG} \
   --run-args "-e SCALA_VERSION=${SCALA_VERSION}" \
   -- ops/pipeline/build-test-jvm-packages-impl.sh

@@ -7,36 +7,34 @@ then
   echo "Usage: $0 {gpu,gpu-rmm,mgpu}"
   exit 1
 fi
-arg=$1
+suite=$1
 
-case "${arg}" in
+source ops/pipeline/get-docker-registry-details.sh
+
+CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.gpu:main
+
+case "${suite}" in
   gpu)
     echo "--- Run Google Tests, using a single GPU"
-    python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
-      -- nvidia-smi
-    python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
+    python3 ops/docker_run.py --container-tag ${CONTAINER_TAG} --use-gpus \
       -- build/testxgboost
     ;;
 
   gpu-rmm)
     echo "--- Run Google Tests, using a single GPU, RMM enabled"
-    python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
-      -- nvidia-smi
-    python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
+    python3 ops/docker_run.py --container-tag ${CONTAINER_TAG} --use-gpus \
       -- build/testxgboost --use-rmm-pool
     ;;
 
   mgpu)
     echo "--- Run Google Tests, using multiple GPUs"
-    python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
-      -- nvidia-smi
-    python3 ops/docker_run.py --container-id xgb-ci.gpu --use-gpus \
+    python3 ops/docker_run.py --container-tag ${CONTAINER_TAG} --use-gpus \
       --run-args='--shm-size=4g' \
       -- build/testxgboost --gtest_filter=*MGPU*
     ;;
 
   *)
-    echo "Unrecognized arg: ${arg}"
+    echo "Unrecognized suite: ${suite}"
     exit 2
     ;;
 esac

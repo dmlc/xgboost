@@ -1,7 +1,7 @@
 ## Ensure that a script is running inside the CI.
 ## Usage: . ops/pipeline/enforce-ci.ps1
 
-if ( -Not $Env:GITHUB_ACTION ) {
+if ( -Not $Env:GITHUB_ACTIONS ) {
   $script_name = (Split-Path -Path $PSCommandPath -Leaf)
   Write-Host "$script_name is not meant to run locally; it should run inside GitHub Actions."
   Write-Host "Please inspect the content of $script_name and locate the desired command manually."
