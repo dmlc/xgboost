@@ -30,7 +30,11 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-cpu.sh
       - name: Stash CLI executable
-        run: bash ops/pipeline/stash-artifacts.sh stash build-cpu ./xgboost
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cpu \
+            ./xgboost
 
   build-cpu-arm64:
     name: Build CPU ARM64 + manylinux_2_28_aarch64 wheel
@@ -49,12 +53,10 @@ jobs:
       - run: bash ops/pipeline/build-cpu-arm64.sh
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh stash build-cpu-arm64 \
-          ./xgboost python-package/dist/*.whl
-      - name: Upload Python wheel
-        run: |
-          bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
-            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cpu-arm64 \
+            ./xgboost python-package/dist/*.whl
 
   build-cuda:
     name: Build CUDA + manylinux_2_28_x86_64 wheel
@@ -74,15 +76,10 @@ jobs:
           bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 disable-rmm
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh stash build-cuda \
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda \
             build/testxgboost ./xgboost python-package/dist/*.whl
-      - name: Upload Python wheel
-        run: |
-          for file in python-package/dist/*.whl python-package/dist/meta.json
-          do
-            bash ops/pipeline/publish-artifact.sh "${file}" \
-              s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
-          done
 
   build-cuda-with-rmm:
     name: Build CUDA with RMM
@@ -102,12 +99,10 @@ jobs:
           bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 enable-rmm
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh  \
-            stash build-cuda-with-rmm build/testxgboost
-      - name: Upload Python wheel
-        run: |
-          bash ops/pipeline/publish-artifact.sh python-package/dist/*.whl \
-            s3://xgboost-nightly-builds/experimental_build_with_rmm/
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda-with-rmm \
+            build/testxgboost
 
   build-cuda-with-rmm-dev:
     name: Build CUDA with RMM (dev)
@@ -151,13 +146,6 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
-      - name: Upload Python wheel
-        run: |
-          for wheel in python-package/dist/*.whl
-          do
-            bash ops/pipeline/publish-artifact.sh "${wheel}" \
-              s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
-          done
 
   build-gpu-rpkg:
     name: Build GPU-enabled R package
@@ -174,10 +162,6 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-gpu-rpkg.sh
-      - name: Upload R tarball
-        run: |
-          bash ops/pipeline/publish-artifact.sh xgboost_r_gpu_linux_*.tar.gz \
-            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/
 
 
   test-cpp-gpu:
@@ -213,8 +197,11 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash gtest
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }}  \
-            build/testxgboost
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir build \
+            testxgboost
           chmod +x build/testxgboost
       - run: bash ops/pipeline/test-cpp-gpu.sh ${{ matrix.suite }}
 
@@ -260,8 +247,12 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash Python wheel
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash ${{ matrix.artifact_from }} \
-            python-package/dist/*.whl ./xgboost
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir wheelhouse \
+            *.whl xgboost
+          mv -v wheelhouse/xgboost .
           chmod +x ./xgboost
       - name: Run Python tests, ${{ matrix.description }}
         run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.container }}

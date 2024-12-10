@@ -40,12 +40,6 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
-      - name: Upload libxgboost4j.so
-        run: |
-          libname=lib/libxgboost4j_linux_${{ matrix.arch }}_${{ github.sha }}.so
-          mv -v lib/libxgboost4j.so ${libname}
-          bash ops/pipeline/publish-artifact.sh ${libname} \
-            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
 
   build-jvm-gpu:
     name: Build libxgboost4j.so with CUDA
@@ -64,7 +58,10 @@ jobs:
       - run: bash ops/pipeline/build-jvm-gpu.sh
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh stash build-jvm-gpu lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-gpu \
+            lib/libxgboost4j.so
 
   build-jvm-mac:
     name: "Build libxgboost4j.dylib for ${{ matrix.description }}"
@@ -75,11 +72,11 @@ jobs:
         include:
           - description: "MacOS (Apple Silicon)"
             script: ops/pipeline/build-jvm-macos-apple-silicon.sh
-            libname: libxgboost4j_m1_${{ github.sha }}.dylib
+            libname: libxgboost4j_m1.dylib
             runner: macos-14
           - description: "MacOS (Intel)"
             script: ops/pipeline/build-jvm-macos-intel.sh
-            libname: libxgboost4j_intel_${{ github.sha }}.dylib
+            libname: libxgboost4j_intel.dylib
             runner: macos-13
     steps:
       - uses: actions/checkout@v4
@@ -89,8 +86,10 @@ jobs:
       - name: Upload libxgboost4j.dylib
         run: |
           mv -v lib/libxgboost4j.dylib ${{ matrix.libname }}
-          bash ops/pipeline/publish-artifact.sh ${{ matrix.libname }} \
-            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-nightly-builds \
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public \
+            ${{ matrix.libname }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
@@ -112,13 +111,18 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-gpu \
+            --dest-dir lib \
+            libxgboost4j.so
       - run: bash ops/pipeline/build-jvm-doc.sh
       - name: Upload JVM doc
         run: |
-          bash ops/pipeline/publish-artifact.sh \
-            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2 \
-            s3://xgboost-docs/
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
 
   build-test-jvm-packages:
     name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
@@ -144,8 +148,10 @@ jobs:
           SCALA_VERSION: ${{ matrix.scala_version }}
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh stash \
-            build-test-jvm-packages lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-test-jvm-packages \
+            lib/libxgboost4j.so
         if: matrix.scala_version == '2.13'
 
   build-test-jvm-packages-other-os:
@@ -213,7 +219,11 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-gpu \
+            --dest-dir lib \
+            libxgboost4j.so
       - run: bash ops/pipeline/test-jvm-gpu.sh
         env:
           SCALA_VERSION: ${{ matrix.scala_version }}
@@ -247,9 +257,11 @@ jobs:
         run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh \
-            unstash ${{ matrix.variant.artifact_from }} \
-            lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.variant.artifact_from }} \
+            --dest-dir lib \
+            libxgboost4j.so
           ls -lh lib/libxgboost4j.so
       - name: Deploy JVM packages to S3
         run: |

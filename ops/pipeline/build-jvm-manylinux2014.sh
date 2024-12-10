@@ -12,6 +12,7 @@ fi
 arch=$1
 container_id="xgb-ci.manylinux2014_${arch}"
 
+source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
 CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
@@ -26,3 +27,13 @@ python3 ops/docker_run.py \
   "cd build && cmake .. -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && make -j$(nproc)"
 ldd lib/libxgboost4j.so
 objdump -T lib/libxgboost4j.so | grep GLIBC_ | sed 's/.*GLIBC_\([.0-9]*\).*/\1/g' | sort -Vu
+
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
+  libname=lib/libxgboost4j_linux_${arch}.so
+  mv -v lib/libxgboost4j.so ${libname}
+  python3 ops/pipeline/manage-artifacts.py upload \
+    --s3-bucket xgboost-nightly-builds \
+    --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+    ${libname}
+fi

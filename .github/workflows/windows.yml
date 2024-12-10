@@ -30,9 +30,12 @@ jobs:
           submodules: "true"
       - run: powershell ops/pipeline/build-win64-gpu.ps1
       - name: Stash files
+        shell: powershell
         run: |
-          powershell ops/pipeline/stash-artifacts.ps1 stash build-win64-gpu `
-            build/testxgboost.exe xgboost.exe `
+          conda activate
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-win64-gpu \
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
 
   test-win64-gpu:
@@ -47,7 +50,12 @@ jobs:
         with:
           submodules: "true"
       - name: Unstash files
+        shell: powershell
         run: |
-          powershell ops/pipeline/stash-artifacts.ps1 unstash build-win64-gpu `
-            build/testxgboost.exe xgboost.exe python-package/dist/*.whl
+          conda activate
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-win64-gpu \
+            --dest-dir python-package/dist \
+            *.whl
       - run: powershell ops/pipeline/test-win64-gpu.ps1

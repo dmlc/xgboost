@@ -39,3 +39,12 @@ if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
   echo "error: libgomp.so was not vendored in the wheel"
   exit -1
 fi
+
+echo "--- Upload Python wheel"
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
+  python3 ops/pipeline/manage-artifacts.py upload \
+    --s3-bucket xgboost-nightly-builds \
+    --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+    python-package/dist/*.whl
+fi

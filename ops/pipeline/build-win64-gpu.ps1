@@ -40,7 +40,9 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Upload Python wheel"
 cd ..
 if ( $is_release_branch -eq 1 ) {
-  aws s3 cp (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName) `
-    s3://xgboost-nightly-builds/$Env:BRANCH_NAME/ --acl public-read --no-progress
+  python ops/pipeline/manage-artifacts.py upload `
+    --s3-bucket 'xgboost-nightly-builds' `
+    --prefix "$Env:BRANCH_NAME/$Env:GITHUB_SHA" --make-public `
+    (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
   if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 }

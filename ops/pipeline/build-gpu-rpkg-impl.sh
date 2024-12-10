@@ -33,4 +33,4 @@ cp -v lib/xgboost.so xgboost_rpack/src/
 echo 'all:' > xgboost_rpack/src/Makefile
 echo 'all:' > xgboost_rpack/src/Makefile.win
 mv xgboost_rpack/ xgboost/
-tar cvzf xgboost_r_gpu_linux_${commit_hash}.tar.gz xgboost/
+tar cvzf xgboost_r_gpu_linux.tar.gz xgboost/

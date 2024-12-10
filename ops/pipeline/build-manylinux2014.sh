@@ -16,6 +16,7 @@ fi
 
 arch="$1"
 
+source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
 WHEEL_TAG="manylinux2014_${arch}"
@@ -65,3 +66,11 @@ python3 ops/script/rename_whl.py  \
   --platform-tag ${WHEEL_TAG}
 rm -v python-package/dist/xgboost_cpu-*.whl
 mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
+
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
+  python3 ops/pipeline/manage-artifacts.py upload \
+    --s3-bucket xgboost-nightly-builds \
+    --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+    python-package/dist/*.whl
+fi
