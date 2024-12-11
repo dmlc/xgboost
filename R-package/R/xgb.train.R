@@ -48,13 +48,22 @@
 #'   If 2, some additional information will be printed out.
 #'   Note that setting `verbose > 0` automatically engages the
 #'   `xgb.cb.print.evaluation(period=1)` callback function.
-#' @param print_every_n Print each nth iteration evaluation messages when `verbose>0`.
-#'   Default is 1 which means all messages are printed. This parameter is passed to the
-#'   [xgb.cb.print.evaluation()] callback.
-#' @param early_stopping_rounds If `NULL`, the early stopping function is not triggered.
-#'   If set to an integer `k`, training with a validation set will stop if the performance
-#'   doesn't improve for `k` rounds. Setting this parameter engages the [xgb.cb.early.stop()] callback.
-#' @param maximize If `custom_metric` and `early_stopping_rounds` are set, then this parameter must be set as well.
+#' @param print_every_n When passing `verbose>0`, evaluation logs (metrics calculated on the
+#' data passed under `evals`) will be printed every nth iteration according to the value passed
+#' here. The first and last iteration are always included regardless of this 'n'.
+#'
+#' Only has an effect when passing data under `evals` and when passing `verbose>0`. The parameter
+#' is passed to the [xgb.cb.print.evaluation()] callback.
+#' @param early_stopping_rounds Number of boosting rounds after which training will be stopped
+#'   if there is no improvement in performance (as measured by the evaluatiation metric that is
+#'   supplied or selected by default for the objective) on the evaluation data passed under
+#'   `evals`.
+#'
+#'   Must pass `evals` in order to use this functionality. Setting this parameter adds the
+#'   [xgb.cb.early.stop()] callback.
+#'
+#'   If `NULL`, early stopping will not be used.
+#' @param maximize If `feval` and `early_stopping_rounds` are set, then this parameter must be set as well.
 #'   When it is `TRUE`, it means the larger the evaluation score the better.
 #'   This parameter is passed to the [xgb.cb.early.stop()] callback.
 #' @param save_period When not `NULL`, model is saved to disk after every `save_period` rounds.
