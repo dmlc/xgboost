@@ -22,8 +22,8 @@ ArrayInf = TypedDict(
         "data": Tuple[int, bool],
         "typestr": str,
         "version": Literal[3],
-        "strides": Optional[tuple],
-        "shape": Tuple,
+        "strides": Optional[Tuple[int, ...]],
+        "shape": Tuple[int, ...],
         "mask": Union["ArrayInf", None, _ArrayLikeArg],
     },
 )
@@ -60,7 +60,7 @@ def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyO
         @__array_interface__.setter
         def __array_interface__(self, interface: ArrayInf) -> None:
             self._interface = copy.copy(interface)
-            # converts some fields to tuple as required by numpy
+            # Convert some fields to tuple as required by numpy
             self._interface["shape"] = tuple(self._interface["shape"])
             self._interface["data"] = (
                 self._interface["data"][0],
