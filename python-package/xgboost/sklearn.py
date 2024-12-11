@@ -538,6 +538,7 @@ __custom_obj_note = """
 
 TDoc = TypeVar("TDoc", bound=Type)
 
+
 def xgboost_model_doc(
     header: str,
     items: List[str],
