@@ -739,7 +739,7 @@ struct _RDataIterator {
   SEXP proxy_dmat;
 
   _RDataIterator(
-    SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP continuation_token, SEP proxy_dmat) :
+    SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP continuation_token, SEXP proxy_dmat) :
   f_next(f_next), f_reset(f_reset), calling_env(calling_env),
   continuation_token(continuation_token), proxy_dmat(proxy_dmat) {}
 
