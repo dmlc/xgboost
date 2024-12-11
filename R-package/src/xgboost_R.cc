@@ -682,6 +682,7 @@ XGB_DLL SEXP XGProxyDMatrixCreate_R() {
 
 XGB_DLL SEXP XGProxyDMatrixSetDataDense_R(SEXP handle, SEXP R_mat) {
   R_API_BEGIN();
+  R_SetExternalPtrProtected(handle, R_mat);
   DMatrixHandle proxy_dmat = R_ExternalPtrAddr(handle);
   int res_code;
   {
@@ -695,6 +696,7 @@ XGB_DLL SEXP XGProxyDMatrixSetDataDense_R(SEXP handle, SEXP R_mat) {
 
 XGB_DLL SEXP XGProxyDMatrixSetDataCSR_R(SEXP handle, SEXP lst) {
   R_API_BEGIN();
+  R_SetExternalPtrProtected(handle, lst);
   DMatrixHandle proxy_dmat = R_ExternalPtrAddr(handle);
   int res_code;
   {
@@ -715,6 +717,7 @@ XGB_DLL SEXP XGProxyDMatrixSetDataCSR_R(SEXP handle, SEXP lst) {
 
 XGB_DLL SEXP XGProxyDMatrixSetDataColumnar_R(SEXP handle, SEXP lst) {
   R_API_BEGIN();
+  R_SetExternalPtrProtected(handle, lst);
   DMatrixHandle proxy_dmat = R_ExternalPtrAddr(handle);
   int res_code;
   {

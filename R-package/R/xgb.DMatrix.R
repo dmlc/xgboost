@@ -569,7 +569,6 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
     tmp <- .process.df.for.dmatrix(lst$data, lst$feature_types)
     lst$feature_types <- tmp$feature_types
     .Call(XGProxyDMatrixSetDataColumnar_R, proxy_handle, tmp$lst)
-    rm(tmp)
   } else if (is.matrix(lst$data)) {
     .Call(XGProxyDMatrixSetDataDense_R, proxy_handle, lst$data)
   } else if (inherits(lst$data, "dgRMatrix")) {
