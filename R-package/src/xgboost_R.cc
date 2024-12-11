@@ -736,17 +736,20 @@ struct _RDataIterator {
   SEXP f_reset;
   SEXP calling_env;
   SEXP continuation_token;
+  SEXP proxy_dmat;
 
   _RDataIterator(
-    SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP continuation_token) :
+    SEXP f_next, SEXP f_reset, SEXP calling_env, SEXP continuation_token, SEP proxy_dmat) :
   f_next(f_next), f_reset(f_reset), calling_env(calling_env),
-  continuation_token(continuation_token) {}
+  continuation_token(continuation_token), proxy_dmat(proxy_dmat) {}
 
   void reset() {
+    R_SetExternalPtrProtected(this->proxy_dmat, R_NilValue);
     SafeExecFun(this->f_reset, this->calling_env, this->continuation_token);
   }
 
   int next() {
+    R_SetExternalPtrProtected(this->proxy_dmat, R_NilValue);
     SEXP R_res = Rf_protect(
       SafeExecFun(this->f_next, this->calling_env, this->continuation_token));
     int res = Rf_asInteger(R_res);
@@ -774,7 +777,7 @@ SEXP XGDMatrixCreateFromCallbackGeneric_R(
 
   int res_code;
   try {
-    _RDataIterator data_iterator(f_next, f_reset, calling_env, continuation_token);
+    _RDataIterator data_iterator(f_next, f_reset, calling_env, continuation_token, proxy_dmat);
 
     std::string str_cache_prefix;
     xgboost::Json jconfig{xgboost::Object{}};
