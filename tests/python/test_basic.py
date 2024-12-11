@@ -211,6 +211,47 @@ class TestBasic:
             assert dm.num_row() == row
             assert dm.num_col() == cols
 
+    def _test_dmatrix_numpy_init_omp_contiguous(self, test_contiguous: bool):
+        rows = [1000, 11326, 15000]
+        cols = 50
+        for row in rows:
+            X = np.random.randn(row, cols)
+            y = np.random.randn(row).astype("f")
+
+            # Ensure data is contiguous
+            if test_contiguous:
+                X = np.ascontiguousarray(X).astype(np.float32)
+                y = np.ascontiguousarray(y).astype(np.float32)
+                assert X.flags['C_CONTIGUOUS']
+            else:
+                X = np.asfortranarray(X)
+                y = np.asfortranarray(y)
+                assert not X.flags['C_CONTIGUOUS']
+
+            dm = xgb.DMatrix(X, y, nthread=0)
+            np.testing.assert_allclose(dm.get_data().toarray(), X, rtol=1e-7)
+            np.testing.assert_array_equal(dm.get_label(), y)
+            assert dm.num_row() == row
+            assert dm.num_col() == cols
+
+            dm = xgb.DMatrix(X, y, nthread=1)
+            np.testing.assert_allclose(dm.get_data().toarray(), X, rtol=1e-7)
+            np.testing.assert_array_equal(dm.get_label(), y)
+            assert dm.num_row() == row
+            assert dm.num_col() == cols
+
+            dm = xgb.DMatrix(X, y, nthread=10)
+            np.testing.assert_allclose(dm.get_data().toarray(), X, rtol=1e-7)
+            np.testing.assert_array_equal(dm.get_label(), y)
+            assert dm.num_row() == row
+            assert dm.num_col() == cols
+
+    def test_dmatrix_numpy_init_omp_contiguous(self):
+        return self._test_dmatrix_numpy_init_omp_contiguous(True)
+
+    def test_dmatrix_numpy_init_omp_not_contiguous(self):
+        return self._test_dmatrix_numpy_init_omp_contiguous(False)
+
     def test_cv(self):
         dm, _ = tm.load_agaricus(__file__)
         params = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
