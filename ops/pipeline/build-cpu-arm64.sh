@@ -1,6 +1,7 @@
 #!/bin/bash
+## Build and test XGBoost with ARM64 CPU
 
-set -euox pipefail
+set -euo pipefail
 
 if [[ -z "${GITHUB_SHA:-}" ]]
 then
@@ -8,45 +9,40 @@ then
   exit 1
 fi
 
+source ops/pipeline/classify-git-branch.sh
+source ops/pipeline/get-docker-registry-details.sh
+
 WHEEL_TAG=manylinux_2_28_aarch64
+CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:main
 
 echo "--- Build CPU code targeting ARM64"
-
-echo "--- Build libxgboost from the source"
+set -x
 python3 ops/docker_run.py \
-  --container-id xgb-ci.aarch64 \
-  -- ops/script/build_via_cmake.sh \
-  --conda-env=aarch64_test \
-  -DUSE_OPENMP=ON \
-  -DHIDE_CXX_SYMBOL=ON
-
-echo "--- Run Google Test"
-python3 ops/docker_run.py \
-  --container-id xgb-ci.aarch64 \
-  -- bash -c "cd build && ctest --extra-verbose"
-
-echo "--- Build binary wheel"
-python3 ops/docker_run.py \
-  --container-id xgb-ci.aarch64 \
-  -- bash -c \
-  "cd python-package && rm -rf dist/* && pip wheel --no-deps -v . --wheel-dir dist/"
-python3 ops/script/rename_whl.py  \
-  --wheel-path python-package/dist/*.whl  \
-  --commit-hash ${GITHUB_SHA}  \
-  --platform-tag ${WHEEL_TAG}
+  --container-tag ${CONTAINER_TAG} \
+  -- ops/pipeline/build-cpu-arm64-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 python3 ops/docker_run.py \
-  --container-id xgb-ci.aarch64 \
-  -- auditwheel repair --plat ${WHEEL_TAG} python-package/dist/*.whl
-python3 ops/script/rename_whl.py  \
-  --wheel-path wheelhouse/*.whl  \
-  --commit-hash ${GITHUB_SHA}  \
-  --platform-tag ${WHEEL_TAG}
+  --container-tag ${CONTAINER_TAG} \
+  -- auditwheel repair --only-plat \
+  --plat ${WHEEL_TAG} python-package/dist/*.whl
+python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
+  wheelhouse/*.whl
 mv -v wheelhouse/*.whl python-package/dist/
 
-# Make sure that libgomp.so is vendored in the wheel
-python3 ops/docker_run.py \
-  --container-id xgb-ci.aarch64 \
-  -- bash -c \
-  "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
+if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
+  echo "error: libgomp.so was not vendored in the wheel"
+  exit -1
+fi
+
+# Check size of wheel
+pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
+
+echo "--- Upload Python wheel"
+if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
+then
+  python3 ops/pipeline/manage-artifacts.py upload \
+    --s3-bucket xgboost-nightly-builds \
+    --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+    python-package/dist/*.whl
+fi
