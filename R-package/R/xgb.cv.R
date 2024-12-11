@@ -8,7 +8,6 @@
 #'
 #'   Note that only the basic `xgb.DMatrix` class is supported - variants such as `xgb.QuantileDMatrix`
 #'   or `xgb.ExtMemDMatrix` are not supported here.
-#' @param nrounds The max number of iterations.
 #' @param nfold The original dataset is randomly partitioned into `nfold` equal size subsamples.
 #' @param prediction A logical value indicating whether to return the test fold predictions
 #'   from each CV model. This parameter engages the [xgb.cb.cv.predict()] callback.
@@ -24,10 +23,6 @@
 #'   - `auc`: Area under curve
 #'   - `aucpr`: Area under PR curve
 #'   - `merror`: Exact matching error used to evaluate multi-class classification
-#' @param obj Customized objective function. Returns gradient and second order
-#'   gradient with given prediction and dtrain.
-#' @param feval Customized evaluation function. Returns
-#'   `list(metric='metric-name', value='metric-value')` with given prediction and dtrain.
 #' @param stratified Logical flag indicating whether sampling of folds should be stratified
 #'   by the values of outcome labels. For real-valued labels in regression objectives,
 #'   stratification will be done by discretizing the labels into up to 5 buckets beforehand.
@@ -51,18 +46,6 @@
 #'   (the default) all indices not specified in `folds` will be used for training.
 #'
 #'   This is not supported when `data` has `group` field.
-#' @param verbose Logical flag. Should statistics be printed during the process?
-#' @param print_every_n Print each nth iteration evaluation messages when `verbose > 0`.
-#'   Default is 1 which means all messages are printed. This parameter is passed to the
-#'   [xgb.cb.print.evaluation()] callback.
-#' @param early_stopping_rounds If `NULL`, the early stopping function is not triggered.
-#'   If set to an integer `k`, training with a validation set will stop if the performance
-#'   doesn't improve for `k` rounds.
-#'   Setting this parameter engages the [xgb.cb.early.stop()] callback.
-#' @param maximize If `feval` and `early_stopping_rounds` are set,
-#'   then this parameter must be set as well.
-#'   When it is `TRUE`, it means the larger the evaluation score the better.
-#'   This parameter is passed to the [xgb.cb.early.stop()] callback.
 #' @param callbacks A list of callback functions to perform various task during boosting.
 #'   See [xgb.Callback()]. Some of the callbacks are automatically created depending on the
 #'   parameters' values. User can provide either existing or their own callback methods in order
@@ -110,12 +93,14 @@
 #' cv <- xgb.cv(
 #'   data = dtrain,
 #'   nrounds = 3,
-#'   nthread = 2,
+#'   params = xgb.params(
+#'     nthread = 2,
+#'     max_depth = 3,
+#'     eta = 1,
+#'     objective = "binary:logistic"
+#'   ),
 #'   nfold = 5,
-#'   metrics = list("rmse","auc"),
-#'   max_depth = 3,
-#'   eta = 1,
-#'   objective = "binary:logistic"
+#'   metrics = list("rmse","auc")
 #' )
 #' print(cv)
 #' print(cv, verbose = TRUE)
@@ -123,23 +108,27 @@
 #' @export
 xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
                    prediction = FALSE, showsd = TRUE, metrics = list(),
-                   obj = NULL, feval = NULL, stratified = "auto", folds = NULL, train_folds = NULL,
-                   verbose = TRUE, print_every_n = 1L,
+                   objective = NULL, custom_metric = NULL, stratified = "auto",
+                   folds = NULL, train_folds = NULL, verbose = TRUE, print_every_n = 1L,
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
+  check.deprecation(deprecated_train_params, match.call(), ...)
 
-  check.deprecation(...)
   stopifnot(inherits(data, "xgb.DMatrix"))
   if (inherits(data, "xgb.DMatrix") && .Call(XGCheckNullPtr_R, data)) {
     stop("'data' is an invalid 'xgb.DMatrix' object. Must be constructed again.")
   }
 
-  params <- check.booster.params(params, ...)
+  params <- check.booster.params(params)
   # TODO: should we deprecate the redundant 'metrics' parameter?
   for (m in metrics)
     params <- c(params, list("eval_metric" = m))
 
-  check.custom.obj()
-  check.custom.eval()
+  tmp <- check.custom.obj(params, objective)
+  params <- tmp$params
+  objective <- tmp$objective
+  tmp <- check.custom.eval(params, custom_metric, maximize, early_stopping_rounds, callbacks)
+  params <- tmp$params
+  custom_metric <- tmp$custom_metric
 
   if (stratified == "auto") {
     if (is.character(params$objective)) {
@@ -258,13 +247,13 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
         bst = fd$bst,
         dtrain = fd$dtrain,
         iter = iteration - 1,
-        obj = obj
+        objective = objective
       )
       xgb.iter.eval(
         bst = fd$bst,
         evals = fd$evals,
         iter = iteration - 1,
-        feval = feval
+        custom_metric = custom_metric
       )
     })
     msg <- simplify2array(msg)
@@ -324,11 +313,13 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
 #' cv <- xgb.cv(
 #'   data = xgb.DMatrix(train$data, label = train$label),
 #'   nfold = 5,
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = 2,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = 2,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #' print(cv)
 #' print(cv, verbose = TRUE)

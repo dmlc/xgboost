@@ -23,10 +23,12 @@ do
   fi
 done
 
+source ops/pipeline/get-docker-registry-details.sh
+
+CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:main
+
 set -x
 
-python3 ops/docker_run.py --container-id xgb-ci.jvm_gpu_build --use-gpus \
-  -- nvidia-smi
-python3 ops/docker_run.py --container-id xgb-ci.jvm_gpu_build --use-gpus \
+python3 ops/docker_run.py --container-tag ${CONTAINER_TAG} --use-gpus \
   --run-args "-e SCALA_VERSION=${SCALA_VERSION} -e USE_CUDA=1 -e SKIP_NATIVE_BUILD=1 --shm-size=4g --privileged" \
   -- ops/pipeline/build-test-jvm-packages-impl.sh

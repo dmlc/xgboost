@@ -9,8 +9,11 @@ test_that("load/save raw works", {
   nrounds <- 8
   booster <- xgb.train(
     data = xgb.DMatrix(train$data, label = train$label),
-    nrounds = nrounds, objective = "binary:logistic",
-    nthread = 2
+    nrounds = nrounds,
+    params = xgb.params(
+      objective = "binary:logistic",
+      nthread = 2
+    )
   )
 
   json_bytes <- xgb.save.raw(booster, raw_format = "json")
@@ -34,7 +37,7 @@ test_that("saveRDS preserves C and R attributes", {
   dm <- xgb.DMatrix(x, label = y, nthread = 1)
   model <- xgb.train(
     data = dm,
-    params = list(nthread = 1, max_depth = 2),
+    params = xgb.params(nthread = 1, max_depth = 2),
     nrounds = 5
   )
   attributes(model)$my_attr <- "qwerty"

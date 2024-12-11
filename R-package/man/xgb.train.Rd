@@ -9,8 +9,8 @@ xgb.train(
   data,
   nrounds,
   evals = list(),
-  obj = NULL,
-  feval = NULL,
+  objective = NULL,
+  custom_metric = NULL,
   verbose = 1,
   print_every_n = 1L,
   early_stopping_rounds = NULL,
@@ -28,8 +28,7 @@ See the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online doc
 and the documentation for \code{\link[=xgb.params]{xgb.params()}} for details.
 
 Should be passed as list with named entries. Parameters that are not specified in this
-list will use their default values. Alternatively, parameters may be passed directly
-as function arguments (accepted through \code{...}).
+list will use their default values.
 
 A list of named parameters can be created through the function \code{\link[=xgb.params]{xgb.params()}}, which
 accepts all valid parameters as function arguments.}
@@ -42,15 +41,17 @@ as inputs, such as data frames and matrices.}
 \item{nrounds}{Max number of boosting iterations.}
 
 \item{evals}{Named list of \code{xgb.DMatrix} datasets to use for evaluating model performance.
-Metrics specified in either \code{eval_metric} or \code{feval} will be computed for each
-of these datasets during each boosting iteration, and stored in the end as a field named
-\code{evaluation_log} in the resulting object. When either \code{verbose>=1} or
-\code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback is engaged, the performance results are continuously
-printed out during the training.
-E.g., specifying \code{evals=list(validation1=mat1, validation2=mat2)} allows to track
-the performance of each round's model on mat1 and mat2.}
+Metrics specified in either \code{eval_metric} (under params) or \code{custom_metric} (function
+argument here) will be computed for each of these datasets during each boosting iteration,
+and stored in the end as a field named \code{evaluation_log} in the resulting object.
 
-\item{obj}{Customized objective function. Should take two arguments: the first one will be the
+When either \code{verbose>=1} or \code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback is engaged, the performance
+results are continuously printed out during the training.
+
+E.g., specifying \code{evals=list(validation1=mat1, validation2=mat2)} allows to track
+the performance of each round's model on \code{mat1} and \code{mat2}.}
+
+\item{objective}{Customized objective function. Should take two arguments: the first one will be the
 current predictions (either a numeric vector or matrix depending on the number of targets / classes),
 and the second one will be the \code{data} DMatrix object that is used for training.
 
@@ -58,14 +59,14 @@ It should return a list with two elements \code{grad} and \code{hess} (in that o
 numeric vectors or numeric matrices depending on the number of targets / classes (same
 dimension as the predictions that are passed as first argument).}
 
-\item{feval}{Customized evaluation function. Just like \code{obj}, should take two arguments, with
-the first one being the predictions and the second one the \code{data} DMatrix.
+\item{custom_metric}{Customized evaluation function. Just like \code{objective}, should take two arguments,
+with the first one being the predictions and the second one the \code{data} DMatrix.
 
 Should return a list with two elements \code{metric} (name that will be displayed for this metric,
 should be a string / character), and \code{value} (the number that the function calculates, should
 be a numeric scalar).
 
-Note that even if passing \code{feval}, objectives also have an associated default metric that
+Note that even if passing \code{custom_metric}, objectives also have an associated default metric that
 will be evaluated in addition to it. In order to disable the built-in metric, one can pass
 parameter \code{disable_default_eval_metric = TRUE}.}
 
@@ -82,7 +83,7 @@ Default is 1 which means all messages are printed. This parameter is passed to t
 If set to an integer \code{k}, training with a validation set will stop if the performance
 doesn't improve for \code{k} rounds. Setting this parameter engages the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
 
-\item{maximize}{If \code{feval} and \code{early_stopping_rounds} are set, then this parameter must be set as well.
+\item{maximize}{If \code{custom_metric} and \code{early_stopping_rounds} are set, then this parameter must be set as well.
 When it is \code{TRUE}, it means the larger the evaluation score the better.
 This parameter is passed to the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
 
@@ -105,7 +106,13 @@ such as an evaluation log (a \code{data.table} object) - be aware that these obj
 as R attributes, and thus do not get saved when using XGBoost's own serializaters like
 \code{\link[=xgb.save]{xgb.save()}} (but are kept when using R serializers like \code{\link[=saveRDS]{saveRDS()}}).}
 
-\item{...}{Other parameters to pass to \code{params}. See \code{\link[=xgb.params]{xgb.params()}} for more details.}
+\item{...}{Not used.
+
+Some arguments are currently deprecated or have been renamed. If a deprecated argument
+is passed, will throw a warning and use its current equivalent.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated argument, an error will be thrown.}
 }
 \value{
 An object of class \code{xgb.Booster}.
@@ -169,7 +176,7 @@ dtest <- with(
 evals <- list(train = dtrain, eval = dtest)
 
 ## A simple xgb.train example:
-param <- list(
+param <- xgb.params(
   max_depth = 2,
   eta = 1,
   nthread = nthread,
@@ -193,9 +200,9 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-# These functions could be used by passing them either:
-#  as 'objective' and 'eval_metric' parameters in the params list:
-param <- list(
+# These functions could be used by passing them as 'objective' and
+# 'eval_metric' parameters in the params list:
+param <- xgb.params(
   max_depth = 2,
   eta = 1,
   nthread = nthread,
@@ -204,21 +211,11 @@ param <- list(
 )
 bst <- xgb.train(param, dtrain, nrounds = 2, evals = evals, verbose = 0)
 
-#  or through the ... arguments:
-param <- list(max_depth = 2, eta = 1, nthread = nthread)
+# ... or as dedicated 'objective' and 'custom_metric' parameters of xgb.train:
 bst <- xgb.train(
-  param,
-  dtrain,
-  nrounds = 2,
-  evals = evals,
-  verbose = 0,
-  objective = logregobj,
-  eval_metric = evalerror
-)
-
-#  or as dedicated 'obj' and 'feval' parameters of xgb.train:
-bst <- xgb.train(
-  param, dtrain, nrounds = 2, evals = evals, obj = logregobj, feval = evalerror
+  within(param, rm("objective", "eval_metric")),
+  dtrain, nrounds = 2, evals = evals,
+  objective = logregobj, custom_metric = evalerror
 )
 
 

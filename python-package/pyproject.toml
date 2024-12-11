@@ -43,7 +43,6 @@ repository = "https://github.com/dmlc/xgboost"
 pandas = ["pandas>=1.2"]
 scikit-learn = ["scikit-learn"]
 dask = ["dask", "pandas", "distributed"]
-datatable = ["datatable"]
 plotting = ["graphviz", "matplotlib"]
 pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
 
@@ -86,3 +85,9 @@ class-attribute-naming-style = "snake_case"
 
 # Allow single-letter variables
 variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
+
+[tool.pydistcheck]
+inspect = true
+ignore = ["compiled-objects-have-debug-symbols"]
+max_allowed_size_compressed = '300M'
+max_allowed_size_uncompressed = '500M'
