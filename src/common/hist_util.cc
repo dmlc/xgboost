@@ -21,6 +21,10 @@
 #define PR_SVE_GET_VL 51
 #endif
 
+#ifndef PR_SVE_VL_LEN_MASK
+#define PR_SVE_VL_LEN_MASK 0xffff
+#endif
+
 #ifdef XGBOOST_SVE_COMPILER_SUPPORT
 #include <arm_sve.h>  // to leverage sve intrinsics
 #endif
@@ -286,7 +290,18 @@ int check_sve_hw_support() {
     return cached_sve_support;
 }
 
+int check_vector_length() {
+  int ret = prctl(PR_SVE_GET_VL);
+  if (ret < 0) {
+    return 0;
+  } else {
+    // Mask out the SVE vector length bits
+    return (ret & PR_SVE_VL_LEN_MASK) * 8;  // bytes * 8 = bit length(vector length)
+  }
+}
+
 static int sve_enabled = check_sve_hw_support();
+static int vector_length = check_vector_length();
 #endif
 
 template <bool do_prefetch, class BuildingManager>
@@ -350,7 +365,7 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
     const BinIdxType *gr_index_local = gradient_index + icol_start;
 
     #ifdef XGBOOST_SVE_COMPILER_SUPPORT
-      if (sve_enabled) {
+      if (sve_enabled && vector_length > 128) {
         UpdateHistogramWithSVE(row_size, gr_index_local, offsets, hist_data, p_gpair, idx_gh, two,
                         kAnyMissing);
       } else {
