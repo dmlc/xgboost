@@ -3201,6 +3201,8 @@ class Booster:
         a histogram of used splitting values for the specified feature
         either as numpy array or pandas DataFrame.
         """
+        from .data import CAT_T
+
         xgdump = self.get_dump(fmap=fmap)
         values = []
         # pylint: disable=consider-using-f-string
@@ -3228,7 +3230,7 @@ class Booster:
             except (ValueError, AttributeError, TypeError):
                 # None.index: attr err, None[0]: type err, fn.index(-1): value err
                 feature_t = None
-            if feature_t == "c":  # categorical
+            if feature_t == CAT_T:  # categorical
                 raise ValueError(
                     "Split value historgam doesn't support categorical split."
                 )
