@@ -36,6 +36,12 @@ from typing import (
 import numpy as np
 import scipy.sparse
 
+from ._data_utils import (
+    array_interface,
+    cuda_array_interface,
+    from_array_interface,
+    make_array_interface,
+)
 from ._typing import (
     _T,
     ArrayLike,
@@ -58,7 +64,7 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import PANDAS_INSTALLED, DataFrame, import_cupy, py_str
+from .compat import PANDAS_INSTALLED, DataFrame, py_str
 from .libpath import find_lib_path
 
 
@@ -377,20 +383,6 @@ def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
-def _array_hasobject(data: DataType) -> bool:
-    return hasattr(data.dtype, "hasobject") and data.dtype.hasobject
-
-
-def _cuda_array_interface(data: DataType) -> bytes:
-    if _array_hasobject(data):
-        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
-    interface = data.__cuda_array_interface__
-    if "mask" in interface:
-        interface["mask"] = interface["mask"].__cuda_array_interface__
-    interface_str = bytes(json.dumps(interface), "utf-8")
-    return interface_str
-
-
 def ctypes2numpy(cptr: CNumericPtr, length: int, dtype: Type[np.number]) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
     ctype: Type[CNumeric] = _numpy2ctypes_type(dtype)
@@ -425,76 +417,6 @@ def c_array(
     if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
         return values.ctypes.data_as(ctypes.POINTER(ctype))
     return (ctype * len(values))(*values)
-
-
-def from_array_interface(interface: dict) -> NumpyOrCupy:
-    """Convert array interface to numpy or cupy array"""
-
-    class Array:
-        """Wrapper type for communicating with numpy and cupy."""
-
-        _interface: Optional[dict] = None
-
-        @property
-        def __array_interface__(self) -> Optional[dict]:
-            return self._interface
-
-        @__array_interface__.setter
-        def __array_interface__(self, interface: dict) -> None:
-            self._interface = copy.copy(interface)
-            # converts some fields to tuple as required by numpy
-            self._interface["shape"] = tuple(self._interface["shape"])
-            self._interface["data"] = tuple(self._interface["data"])
-            if self._interface.get("strides", None) is not None:
-                self._interface["strides"] = tuple(self._interface["strides"])
-
-        @property
-        def __cuda_array_interface__(self) -> Optional[dict]:
-            return self.__array_interface__
-
-        @__cuda_array_interface__.setter
-        def __cuda_array_interface__(self, interface: dict) -> None:
-            self.__array_interface__ = interface
-
-    arr = Array()
-
-    if "stream" in interface:
-        # CUDA stream is presented, this is a __cuda_array_interface__.
-        arr.__cuda_array_interface__ = interface
-        out = import_cupy().array(arr, copy=True)
-    else:
-        arr.__array_interface__ = interface
-        out = np.array(arr, copy=True)
-
-    return out
-
-
-def make_array_interface(
-    ptr: CNumericPtr, shape: Tuple[int, ...], dtype: Type[np.number], is_cuda: bool
-) -> Dict[str, Union[int, tuple, None]]:
-    """Make an __(cuda)_array_interface__ from a pointer."""
-    # Use an empty array to handle typestr and descr
-    if is_cuda:
-        empty = import_cupy().empty(shape=(0,), dtype=dtype)
-        array = empty.__cuda_array_interface__  # pylint: disable=no-member
-    else:
-        empty = np.empty(shape=(0,), dtype=dtype)
-        array = empty.__array_interface__  # pylint: disable=no-member
-
-    addr = ctypes.cast(ptr, ctypes.c_void_p).value
-    length = int(np.prod(shape))
-    # Handle empty dataset.
-    assert addr is not None or length == 0
-
-    if addr is None:
-        return array
-
-    array["data"] = (addr, True)
-    if is_cuda:
-        array["stream"] = 2
-    array["shape"] = shape
-    array["strides"] = None
-    return array
 
 
 def _prediction_output(
@@ -1495,11 +1417,8 @@ class _ProxyDMatrix(DMatrix):
 
     def _ref_data_from_cuda_interface(self, data: DataType) -> None:
         """Reference data from CUDA array interface."""
-        interface = data.__cuda_array_interface__
-        interface_str = bytes(json.dumps(interface), "utf-8")
-        _check_call(
-            _LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, interface_str)
-        )
+        arrinf = cuda_array_interface(data)
+        _check_call(_LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, arrinf))
 
     def _ref_data_from_cuda_columnar(self, data: DataType, cat_codes: list) -> None:
         """Reference data from CUDA columnar format."""
@@ -1510,11 +1429,7 @@ class _ProxyDMatrix(DMatrix):
 
     def _ref_data_from_array(self, data: np.ndarray) -> None:
         """Reference data from numpy array."""
-        from .data import _array_interface
-
-        _check_call(
-            _LIB.XGProxyDMatrixSetDataDense(self.handle, _array_interface(data))
-        )
+        _check_call(_LIB.XGProxyDMatrixSetDataDense(self.handle, array_interface(data)))
 
     def _ref_data_from_pandas(self, data: DataType) -> None:
         """Reference data from a pandas DataFrame. The input is a PandasTransformed
@@ -1527,13 +1442,11 @@ class _ProxyDMatrix(DMatrix):
 
     def _ref_data_from_csr(self, csr: scipy.sparse.csr_matrix) -> None:
         """Reference data from scipy csr."""
-        from .data import _array_interface
-
         _LIB.XGProxyDMatrixSetDataCSR(
             self.handle,
-            _array_interface(csr.indptr),
-            _array_interface(csr.indices),
-            _array_interface(csr.data),
+            array_interface(csr.indptr),
+            array_interface(csr.indices),
+            array_interface(csr.data),
             ctypes.c_size_t(csr.shape[1]),
         )
 
@@ -2311,19 +2224,14 @@ class Booster:
             The second order of gradient.
 
         """
-        from .data import (
-            _array_interface,
-            _cuda_array_interface,
-            _ensure_np_dtype,
-            _is_cupy_alike,
-        )
+        from .data import _ensure_np_dtype, _is_cupy_alike
 
         self._assign_dmatrix_features(dtrain)
 
         def is_flatten(array: NumpyOrCupy) -> bool:
             return len(array.shape) == 1 or array.shape[1] == 1
 
-        def array_interface(array: NumpyOrCupy) -> bytes:
+        def grad_arrinf(array: NumpyOrCupy) -> bytes:
             # Can we check for __array_interface__ instead of a specific type instead?
             msg = (
                 "Expecting `np.ndarray` or `cupy.ndarray` for gradient and hessian."
@@ -2343,9 +2251,9 @@ class Booster:
 
             if isinstance(array, np.ndarray):
                 array, _ = _ensure_np_dtype(array, array.dtype)
-                interface = _array_interface(array)
+                interface = array_interface(array)
             elif _is_cupy_alike(array):
-                interface = _cuda_array_interface(array)
+                interface = cuda_array_interface(array)
             else:
                 raise TypeError(msg)
 
@@ -2356,8 +2264,8 @@ class Booster:
                 self.handle,
                 dtrain.handle,
                 iteration,
-                array_interface(grad),
-                array_interface(hess),
+                grad_arrinf(grad),
+                grad_arrinf(hess),
             )
         )
 
@@ -2675,7 +2583,6 @@ class Booster:
 
         from .data import (
             PandasTransformed,
-            _array_interface,
             _arrow_transform,
             _is_arrow,
             _is_cudf_df,
@@ -2724,7 +2631,7 @@ class Booster:
             _check_call(
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
-                    _array_interface(data),
+                    array_interface(data),
                     args,
                     p_handle,
                     ctypes.byref(shape),
@@ -2753,9 +2660,9 @@ class Booster:
             _check_call(
                 _LIB.XGBoosterPredictFromCSR(
                     self.handle,
-                    _array_interface(data.indptr),
-                    _array_interface(data.indices),
-                    _array_interface(data.data),
+                    array_interface(data.indptr),
+                    array_interface(data.indices),
+                    array_interface(data.data),
                     c_bst_ulong(data.shape[1]),
                     args,
                     p_handle,
@@ -2769,7 +2676,7 @@ class Booster:
             from .data import _transform_cupy_array
 
             data = _transform_cupy_array(data)
-            interface_str = _cuda_array_interface(data)
+            interface_str = cuda_array_interface(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaArray(
                     self.handle,

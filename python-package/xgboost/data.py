@@ -10,6 +10,12 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeGuard, ca
 
 import numpy as np
 
+from ._data_utils import (
+    array_hasobject,
+    array_interface,
+    array_interface_dict,
+    cuda_array_interface,
+)
 from ._typing import (
     CupyT,
     DataType,
@@ -30,9 +36,7 @@ from .core import (
     DataIter,
     DataSplitMode,
     DMatrix,
-    _array_hasobject,
     _check_call,
-    _cuda_array_interface,
     _ProxyDMatrix,
     c_str,
     from_pystr_to_cstr,
@@ -81,21 +85,6 @@ def is_scipy_csr(data: DataType) -> bool:
     return is_array or is_matrix
 
 
-def _array_interface_dict(data: np.ndarray) -> dict:
-    if _array_hasobject(data):
-        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
-    interface = data.__array_interface__
-    if "mask" in interface:
-        interface["mask"] = interface["mask"].__array_interface__
-    return interface
-
-
-def _array_interface(data: np.ndarray) -> bytes:
-    interface = _array_interface_dict(data)
-    interface_str = bytes(json.dumps(interface), "utf-8")
-    return interface_str
-
-
 def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
     """Ensure correct data alignment and data type for scipy sparse inputs. Input should
     be either csr or csc matrix.
@@ -136,9 +125,9 @@ def _from_scipy_csr(
     data = transform_scipy_sparse(data, True)
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
-            _array_interface(data.indptr),
-            _array_interface(data.indices),
-            _array_interface(data.data),
+            array_interface(data.indptr),
+            array_interface(data.indices),
+            array_interface(data.data),
             c_bst_ulong(data.shape[1]),
             make_jcargs(
                 missing=float(missing),
@@ -184,9 +173,9 @@ def _from_scipy_csc(
     transform_scipy_sparse(data, False)
     _check_call(
         _LIB.XGDMatrixCreateFromCSC(
-            _array_interface(data.indptr),
-            _array_interface(data.indices),
-            _array_interface(data.data),
+            array_interface(data.indptr),
+            array_interface(data.indices),
+            array_interface(data.data),
             c_bst_ulong(data.shape[0]),
             make_jcargs(
                 missing=float(missing),
@@ -225,7 +214,7 @@ def _is_np_array_like(data: DataType) -> TypeGuard[np.ndarray]:
 def _ensure_np_dtype(
     data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
-    if _array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
+    if array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
         dtype = np.float32
         data = data.astype(dtype, copy=False)
     if not data.flags.aligned:
@@ -261,7 +250,7 @@ def _from_numpy_array(
     handle = ctypes.c_void_p()
     _check_call(
         _LIB.XGDMatrixCreateFromDense(
-            _array_interface(data),
+            array_interface(data),
             make_jcargs(
                 missing=float(missing),
                 nthread=int(nthread),
@@ -604,7 +593,7 @@ class PandasTransformed:
 
     def array_interface(self) -> bytes:
         """Return a byte string for JSON encoded array interface."""
-        aitfs = list(map(_array_interface_dict, self.columns))
+        aitfs = list(map(array_interface_dict, self.columns))
         sarrays = bytes(json.dumps(aitfs), "utf-8")
         return sarrays
 
@@ -1032,7 +1021,7 @@ def _transform_cupy_array(data: DataType) -> CupyT:
 
     if not hasattr(data, "__cuda_array_interface__") and hasattr(data, "__array__"):
         data = cupy.array(data, copy=False)
-    if _array_hasobject(data) or data.dtype in [cupy.bool_]:
+    if array_hasobject(data) or data.dtype in [cupy.bool_]:
         data = data.astype(cupy.float32, copy=False)
     return data
 
@@ -1046,7 +1035,7 @@ def _from_cupy_array(
 ) -> DispatchedDataBackendReturnType:
     """Initialize DMatrix from cupy ndarray."""
     data = _transform_cupy_array(data)
-    interface_str = _cuda_array_interface(data)
+    interface_str = cuda_array_interface(data)
     handle = ctypes.c_void_p()
     config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
@@ -1372,7 +1361,7 @@ def _meta_from_numpy(
     interface = data.__array_interface__
     if interface.get("mask", None) is not None:
         raise ValueError("Masked array is not supported.")
-    interface_str = _array_interface(data)
+    interface_str = array_interface(data)
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface_str))
 
 
@@ -1394,7 +1383,7 @@ def _meta_from_cudf_df(data: DataType, field: str, handle: ctypes.c_void_p) -> N
         _meta_from_cudf_series(data.iloc[:, 0], field, handle)
     else:
         data = data.values
-        interface = _cuda_array_interface(data)
+        interface = cuda_array_interface(data)
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
