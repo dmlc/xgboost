@@ -14,26 +14,8 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
-  build-containers:
-    name: Build CI containers
-    env:
-      CONTAINER_ID: xgb-ci.clang_tidy
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-      - tag=lint-build-containers
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Build ${{ env.CONTAINER_ID }}
-        run: bash ops/docker_build.sh ${{ env.CONTAINER_ID }}
-
   clang-tidy:
     name: Run clang-tidy
-    needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
@@ -44,8 +26,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.clang_tidy
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/run-clang-tidy.sh
 
   python-mypy-lint:
@@ -55,7 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: dmlc/xgboost-devops/miniforge-setup@main
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: python_lint
           environment-file: ops/conda_env/python_lint.yml

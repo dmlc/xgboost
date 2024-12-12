@@ -37,7 +37,7 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@13341b4d5e459a98bbe0b122b12c11bf90518cc8
       - name: Install libomp
         run: brew install libomp
-      - uses: dmlc/xgboost-devops/miniforge-setup@main
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: minimal
           environment-file: ops/conda_env/minimal.yml
@@ -46,8 +46,10 @@ jobs:
       - name: Upload Python wheel
         if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
         run: |
-          python -m pip install awscli
-          python -m awscli s3 cp wheelhouse/*.whl s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/ --acl public-read --region us-west-2
+          python ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-nightly-builds \
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public \
+            wheelhouse/*.whl
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}

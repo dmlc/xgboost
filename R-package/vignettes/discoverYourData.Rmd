@@ -174,7 +174,7 @@ The code below is very usual. For more information, you can look at the document
 
 ```{r}
 bst <- xgboost(x = sparse_matrix, y = output_vector,
-               params = list(max_depth = 4, eta = 1),
+               max_depth = 4, eta = 1,
                nthread = 2, nrounds = 10)
 
 ```
@@ -302,12 +302,10 @@ test <- agaricus.test
 bst <- xgboost(
     x = train$data,
     y = factor(train$label, levels = c(0, 1)),
-    params = list(
-        max_depth = 4,
-        num_parallel_tree = 1000,
-        subsample = 0.5,
-        colsample_bytree = 0.5
-    ),
+    max_depth = 4,
+    num_parallel_tree = 1000,
+    subsample = 0.5,
+    colsample_bytree = 0.5,
     nrounds = 1,
     nthread = 2
 )
@@ -316,7 +314,7 @@ bst <- xgboost(
 bst <- xgboost(
     x = train$data,
     y = factor(train$label, levels = c(0, 1)),
-    params = list(max_depth = 4),
+    max_depth = 4,
     nrounds = 3,
     nthread = 2
 )

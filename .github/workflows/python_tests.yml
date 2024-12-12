@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: dmlc/xgboost-devops/miniforge-setup@main
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: sdist_test
           environment-file: ops/conda_env/sdist_test.yml
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'true'
-      - uses: dmlc/xgboost-devops/miniforge-setup@main
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: macos_cpu_test
           environment-file: ops/conda_env/macos_cpu_test.yml

@@ -205,7 +205,7 @@ Since it quadratically depends on the number of features, it is recommended to p
 of the most important features first. See below about the format of the returned results.
 
 The \code{predict()} method uses as many threads as defined in \code{xgb.Booster} object (all by default).
-If you want to change their number, assign a new number to \code{nthread} using \code{\link[=xgb.parameters<-]{xgb.parameters<-()}}.
+If you want to change their number, assign a new number to \code{nthread} using \code{\link[=xgb.model.parameters<-]{xgb.model.parameters<-()}}.
 Note that converting a matrix to \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} uses multiple threads too.
 }
 \examples{
@@ -223,11 +223,13 @@ test <- agaricus.test
 
 bst <- xgb.train(
   data = xgb.DMatrix(train$data, label = train$label),
-  max_depth = 2,
-  eta = 0.5,
-  nthread = nthread,
   nrounds = 5,
-  objective = "binary:logistic"
+  params = xgb.params(
+    max_depth = 2,
+    eta = 0.5,
+    nthread = nthread,
+    objective = "binary:logistic"
+  )
 )
 
 # use all trees by default
@@ -266,13 +268,15 @@ set.seed(11)
 
 bst <- xgb.train(
   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
-  max_depth = 4,
-  eta = 0.5,
-  nthread = 2,
   nrounds = 10,
-  subsample = 0.5,
-  objective = "multi:softprob",
-  num_class = num_class
+  params = xgb.params(
+    max_depth = 4,
+    eta = 0.5,
+    nthread = 2,
+    subsample = 0.5,
+    objective = "multi:softprob",
+    num_class = num_class
+  )
 )
 
 # predict for softmax returns num_class probability numbers per case:
@@ -288,13 +292,15 @@ set.seed(11)
 
 bst <- xgb.train(
   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
-  max_depth = 4,
-  eta = 0.5,
-  nthread = 2,
   nrounds = 10,
-  subsample = 0.5,
-  objective = "multi:softmax",
-  num_class = num_class
+  params = xgb.params(
+    max_depth = 4,
+    eta = 0.5,
+    nthread = 2,
+    subsample = 0.5,
+    objective = "multi:softmax",
+    num_class = num_class
+  )
 )
 
 pred <- predict(bst, as.matrix(iris[, -5]))

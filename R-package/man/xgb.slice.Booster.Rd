@@ -47,7 +47,7 @@ y <- mtcars$mpg
 x <- as.matrix(mtcars[, -1])
 
 dm <- xgb.DMatrix(x, label = y, nthread = 1)
-model <- xgb.train(data = dm, params = list(nthread = 1), nrounds = 5)
+model <- xgb.train(data = dm, params = xgb.params(nthread = 1), nrounds = 5)
 model_slice <- xgb.slice.Booster(model, 1, 3)
 # Prediction for first three rounds
 predict(model, x, predleaf = TRUE)[, 1:3]

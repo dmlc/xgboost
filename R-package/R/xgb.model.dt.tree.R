@@ -13,8 +13,7 @@
 #' @param use_int_id A logical flag indicating whether nodes in columns "Yes", "No", and
 #'   "Missing" should be represented as integers (when `TRUE`) or as "Tree-Node"
 #'   character strings (when `FALSE`, default).
-#' @param ... Currently not used.
-#'
+#' @inheritParams xgb.train
 #' @return
 #' A `data.table` with detailed information about tree nodes. It has the following columns:
 #' - `Tree`: integer ID of a tree in a model (zero-based index).
@@ -44,11 +43,13 @@
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-#'   max_depth = 2,
-#'   eta = 1,
-#'   nthread = nthread,
 #'   nrounds = 2,
-#'   objective = "binary:logistic"
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 1,
+#'     nthread = nthread,
+#'     objective = "binary:logistic"
+#'   )
 #' )
 #'
 #' # This bst model already has feature_names stored with it, so those would be used when
@@ -66,7 +67,7 @@
 #' @export
 xgb.model.dt.tree <- function(model = NULL, text = NULL,
                               trees = NULL, use_int_id = FALSE, ...) {
-  check.deprecation(...)
+  check.deprecation(deprecated_dttree_params, match.call(), ...)
 
   if (!inherits(model, "xgb.Booster") && !is.character(text)) {
     stop("Either 'model' must be an object of class xgb.Booster\n",

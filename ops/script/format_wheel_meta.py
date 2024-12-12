@@ -27,6 +27,7 @@ def main(args: argparse.Namespace) -> None:
     version = tokens[1].split("+")[0]
 
     meta_info = {
+        "wheel_path": f"{args.commit_hash}/{wheel_name}",
         "wheel_name": wheel_name,
         "platform_tag": args.platform_tag,
         "version": version,

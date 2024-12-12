@@ -10,6 +10,12 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeGuard, ca
 
 import numpy as np
 
+from ._data_utils import (
+    array_hasobject,
+    array_interface,
+    array_interface_dict,
+    cuda_array_interface,
+)
 from ._typing import (
     CupyT,
     DataType,
@@ -30,9 +36,7 @@ from .core import (
     DataIter,
     DataSplitMode,
     DMatrix,
-    _array_hasobject,
     _check_call,
-    _cuda_array_interface,
     _ProxyDMatrix,
     c_str,
     from_pystr_to_cstr,
@@ -81,21 +85,6 @@ def is_scipy_csr(data: DataType) -> bool:
     return is_array or is_matrix
 
 
-def _array_interface_dict(data: np.ndarray) -> dict:
-    if _array_hasobject(data):
-        raise ValueError("Input data contains `object` dtype.  Expecting numeric data.")
-    interface = data.__array_interface__
-    if "mask" in interface:
-        interface["mask"] = interface["mask"].__array_interface__
-    return interface
-
-
-def _array_interface(data: np.ndarray) -> bytes:
-    interface = _array_interface_dict(data)
-    interface_str = bytes(json.dumps(interface), "utf-8")
-    return interface_str
-
-
 def transform_scipy_sparse(data: DataType, is_csr: bool) -> DataType:
     """Ensure correct data alignment and data type for scipy sparse inputs. Input should
     be either csr or csc matrix.
@@ -136,9 +125,9 @@ def _from_scipy_csr(
     data = transform_scipy_sparse(data, True)
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
-            _array_interface(data.indptr),
-            _array_interface(data.indices),
-            _array_interface(data.data),
+            array_interface(data.indptr),
+            array_interface(data.indices),
+            array_interface(data.data),
             c_bst_ulong(data.shape[1]),
             make_jcargs(
                 missing=float(missing),
@@ -184,9 +173,9 @@ def _from_scipy_csc(
     transform_scipy_sparse(data, False)
     _check_call(
         _LIB.XGDMatrixCreateFromCSC(
-            _array_interface(data.indptr),
-            _array_interface(data.indices),
-            _array_interface(data.data),
+            array_interface(data.indptr),
+            array_interface(data.indices),
+            array_interface(data.data),
             c_bst_ulong(data.shape[0]),
             make_jcargs(
                 missing=float(missing),
@@ -225,7 +214,7 @@ def _is_np_array_like(data: DataType) -> TypeGuard[np.ndarray]:
 def _ensure_np_dtype(
     data: DataType, dtype: Optional[NumpyDType]
 ) -> Tuple[np.ndarray, Optional[NumpyDType]]:
-    if _array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
+    if array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
         dtype = np.float32
         data = data.astype(dtype, copy=False)
     if not data.flags.aligned:
@@ -261,7 +250,7 @@ def _from_numpy_array(
     handle = ctypes.c_void_p()
     _check_call(
         _LIB.XGDMatrixCreateFromDense(
-            _array_interface(data),
+            array_interface(data),
             make_jcargs(
                 missing=float(missing),
                 nthread=int(nthread),
@@ -604,7 +593,7 @@ class PandasTransformed:
 
     def array_interface(self) -> bytes:
         """Return a byte string for JSON encoded array interface."""
-        aitfs = list(map(_array_interface_dict, self.columns))
+        aitfs = list(map(array_interface_dict, self.columns))
         sarrays = bytes(json.dumps(aitfs), "utf-8")
         return sarrays
 
@@ -730,110 +719,6 @@ def _from_pandas_series(
         feature_names=feature_names,
         feature_types=feature_types,
     )
-
-
-def _is_dt_df(data: DataType) -> bool:
-    return lazy_isinstance(data, "datatable", "Frame") or lazy_isinstance(
-        data, "datatable", "DataTable"
-    )
-
-
-def _transform_dt_df(
-    data: DataType,
-    feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
-    meta: Optional[str] = None,
-    meta_type: Optional[NumpyDType] = None,
-) -> Tuple[np.ndarray, Optional[FeatureNames], Optional[FeatureTypes]]:
-    """Validate feature names and types if data table"""
-    _dt_type_mapper = {"bool": "bool", "int": "int", "real": "float"}
-    _dt_type_mapper2 = {"bool": "i", "int": "int", "real": "float"}
-    if meta and data.shape[1] > 1:
-        raise ValueError("DataTable for meta info cannot have multiple columns")
-    if meta:
-        meta_type = "float" if meta_type is None else meta_type
-        # below requires new dt version
-        # extract first column
-        data = data.to_numpy()[:, 0].astype(meta_type)
-        return data, None, None
-
-    data_types_names = tuple(lt.name for lt in data.ltypes)
-    bad_fields = [
-        data.names[i]
-        for i, type_name in enumerate(data_types_names)
-        if type_name not in _dt_type_mapper
-    ]
-    if bad_fields:
-        msg = """DataFrame.types for data must be int, float or bool.
-                Did not expect the data types in fields """
-        raise ValueError(msg + ", ".join(bad_fields))
-
-    if feature_names is None and meta is None:
-        feature_names = data.names
-
-        # always return stypes for dt ingestion
-        if feature_types is not None:
-            raise ValueError("DataTable has own feature types, cannot pass them in.")
-        feature_types = np.vectorize(_dt_type_mapper2.get)(data_types_names).tolist()
-
-    return data, feature_names, feature_types
-
-
-def _from_dt_df(
-    *,
-    data: DataType,
-    missing: Optional[FloatCompatible],
-    nthread: int,
-    feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
-    enable_categorical: bool,
-) -> DispatchedDataBackendReturnType:
-    if enable_categorical:
-        raise ValueError("categorical data in datatable is not supported yet.")
-    data, feature_names, feature_types = _transform_dt_df(
-        data=data,
-        feature_names=feature_names,
-        feature_types=feature_types,
-        meta=None,
-        meta_type=None,
-    )
-
-    ptrs = (ctypes.c_void_p * data.ncols)()
-    if hasattr(data, "internal") and hasattr(data.internal, "column"):
-        # datatable>0.8.0
-        for icol in range(data.ncols):
-            col = data.internal.column(icol)
-            ptr = col.data_pointer
-            ptrs[icol] = ctypes.c_void_p(ptr)
-    else:
-        # datatable<=0.8.0
-        from datatable.internal import (
-            frame_column_data_r,  # pylint: disable=no-name-in-module
-        )
-
-        for icol in range(data.ncols):
-            ptrs[icol] = frame_column_data_r(data, icol)
-
-    # always return stypes for dt ingestion
-    feature_type_strings = (ctypes.c_char_p * data.ncols)()
-    for icol in range(data.ncols):
-        feature_type_strings[icol] = ctypes.c_char_p(
-            data.stypes[icol].name.encode("utf-8")
-        )
-
-    _warn_unused_missing(data, missing)
-    handle = ctypes.c_void_p()
-    _check_call(
-        _LIB.XGDMatrixCreateFromDT(
-            ptrs,
-            feature_type_strings,
-            c_bst_ulong(data.shape[0]),
-            c_bst_ulong(data.shape[1]),
-            ctypes.byref(handle),
-            ctypes.c_int(nthread),
-        )
-    )
-    return handle, feature_names, feature_types
 
 
 def _is_arrow(data: DataType) -> bool:
@@ -1032,7 +917,7 @@ def _transform_cupy_array(data: DataType) -> CupyT:
 
     if not hasattr(data, "__cuda_array_interface__") and hasattr(data, "__array__"):
         data = cupy.array(data, copy=False)
-    if _array_hasobject(data) or data.dtype in [cupy.bool_]:
+    if array_hasobject(data) or data.dtype in [cupy.bool_]:
         data = data.astype(cupy.float32, copy=False)
     return data
 
@@ -1046,7 +931,7 @@ def _from_cupy_array(
 ) -> DispatchedDataBackendReturnType:
     """Initialize DMatrix from cupy ndarray."""
     data = _transform_cupy_array(data)
-    interface_str = _cuda_array_interface(data)
+    interface_str = cuda_array_interface(data)
     handle = ctypes.c_void_p()
     config = bytes(json.dumps({"missing": missing, "nthread": nthread}), "utf-8")
     _check_call(
@@ -1297,16 +1182,6 @@ def dispatch_data_backend(
         raise TypeError("cupyx CSC is not supported yet.")
     if _is_dlpack(data):
         return _from_dlpack(data, missing, threads, feature_names, feature_types)
-    if _is_dt_df(data):
-        _warn_unused_missing(data, missing)
-        return _from_dt_df(
-            data=data,
-            missing=missing,
-            nthread=threads,
-            feature_names=feature_names,
-            feature_types=feature_types,
-            enable_categorical=enable_categorical,
-        )
     if _is_modin_df(data):
         return _from_pandas_df(
             data=data,
@@ -1372,7 +1247,7 @@ def _meta_from_numpy(
     interface = data.__array_interface__
     if interface.get("mask", None) is not None:
         raise ValueError("Masked array is not supported.")
-    interface_str = _array_interface(data)
+    interface_str = array_interface(data)
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface_str))
 
 
@@ -1394,7 +1269,7 @@ def _meta_from_cudf_df(data: DataType, field: str, handle: ctypes.c_void_p) -> N
         _meta_from_cudf_series(data.iloc[:, 0], field, handle)
     else:
         data = data.values
-        interface = _cuda_array_interface(data)
+        interface = cuda_array_interface(data)
         _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
 
 
@@ -1407,15 +1282,6 @@ def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -
     data = _transform_cupy_array(data)
     interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
-
-
-def _meta_from_dt(
-    data: DataType, field: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
-) -> None:
-    data, _, _ = _transform_dt_df(
-        data=data, feature_names=None, feature_types=None, meta=field, meta_type=dtype
-    )
-    _meta_from_numpy(data, field, dtype, handle)
 
 
 def dispatch_meta_backend(
@@ -1458,9 +1324,6 @@ def dispatch_meta_backend(
         return
     if _is_cudf_df(data):
         _meta_from_cudf_df(data, name, handle)
-        return
-    if _is_dt_df(data):
-        _meta_from_dt(data, name, dtype, handle)
         return
     if _is_modin_df(data):
         _meta_from_pandas_df(data, name, dtype=dtype, handle=handle)

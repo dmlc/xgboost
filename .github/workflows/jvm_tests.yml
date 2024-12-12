@@ -12,40 +12,12 @@ concurrency:
 env:
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
-  USE_DOCKER_CACHE: 1
 
 jobs:
-  build-containers:
-    name: Build CI containers (${{ matrix.container_id }})
-    runs-on:
-      - runs-on
-      - runner=${{ matrix.runner }}
-      - run-id=${{ github.run_id }}
-      - tag=jvm-tests-build-containers-${{ matrix.container_id }}
-    strategy:
-      matrix:
-        container_id:
-          - xgb-ci.manylinux2014_x86_64
-          - xgb-ci.jvm
-          - xgb-ci.jvm_gpu_build
-        runner: [linux-amd64-cpu]
-        include:
-          - container_id: xgb-ci.manylinux2014_aarch64
-            runner: linux-arm64-cpu
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Build ${{ matrix.container_id }}
-        run: bash ops/docker_build.sh ${{ matrix.container_id }}
-
   build-jvm-manylinux2014:
     name: >-
       Build libxgboost4j.so targeting glibc 2.17
       (arch ${{ matrix.arch }}, runner ${{ matrix.runner }})
-    needs: build-containers
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
@@ -65,19 +37,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.manylinux2014_${{ matrix.arch }}
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-jvm-manylinux2014.sh ${{ matrix.arch }}
-      - name: Upload libxgboost4j.so
-        run: |
-          libname=lib/libxgboost4j_linux_${{ matrix.arch }}_${{ github.sha }}.so
-          mv -v lib/libxgboost4j.so ${libname}
-          bash ops/pipeline/publish-artifact.sh ${libname} \
-            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
 
   build-jvm-gpu:
     name: Build libxgboost4j.so with CUDA
-    needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
@@ -88,12 +53,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-jvm-gpu.sh
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh stash build-jvm-gpu lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-gpu \
+            lib/libxgboost4j.so
 
   build-jvm-mac:
     name: "Build libxgboost4j.dylib for ${{ matrix.description }}"
@@ -104,11 +72,11 @@ jobs:
         include:
           - description: "MacOS (Apple Silicon)"
             script: ops/pipeline/build-jvm-macos-apple-silicon.sh
-            libname: libxgboost4j_m1_${{ github.sha }}.dylib
+            libname: libxgboost4j_m1.dylib
             runner: macos-14
           - description: "MacOS (Intel)"
             script: ops/pipeline/build-jvm-macos-intel.sh
-            libname: libxgboost4j_intel_${{ github.sha }}.dylib
+            libname: libxgboost4j_intel.dylib
             runner: macos-13
     steps:
       - uses: actions/checkout@v4
@@ -116,10 +84,13 @@ jobs:
           submodules: "true"
       - run: bash ${{ matrix.script }}
       - name: Upload libxgboost4j.dylib
+        if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
         run: |
           mv -v lib/libxgboost4j.dylib ${{ matrix.libname }}
-          bash ops/pipeline/publish-artifact.sh ${{ matrix.libname }} \
-            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-nightly-builds \
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public \
+            ${{ matrix.libname }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
@@ -137,21 +108,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-gpu \
+            --dest-dir lib \
+            libxgboost4j.so
       - run: bash ops/pipeline/build-jvm-doc.sh
       - name: Upload JVM doc
         run: |
-          bash ops/pipeline/publish-artifact.sh \
-            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2 \
-            s3://xgboost-docs/
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
 
   build-test-jvm-packages:
     name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
-    needs: build-containers
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
@@ -166,16 +141,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.jvm
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - name: Build and test JVM packages (Scala ${{ matrix.scala_version }})
         run: bash ops/pipeline/build-test-jvm-packages.sh
         env:
           SCALA_VERSION: ${{ matrix.scala_version }}
       - name: Stash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh stash \
-            build-test-jvm-packages lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-test-jvm-packages \
+            lib/libxgboost4j.so
         if: matrix.scala_version == '2.13'
 
   build-test-jvm-packages-other-os:
@@ -194,7 +171,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '8'
-      - uses: dmlc/xgboost-devops/miniforge-setup@main
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
         with:
           environment-name: minimal
           environment-file: ops/conda_env/minimal.yml
@@ -210,11 +187,10 @@ jobs:
           mvn test -B -pl :xgboost4j_2.12
       - name: Publish artifact xgboost4j.dll to S3
         run: |
-          cd lib/
-          Rename-Item -Path xgboost4j.dll -NewName xgboost4j_${{ github.sha }}.dll
-          python -m awscli s3 cp xgboost4j_${{ github.sha }}.dll `
-            s3://xgboost-nightly-builds/${{ env.BRANCH_NAME }}/libxgboost4j/ `
-            --acl public-read --region us-west-2
+          python ops/pipeline/manage-artifacts.py upload `
+            --s3-bucket xgboost-nightly-builds `
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public `
+            lib/xgboost4j.dll
         if: |
           (github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')) &&
           matrix.os == 'windows-latest'
@@ -239,11 +215,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh xgb-ci.jvm_gpu_build
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh unstash build-jvm-gpu lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-jvm-gpu \
+            --dest-dir lib \
+            libxgboost4j.so
       - run: bash ops/pipeline/test-jvm-gpu.sh
         env:
           SCALA_VERSION: ${{ matrix.scala_version }}
@@ -273,13 +253,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - name: Fetch container from cache
-        run: bash ops/docker_build.sh ${{ matrix.variant.container_id }}
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
       - name: Unstash files
         run: |
-          bash ops/pipeline/stash-artifacts.sh \
-            unstash ${{ matrix.variant.artifact_from }} \
-            lib/libxgboost4j.so
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.variant.artifact_from }} \
+            --dest-dir lib \
+            libxgboost4j.so
           ls -lh lib/libxgboost4j.so
       - name: Deploy JVM packages to S3
         run: |
