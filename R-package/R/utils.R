@@ -528,32 +528,73 @@ NULL
 #' @name a-compatibility-note-for-saveRDS-save
 NULL
 
+#' @name xgboost-options
+#' @title XGBoost Options
+#' @description XGBoost offers an \link[base:options]{option setting} for controlling the behavior
+#' of deprecated and removed function arguments.
+#'
+#' Some of the arguments in functions like [xgb.train()] or [predict.xgb.Booster()] been renamed
+#' from how they were in previous versions, or have been removed.
+#'
+#' In order to make the transition to newer XGBoost versions easier, some of these parameters are
+#' still accepted but issue a warning when using them. \bold{Note that these warnings will become
+#' errors in the future!!} - this is just a temporary workaround to make the transition easier.
+#'
+#' One can optionally use 'strict mode' to turn these warnings into errors, in order to ensure
+#' that code calling xgboost will still work once those are removed in future releases.
+#'
+#' Currently, the only supported option is `xgboost.strict_mode`, which can be set to `TRUE` or
+#' `FALSE` (default).
+#' @examples
+#' options("xgboost.strict_mode" = FALSE)
+#' options("xgboost.strict_mode" = TRUE)
+NULL
+
 # Lookup table for the deprecated parameters bookkeeping
 deprecated_train_params <- list(
-  'print.every.n' = 'print_every_n',
-  'early.stop.round' = 'early_stopping_rounds',
-  'training.data' = 'data',
-  'dtrain' = 'data',
-  'watchlist' = 'evals',
-  'feval' = 'custom_metric'
+  renamed = list(
+    'print.every.n' = 'print_every_n',
+    'early.stop.round' = 'early_stopping_rounds',
+    'training.data' = 'data',
+    'dtrain' = 'data',
+    'watchlist' = 'evals',
+    'feval' = 'custom_metric'
+  ),
+  removed = character()
 )
 deprecated_dttree_params <- list(
-  'n_first_tree' = 'trees'
+  renamed = list('n_first_tree' = 'trees'),
+  removed = c("feature_names", "text")
 )
-deprecated_plot_params <- list(
-  'plot.height' = 'plot_height',
-  'plot.width' = 'plot_width'
+deprecated_plotimp_params <- list(
+  renamed = list(
+    'plot.height' = 'plot_height',
+    'plot.width' = 'plot_width'
+  ),
+  removed = character()
 )
-deprecated_multitrees_params <- c(
-  deprecated_plot_params,
-  list('features.keep' = 'features_keep')
+deprecated_multitrees_params <- list(
+  renamed = c(
+    deprecated_plotimp_params$renamed,
+    list('features.keep' = 'features_keep')
+  ),
+  removed = c("feature_names")
 )
 deprecated_dump_params <- list(
-  'with.stats' = 'with_stats'
+  renamed = list('with.stats' = 'with_stats'),
+  removed = character()
 )
 deprecated_plottree_params <- c(
-  deprecated_plot_params,
-  deprecated_dump_params
+  renamed = list(
+    deprecated_plotimp_params$renamed,
+    deprecated_dump_params$renamed,
+    list('trees' = 'tree_idx')
+  ),
+  removed = c("show_node_id", "feature_names")
+)
+deprecated_predict_params <- list(
+  renamed = list("ntreelimit" = "iterationrange"),
+  removed = c("reshape")
 )
 
 # Checks the dot-parameters for deprecated names
@@ -571,42 +612,99 @@ check.deprecation <- function(
   if (length(params) == 0) {
     return(NULL)
   }
-  if (is.null(names(params)) || min(nchar(names(params))) == 0L) {
-    stop("Passed invalid positional arguments")
+  error_on_deprecated <- getOption("xgboost.strict_mode", default=FALSE)
+  throw_err_or_depr_msg <- function(...) {
+    if (error_on_deprecated) {
+      stop(...)
+    } else {
+      warning(..., " This warning will become an error in a future version.")
+    }
   }
-  all_match <- pmatch(names(params), names(deprecated_list))
+
+  if (is.null(names(params)) || min(nchar(names(params))) == 0L) {
+    throw_err_or_depr_msg("Passed invalid positional arguments")
+  }
+  list_renamed <- deprecated_list$renamed
+  list_removed <- deprecated_list$removed
+  has_params_arg <- list_renamed[[1L]] == deprecated_train_params$renamed[[1L]]
+  all_match <- pmatch(names(params), names(list_renamed))
   # throw error on unrecognized parameters
   if (!allow_unrecognized && anyNA(all_match)) {
+
     names_unrecognized <- names(params)[is.na(all_match)]
     # make it informative if they match something that goes under 'params'
-    if (deprecated_list[[1L]] == deprecated_train_params[[1L]]) {
+    if (has_params_arg) {
       names_params <- formalArgs(xgb.params)
       names_params <- c(names_params, gsub("_", ".", names_params, fixed = TRUE))
       names_under_params <- intersect(names_unrecognized, names_params)
       if (length(names_under_params)) {
-        stop(
-          "Passed invalid function arguments: ",
-          paste(head(names_under_params), collapse = ", "),
-          ". These should be passed as a list to argument 'params'."
-        )
+        if (error_on_deprecated) {
+          stop(
+            "Passed invalid function arguments: ",
+            paste(head(names_under_params), collapse = ", "),
+            ". These should be passed as a list to argument 'params'."
+          )
+        } else {
+          warning(
+            "Passed invalid function arguments: ",
+            paste(head(names_under_params), collapse = ", "),
+            ". These should be passed as a list to argument 'params'.",
+            " Conversion from argument to 'params' entry will be done automatically, but this ",
+            "behavior will become an error in a future version."
+          )
+          if (any(names_under_params %in% names(env[["params"]]))) {
+            repeteated_params <- intersect(names_under_params, names(env[["params"]]))
+            stop(
+              "Passed entries as both function argument(s) and as elements under 'params': ",
+              paste(head(repeteated_params), collapse = ", ")
+            )
+          } else {
+            env[["params"]] <- c(env[["params"]], params[names_under_params])
+          }
+        }
+        names_unrecognized <- setdiff(names_unrecognized, names_under_params)
       }
     }
+
+    # check for parameters that were removed from a previous version
+    names_removed <- intersect(names_unrecognized, list_removed)
+    if (length(names_removed)) {
+      throw_err_or_depr_msg(
+        "Parameter(s) have been removed from this function: ",
+        paste(names_removed, collapse = ", "), "."
+      )
+      names_unrecognized <- setdiff(names_unrecognized, list_removed)
+    }
+
     # otherwise throw a generic error
-    stop(
-      "Passed unrecognized parameters: ",
-      paste(head(names_unrecognized), collapse = ", ")
-    )
+    if (length(names_unrecognized)) {
+      throw_err_or_depr_msg(
+        "Passed unrecognized parameters: ",
+        paste(head(names_unrecognized), collapse = ", ")
+      )
+    }
+
+  } else {
+
+    names_removed <- intersect(names(params)[is.na(all_match)], list_removed)
+    if (length(names_removed)) {
+      throw_err_or_depr_msg(
+        "Parameter(s) have been removed from this function: ",
+        paste(names_removed, collapse = ", "), "."
+      )
+    }
+
   }
 
-  matched_params <- deprecated_list[all_match[!is.na(all_match)]]
+  matched_params <- list_renamed[all_match[!is.na(all_match)]]
   idx_orig <- seq_along(params)[!is.na(all_match)]
   function_args_passed <- names(as.list(fn_call))[-1L]
   for (idx in seq_along(matched_params)) {
     match_old <- names(matched_params)[[idx]]
     match_new <- matched_params[[idx]]
-    warning(
+    throw_err_or_depr_msg(
       "Parameter '", match_old, "' has been renamed to '",
-      match_new, "' and will be removed in a future version."
+      match_new, "'."
     )
     if (match_new %in% function_args_passed) {
       stop("Passed both '", match_new, "' and '", match_old, "'.")

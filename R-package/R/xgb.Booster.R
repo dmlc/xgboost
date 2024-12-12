@@ -357,9 +357,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
                                 training = FALSE, iterationrange = NULL, strict_shape = FALSE, avoid_transpose = FALSE,
                                 validate_features = FALSE, base_margin = NULL, ...) {
-  if (NROW(list(...))) {
-    warning("Passed unused prediction arguments: ", paste(names(list(...)), collapse = ", "), ".")
-  }
+  check.deprecation(deprecated_predict_params, match.call(), ..., allow_unrecognized = TRUE)
   if (validate_features) {
     newdata <- validate.features(object, newdata)
   }
