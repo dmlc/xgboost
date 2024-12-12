@@ -1004,7 +1004,8 @@ test_that("'eval_set' as fraction works", {
     eval_set = 0.2,
     nthreads = 1L,
     nrounds = 4L,
-    max_depth = 2L
+    max_depth = 2L,
+    verbosity = 0L
   )
   expect_true(hasName(attributes(model), "evaluation_log"))
   evaluation_log <- attributes(model)$evaluation_log
