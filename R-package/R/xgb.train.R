@@ -91,7 +91,7 @@
 #' If some additional argument is passed that is neither a current function argument nor
 #' a deprecated or renamed argument, a warning or error will be thrown depending on the
 #' 'strict mode' option.
-#' 
+#'
 #' \bold{Important:} `...` will be removed in a future version, and all the current
 #' deprecation warnings will become errors. Please use only arguments that form part of
 #' the function signature.

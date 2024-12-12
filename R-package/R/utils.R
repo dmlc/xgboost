@@ -578,7 +578,7 @@ deprecated_multitrees_params <- list(
     deprecated_plotimp_params$renamed,
     list('features.keep' = 'features_keep')
   ),
-  removed = c("feature_names")
+  removed = "feature_names"
 )
 deprecated_dump_params <- list(
   renamed = list('with.stats' = 'with_stats'),
@@ -594,7 +594,7 @@ deprecated_plottree_params <- c(
 )
 deprecated_predict_params <- list(
   renamed = list("ntreelimit" = "iterationrange"),
-  removed = c("reshape")
+  removed = "reshape"
 )
 
 # Checks the dot-parameters for deprecated names
@@ -612,7 +612,7 @@ check.deprecation <- function(
   if (length(params) == 0) {
     return(NULL)
   }
-  error_on_deprecated <- getOption("xgboost.strict_mode", default=FALSE)
+  error_on_deprecated <- getOption("xgboost.strict_mode", default = FALSE)
   throw_err_or_depr_msg <- function(...) {
     if (error_on_deprecated) {
       stop(...)
