@@ -600,8 +600,12 @@ TEST(Json, TypedArray) {
   size_t n = 16;
   F32Array f32{n};
   std::iota(f32.GetArray().begin(), f32.GetArray().end(), -8);
+  I8Array i8{n};
+  std::iota(i8.GetArray().begin(), i8.GetArray().end(), 0);
   U8Array u8{n};
   std::iota(u8.GetArray().begin(), u8.GetArray().end(), 0);
+  I32Array i16{n};
+  std::iota(i16.GetArray().begin(), i16.GetArray().end(), -8);
   I32Array i32{n};
   std::iota(i32.GetArray().begin(), i32.GetArray().end(), -8);
   I64Array i64{n};
@@ -610,8 +614,12 @@ TEST(Json, TypedArray) {
   Json json{Object{}};
   json["u8"] = std::move(u8);
   ASSERT_TRUE(IsA<U8Array>(json["u8"]));
+  json["i8"] = std::move(i8);
+  ASSERT_TRUE(IsA<I8Array>(json["i8"]));
   json["f32"] = std::move(f32);
   ASSERT_TRUE(IsA<F32Array>(json["f32"]));
+  json["i16"] = std::move(i16);
+  ASSERT_TRUE(IsA<I32Array>(json["i16"]));
   json["i32"] = std::move(i32);
   ASSERT_TRUE(IsA<I32Array>(json["i32"]));
   json["i64"] = std::move(i64);
@@ -637,6 +645,12 @@ TEST(Json, TypedArray) {
     auto const& arr = get<F32Array>(loaded["f32"]);
     for (int32_t i = -8; i < 8; ++i) {
       ASSERT_EQ(arr[i + 8], i);
+    }
+
+    ASSERT_TRUE(IsA<I8Array>(loaded["i8"])) << loaded["i8"].GetValue().TypeStr();
+    auto const& i8_arr = get<I8Array>(loaded["i8"]);
+    for (decltype(n) i = 0; i < n; ++i) {
+      ASSERT_EQ(i8_arr[i], i);
     }
   }
 
