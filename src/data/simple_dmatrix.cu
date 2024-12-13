@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  * \file simple_dmatrix.cu
  */
 #include <thrust/copy.h>
@@ -42,7 +42,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
 
-  this->Info().SynchronizeNumberOfColumns(&ctx, data_split_mode);
+  this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
   this->fmat_ctx_ = ctx;
 }

@@ -289,7 +289,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
 
   // Must called before sync column
   this->ReindexFeatures(&ctx, data_split_mode);
-  this->Info().SynchronizeNumberOfColumns(&ctx, data_split_mode);
+  this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT =
