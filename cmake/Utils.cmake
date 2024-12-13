@@ -202,7 +202,7 @@ macro(xgboost_target_properties target)
     target_compile_options(${target} PUBLIC -static-libstdc++)
   endif()
 
-  if (NOT WIN32 AND ENABLE_ALL_WARNINGS)
+  if(NOT WIN32 AND ENABLE_ALL_WARNINGS)
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-Werror=cross-execution-space-call>
     )
