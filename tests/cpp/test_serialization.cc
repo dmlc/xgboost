@@ -78,8 +78,16 @@ void CompareJSON(Json l, Json r) {
     }
     break;
   }
+  case Value::ValueKind::kI8Array: {
+    CompareIntArray<I8Array>(l, r);
+    break;
+  }
   case Value::ValueKind::kU8Array: {
     CompareIntArray<U8Array>(l, r);
+    break;
+  }
+  case Value::ValueKind::kI16Array: {
+    CompareIntArray<I16Array>(l, r);
     break;
   }
   case Value::ValueKind::kI32Array: {
