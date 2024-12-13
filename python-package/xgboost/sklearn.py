@@ -536,13 +536,15 @@ __custom_obj_note = """
             information) instead.
 """
 
+TDoc = TypeVar("TDoc", bound=Type)
+
 
 def xgboost_model_doc(
     header: str,
     items: List[str],
     extra_parameters: Optional[str] = None,
     end_note: Optional[str] = None,
-) -> Callable[[Type], Type]:
+) -> Callable[[TDoc], TDoc]:
     """Obtain documentation for Scikit-Learn wrappers
 
     Parameters
@@ -568,7 +570,7 @@ def xgboost_model_doc(
         }
         return __doc[item]
 
-    def adddoc(cls: Type) -> Type:
+    def adddoc(cls: TDoc) -> TDoc:
         doc = [
             """
 Parameters

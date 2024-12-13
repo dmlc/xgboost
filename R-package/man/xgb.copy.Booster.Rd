@@ -30,8 +30,8 @@ dm <- xgb.DMatrix(x, label = y, nthread = 1)
 
 model <- xgb.train(
   data = dm,
-  params = list(nthread = 1),
-  nround = 3
+  params = xgb.params(nthread = 1),
+  nrounds = 3
 )
 
 # Set an arbitrary attribute kept at the C level

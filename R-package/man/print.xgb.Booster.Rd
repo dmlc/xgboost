@@ -23,11 +23,13 @@ train <- agaricus.train
 
 bst <- xgb.train(
   data = xgb.DMatrix(train$data, label = train$label),
-  max_depth = 2,
-  eta = 1,
-  nthread = 2,
   nrounds = 2,
-  objective = "binary:logistic"
+  params = xgb.params(
+    max_depth = 2,
+    eta = 1,
+    nthread = 2,
+    objective = "binary:logistic"
+  )
 )
 
 attr(bst, "myattr") <- "memo"

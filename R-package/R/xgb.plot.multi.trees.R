@@ -38,13 +38,15 @@
 #'
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-#'   max_depth = 15,
-#'   eta = 1,
-#'   nthread = nthread,
 #'   nrounds = 30,
-#'   objective = "binary:logistic",
-#'   min_child_weight = 50,
-#'   verbose = 0
+#'   verbose = 0,
+#'   params = xgb.params(
+#'     max_depth = 15,
+#'     eta = 1,
+#'     nthread = nthread,
+#'     objective = "binary:logistic",
+#'     min_child_weight = 50
+#'   )
 #' )
 #'
 #' p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
@@ -64,10 +66,10 @@
 #' @export
 xgb.plot.multi.trees <- function(model, features_keep = 5, plot_width = NULL, plot_height = NULL,
                                  render = TRUE, ...) {
+  check.deprecation(deprecated_multitrees_params, match.call(), ...)
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
     stop("DiagrammeR is required for xgb.plot.multi.trees")
   }
-  check.deprecation(...)
   if (xgb.has_categ_features(model)) {
     stop(
       "Cannot use 'xgb.plot.multi.trees' for models with categorical features.",

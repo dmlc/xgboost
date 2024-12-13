@@ -152,10 +152,6 @@ def no_modin() -> PytestSkip:
     return {"reason": "Failed import modin.", "condition": True}
 
 
-def no_dt() -> PytestSkip:
-    return no_mod("datatable")
-
-
 def no_matplotlib() -> PytestSkip:
     reason = "Matplotlib is not installed."
     try:

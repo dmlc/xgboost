@@ -10,13 +10,17 @@ dtest <- xgb.DMatrix(
   agaricus.test$data, label = agaricus.test$label, nthread = 2
 )
 
-bst <- xgb.train(data = dtrain,
-                 max_depth = 2,
-                 eta = 1,
-                 nrounds = 10,
-                 nthread = 1,
-                 verbose = 0,
-                 objective = "binary:logistic")
+bst <- xgb.train(
+  data = dtrain,
+  verbose = 0,
+  nrounds = 10,
+  params = xgb.params(
+    max_depth = 2,
+    eta = 1,
+    nthread = 1,
+    objective = "binary:logistic"
+  )
+)
 
 test_that("call is exposed to R", {
   expect_false(is.null(attributes(bst)$call))

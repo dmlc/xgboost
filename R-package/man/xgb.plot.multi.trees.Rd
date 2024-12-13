@@ -26,7 +26,13 @@ The values are passed to \code{DiagrammeR::render_graph()}.}
 
 \item{render}{Should the graph be rendered or not? The default is \code{TRUE}.}
 
-\item{...}{Currently not used.}
+\item{...}{Not used.
+
+Some arguments are currently deprecated or have been renamed. If a deprecated argument
+is passed, will throw a warning and use its current equivalent.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated argument, an error will be thrown.}
 }
 \value{
 Rendered graph object which is an htmlwidget of ' class \code{grViz}. Similar to
@@ -67,13 +73,15 @@ data.table::setDTthreads(nthread)
 
 bst <- xgb.train(
   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-  max_depth = 15,
-  eta = 1,
-  nthread = nthread,
   nrounds = 30,
-  objective = "binary:logistic",
-  min_child_weight = 50,
-  verbose = 0
+  verbose = 0,
+  params = xgb.params(
+    max_depth = 15,
+    eta = 1,
+    nthread = nthread,
+    objective = "binary:logistic",
+    min_child_weight = 50
+  )
 )
 
 p <- xgb.plot.multi.trees(model = bst, features_keep = 3)

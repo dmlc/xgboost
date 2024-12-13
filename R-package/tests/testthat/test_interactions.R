@@ -123,7 +123,7 @@ test_that("multiclass feature interactions work", {
   dm <- xgb.DMatrix(
     as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1, nthread = n_threads
   )
-  param <- list(
+  param <- xgb.params(
     eta = 0.1, max_depth = 4, objective = 'multi:softprob', num_class = 3, nthread = n_threads
   )
   b <- xgb.train(param, dm, 40)
@@ -152,10 +152,12 @@ test_that("SHAP single sample works", {
   test <- agaricus.test
   booster <- xgb.train(
     data = xgb.DMatrix(train$data, label = train$label),
-    max_depth = 2,
     nrounds = 4,
-    objective = "binary:logistic",
-    nthread = n_threads
+    params = xgb.params(
+      max_depth = 2,
+      objective = "binary:logistic",
+      nthread = n_threads
+    )
   )
 
   predt <- predict(

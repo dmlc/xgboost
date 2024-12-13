@@ -84,12 +84,14 @@
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(agaricus.train$data, agaricus.train$label),
 #'   nrounds = nrounds,
-#'   eta = 0.1,
-#'   max_depth = 3,
-#'   subsample = 0.5,
-#'   objective = "binary:logistic",
-#'   nthread = nthread,
-#'   verbose = 0
+#'   verbose = 0,
+#'   params = xgb.params(
+#'     eta = 0.1,
+#'     max_depth = 3,
+#'     subsample = 0.5,
+#'     objective = "binary:logistic",
+#'     nthread = nthread
+#'   )
 #' )
 #'
 #' xgb.plot.shap(agaricus.test$data, model = bst, features = "odor=none")
@@ -109,13 +111,15 @@
 #' mbst <- xgb.train(
 #'   data = xgb.DMatrix(x, label = as.numeric(iris$Species) - 1),
 #'   nrounds = nrounds,
-#'   max_depth = 2,
-#'   eta = 0.3,
-#'   subsample = 0.5,
-#'   nthread = nthread,
-#'   objective = "multi:softprob",
-#'   num_class = nclass,
-#'   verbose = 0
+#'   verbose = 0,
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     eta = 0.3,
+#'     subsample = 0.5,
+#'     nthread = nthread,
+#'     objective = "multi:softprob",
+#'     num_class = nclass
+#'   )
 #' )
 #' trees0 <- seq(from = 0, by = nclass, length.out = nrounds)
 #' col <- rgb(0, 0, 1, 0.5)

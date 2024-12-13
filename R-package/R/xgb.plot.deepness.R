@@ -51,12 +51,14 @@
 #' ## Change max_depth to a higher number to get a more significant result
 #' bst <- xgb.train(
 #'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-#'   max_depth = 6,
-#'   nthread = nthread,
 #'   nrounds = 50,
-#'   objective = "binary:logistic",
-#'   subsample = 0.5,
-#'   min_child_weight = 2
+#'   params = xgb.params(
+#'     max_depth = 6,
+#'     nthread = nthread,
+#'     objective = "binary:logistic",
+#'     subsample = 0.5,
+#'     min_child_weight = 2
+#'   )
 #' )
 #'
 #' xgb.plot.deepness(bst)

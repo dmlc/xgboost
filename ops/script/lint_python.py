@@ -22,7 +22,6 @@ class LintersPaths:
         "tests/python/test_collective.py",
         "tests/python/test_data_iterator.py",
         "tests/python/test_dmatrix.py",
-        "tests/python/test_dt.py",
         "tests/python/test_demos.py",
         "tests/python/test_eval_metrics.py",
         "tests/python/test_early_stopping.py",
@@ -94,7 +93,6 @@ class LintersPaths:
         "python-package/",
         # tests
         "tests/python/test_collective.py",
-        "tests/python/test_dt.py",
         "tests/python/test_demos.py",
         "tests/python/test_data_iterator.py",
         "tests/python/test_multi_target.py",
