@@ -413,13 +413,13 @@ template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<GradientPairPrecise>;
-template class HostDeviceVector<int32_t>;   // bst_node_t
-template class HostDeviceVector<uint8_t>;
-template class HostDeviceVector<int8_t>;
+template class HostDeviceVector<std::int32_t>;   // bst_node_t
+template class HostDeviceVector<std::uint8_t>;
+template class HostDeviceVector<std::int8_t>;
 template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<bst_idx_t>;
-template class HostDeviceVector<uint32_t>;  // bst_feature_t
+template class HostDeviceVector<std::uint32_t>;  // bst_feature_t
 template class HostDeviceVector<RegTree::Node>;
 template class HostDeviceVector<RegTree::CategoricalSplitMatrix::Segment>;
 template class HostDeviceVector<RTreeNodeStat>;

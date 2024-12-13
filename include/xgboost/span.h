@@ -37,6 +37,7 @@
 #include <limits>  // numeric_limits
 #include <type_traits>
 #include <utility>  // for move
+#include <vector>   // for vector
 
 #if defined(__CUDACC__)
 #include <cuda_runtime.h>
@@ -707,6 +708,12 @@ class IterSpan {
     return it_ + size();
   }
 };
+
+template <typename T>
+Span(std::vector<T> const&) -> Span<T const>;
+
+template <typename T>
+Span(std::vector<T>&) -> Span<T>;
 }  // namespace xgboost::common
 
 

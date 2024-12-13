@@ -899,6 +899,8 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
  * @brief Reset the booster object to release data caches used for training.
  *
  * @since 3.0.0
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterReset(BoosterHandle handle);
 

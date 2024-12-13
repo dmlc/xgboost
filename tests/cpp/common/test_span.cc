@@ -24,6 +24,11 @@ TEST(Span, TestStatus) {
   int status = 1;
   TestTestStatus {&status}();
   ASSERT_EQ(status, -1);
+
+  std::vector<double> foo;
+  auto bar = Span{foo};
+  ASSERT_FALSE(bar.data());
+  ASSERT_EQ(bar.size(), 0);
 }
 
 TEST(Span, DlfConstructors) {

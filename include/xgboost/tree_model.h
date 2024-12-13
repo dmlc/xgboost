@@ -186,7 +186,8 @@ class RegTree : public Model {
       return this->DefaultLeft() ? this->LeftChild() : this->RightChild();
     }
     /*! \brief feature index of split condition */
-    [[nodiscard]] XGBOOST_DEVICE unsigned SplitIndex() const {
+    [[nodiscard]] XGBOOST_DEVICE bst_feature_t SplitIndex() const {
+      static_assert(!std::is_signed_v<bst_feature_t>);
       return sindex_ & ((1U << 31) - 1U);
     }
     /*! \brief when feature is unknown, whether goes to left child */
