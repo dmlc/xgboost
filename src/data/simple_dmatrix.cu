@@ -41,15 +41,14 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
       CopyToSparsePage(&ctx, adapter->Value(), device, missing, sparse_page_.get());
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
-  // Synchronise worker columns
-  info_.data_split_mode = data_split_mode;
-  info_.SynchronizeNumberOfColumns(&ctx);
+
+  this->Info().SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
   this->fmat_ctx_ = ctx;
 }
 
-template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,
-                                      int nthread, DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing,
-                                      int nthread, DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing, std::int32_t nthread,
+                                      DataSplitMode data_split_mode);
+template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing, std::int32_t nthread,
+                                      DataSplitMode data_split_mode);
 }  // namespace xgboost::data

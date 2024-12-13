@@ -62,6 +62,15 @@ class IndexTransformIter {
     ++(*this);
     return ret;
   }
+  IndexTransformIter &operator--() {
+    iter_--;
+    return *this;
+  }
+  IndexTransformIter operator--(int) {
+    auto ret = *this;
+    --(*this);
+    return ret;
+  }
   IndexTransformIter &operator+=(difference_type n) {
     iter_ += n;
     return *this;
