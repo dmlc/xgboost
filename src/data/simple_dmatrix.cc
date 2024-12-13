@@ -81,7 +81,7 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
 void SimpleDMatrix::ReindexFeatures(Context const* ctx, DataSplitMode split_mode) {
   if (split_mode == DataSplitMode::kCol && collective::GetWorldSize() > 1) {
     std::vector<std::uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = this->Info().num_col_;
+    buffer[collective::GetRank()] = this->info_.num_col_;
     auto rc = collective::Allgather(ctx, linalg::MakeVec(buffer.data(), buffer.size()));
     SafeColl(rc);
     auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
