@@ -140,12 +140,12 @@ void ReportMissing(ExecPolicy const &policy, std::string const &name, std::size_
 }  // namespace detail
 
 /**
- * @brief Host view for all columns
+ * @brief Host view of the encoding scheme for all columns.
  */
 using HostColumnsView = detail::ColumnsViewImpl<HostCatIndexView>;
 #if defined(XGBOOST_USE_CUDA)
 /**
- * @brief Device view for all columns
+ * @brief Device view of the encoding scheme for all columns.
  */
 using DeviceColumnsView = detail::ColumnsViewImpl<DeviceCatIndexView>;
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -290,7 +290,9 @@ void SortNames(ExecPolicy const &policy, HostCatIndexView const &cats,
  * @tparam ExecPolicy The @ref Policy class, only an error policy is needed for the CPU
  *                    implementation.
  *
- * @param policy Execution policy.
+ * @param policy     The execution policy.
+ * @param orig_enc   The encoding scheme of the training set.
+ * @param sorted_idx The output sorted index.
  */
 template <typename ExecPolicy>
 void SortNames(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_t> sorted_idx) {
@@ -304,6 +306,10 @@ void SortNames(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int
   }
 }
 
+/**
+ * @brief Default exection policy for the host implementation. Users are expected to
+ *        customize it.
+ */
 using DftHostPolicy = Policy<detail::DftErrorHandler>;
 
 /**
@@ -312,7 +318,12 @@ using DftHostPolicy = Policy<detail::DftErrorHandler>;
  * @tparam ExecPolicy The @ref Policy class, only an error policy is needed for the CPU
  *                    implementation.
  *
- * @param policy Execution policy.
+ * @param policy     The execution policy.
+ * @param orig_enc   The encoding scheme of the training set.
+ * @param sorted_idx The sorted index of the training set encoding scheme, produced by
+ *                   @ref SortNames .
+ * @param new_enc    The scheme that needs to be recoded.
+ * @param mapping    The output mapping.
  */
 template <typename ExecPolicy>
 void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_t const> sorted_idx,

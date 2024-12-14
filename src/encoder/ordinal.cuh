@@ -126,6 +126,10 @@ struct DftThrustPolicy {
 };
 }  // namespace cuda_impl
 
+/**
+ * @brief Default exection policy for the device implementation. Users are expected to
+ *        customize it.
+ */
 using DftDevicePolicy = Policy<cuda_impl::DftThrustPolicy, detail::DftErrorHandler>;
 
 /**
@@ -133,7 +137,9 @@ using DftDevicePolicy = Policy<cuda_impl::DftThrustPolicy, detail::DftErrorHandl
  *
  * @tparam ExecPolicy The @ref Policy class, accepts an error policy and a thrust exec policy.
  *
- * @param policy Execution policy.
+ * @param policy     The execution policy.
+ * @param orig_enc   The encoding scheme of the training set.
+ * @param sorted_idx The output sorted index.
  */
 template <typename ExecPolicy>
 void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
@@ -156,7 +162,7 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         auto idx = d_sorted_idx[i];
         return cuda::std::make_pair(static_cast<std::int32_t>(seg), idx);
       }));
-  thrust::copy(key_it, key_it + n_total_cats, keys.begin());
+  thrust::copy(policy.ThrustPolicy(), key_it, key_it + n_total_cats, keys.begin());
 
   thrust::sort(policy.ThrustPolicy(), keys.begin(), keys.end(),
                cuda::proclaim_return_type<bool>([=] __device__(Pair const& l, Pair const& r) {
@@ -187,7 +193,7 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       thrust::make_counting_iterator(0),
       cuda::proclaim_return_type<decltype(Pair{}.second)>(
           [=] __device__(std::int32_t i) { return s_keys[i].second; }));
-  thrust::copy(it, it + sorted_idx.size(), dh::tbegin(sorted_idx));
+  thrust::copy(policy.ThrustPolicy(), it, it + sorted_idx.size(), dh::tbegin(sorted_idx));
 }
 
 /**
@@ -195,7 +201,12 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
  *
  * @tparam ExecPolicy The @ref Policy class, accepts an error policy and a thrust exec policy
  *
- * @param policy Execution policy.
+ * @param policy     The execution policy.
+ * @param orig_enc   The encoding scheme of the training set.
+ * @param sorted_idx The sorted index of the training set encoding scheme, produced by
+ *                   @ref SortNames .
+ * @param new_enc    The scheme that needs to be recoded.
+ * @param mapping    The output mapping.
  */
 template <typename ExecPolicy>
 void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
