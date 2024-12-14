@@ -357,7 +357,7 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
                               searched_idx[j] = cpu_impl::SearchSorted(
                                   std::get<Span<std::add_const_t<T>>>(orig_enc.columns[f_idx]),
                                   ref_sorted_idx, needle);
-                              if (searched_idx[j - 1] == -1) {
+                              if (searched_idx[j] == -1) {
                                 std::stringstream ss;
                                 ss << needle;
                                 detail::ReportMissing(policy, ss.str(), f_idx);
