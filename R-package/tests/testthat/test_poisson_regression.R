@@ -22,7 +22,7 @@ test_that("Poisson regression is centered around mean", {
   x <- matrix(rnorm(m * n), nrow = m)
   model <- xgb.train(
     data = xgb.DMatrix(x, label = y),
-    params = xgb.params(objective = "count:poisson", gamma = 1e4),
+    params = xgb.params(objective = "count:poisson", min_split_loss = 1e4),
     nrounds = 1
   )
   model_json <- xgb.save.raw(model, "json") |> rawToChar() |> jsonlite::fromJSON()
@@ -42,7 +42,7 @@ test_that("Poisson regression is centered around mean", {
   w <- y + 1
   model_weighted <- xgb.train(
     data = xgb.DMatrix(x, label = y, weight = w),
-    params = xgb.params(objective = "count:poisson", gamma = 1e4),
+    params = xgb.params(objective = "count:poisson", min_split_loss = 1e4),
     nrounds = 1
   )
   model_json <- xgb.save.raw(model_weighted, "json") |> rawToChar() |> jsonlite::fromJSON()

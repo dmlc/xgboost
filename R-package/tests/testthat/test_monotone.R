@@ -12,7 +12,8 @@ test_that("monotone constraints for regression", {
         nrounds = 100, verbose = 0,
         params = xgb.params(
             max_depth = 2,
-            eta = 0.1, nthread = 2,
+            learning_rate = 0.1,
+            nthread = 2,
             monotone_constraints = -1
         )
     )

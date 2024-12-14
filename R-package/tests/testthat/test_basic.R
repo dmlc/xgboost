@@ -21,7 +21,7 @@ test_that("train and predict binary classification", {
       nrounds = nrounds,
       params = xgb.params(
         max_depth = 2,
-        eta = 1,
+        learning_rate = 1,
         nthread = n_threads,
         objective = "binary:logistic",
         eval_metric = "error"
@@ -116,7 +116,7 @@ test_that("dart prediction works", {
       booster = "dart",
       rate_drop = 0.5,
       one_drop = TRUE,
-      eta = 1,
+      learning_rate = 1,
       nthread = n_threads,
       objective = "reg:squarederror"
     )
@@ -134,7 +134,7 @@ test_that("dart prediction works", {
     params = xgb.params(
       booster = "dart",
       max_depth = 2,
-      eta = 1,
+      learning_rate = 1,
       rate_drop = 0.5,
       one_drop = TRUE,
       nthread = n_threads,
@@ -160,7 +160,7 @@ test_that("train and predict softprob", {
       data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
       nrounds = 5,
       params = xgb.params(
-        max_depth = 3, eta = 0.5, nthread = n_threads,
+        max_depth = 3, learning_rate = 0.5, nthread = n_threads,
         objective = "multi:softprob", num_class = 3, eval_metric = "merror"
       ),
       evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
@@ -219,7 +219,7 @@ test_that("train and predict softmax", {
       data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
       nrounds = 5,
       params = xgb.params(
-        max_depth = 3, eta = 0.5, nthread = n_threads,
+        max_depth = 3, learning_rate = 0.5, nthread = n_threads,
         objective = "multi:softmax", num_class = 3, eval_metric = "merror"
       ),
       evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
@@ -273,10 +273,15 @@ test_that("train and predict RF with softprob", {
     nrounds = nrounds,
     verbose = 0,
     params = xgb.params(
-      max_depth = 3, eta = 0.9, nthread = n_threads,
-      objective = "multi:softprob", eval_metric = "merror",
+      max_depth = 3,
+      learning_rate = 0.9,
+      nthread = n_threads,
+      objective = "multi:softprob",
+      eval_metric = "merror",
       num_class = 3,
-      num_parallel_tree = 4, subsample = 0.5, colsample_bytree = 0.5
+      num_parallel_tree = 4,
+      subsample = 0.5,
+      colsample_bytree = 0.5
     ),
     evals = list(train = xgb.DMatrix(as.matrix(iris[, -5]), label = lb))
   )
@@ -300,7 +305,7 @@ test_that("use of multiple eval metrics works", {
       nrounds = 2,
       params = list(
         max_depth = 2,
-        eta = 1, nthread = n_threads, objective = "binary:logistic",
+        learning_rate = 1, nthread = n_threads, objective = "binary:logistic",
         eval_metric = "error", eval_metric = "auc", eval_metric = "logloss"
       ),
       evals = list(train = xgb.DMatrix(train$data, label = train$label))
@@ -316,7 +321,9 @@ test_that("use of multiple eval metrics works", {
       nrounds = 2,
       params = xgb.params(
         max_depth = 2,
-        eta = 1, nthread = n_threads, objective = "binary:logistic",
+        learning_rate = 1,
+        nthread = n_threads,
+        objective = "binary:logistic",
         eval_metric = list("error", "auc", "logloss")
       ),
       evals = list(train = xgb.DMatrix(train$data, label = train$label))
@@ -333,7 +340,7 @@ test_that("training continuation works", {
   dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = n_threads)
   evals <- list(train = dtrain)
   params <- xgb.params(
-    objective = "binary:logistic", max_depth = 2, eta = 1, nthread = n_threads
+    objective = "binary:logistic", max_depth = 2, learning_rate = 1, nthread = n_threads
   )
 
   # for the reference, use 4 iterations at once:
@@ -375,7 +382,9 @@ test_that("xgb.cv works", {
       nrounds = 2,
       params = xgb.params(
         max_depth = 2,
-        eta = 1., nthread = n_threads, objective = "binary:logistic",
+        learning_rate = 1.,
+        nthread = n_threads,
+        objective = "binary:logistic",
         eval_metric = "error"
       ),
       verbose = TRUE
@@ -402,7 +411,8 @@ test_that("xgb.cv works with stratified folds", {
     nfold = 5,
     params = xgb.params(
       max_depth = 2,
-      eta = 1., nthread = n_threads, objective = "binary:logistic"
+      nthread = n_threads,
+      objective = "binary:logistic"
     ),
     verbose = FALSE, stratified = FALSE
   )
@@ -413,7 +423,8 @@ test_that("xgb.cv works with stratified folds", {
     nrounds = 2,
     params = xgb.params(
       max_depth = 2,
-      eta = 1., nthread = n_threads, objective = "binary:logistic"
+      nthread = n_threads,
+      objective = "binary:logistic"
     ),
     verbose = FALSE, stratified = TRUE
   )
@@ -429,7 +440,8 @@ test_that("train and predict with non-strict classes", {
     nrounds = 2,
     params = xgb.params(
       max_depth = 2,
-      eta = 1, nthread = n_threads, objective = "binary:logistic"
+      nthread = n_threads,
+      objective = "binary:logistic"
     ),
     verbose = 0
   )
@@ -444,7 +456,8 @@ test_that("train and predict with non-strict classes", {
       nrounds = 2,
       params = xgb.params(
         max_depth = 2,
-        eta = 1, nthread = n_threads, objective = "binary:logistic"
+        nthread = n_threads,
+        objective = "binary:logistic"
       ),
       verbose = 0
     ),
@@ -462,7 +475,8 @@ test_that("train and predict with non-strict classes", {
       nrounds = 2,
       params = xgb.params(
         max_depth = 2,
-        eta = 1, nthread = n_threads, objective = "binary:logistic"
+        nthread = n_threads,
+        objective = "binary:logistic"
       ),
       verbose = 0
     ),
@@ -485,7 +499,7 @@ test_that("max_delta_step works", {
   params <- xgb.params(
     objective = "binary:logistic", eval_metric = "logloss", max_depth = 2,
     nthread = n_threads,
-    eta = 0.5
+    learning_rate = 0.5
   )
   nrounds <- 5
   # model with no restriction on max_delta_step
@@ -512,7 +526,7 @@ test_that("colsample_bytree works", {
   ## Use colsample_bytree = 0.01, so that roughly one out of 100 features is chosen for
   ## each tree
   params <- xgb.params(
-    max_depth = 2, eta = 0, nthread = n_threads,
+    max_depth = 2, learning_rate = 0, nthread = n_threads,
     colsample_bytree = 0.01, objective = "binary:logistic",
     eval_metric = "auc"
   )
@@ -530,7 +544,8 @@ test_that("Configuration works", {
     nrounds = 2,
     params = xgb.params(
       max_depth = 2,
-      eta = 1, nthread = n_threads, objective = "binary:logistic"
+      nthread = n_threads,
+      objective = "binary:logistic"
     )
   )
   config <- xgb.config(bst)

@@ -39,12 +39,12 @@ bst <- xgb.train(
   nrounds = 2,
   params = xgb.params(
     max_depth = 2,
-    eta = 1,
+    learning_rate = 1,
     nthread = 2,
     objective = "binary:logistic"
   )
 )
 
-xgb.model.parameters(bst) <- list(eta = 0.1)
+xgb.model.parameters(bst) <- list(learning_rate = 0.1)
 
 }
