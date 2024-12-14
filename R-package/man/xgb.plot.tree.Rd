@@ -80,14 +80,10 @@ bst <- xgb.train(
 # plot the first tree
 xgb.plot.tree(model = bst, tree_idx = 1)
 
-
-\dontrun{
 # Below is an example of how to save this plot to a file.
-
-library(DiagrammeR)
-
-gr <- xgb.plot.tree(model = bst, tree_idx = 1)
-htmlwidgets::saveWidget(gr, 'plot.html')
+if (require("DiagrammeR") && require("htmlwidgets")) {
+  fname <- file.path(tempdir(), "plot.html'")
+  gr <- xgb.plot.tree(bst, tree_idx = 1)
+  htmlwidgets::saveWidget(gr, fname)
 }
-
 }
