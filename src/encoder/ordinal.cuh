@@ -277,7 +277,10 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
                      }
                    },
                    [&](auto&& values) {
-                     auto cat = values[f_local_idx];
+                     using T = typename std::decay_t<decltype(values)>::value_type;
+                     std::vector<std::remove_cv_t<T>> h_values(values.size());
+                     thrust::copy_n(dh::tcbegin(values), values.size(), h_values.data());
+                     auto cat = h_values[f_local_idx];
                      name << cat;
                    }},
         col);

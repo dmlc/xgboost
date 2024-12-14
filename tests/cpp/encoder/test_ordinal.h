@@ -114,6 +114,16 @@ void TestOrdinalEncoderInts() {
     encoder.Recode(orig_dict, new_dict, new_df.MappingView());
     ASSERT_EQ(new_df.Mapping(), sol);
   }
+  {
+    // Test error message.
+    auto df = DfTest::Make(DfTest::MakeInts(2, 1, 3, 0));
+    auto orig_dict = df.View();
+
+    auto new_df = DfTest::Make(DfTest::MakeInts(2, 0, 5));
+    auto new_dict = new_df.View();
+    ASSERT_THAT([&] { encoder.Recode(orig_dict, new_dict, new_df.MappingView()); },
+                ::testing::ThrowsMessage<std::logic_error>(::testing::HasSubstr("`5`")));
+  }
 }
 
 template <typename Encoder, typename DfTest>
