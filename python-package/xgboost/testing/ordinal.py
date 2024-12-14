@@ -31,6 +31,14 @@ def get_df_impl(device: str) -> Tuple[Type, Type]:
     return Df, Ser
 
 
+def asarray(device: str, data: Any) -> np.ndarray:
+    if device == "cpu":
+        return np.asarray(data)
+    import cupy as cp
+
+    return cp.asarray(data)
+
+
 def assert_allclose(device: str, a: Any, b: Any) -> None:
     """Dispatch the assert_allclose for devices."""
     if device == "cpu":
@@ -273,12 +281,12 @@ def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
 
         # used with the next df
         b_codes = df.b.cat.codes
-        np.testing.assert_allclose(np.asarray(b_codes), np.array([1, 0, 2]))
+        assert_allclose(device, asarray(device, b_codes), np.array([1, 0, 2]))
         # pick codes of 3, 1
         b_encoded = np.array([b_codes.iloc[2], b_codes.iloc[1]])
 
         c_codes = df.c.cat.codes
-        np.testing.assert_allclose(np.asarray(c_codes), np.array([1, 0, 2]))
+        assert_allclose(device, asarray(device, c_codes), np.array([1, 0, 2]))
         # pick codes of "def", "abc"
         c_encoded = np.array([c_codes.iloc[2], c_codes.iloc[1]])
         encoded = np.stack([b_encoded, c_encoded], axis=1)
@@ -323,7 +331,7 @@ def run_cat_invalid(device: Literal["cpu", "cuda"]) -> None:
 
 def run_cat_thread_safety(device: Literal["cpu", "cuda"]) -> None:
     """Basic tests for thread safety."""
-    X, y = make_categorical(2048, 16, 112, onehot=False, cat_ratio=0.5)
+    X, y = make_categorical(2048, 16, 112, onehot=False, cat_ratio=0.5, device=device)
     Xy = QuantileDMatrix(X, y, enable_categorical=True)
     booster = train({"device": device}, Xy, num_boost_round=10)
 

@@ -4,10 +4,15 @@ Categorical Data
 
 .. note::
 
-   As of XGBoost 1.6, the feature is experimental and has limited features. Only the
-   Python package is fully supported.
+    As of XGBoost 1.6, the feature is experimental and has limited features. Only the
+    Python package is fully supported.
 
-.. versionadded:: 3.0
+.. versionchanged:: 3.1.0
+
+    XGBoost Python package can remember the encoding of categories when the input is a
+    dataframe.
+
+.. versionadded:: 3.0.0
 
    Support for the R package using ``factor``.
 

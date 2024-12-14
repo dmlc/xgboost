@@ -904,7 +904,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             See notes in the :py:class:`DataIter` for consistency requirement when the
             input is an iterator.
 
-            JSON/UBJSON serialization format is required for this.
+            .. versionchanged:: 3.0.0
+
+            XGBoost can remember the encoding of categories when the input is a
+            dataframe.
 
         """
         if group is not None and qid is not None:

@@ -580,6 +580,7 @@ def pandas_transform_data(data: DataFrame) -> List[Union[np.ndarray, DfCatAccess
 
     for col, dtype in zip(data.columns, data.dtypes):
         if is_pa_ext_categorical_dtype(dtype):
+            # fixme: support pyarrow dtype.
             raise ValueError(
                 "pyarrow dictionary type is not supported. Use pandas category instead."
             )

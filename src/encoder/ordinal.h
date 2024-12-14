@@ -133,6 +133,7 @@ struct ColumnsViewImpl {
   [[nodiscard]] std::size_t Size() const { return columns.size(); }
   [[nodiscard]] bool Empty() const { return this->Size() == 0; }
   [[nodiscard]] auto operator[](std::size_t i) const { return columns[i]; }
+  [[nodiscard]] auto HasCategorical() const { return n_total_cats != 0; }
 };
 
 struct DftErrorHandler {
