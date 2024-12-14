@@ -242,10 +242,10 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       });
 
   auto err_it = thrust::find_if(
-      exec, mapping.cbegin(), mapping.cend(),
+      exec, dh::tcbegin(mapping), dh::tcend(mapping),
       cuda::proclaim_return_type<bool>([=] __device__(std::int32_t v) { return v == -1; }));
 
-  if (err_it != mapping.cend()) {
+  if (err_it != dh::tcend(mapping)) {
     // Report missing cat.
     std::vector<decltype(mapping)::value_type> h_mapping(mapping.size());
     thrust::copy_n(dh::tcbegin(mapping), mapping.size(), h_mapping.begin());
@@ -253,7 +253,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         new_enc.feature_segments.size());
     thrust::copy(dh::tcbegin(new_enc.feature_segments), dh::tcend(new_enc.feature_segments),
                  h_feature_segments.begin());
-    auto h_idx = std::distance(mapping.cbegin(), err_it);
+    auto h_idx = std::distance(dh::tcbegin(mapping), err_it);
     auto f_idx = dh::SegmentId(Span<std::int32_t const>{h_feature_segments}, h_idx);
     auto f_beg = h_feature_segments[f_idx];
     auto f_local_idx = h_idx - f_beg;
