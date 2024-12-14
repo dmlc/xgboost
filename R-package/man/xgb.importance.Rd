@@ -48,7 +48,9 @@ For a linear model:
 \itemize{
 \item \code{Features}: Names of the features used in the model.
 \item \code{Weight}: Linear coefficient of this feature.
-\item \code{Class}: Class label (only for multiclass models).
+\item \code{Class}: Class label (only for multiclass models). For objects of class \code{xgboost} (as
+produced by \code{\link[=xgboost]{xgboost()}}), it will be a \code{factor}, while for objects of class \code{xgb.Booster}
+(as produced by \code{\link[=xgb.train]{xgb.train()}}), it will be a zero-based integer vector.
 }
 
 If \code{feature_names} is not provided and \code{model} doesn't have \code{feature_names},
