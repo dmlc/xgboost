@@ -3,6 +3,7 @@
 """Training Library containing training routines."""
 import copy
 import os
+import weakref
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
@@ -146,9 +147,13 @@ def train(
 
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
     evals = list(evals) if evals else []
+
     for va, _ in evals:
+        if not isinstance(va, DMatrix):
+            raise TypeError("Invalid type for the `evals`,")
+
         if hasattr(va, "ref") and va.ref is not None:
-            if va is not dtrain and va.ref is not dtrain:
+            if va is not dtrain and va.ref is not weakref.ref(dtrain):
                 raise ValueError(
                     "Training dataset should be used as a reference when constructing "
                     "the `QuantileDMatrix` for evaluation."
