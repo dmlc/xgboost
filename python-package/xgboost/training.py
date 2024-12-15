@@ -152,12 +152,15 @@ def train(
         if not isinstance(va, DMatrix):
             raise TypeError("Invalid type for the `evals`.")
 
-        if hasattr(va, "ref") and va.ref is not None:
-            if va is not dtrain and va.ref is not weakref.ref(dtrain):
-                raise ValueError(
-                    "Training dataset should be used as a reference when constructing "
-                    "the `QuantileDMatrix` for evaluation."
-                )
+        if (
+            hasattr(va, "ref")
+            and va.ref is not weakref.ref(dtrain)
+            and va is not dtrain
+        ):
+            raise ValueError(
+                "Training dataset should be used as a reference when constructing "
+                "the `QuantileDMatrix` for evaluation."
+            )
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0
