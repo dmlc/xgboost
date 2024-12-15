@@ -770,7 +770,8 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
 }
 
-void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx) {
+void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx, DataSplitMode split_mode) {
+  this->data_split_mode = split_mode;
   auto op = IsColumnSplit() ? collective::Op::kSum : collective::Op::kMax;
   auto rc = collective::Allreduce(ctx, linalg::MakeVec(&num_col_, 1), op);
   collective::SafeColl(rc);

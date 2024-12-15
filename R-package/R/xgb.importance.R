@@ -12,15 +12,11 @@
 #' @param feature_names Character vector used to overwrite the feature names
 #'   of the model. The default is `NULL` (use original feature names).
 #' @param model Object of class `xgb.Booster`.
-#' @param trees An integer vector of tree indices that should be included
+#' @param trees An integer vector of (base-1) tree indices that should be included
 #'   into the importance calculation (only for the "gbtree" booster).
 #'   The default (`NULL`) parses all trees.
 #'   It could be useful, e.g., in multiclass classification to get feature importances
-#'   for each class separately. *Important*: the tree index in XGBoost models
-#'   is zero-based (e.g., use `trees = 0:4` for the first five trees).
-#' @param data Deprecated.
-#' @param label Deprecated.
-#' @param target Deprecated.
+#'   for each class separately.
 #' @return A `data.table` with the following columns:
 #'
 #' For a tree model:
@@ -94,13 +90,13 @@
 #'
 #' # inspect importances separately for each class:
 #' xgb.importance(
-#'   model = mbst, trees = seq(from = 0, by = nclass, length.out = nrounds)
-#' )
-#' xgb.importance(
 #'   model = mbst, trees = seq(from = 1, by = nclass, length.out = nrounds)
 #' )
 #' xgb.importance(
 #'   model = mbst, trees = seq(from = 2, by = nclass, length.out = nrounds)
+#' )
+#' xgb.importance(
+#'   model = mbst, trees = seq(from = 3, by = nclass, length.out = nrounds)
 #' )
 #'
 #' # multiclass classification using "gblinear":
@@ -122,14 +118,20 @@
 #' xgb.importance(model = mbst)
 #'
 #' @export
-xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature_name"), trees = NULL,
-                           data = NULL, label = NULL, target = NULL) {
-
-  if (!(is.null(data) && is.null(label) && is.null(target)))
-    warning("xgb.importance: parameters 'data', 'label' and 'target' are deprecated")
+xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature_name"), trees = NULL) {
 
   if (!(is.null(feature_names) || is.character(feature_names)))
     stop("feature_names: Has to be a character vector")
+
+  if (!is.null(trees)) {
+    if (!is.vector(trees)) {
+      stop("'trees' must be a vector of tree indices.")
+    }
+    trees <- trees - 1L
+    if (anyNA(trees)) {
+      stop("Passed invalid tree indices.")
+    }
+  }
 
   handle <- xgb.get.handle(model)
   if (xgb.booster_type(model) == "gblinear") {

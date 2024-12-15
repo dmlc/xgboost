@@ -7,10 +7,7 @@
 xgb.importance(
   model = NULL,
   feature_names = getinfo(model, "feature_name"),
-  trees = NULL,
-  data = NULL,
-  label = NULL,
-  target = NULL
+  trees = NULL
 )
 }
 \arguments{
@@ -19,18 +16,11 @@ xgb.importance(
 \item{feature_names}{Character vector used to overwrite the feature names
 of the model. The default is \code{NULL} (use original feature names).}
 
-\item{trees}{An integer vector of tree indices that should be included
+\item{trees}{An integer vector of (base-1) tree indices that should be included
 into the importance calculation (only for the "gbtree" booster).
 The default (\code{NULL}) parses all trees.
 It could be useful, e.g., in multiclass classification to get feature importances
-for each class separately. \emph{Important}: the tree index in XGBoost models
-is zero-based (e.g., use \code{trees = 0:4} for the first five trees).}
-
-\item{data}{Deprecated.}
-
-\item{label}{Deprecated.}
-
-\item{target}{Deprecated.}
+for each class separately.}
 }
 \value{
 A \code{data.table} with the following columns:
@@ -120,13 +110,13 @@ xgb.importance(model = mbst)
 
 # inspect importances separately for each class:
 xgb.importance(
-  model = mbst, trees = seq(from = 0, by = nclass, length.out = nrounds)
-)
-xgb.importance(
   model = mbst, trees = seq(from = 1, by = nclass, length.out = nrounds)
 )
 xgb.importance(
   model = mbst, trees = seq(from = 2, by = nclass, length.out = nrounds)
+)
+xgb.importance(
+  model = mbst, trees = seq(from = 3, by = nclass, length.out = nrounds)
 )
 
 # multiclass classification using "gblinear":

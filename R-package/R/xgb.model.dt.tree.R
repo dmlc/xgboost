@@ -8,10 +8,9 @@
 #'   be set through [setinfo()]), they will be used in the output from this function.
 #'
 #'   If the model contains categorical features, an error will be thrown.
-#' @param trees An integer vector of tree indices that should be used. The default
+#' @param trees An integer vector of (base-1) tree indices that should be used. The default
 #'   (`NULL`) uses all trees. Useful, e.g., in multiclass classification to get only
-#'   the trees of one class. *Important*: the tree index in XGBoost models
-#'   is zero-based (e.g., use `trees = 0:4` for the first five trees).
+#'   the trees of one class.
 #' @param use_int_id A logical flag indicating whether nodes in columns "Yes", "No", and
 #'   "Missing" should be represented as integers (when `TRUE`) or as "Tree-Node"
 #'   character strings (when `FALSE`, default).
@@ -78,8 +77,14 @@ xgb.model.dt.tree <- function(model, trees = NULL, use_int_id = FALSE, ...) {
     stop("Cannot produce tables for models having categorical features.")
   }
 
-  if (!(is.null(trees) || is.numeric(trees))) {
-    stop("trees: must be a vector of integers.")
+  if (!is.null(trees)) {
+    if (!is.vector(trees) || (!is.numeric(trees) && !is.integer(trees))) {
+      stop("trees: must be a vector of integers.")
+    }
+    trees <- trees - 1L
+    if (anyNA(trees) || min(trees) < 0) {
+      stop("Passed invalid tree indices.")
+    }
   }
 
   feature_names <- NULL

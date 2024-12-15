@@ -12,10 +12,9 @@ be set through \code{\link[=setinfo]{setinfo()}}), they will be used in the outp
 
 If the model contains categorical features, an error will be thrown.}
 
-\item{trees}{An integer vector of tree indices that should be used. The default
+\item{trees}{An integer vector of (base-1) tree indices that should be used. The default
 (\code{NULL}) uses all trees. Useful, e.g., in multiclass classification to get only
-the trees of one class. \emph{Important}: the tree index in XGBoost models
-is zero-based (e.g., use \code{trees = 0:4} for the first five trees).}
+the trees of one class.}
 
 \item{use_int_id}{A logical flag indicating whether nodes in columns "Yes", "No", and
 "Missing" should be represented as integers (when \code{TRUE}) or as "Tree-Node"

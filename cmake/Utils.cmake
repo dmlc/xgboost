@@ -81,7 +81,8 @@ function(xgboost_set_cuda_flags target)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xfatbin=-compress-all>
-    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
+    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>
+  )
 
   if(FORCE_COLORED_OUTPUT)
     if(FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
@@ -199,6 +200,12 @@ macro(xgboost_target_properties target)
 
   if(WIN32 AND MINGW)
     target_compile_options(${target} PUBLIC -static-libstdc++)
+  endif()
+
+  if(NOT WIN32 AND ENABLE_ALL_WARNINGS)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Werror=cross-execution-space-call>
+    )
   endif()
 endmacro()
 
