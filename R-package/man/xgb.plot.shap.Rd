@@ -139,7 +139,7 @@ bst <- xgb.train(
   nrounds = nrounds,
   verbose = 0,
   params = xgb.params(
-    eta = 0.1,
+    learning_rate = 0.1,
     max_depth = 3,
     subsample = 0.5,
     objective = "binary:logistic",
@@ -167,14 +167,13 @@ mbst <- xgb.train(
   verbose = 0,
   params = xgb.params(
     max_depth = 2,
-    eta = 0.3,
     subsample = 0.5,
     nthread = nthread,
     objective = "multi:softprob",
     num_class = nclass
   )
 )
-trees0 <- seq(from = 0, by = nclass, length.out = nrounds)
+trees0 <- seq(from = 1, by = nclass, length.out = nrounds)
 col <- rgb(0, 0, 1, 0.5)
 
 xgb.plot.shap(

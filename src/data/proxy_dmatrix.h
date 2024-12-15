@@ -173,7 +173,7 @@ struct ExternalDataInfo {
     info.num_row_ = this->accumulated_rows;
     info.num_col_ = this->n_features;
     info.num_nonzero_ = this->nnz;
-    info.SynchronizeNumberOfColumns(ctx);
+    info.SynchronizeNumberOfColumns(ctx, DataSplitMode::kRow);
     this->Validate();
   }
 };

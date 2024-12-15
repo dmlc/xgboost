@@ -30,8 +30,10 @@ if (isTRUE(VCD_AVAILABLE)) {
       nrounds = nrounds, verbose = 0,
       params = xgb.params(
         max_depth = 9,
-        eta = 1, nthread = 2,
-        objective = "binary:logistic", booster = "gbtree",
+        learning_rate = 1,
+        nthread = 2,
+        objective = "binary:logistic",
+        booster = "gbtree",
         base_score = 0.5
       )
     )
@@ -40,8 +42,10 @@ if (isTRUE(VCD_AVAILABLE)) {
       data = xgb.DMatrix(sparse_matrix, label = label),
       nrounds = nrounds, verbose = 0,
       params = xgb.params(
-        eta = 1, nthread = 1,
-        objective = "binary:logistic", booster = "gblinear",
+        learning_rate = 1,
+        nthread = 1,
+        objective = "binary:logistic",
+        booster = "gblinear",
         base_score = 0.5
       )
     )
@@ -61,7 +65,7 @@ mbst.Tree <- xgb.train(
   verbose = 0,
   nrounds = nrounds,
   params = xgb.params(
-    max_depth = 3, eta = 0.5, nthread = 2,
+    max_depth = 3, learning_rate = 0.5, nthread = 2,
     objective = "multi:softprob", num_class = nclass, base_score = 0
   )
 )
@@ -71,7 +75,7 @@ mbst.GLM <- xgb.train(
   verbose = 0,
   nrounds = nrounds,
   params = xgb.params(
-    booster = "gblinear", eta = 0.1, nthread = 1,
+    booster = "gblinear", learning_rate = 0.1, nthread = 1,
     objective = "multi:softprob", num_class = nclass, base_score = 0
   )
 )
@@ -101,9 +105,11 @@ test_that("xgb.dump works for gblinear", {
     data = xgb.DMatrix(sparse_matrix, label = label),
     nrounds = 1,
     params = xgb.params(
-      eta = 1,
+      learning_rate = 1,
       nthread = 2,
-      alpha = 2, objective = "binary:logistic", booster = "gblinear"
+      reg_alpha = 2,
+      objective = "binary:logistic",
+      booster = "gblinear"
     )
   )
   d.sp <- xgb.dump(bst.GLM.sp)
@@ -352,13 +358,12 @@ test_that("xgb.importance works with and without feature names", {
   imp.Tree <- xgb.importance(model = mbst.Tree)
   expect_equal(dim(imp.Tree), c(4, 4))
 
-  trees <- seq(from = 0, by = 2, length.out = 2)
+  trees <- seq(from = 1, by = 2, length.out = 2)
   importance <- xgb.importance(feature_names = feature.names, model = bst.Tree, trees = trees)
 
   importance_from_dump <- function() {
-    model_text_dump <- xgb.dump(model = bst.Tree, with_stats = TRUE)
     imp <- xgb.model.dt.tree(
-      text = model_text_dump,
+      model = bst.Tree,
       trees = trees
     )[
       Feature != "Leaf", .(
@@ -420,7 +425,8 @@ test_that("xgb.model.dt.tree and xgb.importance work with a single split model",
     nrounds = 1, verbose = 0,
     params = xgb.params(
       max_depth = 1,
-      eta = 1, nthread = 2,
+      learning_rate = 1,
+      nthread = 2,
       objective = "binary:logistic"
     )
   )

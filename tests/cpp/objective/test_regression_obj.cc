@@ -124,6 +124,167 @@ void TestsLogisticRawGPair(const Context* ctx) {
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
 }
 
+void TestPoissonRegressionGPair(const Context* ctx) {
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj {
+    ObjFunction::Create("count:poisson", ctx)
+  };
+
+  args.emplace_back("max_delta_step", "0.1f");
+  obj->Configure(args);
+
+  CheckObjFunction(obj,
+                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
+                   {   0,    0,    0,    0,    1,    1,    1,    1},
+                   {   1,    1,    1,    1,    1,    1,    1,    1},
+                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
+                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+  CheckObjFunction(obj,
+                   {   0,  0.1f,  0.9f,    1,    0,  0.1f,  0.9f,    1},
+                   {   0,    0,    0,    0,    1,    1,    1,    1},
+                   {},  // Empty weight
+                   {   1, 1.10f, 2.45f, 2.71f,    0, 0.10f, 1.45f, 1.71f},
+                   {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
+}
+
+void TestPoissonRegressionBasic(const Context* ctx) {
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj {
+    ObjFunction::Create("count:poisson", ctx)
+  };
+
+  obj->Configure(args);
+  CheckConfigReload(obj, "count:poisson");
+
+  // test label validation
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))
+    << "Expected error when label < 0 for PoissonRegression";
+
+  // test ProbToMargin
+  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+
+  // test PredTransform
+  HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  std::vector<bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
+    EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
+  }
+}
+
+void TestGammaRegressionGPair(const Context* ctx) {
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj {
+    ObjFunction::Create("reg:gamma", ctx)
+  };
+
+  obj->Configure(args);
+  CheckObjFunction(obj,
+                   {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
+                   {2,   2,   2,   2, 1,    1,    1,    1},
+                   {1,   1,   1,   1, 1,    1,    1,    1},
+                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+  CheckObjFunction(obj,
+                   {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
+                   {2,   2,   2,   2, 1,    1,    1,    1},
+                   {},  // Empty weight
+                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
+}
+
+void TestGammaRegressionBasic(const Context* ctx) {
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx)};
+
+  obj->Configure(args);
+  CheckConfigReload(obj, "reg:gamma");
+
+  // test label validation
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {0}, {1}, {0}, {0}))
+    << "Expected error when label = 0 for GammaRegression";
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {-1}, {-1}, {1}, {-1}, {-3}))
+    << "Expected error when label < 0 for GammaRegression";
+
+  // test ProbToMargin
+  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+
+  // test PredTransform
+  HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  std::vector<bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
+    EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
+  }
+}
+
+void TestTweedieRegressionGPair(const Context* ctx) {
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx)};
+
+  args.emplace_back("tweedie_variance_power", "1.1f");
+  obj->Configure(args);
+
+  CheckObjFunction(obj,
+                   {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
+                   {   0,    0,    0,    0, 1,    1,    1,    1},
+                   {   1,    1,    1,    1, 1,    1,    1,    1},
+                   {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
+                   {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
+  CheckObjFunction(obj,
+                   {   0,  0.1f,  0.9f,    1, 0,  0.1f,  0.9f,    1},
+                   {   0,    0,    0,    0, 1,    1,    1,    1},
+                   {},  // Empty weight.
+                   {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
+                   {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"tweedie-nloglik@1.1"});
+}
+
+void TestTweedieRegressionBasic(const Context* ctx) {
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx)};
+
+  obj->Configure(args);
+  CheckConfigReload(obj, "reg:tweedie");
+
+  // test label validation
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))
+    << "Expected error when label < 0 for TweedieRegression";
+
+  // test ProbToMargin
+  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
+  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+
+  // test PredTransform
+  HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
+  std::vector<bst_float> out_preds = {1, 1.10f, 1.64f, 2.45f, 2.71f};
+  obj->PredTransform(&io_preds);
+  auto& preds = io_preds.HostVector();
+  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
+    EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
+  }
+}
+
+void TestCoxRegressionGPair(const Context* ctx) {
+  std::vector<std::pair<std::string, std::string>> args;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};
+
+  obj->Configure(args);
+  CheckObjFunction(obj,
+                   { 0, 0.1f, 0.9f,       1,       0,    0.1f,   0.9f,       1},
+                   { 0,   -2,   -2,       2,       3,       5,    -10,     100},
+                   { 1,    1,    1,       1,       1,       1,      1,       1},
+                   { 0,    0,    0, -0.799f, -0.788f, -0.590f, 0.910f,  1.006f},
+                   { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
+}
+
 void TestAbsoluteError(const Context* ctx) {
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
   obj->Configure({});

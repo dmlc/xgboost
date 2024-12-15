@@ -207,7 +207,6 @@ cv <- xgb.cv(
   params = xgb.params(
     nthread = 2,
     max_depth = 3,
-    eta = 1,
     objective = "binary:logistic"
   ),
   nfold = 5,

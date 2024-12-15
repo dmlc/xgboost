@@ -226,7 +226,6 @@ bst <- xgb.train(
   nrounds = 5,
   params = xgb.params(
     max_depth = 2,
-    eta = 0.5,
     nthread = nthread,
     objective = "binary:logistic"
   )
@@ -271,7 +270,6 @@ bst <- xgb.train(
   nrounds = 10,
   params = xgb.params(
     max_depth = 4,
-    eta = 0.5,
     nthread = 2,
     subsample = 0.5,
     objective = "multi:softprob",
@@ -295,7 +293,6 @@ bst <- xgb.train(
   nrounds = 10,
   params = xgb.params(
     max_depth = 4,
-    eta = 0.5,
     nthread = 2,
     subsample = 0.5,
     objective = "multi:softmax",

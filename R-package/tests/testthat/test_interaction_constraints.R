@@ -18,7 +18,8 @@ test_that("interaction constraints for regression", {
     nrounds = 100, verbose = 0,
     params = xgb.params(
       max_depth = 3,
-      eta = 0.1, nthread = 2,
+      learning_rate = 0.1,
+      nthread = 2,
       interaction_constraints = list(c(0, 1))
     )
   )

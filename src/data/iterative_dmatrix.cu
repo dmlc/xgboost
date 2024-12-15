@@ -100,7 +100,6 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   }
 
   iter.Reset();
-  // Synchronise worker columns
 }
 
 IterativeDMatrix::IterativeDMatrix(std::shared_ptr<EllpackPage> ellpack, MetaInfo const& info,

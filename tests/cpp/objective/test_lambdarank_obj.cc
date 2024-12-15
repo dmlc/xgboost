@@ -246,9 +246,9 @@ void TestMAPStat(Context const* ctx) {
 
     predt.SetDevice(ctx->Device());
     auto rank_idx =
-        p_cache->SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+        p_cache->SortedIdx(ctx, !ctx->IsCUDA() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
 
-    if (ctx->IsCPU()) {
+    if (!ctx->IsCUDA()) {
       obj::cpu_impl::MAPStat(ctx, info.labels.HostView().Slice(linalg::All(), 0), rank_idx,
                              p_cache);
     } else {
@@ -283,9 +283,9 @@ void TestMAPStat(Context const* ctx) {
 
     predt.SetDevice(ctx->Device());
     auto rank_idx =
-        p_cache->SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+        p_cache->SortedIdx(ctx, !ctx->IsCUDA() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
 
-    if (ctx->IsCPU()) {
+    if (!ctx->IsCUDA()) {
       obj::cpu_impl::MAPStat(ctx, info.labels.HostView().Slice(linalg::All(), 0), rank_idx,
                              p_cache);
     } else {

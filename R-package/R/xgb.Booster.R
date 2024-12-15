@@ -267,7 +267,6 @@ xgb.get.handle <- function(object) {
 #'   nrounds = 5,
 #'   params = xgb.params(
 #'     max_depth = 2,
-#'     eta = 0.5,
 #'     nthread = nthread,
 #'     objective = "binary:logistic"
 #'   )
@@ -312,7 +311,6 @@ xgb.get.handle <- function(object) {
 #'   nrounds = 10,
 #'   params = xgb.params(
 #'     max_depth = 4,
-#'     eta = 0.5,
 #'     nthread = 2,
 #'     subsample = 0.5,
 #'     objective = "multi:softprob",
@@ -336,7 +334,6 @@ xgb.get.handle <- function(object) {
 #'   nrounds = 10,
 #'   params = xgb.params(
 #'     max_depth = 4,
-#'     eta = 0.5,
 #'     nthread = 2,
 #'     subsample = 0.5,
 #'     objective = "multi:softmax",
@@ -669,7 +666,6 @@ validate.features <- function(bst, newdata) {
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
-#'     eta = 1,
 #'     nthread = 2,
 #'     objective = "binary:logistic"
 #'   )
@@ -777,7 +773,6 @@ xgb.attributes <- function(object) {
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
-#'     eta = 1,
 #'     nthread = nthread,
 #'     objective = "binary:logistic"
 #'   )
@@ -832,13 +827,13 @@ xgb.config <- function(object) {
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
-#'     eta = 1,
+#'     learning_rate = 1,
 #'     nthread = 2,
 #'     objective = "binary:logistic"
 #'   )
 #' )
 #'
-#' xgb.model.parameters(bst) <- list(eta = 0.1)
+#' xgb.model.parameters(bst) <- list(learning_rate = 0.1)
 #'
 #' @rdname xgb.model.parameters
 #' @export
@@ -1051,6 +1046,10 @@ xgb.best_iteration <- function(bst) {
     out <- NULL
   }
   return(out)
+}
+
+xgb.has_categ_features <- function(bst) {
+  return("c" %in% xgb.feature_types(bst))
 }
 
 #' Extract coefficients from linear booster
@@ -1279,7 +1278,6 @@ xgb.is.same.Booster <- function(obj1, obj2) {
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
-#'     eta = 1,
 #'     nthread = 2,
 #'     objective = "binary:logistic"
 #'   )

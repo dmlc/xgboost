@@ -78,10 +78,10 @@ DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
   return out;
 }
 
-void SimpleDMatrix::ReindexFeatures(Context const* ctx) {
-  if (info_.IsColumnSplit() && collective::GetWorldSize() > 1) {
+void SimpleDMatrix::ReindexFeatures(Context const* ctx, DataSplitMode split_mode) {
+  if (split_mode == DataSplitMode::kCol && collective::GetWorldSize() > 1) {
     std::vector<std::uint64_t> buffer(collective::GetWorldSize());
-    buffer[collective::GetRank()] = info_.num_col_;
+    buffer[collective::GetRank()] = this->info_.num_col_;
     auto rc = collective::Allgather(ctx, linalg::MakeVec(buffer.data(), buffer.size()));
     SafeColl(rc);
     auto offset = std::accumulate(buffer.cbegin(), buffer.cbegin() + collective::GetRank(), 0);
@@ -287,10 +287,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
     info_.num_col_ = adapter->NumColumns();
   }
 
-  // Synchronise worker columns
-  info_.data_split_mode = data_split_mode;
-  ReindexFeatures(&ctx);
-  info_.SynchronizeNumberOfColumns(&ctx);
+  // Must called before sync column
+  this->ReindexFeatures(&ctx, data_split_mode);
+  this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT =

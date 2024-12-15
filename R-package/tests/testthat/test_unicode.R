@@ -13,7 +13,7 @@ test_that("Can save and load models with Unicode paths", {
     nrounds = nrounds,
     params = xgb.params(
       max_depth = 2,
-      eta = 1, nthread = 2,
+      nthread = 2,
       objective = "binary:logistic"
     )
   )

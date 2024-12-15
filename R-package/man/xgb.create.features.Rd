@@ -62,7 +62,7 @@ data(agaricus.test, package = "xgboost")
 dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
 
-param <- list(max_depth = 2, eta = 1, objective = 'binary:logistic', nthread = 1)
+param <- list(max_depth = 2, learning_rate = 1, objective = 'binary:logistic', nthread = 1)
 nrounds = 4
 
 bst <- xgb.train(params = param, data = dtrain, nrounds = nrounds)

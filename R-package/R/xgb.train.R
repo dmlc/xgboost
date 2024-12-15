@@ -157,7 +157,6 @@
 #' ## A simple xgb.train example:
 #' param <- xgb.params(
 #'   max_depth = 2,
-#'   eta = 1,
 #'   nthread = nthread,
 #'   objective = "binary:logistic",
 #'   eval_metric = "auc"
@@ -183,7 +182,6 @@
 #' # 'eval_metric' parameters in the params list:
 #' param <- xgb.params(
 #'   max_depth = 2,
-#'   eta = 1,
 #'   nthread = nthread,
 #'   objective = logregobj,
 #'   eval_metric = evalerror
@@ -201,12 +199,12 @@
 #' ## An xgb.train example of using variable learning rates at each iteration:
 #' param <- xgb.params(
 #'   max_depth = 2,
-#'   eta = 1,
+#'   learning_rate = 1,
 #'   nthread = nthread,
 #'   objective = "binary:logistic",
 #'   eval_metric = "auc"
 #' )
-#' my_etas <- list(eta = c(0.5, 0.1))
+#' my_learning_rates <- list(learning_rate = c(0.5, 0.1))
 #'
 #' bst <- xgb.train(
 #'  param,
@@ -214,7 +212,7 @@
 #'  nrounds = 2,
 #'  evals = evals,
 #'  verbose = 0,
-#'  callbacks = list(xgb.cb.reset.parameters(my_etas))
+#'  callbacks = list(xgb.cb.reset.parameters(my_learning_rates))
 #' )
 #'
 #' ## Early stopping:

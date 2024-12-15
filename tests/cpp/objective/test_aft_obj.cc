@@ -10,11 +10,11 @@
 #include "xgboost/objective.h"
 #include "xgboost/logging.h"
 #include "../helpers.h"
+#include "test_aft_obj.h"
 
 namespace xgboost::common {
-TEST(Objective, DeclareUnifiedTest(AFTObjConfiguration)) {
-  auto ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<ObjFunction> objective(ObjFunction::Create("survival:aft", &ctx));
+void TestAFTObjConfiguration(const Context* ctx) {
+  std::unique_ptr<ObjFunction> objective(ObjFunction::Create("survival:aft", ctx));
   objective->Configure({ {"aft_loss_distribution", "logistic"},
                           {"aft_loss_distribution_scale", "5"} });
 
@@ -73,9 +73,8 @@ static inline void CheckGPairOverGridPoints(
   }
 }
 
-TEST(Objective, DeclareUnifiedTest(AFTObjGPairUncensoredLabels)) {
-  auto ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &ctx));
+void TestAFTObjGPairUncensoredLabels(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", ctx));
 
   CheckGPairOverGridPoints(obj.get(), 100.0f, 100.0f, "normal",
     { -3.9120f, -3.4013f, -2.8905f, -2.3798f, -1.8691f, -1.3583f, -0.8476f, -0.3368f, 0.1739f,
@@ -97,9 +96,8 @@ TEST(Objective, DeclareUnifiedTest(AFTObjGPairUncensoredLabels)) {
       0.3026f, 0.1816f, 0.1090f, 0.0654f, 0.0392f, 0.0235f, 0.0141f, 0.0085f, 0.0051f, 0.0031f });
 }
 
-TEST(Objective, DeclareUnifiedTest(AFTObjGPairLeftCensoredLabels)) {
-  auto ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &ctx));
+void TestAFTObjGPairLeftCensoredLabels(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", ctx));
 
   CheckGPairOverGridPoints(obj.get(), 0.0f, 20.0f, "normal",
     { 0.0285f, 0.0832f, 0.1951f, 0.3804f, 0.6403f, 0.9643f, 1.3379f, 1.7475f, 2.1828f, 2.6361f,
@@ -118,9 +116,8 @@ TEST(Objective, DeclareUnifiedTest(AFTObjGPairLeftCensoredLabels)) {
       0.0296f, 0.0179f, 0.0108f, 0.0065f, 0.0039f, 0.0024f, 0.0014f, 0.0008f, 0.0005f, 0.0003f });
 }
 
-TEST(Objective, DeclareUnifiedTest(AFTObjGPairRightCensoredLabels)) {
-  auto ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &ctx));
+void TestAFTObjGPairRightCensoredLabels(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", ctx));
 
   CheckGPairOverGridPoints(obj.get(), 60.0f, std::numeric_limits<float>::infinity(), "normal",
     { -3.6583f, -3.1815f, -2.7135f, -2.2577f, -1.8190f, -1.4044f, -1.0239f, -0.6905f, -0.4190f,
@@ -142,9 +139,8 @@ TEST(Objective, DeclareUnifiedTest(AFTObjGPairRightCensoredLabels)) {
       0.1816f, 0.1089f, 0.0654f, 0.0392f, 0.0235f, 0.0141f, 0.0085f, 0.0051f, 0.0031f, 0.0018f });
 }
 
-TEST(Objective, DeclareUnifiedTest(AFTObjGPairIntervalCensoredLabels)) {
-  auto ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &ctx));
+void TestAFTObjGPairIntervalCensoredLabels(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", ctx));
 
   CheckGPairOverGridPoints(obj.get(), 16.0f, 200.0f, "normal",
     { -2.4435f, -1.9965f, -1.5691f, -1.1679f, -0.7990f, -0.4649f, -0.1596f, 0.1336f, 0.4370f,

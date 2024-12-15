@@ -172,7 +172,6 @@ class MetaInfo {
    *                     columns.
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
-
   /**
    * @brief Synchronize the number of columns across all workers.
    *
@@ -180,23 +179,20 @@ class MetaInfo {
    * in vertical federated learning, since each worker loads its own list of columns,
    * we need to sum them.
    */
-  void SynchronizeNumberOfColumns(Context const* ctx);
+  void SynchronizeNumberOfColumns(Context const* ctx, DataSplitMode split_mode);
 
-  /*! \brief Whether the data is split row-wise. */
-  bool IsRowSplit() const {
-    return data_split_mode == DataSplitMode::kRow;
-  }
-
+  /** @brief Whether the data is split row-wise. */
+  [[nodiscard]] bool IsRowSplit() const { return data_split_mode == DataSplitMode::kRow; }
   /** @brief Whether the data is split column-wise. */
-  bool IsColumnSplit() const { return data_split_mode == DataSplitMode::kCol; }
+  [[nodiscard]] bool IsColumnSplit() const { return data_split_mode == DataSplitMode::kCol; }
   /** @brief Whether this is a learning to rank data. */
-  bool IsRanking() const { return !group_ptr_.empty(); }
+  [[nodiscard]] bool IsRanking() const { return !group_ptr_.empty(); }
 
-  /*!
-   * \brief A convenient method to check if we are doing vertical federated learning, which requires
+  /**
+   * @brief A convenient method to check if we are doing vertical federated learning, which requires
    * some special processing.
    */
-  bool IsVerticalFederated() const;
+  [[nodiscard]] bool IsVerticalFederated() const;
 
   /*!
    * \brief A convenient method to check if the MetaInfo should contain labels.
@@ -330,10 +326,9 @@ struct HostSparsePageView {
   common::Span<bst_idx_t const> offset;
   common::Span<Entry const> data;
 
-  Inst operator[](size_t i) const {
+  [[nodiscard]] Inst operator[](std::size_t i) const {
     auto size = *(offset.data() + i + 1) - *(offset.data() + i);
-    return {data.data() + *(offset.data() + i),
-            static_cast<Inst::index_type>(size)};
+    return {data.data() + *(offset.data() + i), static_cast<Inst::index_type>(size)};
   }
 
   [[nodiscard]] size_t Size() const { return offset.size() == 0 ? 0 : offset.size() - 1; }

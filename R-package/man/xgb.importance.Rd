@@ -7,10 +7,7 @@
 xgb.importance(
   model = NULL,
   feature_names = getinfo(model, "feature_name"),
-  trees = NULL,
-  data = NULL,
-  label = NULL,
-  target = NULL
+  trees = NULL
 )
 }
 \arguments{
@@ -19,18 +16,11 @@ xgb.importance(
 \item{feature_names}{Character vector used to overwrite the feature names
 of the model. The default is \code{NULL} (use original feature names).}
 
-\item{trees}{An integer vector of tree indices that should be included
+\item{trees}{An integer vector of (base-1) tree indices that should be included
 into the importance calculation (only for the "gbtree" booster).
 The default (\code{NULL}) parses all trees.
 It could be useful, e.g., in multiclass classification to get feature importances
-for each class separately. \emph{Important}: the tree index in XGBoost models
-is zero-based (e.g., use \code{trees = 0:4} for the first five trees).}
-
-\item{data}{Deprecated.}
-
-\item{label}{Deprecated.}
-
-\item{target}{Deprecated.}
+for each class separately.}
 }
 \value{
 A \code{data.table} with the following columns:
@@ -48,7 +38,9 @@ For a linear model:
 \itemize{
 \item \code{Features}: Names of the features used in the model.
 \item \code{Weight}: Linear coefficient of this feature.
-\item \code{Class}: Class label (only for multiclass models).
+\item \code{Class}: Class label (only for multiclass models). For objects of class \code{xgboost} (as
+produced by \code{\link[=xgboost]{xgboost()}}), it will be a \code{factor}, while for objects of class \code{xgb.Booster}
+(as produced by \code{\link[=xgb.train]{xgb.train()}}), it will be a zero-based integer vector.
 }
 
 If \code{feature_names} is not provided and \code{model} doesn't have \code{feature_names},
@@ -75,7 +67,6 @@ bst <- xgb.train(
   nrounds = 2,
   params = xgb.params(
     max_depth = 2,
-    eta = 1,
     nthread = 2,
     objective = "binary:logistic"
   )
@@ -89,7 +80,7 @@ bst <- xgb.train(
   nrounds = 20,
   params = xgb.params(
     booster = "gblinear",
-    eta = 0.3,
+    learning_rate = 0.3,
     nthread = 1,
     objective = "binary:logistic"
   )
@@ -108,7 +99,6 @@ mbst <- xgb.train(
   nrounds = nrounds,
   params = xgb.params(
     max_depth = 3,
-    eta = 0.2,
     nthread = 2,
     objective = "multi:softprob",
     num_class = nclass
@@ -120,13 +110,13 @@ xgb.importance(model = mbst)
 
 # inspect importances separately for each class:
 xgb.importance(
-  model = mbst, trees = seq(from = 0, by = nclass, length.out = nrounds)
-)
-xgb.importance(
   model = mbst, trees = seq(from = 1, by = nclass, length.out = nrounds)
 )
 xgb.importance(
   model = mbst, trees = seq(from = 2, by = nclass, length.out = nrounds)
+)
+xgb.importance(
+  model = mbst, trees = seq(from = 3, by = nclass, length.out = nrounds)
 )
 
 # multiclass classification using "gblinear":
@@ -138,7 +128,7 @@ mbst <- xgb.train(
   nrounds = 15,
   params = xgb.params(
     booster = "gblinear",
-    eta = 0.2,
+    learning_rate = 0.2,
     nthread = 1,
     objective = "multi:softprob",
     num_class = nclass

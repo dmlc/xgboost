@@ -50,6 +50,9 @@ line.
 Visualization of the ensemble of trees as a single collective unit.
 }
 \details{
+Note that this function does not work with models that were fitted to
+categorical data.
+
 This function tries to capture the complexity of a gradient boosted tree model
 in a cohesive way by compressing an ensemble of trees into a single tree-graph representation.
 The goal is to improve the interpretability of a model generally seen as black box.
@@ -81,7 +84,7 @@ bst <- xgb.train(
   verbose = 0,
   params = xgb.params(
     max_depth = 15,
-    eta = 1,
+    learning_rate = 1,
     nthread = nthread,
     objective = "binary:logistic",
     min_child_weight = 50
@@ -91,15 +94,10 @@ bst <- xgb.train(
 p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
 print(p)
 
-\dontrun{
 # Below is an example of how to save this plot to a file.
-# Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages
-# must also be installed.
-
-library(DiagrammeR)
-
-gr <- xgb.plot.multi.trees(model = bst, features_keep = 3, render = FALSE)
-export_graph(gr, "tree.pdf", width = 1500, height = 600)
+if (require("DiagrammeR") && require("DiagrammeRsvg") && require("rsvg")) {
+  fname <- file.path(tempdir(), "tree.pdf")
+  gr <- xgb.plot.multi.trees(bst, features_keep = 3, render = FALSE)
+  export_graph(gr, fname, width = 1500, height = 600)
 }
-
 }
