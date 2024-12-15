@@ -29,7 +29,9 @@
 #' For a linear model:
 #' - `Features`: Names of the features used in the model.
 #' - `Weight`: Linear coefficient of this feature.
-#' - `Class`: Class label (only for multiclass models).
+#' - `Class`: Class label (only for multiclass models). For objects of class `xgboost` (as
+#'   produced by [xgboost()]), it will be a `factor`, while for objects of class `xgb.Booster`
+#'   (as produced by [xgb.train()]), it will be a zero-based integer vector.
 #'
 #' If `feature_names` is not provided and `model` doesn't have `feature_names`,
 #' the index of the features will be used instead. Because the index is extracted from the model dump
@@ -146,11 +148,19 @@ xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature
         n_classes <- 0
     }
     importance <- if (n_classes == 0) {
-      data.table(Feature = results$features, Weight = results$weight)[order(-abs(Weight))]
+      return(data.table(Feature = results$features, Weight = results$weight)[order(-abs(Weight))])
     } else {
-      data.table(
+      out <- data.table(
         Feature = rep(results$features, each = n_classes), Weight = results$weight, Class = seq_len(n_classes) - 1
       )[order(Class, -abs(Weight))]
+      if (inherits(model, "xgboost") && NROW(attributes(model)$metadata$y_levels)) {
+        class_vec <- out$Class
+        class_vec <- as.integer(class_vec) + 1L
+        attributes(class_vec)$levels <- attributes(model)$metadata$y_levels
+        attributes(class_vec)$class <- "factor"
+        out[, Class := class_vec]
+      }
+      return(out[])
     }
   } else {
     concatenated <- list()

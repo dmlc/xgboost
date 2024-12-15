@@ -1013,3 +1013,20 @@ test_that("'eval_set' as fraction works", {
   expect_true(hasName(evaluation_log, "eval_mlogloss"))
   expect_equal(length(attributes(model)$metadata$y_levels), 3L)
 })
+
+test_that("Linear booster importance uses class names", {
+  y <- iris$Species
+  x <- iris[, -5L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    verbosity = 0L,
+    booster = "gblinear",
+    learning_rate = 0.2
+  )
+  imp <- xgb.importance(model)
+  expect_true(is.factor(imp$Class))
+  expect_equal(levels(imp$Class), levels(y))
+})
