@@ -575,7 +575,7 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator, env_keep_alive) {
   }
   if (is.data.frame(lst$data)) {
     data <- lst$data
-    lst <- within(lst, rm("data"))
+    lst$data <- NULL
     tmp <- .process.df.for.dmatrix(data, lst$feature_types)
     lst$feature_types <- tmp$feature_types
     env_keep_alive$keepalive1 <- lst
