@@ -52,17 +52,12 @@
 #' p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
 #' print(p)
 #'
-#' \dontrun{
 #' # Below is an example of how to save this plot to a file.
-#' # Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages
-#' # must also be installed.
-#'
-#' library(DiagrammeR)
-#'
-#' gr <- xgb.plot.multi.trees(model = bst, features_keep = 3, render = FALSE)
-#' export_graph(gr, "tree.pdf", width = 1500, height = 600)
+#' if (require("DiagrammeR") && require("DiagrammeRsvg") && require("rsvg")) {
+#'   fname <- file.path(tempdir(), "tree.pdf")
+#'   gr <- xgb.plot.multi.trees(bst, features_keep = 3, render = FALSE)
+#'   export_graph(gr, fname, width = 1500, height = 600)
 #' }
-#'
 #' @export
 xgb.plot.multi.trees <- function(model, features_keep = 5, plot_width = NULL, plot_height = NULL,
                                  render = TRUE, ...) {
