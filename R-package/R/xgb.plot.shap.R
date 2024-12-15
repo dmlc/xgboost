@@ -121,7 +121,7 @@
 #'     num_class = nclass
 #'   )
 #' )
-#' trees0 <- seq(from = 0, by = nclass, length.out = nrounds)
+#' trees0 <- seq(from = 1, by = nclass, length.out = nrounds)
 #' col <- rgb(0, 0, 1, 0.5)
 #'
 #' xgb.plot.shap(

@@ -352,7 +352,7 @@ test_that("xgb.importance works with and without feature names", {
   imp.Tree <- xgb.importance(model = mbst.Tree)
   expect_equal(dim(imp.Tree), c(4, 4))
 
-  trees <- seq(from = 0, by = 2, length.out = 2)
+  trees <- seq(from = 1, by = 2, length.out = 2)
   importance <- xgb.importance(feature_names = feature.names, model = bst.Tree, trees = trees)
 
   importance_from_dump <- function() {
