@@ -20,8 +20,11 @@ test_that("updating the model works", {
   evals <- list(train = dtrain, test = dtest)
 
   # no-subsampling
-  p1 <- list(
-    objective = "binary:logistic", max_depth = 2, eta = 0.05, nthread = n_threads,
+  p1 <- xgb.params(
+    objective = "binary:logistic",
+    max_depth = 2,
+    learning_rate = 0.05,
+    nthread = n_threads,
     updater = "grow_colmaker,prune"
   )
   set.seed(11)
@@ -116,9 +119,16 @@ test_that("updating works for multiclass & multitree", {
     as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1, nthread = n_threads
   )
   evals <- list(train = dtr)
-  p0 <- list(max_depth = 2, eta = 0.5, nthread = n_threads, subsample = 0.6,
-             objective = "multi:softprob", num_class = 3, num_parallel_tree = 2,
-             base_score = 0)
+  p0 <- xgb.params(
+    max_depth = 2,
+    learning_rate = 0.5,
+    nthread = n_threads,
+    subsample = 0.6,
+    objective = "multi:softprob",
+    num_class = 3,
+    num_parallel_tree = 2,
+    base_score = 0
+  )
   set.seed(121)
   bst0 <- xgb.train(p0, dtr, 5, evals = evals, verbose = 0)
   tr0 <- xgb.model.dt.tree(model = bst0)

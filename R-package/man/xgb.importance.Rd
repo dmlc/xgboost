@@ -67,7 +67,6 @@ bst <- xgb.train(
   nrounds = 2,
   params = xgb.params(
     max_depth = 2,
-    eta = 1,
     nthread = 2,
     objective = "binary:logistic"
   )
@@ -81,7 +80,7 @@ bst <- xgb.train(
   nrounds = 20,
   params = xgb.params(
     booster = "gblinear",
-    eta = 0.3,
+    learning_rate = 0.3,
     nthread = 1,
     objective = "binary:logistic"
   )
@@ -100,7 +99,6 @@ mbst <- xgb.train(
   nrounds = nrounds,
   params = xgb.params(
     max_depth = 3,
-    eta = 0.2,
     nthread = 2,
     objective = "multi:softprob",
     num_class = nclass
@@ -130,7 +128,7 @@ mbst <- xgb.train(
   nrounds = 15,
   params = xgb.params(
     booster = "gblinear",
-    eta = 0.2,
+    learning_rate = 0.2,
     nthread = 1,
     objective = "multi:softprob",
     num_class = nclass

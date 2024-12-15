@@ -5,7 +5,7 @@ dm <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label, nthread = 1
 # Note: here need large step sizes in order for the predictions
 # to have substantially different leaf assignments on each tree
 model <- xgb.train(
-  params = list(objective = "binary:logistic", nthread = 1, max_depth = 4, eta = 0.5),
+  params = xgb.params(objective = "binary:logistic", nthread = 1, max_depth = 4),
   data = dm,
   nrounds = 20
 )
