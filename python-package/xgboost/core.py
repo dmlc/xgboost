@@ -1640,6 +1640,9 @@ class QuantileDMatrix(DMatrix):
         _check_call(ret)
         self.handle = handle
 
+        if ref is not None:
+            self.ref = weakref.ref(ref)
+
 
 class ExtMemQuantileDMatrix(DMatrix):
     """The external memory version of the :py:class:`QuantileDMatrix`.
@@ -1738,6 +1741,10 @@ class ExtMemQuantileDMatrix(DMatrix):
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
+
+        self._ref: Optional[weakref.ReferenceType] = None
+        if ref is not None:
+            self.ref = weakref.ref(ref)
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]

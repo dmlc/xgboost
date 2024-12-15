@@ -146,6 +146,13 @@ def train(
 
     callbacks = [] if callbacks is None else copy.copy(list(callbacks))
     evals = list(evals) if evals else []
+    for va, _ in evals:
+        if hasattr(va, "ref") and va.ref is not None:
+            if va is not dtrain and va.ref is not dtrain:
+                raise ValueError(
+                    "Training dataset should be used as a reference when constructing "
+                    "the `QuantileDMatrix` for evaluation."
+                )
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0
