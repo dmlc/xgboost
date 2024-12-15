@@ -150,7 +150,7 @@ def train(
 
     for va, _ in evals:
         if not isinstance(va, DMatrix):
-            raise TypeError("Invalid type for the `evals`,")
+            raise TypeError("Invalid type for the `evals`.")
 
         if hasattr(va, "ref") and va.ref is not None:
             if va is not dtrain and va.ref is not weakref.ref(dtrain):
