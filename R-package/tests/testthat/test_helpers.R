@@ -356,9 +356,8 @@ test_that("xgb.importance works with and without feature names", {
   importance <- xgb.importance(feature_names = feature.names, model = bst.Tree, trees = trees)
 
   importance_from_dump <- function() {
-    model_text_dump <- xgb.dump(model = bst.Tree, with_stats = TRUE)
     imp <- xgb.model.dt.tree(
-      text = model_text_dump,
+      model = bst.Tree,
       trees = trees
     )[
       Feature != "Leaf", .(

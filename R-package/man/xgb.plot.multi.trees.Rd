@@ -43,6 +43,9 @@ line.
 Visualization of the ensemble of trees as a single collective unit.
 }
 \details{
+Note that this function does not work with models that were fitted to
+categorical data.
+
 This function tries to capture the complexity of a gradient boosted tree model
 in a cohesive way by compressing an ensemble of trees into a single tree-graph representation.
 The goal is to improve the interpretability of a model generally seen as black box.
