@@ -189,7 +189,9 @@ class TestQuantileDMatrix:
 
         # Use ref
         Xy = xgb.QuantileDMatrix(X, y, enable_categorical=enable_cat)
-        Xy_valid: xgb.DMatrix = xgb.QuantileDMatrix(X, y, ref=Xy, enable_categorical=enable_cat)
+        Xy_valid: xgb.DMatrix = xgb.QuantileDMatrix(
+            X, y, ref=Xy, enable_categorical=enable_cat
+        )
         qdm_results: Dict[str, Dict[str, List[float]]] = {}
         xgb.train(
             {"tree_method": "hist", "device": device},
