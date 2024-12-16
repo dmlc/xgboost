@@ -71,7 +71,7 @@ struct SegmentedSearchSortedStrOp {
       return l_str < r_str;
     });
     if (ret_it == it + f_sorted_idx.size()) {
-      return -1;  // not found
+      return detail::NotFound();
     }
     return *ret_it;
   }
@@ -242,7 +242,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
             orig_enc.feature_segments[f_idx + 1] - orig_enc.feature_segments[f_idx]);
 
         std::int32_t idx = -1;
-        if (searched_idx != -1) {
+        if (searched_idx != detail::NotFound()) {
           idx = f_sorted_idx[searched_idx];
         }
 
@@ -252,9 +252,10 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         f_mapping[i - f_beg] = idx;
       });
 
-  auto err_it = thrust::find_if(
-      exec, dh::tcbegin(mapping), dh::tcend(mapping),
-      cuda::proclaim_return_type<bool>([=] __device__(std::int32_t v) { return v == -1; }));
+  auto err_it = thrust::find_if(exec, dh::tcbegin(mapping), dh::tcend(mapping),
+                                cuda::proclaim_return_type<bool>([=] __device__(std::int32_t v) {
+                                  return v == detail::NotFound();
+                                }));
 
   if (err_it != dh::tcend(mapping)) {
     // Report missing cat.

@@ -26,7 +26,7 @@
  * strings as constant). Originally, the encoding for test data set is [0, 1, 2] for [c,
  * a, b], now we have a mapping {0 -> 0, 1 -> 3, 2 -> 1} for re-coding the data.
  *
- * This module exposes 2 functions and an exection policy:
+ * This module exposes 2 functions and an execution policy:
  * - @ref Recode
  * - @ref SortNames
  * Each of them has a device counterpart.
@@ -99,7 +99,7 @@ using DeviceCatIndexView = cuda_impl::TupToVarT<CatIndexViewTypes>;
  * Accepted policies:
  *
  * - A class with a `ThrustPolicy` method that returns a thrust execution policy, along with a
- *   `ThrustAllocator` template type.
+ *   `ThrustAllocator` template type. This is only used for the GPU implementation.
  *
  * - An error handling policy that exposes a single `Error` method, which takes a single
  *   string parameter for error message.
@@ -109,6 +109,7 @@ struct Policy : public Derived... {};
 
 namespace detail {
 constexpr std::int32_t SearchKey() { return -1; }
+constexpr std::int32_t NotFound() { return -1; }
 
 template <typename Variant>
 struct ColumnsViewImpl {
@@ -235,7 +236,7 @@ void ArgSort(InIt in_first, InIt in_last, OutIt out_first, Comp comp = std::less
     return l_str < r_str;
   });
   if (ret_it == it + haystack.size()) {
-    return -1;
+    return detail::NotFound();
   }
   return *ret_it;
 }
@@ -251,7 +252,7 @@ SearchSorted(Span<T const> haystack, Span<std::int32_t const> ref_sorted_idx, T 
     return l_value < r_value;
   });
   if (ret_it == it + haystack.size()) {
-    return -1;
+    return detail::NotFound();
   }
   return *ret_it;
 }
@@ -352,7 +353,7 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
                               searched_idx[j - 1] = cpu_impl::SearchSorted(
                                   std::get<CatStrArrayView>(orig_enc.columns[f_idx]),
                                   ref_sorted_idx, needle);
-                              if (searched_idx[j - 1] == -1) {
+                              if (searched_idx[j - 1] == detail::NotFound()) {
                                 std::stringstream ss;
                                 for (auto c : needle) {
                                   ss.put(c);
@@ -368,7 +369,7 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
                               searched_idx[j] = cpu_impl::SearchSorted(
                                   std::get<Span<std::add_const_t<T>>>(orig_enc.columns[f_idx]),
                                   ref_sorted_idx, needle);
-                              if (searched_idx[j] == -1) {
+                              if (searched_idx[j] == detail::NotFound()) {
                                 std::stringstream ss;
                                 ss << needle;
                                 detail::ReportMissing(policy, ss.str(), f_idx);
