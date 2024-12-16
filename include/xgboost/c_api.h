@@ -418,12 +418,12 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
  *
  * The DMatrix proxy is only a temporary reference (wrapper) to the actual user data. For
  * instance, if a dense matrix (like a numpy array) is passed into the proxy DMatrix via
- * the @ref XGProxyDMatrixSetDataCudaArrayInterface method, then the proxy DMatrix holds
- * only a reference and the input array cannot be freed until the next iteration starts,
- * signaled by a call to the @ref XGDMatrixCallbackNext by XGBoost. It's called
- * `ProxyDMatrix` because it reuses the interface of the DMatrix class in XGBoost, but
- * it's just a mid interface for the @ref XGDMatrixCreateFromCallback and related
- * constructors to consume various user input types.
+ * the @ref XGProxyDMatrixSetDataDense method, then the proxy DMatrix holds only a
+ * reference and the input array cannot be freed until the next iteration starts, signaled
+ * by a call to the @ref XGDMatrixCallbackNext by XGBoost. It's called `ProxyDMatrix`
+ * because it reuses the interface of the DMatrix class in XGBoost, but it's just a mid
+ * interface for the @ref XGDMatrixCreateFromCallback and related constructors to consume
+ * various user input types.
  *
  * @code{.unparsed}
  *   User inputs -> Proxy DMatrix (wrapper) -> Actual DMatrix
