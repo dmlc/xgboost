@@ -601,14 +601,6 @@ Version added: 2.0.0}
 
 \item{aft_loss_distribution}{(for using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}
-
-\item{...}{Other training parameters. See the online documentation
-\href{https://xgboost.readthedocs.io/en/stable/parameter.html}{XGBoost Parameters} for
-details about possible values and what they do.
-
-Note that not all possible values from the core XGBoost library are allowed as \code{params} for
-'xgboost()' - in particular, values which require an already-fitted booster object (such as
-\code{process_type}) are not accepted here.}
 }
 \value{
 A model object, inheriting from both \code{xgboost} and \code{xgb.Booster}. Compared to the regular

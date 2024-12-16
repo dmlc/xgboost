@@ -1049,13 +1049,6 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' Choice of algorithm to fit linear model
 #' - `"shotgun"`: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
 #' - `"coord_descent"`: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. When the `device` parameter is set to `"cuda"` or `"gpu"`, a GPU variant would be used.
-#' @param ... Other training parameters. See the online documentation
-#'   [XGBoost Parameters](https://xgboost.readthedocs.io/en/stable/parameter.html) for
-#'   details about possible values and what they do.
-#'
-#'   Note that not all possible values from the core XGBoost library are allowed as `params` for
-#'   'xgboost()' - in particular, values which require an already-fitted booster object (such as
-#'   `process_type`) are not accepted here.
 #' @inheritParams xgb.params
 #' @return A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular
 #'   `xgb.Booster` model class produced by [xgb.train()], this `xgboost` class will have an
