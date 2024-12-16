@@ -513,9 +513,11 @@ which are translated to the following ``docker run`` invocations:
 
 
 .. _vm_images:
+
 ------------------
 Notes on VM images
 ------------------
+
 In the ``vm_images/`` directory of `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_,
 we define Packer scripts to build images for Virtual Machines (VM) on
 `Amazon EC2 <https://aws.amazon.com/ec2/>`_.

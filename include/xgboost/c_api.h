@@ -138,7 +138,6 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
 /*!
  * \brief load a data matrix
  * \param config JSON encoded parameters for DMatrix construction.  Accepted fields are:
-
  *   - uri: The URI of the input file. The URI parameter `format` is required when loading text data.
  *          \verbatim embed:rst:leading-asterisk
  *            See :doc:`/tutorials/input_format` for more info.
@@ -162,9 +161,12 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indic
 /**
  * @brief Create a DMatrix from columnar data. (table)
  *
- * @param data   See @ref XGBoosterPredictFromColumnar for details.
+ * A special type of input to the `DMatrix` is the columnar format, which refers to
+ * column-based dataframes based on the arrow formatt.
+ *
+ * @param data   A list of JSON-encoded array interfaces.
  * @param config See @ref XGDMatrixCreateFromDense for details.
- * @param out    The created dmatrix.
+ * @param out    The created DMatrix.
  *
  * @return 0 when success, -1 when failure happens
  */
@@ -173,46 +175,48 @@ XGB_DLL int XGDMatrixCreateFromColumnar(char const *data, char const *config, DM
 /**
  * @example c-api-demo.c
  */
-/*!
- * \brief Create a matrix from CSR matrix.
- * \param indptr  JSON encoded __array_interface__ to row pointers in CSR.
- * \param indices JSON encoded __array_interface__ to column indices in CSR.
- * \param data    JSON encoded __array_interface__ to values in CSR.
- * \param ncol    Number of columns.
- * \param config  JSON encoded configuration.  Required values are:
- *   - missing: Which value to represent missing value.
- *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
- * \param out created dmatrix
- * \return 0 when success, -1 when failure happens
+/**
+ * @brief Create a DMatrix from CSR matrix.
+ * @param indptr  JSON encoded __array_interface__ to row pointers in CSR.
+ * @param indices JSON encoded __array_interface__ to column indices in CSR.
+ * @param data    JSON encoded __array_interface__ to values in CSR.
+ * @param ncol    The number of columns.
+ * @param config  See @ref XGDMatrixCreateFromDense for details.
+ * @param out     The created dmatrix
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr, char const *indices, char const *data,
                                    bst_ulong ncol, char const *config, DMatrixHandle *out);
 
-/*!
- * \brief Create a matrix from dense array.
- * \param data   JSON encoded __array_interface__ to array values.
- * \param config JSON encoded configuration.  Required values are:
+/**
+ * @brief Create a DMatrix from dense array.
+ *
+ * The array interface is defined in https://numpy.org/doc/2.1/reference/arrays.interface.html
+ * We encode the interface as a JSON object.
+ *
+ * @param data   JSON encoded __array_interface__ to array values.
+ * @param config JSON encoded configuration.  Required values are:
  *   - missing: Which value to represent missing value.
  *   - nthread (optional): Number of threads used for initializing DMatrix.
  *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
- * \param out created dmatrix
- * \return 0 when success, -1 when failure happens
+ * @param out The created DMatrix
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromDense(char const *data, char const *config, DMatrixHandle *out);
 
-/*!
- * \brief Create a matrix from a CSC matrix.
- * \param indptr  JSON encoded __array_interface__ to column pointers in CSC.
- * \param indices JSON encoded __array_interface__ to row indices in CSC.
- * \param data    JSON encoded __array_interface__ to values in CSC.
- * \param nrow     number of rows in the matrix.
- * \param config  JSON encoded configuration.  Supported values are:
- *   - missing: Which value to represent missing value.
- *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
- * \param out created dmatrix
- * \return 0 when success, -1 when failure happens
+/**
+ * @brief Create a DMatrix from a CSC matrix.
+ *
+ * @param indptr  JSON encoded __array_interface__ to column pointers in CSC.
+ * @param indices JSON encoded __array_interface__ to row indices in CSC.
+ * @param data    JSON encoded __array_interface__ to values in CSC.
+ * @param nrow    The number of rows in the matrix.
+ * @param config  See @ref XGDMatrixCreateFromDense for details.
+ * @param out     The created dmatrix.
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char const *data,
                                    bst_ulong nrow, char const *config, DMatrixHandle *out);
@@ -255,15 +259,16 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const float *data,  // NOLINT
                                        float missing, DMatrixHandle *out,
                                        int nthread);
 
-/*!
- * \brief Create DMatrix from CUDA columnar format. (cuDF)
- * \param data Array of JSON encoded __cuda_array_interface__ for each column.
- * \param config JSON encoded configuration.  Required values are:
- *   - missing: Which value to represent missing value.
- *   - nthread (optional): Number of threads used for initializing DMatrix.
- *   - data_split_mode (optional): Whether the data was split by row or column beforehand. Default to row.
- * \param out created dmatrix
- * \return 0 when success, -1 when failure happens
+/**
+ * @brief Create DMatrix from CUDA columnar format. (cuDF)
+ *
+ * See @ref XGDMatrixCreateFromColumnar for a brief description of the columnar format.
+ *
+ * @param data   A list of JSON-encoded array interfaces.
+ * @param config See @ref XGDMatrixCreateFromDense for details.
+ * @param out    Created dmatrix
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixCreateFromCudaColumnar(char const *data, char const *config,
                                             DMatrixHandle *out);
@@ -323,6 +328,7 @@ XGB_DLL int XGDMatrixCreateFromCudaArrayInterface(char const *data, char const *
  * - @ref XGDMatrixCallbackNext
  * - @ref DataIterResetCallback
  * - @ref XGProxyDMatrixSetDataCudaArrayInterface
+ * - @ref XGProxyDMatrixSetDataColumnar
  * - @ref XGProxyDMatrixSetDataCudaColumnar
  * - @ref XGProxyDMatrixSetDataDense
  * - @ref XGProxyDMatrixSetDataCSR
@@ -404,29 +410,42 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
 
 /**
  * Second set of callback functions, used by constructing Quantile DMatrix or external
- * memory DMatrix using custom iterator.
+ * memory DMatrix using a custom iterator.
  */
 
-/*!
- * \brief Create a DMatrix proxy for setting data, can be free by XGDMatrixFree.
+/**
+ * @brief Create a DMatrix proxy for setting data, can be freed by @ref XGDMatrixFree.
  *
- * \param out      The created Device Quantile DMatrix
+ * The DMatrix proxy is only a temporary reference (wrapper) to the actual user data. For
+ * instance, if a dense matrix (like a numpy array) is passed into the proxy DMatrix via
+ * the @ref XGProxyDMatrixSetDataDense method, then the proxy DMatrix holds only a
+ * reference and the input array cannot be freed until the next iteration starts, signaled
+ * by a call to the @ref XGDMatrixCallbackNext by XGBoost. It's called `ProxyDMatrix`
+ * because it reuses the interface of the DMatrix class in XGBoost, but it's just a mid
+ * interface for the @ref XGDMatrixCreateFromCallback and related constructors to consume
+ * various user input types.
  *
- * \return 0 when success, -1 when failure happens
+ * @code{.unparsed}
+ *   User inputs -> Proxy DMatrix (wrapper) -> Actual DMatrix
+ * @endcode
+ *
+ * @param out The created Proxy DMatrix.
+ *
+ * @return 0 when success, -1 when failure happens.
  */
 XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out);
 
-/*!
- * \brief Callback function prototype for getting next batch of data.
+/**
+ * @brief Callback function prototype for getting next batch of data.
  *
- * \param iter  A handler to the user defined iterator.
+ * @param iter  A handler to the user defined iterator.
  *
- * \return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens.
  */
 XGB_EXTERN_C typedef int XGDMatrixCallbackNext(DataIterHandle iter);  // NOLINT(*)
 
-/*!
- * \brief Callback function prototype for resetting external iterator
+/**
+ * @brief Callback function prototype for resetting the external iterator.
  */
 XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLINT(*)
 
@@ -469,7 +488,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
  * - Step 0: Define a data iterator with 2 methods `reset`, and `next`.
  * - Step 1: Create a DMatrix proxy by @ref XGProxyDMatrixCreate and hold the handle.
  * - Step 2: Pass the iterator handle, proxy handle and 2 methods into
- *           `XGQuantileDMatrixCreateFromCallback`.
+ *           @ref XGQuantileDMatrixCreateFromCallback.
  * - Step 3: Call appropriate data setters in `next` functions.
  *
  * See test_iterative_dmatrix.cu or Python interface for examples.
@@ -537,52 +556,47 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
                                                       XGDMatrixCallbackNext *next,
                                                       char const *config, DMatrixHandle *out);
 
-/*!
- * \brief Set data on a DMatrix proxy.
+/**
+ * @brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
- * \param c_interface_str Null terminated JSON document string representation of CUDA
- *                        array interface.
+ * @param handle  A DMatrix proxy created by @ref XGProxyDMatrixCreate
+ * @param data    Null terminated JSON document string representation of CUDA
+ *                array interface.
  *
- * \return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens
  */
-XGB_DLL int
-XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
-                                        const char *c_interface_str);
+XGB_DLL int XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle, const char *data);
 
 /**
  * @brief Set columnar (table) data on a DMatrix proxy.
  *
- * @param handle          A DMatrix proxy created by @ref XGProxyDMatrixCreate
- * @param c_interface_str See @ref XGBoosterPredictFromColumnar for details.
+ * @param handle A DMatrix proxy created by @ref XGProxyDMatrixCreate
+ * @param data   See @ref XGDMatrixCreateFromColumnar for details.
  *
  * @return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGProxyDMatrixSetDataColumnar(DMatrixHandle handle, char const *c_interface_str);
+XGB_DLL int XGProxyDMatrixSetDataColumnar(DMatrixHandle handle, char const *data);
 
-/*!
- * \brief Set data on a DMatrix proxy.
+/**
+ * @brief Set CUDA-based columnar (table) data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
- * \param c_interface_str Null terminated JSON document string representation of CUDA
- *                        array interface, with an array of columns.
+ * @param handle A DMatrix proxy created by @ref XGProxyDMatrixCreate
+ * @param data   See @ref XGDMatrixCreateFromColumnar for details.
  *
- * \return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle,
-                                              const char *c_interface_str);
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle, const char *data);
 
-/*!
- * \brief Set data on a DMatrix proxy.
+/**
+ * @brief Set data on a DMatrix proxy.
  *
- * \param handle          A DMatrix proxy created by \ref XGProxyDMatrixCreate
- * \param c_interface_str Null terminated JSON document string representation of array
- *                        interface.
+ * @param handle  A DMatrix proxy created by @ref XGProxyDMatrixCreate
+ * @param data    Null terminated JSON document string representation of array
+ *                interface.
  *
- * \return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle,
-                                       char const *c_interface_str);
+XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle, char const *data);
 
 /*!
  * \brief Set data on a DMatrix proxy.
@@ -636,26 +650,30 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle);
  * @example c-api-demo.c inference.c external_memory.c
  */
 
-/*!
- * \brief load a data matrix into binary file
- * \param handle a instance of data matrix
- * \param fname file name
- * \param silent print statistics when saving
- * \return 0 when success, -1 when failure happens
+/**
+ * @brief Save the DMatrix object into a file. `QuantileDMatrix` and external memory
+ *        DMatrix are not supported.
+ *
+ * @param handle a instance of data matrix
+ * @param fname file name
+ * @param silent print statistics when saving
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
                                 const char *fname, int silent);
 
-/*!
- * \brief Set content in array interface to a content in info.
- * \param handle a instance of data matrix
- * \param field field name.
- * \param c_interface_str JSON string representation of array interface.
- * \return 0 when success, -1 when failure happens
+/**
+ * @brief Set content in array interface to a content in info.
+ *
+ * @param handle An instance of data matrix
+ * @param field  Field name.
+ * @param data   JSON encoded __array_interface__ to values in the dense matrix/vector.
+ *
+ * @return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
-                                          char const* field,
-                                          char const* c_interface_str);
+XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle, char const *field,
+                                          char const *data);
 
 /*!
  * \brief set float vector to a content in info
@@ -1106,7 +1124,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *
  * \return 0 when success, -1 when failure happens
  *
- * \see XGBoosterPredictFromDense XGBoosterPredictFromCSR XGBoosterPredictFromCudaArray XGBoosterPredictFromCudaColumnar
+ * @see XGBoosterPredictFromDense XGBoosterPredictFromCSR XGBoosterPredictFromCudaArray XGBoosterPredictFromCudaColumnar
  */
 XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle, DMatrixHandle dmat,
                                         char const *config, bst_ulong const **out_shape,
@@ -1149,7 +1167,7 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *values, 
  *       prediction with DMatrix with a performance warning.
  *
  * @param handle        Booster handle.
- * @param values        An JSON array of __array_interface__ for each column.
+ * @param data          See @ref XGDMatrixCreateFromColumnar for more info.
  * @param config        See @ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
  *     - "missing": float
@@ -1196,50 +1214,50 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
                                     bst_ulong *out_dim, const float **out_result);
 
 /**
- * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
+ * @brief Inplace prediction from CUDA Dense matrix (cupy in Python).
  *
- * \note If the booster is configured to run on a CPU, XGBoost falls back to run
+ * @note If the booster is configured to run on a CPU, XGBoost falls back to run
  *       prediction with DMatrix with a performance warning.
  *
- * \param handle        Booster handle
- * \param values        JSON encoded __cuda_array_interface__ to values.
- * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
+ * @param handle        Booster handle
+ * @param values        JSON encoded __cuda_array_interface__ to values.
+ * @param config        See @ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
  *     - "missing": float
- * \param m             An optional (NULL if not available) proxy DMatrix instance
+ * @param proxy         An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
- * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
- * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
- * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_shape     See @ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_dim       See @ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_result    See @ref XGBoosterPredictFromDMatrix for more info.
  *
- * \return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterPredictFromCudaArray(BoosterHandle handle, char const *values,
-                                          char const *config, DMatrixHandle m,
+                                          char const *config, DMatrixHandle proxy,
                                           bst_ulong const **out_shape, bst_ulong *out_dim,
                                           const float **out_result);
 
 /**
- * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
+ * @brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
  *
- * \note If the booster is configured to run on a CPU, XGBoost falls back to run
+ * @note If the booster is configured to run on a CPU, XGBoost falls back to run
  *       prediction with DMatrix with a performance warning.
  *
- * \param handle        Booster handle
- * \param values        List of __cuda_array_interface__ for all columns encoded in JSON list.
- * \param config        See \ref XGBoosterPredictFromDMatrix for more info.
+ * @param handle        Booster handle
+ * @param data          See @ref XGDMatrixCreateFromColumnar for more info.
+ * @param config        See @ref XGBoosterPredictFromDMatrix for more info.
  *   Additional fields for inplace prediction are:
  *     - "missing": float
- * \param m             An optional (NULL if not available) proxy DMatrix instance
+ * @param proxy         An optional (NULL if not available) proxy DMatrix instance
  *                      storing meta info.
- * \param out_shape     See \ref XGBoosterPredictFromDMatrix for more info.
- * \param out_dim       See \ref XGBoosterPredictFromDMatrix for more info.
- * \param out_result    See \ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_shape     See @ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_dim       See @ref XGBoosterPredictFromDMatrix for more info.
+ * @param out_result    See @ref XGBoosterPredictFromDMatrix for more info.
  *
- * \return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *values,
-                                             char const *config, DMatrixHandle m,
+XGB_DLL int XGBoosterPredictFromCudaColumnar(BoosterHandle handle, char const *data,
+                                             char const *config, DMatrixHandle proxy,
                                              bst_ulong const **out_shape, bst_ulong *out_dim,
                                              const float **out_result);
 
