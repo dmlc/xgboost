@@ -422,8 +422,12 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
  * only a reference and the input array cannot be freed until the next iteration starts,
  * signaled by a call to the @ref XGDMatrixCallbackNext by XGBoost. It's called
  * `ProxyDMatrix` because it reuses the interface of the DMatrix class in XGBoost, but
- * it's just a middle interface for the @ref XGDMatrixCreateFromCallback and related
+ * it's just a mid interface for the @ref XGDMatrixCreateFromCallback and related
  * constructors to consume various user input types.
+ *
+ * @code{.unparsed}
+ *   User inputs -> Proxy DMatrix (wrapper) -> Actual DMatrix
+ * @endcode
  *
  * @param out The created Proxy DMatrix.
  *
@@ -431,17 +435,17 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
  */
 XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out);
 
-/*!
- * \brief Callback function prototype for getting next batch of data.
+/**
+ * @brief Callback function prototype for getting next batch of data.
  *
- * \param iter  A handler to the user defined iterator.
+ * @param iter  A handler to the user defined iterator.
  *
- * \return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens.
  */
 XGB_EXTERN_C typedef int XGDMatrixCallbackNext(DataIterHandle iter);  // NOLINT(*)
 
-/*!
- * \brief Callback function prototype for resetting external iterator
+/**
+ * @brief Callback function prototype for resetting the external iterator.
  */
 XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLINT(*)
 
