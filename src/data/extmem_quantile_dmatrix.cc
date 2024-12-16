@@ -9,7 +9,7 @@
 
 #include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
 #include "batch_utils.h"            // for CheckParam, RegenGHist
-#include "proxy_dmatrix.h"          // for DataIterProxy, HostAdapterDispatch
+#include "proxy_dmatrix.h"          // for DataIterProxy
 #include "quantile_dmatrix.h"       // for GetDataShape, MakeSketches
 #include "simple_batch_iterator.h"  // for SimpleBatchIteratorImpl
 #include "sparse_page_source.h"     // for MakeCachePrefix
@@ -84,7 +84,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
    * Generate quantiles
    */
   std::vector<FeatureType> h_ft;
-  cpu_impl::MakeSketches(ctx, iter.get(), proxy, ref, missing, &cuts, p, this->Info(), ext_info,
+  cpu_impl::MakeSketches(ctx, iter.get(), proxy, ref, missing, &cuts, p, this->info_, ext_info,
                          &h_ft);
 
   /**
@@ -92,7 +92,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
    */
   auto id = MakeCache(this, ".gradient_index.page", false, cache_prefix_, &cache_info_);
   this->ghist_index_source_ = std::make_unique<ExtGradientIndexPageSource>(
-      ctx, missing, &this->Info(), cache_info_.at(id), p, cuts, iter, proxy, ext_info.base_rowids);
+      ctx, missing, &this->info_, cache_info_.at(id), p, cuts, iter, proxy, ext_info.base_rowids);
 
   /**
    * Force initialize the cache and do some sanity checks along the way
@@ -102,15 +102,15 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   for (auto const &page : this->GetGradientIndexImpl()) {
     n_total_samples += page.Size();
     CHECK_EQ(page.base_rowid, ext_info.base_rowids[k]);
-    CHECK_EQ(page.Features(), this->Info().num_col_);
+    CHECK_EQ(page.Features(), this->info_.num_col_);
     ++k, ++batch_cnt;
   }
   CHECK_EQ(batch_cnt, ext_info.n_batches);
   CHECK_EQ(n_total_samples, ext_info.accumulated_rows);
   if (cuts.HasCategorical()) {
-    CHECK(!this->Info().feature_types.Empty());
+    CHECK(!this->info_.feature_types.Empty());
   }
-  CHECK_EQ(cuts.HasCategorical(), this->Info().HasCategorical());
+  CHECK_EQ(cuts.HasCategorical(), this->info_.HasCategorical());
 }
 
 [[nodiscard]] BatchSet<GHistIndexMatrix> ExtMemQuantileDMatrix::GetGradientIndexImpl() {
