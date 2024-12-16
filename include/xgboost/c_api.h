@@ -422,9 +422,9 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
  * holds only a reference and the input array cannot be freed until the next iteration
  * starts, signaled by a call to the @ref XGDMatrixCallbackNext by XGBoost.
  *
- * @param out The created Device Quantile DMatrix
+ * @param out The created Proxy DMatrix.
  *
- * @return 0 when success, -1 when failure happens
+ * @return 0 when success, -1 when failure happens.
  */
 XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out);
 
