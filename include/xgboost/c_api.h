@@ -410,15 +410,21 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
 
 /**
  * Second set of callback functions, used by constructing Quantile DMatrix or external
- * memory DMatrix using custom iterator.
+ * memory DMatrix using a custom iterator.
  */
 
-/*!
- * \brief Create a DMatrix proxy for setting data, can be free by XGDMatrixFree.
+/**
+ * @brief Create a DMatrix proxy for setting data, can be freed by @ref XGDMatrixFree.
  *
- * \param out      The created Device Quantile DMatrix
+ * The DMatrix proxy is only a temporary reference (wrapper) to the actual user data. For
+ * instance, if a dense matrix (like a numpy/cupy array) is passed into the proxy DMatrix
+ * via the @ref XGProxyDMatrixSetDataCudaArrayInterface method, then the proxy DMatrix
+ * holds only a reference and the input array cannot be freed until the next iteration
+ * starts, signaled by a call to the @ref XGDMatrixCallbackNext by XGBoost.
  *
- * \return 0 when success, -1 when failure happens
+ * @param out The created Device Quantile DMatrix
+ *
+ * @return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out);
 
