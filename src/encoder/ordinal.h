@@ -73,13 +73,21 @@ struct CatStrArrayView {
     return this->offsets.size_bytes() + values.size_bytes();
   }
 };
+
+// We keep a single type list here for supported types and use various transformations to
+// add specializations. This way we can modify the type list with ease.
+
 /**
- * @brief All the types supported by the encoder.
+ * @brief All the primitive types supported by the encoder.
  */
-using CatIndexViewTypes =
-    std::tuple<enc::CatStrArrayView, Span<std::int8_t const>, Span<std::int16_t const>,
-               Span<std::int32_t const>, Span<std::int64_t const>, Span<float const>,
-               Span<double const>>;
+using CatPrimIndexTypes =
+    std::tuple<std::int8_t, std::int16_t, std::int32_t, std::int64_t, float, double>;
+
+/**
+ * @brief All the column types supported by the encoder.
+ */
+using CatIndexViewTypes = decltype(std::tuple_cat(std::tuple<enc::CatStrArrayView>{},
+                                                  PrimToSpan<CatPrimIndexTypes>::Type{}));
 
 /**
  * @brief Host categories view for a single column.
