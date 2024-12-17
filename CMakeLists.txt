@@ -40,9 +40,6 @@ endif()
 
 include(${xgboost_SOURCE_DIR}/cmake/CheckSVEsupport.cmake)
 check_xgboost_sve_support()
-if(XGBOOST_COMPILER_HAS_ARM_SVE)
-    add_compile_definitions(XGBOOST_SVE_COMPILER_SUPPORT)
-endif()
 
 include(${xgboost_SOURCE_DIR}/cmake/PrefetchIntrinsics.cmake)
 find_prefetch_intrinsics()

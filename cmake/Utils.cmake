@@ -214,14 +214,13 @@ macro(xgboost_target_defs target)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
   endif()
   if(XGBOOST_MM_PREFETCH_PRESENT)
-    target_compile_definitions(${target}
-      PRIVATE
-      -DXGBOOST_MM_PREFETCH_PRESENT=1)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_MM_PREFETCH_PRESENT=1)
   endif()
   if(XGBOOST_BUILTIN_PREFETCH_PRESENT)
-    target_compile_definitions(${target}
-      PRIVATE
-      -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
+  endif()
+  if(XGBOOST_COMPILER_HAS_ARM_SVE)
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_SVE_COMPILER_SUPPORT=1)
   endif()
 
   if(PLUGIN_RMM)
