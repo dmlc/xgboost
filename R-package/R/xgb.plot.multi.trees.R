@@ -2,6 +2,8 @@
 #'
 #' Visualization of the ensemble of trees as a single collective unit.
 #'
+#' Note that this function does not work with models that were fitted to
+#' categorical data.
 #' @details
 #' This function tries to capture the complexity of a gradient boosted tree model
 #' in a cohesive way by compressing an ensemble of trees into a single tree-graph representation.
@@ -40,7 +42,7 @@
 #'   verbose = 0,
 #'   params = xgb.params(
 #'     max_depth = 15,
-#'     eta = 1,
+#'     learning_rate = 1,
 #'     nthread = nthread,
 #'     objective = "binary:logistic",
 #'     min_child_weight = 50
@@ -50,24 +52,25 @@
 #' p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
 #' print(p)
 #'
-#' \dontrun{
 #' # Below is an example of how to save this plot to a file.
-#' # Note that for export_graph() to work, the {DiagrammeRsvg} and {rsvg} packages
-#' # must also be installed.
-#'
-#' library(DiagrammeR)
-#'
-#' gr <- xgb.plot.multi.trees(model = bst, features_keep = 3, render = FALSE)
-#' export_graph(gr, "tree.pdf", width = 1500, height = 600)
+#' if (require("DiagrammeR") && require("DiagrammeRsvg") && require("rsvg")) {
+#'   fname <- file.path(tempdir(), "tree.pdf")
+#'   gr <- xgb.plot.multi.trees(bst, features_keep = 3, render = FALSE)
+#'   export_graph(gr, fname, width = 1500, height = 600)
 #' }
-#'
 #' @export
 xgb.plot.multi.trees <- function(model, features_keep = 5, plot_width = NULL, plot_height = NULL,
                                  render = TRUE, ...) {
+  check.deprecation(deprecated_multitrees_params, match.call(), ...)
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
     stop("DiagrammeR is required for xgb.plot.multi.trees")
   }
-  check.deprecation(deprecated_multitrees_params, match.call(), ...)
+  if (xgb.has_categ_features(model)) {
+    stop(
+      "Cannot use 'xgb.plot.multi.trees' for models with categorical features.",
+      " Try 'xgb.plot.tree' instead."
+    )
+  }
   tree.matrix <- xgb.model.dt.tree(model = model)
 
   # first number of the path represents the tree, then the following numbers are related to the path to follow

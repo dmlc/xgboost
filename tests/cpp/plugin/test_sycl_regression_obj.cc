@@ -45,6 +45,48 @@ TEST(SyclObjective, LogisticRawGPair) {
   TestsLogisticRawGPair(&ctx);
 }
 
+TEST(SyclObjective, PoissonRegressionGPair) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestPoissonRegressionGPair(&ctx);
+}
+
+TEST(SyclObjective, PoissonRegressionBasic) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestPoissonRegressionBasic(&ctx);
+}
+
+TEST(SyclObjective, GammaRegressionGPair) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestGammaRegressionGPair(&ctx);
+}
+
+TEST(SyclObjective, GammaRegressionBasic) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestGammaRegressionBasic(&ctx);
+}
+
+TEST(SyclObjective, TweedieRegressionGPair) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestTweedieRegressionGPair(&ctx);
+}
+
+TEST(SyclObjective, TweedieRegressionBasic) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestTweedieRegressionBasic(&ctx);
+}
+
+TEST(SyclObjective, CoxRegressionGPair) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  TestCoxRegressionGPair(&ctx);
+}
+
 TEST(SyclObjective, AbsoluteError) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});

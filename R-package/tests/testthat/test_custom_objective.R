@@ -28,7 +28,7 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-param <- list(max_depth = 2, eta = 1, nthread = n_threads,
+param <- list(max_depth = 2, learning_rate = 1, nthread = n_threads,
               objective = logregobj, eval_metric = evalerror)
 num_round <- 2
 

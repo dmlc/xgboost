@@ -12,15 +12,11 @@
 #' @param feature_names Character vector used to overwrite the feature names
 #'   of the model. The default is `NULL` (use original feature names).
 #' @param model Object of class `xgb.Booster`.
-#' @param trees An integer vector of tree indices that should be included
+#' @param trees An integer vector of (base-1) tree indices that should be included
 #'   into the importance calculation (only for the "gbtree" booster).
 #'   The default (`NULL`) parses all trees.
 #'   It could be useful, e.g., in multiclass classification to get feature importances
-#'   for each class separately. *Important*: the tree index in XGBoost models
-#'   is zero-based (e.g., use `trees = 0:4` for the first five trees).
-#' @param data Deprecated.
-#' @param label Deprecated.
-#' @param target Deprecated.
+#'   for each class separately.
 #' @return A `data.table` with the following columns:
 #'
 #' For a tree model:
@@ -33,7 +29,9 @@
 #' For a linear model:
 #' - `Features`: Names of the features used in the model.
 #' - `Weight`: Linear coefficient of this feature.
-#' - `Class`: Class label (only for multiclass models).
+#' - `Class`: Class label (only for multiclass models). For objects of class `xgboost` (as
+#'   produced by [xgboost()]), it will be a `factor`, while for objects of class `xgb.Booster`
+#'   (as produced by [xgb.train()]), it will be a zero-based integer vector.
 #'
 #' If `feature_names` is not provided and `model` doesn't have `feature_names`,
 #' the index of the features will be used instead. Because the index is extracted from the model dump
@@ -49,7 +47,6 @@
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
-#'     eta = 1,
 #'     nthread = 2,
 #'     objective = "binary:logistic"
 #'   )
@@ -63,7 +60,7 @@
 #'   nrounds = 20,
 #'   params = xgb.params(
 #'     booster = "gblinear",
-#'     eta = 0.3,
+#'     learning_rate = 0.3,
 #'     nthread = 1,
 #'     objective = "binary:logistic"
 #'   )
@@ -82,7 +79,6 @@
 #'   nrounds = nrounds,
 #'   params = xgb.params(
 #'     max_depth = 3,
-#'     eta = 0.2,
 #'     nthread = 2,
 #'     objective = "multi:softprob",
 #'     num_class = nclass
@@ -94,13 +90,13 @@
 #'
 #' # inspect importances separately for each class:
 #' xgb.importance(
-#'   model = mbst, trees = seq(from = 0, by = nclass, length.out = nrounds)
-#' )
-#' xgb.importance(
 #'   model = mbst, trees = seq(from = 1, by = nclass, length.out = nrounds)
 #' )
 #' xgb.importance(
 #'   model = mbst, trees = seq(from = 2, by = nclass, length.out = nrounds)
+#' )
+#' xgb.importance(
+#'   model = mbst, trees = seq(from = 3, by = nclass, length.out = nrounds)
 #' )
 #'
 #' # multiclass classification using "gblinear":
@@ -112,7 +108,7 @@
 #'   nrounds = 15,
 #'   params = xgb.params(
 #'     booster = "gblinear",
-#'     eta = 0.2,
+#'     learning_rate = 0.2,
 #'     nthread = 1,
 #'     objective = "multi:softprob",
 #'     num_class = nclass
@@ -122,14 +118,20 @@
 #' xgb.importance(model = mbst)
 #'
 #' @export
-xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature_name"), trees = NULL,
-                           data = NULL, label = NULL, target = NULL) {
-
-  if (!(is.null(data) && is.null(label) && is.null(target)))
-    warning("xgb.importance: parameters 'data', 'label' and 'target' are deprecated")
+xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature_name"), trees = NULL) {
 
   if (!(is.null(feature_names) || is.character(feature_names)))
     stop("feature_names: Has to be a character vector")
+
+  if (!is.null(trees)) {
+    if (!is.vector(trees)) {
+      stop("'trees' must be a vector of tree indices.")
+    }
+    trees <- trees - 1L
+    if (anyNA(trees)) {
+      stop("Passed invalid tree indices.")
+    }
+  }
 
   handle <- xgb.get.handle(model)
   if (xgb.booster_type(model) == "gblinear") {
@@ -144,11 +146,19 @@ xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature
         n_classes <- 0
     }
     importance <- if (n_classes == 0) {
-      data.table(Feature = results$features, Weight = results$weight)[order(-abs(Weight))]
+      return(data.table(Feature = results$features, Weight = results$weight)[order(-abs(Weight))])
     } else {
-      data.table(
+      out <- data.table(
         Feature = rep(results$features, each = n_classes), Weight = results$weight, Class = seq_len(n_classes) - 1
       )[order(Class, -abs(Weight))]
+      if (inherits(model, "xgboost") && NROW(attributes(model)$metadata$y_levels)) {
+        class_vec <- out$Class
+        class_vec <- as.integer(class_vec) + 1L
+        attributes(class_vec)$levels <- attributes(model)$metadata$y_levels
+        attributes(class_vec)$class <- "factor"
+        out[, Class := class_vec]
+      }
+      return(out[])
     }
   } else {
     concatenated <- list()

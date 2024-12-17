@@ -75,15 +75,24 @@ If 2, some additional information will be printed out.
 Note that setting \code{verbose > 0} automatically engages the
 \code{xgb.cb.print.evaluation(period=1)} callback function.}
 
-\item{print_every_n}{Print each nth iteration evaluation messages when \code{verbose>0}.
-Default is 1 which means all messages are printed. This parameter is passed to the
-\code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
+\item{print_every_n}{When passing \code{verbose>0}, evaluation logs (metrics calculated on the
+data passed under \code{evals}) will be printed every nth iteration according to the value passed
+here. The first and last iteration are always included regardless of this 'n'.
 
-\item{early_stopping_rounds}{If \code{NULL}, the early stopping function is not triggered.
-If set to an integer \code{k}, training with a validation set will stop if the performance
-doesn't improve for \code{k} rounds. Setting this parameter engages the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
+Only has an effect when passing data under \code{evals} and when passing \code{verbose>0}. The parameter
+is passed to the \code{\link[=xgb.cb.print.evaluation]{xgb.cb.print.evaluation()}} callback.}
 
-\item{maximize}{If \code{custom_metric} and \code{early_stopping_rounds} are set, then this parameter must be set as well.
+\item{early_stopping_rounds}{Number of boosting rounds after which training will be stopped
+if there is no improvement in performance (as measured by the evaluatiation metric that is
+supplied or selected by default for the objective) on the evaluation data passed under
+\code{evals}.
+
+Must pass \code{evals} in order to use this functionality. Setting this parameter adds the
+\code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.
+
+If \code{NULL}, early stopping will not be used.}
+
+\item{maximize}{If \code{feval} and \code{early_stopping_rounds} are set, then this parameter must be set as well.
 When it is \code{TRUE}, it means the larger the evaluation score the better.
 This parameter is passed to the \code{\link[=xgb.cb.early.stop]{xgb.cb.early.stop()}} callback.}
 
@@ -178,7 +187,6 @@ evals <- list(train = dtrain, eval = dtest)
 ## A simple xgb.train example:
 param <- xgb.params(
   max_depth = 2,
-  eta = 1,
   nthread = nthread,
   objective = "binary:logistic",
   eval_metric = "auc"
@@ -204,7 +212,6 @@ evalerror <- function(preds, dtrain) {
 # 'eval_metric' parameters in the params list:
 param <- xgb.params(
   max_depth = 2,
-  eta = 1,
   nthread = nthread,
   objective = logregobj,
   eval_metric = evalerror
@@ -222,12 +229,12 @@ bst <- xgb.train(
 ## An xgb.train example of using variable learning rates at each iteration:
 param <- xgb.params(
   max_depth = 2,
-  eta = 1,
+  learning_rate = 1,
   nthread = nthread,
   objective = "binary:logistic",
   eval_metric = "auc"
 )
-my_etas <- list(eta = c(0.5, 0.1))
+my_learning_rates <- list(learning_rate = c(0.5, 0.1))
 
 bst <- xgb.train(
  param,
@@ -235,7 +242,7 @@ bst <- xgb.train(
  nrounds = 2,
  evals = evals,
  verbose = 0,
- callbacks = list(xgb.cb.reset.parameters(my_etas))
+ callbacks = list(xgb.cb.reset.parameters(my_learning_rates))
 )
 
 ## Early stopping:

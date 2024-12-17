@@ -42,7 +42,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
    */
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
-  cuda_impl::MakeSketches(ctx, &iter, proxy, ref, p, missing, cuts, this->Info(),
+  cuda_impl::MakeSketches(ctx, &iter, proxy, ref, p, missing, cuts, this->info_,
                           max_quantile_blocks, &ext_info);
   ext_info.SetInfo(ctx, &this->info_);
 
@@ -100,17 +100,16 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   }
 
   iter.Reset();
-  // Synchronise worker columns
 }
 
 IterativeDMatrix::IterativeDMatrix(std::shared_ptr<EllpackPage> ellpack, MetaInfo const& info,
                                    BatchParam batch) {
   this->ellpack_ = ellpack;
-  CHECK_EQ(this->Info().num_row_, 0);
-  CHECK_EQ(this->Info().num_col_, 0);
-  this->Info().Extend(info, true, true);
-  this->Info().num_nonzero_ = info.num_nonzero_;
-  CHECK_EQ(this->Info().num_row_, info.num_row_);
+  CHECK_EQ(this->info_.num_row_, 0);
+  CHECK_EQ(this->info_.num_col_, 0);
+  this->info_.Extend(info, true, true);
+  this->info_.num_nonzero_ = info.num_nonzero_;
+  CHECK_EQ(this->info_.num_row_, info.num_row_);
   this->batch_ = batch;
 }
 

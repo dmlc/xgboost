@@ -51,7 +51,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
    */
   auto cuts = std::make_shared<common::HistogramCuts>();
   ExternalDataInfo ext_info;
-  cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->Info(),
+  cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->info_,
                           max_quantile_blocks, &ext_info);
   ext_info.SetInfo(ctx, &this->info_);
 
@@ -62,7 +62,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   // overhead with inference. But the training procedures can confortably overlap with the
   // data transfer.
   auto cinfo = EllpackCacheInfo{p, (ref != nullptr), config.max_num_device_pages, config.missing};
-  CalcCacheMapping(ctx, this->Info().IsDense(), cuts,
+  CalcCacheMapping(ctx, this->info_.IsDense(), cuts,
                    DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
   auto n_batches = cinfo.buffer_rows.size();  // The number of batches after page concatenation.
@@ -79,8 +79,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   std::visit(
       [&](auto &&ptr) {
         using SourceT = typename std::remove_reference_t<decltype(ptr)>::element_type;
-        ptr = std::make_shared<SourceT>(ctx, &this->Info(), ext_info, cache_info_.at(id), cuts,
-                                        iter, proxy, cinfo);
+        ptr = std::make_shared<SourceT>(ctx, &this->info_, ext_info, cache_info_.at(id), cuts, iter,
+                                        proxy, cinfo);
       },
       ellpack_page_source_);
 
@@ -105,9 +105,9 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   }
   this->n_batches_ = this->cache_info_.at(id)->Size();
   if (cuts->HasCategorical()) {
-    CHECK(!this->Info().feature_types.Empty());
+    CHECK(!this->info_.feature_types.Empty());
   }
-  CHECK_EQ(cuts->HasCategorical(), this->Info().HasCategorical());
+  CHECK_EQ(cuts->HasCategorical(), this->info_.HasCategorical());
 }
 
 [[nodiscard]] BatchSet<EllpackPage> ExtMemQuantileDMatrix::GetEllpackPageImpl() {

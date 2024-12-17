@@ -595,7 +595,7 @@ test_that("Whole function works", {
     monotone_constraints = list(age = -1),
     nthreads = 1L,
     nrounds = 5L,
-    eta = 3
+    learning_rate = 3
   )
   expect_equal(
     attributes(model)$params$objective,
@@ -613,7 +613,7 @@ test_that("Whole function works", {
     "interaction_constraints" %in% names(attributes(model)$params)
   )
   expect_equal(
-    attributes(model)$params$eta,
+    attributes(model)$params$learning_rate,
     3
   )
   txt <- capture.output({
@@ -944,4 +944,89 @@ test_that("Column names from multiquantile are added to leaf predictions", {
   pred <- predict(model, x, type = "leaf")
   expect_equal(dim(pred), c(nrow(x), 1L, 3L))
   expect_equal(dimnames(pred)[[3L]], c("q0.25", "q0.5", "q0.75"))
+})
+
+test_that("Evaluation fraction leaves examples of all classes for training", {
+  # With minimal sample leave no remainder
+  lst_args <- list(
+    dmatrix_args = list(
+      data = matrix(seq(1, 4), ncol = 1L),
+      label = c(0, 0, 1, 1)
+    ),
+    metadata = list(
+      y_levels = c("a", "b")
+    ),
+    params = list(
+      seed = 123
+    )
+  )
+  for (retry in seq_len(10)) {
+    lst_args$params$seed <- retry
+    res <- process.eval.set(0.5, lst_args)
+    expect_equal(length(intersect(res$idx_train, res$idx_eval)), 0)
+    expect_equal(length(res$idx_train), 2L)
+    expect_equal(length(res$idx_eval), 2L)
+    expect_true(length(intersect(c(1L, 2L), res$idx_train)) >= 1L)
+    expect_true(length(intersect(c(3L, 4L), res$idx_train)) >= 1L)
+  }
+
+  # With minimal sample leaving some remainder
+  lst_args <- list(
+    dmatrix_args = list(
+      data = matrix(seq(1, 5), ncol = 1L),
+      label = c(0, 0, 1, 1, 1)
+    ),
+    metadata = list(
+      y_levels = c("a", "b")
+    ),
+    params = list(
+      seed = 123
+    )
+  )
+  for (retry in seq_len(20)) {
+    lst_args$params$seed <- retry
+    res <- process.eval.set(0.4, lst_args)
+    expect_equal(length(intersect(res$idx_train, res$idx_eval)), 0)
+    expect_equal(length(res$idx_train), 3L)
+    expect_equal(length(res$idx_eval), 2L)
+    expect_true(length(intersect(c(1L, 2L), res$idx_train)) >= 1L)
+    expect_true(length(intersect(c(3L, 4L, 5L), res$idx_train)) >= 1L)
+  }
+})
+
+test_that("'eval_set' as fraction works", {
+  y <- iris$Species
+  x <- iris[, -5L]
+  model <- xgboost(
+    x,
+    y,
+    base_margin = matrix(0.1, nrow = nrow(x), ncol = 3L),
+    eval_set = 0.2,
+    nthreads = 1L,
+    nrounds = 4L,
+    max_depth = 2L,
+    verbosity = 0L
+  )
+  expect_true(hasName(attributes(model), "evaluation_log"))
+  evaluation_log <- attributes(model)$evaluation_log
+  expect_equal(nrow(evaluation_log), 4L)
+  expect_true(hasName(evaluation_log, "eval_mlogloss"))
+  expect_equal(length(attributes(model)$metadata$y_levels), 3L)
+})
+
+test_that("Linear booster importance uses class names", {
+  y <- iris$Species
+  x <- iris[, -5L]
+  model <- xgboost(
+    x,
+    y,
+    nthreads = 1L,
+    nrounds = 4L,
+    verbosity = 0L,
+    booster = "gblinear",
+    learning_rate = 0.2
+  )
+  imp <- xgb.importance(model)
+  expect_true(is.factor(imp$Class))
+  expect_equal(levels(imp$Class), levels(y))
 })

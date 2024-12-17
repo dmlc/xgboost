@@ -48,13 +48,22 @@
 #'   If 2, some additional information will be printed out.
 #'   Note that setting `verbose > 0` automatically engages the
 #'   `xgb.cb.print.evaluation(period=1)` callback function.
-#' @param print_every_n Print each nth iteration evaluation messages when `verbose>0`.
-#'   Default is 1 which means all messages are printed. This parameter is passed to the
-#'   [xgb.cb.print.evaluation()] callback.
-#' @param early_stopping_rounds If `NULL`, the early stopping function is not triggered.
-#'   If set to an integer `k`, training with a validation set will stop if the performance
-#'   doesn't improve for `k` rounds. Setting this parameter engages the [xgb.cb.early.stop()] callback.
-#' @param maximize If `custom_metric` and `early_stopping_rounds` are set, then this parameter must be set as well.
+#' @param print_every_n When passing `verbose>0`, evaluation logs (metrics calculated on the
+#' data passed under `evals`) will be printed every nth iteration according to the value passed
+#' here. The first and last iteration are always included regardless of this 'n'.
+#'
+#' Only has an effect when passing data under `evals` and when passing `verbose>0`. The parameter
+#' is passed to the [xgb.cb.print.evaluation()] callback.
+#' @param early_stopping_rounds Number of boosting rounds after which training will be stopped
+#'   if there is no improvement in performance (as measured by the evaluatiation metric that is
+#'   supplied or selected by default for the objective) on the evaluation data passed under
+#'   `evals`.
+#'
+#'   Must pass `evals` in order to use this functionality. Setting this parameter adds the
+#'   [xgb.cb.early.stop()] callback.
+#'
+#'   If `NULL`, early stopping will not be used.
+#' @param maximize If `feval` and `early_stopping_rounds` are set, then this parameter must be set as well.
 #'   When it is `TRUE`, it means the larger the evaluation score the better.
 #'   This parameter is passed to the [xgb.cb.early.stop()] callback.
 #' @param save_period When not `NULL`, model is saved to disk after every `save_period` rounds.
@@ -141,7 +150,6 @@
 #' ## A simple xgb.train example:
 #' param <- xgb.params(
 #'   max_depth = 2,
-#'   eta = 1,
 #'   nthread = nthread,
 #'   objective = "binary:logistic",
 #'   eval_metric = "auc"
@@ -167,7 +175,6 @@
 #' # 'eval_metric' parameters in the params list:
 #' param <- xgb.params(
 #'   max_depth = 2,
-#'   eta = 1,
 #'   nthread = nthread,
 #'   objective = logregobj,
 #'   eval_metric = evalerror
@@ -185,12 +192,12 @@
 #' ## An xgb.train example of using variable learning rates at each iteration:
 #' param <- xgb.params(
 #'   max_depth = 2,
-#'   eta = 1,
+#'   learning_rate = 1,
 #'   nthread = nthread,
 #'   objective = "binary:logistic",
 #'   eval_metric = "auc"
 #' )
-#' my_etas <- list(eta = c(0.5, 0.1))
+#' my_learning_rates <- list(learning_rate = c(0.5, 0.1))
 #'
 #' bst <- xgb.train(
 #'  param,
@@ -198,7 +205,7 @@
 #'  nrounds = 2,
 #'  evals = evals,
 #'  verbose = 0,
-#'  callbacks = list(xgb.cb.reset.parameters(my_etas))
+#'  callbacks = list(xgb.cb.reset.parameters(my_learning_rates))
 #' )
 #'
 #' ## Early stopping:
@@ -381,7 +388,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
   return(bst)
 }
 
-# nolint start: line_length_linter
+# nolint start: line_length_linter.
 #' @title XGBoost Parameters
 #' @description Convenience function to generate a list of named XGBoost parameters, which
 #' can be passed as argument `params` to [xgb.train()]. See the [online documentation](
@@ -420,7 +427,8 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - `"binary:logistic"`: logistic regression for binary classification, output probability
 #' - `"binary:logitraw"`: logistic regression for binary classification, output score before logistic transformation
 #' - `"binary:hinge"`: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-#' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution. #' `"max_delta_step"` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
+#' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution.
+#'   `"max_delta_step"` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 #' - `"survival:cox"`: Cox regression for right censored survival time data (negative values are considered right censored).
 #'
 #'   Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function `h(t) = h0(t) * HR`).
@@ -444,7 +452,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' @param seed Random number seed. If not specified, will take a random seed through R's own RNG engine.
 #' @param booster (default= `"gbtree"`)
 #' Which booster to use. Can be `"gbtree"`, `"gblinear"` or `"dart"`; `"gbtree"` and `"dart"` use tree based models while `"gblinear"` uses linear functions.
-#' @param eta,learning_rate (two aliases for the same parameter) (for Tree Booster) (default=0.3)
+#' @param eta,learning_rate (two aliases for the same parameter) (default=0.3)
 #' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `eta` shrinks the feature weights to make the boosting process more conservative.
 #'
 #' range: \eqn{[0,1]}

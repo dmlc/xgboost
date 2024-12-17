@@ -141,7 +141,7 @@ bstSparse <- xgboost(
     , y = factor(train$label, levels = c(0, 1))
     , objective = "binary:logistic"
     , max_depth = 2
-    , eta = 1
+    , learning_rate = 1
     , nrounds = 2
     , nthread = 2
 )
@@ -160,7 +160,7 @@ bstTrInterface <- xgb.train(
     , params = xgb.params(
         objective = "binary:logistic"
         , max_depth = 2
-        , eta = 1
+        , learning_rate = 1
         , nthread = 2
     )
     , nrounds = 2
@@ -183,7 +183,7 @@ bstDense <- xgboost(
     x = as.matrix(train$data),
     y = factor(train$label, levels = c(0, 1)),
     max_depth = 2,
-    eta = 1,
+    learning_rate = 1,
     nthread = 2,
     nrounds = 2
 )
@@ -200,7 +200,7 @@ bstDF <- xgboost(
     x = df_train,
     y = factor(train$label, levels = c(0, 1)),
     max_depth = 2,
-    eta = 1,
+    learning_rate = 1,
     nthread = 2,
     nrounds = 2
 )
@@ -222,7 +222,7 @@ bst <- xgboost(
     x = train$data,
     y = factor(train$label, levels = c(0, 1)),
     max_depth = 2,
-    eta = 1,
+    learning_rate = 1,
     nthread = 2,
     objective = "binary:logistic",
     nrounds = 5,
@@ -321,7 +321,7 @@ bst <- xgb.train(
     data = dtrain
     , params = list(
         max_depth = 2
-        , eta = 1
+        , learning_rate = 1
         , nthread = 2
         , objective = "binary:logistic"
     )
@@ -344,7 +344,7 @@ For a better understanding of the learning progression, you may want to have som
 bst <- xgb.train(
     data = dtrain
     , params = list(
-        eta = 1
+        learning_rate = 1
         , max_depth = 2
         , nthread = 2
         , objective = "binary:logistic"
@@ -361,7 +361,7 @@ bst <- xgb.train(
 ### Linear boosting
 
 
-Until now, all the learnings we have performed were based on boosting trees. **XGBoost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `eta` parameter).
+Until now, all the learnings we have performed were based on boosting trees. **XGBoost** implements a second algorithm, based on linear boosting. The only difference with previous command is `booster = "gblinear"` parameter (and removing `learning_rate` parameter).
 
 ```{r linearBoosting, message=F, warning=F}
 bst <- xgb.train(
@@ -398,7 +398,7 @@ bst <- xgb.train(
     data = dtrain2
     , params = list(
         max_depth = 2
-        , eta = 1
+        , learning_rate = 1
         , nthread = 2
         , objective = "binary:logistic"
     )

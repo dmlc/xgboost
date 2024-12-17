@@ -13,7 +13,7 @@ test_that("gblinear works", {
   )
 
   param <- list(objective = "binary:logistic", eval_metric = "error", booster = "gblinear",
-                nthread = n_threads, eta = 0.8, alpha = 0.0001, lambda = 0.0001)
+                nthread = n_threads, learning_rate = 0.8, reg_alpha = 0.0001, reg_lambda = 0.0001)
   evals <- list(eval = dtest, train = dtrain)
 
   n <- 5         # iterations
@@ -63,7 +63,7 @@ test_that("gblinear early stopping works", {
 
   param <- xgb.params(
     objective = "binary:logistic", eval_metric = "error", booster = "gblinear",
-    nthread = n_threads, eta = 0.8, alpha = 0.0001, lambda = 0.0001,
+    nthread = n_threads, learning_rate = 0.8, reg_alpha = 0.0001, reg_lambda = 0.0001,
     updater = "coord_descent"
   )
 

@@ -72,12 +72,12 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
    * Generate quantiles
    */
   std::vector<FeatureType> h_ft;
-  cpu_impl::MakeSketches(ctx, &iter, proxy, ref, missing, &cuts, p, this->Info(), ext_info, &h_ft);
+  cpu_impl::MakeSketches(ctx, &iter, proxy, ref, missing, &cuts, p, this->info_, ext_info, &h_ft);
 
   /**
    * Generate gradient index.
    */
-  this->ghist_ = std::make_unique<GHistIndexMatrix>(this->Info(), std::move(cuts), p.max_bin);
+  this->ghist_ = std::make_unique<GHistIndexMatrix>(this->info_, std::move(cuts), p.max_bin);
   std::size_t rbegin = 0;
   std::size_t prev_sum = 0;
   std::size_t i = 0;
@@ -119,7 +119,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     CHECK_EQ(proxy->Info().labels.Size(), 0);
   }
 
-  Info().feature_types.HostVector() = h_ft;
+  info_.feature_types.HostVector() = h_ft;
 }
 
 BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(Context const* ctx,
