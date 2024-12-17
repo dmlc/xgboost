@@ -136,6 +136,7 @@ class CommonRowPartitioner {
 
   void Reset(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid, bool is_col_split) {
     base_rowid = _base_rowid;
+    is_col_split_ = is_col_split;
 
     std::vector<bst_idx_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);
