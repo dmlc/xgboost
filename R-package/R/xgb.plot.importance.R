@@ -75,7 +75,7 @@
 #' @export
 xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL,
                                 rel_to_first = FALSE, left_margin = 10, cex = NULL, plot = TRUE, ...) {
-  check.deprecation(deprecated_plot_params, match.call(), ..., allow_unrecognized = TRUE)
+  check.deprecation(deprecated_plotimp_params, match.call(), ..., allow_unrecognized = TRUE)
   if (!is.data.table(importance_matrix))  {
     stop("importance_matrix: must be a data.table")
   }

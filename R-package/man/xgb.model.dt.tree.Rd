@@ -22,11 +22,18 @@ character strings (when \code{FALSE}, default).}
 
 \item{...}{Not used.
 
-Some arguments are currently deprecated or have been renamed. If a deprecated argument
-is passed, will throw a warning and use its current equivalent.
+Some arguments that were part of this function in previous XGBoost versions are currently
+deprecated or have been renamed. If a deprecated or renamed argument is passed, will throw
+a warning (by default) and use its current equivalent instead. This warning will become an
+error if using the \link[=xgboost-options]{'strict mode' option}.
 
 If some additional argument is passed that is neither a current function argument nor
-a deprecated argument, an error will be thrown.}
+a deprecated or renamed argument, a warning or error will be thrown depending on the
+'strict mode' option.
+
+\bold{Important:} \code{...} will be removed in a future version, and all the current
+deprecation warnings will become errors. Please use only arguments that form part of
+the function signature.}
 }
 \value{
 A \code{data.table} with detailed information about tree nodes. It has the following columns:
