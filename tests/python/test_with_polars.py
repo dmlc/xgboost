@@ -2,6 +2,7 @@ from typing import Type, Union
 
 import numpy as np
 import pytest
+
 import xgboost as xgb
 from xgboost import testing as tm
 

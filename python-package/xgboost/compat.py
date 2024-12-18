@@ -124,7 +124,16 @@ def import_cupy() -> types.ModuleType:
 
 
 @functools.cache
+def is_pyarrow_available() -> bool:
+    """Check pyarrow package available or not"""
+    if importlib.util.find_spec("pyarrow") is None:
+        return False
+    return True
+
+
+@functools.cache
 def import_pyarrow() -> types.ModuleType:
+    """Import pyarrow with memory cache."""
     import pyarrow as pa
 
     return pa
@@ -132,6 +141,7 @@ def import_pyarrow() -> types.ModuleType:
 
 @functools.cache
 def import_polars() -> types.ModuleType:
+    """Import polars with memory cache."""
     import polars as pl
 
     return pl

@@ -143,6 +143,7 @@ def no_arrow() -> PytestSkip:
 def no_polars() -> PytestSkip:
     return no_mod("polars")
 
+
 def no_modin() -> PytestSkip:
     try:
         import modin.pandas as md

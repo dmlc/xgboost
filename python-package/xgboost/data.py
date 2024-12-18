@@ -46,7 +46,7 @@ from ._typing import (
 )
 from .compat import DataFrame
 from .compat import Series as PdSeries
-from .compat import import_polars, import_pyarrow, lazy_isinstance
+from .compat import import_polars, import_pyarrow, is_pyarrow_available, lazy_isinstance
 from .core import (
     _LIB,
     DataIter,
@@ -824,7 +824,7 @@ def _is_arrow(data: DataType) -> bool:
 
 def _transform_arrow_table(
     data: "pa.Table",
-    enable_categorical: bool,
+    _: bool,  # not used yet, enable_categorical
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
 ) -> Tuple[ArrowTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
@@ -942,6 +942,11 @@ def _is_polars(data: DataType) -> bool:
     return lf or df
 
 
+def _check_pyarrow_for_polars() -> None:
+    if not is_pyarrow_available():
+        raise ImportError("`pyarrow` is required for polars.")
+
+
 def _transform_polars_df(
     data: DataType,
     enable_categorical: bool,
@@ -953,13 +958,14 @@ def _transform_polars_df(
     else:
         df = data
 
+    _check_pyarrow_for_polars()
     table = df.to_arrow()
     return _transform_arrow_table(
         table, enable_categorical, feature_names, feature_types
     )
 
 
-def _from_polars_df(
+def _from_polars_df(  # pylint: disable=too-many-positional-arguments
     data: DataType,
     enable_categorical: bool,
     missing: FloatCompatible,
@@ -1573,6 +1579,7 @@ def dispatch_meta_backend(
     if _is_polars(data):
         if _is_polars_lazyframe(data):
             data = data.collect()
+        _check_pyarrow_for_polars()
         _meta_from_arrow_table(data.to_arrow(), name, dtype, handle)
         return
     if _is_pandas_df(data):

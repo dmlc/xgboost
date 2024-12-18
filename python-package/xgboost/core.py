@@ -65,7 +65,7 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import PANDAS_INSTALLED, DataFrame, py_str, import_polars
+from .compat import PANDAS_INSTALLED, DataFrame, import_polars, py_str
 from .libpath import find_lib_path
 
 
@@ -2613,11 +2613,11 @@ class Booster:
             _is_pandas_df,
             _is_pandas_series,
             _is_polars,
-            _is_tuple,
             _is_polars_series,
-            _transform_polars_df,
+            _is_tuple,
             _transform_arrow_table,
             _transform_pandas_df,
+            _transform_polars_df,
         )
 
         if _is_cudf_pandas(data):
