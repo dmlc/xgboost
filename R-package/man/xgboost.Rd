@@ -150,6 +150,17 @@ See \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analys
 \item \code{"multi:softprob"}: multi-class classification throgh multinomial logistic likelihood.
 \item \code{"reg:gamma"}: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be \href{https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications}{gamma-distributed}.
 \item \code{"reg:tweedie"}: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be \href{https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications}{Tweedie-distributed}.
+}
+
+The following values are \bold{NOT} supported by \code{xgboost}, but are supported by \code{\link[=xgb.train]{xgb.train()}}
+(see \code{\link[=xgb.params]{xgb.params()}} for details):
+\itemize{
+\item \code{"reg:logistic"}
+\item \code{"binary:logitraw"}
+\item \code{"multi:softmax"}
+\item \code{"rank:ndcg"}
+\item \code{"rank:map"}
+\item \code{"rank:pairwise"}
 }}
 
 \item{nrounds}{Number of boosting iterations / rounds.

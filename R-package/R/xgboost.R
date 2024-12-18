@@ -927,6 +927,15 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' - `"multi:softprob"`: multi-class classification throgh multinomial logistic likelihood.
 #' - `"reg:gamma"`: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications).
 #' - `"reg:tweedie"`: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications).
+#'
+#' The following values are \bold{NOT} supported by `xgboost`, but are supported by [xgb.train()]
+#' (see [xgb.params()] for details):
+#' - `"reg:logistic"`
+#' - `"binary:logitraw"`
+#' - `"multi:softmax"`
+#' - `"rank:ndcg"`
+#' - `"rank:map"`
+#' - `"rank:pairwise"`
 #' @param nrounds Number of boosting iterations / rounds.
 #'
 #'   Note that the number of default boosting rounds here is not automatically tuned, and different
