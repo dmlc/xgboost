@@ -175,7 +175,7 @@ class TestQuantileDMatrix:
         import cupy as cp
 
         rng = cp.random.RandomState(np.uint64(1994))
-        self.cputest.run_ref_dmatrix(rng, "gpu_hist", False)
+        self.cputest.run_ref_dmatrix(rng, "cuda", False)
 
     @given(
         strategies.integers(1, 1000),

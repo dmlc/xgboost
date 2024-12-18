@@ -1451,7 +1451,20 @@ class _ProxyDMatrix(DMatrix):
         )
 
 
-class QuantileDMatrix(DMatrix):
+class _RefMixIn:
+    @property
+    def ref(self) -> Optional[weakref.ReferenceType]:
+        """Internal method for retrieving a reference to the training DMatrix."""
+        if hasattr(self, "_ref"):
+            return self._ref
+        return None
+
+    @ref.setter
+    def ref(self, ref: weakref.ReferenceType) -> None:
+        self._ref = ref
+
+
+class QuantileDMatrix(DMatrix, _RefMixIn):
     """A DMatrix variant that generates quantilized data directly from input for the
     ``hist`` tree method. This DMatrix is primarily designed to save memory in training
     by avoiding intermediate storage. Set ``max_bin`` to control the number of bins
@@ -1640,8 +1653,11 @@ class QuantileDMatrix(DMatrix):
         _check_call(ret)
         self.handle = handle
 
+        if ref is not None:
+            self.ref = weakref.ref(ref)
 
-class ExtMemQuantileDMatrix(DMatrix):
+
+class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
     """The external memory version of the :py:class:`QuantileDMatrix`.
 
     See :doc:`/tutorials/external_memory` for explanation and usage examples, and
@@ -1738,6 +1754,9 @@ class ExtMemQuantileDMatrix(DMatrix):
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
+
+        if ref is not None:
+            self.ref = weakref.ref(ref)
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
