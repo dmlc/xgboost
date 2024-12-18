@@ -446,7 +446,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     cache_prefix :
         Prefix to the cache files, only used in external memory.
 
-        Note that using this class for non-quantile external memory **will cache data
+        Note that using this class for external memory **will cache data
         on disk** under the path passed here.
 
     release_data :
