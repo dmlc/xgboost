@@ -4,11 +4,8 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
-from xgboost import testing as tm
 
-pytestmark = [pytest.mark.skipif(**tm.no_polars()), tm.timeout(30)]
-
-import polars as pl
+pl = pytest.importorskip("polars")
 
 
 @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
