@@ -2,7 +2,6 @@
 """Utilities for data generation."""
 import multiprocessing
 import os
-import random
 import string
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -937,20 +936,22 @@ def make_sparse_regression(
     return csr, y
 
 
-def unique_random_strings(n_strings: int) -> List[str]:
+def unique_random_strings(n_strings: int, seed: int) -> List[str]:
     """Generate n unique strings."""
     name_len = 8  # hardcoded, should be more than enough
     unique_strings: Set[str] = set()
+    rng = np.random.default_rng(seed)
 
     while len(unique_strings) < n_strings:
-        random_str = "".join(random.sample(string.ascii_letters, k=name_len))
+        random_str = "".join(
+            rng.choice(list(string.ascii_letters), size=name_len, replace=True)
+        )
         unique_strings.add(random_str)
 
     return list(unique_strings)
 
 
 # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
-@memory.cache
 def make_categorical(
     n_samples: int,
     n_features: int,
@@ -990,9 +991,10 @@ def make_categorical(
 
     df = pd.DataFrame()
     for i in range(n_features):
-        if rng.binomial(1, cat_ratio, size=1)[0] == 1:
+        choice = rng.binomial(1, cat_ratio, size=1)[0]
+        if choice == 1:
             if np.issubdtype(cat_dtype, np.str_):
-                categories = np.array(unique_random_strings(n_categories))
+                categories = np.array(unique_random_strings(n_categories, i))
                 c = rng.choice(categories, size=n_samples, replace=True)
             else:
                 categories = np.arange(0, n_categories)
@@ -1001,7 +1003,7 @@ def make_categorical(
             df[str(i)] = pd.Series(c, dtype="category")
             df[str(i)] = df[str(i)].cat.set_categories(categories)
         else:
-            num = rng.normal(loc=0, scale=3.5, size=n_samples)
+            num = rng.randint(low=0, high=n_categories, size=n_samples)
             df[str(i)] = pd.Series(num, dtype=num.dtype)
 
     label = np.zeros(shape=(n_samples,))
