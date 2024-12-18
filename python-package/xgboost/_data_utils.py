@@ -16,6 +16,13 @@ class _ArrayLikeArg(Protocol):
     def __array_interface__(self) -> "ArrayInf": ...
 
 
+class _TransformedDf(Protocol):
+    def array_interface(self) -> bytes: ...
+
+    @property
+    def shape(self) -> Tuple[int, int]: ...
+
+
 ArrayInf = TypedDict(
     "ArrayInf",
     {
@@ -92,7 +99,10 @@ def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyO
 
 
 def make_array_interface(
-    ptr: CNumericPtr, shape: Tuple[int, ...], dtype: Type[np.number], is_cuda: bool
+    ptr: Union[CNumericPtr, int],
+    shape: Tuple[int, ...],
+    dtype: Type[np.number],
+    is_cuda: bool,
 ) -> ArrayInf:
     """Make an __(cuda)_array_interface__ from a pointer."""
     # Use an empty array to handle typestr and descr
@@ -103,7 +113,10 @@ def make_array_interface(
         empty = np.empty(shape=(0,), dtype=dtype)
         array = empty.__array_interface__  # pylint: disable=no-member
 
-    addr = ctypes.cast(ptr, ctypes.c_void_p).value
+    if not isinstance(ptr, int):
+        addr = ctypes.cast(ptr, ctypes.c_void_p).value
+    else:
+        addr = ptr
     length = int(np.prod(shape))
     # Handle empty dataset.
     assert addr is not None or length == 0

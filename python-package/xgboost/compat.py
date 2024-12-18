@@ -123,6 +123,13 @@ def import_cupy() -> types.ModuleType:
     return cupy
 
 
+@functools.cache
+def import_polars() -> types.ModuleType:
+    import polars as pl
+
+    return pl
+
+
 try:
     import scipy.sparse as scipy_sparse
     from scipy.sparse import csr_matrix as scipy_csr
