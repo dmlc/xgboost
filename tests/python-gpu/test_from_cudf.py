@@ -210,8 +210,8 @@ class TestFromColumnar:
         assert all(t == "c" for t in Xy.feature_types)
 
         # mixed dtypes
-        X["1"] = X["1"].astype(np.int64)
-        X["3"] = X["3"].astype(np.int64)
+        X["0"] = X["0"].astype(np.int64)
+        X["2"] = X["2"].astype(np.int64)
         df, cat_codes, _, _ = xgb.data._transform_cudf_df(
             X, None, None, enable_categorical=True
         )
