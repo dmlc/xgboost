@@ -1,3 +1,5 @@
+"""Copyright 2024, XGBoost contributors"""
+
 from typing import Type, Union
 
 import numpy as np

@@ -37,7 +37,7 @@ import numpy as np
 import scipy.sparse
 
 from ._data_utils import (
-    _TransformedDf,
+    TransformedDf,
     array_interface,
     cuda_array_interface,
     from_array_interface,
@@ -1432,11 +1432,8 @@ class _ProxyDMatrix(DMatrix):
         """Reference data from numpy array."""
         _check_call(_LIB.XGProxyDMatrixSetDataDense(self.handle, array_interface(data)))
 
-    def _ref_data_from_pandas(self, data: _TransformedDf) -> None:
-        """Reference data from a pandas DataFrame. The input is a PandasTransformed
-        instance.
-
-        """
+    def _ref_data_from_columnar(self, data: TransformedDf) -> None:
+        """Reference data from a CPU DataFrame."""
         _check_call(
             _LIB.XGProxyDMatrixSetDataColumnar(self.handle, data.array_interface())
         )

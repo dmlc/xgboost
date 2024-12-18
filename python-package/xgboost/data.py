@@ -25,7 +25,7 @@ import numpy as np
 
 from ._data_utils import (
     ArrayInf,
-    _TransformedDf,
+    TransformedDf,
     array_hasobject,
     array_interface,
     array_interface_dict,
@@ -496,7 +496,9 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     """Handle pandas pyarrow extention."""
     import pandas as pd
 
-    if not TYPE_CHECKING:
+    if TYPE_CHECKING:
+        import pyarrow as pa
+    else:
         pa = import_pyarrow()
 
     # No copy, callstack:
@@ -606,7 +608,7 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
     return result
 
 
-class PandasTransformed(_TransformedDf):
+class PandasTransformed(TransformedDf):
     """A storage class for transformed pandas DataFrame."""
 
     def __init__(self, columns: List[np.ndarray]) -> None:
@@ -763,7 +765,7 @@ def _arrow_npdtype() -> Dict[Any, Type[np.number]]:
     return mapping
 
 
-class ArrowTransformed(_TransformedDf):
+class ArrowTransformed(TransformedDf):
     """A storage class for transformed arrow table."""
 
     def __init__(
@@ -773,10 +775,12 @@ class ArrowTransformed(_TransformedDf):
 
     def array_interface(self) -> bytes:
         """Return a byte string for JSON encoded array interface."""
-        if not TYPE_CHECKING:
+        if TYPE_CHECKING:
+            import pyarrow as pa
+        else:
             pa = import_pyarrow()
 
-        def map_array_inf(
+        def array_inf(
             col: Union["pa.NumericArray", "pa.DictionaryArray"]
         ) -> ArrayInf:
             buffers = col.buffers()
@@ -808,7 +812,7 @@ class ArrowTransformed(_TransformedDf):
                 jdata["mask"] = jmask
             return jdata
 
-        arrays = list(map(map_array_inf, self.columns))
+        arrays = list(map(array_inf, self.columns))
         sarrays = bytes(json.dumps(arrays), "utf-8")
         return sarrays
 
@@ -828,7 +832,9 @@ def _transform_arrow_table(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
 ) -> Tuple[ArrowTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
-    if not TYPE_CHECKING:
+    if TYPE_CHECKING:
+        import pyarrow as pa
+    else:
         pa = import_pyarrow()
 
     t_names, t_types = _arrow_feature_info(data)
@@ -850,7 +856,7 @@ def _transform_arrow_table(
     return df_t, feature_names, feature_types
 
 
-def _from_arrow_table(
+def _from_arrow_table(  # pylint: disable=too-many-positional-arguments
     data: DataType,
     enable_categorical: bool,
     missing: FloatCompatible,
@@ -898,7 +904,9 @@ def _arrow_dtype() -> Dict[DataType, str]:
 
 
 def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
-    if not TYPE_CHECKING:
+    if TYPE_CHECKING:
+        import pyarrow as pa
+    else:
         pa = import_pyarrow()
 
     table: "pa.Table" = data
@@ -911,7 +919,7 @@ def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
                 "Categorical feature is not yet supported with the current input data "
                 "type."
             )
-            return CAT_T
+            return CAT_T  # pylint: disable=unreachable
         return _arrow_dtype()[col.type]
 
     types = list(map(map_type, names))
@@ -1732,7 +1740,7 @@ def dispatch_proxy_set_data(
         return
     # Host
     if isinstance(data, (ArrowTransformed, PandasTransformed)):
-        proxy._ref_data_from_pandas(data)  # pylint: disable=W0212
+        proxy._ref_data_from_columnar(data)  # pylint: disable=W0212
         return
     if _is_np_array_like(data):
         _check_data_shape(data)
