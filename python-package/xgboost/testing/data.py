@@ -46,7 +46,7 @@ def np_dtypes(
     n_samples: int, n_features: int
 ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
     """Enumerate all supported dtypes from numpy."""
-    import pandas as pd
+    pd = pytest.importorskip("pandas")
 
     rng = np.random.RandomState(1994)
     # Integer and float.
@@ -103,7 +103,7 @@ def np_dtypes(
 
 def pd_dtypes() -> Generator:
     """Enumerate all supported pandas extension types."""
-    import pandas as pd
+    pd = pytest.importorskip("pandas")
 
     # Integer
     dtypes = [
@@ -166,8 +166,8 @@ def pd_dtypes() -> Generator:
 
 def pd_arrow_dtypes() -> Generator:
     """Pandas DataFrame with pyarrow backed type."""
-    import pandas as pd
-    import pyarrow as pa
+    pd = pytest.importorskip("pandas")
+    pa = pytest.importorskip("pyarrow")
 
     # Integer
     dtypes = pandas_pyarrow_mapper
@@ -292,8 +292,10 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
     Number of categorical features: 10
     Number of numerical features: 10
     """
-    pytest.importorskip("pandas")
-    import pandas as pd
+    if TYPE_CHECKING:
+        import pandas as pd
+    else:
+        pd = pytest.importorskip("pandas")
 
     rng = np.random.default_rng(1994)
     n_samples = 1460
@@ -985,7 +987,7 @@ def make_categorical(
     -------
     X, y
     """
-    import pandas as pd
+    pd = pytest.importorskip("pandas")
 
     rng = np.random.RandomState(random_state)
 
