@@ -259,13 +259,13 @@ def test_cat_check() -> None:
     batches = []
 
     for i in range(n_batches):
-        X, y = tm.make_categorical(
+        X_df, y_arr = tm.make_categorical(
             n_samples=n_samples_per_batch,
             n_features=n_features,
             n_categories=3,
             onehot=False,
         )
-        batches.append((X, y))
+        batches.append((X_df, y_arr))
 
     X, y = list(zip(*batches))
     it = tm.IteratorForTest(X, y, None, cache=None, on_host=False)
