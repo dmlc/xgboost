@@ -354,8 +354,7 @@ xgb.QuantileDMatrix <- function(
   data_iterator <- .single.data.iterator(iterator_env)
 
   env_keep_alive <- new.env()
-  env_keep_alive$keepalive1 <- NULL
-  env_keep_alive$keepalive2 <- NULL
+  env_keep_alive$keepalive <- NULL
 
   # Note: the ProxyDMatrix has its finalizer assigned in the R externalptr
   # object, but that finalizer will only be called once the object is
@@ -370,8 +369,7 @@ xgb.QuantileDMatrix <- function(
     return(xgb.ProxyDMatrix(proxy_handle, data_iterator, env_keep_alive))
   }
   iterator_reset <- function() {
-    env_keep_alive$keepalive1 <- NULL
-    env_keep_alive$keepalive2 <- NULL
+    env_keep_alive$keepalive <- NULL
     return(data_iterator$f_reset(iterator_env))
   }
   calling_env <- environment()
@@ -560,8 +558,7 @@ xgb.DataBatch <- function(
 
 # This is only for internal usage, class is not exposed to the user.
 xgb.ProxyDMatrix <- function(proxy_handle, data_iterator, env_keep_alive) {
-  env_keep_alive$keepalive1 <- NULL
-  env_keep_alive$keepalive2 <- NULL
+  env_keep_alive$keepalive <- NULL
   lst <- data_iterator$f_next(data_iterator$env)
   if (is.null(lst)) {
     return(0L)
@@ -578,17 +575,15 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator, env_keep_alive) {
     lst$data <- NULL
     tmp <- .process.df.for.dmatrix(data, lst$feature_types)
     lst$feature_types <- tmp$feature_types
-    env_keep_alive$keepalive1 <- lst
-    env_keep_alive$keepalive2 <- tmp
     data <- NULL
+    env_keep_alive$keepalive <- tmp
     .Call(XGProxyDMatrixSetDataColumnar_R, proxy_handle, tmp$lst)
   } else if (is.matrix(lst$data)) {
-    env_keep_alive$keepalive1 <- lst
+    env_keep_alive$keepalive <- lst
     .Call(XGProxyDMatrixSetDataDense_R, proxy_handle, lst$data)
   } else if (inherits(lst$data, "dgRMatrix")) {
     tmp <- list(p = lst$data@p, j = lst$data@j, x = lst$data@x, ncol = ncol(lst$data))
-    env_keep_alive$keepalive1 <- lst
-    env_keep_alive$keepalive2 <- tmp
+    env_keep_alive$keepalive <- tmp
     .Call(XGProxyDMatrixSetDataCSR_R, proxy_handle, tmp)
   } else {
     stop("'data' has unsupported type.")
@@ -725,12 +720,11 @@ xgb.ExtMemDMatrix <- function(
 
   # The purpose of this environment is to keep data alive (protected from the
   # garbage collector) after setting the data in the proxy dmatrix. The data
-  # held here (under names 'keepalive1' and 'keepalive2') should be unset
-  # (leaving it unprotected for garbage collection) before the start of each
-  # data iteration batch and during each iterator reset.
+  # held here (under name 'keepalive') should be unset (leaving it unprotected
+  # for garbage collection) before the start of each data iteration batch and
+  # during each iterator reset.
   env_keep_alive <- new.env()
-  env_keep_alive$keepalive1 <- NULL
-  env_keep_alive$keepalive2 <- NULL
+  env_keep_alive$keepalive <- NULL
 
   proxy_handle <- .make.proxy.handle()
   on.exit({
@@ -740,8 +734,7 @@ xgb.ExtMemDMatrix <- function(
     return(xgb.ProxyDMatrix(proxy_handle, data_iterator, env_keep_alive))
   }
   iterator_reset <- function() {
-    env_keep_alive$keepalive1 <- NULL
-    env_keep_alive$keepalive2 <- NULL
+    env_keep_alive$keepalive <- NULL
     return(data_iterator$f_reset(data_iterator$env))
   }
   calling_env <- environment()
@@ -802,8 +795,7 @@ xgb.QuantileDMatrix.from_iterator <- function( # nolint
   nthread <- as.integer(NVL(nthread, -1L))
 
   env_keep_alive <- new.env()
-  env_keep_alive$keepalive1 <- NULL
-  env_keep_alive$keepalive2 <- NULL
+  env_keep_alive$keepalive <- NULL
   proxy_handle <- .make.proxy.handle()
   on.exit({
     .Call(XGDMatrixFree_R, proxy_handle)
@@ -812,8 +804,7 @@ xgb.QuantileDMatrix.from_iterator <- function( # nolint
     return(xgb.ProxyDMatrix(proxy_handle, data_iterator, env_keep_alive))
   }
   iterator_reset <- function() {
-    env_keep_alive$keepalive1 <- NULL
-    env_keep_alive$keepalive2 <- NULL
+    env_keep_alive$keepalive <- NULL
     return(data_iterator$f_reset(data_iterator$env))
   }
   calling_env <- environment()
