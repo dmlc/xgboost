@@ -124,6 +124,13 @@ def import_cupy() -> types.ModuleType:
 
 
 @functools.cache
+def import_pyarrow() -> types.ModuleType:
+    import pyarrow as pa
+
+    return pa
+
+
+@functools.cache
 def import_polars() -> types.ModuleType:
     import polars as pl
 

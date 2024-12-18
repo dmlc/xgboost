@@ -46,7 +46,7 @@ from ._typing import (
 )
 from .compat import DataFrame
 from .compat import Series as PdSeries
-from .compat import import_polars, lazy_isinstance
+from .compat import import_polars, import_pyarrow, lazy_isinstance
 from .core import (
     _LIB,
     DataIter,
@@ -495,7 +495,9 @@ def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
 def pandas_pa_type(ser: Any) -> np.ndarray:
     """Handle pandas pyarrow extention."""
     import pandas as pd
-    import pyarrow as pa
+
+    if not TYPE_CHECKING:
+        pa = import_pyarrow()
 
     # No copy, callstack:
     # pandas.core.internals.managers.SingleBlockManager.array_values()
@@ -503,9 +505,9 @@ def pandas_pa_type(ser: Any) -> np.ndarray:
     d_array: pd.arrays.ArrowExtensionArray = ser.array  # type: ignore
     # no copy in __arrow_array__
     # ArrowExtensionArray._data is a chunked array
-    aa: pa.ChunkedArray = d_array.__arrow_array__()
+    aa: "pa.ChunkedArray" = d_array.__arrow_array__()
     # combine_chunks takes the most significant amount of time
-    chunk: pa.Array = aa.combine_chunks()
+    chunk: "pa.Array" = aa.combine_chunks()
     # When there's null value, we have to use copy
     zero_copy = chunk.null_count == 0 and not pa.types.is_boolean(chunk.type)
     # Alternately, we can use chunk.buffers(), which returns a list of buffers and
@@ -771,7 +773,8 @@ class ArrowTransformed(_TransformedDf):
 
     def array_interface(self) -> bytes:
         """Return a byte string for JSON encoded array interface."""
-        import pyarrow as pa
+        if not TYPE_CHECKING:
+            pa = import_pyarrow()
 
         def map_array_inf(
             col: Union["pa.NumericArray", "pa.DictionaryArray"]
@@ -825,7 +828,8 @@ def _transform_arrow_table(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
 ) -> Tuple[ArrowTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
-    import pyarrow as pa
+    if not TYPE_CHECKING:
+        pa = import_pyarrow()
 
     t_names, t_types = _arrow_feature_info(data)
 
@@ -836,8 +840,8 @@ def _transform_arrow_table(
 
     columns = []
     for cname in feature_names:
-        col0: pa.ChunkedArray = data.column(cname)
-        col: Union[pa.NumericArray, pa.DictionaryArray] = col0.combine_chunks()
+        col0 = data.column(cname)
+        col: Union["pa.NumericArray", "pa.DictionaryArray"] = col0.combine_chunks()
         if isinstance(col, pa.BooleanArray):
             col = col.cast(pa.int8())  # bit-compressed array, not supported.
         columns.append(col)
@@ -894,9 +898,10 @@ def _arrow_dtype() -> Dict[DataType, str]:
 
 
 def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
-    import pyarrow as pa
+    if not TYPE_CHECKING:
+        pa = import_pyarrow()
 
-    table: pa.Table = data
+    table: "pa.Table" = data
     names = table.column_names
 
     def map_type(name: str) -> str:
