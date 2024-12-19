@@ -1,7 +1,8 @@
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, too-many-lines
 """Utilities for data generation."""
 import multiprocessing
 import os
+import string
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Set,
     Tuple,
     Type,
     Union,
@@ -26,8 +28,10 @@ from numpy import typing as npt
 from numpy.random import Generator as RNG
 from scipy import sparse
 
-import xgboost
-from xgboost.data import pandas_pyarrow_mapper
+from ..core import DMatrix, QuantileDMatrix
+from ..data import is_pd_cat_dtype, pandas_pyarrow_mapper
+from ..sklearn import ArrayLike, XGBRanker
+from ..training import train as train_fn
 
 if TYPE_CHECKING:
     from ..compat import DataFrame as DataFrameT
@@ -42,7 +46,7 @@ def np_dtypes(
     n_samples: int, n_features: int
 ) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
     """Enumerate all supported dtypes from numpy."""
-    import pandas as pd
+    pd = pytest.importorskip("pandas")
 
     rng = np.random.RandomState(1994)
     # Integer and float.
@@ -99,7 +103,7 @@ def np_dtypes(
 
 def pd_dtypes() -> Generator:
     """Enumerate all supported pandas extension types."""
-    import pandas as pd
+    pd = pytest.importorskip("pandas")
 
     # Integer
     dtypes = [
@@ -162,8 +166,8 @@ def pd_dtypes() -> Generator:
 
 def pd_arrow_dtypes() -> Generator:
     """Pandas DataFrame with pyarrow backed type."""
-    import pandas as pd
-    import pyarrow as pa
+    pd = pytest.importorskip("pandas")
+    pa = pytest.importorskip("pyarrow")
 
     # Integer
     dtypes = pandas_pyarrow_mapper
@@ -225,10 +229,10 @@ def check_inf(rng: RNG) -> None:
     X[5, 2] = np.inf
 
     with pytest.raises(ValueError, match="Input data contains `inf`"):
-        xgboost.QuantileDMatrix(X, y)
+        QuantileDMatrix(X, y)
 
     with pytest.raises(ValueError, match="Input data contains `inf`"):
-        xgboost.DMatrix(X, y)
+        DMatrix(X, y)
 
 
 @memory.cache
@@ -288,8 +292,10 @@ def get_ames_housing() -> Tuple[DataFrameT, np.ndarray]:
     Number of categorical features: 10
     Number of numerical features: 10
     """
-    pytest.importorskip("pandas")
-    import pandas as pd
+    if TYPE_CHECKING:
+        import pandas as pd
+    else:
+        pd = pytest.importorskip("pandas")
 
     rng = np.random.default_rng(1994)
     n_samples = 1460
@@ -664,7 +670,7 @@ def init_rank_score(
     y_train = y_train[sorted_idx]
     qid_train = qid_train[sorted_idx]
 
-    ltr = xgboost.XGBRanker(objective="rank:ndcg", tree_method="hist")
+    ltr = XGBRanker(objective="rank:ndcg", tree_method="hist")
     ltr.fit(X_train, y_train, qid=qid_train)
 
     # Use the original order of the data.
@@ -799,9 +805,7 @@ def sort_ltr_samples(
     return data
 
 
-def run_base_margin_info(
-    DType: Callable, DMatrixT: Type[xgboost.DMatrix], device: str
-) -> None:
+def run_base_margin_info(DType: Callable, DMatrixT: Type[DMatrix], device: str) -> None:
     """Run tests for base margin."""
     rng = np.random.default_rng()
     X = DType(rng.normal(0, 1.0, size=100).astype(np.float32).reshape(50, 2))
@@ -814,7 +818,7 @@ def run_base_margin_info(
     Xy = DMatrixT(X, y, base_margin=base_margin)
     # Error at train, caused by check in predictor.
     with pytest.raises(ValueError, match=r".*base_margin.*"):
-        xgboost.train({"tree_method": "hist", "device": device}, Xy)
+        train_fn({"tree_method": "hist", "device": device}, Xy)
 
     if not hasattr(X, "iloc"):
         # column major matrix
@@ -932,3 +936,102 @@ def make_sparse_regression(
         return arr, y
 
     return csr, y
+
+
+def unique_random_strings(n_strings: int, seed: int) -> List[str]:
+    """Generate n unique strings."""
+    name_len = 8  # hardcoded, should be more than enough
+    unique_strings: Set[str] = set()
+    rng = np.random.default_rng(seed)
+
+    while len(unique_strings) < n_strings:
+        random_str = "".join(
+            rng.choice(list(string.ascii_letters), size=name_len, replace=True)
+        )
+        unique_strings.add(random_str)
+
+    return list(unique_strings)
+
+
+# pylint: disable=too-many-arguments,too-many-locals,too-many-branches
+def make_categorical(
+    n_samples: int,
+    n_features: int,
+    n_categories: int,
+    *,
+    onehot: bool,
+    sparsity: float = 0.0,
+    cat_ratio: float = 1.0,
+    shuffle: bool = False,
+    random_state: int = 1994,
+    cat_dtype: np.typing.DTypeLike = np.int64,
+) -> Tuple[ArrayLike, np.ndarray]:
+    """Generate categorical features for test.
+
+    Parameters
+    ----------
+    n_categories:
+        Number of categories for categorical features.
+    onehot:
+        Should we apply one-hot encoding to the data?
+    sparsity:
+        The ratio of the amount of missing values over the number of all entries.
+    cat_ratio:
+        The ratio of features that are categorical.
+    shuffle:
+        Whether we should shuffle the columns.
+    cat_dtype :
+        The dtype for categorical features, might be string or numeric.
+
+    Returns
+    -------
+    X, y
+    """
+    pd = pytest.importorskip("pandas")
+
+    rng = np.random.RandomState(random_state)
+
+    df = pd.DataFrame()
+    for i in range(n_features):
+        choice = rng.binomial(1, cat_ratio, size=1)[0]
+        if choice == 1:
+            if np.issubdtype(cat_dtype, np.str_):
+                categories = np.array(unique_random_strings(n_categories, i))
+                c = rng.choice(categories, size=n_samples, replace=True)
+            else:
+                categories = np.arange(0, n_categories)
+                c = rng.randint(low=0, high=n_categories, size=n_samples)
+
+            df[str(i)] = pd.Series(c, dtype="category")
+            df[str(i)] = df[str(i)].cat.set_categories(categories)
+        else:
+            num = rng.randint(low=0, high=n_categories, size=n_samples)
+            df[str(i)] = pd.Series(num, dtype=num.dtype)
+
+    label = np.zeros(shape=(n_samples,))
+    for col in df.columns:
+        if isinstance(df[col].dtype, pd.CategoricalDtype):
+            label += df[col].cat.codes
+        else:
+            label += df[col]
+    label += 1
+
+    if sparsity > 0.0:
+        for i in range(n_features):
+            index = rng.randint(
+                low=0, high=n_samples - 1, size=int(n_samples * sparsity)
+            )
+            df.iloc[index, i] = np.nan
+            if is_pd_cat_dtype(df.dtypes.iloc[i]):
+                assert n_categories == np.unique(df.dtypes.iloc[i].categories).size
+
+    assert df.shape[1] == n_features
+    if onehot:
+        df = pd.get_dummies(df)
+
+    if shuffle:
+        columns = list(df.columns)
+        rng.shuffle(columns)
+        df = df[columns]
+
+    return df, label

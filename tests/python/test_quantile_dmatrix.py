@@ -17,7 +17,10 @@ from xgboost.testing import (
 )
 from xgboost.testing.data import check_inf, np_dtypes
 from xgboost.testing.data_iter import run_mixed_sparsity
-from xgboost.testing.quantile_dmatrix import check_ref_quantile_cut
+from xgboost.testing.quantile_dmatrix import (
+    check_categorical_strings,
+    check_ref_quantile_cut,
+)
 
 
 class TestQuantileDMatrix:
@@ -56,6 +59,9 @@ class TestQuantileDMatrix:
         assert Xy.num_col() == n_features
         r = np.arange(1.0, n_samples)
         np.testing.assert_allclose(Xy.get_data().toarray()[1:, 0], r)
+
+    def test_categorical_strings(self) -> None:
+        check_categorical_strings("cpu")
 
     def test_error(self):
         from sklearn.model_selection import train_test_split
