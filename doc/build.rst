@@ -317,15 +317,23 @@ simplest way to install the R package after obtaining the source code is:
   cd R-package
   R CMD INSTALL .
 
-But if you want to use CMake build for better performance (which has the logic for
-detecting available CPU instructions) or greater flexibility around compile flags, the
-above snippet can be replaced by:
+As an alternative, the package can also be loaded through ``devtools::load_all()``
+from the same subfolder ``R-package`` in the repository's root, and by extension, can
+be installed through RStudio's build panel if one adds that folder ``R-package`` as an
+R package project in the RStudio IDE.
+
+If you want to use the CMake build for better performance or greater flexibility around
+compile flags, the earlier snippet can be replaced by:
 
 .. code-block:: bash
 
   cmake -B build -S . -DR_LIB=ON
   cmake --build build --target install -j$(nproc)
 
+Note in this case that ``cmake`` will not take configurations from your regular ``Makevars``
+file (if you have such a file under ``~/.R/Makevars``) - instead, custom configurations such
+as compilers to use and flags need to be set through environment variables like ``${CC}``,
+``${CFLAGS}``, etc.
 
 Installing the development version with Visual Studio (Windows)
 ===============================================================
