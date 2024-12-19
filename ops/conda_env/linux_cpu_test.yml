@@ -16,6 +16,7 @@ dependencies:
 - scipy
 - scikit-learn>=1.4.1
 - pandas
+- polars
 - matplotlib
 - dask<=2024.10.0
 - distributed<=2024.10.0
