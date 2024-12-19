@@ -48,6 +48,12 @@ concatenated from multiple calls to the data iterator.
 For more information, see the guide 'Using XGBoost External Memory Version':
 \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
 }
+\details{
+Be aware that construction of external data DMatrices \bold{will cache data on disk}
+in a compressed format, under the path supplied in \code{cache_prefix}.
+
+External data is not supported for the exact tree method.
+}
 \examples{
 data(mtcars)
 

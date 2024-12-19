@@ -608,6 +608,11 @@ xgb.ProxyDMatrix <- function(proxy_handle, data_iterator) {
 #'
 #' For more information, see the guide 'Using XGBoost External Memory Version':
 #' \url{https://xgboost.readthedocs.io/en/stable/tutorials/external_memory.html}
+#' @details
+#' Be aware that construction of external data DMatrices \bold{will cache data on disk}
+#' in a compressed format, under the path supplied in `cache_prefix`.
+#'
+#' External data is not supported for the exact tree method.
 #' @inheritParams xgb.DMatrix
 #' @param data_iterator A data iterator structure as returned by [xgb.DataIter()],
 #'   which includes an environment shared between function calls, and functions to access
