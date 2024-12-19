@@ -791,14 +791,10 @@ class CPUPredictor : public Predictor {
     auto m = std::any_cast<std::shared_ptr<Adapter>>(x);
     CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
-    if (p_m) {
-      p_m->Info().num_row_ = m->NumRows();
-      this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
-    } else {
-      MetaInfo info;
-      info.num_row_ = m->NumRows();
-      this->InitOutPredictions(info, &(out_preds->predictions), model);
-    }
+    CHECK(p_m);
+    CHECK_EQ(p_m->Info().num_row_, m->NumRows());
+    CHECK_EQ(p_m->Info().num_col_, m->NumColumns());
+    this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
 
     std::vector<Entry> workspace(m->NumColumns() * kUnroll * n_threads);
     auto &predictions = out_preds->predictions.HostVector();
@@ -807,7 +803,7 @@ class CPUPredictor : public Predictor {
     std::size_t n_groups = model.learner_model_param->OutputLength();
     auto out_predt = linalg::MakeTensorView(ctx_, predictions, m->NumRows(), n_groups);
     PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>, kBlockSize>(
-        AdapterView<Adapter>(m.get(), missing, common::Span<Entry>{workspace}, n_threads), model,
+        AdapterView<Adapter>(m.get(), missing, common::Span{workspace}, n_threads), model,
         tree_begin, tree_end, &thread_temp, n_threads, out_predt);
   }
 

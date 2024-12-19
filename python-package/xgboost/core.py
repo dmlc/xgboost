@@ -37,6 +37,7 @@ import numpy as np
 import scipy.sparse
 
 from ._data_utils import (
+    TransformedDf,
     array_interface,
     cuda_array_interface,
     from_array_interface,
@@ -64,7 +65,7 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import PANDAS_INSTALLED, DataFrame, py_str
+from .compat import PANDAS_INSTALLED, DataFrame, import_polars, py_str
 from .libpath import find_lib_path
 
 
@@ -1438,11 +1439,8 @@ class _ProxyDMatrix(DMatrix):
         """Reference data from numpy array."""
         _check_call(_LIB.XGProxyDMatrixSetDataDense(self.handle, array_interface(data)))
 
-    def _ref_data_from_pandas(self, data: DataType) -> None:
-        """Reference data from a pandas DataFrame. The input is a PandasTransformed
-        instance.
-
-        """
+    def _ref_data_from_columnar(self, data: TransformedDf) -> None:
+        """Reference data from a CPU DataFrame."""
         _check_call(
             _LIB.XGProxyDMatrixSetDataColumnar(self.handle, data.array_interface())
         )
@@ -2608,8 +2606,8 @@ class Booster:
         assert proxy is None or isinstance(proxy, _ProxyDMatrix)
 
         from .data import (
+            ArrowTransformed,
             PandasTransformed,
-            _arrow_transform,
             _is_arrow,
             _is_cudf_df,
             _is_cudf_pandas,
@@ -2618,8 +2616,12 @@ class Booster:
             _is_np_array_like,
             _is_pandas_df,
             _is_pandas_series,
+            _is_polars,
+            _is_polars_series,
             _is_tuple,
+            _transform_arrow_table,
             _transform_pandas_df,
+            _transform_polars_df,
         )
 
         if _is_cudf_pandas(data):
@@ -2627,7 +2629,12 @@ class Booster:
 
         enable_categorical = True
         if _is_arrow(data):
-            data = _arrow_transform(data)
+            data, fns, _ = _transform_arrow_table(data, enable_categorical, None, None)
+        if _is_polars_series(data):
+            pl = import_polars()
+            data = pl.DataFrame({data.name: data})
+        if _is_polars(data):
+            data, fns, _ = _transform_polars_df(data, enable_categorical, None, None)
         if _is_pandas_series(data):
             import pandas as pd
 
@@ -2666,7 +2673,7 @@ class Booster:
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if isinstance(data, PandasTransformed):
+        if isinstance(data, (ArrowTransformed, PandasTransformed)):
             _check_call(
                 _LIB.XGBoosterPredictFromColumnar(
                     self.handle,
