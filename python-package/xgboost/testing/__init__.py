@@ -37,19 +37,18 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost import RabitTracker
 from xgboost.core import ArrayLike
-from xgboost.data import is_pd_cat_dtype
 from xgboost.sklearn import SklObjective
-from xgboost.testing.data import (
+
+from .._typing import PathLike
+from .data import (
     get_california_housing,
     get_cancer,
     get_digits,
     get_sparse,
     make_batches,
+    make_categorical,
     make_sparse_regression,
-    memory,
 )
-
-from .._typing import PathLike
 
 hypothesis = pytest.importorskip("hypothesis")
 
@@ -139,6 +138,10 @@ def no_pandas() -> PytestSkip:
 
 def no_arrow() -> PytestSkip:
     return no_mod("pyarrow")
+
+
+def no_polars() -> PytestSkip:
+    return no_mod("polars")
 
 
 def no_modin() -> PytestSkip:
@@ -375,81 +378,6 @@ class TestDataset:
 
     def __repr__(self) -> str:
         return self.name
-
-
-# pylint: disable=too-many-arguments,too-many-locals
-@memory.cache
-def make_categorical(
-    n_samples: int,
-    n_features: int,
-    n_categories: int,
-    *,
-    onehot: bool,
-    sparsity: float = 0.0,
-    cat_ratio: float = 1.0,
-    shuffle: bool = False,
-    random_state: int = 1994,
-) -> Tuple[ArrayLike, np.ndarray]:
-    """Generate categorical features for test.
-
-    Parameters
-    ----------
-    n_categories:
-        Number of categories for categorical features.
-    onehot:
-        Should we apply one-hot encoding to the data?
-    sparsity:
-        The ratio of the amount of missing values over the number of all entries.
-    cat_ratio:
-        The ratio of features that are categorical.
-    shuffle:
-        Whether we should shuffle the columns.
-
-    Returns
-    -------
-    X, y
-    """
-    import pandas as pd
-
-    rng = np.random.RandomState(random_state)
-
-    pd_dict = {}
-    for i in range(n_features + 1):
-        c = rng.randint(low=0, high=n_categories, size=n_samples)
-        pd_dict[str(i)] = pd.Series(c, dtype=np.int64)
-
-    df = pd.DataFrame(pd_dict)
-    label = df.iloc[:, 0]
-    df = df.iloc[:, 1:]
-    for i in range(0, n_features):
-        label += df.iloc[:, i]
-    label += 1
-
-    categories = np.arange(0, n_categories)
-    for col in df.columns:
-        if rng.binomial(1, cat_ratio, size=1)[0] == 1:
-            df[col] = df[col].astype("category")
-            df[col] = df[col].cat.set_categories(categories)
-
-    if sparsity > 0.0:
-        for i in range(n_features):
-            index = rng.randint(
-                low=0, high=n_samples - 1, size=int(n_samples * sparsity)
-            )
-            df.iloc[index, i] = np.nan
-            if is_pd_cat_dtype(df.dtypes.iloc[i]):
-                assert n_categories == np.unique(df.dtypes.iloc[i].categories).size
-
-    assert df.shape[1] == n_features
-    if onehot:
-        df = pd.get_dummies(df)
-
-    if shuffle:
-        columns = list(df.columns)
-        rng.shuffle(columns)
-        df = df[columns]
-
-    return df, label
 
 
 def make_ltr(

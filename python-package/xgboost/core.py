@@ -37,6 +37,7 @@ import numpy as np
 import scipy.sparse
 
 from ._data_utils import (
+    TransformedDf,
     array_interface,
     cuda_array_interface,
     from_array_interface,
@@ -64,7 +65,7 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import PANDAS_INSTALLED, DataFrame, py_str
+from .compat import PANDAS_INSTALLED, DataFrame, import_polars, py_str
 from .libpath import find_lib_path
 
 
@@ -446,6 +447,9 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     cache_prefix :
         Prefix to the cache files, only used in external memory.
 
+        Note that using this class for external memory **will cache data
+        on disk** under the path passed here.
+
     release_data :
         Whether the iterator should release the data during iteration. Set it to True if
         the data transformation (converting data to np.float32 type) is memory
@@ -753,6 +757,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         data :
             Data source of DMatrix. See :ref:`py-data` for a list of supported input
             types.
+
+            Note that, if passing an iterator, it **will cache data on disk**, and note
+            that fields like ``label`` will be concatenated in-memory from multiple calls
+            to the iterator.
         label :
             Label of the training data.
         weight :
@@ -1431,11 +1439,8 @@ class _ProxyDMatrix(DMatrix):
         """Reference data from numpy array."""
         _check_call(_LIB.XGProxyDMatrixSetDataDense(self.handle, array_interface(data)))
 
-    def _ref_data_from_pandas(self, data: DataType) -> None:
-        """Reference data from a pandas DataFrame. The input is a PandasTransformed
-        instance.
-
-        """
+    def _ref_data_from_columnar(self, data: TransformedDf) -> None:
+        """Reference data from a CPU DataFrame."""
         _check_call(
             _LIB.XGProxyDMatrixSetDataColumnar(self.handle, data.array_interface())
         )
@@ -1451,7 +1456,20 @@ class _ProxyDMatrix(DMatrix):
         )
 
 
-class QuantileDMatrix(DMatrix):
+class _RefMixIn:
+    @property
+    def ref(self) -> Optional[weakref.ReferenceType]:
+        """Internal method for retrieving a reference to the training DMatrix."""
+        if hasattr(self, "_ref"):
+            return self._ref
+        return None
+
+    @ref.setter
+    def ref(self, ref: weakref.ReferenceType) -> None:
+        self._ref = ref
+
+
+class QuantileDMatrix(DMatrix, _RefMixIn):
     """A DMatrix variant that generates quantilized data directly from input for the
     ``hist`` tree method. This DMatrix is primarily designed to save memory in training
     by avoiding intermediate storage. Set ``max_bin`` to control the number of bins
@@ -1640,8 +1658,11 @@ class QuantileDMatrix(DMatrix):
         _check_call(ret)
         self.handle = handle
 
+        if ref is not None:
+            self.ref = weakref.ref(ref)
 
-class ExtMemQuantileDMatrix(DMatrix):
+
+class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
     """The external memory version of the :py:class:`QuantileDMatrix`.
 
     See :doc:`/tutorials/external_memory` for explanation and usage examples, and
@@ -1738,6 +1759,9 @@ class ExtMemQuantileDMatrix(DMatrix):
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
+
+        if ref is not None:
+            self.ref = weakref.ref(ref)
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
@@ -2582,8 +2606,8 @@ class Booster:
         assert proxy is None or isinstance(proxy, _ProxyDMatrix)
 
         from .data import (
+            ArrowTransformed,
             PandasTransformed,
-            _arrow_transform,
             _is_arrow,
             _is_cudf_df,
             _is_cudf_pandas,
@@ -2592,8 +2616,12 @@ class Booster:
             _is_np_array_like,
             _is_pandas_df,
             _is_pandas_series,
+            _is_polars,
+            _is_polars_series,
             _is_tuple,
+            _transform_arrow_table,
             _transform_pandas_df,
+            _transform_polars_df,
         )
 
         if _is_cudf_pandas(data):
@@ -2601,7 +2629,12 @@ class Booster:
 
         enable_categorical = True
         if _is_arrow(data):
-            data = _arrow_transform(data)
+            data, fns, _ = _transform_arrow_table(data, enable_categorical, None, None)
+        if _is_polars_series(data):
+            pl = import_polars()
+            data = pl.DataFrame({data.name: data})
+        if _is_polars(data):
+            data, fns, _ = _transform_polars_df(data, enable_categorical, None, None)
         if _is_pandas_series(data):
             import pandas as pd
 
@@ -2640,7 +2673,7 @@ class Booster:
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if isinstance(data, PandasTransformed):
+        if isinstance(data, (ArrowTransformed, PandasTransformed)):
             _check_call(
                 _LIB.XGBoosterPredictFromColumnar(
                     self.handle,

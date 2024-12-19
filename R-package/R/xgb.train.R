@@ -428,7 +428,8 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - `"binary:logistic"`: logistic regression for binary classification, output probability
 #' - `"binary:logitraw"`: logistic regression for binary classification, output score before logistic transformation
 #' - `"binary:hinge"`: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-#' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution. #' `"max_delta_step"` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
+#' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution.
+#'   `"max_delta_step"` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
 #' - `"survival:cox"`: Cox regression for right censored survival time data (negative values are considered right censored).
 #'
 #'   Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function `h(t) = h0(t) * HR`).
@@ -452,7 +453,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' @param seed Random number seed. If not specified, will take a random seed through R's own RNG engine.
 #' @param booster (default= `"gbtree"`)
 #' Which booster to use. Can be `"gbtree"`, `"gblinear"` or `"dart"`; `"gbtree"` and `"dart"` use tree based models while `"gblinear"` uses linear functions.
-#' @param eta,learning_rate (two aliases for the same parameter) (for Tree Booster) (default=0.3)
+#' @param eta,learning_rate (two aliases for the same parameter) (default=0.3)
 #' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `eta` shrinks the feature weights to make the boosting process more conservative.
 #'
 #' range: \eqn{[0,1]}

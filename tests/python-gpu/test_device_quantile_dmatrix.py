@@ -8,7 +8,10 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import check_inf
 from xgboost.testing.data_iter import run_mixed_sparsity
-from xgboost.testing.quantile_dmatrix import check_ref_quantile_cut
+from xgboost.testing.quantile_dmatrix import (
+    check_categorical_strings,
+    check_ref_quantile_cut,
+)
 
 sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
@@ -32,6 +35,9 @@ class TestQuantileDMatrix:
             cp.array(m.get_float_info("feature_weights")),
             feature_weights.astype(np.float32),
         )
+
+    def test_categorical_strings(self) -> None:
+        check_categorical_strings("cuda")
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dmatrix_cupy_init(self) -> None:
@@ -175,7 +181,7 @@ class TestQuantileDMatrix:
         import cupy as cp
 
         rng = cp.random.RandomState(np.uint64(1994))
-        self.cputest.run_ref_dmatrix(rng, "gpu_hist", False)
+        self.cputest.run_ref_dmatrix(rng, "cuda", False)
 
     @given(
         strategies.integers(1, 1000),

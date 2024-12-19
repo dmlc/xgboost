@@ -52,7 +52,13 @@ from .core import (
     _parse_version,
     _py_version,
 )
-from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_pandas_df
+from .data import (
+    _is_cudf_df,
+    _is_cudf_ser,
+    _is_cupy_alike,
+    _is_pandas_df,
+    _is_polars_lazyframe,
+)
 from .training import train
 
 
@@ -1577,6 +1583,8 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             # We keep the n_classes_ as a simple member instead of loading it from
             # booster in a Python property. This way we can have efficient and
             # thread-safe prediction.
+            if _is_polars_lazyframe(y):
+                y = y.collect()
             if _is_cudf_df(y) or _is_cudf_ser(y):
                 cp = import_cupy()
 

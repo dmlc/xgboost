@@ -346,15 +346,21 @@ class HistUpdater {
   void InitData(DMatrix *fmat, RegTree const *p_tree) {
     monitor_->Start(__func__);
     bst_bin_t n_total_bins{0};
-    partitioner_.clear();
+    size_t page_idx = 0;
     for (auto const &page : fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
-                                fmat->Info().IsColumnSplit());
+      if (page_idx < partitioner_.size()) {
+        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid,
+                                     fmat->Info().IsColumnSplit());
+      } else {
+        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
+                                  fmat->Info().IsColumnSplit());
+      }
+      page_idx++;
     }
     histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
                               fmat->Info().IsColumnSplit(), hist_param_);

@@ -10,10 +10,8 @@
 #include <cmath>      // for isfinite
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint8_t
-#include <iterator>   // for back_inserter
 #include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr, make_unique
-#include <string>     // for string
 #include <utility>    // for move
 #include <vector>     // for vector
 
@@ -537,26 +535,29 @@ class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch>
 };
 
 class ColumnarAdapterBatch : public detail::NoMetaInfo {
-  common::Span<ArrayInterface<1, false>> columns_;
+  common::Span<ArrayInterface<1>> columns_;
 
   class Line {
-    common::Span<ArrayInterface<1, false>> const& columns_;
-    std::size_t ridx_;
+    common::Span<ArrayInterface<1>> const& columns_;
+    std::size_t const ridx_;
 
    public:
-    explicit Line(common::Span<ArrayInterface<1, false>> const& columns, std::size_t ridx)
+    explicit Line(common::Span<ArrayInterface<1>> const& columns, std::size_t ridx)
         : columns_{columns}, ridx_{ridx} {}
     [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
 
     [[nodiscard]] COOTuple GetElement(std::size_t idx) const {
-      return {ridx_, idx, columns_[idx](ridx_)};
+      auto const& column = columns_[idx];
+      float value = column.valid.Data() == nullptr || column.valid.Check(ridx_)
+                        ? column(ridx_)
+                        : std::numeric_limits<float>::quiet_NaN();
+      return {ridx_, idx, value};
     }
   };
 
  public:
   ColumnarAdapterBatch() = default;
-  explicit ColumnarAdapterBatch(common::Span<ArrayInterface<1, false>> columns)
-      : columns_{columns} {}
+  explicit ColumnarAdapterBatch(common::Span<ArrayInterface<1>> columns) : columns_{columns} {}
   [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, ridx}; }
   [[nodiscard]] std::size_t Size() const {
     return columns_.empty() ? 0 : columns_.front().Shape<0>();
@@ -568,7 +569,7 @@ class ColumnarAdapterBatch : public detail::NoMetaInfo {
 };
 
 class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch> {
-  std::vector<ArrayInterface<1, false>> columns_;
+  std::vector<ArrayInterface<1>> columns_;
   ColumnarAdapterBatch batch_;
 
  public:
@@ -581,7 +582,7 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
     }
     bool consistent =
         columns_.empty() ||
-        std::all_of(columns_.cbegin(), columns_.cend(), [&](ArrayInterface<1, false> const& array) {
+        std::all_of(columns_.cbegin(), columns_.cend(), [&](ArrayInterface<1> const& array) {
           return array.Shape<0>() == columns_[0].Shape<0>();
         });
     CHECK(consistent) << "Size of columns should be the same.";

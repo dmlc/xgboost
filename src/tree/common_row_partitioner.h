@@ -131,12 +131,20 @@ class CommonRowPartitioner {
   CommonRowPartitioner(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid,
                        bool is_col_split)
       : base_rowid{_base_rowid}, is_col_split_{is_col_split} {
-    row_set_collection_.Clear();
+    Reset(ctx, num_row, _base_rowid, is_col_split);
+  }
+
+  void Reset(Context const* ctx, bst_idx_t num_row, bst_idx_t _base_rowid, bool is_col_split) {
+    base_rowid = _base_rowid;
+    is_col_split_ = is_col_split;
+
     std::vector<bst_idx_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(num_row);
 
     bst_idx_t* p_row_indices = row_indices.data();
-    common::Iota(ctx, p_row_indices, p_row_indices + row_indices.size(), base_rowid);
+    common::Iota(ctx, p_row_indices, p_row_indices + num_row, base_rowid);
+
+    row_set_collection_.Clear();
     row_set_collection_.Init();
 
     if (is_col_split_) {
