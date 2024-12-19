@@ -624,7 +624,9 @@ outputs, such as class names for classification problems.
 Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 
 See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{Introduction to Boosted Trees}
-for a longer explanation of what XGBoost does.
+for a longer explanation of what XGBoost does, and the rest of the
+\href{https://xgboost.readthedocs.io/en/latest/tutorials/index.html}{XGBoost Tutorials} for further
+explanations XGBoost's features and usage.
 
 This function is intended to provide a more user-friendly interface for XGBoost that follows
 R's conventions for model fitting and predictions, but which doesn't expose all of the
@@ -637,6 +639,9 @@ By default, most of the parameters here have a value of \code{NULL}, which signa
 default value. Default values are automatically determined by the XGBoost core library, and are
 subject to change over XGBoost library versions. Some of them might differ according to the
 booster type (e.g. defaults for regularization are different for linear and tree-based boosters).
+See \code{\link[=xgb.params]{xgb.params()}} and the \href{https://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}
+for more details about parameters - but note that some of the parameters are not supported in
+the \code{xgboost()} interface.
 }
 \details{
 For package authors using 'xgboost' as a dependency, it is highly recommended to use

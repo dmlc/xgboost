@@ -832,7 +832,9 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 #'
 #' See the tutorial [Introduction to Boosted Trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html)
-#' for a longer explanation of what XGBoost does.
+#' for a longer explanation of what XGBoost does, and the rest of the
+#' [XGBoost Tutorials](https://xgboost.readthedocs.io/en/latest/tutorials/index.html) for further
+#' explanations XGBoost's features and usage.
 #'
 #' This function is intended to provide a more user-friendly interface for XGBoost that follows
 #' R's conventions for model fitting and predictions, but which doesn't expose all of the
@@ -845,6 +847,9 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' default value. Default values are automatically determined by the XGBoost core library, and are
 #' subject to change over XGBoost library versions. Some of them might differ according to the
 #' booster type (e.g. defaults for regularization are different for linear and tree-based boosters).
+#' See [xgb.params()] and the [online documentation](https://xgboost.readthedocs.io/en/latest/parameter.html)
+#' for more details about parameters - but note that some of the parameters are not supported in
+#' the `xgboost()` interface.
 #' @details
 #' For package authors using 'xgboost' as a dependency, it is highly recommended to use
 #' [xgb.train()] in package code instead of [xgboost()], since it has a more stable interface
