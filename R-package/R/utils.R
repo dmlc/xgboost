@@ -462,9 +462,8 @@ NULL
 #' could in theory change again in the future, so XGBoost's serializers should be
 #' preferred for long-term storage.
 #'
-#' Furthermore, note that using the package `qs` for serialization will require
-#' version 0.26 or higher of said package, and will have the same compatibility
-#' restrictions as R serializers.
+#' Furthermore, note that model objects from XGBoost might not be serializable with third-party
+#' R packages like `qs` or `qs2`.
 #'
 #' @details
 #' Use [xgb.save()] to save the XGBoost model as a stand-alone file. You may opt into
