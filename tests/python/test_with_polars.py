@@ -1,5 +1,8 @@
 """Copyright 2024, XGBoost contributors"""
 
+import json
+import os
+import tempfile
 from typing import Type, Union
 
 import numpy as np
@@ -20,10 +23,15 @@ def test_polars_basic(
     assert Xy.num_col() == df.shape[1]
     assert Xy.num_nonmissing() == np.prod(df.shape)
 
+    # feature info
+    assert Xy.feature_names == df.columns
+    assert Xy.feature_types == ["int", "int"]
+
     res = Xy.get_data().toarray()
     res1 = df.to_numpy()
 
     if isinstance(Xy, xgb.QuantileDMatrix):
+        # skip min values in the cut.
         np.testing.assert_allclose(res[1:, :], res1[1:, :])
     else:
         np.testing.assert_allclose(res, res1)
@@ -53,3 +61,39 @@ def test_polars_missing() -> None:
     predt0 = booster.inplace_predict(df)
     predt1 = booster.predict(Xy)
     np.testing.assert_allclose(predt0, predt1)
+
+
+def test_classififer() -> None:
+    from sklearn.datasets import make_classification
+
+    X, y = make_classification(random_state=2024)
+    X_df = pl.DataFrame(X)
+    y_ser = pl.Series(y)
+
+    clf0 = xgb.XGBClassifier()
+    clf0.fit(X_df, y_ser)
+
+    clf1 = xgb.XGBClassifier()
+    clf1.fit(X, y)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path0 = os.path.join(tmpdir, "clf0.json")
+        clf0.save_model(path0)
+
+        path1 = os.path.join(tmpdir, "clf0.json")
+        clf1.save_model(path1)
+
+        with open(path0, "r") as fd:
+            model0 = json.load(fd)
+        with open(path1, "r") as fd:
+            model1 = json.load(fd)
+
+    assert model0 == model1
+
+    predt0 = clf0.predict(X)
+    predt1 = clf1.predict(X)
+
+    np.testing.assert_allclose(predt0, predt1)
+
+    assert (clf0.feature_names_in_ == X_df.columns).all()
+    assert clf0.n_features_in_ == X_df.shape[1]

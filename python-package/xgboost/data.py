@@ -780,9 +780,7 @@ class ArrowTransformed(TransformedDf):
         else:
             pa = import_pyarrow()
 
-        def array_inf(
-            col: Union["pa.NumericArray", "pa.DictionaryArray"]
-        ) -> ArrayInf:
+        def array_inf(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> ArrayInf:
             buffers = col.buffers()
             if isinstance(col, pa.DictionaryArray):
                 mask, _, data = col.buffers()
