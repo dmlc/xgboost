@@ -50,6 +50,36 @@ AS_IF([test -z "${USE_LITTLE_ENDIAN+x}"], [
   ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=${USE_LITTLE_ENDIAN}"
 ])
 
+AC_MSG_NOTICE([Checking for prefetch builtin])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM(
+    [],
+    [__builtin_prefetch]
+  )],
+  [XGBOOST_BUILTIN_PREFETCH_PRESENT="-DXGBOOST_BUILTIN_PREFETCH_PRESENT=1"],
+  [XGBOOST_BUILTIN_PREFETCH_PRESENT=""]
+)
+if [[ "$XGBOOST_BUILTIN_PREFETCH_PRESENT" = "" ]]; then
+  echo "Has __builtin_prefetch"
+else
+  echo "Doesn't have __builtin_prefetch"
+fi
+
+AC_MSG_NOTICE([Checking for mm_prefetch])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM(
+    [#include <xmmintrin.h>],
+    [_mm_prefetch]
+  )],
+  [XGBOOST_MM_PREFETCH_PRESENT="-DXGBOOST_MM_PREFETCH_PRESENT=1"],
+  [XGBOOST_MM_PREFETCH_PRESENT=""]
+)
+if [[ "$XGBOOST_MM_PREFETCH_PRESENT" = "" ]]; then
+  echo "Has _mm_prefetch"
+else
+  echo "Doesn't have _mm_prefetch"
+fi
+
 OPENMP_CXXFLAGS=""
 
 if test `uname -s` = "Linux"
@@ -89,6 +119,8 @@ AC_SUBST(OPENMP_LIB)
 AC_SUBST(ENDIAN_FLAG)
 AC_SUBST(DMLC_DEFS)
 AC_SUBST(BACKTRACE_LIB)
+AC_SUBST(XGBOOST_BUILTIN_PREFETCH_PRESENT)
+AC_SUBST(XGBOOST_MM_PREFETCH_PRESENT)
 AC_CONFIG_FILES([src/Makevars])
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT

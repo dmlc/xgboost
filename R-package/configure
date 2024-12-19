@@ -646,6 +646,8 @@ ac_includes_default="\
 ac_header_cxx_list=
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+XGBOOST_MM_PREFETCH_PRESENT
+XGBOOST_BUILTIN_PREFETCH_PRESENT
 BACKTRACE_LIB
 DMLC_DEFS
 ENDIAN_FLAG
@@ -2794,11 +2796,11 @@ if test x$ac_prog_cxx_stdcxx = xno
 then :
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $CXX option to enable C++11 features" >&5
 printf %s "checking for $CXX option to enable C++11 features... " >&6; }
-if test ${ac_cv_prog_cxx_11+y}
+if test ${ac_cv_prog_cxx_cxx11+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
-  ac_cv_prog_cxx_11=no
+  ac_cv_prog_cxx_cxx11=no
 ac_save_CXX=$CXX
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
@@ -2840,11 +2842,11 @@ if test x$ac_prog_cxx_stdcxx = xno
 then :
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $CXX option to enable C++98 features" >&5
 printf %s "checking for $CXX option to enable C++98 features... " >&6; }
-if test ${ac_cv_prog_cxx_98+y}
+if test ${ac_cv_prog_cxx_cxx98+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
-  ac_cv_prog_cxx_98=no
+  ac_cv_prog_cxx_cxx98=no
 ac_save_CXX=$CXX
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
@@ -3238,6 +3240,64 @@ printf "%s\n" "$as_me: Forcing endianness to: ${USE_LITTLE_ENDIAN}" >&6;}
 
 fi
 
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: Checking for prefetch builtin" >&5
+printf "%s\n" "$as_me: Checking for prefetch builtin" >&6;}
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main (void)
+{
+__builtin_prefetch
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_link "$LINENO"
+then :
+  XGBOOST_BUILTIN_PREFETCH_PRESENT="-DXGBOOST_BUILTIN_PREFETCH_PRESENT=1"
+else $as_nop
+  XGBOOST_BUILTIN_PREFETCH_PRESENT=""
+
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+if [ "$XGBOOST_BUILTIN_PREFETCH_PRESENT" = "" ]; then
+  echo "Has __builtin_prefetch"
+else
+  echo "Doesn't have __builtin_prefetch"
+fi
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: Checking for mm_prefetch" >&5
+printf "%s\n" "$as_me: Checking for mm_prefetch" >&6;}
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <xmmintrin.h>
+int
+main (void)
+{
+_mm_prefetch
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_link "$LINENO"
+then :
+  XGBOOST_MM_PREFETCH_PRESENT="-DXGBOOST_MM_PREFETCH_PRESENT=1"
+else $as_nop
+  XGBOOST_MM_PREFETCH_PRESENT=""
+
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+if [ "$XGBOOST_MM_PREFETCH_PRESENT" = "" ]; then
+  echo "Has _mm_prefetch"
+else
+  echo "Doesn't have _mm_prefetch"
+fi
+
 OPENMP_CXXFLAGS=""
 
 if test `uname -s` = "Linux"
@@ -3283,6 +3343,8 @@ printf "%s\n" "${ac_pkg_openmp}" >&6; }
     echo '*****************************************************************************************'
   fi
 fi
+
+
 
 
 
