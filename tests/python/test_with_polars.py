@@ -99,3 +99,23 @@ def test_classififer() -> None:
 
     assert (clf0.feature_names_in_ == X_df.columns).all()
     assert clf0.n_features_in_ == X_df.shape[1]
+
+
+def test_regressor() -> None:
+    from sklearn.datasets import make_regression
+
+    X, y = make_regression(n_targets=3)
+    X_df = pl.DataFrame(X)
+    y_df = pl.DataFrame(y)
+    assert y_df.shape[1] == 3
+
+    reg0 = xgb.XGBRegressor()
+    reg0.fit(X_df, y_df)
+
+    reg1 = xgb.XGBRegressor()
+    reg1.fit(X, y)
+
+    predt0 = reg0.predict(X)
+    predt1 = reg1.predict(X)
+
+    np.testing.assert_allclose(predt0, predt1)
