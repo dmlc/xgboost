@@ -599,6 +599,17 @@ test_that("check.deprecation works", {
   )
 
   # with exact name
+  options("xgboost.strict_mode" = TRUE)
+  expect_error({
+    model <- xgb.train(
+      data = dm,
+      params = params,
+      nrounds = 10,
+      watchlist = list(tr = dm),
+      verbose = 0
+    )
+  }, regexp = "watchlist")
+  options("xgboost.strict_mode" = FALSE)
   expect_warning({
     model <- xgb.train(
       data = dm,
@@ -624,8 +635,19 @@ test_that("check.deprecation works", {
   expect_true(hasName(attributes(model), "evaluation_log"))
   expect_equal(names(attributes(model)$evaluation_log), c("iter", "train_rmse"))
 
-  # error is thrown if argument cannot be matched
+  # error/warning is thrown if argument cannot be matched
+  options("xgboost.strict_mode" = TRUE)
   expect_error({
+    model <- xgb.train(
+      data = dm,
+      params = params,
+      nrounds = 10,
+      watchlistt = list(train = dm),
+      verbose = 0
+    )
+  }, regexp = "unrecognized")
+  options("xgboost.strict_mode" = FALSE)
+  expect_warning({
     model <- xgb.train(
       data = dm,
       params = params,
@@ -636,15 +658,28 @@ test_that("check.deprecation works", {
   }, regexp = "unrecognized")
 
   # error should suggest to put under 'params' if it goes there
+  options("xgboost.strict_mode" = TRUE)
   expect_error({
     model <- xgb.train(
       data = dm,
       nthread = 1, max_depth = 2, eval_metric = "rmse",
       nrounds = 10,
-      watchlistt = list(train = dm),
+      evals = list(train = dm),
       verbose = 0
     )
   }, regexp = "should be passed as a list to argument 'params'")
+  options("xgboost.strict_mode" = FALSE)
+  expect_warning({
+    model <- xgb.train(
+      data = dm,
+      nthread = 1, max_depth = 2, eval_metric = "mae",
+      nrounds = 10,
+      evals = list(train = dm),
+      verbose = 0
+    )
+  }, regexp = "should be passed as a list to argument 'params'")
+  expect_true(hasName(attributes(model), "evaluation_log"))
+  expect_equal(names(attributes(model)$evaluation_log), c("iter", "train_mae"))
 
   # can take more than one deprecated parameter
   expect_warning({
