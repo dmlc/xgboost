@@ -7,7 +7,10 @@
 #include "../../../../src/common/cuda_pinned_allocator.h"
 #include "../../../../src/common/device_vector.cuh"  // for device_vector
 #include "../../../../src/data/array_interface.h"
+#include "../../../../src/c_api/c_api_error.h"
 #include "jvm_utils.h"
+#include <fstream>
+
 
 namespace xgboost {
 namespace jni {
@@ -127,28 +130,193 @@ template <typename DCont, typename VCont> struct DataFrame {
   std::vector<Json> interfaces;
 };
 
+// The base class for external memory
+class ExternalMemory {
+ public:
+  // Load data from the exact external memory to the GPU
+  virtual void LoadData(size_t batch_number,
+                        std::vector<xgboost::Json> *p_out,
+                        cudaStream_t stream) = 0;
+
+  // Stage data into the exact external memory from GPU.
+  virtual void StageData(
+      std::vector<xgboost::ArrayInterface<1>> &interface_arr,
+      std::vector<Json> const &columns,
+      cudaStream_t stream) = 0;
+
+  virtual ~ExternalMemory() = default;
+
+ protected:
+  // Temp buffer on device, each `dh::device_vector` represents a column from cudf.
+  std::vector<dh::device_vector<char>> staging_data_;
+  std::vector<dh::device_vector<uint8_t>> staging_mask_;
+};
+
+// The data will be stored on CPU memory
+class HostExternalMemory: public ExternalMemory {
+ public:
+  void StageData(std::vector<xgboost::ArrayInterface<1>> &interfaces,
+                 std::vector<Json> const &columns,
+                 cudaStream_t stream) override {
+    std::cerr << "HostExternalMemory StageData batch number: " << std::endl;
+    // DataFrame
+    using T = decltype(host_columns_)::value_type::element_type;
+    host_columns_.emplace_back(std::unique_ptr<T>(new T));
+
+    CopyInterface(interfaces, columns, cudaMemcpyDeviceToHost, &host_columns_.back()->data,
+                  &host_columns_.back()->valid, &host_columns_.back()->interfaces, stream);
+  }
+
+  void LoadData(size_t batch_number,
+                std::vector<xgboost::Json> *p_out,
+                cudaStream_t stream) override {
+    std::cerr << "HostExternalMemory LoadData batch number: " << batch_number << std::endl;
+    // Data
+    auto const &json_interface = host_columns_.at(batch_number)->interfaces;
+    std::vector<ArrayInterface<1>> in;
+    for (auto interface : json_interface) {
+      auto column = ArrayInterface<1>(get<Object const>(interface));
+      in.emplace_back(column);
+    }
+    CopyInterface(in, json_interface, cudaMemcpyHostToDevice, &staging_data_,
+                  &staging_mask_, p_out, nullptr);
+  }
+
+ private:
+    template <typename T>
+    using Alloc = xgboost::common::cuda_impl::PinnedAllocator<T>;
+    template <typename U>
+    using HostVector = std::vector<U, Alloc<U>>;
+    // This vector is created for staging device data on host to save GPU memory.
+    // When space is not of concern, we can stage them on device memory directly.
+    std::vector<
+        std::unique_ptr<DataFrame<HostVector<char>, HostVector<std::uint8_t>>>>
+        host_columns_;
+};
+
+struct DataFile {
+  std::string path;
+  size_t size;
+  size_t shape;
+};
+
+struct FilesDataFrame {
+  std::vector<DataFile> data_files;
+  std::vector<DataFile> valid_files;
+};
+
+// The data will be cached into local disk.
+class DiskExternalMemory: public ExternalMemory {
+ public:
+  DiskExternalMemory(std::string root): root_(root) {}
+
+  void LoadData(size_t batch_number, std::vector<xgboost::Json> *p_out,
+                cudaStream_t stream) override {
+    std::cerr << " DiskExternalMemory LoadData " << std::endl;
+    auto files_data_frame = staged_files_.at(batch_number);
+    auto col_number = files_data_frame.data_files.size();
+
+    p_out->resize(col_number);
+    staging_data_.resize(col_number);
+
+    for (size_t c = 0; c < col_number; c++) {
+      auto data_file = files_data_frame.data_files.at(c);
+
+      std::vector<char> host_data;
+      host_data.resize(data_file.size);
+      std::ifstream inputFile(data_file.path, std::ios::binary);
+      if (inputFile.is_open()) {
+        inputFile.read(RawPtr(host_data), data_file.size);
+        inputFile.close();
+      } else {
+        std::cerr << "Failed to open file for reading" << std::endl;
+      }
+
+      auto device_data = staging_data_.at(c);
+      device_data.resize(data_file.size);
+      dh::safe_cuda(cudaMemcpyAsync(RawPtr(device_data), RawPtr(host_data), data_file.size,
+                                    cudaMemcpyHostToDevice, stream));
+      auto &out = (*p_out).at(c);
+      out = Object();
+      std::vector<Json> j_data{Json{Integer(reinterpret_cast<Integer::Int>(RawPtr(device_data)))},
+                               Json{Boolean{false}}};
+
+      out["data"] = Array(std::move(j_data));
+      out["shape"] = Array(std::vector<Json>{Json(Integer(data_file.shape))});
+      out["typestr"] = String("<f4");
+      out["version"] = Integer(3);
+      // TODO support mask
+    }
+  }
+
+  void StageData(std::vector<xgboost::ArrayInterface<1>> &interface_arr,
+                 const std::vector<Json> &columns, cudaStream_t stream) override {
+    std::cerr << " DiskExternalMemory StageData " << std::endl;
+    ++n_batches_;
+    FilesDataFrame files_data_frame;
+    for (size_t c = 0; c < interface_arr.size(); ++c) {
+      auto &interface = interface_arr.at(c);
+      size_t element_size = interface.ElementSize();
+      size_t size = element_size * interface.n;
+
+      std::vector<char> tmp;
+      tmp.resize(size);
+      dh::safe_cuda(cudaMemcpyAsync(RawPtr(tmp), interface.data, size,
+                                    cudaMemcpyDeviceToHost, stream));
+
+      std::string file_name = GenerateFileName(n_batches_, c, "data");
+      WriteDataToFile(file_name, RawPtr(tmp), size);
+
+      // Store the information.
+      files_data_frame.data_files.emplace_back(DataFile{file_name, size, interface.Shape<0>()});
+
+      if (interface.valid.Data()) {
+        // TODO support mask
+      }
+    }
+    staged_files_.emplace_back(files_data_frame);
+  }
+
+  ~DiskExternalMemory() override {
+    for (auto cached_files: staged_files_) {
+        for (auto data_file : cached_files.data_files) {
+            std::cerr << "removing " << data_file.path.c_str() << std::endl;
+            std::remove(data_file.path.c_str());
+        }
+        for (auto data_file : cached_files.valid_files) {
+            std::remove(data_file.path.c_str());
+        }
+    }
+  };
+
+ private:
+  std::string GenerateFileName(size_t batch_number, size_t column, std::string type) const {
+      std::stringstream ss;
+      ss << root_ << "/" << batch_number << "_" << column << "_" << type << ".bin";
+      return ss.str();
+  }
+
+  void WriteDataToFile(std::string path, char *data, size_t size) const {
+    std::ofstream output_file(path, std::ios::binary);
+    if (output_file.is_open()) {
+      output_file.write(data, size);
+      output_file.close();
+    } else {
+      std::cerr << "Failed to open file " << std::endl;
+    }
+  }
+
+  std::vector<FilesDataFrame> staged_files_;
+  const std::string root_; // the root path of external memory
+  size_t n_batches_ = 0;
+};
+
 class DataIteratorProxy {
   DMatrixHandle proxy_;
   JNIEnv *jenv_;
   int jni_status_;
   jobject jiter_;
-  bool cache_on_host_{true}; // TODO(Bobby): Make this optional.
-
-  template <typename T>
-  using Alloc = xgboost::common::cuda_impl::PinnedAllocator<T>;
-  template <typename U>
-  using HostVector = std::vector<U, Alloc<U>>;
-
-  // This vector is created for staging device data on host to save GPU memory.
-  // When space is not of concern, we can stage them on device memory directly.
-  std::vector<
-      std::unique_ptr<DataFrame<HostVector<char>, HostVector<std::uint8_t>>>>
-      host_columns_;
-  // TODO(Bobby): Use this instead of `host_columns_` if staging is not
-  // required.
-  std::vector<std::unique_ptr<DataFrame<dh::device_vector<char>,
-                                        dh::device_vector<std::uint8_t>>>>
-      device_columns_;
+  std::unique_ptr<ExternalMemory> ext_memory_;
 
   // Staging area for metainfo.
   // TODO(Bobby): label_upper_bound, label_lower_bound, group.
@@ -166,23 +334,23 @@ class DataIteratorProxy {
   bool initialized_{false};
   jobject last_batch_ {nullptr};
 
-  // Temp buffer on device, each `dh::device_vector` represents a column
-  // from cudf.
-  std::vector<dh::device_vector<char>> staging_data_;
-  std::vector<dh::device_vector<uint8_t>> staging_mask_;
-
   cudaStream_t copy_stream_;
 
  public:
-  explicit DataIteratorProxy(jobject jiter, bool cache_on_host = true)
-      : jiter_{jiter}, cache_on_host_{cache_on_host} {
+  explicit DataIteratorProxy(jobject jiter, std::string external_path): jiter_{jiter} {
+    if (!external_path.empty()) {
+      ext_memory_ = std::make_unique<DiskExternalMemory>(external_path);
+    } else {
+      ext_memory_ = std::make_unique<HostExternalMemory>();
+    }
     XGProxyDMatrixCreate(&proxy_);
     jni_status_ =
         GlobalJvm()->GetEnv(reinterpret_cast<void **>(&jenv_), JNI_VERSION_1_6);
     this->Reset();
     dh::safe_cuda(cudaStreamCreateWithFlags(&copy_stream_, cudaStreamNonBlocking));
   }
-  ~DataIteratorProxy() { XGDMatrixFree(proxy_);
+  ~DataIteratorProxy() {
+    XGDMatrixFree(proxy_);
     dh::safe_cuda(cudaStreamDestroy(copy_stream_));
   }
 
@@ -287,9 +455,6 @@ class DataIteratorProxy {
 
   void StageData(std::string interface_str) {
     ++n_batches_;
-    // DataFrame
-    using T = decltype(host_columns_)::value_type::element_type;
-    host_columns_.emplace_back(std::unique_ptr<T>(new T));
 
     // Stage the meta info.
     auto json_interface =
@@ -306,11 +471,9 @@ class DataIteratorProxy {
       auto column = ArrayInterface<1>(get<Object const>(json_col));
       interfaces.emplace_back(column);
     }
-    Json::Dump(features, &interface_str);
-    CopyInterface(interfaces, json_columns, cudaMemcpyDeviceToHost,
-                  &host_columns_.back()->data, &host_columns_.back()->valid,
-                  &host_columns_.back()->interfaces, copy_stream_);
+    ext_memory_->StageData(interfaces, json_columns, copy_stream_);
 
+    Json::Dump(features, &interface_str);
     XGProxyDMatrixSetDataCudaColumnar(proxy_, interface_str.c_str());
     it_++;
   }
@@ -359,21 +522,13 @@ class DataIteratorProxy {
       XGDMatrixSetInfoFromInterface(proxy_, "qid", str.c_str());
     }
 
-    // Data
-    auto const &json_interface = host_columns_.at(it_)->interfaces;
-
-    std::vector<ArrayInterface<1>> in;
-    for (auto interface : json_interface) {
-      auto column = ArrayInterface<1>(get<Object const>(interface));
-      in.emplace_back(column);
-    }
     std::vector<Json> out;
-    CopyInterface(in, json_interface, cudaMemcpyHostToDevice, &staging_data_,
-                  &staging_mask_, &out, nullptr);
+    ext_memory_->LoadData(it_, &out, copy_stream_);
 
     Json temp{Array(std::move(out))};
     std::string interface_str;
     Json::Dump(temp, &interface_str);
+    std::cerr << "NextSecondLoop " << interface_str << std::endl;
     XGProxyDMatrixSetDataCudaColumnar(proxy_, interface_str.c_str());
     it_++;
     return 1;
@@ -407,7 +562,12 @@ using Deleter = std::function<void(T *)>;
 XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass, jobject jdata_iter,
                                                     jlongArray jref, char const *config,
                                                     jlongArray jout) {
-  xgboost::jni::DataIteratorProxy proxy(jdata_iter);
+  xgboost_CHECK_C_ARG_PTR(config);
+  auto jconfig = Json::Load(StringView{config});
+  auto ext_mem_path = OptionalArg<String>(jconfig, "external_memory_path", std::string(""));
+  std::cerr << "XGQuantileDMatrixCreateFromCallbackImpl external_memory_path " << ext_mem_path << std::endl;
+
+  xgboost::jni::DataIteratorProxy proxy(jdata_iter, ext_mem_path);
   DMatrixHandle result;
   DMatrixHandle ref{nullptr};
 

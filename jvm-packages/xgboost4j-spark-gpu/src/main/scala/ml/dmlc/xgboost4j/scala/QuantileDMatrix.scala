@@ -54,7 +54,7 @@ class QuantileDMatrix private[scala](
            missing: Float,
            maxBin: Int,
            nthread: Int) {
-    this(new JQuantileDMatrix(iter.asJava, ref.jDMatrix, missing, maxBin, nthread))
+    this(new JQuantileDMatrix(iter.asJava, ref.jDMatrix, missing, maxBin, nthread, null))
   }
 
   /**
