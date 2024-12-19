@@ -45,10 +45,11 @@ License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/dmlc/xgboost
 BugReports: https://github.com/dmlc/xgboost/issues
 NeedsCompilation: yes
-VignetteBuilder: knitr
+VignetteBuilder: knitr, quarto
 Suggests:
     knitr,
     rmarkdown,
+    quarto,
     ggplot2 (>= 1.0.1),
     DiagrammeR (>= 0.9.0),
     DiagrammeRsvg,
