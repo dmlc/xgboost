@@ -288,6 +288,7 @@ class ResourceHandler {
     kCudaMmap = 3,       // CUDA with mmap.
     kCudaHostCache = 4,  // CUDA pinned host memory.
     kCudaGrowOnly = 5,   // CUDA virtual memory allocator.
+    kFixedHostBuf = 6,
   };
 
  private:
@@ -316,6 +317,8 @@ class ResourceHandler {
         return "CudaHostCache";
       case kCudaGrowOnly:
         return "CudaGrowOnly";
+      case kFixedHostBuf:
+        return "FixedHostBuf";
     }
     LOG(FATAL) << "Unreachable.";
     return {};
@@ -337,6 +340,18 @@ class ResourceHandler {
   [[nodiscard]] bool IsSameType(ResourceHandler const& that) const {
     return this->Type() == that.Type();
   }
+};
+
+class FixedBufferResource : public ResourceHandler {
+  std::string& buf_;
+  std::size_t offset_bytes_;
+
+ public:
+  explicit FixedBufferResource(std::string& buf, std::size_t offset_bytes)
+      : buf_{buf}, offset_bytes_{offset_bytes}, ResourceHandler{kFixedHostBuf} {}
+
+  void* Data() override { return this->buf_.data() + offset_bytes_; }
+  std::size_t Size() const override { return this->buf_.size() - offset_bytes_; }
 };
 
 class MallocResource : public ResourceHandler {
@@ -602,7 +617,7 @@ class AlignedMemWriteStream : public AlignedFileWriteStream {
   [[nodiscard]] std::size_t DoWrite(const void* ptr, std::size_t n_bytes) noexcept(true) override;
 
  public:
-  explicit AlignedMemWriteStream(std::string* p_buf);
+  explicit AlignedMemWriteStream(std::string* p_buf, std::size_t offset_bytes = 0);
   ~AlignedMemWriteStream() override;
 
   [[nodiscard]] std::size_t Tell() const noexcept(true);

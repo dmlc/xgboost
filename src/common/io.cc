@@ -289,8 +289,10 @@ AlignedFileWriteStream::AlignedFileWriteStream(StringView path, StringView flags
   return n_bytes;
 }
 
-AlignedMemWriteStream::AlignedMemWriteStream(std::string* p_buf)
-    : pimpl_{std::make_unique<MemoryBufferStream>(p_buf)} {}
+AlignedMemWriteStream::AlignedMemWriteStream(std::string* p_buf, std::size_t offset_bytes)
+    : pimpl_{std::make_unique<MemoryBufferStream>(p_buf)} {
+  pimpl_->Seek(offset_bytes);
+}
 AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 
 [[nodiscard]] std::size_t AlignedMemWriteStream::DoWrite(const void* ptr,
