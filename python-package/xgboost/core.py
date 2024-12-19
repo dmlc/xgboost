@@ -446,6 +446,9 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     cache_prefix :
         Prefix to the cache files, only used in external memory.
 
+        Note that using this class for external memory **will cache data
+        on disk** under the path passed here.
+
     release_data :
         Whether the iterator should release the data during iteration. Set it to True if
         the data transformation (converting data to np.float32 type) is memory
@@ -753,6 +756,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         data :
             Data source of DMatrix. See :ref:`py-data` for a list of supported input
             types.
+
+            Note that, if passing an iterator, it **will cache data on disk**, and note
+            that fields like ``label`` will be concatenated in-memory from multiple calls
+            to the iterator.
         label :
             Label of the training data.
         weight :
