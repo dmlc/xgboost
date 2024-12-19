@@ -64,7 +64,7 @@ def test_polars_missing() -> None:
 
 
 def test_classififer() -> None:
-    from sklearn.datasets import make_classification
+    from sklearn.datasets import make_classification, make_multilabel_classification
 
     X, y = make_classification(random_state=2024)
     X_df = pl.DataFrame(X)
@@ -99,6 +99,20 @@ def test_classififer() -> None:
 
     assert (clf0.feature_names_in_ == X_df.columns).all()
     assert clf0.n_features_in_ == X_df.shape[1]
+
+    X, y = make_multilabel_classification(128)
+    X_df = pl.DataFrame(X)
+    y_df = pl.DataFrame(y)
+    clf = xgb.XGBClassifier(n_estimators=1)
+    clf.fit(X_df, y_df)
+    assert clf.n_classes_ == 2
+
+    X, y = make_classification(n_classes=3, n_informative=5)
+    X_df = pl.DataFrame(X)
+    y_ser = pl.Series(y)
+    clf = xgb.XGBClassifier(n_estimators=1)
+    clf.fit(X_df, y_ser)
+    assert clf.n_classes_ == 3
 
 
 def test_regressor() -> None:
