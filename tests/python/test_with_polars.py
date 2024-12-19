@@ -80,7 +80,7 @@ def test_classififer() -> None:
         path0 = os.path.join(tmpdir, "clf0.json")
         clf0.save_model(path0)
 
-        path1 = os.path.join(tmpdir, "clf0.json")
+        path1 = os.path.join(tmpdir, "clf1.json")
         clf1.save_model(path1)
 
         with open(path0, "r") as fd:
@@ -88,6 +88,8 @@ def test_classififer() -> None:
         with open(path1, "r") as fd:
             model1 = json.load(fd)
 
+    model0["learner"]["feature_names"] = []
+    model0["learner"]["feature_types"] = []
     assert model0 == model1
 
     predt0 = clf0.predict(X)
