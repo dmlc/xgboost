@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2024 by Contributors
+ Copyright (c) 2021-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -28,14 +28,16 @@ public class QuantileDMatrix extends DMatrix {
    * @param missing the missing value
    * @param maxBin  the max bin
    * @param nthread the parallelism
+   * @param useExternalMemory whether to use external memory or not
    * @throws XGBoostError
    */
   public QuantileDMatrix(
       Iterator<ColumnBatch> iter,
       float missing,
       int maxBin,
-      int nthread) throws XGBoostError {
-    this(iter, null, missing, maxBin, nthread);
+      int nthread,
+      boolean useExternalMemory) throws XGBoostError {
+    this(iter, null, missing, maxBin, nthread, useExternalMemory);
   }
 
   /**
@@ -50,6 +52,7 @@ public class QuantileDMatrix extends DMatrix {
    * @param missing    the missing value
    * @param maxBin     the max bin
    * @param nthread    the parallelism
+   * @param useExternalMemory whether to use external memory or not
    * @throws XGBoostError
    */
   public QuantileDMatrix(
@@ -57,10 +60,11 @@ public class QuantileDMatrix extends DMatrix {
       QuantileDMatrix refDMatrix,
       float missing,
       int maxBin,
-      int nthread) throws XGBoostError {
+      int nthread,
+      boolean useExternalMemory) throws XGBoostError {
     super(0);
     long[] out = new long[1];
-    String conf = getConfig(missing, maxBin, nthread);
+    String conf = getConfig(missing, maxBin, nthread, useExternalMemory);
     long[] ref = null;
     if (refDMatrix != null) {
       ref = new long[1];
@@ -111,9 +115,9 @@ public class QuantileDMatrix extends DMatrix {
     throw new XGBoostError("QuantileDMatrix does not support setGroup.");
   }
 
-  private String getConfig(float missing, int maxBin, int nthread) {
-    return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d}",
-                         missing, maxBin, nthread);
+  private String getConfig(float missing, int maxBin, int nthread, boolean useExternalMemory) {
+    return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d," +
+        "\"use_ext_mem\":%b}", missing, maxBin, nthread, useExternalMemory);
   }
 
 }

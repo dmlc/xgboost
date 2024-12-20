@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2024 by Contributors
+ Copyright (c) 2021-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ public class DMatrixTest {
       tables.add(new CudfColumnBatch(X_0, y_0, w_0, m_0, q_0));
       tables.add(new CudfColumnBatch(X_1, y_1, w_1, m_1, q_1));
 
-      QuantileDMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1);
+      QuantileDMatrix dmat = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1, false);
       float[] anchorLabel = convertFloatTofloat(label1, label2);
       float[] anchorWeight = convertFloatTofloat(weight1, weight2);
       float[] anchorBaseMargin = convertFloatTofloat(baseMargin1, baseMargin2);
@@ -166,11 +166,11 @@ public class DMatrixTest {
     ) {
       List<ColumnBatch> tables = new LinkedList<>();
       tables.add(new CudfColumnBatch(X_0, y_0, null, null, null));
-      QuantileDMatrix train = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1);
+      QuantileDMatrix train = new QuantileDMatrix(tables.iterator(), 0.0f, 256, 1, false);
 
       tables.clear();
       tables.add(new CudfColumnBatch(X_1, y_1, null, null, null));
-      QuantileDMatrix eval = new QuantileDMatrix(tables.iterator(),  train, 0.0f, 256, 1);
+      QuantileDMatrix eval = new QuantileDMatrix(tables.iterator(),  train, 0.0f, 256, 1, false);
 
       DMatrix.QuantileCut trainCut = train.getQuantileCut();
       DMatrix.QuantileCut evalCut = eval.getQuantileCut();

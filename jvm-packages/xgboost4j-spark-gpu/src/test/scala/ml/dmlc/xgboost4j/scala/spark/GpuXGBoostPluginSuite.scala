@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -358,25 +358,101 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     }
   }
 
-  Seq("binary:logistic", "multi:softprob").foreach { case objective =>
-    test(s"$objective: XGBoost-Spark should match xgboost4j") {
+  Seq(false, true).foreach { useExtMem =>
+    Seq("binary:logistic", "multi:softprob").foreach { objective =>
+      test(s"$objective: XGBoost-Spark should match xgboost4j with useExtMem=$useExtMem") {
+        withGpuSparkSession() { spark =>
+          import spark.implicits._
+
+          val numRound = 100
+          var xgboostParams: Map[String, Any] = Map(
+            "objective" -> objective,
+            "device" -> "cuda"
+          )
+
+          val (trainPath, testPath) = if (objective == "binary:logistic") {
+            (writeFile(Classification.train.toDF("label", "weight", "c1", "c2", "c3")),
+              writeFile(Classification.test.toDF("label", "weight", "c1", "c2", "c3")))
+          } else {
+            xgboostParams = xgboostParams ++ Map("num_class" -> 6)
+            (writeFile(MultiClassification.train.toDF("label", "weight", "c1", "c2", "c3")),
+              writeFile(MultiClassification.test.toDF("label", "weight", "c1", "c2", "c3")))
+          }
+
+          val df = spark.read.parquet(trainPath)
+          val testdf = spark.read.parquet(testPath)
+
+          val features = Array("c1", "c2", "c3")
+          val featuresIndices = features.map(df.schema.fieldIndex)
+          val label = "label"
+
+          val classifier = new XGBoostClassifier(xgboostParams)
+            .setFeaturesCol(features)
+            .setLabelCol(label)
+            .setNumRound(numRound)
+            .setLeafPredictionCol("leaf")
+            .setContribPredictionCol("contrib")
+            .setDevice("cuda")
+            .setUseExternalMemory(useExtMem)
+
+          val xgb4jModel = withResource(new GpuColumnBatch(
+            Table.readParquet(new File(trainPath)))) { batch =>
+            val cb = new CudfColumnBatch(batch.select(featuresIndices),
+              batch.select(df.schema.fieldIndex(label)), null, null, null
+            )
+            val qdm = new QuantileDMatrix(Seq(cb).iterator, classifier.getMissing,
+              classifier.getMaxBins, classifier.getNthread, false)
+            ScalaXGBoost.train(qdm, xgboostParams, numRound)
+          }
+
+          val (xgb4jLeaf, xgb4jContrib, xgb4jProb, xgb4jRaw) = withResource(new GpuColumnBatch(
+            Table.readParquet(new File(testPath)))) { batch =>
+            val cb = new CudfColumnBatch(batch.select(featuresIndices), null, null, null, null
+            )
+            val qdm = new DMatrix(cb, classifier.getMissing, classifier.getNthread)
+            (xgb4jModel.predictLeaf(qdm), xgb4jModel.predictContrib(qdm),
+              xgb4jModel.predict(qdm), xgb4jModel.predict(qdm, outPutMargin = true))
+          }
+
+          val rows = classifier.fit(df).transform(testdf).collect()
+
+          // Check Leaf
+          val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))
+          checkEqual(xgb4jLeaf, xgbSparkLeaf)
+
+          // Check contrib
+          val xgbSparkContrib = rows.map(row =>
+            row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))
+          checkEqual(xgb4jContrib, xgbSparkContrib)
+
+          // Check probability
+          var xgbSparkProb = rows.map(row =>
+            row.getAs[DenseVector]("probability").toArray.map(_.toFloat))
+          if (objective == "binary:logistic") {
+            xgbSparkProb = xgbSparkProb.map(v => Array(v(1)))
+          }
+          checkEqual(xgb4jProb, xgbSparkProb)
+
+          // Check raw
+          var xgbSparkRaw = rows.map(row =>
+            row.getAs[DenseVector]("rawPrediction").toArray.map(_.toFloat))
+          if (objective == "binary:logistic") {
+            xgbSparkRaw = xgbSparkRaw.map(v => Array(v(1)))
+          }
+          checkEqual(xgb4jRaw, xgbSparkRaw)
+
+        }
+      }
+    }
+  }
+
+  Seq(false, true).foreach { useExtMem =>
+    test(s"Regression: XGBoost-Spark should match xgboost4j with useExtMem=$useExtMem") {
       withGpuSparkSession() { spark =>
         import spark.implicits._
 
-        val numRound = 100
-        var xgboostParams: Map[String, Any] = Map(
-          "objective" -> objective,
-          "device" -> "cuda"
-        )
-
-        val (trainPath, testPath) = if (objective == "binary:logistic") {
-          (writeFile(Classification.train.toDF("label", "weight", "c1", "c2", "c3")),
-            writeFile(Classification.test.toDF("label", "weight", "c1", "c2", "c3")))
-        } else {
-          xgboostParams = xgboostParams ++ Map("num_class" -> 6)
-          (writeFile(MultiClassification.train.toDF("label", "weight", "c1", "c2", "c3")),
-            writeFile(MultiClassification.test.toDF("label", "weight", "c1", "c2", "c3")))
-        }
+        val trainPath = writeFile(Regression.train.toDF("label", "weight", "c1", "c2", "c3"))
+        val testPath = writeFile(Regression.test.toDF("label", "weight", "c1", "c2", "c3"))
 
         val df = spark.read.parquet(trainPath)
         val testdf = spark.read.parquet(testPath)
@@ -385,34 +461,40 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         val featuresIndices = features.map(df.schema.fieldIndex)
         val label = "label"
 
-        val classifier = new XGBoostClassifier(xgboostParams)
+        val numRound = 100
+        val xgboostParams: Map[String, Any] = Map(
+          "device" -> "cuda"
+        )
+
+        val regressor = new XGBoostRegressor(xgboostParams)
           .setFeaturesCol(features)
           .setLabelCol(label)
           .setNumRound(numRound)
           .setLeafPredictionCol("leaf")
           .setContribPredictionCol("contrib")
           .setDevice("cuda")
+          .setUseExternalMemory(useExtMem)
 
         val xgb4jModel = withResource(new GpuColumnBatch(
           Table.readParquet(new File(trainPath)))) { batch =>
           val cb = new CudfColumnBatch(batch.select(featuresIndices),
             batch.select(df.schema.fieldIndex(label)), null, null, null
           )
-          val qdm = new QuantileDMatrix(Seq(cb).iterator, classifier.getMissing,
-            classifier.getMaxBins, classifier.getNthread)
+          val qdm = new QuantileDMatrix(Seq(cb).iterator, regressor.getMissing,
+            regressor.getMaxBins, regressor.getNthread, false)
           ScalaXGBoost.train(qdm, xgboostParams, numRound)
         }
 
-        val (xgb4jLeaf, xgb4jContrib, xgb4jProb, xgb4jRaw) = withResource(new GpuColumnBatch(
+        val (xgb4jLeaf, xgb4jContrib, xgb4jPred) = withResource(new GpuColumnBatch(
           Table.readParquet(new File(testPath)))) { batch =>
           val cb = new CudfColumnBatch(batch.select(featuresIndices), null, null, null, null
           )
-          val qdm = new DMatrix(cb, classifier.getMissing, classifier.getNthread)
+          val qdm = new DMatrix(cb, regressor.getMissing, regressor.getNthread)
           (xgb4jModel.predictLeaf(qdm), xgb4jModel.predictContrib(qdm),
-            xgb4jModel.predict(qdm), xgb4jModel.predict(qdm, outPutMargin = true))
+            xgb4jModel.predict(qdm))
         }
 
-        val rows = classifier.fit(df).transform(testdf).collect()
+        val rows = regressor.fit(df).transform(testdf).collect()
 
         // Check Leaf
         val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))
@@ -423,87 +505,11 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
           row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))
         checkEqual(xgb4jContrib, xgbSparkContrib)
 
-        // Check probability
-        var xgbSparkProb = rows.map(row =>
-          row.getAs[DenseVector]("probability").toArray.map(_.toFloat))
-        if (objective == "binary:logistic") {
-          xgbSparkProb = xgbSparkProb.map(v => Array(v(1)))
-        }
-        checkEqual(xgb4jProb, xgbSparkProb)
-
-        // Check raw
-        var xgbSparkRaw = rows.map(row =>
-          row.getAs[DenseVector]("rawPrediction").toArray.map(_.toFloat))
-        if (objective == "binary:logistic") {
-          xgbSparkRaw = xgbSparkRaw.map(v => Array(v(1)))
-        }
-        checkEqual(xgb4jRaw, xgbSparkRaw)
-
+        // Check prediction
+        val xgbSparkPred = rows.map(row =>
+          Array(row.getAs[Double]("prediction").toFloat))
+        checkEqual(xgb4jPred, xgbSparkPred)
       }
-    }
-  }
-
-  test(s"Regression: XGBoost-Spark should match xgboost4j") {
-    withGpuSparkSession() { spark =>
-      import spark.implicits._
-
-      val trainPath = writeFile(Regression.train.toDF("label", "weight", "c1", "c2", "c3"))
-      val testPath = writeFile(Regression.test.toDF("label", "weight", "c1", "c2", "c3"))
-
-      val df = spark.read.parquet(trainPath)
-      val testdf = spark.read.parquet(testPath)
-
-      val features = Array("c1", "c2", "c3")
-      val featuresIndices = features.map(df.schema.fieldIndex)
-      val label = "label"
-
-      val numRound = 100
-      val xgboostParams: Map[String, Any] = Map(
-        "device" -> "cuda"
-      )
-
-      val regressor = new XGBoostRegressor(xgboostParams)
-        .setFeaturesCol(features)
-        .setLabelCol(label)
-        .setNumRound(numRound)
-        .setLeafPredictionCol("leaf")
-        .setContribPredictionCol("contrib")
-        .setDevice("cuda")
-
-      val xgb4jModel = withResource(new GpuColumnBatch(
-        Table.readParquet(new File(trainPath)))) { batch =>
-        val cb = new CudfColumnBatch(batch.select(featuresIndices),
-          batch.select(df.schema.fieldIndex(label)), null, null, null
-        )
-        val qdm = new QuantileDMatrix(Seq(cb).iterator, regressor.getMissing,
-          regressor.getMaxBins, regressor.getNthread)
-        ScalaXGBoost.train(qdm, xgboostParams, numRound)
-      }
-
-      val (xgb4jLeaf, xgb4jContrib, xgb4jPred) = withResource(new GpuColumnBatch(
-        Table.readParquet(new File(testPath)))) { batch =>
-        val cb = new CudfColumnBatch(batch.select(featuresIndices), null, null, null, null
-        )
-        val qdm = new DMatrix(cb, regressor.getMissing, regressor.getNthread)
-        (xgb4jModel.predictLeaf(qdm), xgb4jModel.predictContrib(qdm),
-          xgb4jModel.predict(qdm))
-      }
-
-      val rows = regressor.fit(df).transform(testdf).collect()
-
-      // Check Leaf
-      val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))
-      checkEqual(xgb4jLeaf, xgbSparkLeaf)
-
-      // Check contrib
-      val xgbSparkContrib = rows.map(row =>
-        row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))
-      checkEqual(xgb4jContrib, xgbSparkContrib)
-
-      // Check prediction
-      val xgbSparkPred = rows.map(row =>
-        Array(row.getAs[Double]("prediction").toFloat))
-      checkEqual(xgb4jPred, xgbSparkPred)
     }
   }
 
@@ -591,71 +597,74 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     }
   }
 
-  test("Ranker: XGBoost-Spark should match xgboost4j") {
-    withGpuSparkSession() { spark =>
-      import spark.implicits._
+  Seq(false, true).foreach { useExtMem =>
+    test(s"Ranker: XGBoost-Spark should match xgboost4j with useExtMem=$useExtMem") {
+      withGpuSparkSession() { spark =>
+        import spark.implicits._
 
-      val trainPath = writeFile(Ranking.train.toDF("label", "weight", "group", "c1", "c2", "c3"))
-      val testPath = writeFile(Ranking.test.toDF("label", "weight", "group", "c1", "c2", "c3"))
+        val trainPath = writeFile(Ranking.train.toDF("label", "weight", "group", "c1", "c2", "c3"))
+        val testPath = writeFile(Ranking.test.toDF("label", "weight", "group", "c1", "c2", "c3"))
 
-      val df = spark.read.parquet(trainPath)
-      val testdf = spark.read.parquet(testPath)
+        val df = spark.read.parquet(trainPath)
+        val testdf = spark.read.parquet(testPath)
 
-      val features = Array("c1", "c2", "c3")
-      val featuresIndices = features.map(df.schema.fieldIndex)
-      val label = "label"
-      val group = "group"
+        val features = Array("c1", "c2", "c3")
+        val featuresIndices = features.map(df.schema.fieldIndex)
+        val label = "label"
+        val group = "group"
 
-      val numRound = 100
-      val xgboostParams: Map[String, Any] = Map(
-        "device" -> "cuda",
-        "objective" -> "rank:ndcg"
-      )
-
-      val ranker = new XGBoostRanker(xgboostParams)
-        .setFeaturesCol(features)
-        .setLabelCol(label)
-        .setNumRound(numRound)
-        .setLeafPredictionCol("leaf")
-        .setContribPredictionCol("contrib")
-        .setGroupCol(group)
-        .setDevice("cuda")
-
-      val xgb4jModel = withResource(new GpuColumnBatch(
-        Table.readParquet(new File(trainPath)
-        ).orderBy(OrderByArg.asc(df.schema.fieldIndex(group))))) { batch =>
-        val cb = new CudfColumnBatch(batch.select(featuresIndices),
-          batch.select(df.schema.fieldIndex(label)), null, null,
-          batch.select(df.schema.fieldIndex(group)))
-        val qdm = new QuantileDMatrix(Seq(cb).iterator, ranker.getMissing,
-          ranker.getMaxBins, ranker.getNthread)
-        ScalaXGBoost.train(qdm, xgboostParams, numRound)
-      }
-
-      val (xgb4jLeaf, xgb4jContrib, xgb4jPred) = withResource(new GpuColumnBatch(
-        Table.readParquet(new File(testPath)))) { batch =>
-        val cb = new CudfColumnBatch(batch.select(featuresIndices), null, null, null, null
+        val numRound = 100
+        val xgboostParams: Map[String, Any] = Map(
+          "device" -> "cuda",
+          "objective" -> "rank:ndcg"
         )
-        val qdm = new DMatrix(cb, ranker.getMissing, ranker.getNthread)
-        (xgb4jModel.predictLeaf(qdm), xgb4jModel.predictContrib(qdm),
-          xgb4jModel.predict(qdm))
+
+        val ranker = new XGBoostRanker(xgboostParams)
+          .setFeaturesCol(features)
+          .setLabelCol(label)
+          .setNumRound(numRound)
+          .setLeafPredictionCol("leaf")
+          .setContribPredictionCol("contrib")
+          .setGroupCol(group)
+          .setDevice("cuda")
+          .setUseExternalMemory(useExtMem)
+
+        val xgb4jModel = withResource(new GpuColumnBatch(
+          Table.readParquet(new File(trainPath)
+          ).orderBy(OrderByArg.asc(df.schema.fieldIndex(group))))) { batch =>
+          val cb = new CudfColumnBatch(batch.select(featuresIndices),
+            batch.select(df.schema.fieldIndex(label)), null, null,
+            batch.select(df.schema.fieldIndex(group)))
+          val qdm = new QuantileDMatrix(Seq(cb).iterator, ranker.getMissing,
+            ranker.getMaxBins, ranker.getNthread, false)
+          ScalaXGBoost.train(qdm, xgboostParams, numRound)
+        }
+
+        val (xgb4jLeaf, xgb4jContrib, xgb4jPred) = withResource(new GpuColumnBatch(
+          Table.readParquet(new File(testPath)))) { batch =>
+          val cb = new CudfColumnBatch(batch.select(featuresIndices), null, null, null, null
+          )
+          val qdm = new DMatrix(cb, ranker.getMissing, ranker.getNthread)
+          (xgb4jModel.predictLeaf(qdm), xgb4jModel.predictContrib(qdm),
+            xgb4jModel.predict(qdm))
+        }
+
+        val rows = ranker.fit(df).transform(testdf).collect()
+
+        // Check Leaf
+        val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))
+        checkEqual(xgb4jLeaf, xgbSparkLeaf)
+
+        // Check contrib
+        val xgbSparkContrib = rows.map(row =>
+          row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))
+        checkEqual(xgb4jContrib, xgbSparkContrib)
+
+        // Check prediction
+        val xgbSparkPred = rows.map(row =>
+          Array(row.getAs[Double]("prediction").toFloat))
+        checkEqual(xgb4jPred, xgbSparkPred)
       }
-
-      val rows = ranker.fit(df).transform(testdf).collect()
-
-      // Check Leaf
-      val xgbSparkLeaf = rows.map(row => row.getAs[DenseVector]("leaf").toArray.map(_.toFloat))
-      checkEqual(xgb4jLeaf, xgbSparkLeaf)
-
-      // Check contrib
-      val xgbSparkContrib = rows.map(row =>
-        row.getAs[DenseVector]("contrib").toArray.map(_.toFloat))
-      checkEqual(xgb4jContrib, xgbSparkContrib)
-
-      // Check prediction
-      val xgbSparkPred = rows.map(row =>
-        Array(row.getAs[Double]("prediction").toFloat))
-      checkEqual(xgb4jPred, xgbSparkPred)
     }
   }
 
