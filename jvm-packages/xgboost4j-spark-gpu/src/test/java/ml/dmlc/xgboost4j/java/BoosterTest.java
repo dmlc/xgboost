@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2024 by Contributors
+ Copyright (c) 2021-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ public class BoosterTest {
 
           List<ColumnBatch> tables = new LinkedList<>();
           tables.add(batch);
-          DMatrix incrementalDMatrix = new QuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1);
+          DMatrix incrementalDMatrix = new QuantileDMatrix(tables.iterator(), Float.NaN, maxBin, 1, false);
           //set watchList
           HashMap<String, DMatrix> watches1 = new HashMap<>();
           watches1.put("train", incrementalDMatrix);

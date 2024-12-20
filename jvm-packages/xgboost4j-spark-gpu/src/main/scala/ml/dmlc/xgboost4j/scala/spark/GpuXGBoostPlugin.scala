@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -127,22 +127,32 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     val nthread = estimator.getNthread
     val missing = estimator.getMissing
 
+    val useExtMem = estimator.getUseExternalMemory
+    val extMemPath = if (useExtMem) {
+      Some(dataset.sparkSession.conf.get("spark.local.dir", "/tmp"))
+    } else None
+
     /** build QuantileDMatrix on the executor side */
-    def buildQuantileDMatrix(iter: Iterator[Table],
+    def buildQuantileDMatrix(input: Iterator[Table],
                              ref: Option[QuantileDMatrix] = None): QuantileDMatrix = {
-      val colBatchIter = iter.map { table =>
-        withResource(new GpuColumnBatch(table)) { batch =>
-          new CudfColumnBatch(
-            batch.select(indices.featureIds.get),
-            batch.select(indices.labelId),
-            batch.select(indices.weightId.getOrElse(-1)),
-            batch.select(indices.marginId.getOrElse(-1)),
-            batch.select(indices.groupId.getOrElse(-1)));
-        }
+      val (iterator, useExtMem) = extMemPath match {
+        case Some(_) =>
+          (new ExternalMemoryIterator(input, indices, extMemPath), true)
+        case None =>
+          (input.map { table =>
+            withResource(new GpuColumnBatch(table)) { batch =>
+              new CudfColumnBatch(
+                batch.select(indices.featureIds.get),
+                batch.select(indices.labelId),
+                batch.select(indices.weightId.getOrElse(-1)),
+                batch.select(indices.marginId.getOrElse(-1)),
+                batch.select(indices.groupId.getOrElse(-1)));
+            }
+          }, false)
       }
-      ref.map(r => new QuantileDMatrix(colBatchIter, r, missing, maxBin, nthread)).getOrElse(
-        new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
-      )
+
+     ref.map(r => new QuantileDMatrix(iterator, r, missing, maxBin, nthread, useExtMem))
+       .getOrElse(new QuantileDMatrix(iterator, missing, maxBin, nthread, useExtMem))
     }
 
     estimator.getEvalDataset().map { evalDs =>
@@ -295,7 +305,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
   }
 }
 
-private class GpuColumnBatch(table: Table) extends AutoCloseable {
+private[scala] class GpuColumnBatch(val table: Table) extends AutoCloseable {
 
   def select(index: Int): Table = {
     select(Seq(index))
@@ -308,9 +318,5 @@ private class GpuColumnBatch(table: Table) extends AutoCloseable {
     new Table(indices.map(table.getColumn): _*)
   }
 
-  override def close(): Unit = {
-    if (Option(table).isDefined) {
-      table.close()
-    }
-  }
+  override def close(): Unit = Option(table).foreach(_.close())
 }

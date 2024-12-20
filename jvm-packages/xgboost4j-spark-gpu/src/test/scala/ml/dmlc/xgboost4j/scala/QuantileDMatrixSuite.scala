@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2024 by Contributors
+ Copyright (c) 2021-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,18 +16,22 @@
 
 package ml.dmlc.xgboost4j.scala
 
+import java.io.File
+
 import scala.collection.mutable.ArrayBuffer
 
 import ai.rapids.cudf.Table
 import org.scalatest.funsuite.AnyFunSuite
 
-import ml.dmlc.xgboost4j.java.CudfColumnBatch
+import ml.dmlc.xgboost4j.java.{ColumnBatch, CudfColumnBatch}
+import ml.dmlc.xgboost4j.scala.rapids.spark.TmpFolderSuite
+import ml.dmlc.xgboost4j.scala.spark.{ColumnIndices, ExternalMemoryIterator, GpuColumnBatch}
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 
-class QuantileDMatrixSuite extends AnyFunSuite {
+class QuantileDMatrixSuite extends AnyFunSuite with TmpFolderSuite {
 
-  test("QuantileDMatrix test") {
-
+  private def runTest(buildIterator: (Iterator[Table], ColumnIndices) =>
+    (Iterator[ColumnBatch], Boolean)) = {
     val label1 = Array[java.lang.Float](25f, 21f, 22f, 20f, 24f)
     val weight1 = Array[java.lang.Float](1.3f, 2.31f, 0.32f, 3.3f, 1.34f)
     val baseMargin1 = Array[java.lang.Float](1.2f, 0.2f, 1.3f, 2.4f, 3.5f)
@@ -56,14 +60,39 @@ class QuantileDMatrixSuite extends AnyFunSuite {
                     withResource(new Table.TestBuilder().column(weight2: _*).build) { w_1 =>
                       withResource(new Table.TestBuilder().column(baseMargin2: _*).build) { m_1 =>
                         withResource(new Table.TestBuilder().column(group2: _*).build) { q_2 =>
-                          val batches = new ArrayBuffer[CudfColumnBatch]()
-                          batches += new CudfColumnBatch(X_0, y_0, w_0, m_0, q_0)
-                          batches += new CudfColumnBatch(X_1, y_1, w_1, m_1, q_2)
-                          val dmatrix = new QuantileDMatrix(batches.toIterator, 0.0f, 8, 1)
-                          assert(dmatrix.getLabel.sameElements(label1 ++ label2))
-                          assert(dmatrix.getWeight.sameElements(weight1 ++ weight2))
-                          assert(dmatrix.getBaseMargin.sameElements(baseMargin1 ++ baseMargin2))
-                          assert(dmatrix.getGroup().sameElements(expectedGroup))
+                          val tables = new ArrayBuffer[Table]()
+                          tables += new Table(X_0.getColumn(0), X_0.getColumn(1), y_0.getColumn(0),
+                            w_0.getColumn(0), m_0.getColumn(0))
+                          tables += new Table(X_1.getColumn(0), X_1.getColumn(1), y_1.getColumn(0),
+                            w_1.getColumn(0), m_1.getColumn(0))
+
+                          val indices = ColumnIndices(
+                            labelId = 2,
+                            featureId = None,
+                            featureIds = Option(Seq(0, 1)),
+                            weightId = Option(3),
+                            marginId = Option(4),
+                            groupId = Option(5)
+                          )
+                          val (iter, useExtMem) = buildIterator(tables.toIterator, indices)
+                          val dmatrix = new QuantileDMatrix(iter, 0.0f, 8, 1, useExtMem)
+
+                          def check(dm: QuantileDMatrix) = {
+                            assert(dm.getLabel.sameElements(label1 ++ label2))
+                            assert(dm.getWeight.sameElements(weight1 ++ weight2))
+                            assert(dm.getBaseMargin.sameElements(baseMargin1 ++ baseMargin2))
+                          }
+                          check(dmatrix)
+
+                          if (!useExtMem) {
+                            val batches = new ArrayBuffer[CudfColumnBatch]()
+                            batches += new CudfColumnBatch(X_0, y_0, w_0, m_0, q_0)
+                            batches += new CudfColumnBatch(X_1, y_1, w_1, m_1, q_2)
+                            val dmatrix1 = new QuantileDMatrix(batches.toIterator, 0.0f, 8, 1,
+                              useExtMem)
+                            check(dmatrix1)
+                            assert(dmatrix1.getGroup().sameElements(expectedGroup))
+                          }
                         }
                       }
                     }
@@ -75,4 +104,28 @@ class QuantileDMatrixSuite extends AnyFunSuite {
       }
     }
   }
+
+  test("QuantileDMatrix test on host") {
+    val buildIter = (input: Iterator[Table], indices: ColumnIndices) => {
+      (input.map { table =>
+        withResource(new GpuColumnBatch(table)) { batch =>
+          new CudfColumnBatch(
+            batch.select(indices.featureIds.get),
+            batch.select(indices.labelId),
+            batch.select(indices.weightId.getOrElse(-1)),
+            batch.select(indices.marginId.getOrElse(-1)),
+            batch.select(indices.groupId.getOrElse(-1)));
+        }
+      }, false)
+    }
+    runTest(buildIter)
+  }
+
+  test("QuantileDMatrix test on disk") {
+    val buildIter = (input: Iterator[Table], indices: ColumnIndices) =>
+      (new ExternalMemoryIterator(input, indices,
+        Option(new File(tempDir.toFile, "xgboost").getPath)), true)
+    runTest(buildIter)
+  }
+
 }

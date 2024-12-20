@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2024 by Contributors
+ Copyright (c) 2014-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -119,6 +119,43 @@ private[scala] object Utils {
       block(r)
     } finally {
       r.close()
+    }
+  }
+
+  /** Executes the provided code block and then closes the sequence of resources */
+  def withResource[T <: AutoCloseable, V](r: Seq[T])(block: Seq[T] => V): V = {
+    try {
+      block(r)
+    } finally {
+      r.safeClose()
+    }
+  }
+
+  implicit class AutoCloseableSeq[A <: AutoCloseable](val in: collection.SeqLike[A, _]) {
+    /**
+     * safeClose: Is an implicit on a sequence of AutoCloseable classes that tries to close each
+     * element of the sequence, even if prior close calls fail. In case of failure in any of the
+     * close calls, an Exception is thrown containing the suppressed exceptions (getSuppressed),
+     * if any.
+     */
+    def safeClose(error: Throwable = null): Unit = if (in != null) {
+      var closeException: Throwable = null
+      in.foreach { element =>
+        if (element != null) {
+          try {
+            element.close()
+          } catch {
+            case e: Throwable if error != null => error.addSuppressed(e)
+            case e: Throwable if closeException == null => closeException = e
+            case e: Throwable => closeException.addSuppressed(e)
+          }
+        }
+      }
+      if (closeException != null) {
+        // an exception happened while we were trying to safely close
+        // resources, throw the exception to alert the caller
+        throw closeException
+      }
     }
   }
 }

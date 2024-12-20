@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -179,14 +179,24 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getFeatureTypes: Array[String] = $(featureTypes)
 
+  final val useExternalMemory = new BooleanParam(this, "useExternalMemory", "Whether to use " +
+    "the external memory or not when building QuantileDMatrix. Please note that " +
+    "useExternalMemory is useful only when `device` is set to `cuda` or `gpu`. When " +
+    "useExternalMemory is enabled, the directory specified by spark.local.dir if set will be " +
+    "used to cache the temporary files, if spark.local.dir is not set, the /tmp directory " +
+    "will be used.")
+
+  final def getUseExternalMemory: Boolean = $(useExternalMemory)
+
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
-    featureNames -> Array.empty, featureTypes -> Array.empty)
+    featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
-    forceRepartition, featuresCols, customEval, customObj, featureTypes, featureNames)
+    forceRepartition, featuresCols, customEval, customObj, featureTypes, featureNames,
+    useExternalMemory)
 
   final def getNumWorkers: Int = $(numWorkers)
 
@@ -223,6 +233,8 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setFeatureNames(value: Array[String]): T = set(featureNames, value).asInstanceOf[T]
 
   def setFeatureTypes(value: Array[String]): T = set(featureTypes, value).asInstanceOf[T]
+
+  def setUseExternalMemory(value: Boolean): T = set(useExternalMemory, value).asInstanceOf[T]
 
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]

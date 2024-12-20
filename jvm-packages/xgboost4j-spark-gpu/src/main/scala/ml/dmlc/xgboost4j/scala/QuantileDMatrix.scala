@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2024 by Contributors
+ Copyright (c) 2021-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -30,31 +30,39 @@ class QuantileDMatrix private[scala](
    * @param missing the missing value
    * @param maxBin  the max bin
    * @param nthread the parallelism
+   * @param useExternalMemory whether to use external memory or not
    * @throws XGBoostError
    */
-  def this(iter: Iterator[ColumnBatch], missing: Float, maxBin: Int, nthread: Int) {
-    this(new JQuantileDMatrix(iter.asJava, missing, maxBin, nthread))
+  def this(iter: Iterator[ColumnBatch],
+           missing: Float,
+           maxBin: Int,
+           nthread: Int,
+           useExternalMemory: Boolean) {
+    this(new JQuantileDMatrix(iter.asJava, missing, maxBin, nthread, useExternalMemory))
   }
 
   /**
    * Create QuantileDMatrix from iterator based on the array interface
    *
    * @param iter       the XGBoost ColumnBatch batch to provide the corresponding array interface
-   * @param refDMatrix The reference QuantileDMatrix that provides quantile information, needed
+   * @param ref The reference QuantileDMatrix that provides quantile information, needed
    *                   when creating validation/test dataset with QuantileDMatrix. Supplying the
    *                   training DMatrix as a reference means that the same quantisation applied
    *                   to the training data is applied to the validation/test data
    * @param missing    the missing value
    * @param maxBin     the max bin
    * @param nthread    the parallelism
+   * @param useExternalMemory whether to use external memory or not
    * @throws XGBoostError
    */
   def this(iter: Iterator[ColumnBatch],
            ref: QuantileDMatrix,
            missing: Float,
            maxBin: Int,
-           nthread: Int) {
-    this(new JQuantileDMatrix(iter.asJava, ref.jDMatrix, missing, maxBin, nthread))
+           nthread: Int,
+           useExternalMemory: Boolean) {
+    this(new JQuantileDMatrix(iter.asJava, ref.jDMatrix, missing, maxBin, nthread,
+      useExternalMemory))
   }
 
   /**

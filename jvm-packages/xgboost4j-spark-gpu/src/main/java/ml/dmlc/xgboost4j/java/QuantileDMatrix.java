@@ -61,14 +61,16 @@ public class QuantileDMatrix extends DMatrix {
    * @param missing the missing value
    * @param maxBin  the max bin
    * @param nthread the parallelism
+   * @param useExternalMemory whether to use external memory or not
    * @throws XGBoostError
    */
   public QuantileDMatrix(
       Iterator<ColumnBatch> iter,
       float missing,
       int maxBin,
-      int nthread) throws XGBoostError {
-    this(iter, null, missing, maxBin, nthread);
+      int nthread,
+      boolean useExternalMemory) throws XGBoostError {
+    this(iter, null, missing, maxBin, nthread, useExternalMemory);
   }
 
   /**
@@ -83,6 +85,7 @@ public class QuantileDMatrix extends DMatrix {
    * @param missing    the missing value
    * @param maxBin     the max bin
    * @param nthread    the parallelism
+   * @param useExternalMemory whether to use external memory or not
    * @throws XGBoostError
    */
   public QuantileDMatrix(
@@ -90,10 +93,11 @@ public class QuantileDMatrix extends DMatrix {
       QuantileDMatrix refDMatrix,
       float missing,
       int maxBin,
-      int nthread) throws XGBoostError {
+      int nthread,
+      boolean useExternalMemory) throws XGBoostError {
     super(0);
     long[] out = new long[1];
-    String conf = getConfig(missing, maxBin, nthread);
+    String conf = getConfig(missing, maxBin, nthread, useExternalMemory);
     long[] ref = null;
     if (refDMatrix != null) {
       ref = new long[1];
@@ -144,11 +148,12 @@ public class QuantileDMatrix extends DMatrix {
     throw new XGBoostError("QuantileDMatrix does not support setGroup.");
   }
 
-  private String getConfig(float missing, int maxBin, int nthread) {
+  private String getConfig(float missing, int maxBin, int nthread, boolean useExternalMemory) {
     Map<String, Object> conf = new java.util.HashMap<>();
     conf.put("missing", missing);
     conf.put("max_bin", maxBin);
     conf.put("nthread", nthread);
+    conf.put("use_ext_mem", useExternalMemory);
     ObjectMapper mapper = new ObjectMapper();
 
     // Handle NaN values. Jackson by default serializes NaN values into strings.
@@ -159,7 +164,6 @@ public class QuantileDMatrix extends DMatrix {
 
     try {
       String config = mapper.writeValueAsString(conf);
-      System.out.println(config);
       return config;
     } catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to serialize configuration", e);

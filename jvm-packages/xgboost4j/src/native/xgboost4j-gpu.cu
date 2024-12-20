@@ -6,6 +6,7 @@
 
 #include "../../../../src/common/cuda_pinned_allocator.h"
 #include "../../../../src/common/device_vector.cuh"  // for device_vector
+#include "../../../../src/common/json_utils.h"
 #include "../../../../src/data/array_interface.h"
 #include "jvm_utils.h"  // for CheckJvmCall
 
@@ -395,26 +396,97 @@ class DataIteratorProxy {
       }
       return NextSecondLoop();
     }
-  };
+  }
+};
+
+// An iterator proxy for external memory.
+class ExtMemIteratorProxy {
+  JvmIter jiter_;
+  DMatrixProxy proxy_;
+
+ public:
+  explicit ExtMemIteratorProxy(jobject jiter) : jiter_(jiter) {}
+
+  ~ExtMemIteratorProxy() = default;
+
+  DMatrixHandle GetDMatrixHandle() const { return proxy_.GetDMatrixHandle(); }
+
+  void SetArrayInterface(std::string interface_str) {
+    auto json_interface = Json::Load({interface_str.c_str(), interface_str.size()});
+    CHECK(!IsA<Null>(json_interface));
+
+    std::string str;
+    Json features = json_interface["features"];
+    proxy_.SetData(features);
+
+    // set the meta info.
+    auto json_map = get<Object const>(json_interface);
+    if (json_map.find(Symbols::kLabel) == json_map.cend()) {
+      LOG(FATAL) << "Must have a label field.";
+    }
+    Json label = json_interface[Symbols::kLabel.c_str()];
+    CHECK(!IsA<Null>(label));
+    proxy_.SetInfo(Symbols::kLabel, label);
+
+    if (json_map.find(Symbols::kWeight) != json_map.cend()) {
+      Json weight = json_interface[Symbols::kWeight.c_str()];
+      CHECK(!IsA<Null>(weight));
+      proxy_.SetInfo(Symbols::kWeight, weight);
+    }
+
+    if (json_map.find(Symbols::kBaseMargin) != json_map.cend()) {
+      Json basemargin = json_interface[Symbols::kBaseMargin.c_str()];
+      proxy_.SetInfo("base_margin", basemargin);
+    }
+
+    if (json_map.find(Symbols::kQid) != json_map.cend()) {
+      Json qid = json_interface[Symbols::kQid.c_str()];
+      proxy_.SetInfo(Symbols::kQid, qid);
+    }
+  }
+
+  int Next() {
+    try {
+      if (this->jiter_.PullIterFromJVM(
+              [this](char const *cjaif) { this->SetArrayInterface(cjaif); })) {
+        return 1;
+      } else {
+        return 0;
+      }
+    } catch (dmlc::Error const &e) {
+      if (jiter_.Status() == JNI_EDETACHED) {
+        GlobalJvm()->DetachCurrentThread();
+      }
+      LOG(FATAL) << e.what();
+    }
+    return 0;
+  }
+
+  void Reset() { this->jiter_.CloseJvmBatch(); }
 };
 
 namespace {
-void Reset(DataIterHandle self) {
-  static_cast<xgboost::jni::DataIteratorProxy *>(self)->Reset();
-}
+void Reset(DataIterHandle self) { static_cast<xgboost::jni::DataIteratorProxy *>(self)->Reset(); }
 
 int Next(DataIterHandle self) {
   return static_cast<xgboost::jni::DataIteratorProxy *>(self)->Next();
 }
 
+void ExternalMemoryReset(DataIterHandle self) {
+  static_cast<xgboost::jni::ExtMemIteratorProxy *>(self)->Reset();
+}
+
+int ExternalMemoryNext(DataIterHandle self) {
+  return static_cast<xgboost::jni::ExtMemIteratorProxy *>(self)->Next();
+}
+
 template <typename T>
 using Deleter = std::function<void(T *)>;
-} // anonymous namespace
+}  // anonymous namespace
 
 XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass, jobject jdata_iter,
                                                     jlongArray jref, char const *config,
                                                     jlongArray jout) {
-  xgboost::jni::DataIteratorProxy proxy(jdata_iter);
   DMatrixHandle result;
   DMatrixHandle ref{nullptr};
 
@@ -427,9 +499,21 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass, jobjec
     ref = reinterpret_cast<DMatrixHandle>(refptr.get()[0]);
   }
 
-  auto ret = XGQuantileDMatrixCreateFromCallback(&proxy, proxy.GetDMatrixHandle(), ref, Reset, Next,
-                                                 config, &result);
+  auto jconfig = Json::Load(StringView{config});
+  auto use_ext_mem = OptionalArg<Boolean>(jconfig, "use_ext_mem", false);
+  int ret = 0;
+  if (use_ext_mem) {
+    xgboost::jni::ExtMemIteratorProxy proxy(jdata_iter);
+    ret = XGExtMemQuantileDMatrixCreateFromCallback(&proxy, proxy.GetDMatrixHandle(), ref,
+                                                    ExternalMemoryReset, ExternalMemoryNext, config,
+                                                    &result);
+  } else {
+    xgboost::jni::DataIteratorProxy proxy(jdata_iter);
+    ret = XGQuantileDMatrixCreateFromCallback(&proxy, proxy.GetDMatrixHandle(), ref, Reset, Next,
+                                              config, &result);
+  }
+  JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;
 }
-} // namespace xgboost::jni
+}  // namespace xgboost::jni

@@ -28,6 +28,7 @@
     auto __guard = ::xgboost::XGBoostAPIGuard();
 
 #define API_BEGIN_UNGUARD() try {
+
 #endif  // LOG_CAPI_INVOCATION
 
 /*! \brief every function starts with API_BEGIN();

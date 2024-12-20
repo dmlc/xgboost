@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2024 by Contributors
+ Copyright (c) 2021-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -84,6 +84,16 @@ public class CudfColumnBatch extends ColumnBatch {
       .mapToObj(table::getColumn)
       .map(CudfColumn::from)
       .collect(Collectors.toList());
+  }
+
+  // visible for testing
+  public Table getFeatureTable() {
+    return featureTable;
+  }
+
+  // visible for testing
+  public Table getLabelTable() {
+    return labelTable;
   }
 
   public List<CudfColumn> getFeatures() {
