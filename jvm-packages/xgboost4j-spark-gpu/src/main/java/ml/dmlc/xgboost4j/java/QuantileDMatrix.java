@@ -35,7 +35,7 @@ public class QuantileDMatrix extends DMatrix {
       float missing,
       int maxBin,
       int nthread) throws XGBoostError {
-    this(iter, null, missing, maxBin, nthread);
+    this(iter, null, missing, maxBin, nthread, null);
   }
 
   /**
@@ -57,10 +57,11 @@ public class QuantileDMatrix extends DMatrix {
       QuantileDMatrix refDMatrix,
       float missing,
       int maxBin,
-      int nthread) throws XGBoostError {
+      int nthread,
+      String externalMemoryPath) throws XGBoostError {
     super(0);
     long[] out = new long[1];
-    String conf = getConfig(missing, maxBin, nthread);
+    String conf = getConfig(missing, maxBin, nthread, externalMemoryPath);
     long[] ref = null;
     if (refDMatrix != null) {
       ref = new long[1];
@@ -111,9 +112,16 @@ public class QuantileDMatrix extends DMatrix {
     throw new XGBoostError("QuantileDMatrix does not support setGroup.");
   }
 
-  private String getConfig(float missing, int maxBin, int nthread) {
-    return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d}",
-                         missing, maxBin, nthread);
+  private String getConfig(float missing, int maxBin, int nthread, String externalMemoryPath) {
+    if (externalMemoryPath != null && !externalMemoryPath.isEmpty()) {
+      return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d," +
+                           "\"external_memory_path\":\"%s\"}", missing, maxBin,
+                         nthread, externalMemoryPath);
+    } else {
+      return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d}",
+                           missing, maxBin, nthread);
+    }
+
   }
 
 }

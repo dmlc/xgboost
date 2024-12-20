@@ -84,6 +84,51 @@ public class DMatrixTest {
   }
 
   @Test
+  public void testXXXX() throws XGBoostError {
+
+    Float[] label1 = {25f, 21f, 22f, 20f, 24f};
+    Float[] weight1 = {1.3f, 2.31f, 0.32f, 3.3f, 1.34f};
+    Float[] baseMargin1 = {1.2f, 0.2f, 1.3f, 2.4f, 3.5f};
+    Integer[] groups1 = new Integer[]{1, 1, 7, 7, 19, 26};
+
+    Float[] label2 = {9f, 5f, 4f, 10f, 12f};
+    Float[] weight2 = {3.0f, 1.3f, 3.2f, 0.3f, 1.34f};
+    Float[] baseMargin2 = {0.2f, 2.5f, 3.1f, 4.4f, 2.2f};
+    Integer[] groups2 = new Integer[]{30, 30, 30, 40, 40};
+
+    int[] expectedGroup = new int[]{0, 2, 4, 5, 6, 9, 11};
+
+    try (
+      Table X_0 = new Table.TestBuilder()
+        .column(1.2f, 2.2f, 5.2f, 7.2f, 9.2f)
+        .column(0.2f, 0.4f, 0.6f, 2.6f, 0.10f)
+        .build();
+      Table y_0 = new Table.TestBuilder().column(label1).build();
+      Table w_0 = new Table.TestBuilder().column(weight1).build();
+      Table m_0 = new Table.TestBuilder().column(baseMargin1).build();
+      Table q_0 = new Table.TestBuilder().column(groups1).build();
+
+      Table X_1 = new Table.TestBuilder().column(11.2f, 11.2f, 15.2f, 17.2f, 19.2f)
+        .column(1.2f, 1.4f, 1.4f, 12.6f, 10.10f).build();
+      Table y_1 = new Table.TestBuilder().column(label2).build();
+      Table w_1 = new Table.TestBuilder().column(weight2).build();
+      Table m_1 = new Table.TestBuilder().column(baseMargin2).build();) {
+      Table q_1 = new Table.TestBuilder().column(groups2).build();
+
+      List<ColumnBatch> tables = new LinkedList<>();
+
+      tables.add(new CudfColumnBatch(X_0, y_0, w_0, m_0, q_0));
+//      tables.add(new CudfColumnBatch(X_1, y_1, w_1, m_1, q_1));
+
+      String path = "/tmp/";
+      QuantileDMatrix dmat = new QuantileDMatrix(tables.iterator(), null,
+                                                 0.0f, 256, 1, path);
+
+    }
+  }
+
+
+  @Test
   public void testCreateFromColumnDataIterator() throws XGBoostError {
 
     Float[] label1 = {25f, 21f, 22f, 20f, 24f};
@@ -170,7 +215,7 @@ public class DMatrixTest {
 
       tables.clear();
       tables.add(new CudfColumnBatch(X_1, y_1, null, null, null));
-      QuantileDMatrix eval = new QuantileDMatrix(tables.iterator(),  train, 0.0f, 256, 1);
+      QuantileDMatrix eval = new QuantileDMatrix(tables.iterator(),  train, 0.0f, 256, 1, null);
 
       DMatrix.QuantileCut trainCut = train.getQuantileCut();
       DMatrix.QuantileCut evalCut = eval.getQuantileCut();
