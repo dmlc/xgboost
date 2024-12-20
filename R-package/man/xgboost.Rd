@@ -222,7 +222,7 @@ Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{Introduction to Boosted Trees}
 for a longer explanation of what XGBoost does.
 
-This function is intended to provide a more user-friendly interface for XGBoost that follows
+This function is intended to provide a user-friendly interface for XGBoost that follows
 R's conventions for model fitting and predictions, but which doesn't expose all of the
 possible functionalities of the core XGBoost library.
 
@@ -244,7 +244,29 @@ predict(model_regression, mtcars, validate_features = TRUE)
 # Task objective is determined automatically according to the type of 'y'
 data(iris)
 model_classif <- xgboost(iris[, -5], iris$Species, nthreads = 1, nrounds = 5)
-predict(model_classif, iris, validate_features = TRUE)
+predict(model_classif, iris[1:10,])
+predict(model_classif, iris[1:10,], type = "class")
+
+# Can nevertheless choose a non-default objective if needed
+model_poisson <- xgboost(
+  mtcars[, -1], mtcars$mpg,
+  objective = "count:poisson",
+  nthreads = 1,
+  nrounds = 3
+)
+
+# Can calculate evaluation metrics during boosting rounds
+data(ToothGrowth)
+xgboost(
+  ToothGrowth[, c("len", "dose")],
+  ToothGrowth$supp,
+  eval_metric = c("auc", "logloss"),
+  eval_set = 0.2,
+  monitor_training = TRUE,
+  verbosity = 1,
+  nthreads = 1,
+  nrounds = 3
+)
 }
 \references{
 \itemize{
