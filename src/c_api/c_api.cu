@@ -19,7 +19,14 @@
 #include <nccl.h>
 #endif
 
+#include <atomic>
+
 namespace xgboost {
+
+namespace {
+  std::atomic_bool MIGHT_HAVE_CUDA(true);
+}
+
 void XGBBuildInfoDevice(Json *p_info) {
   auto &info = *p_info;
 
@@ -59,15 +66,27 @@ void XGBBuildInfoDevice(Json *p_info) {
 }
 
 void XGBoostAPIGuard::SetGPUAttribute() {
-  // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
-  // If errors, do nothing, assuming running on CPU only machine.
-  cudaGetDevice(&device_id_);
+  try {
+    if (MIGHT_HAVE_CUDA.load(std::memory_order_relaxed)) {
+      // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
+      // If errors, do nothing, assuming running on CPU only machine.
+      cudaGetDevice(&device_id_);
+    }
+  } catch (dmlc::Error const&) {
+    MIGHT_HAVE_CUDA.store(false, std::memory_order_relaxed);
+  }
 }
 
 void XGBoostAPIGuard::RestoreGPUAttribute() {
-  // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
-  // If errors, do nothing, assuming running on CPU only machine.
-  cudaSetDevice(device_id_);
+  try {
+    if (MIGHT_HAVE_CUDA.load(std::memory_order_relaxed)) {
+      // Not calling `safe_cuda` to avoid unnecessary exception handling overhead.
+      // If errors, do nothing, assuming running on CPU only machine.
+      cudaSetDevice(device_id_);
+    }
+  } catch (dmlc::Error const&) {
+    MIGHT_HAVE_CUDA.store(false, std::memory_order_relaxed);
+  }
 }
 
 void CopyGradientFromCUDAArrays(Context const *ctx, ArrayInterface<2, false> const &grad,
