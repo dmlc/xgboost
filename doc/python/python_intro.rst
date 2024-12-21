@@ -118,6 +118,7 @@ Markers
 - F: Not supported.
 - NE: Invalid type for the use case. For instance, `pd.Series` can not be multi-target label.
 - NPA: Support with the help of numpy array.
+- AT: Support with the help of arrow table.
 - CPA: Support with the help of cupy array.
 - SciCSR: Support with the help of scripy sparse CSR. The conversion to scipy CSR may or may not be possible. Raise a type error if conversion fails.
 - FF: We can look forward to having its support in recent future if requested.
@@ -170,12 +171,23 @@ Support Matrix
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | modin.Series            | NPA       | FF                | NPA       | NPA       | FF                 |             |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
-| pyarrow.Table           | NPA       | NPA               | NPA       | NPA       | NPA                | NPA         |
+| pyarrow.Table           | T         | T                 | T         | T         | T                  | T           |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| polars.DataFrame        | AT        | AT                | AT        | AT        | AT                 | AT          |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| polars.LazyFrame (WARN) | AT        | AT                | AT        | AT        | AT                 | AT          |
++-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+| polars.Series           | AT        | AT                | AT        | AT        | AT                 | NE          |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | _\_array\_\_            | NPA       | F                 | NPA       | NPA       | H                  |             |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
 | Others                  | SciCSR    | F                 |           | F         | F                  |             |
 +-------------------------+-----------+-------------------+-----------+-----------+--------------------+-------------+
+
+The polars ``LazyFrame.collect`` supports many configurations, ranging from the choice of
+query engine to type coercion. XGBoost simply uses the default parameter. Please run
+``collect`` to obtain the ``DataFrame`` before passing it into XGBoost for finer control
+over the behaviour.
 
 Setting Parameters
 ------------------
