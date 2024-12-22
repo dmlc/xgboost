@@ -23,8 +23,7 @@ Tutorials
   :maxdepth: 2
   :titlesonly:
 
-  Introduction to XGBoost in R <xgboostPresentation>
-  Understanding your dataset with XGBoost <discoverYourData>
+  R Introductory Vignette <xgboost_introduction>
 
 ************
 Other topics

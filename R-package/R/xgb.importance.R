@@ -38,85 +38,64 @@
 #' (based on C++ code), it starts at 0 (as in C/C++ or Python) instead of 1 (usual in R).
 #'
 #' @examples
-#'
-#' # binomial classification using "gbtree":
-#' data(agaricus.train, package = "xgboost")
-#'
-#' bst <- xgb.train(
-#'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-#'   nrounds = 2,
-#'   params = xgb.params(
-#'     max_depth = 2,
-#'     nthread = 2,
-#'     objective = "binary:logistic"
-#'   )
+#' # binary classification using "gbtree":
+#' data("ToothGrowth")
+#' x <- ToothGrowth[, c("len", "dose")]
+#' y <- ToothGrowth$supp
+#' model_tree_binary <- xgboost(
+#'   x, y,
+#'   nrounds = 5L,
+#'   nthreads = 1L,
+#'   booster = "gbtree",
+#'   max_depth = 2L
 #' )
+#' xgb.importance(model_tree_binary)
 #'
-#' xgb.importance(model = bst)
-#'
-#' # binomial classification using "gblinear":
-#' bst <- xgb.train(
-#'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
-#'   nrounds = 20,
-#'   params = xgb.params(
-#'     booster = "gblinear",
-#'     learning_rate = 0.3,
-#'     nthread = 1,
-#'     objective = "binary:logistic"
-#'   )
+#' # binary classification using "gblinear":
+#' model_tree_linear <- xgboost(
+#'   x, y,
+#'   nrounds = 5L,
+#'   nthreads = 1L,
+#'   booster = "gblinear",
+#'   learning_rate = 0.3
 #' )
+#' xgb.importance(model_tree_linear)
 #'
-#' xgb.importance(model = bst)
-#'
-#' # multiclass classification using "gbtree":
-#' nclass <- 3
-#' nrounds <- 10
-#' mbst <- xgb.train(
-#'   data = xgb.DMatrix(
-#'     as.matrix(iris[, -5]),
-#'     label = as.numeric(iris$Species) - 1
-#'   ),
-#'   nrounds = nrounds,
-#'   params = xgb.params(
-#'     max_depth = 3,
-#'     nthread = 2,
-#'     objective = "multi:softprob",
-#'     num_class = nclass
-#'   )
+#' # multi-class classification using "gbtree":
+#' data("iris")
+#' x <- iris[, c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width")]
+#' y <- iris$Species
+#' model_tree_multi <- xgboost(
+#'   x, y,
+#'   nrounds = 5L,
+#'   nthreads = 1L,
+#'   booster = "gbtree",
+#'   max_depth = 3
 #' )
-#'
 #' # all classes clumped together:
-#' xgb.importance(model = mbst)
-#'
+#' xgb.importance(model_tree_multi)
 #' # inspect importances separately for each class:
+#' num_classes <- 3L
+#' nrounds <- 5L
 #' xgb.importance(
-#'   model = mbst, trees = seq(from = 1, by = nclass, length.out = nrounds)
+#'   model_tree_multi, trees = seq(from = 1, by = num_classes, length.out = nrounds)
 #' )
 #' xgb.importance(
-#'   model = mbst, trees = seq(from = 2, by = nclass, length.out = nrounds)
+#'   model_tree_multi, trees = seq(from = 2, by = num_classes, length.out = nrounds)
 #' )
 #' xgb.importance(
-#'   model = mbst, trees = seq(from = 3, by = nclass, length.out = nrounds)
+#'   model_tree_multi, trees = seq(from = 3, by = num_classes, length.out = nrounds)
 #' )
 #'
-#' # multiclass classification using "gblinear":
-#' mbst <- xgb.train(
-#'   data = xgb.DMatrix(
-#'     scale(as.matrix(iris[, -5])),
-#'     label = as.numeric(iris$Species) - 1
-#'   ),
-#'   nrounds = 15,
-#'   params = xgb.params(
-#'     booster = "gblinear",
-#'     learning_rate = 0.2,
-#'     nthread = 1,
-#'     objective = "multi:softprob",
-#'     num_class = nclass
-#'   )
+#' # multi-class classification using "gblinear":
+#' model_linear_multi <- xgboost(
+#'   x, y,
+#'   nrounds = 5L,
+#'   nthreads = 1L,
+#'   booster = "gblinear",
+#'   learning_rate = 0.2
 #' )
-#'
-#' xgb.importance(model = mbst)
-#'
+#' xgb.importance(model_linear_multi)
 #' @export
 xgb.importance <- function(model = NULL, feature_names = getinfo(model, "feature_name"), trees = NULL) {
 

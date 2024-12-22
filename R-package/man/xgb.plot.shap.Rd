@@ -134,51 +134,44 @@ nthread <- 1
 data.table::setDTthreads(nthread)
 nrounds <- 20
 
-bst <- xgb.train(
-  data = xgb.DMatrix(agaricus.train$data, agaricus.train$label),
+model_binary <- xgboost(
+  agaricus.train$data, factor(agaricus.train$label),
   nrounds = nrounds,
-  verbose = 0,
-  params = xgb.params(
-    learning_rate = 0.1,
-    max_depth = 3,
-    subsample = 0.5,
-    objective = "binary:logistic",
-    nthread = nthread
-  )
+  verbosity = 0L,
+  learning_rate = 0.1,
+  max_depth = 3L,
+  subsample = 0.5,
+  nthreads = nthread
 )
 
-xgb.plot.shap(agaricus.test$data, model = bst, features = "odor=none")
+xgb.plot.shap(agaricus.test$data, model = model_binary, features = "odor=none")
 
-contr <- predict(bst, agaricus.test$data, predcontrib = TRUE)
-xgb.plot.shap(agaricus.test$data, contr, model = bst, top_n = 12, n_col = 3)
+contr <- predict(model_binary, agaricus.test$data, type = "contrib")
+xgb.plot.shap(agaricus.test$data, contr, model = model_binary, top_n = 12, n_col = 3)
 
 # Summary plot
-xgb.ggplot.shap.summary(agaricus.test$data, contr, model = bst, top_n = 12)
+xgb.ggplot.shap.summary(agaricus.test$data, contr, model = model_binary, top_n = 12)
 
 # Multiclass example - plots for each class separately:
-nclass <- 3
 x <- as.matrix(iris[, -5])
 set.seed(123)
 is.na(x[sample(nrow(x) * 4, 30)]) <- TRUE # introduce some missing values
 
-mbst <- xgb.train(
-  data = xgb.DMatrix(x, label = as.numeric(iris$Species) - 1),
+model_multiclass <- xgboost(
+  x, iris$Species,
   nrounds = nrounds,
-  verbose = 0,
-  params = xgb.params(
-    max_depth = 2,
-    subsample = 0.5,
-    nthread = nthread,
-    objective = "multi:softprob",
-    num_class = nclass
-  )
+  verbosity = 0,
+  max_depth = 2,
+  subsample = 0.5,
+  nthreads = nthread
 )
+nclass <- 3
 trees0 <- seq(from = 1, by = nclass, length.out = nrounds)
 col <- rgb(0, 0, 1, 0.5)
 
 xgb.plot.shap(
   x,
-  model = mbst,
+  model = model_multiclass,
   trees = trees0,
   target_class = 0,
   top_n = 4,
@@ -190,7 +183,7 @@ xgb.plot.shap(
 
 xgb.plot.shap(
   x,
-  model = mbst,
+  model = model_multiclass,
   trees = trees0 + 1,
   target_class = 1,
   top_n = 4,
@@ -202,7 +195,7 @@ xgb.plot.shap(
 
 xgb.plot.shap(
   x,
-  model = mbst,
+  model = model_multiclass,
   trees = trees0 + 2,
   target_class = 2,
   top_n = 4,
@@ -213,7 +206,7 @@ xgb.plot.shap(
 )
 
 # Summary plot
-xgb.ggplot.shap.summary(x, model = mbst, target_class = 0, top_n = 4)
+xgb.ggplot.shap.summary(x, model = model_multiclass, target_class = 0, top_n = 4)
 
 }
 \references{
