@@ -130,18 +130,19 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     /** build QuantileDMatrix on the executor side */
     def buildQuantileDMatrix(iter: Iterator[Table],
                              ref: Option[QuantileDMatrix] = None): QuantileDMatrix = {
-      val colBatchIter = iter.map { table =>
-        withResource(new GpuColumnBatch(table)) { batch =>
-          new CudfColumnBatch(
-            batch.select(indices.featureIds.get),
-            batch.select(indices.labelId),
-            batch.select(indices.weightId.getOrElse(-1)),
-            batch.select(indices.marginId.getOrElse(-1)),
-            batch.select(indices.groupId.getOrElse(-1)));
-        }
-      }
-      ref.map(r => new QuantileDMatrix(colBatchIter, r, missing, maxBin, nthread)).getOrElse(
-        new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
+//      val colBatchIter = iter.map { table =>
+//        withResource(new GpuColumnBatch(table)) { batch =>
+//          new CudfColumnBatch(
+//            batch.select(indices.featureIds.get),
+//            batch.select(indices.labelId),
+//            batch.select(indices.weightId.getOrElse(-1)),
+//            batch.select(indices.marginId.getOrElse(-1)),
+//            batch.select(indices.groupId.getOrElse(-1)));
+//        }
+//      }
+      val externalMemoryIter = new ExternalMemoryIterator(iter, indices)
+      ref.map(r => new QuantileDMatrix(externalMemoryIter, r, missing, maxBin, nthread))
+        .getOrElse(new QuantileDMatrix(externalMemoryIter, missing, maxBin, nthread)
       )
     }
 
@@ -296,6 +297,8 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 }
 
 private class GpuColumnBatch(table: Table) extends AutoCloseable {
+
+  def getTable(): Table = table
 
   def select(index: Int): Table = {
     select(Seq(index))
