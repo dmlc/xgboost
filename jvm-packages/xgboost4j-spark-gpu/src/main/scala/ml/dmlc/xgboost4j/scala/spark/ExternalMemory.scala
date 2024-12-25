@@ -126,7 +126,7 @@ private[spark] class HostExternalMemoryIterator()
     }
 
     override def close(): Unit = {
-      bufferInfo.hostMemoryBuffer.close()
+      //      bufferInfo.hostMemoryBuffer.close()
     }
   }
 
@@ -148,9 +148,9 @@ private[spark] class HostExternalMemoryIterator()
         if (tables.size == 1) {
           tables(0)
         } else if (tables.size > 1) {
-          val t = Table.concatenate(tables: _*)
-          tables.foreach(_.close())
-          t
+          withResource(tables) { _ =>
+            Table.concatenate(tables: _*)
+          }
         } else {
           throw new RuntimeException("No data") // Unreachable
         }
