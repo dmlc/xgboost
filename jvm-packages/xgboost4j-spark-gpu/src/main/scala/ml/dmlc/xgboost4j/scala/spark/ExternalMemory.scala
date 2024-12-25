@@ -18,8 +18,11 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.nio.file.{Files, Paths}
+
 import scala.collection.mutable.ArrayBuffer
-import ai.rapids.cudf.{ArrowIPCWriterOptions, DefaultHostMemoryAllocator, HostBufferConsumer, HostBufferProvider, HostMemoryBuffer, Table}
+
+import ai.rapids.cudf._
+
 import ml.dmlc.xgboost4j.java.{ColumnBatch, CudfColumnBatch}
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 
@@ -111,6 +114,7 @@ private[spark] class HostExternalMemoryIterator()
 
   class XGBoostHostBufferProvider(bufferInfo: HostMemoryBufferInfo) extends HostBufferProvider {
     var offset = 0L
+
     override def readInto(hostMemoryBuffer: HostMemoryBuffer, l: Long): Long = {
       val amountLeft = bufferInfo.size - offset
       val amountToCopy = Math.max(0, Math.min(l, amountLeft))
@@ -193,8 +197,8 @@ private[spark] class DiskExternalMemoryIterator(val path: String) extends Extern
     path
   }
 
-  private def closeOnExcept[T <: AutoCloseable, V](
-      r: ArrayBuffer[T])(block: ArrayBuffer[T] => V): V = {
+  private def closeOnExcept[T <: AutoCloseable, V](r: ArrayBuffer[T])
+                                                  (block: ArrayBuffer[T] => V): V = {
     try {
       block(r)
     } catch {
@@ -260,7 +264,7 @@ private[spark] object ExternalMemory {
  * @param indices column index
  */
 private[spark] class ExternalMemoryIterator(val input: Iterator[Table],
-                             val indices: ColumnIndices)
+                                            val indices: ColumnIndices)
   extends Iterator[ColumnBatch] with AutoCloseable {
 
   private var iter = input
