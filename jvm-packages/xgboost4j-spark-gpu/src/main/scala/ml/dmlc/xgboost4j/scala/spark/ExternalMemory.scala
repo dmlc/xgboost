@@ -18,11 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 import java.nio.file.{Files, Paths}
-
 import scala.collection.mutable.ArrayBuffer
-
-import ai.rapids.cudf.{ArrowIPCWriterOptions, Table}
-
+import ai.rapids.cudf.{ArrowIPCWriterOptions, DefaultHostMemoryAllocator, HostBufferConsumer, HostBufferProvider, HostMemoryBuffer, Table}
 import ml.dmlc.xgboost4j.java.{ColumnBatch, CudfColumnBatch}
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 
@@ -60,6 +57,105 @@ private[spark] trait ExternalMemory[T] extends Iterator[Table] with AutoCloseabl
   override def close(): Unit = {}
 }
 
+case class HostMemoryBufferInfo(hostMemoryBuffer: HostMemoryBuffer, size: Long)
+
+// The data will be cached into host memory
+private[spark] class HostExternalMemoryIterator()
+  extends ExternalMemory[HostMemoryBufferInfo] {
+
+  private lazy val allocator = DefaultHostMemoryAllocator.get()
+
+  class XGBoostHostBufferConsumer extends HostBufferConsumer {
+    private val hostBuffers = ArrayBuffer.empty[HostMemoryBufferInfo]
+
+    override def handleBuffer(hostMemoryBuffer: HostMemoryBuffer, l: Long): Unit = {
+      hostBuffers.append(HostMemoryBufferInfo(hostMemoryBuffer = hostMemoryBuffer, size = l))
+    }
+
+    def getHostMemoryBuffer: HostMemoryBufferInfo = {
+      if (hostBuffers.size == 1) {
+        hostBuffers(0)
+      } else if (hostBuffers.size > 1) {
+        val totalSize = hostBuffers.map(_.size).sum
+        val buffer = allocator.allocate(totalSize)
+        var offset = 0
+
+        hostBuffers.foreach { h =>
+          withResource(h) { _ =>
+            buffer.copyFromHostBuffer(offset, h.hostMemoryBuffer, 0, h.size)
+            offset += h.size
+          }
+        }
+        HostMemoryBufferInfo(buffer, totalSize)
+      } else {
+        throw new RuntimeException("No data") // Unreachable
+      }
+    }
+  }
+
+  /**
+   * Convert the table to T which will be cached
+   *
+   * @param table to be converted
+   * @return the content
+   */
+  override def convertTable(table: Table): HostMemoryBufferInfo = {
+    val names = (0 until table.getNumberOfColumns).map(_.toString)
+    val options = ArrowIPCWriterOptions.builder().withNotNullableColumnNames(names: _*).build()
+    val consumer = new XGBoostHostBufferConsumer()
+    withResource(Table.writeArrowIPCChunked(options, consumer)) { writer =>
+      writer.write(table)
+    }
+    consumer.getHostMemoryBuffer
+  }
+
+  class XGBoostHostBufferProvider(bufferInfo: HostMemoryBufferInfo) extends HostBufferProvider {
+    var offset = 0L
+    override def readInto(hostMemoryBuffer: HostMemoryBuffer, l: Long): Long = {
+      val amountLeft = bufferInfo.size - offset
+      val amountToCopy = Math.max(0, Math.min(l, amountLeft))
+      if (amountToCopy > 0) {
+        hostMemoryBuffer.copyFromHostBuffer(0, bufferInfo.hostMemoryBuffer, offset, amountToCopy)
+        offset += amountToCopy
+      }
+      amountToCopy
+    }
+
+    override def close(): Unit = {
+      bufferInfo.hostMemoryBuffer.close()
+    }
+  }
+
+  /**
+   * Load the content to the Table
+   *
+   * @param content to be loaded
+   * @return Table
+   */
+  override def loadTable(content: HostMemoryBufferInfo): Table = {
+    val tables = ArrayBuffer.empty[Table]
+    withResource(new XGBoostHostBufferProvider(content)) { provider =>
+      withResource(Table.readArrowIPCChunked(provider)) { reader =>
+        var table = Option(reader.getNextIfAvailable)
+        while (table.isDefined) {
+          tables.append(table.get)
+          table = Option(reader.getNextIfAvailable)
+        }
+        if (tables.size == 1) {
+          tables(0)
+        } else if (tables.size > 1) {
+          val t = Table.concatenate(tables: _*)
+          tables.foreach(_.close())
+          t
+        } else {
+          throw new RuntimeException("No data") // Unreachable
+        }
+      }
+    }
+  }
+}
+
+// The data will be cached into disk.
 private[spark] class DiskExternalMemoryIterator(val path: String) extends ExternalMemory[String] {
 
   private lazy val root = {

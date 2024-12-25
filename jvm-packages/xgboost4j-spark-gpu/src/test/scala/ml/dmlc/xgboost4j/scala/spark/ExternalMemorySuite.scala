@@ -17,9 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable.ArrayBuffer
-
-import ai.rapids.cudf.Table
-
+import ai.rapids.cudf.{ArrowIPCOptions, ArrowIPCWriterOptions, HostBufferConsumer, HostBufferProvider, HostMemoryBuffer, Table, TableDebug}
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.rapids.spark.GpuTestSuite
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
@@ -48,6 +46,48 @@ class ExternalMemorySuite extends GpuTestSuite {
     for ((l, r) <- lhs.zip(rhs)) {
       assertTwoTable(l.getFeatureTable, r.getFeatureTable)
       assertTwoTable(l.getLabelTable, r.getLabelTable)
+    }
+  }
+
+  test("HostExternalMemory") {
+    withResource(new Table.TestBuilder()
+      .column(1.0f, 2.0f, 3.0f.asInstanceOf[java.lang.Float])
+      .column(4.0f, 5.0f, 6.0f.asInstanceOf[java.lang.Float])
+      .build) { table =>
+
+      val buffers = ArrayBuffer.empty[HostMemoryBuffer]
+      class MyHostBufferConsumer extends HostBufferConsumer {
+
+        override def handleBuffer(hostMemoryBuffer: HostMemoryBuffer, l: Long): Unit = {
+          buffers.append(hostMemoryBuffer)
+          println(s"------------ $l")
+        }
+      }
+
+      val options = ArrowIPCWriterOptions.builder().withColumnNames(Seq("a", "b"): _*).build()
+      val writer = Table.writeArrowIPCChunked(options, new MyHostBufferConsumer())
+      writer.write(table)
+      writer.close()
+
+      class MyHostBufferProvider extends HostBufferProvider {
+        var offset: Long = 0L
+        override def readInto(hostMemoryBuffer: HostMemoryBuffer, l: Long): Long = {
+          println("readInto " + l)
+          val amountLeft = buffers(0).getLength - offset
+          val amountToCopy = Math.max(0, Math.min(l, amountLeft))
+          if (amountToCopy > 0) {
+            hostMemoryBuffer.copyFromHostBuffer(0, buffers(0), offset, amountToCopy)
+            offset += amountToCopy
+          }
+          amountToCopy
+        }
+      }
+      val reader = Table.readArrowIPCChunked(new MyHostBufferProvider())
+      val t = reader.getNextIfAvailable
+      TableDebug.get().debug("t", t)
+      reader.close()
+      val x = 10
+
     }
   }
 
