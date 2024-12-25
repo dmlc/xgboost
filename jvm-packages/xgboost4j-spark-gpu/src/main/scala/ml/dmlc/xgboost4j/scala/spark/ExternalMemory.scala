@@ -70,7 +70,7 @@ private[spark] class DiskExternalMemoryIterator(val path: String) extends Extern
 
   private var counter = 0
 
-  def createDirectory(dirPath: String): Unit = {
+  private def createDirectory(dirPath: String): Unit = {
     val path = Paths.get(dirPath)
     if (!Files.exists(path)) {
       Files.createDirectories(path)
@@ -171,19 +171,17 @@ private[spark] class ExternalMemoryIterator(val input: Iterator[Table],
 
   // Flag to indicate the input has been consumed.
   private var inputIsConsumed = false
-  // Flag to indicate the next of input is valid
+  // Flag to indicate the input.next has been called which is valid
   private var inputNextIsValid = false
 
   // visible for testing
   private[spark] val externalMemory = ExternalMemory(Some("/tmp/"))
 
-  private def swap(): Unit = iter = externalMemory
-
   override def hasNext: Boolean = {
     val value = iter.hasNext
     if (!inputIsConsumed && !value && inputNextIsValid) {
       inputIsConsumed = true
-      swap()
+      iter = externalMemory
     }
     value
   }
