@@ -17,7 +17,9 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import scala.collection.mutable.ArrayBuffer
-import ai.rapids.cudf.{ArrowIPCOptions, ArrowIPCWriterOptions, HostBufferConsumer, HostBufferProvider, HostMemoryBuffer, Table, TableDebug}
+
+import ai.rapids.cudf.{ArrowIPCWriterOptions, HostBufferConsumer, HostBufferProvider, HostMemoryBuffer, Table, TableDebug}
+
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
 import ml.dmlc.xgboost4j.scala.rapids.spark.GpuTestSuite
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
@@ -49,7 +51,7 @@ class ExternalMemorySuite extends GpuTestSuite {
     }
   }
 
-  test("HostExternalMemory") {
+  test("HostExternalMemoryxx") {
     withResource(new Table.TestBuilder()
       .column(1.0f, 2.0f, 3.0f.asInstanceOf[java.lang.Float])
       .column(4.0f, 5.0f, 6.0f.asInstanceOf[java.lang.Float])
@@ -71,6 +73,7 @@ class ExternalMemorySuite extends GpuTestSuite {
 
       class MyHostBufferProvider extends HostBufferProvider {
         var offset: Long = 0L
+
         override def readInto(hostMemoryBuffer: HostMemoryBuffer, l: Long): Long = {
           println("readInto " + l)
           val amountLeft = buffers(0).getLength - offset
@@ -91,7 +94,8 @@ class ExternalMemorySuite extends GpuTestSuite {
     }
   }
 
-  test("DiskExternalMemory") {
+  def runExternalMemoryTest(buildExternalMemory: (Iterator[Table], ColumnIndices) =>
+    ExternalMemoryIterator): Unit = {
 
     withResource(new Table.TestBuilder()
       .column(1.0f, 2.0f, 3.0f.asInstanceOf[java.lang.Float])
@@ -109,10 +113,8 @@ class ExternalMemorySuite extends GpuTestSuite {
 
         val indices = ColumnIndices(labelId = 0, featureIds = Some(Seq(1, 2)), featureId = None,
           weightId = None, marginId = None, groupId = None)
-        withResource(new ExternalMemoryIterator(tables.toIterator, indices)) {
+        withResource(buildExternalMemory(tables.toIterator, indices)) {
           externalMemoryIterator =>
-            assert(externalMemoryIterator.externalMemory.isInstanceOf[DiskExternalMemoryIterator])
-
             val expectTables = ArrayBuffer.empty[CudfColumnBatch]
             while (externalMemoryIterator.hasNext) {
               val table = externalMemoryIterator.next().asInstanceOf[CudfColumnBatch]
@@ -131,5 +133,24 @@ class ExternalMemorySuite extends GpuTestSuite {
         }
       }
     }
+  }
+
+  test("HostExternalMemory") {
+
+    val buildIterator = (input: Iterator[Table], indices: ColumnIndices) => {
+      val iter = new ExternalMemoryIterator(input, indices)
+      assert(iter.externalMemory.isInstanceOf[HostExternalMemoryIterator])
+      iter
+    }
+    runExternalMemoryTest(buildIterator)
+  }
+
+  test("DiskExternalMemory") {
+    val buildIterator = (input: Iterator[Table], indices: ColumnIndices) => {
+      val iter = new ExternalMemoryIterator(input, indices, Some("/tmp/"))
+      assert(iter.externalMemory.isInstanceOf[DiskExternalMemoryIterator])
+      iter
+    }
+    runExternalMemoryTest(buildIterator)
   }
 }

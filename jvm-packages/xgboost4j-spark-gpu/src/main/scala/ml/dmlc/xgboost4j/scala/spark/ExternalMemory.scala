@@ -81,10 +81,10 @@ private[spark] class HostExternalMemoryIterator()
       } else if (hostBuffers.size > 1) {
         val totalSize = hostBuffers.map(_.size).sum
         val buffer = allocator.allocate(totalSize)
-        var offset = 0
+        var offset = 0L
 
         hostBuffers.foreach { h =>
-          withResource(h) { _ =>
+          withResource(h.hostMemoryBuffer) { _ =>
             buffer.copyFromHostBuffer(offset, h.hostMemoryBuffer, 0, h.size)
             offset += h.size
           }
@@ -246,9 +246,8 @@ private[spark] class DiskExternalMemoryIterator(val path: String) extends Extern
 }
 
 private[spark] object ExternalMemory {
-  def apply(path: Option[String]): ExternalMemory[_] = {
-    //    path.map(_ => new DiskExternalMemoryIterator(_))
-    new DiskExternalMemoryIterator(path.get)
+  def apply(path: Option[String] = None): ExternalMemory[_] = {
+    path.map(new DiskExternalMemoryIterator(_)).getOrElse(new HostExternalMemoryIterator())
   }
 }
 
@@ -264,7 +263,8 @@ private[spark] object ExternalMemory {
  * @param indices column index
  */
 private[spark] class ExternalMemoryIterator(val input: Iterator[Table],
-                                            val indices: ColumnIndices)
+                                            val indices: ColumnIndices,
+                                            val path: Option[String] = None)
   extends Iterator[ColumnBatch] with AutoCloseable {
 
   private var iter = input
@@ -275,7 +275,7 @@ private[spark] class ExternalMemoryIterator(val input: Iterator[Table],
   private var inputNextIsValid = false
 
   // visible for testing
-  private[spark] val externalMemory = ExternalMemory(Some("/tmp/"))
+  private[spark] val externalMemory = ExternalMemory(path)
 
   override def hasNext: Boolean = {
     val value = iter.hasNext
