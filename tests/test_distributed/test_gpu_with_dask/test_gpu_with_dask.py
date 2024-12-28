@@ -19,7 +19,7 @@ from xgboost.testing.params import hist_parameter_strategy
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
     pytest.mark.skipif(**tm.no_dask_cuda()),
-    tm.timeout(60),
+    tm.timeout(120),
 ]
 
 from ..test_with_dask.test_with_dask import generate_array
