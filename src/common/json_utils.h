@@ -43,7 +43,7 @@ std::enable_if_t<sizeof...(JT) != 0, std::string> TypeCheckError() {
 template <typename... JT>
 void TypeCheck(Json const &value, StringView name) {
   if (!detail::TypeCheckImpl<JT...>(value)) {
-    LOG(FATAL) << "Invalid type for: `" << name << "`, expecting one of the: {`"
+    LOG(FATAL) << "Invalid type for: `" << name << "`, expecting one of the: {"
                << detail::TypeCheckError<JT...>() << "}, got: `" << value.GetValue().TypeStr()
                << "`";
   }
