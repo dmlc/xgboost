@@ -47,16 +47,6 @@ void TestBasic(DMatrix* dmat, Context const *ctx) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
-  // Test predict instance
-  auto const& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
-  auto page = batch.GetView();
-  for (size_t i = 0; i < batch.Size(); i++) {
-    std::vector<float> instance_out_predictions;
-    predictor->PredictInstance(page[i], &instance_out_predictions, model, 0,
-                                   dmat->Info().IsColumnSplit());
-    ASSERT_EQ(instance_out_predictions[0], 1.5);
-  }
-
   // Test predict leaf
   HostDeviceVector<float> leaf_out_predictions;
   predictor->PredictLeaf(dmat, &leaf_out_predictions, model);

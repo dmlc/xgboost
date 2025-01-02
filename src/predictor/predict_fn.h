@@ -20,9 +20,9 @@ XGBOOST_DEVICE bool GetDecision(RegTree::Node const &node, bst_node_t nid, float
 }
 
 template <bool has_missing, bool has_categorical>
-inline XGBOOST_DEVICE bst_node_t GetNextNode(const RegTree::Node &node, const bst_node_t nid,
-                                             float fvalue, bool is_missing,
-                                             RegTree::CategoricalSplitMatrix const &cats) {
+XGBOOST_DEVICE bst_node_t GetNextNode(const RegTree::Node &node, const bst_node_t nid, float fvalue,
+                                      bool is_missing,
+                                      RegTree::CategoricalSplitMatrix const &cats) {
   if (has_missing && is_missing) {
     return node.DefaultChild();
   } else {
@@ -31,10 +31,9 @@ inline XGBOOST_DEVICE bst_node_t GetNextNode(const RegTree::Node &node, const bs
 }
 
 template <bool has_missing, bool has_categorical>
-inline XGBOOST_DEVICE bst_node_t GetNextNodeMulti(MultiTargetTree const &tree,
-                                                  bst_node_t const nidx, float fvalue,
-                                                  bool is_missing,
-                                                  RegTree::CategoricalSplitMatrix const &cats) {
+XGBOOST_DEVICE bst_node_t GetNextNodeMulti(MultiTargetTree const &tree, bst_node_t const nidx,
+                                           float fvalue, bool is_missing,
+                                           RegTree::CategoricalSplitMatrix const &cats) {
   if (has_missing && is_missing) {
     return tree.DefaultChild(nidx);
   } else {
@@ -48,6 +47,5 @@ inline XGBOOST_DEVICE bst_node_t GetNextNodeMulti(MultiTargetTree const &tree,
     }
   }
 }
-
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_

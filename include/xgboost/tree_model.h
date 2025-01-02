@@ -562,7 +562,7 @@ class RegTree : public Model {
      * \brief fill the vector with sparse vector
      * \param inst The sparse instance to fill.
      */
-    void Fill(const SparsePage::Inst& inst);
+    void Fill(SparsePage::Inst const& inst);
 
     /*!
      * \brief drop the trace after fill, must be called after fill.
@@ -799,9 +799,11 @@ inline void RegTree::FVec::Init(size_t size) {
   has_missing_ = true;
 }
 
-inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
-  size_t feature_count = 0;
-  for (auto const& entry : inst) {
+inline void RegTree::FVec::Fill(SparsePage::Inst const& inst) {
+  std::size_t feature_count = 0;
+  auto p_data = inst.data();
+  for (std::size_t i = 0, n = inst.size(); i < n; ++i) {
+    auto const& entry = p_data[i];
     if (entry.index >= data_.size()) {
       continue;
     }

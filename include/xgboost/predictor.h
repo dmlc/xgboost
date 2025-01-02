@@ -124,24 +124,6 @@ class Predictor {
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
                               float missing, PredictionCacheEntry* out_preds,
                               uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
-  /**
-   * \brief online prediction function, predict score for one instance at a time
-   * NOTE: use the batch prediction interface if possible, batch prediction is
-   * usually more efficient than online prediction This function is NOT
-   * threadsafe, make sure you only call from one thread.
-   *
-   * \param           inst            The instance to predict.
-   * \param [in,out]  out_preds       The output preds.
-   * \param           model           The model to predict from
-   * \param           tree_end        (Optional) The tree end index.
-   * \param           is_column_split (Optional) If the data is split column-wise.
-   */
-
-  virtual void PredictInstance(const SparsePage::Inst& inst,
-                               std::vector<bst_float>* out_preds,
-                               const gbm::GBTreeModel& model,
-                               unsigned tree_end = 0,
-                               bool is_column_split = false) const = 0;
 
   /**
    * \brief predict the leaf index of each tree, the output will be nsample *

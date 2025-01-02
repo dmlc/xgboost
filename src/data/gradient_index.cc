@@ -215,6 +215,11 @@ float GHistIndexMatrix::GetFvalue(std::vector<std::uint32_t> const &ptrs,
     }
     return values[gidx];
   }
+  if (this->IsDense()) {
+    auto begin = RowIdx(ridx);
+    auto bin_idx = this->index[begin + fidx];
+    return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+  }
 
   auto get_bin_val = [&](auto &column) {
     auto bin_idx = column[ridx - this->base_rowid];
