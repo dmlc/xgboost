@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
@@ -9,8 +9,9 @@
 #include <atomic>     // for atomic
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
+#include <limits>     // for numeric_limits
 #include <memory>     // for make_unique
-#include <vector>
+#include <vector>     // for vector
 
 #include "../common/categorical.h"
 #include "../common/error_msg.h"  // for InfInData

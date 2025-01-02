@@ -14,7 +14,6 @@
 #include "../collective/communicator-inl.h"   // for Allreduce, IsDistributed
 #include "../collective/allreduce.h"
 #include "../common/bitfield.h"               // for RBitField8
-#include "../common/categorical.h"            // for IsCat, Decision
 #include "../common/common.h"                 // for DivRoundUp
 #include "../common/error_msg.h"              // for InplacePredictProxy
 #include "../common/math.h"                   // for CheckNAN
@@ -216,7 +215,7 @@ struct GHistIndexMatrixView {
       non_missing += n_features_;
     } else {
       for (bst_feature_t c = 0; c < n_features_; ++c) {
-        float f = page_.GetFvalue(ptrs_, values_, mins_, r, c, false);
+        float f = page_.GetFvalue(ptrs_, values_, mins_, r, c, common::IsCat(ft_, c));
         if (!common::CheckNAN(f)) {
           ws[non_missing] = Entry{c, f};
           ++non_missing;
