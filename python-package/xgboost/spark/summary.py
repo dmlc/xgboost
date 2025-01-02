@@ -5,7 +5,7 @@ from typing import Dict, List
 
 
 @dataclass
-class _XGBoostTrainingSummary:
+class XGBoostTrainingSummary:
     """
     A class that holds the training and validation objective history
     of an XGBoost model during its training process.
@@ -17,7 +17,7 @@ class _XGBoostTrainingSummary:
     @staticmethod
     def from_metrics(
         metrics: Dict[str, Dict[str, List[float]]]
-    ) -> "_XGBoostTrainingSummary":
+    ) -> "XGBoostTrainingSummary":
         """
         Create an XGBoostTrainingSummary instance from a nested dictionary of metrics.
 
@@ -38,6 +38,6 @@ class _XGBoostTrainingSummary:
         """
         train_objective_history = metrics.get("training", {})
         validation_objective_history = metrics.get("validation", {})
-        return _XGBoostTrainingSummary(
+        return XGBoostTrainingSummary(
             train_objective_history, validation_objective_history
         )

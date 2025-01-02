@@ -82,6 +82,7 @@ from .params import (
     HasFeaturesCols,
     HasQueryIdCol,
 )
+from .summary import XGBoostTrainingSummary
 from .utils import (
     CommunicatorContext,
     _get_default_params_from_func,
@@ -100,7 +101,6 @@ from .utils import (
     serialize_booster,
     use_cuda,
 )
-from .xgboost_training_summary import _XGBoostTrainingSummary
 
 # Put pyspark specific params here, they won't be passed to XGBoost.
 # like `validationIndicatorCol`, `base_margin_col`
@@ -706,7 +706,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         raise NotImplementedError()
 
     def _create_pyspark_model(
-        self, xgb_model: XGBModel, training_summary: _XGBoostTrainingSummary
+        self, xgb_model: XGBModel, training_summary: XGBoostTrainingSummary
     ) -> "_SparkXGBModel":
         return self._pyspark_model_cls()(xgb_model, training_summary)
 
@@ -1202,9 +1202,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         result_xgb_model = self._convert_to_sklearn_model(
             bytearray(booster, "utf-8"), config
         )
-        training_summary = _XGBoostTrainingSummary.from_metrics(
-            json.loads(evals_result)
-        )
+        training_summary = XGBoostTrainingSummary.from_metrics(json.loads(evals_result))
         spark_model = self._create_pyspark_model(result_xgb_model, training_summary)
         # According to pyspark ML convention, the model uid should be the same
         # with estimator uid.
@@ -1229,7 +1227,7 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
     def __init__(
         self,
         xgb_sklearn_model: Optional[XGBModel] = None,
-        training_summary: Optional[_XGBoostTrainingSummary] = None,
+        training_summary: Optional[XGBoostTrainingSummary] = None,
     ) -> None:
         super().__init__()
         self._xgb_sklearn_model = xgb_sklearn_model
