@@ -71,25 +71,23 @@ This function uses \href{https://www.graphviz.org/}{GraphViz} as DiagrammeR
 backend.
 }
 \examples{
-data(agaricus.train, package = "xgboost")
-
-bst <- xgb.train(
-  data = xgb.DMatrix(agaricus.train$data, agaricus.train$label),
-  nrounds = 2,
-  params = xgb.params(
-    max_depth = 3,
-    nthread = 2,
-    objective = "binary:logistic"
-  )
+data("ToothGrowth")
+x <- ToothGrowth[, c("len", "dose")]
+y <- ToothGrowth$supp
+model <- xgboost(
+  x, y,
+  nthreads = 1L,
+  nrounds = 3L,
+  max_depth = 3L
 )
 
 # plot the first tree
-xgb.plot.tree(model = bst, tree_idx = 1)
+xgb.plot.tree(model, tree_idx = 1)
 
 # Below is an example of how to save this plot to a file.
 if (require("DiagrammeR") && require("htmlwidgets")) {
   fname <- file.path(tempdir(), "plot.html'")
-  gr <- xgb.plot.tree(bst, tree_idx = 1)
+  gr <- xgb.plot.tree(model, tree_idx = 1)
   htmlwidgets::saveWidget(gr, fname)
 }
 }

@@ -49,27 +49,24 @@
 #' data.table::setDTthreads(nthread)
 #'
 #' ## Change max_depth to a higher number to get a more significant result
-#' bst <- xgb.train(
-#'   data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
+#' model <- xgboost(
+#'   agaricus.train$data, factor(agaricus.train$label),
 #'   nrounds = 50,
-#'   params = xgb.params(
-#'     max_depth = 6,
-#'     nthread = nthread,
-#'     objective = "binary:logistic",
-#'     subsample = 0.5,
-#'     min_child_weight = 2
-#'   )
+#'   max_depth = 6,
+#'   nthreads = nthread,
+#'   subsample = 0.5,
+#'   min_child_weight = 2
 #' )
 #'
-#' xgb.plot.deepness(bst)
-#' xgb.ggplot.deepness(bst)
+#' xgb.plot.deepness(model)
+#' xgb.ggplot.deepness(model)
 #'
 #' xgb.plot.deepness(
-#'   bst, which = "max.depth", pch = 16, col = rgb(0, 0, 1, 0.3), cex = 2
+#'   model, which = "max.depth", pch = 16, col = rgb(0, 0, 1, 0.3), cex = 2
 #' )
 #'
 #' xgb.plot.deepness(
-#'   bst, which = "med.weight", pch = 16, col = rgb(0, 0, 1, 0.3), cex = 2
+#'   model, which = "med.weight", pch = 16, col = rgb(0, 0, 1, 0.3), cex = 2
 #' )
 #'
 #' @rdname xgb.plot.deepness
