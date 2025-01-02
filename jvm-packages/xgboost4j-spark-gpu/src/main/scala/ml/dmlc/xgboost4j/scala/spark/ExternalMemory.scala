@@ -22,6 +22,7 @@ import java.nio.file.{Files, Paths}
 import scala.collection.mutable.ArrayBuffer
 
 import ai.rapids.cudf._
+import org.apache.commons.logging.LogFactory
 
 import ml.dmlc.xgboost4j.java.{ColumnBatch, CudfColumnBatch}
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
@@ -65,17 +66,19 @@ case class HostMemoryBufferInfo(hostMemoryBuffer: HostMemoryBuffer, size: Long)
 // The data will be cached into host memory
 private[spark] class HostExternalMemoryIterator()
   extends ExternalMemory[HostMemoryBufferInfo] {
-
+  private val logger = LogFactory.getLog("XGBoostSparkGpuPlugin")
   private lazy val allocator = DefaultHostMemoryAllocator.get()
 
   class XGBoostHostBufferConsumer extends HostBufferConsumer {
     private val hostBuffers = ArrayBuffer.empty[HostMemoryBufferInfo]
 
     override def handleBuffer(hostMemoryBuffer: HostMemoryBuffer, l: Long): Unit = {
+      logger.info("XGBoostHostBufferConsumer handleBuffer: " + l)
       hostBuffers.append(HostMemoryBufferInfo(hostMemoryBuffer = hostMemoryBuffer, size = l))
     }
 
     def getHostMemoryBuffer: HostMemoryBufferInfo = {
+      logger.info("getHostMemoryBuffer size: " + hostBuffers.size)
       if (hostBuffers.size == 1) {
         hostBuffers(0)
       } else if (hostBuffers.size > 1) {
@@ -89,6 +92,7 @@ private[spark] class HostExternalMemoryIterator()
             offset += h.size
           }
         }
+        logger.info("getHostMemoryBuffer -- ")
         HostMemoryBufferInfo(buffer, totalSize)
       } else {
         throw new RuntimeException("No data") // Unreachable
@@ -103,12 +107,14 @@ private[spark] class HostExternalMemoryIterator()
    * @return the content
    */
   override def convertTable(table: Table): HostMemoryBufferInfo = {
+    logger.info("HostMemoryBufferInfo convertTable ++")
     val names = (0 until table.getNumberOfColumns).map(_.toString)
     val options = ArrowIPCWriterOptions.builder().withNotNullableColumnNames(names: _*).build()
     val consumer = new XGBoostHostBufferConsumer()
     withResource(Table.writeArrowIPCChunked(options, consumer)) { writer =>
       writer.write(table)
     }
+    logger.info("HostMemoryBufferInfo convertTable - table: " + table)
     consumer.getHostMemoryBuffer
   }
 
@@ -116,6 +122,7 @@ private[spark] class HostExternalMemoryIterator()
     var offset = 0L
 
     override def readInto(hostMemoryBuffer: HostMemoryBuffer, l: Long): Long = {
+      logger.info("XGBoostHostBufferProvider readInto: " + l)
       val amountLeft = bufferInfo.size - offset
       val amountToCopy = Math.max(0, Math.min(l, amountLeft))
       if (amountToCopy > 0) {
@@ -137,6 +144,7 @@ private[spark] class HostExternalMemoryIterator()
    * @return Table
    */
   override def loadTable(content: HostMemoryBufferInfo): Table = {
+    logger.info("HostExternalMemoryIterator loadTable +")
     val tables = ArrayBuffer.empty[Table]
     withResource(new XGBoostHostBufferProvider(content)) { provider =>
       withResource(Table.readArrowIPCChunked(provider)) { reader =>
@@ -145,6 +153,7 @@ private[spark] class HostExternalMemoryIterator()
           tables.append(table.get)
           table = Option(reader.getNextIfAvailable)
         }
+        logger.info("HostExternalMemoryIterator loadTable size: " + tables.size)
         if (tables.size == 1) {
           tables(0)
         } else if (tables.size > 1) {
@@ -266,6 +275,7 @@ private[spark] class ExternalMemoryIterator(val input: Iterator[Table],
                                             val indices: ColumnIndices,
                                             val path: Option[String] = None)
   extends Iterator[ColumnBatch] with AutoCloseable {
+  private val logger = LogFactory.getLog("XGBoostSparkGpuPlugin")
 
   private var iter = input
 
@@ -288,17 +298,19 @@ private[spark] class ExternalMemoryIterator(val input: Iterator[Table],
 
   override def next(): ColumnBatch = {
     inputNextIsValid = true
-    withResource(new GpuColumnBatch(iter.next())) { batch =>
+    withResource(iter.next()) { table =>
+      val batch = new GpuColumnBatch(table)
       if (iter == input) {
-        externalMemory.cacheTable(batch.getTable())
+        externalMemory.cacheTable(table)
       }
-
-      new CudfColumnBatch(
+      logger.info("ExternalMemoryIterator next: table" + table)
+      val xx = new CudfColumnBatch(
         batch.select(indices.featureIds.get),
         batch.select(indices.labelId),
         batch.select(indices.weightId.getOrElse(-1)),
         batch.select(indices.marginId.getOrElse(-1)),
         batch.select(indices.groupId.getOrElse(-1)));
+      xx
     }
   }
 

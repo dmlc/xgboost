@@ -297,6 +297,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 }
 
 private class GpuColumnBatch(table: Table) extends AutoCloseable {
+  private val logger = LogFactory.getLog("XGBoostSparkGpuPlugin")
 
   def getTable(): Table = table
 
@@ -312,8 +313,12 @@ private class GpuColumnBatch(table: Table) extends AutoCloseable {
   }
 
   override def close(): Unit = {
+    logger.info("GpuColumnBatch close +")
     if (Option(table).isDefined) {
+      logger.info("GpuColumnBatch close ++")
       table.close()
     }
+    logger.info("GpuColumnBatch close -")
+
   }
 }
