@@ -202,11 +202,25 @@ struct GHistIndexMatrixView {
     size_t non_missing{static_cast<std::size_t>(beg)};
 
     auto ws = workspace_.data();
-    for (bst_feature_t c = 0; c < n_features_; ++c) {
-      float f = page_.GetFvalue(ptrs_, values_, mins_, r, c, common::IsCat(ft_, c));
-      if (!common::CheckNAN(f)) {
-        ws[non_missing] = Entry{c, f};
-        ++non_missing;
+    if (page_.IsDense()) {
+      common::DispatchBinType(page_.index.GetBinTypeSize(), [&](auto t) {
+        using T = decltype(t);
+        auto ptr = page_.index.data<T>();
+        auto rbeg = page_.row_ptr[r];
+        for (bst_feature_t c = 0; c < n_features_; ++c) {
+          auto bin_idx = ptr[rbeg + c] + page_.index.Offset()[c];
+          auto f = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, c, bin_idx);
+          ws[beg + c] = Entry{c, f};
+        }
+      });
+      non_missing += n_features_;
+    } else {
+      for (bst_feature_t c = 0; c < n_features_; ++c) {
+        float f = page_.GetFvalue(ptrs_, values_, mins_, r, c, false);
+        if (!common::CheckNAN(f)) {
+          ws[non_missing] = Entry{c, f};
+          ++non_missing;
+        }
       }
     }
 
