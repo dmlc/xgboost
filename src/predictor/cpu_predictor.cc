@@ -207,7 +207,12 @@ struct GHistIndexMatrixView {
         auto ptr = page_.index.data<T>();
         auto rbeg = page_.row_ptr[r];
         for (bst_feature_t c = 0; c < n_features_; ++c) {
-          auto bin_idx = ptr[rbeg + c] + page_.index.Offset()[c];
+          bst_bin_t bin_idx;
+          if (common::IsCat(ft_, c)) {
+            bin_idx = page_.GetGindex(r, c);
+          } else {
+            bin_idx = ptr[rbeg + c] + page_.index.Offset()[c];
+          }
           auto f = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, c, bin_idx);
           ws[beg + c] = Entry{c, f};
         }
