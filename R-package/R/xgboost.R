@@ -825,6 +825,7 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
   return(early_stopping_rounds)
 }
 
+# nolint start: line_length_linter.
 #' Fit XGBoost Model
 #'
 #' @export
@@ -1141,6 +1142,7 @@ xgboost <- function(
   quantile_alpha = NULL,
   aft_loss_distribution = NULL
 ) {
+# nolint end
   params <- as.list(environment())
   params <- params[
     (names(params) %in% formalArgs(xgb.params))
