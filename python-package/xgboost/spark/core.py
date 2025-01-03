@@ -82,6 +82,7 @@ from .params import (
     HasFeaturesCols,
     HasQueryIdCol,
 )
+from .summary import XGBoostTrainingSummary
 from .utils import (
     CommunicatorContext,
     _get_default_params_from_func,
@@ -704,8 +705,10 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         """
         raise NotImplementedError()
 
-    def _create_pyspark_model(self, xgb_model: XGBModel) -> "_SparkXGBModel":
-        return self._pyspark_model_cls()(xgb_model)
+    def _create_pyspark_model(
+        self, xgb_model: XGBModel, training_summary: XGBoostTrainingSummary
+    ) -> "_SparkXGBModel":
+        return self._pyspark_model_cls()(xgb_model, training_summary)
 
     def _convert_to_sklearn_model(self, booster: bytearray, config: str) -> XGBModel:
         xgb_sklearn_params = self._gen_xgb_params_dict(
@@ -1148,7 +1151,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                 if dvalid is not None:
                     dval = [(dtrain, "training"), (dvalid, "validation")]
                 else:
-                    dval = None
+                    dval = [(dtrain, "training")]
                 booster = worker_train(
                     params=booster_params,
                     dtrain=dtrain,
@@ -1159,6 +1162,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             context.barrier()
 
             if context.partitionId() == 0:
+                yield pd.DataFrame({"data": [json.dumps(dict(evals_result))]})
                 config = booster.save_config()
                 yield pd.DataFrame({"data": [config]})
                 booster_json = booster.save_raw("json").decode("utf-8")
@@ -1167,7 +1171,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
                     booster_chunk = booster_json[offset : offset + _MODEL_CHUNK_SIZE]
                     yield pd.DataFrame({"data": [booster_chunk]})
 
-        def _run_job() -> Tuple[str, str]:
+        def _run_job() -> Tuple[str, str, str]:
             rdd = (
                 dataset.mapInPandas(
                     _train_booster,  # type: ignore
@@ -1179,7 +1183,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             rdd_with_resource = self._try_stage_level_scheduling(rdd)
             ret = rdd_with_resource.collect()
             data = [v[0] for v in ret]
-            return data[0], "".join(data[1:])
+            return data[0], data[1], "".join(data[2:])
 
         get_logger(_LOG_TAG).info(
             "Running xgboost-%s on %s workers with"
@@ -1192,13 +1196,14 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             train_call_kwargs_params,
             dmatrix_kwargs,
         )
-        (config, booster) = _run_job()
+        (evals_result, config, booster) = _run_job()
         get_logger(_LOG_TAG).info("Finished xgboost training!")
 
         result_xgb_model = self._convert_to_sklearn_model(
             bytearray(booster, "utf-8"), config
         )
-        spark_model = self._create_pyspark_model(result_xgb_model)
+        training_summary = XGBoostTrainingSummary.from_metrics(json.loads(evals_result))
+        spark_model = self._create_pyspark_model(result_xgb_model, training_summary)
         # According to pyspark ML convention, the model uid should be the same
         # with estimator uid.
         spark_model._resetUid(self.uid)
@@ -1219,9 +1224,14 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
 
 
 class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
-    def __init__(self, xgb_sklearn_model: Optional[XGBModel] = None) -> None:
+    def __init__(
+        self,
+        xgb_sklearn_model: Optional[XGBModel] = None,
+        training_summary: Optional[XGBoostTrainingSummary] = None,
+    ) -> None:
         super().__init__()
         self._xgb_sklearn_model = xgb_sklearn_model
+        self.training_summary = training_summary
 
     @classmethod
     def _xgb_cls(cls) -> Type[XGBModel]:
