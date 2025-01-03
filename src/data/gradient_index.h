@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
@@ -9,8 +9,9 @@
 #include <atomic>     // for atomic
 #include <cstddef>    // for size_t
 #include <cstdint>    // for uint32_t
+#include <limits>     // for numeric_limits
 #include <memory>     // for make_unique
-#include <vector>
+#include <vector>     // for vector
 
 #include "../common/categorical.h"
 #include "../common/error_msg.h"  // for InfInData
@@ -28,6 +29,10 @@ namespace common {
 class ColumnMatrix;
 class AlignedFileWriteStream;
 }  // namespace common
+
+float GetFvalueImpl(std::vector<std::uint32_t> const& ptrs, std::vector<float> const& values,
+                    std::vector<float> const& mins, bst_idx_t ridx, bst_feature_t fidx,
+                    bst_idx_t base_rowid, std::unique_ptr<common::ColumnMatrix> const& columns_);
 
 /**
  * @brief preprocessed global index matrix, in CSR format.
@@ -262,7 +267,21 @@ class GHistIndexMatrix {
   [[nodiscard]] float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
   [[nodiscard]] float GetFvalue(std::vector<std::uint32_t> const& ptrs,
                                 std::vector<float> const& values, std::vector<float> const& mins,
-                                bst_idx_t ridx, bst_feature_t fidx, bool is_cat) const;
+                                bst_idx_t ridx, bst_feature_t fidx, bool is_cat) const {
+    if (is_cat) {
+      auto gidx = GetGindex(ridx, fidx);
+      if (gidx == -1) {
+        return std::numeric_limits<float>::quiet_NaN();
+      }
+      return values[gidx];
+    }
+    if (this->IsDense()) {
+      auto begin = RowIdx(ridx);
+      auto bin_idx = this->index[begin + fidx];
+      return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+    }
+    return GetFvalueImpl(ptrs, values, mins, ridx, fidx, this->base_rowid, this->columns_);
+  }
 
   [[nodiscard]] common::HistogramCuts& Cuts() { return cut; }
   [[nodiscard]] common::HistogramCuts const& Cuts() const { return cut; }

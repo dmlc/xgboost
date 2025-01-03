@@ -118,21 +118,6 @@ class GradientBooster : public Model, public Configurable {
     LOG(FATAL) << "Inplace predict is not supported by the current booster.";
   }
   /*!
-   * \brief online prediction function, predict score for one instance at a time
-   *  NOTE: use the batch prediction interface if possible, batch prediction is usually
-   *        more efficient than online prediction
-   *        This function is NOT threadsafe, make sure you only call from one thread
-   *
-   * \param inst the instance you want to predict
-   * \param out_preds output vector to hold the predictions
-   * \param layer_begin Beginning of boosted tree layer used for prediction.
-   * \param layer_end   End of booster layer. 0 means do not limit trees.
-   * \sa Predict
-   */
-  virtual void PredictInstance(const SparsePage::Inst& inst,
-                               std::vector<bst_float>* out_preds,
-                               unsigned layer_begin, unsigned layer_end) = 0;
-  /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor
    * \param dmat feature matrix

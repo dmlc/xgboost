@@ -287,13 +287,6 @@ class GBTree : public GradientBooster {
     }
   }
 
-  void PredictInstance(const SparsePage::Inst& inst, std::vector<bst_float>* out_preds,
-                       uint32_t layer_begin, uint32_t layer_end) override {
-    std::uint32_t _, tree_end;
-    std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
-    cpu_predictor_->PredictInstance(inst, out_preds, model_, tree_end);
-  }
-
   void PredictLeaf(DMatrix* p_fmat,
                    HostDeviceVector<bst_float>* out_preds,
                    uint32_t layer_begin, uint32_t layer_end) override {

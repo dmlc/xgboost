@@ -1162,13 +1162,6 @@ class GPUPredictor : public xgboost::Predictor {
                 });
   }
 
-  void PredictInstance(const SparsePage::Inst&,
-                       std::vector<bst_float>*,
-                       const gbm::GBTreeModel&, unsigned, bool) const override {
-    LOG(FATAL) << "[Internal error]: " << __func__
-               << " is not implemented in GPU Predictor.";
-  }
-
   void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<bst_float> *predictions,
                    const gbm::GBTreeModel &model,
                    unsigned tree_end) const override {
