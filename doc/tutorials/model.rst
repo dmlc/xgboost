@@ -146,7 +146,7 @@ It remains to ask: which tree do we want at each step?  A natural thing is to ad
 
 .. math::
 
-  \text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\omega(f_i) \\
+  \text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{k=1}^t\omega(f_k) \\
             & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)) + \omega(f_t) + \mathrm{constant}
 
 If we consider using mean squared error (MSE) as our loss function, the objective becomes
