@@ -297,7 +297,6 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 }
 
 private class GpuColumnBatch(val table: Table) extends AutoCloseable {
-  private val logger = LogFactory.getLog("XGBoostSparkGpuPlugin")
 
   def select(index: Int): Table = {
     select(Seq(index))
@@ -310,13 +309,5 @@ private class GpuColumnBatch(val table: Table) extends AutoCloseable {
     new Table(indices.map(table.getColumn): _*)
   }
 
-  override def close(): Unit = {
-    logger.info("GpuColumnBatch close +")
-    if (Option(table).isDefined) {
-      logger.info("GpuColumnBatch close ++")
-      table.close()
-    }
-    logger.info("GpuColumnBatch close -")
-
-  }
+  override def close(): Unit = Option(table).foreach(_.close())
 }
