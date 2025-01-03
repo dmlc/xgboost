@@ -23,6 +23,7 @@ class ExternalMemoryIteratorProxy {
   JNIEnv *jenv_;
   DMatrixHandle proxy_;
   int jni_status_;
+  jobject last_batch_ {nullptr};
 
  public:
   explicit ExternalMemoryIteratorProxy(jobject jiter): jiter_(jiter) {
@@ -37,9 +38,13 @@ class ExternalMemoryIteratorProxy {
 
   DMatrixHandle GetDMatrixHandle() const { return proxy_; }
 
-  void CloseJvmBatch(jclass batch_class, jobject batch) {
-    jmethodID closeMethod = CheckJvmCall(jenv_->GetMethodID(batch_class, "close", "()V"), jenv_);
-    jenv_->CallVoidMethod(batch, closeMethod);
+  void CloseJvmBatch() {
+    if (last_batch_) {
+      jclass batch_class = CheckJvmCall(jenv_->GetObjectClass(last_batch_), jenv_);
+      jmethodID closeMethod = CheckJvmCall(jenv_->GetMethodID(batch_class, "close", "()V"), jenv_);
+      jenv_->CallVoidMethod(last_batch_, closeMethod);
+      last_batch_ = nullptr;
+    }
   }
 
   void SetArrayInterface(std::string interface_str) {
@@ -84,6 +89,7 @@ class ExternalMemoryIteratorProxy {
 
   int Next() {
     try {
+      this->CloseJvmBatch();
       jclass iterClass = jenv_->FindClass("java/util/Iterator");
       jmethodID has_next = CheckJvmCall(jenv_->GetMethodID(iterClass, "hasNext", "()Z"), jenv_);
       jmethodID next = CheckJvmCall(
@@ -101,9 +107,8 @@ class ExternalMemoryIteratorProxy {
         char const *c_interface_str = CheckJvmCall(
             jenv_->GetStringUTFChars(jinterface, nullptr), jenv_);
         this->SetArrayInterface(c_interface_str);
-        this->CloseJvmBatch(batch_class, batch);
         jenv_->ReleaseStringUTFChars(jinterface, c_interface_str);
-
+        last_batch_ = batch;
         return 1;
       } else {
         return 0;
@@ -114,9 +119,12 @@ class ExternalMemoryIteratorProxy {
       }
       LOG(FATAL) << e.what();
     }
+    return 0;
   }
 
-  void Reset() { }
+  void Reset() {
+    this->CloseJvmBatch();
+  }
 };
 
 namespace {

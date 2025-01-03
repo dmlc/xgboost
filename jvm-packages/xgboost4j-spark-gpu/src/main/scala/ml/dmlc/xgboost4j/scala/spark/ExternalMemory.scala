@@ -298,12 +298,11 @@ private[spark] class ExternalMemoryIterator(val input: Iterator[Table],
 
   override def next(): ColumnBatch = {
     inputNextIsValid = true
-    withResource(iter.next()) { table =>
-      val batch = new GpuColumnBatch(table)
+    withResource(new GpuColumnBatch(iter.next())) { batch =>
       if (iter == input) {
-        externalMemory.cacheTable(table)
+        externalMemory.cacheTable(batch.table)
       }
-      logger.info("ExternalMemoryIterator next: table" + table)
+      logger.info("ExternalMemoryIterator next: table" + batch.table)
       val xx = new CudfColumnBatch(
         batch.select(indices.featureIds.get),
         batch.select(indices.labelId),
