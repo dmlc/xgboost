@@ -459,10 +459,10 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' @param seed Random number seed. If not specified, will take a random seed through R's own RNG engine.
 #' @param booster (default= `"gbtree"`)
 #' Which booster to use. Can be `"gbtree"`, `"gblinear"` or `"dart"`; `"gbtree"` and `"dart"` use tree based models while `"gblinear"` uses linear functions.
-#' @param eta,learning_rate (two aliases for the same parameter) (default=0.3)
+#' @param eta,learning_rate (two aliases for the same parameter)
 #' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `eta` shrinks the feature weights to make the boosting process more conservative.
-#'
-#' range: \eqn{[0,1]}
+#' - range: \eqn{[0,1]}
+#' - default value: 0.3 for tree-based boosters, 0.5 for linear booster.
 #'
 #' Note: should only pass one of `eta` or `learning_rate`. Both refer to the same parameter and there's thus no difference between one or the other.
 #' @param gamma,min_split_loss (two aliases for the same parameter) (for Tree Booster) (default=0, alias: `gamma`)
