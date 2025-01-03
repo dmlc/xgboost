@@ -173,10 +173,12 @@ Maximum depth of a tree. Increasing this value will make the model more complex 
 
 range: \eqn{[0, \infty)}}
 
-\item{learning_rate}{(default=0.3, alias: \code{eta})
+\item{learning_rate}{(alias: \code{eta})
 Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and \code{learning_rate} shrinks the feature weights to make the boosting process more conservative.
-
-range: \eqn{[0,1]}}
+\itemize{
+\item range: \eqn{[0,1]}
+\item default value: 0.3 for tree-based boosters, 0.5 for linear booster.
+}}
 
 \item{min_child_weight}{(for Tree Booster) (default=1)
 Minimum sum of instance weight (hessian) needed in a child. If the tree partition step results in a leaf node with the sum of instance weight less than \code{min_child_weight}, then the building process will give up further partitioning. In linear regression task, this simply corresponds to minimum number of instances needed to be in each node. The larger \code{min_child_weight} is, the more conservative the algorithm will be.

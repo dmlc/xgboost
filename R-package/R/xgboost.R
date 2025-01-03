@@ -1042,10 +1042,10 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger `min_split_loss` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
 #'
 #' range: \eqn{[0, \infty)}
-#' @param learning_rate (default=0.3, alias: `eta`)
+#' @param learning_rate (alias: `eta`)
 #' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `learning_rate` shrinks the feature weights to make the boosting process more conservative.
-#'
-#' range: \eqn{[0,1]}
+#' - range: \eqn{[0,1]}
+#' - default value: 0.3 for tree-based boosters, 0.5 for linear booster.
 #' @param reg_lambda (alias: `lambda`)
 #' - For tree-based boosters:
 #'   - L2 regularization term on weights. Increasing this value will make model more conservative.
