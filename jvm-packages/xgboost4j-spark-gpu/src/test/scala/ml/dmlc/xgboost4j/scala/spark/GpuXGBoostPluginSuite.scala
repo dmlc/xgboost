@@ -33,6 +33,19 @@ import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 
 class GpuXGBoostPluginSuite extends GpuTestSuite {
 
+  test("asdfasdf") {
+    withGpuSparkSession() { spark =>
+      val df = spark.read.parquet("/home/bobwang/data/iris/parquet")
+      val label = "class"
+      val features = df.schema.names.filter(_ != label)
+      val estimator = new XGBoostClassifier()
+        .setFeaturesCol(features)
+        .setLabelCol(label)
+        .setDevice("cuda")
+      val model = estimator.fit(df)
+    }
+  }
+
   test("params") {
     withGpuSparkSession() { spark =>
       import spark.implicits._
