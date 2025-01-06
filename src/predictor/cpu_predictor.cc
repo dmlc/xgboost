@@ -158,6 +158,7 @@ void FVecDrop(std::size_t const block_size, std::size_t const fvec_offset,
   }
 }
 
+// Convert a single sample in batch view to FVec
 template <typename BatchView>
 struct DataToFeatVec {
   void Fill(bst_idx_t ridx, RegTree::FVec *p_feats) const {
@@ -219,17 +220,19 @@ struct GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView> {
         auto rbeg = page_.row_ptr[ridx];
         for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
           bst_bin_t bin_idx;
+          float fvalue;
           if (common::IsCat(ft_, fidx)) {
             bin_idx = page_.GetGindex(gridx, fidx);
+            fvalue = this->values_[bin_idx];
           } else {
             bin_idx = ptr[rbeg + fidx] + page_.index.Offset()[fidx];
+            fvalue =
+                common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx, bin_idx);
           }
-          auto fvalue =
-              common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx, bin_idx);
           out[fidx] = fvalue;
-          n_non_missings++;
         }
       });
+      n_non_missings += n_features;
     } else {
       for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
         float f = page_.GetFvalue(ptrs_, values_, mins_, gridx, fidx, common::IsCat(ft_, fidx));

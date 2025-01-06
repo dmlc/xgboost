@@ -257,7 +257,7 @@ class GHistIndexMatrix {
   }
 
   [[nodiscard]] bst_idx_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
-  [[nodiscard]] bst_feature_t Features() const { return cut.cut_ptrs_.Size() - 1; }
+  [[nodiscard]] bst_feature_t Features() const { return cut.NumFeatures(); }
 
   [[nodiscard]] bool ReadColumnPage(common::AlignedResourceReadStream* fi);
   [[nodiscard]] std::size_t WriteColumnPage(common::AlignedFileWriteStream* fo) const;
