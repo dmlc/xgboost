@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2025, XGBoost contributors
  */
 #include "test_ordinal.h"
 

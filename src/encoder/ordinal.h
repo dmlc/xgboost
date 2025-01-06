@@ -1,11 +1,11 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2025, XGBoost contributors
  *
  * @brief Orindal re-coder for categorical features.
  *
  * For training with dataframes, we use the default encoding provided by the dataframe
  * implementation. However, we need a way to ensure the encoding is consistent at test
- * time, which is often not the case. This module re-code the test data given the train
+ * time, which is often not the case. This module re-codes the test data given the train
  * time encoding (mapping between categories to dense discrete integers starting from 0).
  *
  * The algorithm proceeds as follow:
@@ -86,8 +86,8 @@ using CatPrimIndexTypes =
 /**
  * @brief All the column types supported by the encoder.
  */
-using CatIndexViewTypes = decltype(std::tuple_cat(std::tuple<enc::CatStrArrayView>{},
-                                                  PrimToSpan<CatPrimIndexTypes>::Type{}));
+using CatIndexViewTypes =
+    decltype(std::tuple_cat(std::tuple<CatStrArrayView>{}, PrimToSpan<CatPrimIndexTypes>::Type{}));
 
 /**
  * @brief Host categories view for a single column.
@@ -393,7 +393,7 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
   }
 }
 
-inline std::ostream &operator<<(std::ostream &os, enc::CatStrArrayView const &strings) {
+inline std::ostream &operator<<(std::ostream &os, CatStrArrayView const &strings) {
   auto const &offset = strings.offsets;
   auto const &data = strings.values;
   os << "[";

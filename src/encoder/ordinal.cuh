@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2025, XGBoost contributors
  */
 #pragma once
 
@@ -103,7 +103,7 @@ struct SegmentedSearchSortedNumOp {
       return l_value < r_value;
     });
     if (ret_it == it + f_sorted_idx.size()) {
-      return SearchKey();  // not found
+      return detail::NotFound();
     }
     return *ret_it;
   }
