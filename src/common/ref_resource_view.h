@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_REF_RESOURCE_VIEW_H_
 #define XGBOOST_COMMON_REF_RESOURCE_VIEW_H_
@@ -88,6 +88,14 @@ class RefResourceView {
 
   [[nodiscard]] value_type& operator[](size_type i) { return ptr_[i]; }
   [[nodiscard]] value_type const& operator[](size_type i) const { return ptr_[i]; }
+  [[nodiscard]] value_type& at(size_type i) {  // NOLINT
+    SPAN_LT(i, this->size_);
+    return ptr_[i];
+  }
+  [[nodiscard]] value_type const& at(size_type i) const {  // NOLINT
+    SPAN_LT(i, this->size_);
+    return ptr_[i];
+  }
 
   /**
    * @brief Get the underlying resource.

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
@@ -250,12 +250,14 @@ class GHistIndexMatrix {
   void SetDense(bool is_dense) { isDense_ = is_dense; }
   [[nodiscard]] bst_idx_t BaseRowId() const { return base_rowid; }
   /**
-   * @brief Get the local row index.
+   * @brief Get the local row index from the global row index.
    */
-  [[nodiscard]] bst_idx_t RowIdx(bst_idx_t ridx) const { return row_ptr[ridx - this->base_rowid]; }
+  [[nodiscard]] bst_idx_t RowIdx(bst_idx_t gridx) const {
+    return row_ptr[gridx - this->base_rowid];
+  }
 
   [[nodiscard]] bst_idx_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
-  [[nodiscard]] bst_feature_t Features() const { return cut.Ptrs().size() - 1; }
+  [[nodiscard]] bst_feature_t Features() const { return cut.cut_ptrs_.Size() - 1; }
 
   [[nodiscard]] bool ReadColumnPage(common::AlignedResourceReadStream* fi);
   [[nodiscard]] std::size_t WriteColumnPage(common::AlignedFileWriteStream* fo) const;

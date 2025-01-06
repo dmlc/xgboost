@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file tree_model.h
  * \brief model structure for tree
  * \author Tianqi Chen
@@ -586,7 +586,9 @@ class RegTree : public Model {
      */
     [[nodiscard]] bool IsMissing(size_t i) const;
     [[nodiscard]] bool HasMissing() const;
+    void HasMissing(bool has_missing) { this->has_missing_ = has_missing; }
 
+    [[nodiscard]] common::Span<float> Data() { return data_; }
 
    private:
     /*!
@@ -804,10 +806,7 @@ inline void RegTree::FVec::Fill(SparsePage::Inst const& inst) {
   has_missing_ = data_.size() != inst.size();
 }
 
-inline void RegTree::FVec::Drop() {
-  std::fill_n(data_.data(), data_.size(), std::numeric_limits<float>::quiet_NaN());
-  has_missing_ = true;
-}
+inline void RegTree::FVec::Drop() { this->Init(this->Size()); }
 
 inline size_t RegTree::FVec::Size() const {
   return data_.size();

@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -15,10 +15,8 @@
 #include <xgboost/model.h>
 
 #include <vector>
-#include <utility>
 #include <string>
 #include <functional>
-#include <unordered_map>
 #include <memory>
 
 namespace xgboost {
@@ -42,13 +40,13 @@ class GradientBooster : public Model, public Configurable {
  public:
   /*! \brief virtual destructor */
   ~GradientBooster() override = default;
-  /*!
-   * \brief Set the configuration of gradient boosting.
+  /**
+   * @brief Set the configuration of gradient boosting.
    *  User must call configure once before InitModel and Training.
    *
-   * \param cfg configurations on both training and model parameters.
+   * @param cfg configurations on both training and model parameters.
    */
-  virtual void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) = 0;
+  virtual void Configure(Args const& cfg) = 0;
   /*!
    * \brief load model from stream
    * \param fi input stream.

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file column_matrix.h
  * \brief Utility for fast column-wise access
  * \author Philip Cho

@@ -1,10 +1,10 @@
 /**
- * Copyright 2021-2023 by XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_PREDICTOR_PREDICT_FN_H_
 #define XGBOOST_PREDICTOR_PREDICT_FN_H_
-#include "../common/categorical.h"
-#include "xgboost/tree_model.h"
+#include "../common/categorical.h"  // for IsCat, Decision
+#include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
 /** @brief Whether it should traverse to the left branch of a tree. */
@@ -46,6 +46,19 @@ XGBOOST_DEVICE bst_node_t GetNextNodeMulti(MultiTargetTree const &tree, bst_node
       return tree.LeftChild(nidx) + !(fvalue < tree.SplitCond(nidx));
     }
   }
+}
+
+/**
+ * @brief Some old prediction methods accept the ntree_limit parameter and they use 0 to
+ *        indicate no limit.
+ */
+inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &trees,
+                               bst_tree_t ntree_limit) {
+  auto n_trees = static_cast<bst_tree_t>(trees.size());
+  if (ntree_limit == 0 || ntree_limit > n_trees) {
+    ntree_limit = n_trees;
+  }
+  return ntree_limit;
 }
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_
