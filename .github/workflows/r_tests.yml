@@ -46,8 +46,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-${{ matrix.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
-          restore-keys: ${{ runner.os }}-r-${{ matrix.r }}-7-${{ hashFiles('R-package/DESCRIPTION') }}
+          key: ${{ runner.os }}-r-${{ matrix.r }}-8-${{ hashFiles('R-package/DESCRIPTION') }}
+          restore-keys: ${{ runner.os }}-r-${{ matrix.r }}-8-${{ hashFiles('R-package/DESCRIPTION') }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
