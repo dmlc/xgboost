@@ -3,6 +3,10 @@
  */
 #ifndef XGBOOST_PREDICTOR_PREDICT_FN_H_
 #define XGBOOST_PREDICTOR_PREDICT_FN_H_
+
+#include <memory>  // for unique_ptr
+#include <vector>  // for vector
+
 #include "../common/categorical.h"  // for IsCat, Decision
 #include "xgboost/tree_model.h"     // for RegTree
 
