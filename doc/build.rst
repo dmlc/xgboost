@@ -341,7 +341,9 @@ Building JVM Packages
 *********************
 
 Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.18+ for
-compiling Java code as well as the Java Native Interface (JNI) bindings.
+compiling Java code as well as the Java Native Interface (JNI) bindings. In addition, a
+Python script is used during configuration, make sure the command ``python`` is available
+on your system path (some distros use the name ``python3`` instead of ``python``).
 
 Before you install XGBoost4J, you need to define environment variable ``JAVA_HOME`` as your JDK directory to ensure that your compiler can find ``jni.h`` correctly, since XGBoost4J relies on JNI to implement the interaction between the JVM and native libraries.
 
@@ -388,7 +390,8 @@ If you want to use XGBoost4J-Spark, replace ``xgboost4j`` with ``xgboost4j-spark
 Additional System-dependent Features
 ====================================
 
-- OpenMP on MacOS: See :ref:`running_cmake_and_build` for installing ``openmp``.
+- OpenMP on MacOS: See :ref:`running_cmake_and_build` for installing ``openmp``. The flag
+  -``mvn Duse.openmp=OFF`` can be used to disable OpenMP support.
 - GPU support can be enabled by passing an additional flag to maven ``mvn -Duse.cuda=ON
   install``. See :ref:`build_gpu_support` for more info.
 
