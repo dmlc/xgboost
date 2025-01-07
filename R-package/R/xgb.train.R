@@ -83,11 +83,18 @@
 #'   [xgb.save()] (but are kept when using R serializers like [saveRDS()]).
 #' @param ... Not used.
 #'
-#' Some arguments are currently deprecated or have been renamed. If a deprecated argument
-#' is passed, will throw a warning and use its current equivalent.
+#' Some arguments that were part of this function in previous XGBoost versions are currently
+#' deprecated or have been renamed. If a deprecated or renamed argument is passed, will throw
+#' a warning (by default) and use its current equivalent instead. This warning will become an
+#' error if using the \link[=xgboost-options]{'strict mode' option}.
 #'
 #' If some additional argument is passed that is neither a current function argument nor
-#' a deprecated argument, an error will be thrown.
+#' a deprecated or renamed argument, a warning or error will be thrown depending on the
+#' 'strict mode' option.
+#'
+#' \bold{Important:} `...` will be removed in a future version, and all the current
+#' deprecation warnings will become errors. Please use only arguments that form part of
+#' the function signature.
 #' @return An object of class `xgb.Booster`.
 #' @details
 #' Compared to [xgboost()], the `xgb.train()` interface supports advanced features such as
@@ -402,7 +409,8 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' If passing `NULL` for a given parameter (the default for all of them), then the default
 #' value for that parameter will be used. Default values are automatically determined by the
 #' XGBoost core library upon calls to [xgb.train()] or [xgb.cv()], and are subject to change
-#' over XGBoost library versions.
+#' over XGBoost library versions. Some of them might differ according to the
+#' booster type (e.g. defaults for regularization are different for linear and tree-based boosters).
 #' @return A list with the entries that were passed non-NULL values. It is intended to
 #' be passed as argument `params` to [xgb.train()] or [xgb.cv()].
 #' @export
@@ -452,10 +460,10 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' @param seed Random number seed. If not specified, will take a random seed through R's own RNG engine.
 #' @param booster (default= `"gbtree"`)
 #' Which booster to use. Can be `"gbtree"`, `"gblinear"` or `"dart"`; `"gbtree"` and `"dart"` use tree based models while `"gblinear"` uses linear functions.
-#' @param eta,learning_rate (two aliases for the same parameter) (default=0.3)
+#' @param eta,learning_rate (two aliases for the same parameter)
 #' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `eta` shrinks the feature weights to make the boosting process more conservative.
-#'
-#' range: \eqn{[0,1]}
+#' - range: \eqn{[0,1]}
+#' - default value: 0.3 for tree-based boosters, 0.5 for linear booster.
 #'
 #' Note: should only pass one of `eta` or `learning_rate`. Both refer to the same parameter and there's thus no difference between one or the other.
 #' @param gamma,min_split_loss (two aliases for the same parameter) (for Tree Booster) (default=0, alias: `gamma`)

@@ -34,3 +34,4 @@ Other topics
   :titlesonly:
 
   Handling of indexable elements <index_base>
+  Developer guide: parameters from core library <adding_parameters>

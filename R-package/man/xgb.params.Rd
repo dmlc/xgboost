@@ -121,10 +121,12 @@ contention and hyperthreading in mind.}
 \item{booster}{(default= \code{"gbtree"})
 Which booster to use. Can be \code{"gbtree"}, \code{"gblinear"} or \code{"dart"}; \code{"gbtree"} and \code{"dart"} use tree based models while \code{"gblinear"} uses linear functions.}
 
-\item{eta, learning_rate}{(two aliases for the same parameter) (default=0.3)
+\item{eta, learning_rate}{(two aliases for the same parameter)
 Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and \code{eta} shrinks the feature weights to make the boosting process more conservative.
-
-range: \eqn{[0,1]}
+\itemize{
+\item range: \eqn{[0,1]}
+\item default value: 0.3 for tree-based boosters, 0.5 for linear booster.
+}
 
 Note: should only pass one of \code{eta} or \code{learning_rate}. Both refer to the same parameter and there's thus no difference between one or the other.}
 
@@ -536,5 +538,6 @@ values. Note that this function will not perform any validation on the supplied 
 If passing \code{NULL} for a given parameter (the default for all of them), then the default
 value for that parameter will be used. Default values are automatically determined by the
 XGBoost core library upon calls to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}, and are subject to change
-over XGBoost library versions.
+over XGBoost library versions. Some of them might differ according to the
+booster type (e.g. defaults for regularization are different for linear and tree-based boosters).
 }

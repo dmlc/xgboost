@@ -74,7 +74,7 @@ built at the time of install. So ``pip install`` with the binary wheel
 completes quickly:
 
 .. code-block:: console
-  
+
   $ pip install xgboost-2.0.0-py3-none-linux_x86_64.whl  # Completes quickly
 
 .. rubric:: Footnotes

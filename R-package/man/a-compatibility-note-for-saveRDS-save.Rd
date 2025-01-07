@@ -54,9 +54,8 @@ like \code{\link[=saveRDS]{saveRDS()}} or \code{\link[=save]{save()}} before ver
 could in theory change again in the future, so XGBoost's serializers should be
 preferred for long-term storage.
 
-Furthermore, note that using the package \code{qs} for serialization will require
-version 0.26 or higher of said package, and will have the same compatibility
-restrictions as R serializers.
+Furthermore, note that model objects from XGBoost might not be serializable with third-party
+R packages like \code{qs} or \code{qs2}.
 }
 \details{
 Use \code{\link[=xgb.save]{xgb.save()}} to save the XGBoost model as a stand-alone file. You may opt into

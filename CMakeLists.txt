@@ -497,7 +497,8 @@ if(GOOGLE_TEST)
   configure_file(
     ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
     ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-    @ONLY)
+    @ONLY
+    NEWLINE_STYLE UNIX)
   if(BUILD_DEPRECATED_CLI)
     add_test(
       NAME TestXGBoostCLI
