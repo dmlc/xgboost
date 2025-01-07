@@ -181,7 +181,13 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-      - name: Test XGBoost4J (Core)
+      - name: Test XGBoost4J (Core) on macos
+        if: matrix.os == 'macos-13'
+        run: |
+          cd jvm-packages
+          mvn test -B -pl :xgboost4j_2.12 -Duse.openmp=OFF
+      - name: Test XGBoost4J (Core) on windows
+        if: matrix.os == 'windows-latest'
         run: |
           cd jvm-packages
           mvn test -B -pl :xgboost4j_2.12
