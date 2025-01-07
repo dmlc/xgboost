@@ -301,22 +301,23 @@ project in the RStudio IDE.
   library(devtools)
   devtools::load_all(path = "/path/to/xgboost/R-package")
 
-If you want to use the CMake build for greater flexibility around compile flags, the
-earlier snippet can be replaced by:
+On Linux, if you want to use the CMake build for greater flexibility around compile flags,
+the earlier snippet can be replaced by:
 
 .. code-block:: bash
 
   cmake -B build -S . -DR_LIB=ON -GNinja
   cd build && ninja install
 
+.. warning::
+
+   MSVC is not supported for the R package as it has difficulty handling R C
+   headers. CMake build is not supported either.
+
 Note in this case that ``cmake`` will not take configurations from your regular
 ``Makevars`` file (if you have such a file under ``~/.R/Makevars``) - instead, custom
 configurations such as compilers to use and flags need to be set through CMake variables
 like ``-DCMAKE_CXX_COMPILER``.
-
-.. warning::
-
-   MSVC is not supported for the R package as it has difficulty handling R C headers.
 
 
 .. _r_gpu_support:
