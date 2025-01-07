@@ -348,6 +348,11 @@ Parameters for Linear Booster (``booster=gblinear``)
 
   - L1 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.
 
+* ``eta`` [default=0.5, alias: ``learning_rate``]
+
+  - Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and ``eta`` shrinks the feature weights to make the boosting process more conservative.
+  - range: [0,1]
+
 * ``updater`` [default= ``shotgun``]
 
   - Choice of algorithm to fit linear model
