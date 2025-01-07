@@ -16,9 +16,6 @@ if sys.platform.startswith("linux"):
 
 CONFIG = {
     "USE_OPENMP": "ON",
-    "USE_HDFS": "OFF",
-    "USE_AZURE": "OFF",
-    "USE_S3": "OFF",
     "USE_CUDA": "OFF",
     "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON",
@@ -70,10 +67,9 @@ def normpath(path):
         return normalized
 
 
-def native_build(args):
+def native_build(cli_args: argparse.Namespace) -> None:
+    CONFIG["USE_OPENMP"] = cli_args.use_openmp
     if sys.platform == "darwin":
-        # Enable of your compiler supports OpenMP.
-        CONFIG["USE_OPENMP"] = "OFF"
         os.environ["JAVA_HOME"] = (
             subprocess.check_output("/usr/libexec/java_home").strip().decode()
         )
@@ -184,5 +180,6 @@ if __name__ == "__main__":
         "--log-capi-invocation", type=str, choices=["ON", "OFF"], default="OFF"
     )
     parser.add_argument("--use-cuda", type=str, choices=["ON", "OFF"], default="OFF")
+    parser.add_argument("--use-openmp", type=str, choices=["ON", "OFF"], default="ON")
     cli_args = parser.parse_args()
     native_build(cli_args)
