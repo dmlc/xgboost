@@ -391,7 +391,7 @@ Additional System-dependent Features
 ====================================
 
 - OpenMP on MacOS: See :ref:`running_cmake_and_build` for installing ``openmp``. The flag
-  -``mvn Duse.openmp=OFF`` can be used to disable OpenMP support.
+  -``mvn -Duse.openmp=OFF`` can be used to disable OpenMP support.
 - GPU support can be enabled by passing an additional flag to maven ``mvn -Duse.cuda=ON
   install``. See :ref:`build_gpu_support` for more info.
 
