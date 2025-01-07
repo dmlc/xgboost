@@ -258,4 +258,4 @@ Spark Standalone cluster.
 For details about other ``RAPIDS Accelerator`` other configurations, please refer to the `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
 
 For ``RAPIDS Accelerator Frequently Asked Questions``, please refer to the
-`frequently-asked-questions https://docs.nvidia.com/spark-rapids/user-guide/latest/faq.html`_.
+`frequently-asked-questions <https://docs.nvidia.com/spark-rapids/user-guide/latest/faq.html>`_.
