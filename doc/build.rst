@@ -309,15 +309,15 @@ the earlier snippet can be replaced by:
   cmake -B build -S . -DR_LIB=ON -GNinja
   cd build && ninja install
 
-Note in this case that ``cmake`` will not take configurations from your regular
-``Makevars`` file (if you have such a file under ``~/.R/Makevars``) - instead, custom
-configurations such as compilers to use and flags need to be set through CMake variables
-like ``-DCMAKE_CXX_COMPILER``.
-
 .. warning::
 
    MSVC is not supported for the R package as it has difficulty handling R C
    headers. CMake build is not supported either.
+
+Note in this case that ``cmake`` will not take configurations from your regular
+``Makevars`` file (if you have such a file under ``~/.R/Makevars``) - instead, custom
+configurations such as compilers to use and flags need to be set through CMake variables
+like ``-DCMAKE_CXX_COMPILER``.
 
 
 .. _r_gpu_support:
