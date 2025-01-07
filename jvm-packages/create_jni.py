@@ -67,8 +67,8 @@ def normpath(path):
         return normalized
 
 
-def native_build(args):
-    CONFIG["USE_OPENMP"] = args.use_openmp
+def native_build(cli_args: argparse.Namespace) -> None:
+    CONFIG["USE_OPENMP"] = cli_args.use_openmp
     if sys.platform == "darwin":
         os.environ["JAVA_HOME"] = (
             subprocess.check_output("/usr/libexec/java_home").strip().decode()
@@ -76,7 +76,7 @@ def native_build(args):
 
     print("building Java wrapper", flush=True)
     with cd(".."):
-        build_dir = "build-gpu" if args.use_cuda == "ON" else "build"
+        build_dir = "build-gpu" if cli_args.use_cuda == "ON" else "build"
         maybe_makedirs(build_dir)
 
         if sys.platform == "linux":
@@ -86,10 +86,10 @@ def native_build(args):
         else:
             maybe_parallel_build = ""
 
-        if args.log_capi_invocation == "ON":
+        if cli_args.log_capi_invocation == "ON":
             CONFIG["LOG_CAPI_INVOCATION"] = "ON"
 
-        if args.use_cuda == "ON":
+        if cli_args.use_cuda == "ON":
             CONFIG["USE_CUDA"] = "ON"
             CONFIG["USE_NCCL"] = "ON"
             CONFIG["USE_DLOPEN_NCCL"] = "OFF"
@@ -167,7 +167,7 @@ def native_build(args):
         cp(file, "xgboost4j-spark/src/test/resources")
 
     # for xgboost4j-spark-gpu
-    if args.use_cuda == "ON":
+    if cli_args.use_cuda == "ON":
         maybe_makedirs("xgboost4j-spark-gpu/src/test/resources")
         for file in glob.glob("../demo/data/veterans_lung_cancer.csv"):
             cp(file, "xgboost4j-spark-gpu/src/test/resources")
