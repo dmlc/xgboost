@@ -560,6 +560,29 @@ deprecated_train_params <- list(
   ),
   removed = character()
 )
+deprecated_xgboost_params <- list(
+  renamed = list(
+    'data' = 'x',
+    'label' = 'y',
+    'eta' = 'learning_rate',
+    'gamma' = 'min_split_loss',
+    'lambda' = 'reg_lambda',
+    'alpha' = 'reg_alpha',
+    'min.split.loss' = 'min_split_loss',
+    'reg.lambda' = 'reg_lambda',
+    'reg.alpha' = 'reg_alpha',
+    'watchlist' = 'evals'
+  ),
+  removed = c(
+    'params',
+    'save_period',
+    'save_name',
+    'xgb_model',
+    'callbacks',
+    'missing',
+    'maximize'
+  )
+)
 deprecated_dttree_params <- list(
   renamed = list('n_first_tree' = 'trees'),
   removed = c("feature_names", "text")
