@@ -221,16 +221,16 @@ xgboost(
 )
 ```
 
-    [1] train-auc:0.755556  train-logloss:0.663745 
-    [2] train-auc:0.785556  train-logloss:0.647036 
-    [3] train-auc:0.792778  train-logloss:0.633082 
-    [4] train-auc:0.792778  train-logloss:0.612353 
-    [5] train-auc:0.837778  train-logloss:0.601307 
+    [1] train-auc:0.703671  train-logloss:0.669935  eval-auc:0.546875   eval-logloss:0.722103 
+    [2] train-auc:0.703671  train-logloss:0.654512  eval-auc:0.546875   eval-logloss:0.721223 
+    [3] train-auc:0.703671  train-logloss:0.642302  eval-auc:0.546875   eval-logloss:0.721304 
+    [4] train-auc:0.819930  train-logloss:0.618349  eval-auc:0.593750   eval-logloss:0.703055 
+    [5] train-auc:0.848776  train-logloss:0.606215  eval-auc:0.609375   eval-logloss:0.708907 
 
     XGBoost model object
     Call:
       xgboost(x = x, y = y, nrounds = 5, verbosity = 1, monitor_training = TRUE, 
-        nthreads = 1, eval_set = 0.2, eval_metric = c("auc", "logloss"), 
+        eval_set = 0.2, nthreads = 1, eval_metric = c("auc", "logloss"), 
         max_depth = 2, reg_lambda = 0.5, learning_rate = 0.15)
     Objective: binary:logistic
     Number of iterations: 5
@@ -239,7 +239,7 @@ xgboost(
     XGBoost model object
     Call:
       xgboost(x = x, y = y, nrounds = 5, verbosity = 1, monitor_training = TRUE, 
-        nthreads = 1, eval_set = 0.2, eval_metric = c("auc", "logloss"), 
+        eval_set = 0.2, nthreads = 1, eval_metric = c("auc", "logloss"), 
         max_depth = 2, reg_lambda = 0.5, learning_rate = 0.15)
     Objective: binary:logistic
     Number of iterations: 5
@@ -269,6 +269,9 @@ attributes(model)
     [1] 1
 
     $params$seed
+    [1] 0
+
+    $params$verbosity
     [1] 0
 
     $params$validate_parameters

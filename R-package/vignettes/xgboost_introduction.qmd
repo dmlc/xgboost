@@ -9,7 +9,6 @@ format:
         embed-resources: true
         theme: yeti
 highlight-style: pygments
-jupyter: ir
 ---
 
 # Introduction
