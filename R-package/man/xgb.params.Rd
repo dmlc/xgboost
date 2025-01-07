@@ -121,10 +121,12 @@ contention and hyperthreading in mind.}
 \item{booster}{(default= \code{"gbtree"})
 Which booster to use. Can be \code{"gbtree"}, \code{"gblinear"} or \code{"dart"}; \code{"gbtree"} and \code{"dart"} use tree based models while \code{"gblinear"} uses linear functions.}
 
-\item{eta, learning_rate}{(two aliases for the same parameter) (default=0.3)
+\item{eta, learning_rate}{(two aliases for the same parameter)
 Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and \code{eta} shrinks the feature weights to make the boosting process more conservative.
-
-range: \eqn{[0,1]}
+\itemize{
+\item range: \eqn{[0,1]}
+\item default value: 0.3 for tree-based boosters, 0.5 for linear booster.
+}
 
 Note: should only pass one of \code{eta} or \code{learning_rate}. Both refer to the same parameter and there's thus no difference between one or the other.}
 

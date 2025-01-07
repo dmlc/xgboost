@@ -1143,7 +1143,7 @@ class XGBModel(XGBModelBase):
         Parameters
         ----------
         X :
-            Feature matrix. See :ref:`py-data` for a list of supported types.
+            Input feature matrix. See :ref:`py-data` for a list of supported types.
 
             When the ``tree_method`` is set to ``hist``, internally, the
             :py:class:`QuantileDMatrix` will be used instead of the :py:class:`DMatrix`
@@ -1267,7 +1267,7 @@ class XGBModel(XGBModelBase):
         Parameters
         ----------
         X :
-            Data to predict with.
+            Data to predict with. See :ref:`py-data` for a list of supported types.
         output_margin :
             Whether to output the raw untransformed margin value.
         validate_features :
@@ -1334,8 +1334,8 @@ class XGBModel(XGBModelBase):
 
         Parameters
         ----------
-        X : array_like, shape=[n_samples, n_features]
-            Input features matrix.
+        X :
+            Input features matrix. See :ref:`py-data` for a list of supported types.
 
         iteration_range :
             See :py:meth:`predict`.

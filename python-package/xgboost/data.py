@@ -961,6 +961,11 @@ def _transform_polars_df(
 ) -> Tuple[ArrowTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
     if _is_polars_lazyframe(data):
         df = data.collect()
+        warnings.warn(
+            "Using the default parameters for the polars `LazyFrame.collect`. Consider"
+            " passing a realized `DataFrame` or `Series` instead.",
+            UserWarning,
+        )
     else:
         df = data
 
