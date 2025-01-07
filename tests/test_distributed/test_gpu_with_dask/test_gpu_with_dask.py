@@ -376,8 +376,6 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.parametrize("model", ["boosting"])
     def test_dask_classifier(self, model: str, local_cuda_client: Client) -> None:
-        import dask_cudf
-
         X_, y_, w_ = generate_array(with_weights=True)
         y_ = (y_ * 10).astype(np.int32)
         X = dd.from_dask_array(X_).to_backend("cudf")
