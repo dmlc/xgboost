@@ -301,8 +301,8 @@ project in the RStudio IDE.
   library(devtools)
   devtools::load_all(path = "/path/to/xgboost/R-package")
 
-If you want to use the CMake build for greater flexibility around compile flags, the
-earlier snippet can be replaced by:
+On Linux, if you want to use the CMake build for greater flexibility around compile flags,
+the earlier snippet can be replaced by:
 
 .. code-block:: bash
 
@@ -316,7 +316,8 @@ like ``-DCMAKE_CXX_COMPILER``.
 
 .. warning::
 
-   MSVC is not supported for the R package as it has difficulty handling R C headers.
+   MSVC is not supported for the R package as it has difficulty handling R C
+   headers. CMake build is not supported either.
 
 
 .. _r_gpu_support:
