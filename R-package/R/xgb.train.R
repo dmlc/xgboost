@@ -409,7 +409,8 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' If passing `NULL` for a given parameter (the default for all of them), then the default
 #' value for that parameter will be used. Default values are automatically determined by the
 #' XGBoost core library upon calls to [xgb.train()] or [xgb.cv()], and are subject to change
-#' over XGBoost library versions.
+#' over XGBoost library versions. Some of them might differ according to the
+#' booster type (e.g. defaults for regularization are different for linear and tree-based boosters).
 #' @return A list with the entries that were passed non-NULL values. It is intended to
 #' be passed as argument `params` to [xgb.train()] or [xgb.cv()].
 #' @export

@@ -538,5 +538,6 @@ values. Note that this function will not perform any validation on the supplied 
 If passing \code{NULL} for a given parameter (the default for all of them), then the default
 value for that parameter will be used. Default values are automatically determined by the
 XGBoost core library upon calls to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}, and are subject to change
-over XGBoost library versions.
+over XGBoost library versions. Some of them might differ according to the
+booster type (e.g. defaults for regularization are different for linear and tree-based boosters).
 }
