@@ -239,7 +239,7 @@ def check_no_group_split(client: Client, device: str) -> None:
         client, 1024, 128, n_query_groups=4, max_rel=5, device=device
     )
 
-    ltr = dxgb.DaskXGBRanker(allow_group_split=False, n_estimators=32, device=device)
+    ltr = dxgb.DaskXGBRanker(allow_group_split=False, n_estimators=36, device=device)
     ltr.fit(
         X_tr,
         y_tr,
