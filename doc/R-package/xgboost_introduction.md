@@ -221,11 +221,11 @@ xgboost(
 )
 ```
 
-    [1] train-auc:0.703671  train-logloss:0.669935  eval-auc:0.546875   eval-logloss:0.722103 
-    [2] train-auc:0.703671  train-logloss:0.654512  eval-auc:0.546875   eval-logloss:0.721223 
-    [3] train-auc:0.703671  train-logloss:0.642302  eval-auc:0.546875   eval-logloss:0.721304 
-    [4] train-auc:0.819930  train-logloss:0.618349  eval-auc:0.593750   eval-logloss:0.703055 
-    [5] train-auc:0.848776  train-logloss:0.606215  eval-auc:0.609375   eval-logloss:0.708907 
+    [1] train-auc:0.763021  train-logloss:0.665634  eval-auc:0.444444   eval-logloss:0.697723 
+    [2] train-auc:0.802083  train-logloss:0.643556  eval-auc:0.527778   eval-logloss:0.695267 
+    [3] train-auc:0.793403  train-logloss:0.625402  eval-auc:0.472222   eval-logloss:0.701788 
+    [4] train-auc:0.815972  train-logloss:0.611023  eval-auc:0.527778   eval-logloss:0.703274 
+    [5] train-auc:0.815972  train-logloss:0.599548  eval-auc:0.527778   eval-logloss:0.706069 
 
     XGBoost model object
     Call:
@@ -826,9 +826,9 @@ dmatrix <- xgb.DMatrix(
 booster <- xgb.train(
     data = dmatrix,
     nrounds = 10,
-    params = list(
+    params = xgb.params(
         objective = "binary:logistic",
-        nthreads = 1,
+        nthread = 1,
         max_depth = 3
     )
 )
