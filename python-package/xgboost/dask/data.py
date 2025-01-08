@@ -1,5 +1,5 @@
 # pylint: disable=too-many-arguments
-"""Copyright 2019-2024, XGBoost contributors"""
+"""Copyright 2019-2025, XGBoost contributors"""
 
 import logging
 from collections.abc import Sequence
@@ -283,6 +283,25 @@ def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
     return result
 
 
+def _get_is_cuda(parts: Optional[_DataParts]) -> bool:
+    if parts is not None:
+        is_cuda = is_on_cuda(parts[0].get("data"))
+    else:
+        is_cuda = False
+
+    is_cuda = bool(coll.allreduce(np.array([is_cuda], dtype=np.int32), coll.Op.MAX)[0])
+    return is_cuda
+
+
+def _make_empty(is_cuda: bool) -> np.ndarray:
+    if is_cuda:
+        cp = import_cupy()
+        empty = cp.empty((0, 0))
+    else:
+        empty = np.empty((0, 0))
+    return empty
+
+
 def _create_quantile_dmatrix(
     *,
     feature_names: Optional[FeatureNames],
@@ -297,12 +316,12 @@ def _create_quantile_dmatrix(
     ref: Optional[DMatrix] = None,
 ) -> QuantileDMatrix:
     worker = distributed.get_worker()
+    is_cuda = _get_is_cuda(parts)
     if parts is None:
         msg = f"Worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
-
         Xy = QuantileDMatrix(
-            np.empty((0, 0)),
+            _make_empty(is_cuda),
             feature_names=feature_names,
             feature_types=feature_types,
             max_bin=max_bin,
@@ -350,11 +369,13 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     """
     worker = distributed.get_worker()
     list_of_parts = parts
+    is_cuda = _get_is_cuda(parts)
+
     if list_of_parts is None:
         msg = f"Worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         Xy = DMatrix(
-            np.empty((0, 0)),
+            _make_empty(is_cuda),
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
