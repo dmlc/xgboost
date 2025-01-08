@@ -206,7 +206,7 @@ private[scala] class ExternalMemoryIterator(val input: Iterator[Table],
   override def next(): ColumnBatch = {
     inputNextIsCalled = true
     withResource(new GpuColumnBatch(iter.next())) { batch =>
-      if (iter == input) {
+      if (iter.eq(input)) {
         externalMemory.cacheTable(batch.table)
       }
       new CudfColumnBatch(
