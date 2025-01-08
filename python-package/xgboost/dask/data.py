@@ -318,9 +318,8 @@ def _create_quantile_dmatrix(
     worker = distributed.get_worker()
     is_cuda = _get_is_cuda(parts)
     if parts is None:
-        msg = f"Worker {worker.address} has an empty DMatrix."
-        LOGGER.warning(msg)
-        Xy = QuantileDMatrix(
+        LOGGER.warning("Worker %s has an empty DMatrix.", worker.address)
+        return QuantileDMatrix(
             _make_empty(is_cuda),
             feature_names=feature_names,
             feature_types=feature_types,
@@ -329,16 +328,14 @@ def _create_quantile_dmatrix(
             enable_categorical=enable_categorical,
             max_quantile_batches=max_quantile_batches,
         )
-        return Xy
 
-    unzipped_dict = _get_worker_parts(parts)
     it = DaskPartitionIter(
-        **unzipped_dict,
+        **_get_worker_parts(parts),
         feature_types=feature_types,
         feature_names=feature_names,
         feature_weights=feature_weights,
     )
-    Xy = QuantileDMatrix(
+    return QuantileDMatrix(
         it,
         missing=missing,
         nthread=nthread,
@@ -347,7 +344,6 @@ def _create_quantile_dmatrix(
         enable_categorical=enable_categorical,
         max_quantile_batches=max_quantile_batches,
     )
-    return Xy
 
 
 def _create_dmatrix(  # pylint: disable=too-many-locals
