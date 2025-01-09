@@ -635,7 +635,8 @@ R's conventions for model fitting and predictions, but which doesn't expose all 
 possible functionalities of the core XGBoost library.
 
 See \code{\link[=xgb.train]{xgb.train()}} for a more flexible low-level alternative which is similar across different
-language bindings of XGBoost and which exposes the full library's functionalities.
+language bindings of XGBoost and which exposes additional functionalities such as training on
+external memory data and learning-to-rank objectives.
 
 By default, most of the parameters here have a value of \code{NULL}, which signals XGBoost to use its
 default value. Default values are automatically determined by the XGBoost core library, and are
