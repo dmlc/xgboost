@@ -93,6 +93,10 @@ then
     python3 ops/pipeline/manage-artifacts.py upload \
       --s3-bucket xgboost-nightly-builds \
       --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
-      python-package/dist/*.whl python-package/dist/meta.json
+      python-package/dist/*.whl
+    python3 ops/pipeline/manage-artifacts.py upload \
+      --s3-bucket xgboost-nightly-builds \
+      --prefix ${BRANCH_NAME} --make-public \
+      python-package/dist/meta.json
   fi
 fi
