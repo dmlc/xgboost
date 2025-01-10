@@ -591,9 +591,10 @@ class RegTree : public Model {
     [[nodiscard]] common::Span<float> Data() { return data_; }
 
    private:
-    /*!
-     * \brief a union value of value and flag
-     *  when flag == -1, this indicate the value is missing
+    /**
+     * @brief A dense vector for a single sample.
+     *
+     * It's nan if the value is missing.
      */
     std::vector<float> data_;
     bool has_missing_;
