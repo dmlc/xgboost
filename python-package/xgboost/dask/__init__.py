@@ -274,8 +274,13 @@ class DaskDMatrix:
 
     .. note::
 
-        DaskDMatrix does not repartition or move data between workers.  It's
-        the caller's responsibility to balance the data.
+        `DaskDMatrix` does not repartition or move data between workers.  It's the
+        caller's responsibility to balance the data.
+
+    .. note::
+
+        For aligning partitions with ranking query groups, use the
+        :py:class:`DaskXGBRanker` and its ``allow_group_split`` option.
 
     .. versionadded:: 1.0.0
 
@@ -587,7 +592,10 @@ async def map_worker_partitions(
 
 
 class DaskQuantileDMatrix(DaskDMatrix):
-    """A dask version of :py:class:`QuantileDMatrix`."""
+    """A dask version of :py:class:`QuantileDMatrix`. See :py:class:`DaskDMatrix` for
+    parameter documents.
+
+    """
 
     @_deprecate_positional_args
     def __init__(
