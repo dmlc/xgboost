@@ -643,7 +643,7 @@ def run_dask_classifier(
     tree_method: Optional[str],
     device: Literal["cpu", "cuda"],
     client: "Client",
-    n_classes,
+    n_classes: int,
 ) -> None:
     metric = "merror" if n_classes > 2 else "logloss"
 
@@ -930,8 +930,9 @@ def run_empty_dmatrix_auc(client: "Client", device: str, n_workers: int) -> None
     valid_X = dd.from_array(valid_X_, chunksize=n_samples)
     valid_y = dd.from_array(valid_y_, chunksize=n_samples)
 
+    # Specify base score in case if there are only two workers and one sample.
     cls = dxgb.DaskXGBClassifier(
-        device=device, n_estimators=2, eval_metric=["auc", "aucpr"]
+        device=device, n_estimators=2, eval_metric=["auc", "aucpr"], base_score=0.5
     )
     cls.fit(X, y, eval_set=[(valid_X, valid_y)])
 

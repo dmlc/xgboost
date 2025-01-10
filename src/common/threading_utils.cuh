@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_CUH_
 #define XGBOOST_COMMON_THREADING_UTILS_CUH_
@@ -20,6 +20,9 @@ namespace xgboost::common {
  * \param h hight
  */
 XGBOOST_DEVICE inline std::size_t DiscreteTrapezoidArea(std::size_t n, std::size_t h) {
+  if (n == 0 || h == 0) {
+    return 0;
+  }
   n -= 1;              // without diagonal entries
   h = std::min(n, h);  // Used for ranking, h <= n
   std::size_t total = ((n - (h - 1)) + n) * h / 2;

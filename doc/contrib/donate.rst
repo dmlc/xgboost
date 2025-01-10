@@ -32,7 +32,6 @@ All expenses incurred for hosting CI will be submitted to the fiscal host with r
 * Cloud expenses for the cloud test farm
 * Cost of domain https://xgboost-ci.net
 * Annual subscription for RunsOn
-* Hosting cost of the User Forum (https://discuss.xgboost.ai)
 
 Administration of cloud CI infrastructure
 -----------------------------------------
