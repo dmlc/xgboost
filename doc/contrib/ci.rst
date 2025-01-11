@@ -44,16 +44,17 @@ To make changes to the CI container, carry out the following steps:
 4. Submit a pull request to `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_ with
    the proposed changes to the Dockerfile. Make note of the pull request number. Example: ``#204``
 5. Clone `dmlc/xgboost <https://github.com/dmlc/xgboost>`_ and update all references to the
-   old container to point to the new container. More specifically, all Docker tags of format
-   ``492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:main`` should have the last
-   component replaced with ``PR-#``, where ``#`` is the pull request number. For the example above,
+   old container to point to the new container. More specifically, all container image URIs of form
+   ``492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:main`` should have its image tag
+   (last component) replaced with ``PR-#``, where ``#`` is the pull request number.
+   For the example above,
    we'd replace ``492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main`` with
    ``492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:PR-204``.
 6. Now submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_. The CI will
    run tests using the new container. Verify that all tests pass.
 7. Merge the pull request in ``dmlc/xgboost-devops``. Wait until the CI completes on the ``main`` branch.
-8. Go back to the the pull request for ``dmlc/xgboost`` and change the container references back
-   to ``:main``.
+8. Go back to the the pull request for ``dmlc/xgboost`` and revise all the container references to use
+   the old tag ``:main``.
 9. Merge the pull request in ``dmlc/xgboost``.
 
 .. _build_run_docker_locally:
@@ -114,10 +115,11 @@ the build arguments are:
 
 The build arguments provide inputs to the ``ARG`` instructions in the Dockerfile.
 
-When ``containers/docker_build.sh`` completes, you will have access to the container with tag
-``492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:main``. The prefix
-``492475357299.dkr.ecr.us-west-2.amazonaws.com/`` was added so that the container could
-later be uploaded to AWS Elastic Container Registry (ECR), a private Docker registry.
+When ``containers/docker_build.sh`` completes, you will have access to the container with the
+(fully qualified) URI ``492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:main``.
+The prefix ``492475357299.dkr.ecr.us-west-2.amazonaws.com/`` was added so that
+the container could later be uploaded to AWS Elastic Container Registry (ECR),
+a private Docker registry.
 
 -----------------------------------------
 To run commands within a Docker container
