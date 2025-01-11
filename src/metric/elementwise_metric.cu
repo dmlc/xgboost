@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file elementwise_metric.cu
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
@@ -75,16 +75,27 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
     // for approximation in distributed setting.  For rmse:
     // - sqrt(1/w(sum_t0 + sum_t1 + ... + sum_tm))       // multi-target
     // - sqrt(avg_t0) + sqrt(avg_t1) + ... sqrt(avg_tm)  // distributed
-    common::ParallelFor(info.labels.Size(), ctx->Threads(), [&](size_t i) {
-      auto t_idx = omp_get_thread_num();
-      size_t sample_id;
-      size_t target_id;
-      std::tie(sample_id, target_id) = linalg::UnravelIndex(i, labels.Shape());
 
-      float v, wt;
-      std::tie(v, wt) = loss(i, sample_id, target_id);
-      score_tloc[t_idx] += v;
-      weight_tloc[t_idx] += wt;
+    auto size = info.labels.Size();
+    auto const kBlockSize = 2048;
+    auto n_blocks = size / kBlockSize + 1;
+
+    common::ParallelFor(n_blocks, n_threads, [&](auto block_idx) {
+      const size_t begin = block_idx * kBlockSize;
+      const size_t end = std::min(size, begin + kBlockSize);
+
+      double sum_score = 0, sum_weight = 0;
+      for (std::size_t i = begin; i < end; ++i) {
+        auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
+
+        auto [v, wt] = loss(i, sample_id, target_id);
+        sum_score += v;
+        sum_weight += wt;
+      }
+
+      auto t_idx = omp_get_thread_num();
+      score_tloc[t_idx] += sum_score;
+      weight_tloc[t_idx] += sum_weight;
     });
     double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
     double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);

@@ -83,10 +83,7 @@ class HistogramCuts {
   [[nodiscard]] bst_bin_t FeatureBins(bst_feature_t feature) const {
     return cut_ptrs_.ConstHostVector().at(feature + 1) - cut_ptrs_.ConstHostVector()[feature];
   }
-  [[nodiscard]] bst_feature_t NumFeatures() const {
-    CHECK_EQ(this->min_vals_.Size(), this->cut_ptrs_.Size() - 1);
-    return this->min_vals_.Size();
-  }
+  [[nodiscard]] bst_feature_t NumFeatures() const { return this->cut_ptrs_.Size() - 1; }
 
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_.ConstHostVector();   }
   std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }

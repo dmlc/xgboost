@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -878,16 +878,6 @@ class Dart : public GBTree {
         });
       }
     }
-  }
-
-  void PredictInstance(const SparsePage::Inst &inst,
-                       std::vector<bst_float> *out_preds,
-                       unsigned layer_begin, unsigned layer_end) override {
-    DropTrees(false);
-    auto &predictor = this->GetPredictor(false);
-    uint32_t _, tree_end;
-    std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
-    predictor->PredictInstance(inst, out_preds, model_, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
