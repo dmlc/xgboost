@@ -13,6 +13,8 @@ source ops/pipeline/get-docker-registry-details.sh
 
 CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.gpu:main
 
+export NCCL_RAS_ENABLE=0
+
 case "${suite}" in
   gpu)
     echo "--- Run Google Tests, using a single GPU"
