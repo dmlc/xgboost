@@ -62,7 +62,8 @@ xgboost(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
-  aft_loss_distribution = NULL
+  aft_loss_distribution = NULL,
+  ...
 )
 }
 \arguments{
@@ -614,6 +615,21 @@ Version added: 2.0.0}
 
 \item{aft_loss_distribution}{(for using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}
+
+\item{...}{Not used.
+
+Some arguments that were part of this function in previous XGBoost versions are currently
+deprecated or have been renamed. If a deprecated or renamed argument is passed, will throw
+a warning (by default) and use its current equivalent instead. This warning will become an
+error if using the \link[=xgboost-options]{'strict mode' option}.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated or renamed argument, a warning or error will be thrown depending on the
+'strict mode' option.
+
+\bold{Important:} \code{...} will be removed in a future version, and all the current
+deprecation warnings will become errors. Please use only arguments that form part of
+the function signature.}
 }
 \value{
 A model object, inheriting from both \code{xgboost} and \code{xgb.Booster}. Compared to the regular

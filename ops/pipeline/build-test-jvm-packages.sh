@@ -23,10 +23,10 @@ do
   fi
 done
 
-CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.jvm:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm:main
 
 set -x
 
-python3 ops/docker_run.py --container-tag ${CONTAINER_TAG} \
+python3 ops/docker_run.py --image-uri ${IMAGE_URI} \
   --run-args "-e SCALA_VERSION=${SCALA_VERSION}" \
   -- ops/pipeline/build-test-jvm-packages-impl.sh

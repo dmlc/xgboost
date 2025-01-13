@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include "test_predictor.h"
 
@@ -45,16 +45,6 @@ void TestBasic(DMatrix* dmat, Context const *ctx) {
   std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
   for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
-  }
-
-  // Test predict instance
-  auto const& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
-  auto page = batch.GetView();
-  for (size_t i = 0; i < batch.Size(); i++) {
-    std::vector<float> instance_out_predictions;
-    predictor->PredictInstance(page[i], &instance_out_predictions, model, 0,
-                                   dmat->Info().IsColumnSplit());
-    ASSERT_EQ(instance_out_predictions[0], 1.5);
   }
 
   // Test predict leaf

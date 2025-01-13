@@ -201,8 +201,8 @@ class Predictor : public xgboost::Predictor {
       }
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
-                    const gbm::GBTreeModel &model, uint32_t tree_begin,
-                    uint32_t tree_end = 0) const override {
+                    const gbm::GBTreeModel &model, bst_tree_t tree_begin,
+                    bst_tree_t tree_end = 0) const override {
     auto* out_preds = &predts->predictions;
     out_preds->SetDevice(ctx_->Device());
     if (tree_end == 0) {
@@ -221,28 +221,20 @@ class Predictor : public xgboost::Predictor {
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m,
                       const gbm::GBTreeModel &model, float missing,
-                      PredictionCacheEntry *out_preds, uint32_t tree_begin,
-                      unsigned tree_end) const override {
+                      PredictionCacheEntry *out_preds, bst_tree_t tree_begin,
+                      bst_tree_t tree_end) const override {
     LOG(WARNING) << "InplacePredict is not yet implemented for SYCL. CPU Predictor is used.";
     return cpu_predictor->InplacePredict(p_m, model, missing, out_preds, tree_begin, tree_end);
   }
 
-  void PredictInstance(const SparsePage::Inst& inst,
-                       std::vector<bst_float>* out_preds,
-                       const gbm::GBTreeModel& model, unsigned ntree_limit,
-                       bool is_column_split) const override {
-    LOG(WARNING) << "PredictInstance is not yet implemented for SYCL. CPU Predictor is used.";
-    cpu_predictor->PredictInstance(inst, out_preds, model, ntree_limit, is_column_split);
-  }
-
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
-                   const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
+                   const gbm::GBTreeModel& model, bst_tree_t ntree_limit) const override {
     LOG(WARNING) << "PredictLeaf is not yet implemented for SYCL. CPU Predictor is used.";
     cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
-                           const gbm::GBTreeModel& model, uint32_t ntree_limit,
+                           const gbm::GBTreeModel& model, bst_tree_t ntree_limit,
                            const std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
                            unsigned condition_feature) const override {
@@ -252,7 +244,7 @@ class Predictor : public xgboost::Predictor {
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
-                                       const gbm::GBTreeModel& model, unsigned ntree_limit,
+                                       const gbm::GBTreeModel& model, bst_tree_t ntree_limit,
                                        const std::vector<bst_float>* tree_weights,
                                        bool approximate) const override {
     LOG(WARNING) << "PredictInteractionContributions is not yet implemented for SYCL. "

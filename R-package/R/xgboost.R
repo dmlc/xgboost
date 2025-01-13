@@ -1066,6 +1066,7 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' - `"shotgun"`: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
 #' - `"coord_descent"`: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. When the `device` parameter is set to `"cuda"` or `"gpu"`, a GPU variant would be used.
 #' @inheritParams xgb.params
+#' @inheritParams xgb.train
 #' @return A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular
 #'   `xgb.Booster` model class produced by [xgb.train()], this `xgboost` class will have an
 #'
@@ -1163,9 +1164,11 @@ xgboost <- function(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
-  aft_loss_distribution = NULL
+  aft_loss_distribution = NULL,
+  ...
 ) {
 # nolint end
+  check.deprecation(deprecated_xgboost_params, match.call(), ...)
   params <- as.list(environment())
   params <- params[
     (names(params) %in% formalArgs(xgb.params))

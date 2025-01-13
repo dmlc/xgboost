@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  */
 #include <GPUTreeShap/gpu_treeshap.h>
 #include <thrust/copy.h>
@@ -39,7 +39,7 @@ struct TreeView {
   common::Span<RegTree::Node const> d_tree;
 
   XGBOOST_DEVICE
-  TreeView(size_t tree_begin, size_t tree_idx, common::Span<const RegTree::Node> d_nodes,
+  TreeView(bst_tree_t tree_begin, bst_tree_t tree_idx, common::Span<const RegTree::Node> d_nodes,
            common::Span<size_t const> d_tree_segments,
            common::Span<FeatureType const> d_tree_split_types,
            common::Span<uint32_t const> d_cat_tree_segments,
@@ -252,7 +252,7 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
                   common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
                   common::Span<uint32_t const> d_categories,
 
-                  size_t tree_begin, size_t tree_end, bst_feature_t num_features,
+                  bst_tree_t tree_begin, bst_tree_t tree_end, bst_feature_t num_features,
                   size_t num_rows, bool use_shared,
                   float missing) {
   bst_idx_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -260,7 +260,7 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
     return;
   }
   Loader loader{data, use_shared, num_features, num_rows, missing};
-  for (size_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+  for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
     TreeView d_tree{
         tree_begin,          tree_idx,           d_nodes,
         d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
@@ -285,8 +285,8 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
               common::Span<FeatureType const> d_tree_split_types,
               common::Span<uint32_t const> d_cat_tree_segments,
               common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
-              common::Span<uint32_t const> d_categories, size_t tree_begin,
-              size_t tree_end, size_t num_features, size_t num_rows,
+              common::Span<uint32_t const> d_categories, bst_tree_t tree_begin,
+              bst_tree_t tree_end, size_t num_features, size_t num_rows,
               bool use_shared, int num_group, float missing) {
   bst_uint global_idx = blockDim.x * blockIdx.x + threadIdx.x;
   Loader loader(data, use_shared, num_features, num_rows, missing);
@@ -294,7 +294,7 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
 
   if (num_group == 1) {
     float sum = 0;
-    for (size_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       TreeView d_tree{
           tree_begin,          tree_idx,           d_nodes,
           d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
@@ -304,7 +304,7 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
     }
     d_out_predictions[global_idx] += sum;
   } else {
-    for (size_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+    for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       int tree_group = d_tree_group[tree_idx];
       TreeView d_tree{
           tree_begin,          tree_idx,           d_nodes,
@@ -474,7 +474,7 @@ struct ShapSplitCondition {
 struct PathInfo {
   int64_t leaf_position;  // -1 not a leaf
   size_t length;
-  size_t tree_idx;
+  bst_tree_t tree_idx;
 };
 
 // Transform model into path element form for GPUTreeShap
@@ -494,8 +494,7 @@ void ExtractPaths(Context const* ctx,
         if (!n.IsLeaf() || n.IsDeleted()) {
           return PathInfo{-1, 0, 0};
         }
-        size_t tree_idx =
-            dh::SegmentId(d_tree_segments.begin(), d_tree_segments.end(), idx);
+        bst_tree_t tree_idx = dh::SegmentId(d_tree_segments.begin(), d_tree_segments.end(), idx);
         size_t tree_offset = d_tree_segments[tree_idx];
         size_t path_length = 1;
         while (!n.IsRoot()) {
@@ -622,7 +621,7 @@ __global__ void MaskBitVectorKernel(
     common::Span<std::uint32_t const> d_cat_tree_segments,
     common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
     common::Span<std::uint32_t const> d_categories, BitVector decision_bits, BitVector missing_bits,
-    std::size_t tree_begin, std::size_t tree_end, bst_feature_t num_features, std::size_t num_rows,
+    bst_tree_t tree_begin, bst_tree_t tree_end, bst_feature_t num_features, std::size_t num_rows,
     std::size_t num_nodes, bool use_shared, float missing) {
   // This needs to be always instantiated since the data is loaded cooperatively by all threads.
   SparsePageLoader loader{data, use_shared, num_features, num_rows, missing};
@@ -695,7 +694,7 @@ __global__ void PredictByBitVectorKernel(
     common::Span<std::uint32_t const> d_cat_tree_segments,
     common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
     common::Span<std::uint32_t const> d_categories, BitVector decision_bits, BitVector missing_bits,
-    std::size_t tree_begin, std::size_t tree_end, std::size_t num_rows, std::size_t num_nodes,
+    bst_tree_t tree_begin, bst_tree_t tree_end, std::size_t num_rows, std::size_t num_nodes,
     std::uint32_t num_group) {
   auto const row_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (row_idx >= num_rows) {
@@ -704,7 +703,7 @@ __global__ void PredictByBitVectorKernel(
 
   std::size_t tree_offset = 0;
   if constexpr (predict_leaf) {
-    for (size_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
+    for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
       TreeView d_tree{tree_begin,          tree_idx,           d_nodes,
                       d_tree_segments,     d_tree_split_types, d_cat_tree_segments,
                       d_cat_node_segments, d_categories};
@@ -942,9 +941,8 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
-  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts,
-                    const gbm::GBTreeModel& model, uint32_t tree_begin,
-                    uint32_t tree_end = 0) const override {
+  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts, const gbm::GBTreeModel& model,
+                    bst_tree_t tree_begin, bst_tree_t tree_end = 0) const override {
     CHECK(ctx_->Device().IsCUDA()) << "Set `device' to `cuda` for processing GPU data.";
     auto* out_preds = &predts->predictions;
     if (tree_end == 0) {
@@ -956,8 +954,8 @@ class GPUPredictor : public xgboost::Predictor {
   template <typename Adapter, typename Loader>
   void DispatchedInplacePredict(std::any const& x, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel& model, float missing,
-                                PredictionCacheEntry* out_preds, uint32_t tree_begin,
-                                uint32_t tree_end) const {
+                                PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
+                                bst_tree_t tree_end) const {
     uint32_t const output_groups =  model.learner_model_param->num_output_group;
 
     auto m = std::any_cast<std::shared_ptr<Adapter>>(x);
@@ -996,9 +994,9 @@ class GPUPredictor : public xgboost::Predictor {
         tree_begin, tree_end, m->NumColumns(), m->NumRows(), use_shared, output_groups, missing);
   }
 
-  bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel& model, float missing,
-                      PredictionCacheEntry* out_preds, uint32_t tree_begin,
-                      unsigned tree_end) const override {
+  bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model, float missing,
+                      PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
+                      bst_tree_t tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
     auto x = proxy->Adapter();
@@ -1016,11 +1014,9 @@ class GPUPredictor : public xgboost::Predictor {
     return true;
   }
 
-  void PredictContribution(DMatrix* p_fmat,
-                           HostDeviceVector<bst_float>* out_contribs,
-                           const gbm::GBTreeModel& model, unsigned tree_end,
-                           std::vector<bst_float> const* tree_weights,
-                           bool approximate, int,
+  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                           const gbm::GBTreeModel& model, bst_tree_t tree_end,
+                           std::vector<bst_float> const* tree_weights, bool approximate, int,
                            unsigned) const override {
     std::string not_implemented{
         "contribution is not implemented in the GPU predictor, use CPU instead."};
@@ -1034,9 +1030,7 @@ class GPUPredictor : public xgboost::Predictor {
         << "Predict contribution support for column-wise data split is not yet implemented.";
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     out_contribs->SetDevice(ctx_->Device());
-    if (tree_end == 0 || tree_end > model.trees.size()) {
-      tree_end = static_cast<uint32_t>(model.trees.size());
-    }
+    tree_end = GetTreeLimit(model.trees, tree_end);
 
     const int ngroup = model.learner_model_param->num_output_group;
     CHECK_NE(ngroup, 0);
@@ -1087,11 +1081,9 @@ class GPUPredictor : public xgboost::Predictor {
                 });
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat,
-                                       HostDeviceVector<bst_float>* out_contribs,
-                                       const gbm::GBTreeModel& model,
-                                       unsigned tree_end,
-                                       std::vector<bst_float> const* tree_weights,
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
+                                       gbm::GBTreeModel const& model, bst_tree_t tree_end,
+                                       std::vector<float> const* tree_weights,
                                        bool approximate) const override {
     std::string not_implemented{"contribution is not implemented in GPU "
                                 "predictor, use `cpu_predictor` instead."};
@@ -1103,9 +1095,7 @@ class GPUPredictor : public xgboost::Predictor {
     }
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     out_contribs->SetDevice(ctx_->Device());
-    if (tree_end == 0 || tree_end > model.trees.size()) {
-      tree_end = static_cast<uint32_t>(model.trees.size());
-    }
+    tree_end = GetTreeLimit(model.trees, tree_end);
 
     const int ngroup = model.learner_model_param->num_output_group;
     CHECK_NE(ngroup, 0);
@@ -1162,24 +1152,14 @@ class GPUPredictor : public xgboost::Predictor {
                 });
   }
 
-  void PredictInstance(const SparsePage::Inst&,
-                       std::vector<bst_float>*,
-                       const gbm::GBTreeModel&, unsigned, bool) const override {
-    LOG(FATAL) << "[Internal error]: " << __func__
-               << " is not implemented in GPU Predictor.";
-  }
-
-  void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<bst_float> *predictions,
-                   const gbm::GBTreeModel &model,
-                   unsigned tree_end) const override {
+  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<float>* predictions,
+                   gbm::GBTreeModel const& model, bst_tree_t tree_end) const override {
     dh::safe_cuda(cudaSetDevice(ctx_->Ordinal()));
     auto max_shared_memory_bytes = ConfigureDevice(ctx_->Device());
 
     const MetaInfo& info = p_fmat->Info();
     bst_idx_t num_rows = info.num_row_;
-    if (tree_end == 0 || tree_end > model.trees.size()) {
-      tree_end = static_cast<uint32_t>(model.trees.size());
-    }
+    tree_end = GetTreeLimit(model.trees, tree_end);
     predictions->SetDevice(ctx_->Device());
     predictions->Resize(num_rows * tree_end);
     DeviceModel d_model;

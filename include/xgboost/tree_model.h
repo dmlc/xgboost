@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file tree_model.h
  * \brief model structure for tree
  * \author Tianqi Chen
@@ -23,7 +23,6 @@
 #include <memory>  // for make_unique
 #include <stack>
 #include <string>
-#include <tuple>
 #include <vector>
 
 namespace xgboost {
@@ -562,7 +561,7 @@ class RegTree : public Model {
      * \brief fill the vector with sparse vector
      * \param inst The sparse instance to fill.
      */
-    void Fill(const SparsePage::Inst& inst);
+    void Fill(SparsePage::Inst const& inst);
 
     /*!
      * \brief drop the trace after fill, must be called after fill.
@@ -587,18 +586,17 @@ class RegTree : public Model {
      */
     [[nodiscard]] bool IsMissing(size_t i) const;
     [[nodiscard]] bool HasMissing() const;
+    void HasMissing(bool has_missing) { this->has_missing_ = has_missing; }
 
+    [[nodiscard]] common::Span<float> Data() { return data_; }
 
    private:
-    /*!
-     * \brief a union value of value and flag
-     *  when flag == -1, this indicate the value is missing
+    /**
+     * @brief A dense vector for a single sample.
+     *
+     * It's nan if the value is missing.
      */
-    union Entry {
-      bst_float fvalue;
-      int flag;
-    };
-    std::vector<Entry> data_;
+    std::vector<float> data_;
     bool has_missing_;
   };
 
@@ -793,46 +791,35 @@ class RegTree : public Model {
 };
 
 inline void RegTree::FVec::Init(size_t size) {
-  Entry e; e.flag = -1;
   data_.resize(size);
-  std::fill(data_.begin(), data_.end(), e);
+  std::fill(data_.begin(), data_.end(), std::numeric_limits<float>::quiet_NaN());
   has_missing_ = true;
 }
 
-inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
-  size_t feature_count = 0;
-  for (auto const& entry : inst) {
-    if (entry.index >= data_.size()) {
-      continue;
-    }
-    data_[entry.index].fvalue = entry.fvalue;
-    ++feature_count;
+inline void RegTree::FVec::Fill(SparsePage::Inst const& inst) {
+  auto p_data = inst.data();
+  auto p_out = data_.data();
+
+  for (std::size_t i = 0, n = inst.size(); i < n; ++i) {
+    auto const& entry = p_data[i];
+    p_out[entry.index] = entry.fvalue;
   }
-  has_missing_ = data_.size() != feature_count;
+  has_missing_ = data_.size() != inst.size();
 }
 
-inline void RegTree::FVec::Drop() {
-  Entry e{};
-  e.flag = -1;
-  std::fill_n(data_.data(), data_.size(), e);
-  has_missing_ = true;
-}
+inline void RegTree::FVec::Drop() { this->Init(this->Size()); }
 
 inline size_t RegTree::FVec::Size() const {
   return data_.size();
 }
 
-inline bst_float RegTree::FVec::GetFvalue(size_t i) const {
-  return data_[i].fvalue;
+inline float RegTree::FVec::GetFvalue(size_t i) const {
+  return data_[i];
 }
 
-inline bool RegTree::FVec::IsMissing(size_t i) const {
-  return data_[i].flag == -1;
-}
+inline bool RegTree::FVec::IsMissing(size_t i) const { return std::isnan(data_[i]); }
 
-inline bool RegTree::FVec::HasMissing() const {
-  return has_missing_;
-}
+inline bool RegTree::FVec::HasMissing() const { return has_missing_; }
 
 // Multi-target tree not yet implemented error
 inline StringView MTNotImplemented() {
