@@ -58,7 +58,7 @@
         <use.cuda>OFF</use.cuda>
         <use.openmp>ON</use.openmp>
         <cudf.version>24.10.0</cudf.version>
-        <spark.rapids.version>24.10.0</spark.rapids.version>
+        <spark.rapids.version>24.10.1</spark.rapids.version>
         <spark.rapids.classifier>cuda12</spark.rapids.classifier>
         <scalatest.version>3.2.19</scalatest.version>
         <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
