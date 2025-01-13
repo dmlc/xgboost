@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -285,13 +285,6 @@ class GBTree : public GradientBooster {
         scores->push_back(gain_map[i]);
       }
     }
-  }
-
-  void PredictInstance(const SparsePage::Inst& inst, std::vector<bst_float>* out_preds,
-                       uint32_t layer_begin, uint32_t layer_end) override {
-    std::uint32_t _, tree_end;
-    std::tie(_, tree_end) = detail::LayerToTree(model_, layer_begin, layer_end);
-    cpu_predictor_->PredictInstance(inst, out_preds, model_, tree_end);
   }
 
   void PredictLeaf(DMatrix* p_fmat,

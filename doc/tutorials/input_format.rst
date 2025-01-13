@@ -32,7 +32,7 @@ Auxiliary Files for Additional Information
 
 Group Input Format
 ==================
-For `ranking task <https://github.com/dmlc/xgboost/tree/master/demo/rank>`_, XGBoost supports the group input format. In ranking task, instances are categorized into *query groups* in real world scenarios. For example, in the learning to rank web pages scenario, the web page instances are grouped by their queries. XGBoost requires an file that indicates the group information. For example, if the instance file is the ``train.txt`` shown above,  the group file should be named ``train.txt.group`` and be of the following format:
+For ranking task, XGBoost supports the group input format. In ranking task, instances are categorized into *query groups* in real world scenarios. For example, in the learning to rank web pages scenario, the web page instances are grouped by their queries. XGBoost requires an file that indicates the group information. For example, if the instance file is the ``train.txt`` shown above,  the group file should be named ``train.txt.group`` and be of the following format:
 
 .. code-block:: none
   :caption: ``train.txt.group``

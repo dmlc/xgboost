@@ -63,7 +63,7 @@ def pack_rpackage() -> Path:
     if os.path.exists(osxmakef):
         os.remove(osxmakef)
     pkgroot("Makevars.in")
-    pkgroot("Makevars.win")
+    pkgroot("Makevars.win.in")
     # misc
     rwsp = Path("R-package") / "remove_warning_suppression_pragma.sh"
     if system() != "Windows":

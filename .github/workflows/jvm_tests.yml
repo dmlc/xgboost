@@ -181,7 +181,13 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-      - name: Test XGBoost4J (Core)
+      - name: Test XGBoost4J (Core) on macos
+        if: matrix.os == 'macos-13'
+        run: |
+          cd jvm-packages
+          mvn test -B -pl :xgboost4j_2.12 -Duse.openmp=OFF
+      - name: Test XGBoost4J (Core) on windows
+        if: matrix.os == 'windows-latest'
         run: |
           cd jvm-packages
           mvn test -B -pl :xgboost4j_2.12
@@ -241,10 +247,10 @@ jobs:
       matrix:
         variant:
           - name: cpu
-            container_id: xgb-ci.jvm
+            image_repo: xgb-ci.jvm
             artifact_from: build-test-jvm-packages
           - name: gpu
-            container_id: xgb-ci.jvm_gpu_build
+            image_repo: xgb-ci.jvm_gpu_build
             artifact_from: build-jvm-gpu
         scala_version: ['2.12', '2.13']
     steps:
@@ -266,4 +272,4 @@ jobs:
       - name: Deploy JVM packages to S3
         run: |
           bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} \
-            ${{ matrix.variant.container_id }} ${{ matrix.scala_version }}
+            ${{ matrix.variant.image_repo }} ${{ matrix.scala_version }}

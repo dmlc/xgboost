@@ -1350,7 +1350,7 @@ def test_data_initialization() -> None:
     validate_data_initialization(xgb.QuantileDMatrix, xgb.XGBClassifier, X, y)
 
 
-@parametrize_with_checks([xgb.XGBRegressor()])
+@parametrize_with_checks([xgb.XGBRegressor(enable_categorical=True)])
 def test_estimator_reg(estimator, check):
     if os.environ["PYTEST_CURRENT_TEST"].find("check_supervised_y_no_nan") != -1:
         # The test uses float64 and requires the error message to contain:

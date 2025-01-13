@@ -176,7 +176,7 @@ Sample examples along with Code snippet to use C API functions
   const int data1[] = { 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
 
   // 2D matrix
-  const int ROWS = 5, COLS = 3;
+  const int ROWS = 6, COLS = 3;
   const int data2[ROWS][COLS] = { {1, 2, 3}, {2, 4, 6}, {3, -1, 9}, {4, 8, -1}, {2, 5, 1}, {0, 1, 5} };
   DMatrixHandle dmatrix1, dmatrix2;
   // Pass the matrix, no of rows & columns contained in the matrix variable

@@ -810,9 +810,11 @@ class XGBModel(XGBModelBase):
 
     def _more_tags(self) -> Dict[str, bool]:
         """Tags used for scikit-learn data validation."""
-        tags = {"allow_nan": True, "no_validation": True}
+        tags = {"allow_nan": True, "no_validation": True, "sparse": True}
         if hasattr(self, "kwargs") and self.kwargs.get("updater") == "shotgun":
             tags["non_deterministic"] = True
+
+        tags["categorical"] = self.enable_categorical
         return tags
 
     @staticmethod
@@ -826,11 +828,15 @@ class XGBModel(XGBModelBase):
         ``scikit-learn`` 1.6 introduced a dataclass-based interface for estimator tags.
         ref: https://github.com/scikit-learn/scikit-learn/pull/29677
 
-        This method handles updating that instance based on the values in ``self._more_tags()``.
+        This method handles updating that instance based on the values in
+        ``self._more_tags()``.
+
         """
         tags.non_deterministic = tags_dict.get("non_deterministic", False)
         tags.no_validation = tags_dict["no_validation"]
         tags.input_tags.allow_nan = tags_dict["allow_nan"]
+        tags.input_tags.sparse = tags_dict["sparse"]
+        tags.input_tags.categorical = tags_dict["categorical"]
         return tags
 
     def __sklearn_tags__(self) -> _sklearn_Tags:

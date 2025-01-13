@@ -174,6 +174,7 @@ jobs:
       - runner=${{ matrix.runner }}
       - run-id=${{ github.run_id }}
       - tag=main-test-cpp-gpu-${{ matrix.suite }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -213,27 +214,28 @@ jobs:
       - runner=${{ matrix.runner }}
       - run-id=${{ github.run_id }}
       - tag=main-test-python-wheel-${{ matrix.description }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
           - description: single-gpu
-            container: xgb-ci.gpu
+            image_repo: xgb-ci.gpu
             suite: gpu
             runner: linux-amd64-gpu
             artifact_from: build-cuda
           - description: multiple-gpu
-            container: xgb-ci.gpu
+            image_repo: xgb-ci.gpu
             suite: mgpu
             runner: linux-amd64-mgpu
             artifact_from: build-cuda
           - description: cpu-amd64
-            container: xgb-ci.cpu
+            image_repo: xgb-ci.cpu
             suite: cpu
             runner: linux-amd64-cpu
             artifact_from: build-cuda
           - description: cpu-arm64
-            container: xgb-ci.aarch64
+            image_repo: xgb-ci.aarch64
             suite: cpu-arm64
             runner: linux-arm64-cpu
             artifact_from: build-cpu-arm64
@@ -255,4 +257,4 @@ jobs:
           mv -v wheelhouse/xgboost .
           chmod +x ./xgboost
       - name: Run Python tests, ${{ matrix.description }}
-        run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.container }}
+        run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.image_repo }}

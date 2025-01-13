@@ -36,7 +36,7 @@ from ..test_with_dask.test_with_dask import (
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
     pytest.mark.skipif(**tm.no_dask_cuda()),
-    tm.timeout(120),
+    tm.timeout(180),
 ]
 
 try:
@@ -376,8 +376,6 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.parametrize("model", ["boosting"])
     def test_dask_classifier(self, model: str, local_cuda_client: Client) -> None:
-        import dask_cudf
-
         X_, y_, w_ = generate_array(with_weights=True)
         y_ = (y_ * 10).astype(np.int32)
         X = dd.from_dask_array(X_).to_backend("cudf")

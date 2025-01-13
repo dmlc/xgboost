@@ -1,5 +1,5 @@
 /**
- *  Copyright 2019-2024, XGBoost Contributors
+ *  Copyright 2019-2025, XGBoost Contributors
  * \file adapter.h
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
@@ -546,12 +546,12 @@ class ColumnarAdapterBatch : public detail::NoMetaInfo {
         : columns_{columns}, ridx_{ridx} {}
     [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
 
-    [[nodiscard]] COOTuple GetElement(std::size_t idx) const {
-      auto const& column = columns_[idx];
+    [[nodiscard]] COOTuple GetElement(std::size_t fidx) const {
+      auto const& column = columns_.data()[fidx];
       float value = column.valid.Data() == nullptr || column.valid.Check(ridx_)
                         ? column(ridx_)
                         : std::numeric_limits<float>::quiet_NaN();
-      return {ridx_, idx, value};
+      return {ridx_, fidx, value};
     }
   };
 
