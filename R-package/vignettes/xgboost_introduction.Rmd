@@ -12,7 +12,10 @@ output:
         toc_float: true
 ---
 
-# Introduction
+XGBoost for R introduction
+==========================
+
+## Introduction
 
 **XGBoost** is an optimized distributed gradient boosting library designed to be highly **efficient**, **flexible** and **portable**. It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework. XGBoost provides a parallel tree boosting (also known as GBDT, GBM) that solve many data science problems in a fast and accurate way. The same code runs on major distributed environment (Hadoop, SGE, MPI) and can solve problems beyond billions of examples.
 
@@ -22,7 +25,7 @@ For more details about XGBoost's features and usage, see the [online documentati
 
 This short vignette outlines the basic usage of the R interface for XGBoost, assuming the reader has some familiarity with the underlying concepts behind statistical modeling with gradient-boosted decision trees.
 
-# Building a predictive model
+## Building a predictive model
 
 At its core, XGBoost consists of a C++ library which offers bindings for different programming languages, including R. The R package for XGBoost provides an idiomatic interface similar to those of other statistical modeling packages using and x/y design, as well as a lower-level interface that interacts more directly with the underlying core library and which is similar to those of other language bindings like Python, plus various helpers to interact with its model objects such as by plotting their feature importances or converting them to other formats.
 
@@ -62,7 +65,7 @@ model_abserr <- xgboost(x, y, objective = "reg:absoluteerror", nthreads = 1, nro
 
 _Note: the objective must match with the type of the "y" response variable - for example, classification objectives for discrete choices require "factor" types, while regression models for real-valued data require "numeric" types._
 
-# Model parameters
+## Model parameters
 
 XGBoost models allow a large degree of control over how they are built. By their nature, gradient-boosted decision tree ensembles are able to capture very complex patterns between features in the data and a response variable, which also means they can suffer from overfitting if not controlled appropirately.
 
@@ -105,7 +108,7 @@ xgboost(
 )
 ```
 
-# Examining model objects
+## Examining model objects
 
 XGBoost model objects for the most part consist of a pointer to a C++ object where most of the information is held and which is interfaced through the utility functions and methods in the package, but also contains some R attributes that can be retrieved (and new ones added) through `attributes()`:
 
@@ -131,7 +134,7 @@ xgb.importance(model)
 xgb.model.dt.tree(model)
 ```
 
-# Other features
+## Other features
 
 XGBoost supports many additional features on top of its traditional gradient-boosting framework, including, among others:
 
@@ -143,7 +146,7 @@ XGBoost supports many additional features on top of its traditional gradient-boo
 
 See the [online documentation](https://xgboost.readthedocs.io/en/stable/index.html) - particularly the [tutorials section](https://xgboost.readthedocs.io/en/stable/tutorials/index.html) - for a glimpse over further functionalities that XGBoost offers.
 
-# The low-level interface
+## The low-level interface
 
 In addition to the `xgboost(x, y, ...)` function, XGBoost also provides a lower-level interface for creating model objects through the function `xgb.train()`, which resembles the same `xgb.train` functions in other language bindings of XGBoost.
 

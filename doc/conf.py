@@ -12,7 +12,6 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -35,7 +34,7 @@ version = xgboost.__version__
 release = xgboost.__version__
 
 
-def run_doxygen():
+def run_doxygen() -> None:
     """Run the doxygen make command in the designated folder."""
     curdir = os.path.normpath(os.path.abspath(os.path.curdir))
     if os.path.exists(TMP_DIR):
@@ -67,8 +66,8 @@ def run_doxygen():
         os.chdir(curdir)
 
 
-def build_jvm_docs():
-    """Build docs for the JVM packages"""
+def get_branch() -> str:
+    """Guess the git branch."""
     git_branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
     print(f"READTHEDOCS_VERSION_NAME = {git_branch}")
 
@@ -79,6 +78,12 @@ def build_jvm_docs():
     elif git_branch == "stable":
         git_branch = f"release_{xgboost.__version__}"
     print(f"git_branch = {git_branch}")
+    return git_branch
+
+
+def build_jvm_docs() -> None:
+    """Build docs for the JVM packages"""
+    git_branch = get_branch()
 
     def try_fetch_jvm_doc(branch):
         """
@@ -106,8 +111,35 @@ def build_jvm_docs():
             return False
 
     if not try_fetch_jvm_doc(git_branch):
-        print(f"Falling back to the master branch...")
+        print("Falling back to the master branch...")
         try_fetch_jvm_doc("master")
+
+
+def build_r_docs() -> None:
+    """Fetch R document from s3."""
+    git_branch = get_branch()
+
+    def try_fetch_r_doc(branch: str) -> bool:
+        try:
+            url = f"https://s3-us-west-2.amazonaws.com/xgboost-docs/r-docs-{branch}.tar.bz2"
+            filename, _ = urllib.request.urlretrieve(url)
+            if not os.path.exists(TMP_DIR):
+                print(f"Create directory {TMP_DIR}")
+                os.mkdir(TMP_DIR)
+            r_doc_dir = os.path.join(TMP_DIR, "r_docs")
+            if os.path.exists(r_doc_dir):
+                shutil.rmtree(r_doc_dir)
+            os.mkdir(r_doc_dir)
+
+            with tarfile.open(filename, "r:bz2") as t:
+                t.extractall(r_doc_dir)
+            return True
+        except HTTPError:
+            print(f"R doc not found at {url}.")
+            return False
+
+    if not try_fetch_r_doc(git_branch):
+        try_fetch_r_doc("master")
 
 
 def is_readthedocs_build():
@@ -125,6 +157,7 @@ def is_readthedocs_build():
 if is_readthedocs_build():
     run_doxygen()
     build_jvm_docs()
+    build_r_docs()
 
 
 # If extensions (or modules to document with autodoc) are in another directory,

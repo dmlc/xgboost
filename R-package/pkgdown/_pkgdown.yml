@@ -1,0 +1,4 @@
+url: https://github.com/dmlc/xgboost
+
+template:
+  bootstrap: 5
