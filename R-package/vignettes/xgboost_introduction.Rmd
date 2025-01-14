@@ -10,8 +10,6 @@ output:
         highlight: "kate"
         toc: true
         toc_float: true
-    md_document:
-        variant: markdown_github
 ---
 
 # Introduction
