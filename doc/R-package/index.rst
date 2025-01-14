@@ -15,16 +15,6 @@ Get Started
 * Checkout the :doc:`Installation Guide </install>` contains instructions to install xgboost, and :doc:`Tutorials </tutorials/index>` for examples on how to use XGBoost for various tasks.
 * Read the `API documentation <https://cran.r-project.org/web/packages/xgboost/xgboost.pdf>`_.
 
-*********
-Tutorials
-*********
-
-.. toctree::
-  :maxdepth: 2
-  :titlesonly:
-
-  R Introductory Vignette <xgboost_introduction>
-
 ************
 Other topics
 ************
