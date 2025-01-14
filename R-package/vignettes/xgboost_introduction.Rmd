@@ -5,14 +5,13 @@ vignette: >
     %\VignetteEncoding{UTF-8}
     %\VignetteEngine{knitr::rmarkdown}
 output:
-    md_document:
-        variant: markdown_github
-    rmarkdown::html_document:
+    html_document:
         theme: "spacelab"
         highlight: "kate"
         toc: true
         toc_float: true
-highlight-style: pygments
+    md_document:
+        variant: markdown_github
 ---
 
 # Introduction
