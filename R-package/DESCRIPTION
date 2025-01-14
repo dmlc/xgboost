@@ -45,7 +45,7 @@ License: Apache License (== 2.0) | file LICENSE
 URL: https://github.com/dmlc/xgboost
 BugReports: https://github.com/dmlc/xgboost/issues
 NeedsCompilation: yes
-VignetteBuilder: knitr, quarto
+VignetteBuilder: knitr
 Suggests:
     knitr,
     rmarkdown,

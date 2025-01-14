@@ -77,11 +77,6 @@ jobs:
           # Must run before checkout to have the latest git installed.
           # No need to add pandoc, the container has it figured out.
           apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 -y
-      - name: Install system quarto
-        run: |
-          apt-get install -y wget
-          wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.6.40/quarto-1.6.40-linux-amd64.deb
-          dpkg -i quarto-1.6.40-linux-amd64.deb
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"

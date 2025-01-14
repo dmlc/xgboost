@@ -11,7 +11,6 @@ pkgs <- c(
   ## suggests
   "knitr",
   "rmarkdown",
-  "quarto",
   "ggplot2",
   "DiagrammeR",
   "DiagrammeRsvg",

@@ -1,13 +1,17 @@
 ---
 title: "XGBoost for R introduction"
 vignette: >
-    %\VignetteEncoding{UTF-8}
     %\VignetteIndexEntry{XGBoost for R introduction}
-    %\VignetteEngine{quarto::html}
-format:
-    html:
-        embed-resources: true
-        theme: yeti
+    %\VignetteEncoding{UTF-8}
+    %\VignetteEngine{knitr::rmarkdown}
+output:
+    md_document:
+        variant: markdown_github
+    rmarkdown::html_document:
+        theme: "spacelab"
+        highlight: "kate"
+        toc: true
+        toc_float: true
 highlight-style: pygments
 ---
 
