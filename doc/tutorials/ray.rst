@@ -50,7 +50,7 @@ Using XGBoost-Ray for training and prediction
 XGBoost-Ray uses the same API as core XGBoost. There are only two differences:
 
 1. Instead of using a ``xgboost.DMatrix``, you'll use a ``xgboost_ray.RayDMatrix`` object
-2. There is an additional :class:`ray_params <xgboost_ray.RayParams>` parameter that you can use to configure distributed training.
+2. There is an additional ``xgboost_ray.RayParams`` parameter that you can use to configure distributed training.
 
 Simple training example
 -----------------------
@@ -88,7 +88,7 @@ and train a binary classifier using two actors.
 
 The only differences compared to the non-distributed API are
 the import statement (``xgboost_ray`` instead of ``xgboost``), using the
-``RayDMatrix`` instead of the ``DMatrix``, and passing a :class:`RayParams <xgboost_ray.RayParams>` object.
+``RayDMatrix`` instead of the ``DMatrix``, and passing a ``xgboost_ray.RayParams`` object.
 
 The return object is a regular ``xgboost.Booster`` instance.
 
@@ -115,10 +115,8 @@ will integrate this data in the correct order.
 
 The RayParams object
 ========================
-The ``RayParams`` object is used to configure various settings relating to
-the distributed training.
-
-.. autoclass:: xgboost_ray.RayParams
+The ``RayParams`` object is used to configure various settings relating to the distributed
+training.
 
 Multi GPU training
 ==================
@@ -175,7 +173,7 @@ away for the remainder of the training run, and don't have to wait until it is b
 In practice this usually leads to a very minor decrease in accuracy but a much shorter
 training time compared to non-elastic training.
 
-Both training modes can be configured using the respective :class:`RayParams <xgboost_ray.RayParams>`
+Both training modes can be configured using the respective ``xgboost_ray.RayParams``
 parameters.
 
 Hyperparameter optimization
@@ -190,8 +188,7 @@ a few things you need to do:
 
 1. Put your XGBoost-Ray training call into a function accepting parameter configurations
    (``train_model`` in the example below).
-2. Create a :class:`RayParams <xgboost_ray.RayParams>` object (``ray_params``
-   in the example below).
+2. Create a ``xgboost_ray.RayParams`` object (``ray_params`` in the example below).
 3. Define the parameter search space (``config`` dict in the example below).
 4. Call ``tune.run()``:
     * The ``metric`` parameter should contain the metric you'd like to optimize.

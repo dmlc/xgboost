@@ -2,6 +2,13 @@ name: XGBoost-docs
 
 on: [push, pull_request]
 
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
@@ -31,6 +38,28 @@ jobs:
             --s3-bucket xgboost-docs \
             --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
             jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
+
+  build-r-docs:
+    name: Build docs for the R package
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=r-tests-build-docs
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-r-docs.sh
+      - name: Upload R doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${PR_COMMIT_SHA} --make-public \
+            r-docs-${{ env.BRANCH_NAME }}.tar.bz2
 
   trigger-rtd-build:
     needs: [build-jvm-docs]
