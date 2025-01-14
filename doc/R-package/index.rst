@@ -35,4 +35,3 @@ Other topics
 
   Handling of indexable elements <index_base>
   Developer guide: parameters from core library <adding_parameters>
-  Developer guide: updating R vignette <updating_vignette>
