@@ -49,7 +49,6 @@ VignetteBuilder: knitr
 Suggests:
     knitr,
     rmarkdown,
-    quarto,
     ggplot2 (>= 1.0.1),
     DiagrammeR (>= 0.9.0),
     DiagrammeRsvg,
