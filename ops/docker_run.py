@@ -53,7 +53,7 @@ def fancy_print_cli_args(*, cli_args: list[str]) -> None:
 
 def docker_run(
     *,
-    container_tag: str,
+    image_uri: str,
     command_args: list[str],
     use_gpus: bool,
     workdir: pathlib.Path,
@@ -70,8 +70,9 @@ def docker_run(
     docker_run_cli_args.extend(
         itertools.chain.from_iterable([["-e", f"{k}={v}"] for k, v in user_ids.items()])
     )
+    docker_run_cli_args.extend(["-e", "NCCL_RAS_ENABLE=0"])
     docker_run_cli_args.extend(extra_args)
-    docker_run_cli_args.append(container_tag)
+    docker_run_cli_args.append(image_uri)
     docker_run_cli_args.extend(command_args)
 
     cli_args = ["docker", "run"] + docker_run_cli_args
@@ -90,7 +91,7 @@ def main(*, args: argparse.Namespace) -> None:
         run_args.append("-it")
 
     docker_run(
-        container_tag=args.container_tag,
+        image_uri=args.image_uri,
         command_args=args.command_args,
         use_gpus=args.use_gpus,
         workdir=args.workdir,
@@ -102,18 +103,18 @@ def main(*, args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         usage=(
-            f"{sys.argv[0]} --container-tag CONTAINER_TAG [--use-gpus] [--interactive] "
+            f"{sys.argv[0]} --image-uri IMAGE_URI [--use-gpus] [--interactive] "
             "[--workdir WORKDIR] [--run-args RUN_ARGS] -- COMMAND_ARG "
             "[COMMAND_ARG ...]"
         ),
         description="Run tasks inside a Docker container",
     )
     parser.add_argument(
-        "--container-tag",
+        "--image-uri",
         type=str,
         required=True,
         help=(
-            "Container tag to identify the container, e.g. "
+            "Fully qualified image URI to identify the container, e.g. "
             "492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main"
         ),
     )

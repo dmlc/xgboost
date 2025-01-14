@@ -286,10 +286,10 @@ class TestQuantileDMatrix:
     def test_ref_quantile_cut(self) -> None:
         check_ref_quantile_cut("cpu")
 
-    def test_ref_dmatrix(self) -> None:
+    @pytest.mark.parametrize("enable_cat", [True, False])
+    def test_ref_dmatrix(self, enable_cat: bool) -> None:
         rng = np.random.RandomState(1994)
-        self.run_ref_dmatrix(rng, "cpu", True)
-        self.run_ref_dmatrix(rng, "cpu", False)
+        self.run_ref_dmatrix(rng, "cpu", enable_cat)
 
     @pytest.mark.parametrize("sparsity", [0.0, 0.5])
     def test_predict(self, sparsity: float) -> None:

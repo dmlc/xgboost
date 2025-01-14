@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file column_matrix.h
  * \brief Utility for fast column-wise access
  * \author Philip Cho
@@ -45,7 +45,7 @@ class Column {
   virtual ~Column() = default;
 
   [[nodiscard]] bst_bin_t GetGlobalBinIdx(size_t idx) const {
-    return index_base_ + static_cast<bst_bin_t>(index_[idx]);
+    return index_base_ + static_cast<bst_bin_t>(index_.data()[idx]);
   }
 
   /* returns number of elements in column */
@@ -53,7 +53,7 @@ class Column {
 
  private:
   /* bin indexes in range [0, max_bins - 1] */
-  common::Span<const BinIdxType> index_;
+  common::Span<BinIdxType const> index_;
   /* bin index offset for specific feature */
   bst_bin_t const index_base_;
 };

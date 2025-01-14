@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2023 by XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -15,10 +15,8 @@
 #include <xgboost/model.h>
 
 #include <vector>
-#include <utility>
 #include <string>
 #include <functional>
-#include <unordered_map>
 #include <memory>
 
 namespace xgboost {
@@ -42,13 +40,13 @@ class GradientBooster : public Model, public Configurable {
  public:
   /*! \brief virtual destructor */
   ~GradientBooster() override = default;
-  /*!
-   * \brief Set the configuration of gradient boosting.
+  /**
+   * @brief Set the configuration of gradient boosting.
    *  User must call configure once before InitModel and Training.
    *
-   * \param cfg configurations on both training and model parameters.
+   * @param cfg configurations on both training and model parameters.
    */
-  virtual void Configure(const std::vector<std::pair<std::string, std::string> >& cfg) = 0;
+  virtual void Configure(Args const& cfg) = 0;
   /*!
    * \brief load model from stream
    * \param fi input stream.
@@ -117,21 +115,6 @@ class GradientBooster : public Model, public Configurable {
                               bst_layer_t) const {
     LOG(FATAL) << "Inplace predict is not supported by the current booster.";
   }
-  /*!
-   * \brief online prediction function, predict score for one instance at a time
-   *  NOTE: use the batch prediction interface if possible, batch prediction is usually
-   *        more efficient than online prediction
-   *        This function is NOT threadsafe, make sure you only call from one thread
-   *
-   * \param inst the instance you want to predict
-   * \param out_preds output vector to hold the predictions
-   * \param layer_begin Beginning of boosted tree layer used for prediction.
-   * \param layer_end   End of booster layer. 0 means do not limit trees.
-   * \sa Predict
-   */
-  virtual void PredictInstance(const SparsePage::Inst& inst,
-                               std::vector<bst_float>* out_preds,
-                               unsigned layer_begin, unsigned layer_end) = 0;
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor
