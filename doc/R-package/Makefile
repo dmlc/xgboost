@@ -10,6 +10,6 @@ xgboost_introduction.md: $(PKGROOT)/vignettes/xgboost_introduction.Rmd
 	Rscript -e \
 	"require(methods);"\
 	"require(knitr);"\
+	"require(rmarkdown);"\
 	"knitr::opts_knit\$$set(root.dir=\".\");"\
-	"knitr::opts_chunk\$$set(fig.path=\"../web-data/xgboost/knitr/$(basename $@)-\");"\
-	"knitr::knit(\"$+\")"
+	"rmarkdown::render(\"$+\", output_format=\"md_document\", output_dir=\".\")"
