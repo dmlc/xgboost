@@ -88,17 +88,14 @@ data(agaricus.train)
 nthread <- 2
 data.table::setDTthreads(nthread)
 
-bst <- xgb.train(
-  data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
+model <- xgboost(
+  agaricus.train$data, factor(agaricus.train$label),
   nrounds = 2,
-  params = xgb.params(
-    max_depth = 3,
-    nthread = nthread,
-    objective = "binary:logistic"
-  )
+  max_depth = 3,
+  nthreads = nthread
 )
 
-importance_matrix <- xgb.importance(colnames(agaricus.train$data), model = bst)
+importance_matrix <- xgb.importance(model)
 xgb.plot.importance(
   importance_matrix, rel_to_first = TRUE, xlab = "Relative importance"
 )
