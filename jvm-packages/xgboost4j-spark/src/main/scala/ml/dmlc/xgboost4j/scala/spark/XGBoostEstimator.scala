@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 /**
  * Hold the column index
  */
-private[spark] case class ColumnIndices(
+private[scala] case class ColumnIndices(
     labelId: Int,
     featureId: Option[Int], // the feature type is VectorUDT or Array
     featureIds: Option[Seq[Int]], // the feature type is columnar
