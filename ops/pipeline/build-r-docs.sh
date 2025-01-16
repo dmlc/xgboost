@@ -10,7 +10,7 @@ fi
 
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu_build_r_rockylinux8
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.cpu_build_r_docs:PR-6
 
 echo "--- Build R package doc"
 set -x
