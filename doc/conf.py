@@ -93,6 +93,7 @@ def get_branch() -> str:
 # sphinx configuration, which somehow makes sphinx to copy the extracted html files to
 # the build directory.
 
+
 def build_jvm_docs() -> None:
     """Build docs for the JVM packages"""
     git_branch = get_branch()
@@ -145,6 +146,13 @@ def build_r_docs() -> None:
 
             with tarfile.open(filename, "r:bz2") as t:
                 t.extractall(r_doc_dir)
+
+            for root, subdir, files in os.walk(os.path.join(r_doc_dir, "doc", "R-package")):
+                for f in files:
+                    assert f.endswith(".md")
+                    src = os.path.join(root, f)
+                    dst = os.path.join(PROJECT_ROOT, "doc", "R-package", f)
+                    shutil.move(src, dst)
             return True
         except HTTPError:
             print(f"R doc not found at {url}. Falling back to the master branch.")
