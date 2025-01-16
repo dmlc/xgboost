@@ -25,8 +25,9 @@ PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
 TMP_DIR = os.path.join(CURR_PATH, "tmp")
 DOX_DIR = "doxygen"
 
+# Directly load the source module.
 sys.path.append(os.path.join(PROJECT_ROOT, "python-package"))
-
+# Tell xgboost to not load the libxgboost.so
 os.environ["XGBOOST_BUILD_DOC"] = "1"
 
 # Version information.
@@ -34,6 +35,34 @@ import xgboost  # NOQA
 
 version = xgboost.__version__
 release = xgboost.__version__
+
+
+# Witchcraft alert:
+#
+# Both the jvm and the R document is built with an independent CI pipeline and fetched
+# during document build.
+#
+# The fetched artifacts are stored in xgboost/doc/tmp/jvm_docs and
+# xgboost/doc/tmp/r_docs respectively. For the R package, there's a dummy index file in
+# xgboost/doc/R-package/r_docs . Jvm doc is similar. As for the C doc, it's generated
+# using doxygen and processed by breathe during build and there's no independent CI
+# pipeline as it's relatively cheap. The generated xml files are stored in
+# xgboost/doc/tmp/dev .
+#
+# The xgboost/doc/tmp is part of the `html_extra_path` sphinx configuration, which
+# somehow makes sphinx to copy the extracted html files to the build directory.
+#
+# There's very limited dependency management in the readthedocs builder, to avoid
+# building everything from source using the RTD worker (like packages from CRAN or
+# XGBoost itself), we offload to CI workers as much as possible.
+#
+# However, since there's no way to synchronize the RTD worker with other GitHub workers,
+# to see the latest document for a PR branch, we need to re-run RTD manually after
+# related doc are uploaded to the S3 bucket.
+
+
+# Document is uploaded to here by the CI builder.
+S3_BUCKET = "https://xgboost-docs.s3.us-west-2.amazonaws.com"
 
 
 def run_doxygen() -> None:
@@ -73,44 +102,36 @@ def get_branch() -> str:
     git_branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
     print(f"READTHEDOCS_VERSION_NAME = {git_branch}")
 
-    if not git_branch:
-        git_branch = "master"
+    if not git_branch:  # Not in RTD
+        git_branch = "master"  # use the master branch as the default.
     elif git_branch == "latest":
         git_branch = "master"
     elif git_branch == "stable":
         git_branch = f"release_{xgboost.__version__}"
+    else:  # Likely PR branch
+        git_branch = f"PR-{git_branch}"
     print(f"git_branch = {git_branch}")
     return git_branch
 
 
-# Witchcraft alert:
-#
-# Both the jvm and the R document is built with an independent CI pipeline and fetched
-# during document build.
-#
-# The fetched artifacts are stored in xgboost/doc/tmp/jvm_docs and
-# xgboost/doc/tmp/r_docs respectively. For the R package, there's a dummy index file in
-# xgboost/doc/R-package/r_docs . Jvm doc is similar. As for the C doc, it's generated
-# using doxygen and processed by breathe. The generated xml files are stored in
-# xgboost/doc/tmp/dev . The xgboost/doc/tmp is part of the `html_extra_path` sphinx
-# configuration, which somehow makes sphinx to copy the extracted html files to the
-# build directory.
-
-
-def get_sha() -> str | None:
+def get_sha(branch: str) -> str | None:
     sha = os.getenv("READTHEDOCS_GIT_COMMIT_HASH", default=None)
-    if sha is None:
+    if sha is not None:
+        return sha
+
+    if branch == "master":
+        res = subprocess.run(["git", "rev-parse", "master"], stdout=subprocess.PIPE)
+    else:
         res = subprocess.run(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE)
-        if res.returncode != 0:
-            return None
-        sha = res.stdout.decode("utf-8")
-    return sha
+    if res.returncode != 0:
+        return None
+    return res.stdout.decode("utf-8").strip()
 
 
 def build_jvm_docs() -> None:
     """Fetch docs for the JVM packages"""
-    git_branch = get_branch()
-    commit = get_sha()
+    branch = get_branch()
+    commit = get_sha(branch)
     if commit is None:
         print("Couldn't find commit to build jvm docs.")
         return
@@ -121,7 +142,7 @@ def build_jvm_docs() -> None:
         Returns True if successful
         """
         try:
-            url = f"https://xgboost-docs.s3.us-west-2.amazonaws.com/PR-{branch}/{commit}/PR-{branch}.tar.bz2"
+            url = f"{S3_BUCKET}/{branch}/{commit}/{branch}.tar.bz2"
             filename, _ = urllib.request.urlretrieve(url)
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
@@ -140,22 +161,22 @@ def build_jvm_docs() -> None:
             print(f"JVM doc not found at {url}. Skipping...")
             return False
 
-    if not try_fetch_jvm_doc(git_branch):
+    if not try_fetch_jvm_doc(branch):
         print("Falling back to the master branch.")
         try_fetch_jvm_doc("master")
 
 
 def build_r_docs() -> None:
     """Fetch R document from s3."""
-    git_branch = get_branch()
-    commit = get_sha()
+    branch = get_branch()
+    commit = get_sha(branch)
     if commit is None:
         print("Couldn't find commit to build R docs.")
         return
 
     def try_fetch_r_doc(branch: str) -> bool:
         try:
-            url = f"https://xgboost-docs.s3.us-west-2.amazonaws.com/PR-{branch}/{commit}/r-docs-PR-{branch}.tar.bz2"
+            url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
             filename, _ = urllib.request.urlretrieve(url)
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
@@ -168,7 +189,9 @@ def build_r_docs() -> None:
             with tarfile.open(filename, "r:bz2") as t:
                 t.extractall(r_doc_dir)
 
-            for root, subdir, files in os.walk(os.path.join(r_doc_dir, "doc", "R-package")):
+            for root, subdir, files in os.walk(
+                os.path.join(r_doc_dir, "doc", "R-package")
+            ):
                 for f in files:
                     assert f.endswith(".md")
                     src = os.path.join(root, f)
@@ -179,7 +202,7 @@ def build_r_docs() -> None:
             print(f"R doc not found at {url}. Falling back to the master branch.")
             return False
 
-    if not try_fetch_r_doc(git_branch):
+    if not try_fetch_r_doc(branch):
         try_fetch_r_doc("master")
 
 
