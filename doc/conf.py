@@ -23,7 +23,6 @@ from urllib.error import HTTPError
 CURR_PATH = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
 TMP_DIR = os.path.join(CURR_PATH, "tmp")
-print("current path:", CURR_PATH)
 DOX_DIR = "doxygen"
 
 os.environ["XGBOOST_BUILD_DOC"] = "1"
@@ -89,13 +88,15 @@ def get_branch() -> str:
 #
 # The fetched artifacts are stored in xgboost/doc/tmp/jvm_docs and
 # xgboost/doc/tmp/r_docs respectively. For the R package, there's a dummy index file in
-# xgboost/doc/R-package/r_docs . The xgboost/doc/tmp is part of the `html_extra_path`
-# sphinx configuration, which somehow makes sphinx to copy the extracted html files to
-# the build directory.
+# xgboost/doc/R-package/r_docs . Jvm doc is similar. As for the C doc, it's generated
+# using doxygen and processed by breathe. The generated xml files are stored in
+# xgboost/doc/tmp/dev . The xgboost/doc/tmp is part of the `html_extra_path` sphinx
+# configuration, which somehow makes sphinx to copy the extracted html files to the
+# build directory.
 
 
 def build_jvm_docs() -> None:
-    """Build docs for the JVM packages"""
+    """Fetch docs for the JVM packages"""
     git_branch = get_branch()
 
     def try_fetch_jvm_doc(branch):
