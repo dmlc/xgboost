@@ -15,7 +15,7 @@ echo "R_LIBS_USER: ${R_LIBS_USER}"
 gosu root chown -R $UID:$GROUPS ${R_LIBS_USER}
 
 cd R-package
-MAKEFLAGS=-j$(nproc) Rscript ./tests/helper_scripts/install_deps.R
+# MAKEFLAGS=-j$(nproc) Rscript ./tests/helper_scripts/install_deps.R
 MAKEFLAGS=-j$(nproc) Rscript -e "pkgdown::build_site()"
 cd -
 
