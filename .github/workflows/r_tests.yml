@@ -122,4 +122,4 @@ jobs:
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
             --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
-            R-package/r-docs-${{ env.BRANCH_NAME }}.tar.bz2
+            r-docs-${{ env.BRANCH_NAME }}.tar.bz2
