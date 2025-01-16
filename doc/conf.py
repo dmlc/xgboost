@@ -95,9 +95,23 @@ def get_branch() -> str:
 # build directory.
 
 
+def get_sha() -> str | None:
+    sha = os.getenv("READTHEDOCS_GIT_COMMIT_HASH", default=None)
+    if sha is None:
+        res = subprocess.run(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE)
+        if res.returncode != 0:
+            return None
+        sha = res.stdout.decode("utf-8")
+    return sha
+
+
 def build_jvm_docs() -> None:
     """Fetch docs for the JVM packages"""
     git_branch = get_branch()
+    commit = get_sha()
+    if commit is None:
+        print("Couldn't find commit to build jvm docs.")
+        return
 
     def try_fetch_jvm_doc(branch):
         """
@@ -105,7 +119,7 @@ def build_jvm_docs() -> None:
         Returns True if successful
         """
         try:
-            url = f"https://s3-us-west-2.amazonaws.com/xgboost-docs/{branch}.tar.bz2"
+            url = f"https://xgboost-docs.s3.us-west-2.amazonaws.com/PR-{branch}/{commit}/PR-{branch}.tar.bz2"
             filename, _ = urllib.request.urlretrieve(url)
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
@@ -132,10 +146,14 @@ def build_jvm_docs() -> None:
 def build_r_docs() -> None:
     """Fetch R document from s3."""
     git_branch = get_branch()
+    commit = get_sha()
+    if commit is None:
+        print("Couldn't find commit to build R docs.")
+        return
 
     def try_fetch_r_doc(branch: str) -> bool:
         try:
-            url = f"https://s3-us-west-2.amazonaws.com/xgboost-docs/r-docs-{branch}.tar.bz2"
+            url = f"https://xgboost-docs.s3.us-west-2.amazonaws.com/PR-{branch}/{commit}/r-docs-PR-{branch}.tar.bz2"
             filename, _ = urllib.request.urlretrieve(url)
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")

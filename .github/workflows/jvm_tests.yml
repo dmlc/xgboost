@@ -10,6 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PR_COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
   BRANCH_NAME: >-
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
@@ -122,7 +123,7 @@ jobs:
         run: |
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+            --prefix ${BRANCH_NAME}/${PR_COMMIT_SHA} --make-public \
             jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
 
   build-test-jvm-packages:
