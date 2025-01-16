@@ -20,7 +20,7 @@ else
 fi
 
 source ops/pipeline/get-docker-registry-details.sh
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:PR-6"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:main"
 
 set -x
 python3 ops/docker_run.py --image-uri "${IMAGE_URI}" ${gpu_option} \

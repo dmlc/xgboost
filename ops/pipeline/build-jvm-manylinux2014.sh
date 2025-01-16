@@ -15,7 +15,7 @@ image_repo="xgb-ci.manylinux2014_${arch}"
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:PR-6"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:main"
 
 # Build XGBoost4J binary
 echo "--- Build libxgboost4j.so (targeting glibc 2.17)"

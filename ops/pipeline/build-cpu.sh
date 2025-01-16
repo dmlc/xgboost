@@ -6,7 +6,7 @@ set -euo pipefail
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.cpu:PR-6
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.cpu:main
 
 echo "--- Build CPU code"
 set -x

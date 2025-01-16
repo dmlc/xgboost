@@ -11,7 +11,7 @@ suite=$1
 
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu:PR-6
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu:main
 
 case "${suite}" in
   gpu)

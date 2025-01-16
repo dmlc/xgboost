@@ -23,7 +23,7 @@ do
   fi
 done
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm:PR-6
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm:main
 
 set -x
 
