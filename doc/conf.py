@@ -23,6 +23,7 @@ from urllib.error import HTTPError
 CURR_PATH = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
 TMP_DIR = os.path.join(CURR_PATH, "tmp")
+print("current path:", CURR_PATH)
 DOX_DIR = "doxygen"
 
 os.environ["XGBOOST_BUILD_DOC"] = "1"
@@ -81,6 +82,17 @@ def get_branch() -> str:
     return git_branch
 
 
+# Witchcraft alert:
+#
+# Both the jvm and the R document is built with an independent CI pipeline and fetched
+# during document build.
+#
+# The fetched artifacts are stored in xgboost/doc/tmp/jvm_docs and
+# xgboost/doc/tmp/r_docs respectively. For the R package, there's a dummy index file in
+# xgboost/doc/R-package/r_docs . The xgboost/doc/tmp is part of the `html_extra_path`
+# sphinx configuration, which somehow makes sphinx to copy the extracted html files to
+# the build directory.
+
 def build_jvm_docs() -> None:
     """Build docs for the JVM packages"""
     git_branch = get_branch()
@@ -111,7 +123,7 @@ def build_jvm_docs() -> None:
             return False
 
     if not try_fetch_jvm_doc(git_branch):
-        print("Falling back to the master branch...")
+        print("Falling back to the master branch.")
         try_fetch_jvm_doc("master")
 
 
@@ -135,7 +147,7 @@ def build_r_docs() -> None:
                 t.extractall(r_doc_dir)
             return True
         except HTTPError:
-            print(f"R doc not found at {url}.")
+            print(f"R doc not found at {url}. Falling back to the master branch.")
             return False
 
     if not try_fetch_r_doc(git_branch):

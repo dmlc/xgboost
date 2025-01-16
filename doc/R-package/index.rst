@@ -13,7 +13,7 @@ You have found the XGBoost R Package!
 Get Started
 ***********
 * Checkout the :doc:`Installation Guide </install>` contains instructions to install xgboost, and :doc:`Tutorials </tutorials/index>` for examples on how to use XGBoost for various tasks.
-* Read the `API documentation <>`
+* Read the `API documentation <../r_docs/R-package/docs/index.html>`__
 * Read the `CRAN documentation <https://cran.r-project.org/web/packages/xgboost/xgboost.pdf>`_.
 
 *********
