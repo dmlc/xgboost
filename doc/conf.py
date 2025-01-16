@@ -25,6 +25,8 @@ PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
 TMP_DIR = os.path.join(CURR_PATH, "tmp")
 DOX_DIR = "doxygen"
 
+sys.path.append(os.path.join(PROJECT_ROOT, "python-package"))
+
 os.environ["XGBOOST_BUILD_DOC"] = "1"
 
 # Version information.
