@@ -21,7 +21,7 @@ source ops/pipeline/get-docker-registry-details.sh
 
 WHEEL_TAG="manylinux2014_${arch}"
 IMAGE_REPO="xgb-ci.${WHEEL_TAG}"
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:main"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:PR-6"
 PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG}"

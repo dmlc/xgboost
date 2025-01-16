@@ -5,7 +5,7 @@ set -euo pipefail
 
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.i386:main"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.i386:PR-6"
 
 set -x
 python3 ops/docker_run.py \

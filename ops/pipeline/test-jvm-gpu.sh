@@ -25,7 +25,7 @@ done
 
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:PR-6
 
 set -x
 

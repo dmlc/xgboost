@@ -35,8 +35,8 @@ source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
 WHEEL_TAG=manylinux_2_28_x86_64
-BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:main"
-MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:main"
+BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:PR-6"
+MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:PR-6"
 
 echo "--- Build with CUDA"
 

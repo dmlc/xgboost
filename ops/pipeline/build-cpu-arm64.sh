@@ -13,7 +13,7 @@ source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
 
 WHEEL_TAG=manylinux_2_28_aarch64
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:PR-6
 
 echo "--- Build CPU code targeting ARM64"
 set -x

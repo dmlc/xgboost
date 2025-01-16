@@ -16,7 +16,7 @@ variant="$1"
 image_repo="$2"
 scala_version="$3"
 
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:main"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:PR-6"
 
 set -x
 

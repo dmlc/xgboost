@@ -4,7 +4,7 @@ set -euo pipefail
 
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.clang_tidy:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.clang_tidy:PR-6
 
 echo "--- Run clang-tidy"
 set -x
