@@ -10,15 +10,16 @@ set -euo pipefail
 
 branch_name=$1
 
-# See instructions at: https://cran.r-project.org/bin/linux/ubuntu/
+echo "R_LIBS_USER: ${R_LIBS_USER}"
 
-wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
-# add the R 4.0 repo from CRAN -- adjust 'focal' to 'groovy' or 'bionic' as needed
-sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+gosu root chown -R $UID:$GROUPS ${R_LIBS_USER}
 
-sudo apt install --no-install-recommends r-base
-Rscript -e "install.packages(c('pkgdown'), repos = 'https://mirror.las.iastate.edu/CRAN/')"
 cd R-package
-Rscript -e "pkgdown::build_site()"
+MAKEFLAGS=-j$(nproc) Rscript ./tests/helper_scripts/install_deps.R
+MAKEFLAGS=-j$(nproc) Rscript -e "pkgdown::build_site()"
 cd -
-tar cvjf r-docs-${branch_name}.tar.bz2 R-package/docs
+
+cd doc/R-package
+make -j$(nproc) all
+
+tar cvjf r-docs-${branch_name}.tar.bz2 R-package/docs doc/R-package/xgboost_introduction.md doc/R-package/xgboostfromJSON.md
