@@ -10,7 +10,6 @@ numpy
 scipy
 myst-parser
 ray[train]
-xgboost_ray
 sphinx-gallery
 pyspark
 cloudpickle
