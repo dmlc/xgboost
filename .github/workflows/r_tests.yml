@@ -4,6 +4,8 @@ on: [push, pull_request]
 
 env:
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -12,9 +14,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  BRANCH_NAME: >-
-    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
   test-Rpkg:
