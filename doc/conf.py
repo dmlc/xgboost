@@ -105,19 +105,22 @@ def run_doxygen() -> None:
 
 def get_branch() -> str:
     """Guess the git branch."""
-    git_branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
-    print(f"READTHEDOCS_VERSION_NAME = {git_branch}")
+    branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
+    print(f"READTHEDOCS_VERSION_NAME = {branch}")
 
-    if not git_branch:  # Not in RTD
-        git_branch = "master"  # use the master branch as the default.
-    elif git_branch == "latest":
-        git_branch = "master"
-    elif git_branch == "stable":
-        git_branch = f"release_{xgboost.__version__}"
+    if not branch:  # Not in RTD
+        branch = "master"  # use the master branch as the default.
+    elif branch == "latest":
+        branch = "master"
+    elif branch.startswith("release_"):
+        pass  # release branch, like: release_2.1.0
+    elif branch == "stable":
+        branch = f"release_{xgboost.__version__}"
     else:  # Likely PR branch
-        git_branch = f"PR-{git_branch}"
-    print(f"git_branch = {git_branch}")
-    return git_branch
+        assert str(int(branch)) == branch
+        branch = f"PR-{branch}"
+    print(f"branch = {branch}")
+    return branch
 
 
 def get_sha(branch: str) -> str | None:
