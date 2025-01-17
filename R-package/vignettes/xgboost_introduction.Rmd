@@ -38,7 +38,7 @@ model <- xgboost(x, y, nthreads = 1, nrounds = 2)
 model
 ```
 
-In this case, the "y" response variable that was supplied is a "factor" type with two classes ("OJ" and "VC") - hence, XGBoost builds a binary classification model for it based on the features "x", by finding a maximum likelihood estimate (similar to the `faimily="binomial"` model from R's `glm` function) through rule buckets obtained from the sum of two decision trees (from `nrounds=2`), from which we can then predict probabilities, log-odds, class with highest likelihood, among others:
+In this case, the "y" response variable that was supplied is a "factor" type with two classes ("OJ" and "VC") - hence, XGBoost builds a binary classification model for it based on the features "x", by finding a maximum likelihood estimate (similar to the `family="binomial"` model from R's `glm` function) through rule buckets obtained from the sum of two decision trees (from `nrounds=2`), from which we can then predict probabilities, log-odds, class with highest likelihood, among others:
 
 ```{r}
 predict(model, x[1:6, ], type = "response") # probabilities for y's last level ("VC")
