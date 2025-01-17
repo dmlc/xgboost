@@ -11,6 +11,12 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
+#
+# Envs:
+# - READTHEDOCS: Read the docs flag, fetch the R and JVM documents.
+# - XGBOOST_R_DOCS: Local path for pre-build R document, used for development.
+# - XGBOOST_JVM_DOCS: Local path for pre-build JVM document, used for development.
+
 import os
 import shutil
 import subprocess
@@ -136,20 +142,23 @@ def build_jvm_docs() -> None:
         print("Couldn't find commit to build jvm docs.")
         return
 
-    def try_fetch_jvm_doc(branch):
+    def try_fetch_jvm_doc(branch: str) -> bool:
         """
         Attempt to fetch JVM docs for a given branch.
         Returns True if successful
         """
         try:
-            url = f"{S3_BUCKET}/{branch}/{commit}/{branch}.tar.bz2"
-            filename, _ = urllib.request.urlretrieve(url)
+            local_jvm_docs = os.environ.get("XGBOOST_JVM_DOCS", None)
+            if local_jvm_docs is not None:
+                filename = os.path.expanduser(local_jvm_docs)
+            else:
+                url = f"{S3_BUCKET}/{branch}/{commit}/{branch}.tar.bz2"
+                filename, _ = urllib.request.urlretrieve(url)
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
                 os.mkdir(TMP_DIR)
             jvm_doc_dir = os.path.join(TMP_DIR, "jvm_docs")
             if os.path.exists(jvm_doc_dir):
-                print(f"Delete directory {jvm_doc_dir}")
                 shutil.rmtree(jvm_doc_dir)
             print(f"Create directory {jvm_doc_dir}")
             os.mkdir(jvm_doc_dir)
@@ -176,16 +185,23 @@ def build_r_docs() -> None:
 
     def try_fetch_r_doc(branch: str) -> bool:
         try:
-            url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
-            filename, _ = urllib.request.urlretrieve(url)
+            local_r_docs = os.environ.get("XGBOOST_R_DOCS", None)
+            if local_r_docs is not None:
+                filename = os.path.expanduser(local_r_docs)
+            else:
+                url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
+                filename, _ = urllib.request.urlretrieve(url)
+
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
                 os.mkdir(TMP_DIR)
             r_doc_dir = os.path.join(TMP_DIR, "r_docs")
             if os.path.exists(r_doc_dir):
                 shutil.rmtree(r_doc_dir)
+            print(f"Create directory {r_doc_dir}")
             os.mkdir(r_doc_dir)
 
+            filename = os.path.join(PROJECT_ROOT, "r-docs-foo.tar.bz2")
             with tarfile.open(filename, "r:bz2") as t:
                 t.extractall(r_doc_dir)
 

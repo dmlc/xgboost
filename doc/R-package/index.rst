@@ -9,11 +9,16 @@ XGBoost R Package
 
 You have found the XGBoost R Package!
 
+.. toctree::
+  :maxdepth: 2
+  :titlesonly:
+
 ***********
 Get Started
 ***********
+
 * Checkout the :doc:`Installation Guide </install>` contains instructions to install xgboost, and :doc:`Tutorials </tutorials/index>` for examples on how to use XGBoost for various tasks.
-* Read the latest `API documentation <../r_docs/R-package/docs/index.html>`__ . This might refer to a newer version than the one on CRAN.
+* Read the latest `API documentation <../r_docs/R-package/docs/reference/index.html>`__ . This might refer to a newer version than the one on CRAN.
 * Read the `CRAN documentation <https://cran.r-project.org/web/packages/xgboost/xgboost.pdf>`_.
 
 *********
@@ -30,8 +35,6 @@ Other topics
 ************
 
 .. toctree::
-  :maxdepth: 2
-  :titlesonly:
 
   Handling of indexable elements <index_base>
   Developer guide: parameters from core library <adding_parameters>
