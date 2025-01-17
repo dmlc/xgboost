@@ -2,3 +2,4 @@ url: https://github.com/dmlc/xgboost
 
 template:
   bootstrap: 5
+  math-rendering: mathjax

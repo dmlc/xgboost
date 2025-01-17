@@ -1,5 +1,5 @@
-XGBoost R Package for Scalable GBM
-==================================
+XGBoost R Package
+=================
 
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
 [![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](https://cran.rstudio.com/web/packages/xgboost/index.html)
@@ -7,7 +7,7 @@ XGBoost R Package for Scalable GBM
 
 Resources
 ---------
-* [XGBoost R Package Online Documentation](https://xgboost.readthedocs.org/en/latest/R-package/index.html)
+* [XGBoost R Package Online Documentation](https://xgboost.readthedocs.org/en/stable/R-package/index.html)
   - Check this out for detailed documents, examples and tutorials.
 
 Installation

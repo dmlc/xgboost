@@ -26,7 +26,6 @@ pkgs <- c(
   "RhpcBLASctl",
   ## imports
   "Matrix",
-  "methods",
   "data.table",
   "jsonlite"
 )
