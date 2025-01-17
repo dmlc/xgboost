@@ -204,7 +204,6 @@ def build_r_docs() -> None:
             print(f"Create directory {r_doc_dir}")
             os.mkdir(r_doc_dir)
 
-            filename = os.path.join(PROJECT_ROOT, "r-docs-foo.tar.bz2")
             with tarfile.open(filename, "r:bz2") as t:
                 t.extractall(r_doc_dir)
 
