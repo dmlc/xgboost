@@ -157,6 +157,7 @@ def build_jvm_docs() -> None:
             else:
                 url = f"{S3_BUCKET}/{branch}/{commit}/{branch}.tar.bz2"
                 filename, _ = urllib.request.urlretrieve(url)
+                print(f"Finished: {url} -> {filename}")
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
                 os.mkdir(TMP_DIR)
@@ -194,6 +195,7 @@ def build_r_docs() -> None:
             else:
                 url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
                 filename, _ = urllib.request.urlretrieve(url)
+                print(f"Finished: {url} -> {filename}")
 
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
