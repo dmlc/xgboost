@@ -5,6 +5,8 @@ PKGROOT=../../R-package
 xgboostfromJSON.md: $(PKGROOT)/vignettes/xgboostfromJSON.Rmd
 xgboost_introduction.md: $(PKGROOT)/vignettes/xgboost_introduction.Rmd
 
+all: xgboostfromJSON.md xgboost_introduction.md
+
 # General Rules for build rmarkdowns, need knitr
 %.md:
 	Rscript -e \

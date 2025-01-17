@@ -11,8 +11,13 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
+#
+# Envs:
+# - READTHEDOCS: Read the docs flag, fetch the R and JVM documents.
+# - XGBOOST_R_DOCS: Local path for pre-build R document, used for development.
+# - XGBOOST_JVM_DOCS: Local path for pre-build JVM document, used for development.
+
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +31,9 @@ PROJECT_ROOT = os.path.normpath(os.path.join(CURR_PATH, os.path.pardir))
 TMP_DIR = os.path.join(CURR_PATH, "tmp")
 DOX_DIR = "doxygen"
 
+# Directly load the source module.
+sys.path.append(os.path.join(PROJECT_ROOT, "python-package"))
+# Tell xgboost to not load the libxgboost.so
 os.environ["XGBOOST_BUILD_DOC"] = "1"
 
 # Version information.
@@ -35,7 +43,35 @@ version = xgboost.__version__
 release = xgboost.__version__
 
 
-def run_doxygen():
+# Witchcraft alert:
+#
+# Both the jvm and the R document is built with an independent CI pipeline and fetched
+# during document build.
+#
+# The fetched artifacts are stored in xgboost/doc/tmp/jvm_docs and
+# xgboost/doc/tmp/r_docs respectively. For the R package, there's a dummy index file in
+# xgboost/doc/R-package/r_docs . Jvm doc is similar. As for the C doc, it's generated
+# using doxygen and processed by breathe during build and there's no independent CI
+# pipeline as it's relatively cheap. The generated xml files are stored in
+# xgboost/doc/tmp/dev .
+#
+# The xgboost/doc/tmp is part of the `html_extra_path` sphinx configuration, which
+# somehow makes sphinx to copy the extracted html files to the build directory.
+#
+# There's very limited dependency management in the readthedocs builder, to avoid
+# building everything from source using the RTD worker (like packages from CRAN or
+# XGBoost itself), we offload to CI workers as much as possible.
+#
+# However, since there's no way to synchronize the RTD worker with other GitHub workers,
+# to see the latest document for a PR branch, we need to re-run RTD manually after
+# related doc are uploaded to the S3 bucket.
+
+
+# Document is uploaded to here by the CI builder.
+S3_BUCKET = "https://xgboost-docs.s3.us-west-2.amazonaws.com"
+
+
+def run_doxygen() -> None:
     """Run the doxygen make command in the designated folder."""
     curdir = os.path.normpath(os.path.abspath(os.path.curdir))
     if os.path.exists(TMP_DIR):
@@ -67,33 +103,66 @@ def run_doxygen():
         os.chdir(curdir)
 
 
-def build_jvm_docs():
-    """Build docs for the JVM packages"""
-    git_branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
-    print(f"READTHEDOCS_VERSION_NAME = {git_branch}")
+def get_branch() -> str:
+    """Guess the git branch."""
+    branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
+    print(f"READTHEDOCS_VERSION_NAME = {branch}")
 
-    if not git_branch:
-        git_branch = "master"
-    elif git_branch == "latest":
-        git_branch = "master"
-    elif git_branch == "stable":
-        git_branch = f"release_{xgboost.__version__}"
-    print(f"git_branch = {git_branch}")
+    if not branch:  # Not in RTD
+        branch = "master"  # use the master branch as the default.
+    elif branch == "latest":
+        branch = "master"
+    elif branch.startswith("release_"):
+        pass  # release branch, like: release_2.1.0
+    elif branch == "stable":
+        branch = f"release_{xgboost.__version__}"
+    else:  # Likely PR branch
+        assert str(int(branch)) == branch
+        branch = f"PR-{branch}"
+    print(f"branch = {branch}")
+    return branch
 
-    def try_fetch_jvm_doc(branch):
+
+def get_sha(branch: str) -> str | None:
+    sha = os.getenv("READTHEDOCS_GIT_COMMIT_HASH", default=None)
+    if sha is not None:
+        return sha
+
+    if branch == "master":
+        res = subprocess.run(["git", "rev-parse", "master"], stdout=subprocess.PIPE)
+    else:
+        res = subprocess.run(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE)
+    if res.returncode != 0:
+        return None
+    return res.stdout.decode("utf-8").strip()
+
+
+def build_jvm_docs() -> None:
+    """Fetch docs for the JVM packages"""
+    branch = get_branch()
+    commit = get_sha(branch)
+    if commit is None:
+        print("Couldn't find commit to build jvm docs.")
+        return
+
+    def try_fetch_jvm_doc(branch: str) -> bool:
         """
         Attempt to fetch JVM docs for a given branch.
         Returns True if successful
         """
         try:
-            url = f"https://s3-us-west-2.amazonaws.com/xgboost-docs/{branch}.tar.bz2"
-            filename, _ = urllib.request.urlretrieve(url)
+            local_jvm_docs = os.environ.get("XGBOOST_JVM_DOCS", None)
+            if local_jvm_docs is not None:
+                filename = os.path.expanduser(local_jvm_docs)
+            else:
+                url = f"{S3_BUCKET}/{branch}/{commit}/{branch}.tar.bz2"
+                filename, _ = urllib.request.urlretrieve(url)
+                print(f"Finished: {url} -> {filename}")
             if not os.path.exists(TMP_DIR):
                 print(f"Create directory {TMP_DIR}")
                 os.mkdir(TMP_DIR)
             jvm_doc_dir = os.path.join(TMP_DIR, "jvm_docs")
             if os.path.exists(jvm_doc_dir):
-                print(f"Delete directory {jvm_doc_dir}")
                 shutil.rmtree(jvm_doc_dir)
             print(f"Create directory {jvm_doc_dir}")
             os.mkdir(jvm_doc_dir)
@@ -105,9 +174,56 @@ def build_jvm_docs():
             print(f"JVM doc not found at {url}. Skipping...")
             return False
 
-    if not try_fetch_jvm_doc(git_branch):
-        print(f"Falling back to the master branch...")
+    if not try_fetch_jvm_doc(branch):
+        print("Falling back to the master branch.")
         try_fetch_jvm_doc("master")
+
+
+def build_r_docs() -> None:
+    """Fetch R document from s3."""
+    branch = get_branch()
+    commit = get_sha(branch)
+    if commit is None:
+        print("Couldn't find commit to build R docs.")
+        return
+
+    def try_fetch_r_doc(branch: str) -> bool:
+        try:
+            local_r_docs = os.environ.get("XGBOOST_R_DOCS", None)
+            if local_r_docs is not None:
+                filename = os.path.expanduser(local_r_docs)
+            else:
+                url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
+                filename, _ = urllib.request.urlretrieve(url)
+                print(f"Finished: {url} -> {filename}")
+
+            if not os.path.exists(TMP_DIR):
+                print(f"Create directory {TMP_DIR}")
+                os.mkdir(TMP_DIR)
+            r_doc_dir = os.path.join(TMP_DIR, "r_docs")
+            if os.path.exists(r_doc_dir):
+                shutil.rmtree(r_doc_dir)
+            print(f"Create directory {r_doc_dir}")
+            os.mkdir(r_doc_dir)
+
+            with tarfile.open(filename, "r:bz2") as t:
+                t.extractall(r_doc_dir)
+
+            for root, subdir, files in os.walk(
+                os.path.join(r_doc_dir, "doc", "R-package")
+            ):
+                for f in files:
+                    assert f.endswith(".md")
+                    src = os.path.join(root, f)
+                    dst = os.path.join(PROJECT_ROOT, "doc", "R-package", f)
+                    shutil.move(src, dst)
+            return True
+        except HTTPError:
+            print(f"R doc not found at {url}. Falling back to the master branch.")
+            return False
+
+    if not try_fetch_r_doc(branch):
+        try_fetch_r_doc("master")
 
 
 def is_readthedocs_build():
@@ -125,6 +241,7 @@ def is_readthedocs_build():
 if is_readthedocs_build():
     run_doxygen()
     build_jvm_docs()
+    build_r_docs()
 
 
 # If extensions (or modules to document with autodoc) are in another directory,

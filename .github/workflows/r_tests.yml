@@ -4,6 +4,9 @@ on: [push, pull_request]
 
 env:
   GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+  PR_COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -11,6 +14,7 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
 
 jobs:
   test-Rpkg:
@@ -101,3 +105,25 @@ jobs:
         if: steps.changes.outputs.r_package == 'true'
         run: |
           python3 ops/script/test_r_package.py --r=/usr/bin/R --task=doc
+
+  build-r-docs:
+    name: Build docs for the R package
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=r-tests-build-docs
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-r-docs.sh
+      - name: Upload R doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${PR_COMMIT_SHA} --make-public \
+            r-docs-${{ env.BRANCH_NAME }}.tar.bz2

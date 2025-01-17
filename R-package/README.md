@@ -1,13 +1,13 @@
-XGBoost R Package for Scalable GBM
-==================================
+XGBoost R Package
+=================
 
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
 [![CRAN Downloads](http://cranlogs.r-pkg.org/badges/xgboost)](https://cran.rstudio.com/web/packages/xgboost/index.html)
-[![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](http://xgboost.readthedocs.org/en/latest/R-package/index.html)
+[![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org/en/latest/R-package/index.html)
 
 Resources
 ---------
-* [XGBoost R Package Online Documentation](http://xgboost.readthedocs.org/en/latest/R-package/index.html)
+* [XGBoost R Package Online Documentation](https://xgboost.readthedocs.org/en/stable/R-package/index.html)
   - Check this out for detailed documents, examples and tutorials.
 
 Installation
@@ -19,13 +19,7 @@ We are [on CRAN](https://cran.r-project.org/web/packages/xgboost/index.html) now
 install.packages('xgboost')
 ```
 
-For more detailed installation instructions, please see [here](http://xgboost.readthedocs.org/en/latest/build.html#r-package-installation).
-
-Examples
---------
-
-* Please visit [walk through example](demo).
-* See also the [example scripts](../demo/kaggle-higgs) for Kaggle Higgs Challenge, including [speedtest script](../demo/kaggle-higgs/speedtest.R) on this dataset and the one related to [Otto challenge](../demo/kaggle-otto), including a [RMarkdown documentation](../demo/kaggle-otto/understandingXGBoostModel.Rmd).
+For more detailed installation instructions, please see [here](https://xgboost.readthedocs.io/en/stable/install.html).
 
 Development
 -----------
