@@ -326,6 +326,13 @@ do not want to shut down the cluster after a single job.
 Threads
 *******
 
+.. warning::
+
+    Note that :py:mod:`distributed` set the ``OMP_NUM_THREADS`` environment variable by
+    default to restrict threads to 1. The configuration limits XGBoost parallel
+    execution. Please customize it under the ``nanny.pre-spawn-environ`` distributed
+    configuration.
+
 XGBoost has built in support for parallel computation through threads by the setting
 ``nthread`` parameter (``n_jobs`` for scikit-learn).  If these parameters are set, they
 will override the configuration in Dask.  For example:

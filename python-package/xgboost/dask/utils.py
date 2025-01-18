@@ -1,6 +1,7 @@
 """Utilities for the XGBoost Dask interface."""
 
 import logging
+import os
 import warnings
 from typing import Any, Dict, Optional, Tuple
 
@@ -21,6 +22,13 @@ def get_n_threads(local_param: Dict[str, Any], worker: "distributed.Worker") -> 
             LOGGER.info("Overriding `nthreads` defined in dask worker.")
             n_threads = local_param[p]
             break
+
+    if os.environ.get("OMP_NUM_THREADS", None) is not None:
+        warnings.warn(
+            "The environment variable `OMP_NUM_THREADS` is set, which interferes "
+            "XGBoost parallel execution. This is likly set by `distributed` in "
+            "its configuration file."
+        )
     if n_threads == 0 or n_threads is None:
         n_threads = dwnt
     return n_threads
