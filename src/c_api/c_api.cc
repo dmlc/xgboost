@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -182,6 +182,10 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
       }
     }
     LOG(FATAL) << ss.str()  << " }";
+  }
+  // The default is 0, we call omp rt only if the default is modified.
+  if (GlobalConfigThreadLocalStore::Get()->nthread > 0) {
+    omp_set_num_threads(GlobalConfigThreadLocalStore::Get()->nthread);
   }
   API_END();
 }
