@@ -16,6 +16,8 @@ namespace xgboost {
 struct GlobalConfiguration : public XGBoostParameter<GlobalConfiguration> {
   std::int32_t verbosity{1};
   bool use_rmm{false};
+  // This is not a dmlc parameter to avoid conflict with the context class.
+  std::int32_t nthread{0};
   DMLC_DECLARE_PARAMETER(GlobalConfiguration) {
     DMLC_DECLARE_FIELD(verbosity)
         .set_range(0, 3)

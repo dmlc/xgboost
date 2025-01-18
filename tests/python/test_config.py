@@ -69,3 +69,8 @@ def test_thread_safety():
 
     for f in futures:
         f.result()
+
+
+def test_nthread() -> None:
+    config = xgb.get_config()
+    assert config["nthread"] == 0

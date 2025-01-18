@@ -805,6 +805,7 @@ async def _train_async(
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})
 
         local_history: TrainingCallback.EvalsLog = {}
+        global_config.update({"nthread": n_threads})
 
         with CommunicatorContext(**coll_args), config.config_context(**global_config):
             Xy, evals = _get_dmatrices(
