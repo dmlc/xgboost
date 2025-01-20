@@ -295,7 +295,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
   }
 }
 
-private class GpuColumnBatch(table: Table) extends AutoCloseable {
+private[scala] class GpuColumnBatch(val table: Table) extends AutoCloseable {
 
   def select(index: Int): Table = {
     select(Seq(index))
@@ -308,9 +308,5 @@ private class GpuColumnBatch(table: Table) extends AutoCloseable {
     new Table(indices.map(table.getColumn): _*)
   }
 
-  override def close(): Unit = {
-    if (Option(table).isDefined) {
-      table.close()
-    }
-  }
+  override def close(): Unit = Option(table).foreach(_.close())
 }

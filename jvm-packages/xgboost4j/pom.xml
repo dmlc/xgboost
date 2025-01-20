@@ -100,6 +100,8 @@
                             <argument>${use.cuda}</argument>
                             <argument>--use-openmp</argument>
                             <argument>${use.openmp}</argument>
+                            <argument>--use-debug</argument>
+                            <argument>${use.debug}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
                           <skip>${skip.native.build}</skip>

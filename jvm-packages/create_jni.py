@@ -73,6 +73,8 @@ def native_build(cli_args: argparse.Namespace) -> None:
         os.environ["JAVA_HOME"] = (
             subprocess.check_output("/usr/libexec/java_home").strip().decode()
         )
+    if cli_args.use_debug == "ON":
+        CONFIG["CMAKE_BUILD_TYPE"] = "Debug"
 
     print("building Java wrapper", flush=True)
     with cd(".."):
@@ -187,5 +189,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--use-cuda", type=str, choices=["ON", "OFF"], default="OFF")
     parser.add_argument("--use-openmp", type=str, choices=["ON", "OFF"], default="ON")
+    parser.add_argument("--use-debug", type=str, choices=["ON", "OFF"], default="OFF")
     cli_args = parser.parse_args()
     native_build(cli_args)

@@ -44,7 +44,7 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 /**
  * Hold the column index
  */
-private[spark] case class ColumnIndices(
+private[scala] case class ColumnIndices(
     labelId: Int,
     featureId: Option[Int], // the feature type is VectorUDT or Array
     featureIds: Option[Seq[Int]], // the feature type is columnar
