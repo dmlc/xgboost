@@ -23,7 +23,7 @@ import pandas as pd
 from dask import dataframe as dd
 
 from .. import collective as coll
-from .._typing import _T, FeatureNames
+from .._typing import FeatureNames
 from ..compat import concat, import_cupy
 from ..core import DataIter, DMatrix, QuantileDMatrix
 from ..data import is_on_cuda
@@ -31,14 +31,6 @@ from ..data import is_on_cuda
 LOGGER = logging.getLogger("[xgboost.dask]")
 
 _DataParts = List[Dict[str, Any]]
-
-
-def dconcat(value: Sequence[_T]) -> _T:
-    """Concatenate sequence of partitions."""
-    try:
-        return concat(value)
-    except TypeError:
-        return dd.multi.concat(list(value), axis=0)
 
 
 meta = [
@@ -383,7 +375,7 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     def concat_or_none(data: Sequence[Optional[T]]) -> Optional[T]:
         if any(part is None for part in data):
             return None
-        return dconcat(data)
+        return concat(data)
 
     unzipped_dict = _get_worker_parts(list_of_parts)
     concated_dict: Dict[str, Any] = {}
