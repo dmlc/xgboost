@@ -16,6 +16,10 @@
 package ml.dmlc.xgboost4j.java;
 
 import java.util.Iterator;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * QuantileDMatrix will only be used to train
@@ -112,8 +116,15 @@ public class QuantileDMatrix extends DMatrix {
   }
 
   private String getConfig(float missing, int maxBin, int nthread) {
-    return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d}",
-                         missing, maxBin, nthread);
+    Map<String, Object> conf = new java.util.HashMap<>();
+    conf.put("missing", missing);
+    conf.put("max_bin", maxBin);
+    conf.put("nthread", nthread);
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      return mapper.writeValueAsString(conf);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException("Failed to serialize configuration", e);
+    }
   }
-
 }
