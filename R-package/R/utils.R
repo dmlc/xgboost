@@ -560,6 +560,29 @@ deprecated_train_params <- list(
   ),
   removed = character()
 )
+deprecated_xgboost_params <- list(
+  renamed = list(
+    'data' = 'x',
+    'label' = 'y',
+    'eta' = 'learning_rate',
+    'gamma' = 'min_split_loss',
+    'lambda' = 'reg_lambda',
+    'alpha' = 'reg_alpha',
+    'min.split.loss' = 'min_split_loss',
+    'reg.lambda' = 'reg_lambda',
+    'reg.alpha' = 'reg_alpha',
+    'watchlist' = 'evals'
+  ),
+  removed = c(
+    'params',
+    'save_period',
+    'save_name',
+    'xgb_model',
+    'callbacks',
+    'missing',
+    'maximize'
+  )
+)
 deprecated_dttree_params <- list(
   renamed = list('n_first_tree' = 'trees'),
   removed = c("feature_names", "text")
@@ -594,6 +617,13 @@ deprecated_predict_params <- list(
   renamed = list("ntreelimit" = "iterationrange"),
   removed = "reshape"
 )
+deprecated_dmatrix_params <- list(
+  renamed = character(),
+  removed = "info"
+)
+
+# These got moved from 'info' to function arguments
+args_previous_dmatrix_info <- c("label", "weight", "base_margin", "group")
 
 # Checks the dot-parameters for deprecated names
 # (including partial matching), gives a deprecation warning,
@@ -624,7 +654,12 @@ check.deprecation <- function(
   }
   list_renamed <- deprecated_list$renamed
   list_removed <- deprecated_list$removed
-  has_params_arg <- list_renamed[[1L]] == deprecated_train_params$renamed[[1L]]
+  has_params_arg <-
+    length(list_renamed) == length(deprecated_train_params$renamed) &&
+    list_renamed[[1L]] == deprecated_train_params$renamed[[1L]]
+  is_dmatrix_constructor <-
+    length(list_removed) == length(deprecated_dmatrix_params$removed) &&
+    list_removed[[1L]] == deprecated_dmatrix_params$removed[[1L]]
   all_match <- pmatch(names(params), names(list_renamed))
   # throw error on unrecognized parameters
   if (!allow_unrecognized && anyNA(all_match)) {
@@ -662,6 +697,25 @@ check.deprecation <- function(
         }
         names_unrecognized <- setdiff(names_unrecognized, names_under_params)
       }
+    } else if (is_dmatrix_constructor && NROW(params$info)) {
+      # same thing for the earlier 'info' in 'xgb.DMatrix'
+      throw_err_or_depr_msg(
+        "Passed invalid argument 'info' - entries on it should be passed as direct arguments."
+      )
+      entries_info <- names(params$info)
+      if (length(setdiff(entries_info, args_previous_dmatrix_info))) {
+        stop(
+          "Passed unrecognized entries under info: ",
+          paste(setdiff(entries_info, args_previous_dmatrix_info) |> head(), collapse = ", ")
+        )
+      }
+      for (entry_name in entries_info) {
+        if (!is.null(env[[entry_name]])) {
+          stop("Passed entry under both 'info' and function argument(s): ", entry_name)
+        }
+        env[[entry_name]] <- params$info[[entry_name]]
+      }
+      names_unrecognized <- setdiff(names_unrecognized, "info")
     }
 
     # check for parameters that were removed from a previous version
@@ -678,7 +732,7 @@ check.deprecation <- function(
     if (length(names_unrecognized)) {
       throw_err_or_depr_msg(
         "Passed unrecognized parameters: ",
-        paste(head(names_unrecognized), collapse = ", ")
+        paste(head(names_unrecognized), collapse = ", "), "."
       )
     }
 

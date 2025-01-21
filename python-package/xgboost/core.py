@@ -508,15 +508,13 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     def get_callbacks(self, enable_categorical: bool) -> Tuple[Callable, Callable]:
         """Get callback functions for iterating in C. This is an internal function."""
         assert hasattr(self, "cache_prefix"), "__init__ is not called."
-        self._reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(
-            self._reset_wrapper
-        )
-        self._next_callback = ctypes.CFUNCTYPE(
+        reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(self._reset_wrapper)
+        next_callback = ctypes.CFUNCTYPE(
             ctypes.c_int,
             ctypes.c_void_p,
         )(self._next_wrapper)
         self._enable_categorical = enable_categorical
-        return self._reset_callback, self._next_callback
+        return reset_callback, next_callback
 
     @property
     def proxy(self) -> "_ProxyDMatrix":

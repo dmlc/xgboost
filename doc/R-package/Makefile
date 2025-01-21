@@ -2,8 +2,8 @@
 PKGROOT=../../R-package
 
 # ADD The Markdown to be built here, with suffix md
-discoverYourData.md: $(PKGROOT)/vignettes/discoverYourData.Rmd
-xgboostPresentation.md: $(PKGROOT)/vignettes/xgboostPresentation.Rmd
+xgboostfromJSON.md: $(PKGROOT)/vignettes/xgboostfromJSON.Rmd
+xgboost_introduction.md: $(PKGROOT)/vignettes/xgboost_introduction.Rmd
 
 # General Rules for build rmarkdowns, need knitr
 %.md:

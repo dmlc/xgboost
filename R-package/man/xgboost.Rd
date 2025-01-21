@@ -62,7 +62,8 @@ xgboost(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
-  aft_loss_distribution = NULL
+  aft_loss_distribution = NULL,
+  ...
 )
 }
 \arguments{
@@ -614,6 +615,21 @@ Version added: 2.0.0}
 
 \item{aft_loss_distribution}{(for using AFT Survival Loss (\code{"survival:aft"}) and Negative Log Likelihood of AFT metric (\code{"aft-nloglik"}))
 Probability Density Function, \code{"normal"}, \code{"logistic"}, or \code{"extreme"}.}
+
+\item{...}{Not used.
+
+Some arguments that were part of this function in previous XGBoost versions are currently
+deprecated or have been renamed. If a deprecated or renamed argument is passed, will throw
+a warning (by default) and use its current equivalent instead. This warning will become an
+error if using the \link[=xgboost-options]{'strict mode' option}.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated or renamed argument, a warning or error will be thrown depending on the
+'strict mode' option.
+
+\bold{Important:} \code{...} will be removed in a future version, and all the current
+deprecation warnings will become errors. Please use only arguments that form part of
+the function signature.}
 }
 \value{
 A model object, inheriting from both \code{xgboost} and \code{xgb.Booster}. Compared to the regular
@@ -630,12 +646,13 @@ for a longer explanation of what XGBoost does, and the rest of the
 \href{https://xgboost.readthedocs.io/en/latest/tutorials/index.html}{XGBoost Tutorials} for further
 explanations XGBoost's features and usage.
 
-This function is intended to provide a more user-friendly interface for XGBoost that follows
+This function is intended to provide a user-friendly interface for XGBoost that follows
 R's conventions for model fitting and predictions, but which doesn't expose all of the
 possible functionalities of the core XGBoost library.
 
 See \code{\link[=xgb.train]{xgb.train()}} for a more flexible low-level alternative which is similar across different
-language bindings of XGBoost and which exposes the full library's functionalities.
+language bindings of XGBoost and which exposes additional functionalities such as training on
+external memory data and learning-to-rank objectives.
 
 By default, most of the parameters here have a value of \code{NULL}, which signals XGBoost to use its
 default value. Default values are automatically determined by the XGBoost core library, and are
@@ -660,7 +677,29 @@ predict(model_regression, mtcars, validate_features = TRUE)
 # Task objective is determined automatically according to the type of 'y'
 data(iris)
 model_classif <- xgboost(iris[, -5], iris$Species, nthreads = 1, nrounds = 5)
-predict(model_classif, iris, validate_features = TRUE)
+predict(model_classif, iris[1:10,])
+predict(model_classif, iris[1:10,], type = "class")
+
+# Can nevertheless choose a non-default objective if needed
+model_poisson <- xgboost(
+  mtcars[, -1], mtcars$mpg,
+  objective = "count:poisson",
+  nthreads = 1,
+  nrounds = 3
+)
+
+# Can calculate evaluation metrics during boosting rounds
+data(ToothGrowth)
+xgboost(
+  ToothGrowth[, c("len", "dose")],
+  ToothGrowth$supp,
+  eval_metric = c("auc", "logloss"),
+  eval_set = 0.2,
+  monitor_training = TRUE,
+  verbosity = 1,
+  nthreads = 1,
+  nrounds = 3
+)
 }
 \references{
 \itemize{

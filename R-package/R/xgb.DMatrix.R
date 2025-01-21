@@ -78,6 +78,7 @@
 #' @param label_upper_bound Upper bound for survival training.
 #' @param feature_weights Set feature weights for column sampling.
 #' @param data_split_mode Not used yet. This parameter is for distributed training, which is not yet available for the R package.
+#' @inheritParams xgb.train
 #' @return An 'xgb.DMatrix' object. If calling `xgb.QuantileDMatrix`, it will have additional
 #' subclass `xgb.QuantileDMatrix`.
 #'
@@ -116,8 +117,10 @@ xgb.DMatrix <- function(
   label_lower_bound = NULL,
   label_upper_bound = NULL,
   feature_weights = NULL,
-  data_split_mode = "row"
+  data_split_mode = "row",
+  ...
 ) {
+  check.deprecation(deprecated_dmatrix_params, match.call(), ...)
   if (!is.null(group) && !is.null(qid)) {
     stop("Either one of 'group' or 'qid' should be NULL")
   }

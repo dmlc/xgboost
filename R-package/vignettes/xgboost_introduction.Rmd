@@ -1,0 +1,196 @@
+---
+title: "XGBoost for R introduction"
+vignette: >
+    %\VignetteIndexEntry{XGBoost for R introduction}
+    %\VignetteEncoding{UTF-8}
+    %\VignetteEngine{knitr::rmarkdown}
+output:
+    html_document:
+        theme: "spacelab"
+        highlight: "kate"
+        toc: true
+        toc_float: true
+---
+
+# Introduction
+
+**XGBoost** is an optimized distributed gradient boosting library designed to be highly **efficient**, **flexible** and **portable**. It implements machine learning algorithms under the [Gradient Boosting](https://en.wikipedia.org/wiki/Gradient_boosting) framework. XGBoost provides a parallel tree boosting (also known as GBDT, GBM) that solve many data science problems in a fast and accurate way. The same code runs on major distributed environment (Hadoop, SGE, MPI) and can solve problems beyond billions of examples.
+
+For an introduction to the concept of gradient boosting, see the tutorial [Introduction to Boosted Trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html) in XGBoost's online docs.
+
+For more details about XGBoost's features and usage, see the [online documentation](https://xgboost.readthedocs.io/en/stable/) which contains more tutorials, examples, and details.
+
+This short vignette outlines the basic usage of the R interface for XGBoost, assuming the reader has some familiarity with the underlying concepts behind statistical modeling with gradient-boosted decision trees.
+
+# Building a predictive model
+
+At its core, XGBoost consists of a C++ library which offers bindings for different programming languages, including R. The R package for XGBoost provides an idiomatic interface similar to those of other statistical modeling packages using and x/y design, as well as a lower-level interface that interacts more directly with the underlying core library and which is similar to those of other language bindings like Python, plus various helpers to interact with its model objects such as by plotting their feature importances or converting them to other formats.
+
+The main function of interest is `xgboost(x, y, ...)`, which calls the XGBoost model building procedure on observed data of covariates/features/predictors "x", and a response variable "y" - it should feel familiar to users of packages like `glmnet` or `ncvreg`:
+
+```{r}
+library(xgboost)
+data(ToothGrowth)
+
+y <- ToothGrowth$supp # the response which we want to model/predict
+x <- ToothGrowth[, c("len", "dose")] # the features from which we want to predct it
+model <- xgboost(x, y, nthreads = 1, nrounds = 2)
+model
+```
+
+In this case, the "y" response variable that was supplied is a "factor" type with two classes ("OJ" and "VC") - hence, XGBoost builds a binary classification model for it based on the features "x", by finding a maximum likelihood estimate (similar to the `family="binomial"` model from R's `glm` function) through rule buckets obtained from the sum of two decision trees (from `nrounds=2`), from which we can then predict probabilities, log-odds, class with highest likelihood, among others:
+
+```{r}
+predict(model, x[1:6, ], type = "response") # probabilities for y's last level ("VC")
+predict(model, x[1:6, ], type = "raw")      # log-odds
+predict(model, x[1:6, ], type = "class")    # class with highest probability
+```
+
+Compared to R's `glm` function which follows the concepts of "families" and "links" from GLM theory to fit models for different kinds of response distributions, XGBoost follows the simpler concept of "objectives" which mix both of them into one, and which just like `glm`, allow modeling very different kinds of response distributions (e.g. discrete choices, real-valued numbers, counts, censored measurements, etc.) through a common framework.
+
+XGBoost will automatically determine a suitable objective for the response given its object class (can pass factors for classification, numeric vectors for regression, `Surv` objects from the `survival` package for survival, etc. - see `?xgboost` for more details), but this can be controlled manually through an `objective` parameter based the kind of model that is desired:
+
+```{r}
+data(mtcars)
+
+y <- mtcars$mpg
+x <- mtcars[, -1]
+model_gaussian <- xgboost(x, y, nthreads = 1, nrounds = 2) # default is squared loss (Gaussian)
+model_poisson <- xgboost(x, y, objective = "count:poisson", nthreads = 1, nrounds = 2)
+model_abserr <- xgboost(x, y, objective = "reg:absoluteerror", nthreads = 1, nrounds = 2)
+```
+
+_Note: the objective must match with the type of the "y" response variable - for example, classification objectives for discrete choices require "factor" types, while regression models for real-valued data require "numeric" types._
+
+# Model parameters
+
+XGBoost models allow a large degree of control over how they are built. By their nature, gradient-boosted decision tree ensembles are able to capture very complex patterns between features in the data and a response variable, which also means they can suffer from overfitting if not controlled appropirately.
+
+For best results, one needs to find suitable parameters for the data being modeled. Note that XGBoost does not adjust its default hyperparameters based on the data, and different datasets will require vastly different hyperparameters for optimal predictive performance.
+
+For example, for a small dataset like "TootGrowth" which has only two features and 60 observations, the defaults from XGBoost are an overkill which lead to severe overfitting - for such data, one might want to have smaller trees (i.e. more convervative decision rules, capturing simpler patterns) and fewer of them, for example.
+
+Parameters can be controlled by passing additional arguments to `xgboost()`. See `?xgb.params` for details about what parameters are available to control.
+
+```{r}
+y <- ToothGrowth$supp
+x <- ToothGrowth[, c("len", "dose")]
+model_conservative <- xgboost(
+    x, y, nthreads = 1,
+    nrounds = 5,
+    max_depth = 2,
+    reg_lambda = 0.5,
+    learning_rate = 0.15
+)
+pred_conservative <- predict(
+    model_conservative,
+    x
+)
+pred_conservative[1:6] # probabilities are all closer to 0.5 now
+```
+
+XGBoost also allows the possibility of calculating evaluation metrics for model quality over boosting rounds, with a wide variety of built-in metrics available to use. It's possible to automatically set aside a fraction of the data to use as evaluation set, from which one can then visually monitor progress and overfitting:
+
+```{r}
+xgboost(
+    x, y, nthreads = 1,
+    eval_set = 0.2,
+    monitor_training = TRUE,
+    verbosity = 1,
+    eval_metric = c("auc", "logloss"),
+    nrounds = 5,
+    max_depth = 2,
+    reg_lambda = 0.5,
+    learning_rate = 0.15
+)
+```
+
+# Examining model objects
+
+XGBoost model objects for the most part consist of a pointer to a C++ object where most of the information is held and which is interfaced through the utility functions and methods in the package, but also contains some R attributes that can be retrieved (and new ones added) through `attributes()`:
+
+```{r}
+attributes(model)
+```
+
+In addition to R attributes (which can be arbitrary R objects), it may also keep some standardized C-level attributes that one can access and modify (but which can only be JSON-format):
+
+```{r}
+xgb.attributes(model)
+```
+
+(they are empty for this model)
+
+... but usually, when it comes to getting something out of a model object, one would typically want to do this through the built-in utility functions. Some examples:
+
+```{r}
+xgb.importance(model)
+```
+
+```{r}
+xgb.model.dt.tree(model)
+```
+
+# Other features
+
+XGBoost supports many additional features on top of its traditional gradient-boosting framework, including, among others:
+
+* Building decision tree models with characteristics such as per-feature monotonicity constraints or interaction constraints.
+* Calculating feature contributions in individual predictions.
+* Using custom objectives and custom evaluation metrics.
+* Fitting linear models.
+* Fitting models on GPUs and/or on data that doesn't fit in RAM ("external memory").
+
+See the [online documentation](https://xgboost.readthedocs.io/en/stable/index.html) - particularly the [tutorials section](https://xgboost.readthedocs.io/en/stable/tutorials/index.html) - for a glimpse over further functionalities that XGBoost offers.
+
+# The low-level interface
+
+In addition to the `xgboost(x, y, ...)` function, XGBoost also provides a lower-level interface for creating model objects through the function `xgb.train()`, which resembles the same `xgb.train` functions in other language bindings of XGBoost.
+
+This `xgb.train()` interface exposes additional functionalities (such as user-supplied callbacks or external-memory data support) and performs fewer data validations and castings compared to the `xgboost()` function interface.
+
+Some key differences between the two interfaces:
+
+* Unlike `xgboost()` which takes R objects such as `matrix` or `data.frame` as inputs, the function `xgb.train()` uses XGBoost's own data container called "DMatrix", which can be created from R objects through the function `xgb.DMatrix()`. Note that there are other "DMatrix" constructors too, such as "xgb.QuantileDMatrix()", which might be more beneficial for some use-cases.
+* A "DMatrix" object may contain a mixture of features/covariates, the response variable, observation weights, base margins, among others; and unlike `xgboost()`, requires its inputs to have already been encoded into the representation that XGBoost uses behind the scenes - for example, while `xgboost()` may take a `factor` object as "y", `xgb.DMatrix()` requires instead a binary response variable to be passed as a vector of zeros and ones.
+* Hyperparameters are passed as function arguments in `xgboost()`, while they are passed as a named list to `xgb.train()`.
+* The `xgb.train()` interface keeps less metadata about its inputs - for example, it will not add levels of factors as column names to estimated probabilities when calling `predict`.
+
+Example usage of `xgb.train()`:
+
+```{r}
+data("agaricus.train")
+dmatrix <- xgb.DMatrix(
+    data = agaricus.train$data,  # a sparse CSC matrix ('dgCMatrix')
+    label = agaricus.train$label # zeros and ones
+)
+booster <- xgb.train(
+    data = dmatrix,
+    nrounds = 10,
+    params = xgb.params(
+        objective = "binary:logistic",
+        nthread = 1,
+        max_depth = 3
+    )
+)
+
+data("agaricus.test")
+dmatrix_test <- xgb.DMatrix(agaricus.test$data)
+pred_prob <- predict(booster, dmatrix_test)
+pred_raw <- predict(booster, dmatrix_test, outputmargin = TRUE)
+```
+
+Model objects produced by `xgb.train()` have class `xgb.Booster`, while model objects produced by `xgboost()` have class `xgboost`, which is a subclass of `xgb.Booster`. Their `predict` methods also take different arguments - for example, `predict.xgboost` has a `type` parameter, while `predict.xgb.Booster` controls this through binary arguments - but as `xgboost` is a subclass of `xgb.Booster`, methods for `xgb.Booster` can be called on `xgboost` objects if needed.
+
+Utility functions in the XGBoost R package will work with both model classes - for example:
+
+```{r}
+xgb.importance(model)
+xgb.importance(booster)
+```
+
+While `xgboost()` aims to provide a user-friendly interface, there are still many situations where one should prefer the `xgb.train()` interface - for example:
+
+* For latency-sensitive applications (e.g. when serving models in real time), `xgb.train()` will have a speed advantage, as it performs fewer validations, conversions, and post-processings with metadata.
+* If you are developing an R package that depends on XGBoost, `xgb.train()` will provide a more stable interface (less subject to changes) and will have lower time/memory overhead.
+* If you need functionalities that are not exposed by the `xgboost()` interface - for example, if your dataset does not fit into the computer's RAM, it's still possible to construct a DMatrix from it if the data is loaded in batches through `xgb.ExtMemDMatrix()`.

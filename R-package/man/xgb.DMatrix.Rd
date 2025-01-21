@@ -20,7 +20,8 @@ xgb.DMatrix(
   label_lower_bound = NULL,
   label_upper_bound = NULL,
   feature_weights = NULL,
-  data_split_mode = "row"
+  data_split_mode = "row",
+  ...
 )
 
 xgb.QuantileDMatrix(
@@ -131,6 +132,21 @@ not be saved, so make sure that \code{factor} columns passed to \code{predict} h
 \item{feature_weights}{Set feature weights for column sampling.}
 
 \item{data_split_mode}{Not used yet. This parameter is for distributed training, which is not yet available for the R package.}
+
+\item{...}{Not used.
+
+Some arguments that were part of this function in previous XGBoost versions are currently
+deprecated or have been renamed. If a deprecated or renamed argument is passed, will throw
+a warning (by default) and use its current equivalent instead. This warning will become an
+error if using the \link[=xgboost-options]{'strict mode' option}.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated or renamed argument, a warning or error will be thrown depending on the
+'strict mode' option.
+
+\bold{Important:} \code{...} will be removed in a future version, and all the current
+deprecation warnings will become errors. Please use only arguments that form part of
+the function signature.}
 
 \item{ref}{The training dataset that provides quantile information, needed when creating
 validation/test dataset with \code{\link[=xgb.QuantileDMatrix]{xgb.QuantileDMatrix()}}. Supplying the training DMatrix
