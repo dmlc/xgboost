@@ -118,5 +118,11 @@ constexpr StringView InconsistentFeatureTypes() {
 }
 
 void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch);
+
+constexpr StringView ZeroCudaMemory() {
+  return "No GPU memory is left, are you using RMM? If so, please install XGBoost with RMM "
+         "support. If you are using other types of memory pool, please consider reserving a "
+         "portion of the GPU memory for XGBoost.";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

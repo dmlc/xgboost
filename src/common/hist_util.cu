@@ -98,12 +98,12 @@ bst_idx_t SketchBatchNumElements(bst_idx_t sketch_batch_num_elements, SketchShap
   return std::min(static_cast<bst_idx_t>(n_max_used_f32), shape.nnz);
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   (void)container_bytes;  // We known the remaining size when RMM is not used.
-
   if (sketch_batch_num_elements == detail::UnknownSketchNumElements()) {
     auto required_memory =
         RequiredMemory(shape.n_samples, shape.n_features, shape.nnz, num_cuts, has_weight);
     // use up to 80% of available space
     auto avail = dh::AvailableMemory(device) * 0.8;
+    CHECK_GT(avail, 0) << error::ZeroCudaMemory();
     if (required_memory > avail) {
       sketch_batch_num_elements = avail / BytesPerElement(has_weight);
     } else {
