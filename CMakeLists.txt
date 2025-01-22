@@ -329,7 +329,6 @@ if(PLUGIN_RMM)
   list(REMOVE_ITEM rmm_link_libs CUDA::cudart)
   list(APPEND rmm_link_libs CUDA::cudart_static)
   set_target_properties(rmm::rmm PROPERTIES INTERFACE_LINK_LIBRARIES "${rmm_link_libs}")
-  get_target_property(rmm_link_libs rmm::rmm INTERFACE_LINK_LIBRARIES)
 endif()
 
 if(PLUGIN_SYCL)

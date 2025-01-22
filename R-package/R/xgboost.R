@@ -837,12 +837,13 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' [XGBoost Tutorials](https://xgboost.readthedocs.io/en/latest/tutorials/index.html) for further
 #' explanations XGBoost's features and usage.
 #'
-#' This function is intended to provide a more user-friendly interface for XGBoost that follows
+#' This function is intended to provide a user-friendly interface for XGBoost that follows
 #' R's conventions for model fitting and predictions, but which doesn't expose all of the
 #' possible functionalities of the core XGBoost library.
 #'
 #' See [xgb.train()] for a more flexible low-level alternative which is similar across different
-#' language bindings of XGBoost and which exposes the full library's functionalities.
+#' language bindings of XGBoost and which exposes additional functionalities such as training on
+#' external memory data and learning-to-rank objectives.
 #'
 #' By default, most of the parameters here have a value of `NULL`, which signals XGBoost to use its
 #' default value. Default values are automatically determined by the XGBoost core library, and are
@@ -1065,6 +1066,7 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' - `"shotgun"`: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
 #' - `"coord_descent"`: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. When the `device` parameter is set to `"cuda"` or `"gpu"`, a GPU variant would be used.
 #' @inheritParams xgb.params
+#' @inheritParams xgb.train
 #' @return A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular
 #'   `xgb.Booster` model class produced by [xgb.train()], this `xgboost` class will have an
 #'
@@ -1081,7 +1083,29 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' # Task objective is determined automatically according to the type of 'y'
 #' data(iris)
 #' model_classif <- xgboost(iris[, -5], iris$Species, nthreads = 1, nrounds = 5)
-#' predict(model_classif, iris, validate_features = TRUE)
+#' predict(model_classif, iris[1:10,])
+#' predict(model_classif, iris[1:10,], type = "class")
+#'
+#' # Can nevertheless choose a non-default objective if needed
+#' model_poisson <- xgboost(
+#'   mtcars[, -1], mtcars$mpg,
+#'   objective = "count:poisson",
+#'   nthreads = 1,
+#'   nrounds = 3
+#' )
+#'
+#' # Can calculate evaluation metrics during boosting rounds
+#' data(ToothGrowth)
+#' xgboost(
+#'   ToothGrowth[, c("len", "dose")],
+#'   ToothGrowth$supp,
+#'   eval_metric = c("auc", "logloss"),
+#'   eval_set = 0.2,
+#'   monitor_training = TRUE,
+#'   verbosity = 1,
+#'   nthreads = 1,
+#'   nrounds = 3
+#' )
 xgboost <- function(
   x,
   y,
@@ -1140,9 +1164,11 @@ xgboost <- function(
   tweedie_variance_power = NULL,
   huber_slope = NULL,
   quantile_alpha = NULL,
-  aft_loss_distribution = NULL
+  aft_loss_distribution = NULL,
+  ...
 ) {
 # nolint end
+  check.deprecation(deprecated_xgboost_params, match.call(), ...)
   params <- as.list(environment())
   params <- params[
     (names(params) %in% formalArgs(xgb.params))
