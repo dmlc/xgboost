@@ -5,11 +5,17 @@
  * \author Hyunsu Cho
  */
 
-#include <dmlc/thread_local.h>
 #include "xgboost/global_config.h"
+
+#include <dmlc/thread_local.h>
 
 namespace xgboost {
 DMLC_REGISTER_PARAMETER(GlobalConfiguration);
 
-void InitNewThread::operator()() const { *GlobalConfigThreadLocalStore::Get() = config; }
+void InitNewThread::operator()() const {
+  *GlobalConfigThreadLocalStore::Get() = config;
+  if (config.nthread > 0) {
+    omp_set_num_threads(config.nthread);
+  }
+}
 }  // namespace xgboost

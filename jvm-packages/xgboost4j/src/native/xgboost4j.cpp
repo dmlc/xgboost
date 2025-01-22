@@ -31,25 +31,18 @@
 #include <type_traits>
 #include <vector>
 
+#include "jvm_utils.h"  // for JVM_CHECK_CALL
 #include "../../../../src/c_api/c_api_error.h"
 #include "../../../../src/c_api/c_api_utils.h"
 #include "../../../../src/data/array_interface.h"  // for ArrayInterface
 
-#define JVM_CHECK_CALL(__expr)                                                 \
-  {                                                                            \
-    int __errcode = (__expr);                                                  \
-    if (__errcode != 0) {                                                      \
-      return __errcode;                                                        \
-    }                                                                          \
-  }
-
 // helper functions
 // set handle
-void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
+void setHandle(JNIEnv *jenv, jlongArray jhandle, void *handle) {
 #ifdef __APPLE__
-  jlong out = (long) handle;
+  jlong out = (long)handle;
 #else
-  int64_t out = (int64_t) handle;
+  int64_t out = (int64_t)handle;
 #endif
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }

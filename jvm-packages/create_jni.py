@@ -95,11 +95,17 @@ def native_build(cli_args: argparse.Namespace) -> None:
             CONFIG["USE_DLOPEN_NCCL"] = "OFF"
 
         args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
+        if sys.platform != "win32":
+            try:
+                subprocess.check_call(["ninja", "--version"])
+                args.append("-GNinja")
+            except FileNotFoundError:
+                pass
 
         # if enviorment set GPU_ARCH_FLAG
         gpu_arch_flag = os.getenv("GPU_ARCH_FLAG", None)
         if gpu_arch_flag is not None:
-            args.append("%s" % gpu_arch_flag)
+            args.append("-DCMAKE_CUDA_ARCHITECTURES=%s" % gpu_arch_flag)
 
         with cd(build_dir):
             lib_dir = os.path.join(os.pardir, "lib")

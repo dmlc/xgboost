@@ -31,6 +31,11 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
   (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
   :doc:`/python/rmm-examples/index` for details.
 
+* ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
+  override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
+  the ``nthread`` parameter from the Booster and the DMatrix should be preferred as the
+  former sets the global variable and might cause conflicts with other libraries.
+
 ******************
 General Parameters
 ******************
