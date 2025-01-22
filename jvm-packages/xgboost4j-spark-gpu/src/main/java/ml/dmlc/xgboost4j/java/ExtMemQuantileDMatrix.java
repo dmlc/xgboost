@@ -10,7 +10,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 
-
 public class ExtMemQuantileDMatrix extends QuantileDMatrix {
   // on_host is set to true by default as we only support GPU at the moment
   // cache_prefix is not used yet since we have on_host=true.
@@ -29,10 +28,25 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       ref_handle[0] = ref.getHandle();
     }
     String conf = this.getConfig(missing, maxBin, nthread, max_num_device_pages,
-                                 max_quantile_batches, min_cache_page_bytes);
+        max_quantile_batches, min_cache_page_bytes);
     XGBoostJNI.checkCall(XGBoostJNI.XGExtMemQuantileDMatrixCreateFromCallback(
         iter, ref_handle, conf, out));
     handle = out[0];
+  }
+
+  public ExtMemQuantileDMatrix(
+      Iterator<ColumnBatch> iter,
+      float missing,
+      int maxBin,
+      DMatrix ref) throws XGBoostError {
+    this(iter, missing, maxBin, ref, 1, -1, -1, -1);
+  }
+
+  public ExtMemQuantileDMatrix(
+      Iterator<ColumnBatch> iter,
+      float missing,
+      int maxBin) throws XGBoostError {
+    this(iter, missing, maxBin, null);
   }
 
   private String getConfig(float missing, int maxBin, int nthread, int max_num_device_pages,
@@ -42,9 +56,17 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
     conf.put("missing", missing);
     conf.put("max_bin", maxBin);
     conf.put("nthread", nthread);
-    conf.put("max_num_device_pages", max_num_device_pages);
-    conf.put("max_quantile_batches", max_quantile_batches);
-    conf.put("min_cache_page_bytes", min_cache_page_bytes);
+
+    if (max_num_device_pages > 0) {
+      conf.put("max_num_device_pages", max_num_device_pages);
+    }
+    if (max_quantile_batches > 0) {
+      conf.put("max_quantile_batches", max_quantile_batches);
+    }
+    if (min_cache_page_bytes > 0) {
+      conf.put("min_cache_page_bytes", min_cache_page_bytes);
+    }
+
     conf.put("on_host", true);
     conf.put("cache_prefix", ".");
     ObjectMapper mapper = new ObjectMapper();
