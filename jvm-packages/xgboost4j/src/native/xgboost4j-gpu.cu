@@ -170,7 +170,6 @@ class JvmIter {
       char const *cjaif = CheckJvmCall(jenv_->GetStringUTFChars(jaif, nullptr), jenv_);
 
       fn(cjaif);
-      // this->StageData(cjaif);
 
       jenv_->ReleaseStringUTFChars(jaif, cjaif);
 
