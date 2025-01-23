@@ -125,7 +125,6 @@ struct Symbols {
   static constexpr StringView kBaseMargin{"baseMargin"};
   static constexpr StringView kQid{"qid"};
 };
-}  // namespace
 
 class JvmIter {
   JNIEnv *jenv_;
@@ -202,6 +201,16 @@ class DMatrixProxy {
   }
 };
 
+template <typename Map>
+Json GetLabel(Map const &jmap) {
+  auto it = jmap.find(Symbols::kLabel);
+  StringView msg{"Must have a label field."};
+  CHECK(it != jmap.cend()) << msg;
+  Json label = it->second;
+  CHECK(!IsA<Null>(label)) << msg;
+  return label;
+}
+
 class HostMemProxy {
   DMatrixProxy proxy_;
   JvmIter jiter_;
@@ -250,21 +259,16 @@ class HostMemProxy {
   void StageMetaInfo(Json jaif) {
     CHECK(!IsA<Null>(jaif));
     auto json_map = get<Object const>(jaif);
-    auto it = json_map.find(Symbols::kLabel);
-    if (it == json_map.cend()) {
-      LOG(FATAL) << "Must have a label field.";
-    }
+    Json label = GetLabel(json_map);
 
-    Json label = jaif[Symbols::kLabel.c_str()];
-    CHECK(!IsA<Null>(label));
     labels_.emplace_back(std::make_unique<dh::device_vector<float>>());
     CopyMetaInfo(&label, labels_.back().get(), copy_stream_);
     label_interfaces_.emplace_back(label);
     proxy_.SetInfo(Symbols::kLabel, label);
 
-    it = json_map.find(Symbols::kWeight);
+    auto it = json_map.find(Symbols::kWeight);
     if (it != json_map.cend()) {
-      Json weight = jaif[Symbols::kWeight.c_str()];
+      Json weight = it->second;
       CHECK(!IsA<Null>(weight));
       weights_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&weight, weights_.back().get(), copy_stream_);
@@ -275,7 +279,7 @@ class HostMemProxy {
 
     it = json_map.find(Symbols::kBaseMargin);
     if (it != json_map.cend()) {
-      Json base_margin = jaif[Symbols::kBaseMargin.c_str()];
+      Json base_margin = it->second;
       base_margins_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&base_margin, base_margins_.back().get(), copy_stream_);
       margin_interfaces_.emplace_back(base_margin);
@@ -285,7 +289,7 @@ class HostMemProxy {
 
     it = json_map.find(Symbols::kQid);
     if (it != json_map.cend()) {
-      Json qid = jaif[Symbols::kQid.c_str()];
+      Json qid = it->second;
       qids_.emplace_back(new dh::device_vector<int>);
       CopyMetaInfo(&qid, qids_.back().get(), copy_stream_);
       qid_interfaces_.emplace_back(qid);
@@ -419,26 +423,25 @@ class ExtMemProxy {
 
     // set the meta info.
     auto json_map = get<Object const>(jaif);
-    if (json_map.find(Symbols::kLabel) == json_map.cend()) {
-      LOG(FATAL) << "Must have a label field.";
-    }
-    Json label = jaif[Symbols::kLabel.c_str()];
-    CHECK(!IsA<Null>(label));
+    Json label = GetLabel(json_map);
     proxy_.SetInfo(Symbols::kLabel, label);
 
-    if (json_map.find(Symbols::kWeight) != json_map.cend()) {
-      Json weight = jaif[Symbols::kWeight.c_str()];
+    auto it = json_map.find(Symbols::kWeight);
+    if (it != json_map.cend()) {
+      Json weight = it->second;
       CHECK(!IsA<Null>(weight));
       proxy_.SetInfo(Symbols::kWeight, weight);
     }
 
-    if (json_map.find(Symbols::kBaseMargin) != json_map.cend()) {
-      Json basemargin = jaif[Symbols::kBaseMargin.c_str()];
+    it = json_map.find(Symbols::kBaseMargin);
+    if (it != json_map.cend()) {
+      Json basemargin = it->second;
       proxy_.SetInfo("base_margin", basemargin);
     }
 
-    if (json_map.find(Symbols::kQid) != json_map.cend()) {
-      Json qid = jaif[Symbols::kQid.c_str()];
+    it = json_map.find(Symbols::kQid);
+    if (it != json_map.cend()) {
+      Json qid = it->second;
       proxy_.SetInfo(Symbols::kQid, qid);
     }
   }
@@ -463,7 +466,6 @@ class ExtMemProxy {
   void Reset() { this->jiter_.CloseJvmBatch(); }
 };
 
-namespace {
 template <typename T>
 using Deleter = std::function<void(T *)>;
 }  // anonymous namespace
