@@ -843,7 +843,8 @@ class SketchContainerImpl {
     dmlc::OMPException exc;
     size_t ridx_block_size = batch.Size() / n_threads_ + (batch.Size() % n_threads_ > 0);
     size_t min_ridx_block_size = 1024;
-    if ((n_features < size_t(n_threads_)) && (ridx_block_size > min_ridx_block_size)) {
+    if ((n_features < static_cast<size_t>(n_threads_)) &&
+        (ridx_block_size > min_ridx_block_size)) {
       /* Row-wise parallelisation.
        */
       std::vector<std::set<float>> categories_buff(n_threads_ * n_features);
