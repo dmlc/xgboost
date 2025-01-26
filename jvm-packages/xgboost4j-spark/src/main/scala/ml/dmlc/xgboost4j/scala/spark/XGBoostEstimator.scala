@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2024 by Contributors
+ Copyright (c) 2024-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ private[spark] trait NonParamVariables[T <: XGBoostEstimator[T, M], M <: XGBoost
   }
 }
 
-private[spark] trait PluginMixin {
+private[spark] object PluginUtils {
   // Find the XGBoostPlugin by ServiceLoader
   private val plugin: Option[XGBoostPlugin] = {
     val classLoader = Option(Thread.currentThread().getContextClassLoader)
@@ -85,9 +85,9 @@ private[spark] trait PluginMixin {
   }
 
   /** Visible for testing */
-  protected[spark] def getPlugin: Option[XGBoostPlugin] = plugin
+  def getPlugin: Option[XGBoostPlugin] = plugin
 
-  protected def isPluginEnabled(dataset: Dataset[_]): Boolean = {
+  def isPluginEnabled(dataset: Dataset[_]): Boolean = {
     plugin.map(_.isEnabled(dataset)).getOrElse(false)
   }
 }
@@ -95,8 +95,7 @@ private[spark] trait PluginMixin {
 private[spark] trait XGBoostEstimator[
   Learner <: XGBoostEstimator[Learner, M], M <: XGBoostModel[M]] extends Estimator[M]
   with XGBoostParams[Learner] with SparkParams[Learner] with ParamUtils[Learner]
-  with NonParamVariables[Learner, M] with ParamMapConversion with DefaultParamsWritable
-  with PluginMixin {
+  with NonParamVariables[Learner, M] with ParamMapConversion with DefaultParamsWritable {
 
   protected val logger = LogFactory.getLog("XGBoostSpark")
 
@@ -428,8 +427,8 @@ private[spark] trait XGBoostEstimator[
   protected def train(dataset: Dataset[_]): M = {
     validate(dataset)
 
-    val rdd = if (isPluginEnabled(dataset)) {
-      getPlugin.get.buildRddWatches(this, dataset)
+    val rdd = if (PluginUtils.isPluginEnabled(dataset)) {
+      PluginUtils.getPlugin.get.buildRddWatches(this, dataset)
     } else {
       val (input, columnIndexes) = preprocess(dataset)
       toRdd(input, columnIndexes)
@@ -466,7 +465,7 @@ private[spark] case class PredictedColumns(
  * XGBoost base model
  */
 private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with MLWritable
-  with XGBoostParams[M] with SparkParams[M] with ParamUtils[M] with PluginMixin {
+  with XGBoostParams[M] with SparkParams[M] with ParamUtils[M] {
 
   protected val TMP_TRANSFORMED_COL = "_tmp_xgb_transformed_col"
 
@@ -597,8 +596,8 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
   }
 
   override def transform(dataset: Dataset[_]): DataFrame = {
-    if (getPlugin.isDefined) {
-      return getPlugin.get.transform(this, dataset)
+    if (PluginUtils.isPluginEnabled(dataset)) {
+      return PluginUtils.getPlugin.get.transform(this, dataset)
     }
     validateFeatureType(dataset.schema)
     val (schema, pred) = preprocess(dataset)
