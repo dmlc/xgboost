@@ -163,8 +163,7 @@ public class QuantileDMatrix extends DMatrix {
     mapper.registerModule(module);
 
     try {
-      String config = mapper.writeValueAsString(conf);
-      return config;
+      return mapper.writeValueAsString(conf);
     } catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to serialize configuration", e);
     }

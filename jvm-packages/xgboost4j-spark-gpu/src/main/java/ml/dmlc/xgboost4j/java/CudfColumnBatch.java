@@ -86,6 +86,17 @@ public class CudfColumnBatch extends ColumnBatch {
       .collect(Collectors.toList());
   }
 
+  // visible for testing
+  public Table getFeatureTable() {
+    return featureTable;
+  }
+
+  // visible for testing
+  public Table getLabelTable() {
+    return labelTable;
+  }
+
+
   public List<CudfColumn> getFeatures() {
     return features;
   }

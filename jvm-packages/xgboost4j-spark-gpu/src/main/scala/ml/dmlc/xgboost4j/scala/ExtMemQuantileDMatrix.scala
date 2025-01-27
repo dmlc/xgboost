@@ -17,10 +17,23 @@ package ml.dmlc.xgboost4j.scala
 
 import scala.collection.JavaConverters._
 
-import ml.dmlc.xgboost4j.java.{Column, ColumnBatch, ExtMemQuantileDMatrix => jExtMemQuantileDMatrix, XGBoostError}
+import ml.dmlc.xgboost4j.java.{ColumnBatch, ExtMemQuantileDMatrix => jExtMemQuantileDMatrix}
 
 class ExtMemQuantileDMatrix private[scala](
   private[scala] override val jDMatrix: jExtMemQuantileDMatrix) extends QuantileDMatrix(jDMatrix) {
+
+  def this(iter: Iterator[ColumnBatch],
+           missing: Float,
+           maxBin: Int,
+           ref: Option[QuantileDMatrix],
+           nthread: Int,
+           maxNumDevicePages: Int,
+           maxQuantileBatches: Int,
+           minCachePageBytes: Int) {
+    this(new jExtMemQuantileDMatrix(iter.asJava, missing, maxBin,
+      ref.map(_.jDMatrix).orNull,
+      nthread, maxNumDevicePages, maxQuantileBatches, minCachePageBytes))
+  }
 
   def this(iter: Iterator[ColumnBatch], missing: Float, maxBin: Int) {
     this(new jExtMemQuantileDMatrix(iter.asJava, missing, maxBin))

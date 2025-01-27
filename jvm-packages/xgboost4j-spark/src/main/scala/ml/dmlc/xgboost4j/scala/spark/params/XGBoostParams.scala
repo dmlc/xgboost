@@ -179,10 +179,35 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getFeatureTypes: Array[String] = $(featureTypes)
 
+  final val useExternalMemory = new BooleanParam(this, "useExternalMemory", "Whether to use " +
+    "the external memory or not when building QuantileDMatrix. Please note that " +
+    "useExternalMemory is useful only when `device` is set to `cuda` or `gpu`. When " +
+    "useExternalMemory is enabled, the directory specified by spark.local.dir if set will be " +
+    "used to cache the temporary files, if spark.local.dir is not set, the /tmp directory " +
+    "will be used.")
+
+  final def getUseExternalMemory: Boolean = $(useExternalMemory)
+
+  final val maxNumDevicePages = new IntParam(this, "maxNumDevicePages", "Maximum number of " +
+    "pages cached in device")
+
+  final def getMaxNumDevicePages: Int = $(maxNumDevicePages)
+
+  final val maxQuantileBatches = new IntParam(this, "maxQuantileBatches", "Maximum quantile " +
+    "batches")
+
+  final def getMaxQuantileBatches: Int = $(maxQuantileBatches)
+
+  final val minCachePageBytes = new IntParam(this, "minCachePageBytes", "Minimum number of " +
+    "bytes for each ellpack page in cache. Only used for in-host")
+
+  final def getMinCachePageBytes: Int = $(minCachePageBytes)
+
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
-    featureNames -> Array.empty, featureTypes -> Array.empty)
+    featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,
+    maxNumDevicePages -> -1, maxQuantileBatches -> -1, minCachePageBytes -> -1)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
@@ -223,6 +248,14 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setFeatureNames(value: Array[String]): T = set(featureNames, value).asInstanceOf[T]
 
   def setFeatureTypes(value: Array[String]): T = set(featureTypes, value).asInstanceOf[T]
+
+  def setUseExternalMemory(value: Boolean): T = set(useExternalMemory, value).asInstanceOf[T]
+
+  def setMaxNumDevicePages(value: Int): T = set(maxNumDevicePages, value).asInstanceOf[T]
+
+  def setMaxQuantileBatches(value: Int): T = set(maxQuantileBatches, value).asInstanceOf[T]
+
+  def setMinCachePageBytes(value: Int): T = set(minCachePageBytes, value).asInstanceOf[T]
 
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]

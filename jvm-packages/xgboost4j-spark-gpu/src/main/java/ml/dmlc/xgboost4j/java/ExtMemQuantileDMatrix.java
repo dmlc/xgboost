@@ -1,5 +1,17 @@
 /*
- * Copyright (c) 2025, XGBoost Contributors
+ Copyright (c) 2025 by Contributors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
  */
 package ml.dmlc.xgboost4j.java;
 
@@ -18,19 +30,19 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       int maxBin,
       DMatrix ref,
       int nthread,
-      int max_num_device_pages,
-      int max_quantile_batches,
-      int min_cache_page_bytes) throws XGBoostError {
+      int maxNumDevicePages,
+      int maxQuantileBatches,
+      int minCachePageBytes) throws XGBoostError {
     long[] out = new long[1];
-    long[] ref_handle = null;
+    long[] refHandle = null;
     if (ref != null) {
-      ref_handle = new long[1];
-      ref_handle[0] = ref.getHandle();
+      refHandle = new long[1];
+      refHandle[0] = ref.getHandle();
     }
-    String conf = this.getConfig(missing, maxBin, nthread, max_num_device_pages,
-        max_quantile_batches, min_cache_page_bytes);
+    String conf = this.getConfig(missing, maxBin, nthread, maxNumDevicePages,
+        maxQuantileBatches, minCachePageBytes);
     XGBoostJNI.checkCall(XGBoostJNI.XGExtMemQuantileDMatrixCreateFromCallback(
-        iter, ref_handle, conf, out));
+        iter, refHandle, conf, out));
     handle = out[0];
   }
 
@@ -49,22 +61,21 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
     this(iter, missing, maxBin, null);
   }
 
-  private String getConfig(float missing, int maxBin, int nthread, int max_num_device_pages,
-      int max_quantile_batches,
-      int min_cache_page_bytes) {
+  private String getConfig(float missing, int maxBin, int nthread, int maxNumDevicePages,
+      int maxQuantileBatches, int minCachePageBytes) {
     Map<String, Object> conf = new java.util.HashMap<>();
     conf.put("missing", missing);
     conf.put("max_bin", maxBin);
     conf.put("nthread", nthread);
 
-    if (max_num_device_pages > 0) {
-      conf.put("max_num_device_pages", max_num_device_pages);
+    if (maxNumDevicePages > 0) {
+      conf.put("max_num_device_pages", maxNumDevicePages);
     }
-    if (max_quantile_batches > 0) {
-      conf.put("max_quantile_batches", max_quantile_batches);
+    if (maxQuantileBatches > 0) {
+      conf.put("max_quantile_batches", maxQuantileBatches);
     }
-    if (min_cache_page_bytes > 0) {
-      conf.put("min_cache_page_bytes", min_cache_page_bytes);
+    if (minCachePageBytes > 0) {
+      conf.put("min_cache_page_bytes", minCachePageBytes);
     }
 
     conf.put("on_host", true);
@@ -78,8 +89,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
     mapper.registerModule(module);
 
     try {
-      String config = mapper.writeValueAsString(conf);
-      return config;
+      return mapper.writeValueAsString(conf);
     } catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to serialize configuration", e);
     }
