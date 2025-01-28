@@ -17,7 +17,9 @@ from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args
 from xgboost.testing.params import hist_parameter_strategy
 
-from ..test_with_dask.test_with_dask import generate_array
+from ..test_with_dask.test_with_dask import (
+    generate_array,
+)
 from ..test_with_dask.test_with_dask import kCols as random_cols
 from ..test_with_dask.test_with_dask import (
     make_categorical,
