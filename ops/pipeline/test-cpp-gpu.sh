@@ -17,19 +17,21 @@ case "${suite}" in
   gpu)
     echo "--- Run Google Tests, using a single GPU"
     python3 ops/docker_run.py --image-uri ${IMAGE_URI} --use-gpus \
+      --run-args='--privileged' \
       -- build/testxgboost
     ;;
 
   gpu-rmm)
     echo "--- Run Google Tests, using a single GPU, RMM enabled"
     python3 ops/docker_run.py --image-uri ${IMAGE_URI} --use-gpus \
+      --run-args='--privileged' \
       -- build/testxgboost --use-rmm-pool
     ;;
 
   mgpu)
     echo "--- Run Google Tests, using multiple GPUs"
     python3 ops/docker_run.py --image-uri ${IMAGE_URI} --use-gpus \
-      --run-args='--shm-size=4g' \
+      --run-args='--shm-size=4g --privileged' \
       -- build/testxgboost --gtest_filter=*MGPU*
     ;;
 
