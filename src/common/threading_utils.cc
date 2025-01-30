@@ -4,7 +4,8 @@
 #include "threading_utils.h"
 
 #include <fstream>
-#include <strin#include <mutex>
+#include <string>
+#include <mutex>
 
 #include "xgboost/logging.h"
 
