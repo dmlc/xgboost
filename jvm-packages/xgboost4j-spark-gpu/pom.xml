@@ -6,7 +6,7 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm_2.12</artifactId>
-        <version>1.7.5-sovrn-no-openmp</version>
+        <version>1.7.5-sovrn-no-openmp-cpucache</version>
     </parent>
     <artifactId>xgboost4j-spark-gpu_2.12</artifactId>
     <build>
