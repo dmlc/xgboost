@@ -23,5 +23,6 @@ Other topics
   :maxdepth: 2
   :titlesonly:
 
+  Migrating code from previous XGBoost versions <migration_guide>
   Handling of indexable elements <index_base>
   Developer guide: parameters from core library <adding_parameters>
