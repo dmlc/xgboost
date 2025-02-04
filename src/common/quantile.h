@@ -981,7 +981,7 @@ class SketchContainerImpl {
            *  collect info from the other ones.
            */
           size_t column_idx = wl.columns.front();
-          for (int th = tid + 1; th < tid + wl.n_splits; ++th) {
+          for (size_t th = tid + 1; th < tid + wl.n_splits; ++th) {
             if (IsCat(feature_types_, column_idx)) {
               categories_[column_idx].merge(categories_buff[th]);
             } else {
