@@ -17,15 +17,19 @@ namespace xgboost::common {
 TEST(Quantile, LoadBalance) {
   size_t constexpr kRows = 1000, kCols = 100;
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
-  std::vector<bst_feature_t> cols_ptr;
+  WLBalance threads_wl(kCols);
   Context ctx;
   for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
     data::SparsePageAdapterBatch adapter{page.GetView()};
-    cols_ptr = LoadBalance(adapter, page.data.Size(), kCols, 13, [](auto) { return true; });
+    threads_wl = LoadBalance(adapter, page.data.Size(), kCols, 13, [](auto) { return true; });
+    CHECK_LE(threads_wl.baskets.size(), common::OmpGetNumThreads(0));
   }
   size_t n_cols = 0;
-  for (size_t i = 1; i < cols_ptr.size(); ++i) {
-    n_cols += cols_ptr[i] - cols_ptr[i - 1];
+  for (const auto& basket : threads_wl.baskets) {
+    n_cols += basket.columns.size();
+    for (size_t column : basket.columns) {
+      CHECK_LT(column, kCols);
+    }
   }
   CHECK_EQ(n_cols, kCols);
 }
@@ -160,6 +164,12 @@ TEST(Quantile, DistributedBasic) {
   TestDistributedQuantile<false>(kRows, kCols);
 }
 
+TEST(Quantile, DistributedRowWise) {
+  size_t kRows = 2 * common::OmpGetNumThreads(0);
+  size_t kCols = 2;
+  TestDistributedQuantile<false>(kRows, kCols);
+}
+
 TEST(Quantile, Distributed) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestDistributedQuantile<false>(kRows, kCols);
@@ -167,6 +177,12 @@ TEST(Quantile, Distributed) {
 
 TEST(Quantile, SortedDistributedBasic) {
   constexpr size_t kRows = 10, kCols = 10;
+  TestDistributedQuantile<true>(kRows, kCols);
+}
+
+TEST(Quantile, SortedDistributedRowWise) {
+  size_t kRows = 2 * common::OmpGetNumThreads(0);
+  size_t kCols = 2;
   TestDistributedQuantile<true>(kRows, kCols);
 }
 
@@ -288,6 +304,12 @@ TEST(Quantile, ColumnSplitBasic) {
   TestColSplitQuantile<false>(kRows, kCols);
 }
 
+TEST(Quantile, ColumnSplitRowWise) {
+  size_t kRows = 2 * common::OmpGetNumThreads(0);
+  size_t kCols = 2;
+  TestColSplitQuantile<false>(kRows, kCols);
+}
+
 TEST(Quantile, ColumnSplit) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestColSplitQuantile<false>(kRows, kCols);
@@ -295,6 +317,12 @@ TEST(Quantile, ColumnSplit) {
 
 TEST(Quantile, ColumnSplitSortedBasic) {
   constexpr size_t kRows = 10, kCols = 10;
+  TestColSplitQuantile<true>(kRows, kCols);
+}
+
+TEST(Quantile, ColumnSplitSortedRowWise) {
+  size_t kRows = 2 * common::OmpGetNumThreads(0);
+  size_t kCols = 2;
   TestColSplitQuantile<true>(kRows, kCols);
 }
 
