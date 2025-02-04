@@ -90,24 +90,23 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       val df = Seq((1.0f, 2.0f, 0.0f),
         (2.0f, 3.0f, 1.0f)
       ).toDF("c1", "c2", "label")
-      val classifier = new XGBoostClassifier()
-      assert(classifier.getPlugin.isDefined)
-      assert(classifier.getPlugin.get.isEnabled(df) === expected)
+      assert(PluginUtils.getPlugin.isDefined)
+      assert(PluginUtils.getPlugin.get.isEnabled(df) === expected)
     }
 
     // spark.rapids.sql.enabled is not set explicitly, default to true
     withSparkSession(new SparkConf(), spark => {
-      checkIsEnabled(spark, true)
+      checkIsEnabled(spark, expected = true)
     })
 
     // set spark.rapids.sql.enabled to false
     withCpuSparkSession() { spark =>
-      checkIsEnabled(spark, false)
+      checkIsEnabled(spark, expected = false)
     }
 
     // set spark.rapids.sql.enabled to true
     withGpuSparkSession() { spark =>
-      checkIsEnabled(spark, true)
+      checkIsEnabled(spark, expected = true)
     }
   }
 
@@ -122,7 +121,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       ).toDF("c1", "c2", "weight", "margin", "label", "other")
       val classifier = new XGBoostClassifier()
 
-      val plugin = classifier.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
+      val plugin = PluginUtils.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
       intercept[IllegalArgumentException] {
         plugin.validate(classifier, df)
       }
@@ -156,9 +155,9 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       var classifier = new XGBoostClassifier()
         .setNumWorkers(3)
         .setFeaturesCol(features)
-      assert(classifier.getPlugin.isDefined)
-      assert(classifier.getPlugin.get.isInstanceOf[GpuXGBoostPlugin])
-      var out = classifier.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
+      assert(PluginUtils.getPlugin.isDefined)
+      assert(PluginUtils.getPlugin.get.isInstanceOf[GpuXGBoostPlugin])
+      var out = PluginUtils.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
         .preprocess(classifier, df)
 
       assert(out.schema.names.contains("c1") && out.schema.names.contains("c2"))
@@ -172,7 +171,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         .setWeightCol("weight")
         .setBaseMarginCol("margin")
         .setDevice("cuda")
-      out = classifier.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
+      out = PluginUtils.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
         .preprocess(classifier, df)
 
       assert(out.schema.names.contains("c1") && out.schema.names.contains("c2"))
@@ -207,7 +206,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
             .setDevice("cuda")
             .setMissing(missing)
 
-          val rdd = classifier.getPlugin.get.buildRddWatches(classifier, df)
+          val rdd = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
           val result = rdd.mapPartitions { iter =>
             val watches = iter.next()
             val size = watches.size
@@ -271,7 +270,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
             .setMissing(missing)
             .setEvalDataset(eval)
 
-          val rdd = classifier.getPlugin.get.buildRddWatches(classifier, train)
+          val rdd = PluginUtils.getPlugin.get.buildRddWatches(classifier, train)
           val result = rdd.mapPartitions { iter =>
             val watches = iter.next()
             val size = watches.size
@@ -324,7 +323,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         .setLabelCol("label")
         .setDevice("cuda")
 
-      assert(estimator.getPlugin.isDefined && estimator.getPlugin.get.isEnabled(df))
+      assert(PluginUtils.getPlugin.isDefined && PluginUtils.getPlugin.get.isEnabled(df))
 
       val out = estimator.fit(df).transform(df)
       // Transform should not discard the other columns of the transforming dataframe
@@ -528,7 +527,8 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
         .setGroupCol(group)
         .setDevice("cuda")
 
-      val processedDf = ranker.getPlugin.get.asInstanceOf[GpuXGBoostPlugin].preprocess(ranker, df)
+      val processedDf = PluginUtils.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
+        .preprocess(ranker, df)
       processedDf.rdd.foreachPartition { iter => {
         var prevGroup = Int.MinValue
         while (iter.hasNext) {
@@ -575,7 +575,8 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       // The fix has replaced repartition with repartitionByRange which will put the
       // instances with same group into the same partition
       val ranker = new XGBoostRanker().setGroupCol("group").setNumWorkers(num_workers)
-      val processedDf = ranker.getPlugin.get.asInstanceOf[GpuXGBoostPlugin].preprocess(ranker, df)
+      val processedDf = PluginUtils.getPlugin.get.asInstanceOf[GpuXGBoostPlugin]
+        .preprocess(ranker, df)
       val rows = processedDf
         .select("group")
         .mapPartitions { case iter =>

@@ -17,7 +17,12 @@
   LOG(CONSOLE) << "[XGBoost C API invocation] " << __PRETTY_FUNCTION__;        \
   try {                                                                        \
     auto __guard = ::xgboost::XGBoostAPIGuard();
+
+#define API_BEGIN_UNGUARD()                                             \
+  LOG(CONSOLE) << "[XGBoost C API invocation] " << __PRETTY_FUNCTION__; \
+  try {
 #else  // LOG_CAPI_INVOCATION
+
 #define API_BEGIN()                                                            \
   try {                                                                        \
     auto __guard = ::xgboost::XGBoostAPIGuard();

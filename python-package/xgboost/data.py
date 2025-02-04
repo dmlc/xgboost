@@ -912,12 +912,13 @@ def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
 
     def map_type(name: str) -> str:
         col = table.column(name)
-        if isinstance(col, pa.DictionaryType):
+        if isinstance(col.type, pa.DictionaryType):
             raise NotImplementedError(
                 "Categorical feature is not yet supported with the current input data "
                 "type."
             )
             return CAT_T  # pylint: disable=unreachable
+
         return _arrow_dtype()[col.type]
 
     types = list(map(map_type, names))
