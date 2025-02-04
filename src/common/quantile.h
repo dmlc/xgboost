@@ -914,7 +914,7 @@ class SketchContainerImpl {
             sketches_out = &sketches_buff[tid];
           }
 
-          size_t split_size = batch.Size() / wl.n_splits;
+          size_t split_size = DivRoundUp(batch.Size(), wl.n_splits);
           size_t begin = wl.split_idx * split_size;
           size_t end = std::min(begin + split_size, batch.Size());
 
