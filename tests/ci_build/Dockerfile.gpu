@@ -6,7 +6,7 @@ ARG NCCL_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
-SHELL ["/bin/bash", "-c"]   # Use Bash as shell
+SHELL ["/bin/bash", "-c"]
 
 # Install all basic requirements
 RUN \
