@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2021-2024 by Contributors
+ Copyright (c) 2021-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -15,7 +15,40 @@
  */
 package ml.dmlc.xgboost4j.java;
 
+import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+
+class F64NaNSerializer extends JsonSerializer<Double> {
+  @Override
+  public void serialize(Double value, JsonGenerator gen,
+                        SerializerProvider serializers) throws IOException {
+    if (value.isNaN()) {
+      gen.writeRawValue("NaN"); // Write NaN without quotes
+    } else {
+      gen.writeNumber(value);
+    }
+  }
+}
+
+class F32NaNSerializer extends JsonSerializer<Float> {
+  @Override
+  public void serialize(Float value, JsonGenerator gen,
+                        SerializerProvider serializers) throws IOException {
+    if (value.isNaN()) {
+      gen.writeRawValue("NaN"); // Write NaN without quotes
+    } else {
+      gen.writeNumber(value);
+    }
+  }
+}
 
 /**
  * QuantileDMatrix will only be used to train
@@ -112,8 +145,23 @@ public class QuantileDMatrix extends DMatrix {
   }
 
   private String getConfig(float missing, int maxBin, int nthread) {
-    return String.format("{\"missing\":%f,\"max_bin\":%d,\"nthread\":%d}",
-                         missing, maxBin, nthread);
-  }
+    Map<String, Object> conf = new java.util.HashMap<>();
+    conf.put("missing", missing);
+    conf.put("max_bin", maxBin);
+    conf.put("nthread", nthread);
+    ObjectMapper mapper = new ObjectMapper();
 
+    // Handle NaN values. Jackson by default serializes NaN values into strings.
+    SimpleModule module = new SimpleModule();
+    module.addSerializer(Double.class, new F64NaNSerializer());
+    module.addSerializer(Float.class, new F32NaNSerializer());
+    mapper.registerModule(module);
+
+    try {
+      String config = mapper.writeValueAsString(conf);
+      return config;
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException("Failed to serialize configuration", e);
+    }
+  }
 }

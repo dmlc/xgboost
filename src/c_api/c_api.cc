@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  */
 #include "xgboost/c_api.h"
 
@@ -143,7 +143,19 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
   xgboost_CHECK_C_ARG_PTR(json_str);
   Json config{Json::Load(StringView{json_str})};
 
-  for (auto& items : get<Object>(config)) {
+  // handle nthread, it's not a dmlc parameter.
+  auto& obj = get<Object>(config);
+  auto it = obj.find("nthread");
+  if (it != obj.cend()) {
+    auto nthread = OptionalArg<Integer>(config, "nthread", Integer::Int{0});
+    if (nthread > 0) {
+      omp_set_num_threads(nthread);
+      GlobalConfigThreadLocalStore::Get()->nthread = nthread;
+    }
+    get<Object>(config).erase("nthread");
+  }
+
+  for (auto &items : obj) {
     switch (items.second.GetValue().Type()) {
     case xgboost::Value::ValueKind::kInteger: {
       items.second = String{std::to_string(get<Integer const>(items.second))};
@@ -183,6 +195,7 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
     }
     LOG(FATAL) << ss.str()  << " }";
   }
+
   API_END();
 }
 
@@ -216,6 +229,7 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
     }
   }
 
+  config["nthread"] = GlobalConfigThreadLocalStore::Get()->nthread;
   auto& local = *GlobalConfigAPIThreadLocalStore::Get();
   Json::Dump(config, &local.ret_str);
 
