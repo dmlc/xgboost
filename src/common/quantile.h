@@ -790,29 +790,31 @@ WLBalance LoadBalance(Batch const &batch, size_t nnz, bst_feature_t n_columns,
   for (size_t column_idx  = 0; column_idx < n_columns; ++column_idx) {
     size_t n_entries = entries_per_columns[column_idx];
 
-    size_t n_splits =  n_entries / entries_per_thread;
-    if (n_splits > 1) {
-      // Split column between threads
-      wl_balance.has_splitted = true;
-      wl_balance.is_column_splited[column_idx] = true;
-      for (size_t split_idx = 0; split_idx < n_splits; split_idx++) {
-        wl_baskets.emplace_back();
+    if (n_entries > 0) {
+      size_t n_splits =  n_entries / entries_per_thread;
+      if (n_splits > 1) {
+        // Split column between threads
+        wl_balance.has_splitted = true;
+        wl_balance.is_column_splited[column_idx] = true;
+        for (size_t split_idx = 0; split_idx < n_splits; split_idx++) {
+          wl_baskets.emplace_back();
+
+          auto& wl = wl_baskets.back();
+          wl.columns.push_back(column_idx);
+          wl.split_idx = split_idx;
+          wl.n_splits = n_splits;
+        }
+      } else {
+        if (wl_baskets.empty() || count > entries_per_thread) {
+          wl_baskets.emplace_back();
+          count = 0;
+        }
+        count += n_entries;
 
         auto& wl = wl_baskets.back();
         wl.columns.push_back(column_idx);
-        wl.split_idx = split_idx;
-        wl.n_splits = n_splits;
+        wl_balance.is_column_splited[column_idx] = false;
       }
-    } else {
-      if (wl_baskets.empty() || count > entries_per_thread) {
-        wl_baskets.emplace_back();
-        count = 0;
-      }
-      count += n_entries;
-
-      auto& wl = wl_baskets.back();
-      wl.columns.push_back(column_idx);
-      wl_balance.is_column_splited[column_idx] = false;
     }
   }
 
