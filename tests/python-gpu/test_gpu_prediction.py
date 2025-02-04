@@ -576,10 +576,9 @@ class TestGPUPredict:
         # boolean
         orig = cp.random.binomial(1, 0.5, size=rows * cols).reshape(rows, cols)
         predt_orig = booster.inplace_predict(orig)
-        for dtype in [cp.bool8, cp.bool_]:
-            X = cp.array(orig, dtype=dtype)
-            predt = booster.inplace_predict(X)
-            cp.testing.assert_allclose(predt, predt_orig)
+        X = cp.array(orig, dtype=cp.bool_)
+        predt = booster.inplace_predict(X)
+        cp.testing.assert_allclose(predt, predt_orig)
 
         # unsupported types
         for dtype in [
