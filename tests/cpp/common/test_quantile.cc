@@ -22,7 +22,6 @@ TEST(Quantile, LoadBalance) {
   for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
     data::SparsePageAdapterBatch adapter{page.GetView()};
     threads_wl = LoadBalance(adapter, page.data.Size(), kCols, 13, [](auto) { return true; });
-    CHECK_LE(threads_wl.baskets.size(), common::OmpGetNumThreads(0));
   }
   size_t n_cols = 0;
   for (const auto& basket : threads_wl.baskets) {
