@@ -453,7 +453,7 @@ class TestGPUPredict:
     )
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_predict_categorical_split(self, df):
-        from sklearn.metrics import mean_squared_error
+        from sklearn.metrics import root_mean_squared_error
 
         df = df.astype("category")
         x0, x1 = df["x0"].to_numpy(), df["x1"].to_numpy()
@@ -480,7 +480,7 @@ class TestGPUPredict:
         )
         bst.set_param({"device": "cuda:0"})
         pred = bst.predict(dtrain)
-        rmse = mean_squared_error(y_true=y, y_pred=pred, squared=False)
+        rmse = root_mean_squared_error(y_true=y, y_pred=pred)
         np.testing.assert_almost_equal(
             rmse, eval_history["train"]["rmse"][-1], decimal=5
         )
@@ -576,10 +576,9 @@ class TestGPUPredict:
         # boolean
         orig = cp.random.binomial(1, 0.5, size=rows * cols).reshape(rows, cols)
         predt_orig = booster.inplace_predict(orig)
-        for dtype in [cp.bool8, cp.bool_]:
-            X = cp.array(orig, dtype=dtype)
-            predt = booster.inplace_predict(X)
-            cp.testing.assert_allclose(predt, predt_orig)
+        X = cp.array(orig, dtype=cp.bool_)
+        predt = booster.inplace_predict(X)
+        cp.testing.assert_allclose(predt, predt_orig)
 
         # unsupported types
         for dtype in [

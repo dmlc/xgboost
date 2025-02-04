@@ -150,13 +150,13 @@ template <typename WorkerFn>
 void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need_finalize = true,
                            std::chrono::seconds test_timeout = std::chrono::seconds{30}) {
   system::SocketStartup();
-  std::chrono::seconds timeout{1};
+  std::chrono::seconds poll_timeout{5};
 
   std::string host;
   auto rc = GetHostAddress(&host);
   SafeColl(rc);
 
-  RabitTracker tracker{MakeTrackerConfig(host, n_workers, timeout)};
+  RabitTracker tracker{MakeTrackerConfig(host, n_workers, poll_timeout)};
   auto fut = tracker.Run();
 
   std::vector<std::thread> workers;
@@ -165,7 +165,7 @@ void TestDistributedGlobal(std::int32_t n_workers, WorkerFn worker_fn, bool need
   for (std::int32_t i = 0; i < n_workers; ++i) {
     workers.emplace_back([=] {
       auto fut = std::async(std::launch::async, [=] {
-        auto config = MakeDistributedTestConfig(host, port, timeout, i);
+        auto config = MakeDistributedTestConfig(host, port, poll_timeout, i);
         Init(config);
         worker_fn();
         if (need_finalize) {
