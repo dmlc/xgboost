@@ -749,7 +749,7 @@ std::vector<bst_idx_t> CalcColumnSize(Batch const &batch, bst_feature_t const n_
 }
 
 struct WLBalance {
-  WLBalance(size_t n_columns) : is_column_splited(n_columns) {}
+  explicit WLBalance(size_t n_columns) : is_column_splited(n_columns) {}
 
   struct ThreadWorkLoad {
     std::vector<size_t> columns;
@@ -785,7 +785,7 @@ WLBalance LoadBalance(Batch const &batch, size_t nnz, bst_feature_t n_columns,
 
   // Need to calculate the size for each batch.
   std::vector<bst_idx_t> entries_per_columns = CalcColumnSize(batch, n_columns, nthreads, is_valid);
-  
+
   size_t count = 0;
   for (size_t column_idx  = 0; column_idx < n_columns; ++column_idx) {
     size_t n_entries = entries_per_columns[column_idx];
@@ -929,7 +929,8 @@ class SketchContainerImpl {
               }
             } else {
               size_t n_columns_with_high_idx = n_features - column;
-              size_t begin = line.Size() < n_columns_with_high_idx ? 0 : line.Size() - n_columns_with_high_idx;
+              size_t begin = line.Size() < n_columns_with_high_idx ? 0
+                             : line.Size() - n_columns_with_high_idx;
               size_t end = std::min(column + 1, line.Size());
               for (size_t i = begin; i < end; ++i) {
                 auto const &elem = line.GetElement(i);
@@ -956,13 +957,14 @@ class SketchContainerImpl {
             } else {
               // number of columns with idx >= wl.columns.front()
               size_t n_columns_with_high_idx = n_features - wl.columns.front();
-              size_t begin = line.Size() < n_columns_with_high_idx ? 0 : line.Size() - n_columns_with_high_idx;
+              size_t begin = line.Size() < n_columns_with_high_idx ? 0
+                             : line.Size() - n_columns_with_high_idx;
               size_t end = std::min(wl.columns.back() + 1, line.Size());
               for (size_t i = begin; i < end; ++i) {
                 auto const &elem = line.GetElement(i);
                 if (is_valid(elem)) {
                   if (!threads_wl.is_column_splited[elem.column_idx] &&
-                      (elem.column_idx >= wl.columns.front()) && 
+                      (elem.column_idx >= wl.columns.front()) &&
                       (elem.column_idx <= wl.columns.back())) {
                     PushElement(elem, &categories_[elem.column_idx],
                                 &sketches_[elem.column_idx], w);
@@ -975,7 +977,9 @@ class SketchContainerImpl {
         #pragma omp barrier
 
         if (wl.n_splits > 1 && wl.split_idx == 0) {
-          // The thread being responsible for the first block in split collect info from the other ones.
+          /* The thread being responsible for the first block in split
+           *  collect info from the other ones.
+           */
           size_t column_idx = wl.columns.front();
           for (int th = tid + 1; th < tid + wl.n_splits; ++th) {
             if (IsCat(feature_types_, column_idx)) {
