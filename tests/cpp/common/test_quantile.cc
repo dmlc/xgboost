@@ -164,8 +164,8 @@ TEST(Quantile, DistributedBasic) {
 }
 
 TEST(Quantile, DistributedRowWise) {
-  size_t kRows = 2 * common::OmpGetNumThreads(0);
-  size_t kCols = 2;
+  size_t kRows = 10 * common::OmpGetNumThreads(0);
+  size_t kCols = 10;
   TestDistributedQuantile<false>(kRows, kCols);
 }
 
@@ -180,8 +180,8 @@ TEST(Quantile, SortedDistributedBasic) {
 }
 
 TEST(Quantile, SortedDistributedRowWise) {
-  size_t kRows = 2 * common::OmpGetNumThreads(0);
-  size_t kCols = 2;
+  size_t kRows = 10 * common::OmpGetNumThreads(0);
+  size_t kCols = 10;
   TestDistributedQuantile<true>(kRows, kCols);
 }
 
@@ -304,8 +304,8 @@ TEST(Quantile, ColumnSplitBasic) {
 }
 
 TEST(Quantile, ColumnSplitRowWise) {
-  size_t kRows = 2 * common::OmpGetNumThreads(0);
-  size_t kCols = 2;
+  size_t kRows = 10 * common::OmpGetNumThreads(0);
+  size_t kCols = 10;
   TestColSplitQuantile<false>(kRows, kCols);
 }
 
@@ -320,8 +320,8 @@ TEST(Quantile, ColumnSplitSortedBasic) {
 }
 
 TEST(Quantile, ColumnSplitSortedRowWise) {
-  size_t kRows = 2 * common::OmpGetNumThreads(0);
-  size_t kCols = 2;
+  size_t kRows = 10 * common::OmpGetNumThreads(0);
+  size_t kCols = 10;
   TestColSplitQuantile<true>(kRows, kCols);
 }
 

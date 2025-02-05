@@ -753,10 +753,10 @@ struct WLBalance {
 
   struct ThreadWorkLoad {
     std::vector<size_t> columns;
-    size_t split_idx;
-    size_t n_splits;
+    size_t split_idx = 0;
+    size_t n_splits = 1;
 
-    ThreadWorkLoad() : columns(), split_idx(0), n_splits(1) {}
+    ThreadWorkLoad() : columns() {}
   };
 
   std::vector<ThreadWorkLoad> baskets;
