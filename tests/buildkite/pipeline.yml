@@ -41,11 +41,6 @@ steps:
     key: build-cuda
     agents:
       queue: linux-amd64-cpu
-  - label: ":console: Build CUDA with RMM"
-    command: "tests/buildkite/build-cuda-with-rmm.sh"
-    key: build-cuda-with-rmm
-    agents:
-      queue: linux-amd64-cpu
   - label: ":console: Build R package with CUDA"
     command: "tests/buildkite/build-gpu-rpkg.sh"
     key: build-gpu-rpkg
