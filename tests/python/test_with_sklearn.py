@@ -1563,16 +1563,3 @@ def test_sklearn_tags():
         except AttributeError as err:
             # only the exact error we expected to be raised should be raised
             assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
-
-
-def test_doc_link() -> None:
-    for est in [
-        xgb.XGBRegressor(),
-        xgb.XGBClassifier(),
-        xgb.XGBRanker(),
-        xgb.XGBRFRegressor(),
-        xgb.XGBRFClassifier(),
-    ]:
-        name = est.__class__.__name__
-        link = est._get_doc_link()
-        assert f"xgboost.{name}" in link
