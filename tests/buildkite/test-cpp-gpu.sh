@@ -4,6 +4,9 @@ set -euo pipefail
 
 source tests/buildkite/conftest.sh
 
+# Work around https://github.com/dmlc/xgboost/issues/11154
+export CI_DOCKER_EXTRA_PARAMS_INIT='-e NCCL_RAS_ENABLE=0'
+
 echo "--- Run Google Tests with CUDA, using a GPU"
 buildkite-agent artifact download "build/testxgboost" . --step build-cuda
 chmod +x build/testxgboost
