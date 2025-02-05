@@ -62,6 +62,8 @@ extension-pkg-whitelist = ["numpy"]
 disable = [
     "attribute-defined-outside-init",
     "import-outside-toplevel",
+    "too-few-public-methods",
+    "too-many-ancestors",
     "too-many-nested-blocks",
     "unexpected-special-method-signature",
     "unsubscriptable-object",

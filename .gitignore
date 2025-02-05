@@ -139,11 +139,13 @@ credentials.csv
 .bloop
 
 # python tests
+*.bin
 demo/**/*.txt
 *.dmatrix
 .hypothesis
 __MACOSX/
 model*.json
+/tests/python/models/models/
 
 # R tests
 *.htm

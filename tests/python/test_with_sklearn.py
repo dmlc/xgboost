@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import random
+import re
 import tempfile
 import warnings
 from typing import Callable, Optional
@@ -795,6 +796,32 @@ def test_parameters_access():
     assert clf.get_params()["tree_method"] is None
 
 
+def test_get_params_works_as_expected():
+    # XGBModel -> BaseEstimator
+    params = xgb.XGBModel(max_depth=2).get_params()
+    assert params["max_depth"] == 2
+    # 'objective' defaults to None in the signature of XGBModel
+    assert params["objective"] is None
+
+    # XGBRegressor -> XGBModel -> BaseEstimator
+    params = xgb.XGBRegressor(max_depth=3).get_params()
+    assert params["max_depth"] == 3
+    # 'objective' defaults to 'reg:squarederror' in the signature of XGBRegressor
+    assert params["objective"] == "reg:squarederror"
+    # 'colsample_bynode' defaults to 'None' for XGBModel (which XGBRegressor inherits from), so it
+    # should be in get_params() output
+    assert params["colsample_bynode"] is None
+
+    # XGBRFRegressor -> XGBRegressor -> XGBModel -> BaseEstimator
+    params = xgb.XGBRFRegressor(max_depth=4, objective="reg:tweedie").get_params()
+    assert params["max_depth"] == 4
+    # 'objective' is a keyword argument for XGBRegressor, so it should be in get_params() output
+    # ... but values passed through kwargs should override the default from the signature of XGBRegressor
+    assert params["objective"] == "reg:tweedie"
+    # 'colsample_bynode' defaults to 0.8 for XGBRFRegressor...that should be preferred to the None from XGBRegressor
+    assert params["colsample_bynode"] == 0.8
+
+
 def test_kwargs_error():
     params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
     with pytest.raises(TypeError):
@@ -1284,7 +1311,7 @@ def test_data_initialization() -> None:
     validate_data_initialization(xgb.QuantileDMatrix, xgb.XGBClassifier, X, y)
 
 
-@parametrize_with_checks([xgb.XGBRegressor()])
+@parametrize_with_checks([xgb.XGBRegressor(enable_categorical=True)])
 def test_estimator_reg(estimator, check):
     if os.environ["PYTEST_CURRENT_TEST"].find("check_supervised_y_no_nan") != -1:
         # The test uses float64 and requires the error message to contain:
@@ -1477,10 +1504,62 @@ def test_tags() -> None:
         assert tags["multioutput"] is True
         assert tags["multioutput_only"] is False
 
-    for clf in [xgb.XGBClassifier()]:
+    for clf in [xgb.XGBClassifier(), xgb.XGBRFClassifier()]:
         tags = clf._more_tags()
         assert "multioutput" not in tags
         assert tags["multilabel"] is True
 
     tags = xgb.XGBRanker()._more_tags()
     assert "multioutput" not in tags
+
+
+# the try-excepts in this test should be removed once xgboost's
+# minimum supported scikit-learn version is at least 1.6
+def test_sklearn_tags():
+
+    def _assert_has_xgbmodel_tags(tags):
+        # values set by XGBModel.__sklearn_tags__()
+        assert tags.non_deterministic is False
+        assert tags.no_validation is True
+        assert tags.input_tags.allow_nan is True
+
+    for reg in [xgb.XGBRegressor(), xgb.XGBRFRegressor()]:
+        try:
+            # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
+            # and so the actual effects of __sklearn_tags__() should be tested
+            tags = reg.__sklearn_tags__()
+            _assert_has_xgbmodel_tags(tags)
+            # regressor-specific values
+            assert tags.estimator_type == "regressor"
+            assert tags.regressor_tags is not None
+            assert tags.classifier_tags is None
+            assert tags.target_tags.multi_output is True
+            assert tags.target_tags.single_output is True
+        except AttributeError as err:
+            # only the exact error we expected to be raised should be raised
+            assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
+
+    for clf in [xgb.XGBClassifier(), xgb.XGBRFClassifier()]:
+        try:
+            # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
+            # and so the actual effects of __sklearn_tags__() should be tested
+            tags = clf.__sklearn_tags__()
+            _assert_has_xgbmodel_tags(tags)
+            # classifier-specific values
+            assert tags.estimator_type == "classifier"
+            assert tags.regressor_tags is None
+            assert tags.classifier_tags is not None
+            assert tags.classifier_tags.multi_label is True
+        except AttributeError as err:
+            # only the exact error we expected to be raised should be raised
+            assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))
+
+    for rnk in [xgb.XGBRanker(),]:
+        try:
+            # if no AttributeError was thrown, we must be using scikit-learn>=1.6,
+            # and so the actual effects of __sklearn_tags__() should be tested
+            tags = rnk.__sklearn_tags__()
+            _assert_has_xgbmodel_tags(tags)
+        except AttributeError as err:
+            # only the exact error we expected to be raised should be raised
+            assert bool(re.search(r"__sklearn_tags__.* should not be called", str(err)))

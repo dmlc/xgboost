@@ -2,8 +2,8 @@
 
 import base64
 
-# pylint: disable=fixme, too-many-ancestors, protected-access, no-member, invalid-name
-# pylint: disable=too-few-public-methods, too-many-lines, too-many-branches
+# pylint: disable=fixme, protected-access, no-member, invalid-name
+# pylint: disable=too-many-lines, too-many-branches
 import json
 import logging
 import os

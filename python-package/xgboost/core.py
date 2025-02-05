@@ -410,7 +410,7 @@ def c_array(
 def from_array_interface(interface: dict) -> NumpyOrCupy:
     """Convert array interface to numpy or cupy array"""
 
-    class Array:  # pylint: disable=too-few-public-methods
+    class Array:
         """Wrapper type for communicating with numpy and cupy."""
 
         _interface: Optional[dict] = None
