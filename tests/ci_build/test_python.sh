@@ -67,6 +67,7 @@ case "$suite" in
     set -x
     install_xgboost
     setup_pyspark_envs
+    export NCCL_RAS_ENABLE=0
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/test_distributed/test_gpu_with_dask
     pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/test_distributed/test_gpu_with_spark

@@ -23,11 +23,13 @@ ENV PATH=/opt/miniforge/bin:$PATH
 RUN \
     export NCCL_SHORT_VER=$(echo "$NCCL_VERSION_ARG" | cut -d "-" -f 1) && \
     mamba create -y -n gpu_test -c rapidsai -c nvidia -c conda-forge \
-        python=3.10 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cudatoolkit=$CUDA_VERSION_ARG \
+        python=3.10 cudf=$RAPIDS_VERSION_ARG* rmm=$RAPIDS_VERSION_ARG* cuda-version=$CUDA_VERSION_ARG \
         "nccl>=${NCCL_SHORT_VER}" \
         dask \
         dask-cuda=$RAPIDS_VERSION_ARG* dask-cudf=$RAPIDS_VERSION_ARG* cupy \
-        numpy pytest pytest-timeout scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz "hypothesis<=6.112" \
+        numpy pytest pytest-timeout scipy \
+        "scikit-learn<=1.5.2" \
+        pandas matplotlib wheel python-kubernetes urllib3 graphviz "hypothesis<=6.112" \
         "pyspark>=3.4.0" cloudpickle cuda-python && \
     mamba clean --all && \
     conda run --no-capture-output -n gpu_test pip install buildkite-test-collector

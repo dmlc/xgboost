@@ -50,8 +50,8 @@ def using_quantile_device_dmatrix(client: Client, X: da.Array, y: da.Array) -> d
     .. versionadded:: 1.2.0
 
     """
-    X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X))
-    y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y))
+    X = dd.from_dask_array(X).to_backend("cudf")
+    y = dd.from_dask_array(y).to_backend("cudf")
 
     # `DaskQuantileDMatrix` is used instead of `DaskDMatrix`, be careful that it can not
     # be used for anything else other than training unless a reference is specified. See

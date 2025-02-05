@@ -21,11 +21,6 @@ steps:
       queue: linux-amd64-cpu
   - wait
   #### -------- BUILD --------
-  - label: ":console: Run clang-tidy"
-    command: "tests/buildkite/run-clang-tidy.sh"
-    key: run-clang-tidy
-    agents:
-      queue: linux-amd64-cpu
   - label: ":console: Build CPU"
     command: "tests/buildkite/build-cpu.sh"
     key: build-cpu
@@ -39,11 +34,6 @@ steps:
   - label: ":console: Build CUDA + manylinux_2_28_x86_64 wheel"
     command: "tests/buildkite/build-cuda.sh"
     key: build-cuda
-    agents:
-      queue: linux-amd64-cpu
-  - label: ":console: Build CUDA with RMM"
-    command: "tests/buildkite/build-cuda-with-rmm.sh"
-    key: build-cuda-with-rmm
     agents:
       queue: linux-amd64-cpu
   - label: ":console: Build R package with CUDA"
