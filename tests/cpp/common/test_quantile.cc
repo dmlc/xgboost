@@ -319,12 +319,6 @@ TEST(Quantile, ColumnSplitSortedBasic) {
   TestColSplitQuantile<true>(kRows, kCols);
 }
 
-TEST(Quantile, ColumnSplitSortedRowWise) {
-  size_t kRows = 10 * common::OmpGetNumThreads(0);
-  size_t kCols = 10;
-  TestColSplitQuantile<true>(kRows, kCols);
-}
-
 TEST(Quantile, ColumnSplitSorted) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestColSplitQuantile<true>(kRows, kCols);

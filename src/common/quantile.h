@@ -959,8 +959,8 @@ class SketchContainerImpl {
             } else {
               // number of columns with idx >= wl.columns.front()
               size_t n_columns_with_high_idx = n_features - wl.columns.front();
-              size_t begin = line.Size() < n_columns_with_high_idx ? 0
-                             : line.Size() - n_columns_with_high_idx;
+              size_t begin = line.Size() < n_columns_with_high_idx
+                             ? 0 : line.Size() - n_columns_with_high_idx;
               size_t end = std::min(wl.columns.back() + 1, line.Size());
               for (size_t i = begin; i < end; ++i) {
                 auto const &elem = line.GetElement(i);
