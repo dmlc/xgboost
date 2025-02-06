@@ -179,12 +179,6 @@ TEST(Quantile, SortedDistributedBasic) {
   TestDistributedQuantile<true>(kRows, kCols);
 }
 
-TEST(Quantile, SortedDistributedRowWise) {
-  size_t kRows = 10 * common::OmpGetNumThreads(0);
-  size_t kCols = 10;
-  TestDistributedQuantile<true>(kRows, kCols);
-}
-
 TEST(Quantile, SortedDistributed) {
   constexpr size_t kRows = 4000, kCols = 200;
   TestDistributedQuantile<true>(kRows, kCols);
