@@ -536,19 +536,16 @@ async def map_worker_partitions(
             else:
                 args.append(ref)
 
-        @wraps(func)
-        def fn(
-            *args: _P.args, address: str = addr, **kwargs: _P.kwargs
-        ) -> List[_MapRetT]:
-            # Turn result into a list for bag construction
+        def fn(_address: str, *args: _P.args, **kwargs: _P.kwargs) -> List[_MapRetT]:
             worker = distributed.get_worker()
 
-            if worker.address != address:
+            if worker.address != _address:
                 raise ValueError(
-                    f"Invalid worker address: {worker.address}, expecting {address}. "
+                    f"Invalid worker address: {worker.address}, expecting {_address}. "
                     "This is likely caused by one of the workers died and Dask "
                     "re-scheduled a different one. Resilience is not yet supported."
                 )
+            # Turn result into a list for bag construction
             return [func(*args, **kwargs)]
 
         # XGBoost requires all workers running training tasks to be unique. Meaning, we
@@ -568,9 +565,8 @@ async def map_worker_partitions(
         # relax the constraint and prevent Dask from choosing an invalid worker, the
         # task will simply hangs. We prefer a quick error here.
         #
-
         fut = client.submit(
-            fn,
+            update_wrapper(partial(fn, addr), fn),
             *args,
             pure=False,
             workers=[addr],
