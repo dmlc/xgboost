@@ -16,7 +16,7 @@ class XGBoostTrainingSummary:
 
     @staticmethod
     def from_metrics(
-        metrics: Dict[str, Dict[str, List[float]]]
+        metrics: Dict[str, Dict[str, List[float]]],
     ) -> "XGBoostTrainingSummary":
         """
         Create an XGBoostTrainingSummary instance from a nested dictionary of metrics.
