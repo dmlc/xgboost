@@ -8,7 +8,7 @@ for more info.
 import json
 import os
 
-import requests
+import requests                 # type: ignore
 
 
 def trigger_build(token: str) -> None:
