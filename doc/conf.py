@@ -71,6 +71,12 @@ def get_branch() -> str:
     branch = os.getenv("READTHEDOCS_VERSION_NAME", default=None)
     print(f"READTHEDOCS_VERSION_NAME = {branch}")
 
+    def is_id():
+        try:
+            return str(int(branch)) == branch
+        except ValueError:
+            return False
+
     if not branch:  # Not in RTD
         branch = "master"  # use the master branch as the default.
     elif branch == "latest":
@@ -79,7 +85,7 @@ def get_branch() -> str:
         pass  # release branch, like: release_2.1.0
     elif branch == "stable":
         branch = f"release_{xgboost.__version__}"
-    elif str(int(branch)) == branch:
+    elif is_id():
         # Likely PR branch
         branch = f"PR-{branch}"
     else:  # other dmlc branches.
