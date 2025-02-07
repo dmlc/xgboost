@@ -51,5 +51,4 @@ jobs:
           RTD_AUTH: ${{ secrets.RTD_AUTH_TOKEN }}
         run: |
           echo "branch name: ${BRANCH_NAME}"
-          echo "token: ${#RTD_AUTH}"
           python3 ops/pipeline/trigger-rtd.py
