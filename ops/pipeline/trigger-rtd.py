@@ -17,11 +17,16 @@ def trigger_build(token: str) -> None:
     event_path = os.environ["GITHUB_EVENT_PATH"]
     print(f"Event path: {event_path}")
     with open(event_path, "r") as fd:
-        event = json.load(fd)
+        event: dict = json.load(fd)
         print(f"Event: {event}")
-        pr = event["pull_request"]["number"]
 
-    URL = f"https://readthedocs.org/api/v3/projects/xgboost/versions/{pr}/builds/"
+    if event.get("pull_request", None) is None:
+        # refs/heads/branch-name
+        branch = event["ref"].split("/")[-1]
+    else:
+        branch = event["pull_request"]["number"]
+
+    URL = f"https://readthedocs.org/api/v3/projects/xgboost/versions/{branch}/builds/"
     print(f"URL: {URL}")
     HEADERS = {"Authorization": f"token {token}"}
     response = requests.post(URL, headers=HEADERS)

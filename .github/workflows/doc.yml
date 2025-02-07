@@ -25,6 +25,8 @@ jobs:
       - run: bash ops/pipeline/build-jvm-doc.sh
       - name: Upload JVM doc
         run: |
+          # xgboost-docs/{branch}/{commit}/{branch}.tar.bz2
+          # branch can be the name of the dmlc/xgboost branch, or `PR-{number}`.
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
             --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \

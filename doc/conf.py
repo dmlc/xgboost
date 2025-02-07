@@ -79,9 +79,11 @@ def get_branch() -> str:
         pass  # release branch, like: release_2.1.0
     elif branch == "stable":
         branch = f"release_{xgboost.__version__}"
-    else:  # Likely PR branch
-        assert str(int(branch)) == branch
+    elif str(int(branch)) == branch:
+        # Likely PR branch
         branch = f"PR-{branch}"
+    else:  # other dmlc branches.
+        pass
     print(f"branch = {branch}")
     return branch
 
