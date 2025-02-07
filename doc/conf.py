@@ -150,53 +150,6 @@ def build_jvm_docs() -> None:
         try_fetch_jvm_doc("master")
 
 
-def build_r_docs() -> None:
-    """Fetch R document from s3."""
-    branch = get_branch()
-    commit = get_sha(branch)
-    if commit is None:
-        print("Couldn't find commit to build R docs.")
-        return
-
-    def try_fetch_r_doc(branch: str) -> bool:
-        try:
-            local_r_docs = os.environ.get("XGBOOST_R_DOCS", None)
-            if local_r_docs is not None:
-                filename = os.path.expanduser(local_r_docs)
-            else:
-                url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
-                filename, _ = urllib.request.urlretrieve(url)
-                print(f"Finished: {url} -> {filename}")
-
-            if not os.path.exists(TMP_DIR):
-                print(f"Create directory {TMP_DIR}")
-                os.mkdir(TMP_DIR)
-            r_doc_dir = os.path.join(TMP_DIR, "r_docs")
-            if os.path.exists(r_doc_dir):
-                shutil.rmtree(r_doc_dir)
-            print(f"Create directory {r_doc_dir}")
-            os.mkdir(r_doc_dir)
-
-            with tarfile.open(filename, "r:bz2") as t:
-                t.extractall(r_doc_dir)
-
-            for root, subdir, files in os.walk(
-                os.path.join(r_doc_dir, "doc", "R-package")
-            ):
-                for f in files:
-                    assert f.endswith(".md")
-                    src = os.path.join(root, f)
-                    dst = os.path.join(PROJECT_ROOT, "doc", "R-package", f)
-                    shutil.move(src, dst)
-            return True
-        except HTTPError:
-            print(f"R doc not found at {url}. Falling back to the master branch.")
-            return False
-
-    if not try_fetch_r_doc(branch):
-        try_fetch_r_doc("master")
-
-
 def is_readthedocs_build():
     if os.environ.get("READTHEDOCS", None) == "True":
         return True
@@ -212,7 +165,6 @@ def is_readthedocs_build():
 if is_readthedocs_build():
     run_doxygen()
     build_jvm_docs()
-    build_r_docs()
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
