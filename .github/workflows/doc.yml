@@ -1,0 +1,54 @@
+name: XGBoost-docs
+
+on: [push, pull_request]
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  build-jvm-docs:
+    name: Build docs for JVM packages
+    needs: [build-jvm-gpu]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=jvm-tests-build-jvm-docs
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-jvm-gpu.sh
+      - run: bash ops/pipeline/build-jvm-doc.sh
+      - name: Upload JVM doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
+
+  trigger-rtd-build:
+    needs: [build-jvm-docs]
+    name: Trigger Read The Docs build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: 'x64'
+      - run: |
+          pip3 install requests
+      - name: Trigger RTD
+        env:
+          RTD_AUTH: ${{ secrets.RTD_AUTH_TOKEN }}
+        run: |
+          echo "branch name: ${BRANCH_NAME}"
+          echo "token: ${#RTD_AUTH}"
+          python3 ops/pipeline/trigger-rtd.py
