@@ -139,8 +139,24 @@ check.custom.obj <- function(params, objective) {
   if (!is.null(params[['objective']]) && !is.null(objective))
     stop("Setting objectives in 'params' and 'objective' at the same time is not allowed")
 
-  if (!is.null(objective) && typeof(objective) != 'closure')
+  if (!is.null(objective) && typeof(objective) != 'closure') {
+    if (is.character(objective)) {
+      msg <- paste(
+        "Argument 'objective' is only for custom objectives.",
+        "For built-in objectives, pass the objective under 'params'.",
+        sep = " "
+      )
+      error_on_deprecated <- getOption("xgboost.strict_mode", default = FALSE)
+      if (error_on_deprecated) {
+        stop(msg)
+      } else {
+        warning(msg, " This warning will become an error in a future version.")
+      }
+      params$objective <- objective
+      return(list(params = params, objective = NULL))
+    }
     stop("'objective' must be a function")
+  }
 
   # handle the case when custom objective function was provided through params
   if (!is.null(params[['objective']]) &&
