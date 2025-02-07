@@ -9,7 +9,6 @@ env:
 jobs:
   build-jvm-docs:
     name: Build docs for JVM packages
-    needs: [build-jvm-gpu]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
