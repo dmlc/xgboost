@@ -19,15 +19,10 @@ else
   gpu_option=""
 fi
 
-if [[ "$image_repo" == "xgb-ci.gpu" ]]
-then
-  image_tag="PR-11"
-else
-  image_tag="main"
-fi
-
 source ops/pipeline/get-docker-registry-details.sh
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${image_tag}"
+source ops/pipeline/get-image-tag.sh
+
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
 
 set -x
 python3 ops/docker_run.py --image-uri "${IMAGE_URI}" ${gpu_option} \

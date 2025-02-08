@@ -33,10 +33,11 @@ esac
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
 WHEEL_TAG=manylinux_2_28_x86_64
-BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:main"
-MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:main"
+BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
+MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}"
 
 echo "--- Build with CUDA"
 
