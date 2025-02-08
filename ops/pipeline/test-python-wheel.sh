@@ -21,7 +21,7 @@ fi
 
 if [[ "$image_repo" == "xgb-ci.gpu" ]]
 then
-  image_tag="PR-9"
+  image_tag="PR-11"
 else
   image_tag="main"
 fi
