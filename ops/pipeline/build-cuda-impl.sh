@@ -16,7 +16,7 @@ then
   cmake_prefix_path='/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake'
   cmake_args="${cmake_args} -DPLUGIN_RMM=ON"
 else
-  cmake_prefix_path='/opt/grpc;/workspace/cccl'
+  cmake_prefix_path='/opt/grpc'
 fi
 
 # Disable CMAKE_COMPILE_WARNING_AS_ERROR option temporarily until
