@@ -3,8 +3,9 @@
 set -euo pipefail
 
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.clang_tidy:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.clang_tidy:${IMAGE_TAG}
 
 echo "--- Run clang-tidy"
 set -x

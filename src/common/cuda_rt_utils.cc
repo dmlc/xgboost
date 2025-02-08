@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  */
 #include "cuda_rt_utils.h"
 
@@ -28,9 +28,14 @@ std::int32_t AllVisibleGPUs() {
   return n_visgpus;
 }
 
-std::int32_t CurrentDevice() {
-  std::int32_t device = 0;
-  dh::safe_cuda(cudaGetDevice(&device));
+std::int32_t CurrentDevice(bool raise) {
+  std::int32_t device = -1;
+  if (raise) {
+    dh::safe_cuda(cudaGetDevice(&device));
+  } else if (cudaGetDevice(&device) != cudaSuccess) {
+    // Return -1 as an error.
+    return -1;
+  }
   return device;
 }
 
@@ -100,8 +105,10 @@ void DrVersion(std::int32_t* major, std::int32_t* minor) {
 #else
 std::int32_t AllVisibleGPUs() { return 0; }
 
-std::int32_t CurrentDevice() {
-  common::AssertGPUSupport();
+std::int32_t CurrentDevice(bool raise) {
+  if (raise) {
+    common::AssertGPUSupport();
+  }
   return -1;
 }
 

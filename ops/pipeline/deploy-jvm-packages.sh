@@ -5,6 +5,7 @@ set -euo pipefail
 
 source ops/pipeline/enforce-ci.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
 if [[ "$#" -lt 3 ]]
 then
@@ -16,7 +17,7 @@ variant="$1"
 image_repo="$2"
 scala_version="$3"
 
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:main"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
 
 set -x
 

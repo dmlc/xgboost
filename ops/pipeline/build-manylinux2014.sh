@@ -18,10 +18,11 @@ arch="$1"
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
 WHEEL_TAG="manylinux2014_${arch}"
 IMAGE_REPO="xgb-ci.${WHEEL_TAG}"
-IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:main"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:${IMAGE_TAG}"
 PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG}"

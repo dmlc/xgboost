@@ -13,6 +13,7 @@ EOF
 set -euo pipefail
 
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
 for arg in "SCALA_VERSION"
 do
@@ -23,7 +24,7 @@ do
   fi
 done
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm:${IMAGE_TAG}
 
 set -x
 
