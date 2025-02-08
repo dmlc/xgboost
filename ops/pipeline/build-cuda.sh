@@ -48,13 +48,6 @@ else
   export BUILD_ONLY_SM75=0
 fi
 
-if [[ ${USE_RMM} == 0 ]]
-then
-  # Work around https://github.com/NVIDIA/cccl/issues/1956
-  # TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
-  git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
-fi
-
 set -x
 
 python3 ops/docker_run.py \
