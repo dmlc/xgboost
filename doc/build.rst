@@ -259,6 +259,19 @@ There are several ways to build and install the package from source:
     cd python-package
     pip install . --config-settings use_system_libxgboost=True
 
+5. Set custom ``libxgboost.so`` directory via ``XGBOOST_LIBRARY_PATH`` environment variable.
+
+  For certain use cases, the system path (``sys.base_prefix``) may not correctly locate the
+  ``libxgboost.so`` shared library. Users can specify a custom directory where ``libxgboost.so``
+  is located by setting the ``XGBOOST_LIBRARY_PATH`` environment variable.
+
+  To configure this, set the environment variable as follows:
+  
+  .. code-block:: bash
+    
+    export XGBOOST_LIBRARY_PATH="/path/to/xgboost/build/"
+
+  **Important**: Do not include the `/lib/` suffix in the XGBOOST_LIBRARY_PATH value. It will be automatically appended.
 
 .. note::
 
