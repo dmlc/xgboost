@@ -5,17 +5,23 @@ Demo for using data iterator with Quantile DMatrix
     .. versionadded:: 1.2.0
 
 The demo that defines a customized iterator for passing batches of data into
-:py:class:`xgboost.QuantileDMatrix` and use this ``QuantileDMatrix`` for
-training.  The feature is used primarily designed to reduce the required GPU
-memory for training on distributed environment.
+:py:class:`xgboost.QuantileDMatrix` and use this ``QuantileDMatrix`` for training.  The
+feature is primarily designed to reduce the required GPU memory for training on
+distributed environment.
 
-Aftering going through the demo, one might ask why don't we use more native
-Python iterator?  That's because XGBoost requires a `reset` function, while
-using `itertools.tee` might incur significant memory usage according to:
+Aftering going through the demo, one might ask why don't we use more native Python
+iterator?  That's because XGBoost requires a `reset` function, while using
+`itertools.tee` might incur significant memory usage according to:
 
   https://docs.python.org/3/library/itertools.html#itertools.tee.
 
+.. seealso::
+
+  :ref:`sphx_glr_python_examples_external_memory.py`
+
 """
+
+from typing import Callable
 
 import cupy
 import numpy
@@ -35,7 +41,7 @@ class IterForDMatrixDemo(xgboost.core.DataIter):
 
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Generate some random data for demostration.
 
         Actual data can be anything that is currently supported by XGBoost.
@@ -50,41 +56,44 @@ class IterForDMatrixDemo(xgboost.core.DataIter):
         self.it = 0  # set iterator to 0
         super().__init__()
 
-    def as_array(self):
+    def as_array(self) -> cupy.ndarray:
         return cupy.concatenate(self._data)
 
-    def as_array_labels(self):
+    def as_array_labels(self) -> cupy.ndarray:
         return cupy.concatenate(self._labels)
 
-    def as_array_weights(self):
+    def as_array_weights(self) -> cupy.ndarray:
         return cupy.concatenate(self._weights)
 
-    def data(self):
+    def data(self) -> cupy.ndarray:
         """Utility function for obtaining current batch of data."""
         return self._data[self.it]
 
-    def labels(self):
+    def labels(self) -> cupy.ndarray:
         """Utility function for obtaining current batch of label."""
         return self._labels[self.it]
 
-    def weights(self):
+    def weights(self) -> cupy.ndarray:
         return self._weights[self.it]
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the iterator"""
         self.it = 0
 
-    def next(self, input_data):
-        """Yield next batch of data."""
+    def next(self, input_data: Callable) -> bool:
+        """Yield the next batch of data."""
         if self.it == len(self._data):
-            # Return 0 when there's no more batch.
-            return 0
+            # Return False to let XGBoost know this is the end of iteration
+            return False
+
+        # input_data is a keyword-only function passed in by XGBoost and has the similar
+        # signature to the ``DMatrix`` constructor.
         input_data(data=self.data(), label=self.labels(), weight=self.weights())
         self.it += 1
-        return 1
+        return True
 
 
-def main():
+def main() -> None:
     rounds = 100
     it = IterForDMatrixDemo()
 
@@ -103,7 +112,7 @@ def main():
 
     assert m_with_it.num_col() == m.num_col()
     assert m_with_it.num_row() == m.num_row()
-    # Tree meethod must be `hist`.
+    # Tree method must be `hist`.
     reg_with_it = xgboost.train(
         {"tree_method": "hist", "device": "cuda"},
         m_with_it,

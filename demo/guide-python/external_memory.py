@@ -25,6 +25,10 @@ If `device` is `cuda`, following are also needed:
 - rmm
 - python-cuda
 
+.. seealso::
+
+  :ref:`sphx_glr_python_examples_distributed_extmem_basic.py`
+
 """
 
 import argparse
