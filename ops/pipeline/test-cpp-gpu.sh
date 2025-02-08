@@ -10,8 +10,9 @@ fi
 suite=$1
 
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu:PR-11
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu:${IMAGE_TAG}
 
 case "${suite}" in
   gpu)
