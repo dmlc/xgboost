@@ -1247,7 +1247,7 @@ xgboost <- function(
 #'
 #' In the case of data frames, if there are any categorical features, they should be of class
 #' `factor` and should have the same levels as the `factor` columns of the data from which the model
-#' was constructed.
+#' was constructed. Any columns with type other than `factor` will be interpreted as numeric.
 #'
 #' If there are named columns and the model was fitted to data with named columns, they will be
 #' matched by name by default (see `validate_features`).
