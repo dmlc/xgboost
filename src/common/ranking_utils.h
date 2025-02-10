@@ -380,7 +380,6 @@ bool IsBinaryRel(linalg::VectorView<float const> label, AllOf all_of) {
  */
 template <typename AllOf>
 void CheckPreLabels(StringView name, linalg::VectorView<float const> label, AllOf all_of) {
-  auto s_label = label.Values();
   auto is_binary = IsBinaryRel(label, all_of);
   CHECK(is_binary) << name << " can only be used with binary labels.";
 }
