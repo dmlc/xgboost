@@ -1172,8 +1172,7 @@ xgboost <- function(
     error_on_deprecated <- getOption("xgboost.strict_mode", default = FALSE)
     if (error_on_deprecated) {
       stop("Cannot pass 'xgb.DMatrix' as 'x' to 'xgboost()'. Try 'xgb.train()' instead.")
-    }
-    else {
+    } else {
       warning(
         "'xgboost()' does not work with 'xgb.DMatrix' objects - use 'xgb.train()' instead. ",
         "Will forward function call to 'xgb.train()' instead. ",
