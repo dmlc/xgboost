@@ -1168,6 +1168,24 @@ xgboost <- function(
   ...
 ) {
 # nolint end
+  if (inherits(x, "xgb.DMatrix") && missing(y) && !hasName(list(...), "label")) {
+    error_on_deprecated <- getOption("xgboost.strict_mode", default = FALSE)
+    if (error_on_deprecated) {
+      stop("Cannot pass 'xgb.DMatrix' as 'x' to 'xgboost()'. Try 'xgb.train()' instead.")
+    }
+    else {
+      warning(
+        "'xgboost()' does not work with 'xgb.DMatrix' objects - use 'xgb.train()' instead. ",
+        "Will forward function call to 'xgb.train()' instead. ",
+        " This warning will become an error in a future version."
+      )
+      fn_call <- match.call(expand.dots = TRUE)
+      fn_call[[1L]] <- as.name("xgb.train")
+      fn_call[["data"]] <- fn_call[["x"]]
+      fn_call[["x"]] <- NULL
+      return(eval.parent(fn_call))
+    }
+  }
   check.deprecation(deprecated_xgboost_params, match.call(), ...)
   params <- as.list(environment())
   params <- params[
