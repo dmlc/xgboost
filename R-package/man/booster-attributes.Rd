@@ -18,6 +18,15 @@
 
 \method{names}{xgb.Booster}(x)
 }
+\arguments{
+\item{x}{An XGBoost model object (class \code{xgb.Booster}).}
+
+\item{i, name}{The attribute to get/set.}
+
+\item{exact}{Whether to allow partial maching. See \code{\link[=Extract]{Extract()}} for details.}
+
+\item{value}{The value to set to.}
+}
 \description{
 Getters and setters utilities for XGBoost object attributes.
 

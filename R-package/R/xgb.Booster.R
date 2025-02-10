@@ -1350,6 +1350,10 @@ print.xgb.Booster <- function(x, ...) {
 #' Important: it is not recommended to use these methods in packages that have XGBoost as
 #' dependency. Methods [attributes()] and [xgb.attributes()] should be preferred instead.
 #' @seealso [xgb.attr()], [xgb.attributes()], [xgb.attr<-()], [xgb.attributes<-()]
+#' @param x An XGBoost model object (class `xgb.Booster`).
+#' @param i,name The attribute to get/set.
+#' @param value The value to set to.
+#' @param exact Whether to allow partial maching. See [Extract()] for details.
 #' @method [[ xgb.Booster
 #' @export
 #' @rdname booster-attributes
