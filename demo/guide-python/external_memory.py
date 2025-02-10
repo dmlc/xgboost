@@ -163,8 +163,11 @@ def setup_rmm() -> None:
 
     try:
         # Use the arena pool if available
-        from cuda.bindings import runtime as cudart
-        from rmm.mr import ArenaMemoryResource
+        from cuda import cudart
+        try:
+            from cuda.bindings import runtime as cudart
+        except ImportError:
+            from rmm.mr import ArenaMemoryResource
 
         status, free, total = cudart.cudaMemGetInfo()
         if status != cudart.cudaError_t.cudaSuccess:
@@ -177,7 +180,7 @@ def setup_rmm() -> None:
         # large pages repeatly, it's not easy to handle fragmentation. We can use more
         # experiments here.
         mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
-        rmm.mr.set_current_device_resource(mr)
+    rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
