@@ -1100,3 +1100,24 @@ test_that("Row names are preserved in outputs", {
   pred <- predict(model, x, predleaf = TRUE, avoid_transpose = TRUE)
   expect_equal(colnames(pred), row.names(x))
 })
+
+test_that("Attribute getters and setters work", {
+  data("ToothGrowth")
+  y <- ToothGrowth$supp
+  x <- ToothGrowth[, -2L]
+  model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+  expect_identical(attributes(model)$call, model$call)
+  model$custom_field <- "qwerty"
+  expect_equal(model$custom_field, "qwerty")
+  model[["custom_field"]] <- 3
+  expect_equal(model$custom_field, 3)
+  expect_true(hasName(model, "custom_field"))
+  expect_equal(getElement(model, "custom_field"), 3)
+
+  # # With C-level attributes
+  xgb.attr(model, "c_field") <- "custom_value"
+  expect_equal(model$c_field, "custom_value")
+  expect_error(model$c_field <- "new value")
+  expect_true(hasName(model, "c_field"))
+  expect_equal(getElement(model, "c_field"), "custom_value")
+})

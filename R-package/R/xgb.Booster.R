@@ -921,6 +921,8 @@ length.xgb.Booster <- function(x) {
 #' Creates a new booster including only a selected range of rounds / iterations
 #' from an existing booster, as given by the sequence `seq(start, end, step)`.
 #'
+#' Note: `model[...]` slices boosters by rounds, while `model[[...]]` accesses attributes.
+#'
 #' @details
 #' Note that any R attributes that the booster might have, will not be copied into
 #' the resulting object.
@@ -1319,4 +1321,103 @@ print.xgb.Booster <- function(x, ...) {
   }
 
   return(invisible(x))
+}
+
+#' @title Access booster attributes
+#' @description Getters and setters utilities for XGBoost object attributes.
+#'
+#' Note: these methods are provided for convenience only. Be aware that booster objects
+#' distinguish between R-level attributes (typically consisting of R objects and R metadata)
+#' and booster-level attributes (JSON-only fields which are stored in the underlying booster
+#' objects by the XGBoost core library, and which can be shared between different XGBoost
+#' language bindings, typically used for attributes that are common between interfaces such
+#' as the best iteration), the latter of which are not settable through these R methods, but
+#' will nevertheless be returned by the getters.
+#'
+#' It is highly recommended to use `attributes(x)` (R-level attributes) and/or `xgb.attr(x)`
+#' (attributes handled through the XGBoost core library) for both getting and setting attributes.
+#'
+#' Note that, despite giving the impression of working like an R list or struct objects,
+#' **these functions get and set object attributes** (as returned by function [attributes()]).
+#'
+#' Note: `x[...]` slices boosters by rounds, while `x[[...]]` accesses attributes.
+#' @details
+#' Name 'ptr' is reserved and cannot be assigned.
+#'
+#' Attributes that are recognized by the core library (i.e. not specific to the R language
+#' bindings of XGBoost) are not settable by these methods - use [xgb.attr<-()] instead.
+#'
+#' Important: it is not recommended to use these methods in packages that have XGBoost as
+#' dependency. Methods [attributes()] and [xgb.attributes()] should be preferred instead.
+#' @seealso [xgb.attr()], [xgb.attributes()], [xgb.attr<-()], [xgb.attributes<-()]
+#' @method [[ xgb.Booster
+#' @export
+#' @rdname booster-attributes
+#' @examples
+#' data("ToothGrowth")
+#' y <- ToothGrowth$supp
+#' x <- ToothGrowth[, -2L]
+#' model <- xgboost(x, y, nthreads = 1L, nrounds = 3L, max_depth = 2L)
+#' attributes(model)$call
+#' model$call
+`[[.xgb.Booster` <- function(x, i, exact = TRUE) {
+  if (i == "ptr") {
+    return(.Call(XGBoosterGetPointer_R, x))
+  }
+  R_attr <- attributes(x)
+  if (hasName(R_attr, i)) {
+    return(R_attr[[i]])
+  }
+  C_attr <- xgb.attributes(x)
+  if (hasName(C_attr, i)) {
+    return(C_attr[[i]])
+  }
+  all_attr <- c(R_attr, C_attr)
+  return(all_attr[[i, exact = exact]])
+}
+
+#' @method $ xgb.Booster
+#' @export
+#' @rdname booster-attributes
+`$.xgb.Booster` <- function(x, name) {
+  return(`[[.xgb.Booster`(x, name))
+}
+
+#' @method $<- xgb.Booster
+#' @export
+#' @rdname booster-attributes
+`$<-.xgb.Booster` <- function(x, name, value) {
+  if (!is.character(name)) {
+    stop("Can only assign attributes with string (character) names.")
+  }
+  if (name == "ptr") {
+    stop("'ptr' is a protected field of booster objects. Cannot assing to it.")
+  }
+  if (hasName(xgb.attributes(x), name)) {
+    stop(
+      "'", name, "' is a reserved booster attribute from the core library. ",
+      "Use 'xgb.attr<-' to assign to it."
+    )
+  }
+  R_attr <- attributes(x)
+  R_attr[[name]] <- value
+  attributes(x) <- R_attr
+  return(invisible(x))
+}
+
+#' @method [[<- xgb.Booster
+#' @export
+#' @rdname booster-attributes
+`[[<-.xgb.Booster` <- function(x, i, value) {
+  return(`$<-.xgb.Booster`(x, i, value))
+}
+
+#' @method names xgb.Booster
+#' @export
+#' @rdname booster-attributes
+names.xgb.Booster <- function(x) {
+  out <- names(attributes(x))
+  out <- out[out != "names"]
+  out <- c(out, names(xgb.attributes(x)))
+  return(out)
 }

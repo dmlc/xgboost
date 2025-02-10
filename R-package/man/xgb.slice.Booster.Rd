@@ -37,6 +37,8 @@ Creates a new booster including only a selected range of rounds / iterations
 from an existing booster, as given by the sequence \code{seq(start, end, step)}.
 }
 \details{
+Note: \code{model[...]} slices boosters by rounds, while \code{model[[...]]} accesses attributes.
+
 Note that any R attributes that the booster might have, will not be copied into
 the resulting object.
 }

@@ -1081,6 +1081,10 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
   return out;
 }
 
+XGB_DLL SEXP XGBoosterGetPointer_R(SEXP R_altrepped_obj) {
+  return R_altrep_data1(R_altrepped_obj);
+}
+
 XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP booster, SEXP dmat) {
   R_API_BEGIN();
   char const **feature_names;

@@ -295,6 +295,12 @@ XGB_DLL SEXP XGDMatrixGetDataAsCSR_R(SEXP handle);
 XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
 
 /*!
+ * \brief Get the externalptr object inside a booster
+ * \param R_altrepped_obj the booster object
+ */
+XGB_DLL SEXP XGBoosterGetPointer_R(SEXP R_altrepped_obj);
+
+/*!
  * \brief copy information about features from a DMatrix into a Booster
  * \param booster R 'externalptr' pointing to a booster object
  * \param dmat R 'externalptr' pointing to a DMatrix object
