@@ -576,6 +576,8 @@ deprecated_train_params <- list(
   ),
   removed = character()
 )
+deprecated_cv_params <- deprecated_train_params
+deprecated_cv_params$removed <- 'label'
 deprecated_xgboost_params <- list(
   renamed = list(
     'data' = 'x',
