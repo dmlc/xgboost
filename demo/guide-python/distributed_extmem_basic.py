@@ -185,6 +185,9 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx)  # 1-based indexing from loky
             os.environ["CUDA_VISIBLE_DEVICES"] = str(idx - 1)
+            # It's important to use RMM with `CudaAsyncMemoryResource`. for GPU-based
+            # external memory to improve performance. If XGBoost is not built with RMM
+            # support, a warning is raised when constructing the `DMatrix`.
             setup_rmm()
 
     with get_reusable_executor(
@@ -207,10 +210,6 @@ if __name__ == "__main__":
     if args.device == "cuda":
         import cupy as cp
 
-        # It's important to use RMM with `CudaAsyncMemoryResource`. for GPU-based
-        # external memory to improve performance. If XGBoost is not built with RMM
-        # support, a warning is raised when constructing the `DMatrix`.
-        setup_rmm()
         with tempfile.TemporaryDirectory() as tmpdir:
             main(tmpdir, args)
     else:
