@@ -8,7 +8,6 @@ env:
 
 jobs:
   build-jvm-docs:
-    needs: [pr-hash, push-hash]
     name: Build docs for JVM packages
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -32,6 +31,9 @@ jobs:
         shell: bash
         run: |
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
+      - name: Print hash
+        run: |
+          echo "hash: ${{ env.HEAD_SHA }}"
 
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
@@ -47,7 +49,6 @@ jobs:
             jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
 
   build-r-docs:
-    needs: [pr-hash, push-hash]
     name: Build docs for the R package
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -70,6 +71,9 @@ jobs:
         shell: bash
         run: |
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
+      - name: Print hash
+        run: |
+          echo "hash: ${{ env.HEAD_SHA }}"
 
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
