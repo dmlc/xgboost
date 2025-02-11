@@ -120,7 +120,7 @@ if(USE_NVTX)
     # CUDA:nvtx3 target is added in 3.25
     message("cmake >= 3.25 is required for NVTX.")
   endif()
-endif(USE_NVTX)
+endif()
 if(USE_NCCL AND (NOT USE_CUDA))
   message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
 endif()
