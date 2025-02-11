@@ -8,6 +8,7 @@ env:
 
 jobs:
   pr-hash:
+    runs-on: ubuntu-latest
     steps:
       - name: Get the git hash for the PR event.
         if: ${{ github.event_name == 'pull_request' }}
@@ -16,6 +17,7 @@ jobs:
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
 
   push-hash:
+    runs-on: ubuntu-latest
     steps:
       - name: Get the git hash for the push event.
         if: ${{ github.event_name == 'push' }}
