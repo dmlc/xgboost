@@ -108,6 +108,7 @@ def setup_rmm() -> None:
     try:
         # Use the arena pool if available
         from cuda import cudart
+
         try:
             from cuda.bindings import runtime as cudart
         except ImportError:
