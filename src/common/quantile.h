@@ -791,7 +791,7 @@ WLBalance LoadBalance(Batch const &batch, size_t nnz, bst_feature_t n_columns,
     size_t n_entries = entries_per_columns[column_idx];
 
     if (n_entries > 0) {
-      size_t n_splits =  n_entries / entries_per_thread;
+       size_t n_splits =  std::min(nthreads * n_entries / total_entries, n_entries);
       if (n_splits > 1) {
         // Split column between threads
         wl_balance.has_splitted = true;
@@ -881,18 +881,20 @@ class SketchContainerImpl {
   template <typename Batch, typename IsValid>
   void PushRowPageImpl(Batch const &batch, size_t base_rowid, OptionalWeights weights, size_t nnz,
                        size_t n_features, bool is_dense, IsValid is_valid) {
-    dmlc::OMPException exc;
-
     auto threads_wl = LoadBalance(batch, nnz, n_features, n_threads_, is_valid);
     if (threads_wl.baskets.empty()) return;
 
     std::vector<std::set<float>> categories_buff;
     std::vector<WQSketch> sketches_buff;
+    std::vector<int> buff_was_used;
+
     if (threads_wl.has_splitted) {
       sketches_buff.resize(threads_wl.baskets.size());
       categories_buff.resize(threads_wl.baskets.size());
+      buff_was_used.resize(threads_wl.baskets.size(), 0);
     }
 
+    dmlc::OMPException exc;
     #pragma omp parallel num_threads(threads_wl.baskets.size())
     {
       exc.Run([&]() {
@@ -902,19 +904,9 @@ class SketchContainerImpl {
           // We process only a single column in this case
           size_t column = wl.columns.front();
 
-          std::set<float>* categories_out;
-          WQSketch* sketches_out;
-          if (wl.split_idx == 0) {
-            categories_out = &categories_[column];
-            sketches_out = &sketches_[column];
-          } else {
-            auto n_bins = std::min(static_cast<bst_idx_t>(max_bins_), columns_size_[column]);
-            auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
-            sketches_buff[tid].Init(columns_size_[column], eps);
-
-            categories_out = &categories_buff[tid];
-            sketches_out = &sketches_buff[tid];
-          }
+          auto n_bins = std::min(static_cast<bst_idx_t>(max_bins_), columns_size_[column]);
+          auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
+          sketches_buff[tid].Init(columns_size_[column], eps);
 
           size_t split_size = DivRoundUp(batch.Size(), wl.n_splits);
           size_t begin = wl.split_idx * split_size;
@@ -927,17 +919,19 @@ class SketchContainerImpl {
               auto const &elem = line.GetElement(column);
               /* elem.column_idx == column */
               if (is_valid(elem)) {
-                PushElement(elem, categories_out, sketches_out, w);
+                buff_was_used[tid] = 1;
+                PushElement(elem, &categories_buff[tid], &sketches_buff[tid], w);
               }
             } else {
               size_t n_columns_with_high_idx = n_features - column;
-              size_t begin = line.Size() < n_columns_with_high_idx ? 0
+              size_t col_begin = line.Size() < n_columns_with_high_idx ? 0
                              : line.Size() - n_columns_with_high_idx;
-              size_t end = std::min(column + 1, line.Size());
-              for (size_t i = begin; i < end; ++i) {
+              size_t col_end = std::min(column + 1, line.Size());
+              for (size_t i = col_begin; i < col_end; ++i) {
                 auto const &elem = line.GetElement(i);
                 if (is_valid(elem) && (elem.column_idx == column)) {
-                  PushElement(elem, categories_out, sketches_out, w);
+                  buff_was_used[tid] = 1;
+                  PushElement(elem, &categories_buff[tid], &sketches_buff[tid], w);
                 }
               }
             }
@@ -959,10 +953,10 @@ class SketchContainerImpl {
             } else {
               // number of columns with idx >= wl.columns.front()
               size_t n_columns_with_high_idx = n_features - wl.columns.front();
-              size_t begin = line.Size() < n_columns_with_high_idx
+              size_t col_begin = line.Size() < n_columns_with_high_idx
                              ? 0 : line.Size() - n_columns_with_high_idx;
-              size_t end = std::min(wl.columns.back() + 1, line.Size());
-              for (size_t i = begin; i < end; ++i) {
+              size_t col_end = std::min(wl.columns.back() + 1, line.Size());
+              for (size_t i = col_begin; i < col_end; ++i) {
                 auto const &elem = line.GetElement(i);
                 if (is_valid(elem)) {
                   if (!threads_wl.is_column_splited[elem.column_idx] &&
@@ -976,26 +970,40 @@ class SketchContainerImpl {
             }
           }
         }
-        #pragma omp barrier
 
+        // #pragma omp flush(buff_was_used, categories_buff, sketches_buff)
+        #pragma omp barrier
         if (wl.n_splits > 1 && wl.split_idx == 0) {
           /* The thread being responsible for the first block in split
            *  collect info from the other ones.
            */
           size_t column_idx = wl.columns.front();
-          for (size_t th = tid + 1; th < tid + wl.n_splits; ++th) {
-            if (IsCat(feature_types_, column_idx)) {
-              categories_[column_idx].merge(categories_buff[th]);
-            } else {
-              typename WQSketch::SummaryContainer summary;
-              sketches_buff[th].GetSummary(&summary);
-              sketches_[column_idx].PushSummary(summary);
+
+          typename WQSketch::SummaryContainer main_summary;
+          main_summary.Reserve(sketches_[column_idx].limit_size);
+          typename WQSketch::SummaryContainer split_summary;
+          split_summary.Reserve(2 * sketches_[column_idx].limit_size);
+          typename WQSketch::SummaryContainer comb_summary;
+          comb_summary.Reserve(3 * sketches_[column_idx].limit_size);
+
+          for (size_t th = tid + 0; th < tid + wl.n_splits; ++th) {
+            CHECK_LT(th, threads_wl.baskets.size());
+            // Make shure some work was done by thread
+            if (buff_was_used[th] > 0) {
+              if (IsCat(feature_types_, column_idx)) {
+                categories_[column_idx].merge(categories_buff[th]);
+              } else {
+                sketches_buff[th].GetSummary(&split_summary);
+
+                comb_summary.SetCombine(main_summary, split_summary);
+                main_summary.SetPrune(comb_summary, sketches_[column_idx].limit_size);
+              }
             }
           }
+          sketches_[column_idx].PushSummary(main_summary);
         }
       });
     }
-
     exc.Rethrow();
   }
 
