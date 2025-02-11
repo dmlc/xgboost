@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost contributors
+ * Copyright 2019-2025, XGBoost contributors
  */
 #include <algorithm>  // for count_if
 #include <cstddef>    // for size_t
@@ -8,8 +8,7 @@
 #include <numeric>    // for accumulate
 #include <utility>    // for move
 
-#include "../common/common.h"               // for safe_cuda
-#include "../common/common.h"               // for HumanMemUnit
+#include "../common/common.h"               // for HumanMemUnit, safe_cuda
 #include "../common/cuda_rt_utils.h"        // for SetDevice
 #include "../common/device_helpers.cuh"     // for CUDAStreamView, DefaultStream
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc

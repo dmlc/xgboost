@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2025, XGBoost contributors
  */
 #pragma once
 #include <cstddef>  // for size_t
@@ -12,7 +12,10 @@
 namespace xgboost::curt {
 std::int32_t AllVisibleGPUs();
 
-std::int32_t CurrentDevice();
+/**
+ * @param raise Raise error if XGBoost is not compiled with CUDA, or GPU is not available.
+ */
+std::int32_t CurrentDevice(bool raise = true);
 
 // Whether the device supports coherently accessing pageable memory without calling
 // `cudaHostRegister` on it
