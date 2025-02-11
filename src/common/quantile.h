@@ -971,7 +971,6 @@ class SketchContainerImpl {
           }
         }
 
-        // #pragma omp flush(buff_was_used, categories_buff, sketches_buff)
         #pragma omp barrier
         if (wl.n_splits > 1 && wl.split_idx == 0) {
           /* The thread being responsible for the first block in split
