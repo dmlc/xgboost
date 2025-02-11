@@ -2,7 +2,7 @@
 % Please edit documentation in R/xgb.train.R
 \name{xgb.train}
 \alias{xgb.train}
-\title{eXtreme Gradient Boosting Training}
+\title{Fit XGBoost Model}
 \usage{
 xgb.train(
   params = xgb.params(),
@@ -134,8 +134,24 @@ the function signature.}
 An object of class \code{xgb.Booster}.
 }
 \description{
-\code{xgb.train()} is an advanced interface for training an xgboost model.
-The \code{\link[=xgboost]{xgboost()}} function is a simpler wrapper for \code{xgb.train()}.
+Fits an XGBoost model to given data in DMatrix format (e.g. as produced by \code{\link[=xgb.DMatrix]{xgb.DMatrix()}}).
+See the tutorial \href{https://xgboost.readthedocs.io/en/stable/tutorials/model.html}{Introduction to Boosted Trees}
+for a longer explanation of what XGBoost does, and the rest of the
+\href{https://xgboost.readthedocs.io/en/latest/tutorials/index.html}{XGBoost Tutorials} for further
+explanations XGBoost's features and usage.
+
+Compared to function \code{\link[=xgboost]{xgboost()}} which is a user-friendly function targeted towards interactive
+usage, \code{xgb.train} is a lower-level interface which allows finer-grained control and exposes
+further functionalities offered by the core library (such as learning-to-rank objectives), but
+which works exclusively with XGBoost's own data format ("DMatrices") instead of with regular R
+objects.
+
+The syntax of this function closely mimics the same function from the Python package for XGBoost,
+and is recommended to use for package developers over \code{xgboost()} as it will provide a more
+stable interface (with fewer breaking changes) and lower overhead from data validations.
+
+See also the \href{https://xgboost.readthedocs.io/en/latest/R-package/migration_guide.html}{migration guide}
+if coming from a previous version of XGBoost in the 1.x series.
 }
 \details{
 Compared to \code{\link[=xgboost]{xgboost()}}, the \code{xgb.train()} interface supports advanced features such as
