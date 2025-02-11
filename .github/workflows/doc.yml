@@ -31,9 +31,6 @@ jobs:
         shell: bash
         run: |
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
-      - name: Print hash
-        run: |
-          echo "hash: ${{ env.HEAD_SHA }}"
 
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
@@ -71,9 +68,6 @@ jobs:
         shell: bash
         run: |
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
-      - name: Print hash
-        run: |
-          echo "hash: ${{ env.HEAD_SHA }}"
 
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
