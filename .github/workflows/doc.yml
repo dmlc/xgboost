@@ -9,17 +9,19 @@ env:
 jobs:
   pr-hash:
     name: Get the git hash for the PR event.
-    if: ${{ github.event_name == 'pull_request' }}
-    shell: bash
-    run: |
-      echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
+    steps:
+      if: ${{ github.event_name == 'pull_request' }}
+      shell: bash
+      run: |
+        echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
 
   push-hash:
     name: Get the git hash for the push event.
-    if: ${{ github.event_name == 'push' }}
-    shell: bash
-    run: |
-      echo "HEAD_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
+    steps:
+      if: ${{ github.event_name == 'push' }}
+      shell: bash
+      run: |
+        echo "HEAD_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
 
   build-jvm-docs:
     needs: [pr-hash, push-hash]
