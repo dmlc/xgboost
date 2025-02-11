@@ -33,10 +33,14 @@ def trigger_build(token: str) -> None:
 
 
 def main() -> None:
-    token = os.getenv("RTD_AUTH")
+    token = os.getenv("RTD_AUTH_TOKEN")
     # GA redacts the secret by default, but we should still be really careful to not log
     # (expose) the token in the CI.
-    assert token is not None
+    if token is None:
+        raise RuntimeError(
+            "The RTD_AUTH_TOKEN environment variable must be set to a valid auth token for the"
+            "ReadTheDocs service."
+        )
     if len(token) == 0:
         print("Document build is not triggered.")
         return

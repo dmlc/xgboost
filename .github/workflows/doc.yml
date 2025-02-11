@@ -12,7 +12,7 @@ jobs:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-cpu
-      - tag=jvm-tests-build-jvm-docs
+      - tag=doc-build-jvm-docs
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -35,20 +35,15 @@ jobs:
   trigger-rtd-build:
     needs: [build-jvm-docs]
     name: Trigger Read The Docs build.
-    runs-on: ubuntu-latest
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=doc-trigger-rtd-build
     steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-          architecture: 'x64'
-      - run: |
-          pip3 install requests
+          submodules: "true"
       - name: Trigger RTD
-        env:
-          RTD_AUTH: ${{ secrets.RTD_AUTH_TOKEN }}
-        run: |
-          echo "branch name: ${BRANCH_NAME}"
-          python3 ops/pipeline/trigger-rtd.py
+        run: bash ops/pipeline/trigger-rtd.sh
