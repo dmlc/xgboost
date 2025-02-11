@@ -357,6 +357,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         n_features_{n_features},
         cache_info_{std::move(cache)} {
     monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
+    // Make sure that there are at least 2 fetchers can run, one for currently used batch,
+    // one for the background batch.
     nthreads_ = std::max(nthreads_, 2);
   }
 
