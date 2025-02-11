@@ -75,6 +75,10 @@ def native_build(cli_args: argparse.Namespace) -> None:
         )
     if cli_args.use_debug == "ON":
         CONFIG["CMAKE_BUILD_TYPE"] = "Debug"
+    if cli_args.use_nvtx == "ON":
+        CONFIG["USE_NVTX"] = "ON"
+    if cli_args.plugin_rmm == "ON":
+        CONFIG["PLUGIN_RMM"] = "ON"
 
     print("building Java wrapper", flush=True)
     with cd(".."):
@@ -190,5 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("--use-cuda", type=str, choices=["ON", "OFF"], default="OFF")
     parser.add_argument("--use-openmp", type=str, choices=["ON", "OFF"], default="ON")
     parser.add_argument("--use-debug", type=str, choices=["ON", "OFF"], default="OFF")
+    parser.add_argument("--use-nvtx", type=str, choices=["ON", "OFF"], default="OFF")
+    parser.add_argument("--plugin-rmm", type=str, choices=["ON", "OFF"], default="OFF")
     cli_args = parser.parse_args()
     native_build(cli_args)

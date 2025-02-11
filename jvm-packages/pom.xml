@@ -58,6 +58,8 @@
         <use.cuda>OFF</use.cuda>
         <use.openmp>ON</use.openmp>
         <use.debug>OFF</use.debug>
+        <use.nvtx>OFF</use.nvtx>
+        <plugin.rmm>OFF</plugin.rmm>
         <cudf.version>24.10.0</cudf.version>
         <spark.rapids.version>24.10.0</spark.rapids.version>
         <spark.rapids.classifier>cuda12</spark.rapids.classifier>

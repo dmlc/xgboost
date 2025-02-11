@@ -357,6 +357,7 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         n_features_{n_features},
         cache_info_{std::move(cache)} {
     monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
+    nthreads_ = std::max(nthreads_, 2);
   }
 
   SparsePageSourceImpl(SparsePageSourceImpl const &that) = delete;

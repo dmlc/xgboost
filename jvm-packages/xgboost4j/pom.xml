@@ -102,6 +102,10 @@
                             <argument>${use.openmp}</argument>
                             <argument>--use-debug</argument>
                             <argument>${use.debug}</argument>
+                            <argument>--use-nvtx</argument>
+                            <argument>${use.nvtx}</argument>
+                            <argument>--plugin-rmm</argument>
+                            <argument>${plugin.rmm}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
                           <skip>${skip.native.build}</skip>
