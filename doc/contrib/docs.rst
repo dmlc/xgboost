@@ -101,8 +101,8 @@ using doxygen and processed by breathe during build and there's no independent C
 as it's relatively cheap. The generated xml files are stored in ``xgboost/doc/tmp/dev`` .
 
 The ``xgboost/doc/tmp`` is part of the ``html_extra_path`` sphinx configuration, which
-somehow makes sphinx to copy the extracted html files to the build directory. Following is
-a list of environment variables used by the fetcher ``conf.py``:
+informs sphinx to copy the extracted html files to the build directory. Following is a
+list of environment variables used by the fetcher ``conf.py``:
 
  - READTHEDOCS: Read the docs flag, fetch the R and JVM documents when set to ``True``
    (case sensitive).
@@ -111,9 +111,8 @@ a list of environment variables used by the fetcher ``conf.py``:
 
 As of writing, RTD doesn't provide any facility to be embedded as a GitHub action but we
 need a way to specify the dependency between the CI pipeline and the document build in
-order to fetch the correct artifact. The workaround is to disable to default webhook from
-RTD and use an extra GA step to notify RTD using its `REST API
-<https://docs.readthedocs.com/platform/stable/api/v3.html>`__.
+order to fetch the correct artifact. The workaround is to use an extra GA step to notify
+RTD using its `REST API <https://docs.readthedocs.com/platform/stable/api/v3.html>`__.
 
 ********
 Examples

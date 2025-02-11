@@ -108,8 +108,9 @@ def get_sha(branch: str) -> str | None:
     return res.stdout.decode("utf-8").strip()
 
 
-def build_jvm_docs() -> None:
+def download_jvm_docs() -> None:
     """Fetch docs for the JVM packages"""
+    print("Download JVM documents from S3.")
     branch = get_branch()
     commit = get_sha(branch)
     if commit is None:
@@ -130,12 +131,10 @@ def build_jvm_docs() -> None:
                 filename, _ = urllib.request.urlretrieve(url)
                 print(f"Finished: {url} -> {filename}")
             if not os.path.exists(TMP_DIR):
-                print(f"Create directory {TMP_DIR}")
                 os.mkdir(TMP_DIR)
             jvm_doc_dir = os.path.join(TMP_DIR, "jvm_docs")
             if os.path.exists(jvm_doc_dir):
                 shutil.rmtree(jvm_doc_dir)
-            print(f"Create directory {jvm_doc_dir}")
             os.mkdir(jvm_doc_dir)
 
             with tarfile.open(filename, "r:bz2") as t:
@@ -150,10 +149,11 @@ def build_jvm_docs() -> None:
         try_fetch_jvm_doc("master")
 
 
-def build_r_docs() -> None:
+def download_r_docs() -> None:
     """Fetch R document from s3."""
     branch = get_branch()
     commit = get_sha(branch)
+    print("Download R documents from S3.")
     if commit is None:
         print("Couldn't find commit to build R docs.")
         return
@@ -169,12 +169,10 @@ def build_r_docs() -> None:
                 print(f"Finished: {url} -> {filename}")
 
             if not os.path.exists(TMP_DIR):
-                print(f"Create directory {TMP_DIR}")
                 os.mkdir(TMP_DIR)
             r_doc_dir = os.path.join(TMP_DIR, "r_docs")
             if os.path.exists(r_doc_dir):
                 shutil.rmtree(r_doc_dir)
-            print(f"Create directory {r_doc_dir}")
             os.mkdir(r_doc_dir)
 
             with tarfile.open(filename, "r:bz2") as t:
@@ -211,8 +209,8 @@ def is_readthedocs_build():
 
 if is_readthedocs_build():
     run_doxygen()
-    build_jvm_docs()
-    build_r_docs()
+    download_jvm_docs()
+    download_r_docs()
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
