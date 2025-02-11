@@ -90,8 +90,8 @@ service and hosts the `XGBoost document site
 <https://xgboost.readthedocs.io/en/stable/>`__. The document builder used by RTD is
 relatively lightweight. However some of the packages like the R binding require a compiled
 XGBoost along with all the optional dependencies to render the document. As a result, both
-jvm-based packages and the R document is built with an independent CI pipeline and fetched
-during online document build.
+jvm-based packages and the R package's document is built with an independent CI pipeline
+and fetched during online document build.
 
 The sphinx configuration file ``xgboost/doc/conf.py`` acts as the fetcher. During build,
 the fetched artifacts are stored in ``xgboost/doc/tmp/jvm_docs`` and
