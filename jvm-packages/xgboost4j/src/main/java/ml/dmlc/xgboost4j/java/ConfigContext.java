@@ -24,6 +24,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Global configuration context for XGBoost.
+ *
+ * @version 3.0.0
+ *
+ * See the parameter document for supported global configuration. The configuration is
+ * restored upon close.
  */
 public class ConfigContext implements AutoCloseable {
   String orig;
@@ -47,7 +52,7 @@ public class ConfigContext implements AutoCloseable {
           });
       return config;
     } catch (JsonProcessingException ex) {
-      throw new XGBoostError("Failed to get global config:", ex);
+      throw new XGBoostError("Failed to get the global config due to a decode error.", ex);
     }
   }
 
@@ -59,7 +64,7 @@ public class ConfigContext implements AutoCloseable {
       String config = mapper.writeValueAsString(map);
       XGBoostJNI.checkCall(XGBoostJNI.XGBSetGlobalConfig(config));
     } catch (JsonProcessingException ex) {
-      throw new XGBoostError("Failed to set the global config:", ex);
+      throw new XGBoostError("Failed to set the global config due to an encode error.", ex);
     }
     return this;
   }
