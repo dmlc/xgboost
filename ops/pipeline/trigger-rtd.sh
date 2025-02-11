@@ -12,5 +12,5 @@ fi
 echo "Branch name: ${BRANCH_NAME}"
 export RTD_AUTH_TOKEN=$(aws secretsmanager get-secret-value \
   --secret-id runs-on/readthedocs-auth-token --output text \
-  --region us-west-2 --query SecretString)
+  --region us-west-2 --query SecretString || echo -n '')
 python3 ops/pipeline/trigger-rtd-impl.py

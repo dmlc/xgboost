@@ -7,6 +7,8 @@ for more info.
 
 import json
 import os
+import pprint
+from http.client import responses as http_responses
 
 import requests  # type: ignore
 
@@ -28,8 +30,13 @@ def trigger_build(token: str) -> None:
     HEADERS = {"Authorization": f"token {token}"}
     response = requests.post(URL, headers=HEADERS)
     # 202 means the build is successfully triggered.
-    assert response.status_code == 202
-    assert response.json()
+    if response.status_code != 202:
+        status_text = http_responses[response.status_code]
+        raise RuntimeError(
+            "ReadTheDocs returned an unexpected response: "
+            f"{response.status_code} {status_text}, reason: {response.reason}"
+        )
+    pprint.pprint(response.json(), indent=4)
 
 
 def main() -> None:
