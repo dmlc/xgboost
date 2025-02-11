@@ -89,5 +89,4 @@ reference:
       - "print.xgb.cv.synchronous"
   - title: Deprecation Settings
     contents:
-      - "xgboost-deprecated"
       - "xgboost-options"
