@@ -27,9 +27,10 @@ jobs:
         run: |
           # xgboost-docs/{branch}/{commit}/{branch}.tar.bz2
           # branch can be the name of the dmlc/xgboost branch, or `PR-{number}`.
+          SHA=$(git rev-parse HEAD)
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
+            --prefix ${BRANCH_NAME}/${SHA} --make-public \
             jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
 
   build-r-docs:
@@ -49,9 +50,10 @@ jobs:
       - run: bash ops/pipeline/build-r-docs.sh
       - name: Upload R doc
         run: |
+          SHA=$(git rev-parse HEAD)
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${PR_COMMIT_SHA} --make-public \
+            --prefix ${BRANCH_NAME}/${SHA} --make-public \
             r-docs-${{ env.BRANCH_NAME }}.tar.bz2
 
   trigger-rtd-build:
