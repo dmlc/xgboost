@@ -29,7 +29,7 @@ public class ConfigContext implements AutoCloseable {
   String orig;
 
   ConfigContext() throws XGBoostError {
-    this.orig = this.getImpl();
+    this.orig = getImpl();
   }
 
   static String getImpl() throws XGBoostError {
@@ -43,7 +43,8 @@ public class ConfigContext implements AutoCloseable {
     ObjectMapper mapper = new ObjectMapper();
     try {
       Map<String, Object> config = mapper.readValue(jconfig,
-                                                    new TypeReference<Map<String, Object>>() {});
+          new TypeReference<Map<String, Object>>() {
+          });
       return config;
     } catch (JsonProcessingException ex) {
       throw new XGBoostError("Failed to get global config:", ex);
