@@ -7,7 +7,22 @@ env:
     ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
 
 jobs:
+  pr-hash:
+    name: Get the git hash for the PR event.
+    if: ${{ github.event_name == 'pull_request' }}
+    shell: bash
+    run: |
+      echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
+
+  push-hash:
+    name: Get the git hash for the push event.
+    if: ${{ github.event_name == 'push' }}
+    shell: bash
+    run: |
+      echo "HEAD_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
+
   build-jvm-docs:
+    needs: [pr-hash, push-hash]
     name: Build docs for JVM packages
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -27,13 +42,13 @@ jobs:
         run: |
           # xgboost-docs/{branch}/{commit}/{branch}.tar.bz2
           # branch can be the name of the dmlc/xgboost branch, or `PR-{number}`.
-          SHA=$(git rev-parse HEAD)
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${SHA} --make-public \
+            --prefix ${BRANCH_NAME}/${HEAD_SHA} --make-public \
             jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
 
   build-r-docs:
+    needs: [pr-hash, push-hash]
     name: Build docs for the R package
     runs-on:
       - runs-on=${{ github.run_id }}
@@ -50,10 +65,9 @@ jobs:
       - run: bash ops/pipeline/build-r-docs.sh
       - name: Upload R doc
         run: |
-          SHA=$(git rev-parse HEAD)
           python3 ops/pipeline/manage-artifacts.py upload \
             --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${SHA} --make-public \
+            --prefix ${BRANCH_NAME}/${HEAD_SHA} --make-public \
             r-docs-${{ env.BRANCH_NAME }}.tar.bz2
 
   trigger-rtd-build:
