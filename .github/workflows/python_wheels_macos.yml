@@ -1,0 +1,55 @@
+name: Build Python wheels targeting MacOS
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  python-wheels-macos:
+    name: Build wheel for ${{ matrix.platform_id }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: macos-13
+          platform_id: macosx_x86_64
+        - os: macos-14
+          platform_id: macosx_arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Set up homebrew
+        uses: Homebrew/actions/setup-homebrew@13341b4d5e459a98bbe0b122b12c11bf90518cc8
+      - name: Install libomp
+        run: brew install libomp
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: minimal
+          environment-file: ops/conda_env/minimal.yml
+      - name: Build wheels
+        run: bash ops/pipeline/build-python-wheels-macos.sh ${{ matrix.platform_id }} ${{ github.sha }}
+      - name: Upload Python wheel
+        if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+        run: |
+          python ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-nightly-builds \
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public \
+            wheelhouse/*.whl
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}

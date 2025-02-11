@@ -1,0 +1,45 @@
+name: XGBoost CI (misc)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  gtest-cpu-nonomp:
+    name: Test Google C++ unittest (CPU Non-OMP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - name: Install system packages
+        run: |
+          sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Build and test XGBoost
+        run: bash ops/pipeline/build-test-cpu-nonomp.sh
+
+  c-api-demo:
+    name: Test installing XGBoost lib + building the C API demo
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: cpp_test
+          environment-file: ops/conda_env/cpp_test.yml
+      - name: Build and run C API demo with shared
+        run: bash ops/pipeline/test-c-api-demo.sh

@@ -1,0 +1,66 @@
+name: XGBoost CI (Windows)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: powershell
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  build-win64-gpu:
+    name: Build XGBoost for Windows with CUDA
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=windows-cpu
+      - tag=windows-build-win64-gpu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - run: powershell ops/pipeline/build-win64-gpu.ps1
+      - name: Stash files
+        shell: powershell
+        run: |
+          conda activate
+          python ops/pipeline/manage-artifacts.py upload `
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
+            --prefix cache/${{ github.run_id }}/build-win64-gpu `
+            build/testxgboost.exe xgboost.exe `
+            (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
+
+  test-win64-gpu:
+    name: Test XGBoost on Windows
+    needs: build-win64-gpu
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=windows-gpu
+      - tag=windows-test-win64-gpu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Unstash files
+        shell: powershell
+        run: |
+          conda activate
+          python ops/pipeline/manage-artifacts.py download `
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} `
+            --prefix cache/${{ github.run_id }}/build-win64-gpu `
+            --dest-dir build `
+            *.whl testxgboost.exe xgboost.exe
+          Move-Item -Path build/xgboost.exe -Destination .
+          New-Item -ItemType Directory -Path python-package/dist/ -Force
+          Move-Item -Path (Get-ChildItem build/*.whl | Select-Object -Expand FullName) `
+            -Destination python-package/dist/
+      - run: powershell ops/pipeline/test-win64-gpu.ps1
