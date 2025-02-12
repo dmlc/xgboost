@@ -105,10 +105,10 @@ in the ``conf.py`` file, which informs sphinx to copy the extracted html files t
 build directory. Following is a list of environment variables used by the fetchers in
 ``conf.py``:
 
- - READTHEDOCS: Read the docs flag. Build the full documentation site including R, JVM and
+ - ``READTHEDOCS``: Read the docs flag. Build the full documentation site including R, JVM and
    C doc when set to ``True`` (case sensitive).
- - XGBOOST_R_DOCS: Local path for pre-build R document, used for development.
- - XGBOOST_JVM_DOCS: Local path for pre-build JVM document, used for development.
+ - ``XGBOOST_R_DOCS``: Local path for pre-built R document, used for development.
+ - ``XGBOOST_JVM_DOCS``: Local path for pre-built JVM document, used for development.
 
 As of writing, RTD doesn't provide any facility to be embedded as a GitHub action but we
 need a way to specify the dependency between the CI pipelines and the document build in
