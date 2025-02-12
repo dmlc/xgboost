@@ -1,11 +1,11 @@
 import json
 import os
-import pytest
 import platform
 import subprocess
 import tempfile
 
 import numpy
+import pytest
 
 import xgboost
 from xgboost import testing as tm
