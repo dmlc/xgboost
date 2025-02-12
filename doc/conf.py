@@ -108,8 +108,9 @@ def get_sha(branch: str) -> str | None:
     return res.stdout.decode("utf-8").strip()
 
 
-def build_jvm_docs() -> None:
+def download_jvm_docs() -> None:
     """Fetch docs for the JVM packages"""
+    print("Download JVM documents from S3.")
     branch = get_branch()
     commit = get_sha(branch)
     if commit is None:
@@ -130,12 +131,10 @@ def build_jvm_docs() -> None:
                 filename, _ = urllib.request.urlretrieve(url)
                 print(f"Finished: {url} -> {filename}")
             if not os.path.exists(TMP_DIR):
-                print(f"Create directory {TMP_DIR}")
                 os.mkdir(TMP_DIR)
             jvm_doc_dir = os.path.join(TMP_DIR, "jvm_docs")
             if os.path.exists(jvm_doc_dir):
                 shutil.rmtree(jvm_doc_dir)
-            print(f"Create directory {jvm_doc_dir}")
             os.mkdir(jvm_doc_dir)
 
             with tarfile.open(filename, "r:bz2") as t:
@@ -148,6 +147,52 @@ def build_jvm_docs() -> None:
     if not try_fetch_jvm_doc(branch):
         print("Falling back to the master branch.")
         try_fetch_jvm_doc("master")
+
+
+def download_r_docs() -> None:
+    """Fetch R document from s3."""
+    branch = get_branch()
+    commit = get_sha(branch)
+    print("Download R documents from S3.")
+    if commit is None:
+        print("Couldn't find commit to build R docs.")
+        return
+
+    def try_fetch_r_doc(branch: str) -> bool:
+        try:
+            local_r_docs = os.environ.get("XGBOOST_R_DOCS", None)
+            if local_r_docs is not None:
+                filename = os.path.expanduser(local_r_docs)
+            else:
+                url = f"{S3_BUCKET}/{branch}/{commit}/r-docs-{branch}.tar.bz2"
+                filename, _ = urllib.request.urlretrieve(url)
+                print(f"Finished: {url} -> {filename}")
+
+            if not os.path.exists(TMP_DIR):
+                os.mkdir(TMP_DIR)
+            r_doc_dir = os.path.join(TMP_DIR, "r_docs")
+            if os.path.exists(r_doc_dir):
+                shutil.rmtree(r_doc_dir)
+            os.mkdir(r_doc_dir)
+
+            with tarfile.open(filename, "r:bz2") as t:
+                t.extractall(r_doc_dir)
+
+            for root, subdir, files in os.walk(
+                os.path.join(r_doc_dir, "doc", "R-package")
+            ):
+                for f in files:
+                    assert f.endswith(".md")
+                    src = os.path.join(root, f)
+                    dst = os.path.join(PROJECT_ROOT, "doc", "R-package", f)
+                    shutil.move(src, dst)
+            return True
+        except HTTPError:
+            print(f"R doc not found at {url}. Falling back to the master branch.")
+            return False
+
+    if not try_fetch_r_doc(branch):
+        try_fetch_r_doc("master")
 
 
 def is_readthedocs_build():
@@ -164,7 +209,8 @@ def is_readthedocs_build():
 
 if is_readthedocs_build():
     run_doxygen()
-    build_jvm_docs()
+    download_jvm_docs()
+    download_r_docs()
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
