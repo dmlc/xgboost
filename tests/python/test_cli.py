@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 
 import numpy
+import pytest
 
 import xgboost
 from xgboost import testing as tm
@@ -39,7 +40,8 @@ eval[test] = {data_path}
         else:
             exe = 'xgboost'
         exe = os.path.join(self.PROJECT_ROOT, exe)
-        assert os.path.exists(exe)
+        if not os.path.exists(exe):
+            pytest.skip("CLI executable not found.")
         return exe
 
     def test_cli_model(self):
