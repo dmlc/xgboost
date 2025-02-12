@@ -612,6 +612,23 @@ Troubleshooting
 - If NCCL fails to initialize in a container environment, it might be caused by limited
   system shared memory. With docker, one can try the flag: `--shm-size=4g`.
 
+- If XGBoost hangs during training on GPU clusters, this might be caused by NCCL
+  synchronization. One syndrome is the GPU has 100 percent usage but no output (like
+  evaluation log) update. Alternatively, the `nvidia-smi` might show zero GPU usage for
+  the XGBoost training process even though the general GPU occupancy is at 100 percent and
+  there's no other process using the GPU.
+
+  In this case, you can start with debugging the P2P access for your GPUs
+  https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#gpu-direct
+  . If the performance for P2P access is significantly worse than non-P2P access, then
+  there might be a system configuration issue or a driver issue. Try updating the driver
+  or debugging the system configuration. You can also temporarily disable P2P by using the
+  NCCL environment variable `NCCL_P2P_DISABLE=1` (not recommended for purposes other than
+  debugging).
+
+- XGBoost has a timeout option for distributed training. Use it to make sure everything
+  completes within reasonable time.
+
 - MIG (Multi-Instance GPU) is not yet supported by NCCL. You will receive an error message
   that includes `Multiple processes within a communication group ...` upon initialization.
 
