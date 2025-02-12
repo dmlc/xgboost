@@ -1,5 +1,6 @@
 import json
 import os
+import pytest
 import platform
 import subprocess
 import tempfile
@@ -39,7 +40,8 @@ eval[test] = {data_path}
         else:
             exe = 'xgboost'
         exe = os.path.join(self.PROJECT_ROOT, exe)
-        assert os.path.exists(exe)
+        if not os.path.exists(exe):
+            pytest.skip("CLI executable not found.")
         return exe
 
     def test_cli_model(self):
