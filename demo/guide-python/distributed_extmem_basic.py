@@ -146,7 +146,11 @@ def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> N
         )
         # Check the device is correctly set.
         if device == "cuda":
-            assert int(os.environ["CUDA_VISIBLE_DEVICES"]) < coll.get_world_size()
+            # Check the first device
+            assert (
+                int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
+                < coll.get_world_size()
+            )
         booster = xgboost.train(
             {
                 "tree_method": "hist",
@@ -173,8 +177,12 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
         if device == "cuda":
             # name: LokyProcess-1
             lop, sidx = mp.current_process().name.split("-")
-            idx = int(sidx)  # 1-based indexing from loky
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(idx - 1)
+            idx = int(sidx) - 1  # 1-based indexing from loky
+            # Assuming two workers for demo.
+            devices = ",".join([str(idx), str((idx + 1) % n_workers)])
+            # P0: CUDA_VISIBLE_DEVICES=0,1
+            # P1: CUDA_VISIBLE_DEVICES=1,0
+            os.environ["CUDA_VISIBLE_DEVICES"] = devices
             # It's important to use RMM with `CudaAsyncMemoryResource`. for GPU-based
             # external memory to improve performance. If XGBoost is not built with RMM
             # support, a warning is raised when constructing the `DMatrix`.
