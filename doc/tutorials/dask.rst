@@ -11,6 +11,10 @@ algorithms.  For an overview of GPU based training and internal workings, see `A
 Official Dask API for XGBoost
 <https://medium.com/rapids-ai/a-new-official-dask-api-for-xgboost-e8b10f3d1eb7>`_.
 
+.. note::
+
+  The integration is not tested with Windows.
+
 **Contents**
 
 .. contents::
