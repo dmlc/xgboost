@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #include <thrust/copy.h>     // for copy
 #include <thrust/logical.h>  // for any_of
@@ -30,8 +30,8 @@ namespace {
 using Pair = thrust::pair<double, double>;
 
 template <typename T, typename U, typename P = thrust::pair<T, U>>
-struct PairPlus : public thrust::binary_function<P, P, P> {
-  XGBOOST_DEVICE P operator()(P const& l, P const& r) const {
+struct PairPlus {
+  XGBOOST_DEVICE P operator()(P const &l, P const &r) const {
     return thrust::make_pair(l.first + r.first, l.second + r.second);
   }
 };

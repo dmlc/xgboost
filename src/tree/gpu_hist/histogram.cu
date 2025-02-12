@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 
@@ -41,7 +41,7 @@ XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackDeviceAccessor const& matrix,
 }
 }  // anonymous namespace
 
-struct Clip : public thrust::unary_function<GradientPair, Pair> {
+struct Clip {
   static XGBOOST_DEV_INLINE float Pclip(float v) { return v > 0 ? v : 0; }
   static XGBOOST_DEV_INLINE float Nclip(float v) { return v < 0 ? abs(v) : 0; }
 
