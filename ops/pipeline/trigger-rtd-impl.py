@@ -26,6 +26,10 @@ def trigger_build(token: str) -> None:
     else:
         branch = event["pull_request"]["number"]
 
+    if branch == "master":
+        # Use the `latest` tag, otherwise RTD wouldn't update the rendered doc.
+        branch = "latest"
+
     URL = f"https://readthedocs.org/api/v3/projects/xgboost/versions/{branch}/builds/"
     HEADERS = {"Authorization": f"token {token}"}
     response = requests.post(URL, headers=HEADERS)
