@@ -136,7 +136,7 @@ public class DMatrix {
   @Deprecated
   public DMatrix(float[] data, int nrow, int ncol) throws XGBoostError {
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, 0.0f, out));
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromMat(data, nrow, ncol, Float.NaN, out));
     handle = out[0];
   }
 
@@ -147,7 +147,7 @@ public class DMatrix {
    * @throws XGBoostError native error
    */
   public DMatrix(BigDenseMatrix matrix) throws XGBoostError {
-    this(matrix, 0.0f);
+    this(matrix, Float.NaN);
   }
 
   /**
