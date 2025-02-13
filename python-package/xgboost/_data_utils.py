@@ -164,4 +164,4 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
         "mask" in data.__cuda_array_interface__
         and data.__cuda_array_interface__["mask"] is not None
     ):
-        raise ValueError(f"Missing value is allowed for: {field}")
+        raise ValueError(f"Missing value is not allowed for: {field}")
