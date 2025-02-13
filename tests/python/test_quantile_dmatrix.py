@@ -375,3 +375,23 @@ class TestQuantileDMatrix:
 
     def test_mixed_sparsity(self) -> None:
         run_mixed_sparsity("cpu")
+
+    def test_sparse_predict(self) -> None:
+        X, y = make_sparse_regression(512, 16, sparsity=0.9, as_dense=False)
+
+        Xy: xgb.DMatrix = xgb.QuantileDMatrix(X, y)
+        booster = xgb.train({}, Xy, num_boost_round=8)
+
+        p0 = booster.predict(Xy)
+        Xy = xgb.DMatrix(X, y)
+        p1 = booster.predict(Xy)
+        np.testing.assert_allclose(p0, p1)
+
+        X, y = make_categorical(128, 16, 5, onehot=False, sparsity=0.9)
+        Xy = xgb.QuantileDMatrix(X, y, enable_categorical=True)
+        booster = xgb.train({}, Xy, num_boost_round=8)
+
+        p0 = booster.predict(Xy)
+        Xy = xgb.DMatrix(X, y, enable_categorical=True)
+        p1 = booster.predict(Xy)
+        np.testing.assert_allclose(p0, p1)
