@@ -32,8 +32,8 @@ There are in general two ways that you can control overfitting in XGBoost:
 * The first way is to directly control model complexity.
 
   - This includes ``max_depth``, ``min_child_weight``, ``gamma``, ``max_cat_threshold``
-    and other similar regularization parameters. See :doc:`</parameter>` for a
-    comprehensive set of parameters.
+    and other similar regularization parameters. See :doc:`/parameter` for a comprehensive
+    set of parameters.
   - Set a constant ``base_score`` based on your own criteria. See
     :doc:`/tutorials/intercept` for more info.
 
