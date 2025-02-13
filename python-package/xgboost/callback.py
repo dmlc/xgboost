@@ -383,7 +383,10 @@ class EarlyStopping(TrainingCallback):
     def before_training(self, model: _Model) -> _Model:
         self.starting_round = model.num_boosted_rounds()
         if not isinstance(model, Booster) and self.save_best:
-            raise ValueError("`save_best` is not applicable to the `cv` function.")
+            raise ValueError(
+                "`save_best` is not applicable to the `cv` function as it doesn't return"
+                " a model."
+            )
         return model
 
     def _update_rounds(
