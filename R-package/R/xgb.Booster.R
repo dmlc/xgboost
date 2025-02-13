@@ -1366,7 +1366,7 @@ print.xgb.Booster <- function(x, ...) {
 #' model$call
 `[[.xgb.Booster` <- function(x, i, exact = TRUE) {
   if (i == "ptr") {
-    return(.Call(XGBoosterGetPointer_R, x))
+    return(unclass(x)$ptr)
   }
   R_attr <- attributes(x)
   if (hasName(R_attr, i)) {
