@@ -34,7 +34,8 @@ There are in general two ways that you can control overfitting in XGBoost:
   - This includes ``max_depth``, ``min_child_weight``, ``gamma``, ``max_cat_threshold``
     and other similar regularization parameters. See :doc:`</parameter>` for a
     comprehensive set of parameters.
-  - Set a constant ``base_score``. See :doc:`/tutorials/intercept` for more info.
+  - Set a constant ``base_score`` based on your own criteria. See
+    :doc:`/tutorials/intercept` for more info.
 
 * The second way is to add randomness to make training robust to noise.
 
