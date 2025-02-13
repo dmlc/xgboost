@@ -13,8 +13,8 @@ terminologies related to different multi-output models please refer to the
 
 .. note::
 
-   As of XGBoost 2.0, the feature is experimental and has limited features. Only the
-   Python package is tested.
+   As of XGBoost 3.0, the feature is experimental and has limited features. Only the
+   Python package is tested. In addition, ``glinear`` is not supported.
 
 **********************************
 Training with One-Model-Per-Target
