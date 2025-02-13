@@ -19,8 +19,13 @@ that code calling xgboost will still work once those are removed in future relea
 
 Currently, the only supported option is \code{xgboost.strict_mode}, which can be set to \code{TRUE} or
 \code{FALSE} (default).
+
+In addition to an R option, it can also be enabled through by setting environment variable
+\code{XGB_STRICT_MODE=1}. If set, this environment variable will take precedence over the option.
 }
 \examples{
 options("xgboost.strict_mode" = FALSE)
 options("xgboost.strict_mode" = TRUE)
+Sys.setenv("XGB_STRICT_MODE" = "1")
+Sys.setenv("XGB_STRICT_MODE" = "0")
 }
