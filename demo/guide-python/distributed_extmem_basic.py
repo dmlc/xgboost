@@ -21,9 +21,11 @@ If `device` is `cuda`, following are also needed:
 import argparse
 import multiprocessing as mp
 import os
+import sys
 import tempfile
-from functools import partial, update_wrapper
-from typing import Callable, List, Tuple
+import traceback
+from functools import partial, update_wrapper, wraps
+from typing import Callable, List, ParamSpec, Tuple, TypeVar
 
 import numpy as np
 from loky import get_reusable_executor
@@ -98,7 +100,13 @@ class Iterator(xgboost.DataIter):
 
 
 def setup_rmm() -> None:
-    """Setup RMM for GPU-based external memory training."""
+    """Setup RMM for GPU-based external memory training.
+
+    It's important to use RMM with `CudaAsyncMemoryResource` or `ArenaMemoryResource`
+    for GPU-based external memory to improve performance. If XGBoost is not built with
+    RMM support, a warning is raised when constructing the `DMatrix`.
+
+    """
     import rmm
     from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
@@ -119,6 +127,28 @@ def setup_rmm() -> None:
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
 
+R = TypeVar("R")
+P = ParamSpec("P")
+
+
+def try_run(fn: Callable[P, R]) -> Callable[P, R]:
+    """Loky aborts the process without printing out any error message if there's an
+    exception.
+
+    """
+
+    @wraps(fn)
+    def inner(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            print(traceback.format_exc(), file=sys.stderr)
+            raise RuntimeError("Running into exception in worker.") from e
+
+    return inner
+
+
+@try_run
 def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> None:
     """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
     faster initialization and lower memory usage.
@@ -183,9 +213,6 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
-            # It's important to use RMM with `CudaAsyncMemoryResource`. for GPU-based
-            # external memory to improve performance. If XGBoost is not built with RMM
-            # support, a warning is raised when constructing the `DMatrix`.
             setup_rmm()
 
     with get_reusable_executor(

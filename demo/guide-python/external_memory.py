@@ -154,7 +154,14 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
 
 
 def setup_rmm() -> None:
-    """Setup RMM for GPU-based external memory training."""
+    """Setup RMM for GPU-based external memory training.
+
+    It's important to use RMM with `CudaAsyncMemoryResource` or `ArenaMemoryResource`
+    for GPU-based external memory to improve performance. If XGBoost is not built with
+    RMM support, a warning is raised when constructing the `DMatrix`.
+
+    """
+
     import rmm
     from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
@@ -182,9 +189,6 @@ if __name__ == "__main__":
     if args.device == "cuda":
         import cupy as cp
 
-        # It's important to use RMM with `CudaAsyncMemoryResource`. for GPU-based
-        # external memory to improve performance. If XGBoost is not built with RMM
-        # support, a warning is raised when constructing the `DMatrix`.
         setup_rmm()
         # Make sure XGBoost is using RMM for all allocations.
         with xgboost.config_context(use_rmm=True):
