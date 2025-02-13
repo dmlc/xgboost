@@ -1,0 +1,92 @@
+url: https://github.com/dmlc/xgboost
+
+template:
+  bootstrap: 5
+  math-rendering: mathjax
+
+reference:
+  - title: High Level Interface
+    desc: High level XGBoost interface
+    contents:
+      - "xgboost"
+      - "predict.xgboost"
+      - "print.xgboost"
+  - title: Datasets
+    desc: Test datasets bundled with the R package.
+    contents:
+      - "agaricus.train"
+      - "agaricus.test"
+  - title: Global Configuration
+    desc: Global configuration for the XGBoost library.
+    contents:
+      - "xgb.config"
+      - "xgb.set.config"
+      - "xgb.get.config"
+  - title: DMatrix
+    desc: Low-level data storage.
+    contents:
+      - "xgb.DMatrix"
+      - "xgb.DMatrix.hasinfo"
+      - "xgb.DMatrix.save"
+      - "dim.xgb.DMatrix"
+      - "dimnames.xgb.DMatrix"
+      - "print.xgb.DMatrix"
+      - "xgb.DataBatch"
+      - "xgb.DataIter"
+      - "xgb.get.DMatrix.data"
+      - "xgb.get.DMatrix.num.non.missing"
+      - "xgb.ExtMemDMatrix"
+      - "xgb.QuantileDMatrix.from_iterator"
+      - "xgb.get.DMatrix.qcut"
+      - "xgb.slice.DMatrix"
+  - title: Booster
+    desc: The model for XGBoost.
+    contents:
+      - "a-compatibility-note-for-saveRDS-save"
+      - "coef.xgb.Booster"
+      - "getinfo.xgb.Booster"
+      - "predict.xgb.Booster"
+      - "print.xgb.Booster"
+      - "xgb.load"
+      - "xgb.load.raw"
+      - "xgb.save"
+      - "xgb.save.raw"
+      - "xgb.copy.Booster"
+      - "xgb.slice.Booster"
+      - "xgb.get.num.boosted.rounds"
+      - "xgb.is.same.Booster"
+      - "xgb.importance"
+      - "xgb.attr"
+      - "xgb.create.features"
+      - "xgb.model.dt.tree"
+      - "xgb.model.parameters<-"
+      - "xgb.ggplot.deepness"
+      - "xgb.dump"
+      - "variable.names.xgb.Booster"
+      - "xgb.ggplot.importance"
+      - "xgb.plot.multi.trees"
+      - "xgb.plot.shap"
+      - "xgb.ggplot.shap.summary"
+      - "xgb.plot.tree"
+      - "xgb.gblinear.history"
+  - title: Training Callbacks
+    desc: Callback functions used for training.
+    contents:
+      - "xgb.Callback"
+      - "xgb.cb.cv.predict"
+      - "xgb.cb.early.stop"
+      - "xgb.cb.evaluation.log"
+      - "xgb.cb.gblinear.history"
+      - "xgb.cb.print.evaluation"
+      - "xgb.cb.reset.parameters"
+      - "xgb.cb.save.model"
+  - title: Low-level Training Functions
+    desc: Low-level Training Functions with DMatrix and Booster
+    contents:
+      - "xgb.params"
+      - "xgb.train"
+      - "xgb.cv"
+      - "print.xgb.cv.synchronous"
+  - title: Deprecation Settings
+    contents:
+      - "xgboost-options"

@@ -159,6 +159,7 @@ class Channel {
  public:
   explicit Channel(Comm const& comm, std::shared_ptr<TCPSocket> sock)
       : sock_{std::move(sock)}, comm_{comm} {}
+  virtual ~Channel() = default;
 
   [[nodiscard]] virtual Result SendAll(std::int8_t const* ptr, std::size_t n) {
     Loop::Op op{Loop::Op::kWrite, comm_.Rank(), const_cast<std::int8_t*>(ptr), n, sock_.get(), 0};

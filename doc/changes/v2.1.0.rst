@@ -1,3 +1,13 @@
+################################
+2.1.4 Patch Release (2025 Feb 6)
+################################
+
+The 2.1.4 patch release incorporates the following fixes on top of the 2.1.3 release:
+
+- XGBoost is now compatible with scikit-learn 1.6 (#11021, #11162)
+- Build wheels with CUDA 12.8 and enable Blackwell support (#11187, #11202)
+- Adapt to RMM 25.02 logger changes (#11153)
+
 #################################
 2.1.3 Patch Release (2024 Nov 26)
 #################################

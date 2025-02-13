@@ -408,25 +408,6 @@ xgb.createFolds <- function(y, k) {
   out
 }
 
-
-#
-# Deprectaion notice utilities ------------------------------------------------
-#
-
-#' Deprecation notices.
-#'
-#' At this time, some of the parameter names were changed in order to make the code style more uniform.
-#' The deprecated parameters would be removed in the next release.
-#'
-#' To see all the current deprecated and new parameters, check the `xgboost:::depr_par_lut` table.
-#'
-#' A deprecation warning is shown when any of the deprecated parameters is used in a call.
-#' An additional warning is shown when there was a partial match to a deprecated parameter
-#' (as R is able to partially match parameter names).
-#'
-#' @name xgboost-deprecated
-NULL
-
 #' Model Serialization and Compatibility
 #'
 #' @description
@@ -576,6 +557,8 @@ deprecated_train_params <- list(
   ),
   removed = character()
 )
+deprecated_cv_params <- deprecated_train_params
+deprecated_cv_params$removed <- 'label'
 deprecated_xgboost_params <- list(
   renamed = list(
     'data' = 'x',
