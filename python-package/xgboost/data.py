@@ -1563,8 +1563,8 @@ def _meta_from_cudf_series(data: DataType, field: str, handle: ctypes.c_void_p) 
 
 def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -> None:
     data = _transform_cupy_array(data)
-    interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
+    inf = cuda_array_interface(data)
+    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), inf))
 
 
 def dispatch_meta_backend(
