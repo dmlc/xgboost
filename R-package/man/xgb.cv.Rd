@@ -27,7 +27,7 @@ xgb.cv(
 }
 \arguments{
 \item{params}{List of XGBoost parameters which control the model building process.
-See the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}
+See the \href{https://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}
 and the documentation for \code{\link[=xgb.params]{xgb.params()}} for details.
 
 Should be passed as list with named entries. Parameters that are not specified in this
