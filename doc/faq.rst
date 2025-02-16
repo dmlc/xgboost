@@ -75,4 +75,4 @@ This could happen, due to non-determinism in floating point summation order and 
 Why do I see different results with sparse and dense data?
 **********************************************************
 
-"Sparse" elements are treated as if they were "missing" by the tree booster, and as zeros by the linear booster. However, if we convert the sparse matrix back to dense matrix, the sparse matrix might fill the missing entries with 0, which is a valid value for xgboost.
+"Sparse" elements are treated as if they were "missing" by the tree booster, and as zeros by the linear booster. However, if we convert the sparse matrix back to dense matrix, the sparse matrix might fill the missing entries with 0, which is a valid value for xgboost. In short, sparse matrix implementations like scipy treats 0 as missing, while 0 is a valid split value for XGBoost decision trees.
