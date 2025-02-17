@@ -110,7 +110,7 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
                    objective = NULL, custom_metric = NULL, stratified = "auto",
                    folds = NULL, train_folds = NULL, verbose = TRUE, print_every_n = 1L,
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
-  check.deprecation(deprecated_train_params, match.call(), ...)
+  check.deprecation(deprecated_cv_params, match.call(), ...)
 
   stopifnot(inherits(data, "xgb.DMatrix"))
   if (inherits(data, "xgb.DMatrix") && .Call(XGCheckNullPtr_R, data)) {

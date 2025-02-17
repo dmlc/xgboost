@@ -43,18 +43,26 @@ To make changes to the CI container, carry out the following steps:
    Consult :ref:`build_run_docker_locally` for this step.
 4. Submit a pull request to `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_ with
    the proposed changes to the Dockerfile. Make note of the pull request number. Example: ``#204``
-5. Clone `dmlc/xgboost <https://github.com/dmlc/xgboost>`_ and update all references to the
-   old container to point to the new container. More specifically, all container image URIs of form
-   ``492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:main`` should have its image tag
-   (last component) replaced with ``PR-#``, where ``#`` is the pull request number.
-   For the example above,
-   we'd replace ``492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main`` with
-   ``492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:PR-204``.
+5. Clone `dmlc/xgboost <https://github.com/dmlc/xgboost>`_. Locate the file
+   ``ops/pipeline/get-image-tag.sh``, which should have a single line
+
+   .. code-block:: bash
+
+     IMAGE_TAG=main
+
+   To use the new container, revise the file as follows:
+
+   .. code-block:: bash
+
+     IMAGE_TAG=PR-XX
+
+   where ``XX`` is the pull request number.
+
 6. Now submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_. The CI will
    run tests using the new container. Verify that all tests pass.
 7. Merge the pull request in ``dmlc/xgboost-devops``. Wait until the CI completes on the ``main`` branch.
-8. Go back to the the pull request for ``dmlc/xgboost`` and revise all the container references to use
-   the old tag ``:main``.
+8. Go back to the the pull request for ``dmlc/xgboost`` and change ``ops/pipeline/get-image-tag.sh``
+   back to ``IMAGE_TAG=main``.
 9. Merge the pull request in ``dmlc/xgboost``.
 
 .. _build_run_docker_locally:

@@ -24,8 +24,9 @@ do
 done
 
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:${IMAGE_TAG}
 
 set -x
 

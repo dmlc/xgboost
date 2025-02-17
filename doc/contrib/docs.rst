@@ -81,6 +81,40 @@ Build the Python Docs using pip and Conda
 
     Build finished. The HTML pages are in _build/html.
 
+*************
+Read The Docs
+*************
+
+`Read the Docs <https://readthedocs.org/>`__ (RTD for short) is an online document hosting
+service and hosts the `XGBoost document site
+<https://xgboost.readthedocs.io/en/stable/>`__. The document builder used by RTD is
+relatively lightweight. However some of the packages like the R binding require a compiled
+XGBoost along with all the optional dependencies to render the document. As a result, both
+jvm-based packages and the R package's document is built with an independent CI pipeline
+and fetched during online document build.
+
+The sphinx configuration file ``xgboost/doc/conf.py`` acts as the fetcher. During build,
+the fetched artifacts are stored in ``xgboost/doc/tmp/jvm_docs`` and
+``xgboost/doc/tmp/r_docs`` respectively. For the R package, there's a dummy index file in
+``xgboost/doc/R-package/r_docs`` . Jvm doc is similar. As for the C doc, it's generated
+using doxygen and processed by breathe during build as it's relatively cheap. The
+generated xml files are stored in ``xgboost/doc/tmp/dev`` .
+
+The ``xgboost/doc/tmp`` is part of the ``html_extra_path`` sphinx configuration specified
+in the ``conf.py`` file, which informs sphinx to copy the extracted html files to the
+build directory. Following is a list of environment variables used by the fetchers in
+``conf.py``:
+
+ - ``READTHEDOCS``: Read the docs flag. Build the full documentation site including R, JVM and
+   C doc when set to ``True`` (case sensitive).
+ - ``XGBOOST_R_DOCS``: Local path for pre-built R document, used for development.
+ - ``XGBOOST_JVM_DOCS``: Local path for pre-built JVM document, used for development.
+
+As of writing, RTD doesn't provide any facility to be embedded as a GitHub action but we
+need a way to specify the dependency between the CI pipelines and the document build in
+order to fetch the correct artifact. The workaround is to use an extra GA step to notify
+RTD using its `REST API <https://docs.readthedocs.com/platform/stable/api/v3.html>`__.
+
 ********
 Examples
 ********

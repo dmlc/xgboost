@@ -1,0 +1,96 @@
+name: XGBoost-docs
+
+on: [push, pull_request]
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  build-jvm-docs:
+    name: Build docs for JVM packages
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=doc-build-jvm-docs
+
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Get the git hash for the push event.
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        run: |
+          echo "HEAD_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
+      - name: Get the git hash for the PR event.
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
+
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-jvm-gpu.sh
+      - run: bash ops/pipeline/build-jvm-doc.sh
+      - name: Upload JVM doc
+        run: |
+          # xgboost-docs/{branch}/{commit}/{branch}.tar.bz2
+          # branch can be the name of the dmlc/xgboost branch, or `PR-{number}`.
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${{ env.HEAD_SHA }} --make-public \
+            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
+
+  build-r-docs:
+    name: Build docs for the R package
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=r-tests-build-docs
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Get the git hash for the push event.
+        if: ${{ github.event_name == 'push' }}
+        shell: bash
+        run: |
+          echo "HEAD_SHA=${GITHUB_SHA}" >> ${GITHUB_ENV}
+      - name: Get the git hash for the PR event.
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> ${GITHUB_ENV}
+
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-r-docs.sh
+      - name: Upload R doc
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket xgboost-docs \
+            --prefix ${BRANCH_NAME}/${{ env.HEAD_SHA }} --make-public \
+            r-docs-${{ env.BRANCH_NAME }}.tar.bz2
+
+  trigger-rtd-build:
+    needs: [build-jvm-docs]
+    name: Trigger Read The Docs build.
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=doc-trigger-rtd-build
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Trigger RTD
+        run: bash ops/pipeline/trigger-rtd.sh
