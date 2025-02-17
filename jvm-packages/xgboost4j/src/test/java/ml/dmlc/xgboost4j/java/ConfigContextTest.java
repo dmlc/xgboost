@@ -24,11 +24,11 @@ import org.junit.Test;
 public class ConfigContextTest {
   @Test
   public void testBasic() throws XGBoostError {
-    try (ConfigContext ctx = new ConfigContext().set("verbosity", 3)) {
-      int v = (int) ConfigContext.get().get("verbosity");
-      TestCase.assertEquals(3, v);
+    try (ConfigContext ctx = new ConfigContext()) {
+      TestCase.assertEquals(1, ctx.getConfig("verbosity"));
+
+      ctx.setConfig("verbosity", 3);
+      TestCase.assertEquals(3, ctx.getConfig("verbosity"));
     }
-    int v = (int) ConfigContext.get().get("verbosity");
-    TestCase.assertEquals(1, v);
   }
 }

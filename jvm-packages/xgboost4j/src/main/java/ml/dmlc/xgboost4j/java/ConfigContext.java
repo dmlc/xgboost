@@ -26,38 +26,41 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * Global configuration context for XGBoost.
  *
  * @version 3.0.0
- *
+ * <p>
  * See the parameter document for supported global configuration. The configuration is
  * restored upon close.
  */
 public class ConfigContext implements AutoCloseable {
-  String orig;
+  private final String initialConfiguration;
 
-  ConfigContext() throws XGBoostError {
-    this.orig = getImpl();
+  public ConfigContext() throws XGBoostError {
+    initialConfiguration = getGlobalConfig();
   }
 
-  static String getImpl() throws XGBoostError {
+  /**
+   * Get the global configuration
+   */
+  private String getGlobalConfig() throws XGBoostError {
     String[] config = new String[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGBGetGlobalConfig(config));
     return config[0];
   }
 
-  public static Map<String, Object> get() throws XGBoostError {
-    String jconfig = getImpl();
+  public Object getConfig(String name) throws XGBoostError {
+    String jconfig = getGlobalConfig();
     ObjectMapper mapper = new ObjectMapper();
     try {
-      Map<String, Object> config = mapper.readValue(jconfig,
-          new TypeReference<Map<String, Object>>() {
-          });
-      return config;
+      Map<String, Object> map = mapper.readValue(jconfig,
+        new TypeReference<Map<String, Object>>() {
+        });
+      return map.get(name);
     } catch (JsonProcessingException ex) {
       throw new XGBoostError("Failed to get the global config due to a decode error.", ex);
     }
   }
 
-  public <T> ConfigContext set(String key, T value) throws XGBoostError {
-    HashMap<String, Object> map = new HashMap<String, Object>();
+  public void setConfig(String key, Object value) throws XGBoostError {
+    HashMap<String, Object> map = new HashMap<>();
     map.put(key, value);
     ObjectMapper mapper = new ObjectMapper();
     try {
@@ -66,11 +69,10 @@ public class ConfigContext implements AutoCloseable {
     } catch (JsonProcessingException ex) {
       throw new XGBoostError("Failed to set the global config due to an encode error.", ex);
     }
-    return this;
   }
 
   @Override
   public void close() throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGBSetGlobalConfig(this.orig));
+    XGBoostJNI.checkCall(XGBoostJNI.XGBSetGlobalConfig(initialConfiguration));
   }
 };
