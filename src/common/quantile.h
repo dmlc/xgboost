@@ -792,7 +792,7 @@ WLBalance LoadBalance(Batch const &batch, size_t nnz, bst_feature_t n_columns,
 
     if (n_entries > 0) {
       size_t n_splits =  std::min(nthreads * n_entries / total_entries, n_entries);
-      constexpr size_t kMinBlockSize = 1024;
+      constexpr size_t kMinBlockSize = (1u << 16);
       if ((n_splits > 1) && (kMinBlockSize * n_splits < n_entries)) {
         // Split column between threads
         wl_balance.has_splitted = true;
