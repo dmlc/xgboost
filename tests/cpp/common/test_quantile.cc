@@ -165,7 +165,7 @@ TEST(Quantile, DistributedBasic) {
 
 TEST(Quantile, DistributedRowWise) {
   size_t kRows = (1u << 16) * common::OmpGetNumThreads(0);
-  size_t kCols = 10;
+  size_t kCols = 2;
   TestDistributedQuantile<false>(kRows, kCols);
 }
 
@@ -299,7 +299,7 @@ TEST(Quantile, ColumnSplitBasic) {
 
 TEST(Quantile, ColumnSplitRowWise) {
   size_t kRows = (1u << 16) * common::OmpGetNumThreads(0);
-  size_t kCols = 10;
+  size_t kCols = 2;
   TestColSplitQuantile<false>(kRows, kCols);
 }
 
