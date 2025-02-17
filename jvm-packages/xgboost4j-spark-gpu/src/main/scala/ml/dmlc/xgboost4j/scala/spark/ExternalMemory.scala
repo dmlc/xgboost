@@ -116,7 +116,7 @@ private[spark] class DiskExternalMemoryIterator(val path: String) extends Extern
   override def loadTable(name: String): Table = {
     val file = new File(name)
     if (!file.exists()) {
-      throw new RuntimeException(s"The cached file ${name} not exist" )
+      throw new RuntimeException(s"The cache file ${name} doesn't exist" )
     }
     try {
       withResource(Table.readArrowIPCChunked(file)) { reader =>
