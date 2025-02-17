@@ -408,25 +408,6 @@ xgb.createFolds <- function(y, k) {
   out
 }
 
-
-#
-# Deprectaion notice utilities ------------------------------------------------
-#
-
-#' Deprecation notices.
-#'
-#' At this time, some of the parameter names were changed in order to make the code style more uniform.
-#' The deprecated parameters would be removed in the next release.
-#'
-#' To see all the current deprecated and new parameters, check the `xgboost:::depr_par_lut` table.
-#'
-#' A deprecation warning is shown when any of the deprecated parameters is used in a call.
-#' An additional warning is shown when there was a partial match to a deprecated parameter
-#' (as R is able to partially match parameter names).
-#'
-#' @name xgboost-deprecated
-NULL
-
 #' Model Serialization and Compatibility
 #'
 #' @description
@@ -559,10 +540,23 @@ NULL
 #'
 #' Currently, the only supported option is `xgboost.strict_mode`, which can be set to `TRUE` or
 #' `FALSE` (default).
+#'
+#' In addition to an R option, it can also be enabled through by setting environment variable
+#' `XGB_STRICT_MODE=1`. If set, this environment variable will take precedence over the option.
 #' @examples
 #' options("xgboost.strict_mode" = FALSE)
 #' options("xgboost.strict_mode" = TRUE)
+#' Sys.setenv("XGB_STRICT_MODE" = "1")
+#' Sys.setenv("XGB_STRICT_MODE" = "0")
 NULL
+
+get.strict.mode.option <- function() {
+  env_var_option <- Sys.getenv("XGB_STRICT_MODE")
+  if (!nchar(env_var_option)) {
+    return(getOption("xgboost.strict_mode", default = FALSE))
+  }
+  return(tolower(as.character(env_var_option)) %in% c("1", "true", "t", "yes", "y"))
+}
 
 # Lookup table for the deprecated parameters bookkeeping
 deprecated_train_params <- list(
@@ -576,6 +570,8 @@ deprecated_train_params <- list(
   ),
   removed = character()
 )
+deprecated_cv_params <- deprecated_train_params
+deprecated_cv_params$removed <- 'label'
 deprecated_xgboost_params <- list(
   renamed = list(
     'data' = 'x',
@@ -656,7 +652,7 @@ check.deprecation <- function(
   if (length(params) == 0) {
     return(NULL)
   }
-  error_on_deprecated <- getOption("xgboost.strict_mode", default = FALSE)
+  error_on_deprecated <- get.strict.mode.option()
   throw_err_or_depr_msg <- function(...) {
     if (error_on_deprecated) {
       stop(...)

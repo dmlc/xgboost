@@ -11,9 +11,10 @@
 #include <typeinfo>   // for type_info
 #include <vector>     // for vector
 
-#include "../collective/communicator-inl.h"   // for Allreduce, IsDistributed
-#include "../collective/allreduce.h"
+#include "../collective/allreduce.h"          // for Allreduce
+#include "../collective/communicator-inl.h"   // for IsDistributed
 #include "../common/bitfield.h"               // for RBitField8
+#include "../common/column_matrix.h"          // for ColumnMatrix
 #include "../common/common.h"                 // for DivRoundUp
 #include "../common/error_msg.h"              // for InplacePredictProxy
 #include "../common/math.h"                   // for CheckNAN
@@ -195,6 +196,7 @@ struct GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView> {
   std::vector<std::uint32_t> const &ptrs_;
   std::vector<float> const &mins_;
   std::vector<float> const &values_;
+  common::ColumnMatrix const &columns_;
 
  public:
   bst_idx_t const base_rowid;
@@ -206,6 +208,7 @@ struct GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView> {
         ptrs_{_page.cut.Ptrs()},
         mins_{_page.cut.MinValues()},
         values_{_page.cut.Values()},
+        columns_{page_.Transpose()},
         base_rowid{_page.base_rowid} {}
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float* out) const {
@@ -235,7 +238,22 @@ struct GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView> {
       n_non_missings += n_features;
     } else {
       for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
-        float f = page_.GetFvalue(ptrs_, values_, mins_, gridx, fidx, common::IsCat(ft_, fidx));
+        float f = std::numeric_limits<float>::quiet_NaN();
+        bool is_cat = common::IsCat(ft_, fidx);
+        if (columns_.GetColumnType(fidx) == common::kSparseColumn) {
+          // Special handling for extremely sparse data. Just binary search.
+          auto bin_idx = page_.GetGindex(gridx, fidx);
+          if (bin_idx != -1) {
+            if (is_cat) {
+              f = values_[bin_idx];
+            } else {
+              f = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx,
+                                                         bin_idx);
+            }
+          }
+        } else {
+          f = page_.GetFvalue(ptrs_, values_, mins_, gridx, fidx, is_cat);
+        }
         if (!common::CheckNAN(f)) {
           out[fidx] = f;
           n_non_missings++;

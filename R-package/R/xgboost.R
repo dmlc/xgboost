@@ -845,6 +845,9 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' language bindings of XGBoost and which exposes additional functionalities such as training on
 #' external memory data and learning-to-rank objectives.
 #'
+#' See also the [migration guide](https://xgboost.readthedocs.io/en/latest/R-package/migration_guide.html)
+#' if coming from a previous version of XGBoost in the 1.x series.
+#'
 #' By default, most of the parameters here have a value of `NULL`, which signals XGBoost to use its
 #' default value. Default values are automatically determined by the XGBoost core library, and are
 #' subject to change over XGBoost library versions. Some of them might differ according to the
@@ -1247,7 +1250,7 @@ xgboost <- function(
 #'
 #' In the case of data frames, if there are any categorical features, they should be of class
 #' `factor` and should have the same levels as the `factor` columns of the data from which the model
-#' was constructed.
+#' was constructed. Any columns with type other than `factor` will be interpreted as numeric.
 #'
 #' If there are named columns and the model was fitted to data with named columns, they will be
 #' matched by name by default (see `validate_features`).

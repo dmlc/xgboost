@@ -94,12 +94,14 @@ xgb.get.handle <- function(object) {
 #'   - Columns will be converted to numeric if they aren't already, which could potentially make
 #'     the operation slower than in an equivalent `matrix` object.
 #'   - The order of the columns must match with that of the data from which the model was fitted
-#'     (i.e. columns will not be referenced by their names, just by their order in the data).
+#'     (i.e. columns will not be referenced by their names, just by their order in the data),
+#'     unless passing `validate_features = TRUE` (which is not the default).
 #'   - If the model was fitted to data with categorical columns, these columns must be of
 #'     `factor` type here, and must use the same encoding (i.e. have the same levels).
 #'   - If `newdata` contains any `factor` columns, they will be converted to base-0
 #'     encoding (same as during DMatrix creation) - hence, one should not pass a `factor`
 #'     under a column which during training had a different type.
+#'   - Any columns with type other than `factor` will be interpreted as numeric.
 #' @param missing Float value that represents missing values in data
 #'   (e.g., 0 or some other extreme value).
 #'

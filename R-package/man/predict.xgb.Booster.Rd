@@ -40,12 +40,14 @@ If \code{newdata} is a \code{data.frame}, be aware that:
 \item Columns will be converted to numeric if they aren't already, which could potentially make
 the operation slower than in an equivalent \code{matrix} object.
 \item The order of the columns must match with that of the data from which the model was fitted
-(i.e. columns will not be referenced by their names, just by their order in the data).
+(i.e. columns will not be referenced by their names, just by their order in the data),
+unless passing \code{validate_features = TRUE} (which is not the default).
 \item If the model was fitted to data with categorical columns, these columns must be of
 \code{factor} type here, and must use the same encoding (i.e. have the same levels).
 \item If \code{newdata} contains any \code{factor} columns, they will be converted to base-0
 encoding (same as during DMatrix creation) - hence, one should not pass a \code{factor}
 under a column which during training had a different type.
+\item Any columns with type other than \code{factor} will be interpreted as numeric.
 }}
 
 \item{missing}{Float value that represents missing values in data

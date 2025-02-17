@@ -1206,10 +1206,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_TrackerWaitFor(JNI
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_TrackerWorkerArgs(
     JNIEnv *jenv, jclass, jlong jhandle, jlong timeout, jobjectArray jout) {
   using namespace xgboost;  // NOLINT
-
-  Json config{Object{}};
-  config["timeout"] = Integer{static_cast<Integer::Int>(timeout)};
-  std::string sconfig = Json::Dump(config);
   auto handle = reinterpret_cast<TrackerHandle>(jhandle);
   char const *args;
   JVM_CHECK_CALL(XGTrackerWorkerArgs(handle, &args));
@@ -1547,4 +1543,38 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetQuanti
   jenv->SetObjectArrayElement(j_values, 0, jcuts_array);
 
   return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBSetGlobalConfig
+ * Signature: (Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBSetGlobalConfig(JNIEnv *jenv,
+                                                                                 jclass,
+                                                                                 jstring config) {
+  std::unique_ptr<char const, Deleter<char const>> args{
+      jenv->GetStringUTFChars(config, nullptr), [&](char const *ptr) {
+        if (ptr) {
+          jenv->ReleaseStringUTFChars(config, ptr);
+        }
+      }};
+  auto ret = XGBSetGlobalConfig(args.get());
+  JVM_CHECK_CALL(ret);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBGetGlobalConfig
+ * Signature: ([Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL
+Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetGlobalConfig(JNIEnv *jenv, jclass, jobjectArray jout) {
+  char const *args;
+  auto ret = XGBGetGlobalConfig(&args);
+  JVM_CHECK_CALL(ret);
+  jstring jret = jenv->NewStringUTF(args);
+  jenv->SetObjectArrayElement(jout, 0, jret);
+  return 0;
 }
