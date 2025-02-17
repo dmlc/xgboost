@@ -169,7 +169,7 @@ def run_data_iterator(
 @given(
     strategies.integers(0, 1024),
     strategies.integers(1, 7),
-    strategies.integers(0, 2),
+    strategies.integers(0, 13),
     strategies.booleans(),
 )
 @settings(deadline=None, max_examples=10, print_blob=True)
