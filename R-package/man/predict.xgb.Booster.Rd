@@ -224,7 +224,7 @@ train <- agaricus.train
 test <- agaricus.test
 
 bst <- xgb.train(
-  data = xgb.DMatrix(train$data, label = train$label),
+  data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
   nrounds = 5,
   params = xgb.params(
     max_depth = 2,
@@ -268,7 +268,7 @@ num_class <- 3
 set.seed(11)
 
 bst <- xgb.train(
-  data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
+  data = xgb.DMatrix(as.matrix(iris[, -5], nthread = 1), label = lb),
   nrounds = 10,
   params = xgb.params(
     max_depth = 4,
@@ -291,7 +291,7 @@ sum(pred_labels != lb) / length(lb)
 set.seed(11)
 
 bst <- xgb.train(
-  data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
+  data = xgb.DMatrix(as.matrix(iris[, -5], nthread = 1), label = lb),
   nrounds = 10,
   params = xgb.params(
     max_depth = 4,

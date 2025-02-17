@@ -22,7 +22,7 @@
 #' test <- agaricus.test
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,

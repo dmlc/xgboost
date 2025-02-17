@@ -26,7 +26,7 @@ if (isTRUE(VCD_AVAILABLE)) {
 
     # binary
     bst.Tree <- xgb.train(
-      data = xgb.DMatrix(sparse_matrix, label = label),
+      data = xgb.DMatrix(sparse_matrix, label = label, nthread = 1),
       nrounds = nrounds, verbose = 0,
       params = xgb.params(
         max_depth = 9,
@@ -39,7 +39,7 @@ if (isTRUE(VCD_AVAILABLE)) {
     )
 
     bst.GLM <- xgb.train(
-      data = xgb.DMatrix(sparse_matrix, label = label),
+      data = xgb.DMatrix(sparse_matrix, label = label, nthread = 1),
       nrounds = nrounds, verbose = 0,
       params = xgb.params(
         learning_rate = 1,
@@ -61,7 +61,7 @@ if (isTRUE(VCD_AVAILABLE)) {
 mlabel <- as.numeric(iris$Species) - 1
 nclass <- 3
 mbst.Tree <- xgb.train(
-  data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel),
+  data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel, nthread = 1),
   verbose = 0,
   nrounds = nrounds,
   params = xgb.params(
@@ -71,7 +71,7 @@ mbst.Tree <- xgb.train(
 )
 
 mbst.GLM <- xgb.train(
-  data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel),
+  data = xgb.DMatrix(as.matrix(iris[, -5]), label = mlabel, nthread = 1),
   verbose = 0,
   nrounds = nrounds,
   params = xgb.params(
@@ -102,7 +102,7 @@ test_that("xgb.dump works for gblinear", {
   # also make sure that it works properly for a sparse model where some coefficients
   # are 0 from setting large L1 regularization:
   bst.GLM.sp <- xgb.train(
-    data = xgb.DMatrix(sparse_matrix, label = label),
+    data = xgb.DMatrix(sparse_matrix, label = label, nthread = 1),
     nrounds = 1,
     params = xgb.params(
       learning_rate = 1,
@@ -216,7 +216,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
           eval_metric = "rmse"),
         if (booster == "dart")
           list(rate_drop = .01, one_drop = TRUE)),
-      data = xgb.DMatrix(d, label = y),
+      data = xgb.DMatrix(d, label = y, nthread = 1),
       nrounds = nrounds)
 
     pr <- function(...) {
@@ -387,7 +387,7 @@ test_that("xgb.importance works with and without feature names", {
 
   ## decision stump
   m <- xgb.train(
-    data = xgb.DMatrix(as.matrix(data.frame(x = c(0, 1))), label = c(1, 2)),
+    data = xgb.DMatrix(as.matrix(data.frame(x = c(0, 1))), label = c(1, 2), nthread = 1),
     nrounds = 1,
     params = xgb.params(
       base_score = 0.5,
@@ -421,7 +421,7 @@ test_that("xgb.importance works with GLM model", {
 test_that("xgb.model.dt.tree and xgb.importance work with a single split model", {
   .skip_if_vcd_not_available()
   bst1 <- xgb.train(
-    data = xgb.DMatrix(sparse_matrix, label = label),
+    data = xgb.DMatrix(sparse_matrix, label = label, nthread = 1),
     nrounds = 1, verbose = 0,
     params = xgb.params(
       max_depth = 1,
@@ -456,7 +456,7 @@ test_that("xgb.plot.tree works with and without feature names", {
   y <- rnorm(100)
   x <- sample(3, size = 100 * 3, replace = TRUE) |> matrix(nrow = 100)
   x <- x - 1
-  dm <- xgb.DMatrix(data = x, label = y)
+  dm <- xgb.DMatrix(data = x, label = y, nthread = 1)
   setinfo(dm, "feature_type", c("c", "c", "c"))
   model <- xgb.train(
     data = dm,
@@ -589,7 +589,7 @@ test_that("xgb.plot.shap.summary ignores categorical features", {
 
 test_that("check.deprecation works", {
   data(mtcars)
-  dm <- xgb.DMatrix(mtcars[, -1L], label = mtcars$mpg)
+  dm <- xgb.DMatrix(mtcars[, -1L], label = mtcars$mpg, nthread = 1)
   params <- xgb.params(nthread = 1, max_depth = 2, eval_metric = "rmse")
   args_train <- list(
     data = dm,
@@ -761,7 +761,7 @@ test_that("validate.features works as expected", {
     validate.features(model, as.matrix(mtcars[, 1:ncol(x)])) # nolint
   })
   expect_error({
-    validate.features(model, xgb.DMatrix(mtcars[, 1:3]))
+    validate.features(model, xgb.DMatrix(mtcars[, 1:3], nthread = 1))
   })
   expect_error({
     validate.features(model, as(x[, 1:3], "CsparseMatrix"))
@@ -769,15 +769,15 @@ test_that("validate.features works as expected", {
 
   # error when it cannot reorder or subset
   expect_error({
-    validate.features(model, xgb.DMatrix(mtcars))
+    validate.features(model, xgb.DMatrix(mtcars, nthread = 1))
   }, "Feature names")
   expect_error({
-    validate.features(model, xgb.DMatrix(x[, rev(colnames(x))]))
+    validate.features(model, xgb.DMatrix(x[, rev(colnames(x))], nthread = 1))
   }, "Feature names")
 
   # no error about types if the booster doesn't have types
   expect_error({
-    validate.features(model, xgb.DMatrix(x, feature_types = c(rep("q", 5), rep("c", 5))))
+    validate.features(model, xgb.DMatrix(x, feature_types = c(rep("q", 5), rep("c", 5)), nthread = 1))
   }, NA)
   tmp <- mtcars
   tmp[["vs"]] <- factor(tmp[["vs"]])
@@ -788,7 +788,7 @@ test_that("validate.features works as expected", {
   # error when types do not match
   setinfo(model, "feature_type", rep("q", 10))
   expect_error({
-    validate.features(model, xgb.DMatrix(x, feature_types = c(rep("q", 5), rep("c", 5))))
+    validate.features(model, xgb.DMatrix(x, feature_types = c(rep("q", 5), rep("c", 5)), nthread = 1))
   }, "Feature types")
   tmp <- mtcars
   tmp[["vs"]] <- factor(tmp[["vs"]])

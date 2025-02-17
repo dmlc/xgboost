@@ -165,7 +165,8 @@ Example usage of `xgb.train()`:
 data("agaricus.train")
 dmatrix <- xgb.DMatrix(
     data = agaricus.train$data,  # a sparse CSC matrix ('dgCMatrix')
-    label = agaricus.train$label # zeros and ones
+    label = agaricus.train$label, # zeros and ones
+    nthread = 1
 )
 booster <- xgb.train(
     data = dmatrix,
@@ -178,7 +179,7 @@ booster <- xgb.train(
 )
 
 data("agaricus.test")
-dmatrix_test <- xgb.DMatrix(agaricus.test$data)
+dmatrix_test <- xgb.DMatrix(agaricus.test$data, nthread = 1)
 pred_prob <- predict(booster, dmatrix_test)
 pred_raw <- predict(booster, dmatrix_test, outputmargin = TRUE)
 ```

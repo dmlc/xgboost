@@ -53,7 +53,7 @@ labels <- c(1, 1, 1,
 data <- data.frame(dates = dates, labels = labels)
 
 bst <- xgb.train(
-  data = xgb.DMatrix(as.matrix(data$dates), label = labels, missing = NA),
+  data = xgb.DMatrix(as.matrix(data$dates), label = labels, missing = NA, nthread = 1),
   nrounds = 1,
   params = xgb.params(
     objective = "binary:logistic",

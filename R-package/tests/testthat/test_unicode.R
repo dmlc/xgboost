@@ -9,7 +9,7 @@ set.seed(1994)
 test_that("Can save and load models with Unicode paths", {
   nrounds <- 2
   bst <- xgb.train(
-    data = xgb.DMatrix(train$data, label = train$label),
+    data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
     nrounds = nrounds,
     params = xgb.params(
       max_depth = 2,

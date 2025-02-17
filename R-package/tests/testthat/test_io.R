@@ -8,7 +8,7 @@ test <- agaricus.test
 test_that("load/save raw works", {
   nrounds <- 8
   booster <- xgb.train(
-    data = xgb.DMatrix(train$data, label = train$label),
+    data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
     nrounds = nrounds,
     params = xgb.params(
       objective = "binary:logistic",

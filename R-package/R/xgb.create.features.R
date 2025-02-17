@@ -67,10 +67,10 @@
 #'
 #' # learning with new features
 #' new.dtrain <- xgb.DMatrix(
-#'   data = new.features.train, label = agaricus.train$label
+#'   data = new.features.train, label = agaricus.train$label, nthread = 1
 #' )
 #' new.dtest <- xgb.DMatrix(
-#'   data = new.features.test, label = agaricus.test$label
+#'   data = new.features.test, label = agaricus.test$label, nthread = 1
 #' )
 #' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds)
 #'

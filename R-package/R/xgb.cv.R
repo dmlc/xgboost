@@ -310,7 +310,7 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
 #'
 #' train <- agaricus.train
 #' cv <- xgb.cv(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nfold = 5,
 #'   nrounds = 2,
 #'   params = xgb.params(

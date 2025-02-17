@@ -8,7 +8,7 @@ train <- matrix(x, ncol = 1)
 
 test_that("monotone constraints for regression", {
     bst <- xgb.train(
-        data = xgb.DMatrix(train, label = y),
+        data = xgb.DMatrix(train, label = y, nthread = 1),
         nrounds = 100, verbose = 0,
         params = xgb.params(
             max_depth = 2,
