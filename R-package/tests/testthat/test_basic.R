@@ -402,6 +402,40 @@ test_that("xgb.cv works", {
   expect_false(is.null(cv$call))
 })
 
+test_that("xgb.cv invalid inputs", {
+  data("mtcars")
+  y <- mtcars$mpg
+  x_df <- mtcars[, -1]
+
+  expect_error(
+    cv <- xgb.cv(
+      data = xgb.QuantileDMatrix(x_df, label = y),
+      nfold = 5,
+      nrounds = 2,
+      params = xgb.params(
+        max_depth = 2,
+        nthread = n_threads
+      )
+    ),
+    regexp = ".*QuantileDMatrix.*"
+  )
+  expect_error(
+    cv <- xgb.cv(
+      data = xgb.DMatrix(x_df, label = y),
+      nfold = 5,
+      nrounds = 2,
+      params = xgb.params(
+        max_depth = 2,
+        nthread = n_threads,
+      ),
+      callbacks = list(
+        xgb.cb.early.stop(stopping_rounds = 3)
+      )
+    ),
+    regexp = ".*keep_all_iter.*"
+  )
+})
+
 test_that("xgb.cv works with stratified folds", {
   dtrain <- xgb.DMatrix(train$data, label = train$label, nthread = n_threads)
   set.seed(314159)

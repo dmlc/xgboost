@@ -647,6 +647,9 @@ xgb.cb.early.stop <- function(
       if (inherits(model, "xgb.Booster") && !length(evals)) {
         stop("For early stopping, 'evals' must have at least one element")
       }
+      if (!inherits(model, "xgb.Booster") && keep_all_iter) {
+        stop("`keep_all_iter` must be set to FALSE for cv.")
+      }
       env$begin_iteration <- begin_iteration
       return(NULL)
     },
