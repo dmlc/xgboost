@@ -395,3 +395,9 @@ class TestQuantileDMatrix:
         Xy = xgb.DMatrix(X, y, enable_categorical=True)
         p1 = booster.predict(Xy)
         np.testing.assert_allclose(p0, p1)
+
+    def test_cv_error(self) -> None:
+        X, y = make_sparse_regression(8, 2, sparsity=0.2, as_dense=False)
+        Xy = xgb.QuantileDMatrix(X, y)
+        with pytest.raises(ValueError, match=""):
+            cv = xgb.cv({}, Xy, 10, nfold=10, early_stopping_rounds=10)

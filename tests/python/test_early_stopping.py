@@ -107,6 +107,16 @@ class TestEarlyStopping:
         )
         self.assert_metrics_length(cv, 1)
 
+        with pytest.raises(ValueError, match="`save_best`"):
+            cv = xgb.cv(
+                params,
+                dm,
+                num_boost_round=10,
+                nfold=10,
+                early_stopping_rounds=1,
+                callbacks=[xgb.callback.EarlyStopping(3, save_best=True)],
+            )
+
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.skipif(**tm.no_pandas())
     def test_cv_early_stopping_with_multiple_eval_sets_and_metrics(self):
