@@ -99,7 +99,7 @@
 #' )
 #' fname <- file.path(tempdir(), "xgb.DMatrix.data")
 #' xgb.DMatrix.save(dtrain, fname)
-#' dtrain <- xgb.DMatrix(fname)
+#' dtrain <- xgb.DMatrix(fname, nthread = 1)
 #' @export
 #' @rdname xgb.DMatrix
 xgb.DMatrix <- function(

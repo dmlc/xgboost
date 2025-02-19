@@ -21,5 +21,5 @@ data(agaricus.train, package = "xgboost")
 dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
 fname <- file.path(tempdir(), "xgb.DMatrix.data")
 xgb.DMatrix.save(dtrain, fname)
-dtrain <- xgb.DMatrix(fname)
+dtrain <- xgb.DMatrix(fname, nthread = 1)
 }

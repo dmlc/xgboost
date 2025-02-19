@@ -5,7 +5,7 @@ set.seed(1994)
 test_that("Poisson regression works", {
   data(mtcars)
   bst <- xgb.train(
-    data = xgb.DMatrix(as.matrix(mtcars[, -11]), label = mtcars[, 11]),
+    data = xgb.DMatrix(as.matrix(mtcars[, -11]), label = mtcars[, 11], nthread = 1),
     nrounds = 10, verbose = 0,
     params = xgb.params(objective = 'count:poisson',  nthread = 2)
   )
@@ -21,7 +21,7 @@ test_that("Poisson regression is centered around mean", {
   y <- rpois(m, n)
   x <- matrix(rnorm(m * n), nrow = m)
   model <- xgb.train(
-    data = xgb.DMatrix(x, label = y),
+    data = xgb.DMatrix(x, label = y, nthread = 1),
     params = xgb.params(objective = "count:poisson", min_split_loss = 1e4),
     nrounds = 1
   )
@@ -41,7 +41,7 @@ test_that("Poisson regression is centered around mean", {
 
   w <- y + 1
   model_weighted <- xgb.train(
-    data = xgb.DMatrix(x, label = y, weight = w),
+    data = xgb.DMatrix(x, label = y, weight = w, nthread = 1),
     params = xgb.params(objective = "count:poisson", min_split_loss = 1e4),
     nrounds = 1
   )

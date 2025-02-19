@@ -104,9 +104,9 @@ test_that("xgb.DMatrix: saving, loading", {
   expect_true(xgb.DMatrix.save(dtest1, tmp_file))
   # read from a local file
   xgb.set.config(verbosity = 2)
-  expect_output(dtest3 <- xgb.DMatrix(tmp_file), "entries loaded from")
+  expect_output(dtest3 <- xgb.DMatrix(tmp_file, nthread = 1), "entries loaded from")
   xgb.set.config(verbosity = 1)
-  expect_output(dtest3 <- xgb.DMatrix(tmp_file), NA)
+  expect_output(dtest3 <- xgb.DMatrix(tmp_file, nthread = 1), NA)
   unlink(tmp_file)
   expect_equal(getinfo(dtest1, 'label'), getinfo(dtest3, 'label'))
 
@@ -131,7 +131,7 @@ test_that("xgb.DMatrix: saving, loading", {
   tmp_file <- tempfile('xgb.DMatrix_')
   xgb.DMatrix.save(dtrain, tmp_file)
   xgb.set.config(verbosity = 0)
-  dtrain <- xgb.DMatrix(tmp_file)
+  dtrain <- xgb.DMatrix(tmp_file, nthread = 1)
   expect_equal(colnames(dtrain), cnames)
 
   ft <- rep(c("c", "q"), each = length(cnames) / 2)
@@ -350,8 +350,8 @@ test_that("xgb.DMatrix: can get group for both 'qid' and 'group' constructors", 
   group <- c(20, 20, 60)
   qid <- c(rep(1, 20), rep(2, 20), rep(3, 60))
 
-  gr_mat <- xgb.DMatrix(x, group = group)
-  qid_mat <- xgb.DMatrix(x, qid = qid)
+  gr_mat <- xgb.DMatrix(x, group = group, nthread = 1)
+  qid_mat <- xgb.DMatrix(x, qid = qid, nthread = 1)
 
   info_gr <- getinfo(gr_mat, "group")
   info_qid <- getinfo(qid_mat, "group")
@@ -372,7 +372,7 @@ test_that("xgb.DMatrix: data.frame", {
     stringsAsFactors = TRUE
   )
 
-  m <- xgb.DMatrix(df)
+  m <- xgb.DMatrix(df, nthread = 1)
   expect_equal(colnames(m), colnames(df))
   expect_equal(
     getinfo(m, "feature_type"), c("float", "float", "int", "i", "c", "c")
@@ -383,7 +383,7 @@ test_that("xgb.DMatrix: data.frame", {
     valid = c("a", "b", "d", "c"),
     stringsAsFactors = TRUE
   )
-  m <- xgb.DMatrix(df)
+  m <- xgb.DMatrix(df, nthread = 1)
   expect_equal(getinfo(m, "feature_type"), c("c", "c"))
 })
 
@@ -406,7 +406,7 @@ test_that("xgb.DMatrix: can take multi-dimensional 'base_margin'", {
   pred_only_x <- predict(model, x)
   pred_w_base <- predict(
     model,
-    xgb.DMatrix(data = x, base_margin = b)
+    xgb.DMatrix(data = x, base_margin = b, nthread = 1)
   )
   expect_equal(pred_only_x, pred_w_base - b, tolerance = 1e-5)
 })
@@ -491,7 +491,7 @@ test_that("xgb.DMatrix: ExtMemDMatrix produces the same results as regular DMatr
     nthread = n_threads
   )
   model <- xgb.train(
-    data = xgb.DMatrix(x, label = y),
+    data = xgb.DMatrix(x, label = y, nthread = 1),
     params = params,
     nrounds = 5
   )
@@ -670,18 +670,18 @@ test_that("xgb.DMatrix: R errors thrown on DataIterator are thrown back to the u
 
 test_that("xgb.DMatrix: number of non-missing matches data", {
   x <- matrix(1:10, nrow = 5)
-  dm1 <- xgb.DMatrix(x)
+  dm1 <- xgb.DMatrix(x, nthread = 1)
   expect_equal(xgb.get.DMatrix.num.non.missing(dm1), 10)
 
   x[2, 2] <- NA
   x[4, 1] <- NA
-  dm2 <- xgb.DMatrix(x)
+  dm2 <- xgb.DMatrix(x, nthread = 1)
   expect_equal(xgb.get.DMatrix.num.non.missing(dm2), 8)
 })
 
 test_that("xgb.DMatrix: retrieving data as CSR", {
   data(mtcars)
-  dm <- xgb.DMatrix(as.matrix(mtcars))
+  dm <- xgb.DMatrix(as.matrix(mtcars), nthread = 1)
   csr <- xgb.get.DMatrix.data(dm)
   expect_equal(dim(csr), dim(mtcars))
   expect_equal(colnames(csr), colnames(mtcars))
@@ -692,7 +692,7 @@ test_that("xgb.DMatrix: quantile cuts look correct", {
   data(mtcars)
   y <- mtcars$mpg
   x <- as.matrix(mtcars[, -1])
-  dm <- xgb.DMatrix(x, label = y)
+  dm <- xgb.DMatrix(x, label = y, nthread = 1)
   model <- xgb.train(
     data = dm,
     params = list(
@@ -774,7 +774,7 @@ test_that("xgb.DMatrix: can read CSV", {
   fname <- file.path(tempdir(), "data.csv")
   writeChar(txt, fname)
   uri <- paste0(fname, "?format=csv&label_column=0")
-  dm <- xgb.DMatrix(uri, silent = TRUE)
+  dm <- xgb.DMatrix(uri, silent = TRUE, nthread = 1)
   expect_equal(getinfo(dm, "label"), c(1, -1))
   expect_equal(
     as.matrix(xgb.get.DMatrix.data(dm)),

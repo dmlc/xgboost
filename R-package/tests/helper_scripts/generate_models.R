@@ -40,7 +40,7 @@ generate_regression_model <- function() {
   print('Regression')
   y <- rnorm(metadata$kRows)
 
-  data <- xgb.DMatrix(X, label = y)
+  data <- xgb.DMatrix(X, label = y, nthread = 1)
   params <- list(tree_method = 'hist', num_parallel_tree = metadata$kForests,
                  max_depth = metadata$kMaxDepth)
   booster <- xgb.train(params, data, nrounds = metadata$kRounds)
@@ -56,7 +56,7 @@ generate_logistic_model <- function() {
   name <- c('logit', 'logitraw')
 
   for (i in seq_len(length(objective))) {
-    data <- xgb.DMatrix(X, label = y, weight = w)
+    data <- xgb.DMatrix(X, label = y, weight = w, nthread = 1)
     params <- list(tree_method = 'hist', num_parallel_tree = metadata$kForests,
                    max_depth = metadata$kMaxDepth, objective = objective[i])
     booster <- xgb.train(params, data, nrounds = metadata$kRounds)
@@ -69,7 +69,7 @@ generate_classification_model <- function() {
   y <- sample(0:(metadata$kClasses - 1), size = metadata$kRows, replace = TRUE)
   stopifnot(max(y) == metadata$kClasses - 1, min(y) == 0)
 
-  data <- xgb.DMatrix(X, label = y, weight = w)
+  data <- xgb.DMatrix(X, label = y, weight = w, nthread = 1)
   params <- list(num_class = metadata$kClasses, tree_method = 'hist',
                  num_parallel_tree = metadata$kForests, max_depth = metadata$kMaxDepth,
                  objective = 'multi:softmax')
@@ -85,7 +85,7 @@ generate_ranking_model <- function() {
   w <- runif(kGroups)
   g <- rep(50, times = kGroups)
 
-  data <- xgb.DMatrix(X, label = y, group = g)
+  data <- xgb.DMatrix(X, label = y, group = g, nthread = 1)
   # setinfo(data, 'weight', w)
   # ^^^ does not work in version <= 1.1.0; see https://github.com/dmlc/xgboost/issues/5942
   # So call low-level function XGDMatrixSetInfo_R directly. Since this function is not an exported

@@ -72,7 +72,7 @@ nthread <- 1
 data.table::setDTthreads(nthread)
 
 bst <- xgb.train(
-  data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
+  data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label, nthread = 1),
   nrounds = 2,
   params = xgb.params(
     max_depth = 2,
