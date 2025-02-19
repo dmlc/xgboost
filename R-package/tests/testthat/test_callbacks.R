@@ -352,7 +352,7 @@ test_that("early stopping xgb.cv works", {
         nfold = 5,
         nrounds = 20,
         early_stopping_rounds = 3,
-        maximize = FALSE,
+        maximize = FALSE
       )
     },
     "Stopping. Best iteration"
