@@ -21,9 +21,11 @@ If `device` is `cuda`, following are also needed:
 import argparse
 import multiprocessing as mp
 import os
+import sys
 import tempfile
-from functools import partial, update_wrapper
-from typing import Callable, List, Tuple
+import traceback
+from functools import partial, update_wrapper, wraps
+from typing import Callable, List, ParamSpec, Tuple, TypeVar
 
 import numpy as np
 from loky import get_reusable_executor
@@ -98,34 +100,55 @@ class Iterator(xgboost.DataIter):
 
 
 def setup_rmm() -> None:
-    """Setup RMM for GPU-based external memory training."""
+    """Setup RMM for GPU-based external memory training.
+
+    It's important to use RMM with `CudaAsyncMemoryResource` or `ArenaMemoryResource`
+    for GPU-based external memory to improve performance. If XGBoost is not built with
+    RMM support, a warning is raised when constructing the `DMatrix`.
+
+    """
     import rmm
+    from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
+    from rmm.mr import ArenaMemoryResource
 
     if not xgboost.build_info()["USE_RMM"]:
         return
 
-    try:
-        # Use the arena pool if available
-        from cuda.bindings import runtime as cudart
-        from rmm.mr import ArenaMemoryResource
+    status, free, total = cudart.cudaMemGetInfo()
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
 
-        status, free, total = cudart.cudaMemGetInfo()
-        if status != cudart.cudaError_t.cudaSuccess:
-            raise RuntimeError(cudart.cudaGetErrorString(status))
+    mr = rmm.mr.CudaMemoryResource()
+    mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
 
-        mr = rmm.mr.CudaMemoryResource()
-        mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
-    except ImportError:
-        # The combination of pool and async is by design. As XGBoost needs to allocate
-        # large pages repeatly, it's not easy to handle fragmentation. We can use more
-        # experiments here.
-        mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
-        rmm.mr.set_current_device_resource(mr)
+    rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
 
+R = TypeVar("R")
+P = ParamSpec("P")
+
+
+def try_run(fn: Callable[P, R]) -> Callable[P, R]:
+    """Loky aborts the process without printing out any error message if there's an
+    exception.
+
+    """
+
+    @wraps(fn)
+    def inner(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            print(traceback.format_exc(), file=sys.stderr)
+            raise RuntimeError("Running into exception in worker.") from e
+
+    return inner
+
+
+@try_run
 def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> None:
     """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
     faster initialization and lower memory usage.
@@ -153,7 +176,11 @@ def hist_train(worker_idx: int, tmpdir: str, device: str, rabit_args: dict) -> N
         )
         # Check the device is correctly set.
         if device == "cuda":
-            assert int(os.environ["CUDA_VISIBLE_DEVICES"]) < coll.get_world_size()
+            # Check the first device
+            assert (
+                int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
+                < coll.get_world_size()
+            )
         booster = xgboost.train(
             {
                 "tree_method": "hist",
@@ -180,8 +207,12 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
         if device == "cuda":
             # name: LokyProcess-1
             lop, sidx = mp.current_process().name.split("-")
-            idx = int(sidx)  # 1-based indexing from loky
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(idx - 1)
+            idx = int(sidx) - 1  # 1-based indexing from loky
+            # Assuming two workers for demo.
+            devices = ",".join([str(idx), str((idx + 1) % n_workers)])
+            # P0: CUDA_VISIBLE_DEVICES=0,1
+            # P1: CUDA_VISIBLE_DEVICES=1,0
+            os.environ["CUDA_VISIBLE_DEVICES"] = devices
             setup_rmm()
 
     with get_reusable_executor(
@@ -204,10 +235,6 @@ if __name__ == "__main__":
     if args.device == "cuda":
         import cupy as cp
 
-        # It's important to use RMM with `CudaAsyncMemoryResource`. for GPU-based
-        # external memory to improve performance. If XGBoost is not built with RMM
-        # support, a warning is raised when constructing the `DMatrix`.
-        setup_rmm()
         with tempfile.TemporaryDirectory() as tmpdir:
             main(tmpdir, args)
     else:
