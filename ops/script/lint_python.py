@@ -122,6 +122,7 @@ class LintersPaths:
         "demo/guide-python/model_parser.py",
         "demo/guide-python/individual_trees.py",
         "demo/guide-python/quantile_regression.py",
+        "demo/guide-python/quantile_data_iterator.py",
         "demo/guide-python/multioutput_regression.py",
         "demo/guide-python/learning_to_rank.py",
         "demo/aft_survival/aft_survival_viz_demo.py",
