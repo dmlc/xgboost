@@ -613,9 +613,11 @@ xgb.cb.reset.parameters <- function(new_params) {
 #'   `metric_name = 'dtest-auc'` or `metric_name = 'dtest_auc'`.
 #'   All dash '-' characters in metric names are considered equivalent to '_'.
 #' @param verbose Whether to print the early stopping information.
+#'
 #' @param keep_all_iter Whether to keep all of the boosting rounds that were produced
 #'   in the resulting object. If passing `FALSE`, will only keep the boosting rounds
-#'   up to the detected best iteration, discarding the ones that come after.
+#'   up to the detected best iteration, discarding the ones that come after. This
+#'   parameter is not supported by the `xgb.cv` function and the `gblinear` booster yet.
 #' @return An `xgb.Callback` object, which can be passed to [xgb.train()] or [xgb.cv()].
 #' @export
 xgb.cb.early.stop <- function(

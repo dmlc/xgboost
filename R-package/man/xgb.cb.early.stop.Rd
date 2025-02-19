@@ -30,7 +30,8 @@ All dash '-' characters in metric names are considered equivalent to '_'.}
 
 \item{keep_all_iter}{Whether to keep all of the boosting rounds that were produced
 in the resulting object. If passing \code{FALSE}, will only keep the boosting rounds
-up to the detected best iteration, discarding the ones that come after.}
+up to the detected best iteration, discarding the ones that come after. This
+parameter is not supported by the \code{xgb.cv} function and the \code{gblinear} booster yet.}
 }
 \value{
 An \code{xgb.Callback} object, which can be passed to \code{\link[=xgb.train]{xgb.train()}} or \code{\link[=xgb.cv]{xgb.cv()}}.
