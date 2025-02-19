@@ -327,9 +327,9 @@ class EarlyStopping(TrainingCallback):
     save_best :
         Whether training should return the best model or the last model. If set to
         `True`, it will only keep the boosting rounds up to the detected best iteration,
-        discarding the ones that come after. This is only supported with tree
-        methods. Also, the `cv` function doesn't return a model, the parameter is not
-        applicable.
+        discarding the ones that come after. This is only supported with tree methods
+        (not `gblinear`). Also, the `cv` function doesn't return a model, the parameter
+        is not applicable.
     min_delta :
 
         .. versionadded:: 1.5.0
