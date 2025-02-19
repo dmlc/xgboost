@@ -114,7 +114,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
    */
   override def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
-      dataset: Dataset[_]): RDD[Watches] = {
+      dataset: Dataset[_]): (RDD[Watches], Map[String, AnyRef]) = {
 
     validate(estimator, dataset)
 
@@ -161,7 +161,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       }
     }
 
-    estimator.getEvalDataset().map { evalDs =>
+    val rdd = estimator.getEvalDataset().map { evalDs =>
       val evalProcessed = preprocess(estimator, evalDs)
       ColumnarRdd(train.toDF()).zipPartitions(ColumnarRdd(evalProcessed.toDF())) {
         (trainIter, evalIter) =>
@@ -186,6 +186,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
         }
       }
     )
+    (rdd, Map.empty[String, AnyRef])
   }
 
   override def transform[M <: XGBoostModel[M]](model: XGBoostModel[M],

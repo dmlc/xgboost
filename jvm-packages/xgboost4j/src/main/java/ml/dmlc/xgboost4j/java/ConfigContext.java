@@ -37,6 +37,16 @@ public class ConfigContext implements AutoCloseable {
     initialConfiguration = getGlobalConfig();
   }
 
+  /* Set the parameters during initializing */
+  public ConfigContext(Map<String, Object> params) throws XGBoostError {
+    if (params != null && !params.isEmpty()) {
+      initialConfiguration = getGlobalConfig();
+      setConfigs(params);
+    } else {
+      initialConfiguration = null;
+    }
+  }
+
   /**
    * Get the global configuration
    */
@@ -59,12 +69,24 @@ public class ConfigContext implements AutoCloseable {
     }
   }
 
+  /** Set one single configuration */
   public void setConfig(String key, Object value) throws XGBoostError {
-    HashMap<String, Object> map = new HashMap<>();
-    map.put(key, value);
+    HashMap<String, Object> configs = new HashMap<>();
+    configs.put(key, value);
     ObjectMapper mapper = new ObjectMapper();
     try {
-      String config = mapper.writeValueAsString(map);
+      String config = mapper.writeValueAsString(configs);
+      XGBoostJNI.checkCall(XGBoostJNI.XGBSetGlobalConfig(config));
+    } catch (JsonProcessingException ex) {
+      throw new XGBoostError("Failed to set the global config due to an encode error.", ex);
+    }
+  }
+
+  /** Set a bunch of configurations */
+  public void setConfigs(Map<String, Object> configs) throws XGBoostError {
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      String config = mapper.writeValueAsString(configs);
       XGBoostJNI.checkCall(XGBoostJNI.XGBSetGlobalConfig(config));
     } catch (JsonProcessingException ex) {
       throw new XGBoostError("Failed to set the global config due to an encode error.", ex);
@@ -73,6 +95,8 @@ public class ConfigContext implements AutoCloseable {
 
   @Override
   public void close() throws XGBoostError {
-    XGBoostJNI.checkCall(XGBoostJNI.XGBSetGlobalConfig(initialConfiguration));
+    if (initialConfiguration != null) {
+      XGBoostJNI.checkCall(XGBoostJNI.XGBSetGlobalConfig(initialConfiguration));
+    }
   }
 };

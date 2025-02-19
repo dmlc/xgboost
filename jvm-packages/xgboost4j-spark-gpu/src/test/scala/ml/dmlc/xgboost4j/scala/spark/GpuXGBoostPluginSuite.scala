@@ -206,7 +206,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
             .setDevice("cuda")
             .setMissing(missing)
 
-          val rdd = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
+          val (rdd, _) = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
           val result = rdd.mapPartitions { iter =>
             val watches = iter.next()
             val size = watches.size
@@ -270,7 +270,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
             .setMissing(missing)
             .setEvalDataset(eval)
 
-          val rdd = PluginUtils.getPlugin.get.buildRddWatches(classifier, train)
+          val (rdd, _) = PluginUtils.getPlugin.get.buildRddWatches(classifier, train)
           val result = rdd.mapPartitions { iter =>
             val watches = iter.next()
             val size = watches.size
