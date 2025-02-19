@@ -429,10 +429,10 @@ test_that("xgb.cv invalid inputs", {
         nthread = n_threads,
       ),
       callbacks = list(
-        xgb.cb.early.stop(stopping_rounds = 3)
+        xgb.cb.early.stop(stopping_rounds = 3, save_best = TRUE)
       )
     ),
-    regexp = ".*keep_all_iter.*"
+    regexp = ".*save_best.*"
   )
 })
 
