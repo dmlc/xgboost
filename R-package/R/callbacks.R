@@ -650,7 +650,7 @@ xgb.cb.early.stop <- function(
         stop("For early stopping, 'evals' must have at least one element")
       }
       if (!inherits(model, "xgb.Booster") && save_best) {
-        stop("'save_best' must be set to FALSE for cv.")
+        stop("'save_best' must be set to FALSE when using early stopping in 'xgb.cv'.")
       }
       env$begin_iteration <- begin_iteration
       return(NULL)

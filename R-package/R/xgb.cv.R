@@ -118,7 +118,7 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
     stop("'data' is an invalid 'xgb.DMatrix' object. Must be constructed again.")
   }
   if (inherits(data, "xgb.QuantileDMatrix")) {
-    stop("'xgb.QuantileDMatrix' is not yet supported for the cv function.")
+    stop("'xgb.QuantileDMatrix' is not supported as input to 'xgb.cv'.")
   }
 
   params <- check.booster.params(params)
