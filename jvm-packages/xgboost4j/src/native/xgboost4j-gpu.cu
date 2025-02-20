@@ -4,6 +4,7 @@
 #include <jni.h>
 #include <xgboost/c_api.h>
 
+#include "../../../../src/common/common.h"
 #include "../../../../src/common/cuda_pinned_allocator.h"
 #include "../../../../src/common/device_vector.cuh"  // for device_vector
 #include "../../../../src/data/array_interface.h"
@@ -58,7 +59,7 @@ void CopyColumnMask(xgboost::ArrayInterface<1> const &interface, std::vector<Jso
     LOG(FATAL) << "Invalid shape of mask";
   }
   out["mask"]["typestr"] = String("<t1");
-  out["mask"]["version"] = Integer(3);
+  out["mask"]["version"] = Integer{3};
 }
 
 template <typename DCont, typename VCont>
@@ -124,7 +125,6 @@ struct Symbols {
   static constexpr StringView kBaseMargin{"baseMargin"};
   static constexpr StringView kQid{"qid"};
 };
-}  // namespace
 
 class JvmIter {
   JNIEnv *jenv_;
@@ -201,7 +201,17 @@ class DMatrixProxy {
   }
 };
 
-class DataIteratorProxy {
+template <typename Map>
+Json GetLabel(Map const &jmap) {
+  auto it = jmap.find(Symbols::kLabel);
+  StringView msg{"Must have a label field."};
+  CHECK(it != jmap.cend()) << msg;
+  Json label = it->second;
+  CHECK(!IsA<Null>(label)) << msg;
+  return label;
+}
+
+class HostMemProxy {
   DMatrixProxy proxy_;
   JvmIter jiter_;
 
@@ -237,33 +247,28 @@ class DataIteratorProxy {
   cudaStream_t copy_stream_;
 
  public:
-  explicit DataIteratorProxy(jobject jiter) : jiter_{jiter} {
+  explicit HostMemProxy(jobject jiter) : jiter_{jiter} {
     this->Reset();
     dh::safe_cuda(cudaStreamCreateWithFlags(&copy_stream_, cudaStreamNonBlocking));
   }
-  ~DataIteratorProxy() { dh::safe_cuda(cudaStreamDestroy(copy_stream_)); }
+  ~HostMemProxy() { dh::safe_cuda(cudaStreamDestroy(copy_stream_)); }
 
   DMatrixHandle GetDMatrixHandle() const { return proxy_.GetDMatrixHandle(); }
 
   // Helper function for staging meta info.
-  void StageMetaInfo(Json json_interface) {
-    CHECK(!IsA<Null>(json_interface));
-    auto json_map = get<Object const>(json_interface);
-    auto it = json_map.find(Symbols::kLabel);
-    if (it == json_map.cend()) {
-      LOG(FATAL) << "Must have a label field.";
-    }
+  void StageMetaInfo(Json jaif) {
+    CHECK(!IsA<Null>(jaif));
+    auto json_map = get<Object const>(jaif);
+    Json label = GetLabel(json_map);
 
-    Json label = json_interface[Symbols::kLabel.c_str()];
-    CHECK(!IsA<Null>(label));
     labels_.emplace_back(std::make_unique<dh::device_vector<float>>());
     CopyMetaInfo(&label, labels_.back().get(), copy_stream_);
     label_interfaces_.emplace_back(label);
     proxy_.SetInfo(Symbols::kLabel, label);
 
-    it = json_map.find(Symbols::kWeight);
+    auto it = json_map.find(Symbols::kWeight);
     if (it != json_map.cend()) {
-      Json weight = json_interface[Symbols::kWeight.c_str()];
+      Json weight = it->second;
       CHECK(!IsA<Null>(weight));
       weights_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&weight, weights_.back().get(), copy_stream_);
@@ -274,7 +279,7 @@ class DataIteratorProxy {
 
     it = json_map.find(Symbols::kBaseMargin);
     if (it != json_map.cend()) {
-      Json base_margin = json_interface[Symbols::kBaseMargin.c_str()];
+      Json base_margin = it->second;
       base_margins_.emplace_back(new dh::device_vector<float>);
       CopyMetaInfo(&base_margin, base_margins_.back().get(), copy_stream_);
       margin_interfaces_.emplace_back(base_margin);
@@ -284,7 +289,7 @@ class DataIteratorProxy {
 
     it = json_map.find(Symbols::kQid);
     if (it != json_map.cend()) {
-      Json qid = json_interface[Symbols::kQid.c_str()];
+      Json qid = it->second;
       qids_.emplace_back(new dh::device_vector<int>);
       CopyMetaInfo(&qid, qids_.back().get(), copy_stream_);
       qid_interfaces_.emplace_back(qid);
@@ -304,13 +309,13 @@ class DataIteratorProxy {
     using T = decltype(host_columns_)::value_type::element_type;
     host_columns_.emplace_back(std::make_unique<T>());
 
-    // Stage the meta info.
-    auto json_interface = Json::Load({interface_str.c_str(), interface_str.size()});
-    CHECK(!IsA<Null>(json_interface));
+    // Stage the meta info, Json array interface.
+    auto jaif = Json::Load({interface_str.c_str(), interface_str.size()});
+    CHECK(!IsA<Null>(jaif));
 
-    StageMetaInfo(json_interface);
+    StageMetaInfo(jaif);
 
-    Json features = json_interface["features"];
+    Json features = jaif["features"];
     auto json_columns = get<Array const>(features);
     std::vector<ArrayInterface<1>> interfaces;
 
@@ -394,26 +399,82 @@ class DataIteratorProxy {
       }
       return NextSecondLoop();
     }
-  };
+  }
 };
 
-namespace {
-void Reset(DataIterHandle self) {
-  static_cast<xgboost::jni::DataIteratorProxy *>(self)->Reset();
-}
+// An iterator proxy for external memory.
+class ExtMemProxy {
+  JvmIter jiter_;
+  DMatrixProxy proxy_;
 
-int Next(DataIterHandle self) {
-  return static_cast<xgboost::jni::DataIteratorProxy *>(self)->Next();
-}
+ public:
+  explicit ExtMemProxy(jobject jiter) : jiter_(jiter) {}
+
+  ~ExtMemProxy() = default;
+
+  DMatrixHandle GetDMatrixHandle() const { return proxy_.GetDMatrixHandle(); }
+
+  void SetArrayInterface(StringView aif) {
+    auto jaif = Json::Load(aif);
+    CHECK(!IsA<Null>(jaif));
+
+    Json features = jaif["features"];
+    proxy_.SetData(features);
+
+    // set the meta info.
+    auto json_map = get<Object const>(jaif);
+    Json label = GetLabel(json_map);
+    proxy_.SetInfo(Symbols::kLabel, label);
+
+    auto it = json_map.find(Symbols::kWeight);
+    if (it != json_map.cend()) {
+      Json weight = it->second;
+      CHECK(!IsA<Null>(weight));
+      proxy_.SetInfo(Symbols::kWeight, weight);
+    }
+
+    it = json_map.find(Symbols::kBaseMargin);
+    if (it != json_map.cend()) {
+      Json basemargin = it->second;
+      proxy_.SetInfo("base_margin", basemargin);
+    }
+
+    it = json_map.find(Symbols::kQid);
+    if (it != json_map.cend()) {
+      Json qid = it->second;
+      proxy_.SetInfo(Symbols::kQid, qid);
+    }
+  }
+
+  int Next() {
+    try {
+      if (this->jiter_.PullIterFromJVM(
+              [this](char const *cjaif) { this->SetArrayInterface(cjaif); })) {
+        return 1;
+      } else {
+        return 0;
+      }
+    } catch (dmlc::Error const &e) {
+      if (jiter_.Status() == JNI_EDETACHED) {
+        GlobalJvm()->DetachCurrentThread();
+      }
+      LOG(FATAL) << e.what();
+    }
+    return 0;
+  }
+
+  void Reset() { this->jiter_.CloseJvmBatch(); }
+};
 
 template <typename T>
 using Deleter = std::function<void(T *)>;
-} // anonymous namespace
+}  // anonymous namespace
 
-XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass, jobject jdata_iter,
-                                                    jlongArray jref, char const *config,
-                                                    jlongArray jout) {
-  xgboost::jni::DataIteratorProxy proxy(jdata_iter);
+/**
+ * @brief Create QuantileDMatrix for both in-core version and the external memory version.
+ */
+int QdmFromCallback(JNIEnv *jenv, jobject jdata_iter, jlongArray jref, char const *config,
+                    bool is_extmem, jlongArray jout) {
   DMatrixHandle result;
   DMatrixHandle ref{nullptr};
 
@@ -426,9 +487,25 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass, jobjec
     ref = reinterpret_cast<DMatrixHandle>(refptr.get()[0]);
   }
 
-  auto ret = XGQuantileDMatrixCreateFromCallback(&proxy, proxy.GetDMatrixHandle(), ref, Reset, Next,
-                                                 config, &result);
+  int ret = 0;
+  if (is_extmem) {
+    xgboost::jni::ExtMemProxy proxy{jdata_iter};
+    ret = XGExtMemQuantileDMatrixCreateFromCallback(
+        &proxy, proxy.GetDMatrixHandle(), ref,
+        [](DataIterHandle self) { static_cast<xgboost::jni::ExtMemProxy *>(self)->Reset(); },
+        [](DataIterHandle self) { return static_cast<xgboost::jni::ExtMemProxy *>(self)->Next(); },
+        config, &result);
+  } else {
+    xgboost::jni::HostMemProxy proxy{jdata_iter};
+    ret = XGQuantileDMatrixCreateFromCallback(
+        &proxy, proxy.GetDMatrixHandle(), ref,
+        [](DataIterHandle self) { static_cast<xgboost::jni::HostMemProxy *>(self)->Reset(); },
+        [](DataIterHandle self) { return static_cast<xgboost::jni::HostMemProxy *>(self)->Next(); },
+        config, &result);
+  }
+
+  JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;
 }
-} // namespace xgboost::jni
+}  // namespace xgboost::jni

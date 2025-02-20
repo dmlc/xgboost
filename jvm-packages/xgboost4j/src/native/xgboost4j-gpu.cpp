@@ -9,9 +9,7 @@
 #include "../../../../src/common/common.h"
 
 namespace xgboost::jni {
-XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls, jobject jdata_iter,
-                                                    jlongArray jref, char const *config,
-                                                    jlongArray jout) {
+int QdmFromCallback(JNIEnv *, jobject, jlongArray, char const *, bool, jlongArray) {
   API_BEGIN();
   common::AssertGPUSupport();
   API_END();

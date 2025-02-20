@@ -198,5 +198,4 @@ public class DMatrixTest {
     }
     return floatArray;
   }
-
 }

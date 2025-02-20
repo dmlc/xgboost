@@ -39,7 +39,7 @@ trait XGBoostPlugin extends Serializable {
    */
   def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
-      dataset: Dataset[_]): RDD[Watches]
+      dataset: Dataset[_]): (RDD[Watches], Map[String, AnyRef])
 
   /**
    * Transform the dataset

@@ -22,7 +22,8 @@ import org.apache.commons.logging.LogFactory;
 
 /**
  * xgboost JNI functions
- * change 2015-7-6: *use a long[] (length=1) as container of handle to get the output DMatrix or Booster
+ * change 2015-7-6: *use a long[] (length=1) as container of handle to get the
+ * output DMatrix or Booster
  *
  * @author hzx
  */
@@ -57,20 +58,20 @@ class XGBoostJNI {
       String cache_info, float missing, long[] out);
 
   public final static native int XGDMatrixCreateFromCSR(long[] indptr, int[] indices,
-                                                        float[] data, int shapeParam,
-                                                        float missing, int nthread,
-                                                        long[] out);
+      float[] data, int shapeParam,
+      float missing, int nthread,
+      long[] out);
 
   public final static native int XGDMatrixCreateFromCSC(long[] colptr, int[] indices,
-                                                        float[] data, int shapeParam,
-                                                        float missing, int nthread,
-                                                        long[] out);
+      float[] data, int shapeParam,
+      float missing, int nthread,
+      long[] out);
 
   public final static native int XGDMatrixCreateFromMat(float[] data, int nrow, int ncol,
-                                                        float missing, long[] out);
+      float missing, long[] out);
 
   public final static native int XGDMatrixCreateFromMatRef(long dataRef, int nrow, int ncol,
-                                                           float missing, long[] out);
+      float missing, long[] out);
 
   public final static native int XGDMatrixSliceDMatrix(long handle, int[] idxset, long[] out);
 
@@ -88,18 +89,20 @@ class XGBoostJNI {
 
   /**
    * Set the feature information
+   * 
    * @param handle the DMatrix native address
-   * @param field "feature_names" or "feature_types"
+   * @param field  "feature_names" or "feature_types"
    * @param values an array of string
    * @return 0 when success, -1 when failure happens
    */
   public final static native int XGDMatrixSetStrFeatureInfo(long handle, String field,
-                                                            String[] values);
+      String[] values);
 
   public final static native int XGDMatrixGetStrFeatureInfo(long handle, String field,
-                                                            long[] outLength, String[][] outValues);
+      long[] outLength, String[][] outValues);
 
   public final static native int XGDMatrixNumRow(long handle, long[] row);
+
   public final static native int XGDMatrixNumNonMissing(long handle, long[] nonMissings);
 
   public final static native int XGBoosterCreate(long[] handles, long[] out);
@@ -111,13 +114,13 @@ class XGBoostJNI {
   public final static native int XGBoosterUpdateOneIter(long handle, int iter, long dtrain);
 
   public final static native int XGBoosterTrainOneIter(long handle, long dtrain, int iter, float[] grad,
-                                                       float[] hess);
+      float[] hess);
 
   public final static native int XGBoosterEvalOneIter(long handle, int iter, long[] dmats,
-                                                      String[] evnames, String[] eval_info);
+      String[] evnames, String[] eval_info);
 
   public final static native int XGBoosterPredict(long handle, long dmat, int option_mask,
-                                                  int ntree_limit, float[][] predicts);
+      int ntree_limit, float[][] predicts);
 
   public final static native int XGBoosterPredictFromDense(long handle, float[] data,
       long nrow, long ncol, float missing, int iteration_begin, int iteration_end, int predict_type, float[] margin,
@@ -132,13 +135,15 @@ class XGBoostJNI {
   public final static native int XGBoosterSaveModelToBuffer(long handle, String format, byte[][] out_bytes);
 
   public final static native int XGBoosterDumpModelEx(long handle, String fmap, int with_stats,
-                                                      String format, String[][] out_strings);
+      String format, String[][] out_strings);
 
   public final static native int XGBoosterDumpModelExWithFeatures(
-    long handle, String[] feature_names, int with_stats, String format, String[][] out_strings);
+      long handle, String[] feature_names, int with_stats, String format, String[][] out_strings);
 
   public final static native int XGBoosterGetAttrNames(long handle, String[][] out_strings);
+
   public final static native int XGBoosterGetAttr(long handle, String key, String[] out_string);
+
   public final static native int XGBoosterSetAttr(long handle, String key, String value);
 
   public final static native int XGBoosterGetNumFeature(long handle, long[] feature);
@@ -147,9 +152,13 @@ class XGBoostJNI {
 
   // communicator functions
   public final static native int CommunicatorInit(String args);
+
   public final static native int CommunicatorFinalize();
+
   public final static native int CommunicatorPrint(String msg);
+
   public final static native int CommunicatorGetRank(int[] out);
+
   public final static native int CommunicatorGetWorldSize(int[] out);
 
   // Tracker functions
@@ -166,16 +175,19 @@ class XGBoostJNI {
 
   // Perform Allreduce operation on data in sendrecvbuf.
   final static native int CommunicatorAllreduce(ByteBuffer sendrecvbuf, int count,
-    int enum_dtype, int enum_op);
+      int enum_dtype, int enum_op);
 
   public final static native int XGDMatrixSetInfoFromInterface(
-    long handle, String field, String json);
+      long handle, String field, String json);
 
   public final static native int XGQuantileDMatrixCreateFromCallback(
-    java.util.Iterator<ColumnBatch> iter, long[] ref, String config, long[] out);
+      java.util.Iterator<ColumnBatch> iter, long[] ref, String config, long[] out);
+
+  public final static native int XGExtMemQuantileDMatrixCreateFromCallback(
+      java.util.Iterator<ColumnBatch> iter, long[] ref, String config, long[] out);
 
   public final static native int XGDMatrixCreateFromArrayInterfaceColumns(
-    String featureJson, float missing, int nthread, long[] out);
+      String featureJson, float missing, int nthread, long[] out);
 
   public final static native int XGBoosterSetStrFeatureInfo(long handle, String field, String[] features);
 

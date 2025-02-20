@@ -39,22 +39,22 @@ class QuantileDMatrix private[scala](
   /**
    * Create QuantileDMatrix from iterator based on the array interface
    *
-   * @param iter       the XGBoost ColumnBatch batch to provide the corresponding array interface
-   * @param refDMatrix The reference QuantileDMatrix that provides quantile information, needed
-   *                   when creating validation/test dataset with QuantileDMatrix. Supplying the
-   *                   training DMatrix as a reference means that the same quantisation applied
-   *                   to the training data is applied to the validation/test data
-   * @param missing    the missing value
-   * @param maxBin     the max bin
-   * @param nthread    the parallelism
+   * @param iter    the XGBoost ColumnBatch batch to provide the corresponding array interface
+   * @param ref     The reference QuantileDMatrix that provides quantile information, needed
+   *                when creating validation/test dataset with QuantileDMatrix. Supplying the
+   *                training DMatrix as a reference means that the same quantisation applied
+   *                to the training data is applied to the validation/test data
+   * @param missing the missing value
+   * @param maxBin  the max bin
+   * @param nthread the parallelism
    * @throws XGBoostError
    */
   def this(iter: Iterator[ColumnBatch],
-           ref: QuantileDMatrix,
+           ref: Option[QuantileDMatrix],
            missing: Float,
            maxBin: Int,
            nthread: Int) {
-    this(new JQuantileDMatrix(iter.asJava, ref.jDMatrix, missing, maxBin, nthread))
+    this(new JQuantileDMatrix(iter.asJava, ref.map(_.jDMatrix).orNull, missing, maxBin, nthread))
   }
 
   /**
