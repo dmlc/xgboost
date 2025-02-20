@@ -1114,7 +1114,7 @@ class XGBModel(XGBModelBase):
 
         if feature_weights is not None:
             _deprecated("feature_weights")
-        if feature_weights is not None and self.feature_types is not None:
+        if feature_weights is not None and self.feature_weights is not None:
             _duplicated("feature_weights")
         feature_weights = (
             self.feature_weights
