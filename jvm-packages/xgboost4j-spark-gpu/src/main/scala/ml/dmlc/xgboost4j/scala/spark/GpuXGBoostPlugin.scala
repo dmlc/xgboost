@@ -186,7 +186,13 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
         }
       }
     )
-    (rdd, Map.empty[String, AnyRef])
+    val rmmEnabled = try {
+      dataset.sparkSession.conf.get("spark.rapids.python.memory.gpu.pooling.enabled").toBoolean
+    } catch {
+      case _: Throwable => false // Any exception will return false
+    }
+
+    (rdd, Map("use_rmm" -> rmmEnabled))
   }
 
   override def transform[M <: XGBoostModel[M]](model: XGBoostModel[M],

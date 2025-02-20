@@ -255,18 +255,19 @@ private[spark] object XGBoost extends StageLevelScheduling {
           Communicator.init(rabitEnv)
           require(iter.hasNext, "Failed to create DMatrix")
 
-          withResource(new ConfigContext(runtimeParams.configs.asJava)) { _ => }
-          val watches = iter.next()
-          try {
-            val (booster, metrics) = trainBooster(watches, runtimeParams, xgboostParams)
-            if (partitionId == 0) {
-              Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
-            } else {
-              Iterator.empty
-            }
-          } finally {
-            if (watches != null) {
-              watches.delete()
+          withResource(new ConfigContext(runtimeParams.configs.asJava)) { _ =>
+            val watches = iter.next()
+            try {
+              val (booster, metrics) = trainBooster(watches, runtimeParams, xgboostParams)
+              if (partitionId == 0) {
+                Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+              } else {
+                Iterator.empty
+              }
+            } finally {
+              if (watches != null) {
+                watches.delete()
+              }
             }
           }
         } finally {

@@ -18,6 +18,8 @@ package ml.dmlc.xgboost4j.java;
 import junit.framework.TestCase;
 import org.junit.Test;
 
+import java.util.HashMap;
+
 /**
  * Test cases for the config context.
  */
@@ -29,6 +31,27 @@ public class ConfigContextTest {
 
       ctx.setConfig("verbosity", 3);
       TestCase.assertEquals(3, ctx.getConfig("verbosity"));
+    }
+  }
+
+  @Test
+  public void testWriteMap() throws XGBoostError {
+    try (ConfigContext ctx = new ConfigContext()) {
+      TestCase.assertEquals(1, ctx.getConfig("verbosity"));
+      TestCase.assertEquals(false, ctx.getConfig("use_rmm"));
+    }
+
+    HashMap<String, Object> configs = new HashMap<>();
+    configs.put("verbosity", 3);
+    configs.put("use_rmm", true);
+    try (ConfigContext ctx = new ConfigContext(configs)) {
+      TestCase.assertEquals(3, ctx.getConfig("verbosity"));
+      TestCase.assertEquals(true, ctx.getConfig("use_rmm"));
+    }
+
+    try (ConfigContext ctx = new ConfigContext()) {
+      TestCase.assertEquals(1, ctx.getConfig("verbosity"));
+      TestCase.assertEquals(false, ctx.getConfig("use_rmm"));
     }
   }
 }
