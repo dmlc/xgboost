@@ -7,6 +7,10 @@ Categorical Data
    As of XGBoost 1.6, the feature is experimental and has limited features. Only the
    Python package is fully supported.
 
+.. versionadded:: 3.0
+
+   Support for the R package using ``factor``.
+
 Starting from version 1.5, the XGBoost Python package has experimental support for
 categorical data available for public testing. For numerical data, the split condition is
 defined as :math:`value < threshold`, while for categorical data the split is defined

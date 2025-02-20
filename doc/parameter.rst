@@ -555,7 +555,8 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 ***********************
 Command Line Parameters
 ***********************
-The following parameters are only used in the console version of XGBoost
+The following parameters are only used in the console version of XGBoost. The CLI has been
+deprecated and will be removed in future releases.
 
 * ``num_round``
 
