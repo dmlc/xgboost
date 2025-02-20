@@ -1120,7 +1120,7 @@ xgboost <- function(
   min_split_loss = NULL,
   reg_lambda = NULL,
   weights = NULL,
-  verbosity = if (is.null(eval_set) && !monitor_training) 0L else 1L,
+  verbosity = if (is.null(eval_set)) 0L else 1L,
   monitor_training = verbosity > 0,
   eval_set = NULL,
   early_stopping_rounds = NULL,
@@ -1204,6 +1204,9 @@ xgboost <- function(
   lst_args$params$nthread <- nthreads
 
   params <- c(lst_args$params, params)
+  if (verbosity == 0 && monitor_training) {
+    verbosity <- 1
+  }
   params$verbosity <- verbosity
 
   fn_dm <- if (use_qdm) xgb.QuantileDMatrix else xgb.DMatrix
