@@ -382,3 +382,20 @@ def test_from_cudf_iter(enable_categorical):
     predict = reg.predict(m)
     predict_with_it = reg_with_it.predict(m_it)
     np.testing.assert_allclose(predict_with_it, predict)
+
+
+def test_invalid_meta() -> None:
+    df = cudf.DataFrame({"f0": [0, 1, 2], "f1": [2, 3, 4], "y": [None, 1, 2]})
+    y = df["y"]
+    X = df.drop(["y"], axis=1)
+    with pytest.raises(ValueError, match="Missing value"):
+        xgb.DMatrix(X, y)
+    with pytest.raises(ValueError, match="Missing value"):
+        xgb.QuantileDMatrix(X, y)
+    y = X.copy()
+    y.iloc[0, 0] = None
+    # check by the cuDF->cupy converter.
+    with pytest.raises(ValueError, match="no nulls"):
+        xgb.DMatrix(X, y)
+    with pytest.raises(ValueError, match="no nulls"):
+        xgb.QuantileDMatrix(X, y)

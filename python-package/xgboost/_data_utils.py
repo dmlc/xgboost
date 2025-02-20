@@ -16,6 +16,11 @@ class _ArrayLikeArg(Protocol):
     def __array_interface__(self) -> "ArrayInf": ...
 
 
+class _CudaArrayLikeArg(Protocol):
+    @property
+    def __cuda_array_interface__(self) -> "ArrayInf": ...
+
+
 class TransformedDf(Protocol):
     """Protocol class for storing transformed dataframe."""
 
@@ -151,3 +156,12 @@ def array_interface(data: np.ndarray) -> bytes:
     interface = array_interface_dict(data)
     interface_str = bytes(json.dumps(interface), "utf-8")
     return interface_str
+
+
+def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
+    "Make sure no missing value in meta data."
+    if (
+        "mask" in data.__cuda_array_interface__
+        and data.__cuda_array_interface__["mask"] is not None
+    ):
+        raise ValueError(f"Missing value is not allowed for: {field}")
