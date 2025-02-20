@@ -9,7 +9,9 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
+from xgboost.callback import SaveBestModelCallback
 # We use the dataset for tests.
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
@@ -252,6 +254,52 @@ class TestCallbacks:
             eval_metric=tm.eval_error_metric_skl,
             callbacks=[early_stop],
         ).fit(X, y, eval_set=[(X, y)])
+        
+    def test_save_best_model_callback(self, breast_cancer: BreastCancer) -> None:
+        X, y = breast_cancer.full
+        dtrain = xgb.DMatrix(X, label=y)
+        X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=0)
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+        dvalid = xgb.DMatrix(X_valid, label=y_valid)
+        params = {
+            'booster': 'gblinear',
+            'updater': 'coord_descent',
+            'eval_metric': 'auc',
+            'eta': 0.01,
+            'objective': 'binary:logistic',
+            'n_jobs': 4,
+            'random_state': 0
+        }
+
+        save_path = "test_best_model.json"
+        callback = SaveBestModelCallback(save_path=save_path)
+
+        # Train model
+        booster = xgb.train(
+            params=params,
+            dtrain=dtrain,
+            num_boost_round=100,
+            evals=[(dvalid, 'valid')],
+            callbacks=[callback],
+            early_stopping_rounds=10
+        )
+
+        # Ensure best model file was saved
+        assert os.path.exists(save_path), "Model file was not saved"
+
+        # Load best model and check performance
+        best_model = xgb.Booster()
+        best_model.load_model(save_path)
+        predictions = best_model.predict(dvalid)
+        auc_score = roc_auc_score(y_valid, predictions)
+
+        # Compare best iteration and score with early stopping approach
+        assert callback.best_score is not None
+        assert callback.best_iteration is not None
+        assert auc_score >= callback.best_score  # Saved model should match or exceed best recorded AUC
+
+        # Cleanup
+        os.remove(save_path)
 
     def test_early_stopping_continuation(self, breast_cancer: BreastCancer) -> None:
         X, y = breast_cancer.full
