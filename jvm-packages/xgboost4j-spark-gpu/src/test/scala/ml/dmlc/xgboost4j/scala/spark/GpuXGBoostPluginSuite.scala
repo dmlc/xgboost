@@ -181,6 +181,35 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     }
   }
 
+  test("global configs") {
+    withGpuSparkSession() { spark =>
+      import spark.implicits._
+
+      val df = Seq(
+        (1.0f, 2.0f, 0.0f),
+        (5.0f, 6.0f, 0.1f)
+      ).toDF("c1", "c2", "label")
+      val features = Array("c1", "c2")
+      val classifier = new XGBoostClassifier().setDevice("cuda").setFeaturesCol(features)
+      val (_, configs) = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
+      assert(configs("use_rmm") == false)
+    }
+
+    val conf = new SparkConf().set("spark.rapids.python.memory.gpu.pooling.enabled", "true")
+    withGpuSparkSession(conf) { spark =>
+      import spark.implicits._
+
+      val df = Seq(
+        (1.0f, 2.0f, 0.0f),
+        (5.0f, 6.0f, 0.1f)
+      ).toDF("c1", "c2", "label")
+      val features = Array("c1", "c2")
+      val classifier = new XGBoostClassifier().setDevice("cuda").setFeaturesCol(features)
+      val (_, configs) = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
+      assert(configs("use_rmm") == true)
+    }
+  }
+
   // test distributed
   test("build RDD Watches") {
     withGpuSparkSession() { spark =>
