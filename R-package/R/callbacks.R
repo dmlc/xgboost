@@ -613,9 +613,11 @@ xgb.cb.reset.parameters <- function(new_params) {
 #'   `metric_name = 'dtest-auc'` or `metric_name = 'dtest_auc'`.
 #'   All dash '-' characters in metric names are considered equivalent to '_'.
 #' @param verbose Whether to print the early stopping information.
-#' @param keep_all_iter Whether to keep all of the boosting rounds that were produced
-#'   in the resulting object. If passing `FALSE`, will only keep the boosting rounds
-#'   up to the detected best iteration, discarding the ones that come after.
+#'
+#' @param save_best Whether training should return the best model or the last model. If
+#'   set to `TRUE`, it will only keep the boosting rounds up to the detected best
+#'   iteration, discarding the ones that come after. This parameter is not supported by
+#'   the `xgb.cv` function and the `gblinear` booster yet.
 #' @return An `xgb.Callback` object, which can be passed to [xgb.train()] or [xgb.cv()].
 #' @export
 xgb.cb.early.stop <- function(
@@ -623,7 +625,7 @@ xgb.cb.early.stop <- function(
   maximize = FALSE,
   metric_name = NULL,
   verbose = TRUE,
-  keep_all_iter = TRUE
+  save_best = FALSE
 ) {
   if (!is.null(metric_name)) {
     stopifnot(is.character(metric_name))
@@ -639,13 +641,16 @@ xgb.cb.early.stop <- function(
         maximize = maximize,
         metric_name = metric_name,
         verbose = verbose,
-        keep_all_iter = keep_all_iter,
+        save_best = save_best,
         stopped_by_max_rounds = FALSE
       )
     ),
     f_before_training = function(env, model, data, evals, begin_iteration, end_iteration) {
       if (inherits(model, "xgb.Booster") && !length(evals)) {
         stop("For early stopping, 'evals' must have at least one element")
+      }
+      if (!inherits(model, "xgb.Booster") && save_best) {
+        stop("'save_best' must be set to FALSE when using early stopping in 'xgb.cv'.")
       }
       env$begin_iteration <- begin_iteration
       return(NULL)
@@ -731,7 +736,7 @@ xgb.cb.early.stop <- function(
       return(FALSE)
     },
     f_after_training = function(env, model, data, evals, iteration, final_feval, prev_cb_res) {
-      if (inherits(model, "xgb.Booster") && !env$keep_all_iter && env$best_iteration < iteration) {
+      if (inherits(model, "xgb.Booster") && env$save_best && env$best_iteration < iteration) {
         # Note: it loses the attributes after being sliced,
         # so they have to be re-assigned afterwards.
         prev_attr <- xgb.attributes(model)

@@ -113,8 +113,12 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
   check.deprecation(deprecated_cv_params, match.call(), ...)
 
   stopifnot(inherits(data, "xgb.DMatrix"))
+
   if (inherits(data, "xgb.DMatrix") && .Call(XGCheckNullPtr_R, data)) {
     stop("'data' is an invalid 'xgb.DMatrix' object. Must be constructed again.")
+  }
+  if (inherits(data, "xgb.QuantileDMatrix")) {
+    stop("'xgb.QuantileDMatrix' is not supported as input to 'xgb.cv'.")
   }
 
   params <- check.booster.params(params)
@@ -171,7 +175,8 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
       xgb.cb.early.stop(
         early_stopping_rounds,
         maximize = maximize,
-        verbose = verbose
+        verbose = verbose,
+        save_best = FALSE
       ),
       as_first_elt = TRUE
     )
