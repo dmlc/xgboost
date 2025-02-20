@@ -641,6 +641,7 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
             repartition_random_shuffle=False,
             feature_names=None,
             feature_types=None,
+            feature_weights=None,
             arbitrary_params_dict={},
             launch_tracker_on_driver=True,
         )
