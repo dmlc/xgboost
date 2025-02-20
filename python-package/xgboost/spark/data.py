@@ -352,6 +352,7 @@ def pred_contribs(
         missing=model.missing,
         nthread=model.n_jobs,
         feature_types=model.feature_types,
+        feature_weights=model.feature_weights,
         enable_categorical=model.enable_categorical,
     )
     return model.get_booster().predict(

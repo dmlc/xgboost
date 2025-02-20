@@ -903,6 +903,7 @@ class XGBModel(XGBModelBase):
             "early_stopping_rounds",
             "callbacks",
             "feature_types",
+            "feature_weights",
         }
         return wrapper_specific
 
@@ -1213,7 +1214,6 @@ class XGBModel(XGBModelBase):
         """
         with config_context(verbosity=self.verbosity):
             params = self.get_xgb_params()
-
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
