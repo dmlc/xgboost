@@ -10,19 +10,20 @@ then
 fi
 
 arch=$1
-container_id="xgb-ci.manylinux2014_${arch}"
+image_repo="xgb-ci.manylinux2014_${arch}"
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
 
 # Build XGBoost4J binary
 echo "--- Build libxgboost4j.so (targeting glibc 2.17)"
 set -x
 mkdir build
 python3 ops/docker_run.py \
-  --container-tag "${CONTAINER_TAG}" \
+  --image-uri "${IMAGE_URI}" \
   -- bash -c \
   "cd build && cmake .. -DJVM_BINDINGS=ON -DUSE_OPENMP=ON && make -j$(nproc)"
 ldd lib/libxgboost4j.so

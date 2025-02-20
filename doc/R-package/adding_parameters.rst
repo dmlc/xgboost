@@ -1,5 +1,3 @@
-.. _index_base:
-
 Developer guide: parameters from core library
 =============================================
 

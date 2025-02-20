@@ -10,13 +10,14 @@ fi
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.gpu_build_r_rockylinux8:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.gpu_build_r_rockylinux8:${IMAGE_TAG}
 
 echo "--- Build XGBoost R package with CUDA"
 set -x
 python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
+  --image-uri ${IMAGE_URI} \
   -- ops/pipeline/build-gpu-rpkg-impl.sh \
   ${GITHUB_SHA}
 

@@ -25,6 +25,10 @@ If `device` is `cuda`, following are also needed:
 - rmm
 - python-cuda
 
+.. seealso::
+
+  :ref:`sphx_glr_python_examples_distributed_extmem_basic.py`
+
 """
 
 import argparse
@@ -154,30 +158,30 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
 
 
 def setup_rmm() -> None:
-    """Setup RMM for GPU-based external memory training."""
+    """Setup RMM for GPU-based external memory training.
+
+    It's important to use RMM with `CudaAsyncMemoryResource` or `ArenaMemoryResource`
+    for GPU-based external memory to improve performance. If XGBoost is not built with
+    RMM support, a warning is raised when constructing the `DMatrix`.
+
+    """
+
     import rmm
+    from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
+    from rmm.mr import ArenaMemoryResource
 
     if not xgboost.build_info()["USE_RMM"]:
         return
 
-    try:
-        # Use the arena pool if available
-        from cuda.bindings import runtime as cudart
-        from rmm.mr import ArenaMemoryResource
+    status, free, total = cudart.cudaMemGetInfo()
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
 
-        status, free, total = cudart.cudaMemGetInfo()
-        if status != cudart.cudaError_t.cudaSuccess:
-            raise RuntimeError(cudart.cudaGetErrorString(status))
+    mr = rmm.mr.CudaMemoryResource()
+    mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
 
-        mr = rmm.mr.CudaMemoryResource()
-        mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))
-    except ImportError:
-        # The combination of pool and async is by design. As XGBoost needs to allocate
-        # large pages repeatly, it's not easy to handle fragmentation. We can use more
-        # experiments here.
-        mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
-        rmm.mr.set_current_device_resource(mr)
+    rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
@@ -189,9 +193,6 @@ if __name__ == "__main__":
     if args.device == "cuda":
         import cupy as cp
 
-        # It's important to use RMM with `CudaAsyncMemoryResource`. for GPU-based
-        # external memory to improve performance. If XGBoost is not built with RMM
-        # support, a warning is raised when constructing the `DMatrix`.
         setup_rmm()
         # Make sure XGBoost is using RMM for all allocations.
         with xgboost.config_context(use_rmm=True):

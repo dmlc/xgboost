@@ -18,11 +18,12 @@ arch="$1"
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
 WHEEL_TAG="manylinux2014_${arch}"
-container_id="xgb-ci.${WHEEL_TAG}"
-python_bin="/opt/python/cp310-cp310/bin/python"
-CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
+IMAGE_REPO="xgb-ci.${WHEEL_TAG}"
+IMAGE_URI="${DOCKER_REGISTRY_URL}/${IMAGE_REPO}:${IMAGE_TAG}"
+PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG}"
 set -x
@@ -30,14 +31,14 @@ set -x
 patch -p0 < ops/patch/remove_nccl_dep.patch
 patch -p0 < ops/patch/manylinux2014_warning.patch
 python3 ops/docker_run.py \
-  --container-tag "${CONTAINER_TAG}" \
+  --image-uri "${IMAGE_URI}" \
   -- bash -c \
-  "cd python-package && ${python_bin} -m pip wheel --no-deps -v . --wheel-dir dist/"
+  "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
 git checkout python-package/pyproject.toml python-package/xgboost/core.py
   # discard the patch
 
 python3 ops/docker_run.py \
-  --container-tag "${CONTAINER_TAG}" \
+  --image-uri "${IMAGE_URI}" \
   -- auditwheel repair --only-plat \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
@@ -51,13 +52,13 @@ echo "--- Build binary wheel for ${WHEEL_TAG} (CPU only)"
 patch -p0 < ops/patch/remove_nccl_dep.patch
 patch -p0 < ops/patch/cpu_only_pypkg.patch
 python3 ops/docker_run.py \
-  --container-tag "${CONTAINER_TAG}" \
+  --image-uri "${IMAGE_URI}" \
   -- bash -c \
-  "cd python-package && ${python_bin} -m pip wheel --no-deps -v . --wheel-dir dist/"
+  "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
 git checkout python-package/pyproject.toml  # discard the patch
 
 python3 ops/docker_run.py \
-  --container-tag "${CONTAINER_TAG}" \
+  --image-uri "${IMAGE_URI}" \
   -- auditwheel repair --only-plat \
   --plat ${WHEEL_TAG} python-package/dist/xgboost_cpu-*.whl
 python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \

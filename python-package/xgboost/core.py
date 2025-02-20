@@ -508,15 +508,13 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
     def get_callbacks(self, enable_categorical: bool) -> Tuple[Callable, Callable]:
         """Get callback functions for iterating in C. This is an internal function."""
         assert hasattr(self, "cache_prefix"), "__init__ is not called."
-        self._reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(
-            self._reset_wrapper
-        )
-        self._next_callback = ctypes.CFUNCTYPE(
+        reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(self._reset_wrapper)
+        next_callback = ctypes.CFUNCTYPE(
             ctypes.c_int,
             ctypes.c_void_p,
         )(self._next_wrapper)
         self._enable_categorical = enable_categorical
-        return self._reset_callback, self._next_callback
+        return reset_callback, next_callback
 
     @property
     def proxy(self) -> "_ProxyDMatrix":
@@ -2754,7 +2752,9 @@ class Booster:
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
         (such as feature_names) are only saved when using JSON or UBJSON (default)
-        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
+        format. Also, parameters that are not part of the model (like metrics,
+        `max_depth`, etc) are not saved, see :doc:`Model IO </tutorials/saving_model>`
+        for more info.
 
         .. code-block:: python
 
@@ -2780,7 +2780,9 @@ class Booster:
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
         (such as feature_names) are only saved when using JSON or UBJSON (default)
-        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
+        format. Also, parameters that are not part of the model (like metrics,
+        `max_depth`, etc) are not saved, see :doc:`Model IO </tutorials/saving_model>`
+        for more info.
 
         Parameters
         ----------
@@ -2790,6 +2792,7 @@ class Booster:
         Returns
         -------
         An in memory buffer representation of the model
+
         """
         length = c_bst_ulong()
         cptr = ctypes.POINTER(ctypes.c_char)()
@@ -2807,13 +2810,22 @@ class Booster:
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
         (such as feature_names) are only saved when using JSON or UBJSON (default)
-        format. See :doc:`Model IO </tutorials/saving_model>` for more info.
+        format. Also, parameters that are not part of the model (like metrics,
+        `max_depth`, etc) are not saved, see :doc:`Model IO </tutorials/saving_model>`
+        for more info.
 
         .. code-block:: python
 
+          model.save_model("model.json")
           model.load_model("model.json")
+
           # or
+          model.save_model("model.ubj")
           model.load_model("model.ubj")
+
+          # or
+          buf = model.save_raw()
+          model.load_model(buf)
 
         Parameters
         ----------

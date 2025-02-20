@@ -109,7 +109,7 @@ test_that("SHAP contribution values are not NAN", {
       eval_metric = "rmse",
       nthread = n_threads
     ),
-    data = xgb.DMatrix(as.matrix(subset(d, fold == 2)[, ivs]), label = subset(d, fold == 2)$y),
+    data = xgb.DMatrix(as.matrix(subset(d, fold == 2)[, ivs]), label = subset(d, fold == 2)$y, nthread = 1),
     nrounds = 3
   )
 
@@ -159,7 +159,7 @@ test_that("SHAP single sample works", {
   train <- agaricus.train
   test <- agaricus.test
   booster <- xgb.train(
-    data = xgb.DMatrix(train$data, label = train$label),
+    data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
     nrounds = 4,
     params = xgb.params(
       max_depth = 2,

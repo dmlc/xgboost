@@ -325,7 +325,11 @@ class EarlyStopping(TrainingCallback):
     maximize :
         Whether to maximize evaluation metric.  None means auto (discouraged).
     save_best :
-        Whether training should return the best model or the last model.
+        Whether training should return the best model or the last model. If set to
+        `True`, it will only keep the boosting rounds up to the detected best iteration,
+        discarding the ones that come after. This is only supported with tree methods
+        (not `gblinear`). Also, the `cv` function doesn't return a model, the parameter
+        is not applicable.
     min_delta :
 
         .. versionadded:: 1.5.0
@@ -380,6 +384,11 @@ class EarlyStopping(TrainingCallback):
 
     def before_training(self, model: _Model) -> _Model:
         self.starting_round = model.num_boosted_rounds()
+        if not isinstance(model, Booster) and self.save_best:
+            raise ValueError(
+                "`save_best` is not applicable to the `cv` function as it doesn't return"
+                " a model."
+            )
         return model
 
     def _update_rounds(
@@ -428,7 +437,7 @@ class EarlyStopping(TrainingCallback):
             self.stopping_history[name][metric] = cast(_ScoreList, [score])
             self.best_scores[name] = {}
             self.best_scores[name][metric] = [score]
-            model.set_attr(best_score=str(score), best_iteration=str(epoch))
+            model.set_attr(best_score=str(get_s(score)), best_iteration=str(epoch))
         elif not improve_op(score, self.best_scores[name][metric][-1]):
             # Not improved
             self.stopping_history[name][metric].append(score)  # type: ignore
@@ -437,7 +446,7 @@ class EarlyStopping(TrainingCallback):
             self.stopping_history[name][metric].append(score)  # type: ignore
             self.best_scores[name][metric].append(score)
             record = self.stopping_history[name][metric][-1]
-            model.set_attr(best_score=str(record), best_iteration=str(epoch))
+            model.set_attr(best_score=str(get_s(record)), best_iteration=str(epoch))
             self.current_rounds = 0  # reset
 
         if self.current_rounds >= self.rounds:

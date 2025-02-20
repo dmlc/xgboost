@@ -78,26 +78,23 @@ data(agaricus.train, package = "xgboost")
 nthread <- 2
 data.table::setDTthreads(nthread)
 
-bst <- xgb.train(
-  data = xgb.DMatrix(agaricus.train$data, label = agaricus.train$label),
+model <- xgboost(
+  agaricus.train$data, factor(agaricus.train$label),
   nrounds = 30,
-  verbose = 0,
-  params = xgb.params(
-    max_depth = 15,
-    learning_rate = 1,
-    nthread = nthread,
-    objective = "binary:logistic",
-    min_child_weight = 50
-  )
+  verbosity = 0L,
+  nthreads = nthread,
+  max_depth = 15,
+  learning_rate = 1,
+  min_child_weight = 50
 )
 
-p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
+p <- xgb.plot.multi.trees(model, features_keep = 3)
 print(p)
 
 # Below is an example of how to save this plot to a file.
 if (require("DiagrammeR") && require("DiagrammeRsvg") && require("rsvg")) {
   fname <- file.path(tempdir(), "tree.pdf")
-  gr <- xgb.plot.multi.trees(bst, features_keep = 3, render = FALSE)
+  gr <- xgb.plot.multi.trees(model, features_keep = 3, render = FALSE)
   export_graph(gr, fname, width = 1500, height = 600)
 }
 }

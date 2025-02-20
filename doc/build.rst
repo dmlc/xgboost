@@ -2,10 +2,9 @@
 Building From Source
 ####################
 
-This page gives instructions on how to build and install XGBoost from the source code on various
-systems.  If the instructions do not work for you, please feel free to ask questions at
-`the user forum <https://discuss.xgboost.ai>`_.
-
+This page gives instructions on how to build and install XGBoost from the source code on
+various systems.  If the instructions do not work for you, please feel free to ask
+questions at `GitHub <https://github.com/dmlc/xgboost/issues>`__.
 
 .. note:: Pre-built binary is available: now with GPU support
 
@@ -19,23 +18,14 @@ systems.  If the instructions do not work for you, please feel free to ask quest
 *************************
 Obtaining the Source Code
 *************************
-To obtain the development repository of XGBoost, one needs to use ``git``.
 
-.. note:: Use of Git submodules
-
-  XGBoost uses Git submodules to manage dependencies. So when you clone the repo, remember to specify ``--recursive`` option:
+To obtain the development repository of XGBoost, one needs to use ``git``. XGBoost uses
+Git submodules to manage dependencies. So when you clone the repo, remember to specify
+``--recursive`` option:
 
   .. code-block:: bash
 
     git clone --recursive https://github.com/dmlc/xgboost
-
-For windows users who use github tools, you can open the git shell and type the following command:
-
-.. code-block:: batch
-
-  git submodule init
-  git submodule update
-
 
 .. _build_shared_lib:
 
@@ -44,7 +34,7 @@ Building the Shared Library
 ***************************
 
 This section describes the procedure to build the shared library and CLI interface
-independently.  For building language specific package, see corresponding sections in this
+independently. For building language specific package, see corresponding sections in this
 document.
 
 - On Linux and other UNIX-like systems, the target library is ``libxgboost.so``
@@ -54,53 +44,49 @@ document.
 This shared library is used by different language bindings (with some additions depending
 on the binding you choose).  The minimal building requirement is
 
-- A recent C++ compiler supporting C++11 (g++-5.0 or higher)
-- CMake 3.14 or higher.
+- A recent C++ compiler supporting C++17. We use gcc, clang, and MSVC for daily
+  testing. Mingw is only used for the R package and has limited features.
+- CMake 3.18 or higher.
 
 For a list of CMake options like GPU support, see ``#-- Options`` in CMakeLists.txt on top
-level of source tree.
+level of source tree. We use ``ninja`` for build in this document, specified via the CMake
+flag ``-GNinja``. If you prefer other build tools like ``make`` or ``Visual Studio 17
+2022``, please change the corresponding CMake flags. Consult the `CMake generator
+<https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html>`_ document when
+needed.
 
-Building on Linux and other UNIX-like systems
-=============================================
+.. _running_cmake_and_build:
+
+Running CMake and build
+=======================
 
 After obtaining the source code, one builds XGBoost by running CMake:
 
 .. code-block:: bash
 
   cd xgboost
-  cmake -B build -S .
-  cmake --build build -j$(nproc)
-
-Building on MacOS
-=================
-
-Obtain ``libomp`` from `Homebrew <https://brew.sh/>`_:
-
-.. code-block:: bash
-
-  brew install libomp
-
-Rest is the same as building on Linux.
+  cmake -B build -S . -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja
+  cd build && ninja
 
 
-Building on Windows
-===================
+The same command applies for both Unix-like systems and Windows. After running the
+build, one should see a shared object under the ``xgboost/lib`` directory.
 
-XGBoost support compilation with Microsoft Visual Studio and MinGW.  To build with Visual
-Studio, we will need CMake. Make sure to install a recent version of CMake. Then run the
-following from the root of the XGBoost directory:
+- Building on MacOS
 
-.. code-block:: bash
+  On MacOS, one needs to obtain ``libomp`` from `Homebrew <https://brew.sh/>`_ first:
 
-  cmake -B build -S . -G"Visual Studio 14 2015 Win64"
-  # for VS15: cmake -B build -S . -G"Visual Studio 15 2017" -A x64
-  # for VS16: cmake -B build -S . -G"Visual Studio 16 2019" -A x64
-  cmake --build build --config Release
+  .. code-block:: bash
 
-This specifies an out of source build using the Visual Studio 64 bit generator. (Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.)
+    brew install libomp
 
-After the build process successfully ends, you will find a ``xgboost.dll`` library file
-inside ``./lib/`` folder.  Some notes on using MinGW is added in :ref:`python_mingw`.
+- Visual Studio
+
+  The latest Visual Studio has builtin support for CMake projects. If you prefer using an
+  IDE over the command line, you can use the ``open with visual studio`` option in the
+  right-click menu under the ``xgboost`` source directory. Consult the VS `document
+  <https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio?view=msvc-170>`__
+  for more info.
 
 .. _build_gpu_support:
 
@@ -115,47 +101,43 @@ An up-to-date version of the CUDA toolkit is required.
 
 .. note:: Checking your compiler version
 
-  CUDA is really picky about supported compilers, a table for the compatible compilers for the latest CUDA version on Linux can be seen `here <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`_.
+    CUDA is really picky about supported compilers, a table for the compatible compilers
+    for the latest CUDA version on Linux can be seen `here
+    <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`_.
 
-  Some distros package a compatible ``gcc`` version with CUDA. If you run into compiler errors with ``nvcc``, try specifying the correct compiler with ``-DCMAKE_CXX_COMPILER=/path/to/correct/g++ -DCMAKE_C_COMPILER=/path/to/correct/gcc``. On Arch Linux, for example, both binaries can be found under ``/opt/cuda/bin/``.
+Some distros package a compatible ``gcc`` version with CUDA. If you run into compiler
+errors with ``nvcc``, try specifying the correct compiler with
+``-DCMAKE_CXX_COMPILER=/path/to/correct/g++ -DCMAKE_C_COMPILER=/path/to/correct/gcc``. On
+Arch Linux, for example, both binaries can be found under ``/opt/cuda/bin/``. In addition,
+the ``CMAKE_CUDA_HOST_COMPILER`` parameter can be useful.
 
-From the command line on Linux starting from the XGBoost directory:
+From the command line on Linux starting from the XGBoost directory, add the ``USE_CUDA``
+flag:
 
 .. code-block:: bash
 
-  cmake -B build -S . -DUSE_CUDA=ON
-  cmake --build build -j4
+  cmake -B build -S . -DUSE_CUDA=ON -GNinja
+  cd build && ninja
 
-.. note:: Specifying compute capability
+To speed up compilation, the compute version specific to your GPU could be passed to cmake
+as, e.g., ``-DCMAKE_CUDA_ARCHITECTURES=75``. A quick explanation and numbers for some
+architectures can be found `in this page <https://developer.nvidia.com/cuda-gpus>`_.
 
-  To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DCMAKE_CUDA_ARCHITECTURES=75``. A quick explanation and numbers for some architectures can be found `in this page <https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/>`_.
+- Faster distributed GPU training with NCCL
 
-.. note:: Faster distributed GPU training with NCCL
-
-  By default, distributed GPU training is enabled with the option ``USE_NCCL=ON``. Distributed GPU training depends on NCCL2, available at `this link <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines, **Distributed GPU training is available only for Linux**.
+  By default, distributed GPU training is enabled with the option
+  ``USE_NCCL=ON``. Distributed GPU training depends on NCCL2, available at `this link
+  <https://developer.nvidia.com/nccl>`_. Since NCCL2 is only available for Linux machines,
+  **Distributed GPU training is available only for Linux**.
 
   .. code-block:: bash
 
-    cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT=/path/to/nccl2
-    cmake --build build -j4
+    cmake -B build -S . -DUSE_CUDA=ON -DUSE_NCCL=ON -DNCCL_ROOT=/path/to/nccl2 -GNinja
+    cd build && ninja
 
-Some additional flags are available for NCCL, ``BUILD_WITH_SHARED_NCCL`` enables building XGBoost with NCCL as a shared library, while ``USE_DLOPEN_NCCL`` enables XGBoost  to load NCCL at runtime using ``dlopen``.
-
-On Windows, run CMake as follows:
-
-.. code-block:: bash
-
-  cmake -B build -S . -G"Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON
-
-(Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.)
-
-The above cmake configuration run will create an ``xgboost.sln`` solution file in the build directory. Build this solution in Release mode, either from Visual studio or from command line:
-
-.. code-block:: bash
-
-  cmake --buildbuild. --target xgboost --config Release
-
-To speed up compilation, run multiple jobs in parallel by appending option ``-- /MP``.
+  Some additional flags are available for NCCL, ``BUILD_WITH_SHARED_NCCL`` enables
+  building XGBoost with NCCL as a shared library, while ``USE_DLOPEN_NCCL`` enables
+  XGBoost to load NCCL at runtime using ``dlopen``.
 
 Federated Learning
 ==================
@@ -164,8 +146,14 @@ The federated learning plugin requires ``grpc`` and ``protobuf``. To install grp
 to the `installation guide from the gRPC website
 <https://grpc.io/docs/languages/cpp/quickstart/>`_. Alternatively, one can use the
 ``libgrpc`` and the ``protobuf`` package from conda forge if conda is available. After
-obtaining the required dependencies, enable the flag: `-DPLUGIN_FEDERATED=ON` when running
-CMake. Please note that only Linux is supported for the federated plugin.
+obtaining the required dependencies, enable the flag: ``-DPLUGIN_FEDERATED=ON`` when
+running CMake. Please note that only Linux is supported for the federated plugin.
+
+
+.. code-block:: bash
+
+  cmake -B build -S . -DPLUGIN_FEDERATED=ON -GNinja
+  cd build && ninja
 
 
 .. _build_python:
@@ -195,16 +183,17 @@ There are several ways to build and install the package from source:
 
 2. Install the Python package directly
 
-  You can navigate to ``python-package/`` directory and install the Python package directly
-  by running
+  If the shared object is not present, the Python project setup script will try to run the
+  CMake build command automatically. Navigate to the ``python-package/`` directory and
+  install the Python package by running:
 
   .. code-block:: console
 
     $ cd python-package/
-    $ pip install -v .
+    $ pip install -v . # Builds the shared object automatically.
 
-  which will compile XGBoost's native (C++) code using default CMake flags.
-  To enable additional compilation options, pass corresponding ``--config-settings``:
+  which will compile XGBoost's native (C++) code using default CMake flags.  To enable
+  additional compilation options, pass corresponding ``--config-settings``:
 
   .. code-block:: console
 
@@ -235,19 +224,19 @@ There are several ways to build and install the package from source:
   installation**.  In an editable installation, the installed package is simply a symbolic
   link to your working copy of the XGBoost source code. So every changes you make to your
   source directory will be immediately visible to the Python interpreter. To install
-  XGBoost as editable installation, first build the shared library as previously
-  described, then install the Python package:
+  XGBoost as editable installation, first build the shared library as previously described
+  in :ref:`running_cmake_and_build`, then install the Python package with the ``-e`` flag:
 
   .. code-block:: bash
 
     # Build shared library libxgboost.so
     cmake -B build -S . -GNinja
-    cmake --build build
+    cd build && ninja
     # Install as editable installation
-    cd ./python-package
+    cd ../python-package
     pip install -e .
 
-4. Use ``libxgboost.so`` on system path.
+4. Reuse the ``libxgboost.so`` on system path.
 
   This option is useful for package managers that wish to separately package
   ``libxgboost.so`` and the XGBoost Python package. For example, Conda
@@ -273,33 +262,17 @@ There are several ways to build and install the package from source:
 
 .. note::
 
-  See :doc:`contrib/python_packaging` for instructions on packaging
-  and distributing XGBoost as Python distributions.
+  See :doc:`contrib/python_packaging` for instructions on packaging and distributing
+  XGBoost as Python distributions.
 
-.. _python_mingw:
-
-Building Python Package for Windows with MinGW-w64 (Advanced)
-=============================================================
-
-Windows versions of Python are built with Microsoft Visual Studio. Usually Python binary modules are built with the same compiler the interpreter is built with. However, you may not be able to use Visual Studio, for following reasons:
-
-1. VS is proprietary and commercial software. Microsoft provides a freeware "Community" edition, but its licensing terms impose restrictions as to where and how it can be used.
-2. Visual Studio contains telemetry, as documented in `Microsoft Visual Studio Licensing Terms <https://visualstudio.microsoft.com/license-terms/mt736442/>`_. Running software with telemetry may be against the policy of your organization.
-
-So you may want to build XGBoost with GCC own your own risk. This presents some difficulties because MSVC uses Microsoft runtime and MinGW-w64 uses own runtime, and the runtimes have different incompatible memory allocators. But in fact this setup is usable if you know how to deal with it. Here is some experience.
-
-1. The Python interpreter will crash on exit if XGBoost was used. This is usually not a big issue.
-2. ``-O3`` is OK.
-3. ``-mtune=native`` is also OK.
-4. Don't use ``-march=native`` gcc flag. Using it causes the Python interpreter to crash if the DLL was actually used.
-5. You may need to provide the lib with the runtime libs. If ``mingw32/bin`` is not in ``PATH``, build a wheel (``pip wheel``), open it with an archiver and put the needed dlls to the directory where ``xgboost.dll`` is situated. Then you can install the wheel with ``pip``.
 
 ******************************
 Building R Package From Source
 ******************************
 
-By default, the package installed by running ``install.packages`` is built from source.
-Here we list some other options for installing development version.
+By default, the package installed by running ``install.packages`` is built from source
+using the package from `CRAN <https://cran.r-project.org/>`__.  Here we list some other
+options for installing development version.
 
 Installing the development version (Linux / Mac OSX)
 ====================================================
@@ -317,51 +290,34 @@ simplest way to install the R package after obtaining the source code is:
   cd R-package
   R CMD INSTALL .
 
-As an alternative, the package can also be loaded through ``devtools::load_all()``
-from the same subfolder ``R-package`` in the repository's root, and by extension, can
-be installed through RStudio's build panel if one adds that folder ``R-package`` as an
-R package project in the RStudio IDE.
+Use the environment variable ``MAKEFLAGS=-j$(nproc)`` if you want to speedup the build. As
+an alternative, the package can also be loaded through ``devtools::load_all()`` from the
+same subfolder ``R-package`` in the repository's root, and by extension, can be installed
+through RStudio's build panel if one adds that folder ``R-package`` as an R package
+project in the RStudio IDE.
 
-If you want to use the CMake build for better performance or greater flexibility around
-compile flags, the earlier snippet can be replaced by:
+.. code-block:: R
 
-.. code-block:: bash
+  library(devtools)
+  devtools::load_all(path = "/path/to/xgboost/R-package")
 
-  cmake -B build -S . -DR_LIB=ON
-  cmake --build build --target install -j$(nproc)
-
-Note in this case that ``cmake`` will not take configurations from your regular ``Makevars``
-file (if you have such a file under ``~/.R/Makevars``) - instead, custom configurations such
-as compilers to use and flags need to be set through environment variables like ``${CC}``,
-``${CFLAGS}``, etc.
-
-Installing the development version with Visual Studio (Windows)
-===============================================================
-
-On Windows, CMake with Visual C++ Build Tools (or Visual Studio) can be used to build the R package.
-
-While not required, this build can be faster if you install the R package ``processx`` with ``install.packages("processx")``.
-
-.. note:: Setting correct PATH environment variable on Windows
-
-  If you are using Windows, make sure to include the right directories in the PATH environment variable.
-
-  * If you are using R 4.x with RTools 4.0:
-    - ``C:\rtools40\usr\bin``
-    - ``C:\rtools40\mingw64\bin``
-
-  * If you are using R 3.x with RTools 3.x:
-
-    - ``C:\Rtools\bin``
-    - ``C:\Rtools\mingw_64\bin``
-
-Open the Command Prompt and navigate to the XGBoost directory, and then run the following commands. Make sure to specify the correct R version.
+On Linux, if you want to use the CMake build for greater flexibility around compile flags,
+the earlier snippet can be replaced by:
 
 .. code-block:: bash
 
-  cd C:\path\to\xgboost
-  cmake -B build -S . -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON -DR_VERSION=4.0.0
-  cmake --build build --target install --config Release
+  cmake -B build -S . -DR_LIB=ON -GNinja
+  cd build && ninja install
+
+.. warning::
+
+   MSVC is not supported for the R package as it has difficulty handling R C
+   headers. CMake build is not supported either.
+
+Note in this case that ``cmake`` will not take configurations from your regular
+``Makevars`` file (if you have such a file under ``~/.R/Makevars``) - instead, custom
+configurations such as compilers to use and flags need to be set through CMake variables
+like ``-DCMAKE_CXX_COMPILER``.
 
 
 .. _r_gpu_support:
@@ -381,45 +337,14 @@ On Linux, starting from the XGBoost directory type:
 When default target is used, an R package shared library would be built in the ``build`` area.
 The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package`` and runs ``R CMD INSTALL``.
 
-On Windows, CMake with Visual Studio has to be used to build an R package with GPU support. Rtools must also be installed.
-
-.. note:: Setting correct PATH environment variable on Windows
-
-  If you are using Windows, make sure to include the right directories in the PATH environment variable.
-
-  * If you are using R 4.x with RTools 4.0:
-
-    - ``C:\rtools40\usr\bin``
-    - ``C:\rtools40\mingw64\bin``
-  * If you are using R 3.x with RTools 3.x:
-
-    - ``C:\Rtools\bin``
-    - ``C:\Rtools\mingw_64\bin``
-
-Open the Command Prompt and navigate to the XGBoost directory, and then run the following commands. Make sure to specify the correct R version.
-
-.. code-block:: bash
-
-  cd C:\path\to\xgboost
-  cmake -B build -S . -G"Visual Studio 16 2019" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DR_VERSION=4.0.0
-  cmake --build build --target install --config Release
-
-If CMake can't find your R during the configuration step, you might provide the location of R to CMake like this: ``-DLIBR_HOME="C:\Program Files\R\R-4.0.0"``.
-
-If on Windows you get a "permission denied" error when trying to write to ...Program Files/R/... during the package installation, create a ``.Rprofile`` file in your personal home directory (if you don't already have one in there), and add a line to it which specifies the location of your R packages user library, like the following:
-
-.. code-block:: R
-
-  .libPaths( unique(c("C:/Users/USERNAME/Documents/R/win-library/3.4", .libPaths())))
-
-You might find the exact location by running ``.libPaths()`` in R GUI or RStudio.
-
-
 *********************
 Building JVM Packages
 *********************
 
-Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.13+ for compiling Java code as well as the Java Native Interface (JNI) bindings.
+Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.18+ for
+compiling Java code as well as the Java Native Interface (JNI) bindings. In addition, a
+Python script is used during configuration, make sure the command ``python`` is available
+on your system path (some distros use the name ``python3`` instead of ``python``).
 
 Before you install XGBoost4J, you need to define environment variable ``JAVA_HOME`` as your JDK directory to ensure that your compiler can find ``jni.h`` correctly, since XGBoost4J relies on JNI to implement the interaction between the JVM and native libraries.
 
@@ -459,32 +384,24 @@ If you want to use XGBoost4J-Spark, replace ``xgboost4j`` with ``xgboost4j-spark
 
 .. note:: XGBoost4J-Spark requires Apache Spark 2.3+
 
-  XGBoost4J-Spark now requires **Apache Spark 2.3+**. Latest versions of XGBoost4J-Spark uses facilities of `org.apache.spark.ml.param.shared` extensively to provide for a tight integration with Spark MLLIB framework, and these facilities are not fully available on earlier versions of Spark.
+  XGBoost4J-Spark now requires **Apache Spark 3.4+**. Latest versions of XGBoost4J-Spark uses facilities of `org.apache.spark.ml.param.shared` extensively to provide for a tight integration with Spark MLLIB framework, and these facilities are not fully available on earlier versions of Spark.
 
   Also, make sure to install Spark directly from `Apache website <https://spark.apache.org/>`_. **Upstream XGBoost is not guaranteed to work with third-party distributions of Spark, such as Cloudera Spark.** Consult appropriate third parties to obtain their distribution of XGBoost.
 
-Enabling OpenMP for Mac OS
-==========================
-If you are on Mac OS and using a compiler that supports OpenMP, you need to go to the file ``xgboost/jvm-packages/create_jni.py`` and comment out the line
+Additional System-dependent Features
+====================================
 
-.. code-block:: python
-
-  CONFIG["USE_OPENMP"] = "OFF"
-
-in order to get the benefit of multi-threading.
-
-Building with GPU support
-==========================
-If you want to build XGBoost4J that supports distributed GPU training, run
-
-.. code-block:: bash
-
-  mvn -Duse.cuda=ON install
+- OpenMP on MacOS: See :ref:`running_cmake_and_build` for installing ``openmp``. The flag
+  -``mvn -Duse.openmp=OFF`` can be used to disable OpenMP support.
+- GPU support can be enabled by passing an additional flag to maven ``mvn -Duse.cuda=ON
+  install``. See :ref:`build_gpu_support` for more info.
 
 **************************
 Building the Documentation
 **************************
-XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation.  To build it locally, you need a installed XGBoost with all its dependencies along with:
+
+XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation.  To
+build it locally, you need a installed XGBoost with all its dependencies along with:
 
 * System dependencies
 
@@ -495,4 +412,6 @@ XGBoost uses `Sphinx <https://www.sphinx-doc.org/en/stable/>`_ for documentation
 
   Checkout the ``requirements.txt`` file under ``doc/``
 
-Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the format you want.  For a list of supported formats, run ``make help`` under the same directory.
+Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the
+format you want.  For a list of supported formats, run ``make help`` under the same
+directory.

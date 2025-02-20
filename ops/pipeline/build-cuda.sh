@@ -11,10 +11,10 @@ fi
 
 if [[ "$#" -lt 2 ]]
 then
-  echo "Usage: $0 [container_id] {enable-rmm,disable-rmm}"
+  echo "Usage: $0 [image_repo] {enable-rmm,disable-rmm}"
   exit 2
 fi
-container_id="$1"
+image_repo="$1"
 rmm_flag="$2"
 
 # Validate RMM flag
@@ -33,10 +33,11 @@ esac
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
 WHEEL_TAG=manylinux_2_28_x86_64
-BUILD_CONTAINER_TAG="${DOCKER_REGISTRY_URL}/${container_id}:main"
-MANYLINUX_CONTAINER_TAG="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:main"
+BUILD_IMAGE_URI="${DOCKER_REGISTRY_URL}/${image_repo}:${IMAGE_TAG}"
+MANYLINUX_IMAGE_URI="${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}"
 
 echo "--- Build with CUDA"
 
@@ -47,23 +48,16 @@ else
   export BUILD_ONLY_SM75=0
 fi
 
-if [[ ${USE_RMM} == 0 ]]
-then
-  # Work around https://github.com/NVIDIA/cccl/issues/1956
-  # TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
-  git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet
-fi
-
 set -x
 
 python3 ops/docker_run.py \
-  --container-tag ${BUILD_CONTAINER_TAG} \
+  --image-uri ${BUILD_IMAGE_URI} \
   --run-args='-e BUILD_ONLY_SM75 -e USE_RMM' \
   -- ops/pipeline/build-cuda-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 python3 ops/docker_run.py \
-  --container-tag ${MANYLINUX_CONTAINER_TAG} \
+  --image-uri ${MANYLINUX_IMAGE_URI} \
   -- auditwheel repair --only-plat \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
@@ -93,6 +87,10 @@ then
     python3 ops/pipeline/manage-artifacts.py upload \
       --s3-bucket xgboost-nightly-builds \
       --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
-      python-package/dist/*.whl python-package/dist/meta.json
+      python-package/dist/*.whl
+    python3 ops/pipeline/manage-artifacts.py upload \
+      --s3-bucket xgboost-nightly-builds \
+      --prefix ${BRANCH_NAME} --make-public \
+      python-package/dist/meta.json
   fi
 fi

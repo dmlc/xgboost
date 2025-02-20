@@ -94,12 +94,14 @@ xgb.get.handle <- function(object) {
 #'   - Columns will be converted to numeric if they aren't already, which could potentially make
 #'     the operation slower than in an equivalent `matrix` object.
 #'   - The order of the columns must match with that of the data from which the model was fitted
-#'     (i.e. columns will not be referenced by their names, just by their order in the data).
+#'     (i.e. columns will not be referenced by their names, just by their order in the data),
+#'     unless passing `validate_features = TRUE` (which is not the default).
 #'   - If the model was fitted to data with categorical columns, these columns must be of
 #'     `factor` type here, and must use the same encoding (i.e. have the same levels).
 #'   - If `newdata` contains any `factor` columns, they will be converted to base-0
 #'     encoding (same as during DMatrix creation) - hence, one should not pass a `factor`
 #'     under a column which during training had a different type.
+#'   - Any columns with type other than `factor` will be interpreted as numeric.
 #' @param missing Float value that represents missing values in data
 #'   (e.g., 0 or some other extreme value).
 #'
@@ -263,7 +265,7 @@ xgb.get.handle <- function(object) {
 #' test <- agaricus.test
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nrounds = 5,
 #'   params = xgb.params(
 #'     max_depth = 2,
@@ -307,7 +309,7 @@ xgb.get.handle <- function(object) {
 #' set.seed(11)
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
+#'   data = xgb.DMatrix(as.matrix(iris[, -5], nthread = 1), label = lb),
 #'   nrounds = 10,
 #'   params = xgb.params(
 #'     max_depth = 4,
@@ -330,7 +332,7 @@ xgb.get.handle <- function(object) {
 #' set.seed(11)
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
+#'   data = xgb.DMatrix(as.matrix(iris[, -5], nthread = 1), label = lb),
 #'   nrounds = 10,
 #'   params = xgb.params(
 #'     max_depth = 4,
@@ -662,7 +664,7 @@ validate.features <- function(bst, newdata) {
 #' train <- agaricus.train
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
@@ -769,7 +771,7 @@ xgb.attributes <- function(object) {
 #' train <- agaricus.train
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
@@ -823,7 +825,7 @@ xgb.config <- function(object) {
 #' train <- agaricus.train
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,
@@ -1274,7 +1276,7 @@ xgb.is.same.Booster <- function(obj1, obj2) {
 #' train <- agaricus.train
 #'
 #' bst <- xgb.train(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nrounds = 2,
 #'   params = xgb.params(
 #'     max_depth = 2,

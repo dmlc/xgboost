@@ -327,7 +327,7 @@ test_that("early stopping works with titanic", {
   dty <- titanic$Survived
 
   xgb.train(
-    data = xgb.DMatrix(dtx, label = dty),
+    data = xgb.DMatrix(dtx, label = dty, nthread = 1),
     params = xgb.params(
       objective = "binary:logistic",
       eval_metric = "auc",
@@ -336,7 +336,7 @@ test_that("early stopping works with titanic", {
     nrounds = 100,
     early_stopping_rounds = 3,
     verbose = 0,
-    evals = list(train = xgb.DMatrix(dtx, label = dty))
+    evals = list(train = xgb.DMatrix(dtx, label = dty, nthread = 1))
   )
 
   expect_true(TRUE)  # should not crash
@@ -426,7 +426,7 @@ test_that("prediction in xgb.cv for softprob works", {
   expect_warning(
     {
       cv <- xgb.cv(
-        data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb),
+        data = xgb.DMatrix(as.matrix(iris[, -5]), label = lb, nthread = 1),
         nfold = 4,
         nrounds = 5,
         params = xgb.params(

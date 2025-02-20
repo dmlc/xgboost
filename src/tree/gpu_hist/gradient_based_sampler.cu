@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <thrust/functional.h>
 #include <thrust/random.h>
@@ -21,7 +21,7 @@
 
 namespace xgboost::tree {
 /*! \brief A functor that returns random weights. */
-class RandomWeight : public thrust::unary_function<size_t, float> {
+class RandomWeight {
  public:
   explicit RandomWeight(size_t seed) : seed_(seed) {}
 
@@ -37,7 +37,7 @@ class RandomWeight : public thrust::unary_function<size_t, float> {
 };
 
 /*! \brief A functor that performs a Bernoulli trial to discard a gradient pair. */
-class BernoulliTrial : public thrust::unary_function<size_t, bool> {
+class BernoulliTrial {
  public:
   BernoulliTrial(size_t seed, float p) : rnd_(seed), p_(p) {}
 
@@ -51,14 +51,14 @@ class BernoulliTrial : public thrust::unary_function<size_t, bool> {
 };
 
 /*! \brief A functor that returns true if the gradient pair is non-zero. */
-struct IsNonZero : public thrust::unary_function<GradientPair, bool> {
+struct IsNonZero {
   XGBOOST_DEVICE bool operator()(const GradientPair& gpair) const {
     return gpair.GetGrad() != 0 || gpair.GetHess() != 0;
   }
 };
 
 /*! \brief A functor that clears the row indexes with empty gradient. */
-struct ClearEmptyRows : public thrust::binary_function<GradientPair, bst_idx_t, bst_idx_t> {
+struct ClearEmptyRows {
   static constexpr bst_idx_t InvalidRow() { return std::numeric_limits<std::size_t>::max(); }
 
   XGBOOST_DEVICE size_t operator()(const GradientPair& gpair, size_t row_index) const {
@@ -77,7 +77,7 @@ struct ClearEmptyRows : public thrust::binary_function<GradientPair, bst_idx_t, 
  * \see Ibragimov, B., & Gusev, G. (2019). Minimal Variance Sampling in Stochastic Gradient
  * Boosting. In Advances in Neural Information Processing Systems (pp. 15061-15071).
  */
-class CombineGradientPair : public thrust::unary_function<GradientPair, float> {
+class CombineGradientPair {
  public:
   XGBOOST_DEVICE float operator()(const GradientPair& gpair) const {
     return sqrtf(powf(gpair.GetGrad(), 2) + kLambda * powf(gpair.GetHess(), 2));
@@ -90,7 +90,7 @@ class CombineGradientPair : public thrust::unary_function<GradientPair, float> {
 /*! \brief A functor that calculates the difference between the sample rate and the desired sample
  * rows, given a cumulative gradient sum.
  */
-class SampleRateDelta : public thrust::binary_function<float, size_t, float> {
+class SampleRateDelta {
  public:
   SampleRateDelta(common::Span<float> threshold, size_t n_rows, size_t sample_rows)
       : threshold_(threshold), n_rows_(n_rows), sample_rows_(sample_rows) {}
@@ -114,7 +114,7 @@ class SampleRateDelta : public thrust::binary_function<float, size_t, float> {
 };
 
 /*! \brief A functor that performs Poisson sampling, and scales gradient pairs by 1/p_i. */
-class PoissonSampling : public thrust::binary_function<GradientPair, size_t, GradientPair> {
+class PoissonSampling {
  public:
   PoissonSampling(common::Span<float> threshold, size_t threshold_index, RandomWeight rnd)
       : threshold_(threshold), threshold_index_(threshold_index), rnd_(rnd) {}

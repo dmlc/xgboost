@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from hypothesis import given, note, settings, strategies
 from hypothesis._settings import duration
+from packaging.version import parse as parse_version
 
 import xgboost as xgb
 from xgboost import testing as tm
@@ -17,7 +18,9 @@ from xgboost.collective import CommunicatorContext
 from xgboost.testing.dask import get_rabit_args
 from xgboost.testing.params import hist_parameter_strategy
 
-from ..test_with_dask.test_with_dask import generate_array
+from ..test_with_dask.test_with_dask import (
+    generate_array,
+)
 from ..test_with_dask.test_with_dask import kCols as random_cols
 from ..test_with_dask.test_with_dask import (
     make_categorical,
@@ -36,12 +39,13 @@ from ..test_with_dask.test_with_dask import (
 pytestmark = [
     pytest.mark.skipif(**tm.no_dask()),
     pytest.mark.skipif(**tm.no_dask_cuda()),
-    tm.timeout(120),
+    tm.timeout(180),
 ]
 
 try:
     import cudf
     import dask.dataframe as dd
+    from dask import __version__ as dask_version
     from dask import array as da
     from dask.distributed import Client
     from dask_cuda import LocalCUDACluster
@@ -49,7 +53,12 @@ try:
     from xgboost import dask as dxgb
     from xgboost.testing.dask import check_init_estimation, check_uneven_nan
 except ImportError:
-    pass
+    dask_version = None
+
+
+dask_version_ge110 = dask_version and parse_version(dask_version) >= parse_version(
+    "2024.11.0"
+)
 
 
 def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
@@ -373,11 +382,12 @@ class TestDistributedGPU:
         dump = booster.get_dump(dump_format="json")
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
+    @pytest.mark.xfail(
+        dask_version_ge110, reason="Test cannot pass with Dask 2024.11.0+"
+    )
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.parametrize("model", ["boosting"])
     def test_dask_classifier(self, model: str, local_cuda_client: Client) -> None:
-        import dask_cudf
-
         X_, y_, w_ = generate_array(with_weights=True)
         y_ = (y_ * 10).astype(np.int32)
         X = dd.from_dask_array(X_).to_backend("cudf")

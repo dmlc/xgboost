@@ -110,11 +110,15 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
                    objective = NULL, custom_metric = NULL, stratified = "auto",
                    folds = NULL, train_folds = NULL, verbose = TRUE, print_every_n = 1L,
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
-  check.deprecation(deprecated_train_params, match.call(), ...)
+  check.deprecation(deprecated_cv_params, match.call(), ...)
 
   stopifnot(inherits(data, "xgb.DMatrix"))
+
   if (inherits(data, "xgb.DMatrix") && .Call(XGCheckNullPtr_R, data)) {
     stop("'data' is an invalid 'xgb.DMatrix' object. Must be constructed again.")
+  }
+  if (inherits(data, "xgb.QuantileDMatrix")) {
+    stop("'xgb.QuantileDMatrix' is not supported as input to 'xgb.cv'.")
   }
 
   params <- check.booster.params(params)
@@ -171,7 +175,8 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
       xgb.cb.early.stop(
         early_stopping_rounds,
         maximize = maximize,
-        verbose = verbose
+        verbose = verbose,
+        save_best = FALSE
       ),
       as_first_elt = TRUE
     )
@@ -310,7 +315,7 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
 #'
 #' train <- agaricus.train
 #' cv <- xgb.cv(
-#'   data = xgb.DMatrix(train$data, label = train$label),
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
 #'   nfold = 5,
 #'   nrounds = 2,
 #'   params = xgb.params(

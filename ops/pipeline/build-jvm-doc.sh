@@ -18,11 +18,12 @@ then
 fi
 
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:${IMAGE_TAG}
 
 echo "--- Build JVM packages doc"
 set -x
 python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
+  --image-uri ${IMAGE_URI} \
   -- ops/pipeline/build-jvm-doc-impl.sh ${BRANCH_NAME}

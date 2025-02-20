@@ -5,8 +5,9 @@ set -euo pipefail
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.cpu:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.cpu:${IMAGE_TAG}
 
 echo "--- Build CPU code"
 set -x
@@ -24,7 +25,7 @@ export UBSAN_OPTIONS='print_stacktrace=1:log_path=ubsan_error.log'
 # Work around https://github.com/google/sanitizers/issues/1614
 sudo sysctl vm.mmap_rnd_bits=28
 python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
+  --image-uri ${IMAGE_URI} \
   --run-args '-e ASAN_SYMBOLIZER_PATH -e ASAN_OPTIONS -e UBSAN_OPTIONS
     --cap-add SYS_PTRACE' \
   -- bash ops/pipeline/build-cpu-impl.sh cpu-sanitizer
@@ -32,5 +33,5 @@ python3 ops/docker_run.py \
 # Test without sanitizer
 rm -rf build/
 python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
+  --image-uri ${IMAGE_URI} \
   -- bash ops/pipeline/build-cpu-impl.sh cpu

@@ -20,7 +20,6 @@ Contents
   get_started
   tutorials/index
   faq
-  XGBoost User Forum <https://discuss.xgboost.ai>
   GPU Support <gpu/index>
   parameter
   prediction

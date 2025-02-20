@@ -27,6 +27,10 @@
 
 #include "./xgboost_R.h"  // Must follow other includes.
 
+#ifdef _MSC_VER
+#error "Compilation of R package with MSVC is not supported due to issues handling R headers"
+#endif
+
 namespace {
 
 /* Note: this class is used as a throwable exception.

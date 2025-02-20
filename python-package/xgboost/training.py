@@ -23,6 +23,7 @@ from .core import (
     Objective,
     XGBoostError,
     _deprecate_positional_args,
+    _RefMixIn,
 )
 
 _CVFolds = Sequence["CVPack"]
@@ -153,7 +154,7 @@ def train(
             raise TypeError("Invalid type for the `evals`.")
 
         if (
-            hasattr(va, "ref")
+            isinstance(va, _RefMixIn)
             and va.ref is not weakref.ref(dtrain)
             and va is not dtrain
         ):
@@ -442,9 +443,10 @@ def cv(
     ----------
     params : dict
         Booster params.
-    dtrain : DMatrix
-        Data to be trained.
-    num_boost_round : int
+    dtrain :
+        Data to be trained. Only the :py:class:`DMatrix` without external memory is
+        supported.
+    num_boost_round :
         Number of boosting iterations.
     nfold : int
         Number of folds in CV.
@@ -525,9 +527,10 @@ def cv(
         raise XGBoostError(
             "sklearn needs to be installed in order to use stratified cv"
         )
-
     if isinstance(metrics, str):
         metrics = [metrics]
+    if isinstance(dtrain, _RefMixIn):
+        raise ValueError("`QuantileDMatrix` is not yet supported.")
 
     params = params.copy()
     if isinstance(params, list):

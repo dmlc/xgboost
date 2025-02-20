@@ -216,8 +216,9 @@ and the prediction for each instance.
 Submit the application
 **********************
 
-Assuming you have configured the Spark standalone cluster with GPU support. Otherwise, please
-refer to `spark standalone configuration with GPU support <https://nvidia.github.io/spark-rapids/docs/get-started/getting-started-on-prem.html#spark-standalone-cluster>`_.
+Assuming you have configured the Spark standalone cluster with GPU support. Otherwise,
+please refer to `spark standalone configuration with GPU support
+<https://docs.nvidia.com/spark-rapids/user-guide/latest/getting-started/on-premise.html>`__.
 
 Starting from XGBoost 2.1.0, stage-level scheduling is automatically enabled. Therefore,
 if you are using Spark standalone cluster version 3.4.0 or higher, we strongly recommend
@@ -257,4 +258,4 @@ Spark Standalone cluster.
 For details about other ``RAPIDS Accelerator`` other configurations, please refer to the `configuration <https://nvidia.github.io/spark-rapids/docs/configs.html>`_.
 
 For ``RAPIDS Accelerator Frequently Asked Questions``, please refer to the
-`frequently-asked-questions <https://nvidia.github.io/spark-rapids/docs/FAQ.html#frequently-asked-questions>`_.
+`frequently-asked-questions <https://docs.nvidia.com/spark-rapids/user-guide/latest/faq.html>`_.

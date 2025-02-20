@@ -5,8 +5,9 @@ set -euo pipefail
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
-CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.jvm_gpu_build:${IMAGE_TAG}
 
 echo "--- Build libxgboost4j.so with CUDA"
 
@@ -20,7 +21,7 @@ fi
 COMMAND=$(
 cat <<-EOF
 cd build-gpu/ && \
-cmake .. -DCMAKE_PREFIX_PATH=/workspace/cccl -GNinja -DUSE_CUDA=ON -DUSE_NCCL=ON \
+cmake .. -GNinja -DUSE_CUDA=ON -DUSE_NCCL=ON \
   -DJVM_BINDINGS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ${arch_flag} && \
   ninja
 EOF
@@ -28,9 +29,6 @@ EOF
 
 set -x
 mkdir -p build-gpu/
-# Work around https://github.com/NVIDIA/cccl/issues/1956
-# TODO(hcho3): Remove this once new CUDA version ships with CCCL 2.6.0+
-git clone https://github.com/NVIDIA/cccl.git -b v2.6.1 --quiet --depth 1
 python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
+  --image-uri ${IMAGE_URI} \
   -- bash -c "${COMMAND}"

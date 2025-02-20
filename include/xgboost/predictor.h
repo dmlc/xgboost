@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file predictor.h
  * \brief Interface of predictor,
  *  performs predictions for a gradient booster.
@@ -28,7 +28,7 @@ namespace xgboost {
  */
 struct PredictionCacheEntry {
   // A storage for caching prediction values
-  HostDeviceVector<bst_float> predictions;
+  HostDeviceVector<float> predictions;
   // The version of current cache, corresponding number of layers of trees
   std::uint32_t version{0};
 
@@ -51,12 +51,12 @@ class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
 
  public:
   PredictionContainer() : DMatrixCache<PredictionCacheEntry>{DefaultSize()} {}
-  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, DeviceOrd device) {
+  std::shared_ptr<PredictionCacheEntry> Cache(std::shared_ptr<DMatrix> m, DeviceOrd device) {
     auto p_cache = this->CacheItem(m);
     if (!device.IsCPU()) {
       p_cache->predictions.SetDevice(device);
     }
-    return *p_cache;
+    return p_cache;
   }
 };
 
@@ -91,7 +91,7 @@ class Predictor {
    * \param out_predt Prediction vector to be initialized.
    * \param model Tree model used for prediction.
    */
-  virtual void InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_float>* out_predt,
+  virtual void InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>* out_predt,
                                   const gbm::GBTreeModel& model) const;
 
   /**
@@ -105,8 +105,8 @@ class Predictor {
    * \param           tree_end    The tree end index.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
-                            const gbm::GBTreeModel& model, uint32_t tree_begin,
-                            uint32_t tree_end = 0) const = 0;
+                            gbm::GBTreeModel const& model, bst_tree_t tree_begin,
+                            bst_tree_t tree_end = 0) const = 0;
 
   /**
    * \brief Inplace prediction.
@@ -123,25 +123,7 @@ class Predictor {
    */
   virtual bool InplacePredict(std::shared_ptr<DMatrix> p_fmat, const gbm::GBTreeModel& model,
                               float missing, PredictionCacheEntry* out_preds,
-                              uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
-  /**
-   * \brief online prediction function, predict score for one instance at a time
-   * NOTE: use the batch prediction interface if possible, batch prediction is
-   * usually more efficient than online prediction This function is NOT
-   * threadsafe, make sure you only call from one thread.
-   *
-   * \param           inst            The instance to predict.
-   * \param [in,out]  out_preds       The output preds.
-   * \param           model           The model to predict from
-   * \param           tree_end        (Optional) The tree end index.
-   * \param           is_column_split (Optional) If the data is split column-wise.
-   */
-
-  virtual void PredictInstance(const SparsePage::Inst& inst,
-                               std::vector<bst_float>* out_preds,
-                               const gbm::GBTreeModel& model,
-                               unsigned tree_end = 0,
-                               bool is_column_split = false) const = 0;
+                              bst_tree_t tree_begin = 0, bst_tree_t tree_end = 0) const = 0;
 
   /**
    * \brief predict the leaf index of each tree, the output will be nsample *
@@ -153,9 +135,8 @@ class Predictor {
    * \param           tree_end    (Optional) The tree end index.
    */
 
-  virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
-                           const gbm::GBTreeModel& model,
-                           unsigned tree_end = 0) const = 0;
+  virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<float>* out_preds,
+                           gbm::GBTreeModel const& model, bst_tree_t tree_end = 0) const = 0;
 
   /**
    * \brief feature contributions to individual predictions; the output will be
@@ -172,18 +153,17 @@ class Predictor {
    * \param           condition_feature  Feature to condition on (i.e. fix) during calculations.
    */
 
-  virtual void
-  PredictContribution(DMatrix *dmat, HostDeviceVector<bst_float> *out_contribs,
-                      const gbm::GBTreeModel &model, unsigned tree_end = 0,
-                      std::vector<bst_float> const *tree_weights = nullptr,
-                      bool approximate = false, int condition = 0,
-                      unsigned condition_feature = 0) const = 0;
+  virtual void PredictContribution(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
+                                   gbm::GBTreeModel const& model, bst_tree_t tree_end = 0,
+                                   std::vector<float> const* tree_weights = nullptr,
+                                   bool approximate = false, int condition = 0,
+                                   unsigned condition_feature = 0) const = 0;
 
-  virtual void PredictInteractionContributions(
-      DMatrix *dmat, HostDeviceVector<bst_float> *out_contribs,
-      const gbm::GBTreeModel &model, unsigned tree_end = 0,
-      std::vector<bst_float> const *tree_weights = nullptr,
-      bool approximate = false) const = 0;
+  virtual void PredictInteractionContributions(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
+                                               gbm::GBTreeModel const& model,
+                                               bst_tree_t tree_end = 0,
+                                               std::vector<float> const* tree_weights = nullptr,
+                                               bool approximate = false) const = 0;
 
   /**
    * \brief Creates a new Predictor*.

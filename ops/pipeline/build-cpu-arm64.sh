@@ -11,19 +11,20 @@ fi
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
+source ops/pipeline/get-image-tag.sh
 
 WHEEL_TAG=manylinux_2_28_aarch64
-CONTAINER_TAG=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:main
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:${IMAGE_TAG}
 
 echo "--- Build CPU code targeting ARM64"
 set -x
 python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
+  --image-uri ${IMAGE_URI} \
   -- ops/pipeline/build-cpu-arm64-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 python3 ops/docker_run.py \
-  --container-tag ${CONTAINER_TAG} \
+  --image-uri ${IMAGE_URI} \
   -- auditwheel repair --only-plat \
   --plat ${WHEEL_TAG} python-package/dist/*.whl
 python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \

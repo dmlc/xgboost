@@ -14,7 +14,7 @@ train <- matrix(c(x1, x2, x3), ncol = 3)
 test_that("interaction constraints for regression", {
   # Fit a model that only allows interaction between x1 and x2
   bst <- xgb.train(
-    data = xgb.DMatrix(train, label = y),
+    data = xgb.DMatrix(train, label = y, nthread = 1),
     nrounds = 100, verbose = 0,
     params = xgb.params(
       max_depth = 3,

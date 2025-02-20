@@ -1,25 +1,3 @@
-prescreen.parameters <- function(params) {
-  if (!NROW(params)) {
-    return(list())
-  }
-  if (!is.list(params)) {
-    stop("'params' must be a list or NULL.")
-  }
-
-  params <- params[!is.null(params)]
-
-  if ("num_class" %in% names(params)) {
-    stop("'num_class' cannot be manually specified for 'xgboost()'. Pass a factor 'y' instead.")
-  }
-  if ("process_type" %in% names(params)) {
-    if (params$process_type != "default") {
-      stop("Non-default 'process_type' is not supported for 'xgboost()'. Try 'xgb.train()'.")
-    }
-  }
-
-  return(params)
-}
-
 prescreen.objective <- function(objective) {
   if (!is.null(objective)) {
     if (!is.character(objective) || length(objective) != 1L || is.na(objective)) {
@@ -847,6 +825,7 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
   return(early_stopping_rounds)
 }
 
+# nolint start: line_length_linter.
 #' Fit XGBoost Model
 #'
 #' @export
@@ -854,15 +833,28 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' Fits an XGBoost model (boosted decision tree ensemble) to given x/y data.
 #'
 #' See the tutorial [Introduction to Boosted Trees](https://xgboost.readthedocs.io/en/stable/tutorials/model.html)
-#' for a longer explanation of what XGBoost does.
+#' for a longer explanation of what XGBoost does, and the rest of the
+#' [XGBoost Tutorials](https://xgboost.readthedocs.io/en/latest/tutorials/index.html) for further
+#' explanations XGBoost's features and usage.
 #'
-#' This function is intended to provide a more user-friendly interface for XGBoost that follows
+#' This function is intended to provide a user-friendly interface for XGBoost that follows
 #' R's conventions for model fitting and predictions, but which doesn't expose all of the
 #' possible functionalities of the core XGBoost library.
 #'
 #' See [xgb.train()] for a more flexible low-level alternative which is similar across different
-#' language bindings of XGBoost and which exposes the full library's functionalities.
+#' language bindings of XGBoost and which exposes additional functionalities such as training on
+#' external memory data and learning-to-rank objectives.
 #'
+#' See also the [migration guide](https://xgboost.readthedocs.io/en/latest/R-package/migration_guide.html)
+#' if coming from a previous version of XGBoost in the 1.x series.
+#'
+#' By default, most of the parameters here have a value of `NULL`, which signals XGBoost to use its
+#' default value. Default values are automatically determined by the XGBoost core library, and are
+#' subject to change over XGBoost library versions. Some of them might differ according to the
+#' booster type (e.g. defaults for regularization are different for linear and tree-based boosters).
+#' See [xgb.params()] and the [online documentation](https://xgboost.readthedocs.io/en/latest/parameter.html)
+#' for more details about parameters - but note that some of the parameters are not supported in
+#' the `xgboost()` interface.
 #' @details
 #' For package authors using 'xgboost' as a dependency, it is highly recommended to use
 #' [xgb.train()] in package code instead of [xgboost()], since it has a more stable interface
@@ -906,26 +898,54 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #'   class instead of to the first factor level. If `y` is a `logical` vector, then `TRUE` will be
 #'   set as the last level.
 #' @param objective Optimization objective to minimize based on the supplied data, to be passed
-#'   by name as a string / character (e.g. `reg:absoluteerror`). See the
-#'   [Learning Task Parameters](https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters)
-#'   page and the [xgb.params()] documentation for more detailed information on allowed values.
+#' by name as a string / character (e.g. `reg:absoluteerror`). See the
+#' [Learning Task Parameters](https://xgboost.readthedocs.io/en/stable/parameter.html#learning-task-parameters)
+#' page and the [xgb.params()] documentation for more detailed information on allowed values.
 #'
-#'   If `NULL` (the default), will be automatically determined from `y` according to the following
-#'   logic:
-#'   - If `y` is a factor with 2 levels, will use `binary:logistic`.
-#'   - If `y` is a factor with more than 2 levels, will use `multi:softprob` (number of classes
-#'     will be determined automatically, should not be passed under `params`).
-#'   - If `y` is a `Surv` object from the `survival` package, will use `survival:aft` (note that
-#'     the only types supported are left / right / interval censored).
-#'   - Otherwise, will use `reg:squarederror`.
+#' If `NULL` (the default), will be automatically determined from `y` according to the following
+#' logic:
+#' - If `y` is a factor with 2 levels, will use `binary:logistic`.
+#' - If `y` is a factor with more than 2 levels, will use `multi:softprob` (number of classes
+#'   will be determined automatically, should not be passed under `params`).
+#' - If `y` is a `Surv` object from the `survival` package, will use `survival:aft` (note that
+#'   the only types supported are left / right / interval censored).
+#' - Otherwise, will use `reg:squarederror`.
 #'
-#'   If `objective` is not `NULL`, it must match with the type of `y` - e.g. `factor` types of `y`
-#'   can only be used with classification objectives and vice-versa.
+#' If `objective` is not `NULL`, it must match with the type of `y` - e.g. `factor` types of `y`
+#' can only be used with classification objectives and vice-versa.
 #'
-#'   Note that not all possible `objective` values supported by the core XGBoost library are allowed
-#'   here - for example, objectives which are a variation of another but with a different default
-#'   prediction type (e.g. `multi:softmax` vs. `multi:softprob`) are not allowed, and neither are
-#'   ranking objectives, nor custom objectives at the moment.
+#' Note that not all possible `objective` values supported by the core XGBoost library are allowed
+#' here - for example, objectives which are a variation of another but with a different default
+#' prediction type (e.g. `multi:softmax` vs. `multi:softprob`) are not allowed, and neither are
+#' ranking objectives, nor custom objectives at the moment.
+#'
+#' Supported values are:
+#' - `"reg:squarederror"`: regression with squared loss.
+#' - `"reg:squaredlogerror"`: regression with squared log loss \eqn{\frac{1}{2}[log(pred + 1) - log(label + 1)]^2}.  All input labels are required to be greater than -1.  Also, see metric `rmsle` for possible issue  with this objective.
+#' - `"reg:pseudohubererror"`: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
+#' - `"reg:absoluteerror"`: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
+#' - `"reg:quantileerror"`: Quantile loss, also known as "pinball loss". See later sections for its parameter and [Quantile Regression](https://xgboost.readthedocs.io/en/latest/python/examples/quantile_regression.html#sphx-glr-python-examples-quantile-regression-py) for a worked example.
+#' - `"binary:logistic"`: logistic regression for binary classification, output probability
+#' - `"binary:hinge"`: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
+#' - `"count:poisson"`: Poisson regression for count data, output mean of Poisson distribution.
+#'   `"max_delta_step"` is set to 0.7 by default in Poisson regression (used to safeguard optimization)
+#' - `"survival:cox"`: Cox regression for right censored survival time data (negative values are considered right censored).
+#'
+#'   Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function `h(t) = h0(t) * HR`).
+#' - `"survival:aft"`: Accelerated failure time model for censored survival time data.
+#' See [Survival Analysis with Accelerated Failure Time](https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html) for details.
+#' - `"multi:softprob"`: multi-class classification throgh multinomial logistic likelihood.
+#' - `"reg:gamma"`: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be [gamma-distributed](https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications).
+#' - `"reg:tweedie"`: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be [Tweedie-distributed](https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications).
+#'
+#' The following values are \bold{NOT} supported by `xgboost`, but are supported by [xgb.train()]
+#' (see [xgb.params()] for details):
+#' - `"reg:logistic"`
+#' - `"binary:logitraw"`
+#' - `"multi:softmax"`
+#' - `"rank:ndcg"`
+#' - `"rank:map"`
+#' - `"rank:pairwise"`
 #' @param nrounds Number of boosting iterations / rounds.
 #'
 #'   Note that the number of default boosting rounds here is not automatically tuned, and different
@@ -1022,13 +1042,34 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #'
 #'   If `NULL`, will start from zero, but note that for most objectives, an intercept is usually
 #'   added (controllable through parameter `base_score` instead) when `base_margin` is not passed.
-#' @param ... Other training parameters. See the online documentation
-#'   [XGBoost Parameters](https://xgboost.readthedocs.io/en/stable/parameter.html) for
-#'   details about possible values and what they do.
+#' @param min_split_loss (for Tree Booster) (default=0, alias: `gamma`)
+#' Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger `min_split_loss` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
 #'
-#'   Note that not all possible values from the core XGBoost library are allowed as `params` for
-#'   'xgboost()' - in particular, values which require an already-fitted booster object (such as
-#'   `process_type`) are not accepted here.
+#' range: \eqn{[0, \infty)}
+#' @param learning_rate (alias: `eta`)
+#' Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and `learning_rate` shrinks the feature weights to make the boosting process more conservative.
+#' - range: \eqn{[0,1]}
+#' - default value: 0.3 for tree-based boosters, 0.5 for linear booster.
+#' @param reg_lambda (alias: `lambda`)
+#' - For tree-based boosters:
+#'   - L2 regularization term on weights. Increasing this value will make model more conservative.
+#'   - default: 1
+#'   - range: \eqn{[0, \infty]}
+#' - For linear booster:
+#'   - L2 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.
+#'   - default: 0
+#'   - range: \eqn{[0, \infty)}
+#' @param reg_alpha (alias: `reg_alpha`)
+#' - L1 regularization term on weights. Increasing this value will make model more conservative.
+#' - For the linear booster, it's normalised to number of training examples.
+#' - default: 0
+#' - range: \eqn{[0, \infty)}
+#' @param updater (for Linear Booster) (default= `"shotgun"`)
+#' Choice of algorithm to fit linear model
+#' - `"shotgun"`: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
+#' - `"coord_descent"`: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. When the `device` parameter is set to `"cuda"` or `"gpu"`, a GPU variant would be used.
+#' @inheritParams xgb.params
+#' @inheritParams xgb.train
 #' @return A model object, inheriting from both `xgboost` and `xgb.Booster`. Compared to the regular
 #'   `xgb.Booster` model class produced by [xgb.train()], this `xgboost` class will have an
 #'
@@ -1045,29 +1086,101 @@ check.early.stopping.rounds <- function(early_stopping_rounds, eval_set) {
 #' # Task objective is determined automatically according to the type of 'y'
 #' data(iris)
 #' model_classif <- xgboost(iris[, -5], iris$Species, nthreads = 1, nrounds = 5)
-#' predict(model_classif, iris, validate_features = TRUE)
+#' predict(model_classif, iris[1:10,])
+#' predict(model_classif, iris[1:10,], type = "class")
+#'
+#' # Can nevertheless choose a non-default objective if needed
+#' model_poisson <- xgboost(
+#'   mtcars[, -1], mtcars$mpg,
+#'   objective = "count:poisson",
+#'   nthreads = 1,
+#'   nrounds = 3
+#' )
+#'
+#' # Can calculate evaluation metrics during boosting rounds
+#' data(ToothGrowth)
+#' xgboost(
+#'   ToothGrowth[, c("len", "dose")],
+#'   ToothGrowth$supp,
+#'   eval_metric = c("auc", "logloss"),
+#'   eval_set = 0.2,
+#'   monitor_training = TRUE,
+#'   verbosity = 1,
+#'   nthreads = 1,
+#'   nrounds = 3
+#' )
 xgboost <- function(
   x,
   y,
   objective = NULL,
   nrounds = 100L,
+  max_depth = NULL,
+  learning_rate = NULL,
+  min_child_weight = NULL,
+  min_split_loss = NULL,
+  reg_lambda = NULL,
   weights = NULL,
   verbosity = if (is.null(eval_set)) 0L else 1L,
   monitor_training = verbosity > 0,
   eval_set = NULL,
   early_stopping_rounds = NULL,
   print_every_n = 1L,
+  eval_metric = NULL,
   nthreads = parallel::detectCores(),
   seed = 0L,
+  base_margin = NULL,
   monotone_constraints = NULL,
   interaction_constraints = NULL,
+  reg_alpha = NULL,
+  max_bin = NULL,
+  max_leaves = NULL,
+  booster = NULL,
+  subsample = NULL,
+  sampling_method = NULL,
   feature_weights = NULL,
-  base_margin = NULL,
+  colsample_bytree = NULL,
+  colsample_bylevel = NULL,
+  colsample_bynode = NULL,
+  tree_method = NULL,
+  max_delta_step = NULL,
+  scale_pos_weight = NULL,
+  updater = NULL,
+  grow_policy = NULL,
+  num_parallel_tree = NULL,
+  multi_strategy = NULL,
+  base_score = NULL,
+  seed_per_iteration = NULL,
+  device = NULL,
+  disable_default_eval_metric = NULL,
+  use_rmm = NULL,
+  max_cached_hist_node = NULL,
+  extmem_single_page = NULL,
+  max_cat_to_onehot = NULL,
+  max_cat_threshold = NULL,
+  sample_type = NULL,
+  normalize_type = NULL,
+  rate_drop = NULL,
+  one_drop = NULL,
+  skip_drop = NULL,
+  feature_selector = NULL,
+  top_k = NULL,
+  tweedie_variance_power = NULL,
+  huber_slope = NULL,
+  quantile_alpha = NULL,
+  aft_loss_distribution = NULL,
   ...
 ) {
-  # Note: '...' is a workaround, to be removed later by making all parameters be arguments
-  params <- list(...)
-  params <- prescreen.parameters(params)
+# nolint end
+  check.deprecation(deprecated_xgboost_params, match.call(), ...)
+  params <- as.list(environment())
+  params <- params[
+    (names(params) %in% formalArgs(xgb.params))
+    & !sapply(params, is.null)
+    & !(names(params) %in% c( # these undergo additional processing here
+      "objective", "base_margin", "monotone_constraints", "interaction_constraints"
+    ))
+  ]
+
   prescreen.objective(objective)
   use_qdm <- check.can.use.qdm(x, params, eval_set)
   lst_args <- process.y.margin.and.objective(y, base_margin, objective, params)
@@ -1089,7 +1202,6 @@ xgboost <- function(
   nthreads <- check.nthreads(nthreads)
   lst_args$dmatrix_args$nthread <- nthreads
   lst_args$params$nthread <- nthreads
-  lst_args$params$seed <- seed
 
   params <- c(lst_args$params, params)
   params$verbosity <- verbosity
@@ -1138,7 +1250,7 @@ xgboost <- function(
 #'
 #' In the case of data frames, if there are any categorical features, they should be of class
 #' `factor` and should have the same levels as the `factor` columns of the data from which the model
-#' was constructed.
+#' was constructed. Any columns with type other than `factor` will be interpreted as numeric.
 #'
 #' If there are named columns and the model was fitted to data with named columns, they will be
 #' matched by name by default (see `validate_features`).

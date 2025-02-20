@@ -95,36 +95,6 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
 
-  build-jvm-docs:
-    name: Build docs for JVM packages
-    needs: [build-jvm-gpu]
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
-      - tag=jvm-tests-build-jvm-docs
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - name: Unstash files
-        run: |
-          python3 ops/pipeline/manage-artifacts.py download \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/build-jvm-gpu \
-            --dest-dir lib \
-            libxgboost4j.so
-      - run: bash ops/pipeline/build-jvm-doc.sh
-      - name: Upload JVM doc
-        run: |
-          python3 ops/pipeline/manage-artifacts.py upload \
-            --s3-bucket xgboost-docs \
-            --prefix ${BRANCH_NAME}/${GITHUB_SHA} --make-public \
-            jvm-packages/${{ env.BRANCH_NAME }}.tar.bz2
-
   build-test-jvm-packages:
     name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
     runs-on:
@@ -181,7 +151,13 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-      - name: Test XGBoost4J (Core)
+      - name: Test XGBoost4J (Core) on macos
+        if: matrix.os == 'macos-13'
+        run: |
+          cd jvm-packages
+          mvn test -B -pl :xgboost4j_2.12 -Duse.openmp=OFF
+      - name: Test XGBoost4J (Core) on windows
+        if: matrix.os == 'windows-latest'
         run: |
           cd jvm-packages
           mvn test -B -pl :xgboost4j_2.12
@@ -241,10 +217,10 @@ jobs:
       matrix:
         variant:
           - name: cpu
-            container_id: xgb-ci.jvm
+            image_repo: xgb-ci.jvm
             artifact_from: build-test-jvm-packages
           - name: gpu
-            container_id: xgb-ci.jvm_gpu_build
+            image_repo: xgb-ci.jvm_gpu_build
             artifact_from: build-jvm-gpu
         scala_version: ['2.12', '2.13']
     steps:
@@ -266,4 +242,4 @@ jobs:
       - name: Deploy JVM packages to S3
         run: |
           bash ops/pipeline/deploy-jvm-packages.sh ${{ matrix.variant.name }} \
-            ${{ matrix.variant.container_id }} ${{ matrix.scala_version }}
+            ${{ matrix.variant.image_repo }} ${{ matrix.scala_version }}

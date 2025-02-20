@@ -43,17 +43,26 @@ To make changes to the CI container, carry out the following steps:
    Consult :ref:`build_run_docker_locally` for this step.
 4. Submit a pull request to `dmlc/xgboost-devops <https://github.com/dmlc/xgboost-devops>`_ with
    the proposed changes to the Dockerfile. Make note of the pull request number. Example: ``#204``
-5. Clone `dmlc/xgboost <https://github.com/dmlc/xgboost>`_ and update all references to the
-   old container to point to the new container. More specifically, all Docker tags of format
-   ``492475357299.dkr.ecr.us-west-2.amazonaws.com/[container_id]:main`` should have the last
-   component replaced with ``PR-#``, where ``#`` is the pull request number. For the example above,
-   we'd replace ``492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main`` with
-   ``492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:PR-204``.
+5. Clone `dmlc/xgboost <https://github.com/dmlc/xgboost>`_. Locate the file
+   ``ops/pipeline/get-image-tag.sh``, which should have a single line
+
+   .. code-block:: bash
+
+     IMAGE_TAG=main
+
+   To use the new container, revise the file as follows:
+
+   .. code-block:: bash
+
+     IMAGE_TAG=PR-XX
+
+   where ``XX`` is the pull request number.
+
 6. Now submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_. The CI will
    run tests using the new container. Verify that all tests pass.
 7. Merge the pull request in ``dmlc/xgboost-devops``. Wait until the CI completes on the ``main`` branch.
-8. Go back to the the pull request for ``dmlc/xgboost`` and change the container references back
-   to ``:main``.
+8. Go back to the the pull request for ``dmlc/xgboost`` and change ``ops/pipeline/get-image-tag.sh``
+   back to ``IMAGE_TAG=main``.
 9. Merge the pull request in ``dmlc/xgboost``.
 
 .. _build_run_docker_locally:
@@ -83,11 +92,12 @@ and invoke ``containers/docker_build.sh`` as follows:
   # For local testing, set them to "main"
   export GITHUB_SHA="main"
   export BRANCH_NAME="main"
-  bash containers/docker_build.sh CONTAINER_ID
+  bash containers/docker_build.sh IMAGE_REPO
 
-where ``CONTAINER_ID`` identifies for the container. The wrapper script will look up the YAML file
-``containers/ci_container.yml``. For example, when ``CONTAINER_ID`` is set to ``xgb-ci.gpu``,
-the script will use the corresponding entry from ``containers/ci_container.yml``:
+where ``IMAGE_REPO`` is the name of the container image. The wrapper script will look up the
+YAML file ``containers/ci_container.yml``. For example, when ``IMAGE_REPO`` is set to
+``xgb-ci.gpu``, the script will use the corresponding entry from
+``containers/ci_container.yml``:
 
 .. code-block:: yaml
 
@@ -113,10 +123,11 @@ the build arguments are:
 
 The build arguments provide inputs to the ``ARG`` instructions in the Dockerfile.
 
-When ``containers/docker_build.sh`` completes, you will have access to the container with tag
-``492475357299.dkr.ecr.us-west-2.amazonaws.com/[container_id]:main``. The prefix
-``492475357299.dkr.ecr.us-west-2.amazonaws.com/`` was added so that the container could
-later be uploaded to AWS Elastic Container Registry (ECR), a private Docker registry.
+When ``containers/docker_build.sh`` completes, you will have access to the container with the
+(fully qualified) URI ``492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:main``.
+The prefix ``492475357299.dkr.ecr.us-west-2.amazonaws.com/`` was added so that
+the container could later be uploaded to AWS Elastic Container Registry (ECR),
+a private Docker registry.
 
 -----------------------------------------
 To run commands within a Docker container
@@ -126,7 +137,7 @@ Invoke ``ops/docker_run.py`` from the main ``dmlc/xgboost`` repo as follows:
 .. code-block:: bash
 
   python3 ops/docker_run.py \
-    --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/[container_id]:main \
+    --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/[image_repo]:[image_tag] \
     [--use-gpus] \
     -- "command to run inside the container"
 
@@ -138,12 +149,12 @@ For example:
 
   # Run without GPU
   python3 ops/docker_run.py \
-    --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
+    --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
     -- bash ops/pipeline/build-cpu-impl.sh cpu
 
   # Run with NVIDIA GPU
   python3 ops/docker_run.py \
-    --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
+    --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
     -- bash ops/pipeline/test-python-wheel-impl.sh gpu
 
@@ -154,7 +165,7 @@ Optionally, you can specify ``--run-args`` to pass extra arguments to ``docker r
   # Allocate extra space in /dev/shm to enable NCCL
   # Also run the container with elevated privileges
   python3 ops/docker_run.py \
-    --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
+    --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
     --run-args='--shm-size=4g --privileged' \
     -- bash ops/pipeline/test-python-wheel-impl.sh gpu
@@ -171,7 +182,7 @@ Examples: useful tasks for local development
 
     export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
     python3 ops/docker_run.py \
-      --container-tag ${DOCKER_REGISTRY}/xgb-ci.gpu_build_rockylinux8:main \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu_build_rockylinux8:main \
       -- ops/pipeline/build-cuda-impl.sh
 
 * Run Python tests
@@ -180,7 +191,7 @@ Examples: useful tasks for local development
 
     export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
     python3 ops/docker_run.py \
-      --container-tag ${DOCKER_REGISTRY}/xgb-ci.cpu:main \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.cpu:main \
       -- ops/pipeline/test-python-wheel-impl.sh cpu
 
 * Run Python tests with GPU algorithm
@@ -189,7 +200,7 @@ Examples: useful tasks for local development
 
     export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
     python3 ops/docker_run.py \
-      --container-tag ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
       --use-gpus \
       -- ops/pipeline/test-python-wheel-impl.sh gpu
 
@@ -199,7 +210,7 @@ Examples: useful tasks for local development
 
     export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
     python3 ops/docker_run.py \
-      --container-tag ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.gpu:main \
       --use-gpus \
       --run-args='--shm-size=4g' \
       -- ops/pipeline/test-python-wheel-impl.sh mgpu
@@ -212,7 +223,7 @@ Examples: useful tasks for local development
     export DOCKER_REGISTRY=492475357299.dkr.ecr.us-west-2.amazonaws.com
     export SCALA_VERSION=2.12  # Specify Scala version (2.12 or 2.13)
     python3 ops/docker_run.py \
-      --container-tag ${DOCKER_REGISTRY}/xgb-ci.jvm:main \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.jvm:main \
       --run-args "-e SCALA_VERSION" \
       -- ops/pipeline/build-test-jvm-packages-impl.sh
 
@@ -224,7 +235,7 @@ Examples: useful tasks for local development
     export SCALA_VERSION=2.12  # Specify Scala version (2.12 or 2.13)
     export USE_CUDA=1
     python3 ops/docker_run.py \
-      --container-tag ${DOCKER_REGISTRY}/xgb-ci.jvm_gpu_build:main \
+      --image-uri ${DOCKER_REGISTRY}/xgb-ci.jvm_gpu_build:main \
       --use-gpus \
       --run-args "-e SCALA_VERSION -e USE_CUDA --shm-size=4g" \
       -- ops/pipeline/build-test-jvm-packages-impl.sh
@@ -456,7 +467,7 @@ For example, when you run ``bash containers/docker_build.sh xgb-ci.gpu``, the lo
 
   # docker_build.sh calls docker_build.py...
   python3 containers/docker_build.py --container-def gpu \
-    --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
+    --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --build-arg CUDA_VERSION_ARG=12.4.1 --build-arg NCCL_VERSION_ARG=2.23.4-1 \
     --build-arg RAPIDS_VERSION_ARG=24.10
 
@@ -480,14 +491,14 @@ Here is an example with ``docker_run.py``:
 
   # Run without GPU
   python3 ops/docker_run.py \
-    --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
+    --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.cpu:main \
     -- bash ops/pipeline/build-cpu-impl.sh cpu
 
   # Run with NVIDIA GPU
   # Allocate extra space in /dev/shm to enable NCCL
   # Also run the container with elevated privileges
   python3 ops/docker_run.py \
-    --container-tag 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
+    --image-uri 492475357299.dkr.ecr.us-west-2.amazonaws.com/xgb-ci.gpu:main \
     --use-gpus \
     --run-args='--shm-size=4g --privileged' \
     -- bash ops/pipeline/test-python-wheel-impl.sh gpu

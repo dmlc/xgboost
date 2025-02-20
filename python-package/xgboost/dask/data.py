@@ -1,5 +1,5 @@
 # pylint: disable=too-many-arguments
-"""Copyright 2019-2024, XGBoost contributors"""
+"""Copyright 2019-2025, XGBoost contributors"""
 
 import logging
 from collections.abc import Sequence
@@ -23,7 +23,7 @@ import pandas as pd
 from dask import dataframe as dd
 
 from .. import collective as coll
-from .._typing import _T, FeatureNames
+from .._typing import FeatureNames
 from ..compat import concat, import_cupy
 from ..core import DataIter, DMatrix, QuantileDMatrix
 from ..data import is_on_cuda
@@ -31,14 +31,6 @@ from ..data import is_on_cuda
 LOGGER = logging.getLogger("[xgboost.dask]")
 
 _DataParts = List[Dict[str, Any]]
-
-
-def dconcat(value: Sequence[_T]) -> _T:
-    """Concatenate sequence of partitions."""
-    try:
-        return concat(value)
-    except TypeError:
-        return dd.multi.concat(list(value), axis=0)
 
 
 meta = [
@@ -283,6 +275,25 @@ def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
     return result
 
 
+def _get_is_cuda(parts: Optional[_DataParts]) -> bool:
+    if parts is not None:
+        is_cuda = is_on_cuda(parts[0].get("data"))
+    else:
+        is_cuda = False
+
+    is_cuda = bool(coll.allreduce(np.array([is_cuda], dtype=np.int32), coll.Op.MAX)[0])
+    return is_cuda
+
+
+def _make_empty(is_cuda: bool) -> np.ndarray:
+    if is_cuda:
+        cp = import_cupy()
+        empty = cp.empty((0, 0))
+    else:
+        empty = np.empty((0, 0))
+    return empty
+
+
 def _create_quantile_dmatrix(
     *,
     feature_names: Optional[FeatureNames],
@@ -297,12 +308,11 @@ def _create_quantile_dmatrix(
     ref: Optional[DMatrix] = None,
 ) -> QuantileDMatrix:
     worker = distributed.get_worker()
+    is_cuda = _get_is_cuda(parts)
     if parts is None:
-        msg = f"Worker {worker.address} has an empty DMatrix."
-        LOGGER.warning(msg)
-
-        Xy = QuantileDMatrix(
-            np.empty((0, 0)),
+        LOGGER.warning("Worker %s has an empty DMatrix.", worker.address)
+        return QuantileDMatrix(
+            _make_empty(is_cuda),
             feature_names=feature_names,
             feature_types=feature_types,
             max_bin=max_bin,
@@ -310,16 +320,14 @@ def _create_quantile_dmatrix(
             enable_categorical=enable_categorical,
             max_quantile_batches=max_quantile_batches,
         )
-        return Xy
 
-    unzipped_dict = _get_worker_parts(parts)
     it = DaskPartitionIter(
-        **unzipped_dict,
+        **_get_worker_parts(parts),
         feature_types=feature_types,
         feature_names=feature_names,
         feature_weights=feature_weights,
     )
-    Xy = QuantileDMatrix(
+    return QuantileDMatrix(
         it,
         missing=missing,
         nthread=nthread,
@@ -328,7 +336,6 @@ def _create_quantile_dmatrix(
         enable_categorical=enable_categorical,
         max_quantile_batches=max_quantile_batches,
     )
-    return Xy
 
 
 def _create_dmatrix(  # pylint: disable=too-many-locals
@@ -350,11 +357,13 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     """
     worker = distributed.get_worker()
     list_of_parts = parts
+    is_cuda = _get_is_cuda(parts)
+
     if list_of_parts is None:
         msg = f"Worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         Xy = DMatrix(
-            np.empty((0, 0)),
+            _make_empty(is_cuda),
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
@@ -366,7 +375,7 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     def concat_or_none(data: Sequence[Optional[T]]) -> Optional[T]:
         if any(part is None for part in data):
             return None
-        return dconcat(data)
+        return concat(data)
 
     unzipped_dict = _get_worker_parts(list_of_parts)
     concated_dict: Dict[str, Any] = {}

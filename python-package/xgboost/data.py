@@ -29,6 +29,7 @@ from ._data_utils import (
     array_hasobject,
     array_interface,
     array_interface_dict,
+    check_cudf_meta,
     cuda_array_interface,
     make_array_interface,
 )
@@ -912,12 +913,13 @@ def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
 
     def map_type(name: str) -> str:
         col = table.column(name)
-        if isinstance(col, pa.DictionaryType):
+        if isinstance(col.type, pa.DictionaryType):
             raise NotImplementedError(
                 "Categorical feature is not yet supported with the current input data "
                 "type."
             )
             return CAT_T  # pylint: disable=unreachable
+
         return _arrow_dtype()[col.type]
 
     types = list(map(map_type, names))
@@ -1554,14 +1556,15 @@ def _meta_from_cudf_df(data: DataType, field: str, handle: ctypes.c_void_p) -> N
 
 
 def _meta_from_cudf_series(data: DataType, field: str, handle: ctypes.c_void_p) -> None:
-    interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
+    check_cudf_meta(data, field)
+    inf = cuda_array_interface(data)
+    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), inf))
 
 
 def _meta_from_cupy_array(data: DataType, field: str, handle: ctypes.c_void_p) -> None:
     data = _transform_cupy_array(data)
-    interface = bytes(json.dumps([data.__cuda_array_interface__], indent=2), "utf-8")
-    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), interface))
+    inf = cuda_array_interface(data)
+    _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle, c_str(field), inf))
 
 
 def dispatch_meta_backend(
@@ -1603,14 +1606,14 @@ def dispatch_meta_backend(
         data = _transform_dlpack(data)
         _meta_from_cupy_array(data, name, handle)
         return
-    if _is_cupy_alike(data):
-        _meta_from_cupy_array(data, name, handle)
-        return
     if _is_cudf_ser(data):
         _meta_from_cudf_series(data, name, handle)
         return
     if _is_cudf_df(data):
         _meta_from_cudf_df(data, name, handle)
+        return
+    if _is_cupy_alike(data):
+        _meta_from_cupy_array(data, name, handle)
         return
     if _is_modin_df(data):
         _meta_from_pandas_df(data, name, dtype=dtype, handle=handle)

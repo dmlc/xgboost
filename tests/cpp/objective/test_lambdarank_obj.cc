@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include "test_lambdarank_obj.h"
 
@@ -8,7 +8,6 @@
 #include <algorithm>                            // for sort
 #include <cstddef>                              // for size_t
 #include <initializer_list>                     // for initializer_list
-#include <map>                                  // for map
 #include <memory>                               // for unique_ptr, shared_ptr, make_shared
 #include <numeric>                              // for iota
 #include <string>                               // for char_traits, basic_string, string
@@ -106,6 +105,20 @@ void TestNDCGGPair(Context const* ctx) {
     }
   }
 
+  {
+    // Test empty input
+    std::unique_ptr<xgboost::ObjFunction> obj{xgboost::ObjFunction::Create("rank:ndcg", ctx)};
+    obj->Configure(Args{{"lambdarank_pair_method", "topk"}});
+
+    HostDeviceVector<float> predts;
+    MetaInfo info;
+    info.labels = linalg::Tensor<float, 2>{{}, {0, 1}, ctx->Device()};
+    info.group_ptr_ = {0, 0};
+    info.num_row_ = 0;
+    linalg::Matrix<GradientPair> gpairs;
+    obj->GetGradient(predts, info, 0, &gpairs);
+    ASSERT_EQ(gpairs.Size(), 0);
+  }
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 

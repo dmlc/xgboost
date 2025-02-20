@@ -133,7 +133,7 @@ test_that("custom objective with multi-class works", {
   data <- as.matrix(iris[, -5])
   label <- as.numeric(iris$Species) - 1
 
-  dtrain <- xgb.DMatrix(data = data, label = label)
+  dtrain <- xgb.DMatrix(data = data, label = label, nthread = 1)
 
   param$num_class <- 3
   param$objective <- softprob
@@ -153,7 +153,7 @@ test_that("custom objective with multi-class works", {
 test_that("custom metric with multi-target passes reshaped data to feval", {
   x <- as.matrix(iris[, -5])
   y <- as.numeric(iris$Species) - 1
-  dtrain <- xgb.DMatrix(data = x, label = y)
+  dtrain <- xgb.DMatrix(data = x, label = y, nthread = 1)
 
   multinomial.ll <- function(predt, dtrain) {
     expect_equal(dim(predt), c(nrow(iris), 3L))
