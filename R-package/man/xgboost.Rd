@@ -15,7 +15,7 @@ xgboost(
   min_split_loss = NULL,
   reg_lambda = NULL,
   weights = NULL,
-  verbosity = if (is.null(eval_set)) 0L else 1L,
+  verbosity = if (is.null(eval_set) && !monitor_training) 0L else 1L,
   monitor_training = verbosity > 0,
   eval_set = NULL,
   early_stopping_rounds = NULL,
