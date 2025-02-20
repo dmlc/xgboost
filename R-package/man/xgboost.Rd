@@ -169,7 +169,7 @@ The following values are \bold{NOT} supported by \code{xgboost}, but are support
 Note that the number of default boosting rounds here is not automatically tuned, and different
 problems will have vastly different optimal numbers of boosting rounds.}
 
-\item{max_depth}{(for Tree Booster) (default=6)
+\item{max_depth}{(for Tree Booster) (default=6, type=int32)
 Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. \code{"exact"} tree method requires non-zero value.
 
 range: \eqn{[0, \infty)}}
@@ -365,14 +365,14 @@ for more information.}
 \item range: \eqn{[0, \infty)}
 }}
 
-\item{max_bin}{(for Tree Booster) (default=256)
+\item{max_bin}{(for Tree Booster) (default=256, type=int32)
 \itemize{
 \item Only used if \code{tree_method} is set to \code{"hist"} or \code{"approx"}.
 \item Maximum number of discrete bins to bucket continuous features.
 \item Increasing this number improves the optimality of splits at the cost of higher computation time.
 }}
 
-\item{max_leaves}{(for Tree Booster) (default=0)
+\item{max_leaves}{(for Tree Booster) (default=0, type=int32)
 Maximum number of nodes to be added.  Not used by \code{"exact"} tree method.}
 
 \item{booster}{(default= \code{"gbtree"})

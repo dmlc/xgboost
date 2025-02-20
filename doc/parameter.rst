@@ -39,7 +39,7 @@ The following parameters can be set in the global scope, using :py:func:`xgboost
 ******************
 General Parameters
 ******************
-* ``booster`` [default= ``gbtree`` ]
+* ``booster`` [default= ``gbtree``]
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
 
@@ -90,7 +90,7 @@ Parameters for Tree Booster
   - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
   - range: [0,∞]
 
-* ``max_depth`` [default=6]
+* ``max_depth`` [default=6, type=int32]
 
   - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. ``exact`` tree method requires non-zero value.
   - range: [0,∞]
@@ -198,11 +198,11 @@ Parameters for Tree Booster
     - ``depthwise``: split at nodes closest to the root.
     - ``lossguide``: split at nodes with highest loss change.
 
-* ``max_leaves`` [default=0]
+* ``max_leaves`` [default=0, type=int32]
 
   - Maximum number of nodes to be added.  Not used by ``exact`` tree method.
 
-* ``max_bin``, [default=256]
+* ``max_bin``, [default=256, type=int32]
 
   - Only used if ``tree_method`` is set to ``hist`` or ``approx``.
   - Maximum number of discrete bins to bucket continuous features.
