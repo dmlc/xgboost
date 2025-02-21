@@ -109,14 +109,16 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   // parallel region.
   std::int32_t n_threads;
   if constexpr (kHasParallelStableSort) {
-    constexpr std::size_t kNeedParallelSort = 1000000;
     CHECK_GE(h_node_ptr.size(), 1);
     auto it = common::MakeIndexTransformIter(
         [&](std::size_t i) { return h_node_ptr[i + 1] - h_node_ptr[i]; });
-    n_threads =
-        std::any_of(it, it + h_node_ptr.size() - 1, [](auto n) { return n > kNeedParallelSort; })
-            ? 1
-            : ctx->Threads();
+    n_threads = std::any_of(it, it + h_node_ptr.size() - 1,
+                            [](auto n) {
+                              constexpr std::size_t kNeedParallelSort = 1000000;
+                              return n > kNeedParallelSort;
+                            })
+                    ? 1
+                    : ctx->Threads();
   } else {
     n_threads = ctx->Threads();
   }
