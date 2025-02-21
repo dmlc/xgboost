@@ -16,9 +16,9 @@
 #if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(__sun) && !defined(sun) && \
     !defined(__APPLE__) && __has_include(<omp.h>) && __has_include(<parallel/algorithm>)
 #define GCC_HAS_PARALLEL 1
-constexpr bool kGccHasParallel = true;
+constexpr bool kHasParallelStableSort = true;
 #else
-constexpr bool kGccHasParallel = false;
+constexpr bool kHasParallelStableSort = false;
 #endif  // GLIC_VERSION
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)

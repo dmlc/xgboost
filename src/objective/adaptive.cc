@@ -108,8 +108,8 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   // performed using a single thread as openmp cannot allocate new threads inside a
   // parallel region.
   std::int32_t n_threads;
-  if constexpr (kGccHasParallel) {
-    constexpr std::size_t kNeedParallelSort = 100000;
+  if constexpr (kHasParallelStableSort) {
+    constexpr std::size_t kNeedParallelSort = 1000000;
     auto it = common::MakeIndexTransformIter(
         [&](std::size_t i) { return h_node_ptr[i + 1] - h_node_ptr[i]; });
     n_threads =
