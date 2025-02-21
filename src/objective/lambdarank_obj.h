@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  *
  * Vocabulary explanation:
  *
@@ -85,7 +85,6 @@ XGBOOST_DEVICE inline double DeltaMAP(float y_high, float y_low, std::size_t ran
  *
  * @tparam unbiased Whether positioin bias is taken into account.
  * @tparam norm_by_diff Do we need to normalize the delta metric using the score difference.
- *                      False for the ranknet loss.
  * @tparam Functor for calculating the delta weight.
  */
 template <bool unbiased, bool norm_by_diff, typename Delta>

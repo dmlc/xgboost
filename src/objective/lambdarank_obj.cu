@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost contributors
+ * Copyright 2015-2025, XGBoost contributors
  *
  * \brief CUDA implementation of lambdarank.
  */
@@ -390,7 +390,12 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
     return exp_gain ? DeltaNDCG<true>(y_high, y_low, rank_high, rank_low, d_inv_IDCG(g), discount)
                     : DeltaNDCG<false>(y_high, y_low, rank_high, rank_low, d_inv_IDCG(g), discount);
   };
-  Launch<true>(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
+  if (p_cache->Param().lambdarank_diff_normalization) {
+    Launch<true>(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
+  } else {
+    Launch<false>(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj,
+                  out_gpair);
+  }
 }
 
 void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t const> d_rank_idx,
@@ -472,8 +477,11 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
     auto d = DeltaMAP(y_high, y_low, rank_high, rank_low, g_n_rel, g_acc);
     return d;
   };
-
-  Launch<true>(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+  if (p_cache->Param().lambdarank_diff_normalization) {
+    Launch<true>(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+  } else {
+    Launch<false>(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+  }
 }
 
 void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
@@ -493,7 +501,11 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
     return 1.0;
   };
 
-  Launch<false>(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+  if (p_cache->Param().lambdarank_diff_normalization) {
+    Launch<true>(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+  } else {
+    Launch<false>(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+  }
 }
 
 namespace {

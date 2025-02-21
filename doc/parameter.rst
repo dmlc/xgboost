@@ -540,6 +540,12 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 
   Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
 
+* ``lambdarank_diff_normalization`` [default = ``true``]
+
+  .. versionadded:: 3.0.0
+
+  Whether to normalize the delta by prediction score difference. This can sometimes stagnate the training progress.
+
 *  ``lambdarank_unbiased`` [default = ``false``]
 
   Specify whether do we need to debias input click data.

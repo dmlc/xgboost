@@ -1,40 +1,40 @@
 /**
- * Copyright 2023-2024, XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  */
 #include "lambdarank_obj.h"
 
-#include <dmlc/registry.h>                 // for DMLC_REGISTRY_FILE_TAG
+#include <dmlc/registry.h>  // for DMLC_REGISTRY_FILE_TAG
 
-#include <algorithm>                       // for transform, copy, fill_n, min, max
-#include <cmath>                           // for pow, log2
-#include <cstddef>                         // for size_t
-#include <cstdint>                         // for int32_t
-#include <map>                             // for operator!=
-#include <memory>                          // for shared_ptr, __shared_ptr_access, allocator
-#include <ostream>                         // for operator<<, basic_ostream
-#include <string>                          // for char_traits, operator<, basic_string, string
-#include <tuple>                           // for apply, make_tuple
-#include <type_traits>                     // for is_floating_point
-#include <utility>                         // for pair, swap
-#include <vector>                          // for vector
+#include <algorithm>    // for transform, copy, fill_n, min, max
+#include <cmath>        // for pow, log2
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t
+#include <map>          // for operator!=
+#include <memory>       // for shared_ptr, __shared_ptr_access, allocator
+#include <ostream>      // for operator<<, basic_ostream
+#include <string>       // for char_traits, operator<, basic_string, string
+#include <tuple>        // for apply, make_tuple
+#include <type_traits>  // for is_floating_point
+#include <utility>      // for pair, swap
+#include <vector>       // for vector
 
-#include "../common/error_msg.h"           // for GroupWeight, LabelScoreSize
-#include "../common/linalg_op.h"           // for begin, cbegin, cend
-#include "../common/optional_weight.h"     // for MakeOptionalWeights, OptionalWeights
-#include "../common/ranking_utils.h"       // for RankingCache, LambdaRankParam, MAPCache, NDCGC...
-#include "../common/threading_utils.h"     // for ParallelFor, Sched
-#include "init_estimation.h"               // for FitIntercept
-#include "xgboost/base.h"                  // for bst_group_t, GradientPair, kRtEps, GradientPai...
-#include "xgboost/context.h"               // for Context
-#include "xgboost/data.h"                  // for MetaInfo
-#include "xgboost/host_device_vector.h"    // for HostDeviceVector
-#include "xgboost/json.h"                  // for Json, get, Value, ToJson, F32Array, FromJson, IsA
-#include "xgboost/linalg.h"                // for Vector, Range, TensorView, VectorView, All
-#include "xgboost/logging.h"               // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_LE, CHE...
-#include "xgboost/objective.h"             // for ObjFunctionReg, XGBOOST_REGISTER_OBJECTIVE
-#include "xgboost/span.h"                  // for Span, operator!=
-#include "xgboost/string_view.h"           // for operator<<, StringView
-#include "xgboost/task.h"                  // for ObjInfo
+#include "../common/error_msg.h"         // for GroupWeight, LabelScoreSize
+#include "../common/linalg_op.h"         // for begin, cbegin, cend
+#include "../common/optional_weight.h"   // for MakeOptionalWeights, OptionalWeights
+#include "../common/ranking_utils.h"     // for RankingCache, LambdaRankParam, MAPCache, NDCGC...
+#include "../common/threading_utils.h"   // for ParallelFor, Sched
+#include "init_estimation.h"             // for FitIntercept
+#include "xgboost/base.h"                // for bst_group_t, GradientPair, kRtEps, GradientPai...
+#include "xgboost/context.h"             // for Context
+#include "xgboost/data.h"                // for MetaInfo
+#include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/json.h"                // for Json, get, Value, ToJson, F32Array, FromJson, IsA
+#include "xgboost/linalg.h"              // for Vector, Range, TensorView, VectorView, All
+#include "xgboost/logging.h"             // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_LE, CHE...
+#include "xgboost/objective.h"           // for ObjFunctionReg, XGBOOST_REGISTER_OBJECTIVE
+#include "xgboost/span.h"                // for Span, operator!=
+#include "xgboost/string_view.h"         // for operator<<, StringView
+#include "xgboost/task.h"                // for ObjInfo
 
 namespace xgboost::obj {
 namespace cpu_impl {
@@ -115,9 +115,8 @@ class LambdaRankObj : public FitIntercept {
       // This function doesn't have sycl-specific implementation yet.
       // For that reason we transfer data to host in case of sycl is used for propper execution.
       auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
-      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(device),
-                                             lj_full_.View(device), &ti_plus_, &tj_minus_,
-                                             &li_, &lj_, p_cache_);
+      cpu_impl::LambdaRankUpdatePositionBias(ctx_, li_full_.View(device), lj_full_.View(device),
+                                             &ti_plus_, &tj_minus_, &li_, &lj_, p_cache_);
     }
 
     li_full_.Data()->Fill(0.0);
@@ -180,7 +179,9 @@ class LambdaRankObj : public FitIntercept {
     // https://github.com/microsoft/LightGBM/pull/2331#issuecomment-523259298
     double sum_lambda{0.0};
 
-    auto delta_op = [&](auto const&... args) { return delta(args..., g); };
+    auto delta_op = [&](auto const&... args) {
+      return delta(args..., g);
+    };
 
     auto loop = [&](std::size_t i, std::size_t j) {
       // higher/lower on the target ranked list
@@ -349,7 +350,14 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
       static_assert(std::is_floating_point_v<decltype(y_high)>);
       return DeltaNDCG<exp_gain>(y_high, y_low, rank_high, rank_low, inv_IDCG(g), discount);
     };
-    this->CalcLambdaForGroup<unbiased, true>(iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
+
+    if (this->param_.lambdarank_diff_normalization) {
+      this->CalcLambdaForGroup<unbiased, true>(iter, g_predt, g_label, w, g_rank, g, delta,
+                                               g_gpair);
+    } else {
+      this->CalcLambdaForGroup<unbiased, true>(iter, g_predt, g_label, w, g_rank, g, delta,
+                                               g_gpair);
+    }
   }
 
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
@@ -372,7 +380,9 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
     auto h_predt = predt.ConstHostSpan();
     auto h_label = info.labels.HostView();
     auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
-    auto make_range = [&](bst_group_t g) { return linalg::Range(gptr[g], gptr[g + 1]); };
+    auto make_range = [&](bst_group_t g) {
+      return linalg::Range(gptr[g], gptr[g + 1]);
+    };
 
     auto dct = GetCache()->Discount(ctx_);
     auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
@@ -496,7 +506,9 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
     auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
     auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
 
-    auto make_range = [&](bst_group_t g) { return linalg::Range(gptr[g], gptr[g + 1]); };
+    auto make_range = [&](bst_group_t g) {
+      return linalg::Range(gptr[g], gptr[g + 1]);
+    };
 
     cpu_impl::MAPStat(ctx_, h_label, rank_idx, GetCache());
     auto n_rel = GetCache()->NumRelevant(ctx_);
@@ -528,9 +540,17 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
       auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta_map, g_gpair);
 
       if (param_.lambdarank_unbiased) {
-        std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, true, D>, args);
+        if (this->param_.lambdarank_diff_normalization) {
+          std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, true, D>, args);
+        } else {
+          std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, false, D>, args);
+        }
       } else {
-        std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, true, D>, args);
+        if (this->param_.lambdarank_diff_normalization) {
+          std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, true, D>, args);
+        } else {
+          std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, false, D>, args);
+        }
       }
     });
   }
@@ -583,10 +603,14 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
     auto h_predt = predt.ConstHostSpan();
     auto h_weight = common::MakeOptionalWeights(ctx_, info.weights_);
 
-    auto make_range = [&](bst_group_t g) { return linalg::Range(gptr[g], gptr[g + 1]); };
+    auto make_range = [&](bst_group_t g) {
+      return linalg::Range(gptr[g], gptr[g + 1]);
+    };
     auto rank_idx = p_cache_->SortedIdx(ctx_, h_predt);
 
-    auto delta = [](auto...) { return 1.0; };
+    auto delta = [](auto...) {
+      return 1.0;
+    };
     using D = decltype(delta);
 
     common::ParallelFor(n_groups, ctx_->Threads(), [&](auto g) {
@@ -599,9 +623,17 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
 
       auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
       if (param_.lambdarank_unbiased) {
-        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, false, D>, args);
+        if (this->param_.lambdarank_diff_normalization) {
+          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, true, D>, args);
+        } else {
+          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, false, D>, args);
+        }
       } else {
-        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, false, D>, args);
+        if (this->param_.lambdarank_diff_normalization) {
+          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, true, D>, args);
+        } else {
+          std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, false, D>, args);
+        }
       }
     });
   }
