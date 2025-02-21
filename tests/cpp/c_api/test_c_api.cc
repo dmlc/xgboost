@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024 XGBoost contributors
+ * Copyright 2019-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/c_api.h>
@@ -8,6 +8,7 @@
 #include <xgboost/learner.h>
 #include <xgboost/version_config.h>
 
+#include <algorithm>   // for copy_n
 #include <array>       // for array
 #include <cstddef>     // std::size_t
 #include <filesystem>  // std::filesystem
@@ -601,49 +602,110 @@ TEST(CAPI, GPUXGDMatrixGetQuantileCut) {
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 
-TEST(CAPI, PredictWithProxy) {
+TEST(CAPI, PredictReuseProxy) {
+  // Configuration for creating DMatrix
+  Json fmat_cfg{Object{}};
+  fmat_cfg["missing"] = std::numeric_limits<float>::quiet_NaN();
+  auto sfmat_cfg = Json::Dump(fmat_cfg);
+
+  // Configuration for prediction
+  Json config{Object{}};
+  config["type"] = Integer{0};
+  config["iteration_begin"] = config["iteration_end"] = Integer{0};
+  config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+  config["strict_shape"] = true;
+  config["training"] = false;
+  auto scfg = Json::Dump(config);
+
   HostDeviceVector<float> storage;
-  auto inf = RandomDataGenerator{1024, 256, 0.0}.GenerateArrayInterface(&storage);
-  DMatrixHandle proxy_hdl{nullptr};
-  ASSERT_EQ(XGProxyDMatrixCreate(&proxy_hdl), 0);
-
-  auto proxy = std::dynamic_pointer_cast<xgboost::data::DMatrixProxy>(
-      *reinterpret_cast<std::shared_ptr<xgboost::DMatrix> *>(proxy_hdl));
-  ASSERT_TRUE(proxy);
-  proxy->SetArrayData(inf);
-
-  Context ctx;
-  auto p_fmat = data::CreateDMatrixFromProxy(&ctx, proxy, std::numeric_limits<float>::quiet_NaN());
-
+  bst_idx_t n_samples = 1024;
+  auto inf = RandomDataGenerator{n_samples, 256, 0.0}.GenerateArrayInterface(&storage);
   HostDeviceVector<float> storage_y;
   auto y_inf = RandomDataGenerator{1024, 1, 0.0}.GenerateArrayInterface(&storage_y);
-  p_fmat->SetInfo("label", y_inf.c_str());
 
-  DMatrixHandle p_fmat_hdl = reinterpret_cast<void *>(&p_fmat);
-  std::array<DMatrixHandle, 1> mats{p_fmat_hdl};
+  // Create a DMatrix for training
+  DMatrixHandle fmat_hdl{nullptr};
+  ASSERT_EQ(XGDMatrixCreateFromDense(inf.c_str(), sfmat_cfg.c_str(), &fmat_hdl), 0);
+  ASSERT_EQ(XGDMatrixSetInfoFromInterface(fmat_hdl, "label", y_inf.c_str()), 0);
+
+  // Create booster and train.
+  std::array<DMatrixHandle, 1> mats{fmat_hdl};
   BoosterHandle booster_hdl;
   ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster_hdl), 0);
 
   for (std::int32_t i = 0; i < 3; ++i) {
-    ASSERT_EQ(XGBoosterUpdateOneIter(booster_hdl, i, p_fmat_hdl), 0);
+    ASSERT_EQ(XGBoosterUpdateOneIter(booster_hdl, i, fmat_hdl), 0);
   }
 
-  Json config{Object{}};
-  config["type"] = Integer{0};
-  config["iteration_begin"] = Integer{0};
-  config["iteration_end"] = Integer{0};
-  config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
-  config["strict_shape"] = true;
-  auto scfg = Json::Dump(config);
+  // Create a proxy that can be reused.
+  DMatrixHandle proxy_hdl{nullptr};
+  ASSERT_EQ(XGProxyDMatrixCreate(&proxy_hdl), 0);
 
   bst_ulong const *outshape{nullptr};
   bst_ulong outdim{0};
   float const *result{nullptr};
-  ASSERT_EQ(XGBoosterPredictFromDense(booster_hdl, inf.c_str(), scfg.c_str(), proxy_hdl, &outshape,
-                                      &outdim, &result),
-            0)
-      << XGBGetLastError();
 
+  {
+    // Prediction with DMatrix
+    ASSERT_EQ(XGBoosterPredictFromDMatrix(booster_hdl, fmat_hdl, scfg.c_str(), &outshape, &outdim,
+                                          &result),
+              0);
+    bst_ulong n_samples_ret = 0;
+    ASSERT_EQ(XGDMatrixNumRow(fmat_hdl, &n_samples_ret), 0);
+    std::vector<float> vec_0(n_samples_ret);
+    ASSERT_EQ(vec_0.size(), n_samples);
+    ASSERT_EQ(outdim, 2);
+    std::copy_n(result, vec_0.size(), vec_0.begin());
+
+    // In-place predict
+    ASSERT_EQ(XGBoosterPredictFromDense(booster_hdl, inf.c_str(), scfg.c_str(), proxy_hdl,
+                                        &outshape, &outdim, &result),
+              0);
+    ASSERT_EQ(XGDMatrixNumRow(proxy_hdl, &n_samples_ret), 0);
+    std::vector<float> vec_1(n_samples_ret);
+    ASSERT_EQ(vec_1.size(), n_samples);
+    ASSERT_EQ(outdim, 2);
+    std::copy_n(result, vec_1.size(), vec_1.begin());
+
+    // Same result
+    ASSERT_EQ(vec_0, vec_1);
+  }
+
+  {
+    bst_idx_t n_samples = 512;
+
+    // Prediction with DMatrix
+    auto inf = RandomDataGenerator{n_samples, 256, 0.0}.GenerateArrayInterface(&storage);
+    DMatrixHandle fmat_hdl{nullptr};
+    ASSERT_EQ(XGDMatrixCreateFromDense(inf.c_str(), sfmat_cfg.c_str(), &fmat_hdl), 0);
+
+    ASSERT_EQ(XGBoosterPredictFromDMatrix(booster_hdl, fmat_hdl, scfg.c_str(), &outshape, &outdim,
+                                          &result),
+              0);
+    bst_ulong n_samples_ret = 0;
+    ASSERT_EQ(XGDMatrixNumRow(fmat_hdl, &n_samples_ret), 0);
+    std::vector<float> vec_0(n_samples_ret);
+    ASSERT_EQ(vec_0.size(), n_samples);
+    ASSERT_EQ(outdim, 2);
+    std::copy_n(result, vec_0.size(), vec_0.begin());
+
+    // In-place predict, same proxy as before
+    ASSERT_EQ(XGBoosterPredictFromDense(booster_hdl, inf.c_str(), scfg.c_str(), proxy_hdl,
+                                        &outshape, &outdim, &result),
+              0);
+    ASSERT_EQ(XGDMatrixNumRow(proxy_hdl, &n_samples_ret), 0);
+    std::vector<float> vec_1(n_samples_ret);
+    ASSERT_EQ(vec_1.size(), n_samples);
+    ASSERT_EQ(outdim, 2);
+    std::copy_n(result, vec_1.size(), vec_1.begin());
+
+    // Same result
+    ASSERT_EQ(vec_0, vec_1);
+
+    ASSERT_EQ(XGDMatrixFree(fmat_hdl), 0);
+  }
+
+  ASSERT_EQ(XGDMatrixFree(fmat_hdl), 0);
   ASSERT_EQ(XGBoosterFree(booster_hdl), 0);
   ASSERT_EQ(XGDMatrixFree(proxy_hdl), 0);
 }
