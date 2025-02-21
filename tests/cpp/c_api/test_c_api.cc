@@ -613,8 +613,8 @@ TEST(CAPI, PredictReuseProxy) {
   config["type"] = Integer{0};
   config["iteration_begin"] = config["iteration_end"] = Integer{0};
   config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
-  config["strict_shape"] = true;
-  config["training"] = false;
+  config["strict_shape"] = Boolean{true};
+  config["training"] = Boolean{false};
   auto scfg = Json::Dump(config);
 
   HostDeviceVector<float> storage;
