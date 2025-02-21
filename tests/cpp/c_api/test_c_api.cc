@@ -22,6 +22,7 @@
 #include "../../../src/data/batch_utils.h"          // for MatchingPageBytes
 #include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
 #include "../../../src/data/iterative_dmatrix.h"    // for IterativeDMatrix
+#include "../../../src/data/proxy_dmatrix.h"        // for DMatrixProxy
 #include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
 #include "../helpers.h"
 
@@ -599,4 +600,51 @@ TEST(CAPI, GPUXGDMatrixGetQuantileCut) {
   TestXGDMatrixGetQuantileCut(&ctx);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(CAPI, PredictWithProxy) {
+  HostDeviceVector<float> storage;
+  auto inf = RandomDataGenerator{1024, 256, 0.0}.GenerateArrayInterface(&storage);
+  DMatrixHandle proxy_hdl{nullptr};
+  ASSERT_EQ(XGProxyDMatrixCreate(&proxy_hdl), 0);
+
+  auto proxy = std::dynamic_pointer_cast<xgboost::data::DMatrixProxy>(
+      *reinterpret_cast<std::shared_ptr<xgboost::DMatrix> *>(proxy_hdl));
+  ASSERT_TRUE(proxy);
+  proxy->SetArrayData(inf);
+
+  Context ctx;
+  auto p_fmat = data::CreateDMatrixFromProxy(&ctx, proxy, std::numeric_limits<float>::quiet_NaN());
+
+  HostDeviceVector<float> storage_y;
+  auto y_inf = RandomDataGenerator{1024, 1, 0.0}.GenerateArrayInterface(&storage_y);
+  p_fmat->SetInfo("label", y_inf.c_str());
+
+  DMatrixHandle p_fmat_hdl = reinterpret_cast<void *>(&p_fmat);
+  std::array<DMatrixHandle, 1> mats{p_fmat_hdl};
+  BoosterHandle booster_hdl;
+  ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster_hdl), 0);
+
+  for (std::int32_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(XGBoosterUpdateOneIter(booster_hdl, i, p_fmat_hdl), 0);
+  }
+
+  Json config{Object{}};
+  config["type"] = Integer{0};
+  config["iteration_begin"] = Integer{0};
+  config["iteration_end"] = Integer{0};
+  config["missing"] = Number{std::numeric_limits<float>::quiet_NaN()};
+  config["strict_shape"] = true;
+  auto scfg = Json::Dump(config);
+
+  bst_ulong const *outshape{nullptr};
+  bst_ulong outdim{0};
+  float const *result{nullptr};
+  ASSERT_EQ(XGBoosterPredictFromDense(booster_hdl, inf.c_str(), scfg.c_str(), proxy_hdl, &outshape,
+                                      &outdim, &result),
+            0)
+      << XGBGetLastError();
+
+  ASSERT_EQ(XGBoosterFree(booster_hdl), 0);
+  ASSERT_EQ(XGDMatrixFree(proxy_hdl), 0);
+}
 }  // namespace xgboost
