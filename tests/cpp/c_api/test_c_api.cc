@@ -621,7 +621,7 @@ TEST(CAPI, PredictReuseProxy) {
   bst_idx_t n_samples = 1024;
   auto inf = RandomDataGenerator{n_samples, 256, 0.0}.GenerateArrayInterface(&storage);
   HostDeviceVector<float> storage_y;
-  auto y_inf = RandomDataGenerator{1024, 1, 0.0}.GenerateArrayInterface(&storage_y);
+  auto y_inf = RandomDataGenerator{n_samples, 1, 0.0}.GenerateArrayInterface(&storage_y);
 
   // Create a DMatrix for training
   DMatrixHandle fmat_hdl{nullptr};
