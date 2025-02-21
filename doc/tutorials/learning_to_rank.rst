@@ -186,6 +186,32 @@ For a longer explanation, assuming the pairwise ranking method is used, we calcu
 
 However, it's possible that a distributed framework shuffles the data during map reduce and splits every query group into multiple workers. In that case, the performance would be disastrous. As a result, it depends on the data and the framework for whether a sorted groupby is needed.
 
+**********************************
+Comparing Results with Version 1.7
+**********************************
+
+The learning to rank implementation has been significantly updated in 2.0 with added hyper-parameters and training strategies. To obtain similar result as the 1.7 :py:class:`xgboost.XGBRanker`, following parameter should be used:
+
+.. code-block:: python
+
+    params = {
+        # 1.7 only supports sampling, while 2.0 and later use top-k as the default.
+	# See above sections for the trade-off.
+        "lambdarank_pair_method": "mean",
+        # Normalization was added in 2.0
+        "lambdarank_normalization": False,
+        # 1.7 uses the ranknet loss while later versions use the NDCG weighted loss
+        "objective": "rank:pairwise",
+        "base_score": 0.5,
+        # The default tree method has been changed from approx to hist.
+        "tree_method": "approx",
+        # The default for `mean` pair method is one pair each sample, which is the default in 1.7 as well.
+        # You can leave it as unset.
+        "lambdarank_num_pair_per_sample": 1,
+    }
+
+The result still differs due to the change of random seed. But the overall training strategy would be the same for ``rank:pairwise``. Objectives including `NDCG` and `MAP` has additional normalization for the delta weight using the score difference in later versions.
+
 *******************
 Reproducible Result
 *******************

@@ -163,7 +163,7 @@ class LambdaRankObj : public FitIntercept {
   }
 
   // Calculate lambda gradient for each group on CPU.
-  template <bool unbiased, typename Delta>
+  template <bool unbiased, bool norm_by_diff, typename Delta>
   void CalcLambdaForGroup(std::int32_t iter, common::Span<float const> g_predt,
                           linalg::VectorView<float const> g_label, float w,
                           common::Span<std::size_t const> g_rank, bst_group_t g, Delta delta,
@@ -193,8 +193,8 @@ class LambdaRankObj : public FitIntercept {
       }
 
       double cost;
-      auto pg = LambdaGrad<unbiased>(g_label, g_predt, g_rank, rank_high, rank_low, delta_op,
-                                     ti_plus, tj_minus, &cost);
+      auto pg = LambdaGrad<unbiased, norm_by_diff>(g_label, g_predt, g_rank, rank_high, rank_low,
+                                                   delta_op, ti_plus, tj_minus, &cost);
       auto ng = Repulse(pg);
 
       std::size_t idx_high = g_rank[rank_high];
@@ -349,7 +349,7 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
       static_assert(std::is_floating_point_v<decltype(y_high)>);
       return DeltaNDCG<exp_gain>(y_high, y_low, rank_high, rank_low, inv_IDCG(g), discount);
     };
-    this->CalcLambdaForGroup<unbiased>(iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
+    this->CalcLambdaForGroup<unbiased, true>(iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
   }
 
   void GetGradientImpl(std::int32_t iter, const HostDeviceVector<float>& predt,
@@ -528,9 +528,9 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
       auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta_map, g_gpair);
 
       if (param_.lambdarank_unbiased) {
-        std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, D>, args);
+        std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, true, D>, args);
       } else {
-        std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, D>, args);
+        std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, true, D>, args);
       }
     });
   }
@@ -599,9 +599,9 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
 
       auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
       if (param_.lambdarank_unbiased) {
-        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, D>, args);
+        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, false, D>, args);
       } else {
-        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, D>, args);
+        std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, false, D>, args);
       }
     });
   }

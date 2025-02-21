@@ -13,14 +13,14 @@
  */
 #ifndef XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_H_
 #define XGBOOST_OBJECTIVE_LAMBDARANK_OBJ_H_
-#include <algorithm>                       // for min, max
-#include <cassert>                         // for assert
-#include <cmath>                           // for log, abs
-#include <cstddef>                         // for size_t
-#include <functional>                      // for greater
-#include <memory>                          // for shared_ptr
-#include <random>                          // for minstd_rand, uniform_int_distribution
-#include <vector>                          // for vector
+#include <algorithm>   // for min, max
+#include <cassert>     // for assert
+#include <cmath>       // for log, abs
+#include <cstddef>     // for size_t
+#include <functional>  // for greater
+#include <memory>      // for shared_ptr
+#include <random>      // for minstd_rand, uniform_int_distribution
+#include <vector>      // for vector
 
 #include "../common/algorithm.h"           // for ArgSort
 #include "../common/math.h"                // for Sigmoid
@@ -80,8 +80,15 @@ XGBOOST_DEVICE inline double DeltaMAP(float y_high, float y_low, std::size_t ran
   }
   return delta;
 }
-
-template <bool unbiased, typename Delta>
+/**
+ * @brief Calculate lambda gradient based on delta weight.
+ *
+ * @tparam unbiased Whether positioin bias is taken into account.
+ * @tparam norm_by_diff Do we need to normalize the delta metric using the score difference.
+ *                      False for the ranknet loss.
+ * @tparam Functor for calculating the delta weight.
+ */
+template <bool unbiased, bool norm_by_diff, typename Delta>
 XGBOOST_DEVICE GradientPair
 LambdaGrad(linalg::VectorView<float const> labels, common::Span<float const> predts,
            common::Span<size_t const> sorted_idx,
@@ -114,7 +121,7 @@ LambdaGrad(linalg::VectorView<float const> labels, common::Span<float const> pre
   // Change in metric score like \delta NDCG or \delta MAP
   double delta_metric = std::abs(delta(y_high, y_low, rank_high, rank_low));
 
-  if (best_score != worst_score) {
+  if (norm_by_diff && best_score != worst_score) {
     delta_metric /= (delta_score + 0.01);
   }
 
