@@ -43,7 +43,7 @@ constexpr std::int64_t MatchingPageBytes() { return 0; }
 constexpr std::int32_t MaxNumDevicePages() { return 1; }
 // Default size of the cached page
 constexpr double CachePageRatio() { return 0.125; }
-// Indicator for XGBoost to not concatenate any page.
+// Indicator for XGBoost to automatically concatenate pages.
 constexpr std::int64_t AutoCachePageBytes() { return -1; }
 // Use two batch for prefecting. There's always one batch being worked on, while the other
 // batch being transferred.
