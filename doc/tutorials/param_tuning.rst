@@ -31,12 +31,18 @@ There are in general two ways that you can control overfitting in XGBoost:
 
 * The first way is to directly control model complexity.
 
-  - This includes ``max_depth``, ``min_child_weight`` and ``gamma``.
+  - This includes ``max_depth``, ``min_child_weight``, ``gamma``, ``max_cat_threshold``
+    and other similar regularization parameters. See :doc:`/parameter` for a comprehensive
+    set of parameters.
+  - Set a constant ``base_score`` based on your own criteria. See
+    :doc:`/tutorials/intercept` for more info.
 
 * The second way is to add randomness to make training robust to noise.
 
-  - This includes ``subsample`` and ``colsample_bytree``.
-  - You can also reduce stepsize ``eta``. Remember to increase ``num_round`` when you do so.
+  - This includes ``subsample`` and ``colsample_bytree``, which may be used with boosting
+    RF ``num_parallel_tree``.
+  - You can also reduce stepsize ``eta``, possibly with a training callback. Remember to
+    increase ``num_round`` when you do so.
 
 
 *************************
@@ -55,6 +61,25 @@ This can affect the training of XGBoost model, and there are two ways to improve
   - In such a case, you cannot re-balance the dataset
   - Set parameter ``max_delta_step`` to a finite number (say 1) to help convergence
 
+
+*************************************************
+Use Hyper Parameter Optimization (HPO) Frameworks
+*************************************************
+Tuning models is a sophisticated task and there are advanced frameworks to help you. For
+examples, some meta estimators in scikit-learn like
+:py:class:`sklearn.model_selection.HalvingGridSearchCV` can help guide the search
+process. Optuna is another great option and there are many more based on different
+branches of statistics.
+
+**************
+Know Your Data
+**************
+It cannot be stressed enough the importance of understanding the data, sometimes that's
+all it takes to get a good model. Many solutions use a simple XGBoost tree model without
+much tuning and emphasize the data pre-processing step. XGBoost can help feature selection
+by providing both a global feature importance score and sample feature importance with
+SHAP value. Also, there are parameters specifically targeting categorical features, and
+tasks like survival and ranking. Feel free to explore them.
 
 *********************
 Reducing Memory Usage
