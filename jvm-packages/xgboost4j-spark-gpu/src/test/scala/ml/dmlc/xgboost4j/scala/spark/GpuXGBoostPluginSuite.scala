@@ -186,8 +186,8 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       import spark.implicits._
 
       val df = Seq(
-        (1.0f, 2.0f, 0.0f),
-        (5.0f, 6.0f, 0.1f)
+        (1.0f, 2.0f, 0),
+        (5.0f, 6.0f, 1)
       ).toDF("c1", "c2", "label")
       val features = Array("c1", "c2")
       val classifier = new XGBoostClassifier().setDevice("cuda").setFeaturesCol(features)
@@ -200,13 +200,19 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       import spark.implicits._
 
       val df = Seq(
-        (1.0f, 2.0f, 0.0f),
-        (5.0f, 6.0f, 0.1f)
+        (1.0f, 2.0f, 0),
+        (5.0f, 6.0f, 1)
       ).toDF("c1", "c2", "label")
       val features = Array("c1", "c2")
-      val classifier = new XGBoostClassifier().setDevice("cuda").setFeaturesCol(features)
+      val classifier = new XGBoostClassifier()
+        .setDevice("cuda")
+        .setFeaturesCol(features)
+        .setNumRound(2)
       val (_, configs) = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
       assert(configs("use_rmm") == true)
+
+      // No exception
+      classifier.fit(df)
     }
   }
 
