@@ -137,7 +137,7 @@ range: \eqn{[0, \infty)}
 
 Note: should only pass one of \code{gamma} or \code{min_split_loss}. Both refer to the same parameter and there's thus no difference between one or the other.}
 
-\item{max_depth}{(for Tree Booster) (default=6)
+\item{max_depth}{(for Tree Booster) (default=6, type=int32)
 Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. \code{"exact"} tree method requires non-zero value.
 
 range: \eqn{[0, \infty)}}
@@ -264,10 +264,10 @@ This is a parameter of the \code{"refresh"} updater. When this flag is 1, tree l
 }
 }}
 
-\item{max_leaves}{(for Tree Booster) (default=0)
+\item{max_leaves}{(for Tree Booster) (default=0, type=int32)
 Maximum number of nodes to be added.  Not used by \code{"exact"} tree method.}
 
-\item{max_bin}{(for Tree Booster) (default=256)
+\item{max_bin}{(for Tree Booster) (default=256, type=int32)
 \itemize{
 \item Only used if \code{tree_method} is set to \code{"hist"} or \code{"approx"}.
 \item Maximum number of discrete bins to bucket continuous features.

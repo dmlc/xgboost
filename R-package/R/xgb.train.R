@@ -486,7 +486,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' range: \eqn{[0, \infty)}
 #'
 #' Note: should only pass one of `gamma` or `min_split_loss`. Both refer to the same parameter and there's thus no difference between one or the other.
-#' @param max_depth (for Tree Booster) (default=6)
+#' @param max_depth (for Tree Booster) (default=6, type=int32)
 #' Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. `"exact"` tree method requires non-zero value.
 #'
 #' range: \eqn{[0, \infty)}
@@ -579,9 +579,9 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' - Choices: `"depthwise"`, `"lossguide"`
 #'   - `"depthwise"`: split at nodes closest to the root.
 #'   - `"lossguide"`: split at nodes with highest loss change.
-#' @param max_leaves (for Tree Booster) (default=0)
+#' @param max_leaves (for Tree Booster) (default=0, type=int32)
 #' Maximum number of nodes to be added.  Not used by `"exact"` tree method.
-#' @param max_bin (for Tree Booster) (default=256)
+#' @param max_bin (for Tree Booster) (default=256, type=int32)
 #' - Only used if `tree_method` is set to `"hist"` or `"approx"`.
 #' - Maximum number of discrete bins to bucket continuous features.
 #' - Increasing this number improves the optimality of splits at the cost of higher computation time.
