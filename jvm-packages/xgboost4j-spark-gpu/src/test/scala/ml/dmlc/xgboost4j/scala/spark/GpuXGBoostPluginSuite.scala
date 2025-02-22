@@ -195,7 +195,7 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       assert(configs("use_rmm") == false)
     }
 
-    val conf = new SparkConf().set("spark.rapids.python.memory.gpu.pooling.enabled", "true")
+    val conf = new SparkConf().set("spark.rapids.memory.gpu.pooling.enabled", "true")
     withGpuSparkSession(conf) { spark =>
       import spark.implicits._
 

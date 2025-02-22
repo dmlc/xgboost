@@ -187,7 +187,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
       }
     )
     val rmmEnabled: Boolean = try {
-      dataset.sparkSession.conf.get("spark.rapids.python.memory.gpu.pooling.enabled").toBoolean
+      dataset.sparkSession.conf.get("spark.rapids.memory.gpu.pooling.enabled").toBoolean
     } catch {
       case _: Throwable => false // Any exception will return false
     }
