@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_BATCH_UTILS_H_
 #define XGBOOST_DATA_BATCH_UTILS_H_
