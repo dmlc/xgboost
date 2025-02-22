@@ -192,10 +192,11 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
       val features = Array("c1", "c2")
       val classifier = new XGBoostClassifier().setDevice("cuda").setFeaturesCol(features)
       val (_, configs) = PluginUtils.getPlugin.get.buildRddWatches(classifier, df)
-      assert(configs("use_rmm") == false)
+      assert(configs.isEmpty)
     }
 
     val conf = new SparkConf().set("spark.rapids.memory.gpu.pooling.enabled", "true")
+      .set("spark.rapids.memory.gpu.pool", "ASYNC")
     withGpuSparkSession(conf) { spark =>
       import spark.implicits._
 
