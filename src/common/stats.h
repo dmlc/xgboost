@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_STATS_H_
 #define XGBOOST_COMMON_STATS_H_
@@ -42,13 +42,8 @@ float Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& 
 
   std::vector<std::size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
-  if (omp_in_parallel()) {
-    std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
-                     [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
-  } else {
-    StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
-               [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
-  }
+  StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
+             [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
   static_assert(std::is_same_v<decltype(val(0)), float>);
@@ -85,13 +80,8 @@ float WeightedQuantile(Context const* ctx, double alpha, Iter begin, Iter end, W
   }
   std::vector<size_t> sorted_idx(n);
   std::iota(sorted_idx.begin(), sorted_idx.end(), 0);
-  if (omp_in_parallel()) {
-    std::stable_sort(sorted_idx.begin(), sorted_idx.end(),
-                     [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
-  } else {
-    StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
-               [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
-  }
+  StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
+             [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
 
   auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
 

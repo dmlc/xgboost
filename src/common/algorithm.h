@@ -1,10 +1,10 @@
 /**
- * Copyright 2022-2023 by XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_H_
 #define XGBOOST_COMMON_ALGORITHM_H_
 #include <algorithm>          // upper_bound, stable_sort, sort, max
-#include <cinttypes>          // size_t
+#include <cstddef>            // size_t
 #include <functional>         // less
 #include <iterator>           // iterator_traits, distance
 #include <vector>             // vector
@@ -16,6 +16,9 @@
 #if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(__sun) && !defined(sun) && \
     !defined(__APPLE__) && __has_include(<omp.h>) && __has_include(<parallel/algorithm>)
 #define GCC_HAS_PARALLEL 1
+constexpr bool kHasParallelStableSort = true;
+#else
+constexpr bool kHasParallelStableSort = false;
 #endif  // GLIC_VERSION
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
