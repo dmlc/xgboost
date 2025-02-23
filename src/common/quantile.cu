@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
@@ -565,6 +565,8 @@ void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
     allworkers.emplace_back(sketch);
     offset += length_as_bytes;
   }
+  // Stop the timer early to avoid interference from the new sketch container.
+  timer_.Stop(__func__);
 
   // Merge them into a new sketch.
   SketchContainer new_sketch(this->feature_types_, num_bins_, this->num_columns_, global_sum_rows,
@@ -578,7 +580,6 @@ void SketchContainer::AllReduce(Context const* ctx, bool is_column_split) {
   }
 
   *this = std::move(new_sketch);
-  timer_.Stop(__func__);
 }
 
 namespace {
@@ -595,13 +596,13 @@ struct InvalidCatOp {
 }  // anonymous namespace
 
 void SketchContainer::MakeCuts(Context const* ctx, HistogramCuts* p_cuts, bool is_column_split) {
-  timer_.Start(__func__);
   curt::SetDevice(ctx->Ordinal());
   p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.
   this->AllReduce(ctx, is_column_split);
 
+  timer_.Start(__func__);
   // Prune to final number of bins.
   this->Prune(ctx, num_bins_ + 1);
   this->FixError();
