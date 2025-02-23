@@ -1,7 +1,10 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2025, XGBoost contributors
  *
- * \brief A simple example of using prediction functions.
+ * @brief A simple example of using prediction functions.
+ *
+ * See more examples in test_c_api.cc on how to reuse a ProxyDMatrix object for reducing
+ * the latency of DMatrix creation.
  */
 #include <stddef.h>
 #include <stdlib.h>
