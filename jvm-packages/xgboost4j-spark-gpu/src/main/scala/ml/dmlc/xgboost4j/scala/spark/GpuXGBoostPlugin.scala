@@ -32,7 +32,7 @@ import org.apache.spark.sql.types.{DataType, FloatType, IntegerType}
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
 import ml.dmlc.xgboost4j.java.CudfColumnBatch
-import ml.dmlc.xgboost4j.scala.{DMatrix, QuantileDMatrix}
+import ml.dmlc.xgboost4j.scala.{DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix}
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 import ml.dmlc.xgboost4j.scala.spark.params.HasGroupCol
 
@@ -114,7 +114,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
    */
   override def buildRddWatches[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
-      dataset: Dataset[_]): RDD[Watches] = {
+      dataset: Dataset[_]): (RDD[Watches], Map[String, AnyRef]) = {
 
     validate(estimator, dataset)
 
@@ -127,25 +127,41 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     val nthread = estimator.getNthread
     val missing = estimator.getMissing
 
+    val useExtMem = estimator.getUseExternalMemory
+    val extMemPath = if (useExtMem) {
+      Some(dataset.sparkSession.conf.get("spark.local.dir", "/tmp"))
+    } else None
+
+    val maxQuantileBatches = estimator.getMaxQuantileBatches
+    val minCachePageBytes = estimator.getMinCachePageBytes
+    val maxNumDevicePages = estimator.getMaxNumDevicePages
+
     /** build QuantileDMatrix on the executor side */
-    def buildQuantileDMatrix(iter: Iterator[Table],
+    def buildQuantileDMatrix(input: Iterator[Table],
                              ref: Option[QuantileDMatrix] = None): QuantileDMatrix = {
-      val colBatchIter = iter.map { table =>
-        withResource(new GpuColumnBatch(table)) { batch =>
-          new CudfColumnBatch(
-            batch.select(indices.featureIds.get),
-            batch.select(indices.labelId),
-            batch.select(indices.weightId.getOrElse(-1)),
-            batch.select(indices.marginId.getOrElse(-1)),
-            batch.select(indices.groupId.getOrElse(-1)));
-        }
+
+      extMemPath match {
+        case Some(_) =>
+          val itr = new ExternalMemoryIterator(input, indices, extMemPath)
+          new ExtMemQuantileDMatrix(itr, missing, maxBin, ref, nthread, maxNumDevicePages,
+            maxQuantileBatches, minCachePageBytes)
+
+        case None =>
+          val itr = input.map { table =>
+            withResource(new GpuColumnBatch(table)) { batch =>
+              new CudfColumnBatch(
+                batch.select(indices.featureIds.get),
+                batch.select(indices.labelId),
+                batch.select(indices.weightId.getOrElse(-1)),
+                batch.select(indices.marginId.getOrElse(-1)),
+                batch.select(indices.groupId.getOrElse(-1)));
+            }
+          }
+          new QuantileDMatrix(itr, ref, missing, maxBin, nthread)
       }
-      ref.map(r => new QuantileDMatrix(colBatchIter, r, missing, maxBin, nthread)).getOrElse(
-        new QuantileDMatrix(colBatchIter, missing, maxBin, nthread)
-      )
     }
 
-    estimator.getEvalDataset().map { evalDs =>
+    val rdd = estimator.getEvalDataset().map { evalDs =>
       val evalProcessed = preprocess(estimator, evalDs)
       ColumnarRdd(train.toDF()).zipPartitions(ColumnarRdd(evalProcessed.toDF())) {
         (trainIter, evalIter) =>
@@ -170,6 +186,20 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
         }
       }
     )
+
+    val sconf = dataset.sparkSession.conf
+    val rmmEnabled: Boolean = try {
+      sconf.get("spark.rapids.memory.gpu.pooling.enabled").toBoolean &&
+      sconf.get("spark.rapids.memory.gpu.pool").trim.toLowerCase != "none"
+    } catch {
+      case _: Throwable => false // Any exception will return false
+    }
+    val configs = if (rmmEnabled) {
+      Map("use_rmm" -> rmmEnabled).asInstanceOf[Map[String, AnyRef]]
+    } else {
+      Map.empty[String, AnyRef]
+    }
+    (rdd, configs)
   }
 
   override def transform[M <: XGBoostModel[M]](model: XGBoostModel[M],
@@ -295,7 +325,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
   }
 }
 
-private class GpuColumnBatch(table: Table) extends AutoCloseable {
+private[scala] class GpuColumnBatch(val table: Table) extends AutoCloseable {
 
   def select(index: Int): Table = {
     select(Seq(index))
@@ -308,9 +338,5 @@ private class GpuColumnBatch(table: Table) extends AutoCloseable {
     new Table(indices.map(table.getColumn): _*)
   }
 
-  override def close(): Unit = {
-    if (Option(table).isDefined) {
-      table.close()
-    }
-  }
+  override def close(): Unit = Option(table).foreach(_.close())
 }

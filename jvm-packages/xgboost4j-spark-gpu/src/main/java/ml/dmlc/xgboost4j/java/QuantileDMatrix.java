@@ -54,6 +54,11 @@ class F32NaNSerializer extends JsonSerializer<Float> {
  * QuantileDMatrix will only be used to train
  */
 public class QuantileDMatrix extends DMatrix {
+  // implicit constructor for the ext mem version of the QDM.
+  protected QuantileDMatrix() {
+    super(0);
+  }
+
   /**
    * Create QuantileDMatrix from iterator based on the cuda array interface
    *
@@ -158,8 +163,7 @@ public class QuantileDMatrix extends DMatrix {
     mapper.registerModule(module);
 
     try {
-      String config = mapper.writeValueAsString(conf);
-      return config;
+      return mapper.writeValueAsString(conf);
     } catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to serialize configuration", e);
     }
