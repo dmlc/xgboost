@@ -1639,6 +1639,10 @@ class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
         feature_weights: Optional[_DaskCollection],
     ) -> _DaskCollection:
         params = self.get_xgb_params()
+        model, metric, params, feature_weights = self._configure_fit(
+            xgb_model, params, feature_weights
+        )
+
         dtrain, evals = await _async_wrap_evaluation_matrices(
             client=self.client,
             device=self.device,
@@ -1665,7 +1669,6 @@ class DaskXGBRegressor(XGBRegressorBase, DaskScikitLearnBase):
             obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params = self._configure_fit(xgb_model, params)
         results = await self.client.sync(
             _train_async,
             asynchronous=True,
@@ -1729,6 +1732,10 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
         feature_weights: Optional[_DaskCollection],
     ) -> "DaskXGBClassifier":
         params = self.get_xgb_params()
+        model, metric, params, feature_weights = self._configure_fit(
+            xgb_model, params, feature_weights
+        )
+
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
             device=self.device,
@@ -1773,7 +1780,6 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
             obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params = self._configure_fit(xgb_model, params)
         results = await self.client.sync(
             _train_async,
             asynchronous=True,
@@ -1953,6 +1959,9 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
         feature_weights: Optional[_DaskCollection],
     ) -> "DaskXGBRanker":
         params = self.get_xgb_params()
+        model, metric, params, feature_weights = self._configure_fit(
+            xgb_model, params, feature_weights
+        )
         dtrain, evals = await _async_wrap_evaluation_matrices(
             self.client,
             device=self.device,
@@ -1974,7 +1983,6 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
             enable_categorical=self.enable_categorical,
             feature_types=self.feature_types,
         )
-        model, metric, params = self._configure_fit(xgb_model, params)
         results = await self.client.sync(
             _train_async,
             asynchronous=True,

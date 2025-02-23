@@ -389,7 +389,13 @@ __model_doc = f"""
         Used for specifying feature types without constructing a dataframe. See
         :py:class:`DMatrix` for details.
 
-    max_cat_to_onehot : {Optional[int]}
+    feature_weights : Optional[ArrayLike]
+
+        Weight for each feature, defines the probability of each feature being selected
+        when colsample is being used.  All values must be greater than 0, otherwise a
+        `ValueError` is thrown.
+
+    max_cat_to_onehot : Optional[int]
 
         .. versionadded:: 1.6.0
 
@@ -607,7 +613,7 @@ def _wrap_evaluation_matrices(
     qid: Optional[Any],
     sample_weight: Optional[Any],
     base_margin: Optional[Any],
-    feature_weights: Optional[Any],
+    feature_weights: Optional[ArrayLike],
     eval_set: Optional[Sequence[Tuple[Any, Any]]],
     sample_weight_eval_set: Optional[Sequence[Any]],
     base_margin_eval_set: Optional[Sequence[Any]],
@@ -753,6 +759,7 @@ class XGBModel(XGBModelBase):
         validate_parameters: Optional[bool] = None,
         enable_categorical: bool = False,
         feature_types: Optional[FeatureTypes] = None,
+        feature_weights: Optional[ArrayLike] = None,
         max_cat_to_onehot: Optional[int] = None,
         max_cat_threshold: Optional[int] = None,
         multi_strategy: Optional[str] = None,
@@ -799,6 +806,7 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
         self.enable_categorical = enable_categorical
         self.feature_types = feature_types
+        self.feature_weights = feature_weights
         self.max_cat_to_onehot = max_cat_to_onehot
         self.max_cat_threshold = max_cat_threshold
         self.multi_strategy = multi_strategy
@@ -895,6 +903,7 @@ class XGBModel(XGBModelBase):
             "early_stopping_rounds",
             "callbacks",
             "feature_types",
+            "feature_weights",
         }
         return wrapper_specific
 
@@ -1065,10 +1074,12 @@ class XGBModel(XGBModelBase):
         self,
         booster: Optional[Union[Booster, "XGBModel", str]],
         params: Dict[str, Any],
+        feature_weights: Optional[ArrayLike],
     ) -> Tuple[
         Optional[Union[Booster, str, "XGBModel"]],
         Optional[Metric],
         Dict[str, Any],
+        Optional[ArrayLike],
     ]:
         """Configure parameters for :py:meth:`fit`."""
         if isinstance(booster, XGBModel):
@@ -1101,13 +1112,23 @@ class XGBModel(XGBModelBase):
             else:
                 params.update({"eval_metric": self.eval_metric})
 
+        if feature_weights is not None:
+            _deprecated("feature_weights")
+        if feature_weights is not None and self.feature_weights is not None:
+            _duplicated("feature_weights")
+        feature_weights = (
+            self.feature_weights
+            if self.feature_weights is not None
+            else feature_weights
+        )
+
         tree_method = params.get("tree_method", None)
         if self.enable_categorical and tree_method == "exact":
             raise ValueError(
                 "Experimental support for categorical data is not implemented for"
                 " current tree method yet."
             )
-        return model, metric, params
+        return model, metric, params, feature_weights
 
     def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
         # Use `QuantileDMatrix` to save memory.
@@ -1184,12 +1205,19 @@ class XGBModel(XGBModelBase):
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.
         feature_weights :
-            Weight for each feature, defines the probability of each feature being
-            selected when colsample is being used.  All values must be greater than 0,
-            otherwise a `ValueError` is thrown.
+
+            .. deprecated:: 3.0.0
+
+            Use `feature_weights` in :py:meth:`__init__` or :py:meth:`set_params`
+            instead.
 
         """
         with config_context(verbosity=self.verbosity):
+            params = self.get_xgb_params()
+            model, metric, params, feature_weights = self._configure_fit(
+                xgb_model, params, feature_weights
+            )
+
             evals_result: TrainingCallback.EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
@@ -1209,7 +1237,6 @@ class XGBModel(XGBModelBase):
                 enable_categorical=self.enable_categorical,
                 feature_types=self.feature_types,
             )
-            params = self.get_xgb_params()
 
             if callable(self.objective):
                 obj: Optional[Objective] = _objective_decorator(self.objective)
@@ -1217,7 +1244,6 @@ class XGBModel(XGBModelBase):
             else:
                 obj = None
 
-            model, metric, params = self._configure_fit(xgb_model, params)
             self._Booster = train(
                 params,
                 train_dmatrix,
@@ -1631,7 +1657,9 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
                     params["objective"] = "multi:softprob"
                 params["num_class"] = self.n_classes_
 
-            model, metric, params = self._configure_fit(xgb_model, params)
+            model, metric, params, feature_weights = self._configure_fit(
+                xgb_model, params, feature_weights
+            )
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
                 X=X,
@@ -2148,8 +2176,9 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             evals_result: TrainingCallback.EvalsLog = {}
             params = self.get_xgb_params()
 
-            model, metric, params = self._configure_fit(xgb_model, params)
-
+            model, metric, params, feature_weights = self._configure_fit(
+                xgb_model, params, feature_weights
+            )
             self._Booster = train(
                 params,
                 train_dmatrix,
