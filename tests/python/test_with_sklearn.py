@@ -1212,6 +1212,10 @@ def test_feature_weights(tree_method):
     assert poly_increasing[0] > 0.08
     assert poly_decreasing[0] < -0.08
 
+    reg = xgb.XGBRegressor(feature_weights=np.ones((kCols, )))
+    with pytest.raises(ValueError, match="Use the one in"):
+        reg.fit(X, y, feature_weights=np.ones((kCols, )))
+
 
 def run_boost_from_prediction_binary(tree_method, X, y, as_frame: Optional[Callable]):
     """
