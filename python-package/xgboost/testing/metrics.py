@@ -78,3 +78,21 @@ def check_quantile_error(tree_method: str) -> None:
     predt = booster.inplace_predict(X)
     loss = mean_pinball_loss(y, predt, alpha=0.3)
     np.testing.assert_allclose(evals_result["Train"]["quantile"][-1], loss)
+
+    alpha = [0.25, 0.5, 0.75]
+    booster = xgb.train(
+        {
+            "tree_method": tree_method,
+            "eval_metric": "quantile",
+            "quantile_alpha": alpha,
+            "objective": "reg:quantileerror",
+        },
+        Xy,
+        evals=[(Xy, "Train")],
+        evals_result=evals_result,
+    )
+    predt = booster.inplace_predict(X)
+    loss = np.mean(
+        [mean_pinball_loss(y, predt[:, i], alpha=alpha[i]) for i in range(3)]
+    )
+    np.testing.assert_allclose(evals_result["Train"]["quantile"][-1], loss)
