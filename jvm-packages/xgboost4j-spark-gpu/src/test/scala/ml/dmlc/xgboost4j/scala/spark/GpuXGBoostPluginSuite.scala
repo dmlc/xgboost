@@ -32,7 +32,6 @@ import ml.dmlc.xgboost4j.scala.rapids.spark.SparkSessionHolder.withSparkSession
 import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
 
 class GpuXGBoostPluginSuite extends GpuTestSuite {
-
   test("params") {
     withGpuSparkSession() { spark =>
       import spark.implicits._
@@ -721,5 +720,4 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
     val file = listFiles(s"$dir/data")(0)
     s"$dir/data/$file"
   }
-
 }

@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2024 by Contributors
+ Copyright (c) 2014-2025 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -28,6 +28,14 @@ import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams.{BINARY_CLASSIFIC
 import ml.dmlc.xgboost4j.scala.spark.params.XGBoostParams
 
 class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite {
+  test("XGBoostClassifier extmem") {
+    val df = smallMultiClassificationVector
+    var classifier = new XGBoostClassifier()
+    classifier.setNumClass(3).setUseExternalMemory(true)
+    intercept[IllegalArgumentException](
+      classifier.validate(df)
+    )
+  }
 
   test("XGBoostClassifier copy") {
     val classifier = new XGBoostClassifier().setNthread(2).setNumWorkers(10)
@@ -297,5 +305,4 @@ class XGBoostClassifierSuite extends AnyFunSuite with PerTest with TmpFolderPerS
       checkEqual(xgb4jRawPred, xgbSparkRawPred)
     }
   }
-
 }

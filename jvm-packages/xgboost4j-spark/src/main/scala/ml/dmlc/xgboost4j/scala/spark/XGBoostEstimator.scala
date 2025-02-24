@@ -415,6 +415,11 @@ private[spark] trait XGBoostEstimator[
     if (isDefinedNonEmpty(baseMarginCol)) {
       SparkUtils.checkNumericType(schema, $(baseMarginCol))
     }
+    val isd = isDefined(useExternalMemory)
+    if (isDefined(useExternalMemory) && getUseExternalMemory) {
+      require(getDevice == "cuda",
+        "The `useExternalMemory` is only supported for GPU at the moment.")
+    }
 
     val taskCpus = dataset.sparkSession.sparkContext.getConf.getInt("spark.task.cpus", 1)
     if (isDefined(nthread)) {
