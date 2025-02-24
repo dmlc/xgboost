@@ -561,3 +561,30 @@ An equivalent way is to pass in parameters in XGBoostClassifier's constructor:
 
 If the training failed during these 100 rounds, the next run of training would start by reading the latest checkpoint
 file in ``/checkpoints_path`` and start from the iteration when the checkpoint was built until to next failure or the specified 100 rounds.
+
+
+***************
+External Memory
+***************
+
+.. versionadded:: 3.0
+
+.. warning::
+
+   The feature is experimental.
+
+Here we refer to the iterator-based external memory instead of the one that uses special
+URL parameters. XGBoost-Spark has experimental support for GPU-based external memory
+training (:doc:`/jvm/xgboost4j_spark_gpu_tutorial`) since 3.0. When it's used in
+combination with GPU-based training, data is first cached on disk and then staged on CPU
+memory.  See :doc:`/tutorials/external_memory` for general concept and best practices for
+the external memory training. In addition, see the doc string of the estimator parameter
+`useExternalMemory`. With Spark estimators:
+
+.. code-block:: scala
+
+  val xgbClassifier = new XGBoostClassifier(xgbParam)
+      .setFeaturesCol(featuresNames)
+      .setLabelCol(labelName)
+      .setUseExternalMemory(true)
+      .setDevice("cuda")  // CPU is not yet supported

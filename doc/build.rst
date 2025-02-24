@@ -394,7 +394,8 @@ Additional System-dependent Features
 - OpenMP on MacOS: See :ref:`running_cmake_and_build` for installing ``openmp``. The flag
   -``mvn -Duse.openmp=OFF`` can be used to disable OpenMP support.
 - GPU support can be enabled by passing an additional flag to maven ``mvn -Duse.cuda=ON
-  install``. See :ref:`build_gpu_support` for more info.
+  install``. See :ref:`build_gpu_support` for more info. In addition, ``-Dplugin.rmm=ON``
+  can enable the optional RMM support.
 
 **************************
 Building the Documentation
@@ -414,4 +415,5 @@ build it locally, you need a installed XGBoost with all its dependencies along w
 
 Under ``xgboost/doc`` directory, run ``make <format>`` with ``<format>`` replaced by the
 format you want.  For a list of supported formats, run ``make help`` under the same
-directory.
+directory. This builds a partial document for Python but not other language bindings. To
+build the full document, see :doc:`/contrib/docs`.
