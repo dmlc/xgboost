@@ -848,6 +848,7 @@ xgb.params <- function(
   lambdarank_pair_method = NULL,
   lambdarank_num_pair_per_sample = NULL,
   lambdarank_normalization = NULL,
+  lambdarank_score_normalization = NULL,
   lambdarank_unbiased = NULL,
   lambdarank_bias_norm = NULL,
   ndcg_exp_gain = NULL
