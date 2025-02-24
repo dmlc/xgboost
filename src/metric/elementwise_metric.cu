@@ -43,7 +43,8 @@ namespace {
  *   applying the weights.  A tuple of {error_i, weight_i} is expected as return.
  */
 template <typename Fn>
-PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
+PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
+                          size_t num_preds = 1) {
   PackedReduceResult result;
   // This function doesn't have sycl-specific implementation yet.
   // For that reason we transfer data to host in case of sycl is used for propper execution.
@@ -51,7 +52,7 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
   if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
     thrust::counting_iterator<size_t> begin(0);
-    thrust::counting_iterator<size_t> end = begin + labels.Size();
+    thrust::counting_iterator<size_t> end = begin + labels.Size() * num_preds;
     result = thrust::transform_reduce(
         ctx->CUDACtx()->CTP(), begin, end,
         [=] XGBOOST_DEVICE(size_t i) {
@@ -76,7 +77,7 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss) {
     // - sqrt(1/w(sum_t0 + sum_t1 + ... + sum_tm))       // multi-target
     // - sqrt(avg_t0) + sqrt(avg_t1) + ... sqrt(avg_tm)  // distributed
 
-    auto size = info.labels.Size();
+    auto size = info.labels.Size() * num_preds;
     auto const kBlockSize = 2048;
     auto n_blocks = size / kBlockSize + 1;
 
@@ -491,7 +492,7 @@ class QuantileError : public MetricNoCache {
           auto l =
               loss(y_predt(sample_id, quantile_id, target_id), y_true(sample_id, target_id)) * w;
           return std::make_tuple(l, w);
-        });
+        }, alpha_.Size());
     std::array<double, 2> dat{result.Residue(), result.Weights()};
     auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(dat.data(), dat.size()));
     collective::SafeColl(rc);
