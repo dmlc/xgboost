@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
@@ -14,6 +14,7 @@
 #include <new>          // for bad_alloc
 #include <thread>       // for thread
 #include <type_traits>  // for is_signed, conditional_t, is_integral_v, invoke_result_t
+#include <utility>      // for forward
 #include <vector>       // for vector
 
 #include "xgboost/logging.h"
@@ -181,7 +182,15 @@ struct Sched {
 };
 
 template <typename Index, typename Func>
-void ParallelFor(Index size, int32_t n_threads, Sched sched, Func fn) {
+void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
+  if (n_threads == 1) {
+    // early exit
+    for (Index i = 0; i < size; ++i) {
+      fn(i);
+    }
+    return;
+  }
+
 #if defined(_MSC_VER)
   // msvc doesn't support unsigned integer as openmp index.
   using OmpInd = std::conditional_t<std::is_signed<Index>::value, Index, omp_ulong>;
@@ -240,8 +249,8 @@ void ParallelFor(Index size, int32_t n_threads, Sched sched, Func fn) {
 }
 
 template <typename Index, typename Func>
-void ParallelFor(Index size, int32_t n_threads, Func fn) {
-  ParallelFor(size, n_threads, Sched::Static(), fn);
+void ParallelFor(Index size, std::int32_t n_threads, Func&& fn) {
+  ParallelFor(size, n_threads, Sched::Static(), std::forward<Func>(fn));
 }
 
 inline std::int32_t OmpGetThreadLimit() {

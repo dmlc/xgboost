@@ -32,8 +32,9 @@ namespace common {
  *
  * \return The result of interpolation.
  */
-template <typename Iter>
-float Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& end) {
+template <typename Iter,
+          typename R = std::remove_reference_t<typename std::iterator_traits<Iter>::value_type>>
+[[nodiscard]] R Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& end) {
   CHECK(alpha >= 0 && alpha <= 1);
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {
@@ -45,7 +46,9 @@ float Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& 
   StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
              [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
 
-  auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
+  auto val = [&](size_t i) {
+    return *(begin + sorted_idx[i]);
+  };
   static_assert(std::is_same_v<decltype(val(0)), float>);
 
   if (alpha <= (1 / (n + 1))) {
@@ -72,8 +75,10 @@ float Quantile(Context const* ctx, double alpha, Iter const& begin, Iter const& 
  *   See https://aakinshin.net/posts/weighted-quantiles/ for some discussions on computing
  *   weighted quantile with interpolation.
  */
-template <typename Iter, typename WeightIter>
-float WeightedQuantile(Context const* ctx, double alpha, Iter begin, Iter end, WeightIter w_begin) {
+template <typename Iter, typename WeightIter,
+          typename R = std::remove_reference_t<typename std::iterator_traits<Iter>::value_type>>
+[[nodiscard]] R WeightedQuantile(Context const* ctx, double alpha, Iter begin, Iter end,
+                                 WeightIter w_begin) {
   auto n = static_cast<double>(std::distance(begin, end));
   if (n == 0) {
     return std::numeric_limits<float>::quiet_NaN();
@@ -83,7 +88,9 @@ float WeightedQuantile(Context const* ctx, double alpha, Iter begin, Iter end, W
   StableSort(ctx, sorted_idx.begin(), sorted_idx.end(),
              [&](std::size_t l, std::size_t r) { return *(begin + l) < *(begin + r); });
 
-  auto val = [&](size_t i) { return *(begin + sorted_idx[i]); };
+  auto val = [&](size_t i) {
+    return *(begin + sorted_idx[i]);
+  };
 
   std::vector<float> weight_cdf(n);  // S_n
   // weighted cdf is sorted during construction
