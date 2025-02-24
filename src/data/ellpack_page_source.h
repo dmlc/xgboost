@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
@@ -38,6 +38,10 @@ struct EllpackCacheInfo {
         prefer_device{prefer_device},
         max_num_device_pages{max_num_device_pages},
         missing{missing} {}
+
+  // Only effective for host-based cache.
+  // The number of batches after page concatenation.
+  [[nodiscard]] std::size_t NumBatchesCc() const { return this->buffer_rows.size(); }
 };
 
 // We need to decouple the storage and the view of the storage so that we can implement

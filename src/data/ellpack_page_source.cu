@@ -117,10 +117,11 @@ class EllpackHostCacheStreamImpl {
     // Whether the page should be cached in device. If true, then we don't need to make a
     // copy during write since the temporary page is already in device when page
     // concatenation is enabled.
+    // fixme: <= should not be used as we might have one extra page.
     bool to_device = this->cache_->prefer_device &&
-                     this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
+                     this->cache_->NumDevicePages() <= this->cache_->max_num_device_pages;
 
-    auto commit_page = [&ctx](EllpackPageImpl const* old_impl) {
+    auto commit_page = [](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
       auto new_impl = std::make_unique<EllpackPageImpl>();
       new_impl->CopyInfo(old_impl);
@@ -329,6 +330,11 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
   cinfo->cache_mapping = std::move(cache_mapping);
   cinfo->buffer_bytes = std::move(cache_bytes);
   cinfo->buffer_rows = std::move(cache_rows);
+
+  // Directly store in device if there's only one batch.
+  if (cinfo->NumBatchesCc() == 1) {
+    cinfo->prefer_device = true;
+  }
 }
 
 /**
