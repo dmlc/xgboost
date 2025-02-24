@@ -1,6 +1,7 @@
 import numpy as np
-import xgboost as xgb
 from sklearn.datasets import make_classification
+
+import xgboost as xgb
 from xgboost.testing.updater import get_basescore
 
 
