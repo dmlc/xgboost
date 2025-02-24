@@ -338,6 +338,12 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
   cinfo->cache_mapping = std::move(cache_mapping);
   cinfo->buffer_bytes = std::move(cache_bytes);
   cinfo->buffer_rows = std::move(cache_rows);
+
+  // Directly store in device if there's only one batch.
+  if (cinfo->NumBatchesCc() == 1) {
+    cinfo->prefer_device = true;
+    LOG(INFO) << "Prefer device cache as there's only 1 page.";
+  }
 }
 
 /**
