@@ -212,7 +212,7 @@ The learning to rank implementation has been significantly updated in 2.0 with a
         "lambdarank_num_pair_per_sample": 1,
     }
 
-The result still differs due to the change of random seed. But the overall training strategy would be the same for ``rank:pairwise``. Objectives including `NDCG` and `MAP` has additional normalization for the delta weight using the score difference in later versions.
+The result still differs due to the change of random seed. But the overall training strategy would be the same for ``rank:pairwise``.
 
 *******************
 Reproducible Result
