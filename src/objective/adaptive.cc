@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include "adaptive.h"
 
@@ -104,10 +104,29 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   auto h_predt = linalg::MakeTensorView(ctx, predt.ConstHostSpan(), info.num_row_,
                                         predt.Size() / info.num_row_);
 
+  // A heuristic to use parallel sort. If we use multiple threads here, the sorting is
+  // performed using a single thread as openmp cannot allocate new threads inside a
+  // parallel region.
+  std::int32_t n_threads;
+  if constexpr (kHasParallelStableSort) {
+    CHECK_GE(h_node_ptr.size(), 1);
+    auto it = common::MakeIndexTransformIter(
+        [&](std::size_t i) { return h_node_ptr[i + 1] - h_node_ptr[i]; });
+    n_threads = std::any_of(it, it + h_node_ptr.size() - 1,
+                            [](auto n) {
+                              constexpr std::size_t kNeedParallelSort = 1ul << 19;
+                              return n > kNeedParallelSort;
+                            })
+                    ? 1
+                    : ctx->Threads();
+  } else {
+    n_threads = ctx->Threads();
+  }
+
   collective::ApplyWithLabels(
       ctx, info, static_cast<void*>(quantiles.data()), quantiles.size() * sizeof(float), [&] {
         // loop over each leaf
-        common::ParallelFor(quantiles.size(), ctx->Threads(), [&](size_t k) {
+        common::ParallelFor(quantiles.size(), n_threads, [&](size_t k) {
           auto nidx = h_node_idx[k];
           CHECK(tree[nidx].IsLeaf());
           CHECK_LT(k + 1, h_node_ptr.size());

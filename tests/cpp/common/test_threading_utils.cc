@@ -1,12 +1,12 @@
 /**
  * Copyright 2019-2024, XGBoost Contributors
  */
+#include <dmlc/omp.h>  // for omp_in_parallel
 #include <gtest/gtest.h>
 
-#include <cstddef>  // std::size_t
+#include <cstddef>  // for std::size_t
 
 #include "../../../src/common/threading_utils.h"  // BlockedSpace2d,ParallelFor2d,ParallelFor
-#include "dmlc/omp.h"                             // omp_in_parallel
 #include "xgboost/context.h"                      // Context
 
 namespace xgboost::common {
@@ -99,6 +99,7 @@ TEST(ParallelFor, Basic) {
     ASSERT_LT(i, n);
   });
   ASSERT_FALSE(omp_in_parallel());
+  ParallelFor(n, 1, [&](auto) { ASSERT_FALSE(omp_in_parallel()); });
 }
 
 TEST(OmpGetNumThreads, Max) {
