@@ -1,9 +1,10 @@
 /**
- * Copyright 2022-2023 by XGBoost contributors
+ * Copyright 2022-2025, XGBoost contributors
  */
 #include "init_estimation.h"
 
-#include <memory>                        // unique_ptr
+#include <memory>   // unique_ptr
+#include <utility>  // for move
 
 #include "../common/stats.h"             // Mean
 #include "../tree/fit_stump.h"           // FitStump
@@ -51,7 +52,12 @@ void FitInterceptGlmLike::InitEstimation(MetaInfo const& info,
   } else {
     common::WeightedSampleMean(this->ctx_, info.IsColumnSplit(), info.labels, info.weights_, &out);
   }
-  common::Mean(this->ctx_, out, base_score);
-  CHECK_EQ(base_score->Size(), 1);
+
+  if (this->avg_) {
+    common::Mean(this->ctx_, out, base_score);
+    CHECK_EQ(base_score->Size(), 1);
+  } else {
+    *base_score = std::move(out);
+  }
 }
 }  // namespace xgboost::obj

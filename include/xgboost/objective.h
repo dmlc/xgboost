@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file objective.h
  * \brief interface of objective function used by xgboost.
  * \author Tianqi Chen, Kailong Chen
@@ -26,7 +26,7 @@ struct Context;
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {
  protected:
-  Context const* ctx_;
+  Context const* ctx_{nullptr};
 
  public:
   static constexpr float DefaultBaseScore() { return 0.5f; }
