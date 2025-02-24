@@ -187,6 +187,14 @@ class RegLossObj : public FitInterceptGlmLike {
         .Eval(io_preds);
   }
 
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    if (std::abs(this->param_.scale_pos_weight - 1.0f) > kRtEps) {
+      FitIntercept::InitEstimation(info, base_score);
+    } else {
+      FitInterceptGlmLike::InitEstimation(info, base_score);
+    }
+  }
+
   [[nodiscard]] float ProbToMargin(float base_score) const override {
     return Loss::ProbToMargin(base_score);
   }
