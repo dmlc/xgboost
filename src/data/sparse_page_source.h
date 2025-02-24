@@ -271,7 +271,8 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
       ring_->resize(n_batches);
     }
 
-    std::int32_t n_prefetches = std::min(nthreads_, this->param_.n_prefetch_batches);
+    std::int32_t n_prefetches =
+        std::min(this->workers_.NumWorkers(), this->param_.n_prefetch_batches);
     n_prefetches = std::max(n_prefetches, 1);
     std::int32_t n_prefetch_batches = std::min(static_cast<bst_idx_t>(n_prefetches), n_batches);
     CHECK_GT(n_prefetch_batches, 0);
@@ -357,9 +358,6 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
         n_features_{n_features},
         cache_info_{std::move(cache)} {
     monitor_.Init(typeid(S).name());  // not pretty, but works for basic profiling
-    // Make sure that there are at least 2 fetchers can run, one for currently used batch,
-    // one for the background batch.
-    nthreads_ = std::max(nthreads_, 2);
   }
 
   SparsePageSourceImpl(SparsePageSourceImpl const &that) = delete;

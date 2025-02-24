@@ -109,5 +109,10 @@ class ThreadPool {
     cv_.notify_one();
     return fut;
   }
+
+  [[nodiscard]] auto NumWorkers() const {
+    // Use the same type as the typical n_threads parameter in XGBoost.
+    return static_cast<std::int32_t>(pool_.size());
+  }
 };
 }  // namespace xgboost::common

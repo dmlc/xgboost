@@ -118,6 +118,7 @@ void TestExternalMemory() {
   for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
     auto batch = page.GetView();
     for (size_t i = 0; i < batch.Size(); ++i) {
+      ASSERT_EQ(batch[i].size(), 16);
       if (batch[i][split_ind].fvalue < split_value) {
         n_left++;
       }
