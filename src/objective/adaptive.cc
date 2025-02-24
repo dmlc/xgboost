@@ -114,7 +114,7 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
         [&](std::size_t i) { return h_node_ptr[i + 1] - h_node_ptr[i]; });
     n_threads = std::any_of(it, it + h_node_ptr.size() - 1,
                             [](auto n) {
-                              constexpr std::size_t kNeedParallelSort = 1000000;
+                              constexpr std::size_t kNeedParallelSort = 1ul << 19;
                               return n > kNeedParallelSort;
                             })
                     ? 1
