@@ -212,4 +212,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ranking_demo(args)
-    click_data_demo(args)
+    # click_data_demo(args)

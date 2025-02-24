@@ -351,7 +351,7 @@ class LambdaRankNDCG : public LambdaRankObj<LambdaRankNDCG, ltr::NDCGCache> {
       return DeltaNDCG<exp_gain>(y_high, y_low, rank_high, rank_low, inv_IDCG(g), discount);
     };
 
-    if (this->param_.lambdarank_diff_normalization) {
+    if (this->param_.lambdarank_score_normalization) {
       this->CalcLambdaForGroup<unbiased, true>(iter, g_predt, g_label, w, g_rank, g, delta,
                                                g_gpair);
     } else {
@@ -540,13 +540,13 @@ class LambdaRankMAP : public LambdaRankObj<LambdaRankMAP, ltr::MAPCache> {
       auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta_map, g_gpair);
 
       if (param_.lambdarank_unbiased) {
-        if (this->param_.lambdarank_diff_normalization) {
+        if (this->param_.lambdarank_score_normalization) {
           std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, true, D>, args);
         } else {
           std::apply(&LambdaRankMAP::CalcLambdaForGroup<true, false, D>, args);
         }
       } else {
-        if (this->param_.lambdarank_diff_normalization) {
+        if (this->param_.lambdarank_score_normalization) {
           std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, true, D>, args);
         } else {
           std::apply(&LambdaRankMAP::CalcLambdaForGroup<false, false, D>, args);
@@ -623,13 +623,13 @@ class LambdaRankPairwise : public LambdaRankObj<LambdaRankPairwise, ltr::Ranking
 
       auto args = std::make_tuple(this, iter, g_predt, g_label, w, g_rank, g, delta, g_gpair);
       if (param_.lambdarank_unbiased) {
-        if (this->param_.lambdarank_diff_normalization) {
+        if (this->param_.lambdarank_score_normalization) {
           std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, true, D>, args);
         } else {
           std::apply(&LambdaRankPairwise::CalcLambdaForGroup<true, false, D>, args);
         }
       } else {
-        if (this->param_.lambdarank_diff_normalization) {
+        if (this->param_.lambdarank_score_normalization) {
           std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, true, D>, args);
         } else {
           std::apply(&LambdaRankPairwise::CalcLambdaForGroup<false, false, D>, args);

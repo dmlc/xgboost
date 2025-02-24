@@ -521,6 +521,18 @@ Specify whether do we need to debias input click data.}
 
 \item{ndcg_exp_gain}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{TRUE})
 Whether we should use exponential gain function for \code{NDCG}. There are two forms of gain function for \code{NDCG}, one is using relevance value directly while the other is using\eqn{2^{rel} - 1} to emphasize on retrieving relevant documents. When \code{ndcg_exp_gain} is \code{TRUE} (the default), relevance degree cannot be greater than 31.}
+
+\item{lambdarank_score_normalization}{Whether to normalize the delta metric by the difference of prediction scores. This can
+sometimes stagnate the training progress. With pairwise ranking, we can normalize the
+gradient using the difference between two samples in each pair to reduce influence from
+the pairs that have large difference in ranking scores. This can help us regularize the
+model to reduce bias and prevent overfitting. Similar to other regularization
+techniques, this might prevent training from converge.
+
+There was no normalization before 2.0. In 2.0 and later versions this is used by
+default. In 3.0, we made this an option that users can disable.
+
+Version added: 3.0.0}
 }
 \value{
 A list with the entries that were passed non-NULL values. It is intended to

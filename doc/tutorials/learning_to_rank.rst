@@ -203,7 +203,7 @@ The learning to rank implementation has been significantly updated in 2.0 with a
         # 1.7 uses the ranknet loss while later versions use the NDCG weighted loss
         "objective": "rank:pairwise",
 	# 1.7 doesn't have this normalization.
-	"lambdarank_diff_normalization": False,
+	"lambdarank_score_normalization": False,
         "base_score": 0.5,
         # The default tree method has been changed from approx to hist.
         "tree_method": "approx",
