@@ -75,10 +75,8 @@ def native_build(cli_args: argparse.Namespace) -> None:
         )
     if cli_args.use_debug == "ON":
         CONFIG["CMAKE_BUILD_TYPE"] = "Debug"
-    if cli_args.use_nvtx == "ON":
-        CONFIG["USE_NVTX"] = "ON"
-    if cli_args.plugin_rmm == "ON":
-        CONFIG["PLUGIN_RMM"] = "ON"
+    CONFIG["USE_NVTX"] = cli_args.use_nvtx
+    CONFIG["PLUGIN_RMM"] = cli_args.plugin_rmm
 
     print("building Java wrapper", flush=True)
     with cd(".."):
