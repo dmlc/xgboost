@@ -549,7 +549,7 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
   gradient using the difference between two samples in each pair to reduce influence from
   the pairs that have large difference in ranking scores. This can help us regularize the
   model to reduce bias and prevent overfitting. Similar to other regularization
-  techniques, this might prevent training from converge.
+  techniques, this might prevent training from converging.
 
   There was no normalization before 2.0. In 2.0 and later versions this is used by
   default. In 3.0, we made this an option that users can disable.
