@@ -75,7 +75,6 @@ private[spark] class DiskExternalMemoryIterator(val path: String) extends Extern
     val path = Paths.get(dirPath)
     if (!Files.exists(path)) {
       Files.createDirectories(path)
-    } else {
     }
   }
 
