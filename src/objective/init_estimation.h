@@ -13,7 +13,7 @@ class FitIntercept : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
 };
 
-class FitInterceptGlmLike : public ObjFunction {
+class FitInterceptGlmLike : public FitIntercept {
  public:
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
 };
