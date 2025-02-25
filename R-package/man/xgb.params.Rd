@@ -62,6 +62,7 @@ xgb.params(
   lambdarank_pair_method = NULL,
   lambdarank_num_pair_per_sample = NULL,
   lambdarank_normalization = NULL,
+  lambdarank_score_normalization = NULL,
   lambdarank_unbiased = NULL,
   lambdarank_bias_norm = NULL,
   ndcg_exp_gain = NULL
@@ -512,6 +513,18 @@ range = \eqn{[1, \infty)}}
 Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
 
 Version added: 2.1.0}
+
+\item{lambdarank_score_normalization}{Whether to normalize the delta metric by the difference of prediction scores. This can
+sometimes stagnate the training progress. With pairwise ranking, we can normalize the
+gradient using the difference between two samples in each pair to reduce influence from
+the pairs that have large difference in ranking scores. This can help us regularize the
+model to reduce bias and prevent overfitting. Similar to other regularization
+techniques, this might prevent training from converging.
+
+There was no normalization before 2.0. In 2.0 and later versions this is used by
+default. In 3.0, we made this an option that users can disable.
+
+Version added: 3.0.0}
 
 \item{lambdarank_unbiased}{(for learning to rank (\code{"rank:ndcg"}, \code{"rank:map"}, \code{"rank:pairwise"})) (default = \code{FALSE})
 Specify whether do we need to debias input click data.}

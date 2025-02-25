@@ -540,6 +540,20 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 
   Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
 
+* ``lambdarank_score_normalization`` [default = ``true``]
+
+  .. versionadded:: 3.0.0
+
+  Whether to normalize the delta metric by the difference of prediction scores. This can
+  sometimes stagnate the training progress. With pairwise ranking, we can normalize the
+  gradient using the difference between two samples in each pair to reduce influence from
+  the pairs that have large difference in ranking scores. This can help us regularize the
+  model to reduce bias and prevent overfitting. Similar to other regularization
+  techniques, this might prevent training from converging.
+
+  There was no normalization before 2.0. In 2.0 and later versions this is used by
+  default. In 3.0, we made this an option that users can disable.
+
 *  ``lambdarank_unbiased`` [default = ``false``]
 
   Specify whether do we need to debias input click data.

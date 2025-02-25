@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost contributors
+ * Copyright 2015-2025, XGBoost contributors
  *
  * \brief CUDA implementation of lambdarank.
  */
@@ -77,7 +77,7 @@ using GradCostNorm = thrust::tuple<GradientPair, double, double>;
 /**
  * \brief Obtain and update the gradient for one pair.
  */
-template <bool unbiased, bool has_truncation, typename Delta>
+template <bool unbiased, bool has_truncation, bool norm_by_diff, typename Delta>
 struct GetGradOp {
   MakePairsOp<has_truncation> make_pair;
   Delta delta;
@@ -109,7 +109,8 @@ struct GetGradOp {
     double cost{0};
 
     auto delta_op = [&](auto const&... args) { return delta(args..., g); };
-    GradientPair pg = LambdaGrad<unbiased>(g_label, g_predt, g_rank, rank_high, rank_low, delta_op,
+    GradientPair pg =
+        LambdaGrad<unbiased, norm_by_diff>(g_label, g_predt, g_rank, rank_high, rank_low, delta_op,
                                            args.ti_plus, args.tj_minus, &cost);
 
     std::size_t idx_high = g_rank[rank_high];
@@ -157,7 +158,7 @@ struct GetGradOp {
   }
 };
 
-template <bool unbiased, bool has_truncation, typename Delta>
+template <bool unbiased, bool has_truncation, bool norm_by_diff, typename Delta>
 struct MakeGetGrad {
   MakePairsOp<has_truncation> make_pair;
   Delta delta;
@@ -166,8 +167,8 @@ struct MakeGetGrad {
 
   MakeGetGrad(KernelInputs args, Delta d) : make_pair{args}, delta{std::move(d)} {}
 
-  GetGradOp<unbiased, has_truncation, Delta> operator()(bool need_update) {
-    return GetGradOp<unbiased, has_truncation, Delta>{make_pair, delta, need_update};
+  auto operator()(bool need_update) {
+    return GetGradOp<unbiased, has_truncation, norm_by_diff, Delta>{make_pair, delta, need_update};
   }
 };
 
@@ -192,9 +193,9 @@ struct MakeGetGrad {
  * For performance, the segmented sort for sorted scores is the bottleneck and takes up
  * about half of the time, while the reduction and for_each takes up the second half.
  */
-template <bool unbiased, bool has_truncation, typename Delta>
+template <bool unbiased, bool has_truncation, bool norm_by_diff, typename Delta>
 void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::RankingCache> p_cache,
-              MakeGetGrad<unbiased, has_truncation, Delta> make_get_grad) {
+              MakeGetGrad<unbiased, has_truncation, norm_by_diff, Delta> make_get_grad) {
   auto n_groups = p_cache->Groups();
   auto d_threads_group_ptr = p_cache->CUDAThreadsGroupPtr();
   auto d_gptr = p_cache->DataGroupPtr(ctx);
@@ -283,7 +284,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
 /**
  * \brief Handles boilerplate code like getting device span.
  */
-template <typename Delta>
+template <bool norm_by_diff, typename Delta>
 void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const& preds,
             const MetaInfo& info, std::shared_ptr<ltr::RankingCache> p_cache, Delta delta,
             linalg::VectorView<double const> ti_plus,   // input bias ratio
@@ -331,15 +332,15 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
   // dispatch based on unbiased and truncation
   if (p_cache->Param().HasTruncation()) {
     if (unbiased) {
-      CalcGrad(ctx, info, p_cache, MakeGetGrad<true, true, Delta>{args, delta});
+      CalcGrad(ctx, info, p_cache, MakeGetGrad<true, true, norm_by_diff, Delta>{args, delta});
     } else {
-      CalcGrad(ctx, info, p_cache, MakeGetGrad<false, true, Delta>{args, delta});
+      CalcGrad(ctx, info, p_cache, MakeGetGrad<false, true, norm_by_diff, Delta>{args, delta});
     }
   } else {
     if (unbiased) {
-      CalcGrad(ctx, info, p_cache, MakeGetGrad<true, false, Delta>{args, delta});
+      CalcGrad(ctx, info, p_cache, MakeGetGrad<true, false, norm_by_diff, Delta>{args, delta});
     } else {
-      CalcGrad(ctx, info, p_cache, MakeGetGrad<false, false, Delta>{args, delta});
+      CalcGrad(ctx, info, p_cache, MakeGetGrad<false, false, norm_by_diff, Delta>{args, delta});
     }
   }
 }
@@ -389,7 +390,12 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::int32_t iter,
     return exp_gain ? DeltaNDCG<true>(y_high, y_low, rank_high, rank_low, d_inv_IDCG(g), discount)
                     : DeltaNDCG<false>(y_high, y_low, rank_high, rank_low, d_inv_IDCG(g), discount);
   };
-  Launch(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
+  if (p_cache->Param().lambdarank_score_normalization) {
+    Launch<true>(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj, out_gpair);
+  } else {
+    Launch<false>(ctx, iter, preds, info, p_cache, delta_ndcg, ti_plus, tj_minus, li, lj,
+                  out_gpair);
+  }
 }
 
 void MAPStat(Context const* ctx, MetaInfo const& info, common::Span<std::size_t const> d_rank_idx,
@@ -471,8 +477,11 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::int32_t iter,
     auto d = DeltaMAP(y_high, y_low, rank_high, rank_low, g_n_rel, g_acc);
     return d;
   };
-
-  Launch(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+  if (p_cache->Param().lambdarank_score_normalization) {
+    Launch<true>(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+  } else {
+    Launch<false>(ctx, iter, predt, info, p_cache, delta_map, ti_plus, tj_minus, li, lj, out_gpair);
+  }
 }
 
 void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
@@ -492,7 +501,11 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::int32_t iter,
     return 1.0;
   };
 
-  Launch(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+  if (p_cache->Param().lambdarank_score_normalization) {
+    Launch<true>(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+  } else {
+    Launch<false>(ctx, iter, predt, info, p_cache, delta, ti_plus, tj_minus, li, lj, out_gpair);
+  }
 }
 
 namespace {
