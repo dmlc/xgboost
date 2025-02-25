@@ -415,9 +415,9 @@ private[spark] trait XGBoostEstimator[
     if (isDefinedNonEmpty(baseMarginCol)) {
       SparkUtils.checkNumericType(schema, $(baseMarginCol))
     }
-    val isd = isDefined(useExternalMemory)
+
     if (isDefined(useExternalMemory) && getUseExternalMemory) {
-      require(getDevice == "cuda",
+      require(getDevice == "cuda" || getDevice == "gpu",
         "The `useExternalMemory` is only supported for GPU at the moment.")
     }
 
