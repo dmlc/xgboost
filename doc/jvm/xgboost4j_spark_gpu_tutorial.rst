@@ -266,12 +266,12 @@ RMM Support
 
 .. versionadded:: 3.0
 
-When compiled with the RMM plugin (see :doc:`/build`). The XGBoost spark package can
-automatically reuse the RMM memory pool based on `spark.rapids.memory.gpu.pooling.enabled`
-and `spark.rapids.memory.gpu.pool`. Please note that both submit options need to be set
+When compiled with the RMM plugin (see :doc:`/build`), the XGBoost spark package can reuse
+the RMM memory pool automatically based on `spark.rapids.memory.gpu.pooling.enabled` and
+`spark.rapids.memory.gpu.pool`. Please note that both submit options need to be set
 accordingly. In addition, XGBoost employs NCCL for GPU communication, which requires some
 GPU memory for communication buffers and one should not let RMM take all the available
-memory. Sample configuration related to memory pool:
+memory. Example configuration related to memory pool:
 
 .. code-block:: bash
 
