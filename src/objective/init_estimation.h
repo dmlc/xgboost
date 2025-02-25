@@ -13,14 +13,7 @@ class FitIntercept : public ObjFunction {
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
 };
 
-class FitInterceptGlmLike : public ObjFunction {
- protected:
-  // Do we need to calculate the mean for multi-target?
-  bool avg_ = true;
-
-  FitInterceptGlmLike() = default;
-  explicit FitInterceptGlmLike(bool avg) : avg_{avg} {}
-
+class FitInterceptGlmLike : public FitIntercept {
  public:
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override;
 };

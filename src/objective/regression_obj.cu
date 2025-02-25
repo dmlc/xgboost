@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025, XGBoost Contributors
+ * Copyright 2015-2024, XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>  // std::int32_t
+#include <memory>
 #include <vector>
 
 #include "../common/common.h"
@@ -22,7 +23,6 @@
 #include "./regression_loss.h"
 #include "adaptive.h"
 #include "init_estimation.h"  // FitIntercept
-#include "regression_param.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/data.h"     // MetaInfo
@@ -34,6 +34,8 @@
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
 #include "xgboost/tree_model.h"  // RegTree
+
+#include "regression_param.h"
 
 #if defined(XGBOOST_USE_CUDA)
 #include "../common/cuda_context.cuh"  // for CUDAContext
@@ -100,7 +102,7 @@ class RegLossObj : public FitInterceptGlmLike {
     }
   }
   // 0 - scale_pos_weight, 1 - is_null_weight
-  RegLossObj() : FitInterceptGlmLike{false}, additional_input_(2) {}
+  RegLossObj(): additional_input_(2) {}
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
@@ -186,28 +188,11 @@ class RegLossObj : public FitInterceptGlmLike {
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
-    linalg::Vector<float> out;
-    FitInterceptGlmLike::InitEstimation(info, &out);
-    if (std::abs(this->param_.scale_pos_weight - 1.0f) <= kRtEps) {
-      common::Mean(this->ctx_, out, base_score);
-      return;
+    if (std::abs(this->param_.scale_pos_weight - 1.0f) > kRtEps) {
+      FitIntercept::InitEstimation(info, base_score);
+    } else {
+      FitInterceptGlmLike::InitEstimation(info, base_score);
     }
-
-    // Special handling for the scale_pos_weight parameter
-    auto w = this->param_.scale_pos_weight;
-    auto m = info.labels.Shape(0);
-    auto h_s = out.HostView();
-
-    for (std::size_t i = 0, n = h_s.Size(); i < n; ++i) {
-      // revert the mean back to sum, which is the number of positive samples
-      auto n_pos = h_s(i) * m;
-      auto n_neg = m - n_pos;
-      auto sum_w = (n_neg + n_pos * w);
-      // re-calculated the mean as weighted.
-      h_s(i) = n_pos * w / sum_w;
-    }
-    common::Mean(this->ctx_, out, base_score);
-    CHECK_EQ(base_score->Size(), 1);
   }
 
   [[nodiscard]] float ProbToMargin(float base_score) const override {

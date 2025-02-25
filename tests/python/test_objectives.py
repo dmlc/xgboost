@@ -27,14 +27,3 @@ def test_exp_family() -> None:
     )
     score = get_basescore(clf)
     np.testing.assert_allclose(score, 0.5, rtol=1e-3)
-
-    _, y1 = make_classification(weights=[0.8, 0.2], random_state=1)
-    _, y2 = make_classification(weights=[0.8, 0.2], random_state=3)
-    y = np.stack([y, y1, y2], axis=1)
-    clf = xgb.train(
-        {"objective": "binary:logistic", "scale_pos_weight": 4.0},
-        xgb.QuantileDMatrix(X, y),
-        num_boost_round=1,
-    )
-    score = get_basescore(clf)
-    np.testing.assert_allclose(score, 0.5, rtol=1e-1)
