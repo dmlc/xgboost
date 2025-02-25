@@ -769,7 +769,7 @@ template <typename Batch, typename IsValid>
 WLBalance LoadBalance(Batch const &batch, size_t nnz, bst_feature_t n_columns,
                       size_t const nthreads, IsValid&& is_valid) {
   /* Some datasets have long columns. It is beneficial to split such columns between threads and 
-   * than collect the result if number of threads is high enourth. In this case, each thread being
+   * than collect the result if the number of threads is high enough. In this case, each thread being
    * involved in processing of splitted columns works only with a single column.
    * 
    * Columns that are too small for splitting are distributed between threads. In this case each thread
