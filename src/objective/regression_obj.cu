@@ -189,6 +189,8 @@ class RegLossObj : public FitInterceptGlmLike {
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
     if (std::abs(this->param_.scale_pos_weight - 1.0f) > kRtEps) {
+      // Use newton method if `scale_pos_weight` is present. The alternative is to use
+      // weighted mean, but we also need to take sample weight into account.
       FitIntercept::InitEstimation(info, base_score);
     } else {
       FitInterceptGlmLike::InitEstimation(info, base_score);
