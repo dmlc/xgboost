@@ -44,7 +44,7 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 /**
  * Hold the column index
  */
-private[spark] case class ColumnIndices(
+private[scala] case class ColumnIndices(
     labelId: Int,
     featureId: Option[Int], // the feature type is VectorUDT or Array
     featureIds: Option[Seq[Int]], // the feature type is columnar
@@ -361,7 +361,8 @@ private[spark] trait XGBoostEstimator[
 
   protected def createModel(booster: Booster, summary: XGBoostTrainingSummary): M
 
-  private[spark] def getRuntimeParameters(isLocal: Boolean): RuntimeParams = {
+  private[spark] def getRuntimeParameters(isLocal: Boolean,
+      configs: Map[String, AnyRef] = Map.empty): RuntimeParams = {
     val runOnGpu = if (getDevice != "cpu" || getTreeMethod == "gpu_hist") true else false
     RuntimeParams(
       getNumWorkers,
@@ -372,7 +373,8 @@ private[spark] trait XGBoostEstimator[
       isLocal,
       runOnGpu,
       Option(getCustomObj),
-      Option(getCustomEval)
+      Option(getCustomEval),
+      configs
     )
   }
 
@@ -414,6 +416,11 @@ private[spark] trait XGBoostEstimator[
       SparkUtils.checkNumericType(schema, $(baseMarginCol))
     }
 
+    if (isDefined(useExternalMemory) && getUseExternalMemory) {
+      require(getDevice == "cuda" || getDevice == "gpu",
+        "The `useExternalMemory` is only supported for GPU at the moment.")
+    }
+
     val taskCpus = dataset.sparkSession.sparkContext.getConf.getInt("spark.task.cpus", 1)
     if (isDefined(nthread)) {
       require(getNthread <= taskCpus,
@@ -427,18 +434,16 @@ private[spark] trait XGBoostEstimator[
   protected def train(dataset: Dataset[_]): M = {
     validate(dataset)
 
-    val rdd = if (PluginUtils.isPluginEnabled(dataset)) {
+    val (rdd, configs) = if (PluginUtils.isPluginEnabled(dataset)) {
       PluginUtils.getPlugin.get.buildRddWatches(this, dataset)
     } else {
       val (input, columnIndexes) = preprocess(dataset)
-      toRdd(input, columnIndexes)
+      (toRdd(input, columnIndexes), Map.empty[String, AnyRef])
     }
 
-    val xgbParams = getXGBoostParams
+    val runtimeParams = getRuntimeParameters(dataset.sparkSession.sparkContext.isLocal, configs)
 
-    val runtimeParams = getRuntimeParameters(dataset.sparkSession.sparkContext.isLocal)
-
-    val (booster, metrics) = XGBoost.train(rdd, runtimeParams, xgbParams)
+    val (booster, metrics) = XGBoost.train(rdd, runtimeParams, getXGBoostParams)
 
     val summary = XGBoostTrainingSummary(metrics)
     copyValues(createModel(booster, summary))

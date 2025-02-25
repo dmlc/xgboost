@@ -58,7 +58,8 @@ Since with RMM the memory pool is pre-allocated on a specific device, changing t
 device ordinal in XGBoost can result in memory error ``cudaErrorIllegalAddress``. Use the
 ``CUDA_VISIBLE_DEVICES`` environment variable instead of the ``device="cuda:1"`` parameter
 for selecting device. For distributed training, the distributed computing frameworks like
-``dask-cuda`` are responsible for device management.
+``dask-cuda`` are responsible for device management. For Scala-Spark, see
+:doc:`/jvm/xgboost4j_spark_gpu_tutorial` for more info.
 
 ************************
 Memory Over-Subscription

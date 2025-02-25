@@ -1294,9 +1294,8 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorAllred
 }
 
 namespace xgboost::jni {
-XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls, jobject jdata_iter,
-                                                    jobject jref_iter, char const *config,
-                                                    jlongArray jout);
+int QdmFromCallback(JNIEnv *jenv, jobject jdata_iter, jlongArray jref, char const *config,
+                    bool is_extmem, jlongArray jout);
 }  // namespace xgboost::jni
 
 /*
@@ -1305,14 +1304,29 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls, j
  * Signature: (Ljava/util/Iterator;[JLjava/lang/String;[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGQuantileDMatrixCreateFromCallback(
+    JNIEnv *jenv, jclass, jobject jdata_iter, jlongArray jref, jstring jconf,
+    jlongArray jout) {
+  std::unique_ptr<char const, Deleter<char const>> conf{jenv->GetStringUTFChars(jconf, nullptr),
+                                                        [&](char const *ptr) {
+                                                          jenv->ReleaseStringUTFChars(jconf, ptr);
+                                                        }};
+  return xgboost::jni::QdmFromCallback(jenv, jdata_iter, jref, conf.get(), false, jout);
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGExtMemQuantileDMatrixCreateFromCallback
+ * Signature: (Ljava/util/Iterator;[JLjava/lang/String;[J)I
+ */
+JNIEXPORT jint JNICALL
+Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGExtMemQuantileDMatrixCreateFromCallback(
     JNIEnv *jenv, jclass jcls, jobject jdata_iter, jlongArray jref, jstring jconf,
     jlongArray jout) {
   std::unique_ptr<char const, Deleter<char const>> conf{jenv->GetStringUTFChars(jconf, nullptr),
                                                         [&](char const *ptr) {
                                                           jenv->ReleaseStringUTFChars(jconf, ptr);
                                                         }};
-  return xgboost::jni::XGQuantileDMatrixCreateFromCallbackImpl(jenv, jcls, jdata_iter, jref,
-                                                               conf.get(), jout);
+  return xgboost::jni::QdmFromCallback(jenv, jdata_iter, jref, conf.get(), true, jout);
 }
 
 /*

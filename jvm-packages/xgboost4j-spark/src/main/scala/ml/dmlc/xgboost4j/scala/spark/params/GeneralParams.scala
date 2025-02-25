@@ -51,10 +51,10 @@ private[spark] trait GeneralParams extends Params {
   final def getValidateParameters: Boolean = $(validateParameters)
 
   final val nthread = new IntParam(this, "nthread", "Number of threads used by per worker",
-    ParamValidators.gtEq(1))
+    ParamValidators.gtEq(0))
 
   final def getNthread: Int = $(nthread)
 
   setDefault(booster -> "gbtree", device -> "cpu", verbosity -> 1, validateParameters -> false,
-    nthread -> 1)
+    nthread -> 0)
 }

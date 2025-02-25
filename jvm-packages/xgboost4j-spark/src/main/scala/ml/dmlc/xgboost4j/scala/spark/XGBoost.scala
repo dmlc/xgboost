@@ -18,14 +18,18 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.io.File
 
+import scala.jdk.CollectionConverters._
+
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.{SparkConf, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.resource.{ResourceProfileBuilder, TaskResourceRequests}
 
-import ml.dmlc.xgboost4j.java.{Communicator, RabitTracker}
+import ml.dmlc.xgboost4j.java.{Communicator, ConfigContext, RabitTracker}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
+import ml.dmlc.xgboost4j.scala.spark.Utils.withResource
+
 
 private[spark] case class RuntimeParams(
     numWorkers: Int,
@@ -36,7 +40,8 @@ private[spark] case class RuntimeParams(
     isLocal: Boolean,
     runOnGpu: Boolean,
     obj: Option[ObjectiveTrait] = None,
-    eval: Option[EvalTrait] = None)
+    eval: Option[EvalTrait] = None,
+    configs: Map[String, AnyRef] = Map.empty)
 
 /**
  * A trait to manage stage-level scheduling
@@ -249,17 +254,20 @@ private[spark] object XGBoost extends StageLevelScheduling {
         try {
           Communicator.init(rabitEnv)
           require(iter.hasNext, "Failed to create DMatrix")
-          val watches = iter.next()
-          try {
-            val (booster, metrics) = trainBooster(watches, runtimeParams, xgboostParams)
-            if (partitionId == 0) {
-              Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
-            } else {
-              Iterator.empty
-            }
-          } finally {
-            if (watches != null) {
-              watches.delete()
+
+          withResource(new ConfigContext(runtimeParams.configs.asJava)) { _ =>
+            val watches = iter.next()
+            try {
+              val (booster, metrics) = trainBooster(watches, runtimeParams, xgboostParams)
+              if (partitionId == 0) {
+                Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+              } else {
+                Iterator.empty
+              }
+            } finally {
+              if (watches != null) {
+                watches.delete()
+              }
             }
           }
         } finally {
