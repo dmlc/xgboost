@@ -121,7 +121,7 @@ def run_normalization(device: str) -> None:
 
 
 def run_score_normalization(device: str, objective: str) -> None:
-    print()
+    """Test normalization by score differences."""
     if objective == "rank:map":
         # Binary relevance
         X, y, qid, _ = tm.make_ltr(4096, 4, 64, max_rel=1)
