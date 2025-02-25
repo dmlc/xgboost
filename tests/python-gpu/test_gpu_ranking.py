@@ -6,7 +6,7 @@ import pytest
 
 import xgboost
 from xgboost import testing as tm
-from xgboost.testing.ranking import run_normalization
+from xgboost.testing.ranking import run_normalization, run_score_normalization
 
 pytestmark = tm.timeout(30)
 
@@ -131,3 +131,8 @@ def test_with_mq2008(objective, metric) -> None:
 
 def test_normalization() -> None:
     run_normalization("cuda")
+
+
+@pytest.mark.parametrize("objective", ["rank:pairwise", "rank:ndcg", "rank:map"])
+def test_score_normalization(objective: str) -> None:
+    run_score_normalization("cuda", objective)

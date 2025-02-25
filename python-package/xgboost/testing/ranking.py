@@ -118,3 +118,30 @@ def run_normalization(device: str) -> None:
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
     e1 = ltr.evals_result()
     assert e1["validation_0"]["ndcg@32"][-1] > e0["validation_0"]["ndcg@32"][-1]
+
+
+def run_score_normalization(device: str, objective: str) -> None:
+    print()
+    if objective == "rank:map":
+        # Binary relevance
+        X, y, qid, _ = tm.make_ltr(4096, 4, 64, max_rel=1)
+    else:
+        X, y, qid, _ = tm.make_ltr(4096, 4, 64, 3)
+    ltr = xgb.XGBRanker(objective=objective, n_estimators=4, device=device)
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e0 = ltr.evals_result()
+
+    ltr = xgb.XGBRanker(
+        objective="rank:pairwise",
+        n_estimators=4,
+        device=device,
+        lambdarank_score_normalization=False,
+    )
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e1 = ltr.evals_result()
+
+    m0, m1 = (
+        list(e0["validation_0"].values())[-1][-1],
+        list(e1["validation_0"].values())[-1][-1],
+    )
+    assert m0 != m1
