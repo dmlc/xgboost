@@ -9,7 +9,7 @@ build-backend = "packager.pep517"
 [project]
 name = "{{ name }}"
 description = "XGBoost Python Package"
-readme = { file = {{ README.rst }}, content-type = "text/x-rst" }
+readme = { file = "README.rst", content-type = "text/x-rst" }
 authors = [
     { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
     { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }

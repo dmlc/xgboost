@@ -73,6 +73,8 @@ disable = [
 dummy-variables-rgx = "(unused|)_.*"
 reports = false
 
+
+
 [tool.pylint.basic]
 # Enforce naming convention
 const-naming-style = "UPPER_CASE"
