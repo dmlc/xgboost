@@ -65,6 +65,10 @@ python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --
 rm -v python-package/dist/xgboost_cpu-*.whl
 mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
 
+echo "--- Check wheels"
+pip install twine
+twine check python-package/dist/*.whl
+
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then
   python3 ops/pipeline/manage-artifacts.py upload \

@@ -1,4 +1,3 @@
-.. # Update ops/xgboost-cpu as well if you you are changing this file.
 =================================
 XGBoost Python Package (CPU only)
 =================================
