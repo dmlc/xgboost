@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 
+from pypi_variants import make_pyproject
 from test_utils import JVM_PACKAGES, PY_PACKAGE, R_PACKAGE, ROOT, cd
 
 
@@ -51,7 +52,7 @@ def pypkg(
     with open(pyver_path, "w") as fd:
         fd.write(pyver + "\n")
 
-    pyprj_path = os.path.join("pyproject.toml")
+    pyprj_path = os.path.join("pyproject.toml.in")
     with open(pyprj_path, "r") as fd:
         pyprj = fd.read()
     matched = re.search('version = "' + r"([0-9]+\.[0-9]+\.[0-9]+.*)" + '"', pyprj)
@@ -59,6 +60,8 @@ def pypkg(
     pyprj = pyprj[: matched.start(1)] + pyver + pyprj[matched.end(1) :]
     with open(pyprj_path, "w") as fd:
         fd.write(pyprj)
+
+    make_pyproject("default")
 
 
 @cd(R_PACKAGE)
