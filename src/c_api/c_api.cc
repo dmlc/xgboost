@@ -103,6 +103,10 @@ XGB_DLL int XGBuildInfo(char const **out) {
                                           Json{Integer{__GNUC_PATCHLEVEL__}}};
 #endif
 
+#if defined(__GLIBC__)
+  info["GLIBC_VERSION"] = std::vector<Json>{Json{__GLIBC__}, Json{__GLIBC_MINOR__}};
+#endif  // defined(__GLIBC__)
+
 #if defined(__clang__)
   info["CLANG_VERSION"] =
       std::vector<Json>{Json{Integer{__clang_major__}}, Json{Integer{__clang_minor__}},

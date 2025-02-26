@@ -29,7 +29,6 @@ echo "--- Build binary wheel for ${WHEEL_TAG}"
 set -x
 # Patch to add warning about manylinux2014 variant
 patch -p0 < ops/patch/remove_nccl_dep.patch
-patch -p0 < ops/patch/manylinux2014_warning.patch
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \
