@@ -43,6 +43,9 @@ jobs:
           environment-file: ops/conda_env/minimal.yml
       - name: Build wheels
         run: bash ops/pipeline/build-python-wheels-macos.sh ${{ matrix.platform_id }} ${{ github.sha }}
+      - name: Try installing XGBoost
+        run: |
+          python -m pip install -vvv wheelhouse/*.whl
       - name: Upload Python wheel
         if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
         run: |
