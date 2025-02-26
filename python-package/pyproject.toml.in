@@ -7,7 +7,7 @@ backend-path = ["."]
 build-backend = "packager.pep517"
 
 [project]
-name = "xgboost"
+name = "{{ name }}"
 description = "XGBoost Python Package"
 readme = { file = {{ README.rst }}, content-type = "text/x-rst" }
 authors = [
@@ -71,6 +71,8 @@ disable = [
 ]
 dummy-variables-rgx = "(unused|)_.*"
 reports = false
+
+{{ wheel }}
 
 [tool.pylint.basic]
 # Enforce naming convention
