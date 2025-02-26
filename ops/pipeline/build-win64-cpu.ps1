@@ -24,7 +24,7 @@ if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 cd python-package
 & pip wheel --no-deps -v . --wheel-dir dist/
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
-zpython -m wheel tags --python-tag py3 --abi-tag none `
+python -m wheel tags --python-tag py3 --abi-tag none `
   --platform win_amd64 --remove `
   (Get-ChildItem dist/*.whl | Select-Object -Expand FullName)
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
