@@ -66,7 +66,7 @@ from ._typing import (
     c_bst_ulong,
 )
 from .compat import PANDAS_INSTALLED, DataFrame, import_polars, py_str
-from .libpath import find_lib_path
+from .libpath import find_lib_path, is_sphinx_build
 
 
 class XGBoostError(ValueError):
@@ -367,6 +367,9 @@ def build_info() -> dict:
 
 
 def _check_glibc() -> None:
+    if is_sphinx_build():
+        return
+
     glibc_ver = build_info().get("GLIBC_VERSION", None)
     if glibc_ver is not None and (
         glibc_ver[0] < 2 or glibc_ver[0] == 2 and glibc_ver[1] < 28

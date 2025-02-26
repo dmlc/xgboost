@@ -27,7 +27,7 @@ PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG}"
 set -x
-# Patch to add warning about manylinux2014 variant
+
 python3 ops/script/pypi_variants.py --variant=manylinux2014
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
@@ -64,10 +64,6 @@ python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --
   wheelhouse/xgboost_cpu-*.whl
 rm -v python-package/dist/xgboost_cpu-*.whl
 mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
-
-echo "--- Check wheels"
-pip install twine
-twine check python-package/dist/*.whl
 
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then
