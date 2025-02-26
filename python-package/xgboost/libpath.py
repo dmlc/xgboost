@@ -12,9 +12,7 @@ class XGBoostLibraryNotFound(Exception):
 
 
 def is_sphinx_build() -> bool:
-    """`XGBOOST_BUILD_DOC` is used by the sphinx conf.py to skip building the C++ code.
-
-    """
+    """`XGBOOST_BUILD_DOC` is used by the sphinx conf.py to skip building the C++ code."""
     return bool(os.environ.get("XGBOOST_BUILD_DOC", False))
 
 
