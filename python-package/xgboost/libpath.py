@@ -12,8 +12,10 @@ class XGBoostLibraryNotFound(Exception):
 
 
 def is_sphinx_build() -> bool:
-    # XGBOOST_BUILD_DOC is defined by the sphinx conf.py.
-    return not not os.environ.get("XGBOOST_BUILD_DOC", False)
+    """`XGBOOST_BUILD_DOC` is used by the sphinx conf.py to skip building the C++ code.
+
+    """
+    return bool(os.environ.get("XGBOOST_BUILD_DOC", False))
 
 
 def find_lib_path() -> List[str]:
