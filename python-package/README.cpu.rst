@@ -1,4 +1,3 @@
-.. From README.dft.rst, don't edit
 =================================
 XGBoost Python Package (CPU only)
 =================================
