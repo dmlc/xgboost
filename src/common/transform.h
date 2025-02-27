@@ -184,7 +184,8 @@ class Transform {
     void LaunchCPU(Functor func, HDV *...vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
       SyncHost(vectors...);
-      ParallelFor(end, n_threads_, [&](omp_ulong idx) { func(idx, std::true_type(), UnpackHDV(vectors)...); });
+      ParallelFor(end, n_threads_, [&](omp_ulong idx) { func(idx, std::true_type(),
+                                                             UnpackHDV(vectors)...); });
     }
 
    private:
