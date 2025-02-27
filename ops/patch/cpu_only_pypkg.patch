@@ -1,0 +1,58 @@
+diff --git python-package/README.rst python-package/README.rst
+index 1fc0bb5a0..f1c68470b 100644
+--- python-package/README.rst
++++ python-package/README.rst
+@@ -1,20 +1,15 @@
+-======================
+-XGBoost Python Package
+-======================
++=================================
++XGBoost Python Package (CPU only)
++=================================
+ 
+ |PyPI version|
+ 
+-Installation
+-============
++The ``xgboost-cpu`` package provides for a minimal installation, with no support for the GPU algorithms
++or federated learning. It is provided to allow XGBoost to be installed in a space-constrained
++environments.
+ 
+-From `PyPI <https://pypi.python.org/pypi/xgboost>`_
+----------------------------------------------------
++Note. ``xgboost-cpu`` package is only provided for x86_64 (amd64) Linux and Windows platforms.
++For other platforms, please install ``xgboost`` from https://pypi.org/project/xgboost/.
+ 
+-For a stable version, install using ``pip``::
+-
+-    pip install xgboost
+-
+-.. |PyPI version| image:: https://badge.fury.io/py/xgboost.svg
+-   :target: http://badge.fury.io/py/xgboost
+-
+-For building from source, see `build <https://xgboost.readthedocs.io/en/latest/build.html>`_.
++Note. ``xgboost-cpu`` does not provide an sdist (source distribution). You may install sdist
++from https://pypi.org/project/xgboost/.
+diff --git python-package/pyproject.toml python-package/pyproject.toml
+index 32abff1c6..5206f2e31 100644
+--- python-package/pyproject.toml
++++ python-package/pyproject.toml
+@@ -7,7 +7,7 @@ backend-path = ["."]
+ build-backend = "packager.pep517"
+ 
+ [project]
+-name = "xgboost"
++name = "xgboost-cpu"
+ description = "XGBoost Python Package"
+ readme = { file = "README.rst", content-type = "text/x-rst" }
+ authors = [
+@@ -71,6 +71,9 @@ disable = [
+ dummy-variables-rgx = "(unused|)_.*"
+ reports = false
+ 
++[tool.hatch.build.targets.wheel]
++packages = ["xgboost/"]
++
+ [tool.pylint.basic]
+ # Enforce naming convention
+ const-naming-style = "UPPER_CASE"

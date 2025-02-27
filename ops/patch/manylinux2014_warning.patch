@@ -1,0 +1,23 @@
+diff --git python-package/xgboost/core.py python-package/xgboost/core.py
+index 079246239..2f1764812 100644
+--- python-package/xgboost/core.py
++++ python-package/xgboost/core.py
+@@ -281,6 +281,18 @@ Likely cause:
+         )
+         raise ValueError(msg)
+ 
++    warnings.warn(
++        "Your system has an old version of glibc (< 2.28). We will stop supporting "
++        "Linux distros with glibc older than 2.28 after **May 31, 2025**. "
++        "Please upgrade to a recent Linux distro (with glibc 2.28+) to use "
++        "future versions of XGBoost.\n"
++        "Note: You have installed the 'manylinux2014' variant of XGBoost. Certain "
++        "features such as GPU algorithms or federated learning are not available. "
++        "To use these features, please upgrade to a recent Linux distro with glibc "
++        "2.28+, and install the 'manylinux_2_28' variant.",
++        FutureWarning,
++    )
++
+     return lib
+ 
+ 

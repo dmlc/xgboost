@@ -11,11 +11,6 @@ class XGBoostLibraryNotFound(Exception):
     """Error thrown by when xgboost is not found"""
 
 
-def is_sphinx_build() -> bool:
-    """`XGBOOST_BUILD_DOC` is used by the sphinx conf.py to skip building the C++ code."""
-    return bool(os.environ.get("XGBOOST_BUILD_DOC", False))
-
-
 def find_lib_path() -> List[str]:
     """Find the path to xgboost dynamic library files.
 
@@ -60,7 +55,8 @@ def find_lib_path() -> List[str]:
 
     lib_path = [p for p in dll_path if os.path.exists(p) and os.path.isfile(p)]
 
-    if not lib_path and not is_sphinx_build():
+    # XGBOOST_BUILD_DOC is defined by sphinx conf.
+    if not lib_path and not os.environ.get("XGBOOST_BUILD_DOC", False):
         link = "https://xgboost.readthedocs.io/en/stable/install.html"
         msg = (
             "Cannot find XGBoost Library in the candidate path.  "
