@@ -72,7 +72,8 @@ disable = [
 dummy-variables-rgx = "(unused|)_.*"
 reports = false
 
-{{ wheel }}
+[tool.hatch.build.targets.wheel]
+packages = ["xgboost/"]
 
 [tool.pylint.basic]
 # Enforce naming convention
