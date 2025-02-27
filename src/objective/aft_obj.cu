@@ -45,7 +45,7 @@ class AFTObj : public ObjFunction {
                        linalg::Matrix<GradientPair>* out_gpair, size_t ndata, DeviceOrd device,
                        bool is_null_weight, float aft_loss_distribution_scale) {
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t _idx,
+        [=] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support,
         common::Span<GradientPair> _out_gpair,
         common::Span<const bst_float> _preds,
         common::Span<const bst_float> _labels_lower_bound,
@@ -104,7 +104,7 @@ class AFTObj : public ObjFunction {
   void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     // Trees give us a prediction in log scale, so exponentiate
     common::Transform<>::Init(
-        [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
+        [] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support, common::Span<bst_float> _preds) {
           _preds[_idx] = exp(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),

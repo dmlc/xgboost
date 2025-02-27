@@ -180,7 +180,8 @@ class TreeEvaluator {
     }
 
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t, common::Span<float> lower,
+        [=] XGBOOST_DEVICE(size_t, auto has_fp64_support,
+                           common::Span<float> lower,
                            common::Span<float> upper,
                            common::Span<int> monotone) {
           lower[leftid] = lower[nodeid];

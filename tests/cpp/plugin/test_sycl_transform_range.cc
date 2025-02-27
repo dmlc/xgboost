@@ -19,7 +19,8 @@ namespace xgboost::common {
 
 template <typename T>
 struct TestTransformRange {
-  void operator()(std::size_t _idx, Span<float> _out, Span<const float> _in) {
+  template <class kBoolConst>
+  void operator()(std::size_t _idx, kBoolConst has_fp64_support, Span<float> _out, Span<const float> _in) {
     _out[_idx] = _in[_idx];
   }
 };
