@@ -380,7 +380,7 @@ def _check_glibc() -> None:
         sver = libc_ver[1].split(".")
         assert len(sver) == 2
         glibc_ver: Tuple[int, int] = (int(sver[0]), int(sver[1]))
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return
 
     if glibc_ver is not None and (
