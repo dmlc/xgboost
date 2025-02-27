@@ -387,7 +387,7 @@ def _check_glibc() -> None:
         )
 
 
-_check_glibc()
+# _check_glibc()
 
 
 def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:

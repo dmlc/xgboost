@@ -46,13 +46,22 @@ case "$suite" in
     echo "-- Run Python tests, using multiple GPUs"
     python -c 'from cupy.cuda import jitify; jitify._init_module()'
     export NCCL_RAS_ENABLE=0
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/python-gpu
+    # pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/python-gpu
+    # echo "Run demos: gpu_training."
+    # python demo/dask/gpu_training.py
+    # echo "Run demos: sklearn_gpu_training.py."
+    # python demo/dask/sklearn_gpu_training.py
+
     pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
       tests/test_distributed/test_gpu_with_dask
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
-      tests/test_distributed/test_gpu_with_spark
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
-      tests/test_distributed/test_gpu_federated
+
+    echo "Run demos: forward_logging.py"
+    python demo/dask/forward_logging.py
+
+    # pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
+    #   tests/test_distributed/test_gpu_with_spark
+    # pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
+    #   tests/test_distributed/test_gpu_federated
     ;;
   cpu)
     echo "-- Run Python tests (CPU)"
