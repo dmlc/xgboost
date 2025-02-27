@@ -382,18 +382,16 @@ class DaskDMatrix:
             )
             return msg
 
-        def check_columns(parts: numpy.ndarray) -> None:
-            # x is required to be 2 dim in __init__
-            assert parts.ndim == 1 or parts.shape[1], (
-                "Data should be"
-                " partitioned by row. To avoid this specify the number"
-                " of columns for your dask Array explicitly. e.g."
-                " chunks=(partition_size, X.shape[1])"
-            )
-
         def to_futures(d: _DaskCollection) -> List[Future]:
             """Breaking data into partitions."""
             d = client.persist(d)
+            if len(d.partitions.shape) > 1 and d.partitions.shape[1] > 1:
+                raise ValueError(
+                    "Data should be"
+                    " partitioned by row. To avoid this specify the number"
+                    " of columns for your dask Array explicitly. e.g."
+                    " chunks=(partition_size, -1])"
+                )
             return client.futures_of(d)
 
         def flatten_meta(meta: Optional[_DaskCollection]) -> Optional[List[Future]]:
