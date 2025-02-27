@@ -54,7 +54,12 @@ Significant updates for the GPU-based external memory training implementation. (
 - Optimization for nearly-dense input, see the section for :ref:`optimization
   <3_0_optimization>` for more info.
 
-See our latest document for details :doc:`/tutorials/external_memory`.
+See our latest document for details :doc:`/tutorials/external_memory`. The PyPI package
+(``pip install``) doesn't have ``RMM`` support, which is required by the GPU external
+memory implementation. To experiment, you can compile XGBoost from source or wait for the
+conda package to be available.
+
+.. _3_0_networking:
 
 **********
 Networking
@@ -228,16 +233,20 @@ Python Package
 
 - Dask
 
-  + Optional support for client-side logging (:pr:`10942`)
+  + Prevent the training from hanging due to aborted workers. (:pr:`10985`) This helps
+    Dask XGBoost be robust against error. When a worker is killed, the training will fail
+    with an exception instead of hang.
+  + Optional support for client-side logging. (:pr:`10942`)
   + Fix LTR with empty partition and NCCL error. (:pr:`11152`)
-  + Prevent the training from hanging due to aborted workers. (:pr:`10985`)
   + See the :ref:`3_0_features` section for changes to ranking models.
+  + See the :ref:`3_0_networking` section for changes with the communication module.
 
 - PySpark
 
   + Expose Training and Validation Metrics (:pr:`11133`)
   + Add barrier before initializing the communicator (:pr:`10938`)
   + See the :ref:`3_0_features` section for changes to ranking models.
+  + See the :ref:`3_0_networking` section for changes with the communication module.
 
 - Document updates (:pr:`11265`).
 - Maintenance. (:pr:`11071`, :pr:`11211`, :pr:`10837`, :pr:`10754`, :pr:`10347`, :pr:`10678`, :pr:`11002`, :pr:`10692`, :pr:`11006`,
