@@ -13,13 +13,11 @@ commit_id=$2
 if [[ "$platform_id" == macosx_* ]]; then
     if [[ "$platform_id" == macosx_arm64 ]]; then
         # MacOS, Apple Silicon
-        WHEEL_TAG=macosx_12_0_arm64
         cpython_ver=310
         cibw_archs=arm64
         export MACOSX_DEPLOYMENT_TARGET=12.0
     elif [[ "$platform_id" == macosx_x86_64 ]]; then
         # MacOS, Intel
-        WHEEL_TAG=macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64
         cpython_ver=310
         cibw_archs=x86_64
         export MACOSX_DEPLOYMENT_TARGET=10.15
@@ -37,7 +35,7 @@ else
     exit 2
 fi
 
-# Tell delocate-wheel to not vendor libomp.dylib into the wheel"
+# Tell delocate-wheel to not vendor libomp.dylib into the wheel
 export CIBW_REPAIR_WHEEL_COMMAND_MACOS="delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --exclude libomp.dylib"
 
 python -m pip install cibuildwheel
