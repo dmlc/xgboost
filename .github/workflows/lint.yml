@@ -1,0 +1,101 @@
+name: XGBoost CI (Lint)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  clang-tidy:
+    name: Run clang-tidy
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=lint-clang-tidy
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/run-clang-tidy.sh
+
+  python-mypy-lint:
+    runs-on: ubuntu-latest
+    name: Type and format checks for the Python package
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+        with:
+          environment-name: python_lint
+          environment-file: ops/conda_env/python_lint.yml
+      - name: Run mypy
+        shell: bash -el {0}
+        run: |
+          python ops/script/lint_python.py --format=0 --type-check=1 --pylint=0
+      - name: Run formatter
+        shell: bash -el {0}
+        run: |
+          python ops/script/lint_python.py --format=1 --type-check=0 --pylint=0
+      - name: Run pylint
+        shell: bash -el {0}
+        run: |
+          python ops/script/lint_python.py --format=0 --type-check=0 --pylint=1
+
+  cpp-lint:
+    runs-on: ubuntu-latest
+    name: Code linting for C++
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: 'x64'
+      - name: Install Python packages
+        run: |
+          python -m pip install wheel setuptools cmakelint cpplint==1.6.1 pylint
+      - name: Run lint
+        run: |
+          python3 ops/script/lint_cpp.py
+          bash ops/script/lint_cmake.sh
+
+  lintr:
+    runs-on: ubuntu-latest
+    name: Run R linters on Ubuntu
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "release"
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
+          restore-keys: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
+      - name: Install dependencies
+        shell: Rscript {0}
+        run: |
+          source("./R-package/tests/helper_scripts/install_deps.R")
+      - name: Run lintr
+        run: |
+          MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
+          Rscript ops/script/lint_r.R $(pwd)

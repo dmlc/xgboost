@@ -55,7 +55,7 @@ Optional dask configuration
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import partial, update_wrapper
+from functools import partial, update_wrapper, wraps
 from threading import Thread
 from typing import (
     Any,
@@ -399,7 +399,7 @@ class DaskDMatrix:
             d = client.persist(d)
             delayed_obj = d.to_delayed(optimize_graph=False)
             if isinstance(delayed_obj, numpy.ndarray):
-                # da.Array returns an array of delayed objects (dtype == object)
+                # da.Array returns an array to delayed objects
                 check_columns(delayed_obj)
                 delayed_list: List[Delayed] = delayed_obj.flatten().tolist()
             else:
@@ -795,10 +795,7 @@ async def _train_async(
         train_ref: dict,
         *refs: dict,
     ) -> Optional[TrainReturnT]:
-        import os
-
         worker = distributed.get_worker()
-        print(f"CUDA_VISIBLE_DEVICES: {worker.address}:", os.environ.get("CUDA_VISIBLE_DEVICES", None))
         local_param = parameters.copy()
         n_threads = get_n_threads(local_param, worker)
         local_param.update({"nthread": n_threads, "n_jobs": n_threads})

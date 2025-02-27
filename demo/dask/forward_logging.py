@@ -12,7 +12,6 @@ import logging
 import dask
 import distributed
 from dask import array as da
-import dask_cuda
 from dask_cuda import LocalCUDACluster
 from distributed import Client
 
@@ -101,12 +100,11 @@ def hist_train(
 
 
 if __name__ == "__main__":
-    print("dask-cuda:", dask_cuda.__version__, "\ndask:", dask.__version__)
     # `LocalCUDACluster` is used for assigning GPU to XGBoost processes.  Here
     # `n_workers` represents the number of GPUs since we use one GPU per worker process.
     with LocalCUDACluster(n_workers=2, threads_per_worker=4) as cluster:
         # Create client from cluster, set the backend to GPU array (cupy).
-        with Client(cluster) as client:
+        with Client(cluster) as client, dask.config.set({"array.backend": "cupy"}):
             # Generate some random data for demonstration
             rng = da.random.default_rng(1)
 
