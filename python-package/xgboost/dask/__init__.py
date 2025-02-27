@@ -83,6 +83,7 @@ import numpy
 from dask import array as da
 from dask import bag as db
 from dask import dataframe as dd
+from dask.delayed import Delayed
 from distributed import Future
 
 from .. import collective, config
@@ -370,6 +371,7 @@ class DaskDMatrix:
         label_upper_bound: Optional[_DaskCollection] = None,
     ) -> "DaskDMatrix":
         """Obtain references to local data."""
+
         def inconsistent(
             left: List[Any], left_name: str, right: List[Any], right_name: str
         ) -> str:
