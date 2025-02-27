@@ -89,6 +89,8 @@ You may choose to reduce the size of the installed package and save the disk spa
 The ``xgboost-cpu`` variant will have drastically smaller disk footprint, but does not provide some features, such as the GPU algorithms and
 federated learning.
 
+Currently, ``xgboost-cpu`` package is provided for x86_64 (amd64) Linux and Windows platforms.
+
 Conda
 *****
 

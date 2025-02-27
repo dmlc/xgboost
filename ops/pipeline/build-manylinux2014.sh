@@ -27,15 +27,14 @@ PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 
 echo "--- Build binary wheel for ${WHEEL_TAG}"
 set -x
-# Patch to add warning about manylinux2014 variant
-patch -p0 < ops/patch/remove_nccl_dep.patch
-patch -p0 < ops/patch/manylinux2014_warning.patch
+
+python3 ops/script/pypi_variants.py --variant=manylinux2014
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \
   "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
-git checkout python-package/pyproject.toml python-package/xgboost/core.py
-  # discard the patch
+# discard the patch
+python3 ops/script/pypi_variants.py --variant=default
 
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
@@ -49,13 +48,13 @@ mv -v wheelhouse/*.whl python-package/dist/
 
 echo "--- Build binary wheel for ${WHEEL_TAG} (CPU only)"
 # Patch to rename pkg to xgboost-cpu
-patch -p0 < ops/patch/remove_nccl_dep.patch
-patch -p0 < ops/patch/cpu_only_pypkg.patch
+python3 ops/script/pypi_variants.py --variant=cpu
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \
   "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
-git checkout python-package/pyproject.toml  # discard the patch
+# discard the patch
+python3 ops/script/pypi_variants.py --variant=default
 
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
