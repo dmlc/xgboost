@@ -83,8 +83,10 @@ SYCL
 
 Continuing the work on the SYCL integration, there are significant improvements in the
 feature coverage for this release from more training parameters and more objectives to
-distributed training, along with various optimization (:pr:`10884`, :pr:`10883`). Newly introduced
-features include:
+distributed training, along with various optimization (:pr:`10884`, :pr:`10883`).
+
+Starting with 3.0, the SYCL-plugin is close to feature-complete, users can start working
+on SYCL devices for in-core training and inference. Newly introduced features include:
 
 - Dask support for distributed training (:pr:`10812`)
 
@@ -93,7 +95,7 @@ features include:
 
 - Updates for objective functions. (:pr:`11029`, :pr:`10931`, :pr:`11016`, :pr:`10993`, :pr:`11064`, :pr:`10325`)
 
-- Support f32 devices (:pr:`10702`)
+- On-going work for float32-only devices.  (:pr:`10702`)
 
 Other related PRs (:pr:`10842`, :pr:`10543`, :pr:`10806`, :pr:`10943`, :pr:`10987`, :pr:`10548`, :pr:`10922`, :pr:`10898`, :pr:`10576`)
 
