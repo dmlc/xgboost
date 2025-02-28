@@ -197,8 +197,7 @@ void CatContainer::Sort(Context const* ctx) {
     CHECK(!view.Empty()) << this->HostView().Size();
     this->sorted_idx_.SetDevice(ctx->Device());
     this->sorted_idx_.Resize(view.n_total_cats);
-    enc::SortNames(enc::Policy<EncErrorPolicy, cuda_impl::EncThrustPolicy>{}, view,
-                   this->sorted_idx_.DeviceSpan());
+    enc::SortNames(cuda_impl::EncPolicy, view, this->sorted_idx_.DeviceSpan());
   }
 }
 
