@@ -1,0 +1,227 @@
+/**
+ * Copyright 2025, XGBoost Contributors
+ */
+#include <thrust/copy.h>  // for copy
+
+#include <memory>  // for make_unique
+#include <vector>  // for vector
+
+#include "../common/device_helpers.cuh"  // for ToSpan
+#include "../common/device_vector.cuh"   // for device_vector
+#include "../encoder/ordinal.cuh"        // for SortNames
+#include "../encoder/ordinal.h"          // for DictionaryView
+#include "../encoder/types.h"            // for Overloaded
+#include "cat_container.cuh"             // for CatStrArray
+#include "cat_container.h"               // for CatContainer
+#include "xgboost/span.h"                // for Span
+
+namespace xgboost {
+namespace cuda_impl {
+struct CatContainerImpl {
+  std::vector<ColumnType> columns;
+  dh::device_vector<enc::DeviceCatIndexView> columns_v;
+
+  template <typename VariantT>
+  void CopyFrom(enc::detail::ColumnsViewImpl<VariantT> that) {
+    this->columns.resize(that.columns.size());
+    this->columns_v.resize(that.columns.size());
+    CHECK_EQ(this->columns.size(), this->columns_v.size());
+
+    std::vector<decltype(columns_v)::value_type> h_columns_v(this->columns_v.size());
+    for (std::size_t f_idx = 0, n = that.columns.size(); f_idx < n; ++f_idx) {
+      auto const& col_v = that.columns[f_idx];
+      auto dispatch = enc::Overloaded{
+          [this, f_idx, &h_columns_v](enc::CatStrArrayView const& str) {
+            this->columns[f_idx].emplace<CatStrArray>();
+            auto& col = std::get<CatStrArray>(this->columns[f_idx]);
+            // Handle the offsets
+            col.offsets.resize(str.offsets.size());
+            dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.offsets.data()),
+                                          str.offsets.data(), str.offsets.size_bytes(),
+                                          cudaMemcpyDefault));
+            // Handle the values
+            col.values.resize(str.values.size());
+            dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.values.data()),
+                                          str.values.data(), str.values.size_bytes(),
+                                          cudaMemcpyDefault));
+            // Create the view
+            h_columns_v[f_idx].emplace<enc::CatStrArrayView>();
+            auto& col_v = cuda::std::get<enc::CatStrArrayView>(h_columns_v[f_idx]);
+            col_v = {dh::ToSpan(col.offsets), dh::ToSpan(col.values)};
+          },
+          [this, f_idx, &h_columns_v](auto&& values) {
+            using T = std::remove_cv_t<typename std::decay_t<decltype(values)>::value_type>;
+
+            this->columns[f_idx].emplace<dh::device_vector<T>>();
+            auto& col = std::get<dh::device_vector<T>>(this->columns[f_idx]);
+
+            col.resize(values.size());
+            thrust::copy_n(values.data(), values.size(), col.data());
+
+            // Create the view
+            using V = common::Span<std::add_const_t<T>>;
+            h_columns_v[f_idx].emplace<V>();
+            auto& col_v = cuda::std::get<V>(h_columns_v[f_idx]);
+            col_v = dh::ToSpan(col);
+          }};
+      auto visit = [&](auto const& col) {
+        using ColT = std::remove_cv_t<std::remove_reference_t<decltype(col)>>;
+        if constexpr (std::is_same_v<ColT, enc::HostCatIndexView>) {
+          std::visit(dispatch, col);
+        } else {
+          static_assert(std::is_same_v<ColT, enc::DeviceCatIndexView>);
+          cuda::std::visit(dispatch, col);
+        }
+      };
+      visit(col_v);
+    }
+    thrust::copy_n(h_columns_v.data(), h_columns_v.size(), this->columns_v.data());
+
+    CHECK_EQ(this->columns.size(), this->columns_v.size());
+  }
+
+  void CopyTo(cpu_impl::CatContainerImpl* that) {
+    CHECK_EQ(this->columns.size(), this->columns_v.size());
+    that->columns.clear();
+    for (auto const& col : this->columns) {
+      that->columns.emplace_back();
+      auto& out_col = that->columns.back();
+
+      std::visit(enc::Overloaded{
+                     [&](CatStrArray const& str) {
+                       out_col.emplace<cpu_impl::CatStrArray>();
+                       auto& out_str = std::get<cpu_impl::CatStrArray>(out_col);
+                       // Offsets
+                       out_str.offsets.resize(str.offsets.size());
+                       dh::safe_cuda(cudaMemcpyAsync(
+                           out_str.offsets.data(), thrust::raw_pointer_cast(str.offsets.data()),
+                           common::Span{out_str.offsets}.size_bytes(), cudaMemcpyDefault));
+                       // Values
+                       out_str.values.resize(str.values.size());
+                       dh::safe_cuda(cudaMemcpyAsync(
+                           out_str.values.data(), thrust::raw_pointer_cast(str.values.data()),
+                           common::Span{out_str.values}.size_bytes(), cudaMemcpyDefault));
+                     },
+                     [&](auto&& values) {
+                       using T0 = decltype(values);
+                       using T1 = std::add_const_t<typename std::decay_t<T0>::value_type>;
+                       using Vec = typename cpu_impl::ViewToStorageImpl<common::Span<T1>>::Type;
+                       out_col.emplace<Vec>();
+                       auto& out_vec = std::get<Vec>(out_col);
+                       out_vec.resize(values.size());
+                       dh::safe_cuda(
+                           cudaMemcpyAsync(out_vec.data(), thrust::raw_pointer_cast(values.data()),
+                                           common::Span{out_vec}.size_bytes(), cudaMemcpyDefault));
+                     }},
+                 col);
+    }
+    that->Finalize();
+  }
+};
+}  // namespace cuda_impl
+
+CatContainer::CatContainer()
+    : cpu_impl_{std::make_unique<cpu_impl::CatContainerImpl>()},
+      cu_impl_{std::make_unique<cuda_impl::CatContainerImpl>()} {}
+
+CatContainer::CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df) : CatContainer{} {
+  this->n_total_cats_ = df.n_total_cats;
+
+  this->feature_segments_.SetDevice(device);
+  this->feature_segments_.Resize(df.feature_segments.size());
+  auto d_segs = this->feature_segments_.DeviceSpan();
+  thrust::copy_n(dh::tcbegin(df.feature_segments), df.feature_segments.size(), dh::tbegin(d_segs));
+
+  // FIXME(jiamingy): We can use a single kernel for copying data once cuDF can return
+  // device data.
+  this->cu_impl_->CopyFrom(df);
+
+  this->sorted_idx_.SetDevice(device);
+  this->sorted_idx_.Resize(0);
+  CHECK(this->DeviceCanRead());
+  CHECK(!this->HostCanRead());
+}
+
+CatContainer::~CatContainer() = default;
+
+[[nodiscard]] bool CatContainer::DeviceCanRead() const { return !this->cu_impl_->columns.empty(); }
+
+void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
+  this->CopyCommon(that);
+  if (ctx->IsCPU()) {
+    auto h_view = that.HostView();
+    CHECK(!h_view.Empty());
+    this->cpu_impl_->Copy(that.cpu_impl_.get());
+  } else {
+    auto const& that_impl = that.cu_impl_;
+    this->cu_impl_->columns.resize(that.cu_impl_->columns.size());
+
+    std::vector<decltype(this->cu_impl_->columns_v)::value_type> h_columns_v(
+        that.cu_impl_->columns_v.size());
+    for (std::size_t f_idx = 0, n = that_impl->columns.size(); f_idx < n; ++f_idx) {
+      auto const& col = that_impl->columns[f_idx];
+      std::visit(enc::Overloaded{
+                     [&](cuda_impl::CatStrArray const& str) {
+                       this->cu_impl_->columns[f_idx].emplace<cuda_impl::CatStrArray>();
+                       auto& col = std::get<cuda_impl::CatStrArray>(this->cu_impl_->columns[f_idx]);
+                       col.Copy(str);
+
+                       h_columns_v[f_idx].emplace<enc::CatStrArrayView>();
+                       auto& col_v = cuda::std::get<enc::CatStrArrayView>(h_columns_v[f_idx]);
+                       col_v = {dh::ToSpan(col.offsets), dh::ToSpan(col.values)};
+                     },
+                     [&](auto&& values) {
+                       using Vec = std::decay_t<decltype(values)>;
+                       using T = typename Vec::value_type;
+                       this->cu_impl_->columns[f_idx].emplace<Vec>();
+                       this->cu_impl_->columns[f_idx] = values;
+
+                       using S = common::Span<std::add_const_t<T>>;
+                       h_columns_v[f_idx].emplace<S>();
+                       auto& col_v = cuda::std::get<S>(h_columns_v[f_idx]);
+                       col_v = dh::ToSpan(values);
+                     }},
+                 col);
+    }
+    this->cu_impl_->columns_v = h_columns_v;
+  }
+}
+
+void CatContainer::Sort(Context const* ctx) {
+  if (ctx->IsCPU()) {
+    auto view = this->HostView();
+    this->sorted_idx_.HostVector().resize(view.n_total_cats);
+    enc::SortNames(enc::Policy<EncErrorPolicy>{}, view, this->sorted_idx_.HostSpan());
+  } else {
+    auto view = this->DeviceView(ctx);
+    CHECK(!view.Empty()) << this->HostView().Size();
+    this->sorted_idx_.SetDevice(ctx->Device());
+    this->sorted_idx_.Resize(view.n_total_cats);
+    enc::SortNames(enc::Policy<EncErrorPolicy, cuda_impl::EncThrustPolicy>{}, view,
+                   this->sorted_idx_.DeviceSpan());
+  }
+}
+
+[[nodiscard]] enc::HostColumnsView CatContainer::HostView() const {
+  std::lock_guard guard{device_mu_};
+  if (!this->HostCanRead()) {
+    // Lazy copy to host
+    this->cu_impl_->CopyTo(this->cpu_impl_.get());
+  }
+  return this->HostViewImpl();
+}
+
+[[nodiscard]] enc::DeviceColumnsView CatContainer::DeviceView(Context const* ctx) const {
+  CHECK(ctx->IsCUDA());
+  std::lock_guard guard{device_mu_};
+  this->feature_segments_.SetDevice(ctx->Device());
+  if (!this->DeviceCanRead()) {
+    // Lazy copy to device
+    auto h_view = this->HostViewImpl();
+    CHECK(!h_view.Empty());
+    this->cu_impl_->CopyFrom(h_view);
+  }
+  return {dh::ToSpan(this->cu_impl_->columns_v), this->feature_segments_.ConstDeviceSpan(),
+          this->n_total_cats_};
+}
+}  // namespace xgboost

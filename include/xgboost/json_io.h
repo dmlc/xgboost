@@ -223,7 +223,7 @@ class UBJReader : public JsonReader {
   auto ParseTypedArray(std::int64_t n) {
     TypedArray results{static_cast<size_t>(n)};
     for (int64_t i = 0; i < n; ++i) {
-      auto v = this->ReadPrimitive<typename TypedArray::Type>();
+      auto v = this->ReadPrimitive<typename TypedArray::value_type>();
       results.Set(i, v);
     }
     return Json{std::move(results)};

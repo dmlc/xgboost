@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2025, XGBoost contributors
  */
 #pragma once
 
@@ -7,29 +7,9 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>  // for int8_t, int32_t
-#include <numeric>  // for partial_sum
-#include <string>   // for string
 #include <vector>   // for vector
 
-#include "../../../src/data/cat_container.h"
-
 namespace enc {
-template <typename... Strs>
-auto MakeStrArrayImpl(Strs&&... strs) {
-  std::vector<std::string> names{strs...};
-  std::vector<std::int8_t> values;
-  std::vector<std::int32_t> offsets{0};
-
-  for (const auto& name : names) {
-    for (char c : name) {
-      values.push_back(c);
-    }
-    offsets.push_back(name.size());
-  }
-  std::partial_sum(offsets.cbegin(), offsets.cend(), offsets.begin());
-  return xgboost::cpu_impl::CatStrArray{offsets, values};
-}
-
 template <typename Encoder, typename DfTest>
 void TestOrdinalEncoderStrs() {
   Encoder encoder;
