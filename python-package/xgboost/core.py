@@ -5,7 +5,6 @@ import copy
 import ctypes
 import json
 import os
-import platform
 import re
 import sys
 import warnings
@@ -371,18 +370,7 @@ def _check_glibc() -> None:
     if is_sphinx_build():
         return
 
-    libc_ver: Tuple[str, str] = platform.libc_ver()
-    if libc_ver[0] != "glibc":
-        return
-
-    # Don't abort because of a libc check.
-    try:
-        sver = libc_ver[1].split(".")
-        assert len(sver) == 2
-        glibc_ver: Tuple[int, int] = (int(sver[0]), int(sver[1]))
-    except Exception:  # pylint: disable=broad-exception-caught
-        return
-
+    glibc_ver = build_info().get("GLIBC_VERSION", None)
     if glibc_ver is not None and (
         glibc_ver[0] < 2 or glibc_ver[0] == 2 and glibc_ver[1] < 28
     ):
