@@ -385,7 +385,11 @@ class DaskDMatrix:
         def to_futures(d: _DaskCollection) -> List[Future]:
             """Breaking data into partitions."""
             d = client.persist(d)
-            if len(d.partitions.shape) > 1 and d.partitions.shape[1] > 1:
+            if (
+                hasattr(d.partitions, "shape")
+                and len(d.partitions.shape) > 1
+                and d.partitions.shape[1] > 1
+            ):
                 raise ValueError(
                     "Data should be"
                     " partitioned by row. To avoid this specify the number"
@@ -438,17 +442,17 @@ class DaskDMatrix:
         # pylint: disable=no-member
         delayed_parts: List[Delayed] = list(map(dask.delayed, packed_parts))
         # At this point, the mental model should look like:
-        # [(x0, y0, ..), (x1, y1, ..), ..] in delayed form
+        # [{"data": x0, "label": y0, ..}, {"data": x1, "label": y1, ..}, ..]
 
         # Convert delayed objects into futures and make sure they are realized
         #
-        # This also makes partitions to align on workers (X_0, y_0 should be on the same
-        # worker).
+        # This also makes partitions to align (co-locate) on workers (X_0, y_0 should be
+        # on the same worker).
         fut_parts: List[Future] = client.compute(delayed_parts)
         await distributed.wait(fut_parts)  # async wait for parts to be computed
 
         for part in fut_parts:
-            # Each part is [x0, y0, w0, ...] in future form.
+            # Each part is [{"data": x0, "label": y0, ..}, ...] in future form.
             assert part.status == "finished", part.status
 
         # Preserving the partition order for prediction.
