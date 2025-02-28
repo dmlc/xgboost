@@ -142,7 +142,7 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
 }
 
 XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD()
 
   xgboost_CHECK_C_ARG_PTR(json_str);
   Json config{Json::Load(StringView{json_str})};
@@ -204,7 +204,7 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
 }
 
 XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD()
   auto const& global_config = *GlobalConfigThreadLocalStore::Get();
   Json config {ToJson(global_config)};
   auto const* mgr = global_config.__MANAGER__();
