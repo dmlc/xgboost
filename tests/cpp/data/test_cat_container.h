@@ -27,9 +27,11 @@ inline void DeviceCheck(CatContainer const& cats) {
   return CatContainer{df};
 }
 
+#if defined(XGBOOST_USE_CUDA)
 [[nodiscard]] inline CatContainer FromDf(Context const* ctx, enc::DeviceColumnsView df) {
   return CatContainer{ctx->Device(), df};
 }
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace test_cat_detail
 
 template <typename DfTest, typename EqCheck>
