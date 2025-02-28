@@ -120,7 +120,7 @@ struct CatContainerImpl {
 };
 }  // namespace cuda_impl
 
-CatContainer::CatContainer()
+CatContainer::CatContainer()  // NOLINT
     : cpu_impl_{std::make_unique<cpu_impl::CatContainerImpl>()},
       cu_impl_{std::make_unique<cuda_impl::CatContainerImpl>()} {}
 
