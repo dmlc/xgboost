@@ -24,9 +24,10 @@ case "${suite}" in
 
   gpu-rmm)
     echo "--- Run Google Tests, using a single GPU, RMM enabled"
+    # Disable RMM MGPU tests: https://github.com/dmlc/xgboost/issues/10546
     python3 ops/docker_run.py --image-uri ${IMAGE_URI} --use-gpus \
       --run-args='--privileged' \
-      -- build/testxgboost --use-rmm-pool
+      -- build/testxgboost --gtest_filter="-*MGPU*" --use-rmm-pool
     ;;
 
   mgpu)

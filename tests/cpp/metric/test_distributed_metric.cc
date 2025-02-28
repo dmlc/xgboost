@@ -184,7 +184,7 @@ INSTANTIATE_TEST_SUITE_P(
         result += "ColSplit";
       }
       result += "_";
-      result += info.param.device.IsCPU() ? "CPU" : "CUDA";
+      result += info.param.device.IsCPU() ? "CPU" : "MGPU";
       result += "_";
       result += info.param.name;
       return result;
