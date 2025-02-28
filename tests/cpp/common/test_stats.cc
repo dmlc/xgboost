@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -256,19 +256,23 @@ TEST(Stats, GpuSampleMean) {
   TestSampleMean(&ctx);
 }
 
+#if defined(XGBOOST_USE_NCCL)
 TEST(Stats, MGPUSampleMeanDist) {
   auto ctx = MakeCUDACtx(0);
   TestSampleMeanDistributed(&ctx);
 }
+#endif  // defined(XGBOOST_USE_NCCL)
 
 TEST(Stats, GpuWeightedSampleMean) {
   auto ctx = MakeCUDACtx(0);
   TestWeightedSampleMean(&ctx);
 }
 
+#if defined(XGBOOST_USE_NCCL)
 TEST(Stats, MGPUWeightedSampleMeanDist) {
   auto ctx = MakeCUDACtx(0);
   TestWeightedSampleMeanDistributed(&ctx);
 }
+#endif  // defined(XGBOOST_USE_NCCL)
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::common
