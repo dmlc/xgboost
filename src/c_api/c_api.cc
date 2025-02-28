@@ -76,7 +76,7 @@ void XGBBuildInfoDevice(Json *p_info) {
 #endif
 
 XGB_DLL int XGBuildInfo(char const **out) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD()
   xgboost_CHECK_C_ARG_PTR(out);
   Json info{Object{}};
 
@@ -135,7 +135,7 @@ XGB_DLL int XGBuildInfo(char const **out) {
 }
 
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
-  API_BEGIN_UNGUARD();
+  API_BEGIN_UNGUARD()
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
   API_END();
@@ -245,6 +245,8 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
 XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
   xgboost_CHECK_C_ARG_PTR(fname);
   xgboost_CHECK_C_ARG_PTR(out);
+
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromURI");
 
   Json config{Object()};
   config["uri"] = std::string{fname};
