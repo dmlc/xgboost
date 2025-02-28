@@ -34,7 +34,6 @@ std::int32_t CurrentDevice(bool raise) {
     dh::safe_cuda(cudaGetDevice(&device));
   } else if (cudaGetDevice(&device) != cudaSuccess) {
     // Return -1 as an error.
-    (void)cudaGetLastError();  // clear the last error.
     return -1;
   }
   return device;

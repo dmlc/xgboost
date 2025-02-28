@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
