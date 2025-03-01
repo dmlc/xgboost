@@ -1,10 +1,11 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #pragma once
 #include "../common/device_helpers.cuh"  // for ToSpan
 #include "../common/device_vector.cuh"   // for device_vector, XGBDeviceAllocator
 #include "../encoder/ordinal.h"          // for CatCharT
+#include "cat_container.h"               // for EncErrorPolicy
 
 namespace xgboost::cuda_impl {
 struct CatStrArray {
@@ -23,6 +24,11 @@ struct CatStrArray {
   }
   [[nodiscard]] std::size_t size() const {  // NOLINT
     return enc::CatStrArrayView(*this).size();
+  }
+
+  void Copy(CatStrArray const& that) {
+    this->offsets = that.offsets;
+    this->values = that.values;
   }
 };
 
@@ -48,4 +54,22 @@ struct ViewToStorage<std::tuple<Ts...>> {
 };
 
 using CatIndexTypes = ViewToStorage<enc::CatIndexViewTypes>::Type;
+using ColumnType = enc::cpu_impl::TupToVarT<CatIndexTypes>;
+
+struct EncThrustPolicy {
+  template <typename T>
+  using ThrustAllocator = dh::XGBDeviceAllocator<T>;
+
+  auto ThrustPolicy() const {
+#if defined(XGBOOST_USE_RMM)
+    return rmm::exec_policy_nosync{};
+#else
+    return dh::CachingThrustPolicy();
+#endif  // defined(XGBOOST_USE_RMM)
+  }
+};
+
+using EncPolicyT = enc::Policy<EncErrorPolicy, EncThrustPolicy>;
+
+inline EncPolicyT EncPolicy = EncPolicyT{};
 }  // namespace xgboost::cuda_impl

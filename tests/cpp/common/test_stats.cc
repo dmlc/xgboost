@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -145,15 +145,13 @@ void TestSampleMean(Context const* ctx) {
   for (std::size_t i = 1; i < mean.Size(); ++i) {
     ASSERT_EQ(mean(i), mean(i - 1) + 1.0f);
   }
+}
 
+void TestSampleMeanDistributed(Context const* ctx) {
+  std::size_t m{32}, n{16};
   auto device = ctx->Device();
   std::int32_t n_workers =
       device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : curt::AllVisibleGPUs();
-#if !defined(XGBOOST_USE_NCCL)
-  if (device.IsCUDA()) {
-    return;
-  }
-#endif  // !defined(XGBOOST_USE_NCCL)
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
@@ -200,15 +198,14 @@ void TestWeightedSampleMean(Context const* ctx) {
       ASSERT_EQ(mean(i), mean(i - 1) + 1.0f);
     }
   }
+}
 
+void TestWeightedSampleMeanDistributed(Context const* ctx) {
+  std::size_t m{32}, n{16};
   auto device = ctx->Device();
   std::int32_t n_workers =
       device.IsCPU() ? std::min(4u, std::thread::hardware_concurrency()) : curt::AllVisibleGPUs();
-#if !defined(XGBOOST_USE_NCCL)
-  if (device.IsCUDA()) {
-    return;
-  }
-#endif  // !defined(XGBOOST_USE_NCCL)
+
   collective::TestDistributedGlobal(n_workers, [m, n, device, n_workers] {
     auto rank = collective::GetRank();
     Context ctx = device.IsCUDA() ? MakeCUDACtx(DistGpuIdx()) : Context{};
@@ -237,10 +234,20 @@ TEST(Stats, SampleMean) {
   TestSampleMean(&ctx);
 }
 
+TEST(Stats, SampleMeanDist) {
+  Context ctx;
+  TestSampleMeanDistributed(&ctx);
+}
+
 
 TEST(Stats, WeightedSampleMean) {
   Context ctx;
   TestWeightedSampleMean(&ctx);
+}
+
+TEST(Stats, WeightedSampleMeanDist) {
+  Context ctx;
+  TestWeightedSampleMeanDistributed(&ctx);
 }
 
 #if defined(XGBOOST_USE_CUDA)
@@ -249,9 +256,23 @@ TEST(Stats, GpuSampleMean) {
   TestSampleMean(&ctx);
 }
 
+#if defined(XGBOOST_USE_NCCL)
+TEST(Stats, MGPUSampleMeanDist) {
+  auto ctx = MakeCUDACtx(0);
+  TestSampleMeanDistributed(&ctx);
+}
+#endif  // defined(XGBOOST_USE_NCCL)
+
 TEST(Stats, GpuWeightedSampleMean) {
   auto ctx = MakeCUDACtx(0);
   TestWeightedSampleMean(&ctx);
 }
+
+#if defined(XGBOOST_USE_NCCL)
+TEST(Stats, MGPUWeightedSampleMeanDist) {
+  auto ctx = MakeCUDACtx(0);
+  TestWeightedSampleMeanDistributed(&ctx);
+}
+#endif  // defined(XGBOOST_USE_NCCL)
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::common
