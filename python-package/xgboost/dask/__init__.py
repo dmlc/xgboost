@@ -396,8 +396,7 @@ class DaskDMatrix:
             pandas equivalents.
 
             """
-            d = client.persist(d)
-            delayed_obj = d.to_delayed()
+            delayed_obj = d.to_delayed(optimize_graph=False)
             if isinstance(delayed_obj, numpy.ndarray):
                 # da.Array returns an array to delayed objects
                 check_columns(delayed_obj)
