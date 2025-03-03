@@ -1796,6 +1796,23 @@ class XgboostLocalTest(SparkTestCase):
             loaded_model = SparkXGBClassifierModel.load(path)
             check_conf(loaded_model.getOrDefault(loaded_model.coll_cfg))
 
+    def test_classifier_with_multi_cols(self):
+        df = self.session.createDataFrame(
+            [
+                (1.0, 2.0, 0),
+                (3.1, 4.2, 1),
+            ],
+            ["a", "b", "label"],
+        )
+        features = ["a", "b"]
+        cls = SparkXGBClassifier(features_col=features, device="cpu", n_estimators=2)
+        model = cls.fit(df)
+        self.assertEqual(features, model.getOrDefault(model.features_cols))
+        self.assertTrue(not model.isSet(model.featuresCol))
+
+        # No exception
+        model.transform(df).collect()
+
 
 LTRData = namedtuple(
     "LTRData",
