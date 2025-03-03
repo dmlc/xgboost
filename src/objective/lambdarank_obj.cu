@@ -3,6 +3,8 @@
  *
  * \brief CUDA implementation of lambdarank.
  */
+#include <dmlc/registry.h>                      // for DMLC_REGISTRY_FILE_TAG
+
 #include <thrust/fill.h>                        // for fill_n
 #include <thrust/for_each.h>                    // for for_each_n
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator

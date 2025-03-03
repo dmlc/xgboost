@@ -13,10 +13,13 @@
 #include <limits>     // for numeric_limits
 #include <memory>     // for unique_ptr, make_unique
 #include <utility>    // for move
+#include <variant>    // for variant
 #include <vector>     // for vector
 
 #include "../common/math.h"
-#include "array_interface.h"
+#include "../encoder/ordinal.h"  // for CatStrArrayView
+#include "../encoder/types.h"    // for TupToVarT
+#include "array_interface.h"     // for CategoricalIndexArgTypes
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
@@ -568,40 +571,115 @@ class ColumnarAdapterBatch : public detail::NoMetaInfo {
   static constexpr bool kIsRowMajor = true;
 };
 
+/**
+ * @brief Get string names and codes for categorical features.
+ *
+ * @return The number of categories for the current column.
+ */
+template <bool allow_mask, typename CategoricalIndex>
+[[nodiscard]] std::size_t GetArrowDictionary(Json jcol,
+                                             std::vector<CategoricalIndex>* p_cat_columns,
+                                             std::vector<ArrayInterface<1, allow_mask>>* p_columns,
+                                             std::size_t* p_n_bytes, bst_idx_t* p_n_samples) {
+  auto& cat_columns = *p_cat_columns;
+  // arrow StringArray for name of categories
+  auto const& jnames = get<Object const>(jcol[0]);
+  // There are 3 buffers for a StringArray, validity mask, offset, and data. Mask
+  // and data are represented by a single masked array.
+  auto const& joffset = get<Object const>(jnames.at("offsets"));
+  auto offset = ArrayInterface<1>{joffset};
+  auto const& jstr = get<Object const>(jnames.at("values"));
+  auto strbuf = ArrayInterface<1>(jstr);
+  CHECK_EQ(strbuf.type, ArrayInterfaceHandler::kI1);
+
+  auto names = enc::CatStrArrayView{
+      common::Span{static_cast<std::int32_t const*>(offset.data), offset.Shape<0>()},
+      common::Span<std::int8_t const>{reinterpret_cast<std::int8_t const*>(strbuf.data), strbuf.n}};
+  cat_columns.emplace_back(names);
+
+  // arrow Integer array for encoded categories
+  auto const& jcodes = get<Object const>(jcol[1]);
+  auto codes = ArrayInterface<1>{jcodes};
+  p_columns->push_back(codes);
+
+  auto& n_bytes = *p_n_bytes;
+  n_bytes += codes.ElementSize() * codes.Shape<0>();
+  n_bytes += names.SizeBytes();
+
+  *p_n_samples = std::max(*p_n_samples, static_cast<bst_idx_t>(codes.Shape<0>()));
+  return names.size();
+}
+
+/**
+ * @brief Get numeric names and codes for categorical features.
+ *
+ * @return The number of categories for the current column.
+ */
+template <typename CategoricalIndex, bool allow_mask>
+[[nodiscard]] std::size_t GetArrowNumericIndex(
+    DeviceOrd device, Json jcol, std::vector<CategoricalIndex>* p_cat_columns,
+    std::vector<ArrayInterface<1, allow_mask>>* p_columns, std::size_t* p_n_bytes,
+    bst_idx_t* p_n_samples) {
+  auto const& first = get<Object const>(jcol[0]);
+  auto names = ArrayInterface<1>{first};
+  auto& n_bytes = *p_n_bytes;
+  DispatchDType(names, device, [&](auto t) {
+    using T = typename decltype(t)::value_type;
+    constexpr bool kKnownType = enc::MemberOf<std::remove_cv_t<T>, enc::CatPrimIndexTypes>::value;
+    CHECK(kKnownType) << "Unsupported categorical index type.";
+    auto span = common::Span{t.Values().data(), t.Size()};
+    if constexpr (kKnownType) {
+      p_cat_columns->emplace_back(span);
+      n_bytes += span.size_bytes();
+    }
+  });
+  auto const& jcodes = get<Object const>(jcol[1]);
+  auto codes = ArrayInterface<1>{jcodes};
+  p_columns->push_back(codes);
+
+  n_bytes += codes.ElementSize() * codes.Shape<0>();
+  *p_n_samples = std::max(*p_n_samples, static_cast<bst_idx_t>(codes.Shape<0>()));
+
+  return names.n;
+}
+
+/**
+ * @brief Adapter for columnar format (arrow).
+ *
+ *   Supports for both numeric values and categorical values.
+ */
 class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch> {
   std::vector<ArrayInterface<1>> columns_;
+  std::vector<enc::HostCatIndexView> cats_;
+  std::vector<std::int32_t> cat_segments_;
   ColumnarAdapterBatch batch_;
+  std::size_t n_bytes_{0};
 
  public:
-  explicit ColumnarAdapter(StringView columns) {
-    auto jarray = Json::Load(columns);
-    CHECK(IsA<Array>(jarray));
-    auto const& array = get<Array const>(jarray);
-    for (auto col : array) {
-      columns_.emplace_back(get<Object const>(col));
-    }
-    bool consistent =
-        columns_.empty() ||
-        std::all_of(columns_.cbegin(), columns_.cend(), [&](ArrayInterface<1> const& array) {
-          return array.Shape<0>() == columns_[0].Shape<0>();
-        });
-    CHECK(consistent) << "Size of columns should be the same.";
-    batch_ = ColumnarAdapterBatch{columns_};
-  }
+  /**
+   * @brief JSON-encoded array of columns.
+   */
+  explicit ColumnarAdapter(StringView columns);
 
   [[nodiscard]] ColumnarAdapterBatch const& Value() const override { return batch_; }
 
-  [[nodiscard]] std::size_t NumRows() const {
+  [[nodiscard]] bst_idx_t NumRows() const {
     if (!columns_.empty()) {
       return columns_.front().shape[0];
     }
     return 0;
   }
-  [[nodiscard]] std::size_t NumColumns() const {
-    if (!columns_.empty()) {
-      return columns_.size();
-    }
-    return 0;
+  [[nodiscard]] bst_idx_t NumColumns() const { return columns_.size(); }
+  [[nodiscard]] bool HasCategorical() const {
+    return !std::all_of(this->cats_.cbegin(), this->cats_.cend(), [](auto const& cats) {
+      return std::visit([](auto&& cats) { return cats.empty(); }, cats);
+    });
+  }
+  [[nodiscard]] std::size_t SizeBytes() const { return n_bytes_; }
+
+  [[nodiscard]] enc::HostColumnsView Cats() const {
+    return {this->cats_, this->cat_segments_,
+            static_cast<std::int32_t>(this->cat_segments_.back())};
   }
 };
 
