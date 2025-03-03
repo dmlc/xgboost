@@ -8,4 +8,5 @@ For release notes prior to the 2.1 release, please see `news <https://github.com
   :maxdepth: 1
   :caption: Contents:
 
+  v3.0.0
   v2.1.0
