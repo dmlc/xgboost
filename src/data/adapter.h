@@ -669,12 +669,7 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
     }
     return 0;
   }
-  [[nodiscard]] bst_idx_t NumColumns() const {
-    if (!columns_.empty()) {
-      return columns_.size();
-    }
-    return 0;
-  }
+  [[nodiscard]] bst_idx_t NumColumns() const { return columns_.size(); }
   [[nodiscard]] bool HasCategorical() const {
     return !std::all_of(this->cats_.cbegin(), this->cats_.cend(), [](auto const& cats) {
       return std::visit([](auto&& cats) { return cats.empty(); }, cats);
