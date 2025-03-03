@@ -51,7 +51,7 @@ struct CatContainer;
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 12;
+  static constexpr uint64_t kNumField = 13;
 
   /*! \brief number of rows in the data */
   bst_idx_t num_row_{0};  // NOLINT

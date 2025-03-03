@@ -228,6 +228,7 @@ void MetaInfo::Clear() {
  * | feature_names      | kStr     | False     | ${size}     |           1 | ${feature_names}       |
  * | feature_types      | kStr     | False     | ${size}     |           1 | ${feature_types}       |
  * | feature_weights    | kFloat32 | False     | ${size}     |           1 | ${feature_weights}     |
+ * | cats               | kStr     | False     | ${size}     |           1 | ${cats}     |
  *
  * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
@@ -235,9 +236,6 @@ void MetaInfo::Clear() {
  */
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
-  if (!this->Cats()->Empty()) {
-    LOG(FATAL) << "Cannot save binary when there are category indices.";
-  }
   Version::Save(fo);
   fo->Write(kNumField);
   int field_cnt = 0;  // make sure we are actually writing kNumField fields
@@ -256,12 +254,20 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
-  SaveVectorField(fo, u8"feature_names", DataType::kStr,
-                  {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_types", DataType::kStr,
-                  {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
+  SaveVectorField(fo, u8"feature_names", DataType::kStr, {feature_names.size(), 1}, feature_names);
+  ++field_cnt;
+  SaveVectorField(fo, u8"feature_types", DataType::kStr, {feature_type_names.size(), 1},
+                  feature_type_names);
+  ++field_cnt;
   SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
                   feature_weights);
+  ++field_cnt;
+
+  Json jcats{Object{}};
+  this->cats_->Save(&jcats);
+  std::vector<char> values;
+  Json::Dump(jcats, &values, std::ios::binary);
+  SaveVectorField(fo, u8"cats", DataType::kStr, {values.size(), 1}, values);
   ++field_cnt;
 
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
@@ -309,6 +315,7 @@ const std::vector<size_t>& MetaInfo::LabelAbsSort(Context const* ctx) const {
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   auto version = Version::Load(fi);
   auto major = std::get<0>(version);
+  auto minor = std::get<1>(version);
   // MetaInfo is saved in `SparsePageSource'.  So the version in MetaInfo represents the
   // version of DMatrix.
   std::stringstream msg;
@@ -316,11 +323,8 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
       << " is no longer supported. "
       << "Please process and save your data in current version: "
       << Version::String(Version::Self()) << " again.";
-  CHECK_GE(major, 1) << msg.str();
-  if (major == 1) {
-    auto minor = std::get<1>(version);
-    CHECK_GE(minor, 6) << msg.str();
-  }
+  CHECK_GE(major, 3) << msg.str();
+  CHECK_GE(minor, 1) << msg.str();
 
   const uint64_t expected_num_field = kNumField;
   uint64_t num_field { 0 };
@@ -356,6 +360,11 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
 
   this->has_categorical_ = LoadFeatureType(feature_type_names, &feature_types.HostVector());
+
+  std::vector<char> values;
+  LoadVectorField(fi, u8"cats", DataType::kStr, &values);
+  auto jcats = Json::Load(StringView{values.data(), values.size()}, std::ios::binary);
+  this->cats_->Load(jcats);
 }
 
 namespace {
