@@ -36,7 +36,7 @@ ColumnarAdapter::ColumnarAdapter(StringView columns) {
       columns_.emplace_back(get<Object const>(jcol));
       this->cats_.emplace_back();
       this->n_bytes_ += columns_.back().ElementSize() * columns_.back().Shape<0>();
-      n_samples = std::max(n_samples, columns_.back().Shape<0>());
+      n_samples = std::max(n_samples, static_cast<bst_idx_t>(columns_.back().Shape<0>()));
     }
     cat_segments.push_back(n_cats);
   }
