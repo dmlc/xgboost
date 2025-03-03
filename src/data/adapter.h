@@ -638,7 +638,7 @@ template <typename CategoricalIndex, bool allow_mask>
   p_columns->push_back(codes);
 
   n_bytes += codes.ElementSize() * codes.Shape<0>();
-  *p_n_samples = std::max(*p_n_samples, codes.Shape<0>());
+  *p_n_samples = std::max(*p_n_samples, static_cast<bst_idx_t>(codes.Shape<0>()));
 
   return names.n;
 }
