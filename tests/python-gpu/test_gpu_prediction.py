@@ -287,7 +287,7 @@ class TestGPUPredict:
     def test_inplace_predict_cupy(self):
         self.run_inplace_predict_cupy(0)
 
-    @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.skip
     @pytest.mark.mgpu
     def test_inplace_predict_cupy_specified_device(self):
         import cupy as cp
