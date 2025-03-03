@@ -580,7 +580,7 @@ template <bool allow_mask, typename CategoricalIndex>
 [[nodiscard]] std::size_t GetArrowDictionary(Json jcol,
                                              std::vector<CategoricalIndex>* p_cat_columns,
                                              std::vector<ArrayInterface<1, allow_mask>>* p_columns,
-                                             bst_idx_t* p_n_bytes, bst_idx_t* p_n_samples) {
+                                             std::size_t* p_n_bytes, bst_idx_t* p_n_samples) {
   auto& cat_columns = *p_cat_columns;
   // arrow StringArray for name of categories
   auto const& jnames = get<Object const>(jcol[0]);
@@ -618,7 +618,7 @@ template <bool allow_mask, typename CategoricalIndex>
 template <typename CategoricalIndex, bool allow_mask>
 [[nodiscard]] std::size_t GetArrowNumericIndex(
     DeviceOrd device, Json jcol, std::vector<CategoricalIndex>* p_cat_columns,
-    std::vector<ArrayInterface<1, allow_mask>>* p_columns, bst_idx_t* p_n_bytes,
+    std::vector<ArrayInterface<1, allow_mask>>* p_columns, std::size_t* p_n_bytes,
     bst_idx_t* p_n_samples) {
   auto const& first = get<Object const>(jcol[0]);
   auto names = ArrayInterface<1>{first};
