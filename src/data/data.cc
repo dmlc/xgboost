@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file data.cc
  */
 #include "xgboost/data.h"
@@ -36,6 +36,7 @@
 #include "./sparse_page_dmatrix.h"            // for SparsePageDMatrix
 #include "array_interface.h"                  // for ArrayInterfaceHandler, ArrayInterface, Dispa...
 #include "batch_utils.h"                      // for MatchingPageBytes
+#include "cat_container.h"                    // for CatContainer
 #include "dmlc/base.h"                        // for BeginPtr
 #include "dmlc/common.h"                      // for OMPException
 #include "dmlc/data.h"                        // for Parser
@@ -199,6 +200,8 @@ namespace xgboost {
 
 uint64_t constexpr MetaInfo::kNumField;
 
+MetaInfo::MetaInfo() : cats_{std::make_shared<CatContainer>()} {}
+
 // implementation of inline functions
 void MetaInfo::Clear() {
   num_row_ = num_col_ = num_nonzero_ = 0;
@@ -232,6 +235,9 @@ void MetaInfo::Clear() {
  */
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
+  if (!this->Cats()->Empty()) {
+    LOG(FATAL) << "Cannot save binary when there are category indices.";
+  }
   Version::Save(fo);
   fo->Write(kNumField);
   int field_cnt = 0;  // make sure we are actually writing kNumField fields
@@ -850,6 +856,19 @@ bool MetaInfo::IsVerticalFederated() const {
 
 bool MetaInfo::ShouldHaveLabels() const {
   return !IsVerticalFederated() || collective::GetRank() == 0;
+}
+
+[[nodiscard]] CatContainer const* MetaInfo::Cats() const { return this->cats_.get(); }
+[[nodiscard]] CatContainer* MetaInfo::Cats() { return this->cats_.get(); }
+
+[[nodiscard]] std::shared_ptr<CatContainer const> MetaInfo::CatsShared() const {
+  return this->cats_;
+}
+
+void MetaInfo::Cats(std::shared_ptr<CatContainer> cats) {
+  this->cats_ = std::move(cats);
+  CHECK_LT(cats_->NumFeatures(),
+           static_cast<decltype(cats->NumFeatures())>(std::numeric_limits<bst_cat_t>::max()));
 }
 
 using DMatrixThreadLocal =

@@ -245,7 +245,7 @@ class TestPandas:
             X, enable_categorical=True
         )
 
-        assert transformed.columns[0].min() == 0
+        assert len(transformed.aitfs[0]) == 2
 
         # test missing value
         X = pd.DataFrame({"f0": ["a", "b", np.nan]})
