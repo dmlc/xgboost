@@ -1,6 +1,8 @@
 # pylint: disable=invalid-name
 """Tests for the ordinal re-coder."""
 
+import os
+import tempfile
 from typing import Any, Tuple, Type
 
 import numpy as np
@@ -91,6 +93,21 @@ def run_cat_container_mixed() -> None:
                 assert aw_list == pd_list
             else:
                 assert cats[fname] is None
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fname = os.path.join(tmpdir, "DMatrix.binary")
+            Xy.save_binary(fname)
+
+            Xy_1 = DMatrix(fname)
+            cats_1 = Xy_1.get_categories()
+            assert cats_1 is not None
+
+            for k, v_0 in cats.items():
+                v_1 = cats_1[k]
+                if v_0 is None:
+                    assert v_1 is None
+                else:
+                    assert v_0.to_pylist() == v_1.to_pylist()
 
     # full str type
     X, y = make_categorical(256, 16, 7, onehot=False, cat_dtype=np.str_)
