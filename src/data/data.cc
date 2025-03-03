@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file data.cc
  */
 #include "xgboost/data.h"
@@ -36,6 +36,7 @@
 #include "./sparse_page_dmatrix.h"            // for SparsePageDMatrix
 #include "array_interface.h"                  // for ArrayInterfaceHandler, ArrayInterface, Dispa...
 #include "batch_utils.h"                      // for MatchingPageBytes
+#include "cat_container.h"                    // for CatContainer
 #include "dmlc/base.h"                        // for BeginPtr
 #include "dmlc/common.h"                      // for OMPException
 #include "dmlc/data.h"                        // for Parser
@@ -199,6 +200,8 @@ namespace xgboost {
 
 uint64_t constexpr MetaInfo::kNumField;
 
+MetaInfo::MetaInfo() : cats_{std::make_shared<CatContainer>()} {}
+
 // implementation of inline functions
 void MetaInfo::Clear() {
   num_row_ = num_col_ = num_nonzero_ = 0;
@@ -225,6 +228,7 @@ void MetaInfo::Clear() {
  * | feature_names      | kStr     | False     | ${size}     |           1 | ${feature_names}       |
  * | feature_types      | kStr     | False     | ${size}     |           1 | ${feature_types}       |
  * | feature_weights    | kFloat32 | False     | ${size}     |           1 | ${feature_weights}     |
+ * | cats               | kStr     | False     | ${size}     |           1 | ${cats}     |
  *
  * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
@@ -250,12 +254,20 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
-  SaveVectorField(fo, u8"feature_names", DataType::kStr,
-                  {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_types", DataType::kStr,
-                  {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
+  SaveVectorField(fo, u8"feature_names", DataType::kStr, {feature_names.size(), 1}, feature_names);
+  ++field_cnt;
+  SaveVectorField(fo, u8"feature_types", DataType::kStr, {feature_type_names.size(), 1},
+                  feature_type_names);
+  ++field_cnt;
   SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
                   feature_weights);
+  ++field_cnt;
+
+  Json jcats{Object{}};
+  this->cats_->Save(&jcats);
+  std::vector<char> values;
+  Json::Dump(jcats, &values, std::ios::binary);
+  SaveVectorField(fo, u8"cats", DataType::kStr, {values.size(), 1}, values);
   ++field_cnt;
 
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
@@ -303,6 +315,7 @@ const std::vector<size_t>& MetaInfo::LabelAbsSort(Context const* ctx) const {
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   auto version = Version::Load(fi);
   auto major = std::get<0>(version);
+  auto minor = std::get<1>(version);
   // MetaInfo is saved in `SparsePageSource'.  So the version in MetaInfo represents the
   // version of DMatrix.
   std::stringstream msg;
@@ -310,11 +323,8 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
       << " is no longer supported. "
       << "Please process and save your data in current version: "
       << Version::String(Version::Self()) << " again.";
-  CHECK_GE(major, 1) << msg.str();
-  if (major == 1) {
-    auto minor = std::get<1>(version);
-    CHECK_GE(minor, 6) << msg.str();
-  }
+  CHECK_GE(major, 3) << msg.str();
+  CHECK_GE(minor, 1) << msg.str();
 
   const uint64_t expected_num_field = kNumField;
   uint64_t num_field { 0 };
@@ -350,6 +360,11 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
 
   this->has_categorical_ = LoadFeatureType(feature_type_names, &feature_types.HostVector());
+
+  std::vector<char> values;
+  LoadVectorField(fi, u8"cats", DataType::kStr, &values);
+  auto jcats = Json::Load(StringView{values.data(), values.size()}, std::ios::binary);
+  this->cats_->Load(jcats);
 }
 
 namespace {
@@ -850,6 +865,19 @@ bool MetaInfo::IsVerticalFederated() const {
 
 bool MetaInfo::ShouldHaveLabels() const {
   return !IsVerticalFederated() || collective::GetRank() == 0;
+}
+
+[[nodiscard]] CatContainer const* MetaInfo::Cats() const { return this->cats_.get(); }
+[[nodiscard]] CatContainer* MetaInfo::Cats() { return this->cats_.get(); }
+
+[[nodiscard]] std::shared_ptr<CatContainer const> MetaInfo::CatsShared() const {
+  return this->cats_;
+}
+
+void MetaInfo::Cats(std::shared_ptr<CatContainer> cats) {
+  this->cats_ = std::move(cats);
+  CHECK_LT(cats_->NumFeatures(),
+           static_cast<decltype(cats->NumFeatures())>(std::numeric_limits<bst_cat_t>::max()));
 }
 
 using DMatrixThreadLocal =
