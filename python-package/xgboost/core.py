@@ -2827,13 +2827,13 @@ class Booster:
             data, cat_codes, fns, _ = _transform_cudf_df(
                 data, None, None, enable_categorical
             )
-            array_inf, _ = _cudf_array_interfaces(data, cat_codes)
+            interfaces_str = _cudf_array_interfaces(data, cat_codes)
             if validate_features:
                 self._validate_features(fns)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
-                    array_inf,
+                    interfaces_str,
                     args,
                     p_handle,
                     ctypes.byref(shape),
