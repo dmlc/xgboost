@@ -37,7 +37,7 @@ template <typename Functor, typename... SpanType>
 __global__ void LaunchCUDAKernel(Functor _func, Range _range,
                                  SpanType... _spans) {
   for (auto i : dh::GridStrideRange(*_range.begin(), *_range.end())) {
-    _func(i, _spans...);
+    _func(i, std::true_type(), _spans...);
   }
 }
 #endif  // defined(__CUDACC__)
@@ -184,7 +184,8 @@ class Transform {
     void LaunchCPU(Functor func, HDV *...vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
       SyncHost(vectors...);
-      ParallelFor(end, n_threads_, [&](omp_ulong idx) { func(idx, UnpackHDV(vectors)...); });
+      ParallelFor(end, n_threads_, [&](omp_ulong idx) { func(idx, std::true_type(),
+                                                             UnpackHDV(vectors)...); });
     }
 
    private:
