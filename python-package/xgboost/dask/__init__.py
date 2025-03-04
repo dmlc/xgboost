@@ -1826,8 +1826,6 @@ class DaskXGBClassifier(XGBClassifierBase, DaskScikitLearnBase):
             iteration_range=iteration_range,
         )
 
-    predict_proba.__doc__ = XGBClassifier.predict_proba.__doc__
-
     async def _predict_async(
         self,
         data: _DataT,
@@ -2091,10 +2089,6 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
             base_margin_eval_set=base_margin_eval_set,
             feature_weights=feature_weights,
         )
-
-    # FIXME(trivialfis): arguments differ due to additional parameters like group and
-    # qid.
-    fit.__doc__ = XGBRanker.fit.__doc__
 
 
 @xgboost_model_doc(
