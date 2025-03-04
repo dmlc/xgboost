@@ -209,8 +209,11 @@ void CatContainer::Load(Json const& in) {
 
   auto& hf_segments = this->feature_segments_.HostVector();
   LoadJson<std::int32_t>(in["feature_segments"], &hf_segments);
-  CHECK(!hf_segments.empty());
-  this->n_total_cats_ = hf_segments.back();
+  if (hf_segments.empty()) {
+    this->n_total_cats_ = 0;
+  } else {
+    this->n_total_cats_ = hf_segments.back();
+  }
 
   auto& h_sorted_idx = this->sorted_idx_.HostVector();
   LoadJson<std::int32_t>(in["sorted_idx"], &h_sorted_idx);

@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file data.h
  * \brief The input data structure of xgboost.
  * \author Tianqi Chen
@@ -8,8 +8,8 @@
 #define XGBOOST_DATA_H_
 
 #include <dmlc/base.h>
-#include <dmlc/data.h>
-#include <dmlc/serializer.h>
+#include <dmlc/io.h>          // for Stream
+#include <dmlc/serializer.h>  // for Handler
 #include <xgboost/base.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
@@ -42,13 +42,16 @@ enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
 enum class DataSplitMode : int { kRow = 0, kCol = 1 };
 
-/*!
- * \brief Meta information about dataset, always sit in memory.
+// Forward declaration of the container used by the meta info.
+struct CatContainer;
+
+/**
+ * @brief Meta information about dataset, always sit in memory.
  */
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 12;
+  static constexpr uint64_t kNumField = 13;
 
   /*! \brief number of rows in the data */
   bst_idx_t num_row_{0};  // NOLINT
@@ -100,9 +103,9 @@ class MetaInfo {
    */
   HostDeviceVector<float> feature_weights;
 
-  /*! \brief default constructor */
-  MetaInfo()  = default;
+  MetaInfo();
   MetaInfo(MetaInfo&& that) = default;
+  MetaInfo(MetaInfo const& that) = delete;
   MetaInfo& operator=(MetaInfo&& that) = default;
   MetaInfo& operator=(MetaInfo const& that) = delete;
 
@@ -205,6 +208,16 @@ class MetaInfo {
    * @brief Flag for whether the DMatrix has categorical features.
    */
   bool HasCategorical() const { return has_categorical_; }
+  /**
+   * @brief Getters for categories.
+   */
+  [[nodiscard]] CatContainer const* Cats() const;
+  [[nodiscard]] CatContainer* Cats();
+  [[nodiscard]] std::shared_ptr<CatContainer const>  CatsShared() const;
+  /**
+   * @brief Setter for categories.
+   */
+  void Cats(std::shared_ptr<CatContainer> cats);
 
  private:
   void SetInfoFromHost(Context const* ctx, StringView key, Json arr);
@@ -213,6 +226,8 @@ class MetaInfo {
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
   bool has_categorical_{false};
+
+  std::shared_ptr<CatContainer> cats_;
 };
 
 /*! \brief Element from a sparse vector */
@@ -691,7 +706,15 @@ class DMatrix {
    * @param slice_id Index of the current slice
    * @return DMatrix containing the slice of columns
    */
-  virtual DMatrix *SliceCol(int num_slices, int slice_id) = 0;
+  virtual DMatrix* SliceCol(int num_slices, int slice_id) = 0;
+  /**
+   * @brief Accessor for the string representation of the categories.
+   */
+  CatContainer const* Cats() const { return this->CatsShared().get(); }
+  [[nodiscard]] virtual std::shared_ptr<CatContainer const> CatsShared() const {
+    LOG(FATAL) << "Not implemented for the current DMatrix type.";
+    return nullptr;
+  }
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
