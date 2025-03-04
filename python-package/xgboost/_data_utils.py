@@ -139,8 +139,8 @@ def from_array_interface(interface: ArrayInf, zero_copy: bool = False) -> NumpyO
 STREAM_PER_THREAD = 2
 
 
-# Typing is not strict as we there are subtle differences between CUDA array interface
-# and array interface. We handle them uniformly for now.
+# Typing is not strict as there are subtle differences between CUDA array interface and
+# array interface. We handle them uniformly for now.
 def make_array_interface(
     ptr: Union[CNumericPtr, int],
     shape: Tuple[int, ...],
