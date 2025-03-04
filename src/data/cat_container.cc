@@ -114,8 +114,8 @@ void CatContainer::Save(Json* p_out) const {
                      std::copy_n(values.data(), values.size(), array.GetArray().begin());
 
                      Object out{};
-                     out["values"] = std::move(array);
                      out["type"] = static_cast<std::int64_t>(array.Type());
+                     out["values"] = std::move(array);
 
                      f_out = std::move(out);
                    }},
