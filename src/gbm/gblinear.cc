@@ -92,13 +92,6 @@ class GBLinear : public GradientBooster {
 
   bool ModelFitted() const override { return BoostedRounds() != 0; }
 
-  void Load(dmlc::Stream*) override {
-    LOG(FATAL) << "The deprecated binary model has been removed";
-  }
-  void Save(dmlc::Stream*) const override {
-    LOG(FATAL) << "The deprecated binary model has been removed";
-  }
-
   void SaveModel(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String{"gblinear"};

@@ -1,9 +1,8 @@
-/*!
- * Copyright 2019-2022 by Contributors
+/**
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <algorithm>
 #include <utility>
-#include <limits>
 #include "xgboost/json.h"
 #include "gblinear_model.h"
 

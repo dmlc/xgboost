@@ -50,62 +50,6 @@ void Validate(GBTreeModel const& model) {
 }
 }  // namespace
 
-void GBTreeModel::Save(dmlc::Stream* fo) const {
-  CHECK_EQ(param.num_trees, static_cast<int32_t>(trees.size()));
-
-  if (DMLC_IO_NO_ENDIAN_SWAP) {
-    fo->Write(&param, sizeof(param));
-  } else {
-    auto x = param.ByteSwap();
-    fo->Write(&x, sizeof(x));
-  }
-  for (const auto & tree : trees) {
-    tree->Save(fo);
-  }
-  if (tree_info.size() != 0) {
-    if (DMLC_IO_NO_ENDIAN_SWAP) {
-      fo->Write(dmlc::BeginPtr(tree_info), sizeof(int32_t) * tree_info.size());
-    } else {
-      for (const auto& e : tree_info) {
-        auto x = e;
-        dmlc::ByteSwap(&x, sizeof(x), 1);
-        fo->Write(&x, sizeof(x));
-      }
-    }
-  }
-}
-
-void GBTreeModel::Load(dmlc::Stream* fi) {
-  CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param))
-      << "GBTree: invalid model file";
-  if (!DMLC_IO_NO_ENDIAN_SWAP) {
-    param = param.ByteSwap();
-  }
-  trees.clear();
-  trees_to_update.clear();
-  for (int32_t i = 0; i < param.num_trees; ++i) {
-    std::unique_ptr<RegTree> ptr(new RegTree());
-    ptr->Load(fi);
-    trees.push_back(std::move(ptr));
-  }
-  tree_info.resize(param.num_trees);
-  if (param.num_trees != 0) {
-    if (DMLC_IO_NO_ENDIAN_SWAP) {
-      CHECK_EQ(
-          fi->Read(dmlc::BeginPtr(tree_info), sizeof(int32_t) * param.num_trees),
-          sizeof(int32_t) * param.num_trees);
-    } else {
-      for (auto& info : tree_info) {
-        CHECK_EQ(fi->Read(&info, sizeof(int32_t)), sizeof(int32_t));
-        dmlc::ByteSwap(&info, sizeof(info), 1);
-      }
-    }
-  }
-
-  MakeIndptr(this);
-  Validate(*this);
-}
-
 void GBTreeModel::SaveModel(Json* p_out) const {
   auto& out = *p_out;
   CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
