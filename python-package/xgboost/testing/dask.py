@@ -258,11 +258,12 @@ def check_no_group_split(client: Client, device: str) -> None:
     np.testing.assert_allclose(ndcg[-1], 1.0, rtol=1e-2)
 
 
-def make_categorical(  # pylint: disable=too-many-locals
+def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     client: Client,
     n_samples: int,
     n_features: int,
     n_categories: int,
+    *,
     onehot: bool = False,
     cat_dtype: np.typing.DTypeLike = np.int64,
 ) -> Tuple[dd.DataFrame, dd.Series]:
