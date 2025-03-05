@@ -288,9 +288,7 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
         """Helper for handling categorical codes."""
         # Handle cuDF data
         if hasattr(array, "__cuda_array_interface__"):
-            inf = array.__cuda_array_interface__
-            if "mask" in inf:
-                inf["mask"] = inf["mask"].__cuda_array_interface__
+            inf = cuda_array_interface_dict(array)
             return inf, None
 
         # Other types (like arrow itself) are not yet supported.
@@ -416,9 +414,7 @@ def cudf_cat_inf(
     )
     if is_num_idx:
         cats_ainf = cats.__cuda_array_interface__
-        codes_ainf = codes.__cuda_array_interface__
-        if "mask" in codes_ainf:
-            codes_ainf["mask"] = codes_ainf["mask"].__cuda_array_interface__
+        codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
     joffset, jdata, buf = _arrow_cat_inf(cats.to_arrow(), codes)
