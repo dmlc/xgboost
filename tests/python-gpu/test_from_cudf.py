@@ -212,26 +212,27 @@ class TestFromColumnar:
         # mixed dtypes
         X["0"] = X["0"].astype(np.int64)
         X["2"] = X["2"].astype(np.int64)
-        df, cat_codes, _, _ = xgb.data._transform_cudf_df(
+        df, _, _ = xgb.data._transform_cudf_df(
             X, None, None, enable_categorical=True
         )
         assert X.shape[1] == n_features
-        assert len(cat_codes) == X.shape[1]
-        assert not cat_codes[0]
-        assert not cat_codes[2]
+        assert isinstance(df.aitfs[0], dict)
+        assert isinstance(df.aitfs[1], tuple)
+        assert isinstance(df.aitfs[2], dict)
 
-        interfaces_str = xgb.data._cudf_array_interfaces(df, cat_codes)
+        interfaces_str = df.array_interface()
         interfaces = json.loads(interfaces_str)
         assert len(interfaces) == X.shape[1]
 
         # test missing value
         X = cudf.DataFrame({"f0": ["a", "b", np.nan]})
         X["f0"] = X["f0"].astype("category")
-        df, cat_codes, _, _ = xgb.data._transform_cudf_df(
+        df, _, _ = xgb.data._transform_cudf_df(
             X, None, None, enable_categorical=True
         )
-        for col in cat_codes:
-            assert col.has_nulls
+        for col in df.aitfs:
+            assert isinstance(col, tuple)
+            assert "mask" in col[1]
 
         y = [0, 1, 2]
         with pytest.raises(ValueError):
