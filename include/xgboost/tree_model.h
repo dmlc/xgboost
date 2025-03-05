@@ -365,17 +365,6 @@ class RegTree : public Model {
     return stats_[nid];
   }
 
-  /*!
-   * \brief load model from stream
-   * \param fi input stream
-   */
-  void Load(dmlc::Stream* fi);
-  /*!
-   * \brief save model to stream
-   * \param fo output stream
-   */
-  void Save(dmlc::Stream* fo) const;
-
   void LoadModel(Json const& in) override;
   void SaveModel(Json* out) const override;
 
