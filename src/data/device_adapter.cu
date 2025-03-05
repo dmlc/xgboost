@@ -50,7 +50,12 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
   this->d_cats_ = this->cats_;  // thrust copy
 
   CHECK(!columns.empty());
-  device_ = DeviceOrd::CUDA(dh::CudaGetPointerDevice(columns.front().data));
+  if (device == -1) {
+    CHECK_EQ(columns.front().Shape<0>(), 0);
+    device_ = DeviceOrd::CUDA(0);
+  } else {
+    device_ = DeviceOrd::CUDA(device);
+  }
   CHECK(device_.IsCUDA());
   curt::SetDevice(device_.ordinal);
 
