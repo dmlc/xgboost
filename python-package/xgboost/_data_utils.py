@@ -185,7 +185,7 @@ def is_arrow_dict(data: Any) -> TypeGuard["pa.DictionaryArray"]:
     return lazy_isinstance(data, "pyarrow.lib", "DictionaryArray")
 
 
-class PdCatAccessor(Protocol):
+class DfCatAccessor(Protocol):
     """Protocol for pandas cat accessor."""
 
     @property
@@ -207,7 +207,7 @@ class PdCatAccessor(Protocol):
     def __cuda_array_interface__(self) -> ArrayInf: ...
 
 
-def _is_df_cat(data: Any) -> TypeGuard[PdCatAccessor]:
+def _is_df_cat(data: Any) -> TypeGuard[DfCatAccessor]:
     # Test pd.Series.cat, not pd.Series
     return hasattr(data, "categories") and hasattr(data, "codes")
 
@@ -320,7 +320,7 @@ def array_interface_dict(data: np.ndarray) -> ArrayInf: ...
 
 @overload
 def array_interface_dict(
-    data: PdCatAccessor,
+    data: DfCatAccessor,
 ) -> Tuple[StringArray, ArrayInf, Tuple]: ...
 
 
@@ -331,7 +331,7 @@ def array_interface_dict(
 
 
 def array_interface_dict(  # pylint: disable=too-many-locals
-    data: Union[np.ndarray, PdCatAccessor],
+    data: Union[np.ndarray, DfCatAccessor],
 ) -> Union[ArrayInf, Tuple[StringArray, ArrayInf, Optional[Tuple]]]:
     """Returns an array interface from the input."""
     # Handle categorical values
@@ -407,7 +407,7 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
 
 
 def cudf_cat_inf(
-    cats: PdCatAccessor, codes: "pd.Series"
+    cats: DfCatAccessor, codes: "pd.Series"
 ) -> Tuple[Union[ArrayInf, StringArray], ArrayInf, Tuple]:
     """Obtain the cuda array interface for cuDF categories."""
     cp = import_cupy()

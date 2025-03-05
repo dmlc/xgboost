@@ -24,7 +24,7 @@ import numpy as np
 
 from ._data_utils import (
     ArrayInf,
-    PdCatAccessor,
+    DfCatAccessor,
     StringArray,
     TransformedDf,
     _ensure_np_dtype,
@@ -536,14 +536,14 @@ def _lazy_load_pd_floats() -> tuple:
     return Float32Dtype, Float64Dtype
 
 
-def pandas_transform_data(data: DataFrame) -> List[Union[np.ndarray, PdCatAccessor]]:
+def pandas_transform_data(data: DataFrame) -> List[Union[np.ndarray, DfCatAccessor]]:
     """Handle categorical dtype and extension types from pandas."""
     Float32Dtype, Float64Dtype = _lazy_load_pd_floats()
 
-    result: List[Union[np.ndarray, PdCatAccessor]] = []
+    result: List[Union[np.ndarray, DfCatAccessor]] = []
     np_dtypes = _lazy_has_npdtypes()
 
-    def cat_codes(ser: "PdSeries") -> PdCatAccessor:
+    def cat_codes(ser: "PdSeries") -> DfCatAccessor:
         return ser.cat
 
     def nu_type(ser: "PdSeries") -> np.ndarray:
@@ -608,7 +608,7 @@ class PandasTransformed(TransformedDf):
     """A storage class for transformed pandas DataFrame."""
 
     def __init__(
-        self, columns: List[Union[np.ndarray, PdCatAccessor, "pa.DictionaryType"]]
+        self, columns: List[Union[np.ndarray, DfCatAccessor, "pa.DictionaryType"]]
     ) -> None:
         self.columns = columns
 
@@ -1067,7 +1067,7 @@ def _lazy_load_cudf_is_bool() -> Callable[[Any], bool]:
 class CudfTransformed(TransformedDf):
     """A storage class for transformed cuDF dataframe."""
 
-    def __init__(self, columns: List[Union["PdSeries", PdCatAccessor]]) -> None:
+    def __init__(self, columns: List[Union["PdSeries", DfCatAccessor]]) -> None:
         self.columns = columns
         # Buffers for temporary data that cannot be freed until the data is consumed by
         # the DMatrix or the booster.
