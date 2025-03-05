@@ -3,7 +3,7 @@
 
 import os
 import tempfile
-from typing import Any, Tuple, Type
+from typing import Any, Literal, Tuple, Type
 
 import numpy as np
 
@@ -36,7 +36,7 @@ def assert_allclose(device: str, a: Any, b: Any) -> None:
         cp.testing.assert_allclose(a, b)
 
 
-def run_cat_container(device: str) -> None:
+def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
     """Basic tests for the container class used by the DMatrix."""
     Df, _ = get_df_impl(device)
     # Basic test with a single feature
@@ -75,20 +75,30 @@ def run_cat_container(device: str) -> None:
     Xy = DMatrix(df, enable_categorical=True)
 
 
-def run_cat_container_mixed() -> None:
+def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     """Run checks with mixed types."""
     import pandas as pd
+
+    from ..data import _lazy_load_cudf_is_cat
+
+    is_cudf_cat = _lazy_load_cudf_is_cat()
+    n_samples = int(2**10)
 
     def check(Xy: DMatrix, X: pd.DataFrame) -> None:
         cats = Xy.get_categories()
         assert cats is not None
 
         for fname in X.columns:
-            if is_pd_cat_dtype(X[fname].dtype):
+            if is_pd_cat_dtype(X[fname].dtype) or is_cudf_cat(X[fname].dtype):
                 aw_list = sorted(cats[fname].to_pylist())
-                pd_list: list = X[fname].unique().tolist()
-                if np.nan in pd_list:
+                if is_cudf_cat(X[fname].dtype):
+                    pd_list: list = X[fname].unique().to_arrow().to_pylist()
+                else:
+                    pd_list = X[fname].unique().tolist()
+                if np.nan in pd_list:  # pandas
                     pd_list.remove(np.nan)
+                if None in pd_list:  # cudf
+                    pd_list.remove(None)
                 pd_list = sorted(pd_list)
                 assert aw_list == pd_list
             else:
@@ -110,35 +120,57 @@ def run_cat_container_mixed() -> None:
                     assert v_0.to_pylist() == v_1.to_pylist()
 
     # full str type
-    X, y = make_categorical(256, 16, 7, onehot=False, cat_dtype=np.str_)
+    X, y = make_categorical(
+        n_samples, 16, 7, onehot=False, cat_dtype=np.str_, device=device
+    )
     Xy = DMatrix(X, y, enable_categorical=True)
     check(Xy, X)
 
     # str type, mixed with numerical features
-    X, y = make_categorical(256, 16, 7, onehot=False, cat_ratio=0.5, cat_dtype=np.str_)
+    X, y = make_categorical(
+        n_samples, 16, 7, onehot=False, cat_ratio=0.5, cat_dtype=np.str_, device=device
+    )
     Xy = DMatrix(X, y, enable_categorical=True)
     check(Xy, X)
 
     # str type, mixed with numerical features and missing values
     X, y = make_categorical(
-        256, 16, 7, onehot=False, cat_ratio=0.5, sparsity=0.5, cat_dtype=np.str_
+        n_samples,
+        16,
+        7,
+        onehot=False,
+        cat_ratio=0.5,
+        sparsity=0.5,
+        cat_dtype=np.str_,
+        device=device,
     )
     Xy = DMatrix(X, y, enable_categorical=True)
     check(Xy, X)
 
     # int type
-    X, y = make_categorical(256, 16, 7, onehot=False, cat_dtype=np.int64)
+    X, y = make_categorical(
+        n_samples, 16, 7, onehot=False, cat_dtype=np.int64, device=device
+    )
     Xy = DMatrix(X, y, enable_categorical=True)
     check(Xy, X)
 
     # int type, mixed with numerical features
-    X, y = make_categorical(256, 16, 7, onehot=False, cat_ratio=0.5, cat_dtype=np.int64)
+    X, y = make_categorical(
+        n_samples, 16, 7, onehot=False, cat_ratio=0.5, cat_dtype=np.int64, device=device
+    )
     Xy = DMatrix(X, y, enable_categorical=True)
     check(Xy, X)
 
     # int type, mixed with numerical features and missing values
     X, y = make_categorical(
-        256, 16, 7, onehot=False, cat_ratio=0.5, sparsity=0.5, cat_dtype=np.int64
+        n_samples,
+        16,
+        7,
+        onehot=False,
+        cat_ratio=0.5,
+        sparsity=0.5,
+        cat_dtype=np.int64,
+        device=device,
     )
     Xy = DMatrix(X, y, enable_categorical=True)
     check(Xy, X)

@@ -8,6 +8,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
+    List,
     Literal,
     Optional,
     Protocol,
@@ -23,7 +24,7 @@ from typing import (
 import numpy as np
 
 from ._typing import CNumericPtr, DataType, NumpyDType, NumpyOrCupy
-from .compat import import_cupy, lazy_isinstance
+from .compat import import_cupy, import_pyarrow, lazy_isinstance
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -69,7 +70,11 @@ StringArray = TypedDict("StringArray", {"offsets": ArrayInf, "values": ArrayInf}
 
 def array_hasobject(data: DataType) -> bool:
     """Whether the numpy array has object dtype."""
-    return hasattr(data.dtype, "hasobject") and data.dtype.hasobject
+    return (
+        hasattr(data, "dtype")
+        and hasattr(data.dtype, "hasobject")
+        and data.dtype.hasobject
+    )
 
 
 def cuda_array_interface_dict(data: _CudaArrayLikeArg) -> ArrayInf:
@@ -202,7 +207,7 @@ class PdCatAccessor(Protocol):
     def __cuda_array_interface__(self) -> ArrayInf: ...
 
 
-def _is_pd_cat(data: Any) -> TypeGuard[PdCatAccessor]:
+def _is_df_cat(data: Any) -> TypeGuard[PdCatAccessor]:
     # Test pd.Series.cat, not pd.Series
     return hasattr(data, "categories") and hasattr(data, "codes")
 
@@ -232,6 +237,69 @@ def npstr_to_arrow_strarr(strarr: np.ndarray) -> Tuple[np.ndarray, str]:
     values = strarr.sum()
     assert "\0" not in values  # arrow string array doesn't need null terminal
     return offsets.astype(np.int32), values
+
+
+def _arrow_cat_inf(  # pylint: disable=too-many-locals
+    cats: "pa.StringArray",
+    codes: Union[_ArrayLikeArg, _CudaArrayLikeArg, "pa.IntegerArray"],
+) -> Tuple[StringArray, ArrayInf, Tuple]:
+    if not TYPE_CHECKING:
+        pa = import_pyarrow()
+
+    # FIXME(jiamingy): Account for offset, need to find an implementation that returns
+    # offset > 0
+    assert cats.offset == 0
+    buffers: List[pa.Buffer] = cats.buffers()
+    mask, offset, data = buffers
+    assert offset.is_cpu
+
+    off_len = len(cats) + 1
+    if offset.size != off_len * (np.iinfo(np.int32).bits / 8):
+        raise TypeError("Arrow dictionary type offsets is required to be 32 bit.")
+
+    joffset: ArrayInf = {
+        "data": (offset.address, True),
+        "typestr": "<i4",
+        "version": 3,
+        "strides": None,
+        "shape": (off_len,),
+        "mask": None,
+    }
+
+    def make_buf_inf(buf: pa.Buffer, typestr: str) -> ArrayInf:
+        return {
+            "data": (buf.address, True),
+            "typestr": typestr,
+            "version": 3,
+            "strides": None,
+            "shape": (buf.size,),
+            "mask": None,
+        }
+
+    jdata = make_buf_inf(data, "<i1")
+    # Categories should not have missing values.
+    assert mask is None
+
+    jnames: StringArray = {"offsets": joffset, "values": jdata}
+
+    def make_array_inf(
+        array: Any,
+    ) -> Tuple[ArrayInf, Optional[Tuple[pa.Buffer, pa.Buffer]]]:
+        """Helper for handling categorical codes."""
+        # Handle cuDF data
+        if hasattr(array, "__cuda_array_interface__"):
+            inf = array.__cuda_array_interface__
+            if "mask" in inf:
+                inf["mask"] = inf["mask"].__cuda_array_interface__
+            return inf, None
+
+        # Other types (like arrow itself) are not yet supported.
+        raise TypeError("Invalid input type.")
+
+    cats_tmp = (mask, offset, data)
+    jcodes, codes_tmp = make_array_inf(codes)
+
+    return jnames, jcodes, (cats_tmp, codes_tmp)
 
 
 def _ensure_np_dtype(
@@ -267,7 +335,12 @@ def array_interface_dict(  # pylint: disable=too-many-locals
 ) -> Union[ArrayInf, Tuple[StringArray, ArrayInf, Optional[Tuple]]]:
     """Returns an array interface from the input."""
     # Handle categorical values
-    if _is_pd_cat(data):
+    if is_arrow_dict(data):
+        cats = data.dictionary
+        codes = data.indices
+        jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
+        return jnames, jcodes, buf
+    if _is_df_cat(data):
         cats = data.categories
         # pandas uses -1 to represent missing values for categorical features
         codes = data.codes.replace(-1, np.nan)
@@ -287,6 +360,7 @@ def array_interface_dict(  # pylint: disable=too-many-locals
         name_offsets, _ = _ensure_np_dtype(name_offsets, np.int32)
         joffsets = array_interface_dict(name_offsets)
         bvalues = name_values.encode("utf-8")
+
         ptr = ctypes.c_void_p.from_buffer(ctypes.c_char_p(bvalues)).value
         assert ptr is not None
 
@@ -298,7 +372,7 @@ def array_interface_dict(  # pylint: disable=too-many-locals
             "version": 3,
             "mask": None,
         }
-        jnames: StringArray = {"offsets": joffsets, "values": jvalues}
+        jnames = {"offsets": joffsets, "values": jvalues}
 
         code_values = codes.values
         jcodes = array_interface_dict(code_values)
@@ -335,3 +409,22 @@ def check_cudf_meta(data: _CudaArrayLikeArg, field: str) -> None:
         and data.__cuda_array_interface__["mask"] is not None
     ):
         raise ValueError(f"Missing value is not allowed for: {field}")
+
+
+def cudf_cat_inf(
+    cats: PdCatAccessor, codes: "pd.Series"
+) -> Tuple[Union[ArrayInf, StringArray], ArrayInf, Tuple]:
+    """Obtain the cuda array interface for cuDF categories."""
+    cp = import_cupy()
+    is_num_idx = cp.issubdtype(cats.dtype, cp.floating) or cp.issubdtype(
+        cats.dtype, cp.integer
+    )
+    if is_num_idx:
+        cats_ainf = cats.__cuda_array_interface__
+        codes_ainf = codes.__cuda_array_interface__
+        if "mask" in codes_ainf:
+            codes_ainf["mask"] = codes_ainf["mask"].__cuda_array_interface__
+        return cats_ainf, codes_ainf, (cats, codes)
+
+    joffset, jdata, buf = _arrow_cat_inf(cats.to_arrow(), codes)
+    return joffset, jdata, buf

@@ -626,17 +626,17 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
                 and ref is not None
                 and ref is self._data_ref
             ):
-                new, cat_codes, feature_names, feature_types = self._temporary_data
+                new, feature_names, feature_types = self._temporary_data
             else:
-                new, cat_codes, feature_names, feature_types = _proxy_transform(
+                new, feature_names, feature_types = _proxy_transform(
                     data,
                     feature_names,
                     feature_types,
                     self._enable_categorical,
                 )
             # Stage the data, meta info are copied inside C++ MetaInfo.
-            self._temporary_data = (new, cat_codes, feature_names, feature_types)
-            dispatch_proxy_set_data(self.proxy, new, cat_codes)
+            self._temporary_data = (new, feature_names, feature_types)
+            dispatch_proxy_set_data(self.proxy, new)
             self.proxy.set_info(
                 feature_names=feature_names,
                 feature_types=feature_types,
@@ -1525,12 +1525,11 @@ class _ProxyDMatrix(DMatrix):
         arrinf = cuda_array_interface(data)
         _check_call(_LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, arrinf))
 
-    def _ref_data_from_cuda_columnar(self, data: DataType, cat_codes: list) -> None:
+    def _ref_data_from_cuda_columnar(self, data: TransformedDf) -> None:
         """Reference data from CUDA columnar format."""
-        from .data import _cudf_array_interfaces
-
-        interfaces_str = _cudf_array_interfaces(data, cat_codes)
-        _check_call(_LIB.XGProxyDMatrixSetDataCudaColumnar(self.handle, interfaces_str))
+        _check_call(
+            _LIB.XGProxyDMatrixSetDataCudaColumnar(self.handle, data.array_interface())
+        )
 
     def _ref_data_from_array(self, data: np.ndarray) -> None:
         """Reference data from numpy array."""
@@ -2822,18 +2821,15 @@ class Booster:
             )
             return _prediction_output(shape, dims, preds, True)
         if _is_cudf_df(data):
-            from .data import _cudf_array_interfaces, _transform_cudf_df
+            from .data import _transform_cudf_df
 
-            data, cat_codes, fns, _ = _transform_cudf_df(
-                data, None, None, enable_categorical
-            )
-            interfaces_str = _cudf_array_interfaces(data, cat_codes)
+            df, fns, _ = _transform_cudf_df(data, None, None, enable_categorical)
             if validate_features:
                 self._validate_features(fns)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
-                    interfaces_str,
+                    df.array_interface(),
                     args,
                     p_handle,
                     ctypes.byref(shape),

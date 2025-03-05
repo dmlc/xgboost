@@ -1,9 +1,11 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
- * \file simple_dmatrix.cu
+ * Copyright 2019-2025, XGBoost Contributors
  */
-#include <thrust/copy.h>
 
+#include <cstdint>  // for int32_t, int8_t
+#include <memory>   // for make_shared
+
+#include "cat_container.h"     // for CatContainer
 #include "device_adapter.cuh"  // for CurrentDevice
 #include "simple_dmatrix.cuh"
 #include "simple_dmatrix.h"
@@ -42,6 +44,11 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
 
+  if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
+    if (adapter->HasCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(adapter->Device(), adapter->Cats()));
+    }
+  }
   this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
   this->fmat_ctx_ = ctx;

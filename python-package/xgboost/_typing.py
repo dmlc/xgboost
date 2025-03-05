@@ -109,9 +109,7 @@ else:
 # The second arg is actually Optional[List[cudf.Series]], skipped for easier type check.
 # The cudf Series is the obtained cat codes, preserved in the `DataIter` to prevent it
 # being freed.
-TransformedData = Tuple[
-    Any, Optional[List], Optional[FeatureNames], Optional[FeatureTypes]
-]
+TransformedData = Tuple[Any, Optional[FeatureNames], Optional[FeatureTypes]]
 
 # template parameter
 _T = TypeVar("_T")
