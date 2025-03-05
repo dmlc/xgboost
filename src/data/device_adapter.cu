@@ -1,7 +1,7 @@
 /**
  * Copyright 2019-2025, XGBoost Contributors
  */
-#include "../common/cuda_rt_utils.h"
+#include "../common/cuda_rt_utils.h"  // for SetDevice, CurrentDevice
 #include "device_adapter.cuh"
 
 namespace xgboost::data {
@@ -50,9 +50,10 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
   this->d_cats_ = this->cats_;  // thrust copy
 
   CHECK(!columns.empty());
-  if (device == -1) {
+  if (device < 0) {
+    // Empty dataset
     CHECK_EQ(columns.front().Shape<0>(), 0);
-    device_ = DeviceOrd::CUDA(0);
+    device_ = DeviceOrd::CUDA(curt::CurrentDevice());
   } else {
     device_ = DeviceOrd::CUDA(device);
   }

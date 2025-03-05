@@ -92,6 +92,9 @@ XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
 namespace dh {
 
 inline int32_t CudaGetPointerDevice(void const *ptr) {
+  if (!ptr) {
+    return -1;
+  }
   int32_t device = -1;
   cudaPointerAttributes attr;
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));

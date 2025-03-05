@@ -5,8 +5,9 @@
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for make_shared
 
-#include "cat_container.h"     // for CatContainer
-#include "device_adapter.cuh"  // for CurrentDevice
+#include "../common/cuda_rt_utils.h"  // for CurrentDevice
+#include "cat_container.h"            // for CatContainer
+#include "device_adapter.cuh"         // for CurrentDevice
 #include "simple_dmatrix.cuh"
 #include "simple_dmatrix.h"
 #include "xgboost/context.h"  // for Context
@@ -22,7 +23,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   CHECK(data_split_mode != DataSplitMode::kCol)
       << "Column-wise data split is currently not supported on the GPU.";
   auto device = (!adapter->Device().IsCUDA() || adapter->NumRows() == 0)
-                    ? DeviceOrd::CUDA(dh::CurrentDevice())
+                    ? DeviceOrd::CUDA(curt::CurrentDevice())
                     : adapter->Device();
   CHECK(device.IsCUDA());
   dh::safe_cuda(cudaSetDevice(device.ordinal));
