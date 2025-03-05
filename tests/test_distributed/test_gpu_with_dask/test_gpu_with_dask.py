@@ -255,7 +255,7 @@ class TestDistributedGPU:
         X, y = make_categorical(local_cuda_client, 10000, 30, 13)
         X = X.to_backend("cudf")
 
-        X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, True)
+        X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, onehot=True)
         X_onehot = X_onehot.to_backend("cudf")
         run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
 
