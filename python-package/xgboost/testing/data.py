@@ -965,6 +965,7 @@ def make_categorical(
     shuffle: bool = False,
     random_state: int = 1994,
     cat_dtype: np.typing.DTypeLike = np.int64,
+    device: str = "cpu",
 ) -> Tuple[ArrayLike, np.ndarray]:
     """Generate categorical features for test.
 
@@ -1034,4 +1035,11 @@ def make_categorical(
         rng.shuffle(columns)
         df = df[columns]
 
+    if device != "cpu":
+        assert device in ["cuda", "gpu"]
+        import cudf
+        import cupy
+
+        df = cudf.from_pandas(df)
+        label = cupy.array(label)
     return df, label

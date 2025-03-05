@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file simple_dmatrix.h
  * \brief In-memory version of DMatrix.
  * \author Tianqi Chen
@@ -32,6 +32,10 @@ class SimpleDMatrix : public DMatrix {
   MetaInfo& Info() override;
   const MetaInfo& Info() const override;
   Context const* Ctx() const override { return &fmat_ctx_; }
+
+  std::shared_ptr<CatContainer const> CatsShared() const override {
+    return this->Info().CatsShared();
+  }
 
   DMatrix* Slice(common::Span<int32_t const> ridxs) override;
   DMatrix* SliceCol(int num_slices, int slice_id) override;

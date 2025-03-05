@@ -36,14 +36,14 @@ TEST_F(CommGroupTest, Basic) {
 }
 
 #if defined(XGBOOST_USE_NCCL)
-TEST_F(CommGroupTest, BasicGPU) {
+TEST_F(CommGroupTest, BasicMGPU) {
   std::int32_t n_workers = curt::AllVisibleGPUs();
   TestDistributed(n_workers, [&](std::string host, std::int32_t port, std::chrono::seconds timeout,
                                  std::int32_t r) {
     auto ctx = MakeCUDACtx(r);
     auto config = MakeDistributedTestConfig(host, port, timeout, r);
     std::unique_ptr<CommGroup> ptr{CommGroup::Create(config)};
-    auto const& comm = ptr->Ctx(&ctx, DeviceOrd::CUDA(0));
+    auto const& comm = ptr->Ctx(&ctx, ctx.Device());
     ASSERT_EQ(comm.TaskID(), std::to_string(r));
     ASSERT_EQ(comm.Retry(), 2);
   });

@@ -1,3 +1,5 @@
+## Build Python package and gtest with GPU enabled
+
 $ErrorActionPreference = "Stop"
 
 . ops/pipeline/enforce-ci.ps1

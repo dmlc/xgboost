@@ -39,6 +39,18 @@ jobs:
             build/testxgboost.exe xgboost.exe `
             (Get-ChildItem python-package/dist/*.whl | Select-Object -Expand FullName)
 
+  build-win64-cpu:
+    name: Build XGBoost for Windows (minimal)
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=windows-cpu
+      - tag=windows-build-win64-cpu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - run: powershell ops/pipeline/build-win64-cpu.ps1
+
   test-win64-gpu:
     name: Test XGBoost on Windows
     needs: build-win64-gpu

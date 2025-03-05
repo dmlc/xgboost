@@ -23,9 +23,11 @@
 #include "../common/threading_utils.h"   // for OmpGetNumThreads, ParallelFor
 #include "../data/adapter.h"             // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
 #include "../data/batch_utils.h"         // for MatchingPageBytes, CachePageRatio
+#include "../data/cat_container.h"       // for CatContainer
 #include "../data/ellpack_page.h"        // for EllpackPage
 #include "../data/proxy_dmatrix.h"       // for DMatrixProxy
 #include "../data/simple_dmatrix.h"      // for SimpleDMatrix
+#include "../encoder/types.h"            // for Overloaded
 #include "c_api_error.h"                 // for xgboost_CHECK_C_ARG_PTR, API_END, API_BEGIN
 #include "c_api_utils.h"                 // for RequiredArg, OptionalArg, GetMissing, CastDM...
 #include "dmlc/base.h"                   // for BeginPtr
@@ -76,7 +78,7 @@ void XGBBuildInfoDevice(Json *p_info) {
 #endif
 
 XGB_DLL int XGBuildInfo(char const **out) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD()
   xgboost_CHECK_C_ARG_PTR(out);
   Json info{Object{}};
 
@@ -102,6 +104,10 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["GCC_VERSION"] = std::vector<Json>{Json{Integer{__GNUC__}}, Json{Integer{__GNUC_MINOR__}},
                                           Json{Integer{__GNUC_PATCHLEVEL__}}};
 #endif
+
+#if defined(__GLIBC__)
+  info["GLIBC_VERSION"] = std::vector<Json>{Json{__GLIBC__}, Json{__GLIBC_MINOR__}};
+#endif  // defined(__GLIBC__)
 
 #if defined(__clang__)
   info["CLANG_VERSION"] =
@@ -131,14 +137,14 @@ XGB_DLL int XGBuildInfo(char const **out) {
 }
 
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
-  API_BEGIN_UNGUARD();
+  API_BEGIN_UNGUARD()
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
   API_END();
 }
 
 XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD()
 
   xgboost_CHECK_C_ARG_PTR(json_str);
   Json config{Json::Load(StringView{json_str})};
@@ -200,7 +206,7 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
 }
 
 XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD()
   auto const& global_config = *GlobalConfigThreadLocalStore::Get();
   Json config {ToJson(global_config)};
   auto const* mgr = global_config.__MANAGER__();
@@ -241,6 +247,8 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
 XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle *out) {
   xgboost_CHECK_C_ARG_PTR(fname);
   xgboost_CHECK_C_ARG_PTR(out);
+
+  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromURI");
 
   Json config{Object()};
   config["uri"] = std::string{fname};
@@ -710,6 +718,56 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   *out_features = dmlc::BeginPtr(charp_vecs);
   *len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
   API_END();
+}
+
+XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
+  // We can directly use the storage in the cat container instead of allocating temporary storage.
+  API_BEGIN()
+  CHECK_HANDLE()
+  auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  auto const cats = p_fmat->Cats()->HostView();
+
+  auto &ret_str = p_fmat->GetThreadLocal().ret_str;
+  xgboost_CHECK_C_ARG_PTR(out);
+
+  if (cats.Empty()) {
+    *out = nullptr;
+  } else {
+    Json jout{Array{}};
+    auto n_features = p_fmat->Info().num_col_;
+    for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
+      auto const &col = cats[f_idx];
+      if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
+        get<Array>(jout).emplace_back();
+        continue;
+      }
+      std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &str) {
+                                   auto const &offsets = str.offsets;
+                                   auto ovec = linalg::MakeVec(offsets.data(), offsets.size());
+                                   auto jovec = linalg::ArrayInterface(ovec);
+
+                                   auto const &values = str.values;
+                                   auto dvec = linalg::MakeVec(values.data(), values.size());
+                                   auto jdvec = linalg::ArrayInterface(dvec);
+
+                                   get<Array>(jout).emplace_back(Object{});
+                                   get<Array>(jout).back()["offsets"] = std::move(jovec);
+                                   get<Array>(jout).back()["values"] = std::move(jdvec);
+                                 },
+                                 [&](auto &&values) {
+                                   auto vec = linalg::MakeVec(values.data(), values.size());
+                                   auto jvec = linalg::ArrayInterface(vec);
+                                   get<Array>(jout).emplace_back(std::move(jvec));
+                                 }},
+                 col);
+    }
+    auto str = Json::Dump(jout);
+    ret_str = std::move(str);
+
+    *out = ret_str.c_str();
+  }
+
+  API_END()
 }
 
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void const *data,

@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
@@ -25,29 +25,28 @@ class JsonWriter;
 class Value {
  private:
   mutable class IntrusivePtrCell ref_;
-  friend IntrusivePtrCell &
-  IntrusivePtrRefCount(xgboost::Value const *t) noexcept {
+  friend IntrusivePtrCell& IntrusivePtrRefCount(xgboost::Value const* t) noexcept {
     return t->ref_;
   }
 
  public:
   /*!\brief Simplified implementation of LLVM RTTI. */
-  enum class ValueKind {
-    kString,
-    kNumber,
-    kInteger,
-    kObject,  // std::map
-    kArray,   // std::vector
-    kBoolean,
-    kNull,
+  enum class ValueKind : std::int64_t {
+    kString = 0,
+    kNumber = 1,
+    kInteger = 2,
+    kObject = 3,  // std::map
+    kArray = 4,   // std::vector
+    kBoolean = 5,
+    kNull = 6,
     // typed array for ubjson
-    kF32Array,
-    kF64Array,
-    kI8Array,
-    kU8Array,
-    kI16Array,
-    kI32Array,
-    kI64Array
+    kF32Array = 7,
+    kF64Array = 8,
+    kI8Array = 9,
+    kU8Array = 10,
+    kI16Array = 11,
+    kI32Array = 12,
+    kI64Array = 13
   };
 
   explicit Value(ValueKind _kind) : kind_{_kind} {}
@@ -152,7 +151,7 @@ class JsonTypedArray : public Value {
   std::vector<T> vec_;
 
  public:
-  using Type = T;
+  using value_type = T;  // NOLINT
 
   JsonTypedArray() : Value(kind) {}
   explicit JsonTypedArray(std::size_t n) : Value(kind) { vec_.resize(n); }

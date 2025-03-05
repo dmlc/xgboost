@@ -18,19 +18,25 @@ from typing import (
     Type,
     TypeGuard,
     Union,
-    cast,
 )
 
 import numpy as np
 
 from ._data_utils import (
     ArrayInf,
+    DfCatAccessor,
+    StringArray,
     TransformedDf,
+    _ensure_np_dtype,
+    _is_df_cat,
     array_hasobject,
     array_interface,
     array_interface_dict,
     check_cudf_meta,
     cuda_array_interface,
+    cuda_array_interface_dict,
+    cudf_cat_inf,
+    is_arrow_dict,
     make_array_interface,
 )
 from ._typing import (
@@ -45,9 +51,13 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import DataFrame
-from .compat import Series as PdSeries
-from .compat import import_polars, import_pyarrow, is_pyarrow_available, lazy_isinstance
+from .compat import (
+    DataFrame,
+    import_polars,
+    import_pyarrow,
+    is_pyarrow_available,
+    lazy_isinstance,
+)
 from .core import (
     _LIB,
     DataIter,
@@ -56,12 +66,13 @@ from .core import (
     _check_call,
     _ProxyDMatrix,
     c_str,
-    from_pystr_to_cstr,
     make_jcargs,
 )
 
 if TYPE_CHECKING:
     import pyarrow as pa
+    from pandas import Series as PdSeries
+
 
 DispatchedDataBackendReturnType = Tuple[
     ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]
@@ -229,17 +240,6 @@ def is_scipy_coo(data: DataType) -> bool:
 
 def _is_np_array_like(data: DataType) -> TypeGuard[np.ndarray]:
     return hasattr(data, "__array_interface__")
-
-
-def _ensure_np_dtype(
-    data: DataType, dtype: Optional[NumpyDType]
-) -> Tuple[np.ndarray, Optional[NumpyDType]]:
-    if array_hasobject(data) or data.dtype in [np.float16, np.bool_]:
-        dtype = np.float32
-        data = data.astype(dtype, copy=False)
-    if not data.flags.aligned:
-        data = np.require(data, requirements="A")
-    return data, dtype
 
 
 def _maybe_np_slice(data: DataType, dtype: Optional[NumpyDType]) -> np.ndarray:
@@ -536,22 +536,17 @@ def _lazy_load_pd_floats() -> tuple:
     return Float32Dtype, Float64Dtype
 
 
-def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
+def pandas_transform_data(data: DataFrame) -> List[Union[np.ndarray, DfCatAccessor]]:
     """Handle categorical dtype and extension types from pandas."""
     Float32Dtype, Float64Dtype = _lazy_load_pd_floats()
 
-    result: List[np.ndarray] = []
+    result: List[Union[np.ndarray, DfCatAccessor]] = []
     np_dtypes = _lazy_has_npdtypes()
 
-    def cat_codes(ser: PdSeries) -> np.ndarray:
-        return _ensure_np_dtype(
-            ser.cat.codes.astype(np.float32)
-            .replace(-1.0, np.nan)
-            .to_numpy(na_value=np.nan),
-            np.float32,
-        )[0]
+    def cat_codes(ser: "PdSeries") -> DfCatAccessor:
+        return ser.cat
 
-    def nu_type(ser: PdSeries) -> np.ndarray:
+    def nu_type(ser: "PdSeries") -> np.ndarray:
         # Avoid conversion when possible
         if isinstance(dtype, Float32Dtype):
             res_dtype: NumpyDType = np.float32
@@ -563,7 +558,7 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
             ser.to_numpy(dtype=res_dtype, na_value=np.nan), res_dtype
         )[0]
 
-    def oth_type(ser: PdSeries) -> np.ndarray:
+    def oth_type(ser: "PdSeries") -> np.ndarray:
         # The dtypes module is added in 1.25.
         npdtypes = np_dtypes and isinstance(
             ser.dtype,
@@ -612,19 +607,47 @@ def pandas_transform_data(data: DataFrame) -> List[np.ndarray]:
 class PandasTransformed(TransformedDf):
     """A storage class for transformed pandas DataFrame."""
 
-    def __init__(self, columns: List[np.ndarray]) -> None:
+    def __init__(
+        self, columns: List[Union[np.ndarray, DfCatAccessor, "pa.DictionaryType"]]
+    ) -> None:
         self.columns = columns
+
+        aitfs = []
+        self.temporary_buffers = []
+
+        # Get the array interface representation for each column.
+        for col in self.columns:
+            inf = array_interface_dict(col)
+            if isinstance(inf, tuple):
+                # Categorical column
+                jnames, jcodes, buf = inf
+                # Store the transformed results to avoid garbage collection.
+                self.temporary_buffers.append(buf)
+                aitfs.append([jnames, jcodes])
+            else:
+                # Numeric column
+                aitfs.append(inf)
+
+        self.aitfs = aitfs
 
     def array_interface(self) -> bytes:
         """Return a byte string for JSON encoded array interface."""
-        aitfs = list(map(array_interface_dict, self.columns))
-        sarrays = bytes(json.dumps(aitfs), "utf-8")
+        sarrays = bytes(json.dumps(self.aitfs), "utf-8")
         return sarrays
 
     @property
     def shape(self) -> Tuple[int, int]:
         """Return shape of the transformed DataFrame."""
-        return self.columns[0].shape[0], len(self.columns)
+        if is_arrow_dict(self.columns[0]):
+            # When input is arrow.
+            n_samples = len(self.columns[0].indices)
+        elif _is_df_cat(self.columns[0]):
+            # When input is pandas.
+            n_samples = self.columns[0].codes.shape[0]
+        else:
+            # Anything else, TypeGuard is ignored by mypy 1.15.0 for some reason
+            n_samples = self.columns[0].shape[0]  # type: ignore
+        return n_samples, len(self.columns)
 
 
 def _transform_pandas_df(
@@ -1034,37 +1057,62 @@ def _lazy_load_cudf_is_cat() -> Callable[[Any], bool]:
     return is_categorical_dtype
 
 
-def _cudf_array_interfaces(data: DataType, cat_codes: list) -> bytes:
-    """Extract CuDF __cuda_array_interface__.  This is special as it returns a new list
-    of data and a list of array interfaces.  The data is list of categorical codes that
-    caller can safely ignore, but have to keep their reference alive until usage of
-    array interface is finished.
+@functools.cache
+def _lazy_load_cudf_is_bool() -> Callable[[Any], bool]:
+    from cudf.api.types import is_bool_dtype
 
-    """
-    is_categorical_dtype = _lazy_load_cudf_is_cat()
-    interfaces = []
+    return is_bool_dtype
 
-    def append(interface: dict) -> None:
-        if "mask" in interface:
-            interface["mask"] = interface["mask"].__cuda_array_interface__
-        interfaces.append(interface)
 
-    if _is_cudf_ser(data):
-        if is_categorical_dtype(data.dtype):
-            interface = cat_codes[0].__cuda_array_interface__
-        else:
-            interface = data.__cuda_array_interface__
-        append(interface)
-    else:
-        for i, col in enumerate(data):
-            if is_categorical_dtype(data[col].dtype):
-                codes = cat_codes[i]
-                interface = codes.__cuda_array_interface__
+class CudfTransformed(TransformedDf):
+    """A storage class for transformed cuDF dataframe."""
+
+    def __init__(self, columns: List[Union["PdSeries", DfCatAccessor]]) -> None:
+        self.columns = columns
+        # Buffers for temporary data that cannot be freed until the data is consumed by
+        # the DMatrix or the booster.
+        self.temporary_buffers: List[Tuple] = []
+
+        aitfs: List[
+            Union[
+                ArrayInf,  # numeric column
+                Tuple[  # categorical column
+                    Union[ArrayInf, StringArray],  # string index, numeric index
+                    ArrayInf,  # codes
+                ],
+            ]
+        ] = []
+
+        def push_series(ser: Any) -> None:
+            if _is_df_cat(ser):
+                cats, codes = ser.categories, ser.codes
+                cats_ainf: Union[StringArray, ArrayInf]  # string or numeric index
+                cats_ainf, codes_ainf, buf = cudf_cat_inf(cats, codes)
+                self.temporary_buffers.append(buf)
+                aitfs.append((cats_ainf, codes_ainf))
             else:
-                interface = data[col].__cuda_array_interface__
-            append(interface)
-    interfaces_str = from_pystr_to_cstr(json.dumps(interfaces))
-    return interfaces_str
+                # numeric column
+                ainf = cuda_array_interface_dict(ser)
+                aitfs.append(ainf)
+
+        for col in self.columns:
+            push_series(col)
+
+        self.aitfs = aitfs
+
+    def array_interface(self) -> bytes:
+        """Return a byte string for JSON encoded array interface."""
+        sarrays = bytes(json.dumps(self.aitfs), "utf-8")
+        return sarrays
+
+    @property
+    def shape(self) -> Tuple[int, int]:
+        """Return shape of the transformed DataFrame."""
+        if _is_df_cat(self.columns[0]):
+            n_samples = self.columns[0].codes.shape[0]
+        else:
+            n_samples = self.columns[0].shape[0]  # type: ignore
+        return n_samples, len(self.columns)
 
 
 def _transform_cudf_df(
@@ -1072,26 +1120,23 @@ def _transform_cudf_df(
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
-) -> Tuple[ctypes.c_void_p, list, Optional[FeatureNames], Optional[FeatureTypes]]:
-
-    try:
-        from cudf.api.types import is_bool_dtype
-    except ImportError:
-        from pandas.api.types import is_bool_dtype
+) -> Tuple[
+    CudfTransformed,
+    Optional[FeatureNames],
+    Optional[FeatureTypes],
+]:
+    is_bool_dtype = _lazy_load_cudf_is_bool()
 
     is_categorical_dtype = _lazy_load_cudf_is_cat()
     # Work around https://github.com/dmlc/xgboost/issues/10181
     if _is_cudf_ser(data):
         if is_bool_dtype(data.dtype):
             data = data.astype(np.uint8)
+        dtypes = [data.dtype]
     else:
         data = data.astype(
             {col: np.uint8 for col in data.select_dtypes(include="bool")}
         )
-
-    if _is_cudf_ser(data):
-        dtypes = [data.dtype]
-    else:
         dtypes = data.dtypes
 
     if not all(
@@ -1120,24 +1165,26 @@ def _transform_cudf_df(
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
 
     # handle categorical data
-    cat_codes = []
+    result = []
     if _is_cudf_ser(data):
         # unlike pandas, cuDF uses NA for missing data.
         if is_categorical_dtype(data.dtype) and enable_categorical:
-            codes = data.cat.codes
-            cat_codes.append(codes)
+            result.append(data.cat)
+        elif enable_categorical:
+            raise ValueError(_ENABLE_CAT_ERR)
+        else:
+            result.append(data)
     else:
         for col in data:
             dtype = data[col].dtype
             if is_categorical_dtype(dtype) and enable_categorical:
-                codes = data[col].cat.codes
-                cat_codes.append(codes)
+                result.append(data[col].cat)
             elif is_categorical_dtype(dtype):
                 raise ValueError(_ENABLE_CAT_ERR)
             else:
-                cat_codes.append([])
+                result.append(data[col])
 
-    return data, cat_codes, feature_names, feature_types
+    return CudfTransformed(result), feature_names, feature_types
 
 
 def _from_cudf_df(
@@ -1149,14 +1196,13 @@ def _from_cudf_df(
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> DispatchedDataBackendReturnType:
-    data, cat_codes, feature_names, feature_types = _transform_cudf_df(
+    df, feature_names, feature_types = _transform_cudf_df(
         data, feature_names, feature_types, enable_categorical
     )
-    interfaces_str = _cudf_array_interfaces(data, cat_codes)
     handle = ctypes.c_void_p()
     _check_call(
         _LIB.XGDMatrixCreateFromCudaColumnar(
-            interfaces_str,
+            df.array_interface(),
             make_jcargs(nthread=nthread, missing=missing),
             ctypes.byref(handle),
         )
@@ -1672,28 +1718,28 @@ def _proxy_transform(
         )
     if _is_cupy_alike(data):
         data = _transform_cupy_array(data)
-        return data, None, feature_names, feature_types
+        return data, feature_names, feature_types
     if _is_dlpack(data):
-        return _transform_dlpack(data), None, feature_names, feature_types
+        return _transform_dlpack(data), feature_names, feature_types
     if _is_list(data) or _is_tuple(data):
         data = np.array(data)
     if _is_np_array_like(data):
         data, _ = _ensure_np_dtype(data, data.dtype)
-        return data, None, feature_names, feature_types
+        return data, feature_names, feature_types
     if is_scipy_csr(data):
         data = transform_scipy_sparse(data, True)
-        return data, None, feature_names, feature_types
+        return data, feature_names, feature_types
     if is_scipy_csc(data):
         data = transform_scipy_sparse(data.tocsr(), True)
-        return data, None, feature_names, feature_types
+        return data, feature_names, feature_types
     if is_scipy_coo(data):
         data = transform_scipy_sparse(data.tocsr(), True)
-        return data, None, feature_names, feature_types
+        return data, feature_names, feature_types
     if _is_polars(data):
         df_pl, feature_names, feature_types = _transform_polars_df(
             data, enable_categorical, feature_names, feature_types
         )
-        return df_pl, None, feature_names, feature_types
+        return df_pl, feature_names, feature_types
     if _is_pandas_series(data):
         import pandas as pd
 
@@ -1702,12 +1748,12 @@ def _proxy_transform(
         df_pa, feature_names, feature_types = _transform_arrow_table(
             data, enable_categorical, feature_names, feature_types
         )
-        return df_pa, None, feature_names, feature_types
+        return df_pa, feature_names, feature_types
     if _is_pandas_df(data):
         df, feature_names, feature_types = _transform_pandas_df(
             data, enable_categorical, feature_names, feature_types
         )
-        return df, None, feature_names, feature_types
+        return df, feature_names, feature_types
     raise TypeError("Value type is not supported for data iterator:" + str(type(data)))
 
 
@@ -1719,7 +1765,6 @@ def is_on_cuda(data: Any) -> bool:
 def dispatch_proxy_set_data(
     proxy: _ProxyDMatrix,
     data: DataType,
-    cat_codes: Optional[list],
 ) -> None:
     """Dispatch for QuantileDMatrix."""
     if (
@@ -1729,13 +1774,9 @@ def dispatch_proxy_set_data(
     ):
         _check_data_shape(data)
 
-    if _is_cudf_df(data):
+    if isinstance(data, CudfTransformed):
         # pylint: disable=W0212
-        proxy._ref_data_from_cuda_columnar(data, cast(List, cat_codes))
-        return
-    if _is_cudf_ser(data):
-        # pylint: disable=W0212
-        proxy._ref_data_from_cuda_columnar(data, cast(List, cat_codes))
+        proxy._ref_data_from_cuda_columnar(data)
         return
     if _is_cupy_alike(data):
         proxy._ref_data_from_cuda_interface(data)  # pylint: disable=W0212

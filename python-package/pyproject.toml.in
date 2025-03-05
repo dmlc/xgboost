@@ -1,0 +1,96 @@
+[build-system]
+requires = [
+    "hatchling>=1.12.1",
+    "packaging>=21.3",
+]
+backend-path = ["."]
+build-backend = "packager.pep517"
+
+[project]
+name = "{{ name }}"
+description = "XGBoost Python Package"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+authors = [
+    { name = "Hyunsu Cho", email = "chohyu01@cs.washington.edu" },
+    { name = "Jiaming Yuan", email = "jm.yuan@outlook.com" }
+]
+version = "3.1.0-dev"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+{{ nccl }}
+]
+
+[project.urls]
+documentation = "https://xgboost.readthedocs.io/en/stable/"
+repository = "https://github.com/dmlc/xgboost"
+
+[project.optional-dependencies]
+pandas = ["pandas>=1.2"]
+scikit-learn = ["scikit-learn"]
+dask = ["dask", "pandas", "distributed"]
+plotting = ["graphviz", "matplotlib"]
+pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+ignore_missing_imports = true
+disallow_untyped_defs = true
+follow_imports = "silent"
+
+[tool.pylint.main]
+ignore = ["tests"]
+extension-pkg-whitelist = ["numpy"]
+disable = [
+    "import-error",
+    "attribute-defined-outside-init",
+    "import-outside-toplevel",
+    "too-few-public-methods",
+    "too-many-ancestors",
+    "too-many-nested-blocks",
+    "unsubscriptable-object",
+    "useless-object-inheritance"
+]
+dummy-variables-rgx = "(unused|)_.*"
+reports = false
+
+[tool.hatch.build.targets.wheel]
+packages = ["xgboost/"]
+
+[tool.pylint.basic]
+# Enforce naming convention
+const-naming-style = "UPPER_CASE"
+class-naming-style = "PascalCase"
+function-naming-style = "snake_case"
+method-naming-style = "snake_case"
+attr-naming-style = "snake_case"
+argument-naming-style = "snake_case"
+variable-naming-style = "snake_case"
+class-attribute-naming-style = "snake_case"
+
+# Allow single-letter variables
+variable-rgx = "[a-zA-Z_][a-z0-9_]{0,30}$"
+
+[tool.pydistcheck]
+inspect = true
+ignore = ["compiled-objects-have-debug-symbols"]
+max_allowed_size_compressed = '300M'
+max_allowed_size_uncompressed = '500M'

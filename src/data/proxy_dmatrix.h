@@ -254,6 +254,9 @@ namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
 }  // namespace cuda_impl
 
+/**
+ * @brief Get the number of samples for the current batch.
+ */
 [[nodiscard]] inline bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_samples =
@@ -264,6 +267,9 @@ namespace cuda_impl {
   return n_samples;
 }
 
+/**
+ * @brief Get the number of features for the current batch.
+ */
 [[nodiscard]] inline bst_feature_t BatchColumns(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_features =

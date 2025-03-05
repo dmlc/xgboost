@@ -5,7 +5,8 @@
  *  performs predictions for a gradient booster.
  */
 #pragma once
-#include <xgboost/base.h>
+#include <dmlc/registry.h>    // for FunctionRegEntryBase
+#include <xgboost/base.h>     // for bst_tree_t
 #include <xgboost/cache.h>    // for DMatrixCache
 #include <xgboost/context.h>  // for Context
 #include <xgboost/context.h>

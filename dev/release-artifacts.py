@@ -1,7 +1,7 @@
 """
 Simple script for managing Python, R, and source release packages.
 
-tqdm, sh are required to run this script.
+tqdm, sh, and build are required to run this script.
 """
 
 import argparse
@@ -154,7 +154,7 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         "manylinux2014_aarch64",
         "manylinux_2_28_x86_64",
         "manylinux_2_28_aarch64",
-        "macosx_10_15_x86_64.macosx_11_0_x86_64.macosx_12_0_x86_64",
+        "macosx_10_15_x86_64",
         "macosx_12_0_arm64",
     ]
     minimal_platforms = [
@@ -163,14 +163,14 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         "manylinux2014_aarch64",
     ]
 
-    dir_url = f"{S3_BUCKET_URL}/{branch}/"
+    # https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/release_3.0.0/4bfd4bf60d32e2d62426cc4070ccb5a5ba1ed078/xgboost-3.0.0rc1-py3-none-manylinux_2_28_x86_64.whl
+    dir_url = f"{S3_BUCKET_URL}/{branch}/{commit_hash}/"
     wheels = []
-
     for pkg_name, platforms in [
         ("xgboost", full_platforms),
         ("xgboost_cpu", minimal_platforms),
     ]:
-        src_filename_prefix = f"{pkg_name}-{args.release}%2B{commit_hash}-py3-none-"
+        src_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
         target_filename_prefix = f"{pkg_name}-{args.release}-py3-none-"
         wheels.extend(
             _download_python_wheels(
@@ -188,7 +188,7 @@ Following steps should be done manually:
 
 
 def download_r_artifacts(
-    release: str, branch: str, rc: str, commit: str, outdir: Path
+    release: str, branch: str, commit: str, outdir: Path
 ) -> Tuple[Dict[str, str], List[str]]:
     """Download R package artifacts for the specified release and branch."""
     platforms = ["linux"]
@@ -196,16 +196,12 @@ def download_r_artifacts(
     rpkg_dir.mkdir(exist_ok=True)
 
     artifacts = []
-    branch = branch.split("_")[1]  # release_x.y.z
     urls = {}
 
+    # https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/release_3.0.0/4bfd4bf60d32e2d62426cc4070ccb5a5ba1ed078/xgboost_r_gpu_linux.tar.gz
     for plat in platforms:
-        url = f"{S3_BUCKET_URL}/{branch}/xgboost_r_gpu_{plat}_{commit}.tar.gz"
-        artifact_name = (
-            f"xgboost_r_gpu_{plat}_{release}-{rc}.tar.gz"
-            if rc
-            else f"xgboost_r_gpu_{plat}_{release}.tar.gz"
-        )
+        url = f"{S3_BUCKET_URL}/{branch}/{commit}/xgboost_r_gpu_{plat}.tar.gz"
+        artifact_name = f"xgboost_r_gpu_{plat}.tar.gz"
         artifact_path = rpkg_dir / artifact_name
         retrieve(url=url, filename=artifact_path)
         artifacts.append(artifact_path)
@@ -356,7 +352,6 @@ def main(args: argparse.Namespace) -> None:
     urls, hashes = download_r_artifacts(
         release,
         branch,
-        "" if rc is None else f"rc{rc_ver}",
         commit_hash,
         outdir,
     )

@@ -56,7 +56,7 @@ To make changes to the CI container, carry out the following steps:
 
      IMAGE_TAG=PR-XX
 
-   where ``XX`` is the pull request number.
+   where ``XX`` is the pull request number. E.g. ``PR-204``.
 
 6. Now submit a pull request to `dmlc/xgboost <https://github.com/dmlc/xgboost>`_. The CI will
    run tests using the new container. Verify that all tests pass.

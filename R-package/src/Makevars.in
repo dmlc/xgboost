@@ -66,6 +66,7 @@ OBJECTS= \
     $(PKGROOT)/src/gbm/gblinear_model.o \
     $(PKGROOT)/src/data/adapter.o \
     $(PKGROOT)/src/data/array_interface.o \
+    $(PKGROOT)/src/data/cat_container.o \
     $(PKGROOT)/src/data/simple_dmatrix.o \
     $(PKGROOT)/src/data/data.o \
     $(PKGROOT)/src/data/sparse_page_raw_format.o \

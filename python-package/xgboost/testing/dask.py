@@ -16,6 +16,8 @@ from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
 from ..dask import _get_rabit_args
+from .data import make_batches
+from .data import make_categorical as make_cat_local
 
 
 def check_init_estimation_clf(
@@ -113,7 +115,7 @@ def check_external_memory(  # pylint: disable=too-many-locals
     n_threads = get_worker().state.nthreads
     with xgb.collective.CommunicatorContext(dmlc_communicator="rabit", **comm_args):
         it = tm.IteratorForTest(
-            *tm.make_batches(
+            *make_batches(
                 n_samples_per_batch,
                 n_features,
                 n_batches,
@@ -138,7 +140,7 @@ def check_external_memory(  # pylint: disable=too-many-locals
 
     lx, ly, lw = [], [], []
     for i in range(n_workers):
-        x, y, w = tm.make_batches(
+        x, y, w = make_batches(
             n_samples_per_batch,
             n_features,
             n_batches,
@@ -254,3 +256,57 @@ def check_no_group_split(client: Client, device: str) -> None:
     ndcg = ltr.evals_result()["validation_0"]["ndcg@32"]
     assert tm.non_decreasing(ndcg[:16], tolerance=1e-2), ndcg
     np.testing.assert_allclose(ndcg[-1], 1.0, rtol=1e-2)
+
+
+def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
+    client: Client,
+    n_samples: int,
+    n_features: int,
+    n_categories: int,
+    *,
+    onehot: bool = False,
+    cat_dtype: np.typing.DTypeLike = np.int64,
+) -> Tuple[dd.DataFrame, dd.Series]:
+    """Synthesize categorical data with dask."""
+    workers = get_client_workers(client)
+    n_workers = len(workers)
+    dfs = []
+
+    def pack(**kwargs: Any) -> dd.DataFrame:
+        X, y = make_cat_local(**kwargs)
+        X["label"] = y
+        return X
+
+    meta = pack(
+        n_samples=1,
+        n_features=n_features,
+        n_categories=n_categories,
+        onehot=False,
+        cat_dtype=cat_dtype,
+    )
+
+    for i, worker in enumerate(workers):
+        l_n_samples = min(
+            n_samples // n_workers, n_samples - i * (n_samples // n_workers)
+        )
+        # make sure there's at least one sample for testing empty DMatrix
+        if n_samples == 1 and i == 0:
+            l_n_samples = 1
+        future = client.submit(
+            pack,
+            n_samples=l_n_samples,
+            n_features=n_features,
+            n_categories=n_categories,
+            cat_dtype=cat_dtype,
+            onehot=False,
+            workers=[worker],
+        )
+        dfs.append(future)
+
+    df: dd.DataFrame = cast(dd.DataFrame, dd.from_delayed(dfs, meta=meta))
+    y = df["label"]
+    X = df[df.columns.difference(["label"])]
+
+    if onehot:
+        return dd.get_dummies(X), y
+    return X, y

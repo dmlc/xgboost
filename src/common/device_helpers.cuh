@@ -92,6 +92,9 @@ XGBOOST_DEV_INLINE T atomicAdd(T *addr, T v) {  // NOLINT
 namespace dh {
 
 inline int32_t CudaGetPointerDevice(void const *ptr) {
+  if (!ptr) {
+    return -1;
+  }
   int32_t device = -1;
   cudaPointerAttributes attr;
   dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
@@ -453,8 +456,13 @@ xgboost::common::Span<T> ToSpan(VectorT &vec, IndexT offset = 0,
 }
 
 template <typename T>
-xgboost::common::Span<T> ToSpan(thrust::device_vector<T> &vec, size_t offset, size_t size) {
+xgboost::common::Span<T> ToSpan(device_vector<T> &vec, size_t offset, size_t size) {
   return ToSpan(vec, offset, size);
+}
+
+template <typename T>
+xgboost::common::Span<std::add_const_t<T>> ToSpan(device_vector<T> const &vec) {
+  return {thrust::raw_pointer_cast(vec.data()), vec.size()};
 }
 
 template <typename T>

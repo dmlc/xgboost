@@ -40,7 +40,7 @@ predict_parameter_strategy = strategies.fixed_dictionaries(
 )
 
 # cupy nvrtc compilation can take a long time for the first run
-pytestmark = tm.timeout(30)
+pytestmark = tm.timeout(60)
 
 
 class TestGPUPredict:

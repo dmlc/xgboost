@@ -16,6 +16,7 @@ from functools import wraps
 from inspect import Parameter, signature
 from types import EllipsisType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -65,8 +66,18 @@ from ._typing import (
     TransformedData,
     c_bst_ulong,
 )
-from .compat import PANDAS_INSTALLED, DataFrame, import_polars, py_str
-from .libpath import find_lib_path
+from .compat import (
+    PANDAS_INSTALLED,
+    DataFrame,
+    import_polars,
+    import_pyarrow,
+    is_pyarrow_available,
+    py_str,
+)
+from .libpath import find_lib_path, is_sphinx_build
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 
 class XGBoostError(ValueError):
@@ -321,9 +332,9 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
     if device and device.find(":") != -1:
         if device != "sycl:gpu":
             raise ValueError(
-                "Distributed training doesn't support selecting device ordinal as GPUs are"
-                " managed by the distributed frameworks. use `device=cuda` or `device=gpu`"
-                " instead."
+                "Distributed training doesn't support selecting device ordinal as GPUs"
+                "  are managed by the distributed frameworks. use `device=cuda` or"
+                "  `device=gpu` instead."
             )
 
     if kwargs.get("booster", None) == "gblinear":
@@ -364,6 +375,30 @@ def build_info() -> dict:
     res = json.loads(j_info.value.decode())  # pylint: disable=no-member
     res["libxgboost"] = _LIB.path
     return res
+
+
+def _check_glibc() -> None:
+    if is_sphinx_build():
+        return
+
+    glibc_ver = build_info().get("GLIBC_VERSION", None)
+    if glibc_ver is not None and (
+        glibc_ver[0] < 2 or glibc_ver[0] == 2 and glibc_ver[1] < 28
+    ):
+        warnings.warn(
+            "Your system has an old version of glibc (< 2.28). We will stop supporting "
+            "Linux distros with glibc older than 2.28 after **May 31, 2025**. "
+            "Please upgrade to a recent Linux distro (with glibc >= 2.28) to use "
+            "future versions of XGBoost.\n"
+            "Note: You have installed the 'manylinux2014' variant of XGBoost. Certain "
+            "features such as GPU algorithms or federated learning are not available. "
+            "To use these features, please upgrade to a recent Linux distro with glibc "
+            "2.28+, and install the 'manylinux_2_28' variant.",
+            FutureWarning,
+        )
+
+
+_check_glibc()
 
 
 def _numpy2ctypes_type(dtype: Type[np.number]) -> Type[CNumeric]:
@@ -591,17 +626,17 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
                 and ref is not None
                 and ref is self._data_ref
             ):
-                new, cat_codes, feature_names, feature_types = self._temporary_data
+                new, feature_names, feature_types = self._temporary_data
             else:
-                new, cat_codes, feature_names, feature_types = _proxy_transform(
+                new, feature_names, feature_types = _proxy_transform(
                     data,
                     feature_names,
                     feature_types,
                     self._enable_categorical,
                 )
             # Stage the data, meta info are copied inside C++ MetaInfo.
-            self._temporary_data = (new, cat_codes, feature_names, feature_types)
-            dispatch_proxy_set_data(self.proxy, new, cat_codes)
+            self._temporary_data = (new, feature_names, feature_types)
+            dispatch_proxy_set_data(self.proxy, new)
             self.proxy.set_info(
                 feature_names=feature_names,
                 feature_types=feature_types,
@@ -757,8 +792,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             types.
 
             Note that, if passing an iterator, it **will cache data on disk**, and note
-            that fields like ``label`` will be concatenated in-memory from multiple calls
-            to the iterator.
+            that fields like ``label`` will be concatenated in-memory from multiple
+            calls to the iterator.
         label :
             Label of the training data.
         weight :
@@ -1216,6 +1251,70 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         assert data.dtype == np.float32
         return indptr, data
 
+    def get_categories(self) -> Optional[Dict[str, "pa.DictionaryArray"]]:
+        """Get the categories in the dataset. Return `None` if there's no categorical
+        features.
+
+        .. warning::
+
+            This function is still working in progress.
+
+        .. versionadded:: 3.1.0
+
+        """
+        if not is_pyarrow_available():
+            raise ImportError("`pyarrow` is required for exporting categories.")
+
+        if TYPE_CHECKING:
+            import pyarrow as pa
+        else:
+            pa = import_pyarrow()
+
+        n_features = self.num_col()
+        fnames = self.feature_names
+        if fnames is None:
+            fnames = [str(i) for i in range(n_features)]
+
+        results: Dict[str, "pa.DictionaryArray"] = {}
+
+        ret = ctypes.c_char_p()
+        _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(ret)))
+        if ret.value is None:
+            return None
+
+        retstr = ret.value.decode()  # pylint: disable=no-member
+        jcats = json.loads(retstr)
+        assert isinstance(jcats, list) and len(jcats) == n_features
+
+        for fidx in range(n_features):
+            f_jcats = jcats[fidx]
+            if f_jcats is None:
+                # Numeric data
+                results[fnames[fidx]] = None
+                continue
+
+            if "offsets" not in f_jcats:
+                values = from_array_interface(f_jcats)
+                pa_values = pa.Array.from_pandas(values)
+                results[fnames[fidx]] = pa_values
+                continue
+
+            joffsets = f_jcats["offsets"]
+            jvalues = f_jcats["values"]
+            offsets = from_array_interface(joffsets, True)
+            values = from_array_interface(jvalues, True)
+            pa_offsets = pa.array(offsets).buffers()
+            pa_values = pa.array(values).buffers()
+            assert (
+                pa_offsets[0] is None and pa_values[0] is None
+            ), "Should not have null mask."
+            pa_dict = pa.StringArray.from_buffers(
+                len(offsets) - 1, pa_offsets[1], pa_values[1]
+            )
+            results[fnames[fidx]] = pa_dict
+
+        return results
+
     def num_row(self) -> int:
         """Get the number of rows in the DMatrix."""
         ret = c_bst_ulong()
@@ -1426,12 +1525,11 @@ class _ProxyDMatrix(DMatrix):
         arrinf = cuda_array_interface(data)
         _check_call(_LIB.XGProxyDMatrixSetDataCudaArrayInterface(self.handle, arrinf))
 
-    def _ref_data_from_cuda_columnar(self, data: DataType, cat_codes: list) -> None:
+    def _ref_data_from_cuda_columnar(self, data: TransformedDf) -> None:
         """Reference data from CUDA columnar format."""
-        from .data import _cudf_array_interfaces
-
-        interfaces_str = _cudf_array_interfaces(data, cat_codes)
-        _check_call(_LIB.XGProxyDMatrixSetDataCudaColumnar(self.handle, interfaces_str))
+        _check_call(
+            _LIB.XGProxyDMatrixSetDataCudaColumnar(self.handle, data.array_interface())
+        )
 
     def _ref_data_from_array(self, data: np.ndarray) -> None:
         """Reference data from numpy array."""
@@ -1496,7 +1594,8 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         X, y = make_regression()
         X_train, X_test, y_train, y_test = train_test_split(X, y)
         Xy_train = xgb.QuantileDMatrix(X_train, y_train)
-        # It's necessary to have the training DMatrix as a reference for valid quantiles.
+        # It's necessary to have the training DMatrix as a reference for valid
+        # quantiles.
         Xy_test = xgb.QuantileDMatrix(X_test, y_test, ref=Xy_train)
 
     Parameters
@@ -2647,7 +2746,8 @@ class Booster:
         if validate_features:
             if not hasattr(data, "shape"):
                 raise TypeError(
-                    "`shape` attribute is required when `validate_features` is True."
+                    "`shape` attribute is required when `validate_features` is True"
+                    f", got: {type(data)}"
                 )
             if len(data.shape) != 1 and self.num_features() != data.shape[1]:
                 raise ValueError(
@@ -2721,18 +2821,15 @@ class Booster:
             )
             return _prediction_output(shape, dims, preds, True)
         if _is_cudf_df(data):
-            from .data import _cudf_array_interfaces, _transform_cudf_df
+            from .data import _transform_cudf_df
 
-            data, cat_codes, fns, _ = _transform_cudf_df(
-                data, None, None, enable_categorical
-            )
-            interfaces_str = _cudf_array_interfaces(data, cat_codes)
+            df, fns, _ = _transform_cudf_df(data, None, None, enable_categorical)
             if validate_features:
                 self._validate_features(fns)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
-                    interfaces_str,
+                    df.array_interface(),
                     args,
                     p_handle,
                     ctypes.byref(shape),
