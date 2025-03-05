@@ -43,7 +43,7 @@ enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 enum class DataSplitMode : int { kRow = 0, kCol = 1 };
 
 // Forward declaration of the container used by the meta info.
-struct CatContainer;
+class CatContainer;
 
 /**
  * @brief Meta information about dataset, always sit in memory.
