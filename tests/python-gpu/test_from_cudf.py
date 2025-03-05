@@ -212,9 +212,7 @@ class TestFromColumnar:
         # mixed dtypes
         X["0"] = X["0"].astype(np.int64)
         X["2"] = X["2"].astype(np.int64)
-        df, _, _ = xgb.data._transform_cudf_df(
-            X, None, None, enable_categorical=True
-        )
+        df, _, _ = xgb.data._transform_cudf_df(X, None, None, enable_categorical=True)
         assert X.shape[1] == n_features
         assert isinstance(df.aitfs[0], dict)
         assert isinstance(df.aitfs[1], tuple)
@@ -227,9 +225,7 @@ class TestFromColumnar:
         # test missing value
         X = cudf.DataFrame({"f0": ["a", "b", np.nan]})
         X["f0"] = X["f0"].astype("category")
-        df, _, _ = xgb.data._transform_cudf_df(
-            X, None, None, enable_categorical=True
-        )
+        df, _, _ = xgb.data._transform_cudf_df(X, None, None, enable_categorical=True)
         for col in df.aitfs:
             assert isinstance(col, tuple)
             assert "mask" in col[1]
