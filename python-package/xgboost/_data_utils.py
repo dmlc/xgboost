@@ -335,11 +335,6 @@ def array_interface_dict(  # pylint: disable=too-many-locals
 ) -> Union[ArrayInf, Tuple[StringArray, ArrayInf, Optional[Tuple]]]:
     """Returns an array interface from the input."""
     # Handle categorical values
-    if is_arrow_dict(data):
-        cats = data.dictionary
-        codes = data.indices
-        jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
-        return jnames, jcodes, buf
     if _is_df_cat(data):
         cats = data.categories
         # pandas uses -1 to represent missing values for categorical features
