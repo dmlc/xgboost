@@ -9,6 +9,7 @@ import numpy as np
 
 from ..compat import import_cupy
 from ..core import DMatrix
+from ..data import _lazy_load_cudf_is_cat
 from .data import is_pd_cat_dtype, make_categorical
 
 
@@ -79,9 +80,13 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     """Run checks with mixed types."""
     import pandas as pd
 
-    from ..data import _lazy_load_cudf_is_cat
+    try:
+        is_cudf_cat = _lazy_load_cudf_is_cat()
+    except ImportError:
 
-    is_cudf_cat = _lazy_load_cudf_is_cat()
+        def is_cudf_cat(dtype: Any) -> bool:
+            return False
+
     n_samples = int(2**10)
 
     def check(Xy: DMatrix, X: pd.DataFrame) -> None:
