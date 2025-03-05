@@ -367,7 +367,7 @@ def array_interface_dict(  # pylint: disable=too-many-locals
             "version": 3,
             "mask": None,
         }
-        jnames = {"offsets": joffsets, "values": jvalues}
+        jnames: StringArray = {"offsets": joffsets, "values": jvalues}
 
         code_values = codes.values
         jcodes = array_interface_dict(code_values)
