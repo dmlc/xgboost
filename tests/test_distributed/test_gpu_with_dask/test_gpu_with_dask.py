@@ -15,7 +15,7 @@ from packaging.version import parse as parse_version
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
-from xgboost.testing.dask import get_rabit_args
+from xgboost.testing.dask import get_rabit_args, make_categorical
 from xgboost.testing.params import hist_parameter_strategy
 
 from ..test_with_dask.test_with_dask import (
@@ -23,7 +23,6 @@ from ..test_with_dask.test_with_dask import (
 )
 from ..test_with_dask.test_with_dask import kCols as random_cols
 from ..test_with_dask.test_with_dask import (
-    make_categorical,
     run_auc,
     run_boost_from_prediction,
     run_boost_from_prediction_multi_class,

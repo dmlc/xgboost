@@ -31,7 +31,12 @@ from xgboost import dask as dxgb
 from xgboost import testing as tm
 from xgboost.collective import Config as CollConfig
 from xgboost.dask import DaskDMatrix
-from xgboost.testing.dask import check_init_estimation, check_uneven_nan, get_rabit_args
+from xgboost.testing.dask import (
+    check_init_estimation,
+    check_uneven_nan,
+    get_rabit_args,
+    make_categorical,
+)
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
@@ -69,52 +74,6 @@ def client(cluster: "LocalCluster") -> Generator:
 kRows = 1000
 kCols = 10
 kWorkers = 5
-
-
-def make_categorical(
-    client: Client,
-    n_samples: int,
-    n_features: int,
-    n_categories: int,
-    onehot: bool = False,
-) -> Tuple[dd.DataFrame, dd.Series]:
-    workers = tm.dask.get_client_workers(client)
-    n_workers = len(workers)
-    dfs = []
-
-    def pack(**kwargs: Any) -> dd.DataFrame:
-        X, y = tm.make_categorical(**kwargs)
-        X["label"] = y
-        return X
-
-    meta = pack(
-        n_samples=1, n_features=n_features, n_categories=n_categories, onehot=False
-    )
-
-    for i, worker in enumerate(workers):
-        l_n_samples = min(
-            n_samples // n_workers, n_samples - i * (n_samples // n_workers)
-        )
-        # make sure there's at least one sample for testing empty DMatrix
-        if n_samples == 1 and i == 0:
-            l_n_samples = 1
-        future = client.submit(
-            pack,
-            n_samples=l_n_samples,
-            n_features=n_features,
-            n_categories=n_categories,
-            onehot=False,
-            workers=[worker],
-        )
-        dfs.append(future)
-
-    df = dd.from_delayed(dfs, meta=meta)
-    y = df["label"]
-    X = df[df.columns.difference(["label"])]
-
-    if onehot:
-        return dd.get_dummies(X), y
-    return X, y
 
 
 def generate_array(
