@@ -76,6 +76,7 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
     Xy = DMatrix(df, enable_categorical=True)
 
 
+# pylint: disable=too-many-statements
 def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     """Run checks with mixed types."""
     import pandas as pd
@@ -84,7 +85,7 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
         is_cudf_cat = _lazy_load_cudf_is_cat()
     except ImportError:
 
-        def is_cudf_cat(dtype: Any) -> bool:
+        def is_cudf_cat(_: Any) -> bool:
             return False
 
     n_samples = int(2**10)
