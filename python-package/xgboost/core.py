@@ -477,6 +477,38 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         `X`) as key. Don't repeat the `X` for multiple batches with different meta data
         (like `label`), make a copy if necessary.
 
+    .. note::
+
+        When the input for each batch is a DataFrame, we assume categories are
+        consistently encoded for all batches. For example, given two dataframes for two
+        batches, this is invalid:
+
+        .. code-block::
+
+            import pandas as pd
+
+            x0 = pd.DataFrame({"a": [0, 1]}, dtype="category")
+            x1 = pd.DataFrame({"a": [1, 2]}, dtype="category")
+
+        This is invalid because the `x0` has `[0, 1]` as categories while `x2` has `[1,
+        2]`. They should share the same set of categories and encoding:
+
+        .. code-block::
+
+            import numpy as np
+
+            categories = np.array([0, 1, 2])
+            x0["a"] = pd.Categorical.from_codes(
+                codes=np.array([0, 1]), categories=categories
+            )
+            x1["a"] = pd.Categorical.from_codes(
+                codes=np.array([1, 2]), categories=categories
+            )
+
+        You can make sure the consistent encoding in your preprocessing step be careful
+        that the data is stored in formats that preserve the encoding when chunking the
+        data.
+
     Parameters
     ----------
     cache_prefix :
@@ -861,15 +893,16 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
             Experimental support of specializing for categorical features.
 
-            If passing 'True' and 'data' is a data frame (from supported libraries such
-            as Pandas, Modin or cuDF), columns of categorical types will automatically
-            be set to be of categorical type (feature_type='c') in the resulting
-            DMatrix.
+            If passing `True` and `data` is a data frame (from supported libraries such as
+            Pandas, Modin or cuDF), The DMatrix recognizes categorical columns and
+            automatically set the `feature_types` parameter. If `data` is not a data
+            frame, this argument is ignored.
 
-            If passing 'False' and 'data' is a data frame with categorical columns,
-            it will result in an error being thrown.
+            If passing `False` and `data` is a data frame with categorical columns, it
+            will result in an error.
 
-            If 'data' is not a data frame, this argument is ignored.
+            See notes in the :py:class:`DataIter` for consistency requirement when the
+            input is an iterator.
 
             JSON/UBJSON serialization format is required for this.
 

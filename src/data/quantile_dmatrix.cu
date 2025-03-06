@@ -12,6 +12,7 @@
 #include "../common/cuda_rt_utils.h"    // for AllVisibleGPUs
 #include "../common/cuda_rt_utils.h"    // for xgboost_NVTX_FN_RANGE
 #include "../common/device_vector.cuh"  // for XGBCachingDeviceAllocator
+#include "../common/error_msg.h"        // for InconsistentCategories
 #include "../common/hist_util.cuh"      // for AdapterDeviceSketch
 #include "../common/quantile.cuh"       // for SketchContainer
 #include "cat_container.h"              // for CatContainer
@@ -76,15 +77,16 @@ void MakeSketches(Context const* ctx,
     CHECK_LT(ctx->Ordinal(), curt::AllVisibleGPUs());
     auto device = dh::GetDevice(ctx);
     curt::SetDevice(device.ordinal);
+    auto cats = cuda_impl::BatchCats(proxy);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
-      ext_info.cats = std::make_shared<CatContainer>(device, cuda_impl::BatchCats(proxy));
+      ext_info.cats = std::make_shared<CatContainer>(device, cats);
       auto rc = collective::Allreduce(ctx, linalg::MakeVec(&ext_info.n_features, 1),
                                       collective::Op::kMax);
       SafeColl(rc);
     } else {
-      CHECK_EQ(ext_info.n_features, data::BatchColumns(proxy))
-          << "Inconsistent number of columns.";
+      CHECK_EQ(cats.n_total_cats, ext_info.cats->NumCatsTotal()) << error::InconsistentCategories();
+      CHECK_EQ(ext_info.n_features, data::BatchColumns(proxy)) << "Inconsistent number of columns.";
     }
 
     auto batch_rows = data::BatchSamples(proxy);
