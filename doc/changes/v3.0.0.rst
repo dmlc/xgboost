@@ -18,8 +18,8 @@ This release features a major update to the external memory implementation with 
 performance, a new :py:class:`~xgboost.ExtMemQuantileDMatrix` for more efficient data
 initialization, new feature coverage including categorical data support and quantile
 regression support. Additionally, GPU-based external memory is reworked to support using
-CPU memory as data cache. Last but not least, we worked on distributed training using
-external external support along with the spark package's initial support.
+CPU memory as a data cache. Last but not least, we worked on distributed training using
+external memory along with the spark package's initial support.
 
 - A new :py:class:`~xgboost.ExtMemQuantileDMatrix` class for fast data initialization with
   the ``hist`` tree method. The new class supports both CPU and GPU training. (:pr:`10689`,
@@ -49,15 +49,15 @@ Significant updates for the GPU-based external memory training implementation. (
   handle up to terabytes of data.
 - Support prediction cache (:pr:`10707`).
 - Automatic page concatenation for improved GPU utilization (:pr:`10887`).
-- Improved quantile sketching algorithm for batch-based inputs. See section for new
-  :ref:`features <3_0_features>` for more info.
+- Improved quantile sketching algorithm for batch-based inputs. See the section for
+  :ref:`new features <3_0_features>` for more info.
 - Optimization for nearly-dense input, see the section for :ref:`optimization
   <3_0_optimization>` for more info.
 
 See our latest document for details :doc:`/tutorials/external_memory`. The PyPI package
 (``pip install``) doesn't have ``RMM`` support, which is required by the GPU external
 memory implementation. To experiment, you can compile XGBoost from source or wait for the
-conda package to be available.
+RAPIDS conda package to be available.
 
 .. _3_0_networking:
 
@@ -137,18 +137,18 @@ please visit corresponding sections.
   :py:class:`~xgboost.ExtMemQuantileDMatrix`.
 
   + A new multi-level sketching algorithm is employed to reduce the overall memory usage
-    with batched inputs
+    with batched inputs.
   + In addition to algorithmic changes, internal memory usage estimation and the quantile
     container is also updated. (:pr:`10761`, :pr:`10843`)
-  + The change introduces two more parameters for the
-    :py:class:`~xgboost.QuantileDMatrix`, namely, ``max_quantile_batches`` and
+  + The change introduces two more parameters for the :py:class:`~xgboost.QuantileDMatrix`
+    and :py:class:`~xgboost.DataIter`, namely, ``max_quantile_batches`` and
     ``min_cache_page_bytes``.
 
 - More work is needed to improve the support of categorical features. This release
   supports plotting trees with stat for categorical nodes (:pr:`11053`). In addition, some
-  preparation work is ongoing for auto re-coding categories. (:pr:`11094`, :pr:`11114`, :pr:`11089`)
+  preparation work is ongoing for auto re-coding categories. (:pr:`11094`, :pr:`11114`,
+  :pr:`11089`) These are feature enhancements instead of blocking issues.
 - Implement weight-based feature importance for vector-leaf. (:pr:`10700`)
-- Support for legacy CUDA stream is removed (:pr:`10607`)
 - Reduced logging in the DMatrix construction. (:pr:`11080`)
 
 .. _3_0_optimization:
@@ -188,6 +188,7 @@ This section lists breaking changes that affect all packages.
 - Remove the deprecated ``DeviceQuantileDMatrix``. (:pr:`10974`, :pr:`10491`)
 - Support for saving the model in the ``deprecated`` has been removed. Users can still
   load old models in 3.0. (:pr:`10490`)
+- Support for the legacy (blocking) CUDA stream is removed (:pr:`10607`)
 
 *********
 Bug Fixes
@@ -240,13 +241,15 @@ Python Package
     with an exception instead of hang.
   + Optional support for client-side logging. (:pr:`10942`)
   + Fix LTR with empty partition and NCCL error. (:pr:`11152`)
+  + Update to work with the latest Dask. (:pr:`11291`)
   + See the :ref:`3_0_features` section for changes to ranking models.
   + See the :ref:`3_0_networking` section for changes with the communication module.
 
 - PySpark
 
-  + Expose Training and Validation Metrics (:pr:`11133`)
-  + Add barrier before initializing the communicator (:pr:`10938`)
+  + Expose Training and Validation Metrics. (:pr:`11133`)
+  + Add barrier before initializing the communicator. (:pr:`10938`)
+  + Extend support for columnar input to CPU (GPU-only previously). (:pr:`11299`)
   + See the :ref:`3_0_features` section for changes to ranking models.
   + See the :ref:`3_0_networking` section for changes with the communication module.
 
