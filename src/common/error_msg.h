@@ -117,6 +117,10 @@ constexpr StringView InconsistentFeatureTypes() {
   return "Inconsistent feature types between batches.";
 }
 
+constexpr StringView InconsistentCategories() {
+  return "Inconsistent number of categories between batches.";
+}
+
 void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch);
 
 constexpr StringView ZeroCudaMemory() {

@@ -17,6 +17,7 @@
 #include "cat_container.h"       // for CatContainer
 #include "gradient_index.h"      // for GHistIndexMatrix
 #include "sparse_page_source.h"  // for MakeCachePrefix
+#include "../common/error_msg.h"             // for InconsistentCategories
 
 namespace xgboost::data {
 MetaInfo &SparsePageDMatrix::Info() { return info_; }
@@ -70,7 +71,8 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
     if (!ext_info_.cats) {
       ext_info_.cats = get_cats(proxy);
     } else {
-      CHECK_EQ(ext_info_.cats->NumCatsTotal(), get_cats(proxy)->NumCatsTotal());
+      CHECK_EQ(ext_info_.cats->NumCatsTotal(), get_cats(proxy)->NumCatsTotal())
+          << error::InconsistentCategories();
     }
   }
   std::partial_sum(ext_info_.base_rowids.cbegin(), ext_info_.base_rowids.cend(),
