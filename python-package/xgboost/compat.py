@@ -5,7 +5,7 @@ import importlib.util
 import logging
 import sys
 import types
-from typing import Any, Sequence, cast
+from typing import Any, Dict, Sequence, Set, Union, cast
 
 import numpy as np
 
@@ -167,10 +167,46 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
         # other sparse format will be converted to CSR.
         return scipy_sparse.vstack(value, format="csr")
-    if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
+    if PANDAS_INSTALLED and isinstance(value[0], Series):
+        # Pandas turns categorical features into float after concatenation.
         from pandas import concat as pd_concat
 
-        return pd_concat(value, axis=0)
+        from .data import _lazy_load_pd_is_cat
+
+        is_cat = _lazy_load_pd_is_cat()
+        categories: Dict[str, Union[Set[str], Set[int], Set[float]]] = {}
+        for v in value:
+            assert isinstance(v, Series)
+            if is_cat(v.dtype):
+                categories[v.name] = set()
+            categories[v.name].union(set(v.cat.categories))
+
+        x = pd_concat(value, axis=0)
+        if x.name in categories:
+            x = x.cat.set_categories(categories[x.name])
+        return x
+    if PANDAS_INSTALLED and isinstance(value[0], DataFrame):
+        # Pandas turns categorical features into float after concatenation.
+        from pandas import concat as pd_concat
+
+        from .data import _lazy_load_pd_is_cat
+
+        is_cat = _lazy_load_pd_is_cat()
+        categories = {}
+        for v in value:
+            assert isinstance(v, DataFrame)
+            for c in v.columns:
+                if is_cat(c.dtype):
+                    cats = c.cat.categories
+                    if c not in categories:
+                        categories[c] = set()
+                    categories[c] = categories[c].union(set(cats))
+
+        x = pd_concat(value, axis=0)
+        for c in x.columns:
+            if c in categories:
+                x[c] = x[c].astype("category").cat.set_categories(categories[c])
+        return x
     if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
         value[0], "cudf.core.series", "Series"
     ):
