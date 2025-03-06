@@ -232,3 +232,4 @@ def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
     assert cats is not None and len(cats) == n_features
     for _, v in cats.items():
         assert v.null_count == 0
+        assert len(v) == n_cats
