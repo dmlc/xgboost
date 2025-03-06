@@ -39,6 +39,7 @@ def test_external_memory_demo():
 
 @pytest.mark.skipif(**tm.no_rmm())
 @pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.mgpu
 def test_distributed_extmem_basic_demo():
     script = os.path.join(PYTHON_DEMO_DIR, "distributed_extmem_basic.py")
     cmd = ["python", script, "--device=cuda"]
