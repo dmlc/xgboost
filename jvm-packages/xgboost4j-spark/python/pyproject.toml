@@ -1,0 +1,50 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "xgboost4j"
+version = "3.1.0"
+authors = [
+  { name = "Bobby Wang", email = "wbo4958@gmail.com" },
+]
+description = "XGBoost4j-Spark pyspark"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Environment :: GPU :: NVIDIA CUDA :: 11",
+  "Environment :: GPU :: NVIDIA CUDA :: 11.4",
+  "Environment :: GPU :: NVIDIA CUDA :: 11.5",
+  "Environment :: GPU :: NVIDIA CUDA :: 11.6",
+  "Environment :: GPU :: NVIDIA CUDA :: 11.7",
+  "Environment :: GPU :: NVIDIA CUDA :: 11.8",
+  "Environment :: GPU :: NVIDIA CUDA :: 12",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.0",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.1",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.2",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.3",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.4",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.5",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.6",
+  "Environment :: GPU :: NVIDIA CUDA :: 12 :: 12.8",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
