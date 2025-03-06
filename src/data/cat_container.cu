@@ -139,7 +139,9 @@ CatContainer::CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df) :
   this->sorted_idx_.SetDevice(device);
   this->sorted_idx_.Resize(0);
   CHECK(this->DeviceCanRead());
-  CHECK(!this->HostCanRead());
+  if (this->n_total_cats_ > 0) {
+    CHECK(!this->HostCanRead());
+  }
 }
 
 CatContainer::~CatContainer() = default;
