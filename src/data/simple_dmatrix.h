@@ -33,10 +33,6 @@ class SimpleDMatrix : public DMatrix {
   const MetaInfo& Info() const override;
   Context const* Ctx() const override { return &fmat_ctx_; }
 
-  std::shared_ptr<CatContainer const> CatsShared() const override {
-    return this->Info().CatsShared();
-  }
-
   DMatrix* Slice(common::Span<int32_t const> ridxs) override;
   DMatrix* SliceCol(int num_slices, int slice_id) override;
 

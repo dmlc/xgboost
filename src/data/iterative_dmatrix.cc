@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost contributors
+ * Copyright 2022-2025, XGBoost contributors
  */
 #include "iterative_dmatrix.h"
 
@@ -66,7 +66,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, iter, missing, &ext_info);
-  ext_info.SetInfo(ctx, &this->info_);
+  ext_info.SetInfo(ctx, true, &this->info_);
 
   /**
    * Generate quantiles
@@ -114,8 +114,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
 
   if (ext_info.n_batches == 1) {
     this->info_ = std::move(proxy->Info());
-    this->info_.num_nonzero_ = ext_info.nnz;
-    this->info_.num_col_ = ext_info.n_features;  // proxy might be empty.
+    ext_info.SetInfo(ctx, false, &this->info_);
     CHECK_EQ(proxy->Info().labels.Size(), 0);
   }
 

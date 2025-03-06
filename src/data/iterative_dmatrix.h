@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  * \file iterative_dmatrix.h
  *
  * \brief Implementation of the higher-level `QuantileDMatrix`.
@@ -48,6 +48,7 @@ class IterativeDMatrix : public QuantileDMatrix {
                             std::shared_ptr<DMatrix> ref, DataIterResetCallback *reset,
                             XGDMatrixCallbackNext *next, float missing, int nthread,
                             bst_bin_t max_bin, std::int64_t max_quantile_blocks);
+
   /**
    * @param Directly construct a QDM from an existing one.
    */

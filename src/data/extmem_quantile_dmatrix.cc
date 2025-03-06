@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include "extmem_quantile_dmatrix.h"
 
@@ -76,7 +76,7 @@ void ExtMemQuantileDMatrix::InitFromCPU(
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, *iter, missing, &ext_info);
-  ext_info.SetInfo(ctx, &this->info_);
+  ext_info.SetInfo(ctx, true, &this->info_);
 
   this->n_batches_ = ext_info.n_batches;
 

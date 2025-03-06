@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include <algorithm>  // for max
 #include <limits>     // for numeric_limits
@@ -14,6 +14,7 @@
 #include "../common/device_vector.cuh"  // for XGBCachingDeviceAllocator
 #include "../common/hist_util.cuh"      // for AdapterDeviceSketch
 #include "../common/quantile.cuh"       // for SketchContainer
+#include "cat_container.h"              // for CatContainer
 #include "ellpack_page.cuh"             // for EllpackPage
 #include "proxy_dmatrix.cuh"            // for Dispatch
 #include "proxy_dmatrix.h"              // for DataIterProxy
@@ -73,9 +74,11 @@ void MakeSketches(Context const* ctx,
      */
     // We use do while here as the first batch is fetched in ctor
     CHECK_LT(ctx->Ordinal(), curt::AllVisibleGPUs());
-    curt::SetDevice(dh::GetDevice(ctx).ordinal);
+    auto device = dh::GetDevice(ctx);
+    curt::SetDevice(device.ordinal);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
+      ext_info.cats = std::make_shared<CatContainer>(device, cuda_impl::BatchCats(proxy));
       auto rc = collective::Allreduce(ctx, linalg::MakeVec(&ext_info.n_features, 1),
                                       collective::Op::kMax);
       SafeColl(rc);
