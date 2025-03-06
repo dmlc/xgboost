@@ -258,7 +258,9 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
+#if defined(XGBOOST_USE_CUDA)
 [[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*);
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
 /**
