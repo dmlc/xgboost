@@ -212,6 +212,11 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   bst_target_t const n_groups = model_.learner_model_param->OutputLength();
   monitor_.Start("BoostNewTrees");
 
+  if (this->model_.cats->Empty() && !p_fmat->Cats()->Empty()) {
+    p_fmat->Info().Cats()->Sort(ctx_);
+    this->model_.cats = p_fmat->CatsShared();
+  }
+
   predt->predictions.SetDevice(ctx_->Device());
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
                                     model_.learner_model_param->OutputLength());
