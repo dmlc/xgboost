@@ -6,6 +6,7 @@
 import collections
 import os
 import pickle
+import xgboost as xgb
 from abc import ABC
 from typing import (
     Any,
@@ -38,6 +39,7 @@ __all__ = [
     "EvaluationMonitor",
     "TrainingCheckPoint",
     "CallbackContainer",
+    "SaveBestModelCallback",
 ]
 
 _Score = Union[float, Tuple[float, float]]
@@ -510,6 +512,32 @@ class EarlyStopping(TrainingCallback):
 
         return model
 
+class SaveBestModelCallback(TrainingCallback):
+        """Callback to save the best model based on a given evaluation metric."""
+
+        def __init__(self, metric_name: str = 'auc', save_path: str = 'best_model.json'):
+            """
+            Parameters:
+            ----------
+            metric_name : str
+                The evaluation metric to monitor (default: 'auc').
+            save_path : str
+                The path to save the best model (default: 'best_model.json').
+            """
+            self.metric_name = metric_name
+            self.save_path = save_path
+            self.best_score = None
+            self.best_iteration = None
+
+        def after_iteration(self, model, epoch, evals_log):
+            """Checks the evaluation metric and saves the model if it's the best so far."""
+            if 'valid' in evals_log and self.metric_name in evals_log['valid']:
+                score = evals_log['valid'][self.metric_name][-1]
+                if self.best_score is None or score > self.best_score:
+                    self.best_score = score
+                    self.best_iteration = epoch
+                    model.save_model(self.save_path)
+            return False  # Continue training
 
 class EvaluationMonitor(TrainingCallback):
     """Print the evaluation result at each iteration.
