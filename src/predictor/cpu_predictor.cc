@@ -173,26 +173,24 @@ struct DataToFeatVec {
 template <typename EncAccessor>
 class SparsePageView : public DataToFeatVec<SparsePageView<EncAccessor>> {
   EncAccessor acc_;
+  HostSparsePageView const view_;
 
  public:
-  bst_idx_t base_rowid;
-  HostSparsePageView view;
+  bst_idx_t const base_rowid;
 
-  explicit SparsePageView(SparsePage const *p, EncAccessor &&acc)
-      : acc_{std::forward<EncAccessor>(acc)}, base_rowid{p->base_rowid} {
-    view = p->GetView();
-  }
-  [[nodiscard]] std::size_t Size() const { return view.Size(); }
+  SparsePageView(SparsePage const *p, EncAccessor &&acc)
+      : acc_{std::forward<EncAccessor>(acc)}, view_{p->GetView()}, base_rowid{p->base_rowid} {}
+  [[nodiscard]] std::size_t Size() const { return view_.Size(); }
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float *out) const {
-    auto p_data = view[ridx].data();
+    auto p_data = view_[ridx].data();
 
-    for (std::size_t i = 0, n = view[ridx].size(); i < n; ++i) {
+    for (std::size_t i = 0, n = view_[ridx].size(); i < n; ++i) {
       auto const &entry = p_data[i];
       out[entry.index] = entry.fvalue;
     }
 
-    return view[ridx].size();
+    return view_[ridx].size();
   }
 };
 
@@ -304,8 +302,8 @@ class AdapterView : public DataToFeatVec<AdapterView<Adapter, EncAccessor>> {
   bst_idx_t const static base_rowid = 0;  // NOLINT
 };
 
-template <typename DataView, std::size_t kBlockOfRowsSize>
-void PredictBatchByBlockOfRowsKernel(DataView batch, gbm::GBTreeModel const &model,
+template <std::size_t kBlockOfRowsSize, typename DataView>
+void PredictBatchByBlockOfRowsKernel(DataView const &batch, gbm::GBTreeModel const &model,
                                      bst_tree_t tree_begin, bst_tree_t tree_end,
                                      std::vector<RegTree::FVec> *p_thread_temp,
                                      std::int32_t n_threads,
@@ -365,17 +363,26 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
   }
 }
 
-inline auto EncPolicy = cpu_impl::EncPolicy;
-
-auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView cats, gbm::GBTreeModel const &model) {
-  auto orig_enc = model.cats->HostView();
+auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView const &cats,
+                     gbm::GBTreeModel const &model) {
   std::vector<std::int32_t> mapping(cats.n_total_cats);
   // fixme: thread safety!
   auto sorted_idx = model.cats->RefSortedIndex(ctx);
-  enc::Recode(EncPolicy, orig_enc, sorted_idx, cats, common::Span{mapping});
+  auto orig_enc = model.cats->HostView();
+  enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, cats, common::Span{mapping});
   auto cats_mapping = enc::MappingView{cats.feature_segments, mapping};
   auto acc = CatAccessor{cats_mapping};
   return std::tuple{acc, std::move(mapping)};
+}
+
+bool ShouldUseBlock(DMatrix *p_fmat) {
+  // Threshold to use block-based prediction.
+  constexpr double kDensityThresh = .5;
+  bst_idx_t n_samples = p_fmat->Info().num_row_;
+  bst_idx_t total = std::max(n_samples * p_fmat->Info().num_col_, static_cast<bst_idx_t>(1));
+  double density = static_cast<double>(p_fmat->Info().num_nonzero_) / static_cast<double>(total);
+  bool blocked = density > kDensityThresh;
+  return blocked;
 }
 }  // anonymous namespace
 
@@ -679,19 +686,15 @@ class CPUPredictor : public Predictor {
     }
 
     auto const n_threads = this->ctx_->Threads();
-    bst_idx_t n_samples = p_fmat->Info().num_row_;
 
-    // Threshold to use block-based prediction.
-    constexpr double kDensityThresh = .5;
-    size_t total = std::max(n_samples * p_fmat->Info().num_col_, static_cast<bst_idx_t>(1));
-    double density = static_cast<double>(p_fmat->Info().num_nonzero_) / static_cast<double>(total);
-    bool blocked = density > kDensityThresh;
+    bool blocked = ShouldUseBlock(p_fmat);
 
     std::vector<RegTree::FVec> feat_vecs;
     InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &feat_vecs);
 
     // Create a writable view on the output prediction vector.
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_idx_t n_samples = p_fmat->Info().num_row_;
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
 
@@ -701,28 +704,26 @@ class CPUPredictor : public Predictor {
       if (!p_fmat->PageExists<SparsePage>()) {
         // Run prediction on QDM.
         auto ft = p_fmat->Info().feature_types.ConstHostVector();
-        for (auto const &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
+        for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
+          auto batch = GHistIndexMatrixView{page, ft};
           if (blocked) {
-            PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, kBlockOfRowsSize>(
-                GHistIndexMatrixView{batch, ft}, model, tree_begin, tree_end, &feat_vecs, n_threads,
-                out_predt);
+            PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(batch, model, tree_begin, tree_end,
+                                                              &feat_vecs, n_threads, out_predt);
           } else {
-            PredictBatchByBlockOfRowsKernel<GHistIndexMatrixView, 1>(
-                GHistIndexMatrixView{batch, ft}, model, tree_begin, tree_end, &feat_vecs, n_threads,
-                out_predt);
+            PredictBatchByBlockOfRowsKernel<1>(batch, model, tree_begin, tree_end, &feat_vecs,
+                                               n_threads, out_predt);
           }
         }
       } else {
         // Run prediction on SparsePage
-        for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
+        for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
+          auto batch = SparsePageView{&page, std::forward<Enc>(acc)};
           if (blocked) {
-            PredictBatchByBlockOfRowsKernel<SparsePageView<Enc>, kBlockOfRowsSize>(
-                SparsePageView{&batch, std::forward<Enc>(acc)}, model, tree_begin, tree_end,
-                &feat_vecs, n_threads, out_predt);
+            PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(batch, model, tree_begin, tree_end,
+                                                              &feat_vecs, n_threads, out_predt);
           } else {
-            PredictBatchByBlockOfRowsKernel<SparsePageView<Enc>, 1>(
-                SparsePageView{&batch, std::forward<Enc>(acc)}, model, tree_begin, tree_end,
-                &feat_vecs, n_threads, out_predt);
+            PredictBatchByBlockOfRowsKernel<1>(batch, model, tree_begin, tree_end, &feat_vecs,
+                                               n_threads, out_predt);
           }
         }
       }
@@ -809,7 +810,7 @@ class CPUPredictor : public Predictor {
     this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin, tree_end);
   }
 
-  template <typename Adapter, std::size_t kBlockSize>
+  template <typename Adapter>
   void DispatchedInplacePredict(std::any const &x, std::shared_ptr<DMatrix> p_m,
                                 gbm::GBTreeModel const &model, float missing,
                                 PredictionCacheEntry *out_preds, bst_tree_t tree_begin,
@@ -823,21 +824,28 @@ class CPUPredictor : public Predictor {
     CHECK_EQ(p_m->Info().num_col_, m->NumColumns());
     this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
 
+    bool blocked = ShouldUseBlock(p_m.get());
+
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
-    InitThreadTemp(n_threads * kBlockSize, &thread_temp);
-    std::size_t n_groups = model.learner_model_param->OutputLength();
+    InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &thread_temp);
+    bst_idx_t n_groups = model.learner_model_param->OutputLength();
     auto out_predt = linalg::MakeTensorView(ctx_, predictions, m->NumRows(), n_groups);
 
     auto launch = [&](auto &&acc) {
-      PredictBatchByBlockOfRowsKernel<AdapterView<Adapter, std::remove_reference_t<decltype(acc)>>,
-                                      kBlockSize>(AdapterView{m.get(), missing, acc}, model,
-                                                  tree_begin, tree_end, &thread_temp, n_threads,
-                                                  out_predt);
+      if (blocked) {
+        PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(AdapterView{m.get(), missing, acc}, model,
+                                                          tree_begin, tree_end, &thread_temp,
+                                                          n_threads, out_predt);
+      } else {
+        PredictBatchByBlockOfRowsKernel<1>(AdapterView{m.get(), missing, acc}, model, tree_begin,
+                                           tree_end, &thread_temp, n_threads, out_predt);
+      }
     };
 
     if constexpr (std::is_same_v<Adapter, data::ColumnarAdapter>) {
-      if (m->HasCategorical()) {
+      // Make specialization for DataFrame where we need encoding.
+      if (model.cats->HasCategorical()) {
         auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model);
         return launch(acc);
       }
@@ -845,7 +853,7 @@ class CPUPredictor : public Predictor {
     launch(NoOpAccessor{});
   }
 
-  bool InplacePredict(std::shared_ptr<DMatrix> p_m, const gbm::GBTreeModel &model, float missing,
+  bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model, float missing,
                       PredictionCacheEntry *out_preds, bst_tree_t tree_begin,
                       bst_tree_t tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
@@ -853,21 +861,22 @@ class CPUPredictor : public Predictor {
     CHECK(!p_m->Info().IsColumnSplit())
         << "Inplace predict support for column-wise data split is not yet implemented.";
     auto const &x = proxy->Adapter();
+
     if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
-      this->DispatchedInplacePredict<data::DenseAdapter, kBlockOfRowsSize>(
-          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+      this->DispatchedInplacePredict<data::DenseAdapter>(x, p_m, model, missing, out_preds,
+                                                         tree_begin, tree_end);
     } else if (x.type() == typeid(std::shared_ptr<data::CSRAdapter>)) {
-      this->DispatchedInplacePredict<data::CSRAdapter, 1>(x, p_m, model, missing, out_preds,
-                                                          tree_begin, tree_end);
+      this->DispatchedInplacePredict<data::CSRAdapter>(x, p_m, model, missing, out_preds,
+                                                       tree_begin, tree_end);
     } else if (x.type() == typeid(std::shared_ptr<data::ArrayAdapter>)) {
-      this->DispatchedInplacePredict<data::ArrayAdapter, kBlockOfRowsSize>(
-          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+      this->DispatchedInplacePredict<data::ArrayAdapter>(x, p_m, model, missing, out_preds,
+                                                         tree_begin, tree_end);
     } else if (x.type() == typeid(std::shared_ptr<data::CSRArrayAdapter>)) {
-      this->DispatchedInplacePredict<data::CSRArrayAdapter, 1>(x, p_m, model, missing, out_preds,
-                                                               tree_begin, tree_end);
+      this->DispatchedInplacePredict<data::CSRArrayAdapter>(x, p_m, model, missing, out_preds,
+                                                            tree_begin, tree_end);
     } else if (x.type() == typeid(std::shared_ptr<data::ColumnarAdapter>)) {
-      this->DispatchedInplacePredict<data::ColumnarAdapter, kBlockOfRowsSize>(
-          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+      this->DispatchedInplacePredict<data::ColumnarAdapter>(x, p_m, model, missing, out_preds,
+                                                            tree_begin, tree_end);
     } else {
       return false;
     }
