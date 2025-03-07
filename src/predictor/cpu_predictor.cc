@@ -679,23 +679,27 @@ class CPUPredictor : public Predictor {
     }
 
     auto const n_threads = this->ctx_->Threads();
+    bst_idx_t n_samples = p_fmat->Info().num_row_;
+
+    // Threshold to use block-based prediction.
     constexpr double kDensityThresh = .5;
-    size_t total =
-        std::max(p_fmat->Info().num_row_ * p_fmat->Info().num_col_, static_cast<uint64_t>(1));
+    size_t total = std::max(n_samples * p_fmat->Info().num_col_, static_cast<bst_idx_t>(1));
     double density = static_cast<double>(p_fmat->Info().num_nonzero_) / static_cast<double>(total);
     bool blocked = density > kDensityThresh;
 
     std::vector<RegTree::FVec> feat_vecs;
     InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &feat_vecs);
 
-    std::size_t n_samples = p_fmat->Info().num_row_;
-    std::size_t n_groups = model.learner_model_param->OutputLength();
+    // Create a writable view on the output prediction vector.
+    bst_idx_t n_groups = model.learner_model_param->OutputLength();
     CHECK_EQ(out_preds->size(), n_samples * n_groups);
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
 
+    // Dispatching function for various configuration.
     auto launch = [&](auto &&acc) {
-      using Enc = std::remove_reference_t<decltype(acc)>;
+      using Enc = std::remove_reference_t<decltype(acc)>;  // The encoder.
       if (!p_fmat->PageExists<SparsePage>()) {
+        // Run prediction on QDM.
         auto ft = p_fmat->Info().feature_types.ConstHostVector();
         for (auto const &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
           if (blocked) {
@@ -709,12 +713,12 @@ class CPUPredictor : public Predictor {
           }
         }
       } else {
+        // Run prediction on SparsePage
         for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
           if (blocked) {
             PredictBatchByBlockOfRowsKernel<SparsePageView<Enc>, kBlockOfRowsSize>(
                 SparsePageView{&batch, std::forward<Enc>(acc)}, model, tree_begin, tree_end,
                 &feat_vecs, n_threads, out_predt);
-
           } else {
             PredictBatchByBlockOfRowsKernel<SparsePageView<Enc>, 1>(
                 SparsePageView{&batch, std::forward<Enc>(acc)}, model, tree_begin, tree_end,
