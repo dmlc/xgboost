@@ -1,6 +1,7 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
- * \file gbtree_model.h
+ * Copyright 2017-2025, XGBoost Contributors
+ *
+ * @file gbtree_model.h
  */
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
 #define XGBOOST_GBM_GBTREE_MODEL_H_
