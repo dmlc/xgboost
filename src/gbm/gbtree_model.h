@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023, XGBoost Contributors
+ * Copyright 2017-2024, XGBoost Contributors
  * \file gbtree_model.h
  */
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "../common/threading_utils.h"
+#include "../data/cat_container.h"  // for CatContainer
 
 namespace xgboost {
 
@@ -94,7 +95,7 @@ struct GBTreeModel : public Model {
 
   void InitTreesToUpdate() {
     if (trees_to_update.size() == 0u) {
-      for (auto & tree : trees) {
+      for (auto& tree : trees) {
         trees_to_update.push_back(std::move(tree));
       }
       trees.clear();
@@ -146,22 +147,23 @@ struct GBTreeModel : public Model {
   // model parameter
   GBTreeModelParam param;
   /*! \brief vector of trees stored in the model */
-  std::vector<std::unique_ptr<RegTree> > trees;
+  std::vector<std::unique_ptr<RegTree>> trees;
   /*! \brief for the update process, a place to keep the initial trees */
-  std::vector<std::unique_ptr<RegTree> > trees_to_update;
+  std::vector<std::unique_ptr<RegTree>> trees_to_update;
   /**
-   * \brief Group index for trees.
+   * @brief Group index for trees.
    */
   std::vector<int> tree_info;
   /**
-   * \brief Number of trees accumulated for each iteration.
+   * @brief Number of trees accumulated for each iteration.
    */
   std::vector<bst_tree_t> iteration_indptr{0};
+  /**
+   * @brief Categories in the training data.
+   */
+  std::shared_ptr<CatContainer const> cats{std::make_shared<CatContainer>()};
 
  private:
-  /**
-   * \brief Whether the stack contains multi-target tree.
-   */
   Context const* ctx_;
 };
 }  // namespace gbm

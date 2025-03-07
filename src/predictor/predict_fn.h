@@ -8,6 +8,7 @@
 #include <vector>  // for vector
 
 #include "../common/categorical.h"  // for IsCat, Decision
+#include "../data/adapter.h"        // for COOTuple
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
@@ -64,5 +65,26 @@ inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &tree
   }
   return ntree_limit;
 }
+
+struct CatAccessor {
+  enc::MappingView enc;
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
+    auto fvalue = e.value;
+    if (!enc.Empty() && !enc[e.column_idx].empty()) {
+      auto f_mapping = enc[e.column_idx];
+      auto cat_idx = common::AsCat(fvalue);
+      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
+        fvalue = f_mapping.data()[cat_idx];
+      }
+    }
+    return fvalue;
+  }
+};
+
+struct NoOpAccessor {
+  XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const &) {}
+  NoOpAccessor() = default;
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const { return e.value; }
+};
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_
