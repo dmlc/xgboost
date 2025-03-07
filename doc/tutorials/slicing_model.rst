@@ -1,12 +1,14 @@
-#####
-Model
-#####
+##############
+Slicing Models
+##############
 
 Slice tree model
 ----------------
 
 When ``booster`` is set to ``gbtree`` or ``dart``, XGBoost builds a tree model, which is a
 list of trees and can be sliced into multiple sub-models.
+
+In Python:
 
 .. code-block:: python
 
@@ -32,6 +34,24 @@ list of trees and can be sliced into multiple sub-models.
     trees = [_ for _ in booster]
     assert len(trees) == num_boost_round
 
+In R:
+
+.. versionadded:: 3.0.0
+
+.. code-block:: R
+
+    data(agaricus.train, package = "xgboost")
+    dm <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
+
+    model <- xgb.train(
+      params = xgb.params(objective = "binary:logistic", max_depth = 4),
+      data = dm,
+      nrounds = 20
+    )
+    sliced <- model[seq(3, 7)]
+    ##### xgb.Booster
+    # of features: 126
+    # of rounds:  5
 
 The sliced model is a copy of selected trees, that means the model itself is immutable
 during slicing.  This feature is the basis of `save_best` option in early stopping
@@ -40,4 +60,6 @@ how to combine prediction with sliced trees.
 
 .. note::
 
-   The returned model slice doesn't contain attributes like :py:class:`~xgboost.Booster.best_iteration` and :py:class:`~xgboost.Booster.best_score`.
+   The returned model slice doesn't contain attributes like
+   :py:class:`~xgboost.Booster.best_iteration` and
+   :py:class:`~xgboost.Booster.best_score`.
