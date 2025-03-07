@@ -1,21 +1,23 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  */
 #ifndef XGBOOST_DATA_PROXY_DMATRIX_H_
 #define XGBOOST_DATA_PROXY_DMATRIX_H_
 
 #include <algorithm>    // for none_of
 #include <any>          // for any, any_cast
-#include <cstdint>      // for uint32_t
+#include <cstdint>      // for uint32_t, int32_t
 #include <memory>       // for shared_ptr
 #include <type_traits>  // for invoke_result_t, declval
 #include <vector>       // for vector
 
 #include "../common/cuda_rt_utils.h"  // for xgboost_NVTX_FN_RANGE
-#include "adapter.h"
-#include "xgboost/c_api.h"
-#include "xgboost/context.h"
-#include "xgboost/data.h"
+#include "../encoder/ordinal.h"       // for HostColumnsView
+#include "adapter.h"                  // for ColumnarAdapter, ArrayAdapter
+#include "xgboost/c_api.h"            // for DataIterHandle
+#include "xgboost/context.h"          // for Context
+#include "xgboost/data.h"             // for MetaInfo
+#include "xgboost/string_view.h"      // for StringView
 
 namespace xgboost::data {
 /**
@@ -157,6 +159,7 @@ struct ExternalDataInfo {
   std::vector<bst_idx_t> batch_nnz;       // nnz for each batch
   std::vector<bst_idx_t> base_rowids{0};  // base_rowid
   bst_idx_t row_stride{0};                // Used by ellpack, maximum row stride for all batches
+  std::shared_ptr<CatContainer> cats;     // Categories from one of the batches
 
   void Validate() const {
     CHECK(std::none_of(this->column_sizes.cbegin(), this->column_sizes.cend(), [&](auto f) {
@@ -167,13 +170,16 @@ struct ExternalDataInfo {
     CHECK_EQ(this->base_rowids.size(), this->n_batches + 1);
   }
 
-  void SetInfo(Context const* ctx, MetaInfo* p_info) {
+  void SetInfo(Context const* ctx, bool sync, MetaInfo* p_info) {
     // From here on Info() has the correct data shape
     auto& info = *p_info;
     info.num_row_ = this->accumulated_rows;
     info.num_col_ = this->n_features;
     info.num_nonzero_ = this->nnz;
-    info.SynchronizeNumberOfColumns(ctx, DataSplitMode::kRow);
+    if (sync) {
+      info.SynchronizeNumberOfColumns(ctx, DataSplitMode::kRow);
+    }
+    info.Cats(this->cats);
     this->Validate();
   }
 };
@@ -252,6 +258,9 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
+#if defined(XGBOOST_USE_CUDA)
+[[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*);
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
 /**
@@ -279,5 +288,18 @@ namespace cuda_impl {
   }
   return n_features;
 }
+
+namespace cpu_impl {
+// Get categories for the current batch.
+[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
+  return HostAdapterDispatch<false>(proxy, [](auto const& adapter) -> decltype(auto) {
+    using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
+    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
+      return adapter->Cats();
+    }
+    return enc::HostColumnsView{};
+  });
+}
+}  // namespace cpu_impl
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_PROXY_DMATRIX_H_

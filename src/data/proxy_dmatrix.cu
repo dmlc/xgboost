@@ -1,6 +1,7 @@
 /**
- * Copyright 2020-2023, XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  */
+#include "../encoder/ordinal.h"  // for DeviceColumnsView
 #include "device_adapter.cuh"
 #include "proxy_dmatrix.cuh"
 #include "proxy_dmatrix.h"
@@ -50,6 +51,16 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const* proxy) {
   return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
+}
+
+[[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const* proxy) {
+  return Dispatch<false>(proxy, [&](auto const& adapter) {
+    using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
+    if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
+      return adapter->Cats();
+    }
+    return enc::DeviceColumnsView{};
+  });
 }
 }  // namespace cuda_impl
 }  // namespace xgboost::data

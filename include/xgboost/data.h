@@ -710,10 +710,9 @@ class DMatrix {
   /**
    * @brief Accessor for the string representation of the categories.
    */
-  CatContainer const* Cats() const { return this->CatsShared().get(); }
-  [[nodiscard]] virtual std::shared_ptr<CatContainer const> CatsShared() const {
-    LOG(FATAL) << "Not implemented for the current DMatrix type.";
-    return nullptr;
+  [[nodiscard]] CatContainer const* Cats() const { return this->CatsShared().get(); }
+  [[nodiscard]] std::shared_ptr<CatContainer const> CatsShared() const {
+    return this->Info().CatsShared();
   }
 
  protected:

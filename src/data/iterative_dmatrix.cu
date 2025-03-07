@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  */
 #include <memory>     // for shared_ptr
 #include <utility>    // for move
@@ -44,7 +44,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, &iter, proxy, ref, p, missing, cuts, this->info_,
                           max_quantile_blocks, &ext_info);
-  ext_info.SetInfo(ctx, &this->info_);
+  ext_info.SetInfo(ctx, true, &this->info_);
 
   auto init_page = [this, &cuts, &ext_info]() {
     if (!ellpack_) {
@@ -95,7 +95,7 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
 
   if (ext_info.n_batches == 1) {
     this->info_ = std::move(proxy->Info());
-    this->info_.num_nonzero_ = ext_info.nnz;
+    ext_info.SetInfo(ctx, false, &this->info_);
     CHECK_EQ(proxy->Info().labels.Size(), 0);
   }
 

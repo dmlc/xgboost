@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include "quantile_dmatrix.h"
 
@@ -7,7 +7,9 @@
 
 #include "../collective/allreduce.h"         // for Allreduce
 #include "../collective/communicator-inl.h"  // for IsDistributed
+#include "../common/error_msg.h"             // for InconsistentCategories
 #include "../common/threading_utils.h"       // for ParallelFor
+#include "cat_container.h"                   // for CatContainer
 #include "gradient_index.h"                  // for GHistIndexMatrix
 #include "xgboost/collective/result.h"       // for SafeColl
 #include "xgboost/linalg.h"                  // for Tensor
@@ -57,9 +59,7 @@ void GetCutsFromRef(Context const* ctx, std::shared_ptr<DMatrix> ref, bst_featur
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void GetCutsFromEllpack(EllpackPage const&, common::HistogramCuts*) {
-  common::AssertGPUSupport();
-}
+void GetCutsFromEllpack(EllpackPage const&, common::HistogramCuts*) { common::AssertGPUSupport(); }
 #endif
 
 namespace cpu_impl {
@@ -126,8 +126,11 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
       collective::SafeColl(collective::Allreduce(ctx, &info.n_features, collective::Op::kMax));
       info.column_sizes.clear();
       info.column_sizes.resize(info.n_features, 0);
+      p_info->cats = std::make_shared<CatContainer>(cpu_impl::BatchCats(proxy));
     } else {
       CHECK_EQ(info.n_features, BatchColumns(proxy)) << "Inconsistent number of columns.";
+      auto cats = cpu_impl::BatchCats(proxy);
+      CHECK_EQ(cats.n_total_cats, p_info->cats->NumCatsTotal()) << error::InconsistentCategories();
     }
     bst_idx_t batch_size = BatchSamples(proxy);
     info.batch_nnz.push_back(nnz_cnt());

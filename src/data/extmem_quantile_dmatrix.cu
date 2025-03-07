@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  *
  * The @ref ExtMemQuantileDMatrix for GPU prefetches 2 pages by default and can optionally
  * cache page in the device memory for the validation DMatrix. In addition, it can
@@ -53,7 +53,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   ExternalDataInfo ext_info;
   cuda_impl::MakeSketches(ctx, iter.get(), proxy, ref, p, config.missing, cuts, this->info_,
                           max_quantile_blocks, &ext_info);
-  ext_info.SetInfo(ctx, &this->info_);
+  ext_info.SetInfo(ctx, true, &this->info_);
 
   /**
    * Calculate cache info

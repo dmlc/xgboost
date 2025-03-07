@@ -15,6 +15,9 @@
 namespace xgboost {
 CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
   this->n_total_cats_ = df.n_total_cats;
+  if (this->n_total_cats_ == 0) {
+    return;
+  }
 
   this->feature_segments_.Resize(df.feature_segments.size());
   auto& seg = this->feature_segments_.HostVector();

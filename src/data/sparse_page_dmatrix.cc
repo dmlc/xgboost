@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file sparse_page_dmatrix.cc
  *
  * \brief The external memory version of Page Iterator.
@@ -14,8 +14,10 @@
 #include <variant>    // for visit
 
 #include "batch_utils.h"         // for RegenGHist
+#include "cat_container.h"       // for CatContainer
 #include "gradient_index.h"      // for GHistIndexMatrix
 #include "sparse_page_source.h"  // for MakeCachePrefix
+#include "../common/error_msg.h"             // for InconsistentCategories
 
 namespace xgboost::data {
 MetaInfo &SparsePageDMatrix::Info() { return info_; }
@@ -41,6 +43,20 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   auto iter = DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{
       iter_, reset_, next_};
 
+  auto get_cats = [](DMatrixProxy const *proxy) {
+    if (proxy->Ctx()->IsCPU()) {
+      return std::make_shared<CatContainer>(cpu_impl::BatchCats(proxy));
+    } else {
+      common::AssertGPUSupport();
+#if defined(XGBOOST_USE_CUDA)
+      return std::make_shared<CatContainer>(proxy->Ctx()->Device(), cuda_impl::BatchCats(proxy));
+#else
+      common::AssertGPUSupport();
+      return std::make_shared<CatContainer>();
+#endif
+    }
+  };
+
   // The proxy is iterated together with the sparse page source so we can obtain all
   // information in 1 pass.
   for (auto const &page : this->GetRowBatchesImpl(&ctx)) {
@@ -52,13 +68,19 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
     ext_info_.n_batches++;
     ext_info_.base_rowids.push_back(page.Size());
     ext_info_.batch_nnz.push_back(page.data.Size());
+    if (!ext_info_.cats) {
+      ext_info_.cats = get_cats(proxy);
+    } else {
+      CHECK_EQ(ext_info_.cats->NumCatsTotal(), get_cats(proxy)->NumCatsTotal())
+          << error::InconsistentCategories();
+    }
   }
   std::partial_sum(ext_info_.base_rowids.cbegin(), ext_info_.base_rowids.cend(),
                    ext_info_.base_rowids.begin());
 
   iter.Reset();
 
-  ext_info_.SetInfo(&ctx, &this->info_);
+  ext_info_.SetInfo(&ctx, true, &this->info_);
 
   fmat_ctx_ = ctx;
 }

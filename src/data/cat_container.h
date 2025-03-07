@@ -134,7 +134,9 @@ class CatContainer {
 
   void Copy(Context const* ctx, CatContainer const& that);
 
-  [[nodiscard]] bool HostCanRead() const { return !this->cpu_impl_->columns.empty(); }
+  [[nodiscard]] bool HostCanRead() const {
+    return !this->cpu_impl_->columns.empty() || this->n_total_cats_ == 0;
+  }
   [[nodiscard]] bool DeviceCanRead() const;
 
   // Mostly used for testing.
@@ -143,6 +145,7 @@ class CatContainer {
   [[nodiscard]] bool Empty() const { return this->cpu_impl_->columns.empty(); }
 
   [[nodiscard]] std::size_t NumFeatures() const { return this->cpu_impl_->columns.size(); }
+  [[nodiscard]] std::size_t NumCatsTotal() const { return this->n_total_cats_; }
 
   /**
    * @brief Sort the categories using argsort.
