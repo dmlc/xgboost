@@ -18,9 +18,9 @@ python -m pip install `
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 Write-Host "--- Run Python tests"
-python -X faulthandler -m pytest -v -s -rxXs --fulltrace tests/python
+python -X faulthandler -m pytest -v -s -rxXs tests/python
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 Write-Host "--- Run Python tests with GPU"
-python -X faulthandler -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)"`
+python -X faulthandler -m pytest -v -s -rxXs -m "(not slow) and (not mgpu)"`
   tests/python-gpu
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }

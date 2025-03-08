@@ -40,31 +40,28 @@ case "$suite" in
   gpu)
     echo "-- Run Python tests, using a single GPU"
     python -c 'from cupy.cuda import jitify; jitify._init_module()'
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'not mgpu' tests/python-gpu
+    pytest -v -s -rxXs --durations=0 -m 'not mgpu' tests/python-gpu
     ;;
   mgpu)
     echo "-- Run Python tests, using multiple GPUs"
     python -c 'from cupy.cuda import jitify; jitify._init_module()'
     export NCCL_RAS_ENABLE=0
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' tests/python-gpu
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
-      tests/test_distributed/test_gpu_with_dask
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
-      tests/test_distributed/test_gpu_with_spark
-    pytest -v -s -rxXs --fulltrace --durations=0 -m 'mgpu' \
-      tests/test_distributed/test_gpu_federated
+    pytest -v -s -rxXs --durations=0 -m 'mgpu' tests/python-gpu
+    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_with_dask
+    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_with_spark
+    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_gpu_federated
     ;;
   cpu)
     echo "-- Run Python tests (CPU)"
     export RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1
-    pytest -v -s -rxXs --fulltrace --durations=0 tests/python
-    pytest -v -s -rxXs --fulltrace --durations=0 tests/test_distributed/test_with_dask
-    pytest -v -s -rxXs --fulltrace --durations=0 tests/test_distributed/test_with_spark
-    pytest -v -s -rxXs --fulltrace --durations=0 tests/test_distributed/test_federated
+    pytest -v -s -rxXs --durations=0 tests/python
+    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_dask
+    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_with_spark
+    pytest -v -s -rxXs --durations=0 tests/test_distributed/test_federated
     ;;
   cpu-arm64)
     echo "-- Run Python tests (CPU, ARM64)"
-    pytest -v -s -rxXs --fulltrace --durations=0 \
+    pytest -v -s -rxXs --durations=0 \
       tests/python/test_basic.py tests/python/test_basic_models.py \
       tests/python/test_model_compatibility.py
     ;;
