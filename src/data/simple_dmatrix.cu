@@ -7,7 +7,7 @@
 
 #include "../common/cuda_rt_utils.h"  // for CurrentDevice
 #include "cat_container.h"            // for CatContainer
-#include "device_adapter.cuh"         // for CurrentDevice
+#include "device_adapter.cuh"
 #include "simple_dmatrix.cuh"
 #include "simple_dmatrix.h"
 #include "xgboost/context.h"  // for Context

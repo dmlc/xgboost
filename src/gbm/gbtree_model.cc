@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include "gbtree_model.h"
 
@@ -132,6 +132,8 @@ void GBTreeModel::SaveModel(Json* p_out) const {
   std::transform(iteration_indptr.cbegin(), iteration_indptr.cend(), jiteration_indptr.begin(),
                  [](bst_tree_t i) { return Integer{i}; });
   out["iteration_indptr"] = Array{std::move(jiteration_indptr)};
+
+  this->cats->Save(&out["cats"]);
 }
 
 void GBTreeModel::LoadModel(Json const& in) {
@@ -171,6 +173,9 @@ void GBTreeModel::LoadModel(Json const& in) {
     MakeIndptr(this);
   }
 
+  auto p_cats = std::make_shared<CatContainer>();
+  p_cats->Load(in["cats"]);
+  this->cats = std::move(p_cats);
   Validate(*this);
 }
 
