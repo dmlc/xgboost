@@ -13,7 +13,6 @@ Contents
   sklearn_estimator
   python_api
   callbacks
-  model
   examples/index
   dask-examples/index
   survival-examples/index

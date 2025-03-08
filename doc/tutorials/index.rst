@@ -11,6 +11,7 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
 
   model
   saving_model
+  slicing_model
   learning_to_rank
   dart
   monotonic
