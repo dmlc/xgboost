@@ -227,7 +227,7 @@ void MakePairs(Context const* ctx, std::int32_t iter,
   ltr::position_t cnt = group_ptr[g + 1] - group_ptr[g];
 
   if (cache->Param().HasTruncation()) {
-    for (std::size_t i = 0; i < std::min(cnt, cache->Param().NumPair()); ++i) {
+    for (std::size_t i = 0, n = std::min(cnt, cache->Param().NumPair()); i < n; ++i) {
       for (std::size_t j = i + 1; j < cnt; ++j) {
         op(i, j);
       }

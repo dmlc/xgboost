@@ -231,6 +231,14 @@ class LambdaRankObj : public FitIntercept {
                      g_gpair.Values().data(), [norm](GradientPair const& g) { return g * norm; });
     }
 
+    if (!this->p_cache_->Param().HasTruncation()) {
+      auto n_pairs = this->p_cache_->Param().NumPair();
+      auto scale = 1.0 / static_cast<double>(n_pairs);
+      for (std::size_t i = 0, n = g_gpair.Size(); i < n; ++i) {
+        g_gpair(i) = g_gpair(i) * scale;
+      }
+    }
+
     auto w_norm = p_cache_->WeightNorm();
     std::transform(g_gpair.Values().data(), g_gpair.Values().data() + g_gpair.Size(),
                    g_gpair.Values().data(),

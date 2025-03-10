@@ -66,6 +66,7 @@ struct KernelInputs {
   linalg::VectorView<GradientPair const> d_roundings;
   double const *d_cost_rounding;
 
+  ltr::position_t const n_pairs;
   common::Span<std::size_t const> d_y_sorted_idx;
 
   std::int32_t iter;

@@ -4,19 +4,18 @@
  * \brief CUDA implementation of lambdarank.
  */
 #include <dmlc/registry.h>                      // for DMLC_REGISTRY_FILE_TAG
-
 #include <thrust/fill.h>                        // for fill_n
 #include <thrust/for_each.h>                    // for for_each_n
 #include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 #include <thrust/iterator/zip_iterator.h>       // for make_zip_iterator
 #include <thrust/tuple.h>                       // for make_tuple, tuple, tie, get
 
-#include <algorithm>                            // for min
-#include <cassert>                              // for assert
-#include <cmath>                                // for abs, log2, isinf
-#include <cstddef>                              // for size_t
-#include <cstdint>                              // for int32_t
-#include <memory>                               // for shared_ptr
+#include <algorithm>  // for min
+#include <cassert>    // for assert
+#include <cmath>      // for abs, log2, isinf
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t
+#include <memory>     // for shared_ptr
 #include <utility>
 
 #include "../common/algorithm.cuh"       // for SegmentedArgSort
@@ -33,7 +32,7 @@
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/linalg.h"              // for VectorView, Range, Vector
 #include "xgboost/logging.h"
-#include "xgboost/span.h"                // for Span
+#include "xgboost/span.h"  // for Span
 
 namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(lambdarank_obj_cu);
@@ -84,7 +83,7 @@ struct GetGradOp {
   MakePairsOp<has_truncation> make_pair;
   Delta delta;
 
-  bool need_update;
+  bool const need_update;
 
   auto __device__ operator()(std::size_t idx) -> GradCostNorm {
     auto const& args = make_pair.args;
@@ -97,6 +96,7 @@ struct GetGradOp {
     auto g_predt = args.predts.subspan(data_group_begin, n_data);
     auto g_gpair = args.gpairs.Slice(linalg::Range(data_group_begin, data_group_begin + n_data));
     auto g_rank = args.d_sorted_idx.subspan(data_group_begin, n_data);
+    auto n_pairs = args.n_pairs;
 
     auto [i, j] = make_pair(idx, g);
 
@@ -110,7 +110,9 @@ struct GetGradOp {
 
     double cost{0};
 
-    auto delta_op = [&](auto const&... args) { return delta(args..., g); };
+    auto delta_op = [&](auto const&... args) {
+      return delta(args..., g);
+    };
     GradientPair pg =
         LambdaGrad<unbiased, norm_by_diff>(g_label, g_predt, g_rank, rank_high, rank_low, delta_op,
                                            args.ti_plus, args.tj_minus, &cost);
@@ -120,7 +122,6 @@ struct GetGradOp {
 
     if (need_update) {
       // second run, update the gradient
-
       auto ng = Repulse(pg);
 
       auto gr = args.d_roundings(g);
@@ -131,8 +132,9 @@ struct GetGradOp {
       auto ngt = GradientPair{common::TruncateWithRounding(gr.GetGrad(), ng.GetGrad()),
                               common::TruncateWithRounding(gr.GetHess(), ng.GetHess())};
 
-      dh::AtomicAddGpair(&g_gpair(idx_high), pgt);
-      dh::AtomicAddGpair(&g_gpair(idx_low), ngt);
+      double scale = has_truncation ? 1.0 : (1.0 / static_cast<double>(n_pairs));
+      dh::AtomicAddGpair(&g_gpair(idx_high), pgt * scale);
+      dh::AtomicAddGpair(&g_gpair(idx_low), ngt * scale);
     }
 
     if (unbiased && need_update) {
@@ -222,7 +224,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   auto init = thrust::make_tuple(GradientPair{0.0f, 0.0f}, 0.0, 0.0);
   common::Span<GradCostNorm> d_max_lambdas = p_cache->MaxLambdas<GradCostNorm>(ctx, n_groups);
   CHECK_EQ(n_groups * sizeof(GradCostNorm), d_max_lambdas.size_bytes());
-
+  // Reduce by group.
   std::size_t bytes;
   cub::DeviceSegmentedReduce::Reduce(nullptr, bytes, val_it, d_max_lambdas.data(), n_groups,
                                      d_threads_group_ptr.data(), d_threads_group_ptr.data() + 1,
@@ -284,7 +286,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
 }
 
 /**
- * \brief Handles boilerplate code like getting device span.
+ * @brief Handles boilerplate code like getting device spans.
  */
 template <bool norm_by_diff, typename Delta>
 void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const& preds,
@@ -304,7 +306,6 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
   out_gpair->Reshape(preds.Size(), 1);
 
   CHECK(p_cache);
-
   auto d_rounding = p_cache->CUDARounding(ctx);
   auto d_cost_rounding = p_cache->CUDACostRounding(ctx);
 
@@ -327,9 +328,10 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
     d_y_sorted_idx = SortY(ctx, info, rank_idx, p_cache);
   }
 
-  KernelInputs args{ti_plus,        tj_minus, li,     lj,     d_gptr,     d_threads_group_ptr,
-                    rank_idx,       label,    predts, gpairs, d_rounding, d_cost_rounding.data(),
-                    d_y_sorted_idx, iter};
+  auto n_pairs = p_cache->Param().NumPair();
+  KernelInputs args{ti_plus,  tj_minus,       li,     lj,     d_gptr,     d_threads_group_ptr,
+                    rank_idx, label,          predts, gpairs, d_rounding, d_cost_rounding.data(),
+                    n_pairs,  d_y_sorted_idx, iter};
 
   // dispatch based on unbiased and truncation
   if (p_cache->Param().HasTruncation()) {
