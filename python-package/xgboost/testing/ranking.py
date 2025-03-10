@@ -161,7 +161,7 @@ def run_normalization(device: str) -> None:
         device=device,
         lambdarank_pair_method="mean",
         lambdarank_normalization=False,
-        lambdarank_num_pair_per_sample=4
+        lambdarank_num_pair_per_sample=4,
     )
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
     e1 = ltr.evals_result()
