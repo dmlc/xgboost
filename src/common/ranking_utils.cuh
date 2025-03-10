@@ -30,6 +30,8 @@ XGBOOST_DEVICE __forceinline__ std::size_t ThreadsForMean(std::size_t group_size
                                                           std::size_t n_pairs) {
   return group_size * n_pairs;
 }
+// Number of threads in a group divided by the number of samples in this group, returns
+// the number of pairs for pair-wise ltr with sampling.
 XGBOOST_DEVICE __forceinline__ std::size_t PairsForGroup(std::size_t n_threads,
                                                          std::size_t group_size) {
   return n_threads / group_size;
