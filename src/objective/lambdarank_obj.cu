@@ -120,6 +120,8 @@ struct GetGradOp {
     std::size_t idx_high = g_rank[rank_high];
     std::size_t idx_low = g_rank[rank_low];
 
+    float scale = has_truncation ? 1.0 : (1.0 / static_cast<double>(n_pairs));
+
     if (need_update) {
       // second run, update the gradient
       auto ng = Repulse(pg);
@@ -132,7 +134,6 @@ struct GetGradOp {
       auto ngt = GradientPair{common::TruncateWithRounding(gr.GetGrad(), ng.GetGrad()),
                               common::TruncateWithRounding(gr.GetHess(), ng.GetHess())};
 
-      double scale = has_truncation ? 1.0 : (1.0 / static_cast<double>(n_pairs));
       dh::AtomicAddGpair(&g_gpair(idx_high), pgt * scale);
       dh::AtomicAddGpair(&g_gpair(idx_low), ngt * scale);
     }
@@ -157,8 +158,9 @@ struct GetGradOp {
         }
       }
     }
-    return thrust::make_tuple(GradientPair{std::abs(pg.GetGrad()), std::abs(pg.GetHess())},
-                              std::abs(cost), -2.0 * static_cast<double>(pg.GetGrad()));
+    return thrust::make_tuple(
+        GradientPair{std::abs(pg.GetGrad() * scale), std::abs(pg.GetHess() * scale)},
+        std::abs(cost), -2.0 * static_cast<double>(pg.GetGrad()));
   }
 };
 
