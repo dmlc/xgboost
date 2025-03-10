@@ -285,8 +285,7 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
                              norm = std::log2(1.0 + sum_lambda) / sum_lambda;
                            }
                          } else {
-                           double scale =
-                               has_truncation ? 1.0 : (1.0 / static_cast<double>(n_pairs));
+                           double scale = 1.0 / static_cast<double>(n_pairs);
                            norm = scale;
                          }
                          d_gpair(i, 0) *= norm;
