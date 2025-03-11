@@ -66,6 +66,9 @@ inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &tree
   return ntree_limit;
 }
 
+/**
+ * @brief Accessor for obtaining re-coded categories.
+ */
 struct CatAccessor {
   enc::MappingView enc;
   [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
@@ -81,6 +84,9 @@ struct CatAccessor {
   }
 };
 
+/**
+ * @brief No-op accessor used to handle numeric data.
+ */
 struct NoOpAccessor {
   XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const &) {}
   NoOpAccessor() = default;
