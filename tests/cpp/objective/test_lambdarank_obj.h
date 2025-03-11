@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2023, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
 #define XGBOOST_OBJECTIVE_TEST_LAMBDARANK_OBJ_H_
@@ -10,11 +10,8 @@
 #include <xgboost/objective.h>                      // for ObjFunction
 
 #include <memory>                                   // for shared_ptr, make_shared
-#include <numeric>                                  // for iota
-#include <vector>                                   // for vector
 
 #include "../../../src/common/ranking_utils.h"      // for LambdaRankParam, MAPCache
-#include "../../../src/objective/lambdarank_obj.h"  // for MAPStat
 #include "../helpers.h"                             // for EmptyDMatrix
 
 namespace xgboost::obj {
