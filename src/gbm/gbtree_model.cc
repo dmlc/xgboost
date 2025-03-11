@@ -144,11 +144,11 @@ void GBTreeModel::LoadModel(Json const& in) {
 
   auto const& jmodel = get<Object const>(in);
 
-  auto const& trees_json = get<Array const>(in["trees"]);
+  auto const& trees_json = get<Array const>(jmodel.at("trees"));
   CHECK_EQ(trees_json.size(), param.num_trees);
   trees.resize(param.num_trees);
 
-  auto const& tree_info_json = get<Array const>(in["tree_info"]);
+  auto const& tree_info_json = get<Array const>(jmodel.at("tree_info"));
   CHECK_EQ(tree_info_json.size(), param.num_trees);
   tree_info.resize(param.num_trees);
 
@@ -174,7 +174,10 @@ void GBTreeModel::LoadModel(Json const& in) {
   }
 
   auto p_cats = std::make_shared<CatContainer>();
-  p_cats->Load(in["cats"]);
+  auto cat_it = jmodel.find("cats");
+  if (cat_it != jmodel.cend()) {
+    p_cats->Load(cat_it->second);
+  }
   this->cats = std::move(p_cats);
   Validate(*this);
 }
