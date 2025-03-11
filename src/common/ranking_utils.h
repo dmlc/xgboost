@@ -115,6 +115,7 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   }
 
   [[nodiscard]] bool HasTruncation() const { return lambdarank_pair_method == PairMethod::kTopK; }
+  [[nodiscard]] bool IsMean() const { return lambdarank_pair_method == PairMethod::kMean; }
 
   // Used for evaluation metric and cache initialization, iterate through top-k or the whole list
   [[nodiscard]] auto TopK() const {

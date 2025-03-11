@@ -273,18 +273,21 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   auto w_norm = p_cache->WeightNorm();
   auto need_norm = p_cache->Param().lambdarank_normalization;
   auto n_pairs = p_cache->Param().NumPair();
+  bool is_mean = p_cache->Param().IsMean();
+  CHECK_EQ(is_mean, !has_truncation);
   thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), d_gpair.Size(),
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
                        auto g = dh::SegmentId(d_gptr, i);
-                       // Normalization
                        if (need_norm) {
                          double norm = 1.0;
                          if (has_truncation) {
+                           // Normalize using gradient for top-k.
                            auto sum_lambda = thrust::get<2>(d_max_lambdas[g]);
                            if (sum_lambda > 0.0) {
                              norm = std::log2(1.0 + sum_lambda) / sum_lambda;
                            }
                          } else {
+                           // Normalize using the number of pairs for mean.
                            double scale = 1.0 / static_cast<double>(n_pairs);
                            norm = scale;
                          }

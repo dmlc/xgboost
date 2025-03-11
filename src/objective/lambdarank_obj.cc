@@ -227,14 +227,16 @@ class LambdaRankObj : public FitIntercept {
     MakePairs(ctx_, iter, p_cache_, g, g_label, g_rank, loop);
     if (param_.lambdarank_normalization) {
       double norm = 1.0;
-      if (param_.HasTruncation()) {
-        if (sum_lambda > 0.0) {
-          norm = std::log2(1.0 + sum_lambda) / sum_lambda;
-        }
-      } else {
+      if (param_.IsMean()) {
+        // Normalize using the number of pairs for mean.
         auto n_pairs = this->p_cache_->Param().NumPair();
         auto scale = 1.0 / static_cast<double>(n_pairs);
         norm = scale;
+      } else {
+        // Normalize using gradient for top-k.
+        if (sum_lambda > 0.0) {
+          norm = std::log2(1.0 + sum_lambda) / sum_lambda;
+        }
       }
       if (norm != 1.0) {
         std::transform(linalg::begin(g_gpair), linalg::end(g_gpair), linalg::begin(g_gpair),
