@@ -280,16 +280,16 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
                        auto g = dh::SegmentId(d_gptr, i);
                        if (need_norm) {
                          double norm = 1.0;
-                         if (has_truncation) {
+                         if (is_mean) {
+                           // Normalize using the number of pairs for mean.
+                           double scale = 1.0 / static_cast<double>(n_pairs);
+                           norm = scale;
+                         } else {
                            // Normalize using gradient for top-k.
                            auto sum_lambda = thrust::get<2>(d_max_lambdas[g]);
                            if (sum_lambda > 0.0) {
                              norm = std::log2(1.0 + sum_lambda) / sum_lambda;
                            }
-                         } else {
-                           // Normalize using the number of pairs for mean.
-                           double scale = 1.0 / static_cast<double>(n_pairs);
-                           norm = scale;
                          }
                          d_gpair(i, 0) *= norm;
                        }
