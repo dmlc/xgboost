@@ -227,15 +227,16 @@ void MakePairs(Context const* ctx, std::int32_t iter,
   ltr::position_t cnt = group_ptr[g + 1] - group_ptr[g];
 
   if (cache->Param().HasTruncation()) {
-    for (std::size_t i = 0; i < std::min(cnt, cache->Param().NumPair()); ++i) {
+    for (std::size_t i = 0, n = std::min(cnt, cache->Param().NumPair()); i < n; ++i) {
       for (std::size_t j = i + 1; j < cnt; ++j) {
         op(i, j);
       }
     }
   } else {
     CHECK_EQ(g_rank.size(), g_label.Size());
-    std::minstd_rand rnd(iter);
-    rnd.discard(g);  // fixme(jiamingy): honor the global seed
+
+    std::uint32_t seed = iter * (static_cast<std::uint32_t>(group_ptr.size()) - 1) + g;
+    std::minstd_rand rnd(seed);
     // sort label according to the rank list
     auto it = common::MakeIndexTransformIter(
         [&g_rank, &g_label](std::size_t idx) { return g_label(g_rank[idx]); });
@@ -244,7 +245,6 @@ void MakePairs(Context const* ctx, std::int32_t iter,
     // permutation iterator to get the original label
     auto rev_it = common::MakeIndexTransformIter(
         [&](std::size_t idx) { return g_label(g_rank[y_sorted_idx[idx]]); });
-
     for (std::size_t i = 0; i < cnt;) {
       std::size_t j = i + 1;
       // find the bucket boundary

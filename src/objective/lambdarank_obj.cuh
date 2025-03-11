@@ -66,6 +66,7 @@ struct KernelInputs {
   linalg::VectorView<GradientPair const> d_roundings;
   double const *d_cost_rounding;
 
+  ltr::position_t const n_pairs;
   common::Span<std::size_t const> d_y_sorted_idx;
 
   std::int32_t iter;
@@ -136,9 +137,10 @@ struct MakePairsOp {
     // The index pointing to the first element of the next bucket
     std::size_t right_bound = n_data - n_rights;
 
-    thrust::minstd_rand rng(args.iter);
+    std::uint32_t seed = args.iter * (static_cast<std::uint32_t>(args.d_group_ptr.size()) - 1) + g;
+    thrust::minstd_rand rng(seed);
     auto pair_idx = i;
-    rng.discard(sample_pair_idx * n_data + g + pair_idx);  // fixme
+    rng.discard(idx - args.d_threads_group_ptr[g]);  // idx within group
     thrust::uniform_int_distribution<std::size_t> dist(0, n_lefts + n_rights - 1);
     auto ridx = dist(rng);
     SPAN_CHECK(ridx < n_lefts + n_rights);
