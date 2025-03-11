@@ -39,6 +39,16 @@ CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
                      using T =
                          typename cpu_impl::ViewToStorageImpl<std::decay_t<decltype(values)>>::Type;
                      this->cpu_impl_->columns.emplace_back();
+                     using ElemT = typename T::value_type;
+
+                     // float64 is not supported by JSON yet. Also, floating point as
+                     // categories is tricky since floating point equality test is
+                     // inaccurate for most hardward.
+                     if constexpr (std::is_same_v<ElemT, double>) {
+                       LOG(FATAL) << "Category index from DataFrame has f64 dtype, consider "
+                                     "using strings or integers instead.";
+                     }
+
                      this->cpu_impl_->columns.back().emplace<T>();
                      auto& v = std::get<T>(this->cpu_impl_->columns.back());
                      v.resize(values.size());
