@@ -71,10 +71,11 @@ inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &tree
  */
 struct CatAccessor {
   enc::MappingView enc;
-  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
-    auto fvalue = e.value;
-    if (!enc.Empty() && !enc[e.column_idx].empty()) {
-      auto f_mapping = enc[e.column_idx];
+
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx f_idx) const {
+    if (!enc.Empty() && !enc[f_idx].empty()) {
+      auto f_mapping = enc[f_idx];
       auto cat_idx = common::AsCat(fvalue);
       if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
         fvalue = f_mapping.data()[cat_idx];
@@ -83,16 +84,12 @@ struct CatAccessor {
     return fvalue;
   }
 
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
+    return this->operator()(e.value, e.column_idx);
+  }
+
   [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const {
-    auto fvalue = e.fvalue;
-    if (!enc.Empty() && !enc[e.index].empty()) {
-      auto f_mapping = enc[e.index];
-      auto cat_idx = common::AsCat(fvalue);
-      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
-        fvalue = f_mapping.data()[cat_idx];
-      }
-    }
-    return fvalue;
+    return this->operator()(e.fvalue, e.index);
   }
 };
 
@@ -102,6 +99,10 @@ struct CatAccessor {
 struct NoOpAccessor {
   XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const &) {}
   NoOpAccessor() = default;
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
+    return fvalue;
+  }
   [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const { return e.value; }
   [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const { return e.fvalue; }
 };

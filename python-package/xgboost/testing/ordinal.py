@@ -262,5 +262,5 @@ def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
         predt2 = booster.predict(fmat)
         assert_allclose(device, predt0, predt2)
 
-    for dm in (DMatrix, ):
+    for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(dm)

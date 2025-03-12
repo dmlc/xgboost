@@ -194,9 +194,11 @@ class SparsePageView : public DataToFeatVec<SparsePageView<EncAccessor>> {
   }
 };
 
-struct GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView> {
+template <typename EncAccessor>
+class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccessor>> {
  private:
   GHistIndexMatrix const &page_;
+  EncAccessor acc_;
   common::Span<FeatureType const> ft_;
 
   std::vector<std::uint32_t> const &ptrs_;
@@ -208,8 +210,10 @@ struct GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView> {
   bst_idx_t const base_rowid;
 
  public:
-  GHistIndexMatrixView(GHistIndexMatrix const &_page, common::Span<FeatureType const> ft)
+  GHistIndexMatrixView(GHistIndexMatrix const &_page, EncAccessor &&acc,
+                       common::Span<FeatureType const> ft)
       : page_{_page},
+        acc_{acc},
         ft_{ft},
         ptrs_{_page.cut.Ptrs()},
         mins_{_page.cut.MinValues()},
@@ -238,30 +242,30 @@ struct GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView> {
             fvalue =
                 common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx, bin_idx);
           }
-          out[fidx] = fvalue;
+          out[fidx] = acc_(fvalue, fidx);
         }
       });
       n_non_missings += n_features;
     } else {
       for (bst_feature_t fidx = 0; fidx < n_features; ++fidx) {
-        float f = std::numeric_limits<float>::quiet_NaN();
+        float fvalue = std::numeric_limits<float>::quiet_NaN();
         bool is_cat = common::IsCat(ft_, fidx);
         if (columns_.GetColumnType(fidx) == common::kSparseColumn) {
           // Special handling for extremely sparse data. Just binary search.
           auto bin_idx = page_.GetGindex(gridx, fidx);
           if (bin_idx != -1) {
             if (is_cat) {
-              f = values_[bin_idx];
+              fvalue = values_[bin_idx];
             } else {
-              f = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx,
-                                                         bin_idx);
+              fvalue = common::HistogramCuts::NumericBinValue(this->ptrs_, values_, mins_, fidx,
+                                                              bin_idx);
             }
           }
         } else {
-          f = page_.GetFvalue(ptrs_, values_, mins_, gridx, fidx, is_cat);
+          fvalue = page_.GetFvalue(ptrs_, values_, mins_, gridx, fidx, is_cat);
         }
-        if (!common::CheckNAN(f)) {
-          out[fidx] = f;
+        if (!common::CheckNAN(fvalue)) {
+          out[fidx] = acc_(fvalue, fidx);
           n_non_missings++;
         }
       }
@@ -706,7 +710,7 @@ class CPUPredictor : public Predictor {
         // Run prediction on QDM.
         auto ft = p_fmat->Info().feature_types.ConstHostVector();
         for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
-          auto batch = GHistIndexMatrixView{page, ft};
+          auto batch = GHistIndexMatrixView{page, std::forward<Enc>(acc), ft};
           if (blocked) {
             PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(batch, model, tree_begin, tree_end,
                                                               &feat_vecs, n_threads, out_predt);
@@ -966,9 +970,9 @@ class CPUPredictor : public Predictor {
       if (!p_fmat->PageExists<SparsePage>()) {
         auto ft = p_fmat->Info().feature_types.ConstHostVector();
         for (const auto &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
-          PredictContributionKernel(GHistIndexMatrixView{batch, ft}, info, model, tree_weights,
-                                    &mean_values, &feat_vecs, &contribs, ntree_limit, approximate,
-                                    condition, condition_feature);
+          PredictContributionKernel(GHistIndexMatrixView{batch, std::forward<Enc>(acc), ft}, info,
+                                    model, tree_weights, &mean_values, &feat_vecs, &contribs,
+                                    ntree_limit, approximate, condition, condition_feature);
         }
       } else {
         for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
