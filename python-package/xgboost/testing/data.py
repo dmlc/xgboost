@@ -150,6 +150,8 @@ def pd_dtypes() -> Generator:
 
     # Categorical
     orig = orig.astype("category")
+    for c in orig.columns:
+        orig[c] = orig[c].cat.rename_categories(lambda x: int(x))
     for Null in (np.nan, None, pd.NA):
         df = pd.DataFrame(
             {"f0": [1, 2, Null, 3], "f1": [3, 2, Null, 1]},

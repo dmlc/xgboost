@@ -9,8 +9,9 @@
 #include <utility>    // for move
 #include <vector>     // for vector
 
-#include "../encoder/types.h"  // for Overloaded
-#include "xgboost/json.h"      // for Json
+#include "../common/error_msg.h"  // for NoFloatCat
+#include "../encoder/types.h"     // for Overloaded
+#include "xgboost/json.h"         // for Json
 
 namespace xgboost {
 CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
@@ -41,12 +42,8 @@ CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
                      this->cpu_impl_->columns.emplace_back();
                      using ElemT = typename T::value_type;
 
-                     // float64 is not supported by JSON yet. Also, floating point as
-                     // categories is tricky since floating point equality test is
-                     // inaccurate for most hardware.
-                     if constexpr (std::is_same_v<ElemT, double>) {
-                       LOG(FATAL) << "Category index from DataFrame has f64 dtype, consider "
-                                     "using strings or integers instead.";
+                     if constexpr (std::is_floating_point_v<ElemT>) {
+                       LOG(FATAL) << error::NoFloatCat();
                      }
 
                      this->cpu_impl_->columns.back().emplace<T>();
