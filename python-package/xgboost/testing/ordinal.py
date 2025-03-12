@@ -237,15 +237,15 @@ def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
 
 
 def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
-    """Test re-coding during prediction."""
-    Df, Ser = get_df_impl(device)
+    """Basic tests for re-coding during prediction."""
+    Df, _ = get_df_impl(device)
 
-    def run_dispatch(DMatrixT: Type) -> None:
+    def run_basic(DMatrixT: Type) -> None:
         df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
         y = np.array([0, 1, 2])
 
         codes = df.c.cat.codes
-        encoded = np.array([codes.iloc[2], codes.iloc[1]])
+        encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
 
         Xy = DMatrixT(df, y, enable_categorical=True)
         booster = train({"device": device}, Xy, num_boost_round=4)
@@ -263,4 +263,35 @@ def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
         assert_allclose(device, predt0, predt2)
 
     for dm in (DMatrix, QuantileDMatrix):
-        run_dispatch(dm)
+        run_basic(dm)
+
+    def run_mixed(DMatrixT: Type) -> None:
+        df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
+        y = np.array([0, 1, 2])
+
+        # used with the next df
+        b_codes = df.b.cat.codes
+        np.testing.assert_allclose(np.asarray(b_codes), np.array([1, 0, 2]))
+        # pick codes of 3, 1
+        b_encoded = np.array([b_codes.iloc[2], b_codes.iloc[1]])
+
+        c_codes = df.c.cat.codes
+        np.testing.assert_allclose(np.asarray(c_codes), np.array([1, 0, 2]))
+        # pick codes of "def", "abc"
+        c_encoded = np.array([c_codes.iloc[2], c_codes.iloc[1]])
+        encoded = np.stack([b_encoded, c_encoded], axis=1)
+
+        Xy = DMatrixT(df, y, enable_categorical=True)
+        booster = train({"device": device}, Xy, num_boost_round=4)
+
+        df = Df({"b": [3, 1], "c": ["def", "abc"]}, dtype="category")
+        predt0 = booster.inplace_predict(df)
+        predt1 = booster.inplace_predict(encoded)
+        assert_allclose(device, predt0, predt1)
+
+        fmat = DMatrixT(df, enable_categorical=True)
+        predt2 = booster.predict(fmat)
+        assert_allclose(device, predt0, predt2)
+
+    for dm in (DMatrix, QuantileDMatrix):
+        run_mixed(dm)

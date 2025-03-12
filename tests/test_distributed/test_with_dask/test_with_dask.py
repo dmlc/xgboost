@@ -1,4 +1,4 @@
-"""Copyright 2019-2024, XGBoost contributors"""
+"""Copyright 2019-2025, XGBoost contributors"""
 
 import asyncio
 import json
