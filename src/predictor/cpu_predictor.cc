@@ -370,8 +370,8 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
 auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView const &cats,
                      gbm::GBTreeModel const &model) {
   std::vector<std::int32_t> mapping(cats.n_total_cats);
-  auto sorted_idx = model.cats->RefSortedIndex(ctx);
-  auto orig_enc = model.cats->HostView();
+  auto sorted_idx = model.Cats()->RefSortedIndex(ctx);
+  auto orig_enc = model.Cats()->HostView();
   enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, cats, common::Span{mapping});
   auto cats_mapping = enc::MappingView{cats.feature_segments, mapping};
   auto acc = CatAccessor{cats_mapping};
@@ -445,7 +445,7 @@ class ColumnSplitHelper {
   void PredictDMatrix(Context const *ctx, DMatrix *p_fmat, std::vector<bst_float> *out_preds) {
     CHECK(xgboost::collective::IsDistributed())
         << "column-split prediction is only supported for distributed training";
-    if (this->model_.cats->HasCategorical()) {
+    if (this->model_.Cats()->HasCategorical()) {
       LOG(FATAL) << "Categorical feature is not yet supported with column-split.";
     }
 
@@ -682,7 +682,7 @@ class CPUPredictor : public Predictor {
     if (p_fmat->Info().IsColumnSplit()) {
       CHECK(!model.learner_model_param->IsVectorLeaf())
           << "Predict DMatrix with column split" << MTNotImplemented();
-      CHECK(!model.cats->HasCategorical()) << "The re-coder doesn't support column split yet.";
+      CHECK(!model.Cats()->HasCategorical()) << "The re-coder doesn't support column split yet.";
 
       ColumnSplitHelper helper(this->ctx_->Threads(), model, tree_begin, tree_end);
       helper.PredictDMatrix(ctx_, p_fmat, out_preds);
@@ -733,7 +733,7 @@ class CPUPredictor : public Predictor {
       }
     };
 
-    if (model.cats->HasCategorical() && p_fmat->CatsShared()->HasCategorical()) {
+    if (model.Cats()->HasCategorical() && p_fmat->CatsShared()->HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
       launch(acc);
     } else {
@@ -849,7 +849,7 @@ class CPUPredictor : public Predictor {
 
     if constexpr (std::is_same_v<Adapter, data::ColumnarAdapter>) {
       // Make specialization for DataFrame where we need encoding.
-      if (model.cats->HasCategorical()) {
+      if (model.Cats()->HasCategorical()) {
         auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model);
         return launch(acc);
       }
@@ -981,7 +981,7 @@ class CPUPredictor : public Predictor {
         }
       }
     };
-    if (model.cats->HasCategorical()) {
+    if (model.Cats()->HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
       launch(acc);
     } else {

@@ -214,10 +214,9 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   monitor_.Start("BoostNewTrees");
 
   // Define the categories.
-  if (this->model_.cats->Empty() && !p_fmat->Cats()->Empty()) {
-    p_fmat->Info().Cats()->Sort(ctx_);
-    // fixme: test this doesn't hold the DMatrix.
-    this->model_.cats = p_fmat->CatsShared();
+  if (this->model_.Cats()->Empty() && !p_fmat->Cats()->Empty()) {
+    this->model_.Cats()->Copy(this->ctx_, *p_fmat->Cats());
+    this->model_.Cats()->Sort(this->ctx_);
   }
 
   predt->predictions.SetDevice(ctx_->Device());

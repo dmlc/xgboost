@@ -159,12 +159,15 @@ struct GBTreeModel : public Model {
    * @brief Number of trees accumulated for each iteration.
    */
   std::vector<bst_tree_t> iteration_indptr{0};
+
+  [[nodiscard]] CatContainer const* Cats() const { return this->cats_.get(); }
+  [[nodiscard]] CatContainer* Cats() { return this->cats_.get(); }
+
+ private:
   /**
    * @brief Categories in the training data.
    */
-  std::shared_ptr<CatContainer const> cats{std::make_shared<CatContainer>()};
-
- private:
+  std::shared_ptr<CatContainer> cats_{std::make_shared<CatContainer>()};
   Context const* ctx_;
 };
 }  // namespace gbm

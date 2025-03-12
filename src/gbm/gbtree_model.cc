@@ -133,7 +133,7 @@ void GBTreeModel::SaveModel(Json* p_out) const {
                  [](bst_tree_t i) { return Integer{i}; });
   out["iteration_indptr"] = Array{std::move(jiteration_indptr)};
 
-  this->cats->Save(&out["cats"]);
+  this->Cats()->Save(&out["cats"]);
 }
 
 void GBTreeModel::LoadModel(Json const& in) {
@@ -178,7 +178,7 @@ void GBTreeModel::LoadModel(Json const& in) {
   if (cat_it != jmodel.cend()) {
     p_cats->Load(cat_it->second);
   }
-  this->cats = std::move(p_cats);
+  this->cats_ = std::move(p_cats);
   Validate(*this);
 }
 
