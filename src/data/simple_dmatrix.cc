@@ -50,10 +50,15 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
     out->Info() = this->Info().Slice(&ctx, h_ridx, h_offset.back());
   }
   out->fmat_ctx_ = this->fmat_ctx_;
+
+  out->Info().Cats()->Copy(&this->fmat_ctx_, *this->Info().Cats());
   return out;
 }
 
 DMatrix* SimpleDMatrix::SliceCol(int num_slices, int slice_id) {
+  if (this->Cats()->HasCategorical()) {
+    LOG(FATAL) << "Slicing column is not supported for DataFrames with categorical columns.";
+  }
   auto out = new SimpleDMatrix;
   SparsePage& out_page = *out->sparse_page_;
   auto const slice_size = info_.num_col_ / num_slices;
