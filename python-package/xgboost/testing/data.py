@@ -152,7 +152,7 @@ def pd_dtypes() -> Generator:
     orig = orig.astype("category")
     for Null in (np.nan, None, pd.NA):
         df = pd.DataFrame(
-            {"f0": [1.0, 2.0, Null, 3.0], "f1": [3.0, 2.0, Null, 1.0]},
+            {"f0": [1, 2, Null, 3], "f1": [3, 2, Null, 1]},
             dtype=pd.CategoricalDtype(),
         )
         yield orig, df
