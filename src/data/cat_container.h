@@ -160,10 +160,9 @@ class CatContainer {
   [[nodiscard]] common::Span<bst_cat_t const> RefSortedIndex(Context const* ctx) const {
     std::lock_guard guard{device_mu_};
     if (ctx->IsCPU()) {
-      CHECK(this->sorted_idx_.HostCanRead());
       return this->sorted_idx_.ConstHostSpan();
     } else {
-      CHECK(this->sorted_idx_.DeviceCanRead());
+      sorted_idx_.SetDevice(ctx->Device());
       return this->sorted_idx_.ConstDeviceSpan();
     }
   }

@@ -6,6 +6,7 @@ import tempfile
 from typing import Any, Literal, Tuple, Type
 
 import numpy as np
+import pytest
 
 from ..compat import import_cupy
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
@@ -295,3 +296,24 @@ def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
 
     for dm in (DMatrix, QuantileDMatrix):
         run_mixed(dm)
+
+
+def run_cat_invalid(device: Literal["cpu", "cuda"]) -> None:
+    Df, _ = get_df_impl(device)
+
+    def run_invalid(DMatrixT: Type) -> None:
+        df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
+        y = np.array([0, 1, 2])
+
+        Xy = DMatrixT(df, y, enable_categorical=True)
+        booster = train({"device": device}, Xy, num_boost_round=4)
+        df["b"] = df["b"].astype(np.int64)
+        with pytest.raises(ValueError, match="The data type doesn't match"):
+            booster.inplace_predict(df)
+
+        Xy = DMatrixT(df, y, enable_categorical=True)
+        with pytest.raises(ValueError, match="The data type doesn't match"):
+            booster.predict(Xy)
+
+    for dm in (DMatrix,):
+        run_invalid(dm)
