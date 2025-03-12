@@ -370,7 +370,6 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
 auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView const &cats,
                      gbm::GBTreeModel const &model) {
   std::vector<std::int32_t> mapping(cats.n_total_cats);
-  // fixme: thread safety!
   auto sorted_idx = model.cats->RefSortedIndex(ctx);
   auto orig_enc = model.cats->HostView();
   enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, cats, common::Span{mapping});

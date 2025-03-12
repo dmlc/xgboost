@@ -3,6 +3,7 @@
 
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Literal, Tuple, Type
 
 import numpy as np
@@ -299,6 +300,7 @@ def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
 
 
 def run_cat_invalid(device: Literal["cpu", "cuda"]) -> None:
+    """Basic tests for invalid inputs."""
     Df, _ = get_df_impl(device)
 
     def run_invalid(DMatrixT: Type) -> None:
@@ -315,5 +317,29 @@ def run_cat_invalid(device: Literal["cpu", "cuda"]) -> None:
         with pytest.raises(ValueError, match="The data type doesn't match"):
             booster.predict(Xy)
 
-    for dm in (DMatrix,):
+    for dm in (DMatrix, QuantileDMatrix):
         run_invalid(dm)
+
+
+def run_cat_thread_safety(device: Literal["cpu", "cuda"]) -> None:
+    """Basic tests for thread safety."""
+    X, y = make_categorical(2048, 16, 112, onehot=False, cat_ratio=0.5)
+    Xy = QuantileDMatrix(X, y, enable_categorical=True)
+    booster = train({"device": device}, Xy, num_boost_round=10)
+
+    def run_thread_safety(DMatrixT: Type) -> bool:
+        Xy = DMatrixT(X, enable_categorical=True)
+        predt0 = booster.predict(Xy)
+        predt1 = booster.inplace_predict(X)
+        assert_allclose(device, predt0, predt1)
+        return True
+
+    futures = []
+    for dm in (DMatrix, QuantileDMatrix):
+        with ThreadPoolExecutor(max_workers=10) as e:
+            for _ in range(10):
+                fut = e.submit(run_thread_safety, dm)
+                futures.append(fut)
+
+    for f in futures:
+        assert f.result()
