@@ -217,6 +217,10 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   if (this->model_.Cats()->Empty() && !p_fmat->Cats()->Empty()) {
     this->model_.Cats()->Copy(this->ctx_, *p_fmat->Cats());
     this->model_.Cats()->Sort(this->ctx_);
+  } else {
+    CHECK_EQ(this->model_.Cats()->NumCatsTotal(), p_fmat->Cats()->NumCatsTotal())
+        << "A new dataset with different categorical features is used for training an existing "
+           "model.";
   }
 
   predt->predictions.SetDevice(ctx_->Device());
