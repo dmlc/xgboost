@@ -43,7 +43,7 @@ CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
 
                      // float64 is not supported by JSON yet. Also, floating point as
                      // categories is tricky since floating point equality test is
-                     // inaccurate for most hardward.
+                     // inaccurate for most hardware.
                      if constexpr (std::is_same_v<ElemT, double>) {
                        LOG(FATAL) << "Category index from DataFrame has f64 dtype, consider "
                                      "using strings or integers instead.";
