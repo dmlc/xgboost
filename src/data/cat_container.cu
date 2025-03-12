@@ -152,7 +152,6 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
   this->CopyCommon(that);
   if (ctx->IsCPU()) {
     auto h_view = that.HostView();
-    CHECK(!h_view.Empty());
     this->cpu_impl_->Copy(that.cpu_impl_.get());
   } else {
     auto const& that_impl = that.cu_impl_;
