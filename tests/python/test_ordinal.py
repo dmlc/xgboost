@@ -5,6 +5,7 @@ from xgboost.testing.ordinal import (
     run_cat_container,
     run_cat_container_iter,
     run_cat_container_mixed,
+    run_cat_predict,
 )
 
 pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_arrow(), tm.no_pandas()))
@@ -20,3 +21,7 @@ def test_cat_container_mixed() -> None:
 
 def test_cat_container_iter() -> None:
     run_cat_container_iter("cpu")
+
+
+def test_cat_predict() -> None:
+    run_cat_predict("cpu")

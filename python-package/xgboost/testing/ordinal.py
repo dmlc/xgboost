@@ -10,6 +10,7 @@ import numpy as np
 from ..compat import import_cupy
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..data import _lazy_load_cudf_is_cat
+from ..training import train
 from .data import IteratorForTest, is_pd_cat_dtype, make_categorical
 
 
@@ -233,3 +234,33 @@ def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
     for _, v in cats.items():
         assert v.null_count == 0
         assert len(v) == n_cats
+
+
+def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
+    """Test re-coding during prediction."""
+    Df, Ser = get_df_impl(device)
+
+    def run_dispatch(DMatrixT: Type) -> None:
+        df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
+        y = np.array([0, 1, 2])
+
+        codes = df.c.cat.codes
+        encoded = np.array([codes.iloc[2], codes.iloc[1]])
+
+        Xy = DMatrixT(df, y, enable_categorical=True)
+        booster = train({"device": device}, Xy, num_boost_round=4)
+
+        df = Df({"c": ["def", "abc"]}, dtype="category")
+        codes = df.c.cat.codes
+
+        predt0 = booster.inplace_predict(df)
+        predt1 = booster.inplace_predict(encoded)
+
+        assert_allclose(device, predt0, predt1)
+
+        fmat = DMatrixT(df, enable_categorical=True)
+        predt2 = booster.predict(fmat)
+        assert_allclose(device, predt0, predt2)
+
+    for dm in (DMatrix, ):
+        run_dispatch(dm)

@@ -82,6 +82,18 @@ struct CatAccessor {
     }
     return fvalue;
   }
+
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const {
+    auto fvalue = e.fvalue;
+    if (!enc.Empty() && !enc[e.index].empty()) {
+      auto f_mapping = enc[e.index];
+      auto cat_idx = common::AsCat(fvalue);
+      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
+        fvalue = f_mapping.data()[cat_idx];
+      }
+    }
+    return fvalue;
+  }
 };
 
 /**
@@ -91,6 +103,7 @@ struct NoOpAccessor {
   XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const &) {}
   NoOpAccessor() = default;
   [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const { return e.value; }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const { return e.fvalue; }
 };
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_

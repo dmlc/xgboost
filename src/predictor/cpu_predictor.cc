@@ -187,7 +187,7 @@ class SparsePageView : public DataToFeatVec<SparsePageView<EncAccessor>> {
 
     for (std::size_t i = 0, n = view_[ridx].size(); i < n; ++i) {
       auto const &entry = p_data[i];
-      out[entry.index] = entry.fvalue;
+      out[entry.index] = acc_(entry);
     }
 
     return view_[ridx].size();
@@ -679,6 +679,7 @@ class CPUPredictor : public Predictor {
     if (p_fmat->Info().IsColumnSplit()) {
       CHECK(!model.learner_model_param->IsVectorLeaf())
           << "Predict DMatrix with column split" << MTNotImplemented();
+      CHECK(!model.cats->HasCategorical()) << "The re-coder doesn't support column split yet.";
 
       ColumnSplitHelper helper(this->ctx_->Threads(), model, tree_begin, tree_end);
       helper.PredictDMatrix(ctx_, p_fmat, out_preds);
@@ -729,7 +730,7 @@ class CPUPredictor : public Predictor {
       }
     };
 
-    if (model.cats->HasCategorical()) {
+    if (model.cats->HasCategorical() && p_fmat->CatsShared()->HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
       launch(acc);
     } else {
@@ -833,13 +834,13 @@ class CPUPredictor : public Predictor {
     auto out_predt = linalg::MakeTensorView(ctx_, predictions, m->NumRows(), n_groups);
 
     auto launch = [&](auto &&acc) {
+      auto view = AdapterView{m.get(), missing, acc};
       if (blocked) {
-        PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(AdapterView{m.get(), missing, acc}, model,
-                                                          tree_begin, tree_end, &thread_temp,
-                                                          n_threads, out_predt);
+        PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(view, model, tree_begin, tree_end,
+                                                          &thread_temp, n_threads, out_predt);
       } else {
-        PredictBatchByBlockOfRowsKernel<1>(AdapterView{m.get(), missing, acc}, model, tree_begin,
-                                           tree_end, &thread_temp, n_threads, out_predt);
+        PredictBatchByBlockOfRowsKernel<1>(view, model, tree_begin, tree_end, &thread_temp,
+                                           n_threads, out_predt);
       }
     };
 
@@ -961,6 +962,7 @@ class CPUPredictor : public Predictor {
 
     auto launch = [&](auto &&acc) {
       // Start collecting the contributions
+      using Enc = std::remove_reference_t<decltype(acc)>;  // The encoder.
       if (!p_fmat->PageExists<SparsePage>()) {
         auto ft = p_fmat->Info().feature_types.ConstHostVector();
         for (const auto &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
@@ -970,14 +972,15 @@ class CPUPredictor : public Predictor {
         }
       } else {
         for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-          PredictContributionKernel(SparsePageView{&batch, std::forward<decltype(acc)>(acc)}, info,
-                                    model, tree_weights, &mean_values, &feat_vecs, &contribs,
-                                    ntree_limit, approximate, condition, condition_feature);
+          PredictContributionKernel(SparsePageView{&batch, std::forward<Enc>(acc)}, info, model,
+                                    tree_weights, &mean_values, &feat_vecs, &contribs, ntree_limit,
+                                    approximate, condition, condition_feature);
         }
       }
     };
     if (model.cats->HasCategorical()) {
-      launch(MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model));
+      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+      launch(acc);
     } else {
       launch(NoOpAccessor{});
     }
