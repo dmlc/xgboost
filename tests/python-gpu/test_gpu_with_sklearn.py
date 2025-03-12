@@ -84,11 +84,14 @@ def test_categorical():
         os.path.join(data_dir, "agaricus.txt.train"), dtype=np.float32
     )
     clf = xgb.XGBClassifier(
-        tree_method="gpu_hist",
+        tree_method="hist",
+        device="cuda",
         enable_categorical=True,
         n_estimators=10,
     )
     X = pd.DataFrame(X.todense()).astype("category")
+    for c in X.columns:
+        X[c] = X[c].cat.rename_categories(int)
     clf.fit(X, y)
 
     with tempfile.TemporaryDirectory() as tempdir:
@@ -107,7 +110,7 @@ def test_categorical():
 
     def check_predt(X, y):
         reg = xgb.XGBRegressor(
-            tree_method="gpu_hist", enable_categorical=True, n_estimators=64
+            tree_method="hist", enable_categorical=True, n_estimators=64, device="cuda"
         )
         reg.fit(X, y)
         predts = reg.predict(X)
