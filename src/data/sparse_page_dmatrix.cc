@@ -138,11 +138,11 @@ BatchSet<GHistIndexMatrix> SparsePageDMatrix::GetGradientIndex(Context const *ct
     CHECK_GE(param.max_bin, 2);
   }
   detail::CheckEmpty(batch_param_, param);
-  auto id = MakeCache(this, ".gradient_index.page", on_host_, cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".gradient_index.page", false, cache_prefix_, &cache_info_);
   if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
     this->InitializeSparsePage(ctx);
     cache_info_.erase(id);
-    id = MakeCache(this, ".gradient_index.page", on_host_, cache_prefix_, &cache_info_);
+    id = MakeCache(this, ".gradient_index.page", false, cache_prefix_, &cache_info_);
     LOG(INFO) << "Generating new Gradient Index.";
     // Use sorted sketch for approx.
     auto sorted_sketch = param.regen;
