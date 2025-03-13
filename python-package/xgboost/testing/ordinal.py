@@ -354,44 +354,62 @@ def _make_dm(DMatrixT: Type[U], ref: DMatrix, *args: Any, **kwargs: Any) -> U:
     return DMatrixT(*args, enable_categorical=True, **kwargs)
 
 
-def run_cat_shap(device: Literal["cpu", "cuda"]) -> None:
-    """Basic tests for SHAP values."""
+def _run_predt(
+    device: str,
+    DMatrixT: Type,
+    pred_contribs: bool,
+    pred_interactions: bool,
+    pred_leaf: bool,
+) -> None:
     Df, _ = get_df_impl(device)
 
-    def run_shap(DMatrixT: Type) -> None:
-        df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
-        y = np.array([0, 1, 2])
+    df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
+    y = np.array([0, 1, 2])
 
-        codes = df.c.cat.codes
-        encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
+    codes = df.c.cat.codes
+    encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
 
-        Xy = DMatrixT(df, y, enable_categorical=True)
-        booster = train({"device": device}, Xy, num_boost_round=4)
+    Xy = DMatrixT(df, y, enable_categorical=True)
+    booster = train({"device": device}, Xy, num_boost_round=4)
 
-        df = Df({"c": ["def", "abc"]}, dtype="category")
-        codes = df.c.cat.codes
+    df = Df({"c": ["def", "abc"]}, dtype="category")
+    codes = df.c.cat.codes
 
-        # Contribution
-        predt0 = booster.predict(
-            _make_dm(DMatrixT, ref=Xy, data=df), pred_contribs=True
-        )
-        df = Df({"c": encoded})
-        predt1 = booster.predict(
-            _make_dm(DMatrixT, ref=Xy, data=encoded.reshape(2, 1), feature_names=["c"]),
-            pred_contribs=True,
-        )
-        assert_allclose(device, predt0, predt1)
+    # Contribution
+    predt0 = booster.predict(
+        _make_dm(DMatrixT, ref=Xy, data=df),
+        pred_contribs=pred_contribs,
+        pred_interactions=pred_interactions,
+        pred_leaf=pred_leaf,
+    )
+    df = Df({"c": encoded})
+    predt1 = booster.predict(
+        _make_dm(DMatrixT, ref=Xy, data=encoded.reshape(2, 1), feature_names=["c"]),
+        pred_contribs=pred_contribs,
+        pred_interactions=pred_interactions,
+        pred_leaf=pred_leaf,
+    )
+    assert_allclose(device, predt0, predt1)
 
-        # Interaction
-        predt0 = booster.predict(
-            _make_dm(DMatrixT, ref=Xy, data=df), pred_interactions=True
-        )
-        df = Df({"c": encoded})
-        predt1 = booster.predict(
-            _make_dm(DMatrixT, ref=Xy, data=encoded.reshape(2, 1), feature_names=["c"]),
-            pred_interactions=True,
-        )
-        assert_allclose(device, predt0, predt1)
+
+def run_cat_shap(device: Literal["cpu", "cuda"]) -> None:
+    """Basic tests for SHAP values."""
 
     for dm in (DMatrix, QuantileDMatrix):
-        run_shap(dm)
+        _run_predt(
+            device, dm, pred_contribs=True, pred_interactions=False, pred_leaf=False
+        )
+
+    for dm in (DMatrix, QuantileDMatrix):
+        _run_predt(
+            device, dm, pred_contribs=False, pred_interactions=True, pred_leaf=False
+        )
+
+
+def run_cat_leaf(device: Literal["cpu", "cuda"]) -> None:
+    """Basic tests for leaf prediction."""
+
+    for dm in (DMatrix, QuantileDMatrix):
+        _run_predt(
+            device, dm, pred_contribs=False, pred_interactions=False, pred_leaf=True
+        )
