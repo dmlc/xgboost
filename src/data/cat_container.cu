@@ -149,10 +149,12 @@ CatContainer::~CatContainer() = default;
 [[nodiscard]] bool CatContainer::DeviceCanRead() const { return !this->cu_impl_->columns.empty(); }
 
 void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
-  this->CopyCommon(that);
+  this->CopyCommon(ctx, that);
   if (ctx->IsCPU()) {
+    // Pull data to host
     [[maybe_unused]] auto h_view = that.HostView();
     this->cpu_impl_->Copy(that.cpu_impl_.get());
+    CHECK(!this->DeviceCanRead());
   } else {
     auto const& that_impl = that.cu_impl_;
     this->cu_impl_->columns.resize(that.cu_impl_->columns.size());
@@ -185,14 +187,26 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
                  col);
     }
     this->cu_impl_->columns_v = h_columns_v;
+    CHECK(!this->HostCanRead());
+  }
+
+  if (ctx->IsCPU()) {
+    CHECK_EQ(this->cpu_impl_->columns_v.size(), that.cpu_impl_->columns_v.size());
+  } else {
+    CHECK_EQ(this->cu_impl_->columns_v.size(), that.cu_impl_->columns_v.size());
   }
 }
 
 void CatContainer::Sort(Context const* ctx) {
+  if (!this->HasCategorical()) {
+    return;
+  }
+
   if (ctx->IsCPU()) {
     auto view = this->HostView();
+    CHECK(!view.Empty());
     this->sorted_idx_.HostVector().resize(view.n_total_cats);
-    enc::SortNames(enc::Policy<EncErrorPolicy>{}, view, this->sorted_idx_.HostSpan());
+    enc::SortNames(cpu_impl::EncPolicy, view, this->sorted_idx_.HostSpan());
   } else {
     auto view = this->DeviceView(ctx);
     CHECK(!view.Empty()) << this->HostView().Size();
@@ -218,9 +232,11 @@ void CatContainer::Sort(Context const* ctx) {
   if (!this->DeviceCanRead()) {
     // Lazy copy to device
     auto h_view = this->HostViewImpl();
-    CHECK(!h_view.Empty());
     this->cu_impl_->CopyFrom(h_view);
+    CHECK_EQ(this->cu_impl_->columns_v.size(), this->cpu_impl_->columns_v.size());
+    CHECK_EQ(this->cu_impl_->columns.size(), this->cpu_impl_->columns.size());
   }
+  CHECK(this->DeviceCanRead());
   return {dh::ToSpan(this->cu_impl_->columns_v), this->feature_segments_.ConstDeviceSpan(),
           this->n_total_cats_};
 }

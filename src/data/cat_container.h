@@ -106,12 +106,16 @@ class CatContainer {
   /**
    * @brief Implementation of the Copy method, used by both CPU and GPU.
    */
-  void CopyCommon(CatContainer const& that) {
-    this->sorted_idx_.SetDevice(that.sorted_idx_.Device());
+  void CopyCommon(Context const* ctx, CatContainer const& that) {
+    auto device = ctx->Device();
+
+    that.sorted_idx_.SetDevice(device);
+    this->sorted_idx_.SetDevice(device);
     this->sorted_idx_.Resize(that.sorted_idx_.Size());
     this->sorted_idx_.Copy(that.sorted_idx_);
 
-    this->feature_segments_.SetDevice(that.feature_segments_.Device());
+    this->feature_segments_.SetDevice(device);
+    that.feature_segments_.SetDevice(device);
     this->feature_segments_.Resize(that.feature_segments_.Size());
     this->feature_segments_.Copy(that.feature_segments_);
 
@@ -141,7 +145,10 @@ class CatContainer {
 
   // Mostly used for testing.
   void Push(cpu_impl::ColumnType const& column) { this->cpu_impl_->columns.emplace_back(column); }
-
+  /**
+   * @brief Wether the container is initialized at all. If the input is not a DataFrame,
+   *        this method returns True.
+   */
   [[nodiscard]] bool Empty() const { return this->cpu_impl_->columns.empty(); }
 
   [[nodiscard]] std::size_t NumFeatures() const { return this->cpu_impl_->columns.size(); }

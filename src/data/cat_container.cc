@@ -236,7 +236,11 @@ CatContainer::CatContainer() : cpu_impl_{std::make_unique<cpu_impl::CatContainer
 
 CatContainer::~CatContainer() = default;
 
-void CatContainer::Copy(Context const*, CatContainer const& that) { this->CopyCommon(that); }
+void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
+  this->CopyCommon(ctx, that);
+  [[maybe_unused]] auto h_view = that.HostView();
+  this->cpu_impl_->Copy(that.cpu_impl_.get());
+}
 
 [[nodiscard]] enc::HostColumnsView CatContainer::HostView() const { return this->HostViewImpl(); }
 
