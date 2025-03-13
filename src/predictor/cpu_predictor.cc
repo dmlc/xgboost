@@ -981,7 +981,7 @@ class CPUPredictor : public Predictor {
         }
       }
     };
-    if (model.Cats()->HasCategorical()) {
+    if (model.Cats()->HasCategorical() && p_fmat->CatsShared()->HasCategorical()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
       launch(acc);
     } else {

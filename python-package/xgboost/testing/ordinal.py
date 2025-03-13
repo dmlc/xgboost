@@ -4,7 +4,7 @@
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Literal, Tuple, Type
+from typing import Any, Literal, Tuple, Type, TypeVar
 
 import numpy as np
 import pytest
@@ -343,3 +343,54 @@ def run_cat_thread_safety(device: Literal["cpu", "cuda"]) -> None:
 
     for f in futures:
         assert f.result()
+
+
+U = TypeVar("U", DMatrix, QuantileDMatrix)
+
+
+def _make_dm(DMatrixT: Type[U], ref: DMatrix, *args: Any, **kwargs: Any) -> U:
+    if DMatrixT is QuantileDMatrix:
+        return DMatrixT(*args, ref=ref, enable_categorical=True, **kwargs)
+    return DMatrixT(*args, enable_categorical=True, **kwargs)
+
+
+def run_cat_shap(device: Literal["cpu", "cuda"]) -> None:
+    Df, _ = get_df_impl(device)
+
+    def run_shap(DMatrixT: Type) -> None:
+        df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
+        y = np.array([0, 1, 2])
+
+        codes = df.c.cat.codes
+        encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
+
+        Xy = DMatrixT(df, y, enable_categorical=True)
+        booster = train({"device": device}, Xy, num_boost_round=4)
+
+        df = Df({"c": ["def", "abc"]}, dtype="category")
+        codes = df.c.cat.codes
+
+        # Contribution
+        predt0 = booster.predict(
+            _make_dm(DMatrixT, ref=Xy, data=df), pred_contribs=True
+        )
+        df = Df({"c": encoded})
+        predt1 = booster.predict(
+            _make_dm(DMatrixT, ref=Xy, data=encoded.reshape(2, 1), feature_names=["c"]),
+            pred_contribs=True,
+        )
+        assert_allclose(device, predt0, predt1)
+
+        # Interaction
+        predt0 = booster.predict(
+            _make_dm(DMatrixT, ref=Xy, data=df), pred_interactions=True
+        )
+        df = Df({"c": encoded})
+        predt1 = booster.predict(
+            _make_dm(DMatrixT, ref=Xy, data=encoded.reshape(2, 1), feature_names=["c"]),
+            pred_interactions=True,
+        )
+        assert_allclose(device, predt0, predt1)
+
+    for dm in (DMatrix, QuantileDMatrix):
+        run_shap(dm)

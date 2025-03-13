@@ -7,6 +7,7 @@ from xgboost.testing.ordinal import (
     run_cat_container_mixed,
     run_cat_invalid,
     run_cat_predict,
+    run_cat_shap,
     run_cat_thread_safety,
 )
 
@@ -35,3 +36,7 @@ def test_cat_invalid() -> None:
 
 def test_cat_thread_safety() -> None:
     run_cat_thread_safety("cpu")
+
+
+def test_cat_shap() -> None:
+    run_cat_shap("cpu")
