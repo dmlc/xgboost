@@ -244,13 +244,13 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
 
 [[nodiscard]] enc::HostColumnsView CatContainer::HostView() const { return this->HostViewImpl(); }
 
+[[nodiscard]] bool CatContainer::Empty() const { return this->cpu_impl_->columns.empty(); }
+
 void CatContainer::Sort(Context const* ctx) {
   CHECK(ctx->IsCPU());
   auto view = this->HostView();
   this->sorted_idx_.HostVector().resize(view.n_total_cats);
   enc::SortNames(enc::Policy<EncErrorPolicy>{}, view, this->sorted_idx_.HostSpan());
 }
-
-[[nodiscard]] bool CatContainer::DeviceCanRead() const { return false; }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost
