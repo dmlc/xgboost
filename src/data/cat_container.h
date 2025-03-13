@@ -104,7 +104,9 @@ struct CatContainerImpl;
  */
 class CatContainer {
   /**
-   * @brief Implementation of the Copy method, used by both CPU and GPU.
+   * @brief Implementation of the Copy method, used by both CPU and GPU. Note that this
+   * method changes the permission in the HostDeviceVector as we need to pull data into
+   * targeted devices.
    */
   void CopyCommon(Context const* ctx, CatContainer const& that) {
     auto device = ctx->Device();
@@ -120,10 +122,19 @@ class CatContainer {
     this->feature_segments_.Copy(that.feature_segments_);
 
     this->n_total_cats_ = that.n_total_cats_;
+
+    if (!device.IsCPU()) {
+      // Pull to device
+      this->sorted_idx_.ConstDevicePointer();
+      this->feature_segments_.ConstDevicePointer();
+    }
   }
 
   [[nodiscard]] enc::HostColumnsView HostViewImpl() const {
     CHECK_EQ(this->cpu_impl_->columns.size(), this->cpu_impl_->columns_v.size());
+    if (this->n_total_cats_ != 0) {
+      CHECK(!this->cpu_impl_->columns_v.empty());
+    }
     return {common::Span{this->cpu_impl_->columns_v}, this->feature_segments_.ConstHostSpan(),
             this->n_total_cats_};
   }

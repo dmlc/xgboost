@@ -141,22 +141,23 @@ CatContainer::CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df) :
   if (this->n_total_cats_ > 0) {
     CHECK(this->DeviceCanRead());
     CHECK(!this->HostCanRead());
+    CHECK(!this->cu_impl_->columns.empty());
   }
 }
 
 CatContainer::~CatContainer() = default;
 
 void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
-  this->CopyCommon(ctx, that);
   if (ctx->IsCPU()) {
     // Pull data to host
     [[maybe_unused]] auto h_view = that.HostView();
+    this->CopyCommon(ctx, that);
     this->cpu_impl_->Copy(that.cpu_impl_.get());
     CHECK(!this->DeviceCanRead());
   } else {
     // Pull data to device
     [[maybe_unused]] auto d_view = that.DeviceView(ctx);
-
+    this->CopyCommon(ctx, that);
     auto const& that_impl = that.cu_impl_;
     this->cu_impl_->columns.resize(that.cu_impl_->columns.size());
 
@@ -188,7 +189,7 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
                  col);
     }
     this->cu_impl_->columns_v = h_columns_v;
-    CHECK(!this->HostCanRead());
+    CHECK(this->Empty() || !this->HostCanRead());
   }
   if (ctx->IsCPU()) {
     CHECK_EQ(this->cpu_impl_->columns_v.size(), that.cpu_impl_->columns_v.size());
@@ -214,12 +215,12 @@ void CatContainer::Sort(Context const* ctx) {
 
   if (ctx->IsCPU()) {
     auto view = this->HostView();
-    CHECK(!view.Empty());
+    CHECK(!view.Empty()) << view.n_total_cats;
     this->sorted_idx_.HostVector().resize(view.n_total_cats);
     enc::SortNames(cpu_impl::EncPolicy, view, this->sorted_idx_.HostSpan());
   } else {
     auto view = this->DeviceView(ctx);
-    CHECK(!view.Empty()) << this->HostView().Size();
+    CHECK(!view.Empty()) << view.n_total_cats;
     this->sorted_idx_.SetDevice(ctx->Device());
     this->sorted_idx_.Resize(view.n_total_cats);
     enc::SortNames(cuda_impl::EncPolicy, view, this->sorted_idx_.DeviceSpan());
@@ -250,6 +251,9 @@ void CatContainer::Sort(Context const* ctx) {
     CHECK_EQ(this->cu_impl_->columns.size(), this->cpu_impl_->columns.size());
   }
   CHECK(this->DeviceCanRead());
+  if (this->n_total_cats_ != 0) {
+    CHECK(!this->cu_impl_->columns_v.empty());
+  }
   return {dh::ToSpan(this->cu_impl_->columns_v), this->feature_segments_.ConstDeviceSpan(),
           this->n_total_cats_};
 }

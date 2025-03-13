@@ -61,6 +61,9 @@ CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
   CHECK(this->HostCanRead());
   CHECK_EQ(this->n_total_cats_, df.feature_segments.back());
   CHECK_GE(this->n_total_cats_, 0) << "Too many categories.";
+  if (this->n_total_cats_ > 0) {
+    CHECK(!this->cpu_impl_->columns.empty());
+  }
 }
 
 namespace {
@@ -237,8 +240,8 @@ CatContainer::CatContainer() : cpu_impl_{std::make_unique<cpu_impl::CatContainer
 CatContainer::~CatContainer() = default;
 
 void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
-  this->CopyCommon(ctx, that);
   [[maybe_unused]] auto h_view = that.HostView();
+  this->CopyCommon(ctx, that);
   this->cpu_impl_->Copy(that.cpu_impl_.get());
 }
 
