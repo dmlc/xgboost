@@ -6,11 +6,11 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm_2.12</artifactId>
-        <version>3.0.0-RC1</version>
+        <version>3.0.0</version>
     </parent>
     <name>xgboost4j-example</name>
     <artifactId>xgboost4j-example_2.12</artifactId>
-    <version>3.0.0-RC1</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
     <build>
         <plugins>
