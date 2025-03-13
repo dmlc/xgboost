@@ -105,7 +105,7 @@ BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
 }
 
 BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
-  auto id = MakeCache(this, ".col.page", on_host_, cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".col.page", false, cache_prefix_, &cache_info_);
   CHECK_NE(this->Info().num_col_, 0);
   this->InitializeSparsePage(ctx);
   if (!column_source_) {
@@ -119,7 +119,7 @@ BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches(Context const *ctx) {
 }
 
 BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches(Context const *ctx) {
-  auto id = MakeCache(this, ".sorted.col.page", on_host_, cache_prefix_, &cache_info_);
+  auto id = MakeCache(this, ".sorted.col.page", false, cache_prefix_, &cache_info_);
   CHECK_NE(this->Info().num_col_, 0);
   this->InitializeSparsePage(ctx);
   if (!sorted_column_source_) {
