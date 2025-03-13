@@ -34,7 +34,8 @@ class TestGPUUpdatersMulti:
     )
     @settings(deadline=None, max_examples=50, print_blob=True)
     def test_hist(self, param, num_rounds, dataset):
-        param["tree_method"] = "gpu_hist"
+        param["tree_method"] = "hist"
+        param["device"] = "cuda"
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
         note(str(result))
@@ -261,7 +262,8 @@ class TestGPUUpdaters:
     ) -> None:
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
-        param["tree_method"] = "gpu_hist"
+        param["tree_method"] = "hist"
+        param["device"] = "cuda"
         param = dataset.set_params(param)
         result = train_result(
             param,
@@ -282,7 +284,8 @@ class TestGPUUpdaters:
             return
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
-        param["tree_method"] = "gpu_hist"
+        param["tree_method"] = "hist"
+        param["device"] = "cuda"
         param = dataset.set_params(param)
         m = dataset.get_external_dmat()
         external_result = train_result(param, m, num_rounds)
@@ -318,8 +321,10 @@ class TestGPUUpdaters:
     @pytest.mark.mgpu
     @given(tm.make_dataset_strategy(), strategies.integers(0, 10))
     @settings(deadline=None, max_examples=10, print_blob=True)
-    def test_specified_gpu_id_gpu_update(self, dataset, gpu_id):
-        param = {"tree_method": "gpu_hist", "gpu_id": gpu_id}
+    def test_specified_gpu_id_gpu_update(
+        self, dataset: tm.TestDataset, gpu_id: int
+    ) -> None:
+        param = {"tree_method": "hist", "device": f"cuda:{gpu_id}"}
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), 10)
         assert tm.non_increasing(result["train"][dataset.metric])
