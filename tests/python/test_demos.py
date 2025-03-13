@@ -228,6 +228,8 @@ def test_cli_regression_demo() -> None:
     subprocess.check_call(cmd, cwd=reg_dir)
 
     exe = os.path.join(DEMO_DIR, os.path.pardir, "xgboost")
+    if not os.path.exists(exe):
+        pytest.skip("CLI executable not found.")
     conf = os.path.join(reg_dir, "machine.conf")
     subprocess.check_call([exe, conf], cwd=reg_dir)
 
@@ -237,6 +239,9 @@ def test_cli_regression_demo() -> None:
 )
 def test_cli_binary_classification() -> None:
     cls_dir = os.path.join(CLI_DEMO_DIR, "binary_classification")
+    exe = os.path.join(DEMO_DIR, os.path.pardir, "xgboost")
+    if not os.path.exists(exe):
+        pytest.skip("CLI executable not found.")
     with tm.DirectoryExcursion(cls_dir, cleanup=True):
         subprocess.check_call(["./runexp.sh"])
         os.remove("0002.model")
