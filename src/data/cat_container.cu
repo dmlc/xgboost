@@ -146,8 +146,6 @@ CatContainer::CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df) :
 
 CatContainer::~CatContainer() = default;
 
-[[nodiscard]] bool CatContainer::DeviceCanRead() const { return !this->cu_impl_->columns.empty(); }
-
 void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
   this->CopyCommon(ctx, that);
   if (ctx->IsCPU()) {
@@ -156,6 +154,9 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
     this->cpu_impl_->Copy(that.cpu_impl_.get());
     CHECK(!this->DeviceCanRead());
   } else {
+    // Pull data to device
+    [[maybe_unused]] auto d_view = that.DeviceView(ctx);
+
     auto const& that_impl = that.cu_impl_;
     this->cu_impl_->columns.resize(that.cu_impl_->columns.size());
 
@@ -189,12 +190,21 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
     this->cu_impl_->columns_v = h_columns_v;
     CHECK(!this->HostCanRead());
   }
-
   if (ctx->IsCPU()) {
     CHECK_EQ(this->cpu_impl_->columns_v.size(), that.cpu_impl_->columns_v.size());
+    CHECK_EQ(this->cpu_impl_->columns.size(), that.cpu_impl_->columns.size());
+    CHECK(this->HostCanRead());
   } else {
     CHECK_EQ(this->cu_impl_->columns_v.size(), that.cu_impl_->columns_v.size());
+    CHECK_EQ(this->cu_impl_->columns.size(), that.cu_impl_->columns.size());
+    CHECK(this->DeviceCanRead());
   }
+  CHECK_EQ(this->Empty(), that.Empty());
+  CHECK_EQ(this->NumCatsTotal(), that.NumCatsTotal());
+}
+
+[[nodiscard]] bool CatContainer::Empty() const {
+  return this->HostCanRead() ? this->cpu_impl_->columns.empty() : this->cu_impl_->columns.empty();
 }
 
 void CatContainer::Sort(Context const* ctx) {
@@ -219,17 +229,20 @@ void CatContainer::Sort(Context const* ctx) {
 [[nodiscard]] enc::HostColumnsView CatContainer::HostView() const {
   std::lock_guard guard{device_mu_};
   if (!this->HostCanRead()) {
+    this->feature_segments_.ConstHostSpan();
     // Lazy copy to host
     this->cu_impl_->CopyTo(this->cpu_impl_.get());
   }
+  CHECK(this->HostCanRead());
   return this->HostViewImpl();
 }
 
 [[nodiscard]] enc::DeviceColumnsView CatContainer::DeviceView(Context const* ctx) const {
   CHECK(ctx->IsCUDA());
   std::lock_guard guard{device_mu_};
-  this->feature_segments_.SetDevice(ctx->Device());
   if (!this->DeviceCanRead()) {
+    this->feature_segments_.SetDevice(ctx->Device());
+    this->feature_segments_.ConstDeviceSpan();
     // Lazy copy to device
     auto h_view = this->HostViewImpl();
     this->cu_impl_->CopyFrom(h_view);

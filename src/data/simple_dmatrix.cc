@@ -51,7 +51,13 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   }
   out->fmat_ctx_ = this->fmat_ctx_;
 
-  out->Info().Cats()->Copy(&this->fmat_ctx_, *this->Info().Cats());
+  std::shared_ptr<CatContainer> ptr;
+  if (this->fmat_ctx_.IsCPU()) {
+    ptr = std::make_shared<CatContainer>(this->Info().Cats()->HostView());
+  } else {
+    ptr = std::make_shared<CatContainer>(fmat_ctx_.Device(),
+                                         this->Info().Cats()->DeviceView(&fmat_ctx_));
+  }
   return out;
 }
 

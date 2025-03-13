@@ -138,10 +138,8 @@ class CatContainer {
 
   void Copy(Context const* ctx, CatContainer const& that);
 
-  [[nodiscard]] bool HostCanRead() const {
-    return !this->cpu_impl_->columns.empty() || this->n_total_cats_ == 0;
-  }
-  [[nodiscard]] bool DeviceCanRead() const;
+  [[nodiscard]] bool HostCanRead() const { return this->feature_segments_.HostCanRead(); }
+  [[nodiscard]] bool DeviceCanRead() const { return this->feature_segments_.DeviceCanRead(); }
 
   // Mostly used for testing.
   void Push(cpu_impl::ColumnType const& column) { this->cpu_impl_->columns.emplace_back(column); }
@@ -149,9 +147,12 @@ class CatContainer {
    * @brief Wether the container is initialized at all. If the input is not a DataFrame,
    *        this method returns True.
    */
-  [[nodiscard]] bool Empty() const { return this->cpu_impl_->columns.empty(); }
+  [[nodiscard]] bool Empty() const;
 
   [[nodiscard]] std::size_t NumFeatures() const { return this->cpu_impl_->columns.size(); }
+  /**
+   * @brief The number of categories across all features.
+   */
   [[nodiscard]] std::size_t NumCatsTotal() const { return this->n_total_cats_; }
 
   /**

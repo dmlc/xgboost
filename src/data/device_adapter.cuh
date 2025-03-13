@@ -109,7 +109,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   explicit CudfAdapter(std::string cuda_interfaces_str)
       : CudfAdapter{StringView{cuda_interfaces_str}} {}
 
-  const CudfAdapterBatch& Value() const override {
+  [[nodiscard]] CudfAdapterBatch const& Value() const override {
     CHECK_EQ(batch_.columns_.data(), columns_.data().get());
     return batch_;
   }

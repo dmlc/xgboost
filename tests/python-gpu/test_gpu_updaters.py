@@ -208,7 +208,8 @@ class TestGPUUpdaters:
         dataset = tm.TestDataset(
             "ames_housing", tm.data.get_ames_housing, "reg:squarederror", "rmse"
         )
-        cat_parameters["tree_method"] = "gpu_hist"
+        cat_parameters["tree_method"] = "hist"
+        cat_parameters["device"] = "cuda"
         results = train_result(cat_parameters, dataset.get_dmat(), 16)
         tm.non_increasing(results["train"]["rmse"])
 
