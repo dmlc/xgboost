@@ -408,8 +408,7 @@ def run_cat_shap(device: Literal["cpu", "cuda"]) -> None:
 
 def run_cat_leaf(device: Literal["cpu", "cuda"]) -> None:
     """Basic tests for leaf prediction."""
-
-    for dm in (DMatrix, QuantileDMatrix):
-        _run_predt(
-            device, dm, pred_contribs=False, pred_interactions=False, pred_leaf=True
-        )
+    # QuantileDMatrix is not supported by leaf.
+    _run_predt(
+        device, DMatrix, pred_contribs=False, pred_interactions=False, pred_leaf=True
+    )

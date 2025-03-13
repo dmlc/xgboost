@@ -733,7 +733,7 @@ class CPUPredictor : public Predictor {
       }
     };
 
-    if (model.Cats()->HasCategorical() && p_fmat->CatsShared()->HasCategorical()) {
+    if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
       launch(acc);
     } else {
@@ -907,20 +907,21 @@ class CPUPredictor : public Predictor {
     }
 
     std::vector<RegTree::FVec> feat_vecs;
-    const int num_feature = model.learner_model_param->num_feature;
+    const int n_features = model.learner_model_param->num_feature;
     InitThreadTemp(n_threads, &feat_vecs);
-    // start collecting the prediction
-    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-      // parallel over local batch
-      auto page = batch.GetView();
+
+    auto launch = [&](SparsePage const &page, auto &&acc) {
+      using Enc = std::remove_reference_t<decltype(acc)>;  // The encoder.
       common::ParallelFor(page.Size(), n_threads, [&](auto i) {
-        const int tid = omp_get_thread_num();
-        auto ridx = static_cast<size_t>(batch.base_rowid + i);
+        auto tid = omp_get_thread_num();
+        auto ridx = static_cast<bst_idx_t>(page.base_rowid + i);
         RegTree::FVec &feats = feat_vecs[tid];
         if (feats.Size() == 0) {
-          feats.Init(num_feature);
+          feats.Init(n_features);
         }
-        feats.Fill(page[i]);
+        SparsePageView view{&page, std::forward<Enc>(acc)};
+        view.Fill(i, &feats);
+
         for (bst_tree_t j = 0; j < ntree_limit; ++j) {
           auto const &tree = *model.trees[j];
           auto const &cats = tree.GetCategoriesMatrix();
@@ -934,6 +935,17 @@ class CPUPredictor : public Predictor {
         }
         feats.Drop();
       });
+    };
+
+    // Start collecting the prediction
+    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+      // parallel over local batch
+      if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
+        auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+        launch(batch, std::move(acc));
+      } else {
+        launch(batch, NoOpAccessor{});
+      }
     }
   }
 
@@ -982,7 +994,7 @@ class CPUPredictor : public Predictor {
         }
       }
     };
-    if (model.Cats()->HasCategorical() && p_fmat->CatsShared()->HasCategorical()) {
+    if (model.Cats()->HasCategorical() && !p_fmat->CatsShared()->Empty()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
       launch(acc);
     } else {
