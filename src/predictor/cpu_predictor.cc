@@ -899,7 +899,8 @@ class CPUPredictor : public Predictor {
     if (p_fmat->Info().IsColumnSplit()) {
       CHECK(!model.learner_model_param->IsVectorLeaf())
           << "Predict leaf with column split" << MTNotImplemented();
-
+      CHECK(!model.Cats()->HasCategorical())
+          << "Categorical feature is not yet supported with column-split.";
       ColumnSplitHelper helper(n_threads, model, 0, ntree_limit);
       helper.PredictLeaf(ctx_, p_fmat, &preds);
       return;
