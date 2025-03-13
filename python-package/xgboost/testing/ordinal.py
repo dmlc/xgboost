@@ -355,6 +355,7 @@ def _make_dm(DMatrixT: Type[U], ref: DMatrix, *args: Any, **kwargs: Any) -> U:
 
 
 def run_cat_shap(device: Literal["cpu", "cuda"]) -> None:
+    """Basic tests for SHAP values."""
     Df, _ = get_df_impl(device)
 
     def run_shap(DMatrixT: Type) -> None:
