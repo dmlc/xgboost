@@ -69,6 +69,9 @@ struct EllpackMemCache {
   [[nodiscard]] std::size_t SizeBytes() const;
 
   [[nodiscard]] bool Empty() const { return this->SizeBytes() == 0; }
+  // No page concatenation is performed. If there's page concatenation, then the number of
+  // pages in the cache must be smaller than the input number of pages.
+  [[nodiscard]] bool NoConcat() const { return this->NumBatchesOrig() == this->buffer_rows.size(); }
 
   [[nodiscard]] bst_idx_t NumBatchesOrig() const { return cache_mapping.size(); }
   [[nodiscard]] EllpackPageImpl const* At(std::int32_t k) const;

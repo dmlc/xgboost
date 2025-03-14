@@ -109,11 +109,10 @@ class EllpackHostCacheStreamImpl {
     auto cache_idx = this->cache_->cache_mapping.at(orig_ptr);
     // Wrap up the previous page if this is a new page, or this is the last page.
     auto new_page = cache_idx == this->cache_->pages.size();
-
+    // Last page expected from the user.
     auto last_page = (orig_ptr + 1) == this->cache_->NumBatchesOrig();
-    // No page concatenation is performed. If there's page concatenation, then the number
-    // of pages in the cache must be smaller than the input number of pages.
-    bool no_concat = this->cache_->NumBatchesOrig() == this->cache_->buffer_rows.size();
+
+    bool const no_concat = this->cache_->NoConcat();
     // Whether the page should be cached in device. If true, then we don't need to make a
     // copy during write since the temporary page is already in device when page
     // concatenation is enabled.
@@ -121,7 +120,7 @@ class EllpackHostCacheStreamImpl {
     bool to_device = this->cache_->prefer_device &&
                      this->cache_->NumDevicePages() <= this->cache_->max_num_device_pages;
 
-    auto commit_page = [](EllpackPageImpl const* old_impl) {
+    auto commit_host_page = [](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
       auto new_impl = std::make_unique<EllpackPageImpl>();
       new_impl->CopyInfo(old_impl);
@@ -159,8 +158,8 @@ class EllpackHostCacheStreamImpl {
       // No need to copy if it's already in device.
       if (!this->cache_->pages.empty() && !to_device) {
         // Need to wrap up the previous page.
-        auto commited = commit_page(this->cache_->pages.back().get());
-        // Replace the previous page with a new page.
+        auto commited = commit_host_page(this->cache_->pages.back().get());
+        // Replace the previous page (on device) with a new page on host.
         this->cache_->pages.back() = std::move(commited);
       }
       // Push a new page
@@ -184,7 +183,7 @@ class EllpackHostCacheStreamImpl {
       this->cache_->offsets.back() += offset;
       // No need to copy if it's already in device.
       if (last_page && !to_device) {
-        auto commited = commit_page(this->cache_->pages.back().get());
+        auto commited = commit_host_page(this->cache_->pages.back().get());
         this->cache_->pages.back() = std::move(commited);
       }
     }
