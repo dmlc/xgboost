@@ -116,9 +116,9 @@ class EllpackHostCacheStreamImpl {
     // Whether the page should be cached in device. If true, then we don't need to make a
     // copy during write since the temporary page is already in device when page
     // concatenation is enabled.
-    // fixme: <= should not be used as we might have one extra page.
+
     bool to_device = this->cache_->prefer_device &&
-                     this->cache_->NumDevicePages() <= this->cache_->max_num_device_pages;
+                     this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
 
     auto commit_host_page = [](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
