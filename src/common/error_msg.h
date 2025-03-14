@@ -128,5 +128,12 @@ constexpr StringView ZeroCudaMemory() {
          "support. If you are using other types of memory pool, please consider reserving a "
          "portion of the GPU memory for XGBoost.";
 }
+
+// float64 is not supported by JSON yet. Also, floating point as categories is tricky
+// since floating point equality test is inaccurate for most hardware.
+constexpr StringView NoFloatCat() {
+  return "Category index from DataFrame has floating point dtype, consider using strings or "
+         "integers instead.";
+}
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

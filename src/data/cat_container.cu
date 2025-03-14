@@ -141,20 +141,23 @@ CatContainer::CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df) :
   if (this->n_total_cats_ > 0) {
     CHECK(this->DeviceCanRead());
     CHECK(!this->HostCanRead());
+    CHECK(!this->cu_impl_->columns.empty());
   }
 }
 
 CatContainer::~CatContainer() = default;
 
-[[nodiscard]] bool CatContainer::DeviceCanRead() const { return !this->cu_impl_->columns.empty(); }
-
 void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
-  this->CopyCommon(that);
   if (ctx->IsCPU()) {
-    auto h_view = that.HostView();
-    CHECK(!h_view.Empty());
+    // Pull data to host
+    [[maybe_unused]] auto h_view = that.HostView();
+    this->CopyCommon(ctx, that);
     this->cpu_impl_->Copy(that.cpu_impl_.get());
+    CHECK(!this->DeviceCanRead());
   } else {
+    // Pull data to device
+    [[maybe_unused]] auto d_view = that.DeviceView(ctx);
+    this->CopyCommon(ctx, that);
     auto const& that_impl = that.cu_impl_;
     this->cu_impl_->columns.resize(that.cu_impl_->columns.size());
 
@@ -186,17 +189,38 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
                  col);
     }
     this->cu_impl_->columns_v = h_columns_v;
+    CHECK(this->Empty() || !this->HostCanRead());
   }
+  if (ctx->IsCPU()) {
+    CHECK_EQ(this->cpu_impl_->columns_v.size(), that.cpu_impl_->columns_v.size());
+    CHECK_EQ(this->cpu_impl_->columns.size(), that.cpu_impl_->columns.size());
+    CHECK(this->HostCanRead());
+  } else {
+    CHECK_EQ(this->cu_impl_->columns_v.size(), that.cu_impl_->columns_v.size());
+    CHECK_EQ(this->cu_impl_->columns.size(), that.cu_impl_->columns.size());
+    CHECK(this->DeviceCanRead());
+  }
+  CHECK_EQ(this->Empty(), that.Empty());
+  CHECK_EQ(this->NumCatsTotal(), that.NumCatsTotal());
+}
+
+[[nodiscard]] bool CatContainer::Empty() const {
+  return this->HostCanRead() ? this->cpu_impl_->columns.empty() : this->cu_impl_->columns.empty();
 }
 
 void CatContainer::Sort(Context const* ctx) {
+  if (!this->HasCategorical()) {
+    return;
+  }
+
   if (ctx->IsCPU()) {
     auto view = this->HostView();
+    CHECK(!view.Empty()) << view.n_total_cats;
     this->sorted_idx_.HostVector().resize(view.n_total_cats);
-    enc::SortNames(enc::Policy<EncErrorPolicy>{}, view, this->sorted_idx_.HostSpan());
+    enc::SortNames(cpu_impl::EncPolicy, view, this->sorted_idx_.HostSpan());
   } else {
     auto view = this->DeviceView(ctx);
-    CHECK(!view.Empty()) << this->HostView().Size();
+    CHECK(!view.Empty()) << view.n_total_cats;
     this->sorted_idx_.SetDevice(ctx->Device());
     this->sorted_idx_.Resize(view.n_total_cats);
     enc::SortNames(cuda_impl::EncPolicy, view, this->sorted_idx_.DeviceSpan());
@@ -206,21 +230,29 @@ void CatContainer::Sort(Context const* ctx) {
 [[nodiscard]] enc::HostColumnsView CatContainer::HostView() const {
   std::lock_guard guard{device_mu_};
   if (!this->HostCanRead()) {
+    this->feature_segments_.ConstHostSpan();
     // Lazy copy to host
     this->cu_impl_->CopyTo(this->cpu_impl_.get());
   }
+  CHECK(this->HostCanRead());
   return this->HostViewImpl();
 }
 
 [[nodiscard]] enc::DeviceColumnsView CatContainer::DeviceView(Context const* ctx) const {
   CHECK(ctx->IsCUDA());
   std::lock_guard guard{device_mu_};
-  this->feature_segments_.SetDevice(ctx->Device());
   if (!this->DeviceCanRead()) {
+    this->feature_segments_.SetDevice(ctx->Device());
+    this->feature_segments_.ConstDeviceSpan();
     // Lazy copy to device
     auto h_view = this->HostViewImpl();
-    CHECK(!h_view.Empty());
     this->cu_impl_->CopyFrom(h_view);
+    CHECK_EQ(this->cu_impl_->columns_v.size(), this->cpu_impl_->columns_v.size());
+    CHECK_EQ(this->cu_impl_->columns.size(), this->cpu_impl_->columns.size());
+  }
+  CHECK(this->DeviceCanRead());
+  if (this->n_total_cats_ != 0) {
+    CHECK(!this->cu_impl_->columns_v.empty());
   }
   return {dh::ToSpan(this->cu_impl_->columns_v), this->feature_segments_.ConstDeviceSpan(),
           this->n_total_cats_};

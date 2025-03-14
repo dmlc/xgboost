@@ -1,5 +1,6 @@
 /**
  * Copyright 2014-2025, XGBoost Contributors
+ *
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -211,6 +212,17 @@ void GBTree::DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair,
   TreesOneIter new_trees;
   bst_target_t const n_groups = model_.learner_model_param->OutputLength();
   monitor_.Start("BoostNewTrees");
+
+  // Define the categories.
+  if (this->model_.Cats()->Empty() && !p_fmat->Cats()->Empty()) {
+    auto in_cats = p_fmat->Cats();
+    this->model_.Cats()->Copy(this->ctx_, *in_cats);
+    this->model_.Cats()->Sort(this->ctx_);
+  } else {
+    CHECK_EQ(this->model_.Cats()->NumCatsTotal(), p_fmat->Cats()->NumCatsTotal())
+        << "A new dataset with different categorical features is used for training an existing "
+           "model.";
+  }
 
   predt->predictions.SetDevice(ctx_->Device());
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,

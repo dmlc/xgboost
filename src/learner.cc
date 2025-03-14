@@ -843,7 +843,7 @@ class LearnerConfiguration : public Learner {
     }
   }
 
-  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) {
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
     base_score->Reshape(1);
     collective::ApplyWithLabels(this->Ctx(), info, base_score->Data(),
                                 [&] { UsePtr(obj_)->InitEstimation(info, base_score); });

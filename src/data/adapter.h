@@ -16,10 +16,11 @@
 #include <variant>    // for variant
 #include <vector>     // for vector
 
-#include "../common/math.h"
-#include "../encoder/ordinal.h"  // for CatStrArrayView
-#include "../encoder/types.h"    // for TupToVarT
-#include "array_interface.h"     // for CategoricalIndexArgTypes
+#include "../common/error_msg.h"  // for NoFloatCat
+#include "../common/math.h"       // for CheckNAN
+#include "../encoder/ordinal.h"   // for CatStrArrayView
+#include "../encoder/types.h"     // for TupToVarT
+#include "array_interface.h"      // for CategoricalIndexArgTypes
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
@@ -627,6 +628,9 @@ template <typename CategoricalIndex, bool allow_mask>
     using T = typename decltype(t)::value_type;
     constexpr bool kKnownType = enc::MemberOf<std::remove_cv_t<T>, enc::CatPrimIndexTypes>::value;
     CHECK(kKnownType) << "Unsupported categorical index type.";
+    if constexpr (std::is_floating_point_v<T>) {
+      LOG(FATAL) << error::NoFloatCat();
+    }
     auto span = common::Span{t.Values().data(), t.Size()};
     if constexpr (kKnownType) {
       p_cat_columns->emplace_back(span);

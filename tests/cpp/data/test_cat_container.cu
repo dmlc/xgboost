@@ -3,10 +3,15 @@
  */
 
 #include <gtest/gtest.h>
+#include <xgboost/base.h>  // for bst_cat_t
+#include <xgboost/span.h>  // for Span
 
-#include "../../../src/common/common.h"
+#include <vector>  // for vector
+
+#include "../../../src/common/common.h"           // for safe_cuda
+#include "../../../src/common/threading_utils.h"  // for ParallelFor
 #include "../encoder/df_mock.h"
-#include "../helpers.h"
+#include "../helpers.h"  // for MakeCUDACtx
 #include "test_cat_container.h"
 
 namespace xgboost {
@@ -29,5 +34,26 @@ TEST(CatContainer, StrGpu) {
 TEST(CatContainer, MixedGpu) {
   auto ctx = MakeCUDACtx(0);
   auto df = TestCatContainerMixed<DfTest>(&ctx, eq_check);
+}
+
+TEST(CatContainer, ThreadSafety) {
+  auto ctx = MakeCUDACtx(0);
+  auto df = DfTest::Make(DfTest::MakeStrs("abc", "bcd", "cde", "ab"), DfTest::MakeInts(2, 2, 3, 0));
+  auto h_df = df.View();
+  auto cats = test_cat_detail::FromDf(&ctx, h_df);
+  cats.Sort(&ctx);  // not thread safe
+
+  common::ParallelFor(ctx.Threads(), 64, [&](auto i) {
+    auto sorted_idx = cats.RefSortedIndex(&ctx);
+    if (i % 2 == 0) {
+      auto h_cats = cats.HostView();
+      ASSERT_EQ(h_cats.n_total_cats, 8);
+    } else {
+      auto d_cats = cats.DeviceView(&ctx);
+      ASSERT_EQ(d_cats.n_total_cats, 8);
+    }
+    auto sol = std::vector<bst_cat_t>{3, 0, 1, 2, 3, 0, 1, 2};
+    eq_check(sorted_idx, sol);
+  });
 }
 }  // namespace xgboost

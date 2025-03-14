@@ -1,6 +1,7 @@
 """Tests for running inplace prediction."""
 
 from concurrent.futures import ThreadPoolExecutor
+from typing import List, Union
 
 import numpy as np
 import pandas as pd
@@ -251,11 +252,14 @@ class TestInplacePredict:
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_pd_dtypes(self) -> None:
+        import pandas as pd
         from pandas.api.types import is_bool_dtype
 
         for orig, x in pd_dtypes():
-            dtypes = orig.dtypes if isinstance(orig, pd.DataFrame) else [orig.dtypes]
-            if isinstance(orig, pd.DataFrame) and is_bool_dtype(dtypes[0]):
+            dtypes: Union[List, pd.Series] = (
+                orig.dtypes if isinstance(orig, pd.DataFrame) else [orig.dtypes]
+            )
+            if isinstance(orig, pd.DataFrame) and is_bool_dtype(dtypes.iloc[0]):
                 continue
             y = np.arange(x.shape[0])
             Xy = xgb.DMatrix(orig, y, enable_categorical=True)
