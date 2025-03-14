@@ -43,8 +43,10 @@ Significant updates for the GPU-based external memory training implementation. (
 - GPU-based external memory supports both batch-based and sampling-based training. Before
   the 3.0 release, XGBoost concatenates the data during training and stores the cache on
   disk. In 3.0, XGBoost can now stage the data on the host and fetch them by
-  batch. (:pr:`10602`, :pr:`10595`, :pr:`10606`, :pr:`10549`, :pr:`10488`, :pr:`10766`, :pr:`10765`, :pr:`10764`, :pr:`10760`, :pr:`10753`,
-  :pr:`10734`, :pr:`10691`, :pr:`10713`, :pr:`10826`, :pr:`10811`, :pr:`10810`, :pr:`10736`, :pr:`10538`)
+  batch. (:pr:`10602`, :pr:`10595`, :pr:`10606`, :pr:`10549`, :pr:`10488`, :pr:`10766`,
+  :pr:`10765`, :pr:`10764`, :pr:`10760`, :pr:`10753`, :pr:`10734`, :pr:`10691`,
+  :pr:`10713`, :pr:`10826`, :pr:`10811`, :pr:`10810`, :pr:`10736`, :pr:`10538`,
+  :pr:`11333`)
 - XGBoost can now utilize `NVLink-C2C` for GPU-based external memory training and can
   handle up to terabytes of data.
 - Support prediction cache (:pr:`10707`).
@@ -110,7 +112,7 @@ please visit corresponding sections.
 
 - A new initialization method for objectives that are derived from GLM. The new method is
   based on the mean value of the input labels. The new method changes the result of the
-  estimated ``base_score``. (:pr:`10298`)
+  estimated ``base_score``. (:pr:`10298`, :pr:`11331`)
 
 - The :py:class:`xgboost.QuantileDMatrix` can be used with all prediction types for both
   CPU and GPU.
@@ -122,7 +124,8 @@ please visit corresponding sections.
 - OpenMP thread setting is exposed to the XGBoost global configuration. Users can use it
   to workaround hardcoded OpenMP environment variables. (:pr:`11175`)
 
-- We improved distributed training for learning to rank tasks.
+- We improved learning to rank tasks for better hyper-parameter configuration and for
+  distributed training.
 
   + In 3.0, all three distributed interfaces, including Dask, Spark, and PySpark, support
     sorting the data based on query ID. The option for the
@@ -131,6 +134,10 @@ please visit corresponding sections.
 
   + Also for learning to rank, a new parameter ``lambdarank_score_normalization`` is
     introduced to make one of the normalizations optional. (:pr:`11272`)
+
+  + The ``lambdarank_normalization`` now uses the number of pairs when normalizing the
+    ``mean`` pair strategy. Previously, the gradient was used for both ``topk`` and
+    ``mean``. :pr:`11322`
 
 - We have improved GPU quantile sketching to reduce memory usage. The improvement helps
   the construction of the :py:class:`~xgboost.QuantileDMatrix` and the new
