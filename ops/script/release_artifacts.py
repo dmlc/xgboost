@@ -5,38 +5,28 @@ tqdm, sh, and build are required to run this script.
 """
 
 import argparse
-import os
 import shutil
 import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.request import urlretrieve
 
 import tqdm
 from packaging import version
 from pypi_variants import make_pyproject
 from sh.contrib import git
+from test_utils import PY_PACKAGE
+from test_utils import ROOT as root_path
+from test_utils import DirectoryExcursion
 
 # S3 bucket hosting the release artifacts
 S3_BUCKET_URL = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
-ROOT = Path(__file__).absolute().parent.parent.parent
-DIST = ROOT / "python-package" / "dist"
+DIST = Path(PY_PACKAGE) / "dist"
+ROOT = Path(root_path)
 
 pbar = None
-
-
-class DirectoryExcursion:
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self.curdir = Path.cwd().resolve()
-
-    def __enter__(self) -> None:
-        os.chdir(self.path)
-
-    def __exit__(self, *args: Any) -> None:
-        os.chdir(self.curdir)
 
 
 def show_progress(block_num: int, block_size: int, total_size: int) -> None:
