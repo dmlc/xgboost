@@ -16,9 +16,8 @@ from urllib.request import urlretrieve
 
 import tqdm
 from packaging import version
-from sh.contrib import git
-
 from pypi_variants import make_pyproject
+from sh.contrib import git
 
 # S3 bucket hosting the release artifacts
 S3_BUCKET_URL = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
@@ -324,6 +323,7 @@ def main(args: argparse.Namespace) -> None:
         rc_ver: Optional[int] = None
     else:
         # RC release
+        assert release_parsed.pre is not None
         rc, rc_ver = release_parsed.pre
         if rc != "rc":
             raise ValueError(
