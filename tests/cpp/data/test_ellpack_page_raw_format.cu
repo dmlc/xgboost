@@ -157,4 +157,53 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
 }
 
 INSTANTIATE_TEST_SUITE_P(EllpackPageRawFormat, TestEllpackPageRawFormat, ::testing::Bool());
+
+TEST(EllpackPageRawFormat, DevicePageConcat) {
+  auto ctx = MakeCUDACtx(0);
+  auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
+
+  // prefer device
+  std::int32_t max_num_device_pages = 1;
+  EllpackCacheInfo cinfo{param, true, max_num_device_pages,
+                         std::numeric_limits<float>::quiet_NaN()};
+
+  bst_idx_t n_features = 16, n_samples = 128;
+  ExternalDataInfo ext_info;
+  std::int64_t min_cache_page_bytes = n_features * n_samples;
+
+  ext_info.n_batches = 8;
+  ext_info.row_stride = n_features;
+  for (bst_idx_t i = 0; i < ext_info.n_batches; ++i) {
+    ext_info.base_rowids.push_back(n_samples);
+  }
+  std::partial_sum(ext_info.base_rowids.cbegin(), ext_info.base_rowids.cend(),
+                   ext_info.base_rowids.begin());
+  ext_info.accumulated_rows = n_samples * ext_info.n_batches;
+  ext_info.nnz = ext_info.accumulated_rows * n_features;
+
+  auto p_fmat = RandomDataGenerator{n_samples, n_features, 0}.Seed(0).GenerateDMatrix();
+  EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy> policy;
+
+  for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+    auto cuts = page.Impl()->CutsShared();
+    CalcCacheMapping(&ctx, true, cuts, min_cache_page_bytes, ext_info, &cinfo);
+    ASSERT_EQ(cinfo.buffer_rows.size(), 4);
+    policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
+  }
+
+  auto format = policy.CreatePageFormat(param);
+
+  // write multipe pages
+  for (bst_idx_t i = 0; i < ext_info.n_batches; ++i) {
+    for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+      auto writer = policy.CreateWriter({}, i);
+      auto n_bytes = format->Write(page, writer.get());
+    }
+  }
+  // check correct concatenation.
+  auto mem_cache = policy.Share();
+  ASSERT_EQ(mem_cache->on_device.size(), 4);
+  ASSERT_TRUE(mem_cache->on_device[0]);
+  ASSERT_EQ(mem_cache->NumDevicePages(), max_num_device_pages);
+}
 }  // namespace xgboost::data

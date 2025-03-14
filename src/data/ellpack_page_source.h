@@ -191,6 +191,7 @@ class EllpackCacheStreamPolicy : public F<S> {
 
   [[nodiscard]] std::unique_ptr<ReaderT> CreateReader(StringView name, bst_idx_t offset,
                                                       bst_idx_t length) const;
+  std::shared_ptr<EllpackMemCache const> Share() const { return p_cache_; }
 };
 
 template <typename S, template <typename> typename F>
