@@ -40,7 +40,7 @@ struct EllpackCacheInfo {
         missing{missing} {}
 
   // Only effective for host-based cache.
-  // The number of batches after page concatenation.
+  // The number of batches for the concatenated cache.
   [[nodiscard]] std::size_t NumBatchesCc() const { return this->buffer_rows.size(); }
 };
 
@@ -195,6 +195,7 @@ class EllpackCacheStreamPolicy : public F<S> {
 
   [[nodiscard]] std::unique_ptr<ReaderT> CreateReader(StringView name, bst_idx_t offset,
                                                       bst_idx_t length) const;
+  std::shared_ptr<EllpackMemCache const> Share() const { return p_cache_; }
 };
 
 template <typename S, template <typename> typename F>
