@@ -104,6 +104,7 @@ class EllpackHostCacheStreamImpl {
 
     this->cache_->sizes_orig.push_back(page.Impl()->MemCostBytes());
     auto orig_ptr = this->cache_->sizes_orig.size() - 1;
+    CHECK_EQ(this->cache_->pages.size(), this->cache_->on_device.size());
 
     CHECK_LT(orig_ptr, this->cache_->NumBatchesOrig());
     auto cache_idx = this->cache_->cache_mapping.at(orig_ptr);
@@ -113,12 +114,17 @@ class EllpackHostCacheStreamImpl {
     auto last_page = (orig_ptr + 1) == this->cache_->NumBatchesOrig();
 
     bool const no_concat = this->cache_->NoConcat();
+
     // Whether the page should be cached in device. If true, then we don't need to make a
     // copy during write since the temporary page is already in device when page
     // concatenation is enabled.
-
-    bool to_device = this->cache_->prefer_device &&
-                     this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
+    //
+    // This applies only to a new cached page. If we are concatenating this page to an
+    // existing cached page, then we should respect the existing flag obtained from the
+    // first page of the cached page.
+    bool to_device_if_new_page =
+        this->cache_->prefer_device &&
+        this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
 
     auto commit_host_page = [](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
@@ -137,7 +143,7 @@ class EllpackHostCacheStreamImpl {
       auto new_impl = std::make_unique<EllpackPageImpl>();
       new_impl->CopyInfo(page.Impl());
 
-      if (to_device) {
+      if (to_device_if_new_page) {
         // Copy to device
         new_impl->gidx_buffer = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(
             page.Impl()->gidx_buffer.size());
@@ -151,12 +157,13 @@ class EllpackHostCacheStreamImpl {
 
       this->cache_->offsets.push_back(new_impl->n_rows * new_impl->info.row_stride);
       this->cache_->pages.push_back(std::move(new_impl));
+      this->cache_->on_device.push_back(to_device_if_new_page);
       return new_page;
     }
 
     if (new_page) {
       // No need to copy if it's already in device.
-      if (!this->cache_->pages.empty() && !to_device) {
+      if (!this->cache_->pages.empty() && !this->cache_->on_device.back()) {
         // Need to wrap up the previous page.
         auto commited = commit_host_page(this->cache_->pages.back().get());
         // Replace the previous page (on device) with a new page on host.
@@ -174,7 +181,9 @@ class EllpackHostCacheStreamImpl {
       auto offset = new_impl->Copy(&ctx, impl, 0);
 
       this->cache_->offsets.push_back(offset);
+
       this->cache_->pages.push_back(std::move(new_impl));
+      this->cache_->on_device.push_back(to_device_if_new_page);
     } else {
       CHECK(!this->cache_->pages.empty());
       CHECK_EQ(cache_idx, this->cache_->pages.size() - 1);
@@ -182,7 +191,7 @@ class EllpackHostCacheStreamImpl {
       auto offset = new_impl->Copy(&ctx, impl, this->cache_->offsets.back());
       this->cache_->offsets.back() += offset;
       // No need to copy if it's already in device.
-      if (last_page && !to_device) {
+      if (last_page && !this->cache_->on_device.back()) {
         auto commited = commit_host_page(this->cache_->pages.back().get());
         this->cache_->pages.back() = std::move(commited);
       }
