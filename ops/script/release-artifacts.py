@@ -11,16 +11,18 @@ import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.request import urlretrieve
 
 import tqdm
 from packaging import version
 from sh.contrib import git
 
+from pypi_variants import make_pyproject
+
 # S3 bucket hosting the release artifacts
 S3_BUCKET_URL = "https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds"
-ROOT = Path(__file__).absolute().parent.parent
+ROOT = Path(__file__).absolute().parent.parent.parent
 DIST = ROOT / "python-package" / "dist"
 
 pbar = None
@@ -118,16 +120,24 @@ def make_python_sdist(
     dist_dir = outdir / "dist"
     dist_dir.mkdir(exist_ok=True)
 
-    # Apply patch to remove NCCL dependency
-    # Save the original content of pyproject.toml so that we can restore it later
+    # Build sdist for `xgboost-cpu`.
     with DirectoryExcursion(ROOT):
-        with open("python-package/pyproject.toml", "r") as f:
-            orig_pyproj_lines = f.read()
-        with open("ops/patch/remove_nccl_dep.patch", "r") as f:
-            patch_lines = f.read()
-        subprocess.run(
-            ["patch", "-p0"], input=patch_lines, check=True, text=True, encoding="utf-8"
+        make_pyproject("cpu")
+    with DirectoryExcursion(ROOT / "python-package"):
+        subprocess.run(["python", "-m", "build", "--sdist"], check=True)
+        sdist_name = (
+            f"xgboost_cpu-{release}{rc}{rc_ver}.tar.gz"
+            if rc
+            else f"xgboost_cpu-{release}.tar.gz"
         )
+        src = DIST / sdist_name
+        subprocess.run(["twine", "check", str(src)], check=True)
+        dest = dist_dir / sdist_name
+        shutil.move(src, dest)
+
+    # Build sdist for `xgboost`.
+    with DirectoryExcursion(ROOT):
+        make_pyproject("default")
 
     with DirectoryExcursion(ROOT / "python-package"):
         subprocess.run(["python", "-m", "build", "--sdist"], check=True)
@@ -140,10 +150,6 @@ def make_python_sdist(
         subprocess.run(["twine", "check", str(src)], check=True)
         dest = dist_dir / sdist_name
         shutil.move(src, dest)
-
-    with DirectoryExcursion(ROOT):
-        with open("python-package/pyproject.toml", "w") as f:
-            f.write(orig_pyproj_lines)
 
 
 def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
