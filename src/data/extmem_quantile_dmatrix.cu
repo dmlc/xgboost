@@ -58,14 +58,14 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   /**
    * Calculate cache info
    */
-  // Prefer device storage for validation dataset since we can't hide it's data load
-  // overhead with inference. But the training procedures can confortably overlap with the
-  // data transfer.
+  // Prefer device storage for validation dataset since we can't hide the data loading
+  // overhead with inference. On the other hand, training procedures can confortably
+  // overlap with the data transfer.
   auto cinfo = EllpackCacheInfo{p, (ref != nullptr), config.max_num_device_pages, config.missing};
   CalcCacheMapping(ctx, this->info_.IsDense(), cuts,
                    DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
-  auto n_batches = cinfo.buffer_rows.size();  // The number of batches after page concatenation.
+  auto n_batches = cinfo.NumBatchesCc();
   LOG(INFO) << "Number of batches after concatenation:" << n_batches;
 
   /**

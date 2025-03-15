@@ -75,7 +75,7 @@ template <typename T>
   return true;
 }
 
-[[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
+[[nodiscard]] std::size_t EllpackPageRawFormat::Write(EllpackPage const& page,
                                                       common::AlignedFileWriteStream* fo) {
   xgboost_NVTX_FN_RANGE();
 
@@ -109,7 +109,7 @@ template <typename T>
   return true;
 }
 
-[[nodiscard]] std::size_t EllpackPageRawFormat::Write(const EllpackPage& page,
+[[nodiscard]] std::size_t EllpackPageRawFormat::Write(EllpackPage const& page,
                                                       EllpackHostCacheStream* fo) const {
   xgboost_NVTX_FN_RANGE();
 

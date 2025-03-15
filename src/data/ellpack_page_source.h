@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
@@ -38,6 +38,10 @@ struct EllpackCacheInfo {
         prefer_device{prefer_device},
         max_num_device_pages{max_num_device_pages},
         missing{missing} {}
+
+  // Only effective for host-based cache.
+  // The number of batches for the concatenated cache.
+  [[nodiscard]] std::size_t NumBatchesCc() const { return this->buffer_rows.size(); }
 };
 
 // We need to decouple the storage and the view of the storage so that we can implement
@@ -47,6 +51,7 @@ struct EllpackCacheInfo {
 // This is a memory-based cache. It can be a mixed of the device memory and the host memory.
 struct EllpackMemCache {
   std::vector<std::unique_ptr<EllpackPageImpl>> pages;
+  std::vector<bool> on_device;
   std::vector<std::size_t> offsets;
   // Size of each batch before concatenation.
   std::vector<bst_idx_t> sizes_orig;
@@ -65,6 +70,9 @@ struct EllpackMemCache {
   [[nodiscard]] std::size_t SizeBytes() const;
 
   [[nodiscard]] bool Empty() const { return this->SizeBytes() == 0; }
+  // No page concatenation is performed. If there's page concatenation, then the number of
+  // pages in the cache must be smaller than the input number of pages.
+  [[nodiscard]] bool NoConcat() const { return this->NumBatchesOrig() == this->buffer_rows.size(); }
 
   [[nodiscard]] bst_idx_t NumBatchesOrig() const { return cache_mapping.size(); }
   [[nodiscard]] EllpackPageImpl const* At(std::int32_t k) const;
@@ -187,6 +195,7 @@ class EllpackCacheStreamPolicy : public F<S> {
 
   [[nodiscard]] std::unique_ptr<ReaderT> CreateReader(StringView name, bst_idx_t offset,
                                                       bst_idx_t length) const;
+  std::shared_ptr<EllpackMemCache const> Share() const { return p_cache_; }
 };
 
 template <typename S, template <typename> typename F>
