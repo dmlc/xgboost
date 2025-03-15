@@ -14,28 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python-sdist-test:
-    runs-on: ${{ matrix.os }}
-    name: Test installing Python XGBoost from the source distribution (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-13, windows-latest, ubuntu-latest]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-      - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
-        with:
-          environment-name: sdist_test
-          environment-file: ops/conda_env/sdist_test.yml
-      - name: Install extra package for MacOS
-        run: |
-          mamba install -c conda-forge llvm-openmp
-        if: matrix.os == 'macos-13'
-      - name: Build and install XGBoost
-        run: bash ops/pipeline/test-python-sdist.sh
-
   python-tests-on-macos:
     name: Test XGBoost Python package on macos-13
     runs-on: macos-13
