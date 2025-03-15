@@ -19,5 +19,5 @@ python --version
 pip install -v .
 
 cd ..
-pytest -s -v --maxfail=1 --durations=0 ./tests/python/
-# pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+pytest -s -v -rxXs --durations=0 ./tests/python
+pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
