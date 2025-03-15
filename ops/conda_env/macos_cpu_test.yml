@@ -27,7 +27,7 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
-- loky
+- loky=3.4.1
 - pyarrow
 - pyspark>=3.4.0
 - cloudpickle
