@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2023 by XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
@@ -150,9 +150,6 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
-
-  virtual void LoadModel(dmlc::Stream* fi) = 0;
-  virtual void SaveModel(dmlc::Stream* fo) const = 0;
 
   /*!
    * \brief Set multiple parameters at once.
