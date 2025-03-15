@@ -75,7 +75,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     }
 
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t idx,
+        [=] XGBOOST_DEVICE(size_t idx, auto has_fp64_support,
                            common::Span<GradientPair> gpair,
                            common::Span<bst_float const> labels,
                            common::Span<bst_float const> preds,
@@ -86,8 +86,16 @@ class SoftmaxMultiClassObj : public ObjFunction {
           // Part of Softmax function
           bst_float wmax = std::numeric_limits<bst_float>::min();
           for (auto const i : point) { wmax = fmaxf(i, wmax); }
-          double wsum = 0.0f;
-          for (auto const i : point) { wsum += expf(i - wmax); }
+
+          float wsum = 0.0f;
+          if constexpr (has_fp64_support) {
+            double wsum_fp64 = 0;
+            for (auto const i : point) { wsum_fp64 += expf(i - wmax); }
+            wsum = static_cast<float>(wsum_fp64);
+          } else {
+            for (auto const i : point) { wsum += expf(i - wmax); }
+          }
+
           auto label = labels[idx];
           if (label < 0 || label >= nclass) {
             _label_correct[0] = 0;
@@ -96,11 +104,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
           bst_float wt = is_null_weight ? 1.0f : weights[idx];
           for (int k = 0; k < nclass; ++k) {
             // Computation duplicated to avoid creating a cache.
-            bst_float p = expf(point[k] - wmax) / static_cast<float>(wsum);
+            bst_float p = expf(point[k] - wmax) / wsum;
             const float eps = 1e-16f;
-            const bst_float h = fmax(2.0f * p * (1.0f - p) * wt, eps);
+            const bst_float h = 2.0f * p * (1.0f - p) * wt;
             p = label == k ? p - 1.0f : p;
-            gpair[idx * nclass + k] = GradientPair(p * wt, h);
+            gpair[idx * nclass + k] = GradientPair(p * wt, h < eps ? eps : h);
           }
         }, common::Range{0, ndata}, ctx_->Threads(), device)
         .Eval(out_gpair->Data(), info.labels.Data(), &preds, &info.weights_, &label_correct_);
@@ -129,7 +137,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     auto device = io_preds->Device();
     if (prob) {
       common::Transform<>::Init(
-          [=] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
+          [=] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support, common::Span<bst_float> _preds) {
             common::Span<bst_float> point =
                 _preds.subspan(_idx * nclass, nclass);
             common::Softmax(point.begin(), point.end());
@@ -142,7 +150,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
       max_preds.SetDevice(device);
       max_preds.Resize(ndata);
       common::Transform<>::Init(
-          [=] XGBOOST_DEVICE(size_t _idx, common::Span<const bst_float> _preds,
+          [=] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support,
+                             common::Span<const bst_float> _preds,
                              common::Span<bst_float> _max_preds) {
             common::Span<const bst_float> point =
                 _preds.subspan(_idx * nclass, nclass);
