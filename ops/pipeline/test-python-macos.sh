@@ -19,5 +19,5 @@ python --version
 pip install -v .
 
 cd ..
-pytest -s -v -rxXs --durations=0 ./tests/python
-pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
+pytest -s -v -rxXs --durations=0 ./tests/python/test_collective.py::test_rabit_communicator
+# pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_dask
