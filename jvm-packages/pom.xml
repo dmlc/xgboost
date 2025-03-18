@@ -47,8 +47,8 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.20.0</flink.version>
         <junit.version>4.13.2</junit.version>
-        <spark.version>3.5.3</spark.version>
-        <spark.version.gpu>3.5.1</spark.version.gpu>
+        <spark.version>3.5.5</spark.version>
+        <spark.version.gpu>3.5.5</spark.version.gpu>
         <fasterxml.jackson.version>2.15.0</fasterxml.jackson.version>
         <scala.version>2.12.18</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
@@ -60,8 +60,7 @@
         <use.debug>OFF</use.debug>
         <use.nvtx>OFF</use.nvtx>
         <plugin.rmm>OFF</plugin.rmm>
-        <cudf.version>24.10.0</cudf.version>
-        <spark.rapids.version>24.10.0</spark.rapids.version>
+        <spark.rapids.version>25.02.1</spark.rapids.version>
         <spark.rapids.classifier>cuda12</spark.rapids.classifier>
         <scalatest.version>3.2.19</scalatest.version>
         <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
