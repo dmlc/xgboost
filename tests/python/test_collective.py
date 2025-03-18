@@ -24,10 +24,7 @@ def run_rabit_worker(rabit_env: dict, world_size: int) -> int:
 
 @pytest.mark.skipif(**tm.no_loky())
 def test_rabit_communicator() -> None:
-    import loky
     from loky import get_reusable_executor
-
-    assert loky.__version__ == "3.4.1"
 
     world_size = 2
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
