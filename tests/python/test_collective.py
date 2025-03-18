@@ -3,7 +3,6 @@ from dataclasses import asdict
 
 import numpy as np
 import pytest
-from loky import get_reusable_executor
 
 import xgboost as xgb
 from xgboost import RabitTracker, build_info, federated
@@ -25,10 +24,16 @@ def run_rabit_worker(rabit_env: dict, world_size: int) -> int:
 
 @pytest.mark.skipif(**tm.no_loky())
 def test_rabit_communicator() -> None:
+    import loky
+    from loky import get_reusable_executor
+
+    assert loky.__version__ == "3.4.1"
+
     world_size = 2
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=world_size)
     tracker.start()
     workers = []
+
     with get_reusable_executor(max_workers=world_size) as pool:
         for _ in range(world_size):
             worker = pool.submit(
@@ -60,6 +65,8 @@ def run_federated_worker(port: int, world_size: int, rank: int) -> int:
 @pytest.mark.skipif(**tm.skip_win())
 @pytest.mark.skipif(**tm.no_loky())
 def test_federated_communicator() -> None:
+    from loky import get_reusable_executor
+
     if not build_info()["USE_FEDERATED"]:
         pytest.skip("XGBoost not built with federated learning enabled")
 
