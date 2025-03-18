@@ -76,9 +76,8 @@ struct SparsePageView {
 
   SparsePageView() = default;
   XGBOOST_DEVICE SparsePageView(common::Span<const Entry> data,
-                                common::Span<const bst_idx_t> row_ptr,
-                                bst_feature_t num_features)
-      : d_data{data}, d_row_ptr{row_ptr}, num_features(num_features) {}
+                                common::Span<const bst_idx_t> row_ptr, bst_feature_t n_features)
+      : d_data{data}, d_row_ptr{row_ptr}, num_features(n_features) {}
   [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {
     // Binary search
     auto begin_ptr = d_data.begin() + d_row_ptr[ridx];
@@ -113,14 +112,17 @@ struct SparsePageView {
 
 template <typename EncAccessor>
 struct SparsePageLoader {
+ private:
+  EncAccessor acc_;
+
+ public:
   bool use_shared;
   SparsePageView data;
   float* smem;
-  EncAccessor acc;
 
   __device__ SparsePageLoader(SparsePageView data, bool use_shared, bst_feature_t num_features,
                               bst_idx_t num_rows, float, EncAccessor&& acc)
-      : use_shared(use_shared), data(data), acc{std::forward<EncAccessor>(acc)} {
+      : use_shared(use_shared), data(data), acc_{std::forward<EncAccessor>(acc)} {
     extern __shared__ float _smem[];
     smem = _smem;
     // Copy instances
@@ -134,7 +136,7 @@ struct SparsePageLoader {
         bst_uint elem_end = data.d_row_ptr[global_idx + 1];
         for (bst_uint elem_idx = elem_begin; elem_idx < elem_end; elem_idx++) {
           Entry elem = data.d_data[elem_idx];
-          smem[threadIdx.x * data.num_features + elem.index] = acc(elem);
+          smem[threadIdx.x * data.num_features + elem.index] = this->acc_(elem);
         }
       }
       __syncthreads();
@@ -144,7 +146,7 @@ struct SparsePageLoader {
     if (use_shared) {
       return smem[threadIdx.x * data.num_features + fidx];
     } else {
-      return data.GetElement(ridx, fidx);
+      return this->acc_(data.GetElement(ridx, fidx), fidx);
     }
   }
 };
@@ -163,7 +165,7 @@ struct EllpackLoader {
       return std::numeric_limits<float>::quiet_NaN();
     }
     if (common::IsCat(matrix.feature_types, fidx)) {
-      return acc(matrix.gidx_fvalue_map[gidx], fidx);
+      return this->acc(matrix.gidx_fvalue_map[gidx], fidx);
     }
     // The gradient index needs to be shifted by one as min values are not included in the
     // cuts.

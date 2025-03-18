@@ -904,7 +904,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             See notes in the :py:class:`DataIter` for consistency requirement when the
             input is an iterator.
 
-            .. versionchanged:: 3.0.0
+            .. versionchanged:: 3.1.0
 
             XGBoost can remember the encoding of categories when the input is a
             dataframe.

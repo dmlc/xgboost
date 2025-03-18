@@ -291,24 +291,8 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
             inf = cuda_array_interface_dict(array)
             return inf, None
 
-        elif hasattr(codes, "__array_interface__"):
-            inf = array.__array_interface__
-            if "mask" in inf:
-                inf["mask"] = inf["mask"].__array_interface__
-            return inf, None
-
-        if not isinstance(array, pa.IntegerArray):
-            raise TypeError("The encoding for categorical data must be integer.")
-        buffers: List[pa.Buffer] = array.buffers()
-        mask, data = buffers
-
-        jdata = make_buf_inf(data, _arrow_typestr()[array.type])
-        if mask is not None:
-            # fixme: test cudf mask
-            jdata["mask"] = make_buf_inf(mask, "<i1")
-
-        inf = cast(ArrayInf, jdata)
-        return inf, (mask, data)
+        # Other types (like arrow itself) are not yet supported.
+        raise TypeError("Invalid input type.")
 
     cats_tmp = (mask, offset, data)
     jcodes, codes_tmp = make_array_inf(codes)
@@ -349,11 +333,6 @@ def array_interface_dict(  # pylint: disable=too-many-locals
 ) -> Union[ArrayInf, Tuple[StringArray, ArrayInf, Optional[Tuple]]]:
     """Returns an array interface from the input."""
     # Handle categorical values
-    if is_arrow_dict(data):
-        cats = data.dictionary
-        codes = data.indices
-        jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
-        return jnames, jcodes, buf
     if _is_df_cat(data):
         cats = data.categories
         # pandas uses -1 to represent missing values for categorical features
@@ -386,7 +365,7 @@ def array_interface_dict(  # pylint: disable=too-many-locals
             "version": 3,
             "mask": None,
         }
-        jnames = {"offsets": joffsets, "values": jvalues}
+        jnames: StringArray = {"offsets": joffsets, "values": jvalues}
 
         code_values = codes.values
         jcodes = array_interface_dict(code_values)
