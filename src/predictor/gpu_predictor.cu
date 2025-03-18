@@ -922,7 +922,7 @@ class LaunchConfig {
   void LaunchImpl(K kernel, Args&&... args) const&& {
     CHECK_NE(this->n_samples_, std::numeric_limits<bst_idx_t>::max());
     auto grid = static_cast<uint32_t>(common::DivRoundUp(this->n_samples_, kBlockThreads));
-    dh::LaunchKernel{grid, kBlockThreads, shared_memory_bytes_, ctx_->CUDACtx()->Stream()}(
+    dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes_, ctx_->CUDACtx()->Stream()}(
         kernel, std::forward<Args>(args)...);
   }
 
