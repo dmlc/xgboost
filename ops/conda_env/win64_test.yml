@@ -16,5 +16,5 @@ dependencies:
 - python-graphviz
 - pip
 - py-ubjson
-- loky
+- loky=3.4.1
 - pyarrow
