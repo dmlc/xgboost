@@ -32,6 +32,7 @@ def get_df_impl(device: str) -> Tuple[Type, Type]:
 
 
 def asarray(device: str, data: Any) -> np.ndarray:
+    """Wrapper to get an array."""
     if device == "cpu":
         return np.asarray(data)
     import cupy as cp
