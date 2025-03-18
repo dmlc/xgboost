@@ -181,25 +181,29 @@ struct EllpackLoader {
  */
 template <typename Batch, typename EncAccessor>
 struct DeviceAdapterLoader {
-  Batch batch;
+ private:
+  Batch batch_;
+  EncAccessor acc_;
+
+ public:
   bst_feature_t n_features;
   float* smem;
   bool use_shared;
   data::IsValidFunctor is_valid;
-  EncAccessor acc;
+
 
   using BatchT = Batch;
 
-  XGBOOST_DEV_INLINE DeviceAdapterLoader(Batch batch, bool use_shared, bst_feature_t n_features,
+  XGBOOST_DEV_INLINE DeviceAdapterLoader(Batch&& batch, bool use_shared, bst_feature_t n_features,
                                          bst_idx_t n_samples, float missing, EncAccessor&& acc)
-      : batch{std::move(batch)},
+      : batch_{std::move(batch)},
+        acc_{std::forward<EncAccessor>(acc)},
         n_features{n_features},
         use_shared{use_shared},
-        is_valid{missing},
-        acc{std::forward<EncAccessor>(acc)} {
+        is_valid{missing} {
     extern __shared__ float _smem[];
-    smem = _smem;
-    if (use_shared) {
+    this->smem = _smem;
+    if (this->use_shared) {
       auto global_idx = blockDim.x * blockIdx.x + threadIdx.x;
       size_t shared_elements = blockDim.x * n_features;
       dh::BlockFill(smem, shared_elements, std::numeric_limits<float>::quiet_NaN());
@@ -208,9 +212,9 @@ struct DeviceAdapterLoader {
         auto beg = global_idx * n_features;
         auto end = (global_idx + 1) * n_features;
         for (size_t i = beg; i < end; ++i) {
-          data::COOTuple const& e = batch.GetElement(i);
+          data::COOTuple const& e = this->batch_.GetElement(i);
           if (is_valid(e)) {
-            smem[threadIdx.x * n_features + (i - beg)] = acc(e);
+            smem[threadIdx.x * n_features + (i - beg)] = this->acc_(e);
           }
         }
       }
@@ -222,9 +226,9 @@ struct DeviceAdapterLoader {
     if (use_shared) {
       return smem[threadIdx.x * n_features + fidx];
     }
-    auto value = batch.GetElement(ridx * n_features + fidx).value;
+    auto value = this->batch_.GetElement(ridx * n_features + fidx).value;
     if (is_valid(value)) {
-      return value;
+      return this->acc_(value, fidx);
     } else {
       return std::numeric_limits<float>::quiet_NaN();
     }
@@ -274,7 +278,7 @@ PredictLeafKernel(Data data, common::Span<const RegTree::Node> d_nodes,
   if (ridx >= num_rows) {
     return;
   }
-  Loader loader{data, use_shared, num_features, num_rows, missing, std::move(acc)};
+  Loader loader{std::move(data), use_shared, num_features, num_rows, missing, std::move(acc)};
   for (bst_tree_t tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
     TreeView d_tree{
         tree_begin,          tree_idx,           d_nodes,
@@ -301,10 +305,10 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
               common::Span<uint32_t const> d_cat_tree_segments,
               common::Span<RegTree::CategoricalSplitMatrix::Segment const> d_cat_node_segments,
               common::Span<uint32_t const> d_categories, bst_tree_t tree_begin,
-              bst_tree_t tree_end, size_t num_features, size_t num_rows,
+              bst_tree_t tree_end, bst_feature_t num_features, size_t num_rows,
               bool use_shared, int num_group, float missing, EncAccessor acc) {
   bst_uint global_idx = blockDim.x * blockIdx.x + threadIdx.x;
-  Loader loader(std::move(data), use_shared, num_features, num_rows, missing, std::move(acc));
+  Loader loader{std::move(data), use_shared, num_features, num_rows, missing, std::move(acc)};
   if (global_idx >= num_rows) return;
 
   if (num_group == 1) {
@@ -954,7 +958,7 @@ class LaunchConfig {
                                         : 0} {}
 
   template <template <typename> typename Loader, typename Data>
-  void LaunchPredict(Context const* ctx, Data&& data, float missing, bst_idx_t n_samples,
+  void LaunchPredict(Context const* ctx, Data data, float missing, bst_idx_t n_samples,
                      bst_feature_t n_features, DeviceModel const& model, bool is_dense,
                      enc::DeviceColumnsView const& new_enc, bst_idx_t batch_offset,
                      HostDeviceVector<bst_float>* predictions) const {
@@ -963,7 +967,7 @@ class LaunchConfig {
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
       auto kernel = PredictKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
       this->Grid(n_samples).LaunchImpl(
-          kernel, std::forward<Data>(data), model.nodes.ConstDeviceSpan(),
+          kernel, std::move(data), model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
 
           model.tree_group.ConstDeviceSpan(),
@@ -977,7 +981,7 @@ class LaunchConfig {
   }
 
   template <template <typename> typename Loader, typename Data>
-  void LaunchLeaf(Context const* ctx, Data&& data, bst_idx_t n_samples, bst_feature_t n_features,
+  void LaunchLeaf(Context const* ctx, Data data, bst_idx_t n_samples, bst_feature_t n_features,
                   DeviceModel const& model, bool is_dense, enc::DeviceColumnsView const& new_enc,
                   bst_idx_t batch_offset, HostDeviceVector<bst_float>* predictions) const {
     LaunchPredictKernel(ctx, is_dense, new_enc, model, [&](auto is_dense, auto&& acc) {
@@ -985,7 +989,7 @@ class LaunchConfig {
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
       auto kernel = PredictLeafKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
       this->Grid(n_samples).LaunchImpl(
-          kernel, std::forward<Data>(data), model.nodes.ConstDeviceSpan(),
+          kernel, std::move(data), model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
 
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
@@ -1110,7 +1114,7 @@ class GPUPredictor : public xgboost::Predictor {
 
     auto n_samples = m->NumRows();
     auto n_features = model.learner_model_param->num_feature;
-    LaunchConfig cfg(ctx_, n_features);
+    LaunchConfig cfg{ctx_, n_features};
 
     DeviceModel d_model;
     d_model.Init(model, tree_begin, tree_end, m->Device());
