@@ -144,12 +144,15 @@ using DftDevicePolicy = Policy<cuda_impl::DftThrustPolicy, detail::DftErrorHandl
 template <typename ExecPolicy>
 void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
                Span<std::int32_t> sorted_idx) {
+  typename ExecPolicy::template ThrustAllocator<char> alloc;
+  auto exec = thrust::cuda::par_nosync(alloc).on(policy.Stream());
+
   auto n_total_cats = orig_enc.n_total_cats;
   if (static_cast<std::int32_t>(sorted_idx.size()) != orig_enc.n_total_cats) {
     policy.Error("`sorted_idx` should have the same size as `n_total_cats`.");
   }
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
-  cuda_impl::SegmentedIota(policy.ThrustPolicy(), orig_enc.feature_segments, d_sorted_idx);
+  cuda_impl::SegmentedIota(exec, orig_enc.feature_segments, d_sorted_idx);
 
   // <fidx, sorted_idx>
   using Pair = cuda::std::pair<std::int32_t, std::int32_t>;
@@ -162,9 +165,9 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         auto idx = d_sorted_idx[i];
         return cuda::std::make_pair(static_cast<std::int32_t>(seg), idx);
       }));
-  thrust::copy(policy.ThrustPolicy(), key_it, key_it + n_total_cats, keys.begin());
+  thrust::copy(exec, key_it, key_it + n_total_cats, keys.begin());
 
-  thrust::sort(policy.ThrustPolicy(), keys.begin(), keys.end(),
+  thrust::sort(exec, keys.begin(), keys.end(),
                cuda::proclaim_return_type<bool>([=] __device__(Pair const& l, Pair const& r) {
                  if (l.first == r.first) {  // same feature
                    auto const& col = orig_enc.columns[l.first];
@@ -193,7 +196,7 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       thrust::make_counting_iterator(0),
       cuda::proclaim_return_type<decltype(Pair{}.second)>(
           [=] __device__(std::int32_t i) { return s_keys[i].second; }));
-  thrust::copy(policy.ThrustPolicy(), it, it + sorted_idx.size(), dh::tbegin(sorted_idx));
+  thrust::copy(exec, it, it + sorted_idx.size(), dh::tbegin(sorted_idx));
 }
 
 /**
@@ -212,7 +215,8 @@ template <typename ExecPolicy>
 void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
             Span<std::int32_t const> sorted_idx, DeviceColumnsView new_enc,
             Span<std::int32_t> mapping) {
-  auto exec = policy.ThrustPolicy();
+  typename ExecPolicy::template ThrustAllocator<char> alloc;
+  auto exec = thrust::cuda::par_nosync(alloc).on(policy.Stream());
   detail::BasicChecks(policy, orig_enc, sorted_idx, new_enc, mapping);
   /**
    * Check consistency.
