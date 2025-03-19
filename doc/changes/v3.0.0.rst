@@ -196,6 +196,7 @@ This section lists breaking changes that affect all packages.
 - Support for saving the model in the ``deprecated`` has been removed. Users can still
   load old models in 3.0. (:pr:`10490`)
 - Support for the legacy (blocking) CUDA stream is removed (:pr:`10607`)
+- XGBoost now requires CUDA 12.0 or later.
 
 *********
 Bug Fixes
