@@ -1124,7 +1124,7 @@ class GPUPredictor : public xgboost::Predictor {
     if constexpr (std::is_same_v<Adapter, data::CudfAdapter>) {
       if (m->HasCategorical()) {
         cfg.LaunchPredict<PartialLoader<BatchT>::template Type>(
-            this->ctx_, m->Value(), missing, n_samples, n_features, d_model, false, m->Cats(), 0,
+            this->ctx_, m->Value(), missing, n_samples, n_features, d_model, false, m->DCats(), 0,
             &out_preds->predictions);
         return;
       }
