@@ -34,7 +34,7 @@ dependencies:
 - boto3
 - awscli
 - py-ubjson
-- loky
+- loky>=3.5.1
 - pyarrow
 - protobuf
 - cloudpickle

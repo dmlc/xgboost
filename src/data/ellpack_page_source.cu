@@ -104,23 +104,29 @@ class EllpackHostCacheStreamImpl {
 
     this->cache_->sizes_orig.push_back(page.Impl()->MemCostBytes());
     auto orig_ptr = this->cache_->sizes_orig.size() - 1;
+    CHECK_EQ(this->cache_->pages.size(), this->cache_->on_device.size());
 
     CHECK_LT(orig_ptr, this->cache_->NumBatchesOrig());
     auto cache_idx = this->cache_->cache_mapping.at(orig_ptr);
     // Wrap up the previous page if this is a new page, or this is the last page.
     auto new_page = cache_idx == this->cache_->pages.size();
-
+    // Last page expected from the user.
     auto last_page = (orig_ptr + 1) == this->cache_->NumBatchesOrig();
-    // No page concatenation is performed. If there's page concatenation, then the number
-    // of pages in the cache must be smaller than the input number of pages.
-    bool no_concat = this->cache_->NumBatchesOrig() == this->cache_->buffer_rows.size();
+
+    bool const no_concat = this->cache_->NoConcat();
+
     // Whether the page should be cached in device. If true, then we don't need to make a
     // copy during write since the temporary page is already in device when page
     // concatenation is enabled.
-    bool to_device = this->cache_->prefer_device &&
-                     this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
+    //
+    // This applies only to a new cached page. If we are concatenating this page to an
+    // existing cached page, then we should respect the existing flag obtained from the
+    // first page of the cached page.
+    bool to_device_if_new_page =
+        this->cache_->prefer_device &&
+        this->cache_->NumDevicePages() < this->cache_->max_num_device_pages;
 
-    auto commit_page = [&ctx](EllpackPageImpl const* old_impl) {
+    auto commit_host_page = [](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
       auto new_impl = std::make_unique<EllpackPageImpl>();
       new_impl->CopyInfo(old_impl);
@@ -137,7 +143,7 @@ class EllpackHostCacheStreamImpl {
       auto new_impl = std::make_unique<EllpackPageImpl>();
       new_impl->CopyInfo(page.Impl());
 
-      if (to_device) {
+      if (to_device_if_new_page) {
         // Copy to device
         new_impl->gidx_buffer = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(
             page.Impl()->gidx_buffer.size());
@@ -151,15 +157,16 @@ class EllpackHostCacheStreamImpl {
 
       this->cache_->offsets.push_back(new_impl->n_rows * new_impl->info.row_stride);
       this->cache_->pages.push_back(std::move(new_impl));
+      this->cache_->on_device.push_back(to_device_if_new_page);
       return new_page;
     }
 
     if (new_page) {
       // No need to copy if it's already in device.
-      if (!this->cache_->pages.empty() && !to_device) {
+      if (!this->cache_->pages.empty() && !this->cache_->on_device.back()) {
         // Need to wrap up the previous page.
-        auto commited = commit_page(this->cache_->pages.back().get());
-        // Replace the previous page with a new page.
+        auto commited = commit_host_page(this->cache_->pages.back().get());
+        // Replace the previous page (on device) with a new page on host.
         this->cache_->pages.back() = std::move(commited);
       }
       // Push a new page
@@ -174,7 +181,9 @@ class EllpackHostCacheStreamImpl {
       auto offset = new_impl->Copy(&ctx, impl, 0);
 
       this->cache_->offsets.push_back(offset);
+
       this->cache_->pages.push_back(std::move(new_impl));
+      this->cache_->on_device.push_back(to_device_if_new_page);
     } else {
       CHECK(!this->cache_->pages.empty());
       CHECK_EQ(cache_idx, this->cache_->pages.size() - 1);
@@ -182,8 +191,8 @@ class EllpackHostCacheStreamImpl {
       auto offset = new_impl->Copy(&ctx, impl, this->cache_->offsets.back());
       this->cache_->offsets.back() += offset;
       // No need to copy if it's already in device.
-      if (last_page && !to_device) {
-        auto commited = commit_page(this->cache_->pages.back().get());
+      if (last_page && !this->cache_->on_device.back()) {
+        auto commited = commit_host_page(this->cache_->pages.back().get());
         this->cache_->pages.back() = std::move(commited);
       }
     }
@@ -329,6 +338,12 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
   cinfo->cache_mapping = std::move(cache_mapping);
   cinfo->buffer_bytes = std::move(cache_bytes);
   cinfo->buffer_rows = std::move(cache_rows);
+
+  // Directly store in device if there's only one batch.
+  if (cinfo->NumBatchesCc() == 1) {
+    cinfo->prefer_device = true;
+    LOG(INFO) << "Prefer device cache as there's only 1 page.";
+  }
 }
 
 /**
