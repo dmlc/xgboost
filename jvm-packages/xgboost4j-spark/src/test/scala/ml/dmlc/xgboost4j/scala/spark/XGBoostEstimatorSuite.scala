@@ -23,6 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.SparkException
 import org.apache.spark.ml.linalg.{DenseVector, SparseVector, Vectors}
+import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.xgboost.SparkUtils
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{ArrayType, DoubleType, FloatType}
@@ -554,6 +555,109 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
     }
 
     exception.getMessage.contains("SoftmaxMultiClassObj: label must be in [0, num_class).")
+  }
+
+  test("Model trained on vector can transform on array/columnar input") {
+    val vectorDf = smallBinaryClassificationVector
+    val classifier = new XGBoostClassifier().setNumRound(2)
+
+    // The model is trained with vector as the input
+    val model = classifier.fit(vectorDf)
+
+    val columnarDf = smallBinaryClassificationColumnar
+
+    // Model is trained with vector input, it doesn't have columnar input information
+    val thrown = intercept[IllegalArgumentException] {
+      model.transform(columnarDf).collect()
+    }
+    assert(thrown.getMessage.contains("features does not exist"))
+
+    // Transform on columnar input
+    model.copy(ParamMap.empty)
+      .setFeaturesCol(Array("c1", "c2", "c3"))
+      .transform(columnarDf)
+      .collect()
+
+    // Transform on array input
+    val arrayDf = smallBinaryClassificationArray
+    model.copy(ParamMap.empty).transform(arrayDf).collect()
+  }
+
+  test("Model trained on array can transform on vector/columnar input") {
+    val arrayDf = smallBinaryClassificationArray
+    val classifier = new XGBoostClassifier().setNumRound(2)
+
+    // The model is trained with vector as the input
+    val model = classifier.fit(arrayDf)
+    val columnarDf = smallBinaryClassificationColumnar
+
+    // Model is trained with vector input, it doesn't have columnar input information
+    val thrown = intercept[IllegalArgumentException] {
+      model.transform(columnarDf).collect()
+    }
+    assert(thrown.getMessage.contains("features does not exist"))
+
+    // Transform on columnar input
+    model.copy(ParamMap.empty)
+      .setFeaturesCol(Array("c1", "c2", "c3"))
+      .transform(columnarDf)
+      .collect()
+
+    // Transform on vector input
+    val vectorDf = smallBinaryClassificationVector
+    model.copy(ParamMap.empty).transform(vectorDf).collect()
+  }
+
+  test("Model trained on columnar can transform on array/vector input") {
+    val columnarDf = smallBinaryClassificationColumnar
+    val features = Array("c1", "c2", "c3")
+    val classifier = new XGBoostClassifier().setNumRound(2).setFeaturesCol(features)
+    // The model is trained with vector as the input
+    val model = classifier.fit(columnarDf)
+
+    // Transform on vector df
+    val vectorDf = smallBinaryClassificationVector
+    model.transform(vectorDf).collect()
+
+    // Transform on array df
+    val arrayDf = smallBinaryClassificationArray
+    model.transform(arrayDf).collect()
+  }
+
+  test("Fit and transform with columnar input") {
+    val df = smallBinaryClassificationColumnar
+
+    val estimator = new XGBoostClassifier()
+      .setFeaturesCol(Array("c1", "c2", "c3"))
+      .setNumRound(1)
+
+    // without any issue
+    val model = estimator.fit(df)
+    assert(model.getFeaturesCols sameElements Array("c1", "c2", "c3"))
+
+    val transformedDF = model.transform(df)
+    assert(transformedDF.schema.names.contains("c1"))
+    assert(transformedDF.schema.names.contains("c2"))
+    assert(transformedDF.schema.names.contains("c3"))
+    assert(!transformedDF.schema.names.contains(Utils.TMP_FEATURE_ARRAY_NAME))
+  }
+
+  test("Support columnar") {
+    val df = smallBinaryClassificationColumnar
+
+    val classifier = new XGBoostClassifier().setFeaturesCol(Array("c1", "c2", "c3"))
+    assert(classifier.getFeaturesCols sameElements Array("c1", "c2", "c3"))
+
+    val (processed, _) = classifier.preprocess(df)
+    assert(!processed.schema.contains("c1"))
+    assert(!processed.schema.contains("c2"))
+    assert(!processed.schema.contains("c3"))
+
+    val matched = processed.schema(Utils.TMP_FEATURE_ARRAY_NAME).dataType match {
+      case ArrayType(FloatType, _) => true
+      case _ => false
+    }
+    assert(matched)
   }
 
   test("Support array(float)") {
