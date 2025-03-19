@@ -4,7 +4,7 @@ XGBoost GPU Support
 
 This page contains information about GPU algorithms supported in XGBoost.
 
-.. note:: CUDA 11.0, Compute Capability 5.0 required (See `this list <https://en.wikipedia.org/wiki/CUDA#GPUs_supported>`_ to look up compute capability of your GPU card.)
+.. note:: CUDA 12.0, Compute Capability 5.0 required (See `this list <https://en.wikipedia.org/wiki/CUDA#GPUs_supported>`_ to look up compute capability of your GPU card.)
 
 *********************************************
 CUDA Accelerated Tree Construction Algorithms

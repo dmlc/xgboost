@@ -38,11 +38,11 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
         param_{std::move(param)},
         has_hmm_ats_{has_hmm_ats} {}
   [[nodiscard]] bool Read(EllpackPage* page, common::AlignedResourceReadStream* fi) override;
-  [[nodiscard]] std::size_t Write(const EllpackPage& page,
+  [[nodiscard]] std::size_t Write(EllpackPage const& page,
                                   common::AlignedFileWriteStream* fo) override;
 
   [[nodiscard]] bool Read(EllpackPage* page, EllpackHostCacheStream* fi) const;
-  [[nodiscard]] std::size_t Write(const EllpackPage& page, EllpackHostCacheStream* fo) const;
+  [[nodiscard]] std::size_t Write(EllpackPage const& page, EllpackHostCacheStream* fo) const;
 };
 
 #if !defined(XGBOOST_USE_CUDA)

@@ -1,0 +1,369 @@
+###################
+3.0.0 (2025 Feb 27)
+###################
+
+3.0.0 is a milestone for XGBoost. This note will summarize some general changes and then
+list package-specific updates. The bump in the major version is for a reworked R package
+along with a significant update to the JVM packages.
+
+.. contents::
+  :backlinks: none
+  :local:
+
+***********************
+External Memory Support
+***********************
+
+This release features a major update to the external memory implementation with improved
+performance, a new :py:class:`~xgboost.ExtMemQuantileDMatrix` for more efficient data
+initialization, new feature coverage including categorical data support and quantile
+regression support. Additionally, GPU-based external memory is reworked to support using
+CPU memory as a data cache. Last but not least, we worked on distributed training using
+external memory along with the spark package's initial support.
+
+- A new :py:class:`~xgboost.ExtMemQuantileDMatrix` class for fast data initialization with
+  the ``hist`` tree method. The new class supports both CPU and GPU training. (:pr:`10689`,
+  :pr:`10682`, :pr:`10886`, :pr:`10860`, :pr:`10762`, :pr:`10694`, :pr:`10876`)
+- External memory now supports distributed training (:pr:`10492`, :pr:`10861`). In addition, the
+  Spark package can use external memory (the host memory) when the device is GPU. The
+  default package on maven doesn't support RMM yet. For better performance, one needs
+  to compile XGBoost from the source for now. (:pr:`11186`, :pr:`11238`, :pr:`11219`)
+- Improved performance with new optimizations for both the ``hist``-specific training and
+  the ``approx`` (:py:class:`~xgboost.DMatrix`) method. (:pr:`10529`, :pr:`10980`, :pr:`10342`)
+- New demos and documents for external memory, including distributed training. (:pr:`11234`,
+  :pr:`10929`, :pr:`10916`, :pr:`10426`, :pr:`11113`)
+- Reduced binary cache size and memory allocation overhead by not writing the cut matrix. (:pr:`10444`)
+- More feature coverage, including categorical data and all objective functions, including
+  quantile regression. In addition, various prediction types like SHAP values are
+  supported. (:pr:`10918`, :pr:`10820`, :pr:`10751`, :pr:`10724`)
+
+Significant updates for the GPU-based external memory training implementation. (:pr:`10924`,
+:pr:`10895`, :pr:`10766`, :pr:`10544`, :pr:`10677`, :pr:`10615`, :pr:`10927`, :pr:`10608`, :pr:`10711`)
+
+- GPU-based external memory supports both batch-based and sampling-based training. Before
+  the 3.0 release, XGBoost concatenates the data during training and stores the cache on
+  disk. In 3.0, XGBoost can now stage the data on the host and fetch them by
+  batch. (:pr:`10602`, :pr:`10595`, :pr:`10606`, :pr:`10549`, :pr:`10488`, :pr:`10766`,
+  :pr:`10765`, :pr:`10764`, :pr:`10760`, :pr:`10753`, :pr:`10734`, :pr:`10691`,
+  :pr:`10713`, :pr:`10826`, :pr:`10811`, :pr:`10810`, :pr:`10736`, :pr:`10538`,
+  :pr:`11333`)
+- XGBoost can now utilize `NVLink-C2C` for GPU-based external memory training and can
+  handle up to terabytes of data.
+- Support prediction cache (:pr:`10707`).
+- Automatic page concatenation for improved GPU utilization (:pr:`10887`).
+- Improved quantile sketching algorithm for batch-based inputs. See the section for
+  :ref:`new features <3_0_features>` for more info.
+- Optimization for nearly-dense input, see the section for :ref:`optimization
+  <3_0_optimization>` for more info.
+
+See our latest document for details :doc:`/tutorials/external_memory`. The PyPI package
+(``pip install``) doesn't have ``RMM`` support, which is required by the GPU external
+memory implementation. To experiment, you can compile XGBoost from source or wait for the
+RAPIDS conda package to be available.
+
+.. _3_0_networking:
+
+**********
+Networking
+**********
+
+Continuing the work from the previous release, we updated the network module to improve
+reliability. (:pr:`10453`, :pr:`10756`, :pr:`11111`, :pr:`10914`, :pr:`10828`, :pr:`10735`, :pr:`10693`, :pr:`10676`, :pr:`10349`,
+:pr:`10397`, :pr:`10566`, :pr:`10526`, :pr:`10349`)
+
+The timeout option is now supported for NCCL using the NCCL asynchronous mode (:pr:`10850`,
+:pr:`10934`, :pr:`10945`, :pr:`10930`).
+
+In addition, a new :py:class:`~xgboost.collective.Config` class is added for users to
+specify various options including timeout, tracker port, etc for distributed
+training. Both the Dask interface and the PySpark interface support the new
+configuration. (:pr:`11003`, :pr:`10281`, :pr:`10983`, :pr:`10973`)
+
+****
+SYCL
+****
+
+Continuing the work on the SYCL integration, there are significant improvements in the
+feature coverage for this release from more training parameters and more objectives to
+distributed training, along with various optimization (:pr:`10884`, :pr:`10883`).
+
+Starting with 3.0, the SYCL-plugin is close to feature-complete, users can start working
+on SYCL devices for in-core training and inference. Newly introduced features include:
+
+- Dask support for distributed training (:pr:`10812`)
+
+- Various training procedures, including split evaluation (:pr:`10605`, :pr:`10636`), grow policy
+  (:pr:`10690`, :pr:`10681`), cached prediction (:pr:`10701`).
+
+- Updates for objective functions. (:pr:`11029`, :pr:`10931`, :pr:`11016`, :pr:`10993`, :pr:`11064`, :pr:`10325`)
+
+- On-going work for float32-only devices.  (:pr:`10702`)
+
+Other related PRs (:pr:`10842`, :pr:`10543`, :pr:`10806`, :pr:`10943`, :pr:`10987`, :pr:`10548`, :pr:`10922`, :pr:`10898`, :pr:`10576`)
+
+.. _3_0_features:
+
+********
+Features
+********
+
+This section describes new features in the XGBoost core. For language-specific features,
+please visit corresponding sections.
+
+- A new initialization method for objectives that are derived from GLM. The new method is
+  based on the mean value of the input labels. The new method changes the result of the
+  estimated ``base_score``. (:pr:`10298`, :pr:`11331`)
+
+- The :py:class:`xgboost.QuantileDMatrix` can be used with all prediction types for both
+  CPU and GPU.
+
+- In prior releases, XGBoost makes a copy for the booster to release memory held by
+  internal tree methods. We formalize the procedure into a new booster method
+  :py:meth:`~xgboost.Booster.reset` / :cpp:func:`XGBoosterReset`. (:pr:`11042`)
+
+- OpenMP thread setting is exposed to the XGBoost global configuration. Users can use it
+  to workaround hardcoded OpenMP environment variables. (:pr:`11175`)
+
+- We improved learning to rank tasks for better hyper-parameter configuration and for
+  distributed training.
+
+  + In 3.0, all three distributed interfaces, including Dask, Spark, and PySpark, support
+    sorting the data based on query ID. The option for the
+    :py:class:`~xgboost.dask.DaskXGBRanker` is true by default and can be opted
+    out. (:pr:`11146`, :pr:`11007`, :pr:`11047`, :pr:`11012`, :pr:`10823`, :pr:`11023`)
+
+  + Also for learning to rank, a new parameter ``lambdarank_score_normalization`` is
+    introduced to make one of the normalizations optional. (:pr:`11272`)
+
+  + The ``lambdarank_normalization`` now uses the number of pairs when normalizing the
+    ``mean`` pair strategy. Previously, the gradient was used for both ``topk`` and
+    ``mean``. :pr:`11322`
+
+- We have improved GPU quantile sketching to reduce memory usage. The improvement helps
+  the construction of the :py:class:`~xgboost.QuantileDMatrix` and the new
+  :py:class:`~xgboost.ExtMemQuantileDMatrix`.
+
+  + A new multi-level sketching algorithm is employed to reduce the overall memory usage
+    with batched inputs.
+  + In addition to algorithmic changes, internal memory usage estimation and the quantile
+    container is also updated. (:pr:`10761`, :pr:`10843`)
+  + The change introduces two more parameters for the :py:class:`~xgboost.QuantileDMatrix`
+    and :py:class:`~xgboost.DataIter`, namely, ``max_quantile_batches`` and
+    ``min_cache_page_bytes``.
+
+- More work is needed to improve the support of categorical features. This release
+  supports plotting trees with stat for categorical nodes (:pr:`11053`). In addition, some
+  preparation work is ongoing for auto re-coding categories. (:pr:`11094`, :pr:`11114`,
+  :pr:`11089`) These are feature enhancements instead of blocking issues.
+- Implement weight-based feature importance for vector-leaf. (:pr:`10700`)
+- Reduced logging in the DMatrix construction. (:pr:`11080`)
+
+.. _3_0_optimization:
+
+************
+Optimization
+************
+
+In addition to the external memory and quantile sketching improvements, we have a number
+of optimizations and performance fixes.
+
+- GPU tree methods now use significantly less memory for both dense inputs and near-dense
+  inputs. (:pr:`10821`, :pr:`10870`)
+- For near-dense inputs, GPU training is much faster for both ``hist`` (about 2x) and
+  ``approx``.
+- Quantile regression on CPU now can handle imbalance trees much more efficiently. (:pr:`11275`)
+- Small optimization for DMatrix construction to reduce latency. Also, C users can now
+  reuse the :cpp:func:`ProxyDMatrix <XGProxyDMatrixCreate()>` for multiple inference
+  calls. (:pr:`11273`)
+- CPU prediction performance for :py:class:`~xgboost.QuantileDMatrix` has been improved
+  (:pr:`11139`) and now is on par with normal ``DMatrix``.
+- Fixed a performance issue for running inference using CPU with extremely sparse
+  :py:class:`~xgboost.QuantileDMatrix` (:pr:`11250`).
+- Optimize CPU training memory allocation for improved performance. (:pr:`11112`)
+- Improved RMM (rapids memory manager) integration. Now, with the help of
+  :py:func:`~xgboost.config_context`, all memory allocated by XGBoost should be routed to
+  RMM. As a bonus, all ``thrust`` algorithms now use async policy. (:pr:`10873`, :pr:`11173`, :pr:`10712`,
+  :pr:`10712`, :pr:`10562`)
+- When used without RMM, XGBoost is more careful with its use of caching allocator to
+  avoid holding too much device memory. (:pr:`10582`)
+
+****************
+Breaking Changes
+****************
+This section lists breaking changes that affect all packages.
+
+- Remove the deprecated ``DeviceQuantileDMatrix``. (:pr:`10974`, :pr:`10491`)
+- Support for saving the model in the ``deprecated`` has been removed. Users can still
+  load old models in 3.0. (:pr:`10490`)
+- Support for the legacy (blocking) CUDA stream is removed (:pr:`10607`)
+- XGBoost now requires CUDA 12.0 or later.
+
+*********
+Bug Fixes
+*********
+- Fix the quantile error metric (pinball loss) with multiple quantiles. (:pr:`11279`)
+- Fix potential access error when running prediction in multi-thread environment. (:pr:`11167`)
+- Check the correct dump format for the ``gblinear``. (:pr:`10831`)
+
+*************
+Documentation
+*************
+- A new tutorial for advanced usage with custom objective functions. (:pr:`10283`, :pr:`10725`)
+- The new online document site now shows documents for all packages including Python, R,
+  and JVM-based packages. (:pr:`11240`, :pr:`11216`, :pr:`11166`)
+- Lots of enhancements. (:pr:`10822`, 11137, :pr:`11138`, :pr:`11246`, :pr:`11266`, :pr:`11253`, :pr:`10731`, :pr:`11222`,
+  :pr:`10551`, :pr:`10533`)
+- Consistent use of cmake in documents. (:pr:`10717`)
+- Add a brief description for using the ``offset`` from the GLM setting (like
+  ``Poisson``). (:pr:`10996`)
+- Cleanup document for building from source. (:pr:`11145`)
+- Various fixes. (:pr:`10412`, :pr:`10405`, :pr:`10353`, :pr:`10464`, :pr:`10587`, :pr:`10350`, :pr:`11131`, :pr:`10815`)
+- Maintenance. (:pr:`11052`, :pr:`10380`)
+
+**************
+Python Package
+**************
+
+- The ``feature_weights`` parameter in the sklearn interface is now defined as
+  a scikit-learn parameter. (:pr:`9506`)
+- Initial support for polars, categorical feature is not yet supported. (:pr:`11126`, :pr:`11172`,
+  :pr:`11116`)
+- Reduce pandas dataframe overhead and overhead for various imports. (:pr:`11058`, :pr:`11068`)
+- Better xlabel in :py:func:`~xgboost.plot_importance` (:pr:`11009`)
+- Validate reference dataset for training. The :py:func:`~xgboost.train` function now
+  throws an error if a :py:class:`~xgboost.QuantileDMatrix` is used as a validation
+  dataset without a reference. (:pr:`11105`)
+- Fix misleading errors when feature names are missing during inference (:pr:`10814`)
+- Add Stacklevel to Python warning callback. The change helps improve the error message
+  for the Python package. (:pr:`10977`)
+- Remove circular reference in DataIter. It helps reduce memory usage. (:pr:`11177`)
+- Add checks for invalid inputs for `cv`. (:pr:`11255`)
+- Update Python project classifiers. (:pr:`10381`, :pr:`11028`)
+- Support doc link for the sklearn module. Users can now find links to documents in a
+  jupyter notebook. (:pr:`10287`)
+
+- Dask
+
+  + Prevent the training from hanging due to aborted workers. (:pr:`10985`) This helps
+    Dask XGBoost be robust against error. When a worker is killed, the training will fail
+    with an exception instead of hang.
+  + Optional support for client-side logging. (:pr:`10942`)
+  + Fix LTR with empty partition and NCCL error. (:pr:`11152`)
+  + Update to work with the latest Dask. (:pr:`11291`)
+  + See the :ref:`3_0_features` section for changes to ranking models.
+  + See the :ref:`3_0_networking` section for changes with the communication module.
+
+- PySpark
+
+  + Expose Training and Validation Metrics. (:pr:`11133`)
+  + Add barrier before initializing the communicator. (:pr:`10938`)
+  + Extend support for columnar input to CPU (GPU-only previously). (:pr:`11299`)
+  + See the :ref:`3_0_features` section for changes to ranking models.
+  + See the :ref:`3_0_networking` section for changes with the communication module.
+
+- Document updates (:pr:`11265`).
+- Maintenance. (:pr:`11071`, :pr:`11211`, :pr:`10837`, :pr:`10754`, :pr:`10347`, :pr:`10678`, :pr:`11002`, :pr:`10692`, :pr:`11006`,
+  :pr:`10972`, :pr:`10907`, :pr:`10659`, :pr:`10358`, :pr:`11149`, :pr:`11178`, :pr:`11248`)
+
+- Breaking changes
+
+  + Remove deprecated `feval`. (:pr:`11051`)
+  + Remove dask from the default import. (:pr:`10935`) Users are now required to import the
+    XGBoost Dask through:
+
+    .. code-block:: python
+
+       from xgboost import dask as dxgb
+
+    instead of:
+
+    .. code-block:: python
+
+       import xgboost as xgb
+       xgb.dask
+
+    The change helps avoid introducing dask into the default import set.
+
+  + Bump Python requirement to 3.10. (:pr:`10434`)
+  + Drop support for datatable. (:pr:`11070`)
+
+*********
+R Package
+*********
+
+We have been reworking the R package for a few releases now. In 3.0, we will start
+publishing a new R package on public repositories, likely R-universe, before moving toward
+a CRAN update. The new package features a much more ergonomic interface, which is also
+more idiomatic to R speakers. In addition, a range of new features are introduced to the
+package. To name a few, the new package includes categorical feature support,
+``QuantileDMatrix``, and an initial implementation of the external memory training.
+
+Also, we finally have an online documentation site for the R package featuring both
+vignettes and API references (:pr:`11166`, :pr:`11257`). A good starting point for the new interface
+is the new ``xgboost()`` function. We won't list all the feature gains here, as there are
+too many! Please visit the :doc:`/R-package/index` for more info. There's a migration
+guide (:pr:`11197`) there if you use a previous XGBoost R package version.
+
+- Support for the MSVC build was dropped due to incompatibility with R headers. (:pr:`10355`,
+  :pr:`11150`)
+- Maintenance (:pr:`11259`)
+- Related PRs. (:pr:`11171`, :pr:`11231`, :pr:`11223`, :pr:`11073`, :pr:`11224`, :pr:`11076`, :pr:`11084`, :pr:`11081`,
+  :pr:`11072`, :pr:`11170`, :pr:`11123`, :pr:`11168`, :pr:`11264`, :pr:`11140`, :pr:`11117`, :pr:`11104`, :pr:`11095`, :pr:`11125`, :pr:`11124`,
+  :pr:`11122`, :pr:`11108`, :pr:`11102`, :pr:`11101`, :pr:`11100`, :pr:`11077`, :pr:`11099`, :pr:`11074`, :pr:`11065`, :pr:`11092`, :pr:`11090`,
+  :pr:`11096`, :pr:`11148`, :pr:`11151`, :pr:`11159`, :pr:`11204`, :pr:`11254`, :pr:`11109`, :pr:`11141`, :pr:`10798`, :pr:`10743`, :pr:`10849`,
+  :pr:`10747`, :pr:`11022`, :pr:`10989`, :pr:`11026`, :pr:`11060`, :pr:`11059`, :pr:`11041`, :pr:`11043`, :pr:`11025`, :pr:`10674`, :pr:`10727`,
+  :pr:`10745`, :pr:`10733`, :pr:`10750`, :pr:`10749`, :pr:`10744`, :pr:`10794`, :pr:`10330`, :pr:`10698`, :pr:`10687`, :pr:`10688`, :pr:`10654`,
+  :pr:`10456`, :pr:`10556`, :pr:`10465`, :pr:`10337`)
+
+************
+JVM Packages
+************
+
+The XGBoost 3.0 release features a significant update to the JVM packages, and in
+particular, the Spark package. There are breaking changes in packaging and some
+parameters. Please visit the :doc:`migration guide </jvm/xgboost_spark_migration>` for
+related changes. The work brings new features and a more unified feature set between CPU
+and GPU implementation. (:pr:`10639`, :pr:`10833`, :pr:`10845`, :pr:`10847`, :pr:`10635`, :pr:`10630`, :pr:`11179`, :pr:`11184`)
+
+- Automatic partitioning for distributed learning to rank. See the :ref:`features
+  <3_0_features>` section above (:pr:`11023`).
+- Resolve spark compatibility issue (:pr:`10917`)
+- Support missing value when constructing dmatrix with iterator (:pr:`10628`)
+- Fix transform performance issue (:pr:`10925`)
+- Honor skip.native.build option in xgboost4j-gpu (:pr:`10496`)
+- Support array features type for CPU (:pr:`10937`)
+- Change default missing value to ``NaN`` for better alignment (:pr:`11225`)
+- Don't cast to float if it's already float (:pr:`10386`)
+- Maintenance. (:pr:`10982`, :pr:`10979`, :pr:`10978`, :pr:`10673`, :pr:`10660`, :pr:`10835`, :pr:`10836`, :pr:`10857`, :pr:`10618`,
+  :pr:`10627`)
+
+***********
+Maintenance
+***********
+
+Code maintenance includes both refactoring (:pr:`10531`, :pr:`10573`, :pr:`11069`), cleanups (:pr:`11129`,
+:pr:`10878`, :pr:`11244`, :pr:`10401`, :pr:`10502`, :pr:`11107`, :pr:`11097`, :pr:`11130`, :pr:`10758`, :pr:`10923`, :pr:`10541`, :pr:`10990`),
+and improvements for tests (:pr:`10611`, :pr:`10658`, :pr:`10583`, :pr:`11245`, :pr:`10708`), along with fixing
+various warnings in compilers and test dependencies (:pr:`10757`, :pr:`10641`, :pr:`11062`,
+:pr:`11226`). Also, miscellaneous updates, including some dev scripts and profiling annotations
+(:pr:`10485`, :pr:`10657`, :pr:`10854`, :pr:`10718`, :pr:`11158`, :pr:`10697`, :pr:`11276`).
+
+Lastly, dependency updates (:pr:`10362`, :pr:`10363`, :pr:`10360`, :pr:`10373`, :pr:`10377`, :pr:`10368`, :pr:`10369`,
+:pr:`10366`, :pr:`11032`, :pr:`11037`, :pr:`11036`, :pr:`11035`, :pr:`11034`, :pr:`10518`, :pr:`10536`, :pr:`10586`, :pr:`10585`, :pr:`10458`,
+:pr:`10547`, :pr:`10429`, :pr:`10517`, :pr:`10497`, :pr:`10588`, :pr:`10975`, :pr:`10971`, :pr:`10970`, :pr:`10949`, :pr:`10947`, :pr:`10863`,
+:pr:`10953`, :pr:`10954`, :pr:`10951`, :pr:`10590`, :pr:`10600`, :pr:`10599`, :pr:`10535`, :pr:`10516`, :pr:`10786`, :pr:`10859`, :pr:`10785`,
+:pr:`10779`, :pr:`10790`, :pr:`10777`, :pr:`10855`, :pr:`10848`, :pr:`10778`, :pr:`10772`, :pr:`10771`, :pr:`10862`, :pr:`10952`, :pr:`10768`,
+:pr:`10770`, :pr:`10769`, :pr:`10664`, :pr:`10663`, :pr:`10892`, :pr:`10979`, :pr:`10978`).
+
+***
+CI
+***
+
+- The CI is reworked to use `RunsOn` to integrate custom CI pipelines with GitHub
+  action. The migration helps us reduce the maintenance burden and make the CI
+  configuration more accessible to others. (:pr:`11001`, :pr:`11079`, :pr:`10649`, :pr:`11196`, :pr:`11055`,
+  :pr:`10483`, :pr:`11078`, :pr:`11157`)
+
+- Other maintenance work includes various small fixes, enhancements, and tooling
+  updates. (:pr:`10877`, :pr:`10494`, :pr:`10351`, :pr:`10609`, :pr:`11192`, :pr:`11188`, :pr:`11142`, :pr:`10730`, :pr:`11066`,
+  :pr:`11063`, :pr:`10800`, :pr:`10995`, :pr:`10858`, :pr:`10685`, :pr:`10593`, :pr:`11061`)
