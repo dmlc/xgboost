@@ -70,7 +70,6 @@ def docker_run(
     docker_run_cli_args.extend(
         itertools.chain.from_iterable([["-e", f"{k}={v}"] for k, v in user_ids.items()])
     )
-    docker_run_cli_args.extend(["-e", "NCCL_RAS_ENABLE=0"])
     docker_run_cli_args.extend(extra_args)
     docker_run_cli_args.append(image_uri)
     docker_run_cli_args.extend(command_args)
