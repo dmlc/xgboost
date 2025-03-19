@@ -240,7 +240,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       exec, thrust::make_counting_iterator(0), new_enc.n_total_cats,
       [=] __device__(std::int32_t i) {
         auto f_idx = dh::SegmentId(new_enc.feature_segments, i);
-        std::int32_t searched_idx{-1};
+        std::int32_t searched_idx{detail::NotFound()};
         auto const& col = orig_enc.columns[f_idx];
         cuda::std::visit(Overloaded{[&](CatStrArrayView const& str) {
                                       auto op = cuda_impl::SegmentedSearchSortedStrOp{

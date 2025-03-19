@@ -419,4 +419,24 @@ inline std::ostream &operator<<(std::ostream &os, CatStrArrayView const &strings
   os << "]";
   return os;
 }
+
+inline std::ostream &operator<<(std::ostream &os, HostColumnsView const &h_enc) {
+  for (std::size_t i = 0; i < h_enc.columns.size(); ++i) {
+    auto const &col = h_enc.columns[i];
+    os << "f" << i << ": ";
+    std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &arg) { os << arg << std::endl; },
+                               [&](auto &&arg) {
+                                 os << "[";
+                                 for (std::size_t j = 0, n = arg.size(); j < n; ++j) {
+                                   if (j != n - 1) {
+                                     os << ", ";
+                                   }
+                                 }
+                                 os << "]";
+                               }},
+               col);
+    os << std::endl;
+  }
+  return os;
+}
 }  // namespace enc
