@@ -26,7 +26,7 @@ dependencies:
 - awscli
 - numba
 - llvmlite
-- loky
+- loky>=3.5.1
 - pyarrow
 - pyspark>=3.4.0
 - cloudpickle
