@@ -61,11 +61,9 @@ struct EncThrustPolicy {
   using ThrustAllocator = dh::XGBDeviceAllocator<T>;
 
   auto ThrustPolicy() const {
-#if defined(XGBOOST_USE_RMM)
-    return rmm::exec_policy_nosync{};
-#else
-    return dh::CachingThrustPolicy();
-#endif  // defined(XGBOOST_USE_RMM)
+    dh::XGBCachingDeviceAllocator<char> alloc;
+    auto exec = thrust::cuda::par_nosync(alloc).on(dh::DefaultStream());
+    return exec;
   }
 };
 
