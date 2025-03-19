@@ -122,7 +122,8 @@ struct DftThrustPolicy {
   template <typename T>
   using ThrustAllocator = thrust::device_allocator<T>;
 
-  auto ThrustPolicy() const { return thrust::cuda::par_nosync; }
+  [[nodiscard]] auto ThrustPolicy() const { return thrust::cuda::par_nosync; }
+  [[nodiscard]] auto Stream() const { return cudaStreamPerThread; }
 };
 }  // namespace cuda_impl
 

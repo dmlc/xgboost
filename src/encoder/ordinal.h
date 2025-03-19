@@ -107,10 +107,8 @@ using DeviceCatIndexView = cuda_impl::TupToVarT<CatIndexViewTypes>;
  * Accepted policies:
  *
  * - A class with a `ThrustPolicy` method that returns a thrust execution policy, along with a
- *   `ThrustAllocator` template type. This is only used for the GPU implementation.
- *
- * - A class with a `Stream` method that returns a CUDA stream. This is only used for the
- *   GPU implementation.
+ *   `ThrustAllocator` template type. In addition, a `Stream` method that returns a CUDA stream.
+ *   This is only used for the GPU implementation.
  *
  * - An error handling policy that exposes a single `Error` method, which takes a single
  *   string parameter for error message.
