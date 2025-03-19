@@ -38,6 +38,10 @@ struct EllpackCacheInfo {
         prefer_device{prefer_device},
         max_num_device_pages{max_num_device_pages},
         missing{missing} {}
+
+  // Only effective for host-based cache.
+  // The number of batches for the concatenated cache.
+  [[nodiscard]] std::size_t NumBatchesCc() const { return this->buffer_rows.size(); }
 };
 
 // We need to decouple the storage and the view of the storage so that we can implement
