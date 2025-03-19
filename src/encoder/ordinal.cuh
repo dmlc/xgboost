@@ -98,8 +98,8 @@ struct SegmentedSearchSortedNumOp {
         haystack_v.feature_segments[f_idx + 1] - haystack_v.feature_segments[f_idx]);
     auto end_it = it + f_sorted_idx.size();
     auto ret_it = thrust::lower_bound(thrust::seq, it, end_it, SearchKey(), [&](auto l, auto r) {
-      T l_value = l == SearchKey() ? needle : haystack[ref_sorted_idx[l]];
-      T r_value = r == SearchKey() ? needle : haystack[ref_sorted_idx[r]];
+      T l_value = l == SearchKey() ? needle : haystack[f_sorted_idx[l]];
+      T r_value = r == SearchKey() ? needle : haystack[f_sorted_idx[r]];
       return l_value < r_value;
     });
     if (ret_it == it + f_sorted_idx.size()) {
