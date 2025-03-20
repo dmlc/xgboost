@@ -51,7 +51,7 @@ cd jvm-packages/
 # Ensure that XGBoost4J-Spark is compatible with multiple versions of Spark
 if [[ "${USE_CUDA:-}" != "1" && "${SCALA_VERSION}" == "2.12" ]]
 then
-  for spark_version in 3.1.3 3.2.4 3.3.4 3.4.3
+  for spark_version in 3.1.3 3.2.4 3.3.4 3.4.4
   do
     mvn --no-transfer-progress clean package -Dspark.version=${spark_version} \
       -pl xgboost4j,xgboost4j-spark
