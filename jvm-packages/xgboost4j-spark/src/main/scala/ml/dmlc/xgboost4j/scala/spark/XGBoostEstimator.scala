@@ -616,7 +616,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
       return PluginUtils.getPlugin.get.transform(this, dataset)
     }
     val (schema, pred) = preprocess(dataset)
-    // If the model is trained by columnar input, but the transform df may be array or vector
+    // Model could be trained with columnar, and the transform df could be array or vector
     val (input, featureName, featureIsArray) = if (isSet(featuresCols) &&
       getFeaturesCols.length > 0 &&
       getFeaturesCols.forall(schema.names.contains)) {
