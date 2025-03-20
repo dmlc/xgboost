@@ -12,6 +12,7 @@
 #include <xgboost/windefs.h>
 
 #if defined(xgboost_IS_WIN)
+#include <winsock2.h>
 #include <windows.h>
 #endif  // defined(xgboost_IS_WIN)
 
