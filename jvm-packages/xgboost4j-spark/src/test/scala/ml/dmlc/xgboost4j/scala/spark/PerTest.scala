@@ -103,6 +103,15 @@ trait PerTest extends BeforeAndAfterEach {
     }
   }
 
+  def smallBinaryClassificationColumnar: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
+    (1.0, 2.0, 3.0, 1.0),
+    (0.0, 0.0, 0.0, 0.0),
+    (0.0, 3.0, 0.0, 0.0),
+    (2.0, 0.0, 4.0, 1.0),
+    (0.2, 1.2, 2.0, 0.0),
+    (0.5, 2.2, 1.7, 1.0)
+  ))).toDF("c1", "c2", "c3", "label")
+
   def smallBinaryClassificationVector: DataFrame = ss.createDataFrame(sc.parallelize(Seq(
     (1.0, 0.5, 1.0, Vectors.dense(1.0, 2.0, 3.0)),
     (0.0, 0.4, -3.0, Vectors.dense(0.0, 0.0, 0.0)),

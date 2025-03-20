@@ -112,6 +112,7 @@ private[scala] object Utils {
   val TRAIN_NAME = "train"
   val VALIDATION_NAME = "eval"
 
+  val TMP_FEATURE_ARRAY_NAME = "xgboost_eGdib29zdC1qdm0K_jvm"
 
   /** Executes the provided code block and then closes the resource */
   def withResource[T <: AutoCloseable, V](r: T)(block: T => V): V = {

@@ -140,11 +140,12 @@ class XGBoostRankerSuite extends AnyFunSuite with PerTest with TmpFolderPerSuite
       .setGroupCol("group")
 
     val (df, _) = ranker.preprocess(trainingDF)
+    val groupId = df.schema.fieldIndex("group")
     df.rdd.foreachPartition { iter => {
       var prevGroup = Int.MinValue
       while (iter.hasNext) {
         val curr = iter.next()
-        val group = curr.asInstanceOf[Row].getAs[Int](2)
+        val group = curr.asInstanceOf[Row].getAs[Int](groupId)
         assert(prevGroup <= group)
         prevGroup = group
       }

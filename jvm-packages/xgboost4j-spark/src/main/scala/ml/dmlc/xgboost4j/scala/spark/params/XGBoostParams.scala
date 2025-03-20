@@ -260,13 +260,22 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]
 
-  protected[spark] def validateFeatureType(schema: StructType) = {
-    // Features cols must be Vector or Array.
-    val featureDataType = schema(getFeaturesCol).dataType
+  protected[spark] def validateFeatureType(schema: StructType): Unit = {
+    // If featuresCols is not set, need to check featuresCol which must be Vector or Array
+    if (!isSet(featuresCols)) {
+      // Features cols must be Vector or Array.
+      val featureDataType = schema(getFeaturesCol).dataType
 
-    // Features column must be either ArrayType or VectorType.
-    if (!featureDataType.isInstanceOf[ArrayType] && !SparkUtils.isVectorType(featureDataType)) {
-      throw new IllegalArgumentException("Feature type must be either ArrayType or VectorType")
+      // Features column must be either ArrayType or VectorType.
+      if (!featureDataType.isInstanceOf[ArrayType] && !SparkUtils.isVectorType(featureDataType)) {
+        throw new IllegalArgumentException("Feature type must be either ArrayType or VectorType")
+      }
+    } else {
+      // To check columns must be numeric type
+      require(getFeaturesCols.length > 0)
+      for (c <- getFeaturesCols) {
+        SparkUtils.checkNumericType(schema, c)
+      }
     }
   }
 }
