@@ -514,3 +514,15 @@ def run_specified_cat(  # pylint: disable=too-many-locals
     Xy = DMatrix(df, y, enable_categorical=True)
     predt2 = booster.predict(Xy)
     assert_allclose(device, predt0, predt2)
+
+    array = np.empty(shape=(n_samples, n_features))
+    array[:, np.arange(0, n_features) % 2 == 0] = col_numeric
+    array[:, np.arange(0, n_features) % 2 != 0] = col_categorical
+
+    if device == "cuda":
+        import cupy as cp
+
+        array = cp.array(array)
+
+    predt3 = booster.inplace_predict(array)
+    assert_allclose(device, predt0, predt3)
