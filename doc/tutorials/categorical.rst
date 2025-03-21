@@ -10,7 +10,7 @@ Categorical Data
 .. versionchanged:: 3.1.0
 
     XGBoost Python package can remember the encoding of categories when the input is a
-    dataframe.
+    dataframe. The categories must either  be integers or strings.
 
 .. versionadded:: 3.0.0
 
@@ -49,7 +49,7 @@ parameter ``enable_categorical``:
   clf = xgb.XGBClassifier(tree_method="hist", enable_categorical=True, device="cuda")
   # X is the dataframe we created in previous snippet
   clf.fit(X, y)
-  # Must use JSON/UBJSON for serialization, otherwise the information is lost.
+  # Must use JSON/UBJSON for serialization.
   clf.save_model("categorical-model.json")
 
 
@@ -73,6 +73,45 @@ the ``enable_categorical`` parameter.  See :ref:`sphx_glr_python_examples_catego
 for a worked example of using categorical data with ``scikit-learn`` interface with
 one-hot encoding.  A comparison between using one-hot encoded data and XGBoost's
 categorical data support can be found :ref:`sphx_glr_python_examples_cat_in_the_dat.py`.
+
+Encoding
+========
+
+.. versionadded:: 3.1.0
+
+XGBoost can remember the encoding of the dataframe in a way that's similar to the
+:py:class:`sklearn.preprocessing.OrdinalEncoder`. To understand how it works, we need to
+first understand how pandas ``DataFrame`` works, see `pandas' user guide
+<https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html>`__ for in-depth
+explanation, we will focus on the encoding here. Pandas categorical series has a cat
+accessor with the ``cat`` and ``codes`` attributes:
+
+.. code-block:: python
+
+    import pandas as pd
+
+    df = pd.DataFrame({"c": ["a", "b", "c", "c"]}, dtype="category")
+    categories = df.c.cat.categories
+
+    # Here we have 3 categories
+    # >>> categories
+    # Index(['a', 'b', 'c'], dtype='object')
+
+    codes = df.c.cat.codes
+    # >>> codes
+    # 0    0
+    # 1    1
+    # 2    2
+    # 3    2
+    # dtype: int8
+
+The codes above refers to the index into the ``categories``. 0 means the first element in
+the ``categories``, which is "a", then 1 refers to "b", you can get the rest of the
+codes. As a result, the ordering of the categories inside a categorical column is the
+encoding. XGBoost relies on this encoding scheme to automatically re-code the data during
+inference. During test time and with supported dataframe implementations, XGBoost can
+handle cases where the test dataset has lesser categories than the training dataset. In
+addition, XGBoost can also handle changed order of the categories.
 
 
 ********************

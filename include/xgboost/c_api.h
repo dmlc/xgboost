@@ -164,7 +164,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indic
  * A special type of input to the `DMatrix` is the columnar format, which refers to
  * column-based dataframes. XGBoost can accept both numeric data types like integers and
  * floats, along with the categorical type, called dictionary in arrow's term. The
- * addition of categorical type is introduced in 3.0.0. The dataframe is represented by a
+ * addition of categorical type is introduced in 3.1.0. The dataframe is represented by a
  * list array interfaces with one object for each column.
  *
  * A categorical type is represented by 3 buffers, the validity mask, the names of the

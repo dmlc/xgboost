@@ -891,10 +891,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
             .. note:: This parameter is experimental
 
-            Experimental support of specializing for categorical features.
+            Experimental support of specializing for categorical features. See
+            :doc:`/tutorials/categorical` for more info.
 
-            If passing `True` and `data` is a data frame (from supported libraries such as
-            Pandas, Modin or cuDF), The DMatrix recognizes categorical columns and
+            If passing `True` and `data` is a data frame (from supported libraries such
+            as Pandas, Modin or cuDF), The DMatrix recognizes categorical columns and
             automatically set the `feature_types` parameter. If `data` is not a data
             frame, this argument is ignored.
 
@@ -910,6 +911,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             dataframe.
 
         """
+        import pandas as pd
+        pd.Categorical
         if group is not None and qid is not None:
             raise ValueError("Either one of `group` or `qid` should be None.")
 

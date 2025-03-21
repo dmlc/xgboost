@@ -423,7 +423,9 @@ def run_cat_leaf(device: Literal["cpu", "cuda"]) -> None:
     )
 
 
-def run_specified_cat(device: Literal["cpu", "cuda"]) -> None:
+def run_specified_cat(  # pylint: disable=too-many-locals
+    device: Literal["cpu", "cuda"],
+) -> None:
     """Run with manually specified category encoding."""
     import pandas as pd
 
