@@ -326,6 +326,12 @@ def run_cat_invalid(device: Literal["cpu", "cuda"]) -> None:
         with pytest.raises(ValueError, match="The data type doesn't match"):
             booster.predict(Xy)
 
+        df = Df(
+            {"b": [2, 1, 3, 4], "c": ["cdef", "abc", "def", "bbc"]}, dtype="category"
+        )
+        with pytest.raises(ValueError, match="Found a category not in the training"):
+            booster.inplace_predict(df)
+
     for dm in (DMatrix, QuantileDMatrix):
         run_invalid(dm)
 
