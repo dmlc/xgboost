@@ -421,3 +421,88 @@ def run_cat_leaf(device: Literal["cpu", "cuda"]) -> None:
     _run_predt(
         device, DMatrix, pred_contribs=False, pred_interactions=False, pred_leaf=True
     )
+
+
+def run_specified_cat(device: Literal["cpu", "cuda"]) -> None:
+    """Run with manually specified category encoding."""
+    import pandas as pd
+
+    # Same between old and new, wiht 0 ("a") and 1 ("b") exchanged their position.
+    old_cats = ["a", "b", "c", "d"]
+    new_cats = ["b", "a", "c", "d"]
+    mapping = {0: 1, 1: 0}
+
+    col0 = np.arange(0, 9)
+    col1 = pd.Categorical.from_codes(
+        # b, b, c, d, a, c, c, d, a
+        categories=old_cats,
+        codes=[1, 1, 2, 3, 0, 2, 2, 3, 0],
+    )
+    df = pd.DataFrame({"f0": col0, "f1": col1})
+    Df, _ = get_df_impl(device)
+    df = Df(df)
+    rng = np.random.default_rng(2025)
+    y = rng.uniform(size=df.shape[0])
+
+    for dm in (DMatrix, QuantileDMatrix):
+        Xy = dm(df, y, enable_categorical=True)
+        booster = train({"device": device}, Xy)
+        predt0 = booster.predict(Xy)
+        predt1 = booster.inplace_predict(df)
+        assert_allclose(device, predt0, predt1)
+
+        col1 = pd.Categorical.from_codes(
+            # b, b, c, d, a, c, c, d, a
+            categories=new_cats,
+            codes=[0, 0, 2, 3, 1, 2, 2, 3, 1],
+        )
+        df1 = Df({"f0": col0, "f1": col1})
+        predt2 = booster.inplace_predict(df1)
+        assert_allclose(device, predt0, predt2)
+
+    # Test large column numbers. XGBoost makes some specializations for slim datasets,
+    # make sure we cover all the cases.
+    n_features = 4096
+    n_samples = 1024
+    df = pd.DataFrame()
+    col_numeric = rng.uniform(0, 1, size=(n_samples, n_features // 2))
+    col_categorical = rng.integers(
+        low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
+    )
+
+    for c in range(n_features):
+        if c % 2 == 0:
+            col = col_numeric[:, c // 2]
+        else:
+            codes = col_categorical[:, c // 2]
+            col = pd.Categorical.from_codes(
+                categories=old_cats,
+                codes=codes,
+            )
+        df[f"f{c}"] = col
+
+    df = Df(df)
+    y = rng.normal(size=n_samples)
+
+    Xy = DMatrix(df, y, enable_categorical=True)
+    booster = train({"device": device}, Xy)
+
+    predt0 = booster.predict(Xy)
+    predt1 = booster.inplace_predict(df)
+    assert_allclose(device, predt0, predt1)
+
+    for c in range(n_features):
+        if c % 2 == 0:
+            continue
+
+        name = f"f{c}"
+        codes_ser = df[name].cat.codes
+        if hasattr(codes_ser, "to_pandas"):  # cudf
+            codes_ser = codes_ser.to_pandas()
+        new_codes = codes_ser.replace(mapping)
+        df[name] = pd.Categorical.from_codes(categories=new_cats, codes=new_codes)
+
+    df = Df(df)
+    Xy = DMatrix(df, y, enable_categorical=True)
+    predt2 = booster.predict(Xy)
+    assert_allclose(device, predt0, predt2)
