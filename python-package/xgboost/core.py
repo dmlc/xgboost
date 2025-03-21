@@ -911,8 +911,6 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             dataframe.
 
         """
-        import pandas as pd
-        pd.Categorical
         if group is not None and qid is not None:
             raise ValueError("Either one of `group` or `qid` should be None.")
 

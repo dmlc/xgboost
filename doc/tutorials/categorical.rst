@@ -16,6 +16,12 @@ Categorical Data
 
    Support for the R package using ``factor``.
 
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
+
 Starting from version 1.5, the XGBoost Python package has experimental support for
 categorical data available for public testing. For numerical data, the split condition is
 defined as :math:`value < threshold`, while for categorical data the split is defined
@@ -80,11 +86,12 @@ Encoding
 .. versionadded:: 3.1.0
 
 XGBoost can remember the encoding of the dataframe in a way that's similar to the
-:py:class:`sklearn.preprocessing.OrdinalEncoder`. To understand how it works, we need to
-first understand how pandas ``DataFrame`` works, see `pandas' user guide
-<https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html>`__ for in-depth
-explanation, we will focus on the encoding here. Pandas categorical series has a cat
-accessor with the ``cat`` and ``codes`` attributes:
+:py:class:`sklearn.preprocessing.OrdinalEncoder`. Integer and string categorical index is
+required (floating point as categories is not supported). To understand how it works, we
+need to first understand how pandas ``DataFrame`` works, see `pandas' user guide
+<https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html>`__ for an
+in-depth explanation, here we will focus on the encoding scheme. Pandas categorical series
+has a cat accessor with the ``categories`` and ``codes`` attributes:
 
 .. code-block:: python
 
@@ -105,9 +112,9 @@ accessor with the ``cat`` and ``codes`` attributes:
     # 3    2
     # dtype: int8
 
-The codes above refers to the index into the ``categories``. 0 means the first element in
-the ``categories``, which is "a", then 1 refers to "b", you can get the rest of the
-codes. As a result, the ordering of the categories inside a categorical column is the
+The ``codes`` in above refers to the index into the ``categories``. 0 means the first
+element in the ``categories``, which is "a", then 1 refers to "b", you can get the rest of
+the codes. As a result, the ordering of the categories inside a categorical column is the
 encoding. XGBoost relies on this encoding scheme to automatically re-code the data during
 inference. During test time and with supported dataframe implementations, XGBoost can
 handle cases where the test dataset has lesser categories than the training dataset. In
