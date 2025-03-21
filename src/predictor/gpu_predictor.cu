@@ -156,8 +156,9 @@ struct EllpackLoader {
   EllpackDeviceAccessor matrix;
   EncAccessor acc;
 
-  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor m, bool, bst_feature_t, bst_idx_t, float,
-                               EncAccessor&& acc)
+  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor m, bool /*use_shared*/,
+                               bst_feature_t /*n_features*/, bst_idx_t /*n_samples*/,
+                               float /*missing*/, EncAccessor&& acc)
       : matrix{std::move(m)}, acc{std::forward<EncAccessor>(acc)} {}
   [[nodiscard]] XGBOOST_DEV_INLINE float GetElement(size_t ridx, size_t fidx) const {
     auto gidx = matrix.GetBinIndex<false>(ridx, fidx);
@@ -921,13 +922,15 @@ void LaunchPredictKernel(Context const* ctx, bool is_dense, enc::DeviceColumnsVi
 template <std::uint32_t kBlockThreads = 128, bool kUseShared = true>
 class LaunchConfig {
  private:
+  static auto constexpr NotSet() { return std::numeric_limits<bst_idx_t>::max(); }
+
   Context const* ctx_;
   std::size_t const shared_memory_bytes_;
-  bst_idx_t n_samples_{std::numeric_limits<bst_idx_t>::max()};
+  bst_idx_t n_samples_{NotSet()};
 
   template <typename K, typename... Args>
-  void LaunchImpl(K kernel, Args&&... args) const&& {
-    CHECK_NE(this->n_samples_, std::numeric_limits<bst_idx_t>::max());
+  void LaunchImpl(K&& kernel, Args&&... args) const&& {
+    CHECK_NE(this->n_samples_, NotSet());
     auto grid = static_cast<uint32_t>(common::DivRoundUp(this->n_samples_, kBlockThreads));
     dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes_, ctx_->CUDACtx()->Stream()}(
         kernel, std::forward<Args>(args)...);
@@ -970,7 +973,7 @@ class LaunchConfig {
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
       auto kernel = PredictKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
       this->Grid(n_samples).LaunchImpl(
-          kernel, std::move(data), model.nodes.ConstDeviceSpan(),
+          std::move(kernel), std::move(data), model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
 
           model.tree_group.ConstDeviceSpan(),
@@ -992,7 +995,7 @@ class LaunchConfig {
       using EncAccessor = std::remove_reference_t<decltype(acc)>;
       auto kernel = PredictLeafKernel<Loader<EncAccessor>, Data, kHasMissing, EncAccessor>;
       this->Grid(n_samples).LaunchImpl(
-          kernel, std::move(data), model.nodes.ConstDeviceSpan(),
+          std::move(kernel), std::move(data), model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset), model.tree_segments.ConstDeviceSpan(),
 
           model.split_types.ConstDeviceSpan(), model.categories_tree_segments.ConstDeviceSpan(),
@@ -1306,7 +1309,7 @@ class GPUPredictor : public xgboost::Predictor {
         auto launch = [&](auto&& acc) {
           using EncAccessor = std::remove_reference_t<decltype(acc)>;
           auto X = EllpackLoader{ellpack,
-                                 true,
+                                 /*use_shared=*/false,
                                  model.learner_model_param->num_feature,
                                  batch.Size(),
                                  std::numeric_limits<float>::quiet_NaN(),
