@@ -80,46 +80,6 @@ for a worked example of using categorical data with ``scikit-learn`` interface w
 one-hot encoding.  A comparison between using one-hot encoded data and XGBoost's
 categorical data support can be found :ref:`sphx_glr_python_examples_cat_in_the_dat.py`.
 
-Encoding
-========
-
-.. versionadded:: 3.1.0
-
-XGBoost can remember the encoding of the dataframe in a way that's similar to the
-:py:class:`sklearn.preprocessing.OrdinalEncoder`. Integer and string categorical index is
-required (floating point as categories is not supported). To understand how it works, we
-need to first understand how pandas ``DataFrame`` works, see `pandas' user guide
-<https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html>`__ for an
-in-depth explanation, here we will focus on the encoding scheme. Pandas categorical series
-has a cat accessor with the ``categories`` and ``codes`` attributes:
-
-.. code-block:: python
-
-    import pandas as pd
-
-    df = pd.DataFrame({"c": ["a", "b", "c", "c"]}, dtype="category")
-    categories = df.c.cat.categories
-
-    # Here we have 3 categories
-    # >>> categories
-    # Index(['a', 'b', 'c'], dtype='object')
-
-    codes = df.c.cat.codes
-    # >>> codes
-    # 0    0
-    # 1    1
-    # 2    2
-    # 3    2
-    # dtype: int8
-
-The ``codes`` in above refers to the index into the ``categories``. 0 means the first
-element in the ``categories``, which is "a", then 1 refers to "b", you can get the rest of
-the codes. As a result, the ordering of the categories inside a categorical column is the
-encoding. XGBoost relies on this encoding scheme to automatically re-code the data during
-inference. During test time and with supported dataframe implementations, XGBoost can
-handle cases where the test dataset has lesser categories than the training dataset. In
-addition, XGBoost can also handle changed order of the categories.
-
 
 ********************
 Optimal Partitioning
@@ -188,20 +148,67 @@ feature it's specified as ``"c"``.  The Dask module in XGBoost has the same inte
 :class:`dask.Array <dask.Array>` can also be used for categorical data. Lastly, the
 sklearn interface :py:class:`~xgboost.XGBRegressor` has the same parameter.
 
-****************
-Data Consistency
-****************
+*************************
+Data Encoding Consistency
+*************************
 
-XGBoost accepts parameters to indicate which feature is considered categorical, either through the ``dtypes`` of a dataframe or through the ``feature_types`` parameter. However, XGBoost by itself doesn't store information on how categories are encoded in the first place. For instance, given an encoding schema that maps music genres to integer codes:
+.. versionadded:: 3.1.0
+
+XGBoost can remember the encoding from some dataframe implementations in a way that's
+similar to the :py:class:`sklearn.preprocessing.OrdinalEncoder`. Integer and string
+categorical index is required (floating point as categories is not supported). To
+understand how it works, we need to first understand how pandas ``DataFrame`` works, see
+`pandas' user guide
+<https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html>`__ for an
+in-depth explanation, here we will focus on the encoding scheme. Pandas categorical series
+has a cat accessor with the ``categories`` and ``codes`` attributes:
+
+.. code-block:: python
+
+    import pandas as pd
+
+    df = pd.DataFrame({"c": ["a", "b", "c", "c"]}, dtype="category")
+    categories = df.c.cat.categories
+
+    # Here we have 3 categories
+    # >>> categories
+    # Index(['a', 'b', 'c'], dtype='object')
+
+    codes = df.c.cat.codes
+    # >>> codes
+    # 0    0
+    # 1    1
+    # 2    2
+    # 3    2
+    # dtype: int8
+
+The ``codes`` in above refers to the index into the ``categories``. 0 means the first
+element in the ``categories``, which is "a", then 1 refers to "b", you can get the rest of
+the codes. As a result, the ordering of the categories inside a categorical column is the
+encoding. XGBoost relies on this encoding scheme to automatically re-code the data during
+inference. During test time and with supported dataframe implementations, XGBoost can
+handle cases where the test dataset has lesser categories than the training dataset. In
+addition, XGBoost can also handle changed order of the categories.
+
+Currently supported dataframe types are ``pandas`` and ``cudf``. For other input types
+(ones that need the ``feature_types`` parameter or the R ``factor``), XGBoost doesn't
+store information on how categories are encoded. For instance, given an encoding schema
+that maps music genres to integer codes:
 
 .. code-block:: python
 
   {"acoustic": 0, "indie": 1, "blues": 2, "country": 3}
 
-XGBoost doesn't know this mapping from the input and hence cannot store it in the model. The mapping usually happens in the users' data engineering pipeline with column transformers like :py:class:`sklearn.preprocessing.OrdinalEncoder`. To make sure correct result from XGBoost, users need to keep the pipeline for transforming data consistent across training and testing data. One should watch out for errors like:
+XGBoost doesn't know this mapping from the input and hence cannot store it in the
+model. The mapping usually happens in the users' data engineering pipeline with column
+transformers like :py:class:`sklearn.preprocessing.OrdinalEncoder`. To make sure correct
+result from XGBoost, users need to keep the pipeline for transforming data consistent
+across training and testing data. One should watch out for errors like:
 
 .. code-block:: python
 
+  # Assuming X_train is a data type that XGBoost doesn't recognize its categorical columns
+  # yet.
   X_train["genre"] = X_train["genre"].astype("category")
   reg = xgb.XGBRegressor(enable_categorical=True).fit(X_train, y_train)
 
@@ -209,7 +216,10 @@ XGBoost doesn't know this mapping from the input and hence cannot store it in th
   X_test["genre"] = X_test["genre"].astype("category")
   reg.predict(X_test)
 
-In the above snippet, training data and test data are encoded separately, resulting in two different encoding schemas and invalid prediction result. See :ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using ordinal encoder.
+In the above snippet, training data and test data are encoded separately, resulting in two
+different encoding schemas and invalid prediction result. See
+:ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using ordinal
+encoder.
 
 *************
 Miscellaneous
