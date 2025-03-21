@@ -871,7 +871,7 @@ class ColumnSplitHelper {
 
 auto MakeCatAccessor(Context const* ctx, enc::DeviceColumnsView const& new_enc,
                      DeviceModel const& model) {
-  dh::device_vector<std::int32_t> mapping(new_enc.n_total_cats);
+  dh::DeviceUVector<std::int32_t> mapping(new_enc.n_total_cats);
   auto d_sorted_idx = model.cat_enc->RefSortedIndex(ctx);
   auto orig_enc = model.cat_enc->DeviceView(ctx);
   enc::Recode(cuda_impl::EncPolicy, orig_enc, d_sorted_idx, new_enc, dh::ToSpan(mapping));
@@ -917,6 +917,7 @@ void LaunchPredictKernel(Context const* ctx, bool is_dense, enc::DeviceColumnsVi
   }
 }
 
+// provide configuration for launching the predict kernel.
 template <std::uint32_t kBlockThreads = 128, bool kUseShared = true>
 class LaunchConfig {
  private:
@@ -1085,6 +1086,7 @@ class GPUPredictor : public xgboost::Predictor {
     this->PredictDMatrix(dmat, out_preds, model, tree_begin, tree_end);
   }
 
+  // Fill the `BatchT` parameter, currying for template.
   template <typename BatchT>
   struct PartialLoader {
     template <typename T>
