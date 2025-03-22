@@ -20,6 +20,7 @@ extern SEXP XGDuplicate_R(SEXP);
 extern SEXP XGPointerEqComparison_R(SEXP, SEXP);
 extern SEXP XGBoosterTrainOneIter_R(SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP XGBoosterCreate_R(SEXP);
+extern SEXP XGBoosterReset_R(SEXP);
 extern SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP, SEXP);
 extern SEXP XGBoosterSetStrFeatureInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGBoosterGetStrFeatureInfo_R(SEXP, SEXP);
@@ -83,6 +84,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGPointerEqComparison_R",     (DL_FUNC) &XGPointerEqComparison_R,     2},
   {"XGBoosterTrainOneIter_R",     (DL_FUNC) &XGBoosterTrainOneIter_R,     5},
   {"XGBoosterCreate_R",           (DL_FUNC) &XGBoosterCreate_R,           1},
+  {"XGBoosterReset_R",            (DL_FUNC) &XGBoosterReset_R,            1},
   {"XGBoosterCopyInfoFromDMatrix_R", (DL_FUNC) &XGBoosterCopyInfoFromDMatrix_R, 2},
   {"XGBoosterSetStrFeatureInfo_R",(DL_FUNC) &XGBoosterSetStrFeatureInfo_R,3},  // NOLINT
   {"XGBoosterGetStrFeatureInfo_R",(DL_FUNC) &XGBoosterGetStrFeatureInfo_R,2},  // NOLINT
