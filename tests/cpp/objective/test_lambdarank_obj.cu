@@ -55,7 +55,6 @@ void TestGPUMakePair() {
         linalg::MatrixView<GradientPair>{common::Span<GradientPair>{}, {0}, DeviceOrd::CUDA(0)},
         dg,
         nullptr,
-        1,
         y_sorted_idx,
         0};
     return args;
