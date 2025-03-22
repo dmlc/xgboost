@@ -891,10 +891,11 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
             .. note:: This parameter is experimental
 
-            Experimental support of specializing for categorical features.
+            Experimental support of specializing for categorical features. See
+            :doc:`/tutorials/categorical` for more info.
 
-            If passing `True` and `data` is a data frame (from supported libraries such as
-            Pandas, Modin or cuDF), The DMatrix recognizes categorical columns and
+            If passing `True` and `data` is a data frame (from supported libraries such
+            as Pandas, Modin or cuDF), The DMatrix recognizes categorical columns and
             automatically set the `feature_types` parameter. If `data` is not a data
             frame, this argument is ignored.
 
@@ -904,7 +905,10 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             See notes in the :py:class:`DataIter` for consistency requirement when the
             input is an iterator.
 
-            JSON/UBJSON serialization format is required for this.
+            .. versionchanged:: 3.1.0
+
+            XGBoost can remember the encoding of categories when the input is a
+            dataframe.
 
         """
         if group is not None and qid is not None:

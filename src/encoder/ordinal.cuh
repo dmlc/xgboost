@@ -98,8 +98,8 @@ struct SegmentedSearchSortedNumOp {
         haystack_v.feature_segments[f_idx + 1] - haystack_v.feature_segments[f_idx]);
     auto end_it = it + f_sorted_idx.size();
     auto ret_it = thrust::lower_bound(thrust::seq, it, end_it, SearchKey(), [&](auto l, auto r) {
-      T l_value = l == SearchKey() ? needle : haystack[ref_sorted_idx[l]];
-      T r_value = r == SearchKey() ? needle : haystack[ref_sorted_idx[r]];
+      T l_value = l == SearchKey() ? needle : haystack[f_sorted_idx[l]];
+      T r_value = r == SearchKey() ? needle : haystack[f_sorted_idx[r]];
       return l_value < r_value;
     });
     if (ret_it == it + f_sorted_idx.size()) {
@@ -122,7 +122,8 @@ struct DftThrustPolicy {
   template <typename T>
   using ThrustAllocator = thrust::device_allocator<T>;
 
-  auto ThrustPolicy() const { return thrust::cuda::par_nosync; }
+  [[nodiscard]] auto ThrustPolicy() const { return thrust::cuda::par_nosync; }
+  [[nodiscard]] auto Stream() const { return cudaStreamPerThread; }
 };
 }  // namespace cuda_impl
 
@@ -144,12 +145,15 @@ using DftDevicePolicy = Policy<cuda_impl::DftThrustPolicy, detail::DftErrorHandl
 template <typename ExecPolicy>
 void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
                Span<std::int32_t> sorted_idx) {
+  typename ExecPolicy::template ThrustAllocator<char> alloc;
+  auto exec = thrust::cuda::par_nosync(alloc).on(policy.Stream());
+
   auto n_total_cats = orig_enc.n_total_cats;
   if (static_cast<std::int32_t>(sorted_idx.size()) != orig_enc.n_total_cats) {
     policy.Error("`sorted_idx` should have the same size as `n_total_cats`.");
   }
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
-  cuda_impl::SegmentedIota(policy.ThrustPolicy(), orig_enc.feature_segments, d_sorted_idx);
+  cuda_impl::SegmentedIota(exec, orig_enc.feature_segments, d_sorted_idx);
 
   // <fidx, sorted_idx>
   using Pair = cuda::std::pair<std::int32_t, std::int32_t>;
@@ -162,9 +166,9 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         auto idx = d_sorted_idx[i];
         return cuda::std::make_pair(static_cast<std::int32_t>(seg), idx);
       }));
-  thrust::copy(policy.ThrustPolicy(), key_it, key_it + n_total_cats, keys.begin());
+  thrust::copy(exec, key_it, key_it + n_total_cats, keys.begin());
 
-  thrust::sort(policy.ThrustPolicy(), keys.begin(), keys.end(),
+  thrust::sort(exec, keys.begin(), keys.end(),
                cuda::proclaim_return_type<bool>([=] __device__(Pair const& l, Pair const& r) {
                  if (l.first == r.first) {  // same feature
                    auto const& col = orig_enc.columns[l.first];
@@ -193,7 +197,7 @@ void SortNames(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       thrust::make_counting_iterator(0),
       cuda::proclaim_return_type<decltype(Pair{}.second)>(
           [=] __device__(std::int32_t i) { return s_keys[i].second; }));
-  thrust::copy(policy.ThrustPolicy(), it, it + sorted_idx.size(), dh::tbegin(sorted_idx));
+  thrust::copy(exec, it, it + sorted_idx.size(), dh::tbegin(sorted_idx));
 }
 
 /**
@@ -212,8 +216,27 @@ template <typename ExecPolicy>
 void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
             Span<std::int32_t const> sorted_idx, DeviceColumnsView new_enc,
             Span<std::int32_t> mapping) {
-  auto exec = policy.ThrustPolicy();
+  typename ExecPolicy::template ThrustAllocator<char> alloc;
+  auto exec = thrust::cuda::par_nosync(alloc).on(policy.Stream());
   detail::BasicChecks(policy, orig_enc, sorted_idx, new_enc, mapping);
+  /**
+   * Check consistency.
+   */
+  auto check_it = thrust::make_transform_iterator(
+      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) {
+        auto l_f = orig_enc.columns[i];
+        auto r_f = new_enc.columns[i];
+        auto l_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, l_f);
+        auto r_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, r_f);
+        return l_is_empty == r_is_empty;
+      });
+  bool valid = thrust::reduce(exec, check_it, check_it + new_enc.Size(), true,
+                              [=] XGBOOST_DEVICE(bool l, bool r) { return l && r; });
+  if (!valid) {
+    policy.Error(
+        "Invalid new DataFrame. "
+        "The data type doesn't match the one used in the training dataset.");
+  }
 
   /**
    * search the index for the new encoding
@@ -222,7 +245,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
       exec, thrust::make_counting_iterator(0), new_enc.n_total_cats,
       [=] __device__(std::int32_t i) {
         auto f_idx = dh::SegmentId(new_enc.feature_segments, i);
-        std::int32_t searched_idx{-1};
+        std::int32_t searched_idx{detail::NotFound()};
         auto const& col = orig_enc.columns[f_idx];
         cuda::std::visit(Overloaded{[&](CatStrArrayView const& str) {
                                       auto op = cuda_impl::SegmentedSearchSortedStrOp{

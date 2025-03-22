@@ -39,7 +39,8 @@ class TestGPULinear:
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_gpu_coordinate(self, param, num_rounds, dataset):
         assume(len(dataset.y) > 0)
-        param["updater"] = "gpu_coord_descent"
+        param["updater"] = "coord_descent"
+        param["device"] = "cuda"
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)["train"][
             dataset.metric
@@ -60,7 +61,8 @@ class TestGPULinear:
     @settings(deadline=None, max_examples=20, print_blob=True)
     def test_gpu_coordinate_regularised(self, param, num_rounds, dataset, alpha, lambd):
         assume(len(dataset.y) > 0)
-        param["updater"] = "gpu_coord_descent"
+        param["updater"] = "coord_descent"
+        param["device"] = "cuda"
         param["alpha"] = alpha
         param["lambda"] = lambd
         param = dataset.set_params(param)
@@ -78,7 +80,8 @@ class TestGPULinear:
 
         params = {
             "booster": "gblinear",
-            "updater": "gpu_coord_descent",
+            "updater": "coord_descent",
+            "device": "cuda",
             "n_estimators": 100,
         }
         X, y = tm.get_california_housing()
