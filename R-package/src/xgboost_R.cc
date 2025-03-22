@@ -308,14 +308,16 @@ buffer, and the R error section is reached through a 'goto' statement
 that bypasses usual function control flow. */
 namespace {
 constexpr std::size_t MsgSize = 512;
-}  // anonymous namespace
 char cpp_ex_msg[MsgSize];
+}  // anonymous namespace
+
 /*!
  * \brief macro to annotate end of api
  */
 #define R_API_END()                                  \
   }                                                  \
   catch (std::exception & e) {                       \
+    cpp_ex_msg[MsgSize - 1] = 0;                     \
     std::strncpy(cpp_ex_msg, e.what(), MsgSize - 1); \
     goto throw_cpp_ex_as_R_err;                      \
   }                                                  \
