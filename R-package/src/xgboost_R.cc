@@ -1081,6 +1081,13 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
   return out;
 }
 
+XGB_DLL SEXP XGBoosterReset_R(SEXP handle) {
+  R_API_BEGIN();
+  CHECK_CALL(XGBoosterReset(R_ExternalPtrAddr(handle)));
+  R_API_END();
+  return R_NilValue;
+}
+
 XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP booster, SEXP dmat) {
   R_API_BEGIN();
   char const **feature_names;
