@@ -107,7 +107,8 @@ using DeviceCatIndexView = cuda_impl::TupToVarT<CatIndexViewTypes>;
  * Accepted policies:
  *
  * - A class with a `ThrustPolicy` method that returns a thrust execution policy, along with a
- *   `ThrustAllocator` template type. This is only used for the GPU implementation.
+ *   `ThrustAllocator` template type. In addition, a `Stream` method that returns a CUDA stream.
+ *   This is only used for the GPU implementation.
  *
  * - An error handling policy that exposes a single `Error` method, which takes a single
  *   string parameter for error message.
@@ -133,6 +134,7 @@ struct ColumnsViewImpl {
   [[nodiscard]] std::size_t Size() const { return columns.size(); }
   [[nodiscard]] bool Empty() const { return this->Size() == 0; }
   [[nodiscard]] auto operator[](std::size_t i) const { return columns[i]; }
+  [[nodiscard]] auto HasCategorical() const { return n_total_cats != 0; }
 };
 
 struct DftErrorHandler {
@@ -416,6 +418,27 @@ inline std::ostream &operator<<(std::ostream &os, CatStrArrayView const &strings
     }
   }
   os << "]";
+  return os;
+}
+
+inline std::ostream &operator<<(std::ostream &os, HostColumnsView const &h_enc) {
+  for (std::size_t i = 0; i < h_enc.columns.size(); ++i) {
+    auto const &col = h_enc.columns[i];
+    os << "f" << i << ": ";
+    std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &str) { os << str; },
+                               [&](auto &&values) {
+                                 os << "[";
+                                 for (std::size_t j = 0, n = values.size(); j < n; ++j) {
+                                   os << values[j];
+                                   if (j != n - 1) {
+                                     os << ", ";
+                                   }
+                                 }
+                                 os << "]";
+                               }},
+               col);
+    os << std::endl;
+  }
   return os;
 }
 }  // namespace enc
