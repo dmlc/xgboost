@@ -306,18 +306,22 @@ object, need to be destructed before triggering the R error.
 In order to preserve the error message, it gets copied to a temporary
 buffer, and the R error section is reached through a 'goto' statement
 that bypasses usual function control flow. */
-char cpp_ex_msg[512];
+namespace {
+constexpr std::size_t MsgSize = 512;
+}  // anonymous namespace
+char cpp_ex_msg[MsgSize];
 /*!
  * \brief macro to annotate end of api
  */
-#define R_API_END()                             \
-  } catch(std::exception &e) {                  \
-    std::strncpy(cpp_ex_msg, e.what(), 512);    \
-    goto throw_cpp_ex_as_R_err;                 \
-  }                                             \
-  if (false) {                                  \
-    throw_cpp_ex_as_R_err:                      \
-    Rf_error("%s", cpp_ex_msg);                 \
+#define R_API_END()                                  \
+  }                                                  \
+  catch (std::exception & e) {                       \
+    std::strncpy(cpp_ex_msg, e.what(), MsgSize - 1); \
+    goto throw_cpp_ex_as_R_err;                      \
+  }                                                  \
+  if (false) {                                       \
+  throw_cpp_ex_as_R_err:                             \
+    Rf_error("%s", cpp_ex_msg);                      \
   }
 
 /**
@@ -990,7 +994,7 @@ SEXP XGBAltrepSerializer_R(SEXP R_altrepped_obj) {
   return R_NilValue; /* <- should not be reached */
 }
 
-SEXP XGBAltrepDeserializer_R(SEXP unused, SEXP R_state) {
+SEXP XGBAltrepDeserializer_R(SEXP /*unused*/, SEXP R_state) {
   SEXP R_altrepped_obj = Rf_protect(XGBMakeEmptyAltrep());
   R_API_BEGIN();
   BoosterHandle handle = nullptr;
