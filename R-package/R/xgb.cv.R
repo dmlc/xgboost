@@ -273,6 +273,7 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
 
     if (should_stop) break
   }
+
   cb_outputs <- .execute.cb.after.training(
     callbacks,
     bst_folds,
@@ -281,6 +282,11 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
     iteration,
     msg
   )
+
+  # Just in case if the model is referenced in callbacks.
+  lapply(bst_folds, function(fd) {
+    xgb.reset.Booster(fd$bst)
+  })
 
   # the CV result
   ret <- list(
