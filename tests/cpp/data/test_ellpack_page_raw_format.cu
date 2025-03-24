@@ -24,6 +24,10 @@ namespace {
 
   CalcCacheMapping(ctx, Xy->IsDense(), cuts, 0, ext_info, &cinfo);
   CHECK_EQ(ext_info.n_batches, cinfo.cache_mapping.size());
+  if (cinfo.NumBatchesCc() == 1) {
+    EXPECT_TRUE(cinfo.prefer_device);
+    cinfo.prefer_device = false;  // We test the host cache.
+  }
   return cinfo;
 }
 

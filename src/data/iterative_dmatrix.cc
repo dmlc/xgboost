@@ -51,7 +51,7 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   this->batch_ = p;
 
   LOG(INFO) << "Finished constructing the `IterativeDMatrix`: (" << this->Info().num_row_ << ", "
-            << this->Info().num_col_ << ", " << this->Info().num_nonzero_ << ").";
+            << this->Info().num_col_ << ", " << this->info_.num_nonzero_ << ").";
 }
 
 void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
@@ -110,7 +110,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
     accumulated_rows += BatchSamples(proxy);
   }
   iter.Reset();
-  CHECK_EQ(accumulated_rows, Info().num_row_);
+  CHECK_EQ(accumulated_rows, this->info_.num_row_);
 
   if (ext_info.n_batches == 1) {
     this->info_ = std::move(proxy->Info());

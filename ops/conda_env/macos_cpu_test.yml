@@ -6,8 +6,6 @@ dependencies:
 - pip
 - wheel
 - pyyaml
-- cpplint
-- pylint
 - numpy
 - scipy
 - llvm-openmp
@@ -20,22 +18,17 @@ dependencies:
 - python-graphviz
 - hypothesis
 - astroid
-- sphinx
 - sh
-- recommonmark
-- mock
-- breathe
 - pytest
 - pytest-cov
+- pytest-timeout
 - python-kubernetes
 - urllib3
 - jsonschema
 - boto3
 - awscli
-- loky
+- loky>=3.5.1
 - pyarrow
-- pyspark>=3.4.0
 - cloudpickle
 - pip:
   - setuptools
-  - sphinx_rtd_theme
