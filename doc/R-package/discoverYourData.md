@@ -217,7 +217,7 @@ output_vector = df[,Improved] == "Marked"
 Build the model
 ---------------
 
-The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
+The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [XGBoost presentation](https://github.com/dmlc/xgboost/blob/release_1.7.0/R-package/vignettes/xgboostPresentation.Rmd)).
 
 
 ```r

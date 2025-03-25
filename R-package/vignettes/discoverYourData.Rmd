@@ -20,7 +20,7 @@ Introduction
 
 The purpose of this vignette is to show you how to use **XGBoost** to discover and understand your own dataset better.
 
-This vignette is not about predicting anything (see [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **XGBoost** to highlight the *link* between the *features* of your data and the *outcome*.
+This vignette is not about predicting anything (see [XGBoost presentation](https://github.com/dmlc/xgboost/blob/release_1.7.0/R-package/vignettes/discoverYourData.Rmd)). We will explain how to use **XGBoost** to highlight the *link* between the *features* of your data and the *outcome*.
 
 Package loading:
 
@@ -170,7 +170,7 @@ output_vector = df[,Improved] == "Marked"
 Build the model
 ---------------
 
-The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
+The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [XGBoost presentation](https://github.com/dmlc/xgboost/blob/release_1.7.0/R-package/vignettes/discoverYourData.Rmd)).
 
 ```{r}
 bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 4,
