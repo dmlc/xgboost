@@ -7,7 +7,7 @@ Introduction
 
 The purpose of this Vignette is to show you how to use **XGBoost** to discover and understand your own dataset better.
 
-This Vignette is not about predicting anything (see [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **XGBoost** to highlight the *link* between the *features* of your data and the *outcome*.
+This Vignette is not about predicting anything (see [XGBoost presentation](https://github.com/dmlc/xgboost/blob/release_1.7.0/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **XGBoost** to highlight the *link* between the *features* of your data and the *outcome*.
 
 Package loading:
 
@@ -192,7 +192,7 @@ head(sparse_matrix)
 
 ```
 ## 6 x 10 sparse Matrix of class "dgCMatrix"
-##                       
+##
 ## 1 . 1 1 27 1 . . . . 1
 ## 2 . 1 1 29 1 . . . . 1
 ## 3 . 1 1 30 1 . . . . 1
@@ -361,9 +361,9 @@ print(c2)
 ```
 
 ```
-## 
+##
 ## 	Pearson's Chi-squared test
-## 
+##
 ## data:  df$Age and output_vector
 ## X-squared = 35.475, df = 35, p-value = 0.4458
 ```
@@ -377,9 +377,9 @@ print(c2)
 ```
 
 ```
-## 
+##
 ## 	Pearson's Chi-squared test
-## 
+##
 ## data:  df$AgeDiscret and output_vector
 ## X-squared = 8.2554, df = 5, p-value = 0.1427
 ```
@@ -393,9 +393,9 @@ print(c2)
 ```
 
 ```
-## 
+##
 ## 	Pearson's Chi-squared test with Yates' continuity correction
-## 
+##
 ## data:  df$AgeCat and output_vector
 ## X-squared = 2.3571, df = 1, p-value = 0.1247
 ```
