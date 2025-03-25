@@ -1,13 +1,25 @@
-# install development version of caret library that contains xgboost models
-devtools::install_github("topepo/caret/pkg/caret")
-require(caret)
-require(xgboost)
-require(data.table)
-require(vcd)
-require(e1071)
+# If you need the development version of caret, uncomment and run:
+# if (requireNamespace("devtools", quietly = TRUE)) {
+#   devtools::install_github("topepo/caret/pkg/caret")
+# }
+
+if (!requireNamespace("caret", quietly = TRUE)) {
+  message("Package 'caret' is required for this demo. Please install it.")
+  stop()
+}
+if (!requireNamespace("e1071", quietly = TRUE)) {
+  message("Package 'e1071' is required for this demo. Please install it.")
+  stop()
+}
+if (!requireNamespace("vcd", quietly = TRUE)) {
+  message("Package 'vcd' is required for this demo. Please install it.")
+  stop()
+}
+library(xgboost)
+library(data.table)
 
 # Load Arthritis dataset in memory.
-data(Arthritis)
+data(Arthritis, package = "vcd")
 # Create a copy of the dataset with data.table package (data.table is 100% compliant with R dataframe but its syntax is a lot more consistent and its performance are really good).
 df <- data.table(Arthritis, keep.rownames = FALSE)
 
@@ -24,12 +36,12 @@ df[, ID := NULL]
 #-------------Basic Training using XGBoost in caret Library-----------------
 # Set up control parameters for caret::train
 # Here we use 10-fold cross-validation, repeating twice, and using random search for tuning hyper-parameters.
-fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 2, search = "random")
+fitControl <- caret::trainControl(method = "repeatedcv", number = 10, repeats = 2, search = "random")
 # train a xgbTree model using caret::train
-model <- train(factor(Improved)~., data = df, method = "xgbTree", trControl = fitControl)
+model <- caret::train(factor(Improved)~., data = df, method = "xgbTree", trControl = fitControl)
 
 # Instead of tree for our boosters, you can also fit a linear regression or logistic regression model using xgbLinear
-# model <- train(factor(Improved)~., data = df, method = "xgbLinear", trControl = fitControl)
+# model <- caret::train(factor(Improved)~., data = df, method = "xgbLinear", trControl = fitControl)
 
 # See model results
 print(model)
