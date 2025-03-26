@@ -20,9 +20,9 @@ Get Started
 Since XGBoost 3.0.0, the latest R package is available on
 `https://dmlc.r-universe.dev/builds <R-universe>`__ while the one on CRAN is kept at an
 older version. We will work on helping the CRAN version to catch up in the future. In the
-meanwhile, please use R-universe packages.
+meantime, please use R-universe packages.
 
-* Checkout the :doc:`Installation Guide </install>` contains instructions to install
+* Check out the :doc:`Installation Guide </install>` for instructions on how to install
   xgboost, and :doc:`Tutorials </tutorials/index>` for examples on how to use XGBoost for
   various tasks.
 * Read the latest `API documentation <../r_docs/R-package/docs/reference/index.html>`__.
