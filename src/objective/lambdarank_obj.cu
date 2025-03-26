@@ -96,7 +96,6 @@ struct GetGradOp {
     auto g_predt = args.predts.subspan(data_group_begin, n_data);
     auto g_gpair = args.gpairs.Slice(linalg::Range(data_group_begin, data_group_begin + n_data));
     auto g_rank = args.d_sorted_idx.subspan(data_group_begin, n_data);
-    auto n_pairs = args.n_pairs;
 
     auto [i, j] = make_pair(idx, g);
 
@@ -341,10 +340,9 @@ void Launch(Context const* ctx, std::int32_t iter, HostDeviceVector<float> const
     d_y_sorted_idx = SortY(ctx, info, rank_idx, p_cache);
   }
 
-  auto n_pairs = p_cache->Param().NumPair();
-  KernelInputs args{ti_plus,  tj_minus,       li,     lj,     d_gptr,     d_threads_group_ptr,
-                    rank_idx, label,          predts, gpairs, d_rounding, d_cost_rounding.data(),
-                    n_pairs,  d_y_sorted_idx, iter};
+  KernelInputs args{ti_plus,        tj_minus, li,     lj,     d_gptr,     d_threads_group_ptr,
+                    rank_idx,       label,    predts, gpairs, d_rounding, d_cost_rounding.data(),
+                    d_y_sorted_idx, iter};
 
   // dispatch based on unbiased and truncation
   if (p_cache->Param().HasTruncation()) {
