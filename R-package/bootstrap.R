@@ -13,7 +13,7 @@ file.copy("../dmlc-core/include", "./src/dmlc-core/", recursive = TRUE)
 file.copy("../dmlc-core/src", "./src/dmlc-core/", recursive = TRUE)
 
 pkgroot <- function(path) {
-  ## read the file from path, replace teh PKGROOT=../../ with PKGROOT=.
+  ## read the file from path, replace the PKGROOT=../../ with PKGROOT=.
   lines <- readLines(path)
   lines <- gsub("PKGROOT=\\.\\./\\.\\./", "PKGROOT=.", lines)
   writeLines(lines, path)
@@ -22,7 +22,7 @@ pkgroot <- function(path) {
 ## makefile and license
 file.copy("../LICENSE", "./LICENSE")
 pkgroot("./src/Makevars.in")
-pkgroot("src/Makevars.win.in")
+pkgroot("./src/Makevars.win.in")
 ## misc
 path <- file.path("remove_warning_suppression_pragma.sh")
 file.remove(path)
