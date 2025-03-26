@@ -17,6 +17,7 @@ if (!requireNamespace("vcd", quietly = TRUE)) {
 }
 library(xgboost)
 library(data.table)
+library(caret)
 
 # Load Arthritis dataset in memory.
 data(Arthritis, package = "vcd")
