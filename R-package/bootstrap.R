@@ -15,7 +15,7 @@ file.copy("../dmlc-core/src", "./src/dmlc-core/", recursive = TRUE)
 pkgroot <- function(path) {
   ## read the file from path, replace the PKGROOT=../../ with PKGROOT=.
   lines <- readLines(path)
-  lines <- gsub("PKGROOT=\\.\\./\\.\\./", "PKGROOT=.", lines)
+  lines <- gsub("PKGROOT=../../", "PKGROOT=.", lines, fixed = TRUE)
   writeLines(lines, path)
 }
 
