@@ -22,5 +22,7 @@ pkgroot("src/Makevars.win.in")
 ## misc
 path <- file.path("remove_warning_suppression_pragma.sh")
 file.remove(path)
+path <- file.path("CMakeLists.txt")
+file.remove(path)
 ## remove the directory recursively ./tests/helper_scripts
 unlink("tests/helper_scripts", recursive = TRUE)
