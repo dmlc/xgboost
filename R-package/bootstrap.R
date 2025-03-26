@@ -1,3 +1,7 @@
+## Execute git commands to initialie git submodules
+system("git submodule init")
+system("git submodule update")
+
 ## core
 file.copy("../src", "./src/", recursive = TRUE)
 file.copy("../include", "./src/", recursive = TRUE)
