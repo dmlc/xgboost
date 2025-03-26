@@ -294,19 +294,25 @@ template <auto GlobalDense = SharedMemHistKernel<true, false, kBlockThreads, kIt
           auto SharedDense = SharedMemHistKernel<true, true, kBlockThreads, kItemsPerThread>,
           auto Shared = SharedMemHistKernel<false, true, kBlockThreads, kItemsPerThread>>
 struct HistogramKernel {
+  enum KernelType : std::size_t {
+    kGlobalDense = 0,
+    kGlobal = 1,
+    kSharedDense = 2,
+    kShared = 3,
+  };
   // Kernel for working with dense Ellpack using the global memory.
-  decltype(Global) global_dense_kernel{
+  decltype(GlobalDense) global_dense_kernel{
       SharedMemHistKernel<true, false, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the global memory.
   decltype(Global) global_kernel{SharedMemHistKernel<false, false, kBlockThreads, kItemsPerThread>};
   // Kernel for working with dense Ellpack using the shared memory.
-  decltype(Shared) shared_dense_kernel{
+  decltype(SharedDense) shared_dense_kernel{
       SharedMemHistKernel<true, true, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the shared memory.
   decltype(Shared) shared_kernel{SharedMemHistKernel<false, true, kBlockThreads, kItemsPerThread>};
 
   bool shared{false};
-  std::uint32_t grid_size{0};
+  std::array<std::uint32_t, 4> grid_sizes{0, 0, 0, 0};
   std::size_t smem_size{0};
   bool const force_global;
 
@@ -321,7 +327,7 @@ struct HistogramKernel {
     this->shared = !force_global_memory && this->smem_size <= max_shared_memory;
     this->smem_size = this->shared ? this->smem_size : 0;
 
-    auto init = [&](auto& kernel) {
+    auto init = [&](auto& kernel, KernelType k) {
       if (this->shared) {
         dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                            max_shared_memory));
@@ -338,11 +344,14 @@ struct HistogramKernel {
 
       // This gives the number of blocks to keep the device occupied Use this as the
       // maximum number of blocks
-      this->grid_size = n_blocks_per_mp * n_mps;
+      this->grid_sizes[static_cast<std::size_t>(k)] = n_blocks_per_mp * n_mps;
     };
     // Initialize all kernel instantiations
+    std::array kernel_types{kGlobalDense, kGlobal, kSharedDense, kShared};
+    std::int32_t k = 0;
     for (auto& kernel : {global_dense_kernel, global_kernel, shared_dense_kernel, shared_kernel}) {
-      init(kernel);
+      init(kernel, kernel_types[k]);
+      ++k;
     }
   }
 };
@@ -375,29 +384,35 @@ class DeviceHistogramBuilderImpl {
     // Allocate number of blocks such that each block has about kMinItemsPerBlock work
     // Up to a maximum where the device is saturated
     auto constexpr kMinItemsPerBlock = ItemsPerTile();
-    auto grid_size = std::min(kernel_->grid_size, static_cast<std::uint32_t>(common::DivRoundUp(
-                                                      items_per_group, kMinItemsPerBlock)));
-    auto launcher = [&](auto kernel) {
+
+    auto launcher = [&](auto const& kernel, std::uint32_t grid_size) {
+      CHECK_NE(grid_size, 0);
+      grid_size = std::min(grid_size, static_cast<std::uint32_t>(
+                                          common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
       dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
                        static_cast<uint32_t>(kBlockThreads), kernel_->smem_size, ctx->Stream()}(
           kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
     };
 
+    using K = HistogramKernel<>::KernelType;
     if (!this->kernel_->shared) {  // Use global memory
       CHECK_EQ(this->kernel_->smem_size, 0);
       if (matrix.IsDenseCompressed()) {
         // Dense must use shared memory except for testing.
         CHECK(this->kernel_->force_global);
-        launcher(this->kernel_->global_dense_kernel);
+        launcher(this->kernel_->global_dense_kernel, this->kernel_->grid_sizes[K::kGlobalDense]);
       } else {
-        launcher(this->kernel_->global_kernel);
+        // Sparse
+        launcher(this->kernel_->global_kernel, this->kernel_->grid_sizes[K::kGlobal]);
       }
     } else {  // Use shared memory
       CHECK_NE(this->kernel_->smem_size, 0);
       if (matrix.IsDenseCompressed()) {
-        launcher(this->kernel_->shared_dense_kernel);
+        // Dense
+        launcher(this->kernel_->shared_dense_kernel, this->kernel_->grid_sizes[K::kSharedDense]);
       } else {
-        launcher(this->kernel_->shared_kernel);
+        // Sparse
+        launcher(this->kernel_->shared_kernel, this->kernel_->grid_sizes[K::kShared]);
       }
     }
   }
