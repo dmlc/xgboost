@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.69)
 
-AC_INIT([xgboost],[1.7.8],[],[xgboost],[])
+AC_INIT([xgboost],[1.7.9],[],[xgboost],[])
 
 : ${R_HOME=`R RHOME`}
 if test -z "${R_HOME}"; then
@@ -62,7 +62,7 @@ then
     OPENMP_LIB=''
     echo '*****************************************************************************************'
     echo '         OpenMP is unavailable on this Mac OSX system. Training speed may be suboptimal.'
-    echo '         To use all CPU cores for training jobs, you should install OpenMP by running\n'
+    echo '         To use all CPU cores for training jobs, you should install OpenMP by running:'
     echo '             brew install libomp'
     echo '*****************************************************************************************'
   fi

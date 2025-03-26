@@ -16,7 +16,7 @@ if (!require(vcd)) {
 # The method we are going to see is usually called "one hot encoding".
 
 #load Arthritis dataset in memory.
-data(Arthritis)
+data(Arthritis, package = "vcd")
 
 # create a copy of the dataset with data.table package (data.table is 100% compliant with R dataframe but its syntax is a lot more consistent and its performance are really good).
 df <- data.table(Arthritis, keep.rownames = FALSE)

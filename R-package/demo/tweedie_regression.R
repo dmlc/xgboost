@@ -1,8 +1,11 @@
 library(xgboost)
 library(data.table)
-library(cplm)
+if (!requireNamespace("cplm", quietly = TRUE)) {
+  message("Package 'cplm' is required for this demo. Please install it.")
+  stop()
+}
 
-data(AutoClaim)
+data(AutoClaim, package = "cplm")
 
 # auto insurance dataset analyzed by Yip and Yau (2005)
 dt <- data.table(AutoClaim)
