@@ -386,6 +386,7 @@ class DeviceHistogramBuilderImpl {
     auto constexpr kMinItemsPerBlock = ItemsPerTile();
 
     auto launcher = [&](auto const& kernel, std::uint32_t grid_size) {
+      CHECK_NE(grid_size, 0);
       grid_size = std::min(grid_size, static_cast<std::uint32_t>(
                                           common::DivRoundUp(items_per_group, kMinItemsPerBlock)));
       dh::LaunchKernel{dim3(grid_size, feature_groups.NumGroups()),  // NOLINT
