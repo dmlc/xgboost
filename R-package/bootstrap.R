@@ -1,4 +1,6 @@
-## Execute git commands to initialie git submodules
+## Script used to bootstrap R-universe build.
+
+## Execute git commands to initialize git submodules
 system("git submodule init")
 system("git submodule update")
 
@@ -6,8 +8,8 @@ system("git submodule update")
 file.copy("../src", "./src/", recursive = TRUE)
 file.copy("../include", "./src/", recursive = TRUE)
 file.copy("../amalgamation", "./src/", recursive = TRUE)
+
 ## dmlc-core
-## mkdir a new directory for dmlc-core
 dir.create("./src/dmlc-core")
 file.copy("../dmlc-core/include", "./src/dmlc-core/", recursive = TRUE)
 file.copy("../dmlc-core/src", "./src/dmlc-core/", recursive = TRUE)
@@ -23,10 +25,12 @@ pkgroot <- function(path) {
 file.copy("../LICENSE", "./LICENSE")
 pkgroot("./src/Makevars.in")
 pkgroot("./src/Makevars.win.in")
+
 ## misc
 path <- file.path("remove_warning_suppression_pragma.sh")
 file.remove(path)
 path <- file.path("CMakeLists.txt")
 file.remove(path)
+
 ## remove the directory recursively ./tests/helper_scripts
 unlink("tests/helper_scripts", recursive = TRUE)
