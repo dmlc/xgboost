@@ -32,6 +32,14 @@ Making a Release
    + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`_ and `Hyunsu Cho <https://github.com/hcho3>`_.
 
 
+R Universe Packages
+-------------------
+
+Since XGBoost 3.0.0, we host the R package on `R-Universe
+<https://dmlc.r-universe.dev/xgboost>`__. To make a new release, change the
+``packages.json`` in `dmlc.r-universe.dev <https://github.com/dmlc/dmlc.r-universe.dev>`__
+with a new release branch.
+
 R CRAN Package
 --------------
 Before submitting a release, one should test the package on `R-hub <https://builder.r-hub.io/>`__ and `win-builder <https://win-builder.r-project.org/>`__ first.  Please note that the R-hub Windows instance doesn't have the exact same environment as the one hosted on win-builder.
