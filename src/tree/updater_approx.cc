@@ -22,7 +22,7 @@
 #include "hist/evaluate_splits.h"            // for HistEvaluator, UpdatePredictionCacheImpl
 #include "hist/expand_entry.h"               // for CPUExpandEntry
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
-#include "hist/param.h"                      // for HistMakerTrainParam
+#include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for GradStats, TrainParam
 #include "xgboost/base.h"                    // for Args, GradientPair, bst_node_t, bst_bin_t

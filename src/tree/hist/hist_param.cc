@@ -1,7 +1,7 @@
 /**
  * Copyright 2021-2024, XGBoost Contributors
  */
-#include "param.h"
+#include "hist_param.h"
 
 #include <ios>     // for binary
 #include <string>  // for string

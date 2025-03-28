@@ -30,7 +30,7 @@
 #include "../../../../src/tree/hist/expand_entry.h"       // for CPUExpandEntry
 #include "../../../../src/tree/hist/hist_cache.h"         // for BoundedHistCollection
 #include "../../../../src/tree/hist/histogram.h"          // for HistogramBuilder
-#include "../../../../src/tree/hist/param.h"              // for HistMakerTrainParam
+#include "../../../../src/tree/hist/hist_param.h"         // for HistMakerTrainParam
 #include "../../categorical_helpers.h"                    // for OneHotEncodeFeature
 #include "../../collective/test_worker.h"                 // for TestDistributedGlobal
 #include "../../helpers.h"                                // for RandomDataGenerator, GenerateRa...
