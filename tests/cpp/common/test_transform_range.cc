@@ -25,7 +25,8 @@ constexpr DeviceOrd TransformDevice() {
 
 template <typename T>
 struct TestTransformRange {
-  void XGBOOST_DEVICE operator()(std::size_t _idx, Span<float> _out, Span<const float> _in) {
+  template <class kBoolConst>
+  void XGBOOST_DEVICE operator()(std::size_t _idx, kBoolConst has_fp64_support, Span<float> _out, Span<const float> _in) {
     _out[_idx] = _in[_idx];
   }
 };
@@ -59,7 +60,7 @@ TEST(TransformDeathTest, Exception) {
   const HostDeviceVector<float> in_vec{h_in, DeviceOrd::CPU()};
   EXPECT_DEATH(
       {
-        Transform<>::Init([](size_t idx, common::Span<float const> _in) { _in[idx + 1]; },
+        Transform<>::Init([](size_t idx, auto has_fp64_support, common::Span<float const> _in) { _in[idx + 1]; },
                           Range(0, static_cast<Range::DifferenceType>(kSize)), AllThreadsForTest(),
                           DeviceOrd::CPU())
             .Eval(&in_vec);

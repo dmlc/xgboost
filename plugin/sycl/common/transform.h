@@ -20,13 +20,24 @@ void LaunchSyclKernel(DeviceOrd device, Functor&& _func, xgboost::common::Range 
   auto* qu = device_manager.GetQueue(device);
 
   size_t size = *(_range.end());
-  qu->submit([&](::sycl::handler& cgh) {
-    cgh.parallel_for<>(::sycl::range<1>(size),
-                       [=](::sycl::id<1> pid) {
-      const size_t idx = pid[0];
-      const_cast<Functor&&>(_func)(idx, _spans...);
-    });
-  }).wait();
+  const bool has_fp64_support = qu->get_device().has(::sycl::aspect::fp64);
+  if (has_fp64_support) {
+    qu->submit([&](::sycl::handler& cgh) {
+      cgh.parallel_for<>(::sycl::range<1>(size),
+                        [=](::sycl::id<1> pid) {
+        const size_t idx = pid[0];
+        const_cast<Functor&&>(_func)(idx, std::true_type(), _spans...);
+      });
+    }).wait();
+  } else {
+    qu->submit([&](::sycl::handler& cgh) {
+      cgh.parallel_for<>(::sycl::range<1>(size),
+                        [=](::sycl::id<1> pid) {
+        const size_t idx = pid[0];
+        const_cast<Functor&&>(_func)(idx, std::false_type(), _spans...);
+      });
+    }).wait();
+  }
 }
 
 }  // namespace common
