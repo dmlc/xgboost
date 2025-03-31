@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
@@ -9,7 +9,7 @@
 
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for RowPartitioner
-#include "../../../../src/tree/hist/param.h"                  // for HistMakerTrainParam
+#include "../../../../src/tree/hist/hist_param.h"             // for HistMakerTrainParam
 #include "../../../../src/tree/param.h"                       // for TrainParam
 #include "../../categorical_helpers.h"                        // for OneHotEncodeFeature
 #include "../../helpers.h"
