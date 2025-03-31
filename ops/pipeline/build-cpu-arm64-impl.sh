@@ -10,7 +10,9 @@ echo "--- Build libxgboost from the source"
 mkdir -p build
 pushd build
 cmake --version
-cmake .. \
+which cmake
+
+/opt/miniforge/envs/aarch64_test/bin/cmake .. \
   -GNinja \
   -DCMAKE_PREFIX_PATH="${CONDA_PREFIX}" \
   -DUSE_OPENMP=ON \
