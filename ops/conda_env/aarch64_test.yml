@@ -1,0 +1,35 @@
+name: aarch64_test
+channels:
+- conda-forge
+dependencies:
+- python=3.10
+- pip
+- wheel
+- pytest
+- pytest-cov
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- matplotlib
+- dask
+- distributed
+- hypothesis
+- graphviz
+- python-graphviz
+- codecov
+- cmake
+- ninja
+- boto3
+- jsonschema
+- boto3
+- awscli
+- numba
+- llvmlite
+- loky>=3.5.1
+- pyarrow
+- pyspark>=3.4.0
+- cloudpickle
+- pip:
+  - awscli
+  - auditwheel
