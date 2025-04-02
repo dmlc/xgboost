@@ -3,7 +3,7 @@ channels:
 - conda-forge
 dependencies:
 - python=3.10
-- cmake
+- cmake>=3.26.4
 - c-compiler
 - cxx-compiler
 - ninja
