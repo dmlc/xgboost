@@ -17,7 +17,7 @@
 #include "xgboost/span.h"            // for Span
 
 namespace xgboost::common {
-void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold) {
+void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads) {
   auto const nfeature = gmat.Features();
   const size_t nrow = gmat.Size();
   // identify type of each column
@@ -61,10 +61,10 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
   auto storage_size =
       feature_offsets_.back() * static_cast<std::underlying_type_t<BinTypeSize>>(bins_type_size_);
 
-  index_ = common::MakeFixedVecWithMalloc(storage_size, std::uint8_t{0});
+  index_ = common::MakeFixedVecWithMalloc(storage_size, std::uint8_t{0}, n_threads);
 
   if (!all_dense_column) {
-    row_ind_ = common::MakeFixedVecWithMalloc(feature_offsets_[nfeature], std::size_t{0});
+    row_ind_ = common::MakeFixedVecWithMalloc(feature_offsets_[nfeature], std::size_t{0}, n_threads);
   }
 
   // store least bin id for each feature

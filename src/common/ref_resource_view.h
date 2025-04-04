@@ -164,6 +164,30 @@ template <typename T>
   return ref;
 }
 
+/**
+ * @brief Make a fixed size `RefResourceView` with malloc resource.
+ * Use n_threads to initilise the storage
+ */
+template <typename T>
+[[nodiscard]] RefResourceView<T> MakeFixedVecWithMalloc(std::size_t n_elements, T const& init,
+                                                        int n_threads) {
+  if (n_elements < n_threads) return MakeFixedVecWithMalloc(n_elements, init);
+
+  auto resource = std::make_shared<common::MallocResource>(n_elements * sizeof(T));
+  auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
+
+  size_t block_size = n_elements / n_threads + (n_elements % n_threads > 0);
+  #pragma omp parallel num_threads(n_threads)
+  {
+    int tid = omp_get_thread_num();
+    auto begin = tid * block_size;
+    auto end = std::min((tid + 1) * block_size, n_elements);
+    auto size = end > begin ? end - begin : 0;
+    std::fill_n(ref.data() + begin, size, init);
+  }
+  return ref;
+}
+
 template <typename T>
 class ReallocVector : public RefResourceView<T> {
   static_assert(!std::is_reference_v<T>);

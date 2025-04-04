@@ -195,7 +195,7 @@ class ColumnMatrix {
     }
   };
 
-  void InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold);
+  void InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads);
 
   template <typename ColumnBinT, typename BinT, typename RIdx>
   void SetBinSparse(BinT bin_id, RIdx rid, bst_feature_t fid, ColumnBinT* local_index) {
@@ -214,6 +214,22 @@ class ColumnMatrix {
     }
   }
 
+  template <typename ColumnBinT, typename BinT, typename RIdx>
+  void SetBinSparse(BinT bin_id, RIdx rid, bst_feature_t fid, ColumnBinT* local_index, size_t nnz) {
+    if (type_[fid] == kDenseColumn) {
+      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+      begin[rid] = bin_id - index_base_[fid];
+      // not thread-safe with bit field.
+      // FIXME(jiamingy): We can directly assign kMissingId to the index to avoid missing
+      // flags.
+      missing_.SetValid(feature_offsets_[fid] + rid);
+    } else {
+      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+      begin[nnz] = bin_id - index_base_[fid];
+      row_ind_[feature_offsets_[fid] + nnz] = rid;
+    }
+  }
+
  public:
   // get number of features
   [[nodiscard]] bst_feature_t GetNumFeature() const {
@@ -221,8 +237,8 @@ class ColumnMatrix {
   }
 
   ColumnMatrix() = default;
-  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold) {
-    this->InitStorage(gmat, sparse_threshold);
+  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads) {
+    this->InitStorage(gmat, sparse_threshold, n_threads);
   }
 
   /**
@@ -232,7 +248,7 @@ class ColumnMatrix {
   void InitFromSparse(SparsePage const& page, const GHistIndexMatrix& gmat, double sparse_threshold,
                       int32_t n_threads) {
     auto batch = data::SparsePageAdapterBatch{page.GetView()};
-    this->InitStorage(gmat, sparse_threshold);
+    this->InitStorage(gmat, sparse_threshold, n_threads);
     // ignore base row id here as we always has one column matrix for each sparse page.
     this->PushBatch(n_threads, batch, std::numeric_limits<float>::quiet_NaN(), gmat, 0);
   }
@@ -283,7 +299,7 @@ class ColumnMatrix {
         SetIndexNoMissing(base_rowid, gmat.index.data<RowBinIdxT>(), size, n_features, n_threads);
       });
     } else {
-      SetIndexMixedColumns(base_rowid, batch, gmat, missing);
+      SetIndexMixedColumns(base_rowid, batch, gmat, missing, n_threads);
     }
   }
 
@@ -349,7 +365,7 @@ class ColumnMatrix {
    */
   template <typename Batch>
   void SetIndexMixedColumns(size_t base_rowid, Batch const& batch, const GHistIndexMatrix& gmat,
-                            float missing) {
+                            float missing, int n_threads) {
     auto n_features = gmat.Features();
 
     missing_.GrowTo(feature_offsets_[n_features], true);
@@ -366,19 +382,65 @@ class ColumnMatrix {
       using ColumnBinT = decltype(t);
       ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
       size_t const batch_size = batch.Size();
-      size_t k{0};
-      for (size_t rid = 0; rid < batch_size; ++rid) {
-        auto line = batch.GetLine(rid);
-        for (size_t i = 0; i < line.Size(); ++i) {
-          auto coo = line.GetElement(i);
-          if (is_valid(coo)) {
-            auto fid = coo.column_idx;
-            const uint32_t bin_id = row_index[k];
-            SetBinSparse(bin_id, rid + base_rowid, fid, local_index);
-            ++k;
+
+      dmlc::OMPException exc;
+      std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);
+      std::vector<size_t> k_offsets(n_threads + 1, 0);
+      size_t block_size = DivRoundUp(batch_size, n_threads);
+      #pragma omp parallel num_threads(n_threads)
+      {
+        exc.Run([&]() {
+          int tid = omp_get_thread_num();
+          size_t begin = block_size * tid;
+          size_t end = std::min(begin + block_size, batch_size);
+          for (size_t rid = begin; rid < end; ++rid) {
+            const auto& line = batch.GetLine(rid);
+            for (size_t i = 0; i < line.Size(); ++i) {
+              auto coo = line.GetElement(i);
+              if (is_valid(coo)) {
+                auto fid = coo.column_idx;
+                n_elements[(tid + 1) * n_features + fid] += 1;
+                k_offsets[tid + 1] += 1;
+              }
+            }
           }
-        }
+        });
       }
+      exc.Rethrow();
+
+      ParallelFor(n_features, n_threads, [&](auto fid) {
+        for (int tid = 0; tid < n_threads; ++tid) {
+          n_elements[(tid + 1) * n_features + fid] +=
+            n_elements[tid * n_features + fid];
+        }
+        num_nonzeros_[fid] = n_elements[n_threads * n_features + fid];
+      });
+      std::partial_sum(k_offsets.cbegin(), k_offsets.cend(), k_offsets.begin());
+
+      #pragma omp parallel num_threads(n_threads)
+      {
+        exc.Run([&]() {
+          int tid = omp_get_thread_num();
+          size_t begin = block_size * tid;
+          size_t end = std::min(begin + block_size, batch_size);
+          size_t k = 0; 
+          for (size_t rid = begin; rid < end; ++rid) {
+            const auto& line = batch.GetLine(rid);
+            for (size_t i = 0; i < line.Size(); ++i) {
+              auto coo = line.GetElement(i);
+              if (is_valid(coo)) {
+                auto fid = coo.column_idx;
+                const uint32_t bin_id = row_index[k_offsets[tid] + k];
+                size_t& nnz = n_elements[tid * n_features + fid];
+                SetBinSparse(bin_id, rid + base_rowid, fid, local_index, nnz);
+                ++k;
+                ++nnz;
+              }
+            }
+          }
+        });
+      }
+      exc.Rethrow();
     });
   }
 
