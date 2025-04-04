@@ -41,7 +41,7 @@ bool ArrayInterfaceHandler::IsCudaPtr(void const* ptr) {
   cudaPointerAttributes attr;
   auto err = cudaPointerGetAttributes(&attr, ptr);
   // reset error
-  CHECK_EQ(err, cudaGetLastError());
+  cudaGetLastError();
   if (err == cudaErrorInvalidValue) {
     // CUDA < 11
     return false;
