@@ -475,9 +475,9 @@ struct GPUHistMakerDevice {
     AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
     auto prefetch_copy = !build_nidx.empty();
     bst_idx_t n_samples = 0;
-    for (auto nidx : build_nidx) {
+    for (auto const c : candidates) {
       for (auto const& part : this->partitioners_) {
-        n_samples += part->GetRows(nidx).size();
+        n_samples += part->GetRows(c.nid).size();
       }
     }
     prefetch_copy = prefetch_copy && n_samples * 4 > p_fmat->Info().num_row_;
