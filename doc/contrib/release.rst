@@ -21,16 +21,24 @@ Making a Release
 3. Commit the change, create a PR on GitHub on release branch.  Port the bumped version to default branch, optionally with the postfix ``SNAPSHOT``.
 4. Create a tag on release branch, either on GitHub or locally.
 5. Make a release on GitHub tag page, which might be done with previous step if the tag is created on GitHub.
-6. Submit pip, CRAN, and Maven packages.
+6. Submit pip, R-universe, CRAN, and Maven packages.
 
    There are helper scripts for automating the process in ``xgboost/dev/``.
 
    + The pip package is maintained by `Hyunsu Cho <https://github.com/hcho3>`__ and `Jiaming Yuan <https://github.com/trivialfis>`__.
 
-   + The CRAN package is maintained by `Tong He <https://github.com/hetong007>`_ and `Jiaming Yuan <https://github.com/trivialfis>`__.
+   + The CRAN package and the R-universe packages are maintained by `Jiaming Yuan <https://github.com/trivialfis>`__.
 
    + The Maven package is maintained by `Nan Zhu <https://github.com/CodingCat>`_ and `Hyunsu Cho <https://github.com/hcho3>`_.
 
+
+R Universe Packages
+-------------------
+
+Since XGBoost 3.0.0, we host the R package on `R-Universe
+<https://dmlc.r-universe.dev/xgboost>`__. To make a new release, change the
+``packages.json`` in `dmlc.r-universe.dev <https://github.com/dmlc/dmlc.r-universe.dev>`__
+with a new release branch.
 
 R CRAN Package
 --------------
@@ -42,7 +50,17 @@ According to the `CRAN policy <https://cran.r-project.org/web/packages/policies.
 
 We need to check the number of CPUs used in examples. Export ``_R_CHECK_EXAMPLE_TIMING_CPU_TO_ELAPSED_THRESHOLD_=2.5`` before running ``R CMD check --as-cran`` `[1] <#references>`__ and make sure the machine you are using has enough CPU cores to reveal any potential policy violation.
 
+Read The Docs
+-------------
+
+We might need to manually activate the new release branch for `read the docs
+<https://xgboost.readthedocs.io/>`__ and set it as the default branch in the console `[2]
+<#references>`__. Please check the document build and make sure the correct branch is
+activated and selected after making a new release.
+
 References
 ----------
 
 [1] https://stat.ethz.ch/pipermail/r-package-devel/2022q4/008610.html
+
+[2] https://github.com/readthedocs/readthedocs.org/issues/12073

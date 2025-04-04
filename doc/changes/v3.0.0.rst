@@ -292,11 +292,15 @@ R Package
 *********
 
 We have been reworking the R package for a few releases now. In 3.0, we will start
-publishing a new R package on public repositories, likely R-universe, before moving toward
-a CRAN update. The new package features a much more ergonomic interface, which is also
-more idiomatic to R speakers. In addition, a range of new features are introduced to the
-package. To name a few, the new package includes categorical feature support,
-``QuantileDMatrix``, and an initial implementation of the external memory training.
+publishing a new R package on R-universe, before moving toward a CRAN update. The new
+package features a much more ergonomic interface, which is also more idiomatic to R
+speakers. In addition, a range of new features are introduced to the package. To name a
+few, the new package includes categorical feature support, ``QuantileDMatrix``, and an
+initial implementation of the external memory training. To test the new package:
+
+.. code-block:: R
+
+  install.packages('xgboost', repos = c('https://dmlc.r-universe.dev', 'https://cloud.r-project.org'))
 
 Also, we finally have an online documentation site for the R package featuring both
 vignettes and API references (:pr:`11166`, :pr:`11257`). A good starting point for the new interface

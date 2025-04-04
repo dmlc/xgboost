@@ -9,6 +9,7 @@ source activate aarch64_test
 echo "--- Build libxgboost from the source"
 mkdir -p build
 pushd build
+
 cmake .. \
   -GNinja \
   -DCMAKE_PREFIX_PATH="${CONDA_PREFIX}" \
