@@ -718,7 +718,7 @@ struct GPUHistMakerDevice {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const* task,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
     // Process maximum 32 nodes at a time
-    Driver<GPUExpandEntry> driver(param, 32);
+    Driver<GPUExpandEntry> driver{param, 256};
 
     p_fmat = this->Reset(gpair_all, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
