@@ -12,7 +12,6 @@
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"
-#include "../collective/broadcast.h"   // for Broadcast
 #include "../common/categorical.h"     // for KCatBitField
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for CheckComputeCapability
@@ -475,6 +474,13 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
     AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
     auto prefetch_copy = !build_nidx.empty();
+    bst_idx_t n_samples = 0;
+    for (auto nidx : build_nidx) {
+      for (auto const& part : this->partitioners_) {
+        n_samples += part->GetRows(nidx).size();
+      }
+    }
+    prefetch_copy = prefetch_copy && n_samples * 4 > p_fmat->Info().num_row_;
 
     this->histogram_.AllocateHistograms(ctx_, build_nidx, subtraction_nidx);
 
