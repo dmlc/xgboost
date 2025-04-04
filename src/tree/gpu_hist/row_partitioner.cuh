@@ -21,7 +21,7 @@ namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
 // TODO(Rory): Can be larger. To be tuned alongside other batch operations.
-static const std::int32_t kMaxUpdatePositionBatchSize = 32;
+static const std::int32_t kMaxUpdatePositionBatchSize = 256;
 }  // namespace cuda_impl
 
 /**
