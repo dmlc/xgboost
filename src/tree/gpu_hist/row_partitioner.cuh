@@ -37,7 +37,7 @@ struct Segment {
   Segment(cuda_impl::RowIndexT begin, cuda_impl::RowIndexT end) : begin(begin), end(end) {
     CHECK_GE(end, begin);
   }
-  __host__ __device__ bst_idx_t Size() const { return end - begin; }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t Size() const { return end - begin; }
 };
 
 template <typename OpDataT>
@@ -46,28 +46,30 @@ struct PerNodeData {
   OpDataT data;
 };
 
-template <typename BatchIterT>
-XGBOOST_DEV_INLINE void AssignBatch(BatchIterT batch_info, std::size_t global_thread_idx,
-                                    int* batch_idx, std::size_t* item_idx) {
+template <typename T>
+XGBOOST_DEV_INLINE void AssignBatch(dh::LDGIterator<T> const& batch_info_iter,
+                                    std::size_t global_thread_idx, int* batch_idx,
+                                    std::size_t* item_idx) {
   cuda_impl::RowIndexT sum = 0;
-  for (int i = 0; i < cuda_impl::kMaxUpdatePositionBatchSize; i++) {
-    if (sum + batch_info[i].segment.Size() > global_thread_idx) {
+  for (std::int32_t i = 0; i < cuda_impl::kMaxUpdatePositionBatchSize; i++) {
+    if (sum + batch_info_iter[i].segment.Size() > global_thread_idx) {
       *batch_idx = i;
-      *item_idx = (global_thread_idx - sum) + batch_info[i].segment.begin;
+      *item_idx = (global_thread_idx - sum) + batch_info_iter[i].segment.begin;
       break;
     }
-    sum += batch_info[i].segment.Size();
+    sum += batch_info_iter[i].segment.Size();
   }
 }
 
 template <int kBlockSize, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void SortPositionCopyKernel(
-    dh::LDGIterator<PerNodeData<OpDataT>> batch_info, common::Span<cuda_impl::RowIndexT> d_ridx,
-    const common::Span<const cuda_impl::RowIndexT> ridx_tmp, bst_idx_t total_rows) {
+    dh::LDGIterator<PerNodeData<OpDataT>> batch_info_iter,
+    common::Span<cuda_impl::RowIndexT> d_ridx,
+    common::Span<cuda_impl::RowIndexT const> const ridx_tmp, bst_idx_t total_rows) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, total_rows)) {
-    int batch_idx;
-    std::size_t item_idx;
-    AssignBatch(batch_info, idx, &batch_idx, &item_idx);
+    std::int32_t batch_idx = -1;
+    std::size_t item_idx = std::numeric_limits<std::size_t>::max();
+    AssignBatch(batch_info_iter, idx, &batch_idx, &item_idx);
     d_ridx[item_idx] = ridx_tmp[item_idx];
   }
 }
@@ -134,6 +136,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
                        common::Span<cuda_impl::RowIndexT> ridx_tmp,
                        common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
                        dh::DeviceUVector<int8_t>* tmp) {
+  std::cout << "d_batch_info:" << d_batch_info.size() << std::endl;
   dh::LDGIterator<PerNodeData<OpDataT>> batch_info_itr(d_batch_info.data());
   WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
                                              d_counts.data()};
@@ -143,7 +146,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   auto counting = thrust::make_counting_iterator(0llu);
   auto input_iterator =
       dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(std::size_t idx) {
-        int nidx_in_batch;
+        std::int32_t nidx_in_batch;
         std::size_t item_idx;
         AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
         auto go_left = op(ridx[item_idx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
