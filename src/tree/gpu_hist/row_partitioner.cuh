@@ -341,27 +341,45 @@ class RowPartitioner {
     dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
                                   h_batch_info.size_bytes(), cudaMemcpyDefault,
                                   ctx->CUDACtx()->Stream()));
-    // Temporary arrays
-    auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
-    // Must initialize with 0 as 0 count is not written in the kernel.
-    dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
     // Process a sub-batch
     auto sub_batch_impl = [ctx, op, this](common::Span<bst_node_t const> nidx,
                                           common::Span<bst_node_t const> left_nidx,
                                           common::Span<bst_node_t const> right_nidx,
-                                          common::Span<PerNodeData<OpDataT>> d_batch_info,
-                                          common::Span<RowIndexT> d_counts) {
+                                          common::Span<PerNodeData<OpDataT>> d_batch_info) {
       std::size_t total_rows = 0;
       for (bst_node_t i : nidx) {
-        total_rows += this->ridx_segments_[i].segment.Size();
+        total_rows += ridx_segments_[i].segment.Size();
       }
 
-      // Partition the rows according to the operator
-      SortPositionBatch<UpdatePositionOpT, OpDataT>(
-          ctx, d_batch_info, dh::ToSpan(this->ridx_), dh::ToSpan(this->ridx_tmp_),
-          dh::ToSpan(d_counts), total_rows, op, &this->tmp_);
+      // Temporary arrays
+      auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
+      // Must initialize with 0 as 0 count is not written in the kernel.
+      dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
+      // Partition the rows according to the operator
+      SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, d_batch_info, dh::ToSpan(ridx_),
+                                                    dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
+                                                    total_rows, op, &tmp_);
+      dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
+                                    cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
+      // TODO(Rory): this synchronisation hurts performance a lot
+      // Future optimisation should find a way to skip this
+      ctx->CUDACtx()->Stream().Sync();
+
+      // Update segments
+      for (std::size_t i = 0; i < nidx.size(); i++) {
+        auto segment = ridx_segments_.at(nidx[i]).segment;
+        auto left_count = h_counts[i];
+        CHECK_LE(left_count, segment.Size());
+        ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
+                                       std::max(left_nidx[i], right_nidx[i]) + 1));
+        ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
+        ridx_segments_[left_nidx[i]] =
+            NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
+        ridx_segments_[right_nidx[i]] =
+            NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
+      }
     };
 
     // Divide inputs into sub-batches.
@@ -373,28 +391,7 @@ class RowPartitioner {
       auto left_batch = common::Span{left_nidx}.subspan(batch_begin, batch_size);
       auto right_batch = common::Span{right_nidx}.subspan(batch_begin, batch_size);
       auto d_info_batch = dh::ToSpan(d_batch_info).subspan(batch_begin, batch_size);
-      auto d_counts_batch = dh::ToSpan(d_counts).subspan(batch_begin, batch_size);
-      sub_batch_impl(nidx_batch, left_batch, right_batch, d_info_batch, d_counts_batch);
-    }
-
-    dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
-                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
-    // TODO(Rory): this synchronisation hurts performance a lot
-    // Future optimisation should find a way to skip this
-    ctx->CUDACtx()->Stream().Sync();
-
-    // Update segments
-    for (std::size_t i = 0; i < nidx.size(); i++) {
-      auto segment = ridx_segments_.at(nidx[i]).segment;
-      auto left_count = h_counts[i];
-      CHECK_LE(left_count, segment.Size());
-      ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
-                                     std::max(left_nidx[i], right_nidx[i]) + 1));
-      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
-      ridx_segments_[left_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
-      ridx_segments_[right_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
+      sub_batch_impl(nidx_batch, left_batch, right_batch, d_info_batch);
     }
   }
 
