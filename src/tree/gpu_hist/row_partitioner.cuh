@@ -46,14 +46,23 @@ struct PerNodeData {
   OpDataT data;
 };
 
+/**
+ * @param global_thread_idx In practice, the row index within the total number of rows for
+ *        this node batch.
+ * @param batch_idx The nidx within this node batch (not the actual node index in a tree).
+ * @param item_idx The resulting global row index (without accounting for base_rowid). This maps the
+ *        row index within the node batch back to the global row index.
+ */
 template <typename T>
 XGBOOST_DEV_INLINE void AssignBatch(dh::LDGIterator<T> const& batch_info_iter,
                                     std::size_t global_thread_idx, int* batch_idx,
                                     std::size_t* item_idx) {
   cuda_impl::RowIndexT sum = 0;
+  // Search for the nidx in batch and the corresponding global row index, exit once found.
   for (std::int32_t i = 0; i < cuda_impl::kMaxUpdatePositionBatchSize; i++) {
     if (sum + batch_info_iter[i].segment.Size() > global_thread_idx) {
       *batch_idx = i;
+      // the beginning of the segment plus the offset into that segment
       *item_idx = (global_thread_idx - sum) + batch_info_iter[i].segment.begin;
       break;
     }
@@ -61,13 +70,16 @@ XGBOOST_DEV_INLINE void AssignBatch(dh::LDGIterator<T> const& batch_info_iter,
   }
 }
 
+/**
+ * @param total_rows The total number of rows for this batch of nodes.
+ */
 template <int kBlockSize, typename OpDataT>
 __global__ __launch_bounds__(kBlockSize) void SortPositionCopyKernel(
     dh::LDGIterator<PerNodeData<OpDataT>> batch_info_iter,
     common::Span<cuda_impl::RowIndexT> d_ridx,
     common::Span<cuda_impl::RowIndexT const> const ridx_tmp, bst_idx_t total_rows) {
   for (auto idx : dh::GridStrideRange<std::size_t>(0, total_rows)) {
-    std::int32_t batch_idx = -1;
+    std::int32_t batch_idx;  // unused
     std::size_t item_idx = std::numeric_limits<std::size_t>::max();
     AssignBatch(batch_info_iter, idx, &batch_idx, &item_idx);
     d_ridx[item_idx] = ridx_tmp[item_idx];
@@ -147,10 +159,10 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   auto input_iterator =
       dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(std::size_t idx) {
         std::int32_t nidx_in_batch;
-        std::size_t item_idx;
-        AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
-        auto go_left = op(ridx[item_idx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
-        return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
+        std::size_t global_ridx;
+        AssignBatch(batch_info_itr, idx, &nidx_in_batch, &global_ridx);
+        auto go_left = op(ridx[global_ridx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
+        return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(global_ridx), go_left, nidx_in_batch,
                               go_left};
       });
   // Avoid using int as the offset type
@@ -308,10 +320,10 @@ class RowPartitioner {
    * second. Returns true if this training instance goes on the left partition.
    */
   template <typename UpdatePositionOpT, typename OpDataT>
-  void UpdatePositionBatch(Context const* ctx, const std::vector<bst_node_t>& nidx,
-                           const std::vector<bst_node_t>& left_nidx,
-                           const std::vector<bst_node_t>& right_nidx,
-                           const std::vector<OpDataT>& op_data, UpdatePositionOpT op) {
+  void UpdatePositionBatch(Context const* ctx, std::vector<bst_node_t> const& nidx,
+                           std::vector<bst_node_t> const& left_nidx,
+                           std::vector<bst_node_t> const& right_nidx,
+                           std::vector<OpDataT> const& op_data, UpdatePositionOpT op) {
     if (nidx.empty()) {
       return;
     }
@@ -321,17 +333,18 @@ class RowPartitioner {
     CHECK_EQ(nidx.size(), op_data.size());
     this->n_nodes_ += (left_nidx.size() + right_nidx.size());
 
-    auto h_batch_info = pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
+    common::Span<PerNodeData<OpDataT>> h_batch_info =
+        pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
     dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
 
     std::size_t total_rows = 0;
-    for (size_t i = 0; i < nidx.size(); i++) {
-      h_batch_info[i] = {ridx_segments_.at(nidx.at(i)).segment, op_data.at(i)};
-      total_rows += ridx_segments_.at(nidx.at(i)).segment.Size();
+    for (std::size_t i = 0; i < nidx.size(); i++) {
+      h_batch_info[i] = {ridx_segments_.at(nidx[i]).segment, op_data.at(i)};
+      total_rows += ridx_segments_.at(nidx[i]).segment.Size();
     }
     dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
-                                  h_batch_info.size() * sizeof(PerNodeData<OpDataT>),
-                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
+                                  h_batch_info.size_bytes(), cudaMemcpyDefault,
+                                  ctx->CUDACtx()->Stream()));
 
     // Temporary arrays
     auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
