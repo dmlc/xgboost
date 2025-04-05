@@ -331,24 +331,28 @@ class RowPartitioner {
     CHECK_EQ(nidx.size(), right_nidx.size());
     CHECK_EQ(nidx.size(), op_data.size());
     this->n_nodes_ += (left_nidx.size() + right_nidx.size());
+    common::Span<PerNodeData<OpDataT>> h_batch_info =
+        pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
+    dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
+
+    for (std::size_t i = 0; i < nidx.size(); i++) {
+      h_batch_info[i] = {ridx_segments_.at(nidx[i]).segment, op_data[i]};
+    }
+    dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
+                                  h_batch_info.size_bytes(), cudaMemcpyDefault,
+                                  ctx->CUDACtx()->Stream()));
 
     // Process a sub-batch
     auto sub_batch_impl = [ctx, op, this](common::Span<bst_node_t const> nidx,
                                           common::Span<bst_node_t const> left_nidx,
                                           common::Span<bst_node_t const> right_nidx,
-                                          common::Span<OpDataT const> op_data) {
-      common::Span<PerNodeData<OpDataT>> h_batch_info =
-          pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
-      dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
-
+                                          common::Span<OpDataT const> op_data,
+                                          common::Span<PerNodeData<OpDataT>> h_batch_info,
+                                          common::Span<PerNodeData<OpDataT>> d_batch_info) {
       std::size_t total_rows = 0;
-      for (std::size_t i = 0; i < nidx.size(); i++) {
-        h_batch_info[i] = {ridx_segments_.at(nidx[i]).segment, op_data[i]};
-        total_rows += ridx_segments_[nidx[i]].segment.Size();
+      for (bst_node_t i : nidx) {
+        total_rows += ridx_segments_[i].segment.Size();
       }
-      dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
-                                    h_batch_info.size_bytes(), cudaMemcpyDefault,
-                                    ctx->CUDACtx()->Stream()));
 
       // Temporary arrays
       auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
@@ -356,9 +360,9 @@ class RowPartitioner {
       dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
       // Partition the rows according to the operator
-      SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info),
-                                                    dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_),
-                                                    dh::ToSpan(d_counts), total_rows, op, &tmp_);
+      SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, d_batch_info, dh::ToSpan(ridx_),
+                                                    dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
+                                                    total_rows, op, &tmp_);
       dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
                                     cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
       // TODO(Rory): this synchronisation hurts performance a lot
@@ -389,7 +393,9 @@ class RowPartitioner {
       auto left_batch = common::Span{left_nidx}.subspan(batch_begin, batch_size);
       auto right_batch = common::Span{right_nidx}.subspan(batch_begin, batch_size);
       auto opdata_batch = common::Span{op_data}.subspan(batch_begin, batch_size);
-      sub_batch_impl(nidx_batch, left_batch, right_batch, opdata_batch);
+      auto h_info_batch = h_batch_info.subspan(batch_begin, batch_size);
+      auto d_info_batch = dh::ToSpan(d_batch_info).subspan(batch_begin, batch_size);
+      sub_batch_impl(nidx_batch, left_batch, right_batch, opdata_batch, h_info_batch, d_info_batch);
     }
   }
 
