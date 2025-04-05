@@ -55,6 +55,7 @@ using xgboost::cuda_impl::StaticBatch;
 namespace {
 // Use a large number to handle external memory with deep trees.
 inline constexpr std::size_t kMaxNodeBatchSize = 1024;
+inline constexpr std::size_t kNeedCopyThreshold = 4;
 }  // anonymous namespace
 
 // Extra data for each node that is passed to the update position function
@@ -456,6 +457,18 @@ struct GPUHistMakerDevice {
     }
   };
 
+  // Heuristic to avoid copying the data batch.
+  [[nodiscard]] bool NeedCopy(std::vector<GPUExpandEntry> const& candidates,
+                              bst_idx_t n_total_samples) const {
+    bst_idx_t n_samples = 0;
+    for (auto const& c : candidates) {
+      for (auto const& part : this->partitioners_) {
+        n_samples += part->GetRows(c.nid).size();
+      }
+    }
+    return n_samples * kNeedCopyThreshold > n_total_samples;
+  }
+
   // Update position and build histogram.
   void PartitionAndBuildHist(DMatrix* p_fmat, std::vector<GPUExpandEntry> const& expand_set,
                              std::vector<GPUExpandEntry> const& candidates, RegTree const* p_tree) {
@@ -478,14 +491,7 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
     AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
-    auto prefetch_copy = !build_nidx.empty();
-    bst_idx_t n_samples = 0;
-    for (auto const& c : candidates) {
-      for (auto const& part : this->partitioners_) {
-        n_samples += part->GetRows(c.nid).size();
-      }
-    }
-    prefetch_copy = prefetch_copy && n_samples * 4 > p_fmat->Info().num_row_;
+    auto prefetch_copy = !build_nidx.empty() && this->NeedCopy(candidates, p_fmat->Info().num_row_);
 
     this->histogram_.AllocateHistograms(ctx_, build_nidx, subtraction_nidx);
 
