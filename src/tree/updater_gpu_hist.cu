@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <thrust/functional.h>  // for plus
 #include <thrust/transform.h>   // for transform

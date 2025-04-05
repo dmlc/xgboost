@@ -1,15 +1,15 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #pragma once
-#include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>          // for make_counting_iterator
 #include <thrust/iterator/transform_output_iterator.h>  // for make_transform_output_iterator
 
-#include <algorithm>  // for max
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t, uint32_t
-#include <vector>     // for vector
+#include <algorithm>        // for max
+#include <cstddef>          // for size_t
+#include <cstdint>          // for int32_t, uint32_t
+#include <cuda/functional>  // for proclaim_return_type
+#include <vector>           // for vector
 
 #include "../../common/cuda_context.cuh"    // for CUDAContext
 #include "../../common/device_helpers.cuh"  // for MakeTransformIterator
@@ -21,7 +21,7 @@ namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
 // TODO(Rory): Can be larger. To be tuned alongside other batch operations.
-static const std::int32_t kMaxUpdatePositionBatchSize = 256;
+inline constexpr std::int32_t kMaxUpdatePositionBatchSize = 256;
 }  // namespace cuda_impl
 
 /**
@@ -148,7 +148,6 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
                        common::Span<cuda_impl::RowIndexT> ridx_tmp,
                        common::Span<cuda_impl::RowIndexT> d_counts, bst_idx_t total_rows, OpT op,
                        dh::DeviceUVector<int8_t>* tmp) {
-  std::cout << "d_batch_info:" << d_batch_info.size() << std::endl;
   dh::LDGIterator<PerNodeData<OpDataT>> batch_info_itr(d_batch_info.data());
   WriteResultsFunctor<OpDataT> write_results{batch_info_itr, ridx.data(), ridx_tmp.data(),
                                              d_counts.data()};
@@ -156,15 +155,15 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(dh::TypedDiscard<IndexFlagTuple>(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
-  auto input_iterator =
-      dh::MakeTransformIterator<IndexFlagTuple>(counting, [=] __device__(std::size_t idx) {
+  auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
+      counting, cuda::proclaim_return_type<IndexFlagTuple>([=] __device__(std::size_t idx) {
         std::int32_t nidx_in_batch;
-        std::size_t global_ridx;
-        AssignBatch(batch_info_itr, idx, &nidx_in_batch, &global_ridx);
-        auto go_left = op(ridx[global_ridx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
-        return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(global_ridx), go_left, nidx_in_batch,
+        std::size_t item_idx;
+        AssignBatch(batch_info_itr, idx, &nidx_in_batch, &item_idx);
+        auto go_left = op(ridx[item_idx], nidx_in_batch, batch_info_itr[nidx_in_batch].data);
+        return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
                               go_left};
-      });
+      }));
   // Avoid using int as the offset type
   std::size_t n_bytes = 0;
   if (tmp->empty()) {
