@@ -167,6 +167,7 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   // Avoid using int as the offset type
   std::size_t n_bytes = 0;
   if (tmp->empty()) {
+    // fixme: document why this cache is correct.
     auto ret =
         cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
                           cub::NullType, std::int64_t>::Dispatch(nullptr, n_bytes, input_iterator,
