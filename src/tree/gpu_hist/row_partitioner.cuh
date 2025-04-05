@@ -348,8 +348,6 @@ class RowPartitioner {
 
     // Process a sub-batch
     auto sub_batch_impl = [ctx, op, this](common::Span<bst_node_t const> nidx,
-                                          common::Span<bst_node_t const> left_nidx,
-                                          common::Span<bst_node_t const> right_nidx,
                                           common::Span<PerNodeData<OpDataT>> d_batch_info,
                                           common::Span<RowIndexT> d_counts) {
       std::size_t total_rows = 0;
@@ -358,10 +356,9 @@ class RowPartitioner {
       }
 
       // Partition the rows according to the operator
-      SortPositionBatch<UpdatePositionOpT, OpDataT>(
-          ctx, d_batch_info, dh::ToSpan(this->ridx_), dh::ToSpan(this->ridx_tmp_),
-          dh::ToSpan(d_counts), total_rows, op, &this->tmp_);
-
+      SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, d_batch_info, dh::ToSpan(this->ridx_),
+                                                    dh::ToSpan(this->ridx_tmp_), d_counts,
+                                                    total_rows, op, &this->tmp_);
     };
 
     // Divide inputs into sub-batches.
@@ -370,11 +367,9 @@ class RowPartitioner {
       auto constexpr kMax = static_cast<decltype(n)>(cuda_impl::kMaxUpdatePositionBatchSize);
       auto batch_size = std::min(kMax, n - batch_begin);
       auto nidx_batch = common::Span{nidx}.subspan(batch_begin, batch_size);
-      auto left_batch = common::Span{left_nidx}.subspan(batch_begin, batch_size);
-      auto right_batch = common::Span{right_nidx}.subspan(batch_begin, batch_size);
       auto d_info_batch = dh::ToSpan(d_batch_info).subspan(batch_begin, batch_size);
       auto d_counts_batch = dh::ToSpan(d_counts).subspan(batch_begin, batch_size);
-      sub_batch_impl(nidx_batch, left_batch, right_batch, d_info_batch, d_counts_batch);
+      sub_batch_impl(nidx_batch, d_info_batch, d_counts_batch);
     }
 
     dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
