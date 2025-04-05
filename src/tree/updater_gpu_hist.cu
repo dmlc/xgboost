@@ -52,6 +52,11 @@ using cuda_impl::ApproxBatch;
 using cuda_impl::HistBatch;
 using xgboost::cuda_impl::StaticBatch;
 
+namespace {
+// Use a large number to handle external memory with deep trees.
+inline constexpr std::size_t kMaxNodeBatchSize = 1024;
+}  // anonymous namespace
+
 // Extra data for each node that is passed to the update position function
 struct NodeSplitData {
   RegTree::Node split_node;
@@ -717,8 +722,7 @@ struct GPUHistMakerDevice {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const* task,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
-    // Process maximum 32 nodes at a time
-    Driver<GPUExpandEntry> driver{param, cuda_impl::kMaxUpdatePositionBatchSize};
+    Driver<GPUExpandEntry> driver{param, kMaxNodeBatchSize};
 
     p_fmat = this->Reset(gpair_all, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});

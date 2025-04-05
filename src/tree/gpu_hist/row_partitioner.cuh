@@ -21,7 +21,7 @@ namespace xgboost::tree {
 namespace cuda_impl {
 using RowIndexT = std::uint32_t;
 // TODO(Rory): Can be larger. To be tuned alongside other batch operations.
-inline constexpr std::int32_t kMaxUpdatePositionBatchSize = 256;
+inline constexpr std::int32_t kMaxUpdatePositionBatchSize = 32;
 }  // namespace cuda_impl
 
 /**
@@ -332,46 +332,64 @@ class RowPartitioner {
     CHECK_EQ(nidx.size(), op_data.size());
     this->n_nodes_ += (left_nidx.size() + right_nidx.size());
 
-    common::Span<PerNodeData<OpDataT>> h_batch_info =
-        pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
-    dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
+    // Process a sub-batch
+    auto sub_batch_impl = [ctx, op, this](common::Span<bst_node_t const> nidx,
+                                          common::Span<bst_node_t const> left_nidx,
+                                          common::Span<bst_node_t const> right_nidx,
+                                          common::Span<OpDataT const> op_data) {
+      common::Span<PerNodeData<OpDataT>> h_batch_info =
+          pinned2_.GetSpan<PerNodeData<OpDataT>>(nidx.size());
+      dh::TemporaryArray<PerNodeData<OpDataT>> d_batch_info(nidx.size());
 
-    std::size_t total_rows = 0;
-    for (std::size_t i = 0; i < nidx.size(); i++) {
-      h_batch_info[i] = {ridx_segments_.at(nidx[i]).segment, op_data.at(i)};
-      total_rows += ridx_segments_.at(nidx[i]).segment.Size();
-    }
-    dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
-                                  h_batch_info.size_bytes(), cudaMemcpyDefault,
-                                  ctx->CUDACtx()->Stream()));
+      std::size_t total_rows = 0;
+      for (std::size_t i = 0; i < nidx.size(); i++) {
+        h_batch_info[i] = {ridx_segments_.at(nidx[i]).segment, op_data[i]};
+        total_rows += ridx_segments_[nidx[i]].segment.Size();
+      }
+      dh::safe_cuda(cudaMemcpyAsync(d_batch_info.data().get(), h_batch_info.data(),
+                                    h_batch_info.size_bytes(), cudaMemcpyDefault,
+                                    ctx->CUDACtx()->Stream()));
 
-    // Temporary arrays
-    auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
-    // Must initialize with 0 as 0 count is not written in the kernel.
-    dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
+      // Temporary arrays
+      auto h_counts = pinned_.GetSpan<RowIndexT>(nidx.size());
+      // Must initialize with 0 as 0 count is not written in the kernel.
+      dh::TemporaryArray<RowIndexT> d_counts(nidx.size(), 0);
 
-    // Partition the rows according to the operator
-    SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info), dh::ToSpan(ridx_),
-                                                  dh::ToSpan(ridx_tmp_), dh::ToSpan(d_counts),
-                                                  total_rows, op, &tmp_);
-    dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
-                                  cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
-    // TODO(Rory): this synchronisation hurts performance a lot
-    // Future optimisation should find a way to skip this
-    ctx->CUDACtx()->Stream().Sync();
+      // Partition the rows according to the operator
+      SortPositionBatch<UpdatePositionOpT, OpDataT>(ctx, dh::ToSpan(d_batch_info),
+                                                    dh::ToSpan(ridx_), dh::ToSpan(ridx_tmp_),
+                                                    dh::ToSpan(d_counts), total_rows, op, &tmp_);
+      dh::safe_cuda(cudaMemcpyAsync(h_counts.data(), d_counts.data().get(), h_counts.size_bytes(),
+                                    cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
+      // TODO(Rory): this synchronisation hurts performance a lot
+      // Future optimisation should find a way to skip this
+      ctx->CUDACtx()->Stream().Sync();
 
-    // Update segments
-    for (std::size_t i = 0; i < nidx.size(); i++) {
-      auto segment = ridx_segments_.at(nidx[i]).segment;
-      auto left_count = h_counts[i];
-      CHECK_LE(left_count, segment.Size());
-      ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
-                                     std::max(left_nidx[i], right_nidx[i]) + 1));
-      ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
-      ridx_segments_[left_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
-      ridx_segments_[right_nidx[i]] =
-          NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
+      // Update segments
+      for (std::size_t i = 0; i < nidx.size(); i++) {
+        auto segment = ridx_segments_.at(nidx[i]).segment;
+        auto left_count = h_counts[i];
+        CHECK_LE(left_count, segment.Size());
+        ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
+                                       std::max(left_nidx[i], right_nidx[i]) + 1));
+        ridx_segments_[nidx[i]] = NodePositionInfo{segment, left_nidx[i], right_nidx[i]};
+        ridx_segments_[left_nidx[i]] =
+            NodePositionInfo{Segment{segment.begin, segment.begin + left_count}};
+        ridx_segments_[right_nidx[i]] =
+            NodePositionInfo{Segment{segment.begin + left_count, segment.end}};
+      }
+    };
+
+    // Divide inputs into sub-batches.
+    for (std::size_t batch_begin = 0, n = nidx.size(); batch_begin < n;
+         batch_begin += cuda_impl::kMaxUpdatePositionBatchSize) {
+      auto constexpr kMax = static_cast<decltype(n)>(cuda_impl::kMaxUpdatePositionBatchSize);
+      auto batch_size = std::min(kMax, n - batch_begin);
+      auto nidx_batch = common::Span{nidx}.subspan(batch_begin, batch_size);
+      auto left_batch = common::Span{left_nidx}.subspan(batch_begin, batch_size);
+      auto right_batch = common::Span{right_nidx}.subspan(batch_begin, batch_size);
+      auto opdata_batch = common::Span{op_data}.subspan(batch_begin, batch_size);
+      sub_batch_impl(nidx_batch, left_batch, right_batch, opdata_batch);
     }
   }
 
