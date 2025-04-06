@@ -458,14 +458,19 @@ struct GPUHistMakerDevice {
   };
 
   // Heuristic to avoid copying the data batch.
-  [[nodiscard]] bool NeedCopy(std::vector<GPUExpandEntry> const& candidates,
-                              bst_idx_t n_total_samples) const {
+  [[nodiscard]] bool NeedCopy(DMatrix* p_fmat,
+                              std::vector<GPUExpandEntry> const& candidates) const {
+    if (p_fmat->SingleColBlock()) {
+      return true;  // use default if it's in-core
+    }
+    bst_idx_t n_total_samples = p_fmat->Info().num_row_;
     bst_idx_t n_samples = 0;
     for (auto const& c : candidates) {
       for (auto const& part : this->partitioners_) {
         n_samples += part->GetRows(c.nid).size();
       }
     }
+    // avoid copy if the kernel is small.
     return n_samples * kNeedCopyThreshold > n_total_samples;
   }
 
@@ -491,7 +496,7 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
     AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
-    auto prefetch_copy = !build_nidx.empty() && this->NeedCopy(candidates, p_fmat->Info().num_row_);
+    auto prefetch_copy = !build_nidx.empty() && this->NeedCopy(p_fmat, candidates);
 
     this->histogram_.AllocateHistograms(ctx_, build_nidx, subtraction_nidx);
 
