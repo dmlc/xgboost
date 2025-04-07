@@ -44,7 +44,7 @@ pandas = ["pandas>=1.2"]
 scikit-learn = ["scikit-learn"]
 dask = ["dask", "pandas", "distributed"]
 plotting = ["graphviz", "matplotlib"]
-pyspark = ["pyspark", "scikit-learn", "cloudpickle"]
+pyspark = ["pyspark>=3.4", "scikit-learn", "cloudpickle"]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 
