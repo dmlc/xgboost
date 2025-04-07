@@ -13,6 +13,7 @@
 #include <cstdint>  // for uint8_t
 #include <limits>
 #include <memory>
+#include <vector>
 #include <type_traits>  // for enable_if_t, is_same_v, is_signed_v
 
 #include "../data/adapter.h"
@@ -423,7 +424,7 @@ class ColumnMatrix {
           int tid = omp_get_thread_num();
           size_t begin = block_size * tid;
           size_t end = std::min(begin + block_size, batch_size);
-          size_t k = 0; 
+          size_t k = 0;
           for (size_t rid = begin; rid < end; ++rid) {
             const auto& line = batch.GetLine(rid);
             for (size_t i = 0; i < line.Size(); ++i) {
