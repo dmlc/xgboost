@@ -55,7 +55,7 @@ Optional dask configuration
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import partial, update_wrapper, wraps
+from functools import partial, update_wrapper
 from threading import Thread
 from typing import (
     Any,
@@ -354,7 +354,7 @@ class DaskDMatrix:
             label_upper_bound=label_upper_bound,
         )
 
-    def __await__(self) -> Generator:
+    def __await__(self) -> Generator[None, None, "DaskDMatrix"]:
         return self._init.__await__()
 
     async def _map_local_data(
@@ -1490,7 +1490,7 @@ class DaskScikitLearnBase(XGBModel):
             if isinstance(predts, dd.DataFrame):
                 predts = predts.to_dask_array()
         else:
-            test_dmatrix: DaskDMatrix = await DaskDMatrix(  # type: ignore
+            test_dmatrix: DaskDMatrix = await DaskDMatrix(
                 self.client,
                 data=data,
                 base_margin=base_margin,
@@ -1532,7 +1532,7 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix: DaskDMatrix = await DaskDMatrix(  # type: ignore
+        test_dmatrix: DaskDMatrix = await DaskDMatrix(
             self.client,
             data=X,
             missing=self.missing,
