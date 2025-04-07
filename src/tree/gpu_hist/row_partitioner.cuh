@@ -164,10 +164,13 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
         return IndexFlagTuple{static_cast<cuda_impl::RowIndexT>(item_idx), go_left, nidx_in_batch,
                               go_left};
       }));
-  // Avoid using int as the offset type
+  // Reach down to the dispatch function to avoid using int as the offset type.
   std::size_t n_bytes = 0;
   if (tmp->empty()) {
-    // fixme: document why this cache is correct.
+    // The size of temporary storage is calculated based on the total number of
+    // rows. Since the root node has all the rows, subsequence allocatioin must be smaller
+    // than the root node. As a result, we can calculate this once and reuse it throughout
+    // the iteration.
     auto ret =
         cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
                           cub::NullType, std::int64_t>::Dispatch(nullptr, n_bytes, input_iterator,
