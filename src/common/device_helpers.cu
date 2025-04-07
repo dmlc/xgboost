@@ -20,7 +20,17 @@ namespace {
     std::int32_t major{0}, minor{0};
     xgboost::curt::DrVersion(&major, &minor);
     if (major > 12 || (major == 12 && minor >= 5)) {
-      vm_flag = true;
+      try {
+        // We might still run into issues with container environment without the
+        // --privilidged flag, or mis-matched cuda-driver and sys-driver versions.
+        auto vec = detail::GrowOnlyVirtualMemVec{CU_MEM_LOCATION_TYPE_HOST_NUMA};
+        // Allocate 1 byte to see if we can use the low level vm.
+        [[maybe_unused]] auto s = vec.GetSpan<std::int8_t>(1);
+        vm_flag = true;
+      } catch (dmlc::Error const&) {
+        vm_flag = false;
+        cudaGetLastError();  // clear CUDA error.
+      }
     } else {
       vm_flag = false;
     }
