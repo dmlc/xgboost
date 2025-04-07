@@ -62,6 +62,19 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return ret;
 }
 
+// Trims leading whitespace from a string
+[[nodiscard]] inline std::string TrimFirst(const std::string &str) {
+  if (str.empty()) {
+    return str;
+  }
+
+  std::size_t first = str.find_first_not_of(" \t\n\r");
+  if (first == std::string::npos) {
+    return "";
+  }
+  return str.substr(first);
+}
+
 /**
  * @brief Add escapes for a UTF-8 string.
  */

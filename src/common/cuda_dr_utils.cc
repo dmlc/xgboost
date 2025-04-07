@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2025, XGBoost contributors
  */
 #if defined(XGBOOST_USE_CUDA)
 #include "cuda_dr_utils.h"
@@ -14,6 +14,7 @@
 
 #include "common.h"               // for safe_cuda
 #include "cuda_rt_utils.h"        // for CurrentDevice
+#include "io.h"                   // for CmdOutput
 #include "xgboost/string_view.h"  // for StringVie
 
 namespace xgboost::cudr {
@@ -103,6 +104,46 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
   MakeCuMemLocation(type, &prop.location);
   return prop;
+}
+
+[[nodiscard]] bool GetVersionFromSmi(std::int32_t *p_major, std::int32_t *p_minor) {
+  using ::xgboost::common::Split;
+  using ::xgboost::common::TrimFirst;
+  // `nvidia-smi --version` is not available for older versions, as a result, we can't query the
+  // cuda driver version unless we want to parse the table output.
+
+  auto cmd = "nvidia-smi --query-gpu=driver_version --format=csv";
+  auto smi_out_str = common::CmdOutput(xgboost::StringView{cmd});
+
+  auto Invalid = [=] {
+    *p_major = *p_minor = -1;
+    return false;
+  };
+  if (smi_out_str.empty()) {
+    return Invalid();
+  }
+
+  auto smi_split = Split(smi_out_str, '\n');
+  if (smi_split.size() < 2) {
+    return Invalid();
+  }
+
+  // Use the first GPU
+  auto smi_ver = Split(smi_split[1], '.');
+  // 570.124.06
+  if (smi_ver.size() != 3) {
+    return Invalid();
+  }
+
+  try {
+    *p_major = std::stoi(smi_ver[0]);
+    *p_minor = std::stoi(smi_ver[1]);
+    return true;
+  } catch (std::exception const &) {
+    return Invalid();
+  }
+
+  return Invalid();
 }
 }  // namespace xgboost::cudr
 #endif

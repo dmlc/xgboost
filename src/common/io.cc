@@ -234,7 +234,7 @@ void detail::CloseMmap(MMAPFile* handle) {
   }
 #if defined(xgboost_IS_WIN)
   if (handle->base_ptr) {
-    CHECK(UnmapViewOfFile(handle->base_ptr)) "Faled to call munmap: " << SystemErrorMsg();
+    CHECK(UnmapViewOfFile(handle->base_ptr)) << "Faled to call munmap: " << SystemErrorMsg();
   }
   if (handle->fd != INVALID_HANDLE_VALUE) {
     CHECK(CloseHandle(handle->fd)) << "Failed to close handle: " << SystemErrorMsg();
@@ -301,5 +301,21 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 
 [[nodiscard]] std::size_t AlignedMemWriteStream::Tell() const noexcept(true) {
   return this->pimpl_->Tell();
+}
+
+[[nodiscard]] std::string CmdOutput(StringView cmd) {
+#if defined(xgboost_IS_WIN)
+  LOG(FATAL) << "Not implemented";
+#else
+  // popen is a convient method, but it always return a success even if the command fails.
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+  CHECK(pipe);
+  std::array<char, 128> buffer;
+  std::string result;
+  while (std::fgets(buffer.data(), static_cast<std::int32_t>(buffer.size()), pipe.get())) {
+    result += buffer.data();
+  }
+  return result;
+#endif
 }
 }  // namespace xgboost::common
