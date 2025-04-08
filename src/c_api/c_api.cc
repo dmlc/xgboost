@@ -1493,9 +1493,10 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char *fname) {
     Json::Dump(out, &str, mode);
     fo->Write(str.data(), str.size());
   };
-  if (common::FileExtension(fname) == "json") {
+  auto ext = common::FileExtension(fname);
+  if (ext == "json") {
     save_json(std::ios::out);
-  } else if (common::FileExtension(fname) == "ubj") {
+  } else if (ext == "ubj") {
     save_json(std::ios::binary);
   } else {
     LOG(WARNING) << "Saving model in the UBJSON format as default.  You can use file extension:"
