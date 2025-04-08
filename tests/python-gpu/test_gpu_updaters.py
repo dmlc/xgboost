@@ -1,4 +1,4 @@
-import sys
+from itertools import product
 from typing import Any, Dict
 
 import numpy as np
@@ -19,11 +19,11 @@ from xgboost.testing.updater import (
     check_get_quantile_cut,
     check_init_estimation,
     check_quantile_loss,
+    run_adaptive,
+    run_invalid_category,
+    run_max_cat,
     train_result,
 )
-
-sys.path.append("tests/python")
-import test_updaters as test_up
 
 pytestmark = tm.timeout(30)
 
@@ -43,8 +43,6 @@ class TestGPUUpdatersMulti:
 
 
 class TestGPUUpdaters:
-    cputest = test_up.TestTreeMethod()
-
     @given(
         exact_parameter_strategy,
         hist_parameter_strategy,
@@ -230,8 +228,9 @@ class TestGPUUpdaters:
         )
 
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_max_cat(self) -> None:
-        self.cputest.run_max_cat("gpu_hist")
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_max_cat(self, tree_method: str) -> None:
+        run_max_cat(tree_method, "cuda")
 
     def test_categorical_32_cat(self):
         """32 hits the bound of integer bitset, so special test"""
@@ -247,8 +246,9 @@ class TestGPUUpdaters:
         )
 
     @pytest.mark.skipif(**tm.no_cupy())
-    def test_invalid_category(self):
-        self.cputest.run_invalid_category("gpu_hist")
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_invalid_category(self, tree_method: str) -> None:
+        run_invalid_category(tree_method, "cuda")
 
     @pytest.mark.skipif(**tm.no_cupy())
     @given(
@@ -330,9 +330,11 @@ class TestGPUUpdaters:
         assert tm.non_increasing(result["train"][dataset.metric])
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    @pytest.mark.parametrize("weighted", [True, False])
-    def test_adaptive(self, weighted) -> None:
-        self.cputest.run_adaptive("gpu_hist", weighted)
+    @pytest.mark.parametrize(
+        "tree_method,weighted", list(product(["approx", "hist"], [True, False]))
+    )
+    def test_adaptive(self, tree_method: str, weighted: bool) -> None:
+        run_adaptive(tree_method, weighted, "cuda")
 
     def test_init_estimation(self) -> None:
         check_init_estimation("gpu_hist")
