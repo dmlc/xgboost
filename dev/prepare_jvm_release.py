@@ -136,11 +136,6 @@ def main():
     commit_hash = get_current_commit_hash()
     git_branch = get_current_git_branch()
     print(f"Using commit {commit_hash} of branch {git_branch}")
-    print(f"====Update pom.xml to use Scala {scala_version}====")
-    run(
-        f"{sys.executable} ops/script/change_scala_version.py "
-        f"--scala-version {scala_version} --purge-artifacts"
-    )
     if use_cuda:
         print(f"====Update xgboost4j-spark-gpu/pom.xml to add required metadata====")
         pom_parent = "jvm-packages/pom.xml"
@@ -159,6 +154,11 @@ def main():
                 f.write(line)
                 if re.search(r"<artifactId>xgboost4j-spark-gpu_[0-9\\.]*", line):
                     f.write("".join(extra_metadata))
+    print(f"====Update pom.xml to use Scala {scala_version}====")
+    run(
+        f"{sys.executable} ops/script/change_scala_version.py "
+        f"--scala-version {scala_version} --purge-artifacts"
+    )
 
     with cd("jvm-packages/"):
         print("====Copying resources for testing====")
