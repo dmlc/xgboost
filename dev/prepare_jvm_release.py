@@ -200,7 +200,7 @@ def main():
                 "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
             )
             run(
-                "mvn --no-transfer-progress deploy -Pgpu,release "
+                "mvn deploy -Pgpu,release "
                 "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
             )
         else:
