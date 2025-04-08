@@ -238,7 +238,7 @@ class ColumnMatrix {
   }
 
   ColumnMatrix() = default;
-  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads=1) {
+  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads = 1) {
     this->InitStorage(gmat, sparse_threshold, n_threads);
   }
 
