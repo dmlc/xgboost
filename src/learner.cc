@@ -947,40 +947,6 @@ class LearnerIO : public LearnerConfiguration {
     }
   }
 
-  // About to be deprecated by JSON format
-  void LoadModel(dmlc::Stream* fi) override {
-    ctx_.UpdateAllowUnknown(Args{});
-    tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
-
-    // TODO(tqchen) mark deprecation of old format.
-    common::PeekableInStream fp(fi);
-
-    // backward compatible header check.
-    std::string header;
-    header.resize(4);
-    StringView msg = "Only `json` and `ubj` is supported starting from 3.1.";
-    if (fp.PeekRead(&header[0], 4) == 4) {
-      CHECK_NE(header, "bs64") << msg;
-      CHECK_NE(header, "binf") << msg;
-    }
-    CHECK_EQ(header[0], '{') << msg;
-
-    // FIXME(jiamingy): Move this out of learner after the old binary model is remove.
-
-    // Dispatch to JSON
-    auto buffer = common::ReadAll(fi, &fp);
-    Json model;
-    auto it = first_non_space(buffer.cbegin() + 1, buffer.cend());
-    if (it != buffer.cend() && *it == '"') {
-      model = Json::Load(StringView{buffer});
-    } else if (it != buffer.cend() && std::isalpha(*it)) {
-      model = Json::Load(StringView{buffer}, std::ios::binary);
-    } else {
-      LOG(FATAL) << "Invalid model format";
-    }
-    this->LoadModel(model);
-  }
-
   void Save(dmlc::Stream* fo) const override {
     this->CheckModelInitialized();
 
