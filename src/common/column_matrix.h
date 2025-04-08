@@ -420,6 +420,7 @@ class ColumnMatrix {
 
       #pragma omp parallel num_threads(n_threads)
       {
+        std::vector<size_t> nnz_offsets(n_features, 0);
         exc.Run([&, is_valid, base_rowid, row_index]() {
           int tid = omp_get_thread_num();
           size_t begin = block_size * tid;
@@ -432,10 +433,10 @@ class ColumnMatrix {
               if (is_valid(coo)) {
                 auto fid = coo.column_idx;
                 const uint32_t bin_id = row_index[k_offsets[tid] + k];
-                size_t& nnz = n_elements[tid * n_features + fid];
+                size_t nnz = n_elements[tid * n_features + fid] + nnz_offsets[fid];
                 SetBinSparse(bin_id, rid + base_rowid, fid, local_index, nnz);
                 ++k;
-                ++nnz;
+                nnz_offsets[fid]++;
               }
             }
           }
