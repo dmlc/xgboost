@@ -171,8 +171,6 @@ template <typename T>
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithMalloc(std::size_t n_elements, T const& init,
                                                         int n_threads) {
-  if (n_elements < n_threads) return MakeFixedVecWithMalloc(n_elements, init);
-
   auto resource = std::make_shared<common::MallocResource>(n_elements * sizeof(T));
   auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
 
