@@ -151,6 +151,7 @@ def main():
         extra_metadata = lines[begin_idx:end_idx]
 
         pom = "jvm-packages/xgboost4j-spark-gpu/pom.xml"
+        run(f"git checkout {pom}")
         with open(pom, "r", encoding="utf-8") as f:
             lines = f.readlines()
         with open(pom, "w", encoding="utf-8") as f:
