@@ -190,11 +190,12 @@ class EllpackHostCacheStreamImpl {
       auto& new_impl = this->cache_->pages.back();
       auto offset = new_impl->Copy(&ctx, impl, this->cache_->offsets.back());
       this->cache_->offsets.back() += offset;
-      // No need to copy if it's already in device.
-      if (last_page && !this->cache_->on_device.back()) {
-        auto commited = commit_host_page(this->cache_->pages.back().get());
-        this->cache_->pages.back() = std::move(commited);
-      }
+    }
+
+    // No need to copy if it's already in device.
+    if (last_page && !this->cache_->on_device.back()) {
+      auto commited = commit_host_page(this->cache_->pages.back().get());
+      this->cache_->pages.back() = std::move(commited);
     }
 
     return new_page;
