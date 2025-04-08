@@ -73,26 +73,29 @@ class GBLinear : public GradientBooster {
       : GradientBooster{ctx},
         learner_model_param_{learner_model_param},
         model_{learner_model_param},
-        previous_model_{learner_model_param} {}
+        previous_model_{learner_model_param} {
+    monitor_.Init(__func__);
+  }
 
   void Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.Configure(cfg);
     }
     param_.UpdateAllowUnknown(cfg);
-    param_.CheckGPUSupport();
     if (param_.updater == "gpu_coord_descent") {
-      LOG(WARNING) << error::DeprecatedFunc("gpu_coord_descent", "2.0.0",
-                                            R"(device="cuda", updater="coord_descent")");
+      LOG(FATAL) << error::DeprecatedFunc("gpu_coord_descent", "2.0.0",
+                                          R"(device="cuda", updater="coord_descent")");
     }
 
-    if (param_.updater == "coord_descent" && ctx_->IsCUDA()) {
-      updater_.reset(LinearUpdater::Create("gpu_coord_descent", ctx_));
-    } else {
-      updater_.reset(LinearUpdater::Create(param_.updater, ctx_));
-    }
+    auto name = (param_.updater == "coord_descent")
+                    // Dispatch for coordinate descent
+                    ? this->ctx_->DispatchDevice([] { return "coord_descent"; },
+                                                 [] { return "gpu_coord_descent"; })
+                    : param_.updater;
+    LOG(INFO) << "Using the updater:" << name;
+
+    updater_.reset(LinearUpdater::Create(name, ctx_));
     updater_->Configure(cfg);
-    monitor_.Init("GBLinear");
   }
 
   int32_t BoostedRounds() const override {
