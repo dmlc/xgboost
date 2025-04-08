@@ -390,7 +390,7 @@ class ColumnMatrix {
       size_t block_size = DivRoundUp(batch_size, n_threads);
       #pragma omp parallel num_threads(n_threads)
       {
-        exc.Run([&]() {
+        exc.Run([&, is_valid]() {
           int tid = omp_get_thread_num();
           size_t begin = block_size * tid;
           size_t end = std::min(begin + block_size, batch_size);
@@ -420,7 +420,7 @@ class ColumnMatrix {
 
       #pragma omp parallel num_threads(n_threads)
       {
-        exc.Run([&]() {
+        exc.Run([&, is_valid, base_rowid, row_index]() {
           int tid = omp_get_thread_num();
           size_t begin = block_size * tid;
           size_t end = std::min(begin + block_size, batch_size);

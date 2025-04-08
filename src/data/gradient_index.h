@@ -233,7 +233,7 @@ class GHistIndexMatrix {
   void PushAdapterBatchColumns(Context const* ctx, Batch const& batch, float missing,
                                size_t rbegin);
 
-  void ResizeIndex(const size_t n_index, const bool isDense, int n_threads);
+  void ResizeIndex(const size_t n_index, const bool isDense, int n_threads=1);
 
   void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;
