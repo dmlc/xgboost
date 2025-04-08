@@ -121,7 +121,7 @@ class TestGPUUpdaters:
         note(str(hist_result))
         assert tm.non_increasing(hist_result["train"][dataset.metric])
 
-        param = {"tree_method": "gpu_hist", "max_bin": 64}
+        param = {"tree_method": "hist", "max_bin": 64, "device": "cuda"}
         gpu_hist_result = train_result(param, dataset.get_dmat(), 16)
         note(str(gpu_hist_result))
         assert tm.non_increasing(gpu_hist_result["train"][dataset.metric])
@@ -303,7 +303,7 @@ class TestGPUUpdaters:
         dtrain = xgb.DMatrix(X, y)
 
         bst = xgb.train(
-            {"verbosity": 2, "tree_method": "gpu_hist", "gpu_id": 0},
+            {"verbosity": 2, "tree_method": "hist", "device": "cuda"},
             dtrain,
             verbose_eval=True,
             num_boost_round=6,
@@ -359,7 +359,8 @@ class TestGPUUpdaters:
                 "max_depth": 5,
                 "learning_rate": 0.05,
                 "objective": "binary:logistic",
-                "tree_method": "gpu_hist",
+                "tree_method": "hist",
+                "device": "cuda",
                 "colsample_bytree": 0.5,
                 "colsample_bylevel": 0.5,
                 "colsample_bynode": 0.5,  # Causes issues
