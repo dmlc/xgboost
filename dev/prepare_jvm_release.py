@@ -141,6 +141,23 @@ def main():
         f"{sys.executable} ops/script/change_scala_version.py "
         f"--scala-version {scala_version} --purge-artifacts"
     )
+    if use_cuda:
+        print(f"====Update xgboost4j-spark-gpu/pom.xml to add required metadata====")
+        pom_parent = "jvm-packages/pom.xml"
+        with open(pom_parent, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        begin_idx = next(i for i, line in enumerate(lines) if "<description>" in line)
+        end_idx = next(i for i, line in enumerate(lines) if "</scm>" in line) + 1
+        extra_metadata = lines[begin_idx:end_idx]
+
+        pom = "jvm-packages/xgboost4j-spark-gpu/pom.xml"
+        with open(pom, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        with open(pom, "w", encoding="utf-8") as f:
+            for line in lines:
+                f.write(line)
+                if re.search(r"<artifactId>xgboost4j-spark-gpu_[0-9\\.]*", line):
+                    f.write("".join(extra_metadata))
 
     with cd("jvm-packages/"):
         print("====Copying resources for testing====")
@@ -200,7 +217,7 @@ def main():
                 "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
             )
             run(
-                "mvn deploy -Pgpu,release -pl xgboost4j-spark-gpu"
+                "mvn deploy -Pgpu,release -pl xgboost4j-spark-gpu "
                 "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
             )
         else:
