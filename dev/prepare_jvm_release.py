@@ -200,7 +200,7 @@ def main():
                 "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
             )
             run(
-                "mvn deploy -Pgpu,release "
+                "mvn deploy -Pgpu,release -pl xgboost4j-spark-gpu"
                 "-DskipTests -Dmaven.test.skip=true -Dskip.native.build=true"
             )
         else:
