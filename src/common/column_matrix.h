@@ -223,7 +223,10 @@ class ColumnMatrix {
       // not thread-safe with bit field.
       // FIXME(jiamingy): We can directly assign kMissingId to the index to avoid missing
       // flags.
-      missing_.SetValid(feature_offsets_[fid] + rid);
+      #pragma omp critical
+      {
+        missing_.SetValid(feature_offsets_[fid] + rid);
+      }
     } else {
       ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[nnz] = bin_id - index_base_[fid];
