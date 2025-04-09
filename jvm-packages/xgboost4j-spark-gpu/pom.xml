@@ -10,6 +10,37 @@
     </parent>
     <name>xgboost4j-spark-gpu</name>
     <artifactId>xgboost4j-spark-gpu_2.12</artifactId>
+    <description>JVM Package for XGBoost</description>
+    <url>https://github.com/dmlc/xgboost/tree/master/jvm-packages</url>
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Bobby Wang</name>
+            <email>wbo4958@gmail.com</email>
+        </developer>
+        <developer>
+            <name>Jiaming Yuan</name>
+            <email>jm.yuan@outlook.com</email>
+        </developer>
+        <developer>
+            <name>Hyunsu Cho</name>
+            <email>chohyu01@cs.washington.edu</email>
+        </developer>
+        <developer>
+            <name>CodingCat</name>
+            <email>codingcat@apache.org</email>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:git:/github.com/dmlc/xgboost.git</connection>
+        <developerConnection>scm:git:ssh://github.com/dmlc/xgboost.git</developerConnection>
+        <url>https://github.com/dmlc/xgboost</url>
+    </scm>
     <build>
         <plugins>
             <plugin>

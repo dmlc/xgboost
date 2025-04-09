@@ -136,24 +136,6 @@ def main():
     commit_hash = get_current_commit_hash()
     git_branch = get_current_git_branch()
     print(f"Using commit {commit_hash} of branch {git_branch}")
-    if use_cuda:
-        print(f"====Update xgboost4j-spark-gpu/pom.xml to add required metadata====")
-        pom_parent = "jvm-packages/pom.xml"
-        with open(pom_parent, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        begin_idx = next(i for i, line in enumerate(lines) if "<description>" in line)
-        end_idx = next(i for i, line in enumerate(lines) if "</scm>" in line) + 1
-        extra_metadata = lines[begin_idx:end_idx]
-
-        pom = "jvm-packages/xgboost4j-spark-gpu/pom.xml"
-        run(f"git checkout {pom}")
-        with open(pom, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        with open(pom, "w", encoding="utf-8") as f:
-            for line in lines:
-                f.write(line)
-                if re.search(r"<artifactId>xgboost4j-spark-gpu_[0-9\\.]*", line):
-                    f.write("".join(extra_metadata))
     print(f"====Update pom.xml to use Scala {scala_version}====")
     run(
         f"{sys.executable} ops/script/change_scala_version.py "
