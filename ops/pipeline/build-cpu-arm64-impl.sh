@@ -5,7 +5,6 @@
 set -euox pipefail
 
 source activate aarch64_test
-mamba install -c conda-forge 'cmake>=3.26.4,!=3.30.0,<4.0.0'
 
 echo "--- Build libxgboost from the source"
 mkdir -p build
