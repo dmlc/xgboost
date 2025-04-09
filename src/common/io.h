@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file io.h
  * \brief general stream interface for serialization, I/O
  * \author Tianqi Chen
@@ -607,5 +607,8 @@ class AlignedMemWriteStream : public AlignedFileWriteStream {
 
   [[nodiscard]] std::size_t Tell() const noexcept(true);
 };
+
+// Run a system command, get its stdout.
+[[nodiscard]] std::string CmdOutput(StringView cmd);
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_IO_H_
