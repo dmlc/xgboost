@@ -38,6 +38,8 @@ bool ArrayInterfaceHandler::IsCudaPtr(void const* ptr) {
   if (!ptr) {
     return false;
   }
+  // clear potentially pre-existing/unrelated error
+  cudaGetLastError();
   cudaPointerAttributes attr;
   auto err = cudaPointerGetAttributes(&attr, ptr);
   // reset error

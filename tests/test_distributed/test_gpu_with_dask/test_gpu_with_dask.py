@@ -670,9 +670,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
         X = X.to_backend("cupy")
         y = y.to_backend("cupy")
 
-        m: dxgb.DaskDMatrix = await dxgb.DaskQuantileDMatrix(
-            client, X, y
-        )  # type:ignore
+        m: dxgb.DaskDMatrix = await dxgb.DaskQuantileDMatrix(client, X, y)
         output = await dxgb.train(
             client, {"tree_method": "hist", "device": "cuda"}, dtrain=m
         )

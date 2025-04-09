@@ -17,7 +17,7 @@
 #include "../../data/gradient_index.h"     // for GHistIndexMatrix
 #include "expand_entry.h"                  // for MultiExpandEntry, CPUExpandEntry
 #include "hist_cache.h"                    // for BoundedHistCollection
-#include "param.h"                         // for HistMakerTrainParam
+#include "hist_param.h"                    // for HistMakerTrainParam
 #include "xgboost/base.h"                  // for bst_node_t, bst_target_t, bst_bin_t
 #include "xgboost/context.h"               // for Context
 #include "xgboost/data.h"                  // for BatchIterator, BatchSet
