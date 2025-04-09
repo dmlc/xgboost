@@ -31,7 +31,7 @@
 #include "gpu_hist/gradient_based_sampler.cuh"
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/row_partitioner.cuh"  // for RowPartitioner
-#include "hist/param.h"                  // for HistMakerTrainParam
+#include "hist/hist_param.h"             // for HistMakerTrainParam
 #include "param.h"                       // for TrainParam
 #include "sample_position.h"             // for SamplePosition
 #include "updater_gpu_common.cuh"        // for HistBatch

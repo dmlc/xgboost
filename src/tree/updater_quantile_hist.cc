@@ -27,7 +27,7 @@
 #include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
 #include "hist/hist_cache.h"                 // for BoundedHistCollection
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
-#include "hist/param.h"                      // for HistMakerTrainParam
+#include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/sampler.h"                    // for SampleGradient
 #include "param.h"                           // for TrainParam, GradStats
 #include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
