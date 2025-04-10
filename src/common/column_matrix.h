@@ -415,7 +415,6 @@ class ColumnMatrix {
       exc.Rethrow();
 
       ParallelFor(n_features, n_threads, [&](auto fid) {
-      for (size_t fid = 0; fid < n_features; ++fid) {
         n_elements[fid] += num_nonzeros_[fid];
         for (int tid = 0; tid < n_threads; ++tid) {
           n_elements[(tid + 1) * n_features + fid] +=
@@ -424,7 +423,6 @@ class ColumnMatrix {
         if (type_[fid] != kDenseColumn) {
           num_nonzeros_[fid] = n_elements[n_threads * n_features + fid];
         }
-      }
       });
       std::partial_sum(k_offsets.cbegin(), k_offsets.cend(), k_offsets.begin());
 
