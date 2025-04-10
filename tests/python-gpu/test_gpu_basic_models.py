@@ -6,9 +6,9 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.basic_models import run_custom_objective
 
 sys.path.append("tests/python")
-import test_basic_models as test_bm
 
 # Don't import the test class, otherwise they will run twice.
 import test_callback as test_cb  # noqa
@@ -18,7 +18,6 @@ rng = np.random.RandomState(1994)
 
 class TestGPUBasicModels:
     cpu_test_cb = test_cb.TestCallbacks()
-    cpu_test_bm = test_bm.TestModels()
 
     def run_cls(self, X, y):
         cls = xgb.XGBClassifier(tree_method="hist", device="cuda")
@@ -40,7 +39,7 @@ class TestGPUBasicModels:
         return hash(model_0), hash(model_1)
 
     def test_custom_objective(self):
-        self.cpu_test_bm.run_custom_objective("gpu_hist")
+        run_custom_objective("hist", "cuda")
 
     def test_eta_decay(self):
         self.cpu_test_cb.run_eta_decay("gpu_hist")

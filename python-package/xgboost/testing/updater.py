@@ -103,7 +103,7 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
 
 
 # pylint: disable=too-many-locals
-def check_quantile_loss(tree_method: str, weighted: bool) -> None:
+def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> None:
     """Test for quantile loss."""
     from sklearn.datasets import make_regression
     from sklearn.metrics import mean_pinball_loss
@@ -136,6 +136,7 @@ def check_quantile_loss(tree_method: str, weighted: bool) -> None:
         {
             "objective": "reg:quantileerror",
             "tree_method": tree_method,
+            "device": device,
             "quantile_alpha": alpha,
             "base_score": base_score,
         },
@@ -167,6 +168,7 @@ def check_quantile_loss(tree_method: str, weighted: bool) -> None:
             {
                 "objective": "reg:quantileerror",
                 "tree_method": tree_method,
+                "device": device,
                 "quantile_alpha": a,
                 "base_score": base_score,
             },
