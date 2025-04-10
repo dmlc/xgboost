@@ -15,6 +15,7 @@ from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
 from xgboost.testing.updater import get_basescore
+from xgboost.testing.with_skl import run_boost_from_prediction_binary
 
 rng = np.random.RandomState(1994)
 pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), tm.timeout(30)]
@@ -213,7 +214,7 @@ def test_ranking_metric() -> None:
 def test_ranking_qid_df():
     import pandas as pd
 
-    run_ranking_qid_df(pd, "hist")
+    run_ranking_qid_df(pd, "hist", "cpu")
 
 
 def test_stacking_regression():
@@ -1217,37 +1218,6 @@ def test_feature_weights(tree_method):
         reg.fit(X, y, feature_weights=np.ones((kCols, )))
 
 
-def run_boost_from_prediction_binary(tree_method, X, y, as_frame: Optional[Callable]):
-    """
-    Parameters
-    ----------
-
-    as_frame: A callable function to convert margin into DataFrame, useful for different
-    df implementations.
-    """
-
-    model_0 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
-    )
-    model_0.fit(X=X, y=y)
-    margin = model_0.predict(X, output_margin=True)
-    if as_frame is not None:
-        margin = as_frame(margin)
-
-    model_1 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
-    )
-    model_1.fit(X=X, y=y, base_margin=margin)
-    predictions_1 = model_1.predict(X, base_margin=margin)
-
-    cls_2 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
-    )
-    cls_2.fit(X=X, y=y)
-    predictions_2 = cls_2.predict(X)
-    np.testing.assert_allclose(predictions_1, predictions_2)
-
-
 def run_boost_from_prediction_multi_clasas(
     estimator, tree_method, X, y, as_frame: Optional[Callable]
 ):
@@ -1282,14 +1252,14 @@ def run_boost_from_prediction_multi_clasas(
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
-def test_boost_from_prediction(tree_method):
+def test_boost_from_prediction(tree_method: str) -> None:
     import pandas as pd
     from sklearn.datasets import load_breast_cancer, load_iris, make_regression
 
     X, y = load_breast_cancer(return_X_y=True)
 
-    run_boost_from_prediction_binary(tree_method, X, y, None)
-    run_boost_from_prediction_binary(tree_method, X, y, pd.DataFrame)
+    run_boost_from_prediction_binary(tree_method, "cpu", X, y, None)
+    run_boost_from_prediction_binary(tree_method, "cpu", X, y, pd.DataFrame)
 
     X, y = load_iris(return_X_y=True)
 

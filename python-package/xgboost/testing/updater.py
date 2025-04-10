@@ -3,7 +3,7 @@
 import json
 from functools import partial, update_wrapper
 from string import ascii_lowercase
-from typing import Any, Dict, List, Literal, TypeAlias, Union, overload
+from typing import Any, Dict, List, Union, overload
 
 import numpy as np
 import pytest
@@ -14,8 +14,7 @@ from xgboost.data import is_pd_cat_dtype
 
 from ..core import DataIter
 from .data_iter import CatIter
-
-Device: TypeAlias = Literal["cpu", "cuda"]
+from .utils import Device
 
 
 @overload

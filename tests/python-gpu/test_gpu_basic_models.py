@@ -68,11 +68,11 @@ class TestGPUBasicModels:
 
         X, y = load_digits(return_X_y=True)
         # should pass with invalid gpu id
-        cls1 = xgb.XGBClassifier(tree_method="gpu_hist", gpu_id=9999)
+        cls1 = xgb.XGBClassifier(tree_method="hist", device="cuda:9999")
         cls1.fit(X, y)
         # should throw error with fail_on_invalid_gpu_id enabled
         cls2 = xgb.XGBClassifier(
-            tree_method="gpu_hist", gpu_id=9999, fail_on_invalid_gpu_id=True
+            tree_method="hist", device="cuda:9999", fail_on_invalid_gpu_id=True
         )
         with pytest.raises(ValueError, match="ordinal 9999 is invalid"):
             cls2.fit(X, y)
