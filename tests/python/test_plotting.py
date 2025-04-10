@@ -5,6 +5,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.plotting import run_categorical
 
 try:
     import matplotlib
@@ -73,24 +74,6 @@ class TestPlotting:
         assert ax.get_xlim() == (0., 5.)
         assert ax.get_ylim() == (10., 71.)
 
-    def run_categorical(self, tree_method: str) -> None:
-        X, y = tm.make_categorical(1000, 31, 19, onehot=False)
-        reg = xgb.XGBRegressor(
-            enable_categorical=True, n_estimators=10, tree_method=tree_method
-        )
-        reg.fit(X, y)
-        trees = reg.get_booster().get_dump(dump_format="json")
-        for tree in trees:
-            j_tree = json.loads(tree)
-            assert "leaf" in j_tree.keys() or isinstance(
-                j_tree["split_condition"], list
-            )
-
-        graph = xgb.to_graphviz(reg, tree_idx=len(j_tree) - 1)
-        assert isinstance(graph, Source)
-        ax = xgb.plot_tree(reg, tree_idx=len(j_tree) - 1)
-        assert isinstance(ax, Axes)
-
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self) -> None:
-        self.run_categorical("approx")
+        run_categorical("approx", "cpu")

@@ -3,7 +3,15 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.metrics import check_precision_score, check_quantile_error
+from xgboost.testing.metrics import (
+    check_precision_score,
+    check_quantile_error,
+    run_pr_auc_binary,
+    run_pr_auc_ltr,
+    run_pr_auc_multi,
+    run_roc_auc_binary,
+    run_roc_auc_multi,
+)
 
 rng = np.random.RandomState(1337)
 
@@ -187,184 +195,29 @@ class TestEvalMetrics:
 
         np.testing.assert_allclose(nloglik, np.mean(nloglik_stats), rtol=1e-3)
 
-    def run_roc_auc_binary(self, tree_method, n_samples):
-        import numpy as np
-        from sklearn.datasets import make_classification
-        from sklearn.metrics import roc_auc_score
-
-        rng = np.random.RandomState(1994)
-        n_samples = n_samples
-        n_features = 10
-
-        X, y = make_classification(
-            n_samples,
-            n_features,
-            n_informative=n_features,
-            n_redundant=0,
-            random_state=rng,
-        )
-        Xy = xgb.DMatrix(X, y)
-        booster = xgb.train(
-            {
-                "tree_method": tree_method,
-                "eval_metric": "auc",
-                "objective": "binary:logistic",
-            },
-            Xy,
-            num_boost_round=1,
-        )
-        score = booster.predict(Xy)
-        skl_auc = roc_auc_score(y, score)
-        auc = float(booster.eval(Xy).split(":")[1])
-        np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
-
-        X = rng.randn(*X.shape)
-        score = booster.predict(xgb.DMatrix(X))
-        skl_auc = roc_auc_score(y, score)
-        auc = float(booster.eval(xgb.DMatrix(X, y)).split(":")[1])
-        np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
-
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.parametrize("n_samples", [100, 1000, 10000])
-    def test_roc_auc(self, n_samples):
-        self.run_roc_auc_binary("hist", n_samples)
-
-    def run_roc_auc_multi(self, tree_method, n_samples, weighted):
-        import numpy as np
-        from sklearn.datasets import make_classification
-        from sklearn.metrics import roc_auc_score
-
-        rng = np.random.RandomState(1994)
-        n_samples = n_samples
-        n_features = 10
-        n_classes = 4
-
-        X, y = make_classification(
-            n_samples,
-            n_features,
-            n_informative=n_features,
-            n_redundant=0,
-            n_classes=n_classes,
-            random_state=rng,
-        )
-        if weighted:
-            weights = rng.randn(n_samples)
-            weights -= weights.min()
-            weights /= weights.max()
-        else:
-            weights = None
-
-        Xy = xgb.DMatrix(X, y, weight=weights)
-        booster = xgb.train(
-            {
-                "tree_method": tree_method,
-                "eval_metric": "auc",
-                "objective": "multi:softprob",
-                "num_class": n_classes,
-            },
-            Xy,
-            num_boost_round=1,
-        )
-        score = booster.predict(Xy)
-        skl_auc = roc_auc_score(
-            y, score, average="weighted", sample_weight=weights, multi_class="ovr"
-        )
-        auc = float(booster.eval(Xy).split(":")[1])
-        np.testing.assert_allclose(skl_auc, auc, rtol=1e-6)
-
-        X = rng.randn(*X.shape)
-
-        score = booster.predict(xgb.DMatrix(X, weight=weights))
-        skl_auc = roc_auc_score(
-            y, score, average="weighted", sample_weight=weights, multi_class="ovr"
-        )
-        auc = float(booster.eval(xgb.DMatrix(X, y, weight=weights)).split(":")[1])
-        np.testing.assert_allclose(skl_auc, auc, rtol=1e-5)
+    def test_roc_auc(self, n_samples: int) -> None:
+        run_roc_auc_binary("hist", n_samples, "cpu")
 
     @pytest.mark.parametrize(
         "n_samples,weighted", [(4, False), (100, False), (1000, False), (10000, True)]
     )
-    def test_roc_auc_multi(self, n_samples, weighted):
-        self.run_roc_auc_multi("hist", n_samples, weighted)
+    def test_roc_auc_multi(self, n_samples: int, weighted: bool) -> None:
+        run_roc_auc_multi("hist", n_samples, weighted, "cpu")
 
-    def run_pr_auc_binary(self, tree_method):
-        from sklearn.datasets import make_classification
-        from sklearn.metrics import auc, precision_recall_curve
+    def test_pr_auc_binary(self) -> None:
+        run_pr_auc_binary("hist", "cpu")
 
-        X, y = make_classification(128, 4, n_classes=2, random_state=1994)
-        clf = xgb.XGBClassifier(
-            tree_method=tree_method, n_estimators=1, eval_metric="aucpr"
-        )
-        clf.fit(X, y, eval_set=[(X, y)])
-        evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
+    def test_pr_auc_multi(self) -> None:
+        run_pr_auc_multi("hist", "cpu")
 
-        y_score = clf.predict_proba(X)[:, 1]  # get the positive column
-        precision, recall, _ = precision_recall_curve(y, y_score)
-        prauc = auc(recall, precision)
-        # Interpolation results are slightly different from sklearn, but overall should
-        # be similar.
-        np.testing.assert_allclose(prauc, evals_result, rtol=1e-2)
+    def test_pr_auc_ltr(self) -> None:
+        run_pr_auc_ltr("hist", "cpu")
 
-        clf = xgb.XGBClassifier(
-            tree_method=tree_method, n_estimators=10, eval_metric="aucpr"
-        )
-        clf.fit(X, y, eval_set=[(X, y)])
-        evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
-        np.testing.assert_allclose(0.99, evals_result, rtol=1e-2)
-
-    def test_pr_auc_binary(self):
-        self.run_pr_auc_binary("hist")
-
-    def run_pr_auc_multi(self, tree_method):
-        from sklearn.datasets import make_classification
-
-        X, y = make_classification(
-            64, 16, n_informative=8, n_classes=3, random_state=1994
-        )
-        clf = xgb.XGBClassifier(
-            tree_method=tree_method, n_estimators=1, eval_metric="aucpr"
-        )
-        clf.fit(X, y, eval_set=[(X, y)])
-        evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
-        # No available implementation for comparison, just check that XGBoost converges
-        # to 1.0
-        clf = xgb.XGBClassifier(
-            tree_method=tree_method, n_estimators=10, eval_metric="aucpr"
-        )
-        clf.fit(X, y, eval_set=[(X, y)])
-        evals_result = clf.evals_result()["validation_0"]["aucpr"][-1]
-        np.testing.assert_allclose(1.0, evals_result, rtol=1e-2)
-
-    def test_pr_auc_multi(self):
-        self.run_pr_auc_multi("hist")
-
-    def run_pr_auc_ltr(self, tree_method):
-        from sklearn.datasets import make_classification
-
-        X, y = make_classification(128, 4, n_classes=2, random_state=1994)
-        ltr = xgb.XGBRanker(
-            tree_method=tree_method,
-            n_estimators=16,
-            objective="rank:pairwise",
-            eval_metric="aucpr",
-        )
-        groups = np.array([32, 32, 64])
-        ltr.fit(
-            X,
-            y,
-            group=groups,
-            eval_set=[(X, y)],
-            eval_group=[groups],
-        )
-        results = ltr.evals_result()["validation_0"]["aucpr"]
-        assert results[-1] >= 0.99
-
-    def test_pr_auc_ltr(self):
-        self.run_pr_auc_ltr("hist")
-
-    def test_precision_score(self):
-        check_precision_score("hist")
+    def test_precision_score(self) -> None:
+        check_precision_score("hist", "cpu")
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_quantile_error(self) -> None:
-        check_quantile_error("hist")
+        check_quantile_error("hist", "cpu")

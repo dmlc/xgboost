@@ -91,7 +91,7 @@ class TestPickling:
         dtrain = xgb.DMatrix(X, y)
 
         bst = xgb.train(
-            {"tree_method": "gpu_hist", "gpu_id": 1}, dtrain, num_boost_round=6
+            {"tree_method": "hist", "device": "cuda:1"}, dtrain, num_boost_round=6
         )
 
         model_path = "model.pkl"
@@ -111,7 +111,7 @@ class TestPickling:
         x, y = tm.make_sparse_regression(10, 10, sparsity=0.8, as_dense=True)
         train_x = xgb.DMatrix(x, label=y)
 
-        param = {"tree_method": "gpu_hist", "verbosity": 1}
+        param = {"tree_method": "hist", "verbosity": 1, "device": "cuda"}
         bst = xgb.train(param, train_x)
 
         save_pickle(bst, model_path)
@@ -150,9 +150,9 @@ class TestPickling:
         x, y = load_digits(return_X_y=True)
 
         kwargs = {
-            "tree_method": "gpu_hist",
+            "tree_method": "hist",
             "objective": "binary:logistic",
-            "gpu_id": 0,
+            "device": "cuda",
             "n_estimators": 10,
         }
 

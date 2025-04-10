@@ -19,6 +19,8 @@ def test_large_input():
     y = cp.ones(m)
     w = cp.ones(m)
     dmat = xgb.QuantileDMatrix(X, y, weight=w)
-    booster = xgb.train({"tree_method": "gpu_hist", "max_depth": 1}, dmat, 1)
+    booster = xgb.train(
+        {"tree_method": "hist", "max_depth": 1, "device": "cuda"}, dmat, 1
+    )
     del y
     booster.inplace_predict(X)

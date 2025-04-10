@@ -1,28 +1,30 @@
 import json
-import sys
 
 import pytest
 
 import xgboost
 from xgboost import testing as tm
-from xgboost.testing.metrics import check_precision_score, check_quantile_error
-
-sys.path.append("tests/python")
-import test_eval_metrics as test_em  # noqa
+from xgboost.testing.metrics import (
+    check_precision_score,
+    check_quantile_error,
+    run_pr_auc_binary,
+    run_pr_auc_ltr,
+    run_pr_auc_multi,
+    run_roc_auc_binary,
+    run_roc_auc_multi,
+)
 
 
 class TestGPUEvalMetrics:
-    cpu_test = test_em.TestEvalMetrics()
-
     @pytest.mark.parametrize("n_samples", [4, 100, 1000])
-    def test_roc_auc_binary(self, n_samples):
-        self.cpu_test.run_roc_auc_binary("gpu_hist", n_samples)
+    def test_roc_auc_binary(self, n_samples: int) -> None:
+        run_roc_auc_binary("hist", n_samples, "cuda")
 
     @pytest.mark.parametrize(
         "n_samples,weighted", [(4, False), (100, False), (1000, False), (1000, True)]
     )
-    def test_roc_auc_multi(self, n_samples, weighted):
-        self.cpu_test.run_roc_auc_multi("gpu_hist", n_samples, weighted)
+    def test_roc_auc_multi(self, n_samples: int, weighted: bool) -> None:
+        run_roc_auc_multi("hist", n_samples, weighted, "cuda")
 
     @pytest.mark.parametrize("n_samples", [4, 100, 1000])
     def test_roc_auc_ltr(self, n_samples):
@@ -56,18 +58,18 @@ class TestGPUEvalMetrics:
 
         np.testing.assert_allclose(cpu_auc, gpu_auc)
 
-    def test_pr_auc_binary(self):
-        self.cpu_test.run_pr_auc_binary("gpu_hist")
+    def test_pr_auc_binary(self) -> None:
+        run_pr_auc_binary("hist", "cuda")
 
-    def test_pr_auc_multi(self):
-        self.cpu_test.run_pr_auc_multi("gpu_hist")
+    def test_pr_auc_multi(self) -> None:
+        run_pr_auc_multi("hist", "cuda")
 
-    def test_pr_auc_ltr(self):
-        self.cpu_test.run_pr_auc_ltr("gpu_hist")
+    def test_pr_auc_ltr(self) -> None:
+        run_pr_auc_ltr("hist", "cuda")
 
-    def test_precision_score(self):
-        check_precision_score("gpu_hist")
+    def test_precision_score(self) -> None:
+        check_precision_score("hist", "cuda")
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_quantile_error(self) -> None:
-        check_quantile_error("gpu_hist")
+        check_quantile_error("hist", "cuda")

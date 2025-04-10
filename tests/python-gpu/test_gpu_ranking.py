@@ -28,8 +28,8 @@ def comp_training_with_rank_objective(
 
     params = {
         "booster": "gbtree",
-        "tree_method": "gpu_hist",
-        "gpu_id": 0,
+        "tree_method": "hist",
+        "device": "cuda",
     }
 
     num_trees = 100
@@ -53,7 +53,7 @@ def comp_training_with_rank_objective(
     cpu_params = {
         "booster": "gbtree",
         "tree_method": "hist",
-        "gpu_id": -1,
+        "device": "cpu",
     }
     cpu_params["objective"] = rank_objective
     cpu_params["eval_metric"] = metric_name

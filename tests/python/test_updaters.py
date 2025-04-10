@@ -329,11 +329,11 @@ class TestTreeMethod:
         run_adaptive(tree_method, weighted, "cpu")
 
     def test_init_estimation(self) -> None:
-        check_init_estimation("hist")
+        check_init_estimation("hist", "cpu")
 
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:
-        check_quantile_loss("hist", weighted)
+        check_quantile_loss("hist", weighted, "cpu")
 
     @pytest.mark.skipif(**tm.no_pandas())
     @pytest.mark.parametrize("tree_method", ["hist"])
