@@ -71,14 +71,14 @@ class TestPickling:
         x, y = build_dataset()
         train_x = xgb.DMatrix(x, label=y)
 
-        param = {"tree_method": "gpu_hist", "gpu_id": 0}
+        param = {"tree_method": "hist", "device": "cuda"}
         bst = xgb.train(param, train_x)
         self.run_pickling(bst)
 
         bst = xgb.XGBRegressor(**param).fit(x, y)
         self.run_pickling(bst)
 
-        param = {"booster": "gblinear", "updater": "gpu_coord_descent", "gpu_id": 0}
+        param = {"booster": "gblinear", "updater": "coord_descent", "device": "cuda"}
         bst = xgb.train(param, train_x)
         self.run_pickling(bst)
 

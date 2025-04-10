@@ -329,9 +329,9 @@ TEST(Learner, GPUConfiguration) {
   p_dmat->Info().labels.Data()->HostVector() = labels;
   p_dmat->Info().labels.Reshape(kRows);
   {
-    std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->SetParams({Arg{"booster", "gblinear"},
-                        Arg{"updater", "gpu_coord_descent"}});
+    std::unique_ptr<Learner> learner{Learner::Create(mat)};
+    learner->SetParams(
+        {Arg{"booster", "gblinear"}, Arg{"updater", "coord_descent"}, Arg{"device", "cuda"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }

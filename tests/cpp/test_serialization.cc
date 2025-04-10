@@ -437,7 +437,8 @@ TEST_F(SerializationTest, GPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"updater", "gpu_coord_descent"}},
+                            {"device", "cuda"},
+                            {"updater", "coord_descent"}},
                            fmap_, p_dmat_);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -599,7 +600,8 @@ TEST_F(LogitSerializationTest, GPUCoordDescent) {
                             {"objective", "binary:logistic"},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"updater", "gpu_coord_descent"}},
+                            {"device", "cuda"},
+                            {"updater", "coord_descent"}},
                            fmap_, p_dmat_);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -748,7 +750,8 @@ TEST_F(MultiClassesSerializationTest, GPUCoordDescent) {
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},
                             {"nthread", "1"},
-                            {"updater", "gpu_coord_descent"}},
+                            {"updater", "coord_descent"},
+                            {"device", "cuda"}},
                            fmap_, p_dmat_);
 }
 #endif  // defined(XGBOOST_USE_CUDA)
