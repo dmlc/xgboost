@@ -66,7 +66,15 @@ The dataset itself is stored on device in a compressed ELLPACK format. The ELLPA
 
 Working memory is allocated inside the algorithm proportional to the number of rows to keep track of gradients, tree positions and other per row statistics. Memory is allocated for histogram bins proportional to the number of bins, number of features and nodes in the tree. For performance reasons we keep histograms in memory from previous nodes in the tree, when a certain threshold of memory usage is passed we stop doing this to conserve memory at some performance loss.
 
-If you are getting out-of-memory errors on a big dataset, try the :py:class:`xgboost.QuantileDMatrix` or :doc:`external memory version </tutorials/external_memory>`. Note that when ``external memory`` is used for GPU hist, it's best to employ gradient based sampling as well. Last but not least, ``inplace_predict`` can be preferred over ``predict`` when data is already on GPU. Both ``QuantileDMatrix`` and ``inplace_predict`` are automatically enabled if you are using the scikit-learn interface.
+If you are getting out-of-memory errors on a big dataset, try the
+:py:class:`xgboost.QuantileDMatrix` first. If you have access to NVLink-C2C devices, see
+:doc:`external memory version </tutorials/external_memory>`. In addition,
+:py:meth:`~xgboost.Booster.inplace_predict` should be preferred over ``predict`` when data
+is already on GPU. Both :py:class:`xgboost.QuantileDMatrix` and
+:py:meth:`~xgboost.Booster.inplace_predict` are automatically enabled if you are using the
+scikit-learn interface. Last but not least, using :py:class:`~xgboost.QuantileDMatrix`
+with a data iterator as input is a great way to increase memory capacity, see
+:ref:`sphx_glr_python_examples_quantile_data_iterator.py`.
 
 
 CPU-GPU Interoperability
