@@ -403,7 +403,9 @@ class ColumnMatrix {
               auto coo = line.GetElement(i);
               if (is_valid(coo)) {
                 auto fid = coo.column_idx;
-                n_elements[(tid + 1) * n_features + fid] += 1;
+                if ((type_[fid] != kDenseColumn)) {
+                  n_elements[(tid + 1) * n_features + fid] += 1;
+                }
                 k_offsets[tid + 1] += 1;
               }
             }
@@ -413,11 +415,16 @@ class ColumnMatrix {
       exc.Rethrow();
 
       ParallelFor(n_features, n_threads, [&](auto fid) {
+      for (size_t fid = 0; fid < n_features; ++fid) {
+        n_elements[fid] += num_nonzeros_[fid];
         for (int tid = 0; tid < n_threads; ++tid) {
           n_elements[(tid + 1) * n_features + fid] +=
             n_elements[tid * n_features + fid];
         }
-        num_nonzeros_[fid] = n_elements[n_threads * n_features + fid];
+        if (type_[fid] != kDenseColumn) {
+          num_nonzeros_[fid] = n_elements[n_threads * n_features + fid];
+        }
+      }
       });
       std::partial_sum(k_offsets.cbegin(), k_offsets.cend(), k_offsets.begin());
 
@@ -439,7 +446,7 @@ class ColumnMatrix {
                 size_t nnz = n_elements[tid * n_features + fid] + nnz_offsets[fid];
                 SetBinSparse(bin_id, rid + base_rowid, fid, local_index, nnz);
                 ++k;
-                nnz_offsets[fid]++;
+                nnz_offsets[fid] += (type_[fid] != kDenseColumn);
               }
             }
           }
