@@ -11,7 +11,11 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
-from xgboost.testing.with_skl import run_boost_from_prediction_binary
+from xgboost.testing.with_skl import (
+    run_boost_from_prediction_binary,
+    run_boost_from_prediction_multi_clasas,
+    run_housing_rf_regression,
+)
 
 sys.path.append("tests/python")
 import test_with_sklearn as twskl  # noqa
@@ -66,16 +70,16 @@ def test_boost_from_prediction_gpu_hist(tree_method: str) -> None:
     X, y = load_digits(return_X_y=True)
     X, y = cp.array(X), cp.array(y)
 
-    twskl.run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, X, y, None
+    run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, "cuda", X, y, None
     )
-    twskl.run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, X, y, cudf.DataFrame
+    run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, "cuda", X, y, cudf.DataFrame
     )
 
 
-def test_num_parallel_tree():
-    twskl.run_housing_rf_regression("gpu_hist")
+def test_num_parallel_tree() -> None:
+    run_housing_rf_regression("hist", "cuda")
 
 
 @pytest.mark.skipif(**tm.no_pandas())
