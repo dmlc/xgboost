@@ -11,7 +11,9 @@ from ..training import cv, train
 from .utils import Device
 
 
-def run_custom_objective(tree_method: str, device: Device) -> None:
+def run_custom_objective(  # pylint: disable=too-many-locals
+    tree_method: str, device: Device
+) -> None:
     """Tests custom objective and metric functions."""
     param = {
         "max_depth": 2,
@@ -32,7 +34,7 @@ def run_custom_objective(tree_method: str, device: Device) -> None:
         param,
         dtrain,
         num_round,
-        watchlist,
+        evals=watchlist,
         obj=tm.logregobj,
         custom_metric=evalerror,
     )

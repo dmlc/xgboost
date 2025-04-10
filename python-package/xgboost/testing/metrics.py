@@ -164,7 +164,7 @@ def run_pr_auc_multi(tree_method: str, device: Device) -> None:
     np.testing.assert_allclose(1.0, evals_result, rtol=1e-2)
 
 
-def run_roc_auc_multi(
+def run_roc_auc_multi(  # pylint: disable=too-many-locals
     tree_method: str, n_samples: int, weighted: bool, device: Device
 ) -> None:
     """Test for ROC AUC metric on a multi-class classification problem."""
@@ -172,7 +172,6 @@ def run_roc_auc_multi(
     from sklearn.metrics import roc_auc_score
 
     rng = np.random.RandomState(1994)
-    n_samples = n_samples
     n_features = 10
     n_classes = 4
 
