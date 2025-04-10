@@ -1,7 +1,6 @@
 import itertools
 import json
 import os
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
@@ -16,9 +15,6 @@ from xgboost.testing.with_skl import (
     run_boost_from_prediction_multi_clasas,
     run_housing_rf_regression,
 )
-
-sys.path.append("tests/python")
-import test_with_sklearn as twskl  # noqa
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 

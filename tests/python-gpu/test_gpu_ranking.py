@@ -28,8 +28,8 @@ def comp_training_with_rank_objective(
 
     params = {
         "booster": "gbtree",
-        "tree_method": "gpu_hist",
-        "gpu_id": 0,
+        "tree_method": "hist",
+        "device": "cuda",
     }
 
     num_trees = 100
