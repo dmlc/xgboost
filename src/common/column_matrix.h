@@ -158,10 +158,10 @@ class ColumnMatrix {
     }
 
     MissingIndicator() = default;
-    // /**
-    //  * @param n_elements Size of the bit set
-    //  * @param init       Initialize the indicator to true or false.
-    //  */
+    /**
+     * @param n_elements Size of the bit set
+     * @param init       Initialize the indicator to true or false.
+     */
     MissingIndicator(std::size_t n_elements, bool init) {
       storage = common::MakeFixedVecWithMalloc(n_elements, static_cast<uint8_t>(init));
       this->InitView();
@@ -479,8 +479,6 @@ class ColumnMatrix {
   RefResourceView<std::size_t> feature_offsets_;
   /** @brief The number of nnz of each column. */
   RefResourceView<std::size_t> num_nonzeros_;
-  /** @brief The number of nnz of each column. */
-  RefResourceView<uint8_t> missing_flag_;
 
   // index_base_[fid]: least bin id for feature fid
   std::uint32_t const* index_base_;
