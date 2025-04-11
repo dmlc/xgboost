@@ -163,9 +163,8 @@ class ColumnMatrix {
     //  * @param init       Initialize the indicator to true or false.
     //  */
     MissingIndicator(std::size_t n_elements, bool init) {
-      // auto m_size = missing.ComputeStorageSize(n_elements);
       storage = common::MakeFixedVecWithMalloc(n_elements, static_cast<uint8_t>(init));
-      // this->InitView();
+      this->InitView();
     }
     /** @brief Set the i^th element to be a valid element (instead of missing). */
     void SetValid(size_t i) { missing[i] = 0; }
