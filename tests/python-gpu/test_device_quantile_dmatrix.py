@@ -125,7 +125,7 @@ class TestQuantileDMatrix:
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(
-        "tree_method,max_bin",
+        "device,max_bin",
         [("cpu", 16), ("cuda", 16), ("cpu", 64), ("cuda", 64)],
     )
     def test_interoperability(self, device: str, max_bin: int) -> None:
