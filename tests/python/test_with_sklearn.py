@@ -1400,6 +1400,7 @@ def test_evaluation_metric():
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss
+
     X, y = make_hastie_10_2(n_samples=2000, random_state=42)
     labels, y = np.unique(y, return_inverse=True)
     X_train, X_test = X[:1600], X[1600:]

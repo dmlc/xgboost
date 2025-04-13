@@ -1,6 +1,6 @@
 """Tests for interaction constraints."""
 
-from typing import Optional
+from typing import Optional, Sequence, Union
 
 import numpy as np
 
@@ -14,7 +14,7 @@ def run_interaction_constraints(  # pylint: disable=too-many-locals
     tree_method: str,
     device: Device,
     feature_names: Optional[FeatureNames] = None,
-    interaction_constraints: str = "[[0, 1]]",
+    interaction_constraints: Union[str, Sequence] = "[[0, 1]]",
 ) -> None:
     """Tests interaction constraints on a synthetic dataset."""
     x1 = np.random.normal(loc=1.0, scale=1.0, size=1000)
