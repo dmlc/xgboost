@@ -12,7 +12,10 @@ from .utils import Device
 
 
 def run_custom_objective(  # pylint: disable=too-many-locals
-    tree_method: str, device: Device, dtrain: DMatrix, dtest: DMatrix,
+    tree_method: str,
+    device: Device,
+    dtrain: DMatrix,
+    dtest: DMatrix,
 ) -> None:
     """Tests custom objective and metric functions."""
     param = {
