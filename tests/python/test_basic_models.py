@@ -11,10 +11,6 @@ from xgboost.core import Integer
 from xgboost.testing.basic_models import run_custom_objective
 from xgboost.testing.updater import ResetStrategy
 
-dpath = tm.data_dir(__file__)
-
-rng = np.random.RandomState(1994)
-
 
 class TestModels:
     def test_glm(self):
@@ -503,6 +499,7 @@ class TestModels:
         # make data
         rows = 100
         cols = 10
+        rng = np.random.RandomState(1994)
         X = rng.randn(rows, cols)
         y = rng.randn(rows)
 
