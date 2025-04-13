@@ -47,7 +47,7 @@ class TestQuantileDMatrix:
         xgb.QuantileDMatrix(data, cp.ones(5, dtype=np.float64))
 
     @pytest.mark.parametrize(
-        "on_device,tree_method",
+        "on_device,device",
         [(True, "cpu"), (False, "cuda"), (False, "cpu"), (True, "cuda")],
     )
     def test_initialization(self, on_device: bool, device: str) -> None:
