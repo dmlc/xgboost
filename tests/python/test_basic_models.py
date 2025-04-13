@@ -158,9 +158,10 @@ class TestModels:
         assert booster.num_boosted_rounds() == 8
 
     def test_custom_objective(self) -> None:
-        run_custom_objective("hist", "cpu")
+        dtrain, dtest = tm.load_agaricus(__file__)
+        run_custom_objective("hist", "cpu", dtrain, dtest)
 
-    def test_multi_eval_metric(self):
+    def test_multi_eval_metric(self) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         watchlist = [(dtest, "eval"), (dtrain, "train")]
         param = {

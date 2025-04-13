@@ -38,10 +38,11 @@ class TestGPUBasicModels:
 
         return hash(model_0), hash(model_1)
 
-    def test_custom_objective(self):
-        run_custom_objective("hist", "cuda")
+    def test_custom_objective(self) -> None:
+        dtrain, dtest = tm.load_agaricus(__file__)
+        run_custom_objective("hist", "cuda", dtrain, dtest)
 
-    def test_eta_decay(self):
+    def test_eta_decay(self) -> None:
         self.cpu_test_cb.run_eta_decay("gpu_hist")
 
     @pytest.mark.parametrize(

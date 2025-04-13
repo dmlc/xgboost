@@ -12,7 +12,7 @@ from .utils import Device
 
 
 def run_custom_objective(  # pylint: disable=too-many-locals
-    tree_method: str, device: Device
+    tree_method: str, device: Device, dtrain: DMatrix, dtest: DMatrix,
 ) -> None:
     """Tests custom objective and metric functions."""
     param = {
@@ -22,7 +22,6 @@ def run_custom_objective(  # pylint: disable=too-many-locals
         "tree_method": tree_method,
         "device": device,
     }
-    dtrain, dtest = tm.load_agaricus(__file__)
     watchlist = [(dtest, "eval"), (dtrain, "train")]
     num_round = 10
 
