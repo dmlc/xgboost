@@ -308,7 +308,8 @@ class TestCallbacks:
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
     def test_eta_decay(self, tree_method: str) -> None:
-        run_eta_decay(tree_method, "cpu")
+        dtrain, dtest = tm.load_agaricus(__file__)
+        run_eta_decay(tree_method, dtrain, dtest, "cpu")
 
     @pytest.mark.parametrize("tree_method,objective", tree_methods_objs())
     def test_eta_decay_leaf_output(self, tree_method: str, objective: str) -> None:

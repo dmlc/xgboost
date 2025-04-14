@@ -10,7 +10,8 @@ from xgboost.testing.callbacks import (
 
 @pytest.mark.parametrize("tree_method", ["approx", "hist"])
 def test_eta_decay(tree_method: str) -> None:
-    run_eta_decay(tree_method, "cuda")
+    dtrain, dtest = tm.load_agaricus(__file__)
+    run_eta_decay(tree_method, dtrain, dtest, "cuda")
 
 
 @pytest.mark.parametrize("tree_method,objective", tree_methods_objs())

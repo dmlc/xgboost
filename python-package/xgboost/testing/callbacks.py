@@ -5,19 +5,17 @@ import json
 from itertools import product
 from typing import Dict, List, Tuple
 
-import xgboost.testing as tm
-
 from ..callback import LearningRateScheduler
 from ..core import Booster, DMatrix
 from ..training import cv, train
 from .utils import Device
 
 
-def run_eta_decay(tree_method: str, device: Device) -> None:
+def run_eta_decay(
+    tree_method: str, dtrain: DMatrix, dtest: DMatrix, device: Device
+) -> None:
     """Test learning rate scheduler, used by both CPU and GPU tests."""
     scheduler = LearningRateScheduler
-
-    dtrain, dtest = tm.load_agaricus(__file__)
 
     watchlist = [(dtest, "eval"), (dtrain, "train")]
     num_round = 4
