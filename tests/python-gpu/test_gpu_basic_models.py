@@ -1,5 +1,5 @@
 import os
-import sys
+from typing import Tuple
 
 import numpy as np
 import pytest
@@ -8,18 +8,9 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.basic_models import run_custom_objective
 
-sys.path.append("tests/python")
-
-# Don't import the test class, otherwise they will run twice.
-import test_callback as test_cb  # noqa
-
-rng = np.random.RandomState(1994)
-
 
 class TestGPUBasicModels:
-    cpu_test_cb = test_cb.TestCallbacks()
-
-    def run_cls(self, X, y):
+    def run_cls(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, int]:
         cls = xgb.XGBClassifier(tree_method="hist", device="cuda")
         cls.fit(X, y)
         cls.get_booster().save_model("test_deterministic_gpu_hist-0.json")
@@ -42,16 +33,7 @@ class TestGPUBasicModels:
         dtrain, dtest = tm.load_agaricus(__file__)
         run_custom_objective("hist", "cuda", dtrain, dtest)
 
-    def test_eta_decay(self) -> None:
-        self.cpu_test_cb.run_eta_decay("gpu_hist")
-
-    @pytest.mark.parametrize(
-        "objective", ["binary:logistic", "reg:absoluteerror", "reg:quantileerror"]
-    )
-    def test_eta_decay_leaf_output(self, objective) -> None:
-        self.cpu_test_cb.run_eta_decay_leaf_output("gpu_hist", objective)
-
-    def test_deterministic_gpu_hist(self):
+    def test_deterministic_gpu_hist(self) -> None:
         kRows = 1000
         kCols = 64
         kClasses = 4
@@ -63,7 +45,7 @@ class TestGPUBasicModels:
         assert model_0 == model_1
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_invalid_gpu_id(self):
+    def test_invalid_gpu_id(self) -> None:
         from sklearn.datasets import load_digits
 
         X, y = load_digits(return_X_y=True)
