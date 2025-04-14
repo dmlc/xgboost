@@ -478,7 +478,7 @@ def run_specified_cat(  # pylint: disable=too-many-locals
         low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
     )
 
-    df = {}              # avoid fragmentation warning from pandas
+    df = {}  # avoid fragmentation warning from pandas
     for c in range(n_features):
         if c % 2 == 0:
             col = col_numeric[:, c // 2]
