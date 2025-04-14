@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 import xgboost.testing as tm
 
 from ..callback import LearningRateScheduler
-from ..core import Booster
+from ..core import Booster, DMatrix
 from ..training import cv, train
 from .utils import Device
 
@@ -131,12 +131,13 @@ def tree_methods_objs() -> List[Tuple[str, str]]:
     )
 
 
-def run_eta_decay_leaf_output(tree_method: str, objective: str, device: Device) -> None:
+def run_eta_decay_leaf_output(
+    tree_method: str, objective: str, dtrain: DMatrix, dtest: DMatrix, device: Device
+) -> None:
     """check decay has effect on leaf output."""
     num_round = 4
     scheduler = LearningRateScheduler
 
-    dtrain, dtest = tm.load_agaricus(__file__)
     watchlist = [(dtest, "eval"), (dtrain, "train")]
 
     param = {

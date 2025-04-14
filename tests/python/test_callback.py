@@ -1,4 +1,3 @@
-import json
 import os
 import tempfile
 from collections import namedtuple
@@ -313,7 +312,8 @@ class TestCallbacks:
 
     @pytest.mark.parametrize("tree_method,objective", tree_methods_objs())
     def test_eta_decay_leaf_output(self, tree_method: str, objective: str) -> None:
-        run_eta_decay_leaf_output(tree_method, objective, "cpu")
+        dtrain, dtest = tm.load_agaricus(__file__)
+        run_eta_decay_leaf_output(tree_method, objective, dtrain, dtest, "cpu")
 
     def test_check_point(self, breast_cancer: BreastCancer) -> None:
         X, y = breast_cancer.full
