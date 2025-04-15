@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Python wheels, CPU variant
+# Build Python wheels, CPU variant (no federated learning)
 
 set -euo pipefail
 
@@ -31,13 +31,11 @@ echo "--- Build binary wheel for ${WHEEL_TAG} (CPU only)"
 set -x
 
 # Patch to rename pkg to xgboost-cpu
-python3 ops/script/pypi_variants.py --variant=cpu
+python3 ops/script/pypi_variants.py --use-cpu-suffix=1 --require-nccl-dep=0
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \
   "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
-# discard the patch
-python3 ops/script/pypi_variants.py --variant=default
 
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
@@ -47,6 +45,14 @@ python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --
   wheelhouse/xgboost_cpu-*.whl
 rm -v python-package/dist/xgboost_cpu-*.whl
 mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
+
+if ! unzip -l ./python-package/dist/*.whl | grep libgomp > /dev/null; then
+  echo "error: libgomp.so was not vendored in the wheel"
+  exit -1
+fi
+
+# Check size of wheel
+pydistcheck --config python-package/pyproject.toml python-package/dist/*.whl
 
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then

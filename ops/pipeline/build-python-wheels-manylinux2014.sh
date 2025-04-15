@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Python wheels targeting manylinux2014
+# Build Python wheels targeting manylinux2014 (no GPU, no federated learning)
 
 set -euo pipefail
 
@@ -29,13 +29,11 @@ PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 echo "--- Build binary wheel for ${WHEEL_TAG}"
 set -x
 
-python3 ops/script/pypi_variants.py --variant=manylinux2014
+python3 ops/script/pypi_variants.py --use-cpu-suffix=0 --require-nccl-dep=0
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \
   "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
-# discard the patch
-python3 ops/script/pypi_variants.py --variant=default
 
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
