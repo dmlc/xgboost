@@ -1,5 +1,5 @@
 #!/bin/bash
-## Build and test XGBoost with ARM64 CPU
+## Build and test XGBoost with ARM64 CPU (no GPU, no federated learning)
 
 set -euo pipefail
 
@@ -14,13 +14,15 @@ source ops/pipeline/get-docker-registry-details.sh
 source ops/pipeline/get-image-tag.sh
 
 WHEEL_TAG=manylinux_2_28_aarch64
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.aarch64:${IMAGE_TAG}
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}
 
 echo "--- Build CPU code targeting ARM64"
 set -x
+
+python3 ops/script/pypi_variants.py --use-cpu-suffix=0 --require-nccl-dep=0
 python3 ops/docker_run.py \
   --image-uri ${IMAGE_URI} \
-  -- ops/pipeline/build-cpu-arm64-impl.sh
+  -- ops/pipeline/build-python-wheels-arm64-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
 python3 ops/docker_run.py \
