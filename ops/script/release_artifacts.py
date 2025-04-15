@@ -111,7 +111,7 @@ def make_python_sdist(
 
     # Build sdist for `xgboost-cpu`.
     with DirectoryExcursion(ROOT):
-        make_pyproject("cpu")
+        make_pyproject(use_cpu_suffix=1, require_nccl_dep=0)
     with DirectoryExcursion(ROOT / "python-package"):
         subprocess.run(["python", "-m", "build", "--sdist"], check=True)
         sdist_name = (
@@ -126,7 +126,7 @@ def make_python_sdist(
 
     # Build sdist for `xgboost`.
     with DirectoryExcursion(ROOT):
-        make_pyproject("default")
+        make_pyproject(use_cpu_suffix=0, require_nccl_dep=1)
 
     with DirectoryExcursion(ROOT / "python-package"):
         subprocess.run(["python", "-m", "build", "--sdist"], check=True)
