@@ -3,7 +3,7 @@
 import argparse
 import os
 
-from test_utils import PY_PACKAGE, ROOT
+from test_utils import PY_PACKAGE
 
 IN_PATH = os.path.join(PY_PACKAGE, "pyproject.toml.in")
 OUT_PATH = os.path.join(PY_PACKAGE, "pyproject.toml")
