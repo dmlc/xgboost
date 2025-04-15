@@ -3,7 +3,7 @@
 import json
 from functools import partial, update_wrapper
 from string import ascii_lowercase
-from typing import Any, Dict, List, Literal, TypeAlias, Union, overload
+from typing import Any, Dict, List, Union, overload
 
 import numpy as np
 import pytest
@@ -14,8 +14,7 @@ from xgboost.data import is_pd_cat_dtype
 
 from ..core import DataIter
 from .data_iter import CatIter
-
-Device: TypeAlias = Literal["cpu", "cuda"]
+from .utils import Device
 
 
 @overload
@@ -37,7 +36,7 @@ def get_basescore(model: Union[xgb.XGBModel, xgb.Booster]) -> float:
     return base_score
 
 
-def check_init_estimation(tree_method: str) -> None:
+def check_init_estimation(tree_method: str, device: Device) -> None:
     """Test for init estimation."""
     from sklearn.datasets import (
         make_classification,
@@ -46,13 +45,19 @@ def check_init_estimation(tree_method: str) -> None:
     )
 
     def run_reg(X: np.ndarray, y: np.ndarray) -> None:  # pylint: disable=invalid-name
-        reg = xgb.XGBRegressor(tree_method=tree_method, max_depth=1, n_estimators=1)
+        reg = xgb.XGBRegressor(
+            tree_method=tree_method, max_depth=1, n_estimators=1, device=device
+        )
         reg.fit(X, y, eval_set=[(X, y)])
         base_score_0 = get_basescore(reg)
         score_0 = reg.evals_result()["validation_0"]["rmse"][0]
 
         reg = xgb.XGBRegressor(
-            tree_method=tree_method, max_depth=1, n_estimators=1, boost_from_average=0
+            tree_method=tree_method,
+            device=device,
+            max_depth=1,
+            n_estimators=1,
+            boost_from_average=0,
         )
         reg.fit(X, y, eval_set=[(X, y)])
         base_score_1 = get_basescore(reg)
@@ -68,13 +73,19 @@ def check_init_estimation(tree_method: str) -> None:
     run_reg(X, y)
 
     def run_clf(X: np.ndarray, y: np.ndarray) -> None:  # pylint: disable=invalid-name
-        clf = xgb.XGBClassifier(tree_method=tree_method, max_depth=1, n_estimators=1)
+        clf = xgb.XGBClassifier(
+            tree_method=tree_method, max_depth=1, n_estimators=1, device=device
+        )
         clf.fit(X, y, eval_set=[(X, y)])
         base_score_0 = get_basescore(clf)
         score_0 = clf.evals_result()["validation_0"]["logloss"][0]
 
         clf = xgb.XGBClassifier(
-            tree_method=tree_method, max_depth=1, n_estimators=1, boost_from_average=0
+            tree_method=tree_method,
+            max_depth=1,
+            n_estimators=1,
+            device=device,
+            boost_from_average=0,
         )
         clf.fit(X, y, eval_set=[(X, y)])
         base_score_1 = get_basescore(clf)
@@ -92,7 +103,7 @@ def check_init_estimation(tree_method: str) -> None:
 
 
 # pylint: disable=too-many-locals
-def check_quantile_loss(tree_method: str, weighted: bool) -> None:
+def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> None:
     """Test for quantile loss."""
     from sklearn.datasets import make_regression
     from sklearn.metrics import mean_pinball_loss
@@ -125,6 +136,7 @@ def check_quantile_loss(tree_method: str, weighted: bool) -> None:
         {
             "objective": "reg:quantileerror",
             "tree_method": tree_method,
+            "device": device,
             "quantile_alpha": alpha,
             "base_score": base_score,
         },
@@ -156,6 +168,7 @@ def check_quantile_loss(tree_method: str, weighted: bool) -> None:
             {
                 "objective": "reg:quantileerror",
                 "tree_method": tree_method,
+                "device": device,
                 "quantile_alpha": a,
                 "base_score": base_score,
             },

@@ -1,26 +1,16 @@
 import os
-import sys
+from typing import Tuple
 
 import numpy as np
 import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-
-sys.path.append("tests/python")
-import test_basic_models as test_bm
-
-# Don't import the test class, otherwise they will run twice.
-import test_callback as test_cb  # noqa
-
-rng = np.random.RandomState(1994)
+from xgboost.testing.basic_models import run_custom_objective
 
 
 class TestGPUBasicModels:
-    cpu_test_cb = test_cb.TestCallbacks()
-    cpu_test_bm = test_bm.TestModels()
-
-    def run_cls(self, X, y):
+    def run_cls(self, X: np.ndarray, y: np.ndarray) -> Tuple[int, int]:
         cls = xgb.XGBClassifier(tree_method="hist", device="cuda")
         cls.fit(X, y)
         cls.get_booster().save_model("test_deterministic_gpu_hist-0.json")
@@ -39,19 +29,11 @@ class TestGPUBasicModels:
 
         return hash(model_0), hash(model_1)
 
-    def test_custom_objective(self):
-        self.cpu_test_bm.run_custom_objective("gpu_hist")
+    def test_custom_objective(self) -> None:
+        dtrain, dtest = tm.load_agaricus(__file__)
+        run_custom_objective("hist", "cuda", dtrain, dtest)
 
-    def test_eta_decay(self):
-        self.cpu_test_cb.run_eta_decay("gpu_hist")
-
-    @pytest.mark.parametrize(
-        "objective", ["binary:logistic", "reg:absoluteerror", "reg:quantileerror"]
-    )
-    def test_eta_decay_leaf_output(self, objective) -> None:
-        self.cpu_test_cb.run_eta_decay_leaf_output("gpu_hist", objective)
-
-    def test_deterministic_gpu_hist(self):
+    def test_deterministic_gpu_hist(self) -> None:
         kRows = 1000
         kCols = 64
         kClasses = 4
@@ -63,16 +45,16 @@ class TestGPUBasicModels:
         assert model_0 == model_1
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_invalid_gpu_id(self):
+    def test_invalid_gpu_id(self) -> None:
         from sklearn.datasets import load_digits
 
         X, y = load_digits(return_X_y=True)
         # should pass with invalid gpu id
-        cls1 = xgb.XGBClassifier(tree_method="gpu_hist", gpu_id=9999)
+        cls1 = xgb.XGBClassifier(tree_method="hist", device="cuda:9999")
         cls1.fit(X, y)
         # should throw error with fail_on_invalid_gpu_id enabled
         cls2 = xgb.XGBClassifier(
-            tree_method="gpu_hist", gpu_id=9999, fail_on_invalid_gpu_id=True
+            tree_method="hist", device="cuda:9999", fail_on_invalid_gpu_id=True
         )
         with pytest.raises(ValueError, match="ordinal 9999 is invalid"):
             cls2.fit(X, y)

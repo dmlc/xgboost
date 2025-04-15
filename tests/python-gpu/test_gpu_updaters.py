@@ -337,11 +337,11 @@ class TestGPUUpdaters:
         run_adaptive(tree_method, weighted, "cuda")
 
     def test_init_estimation(self) -> None:
-        check_init_estimation("gpu_hist")
+        check_init_estimation("hist", "cuda")
 
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:
-        check_quantile_loss("gpu_hist", weighted)
+        check_quantile_loss("hist", weighted, "cuda")
 
     @pytest.mark.skipif(**tm.no_pandas())
     def test_issue8824(self):

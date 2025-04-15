@@ -9,7 +9,6 @@ import pytest
 from test_gpu_pickling import build_dataset, load_pickle, model_path
 
 import xgboost as xgb
-from xgboost import testing as tm
 
 
 class TestLoadPickle:
@@ -63,6 +62,4 @@ class TestLoadPickle:
         X = rng.randn(10, 10)
         y = rng.randn(10)
         with pytest.warns(UserWarning, match="No visible GPU is found"):
-            # Test no thrust exception is thrown
-            with pytest.raises(xgb.core.XGBoostError, match="have at least one device"):
-                xgb.train({"tree_method": "gpu_hist"}, xgb.DMatrix(X, y))
+            xgb.train({"device": "cuda"}, xgb.DMatrix(X, y))

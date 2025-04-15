@@ -22,25 +22,25 @@ class TestPickling:
         dtrain = xgb.DMatrix(X, y)
         bst = xgb.train(xgb_params, dtrain)
 
-        dump_0 = bst.get_dump(dump_format='json')
+        dump_0 = bst.get_dump(dump_format="json")
         assert dump_0
         config_0 = bst.save_config()
 
-        filename = 'model.pkl'
+        filename = "model.pkl"
 
-        with open(filename, 'wb') as fd:
+        with open(filename, "wb") as fd:
             pickle.dump(bst, fd)
 
-        with open(filename, 'rb') as fd:
+        with open(filename, "rb") as fd:
             bst = pickle.load(fd)
 
-        with open(filename, 'wb') as fd:
+        with open(filename, "wb") as fd:
             pickle.dump(bst, fd)
 
-        with open(filename, 'rb') as fd:
+        with open(filename, "rb") as fd:
             bst = pickle.load(fd)
 
-        assert bst.get_dump(dump_format='json') == dump_0
+        assert bst.get_dump(dump_format="json") == dump_0
 
         if os.path.exists(filename):
             os.remove(filename)

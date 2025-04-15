@@ -1,7 +1,6 @@
 import json
 import os
 import tempfile
-from typing import Optional
 
 import numpy as np
 import pytest
@@ -9,11 +8,8 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import Integer
+from xgboost.testing.basic_models import run_custom_objective
 from xgboost.testing.updater import ResetStrategy
-
-dpath = tm.data_dir(__file__)
-
-rng = np.random.RandomState(1994)
 
 
 class TestModels:
@@ -157,73 +153,11 @@ class TestModels:
         )
         assert booster.num_boosted_rounds() == 8
 
-    def run_custom_objective(self, tree_method: Optional[str] = None):
-        param = {
-            "max_depth": 2,
-            "eta": 1,
-            "objective": "reg:logistic",
-            "tree_method": tree_method,
-        }
+    def test_custom_objective(self) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
-        watchlist = [(dtest, "eval"), (dtrain, "train")]
-        num_round = 10
+        run_custom_objective("hist", "cpu", dtrain, dtest)
 
-        def evalerror(preds: np.ndarray, dtrain: xgb.DMatrix):
-            return tm.eval_error_metric(preds, dtrain, rev_link=True)
-
-        # test custom_objective in training
-        bst = xgb.train(
-            param,
-            dtrain,
-            num_round,
-            watchlist,
-            obj=tm.logregobj,
-            custom_metric=evalerror,
-        )
-        assert isinstance(bst, xgb.Booster)
-        preds = bst.predict(dtest)
-        labels = dtest.get_label()
-        err = sum(
-            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
-        ) / float(len(preds))
-        assert err < 0.1
-
-        # test custom_objective in cross-validation
-        xgb.cv(
-            param,
-            dtrain,
-            num_round,
-            nfold=5,
-            seed=0,
-            obj=tm.logregobj,
-            custom_metric=evalerror,
-        )
-
-        # test maximize parameter
-        def neg_evalerror(preds, dtrain):
-            labels = dtrain.get_label()
-            preds = 1.0 / (1.0 + np.exp(-preds))
-            return "error", float(sum(labels == (preds > 0.0))) / len(labels)
-
-        bst2 = xgb.train(
-            param,
-            dtrain,
-            num_round,
-            evals=watchlist,
-            obj=tm.logregobj,
-            custom_metric=neg_evalerror,
-            maximize=True,
-        )
-        preds2 = bst2.predict(dtest)
-        err2 = sum(
-            1 for i in range(len(preds2)) if int(preds2[i] > 0.5) != labels[i]
-        ) / float(len(preds2))
-        assert err == err2
-
-    def test_custom_objective(self):
-        self.run_custom_objective()
-
-    def test_multi_eval_metric(self):
+    def test_multi_eval_metric(self) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         watchlist = [(dtest, "eval"), (dtrain, "train")]
         param = {
@@ -565,6 +499,7 @@ class TestModels:
         # make data
         rows = 100
         cols = 10
+        rng = np.random.RandomState(1994)
         X = rng.randn(rows, cols)
         y = rng.randn(rows)
 
