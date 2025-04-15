@@ -122,13 +122,13 @@ jobs:
           bash ops/pipeline/build-cuda.sh \
             xgb-ci.gpu_build_rockylinux8_dev_ver enable-rmm
 
-  build-manylinux2014:
+  build-python-wheels-manylinux2014:
     name: Build manylinux2014_${{ matrix.arch }} wheel
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
       - run-id=${{ github.run_id }}
-      - tag=main-build-manylinux2014-${{ matrix.arch }}
+      - tag=main-build-python-wheels-manylinux2014-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -145,7 +145,42 @@ jobs:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
+      - run: bash ops/pipeline/build-python-wheels-manylinux2014.sh ${{ matrix.arch }}
+
+  build-python-wheels-cpu:
+    name: Build CPU wheel for ${{ matrix.manylinux_target }}_${{ matrix.arch }}
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-build-python-wheels-cpu-${{ matrix.manylinux_target }}-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - manylinux_target: manylinux2014
+          arch: aarch64
+          runner: linux-arm64-cpu
+        - manylinux_target: manylinux2014
+          arch: x86_64
+          runner: linux-amd64-cpu
+        - manylinux_target: manylinux_2_28
+          arch: aarch64
+          runner: linux-arm64-cpu
+        - manylinux_target: manylinux_2_28
+          arch: x86_64
+          runner: linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-python-wheels-cpu.sh \
+            ${{ matrix.manylinux_target }} ${{ matrix.arch }}
 
   build-gpu-rpkg:
     name: Build GPU-enabled R package
