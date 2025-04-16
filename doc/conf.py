@@ -225,7 +225,7 @@ sys.path.insert(0, CURR_PATH)
 # General information about the project.
 project = "xgboost"
 author = "%s developers" % project
-copyright = "2022, %s" % author
+copyright = "2025, %s" % author
 github_doc_root = "https://github.com/dmlc/xgboost/tree/master/doc/"
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -238,6 +238,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
     "sphinx_gallery.gen_gallery",
+    "sphinx_issues",
     "breathe",
     "myst_parser",
 ]
@@ -261,6 +262,10 @@ sphinx_gallery_conf = {
     ],
     "matplotlib_animations": True,
 }
+
+# Sphinx-issues configuration
+# Path to GitHub repo {group}/{project}  (note that `group` is the GitHub user or organization)
+issues_github_path = "dmlc/xgboost"
 
 autodoc_typehints = "description"
 

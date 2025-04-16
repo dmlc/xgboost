@@ -107,7 +107,8 @@ using DeviceCatIndexView = cuda_impl::TupToVarT<CatIndexViewTypes>;
  * Accepted policies:
  *
  * - A class with a `ThrustPolicy` method that returns a thrust execution policy, along with a
- *   `ThrustAllocator` template type. This is only used for the GPU implementation.
+ *   `ThrustAllocator` template type. In addition, a `Stream` method that returns a CUDA stream.
+ *   This is only used for the GPU implementation.
  *
  * - An error handling policy that exposes a single `Error` method, which takes a single
  *   string parameter for error message.
@@ -133,6 +134,7 @@ struct ColumnsViewImpl {
   [[nodiscard]] std::size_t Size() const { return columns.size(); }
   [[nodiscard]] bool Empty() const { return this->Size() == 0; }
   [[nodiscard]] auto operator[](std::size_t i) const { return columns[i]; }
+  [[nodiscard]] auto HasCategorical() const { return n_total_cats != 0; }
 };
 
 struct DftErrorHandler {
@@ -342,6 +344,13 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
   std::size_t out_idx = 0;
   for (std::size_t f_idx = 0, n_features = orig_enc.Size(); f_idx < n_features; f_idx++) {
     bool is_empty = std::visit([](auto &&arg) { return arg.empty(); }, orig_enc.columns[f_idx]);
+    bool new_is_empty = std::visit([](auto &&arg) { return arg.empty(); }, new_enc.columns[f_idx]);
+    if (is_empty != new_is_empty) {
+      std::stringstream ss;
+      ss << "Invalid new DataFrame input for the: " << f_idx
+         << "th feature. The data type doesn't match the one used in the training dataset.";
+      policy.Error(ss.str());
+    }
     if (is_empty) {
       continue;
     }
@@ -409,6 +418,27 @@ inline std::ostream &operator<<(std::ostream &os, CatStrArrayView const &strings
     }
   }
   os << "]";
+  return os;
+}
+
+inline std::ostream &operator<<(std::ostream &os, HostColumnsView const &h_enc) {
+  for (std::size_t i = 0; i < h_enc.columns.size(); ++i) {
+    auto const &col = h_enc.columns[i];
+    os << "f" << i << ": ";
+    std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &str) { os << str; },
+                               [&](auto &&values) {
+                                 os << "[";
+                                 for (std::size_t j = 0, n = values.size(); j < n; ++j) {
+                                   os << values[j];
+                                   if (j != n - 1) {
+                                     os << ", ";
+                                   }
+                                 }
+                                 os << "]";
+                               }},
+               col);
+    os << std::endl;
+  }
   return os;
 }
 }  // namespace enc

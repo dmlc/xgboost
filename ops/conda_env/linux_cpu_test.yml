@@ -3,7 +3,7 @@ channels:
 - conda-forge
 dependencies:
 - python=3.10
-- cmake
+- cmake>=3.26.4
 - c-compiler
 - cxx-compiler
 - ninja
@@ -34,7 +34,7 @@ dependencies:
 - boto3
 - awscli
 - py-ubjson
-- loky
+- loky>=3.5.1
 - pyarrow
 - protobuf
 - cloudpickle

@@ -104,22 +104,37 @@ struct CatContainerImpl;
  */
 class CatContainer {
   /**
-   * @brief Implementation of the Copy method, used by both CPU and GPU.
+   * @brief Implementation of the Copy method, used by both CPU and GPU. Note that this
+   * method changes the permission in the HostDeviceVector as we need to pull data into
+   * targeted devices.
    */
-  void CopyCommon(CatContainer const& that) {
-    this->sorted_idx_.SetDevice(that.sorted_idx_.Device());
+  void CopyCommon(Context const* ctx, CatContainer const& that) {
+    auto device = ctx->Device();
+
+    that.sorted_idx_.SetDevice(device);
+    this->sorted_idx_.SetDevice(device);
     this->sorted_idx_.Resize(that.sorted_idx_.Size());
     this->sorted_idx_.Copy(that.sorted_idx_);
 
-    this->feature_segments_.SetDevice(that.feature_segments_.Device());
+    this->feature_segments_.SetDevice(device);
+    that.feature_segments_.SetDevice(device);
     this->feature_segments_.Resize(that.feature_segments_.Size());
     this->feature_segments_.Copy(that.feature_segments_);
 
     this->n_total_cats_ = that.n_total_cats_;
+
+    if (!device.IsCPU()) {
+      // Pull to device
+      this->sorted_idx_.ConstDevicePointer();
+      this->feature_segments_.ConstDevicePointer();
+    }
   }
 
   [[nodiscard]] enc::HostColumnsView HostViewImpl() const {
     CHECK_EQ(this->cpu_impl_->columns.size(), this->cpu_impl_->columns_v.size());
+    if (this->n_total_cats_ != 0) {
+      CHECK(!this->cpu_impl_->columns_v.empty());
+    }
     return {common::Span{this->cpu_impl_->columns_v}, this->feature_segments_.ConstHostSpan(),
             this->n_total_cats_};
   }
@@ -134,17 +149,21 @@ class CatContainer {
 
   void Copy(Context const* ctx, CatContainer const& that);
 
-  [[nodiscard]] bool HostCanRead() const {
-    return !this->cpu_impl_->columns.empty() || this->n_total_cats_ == 0;
-  }
-  [[nodiscard]] bool DeviceCanRead() const;
+  [[nodiscard]] bool HostCanRead() const { return this->feature_segments_.HostCanRead(); }
+  [[nodiscard]] bool DeviceCanRead() const { return this->feature_segments_.DeviceCanRead(); }
 
   // Mostly used for testing.
   void Push(cpu_impl::ColumnType const& column) { this->cpu_impl_->columns.emplace_back(column); }
-
-  [[nodiscard]] bool Empty() const { return this->cpu_impl_->columns.empty(); }
+  /**
+   * @brief Wether the container is initialized at all. If the input is not a DataFrame,
+   *        this method returns True.
+   */
+  [[nodiscard]] bool Empty() const;
 
   [[nodiscard]] std::size_t NumFeatures() const { return this->cpu_impl_->columns.size(); }
+  /**
+   * @brief The number of categories across all features.
+   */
   [[nodiscard]] std::size_t NumCatsTotal() const { return this->n_total_cats_; }
 
   /**
@@ -160,10 +179,9 @@ class CatContainer {
   [[nodiscard]] common::Span<bst_cat_t const> RefSortedIndex(Context const* ctx) const {
     std::lock_guard guard{device_mu_};
     if (ctx->IsCPU()) {
-      CHECK(this->sorted_idx_.HostCanRead());
       return this->sorted_idx_.ConstHostSpan();
     } else {
-      CHECK(this->sorted_idx_.DeviceCanRead());
+      sorted_idx_.SetDevice(ctx->Device());
       return this->sorted_idx_.ConstDeviceSpan();
     }
   }

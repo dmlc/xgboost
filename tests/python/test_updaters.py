@@ -1,5 +1,4 @@
-import json
-from string import ascii_lowercase
+from itertools import product
 from typing import Any, Dict
 
 import numpy as np
@@ -20,6 +19,9 @@ from xgboost.testing.updater import (
     check_get_quantile_cut,
     check_init_estimation,
     check_quantile_loss,
+    run_adaptive,
+    run_invalid_category,
+    run_max_cat,
     train_result,
 )
 
@@ -219,68 +221,14 @@ class TestTreeMethod:
             hist_result["train"]["rmse"], approx_result["train"]["rmse"]
         )
 
-    def run_invalid_category(self, tree_method: str) -> None:
-        rng = np.random.default_rng()
-        # too large
-        X = rng.integers(low=0, high=4, size=1000).reshape(100, 10)
-        y = rng.normal(loc=0, scale=1, size=100)
-        X[13, 7] = np.iinfo(np.int32).max + 1
-
-        # Check is performed during sketching.
-        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
-        with pytest.raises(ValueError):
-            xgb.train({"tree_method": tree_method}, Xy)
-
-        X[13, 7] = 16777216
-        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
-        with pytest.raises(ValueError):
-            xgb.train({"tree_method": tree_method}, Xy)
-
-        # mixed positive and negative values
-        X = rng.normal(loc=0, scale=1, size=1000).reshape(100, 10)
-        y = rng.normal(loc=0, scale=1, size=100)
-
-        Xy = xgb.DMatrix(X, y, feature_types=["c"] * 10)
-        with pytest.raises(ValueError):
-            xgb.train({"tree_method": tree_method}, Xy)
-
-        if tree_method == "gpu_hist":
-            import cupy as cp
-
-            X, y = cp.array(X), cp.array(y)
-            with pytest.raises(ValueError):
-                Xy = xgb.QuantileDMatrix(X, y, feature_types=["c"] * 10)
-
-    def test_invalid_category(self) -> None:
-        self.run_invalid_category("approx")
-        self.run_invalid_category("hist")
-
-    def run_max_cat(self, tree_method: str) -> None:
-        """Test data with size smaller than number of categories."""
-        import pandas as pd
-
-        rng = np.random.default_rng(0)
-        n_cat = 100
-        n = 5
-
-        X = pd.Series(
-            ["".join(rng.choice(list(ascii_lowercase), size=3)) for i in range(n_cat)],
-            dtype="category",
-        )[:n].to_frame()
-
-        reg = xgb.XGBRegressor(
-            enable_categorical=True,
-            tree_method=tree_method,
-            n_estimators=10,
-        )
-        y = pd.Series(range(n))
-        reg.fit(X=X, y=y, eval_set=[(X, y)])
-        assert tm.non_increasing(reg.evals_result()["validation_0"]["rmse"])
+    @pytest.mark.parametrize("tree_method", ["hist", "approx"])
+    def test_invalid_category(self, tree_method: str) -> None:
+        run_invalid_category(tree_method, "cpu")
 
     @pytest.mark.parametrize("tree_method", ["hist", "approx"])
     @pytest.mark.skipif(**tm.no_pandas())
-    def test_max_cat(self, tree_method) -> None:
-        self.run_max_cat(tree_method)
+    def test_max_cat(self, tree_method: str) -> None:
+        run_max_cat(tree_method, "cpu")
 
     @given(
         strategies.integers(10, 400),
@@ -373,98 +321,19 @@ class TestTreeMethod:
             rows, cols, cats, device="cpu", tree_method="hist", extmem=False
         )
 
-    def run_adaptive(self, tree_method, weighted) -> None:
-        rng = np.random.RandomState(1994)
-        from sklearn.datasets import make_regression
-        from sklearn.utils import stats
-
-        n_samples = 256
-        X, y = make_regression(n_samples, 16, random_state=rng)
-        if weighted:
-            w = rng.normal(size=n_samples)
-            w -= w.min()
-            Xy = xgb.DMatrix(X, y, weight=w)
-            base_score = stats._weighted_percentile(y, w, percentile=50)
-        else:
-            Xy = xgb.DMatrix(X, y)
-            base_score = np.median(y)
-
-        booster_0 = xgb.train(
-            {
-                "tree_method": tree_method,
-                "base_score": base_score,
-                "objective": "reg:absoluteerror",
-            },
-            Xy,
-            num_boost_round=1,
-        )
-        booster_1 = xgb.train(
-            {"tree_method": tree_method, "objective": "reg:absoluteerror"},
-            Xy,
-            num_boost_round=1,
-        )
-        config_0 = json.loads(booster_0.save_config())
-        config_1 = json.loads(booster_1.save_config())
-
-        def get_score(config: Dict) -> float:
-            return float(config["learner"]["learner_model_param"]["base_score"])
-
-        assert get_score(config_0) == get_score(config_1)
-
-        with pytest.warns(Warning, match="Model format is default to UBJSON"):
-            raw_booster = booster_1.save_raw(raw_format="deprecated")
-        booster_2 = xgb.Booster(model_file=raw_booster)
-        config_2 = json.loads(booster_2.save_config())
-        assert get_score(config_1) == get_score(config_2)
-
-        raw_booster = booster_1.save_raw(raw_format="ubj")
-        booster_2 = xgb.Booster(model_file=raw_booster)
-        config_2 = json.loads(booster_2.save_config())
-        assert get_score(config_1) == get_score(config_2)
-
-        booster_0 = xgb.train(
-            {
-                "tree_method": tree_method,
-                "base_score": base_score + 1.0,
-                "objective": "reg:absoluteerror",
-            },
-            Xy,
-            num_boost_round=1,
-        )
-        config_0 = json.loads(booster_0.save_config())
-        np.testing.assert_allclose(get_score(config_0), get_score(config_1) + 1)
-
-        evals_result: Dict[str, Dict[str, list]] = {}
-        xgb.train(
-            {
-                "tree_method": tree_method,
-                "objective": "reg:absoluteerror",
-                "subsample": 0.8,
-                "eta": 1.0,
-            },
-            Xy,
-            num_boost_round=10,
-            evals=[(Xy, "Train")],
-            evals_result=evals_result,
-        )
-        mae = evals_result["Train"]["mae"]
-        assert mae[-1] < 20.0
-        assert tm.non_increasing(mae)
-
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.parametrize(
-        "tree_method,weighted",
-        [("approx", False), ("hist", False), ("approx", True), ("hist", True)],
+        "tree_method,weighted", list(product(["approx", "hist"], [True, False]))
     )
-    def test_adaptive(self, tree_method, weighted) -> None:
-        self.run_adaptive(tree_method, weighted)
+    def test_adaptive(self, tree_method: str, weighted: bool) -> None:
+        run_adaptive(tree_method, weighted, "cpu")
 
     def test_init_estimation(self) -> None:
-        check_init_estimation("hist")
+        check_init_estimation("hist", "cpu")
 
     @pytest.mark.parametrize("weighted", [True, False])
     def test_quantile_loss(self, weighted: bool) -> None:
-        check_quantile_loss("hist", weighted)
+        check_quantile_loss("hist", weighted, "cpu")
 
     @pytest.mark.skipif(**tm.no_pandas())
     @pytest.mark.parametrize("tree_method", ["hist"])

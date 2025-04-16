@@ -390,7 +390,7 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
     call = match.call(),
     params = params
   )
-
+  bst <- xgb.reset.Booster(bst)
   curr_attrs <- attributes(bst)
   if (NROW(curr_attrs)) {
     curr_attrs <- curr_attrs[

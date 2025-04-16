@@ -8,6 +8,7 @@
 #include <vector>  // for vector
 
 #include "../common/categorical.h"  // for IsCat, Decision
+#include "../data/adapter.h"        // for COOTuple
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
@@ -64,5 +65,46 @@ inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &tree
   }
   return ntree_limit;
 }
+
+/**
+ * @brief Accessor for obtaining re-coded categories.
+ */
+struct CatAccessor {
+  enc::MappingView enc;
+
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx f_idx) const {
+    if (!enc.Empty() && !enc[f_idx].empty()) {
+      auto f_mapping = enc[f_idx];
+      auto cat_idx = common::AsCat(fvalue);
+      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
+        fvalue = f_mapping.data()[cat_idx];
+      }
+    }
+    return fvalue;
+  }
+
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
+    return this->operator()(e.value, e.column_idx);
+  }
+
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const {
+    return this->operator()(e.fvalue, e.index);
+  }
+};
+
+/**
+ * @brief No-op accessor used to handle numeric data.
+ */
+struct NoOpAccessor {
+  XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const &) {}
+  NoOpAccessor() = default;
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
+    return fvalue;
+  }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const { return e.value; }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const { return e.fvalue; }
+};
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_

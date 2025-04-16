@@ -9,8 +9,10 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 
+from .utils import Device
 
-def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
+
+def run_ranking_qid_df(impl: ModuleType, tree_method: str, device: Device) -> None:
     """Test ranking with qid packed into X."""
     import scipy.sparse
     from sklearn.metrics import mean_squared_error
@@ -21,7 +23,9 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
     # pack qid into x using dataframe
     df = impl.DataFrame(X)
     df["qid"] = q
-    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg", tree_method=tree_method)
+    ranker = xgb.XGBRanker(
+        n_estimators=3, eval_metric="ndcg", tree_method=tree_method, device=device
+    )
     ranker.fit(df, y)
     s = ranker.score(df, y)
     assert s > 0.7
@@ -32,13 +36,15 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
     ranker.fit(df, y, eval_set=[(valid_df, y)])
 
     # same as passing qid directly
-    ranker = xgb.XGBRanker(n_estimators=3, eval_metric="ndcg", tree_method=tree_method)
+    ranker = xgb.XGBRanker(
+        n_estimators=3, eval_metric="ndcg", tree_method=tree_method, device=device
+    )
     ranker.fit(X, y, qid=q)
     s1 = ranker.score(df, y)
     assert np.isclose(s, s1)
 
     # Works with standard sklearn cv
-    if tree_method != "gpu_hist":
+    if device == "cpu":
         # we need cuML for this.
         kfold = StratifiedGroupKFold(shuffle=False)
         results = cross_val_score(ranker, df, y, cv=kfold, groups=df.qid)
@@ -52,6 +58,7 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
         n_estimators=3,
         eval_metric=neg_mse,
         tree_method=tree_method,
+        device=device,
         disable_default_eval_metric=True,
     )
     ranker.fit(df, y, eval_set=[(valid_df, y)])
@@ -59,7 +66,7 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
     assert np.isclose(score, ranker.evals_result()["validation_0"]["neg_mse"][-1])
 
     # Works with sparse data
-    if tree_method != "gpu_hist":
+    if device == "cpu":
         # no sparse with cuDF
         X_csr = scipy.sparse.csr_matrix(X)
         df = impl.DataFrame.sparse.from_spmatrix(
@@ -67,7 +74,10 @@ def run_ranking_qid_df(impl: ModuleType, tree_method: str) -> None:
         )
         df["qid"] = q
         ranker = xgb.XGBRanker(
-            n_estimators=3, eval_metric="ndcg", tree_method=tree_method
+            n_estimators=3,
+            eval_metric="ndcg",
+            tree_method=tree_method,
+            device=device,
         )
         ranker.fit(df, y)
         s2 = ranker.score(df, y)
@@ -105,6 +115,7 @@ def run_ranking_categorical(device: str) -> None:
 def run_normalization(device: str) -> None:
     """Test normalization."""
     X, y, qid, _ = tm.make_ltr(2048, 4, 64, 3)
+    # top-k
     ltr = xgb.XGBRanker(objective="rank:pairwise", n_estimators=4, device=device)
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
     e0 = ltr.evals_result()
@@ -118,6 +129,53 @@ def run_normalization(device: str) -> None:
     ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
     e1 = ltr.evals_result()
     assert e1["validation_0"]["ndcg@32"][-1] > e0["validation_0"]["ndcg@32"][-1]
+
+    # mean
+    ltr = xgb.XGBRanker(
+        objective="rank:pairwise",
+        n_estimators=4,
+        device=device,
+        lambdarank_pair_method="mean",
+        lambdarank_normalization=True,
+    )
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e0 = ltr.evals_result()
+
+    ltr = xgb.XGBRanker(
+        objective="rank:pairwise",
+        n_estimators=4,
+        device=device,
+        lambdarank_pair_method="mean",
+        lambdarank_normalization=False,
+    )
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e1 = ltr.evals_result()
+    # no normalization since the number of pairs is 1.
+    assert e1["validation_0"]["ndcg"][-1] == e0["validation_0"]["ndcg"][-1]
+
+    # mean
+    ltr = xgb.XGBRanker(
+        objective="rank:pairwise",
+        n_estimators=4,
+        device=device,
+        lambdarank_pair_method="mean",
+        lambdarank_normalization=True,
+        lambdarank_num_pair_per_sample=4,
+    )
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e0 = ltr.evals_result()
+
+    ltr = xgb.XGBRanker(
+        objective="rank:pairwise",
+        n_estimators=4,
+        device=device,
+        lambdarank_pair_method="mean",
+        lambdarank_normalization=False,
+        lambdarank_num_pair_per_sample=4,
+    )
+    ltr.fit(X, y, qid=qid, eval_set=[(X, y)], eval_qid=[qid])
+    e1 = ltr.evals_result()
+    assert e1["validation_0"]["ndcg"][-1] != e0["validation_0"]["ndcg"][-1]
 
 
 def run_score_normalization(device: str, objective: str) -> None:

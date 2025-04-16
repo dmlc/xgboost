@@ -540,6 +540,10 @@ These are parameters specific to learning to rank task. See :doc:`Learning to Ra
 
   Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
 
+  .. versionchanged:: 3.0.0
+
+  When the ``mean`` method is used, it's normalized by the ``lambdarank_num_pair_per_sample`` instead of gradient.
+
 * ``lambdarank_score_normalization`` [default = ``true``]
 
   .. versionadded:: 3.0.0

@@ -89,10 +89,8 @@ class LogCallbackRegistry {
  public:
   using Callback = void (*)(const char*);
   LogCallbackRegistry() {}
-  inline void Register(Callback log_callback) {}
-  inline Callback Get() const {
-    return nullptr;
-  }
+  inline void Register(Callback) {}
+  inline Callback Get() const { return nullptr; }
 };
 #endif  // !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 

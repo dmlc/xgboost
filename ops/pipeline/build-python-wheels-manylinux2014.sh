@@ -1,4 +1,5 @@
 #!/bin/bash
+# Build Python wheels targeting manylinux2014 (no GPU, no federated learning)
 
 set -euo pipefail
 
@@ -28,13 +29,11 @@ PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 echo "--- Build binary wheel for ${WHEEL_TAG}"
 set -x
 
-python3 ops/script/pypi_variants.py --variant=manylinux2014
+python3 ops/script/pypi_variants.py --use-cpu-suffix=0 --require-nccl-dep=0
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \
   "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
-# discard the patch
-python3 ops/script/pypi_variants.py --variant=default
 
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
@@ -45,25 +44,6 @@ python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --
 rm -rf python-package/dist/
 mkdir python-package/dist/
 mv -v wheelhouse/*.whl python-package/dist/
-
-echo "--- Build binary wheel for ${WHEEL_TAG} (CPU only)"
-# Patch to rename pkg to xgboost-cpu
-python3 ops/script/pypi_variants.py --variant=cpu
-python3 ops/docker_run.py \
-  --image-uri "${IMAGE_URI}" \
-  -- bash -c \
-  "cd python-package && ${PYTHON_BIN} -m pip wheel --no-deps -v . --wheel-dir dist/"
-# discard the patch
-python3 ops/script/pypi_variants.py --variant=default
-
-python3 ops/docker_run.py \
-  --image-uri "${IMAGE_URI}" \
-  -- auditwheel repair --only-plat \
-  --plat ${WHEEL_TAG} python-package/dist/xgboost_cpu-*.whl
-python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --remove \
-  wheelhouse/xgboost_cpu-*.whl
-rm -v python-package/dist/xgboost_cpu-*.whl
-mv -v wheelhouse/xgboost_cpu-*.whl python-package/dist/
 
 if [[ ($is_pull_request == 0) && ($is_release_branch == 1) ]]
 then

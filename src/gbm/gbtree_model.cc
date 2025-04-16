@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2024, XGBoost Contributors
  */
 #include "gbtree_model.h"
 
@@ -132,6 +132,8 @@ void GBTreeModel::SaveModel(Json* p_out) const {
   std::transform(iteration_indptr.cbegin(), iteration_indptr.cend(), jiteration_indptr.begin(),
                  [](bst_tree_t i) { return Integer{i}; });
   out["iteration_indptr"] = Array{std::move(jiteration_indptr)};
+
+  this->Cats()->Save(&out["cats"]);
 }
 
 void GBTreeModel::LoadModel(Json const& in) {
@@ -142,11 +144,11 @@ void GBTreeModel::LoadModel(Json const& in) {
 
   auto const& jmodel = get<Object const>(in);
 
-  auto const& trees_json = get<Array const>(in["trees"]);
+  auto const& trees_json = get<Array const>(jmodel.at("trees"));
   CHECK_EQ(trees_json.size(), param.num_trees);
   trees.resize(param.num_trees);
 
-  auto const& tree_info_json = get<Array const>(in["tree_info"]);
+  auto const& tree_info_json = get<Array const>(jmodel.at("tree_info"));
   CHECK_EQ(tree_info_json.size(), param.num_trees);
   tree_info.resize(param.num_trees);
 
@@ -171,6 +173,12 @@ void GBTreeModel::LoadModel(Json const& in) {
     MakeIndptr(this);
   }
 
+  auto p_cats = std::make_shared<CatContainer>();
+  auto cat_it = jmodel.find("cats");
+  if (cat_it != jmodel.cend()) {
+    p_cats->Load(cat_it->second);
+  }
+  this->cats_ = std::move(p_cats);
   Validate(*this);
 }
 

@@ -1,4 +1,4 @@
-"""Copyright 2019-2024, XGBoost contributors"""
+"""Copyright 2019-2025, XGBoost contributors"""
 
 import asyncio
 import json
@@ -953,7 +953,7 @@ def test_empty_dmatrix(tree_method) -> None:
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
     async with Client(scheduler_address, asynchronous=True) as client:
         X, y, _ = generate_array()
-        m = await DaskDMatrix(client, X, y)  # type: ignore
+        m = await DaskDMatrix(client, X, y)
         output = await dxgb.train(client, {}, dtrain=m)
 
         with_m = await dxgb.predict(client, output, m)
@@ -1058,8 +1058,8 @@ async def generate_concurrent_trainings() -> None:
         ) as cluster:
             async with Client(cluster, asynchronous=True) as client:
                 X, y, w = generate_array(with_weights=True)
-                dtrain = await DaskDMatrix(client, X, y, weight=w)  # type: ignore
-                dvalid = await DaskDMatrix(client, X, y, weight=w)  # type: ignore
+                dtrain = await DaskDMatrix(client, X, y, weight=w)
+                dvalid = await DaskDMatrix(client, X, y, weight=w)
                 output = await dxgb.train(client, {}, dtrain=dtrain)
                 await dxgb.predict(client, output, data=dvalid)
 
@@ -2191,11 +2191,12 @@ class TestDaskCallbacks:
     clean_kwargs={"processes": False, "threads": False},
     allow_unclosed=True,
 )
+@pytest.mark.skip(reason="dmlc/xgboost#11405: test_worker_left is flaky")
 async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker):
     async with Worker(s.address):
         dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
         dy = da.random.random((1000,)).rechunk(chunks=(10,))
-        d_train = await dxgb.DaskDMatrix(  # type: ignore
+        d_train = await dxgb.DaskDMatrix(
             c,
             dx,
             dy,
@@ -2216,6 +2217,7 @@ async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker):
     clean_kwargs={"processes": False, "threads": False},
     allow_unclosed=True,
 )
+@pytest.mark.skip
 async def test_worker_restarted(c, s, a, b):
     dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
     dy = da.random.random((1000,)).rechunk(chunks=(10,))

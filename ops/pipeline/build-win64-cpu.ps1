@@ -18,7 +18,7 @@ Write-Host "--- Build binary wheel"
 cd ..
 # Patch to rename pkg to xgboost-cpu
 conda activate
-python ops/script/pypi_variants.py --variant=cpu
+python ops/script/pypi_variants.py --use-cpu-suffix=1 --require-nccl-dep=0
 if ($LASTEXITCODE -ne 0) { throw "Last command failed" }
 
 cd python-package

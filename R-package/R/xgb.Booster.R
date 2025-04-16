@@ -1206,6 +1206,14 @@ xgb.copy.Booster <- function(model) {
   return(.Call(XGDuplicate_R, model))
 }
 
+xgb.reset.Booster <- function(model) {
+  if (!inherits(model, "xgb.Booster")) {
+    stop("'model' must be an 'xgb.Booster' object.")
+  }
+  .Call(XGBoosterReset_R, xgb.get.handle(model))
+  return(model)
+}
+
 #' Check if two boosters share the same C object
 #'
 #' Checks whether two booster objects refer to the same underlying C object.

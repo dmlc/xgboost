@@ -104,9 +104,7 @@ class RegLossObj : public FitInterceptGlmLike {
   // 0 - scale_pos_weight, 1 - is_null_weight
   RegLossObj(): additional_input_(2) {}
 
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
+  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return Loss::Info(); }
 
@@ -208,7 +206,11 @@ class RegLossObj : public FitInterceptGlmLike {
   }
 
   void LoadConfig(Json const& in) override {
-    FromJson(in["reg_loss_param"], &param_);
+    auto obj = get<Object const>(in);
+    auto it = obj.find("reg_loss_param");
+    if (it != obj.cend()) {
+      FromJson(it->second, &param_);
+    }
   }
 
  protected:

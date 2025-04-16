@@ -21,7 +21,7 @@
 #include "../../../../src/tree/hist/evaluate_splits.h"  // for HistEvaluator, TreeEvaluator
 #include "../../../../src/tree/hist/expand_entry.h"     // for CPUExpandEntry
 #include "../../../../src/tree/hist/hist_cache.h"       // for BoundedHistCollection
-#include "../../../../src/tree/hist/param.h"            // for HistMakerTrainParam
+#include "../../../../src/tree/hist/hist_param.h"       // for HistMakerTrainParam
 #include "../../../../src/tree/param.h"                 // for GradStats, TrainParam
 #include "../../helpers.h"                              // for RandomDataGenerator, AllThreadsFo...
 

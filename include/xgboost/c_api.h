@@ -162,7 +162,49 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indic
  * @brief Create a DMatrix from columnar data. (table)
  *
  * A special type of input to the `DMatrix` is the columnar format, which refers to
- * column-based dataframes based on the arrow formatt.
+ * column-based dataframes. XGBoost can accept both numeric data types like integers and
+ * floats, along with the categorical type, called dictionary in arrow's term. The
+ * addition of categorical type is introduced in 3.1.0. The dataframe is represented by a
+ * list array interfaces with one object for each column.
+ *
+ * A categorical type is represented by 3 buffers, the validity mask, the names of the
+ * categories (called index for most of the dataframe implementation), and the codes used
+ * to represent the categories in the rows. XGBoost consumes a categorical column by
+ * accepting two JSON-encoded arrow arrays in a list. The first item in the list is a JSON
+ * object with `{"offsets": IntegerArray, "values": StringArray }` representing the string
+ * names defined by the arrow columnar format. The second buffer is an masked integer
+ * array that stores the categorical codes along with the validity mask:
+ *
+ * @code{javascript}
+ * [
+ *   // categorical column, represented as an array (list)
+ *   [
+ *     {
+ *       'offsets':
+ *       {
+ *         'data': (129412626415808, True),
+ *         'typestr': '<i4', 'version': 3, 'strides': None, 'shape': (3,), 'mask': None
+ *       },
+ *       'values':
+ *       {
+ *         'data': (129412626416000, True),
+ *         'typestr': '<i1', 'version': 3, 'strides': None, 'shape': (7,), 'mask': None
+ *       }
+ *     },
+ *     {
+ *       'data': (106200854378448, True),
+ *       'typestr': '<i1', 'version': 3, 'strides': None, 'shape': (2,), 'mask': None
+ *     }
+ *   ],
+ *   // numeric column, represented as an object, same number of rows as the previous column (2)
+ *   {
+ *     'data': (106200854378448, True),
+ *     'typestr': '<f4', 'version': 3, 'strides': None, 'shape': (2,), 'mask': None
+ *   }
+ * ]
+ * @endcode
+ *
+ * As for numeric inputs, it's the same as dense array.
  *
  * @param data   A list of JSON-encoded array interfaces.
  * @param config See @ref XGDMatrixCreateFromDense for details.

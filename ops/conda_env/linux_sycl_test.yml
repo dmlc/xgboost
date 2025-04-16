@@ -4,9 +4,10 @@ channels:
 - https://software.repos.intel.com/python/conda/
 dependencies:
 - python=3.10
-- cmake
+- cmake>=3.26.4
 - c-compiler
 - cxx-compiler
+- gtest
 - pip
 - wheel
 - numpy

@@ -306,18 +306,24 @@ object, need to be destructed before triggering the R error.
 In order to preserve the error message, it gets copied to a temporary
 buffer, and the R error section is reached through a 'goto' statement
 that bypasses usual function control flow. */
-char cpp_ex_msg[512];
+namespace {
+constexpr std::size_t MsgSize = 512;
+char cpp_ex_msg[MsgSize];
+}  // anonymous namespace
+
 /*!
  * \brief macro to annotate end of api
  */
-#define R_API_END()                             \
-  } catch(std::exception &e) {                  \
-    std::strncpy(cpp_ex_msg, e.what(), 512);    \
-    goto throw_cpp_ex_as_R_err;                 \
-  }                                             \
-  if (false) {                                  \
-    throw_cpp_ex_as_R_err:                      \
-    Rf_error("%s", cpp_ex_msg);                 \
+#define R_API_END()                                  \
+  }                                                  \
+  catch (std::exception & e) {                       \
+    cpp_ex_msg[MsgSize - 1] = 0;                     \
+    std::strncpy(cpp_ex_msg, e.what(), MsgSize - 1); \
+    goto throw_cpp_ex_as_R_err;                      \
+  }                                                  \
+  if (false) {                                       \
+  throw_cpp_ex_as_R_err:                             \
+    Rf_error("%s", cpp_ex_msg);                      \
   }
 
 /**
@@ -990,7 +996,7 @@ SEXP XGBAltrepSerializer_R(SEXP R_altrepped_obj) {
   return R_NilValue; /* <- should not be reached */
 }
 
-SEXP XGBAltrepDeserializer_R(SEXP unused, SEXP R_state) {
+SEXP XGBAltrepDeserializer_R(SEXP /*unused*/, SEXP R_state) {
   SEXP R_altrepped_obj = Rf_protect(XGBMakeEmptyAltrep());
   R_API_BEGIN();
   BoosterHandle handle = nullptr;
@@ -1079,6 +1085,13 @@ XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
   R_API_END();
   Rf_unprotect(1);
   return out;
+}
+
+XGB_DLL SEXP XGBoosterReset_R(SEXP handle) {
+  R_API_BEGIN();
+  CHECK_CALL(XGBoosterReset(R_ExternalPtrAddr(handle)));
+  R_API_END();
+  return R_NilValue;
 }
 
 XGB_DLL SEXP XGBoosterCopyInfoFromDMatrix_R(SEXP booster, SEXP dmat) {

@@ -4,7 +4,7 @@ import pickle
 import re
 import tempfile
 import warnings
-from typing import Callable, Optional
+from typing import Optional
 
 import numpy as np
 import pytest
@@ -15,6 +15,11 @@ from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
 from xgboost.testing.updater import get_basescore
+from xgboost.testing.with_skl import (
+    run_boost_from_prediction_binary,
+    run_boost_from_prediction_multi_clasas,
+    run_housing_rf_regression,
+)
 
 rng = np.random.RandomState(1994)
 pytestmark = [pytest.mark.skipif(**tm.no_sklearn()), tm.timeout(30)]
@@ -213,7 +218,7 @@ def test_ranking_metric() -> None:
 def test_ranking_qid_df():
     import pandas as pd
 
-    run_ranking_qid_df(pd, "hist")
+    run_ranking_qid_df(pd, "hist", "cpu")
 
 
 def test_stacking_regression():
@@ -489,29 +494,8 @@ def test_regression():
             xgb_model.feature_names_in_
 
 
-def run_housing_rf_regression(tree_method):
-    from sklearn.datasets import fetch_california_housing
-    from sklearn.metrics import mean_squared_error
-    from sklearn.model_selection import KFold
-
-    X, y = fetch_california_housing(return_X_y=True)
-    kf = KFold(n_splits=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBRFRegressor(random_state=42, tree_method=tree_method).fit(
-            X[train_index], y[train_index]
-        )
-        preds = xgb_model.predict(X[test_index])
-        labels = y[test_index]
-        assert mean_squared_error(preds, labels) < 35
-
-    rfreg = xgb.XGBRFRegressor()
-    with pytest.raises(NotImplementedError):
-        rfreg.set_params(early_stopping_rounds=10)
-        rfreg.fit(X, y)
-
-
 def test_rf_regression():
-    run_housing_rf_regression("hist")
+    run_housing_rf_regression("hist", "cpu")
 
 
 @pytest.mark.parametrize("tree_method", ["exact", "hist", "approx"])
@@ -1217,89 +1201,29 @@ def test_feature_weights(tree_method):
         reg.fit(X, y, feature_weights=np.ones((kCols, )))
 
 
-def run_boost_from_prediction_binary(tree_method, X, y, as_frame: Optional[Callable]):
-    """
-    Parameters
-    ----------
-
-    as_frame: A callable function to convert margin into DataFrame, useful for different
-    df implementations.
-    """
-
-    model_0 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
-    )
-    model_0.fit(X=X, y=y)
-    margin = model_0.predict(X, output_margin=True)
-    if as_frame is not None:
-        margin = as_frame(margin)
-
-    model_1 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
-    )
-    model_1.fit(X=X, y=y, base_margin=margin)
-    predictions_1 = model_1.predict(X, base_margin=margin)
-
-    cls_2 = xgb.XGBClassifier(
-        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
-    )
-    cls_2.fit(X=X, y=y)
-    predictions_2 = cls_2.predict(X)
-    np.testing.assert_allclose(predictions_1, predictions_2)
-
-
-def run_boost_from_prediction_multi_clasas(
-    estimator, tree_method, X, y, as_frame: Optional[Callable]
-):
-    # Multi-class
-    model_0 = estimator(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
-    )
-    model_0.fit(X=X, y=y)
-    margin = model_0.get_booster().inplace_predict(X, predict_type="margin")
-    if as_frame is not None:
-        margin = as_frame(margin)
-
-    model_1 = estimator(
-        learning_rate=0.3, random_state=0, n_estimators=4, tree_method=tree_method
-    )
-    model_1.fit(X=X, y=y, base_margin=margin)
-    predictions_1 = model_1.get_booster().predict(
-        xgb.DMatrix(X, base_margin=margin), output_margin=True
-    )
-
-    model_2 = estimator(
-        learning_rate=0.3, random_state=0, n_estimators=8, tree_method=tree_method
-    )
-    model_2.fit(X=X, y=y)
-    predictions_2 = model_2.get_booster().inplace_predict(X, predict_type="margin")
-
-    if hasattr(predictions_1, "get"):
-        predictions_1 = predictions_1.get()
-    if hasattr(predictions_2, "get"):
-        predictions_2 = predictions_2.get()
-    np.testing.assert_allclose(predictions_1, predictions_2, atol=1e-6)
-
-
 @pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
-def test_boost_from_prediction(tree_method):
+def test_boost_from_prediction(tree_method: str) -> None:
     import pandas as pd
     from sklearn.datasets import load_breast_cancer, load_iris, make_regression
 
     X, y = load_breast_cancer(return_X_y=True)
 
-    run_boost_from_prediction_binary(tree_method, X, y, None)
-    run_boost_from_prediction_binary(tree_method, X, y, pd.DataFrame)
+    run_boost_from_prediction_binary(tree_method, "cpu", X, y, None)
+    run_boost_from_prediction_binary(tree_method, "cpu", X, y, pd.DataFrame)
 
     X, y = load_iris(return_X_y=True)
 
-    run_boost_from_prediction_multi_clasas(xgb.XGBClassifier, tree_method, X, y, None)
     run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, X, y, pd.DataFrame
+        xgb.XGBClassifier, tree_method, "cpu", X, y, None
+    )
+    run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, "cpu", X, y, pd.DataFrame
     )
 
     X, y = make_regression(n_samples=100, n_targets=4)
-    run_boost_from_prediction_multi_clasas(xgb.XGBRegressor, tree_method, X, y, None)
+    run_boost_from_prediction_multi_clasas(
+        xgb.XGBRegressor, tree_method, "cpu", X, y, None
+    )
 
 
 def test_estimator_type():
@@ -1476,6 +1400,7 @@ def test_evaluation_metric():
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss
+
     X, y = make_hastie_10_2(n_samples=2000, random_state=42)
     labels, y = np.unique(y, return_inverse=True)
     X_train, X_test = X[:1600], X[1600:]
