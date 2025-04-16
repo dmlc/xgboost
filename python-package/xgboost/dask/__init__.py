@@ -88,7 +88,7 @@ from dask.delayed import Delayed
 from distributed import Future
 
 from .. import collective, config
-from .._typing import FeatureNames, FeatureTypes, IterationRange
+from .._typing import FeatureNames, FeatureTypes, IterationRange, DataType
 from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
@@ -1446,13 +1446,13 @@ async def _async_wrap_evaluation_matrices(
 
 
 def _mapped_predict(
-    partition: DataFrame | numpy.ndarray,
+    partition: DataType,
     *,
     booster: Booster,
-    booster_options: dict[str, Any],
+    dmatrix_options: dict[str, Any],
     predict_options: dict[str, Any],
 ) -> numpy.ndarray:
-    m = DMatrix(partition, **booster_options)
+    m = DMatrix(partition, **dmatrix_options)
     predt = booster.predict(m, **predict_options)
     return predt
 
@@ -1531,7 +1531,7 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        booster_options = dict(
+        dmatrix_options = dict(
             base_margin=base_margin,
             missing=self.missing,
         )
@@ -1554,7 +1554,7 @@ class DaskScikitLearnBase(XGBModel):
             result = X.map_partitions(
                 _mapped_predict,
                 booster=self.get_booster(),
-                booster_options=booster_options,
+                dmatrix_options=dmatrix_options,
                 predict_options=predict_options,
                 meta=meta,
             )
@@ -1581,7 +1581,7 @@ class DaskScikitLearnBase(XGBModel):
             result = X.map_blocks(  # type: ignore[call-arg]
                 _mapped_predict,  # type: ignore[arg-type]
                 booster=self.get_booster(),
-                booster_options=booster_options,
+                dmatrix_options=dmatrix_options,
                 predict_options=predict_options,
                 chunks=chunks,
                 meta=meta,
