@@ -1521,7 +1521,7 @@ class DaskScikitLearnBase(XGBModel):
         return predts
 
     @_deprecate_positional_args
-    def predict(
+    def predict(  # pylint: disable=R0912
         self,
         X: _DataT,
         *,
@@ -1531,15 +1531,15 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        dmatrix_options = dict(
-            base_margin=base_margin,
-            missing=self.missing,
-        )
-        predict_options = dict(
-            output_margin=output_margin,
-            validate_features=validate_features,
-            iteration_range=iteration_range,
-        )
+        dmatrix_options = {
+            "base_margin": base_margin,
+            "missing": self.missing,
+        }
+        predict_options = {
+            "output_margin": output_margin,
+            "validate_features": validate_features,
+            "iteration_range": iteration_range,
+        }
 
         is_regression = isinstance(self, XGBRegressorBase)
 
