@@ -1444,6 +1444,12 @@ async def _async_wrap_evaluation_matrices(
     return train_dmatrix, awaited
 
 
+def _mapped_predict(partition, *, booster: Booster, booster_options, predict_options) -> numpy.ndarray:
+    m = DMatrix(partition, **booster_options)
+    predt = booster.predict(m, **predict_options)
+    return predt
+
+
 @contextmanager
 def _set_worker_client(
     model: "DaskScikitLearnBase", client: "distributed.Client"
@@ -1517,14 +1523,69 @@ class DaskScikitLearnBase(XGBModel):
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
-        return self.client.sync(
-            self._predict_async,
-            X,
+        iteration_range = self._get_iteration_range(iteration_range)
+        booster_options=dict(
+            base_margin=base_margin,
+            missing=self.missing,
+        )
+        predict_options=dict(
             output_margin=output_margin,
             validate_features=validate_features,
-            base_margin=base_margin,
             iteration_range=iteration_range,
         )
+
+        is_regression = isinstance(self, XGBRegressorBase)
+
+        if isinstance(X, dd.DataFrame):
+            if not is_regression and self.n_classes_ > 2:
+                meta = numpy.zeros((0, 0), dtype=numpy.float32)
+            else:
+                meta = numpy.zeros((0,), dtype=numpy.float32)
+
+            result = X.map_partitions(
+                _mapped_predict,
+                booster=self.get_booster(),
+                booster_options=booster_options,
+                predict_options=predict_options,
+                meta=meta,
+            )
+            if not is_regression and self.n_classes_ > 2:
+                result = result.argmax(axis=1)
+        elif isinstance(X, da.Array):
+            if is_regression:
+                meta = numpy.zeros((0,), dtype=numpy.float32)
+                chunks = X.chunks[:1]
+                drop_axis = 1
+                n_classes = None
+                is_regression = True
+            else:
+                n_classes = self.n_classes_
+                if n_classes > 2:
+                    drop_axis = None
+                    chunks = X.chunks[:1] + (n_classes,)
+                    meta = numpy.zeros((0, 0), dtype=numpy.float32)
+                else:
+                    meta = numpy.zeros((0,), dtype=numpy.float32)
+                    chunks = X.chunks[:1]
+                    drop_axis = 1
+    
+            result = X.map_blocks(
+                _mapped_predict,
+                booster=self.get_booster(),
+                booster_options=booster_options,
+                predict_options=predict_options,
+                chunks=chunks,
+                meta=meta,
+                drop_axis=drop_axis,
+            )
+            if not is_regression:
+                if n_classes <= 2:
+                    result = (result > 0.5).astype(numpy.int32)
+                else:
+                    result = result.argmax(axis=1)
+        else:
+            raise ValueError(f"Unsupported data type: {type(X)}")
+        return result
 
     async def _apply_async(
         self,

@@ -614,8 +614,23 @@ def run_dask_classifier(
             tree_method=tree_method,
             device=device,
         )
+        expected_classifier = xgb.sklearn.XGBClassifier(
+            verbosity=1,
+            n_estimators=2,
+            eval_metric=metric,
+            tree_method=tree_method,
+            device=device,
+        )
+
     else:
         classifier = dxgb.DaskXGBRFClassifier(
+            verbosity=1,
+            n_estimators=2,
+            eval_metric=metric,
+            tree_method=tree_method,
+            device=device,
+        )
+        expected_classifier = xgb.sklearn.XGBRFClassifier(
             verbosity=1,
             n_estimators=2,
             eval_metric=metric,
@@ -628,10 +643,23 @@ def run_dask_classifier(
 
     classifier.client = client
     classifier.fit(X, y, sample_weight=w, eval_set=[(X, y)])
+
+    expected_classifier.fit(
+        X.compute(),
+        y.compute(),
+        sample_weight=w.compute(),
+        eval_set=[(X.compute(), y.compute())],
+    )
+
     prediction = classifier.predict(X).compute()
 
     assert prediction.ndim == 1
     assert prediction.shape[0] == kRows
+    
+    if model == "boosting":
+        # currently failing for 'rf'
+        expected = expected_classifier.predict(X.compute())
+        np.testing.assert_allclose(prediction, expected)
 
     history = classifier.evals_result()
 
