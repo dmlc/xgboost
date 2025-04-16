@@ -156,6 +156,8 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
         "win_amd64",
         "manylinux2014_x86_64",
         "manylinux2014_aarch64",
+        "manylinux_2_28_x86_64",
+        "manylinux_2_28_aarch64",
     ]
 
     # https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/release_3.0.0/4bfd4bf60d32e2d62426cc4070ccb5a5ba1ed078/xgboost-3.0.0rc1-py3-none-manylinux_2_28_x86_64.whl
