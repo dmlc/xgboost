@@ -80,6 +80,7 @@ from typing import (
 import dask
 import distributed
 import numpy
+import numpy.typing
 from dask import array as da
 from dask import bag as db
 from dask import dataframe as dd
@@ -1445,7 +1446,11 @@ async def _async_wrap_evaluation_matrices(
 
 
 def _mapped_predict(
-    partition, *, booster: Booster, booster_options, predict_options
+    partition: DataFrame | numpy.ndarray,
+    *,
+    booster: Booster,
+    booster_options: dict[str, Any],
+    predict_options: dict[str, Any],
 ) -> numpy.ndarray:
     m = DMatrix(partition, **booster_options)
     predt = booster.predict(m, **predict_options)
@@ -1538,6 +1543,8 @@ class DaskScikitLearnBase(XGBModel):
 
         is_regression = isinstance(self, XGBRegressorBase)
 
+        meta: numpy.typing.NDArray[numpy.float32]
+        # meta: numpy.typing.NDArray[tuple[int, ...], numpy.float32]
         if isinstance(X, dd.DataFrame):
             if not is_regression and self.n_classes_ > 2:
                 meta = numpy.zeros((0, 0), dtype=numpy.float32)
@@ -1571,8 +1578,8 @@ class DaskScikitLearnBase(XGBModel):
                     chunks = X.chunks[:1]
                     drop_axis = 1
 
-            result = X.map_blocks(
-                _mapped_predict,
+            result = X.map_blocks(  # type: ignore[call-arg]
+                _mapped_predict,  # type: ignore[arg-type]
                 booster=self.get_booster(),
                 booster_options=booster_options,
                 predict_options=predict_options,
@@ -1581,6 +1588,7 @@ class DaskScikitLearnBase(XGBModel):
                 drop_axis=drop_axis,
             )
             if not is_regression:
+                assert n_classes is not None  # checked above
                 if n_classes <= 2:
                     result = (result > 0.5).astype(numpy.int32)
                 else:
