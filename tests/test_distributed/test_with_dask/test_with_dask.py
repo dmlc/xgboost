@@ -655,7 +655,7 @@ def run_dask_classifier(
 
     assert prediction.ndim == 1
     assert prediction.shape[0] == kRows
-    
+
     if model == "boosting":
         # currently failing for 'rf'
         expected = expected_classifier.predict(X.compute())

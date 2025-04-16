@@ -1444,7 +1444,9 @@ async def _async_wrap_evaluation_matrices(
     return train_dmatrix, awaited
 
 
-def _mapped_predict(partition, *, booster: Booster, booster_options, predict_options) -> numpy.ndarray:
+def _mapped_predict(
+    partition, *, booster: Booster, booster_options, predict_options
+) -> numpy.ndarray:
     m = DMatrix(partition, **booster_options)
     predt = booster.predict(m, **predict_options)
     return predt
@@ -1524,11 +1526,11 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        booster_options=dict(
+        booster_options = dict(
             base_margin=base_margin,
             missing=self.missing,
         )
-        predict_options=dict(
+        predict_options = dict(
             output_margin=output_margin,
             validate_features=validate_features,
             iteration_range=iteration_range,
@@ -1568,7 +1570,7 @@ class DaskScikitLearnBase(XGBModel):
                     meta = numpy.zeros((0,), dtype=numpy.float32)
                     chunks = X.chunks[:1]
                     drop_axis = 1
-    
+
             result = X.map_blocks(
                 _mapped_predict,
                 booster=self.get_booster(),
