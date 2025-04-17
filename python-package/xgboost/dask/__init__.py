@@ -88,7 +88,7 @@ from dask.delayed import Delayed
 from distributed import Future
 
 from .. import collective, config
-from .._typing import FeatureNames, FeatureTypes, IterationRange, DataType
+from .._typing import DataType, FeatureNames, FeatureTypes, IterationRange
 from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
