@@ -128,7 +128,7 @@ def hist_train(it: Iterator) -> None:
 
 
 def approx_train(it: Iterator) -> None:
-    """The approx tree method uses the basic `DMatrix` (NOT recommended)."""
+    """The approx tree method uses the basic `DMatrix` (not recommended)."""
 
     # For non-data arguments, specify it here once instead of passing them by the `next`
     # method.

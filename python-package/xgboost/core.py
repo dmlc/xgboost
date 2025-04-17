@@ -1653,7 +1653,7 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         before XGBoost can cut the sub-stream and create a new one. This can help bound
         the memory usage. By default, XGBoost grows a sub-stream exponentially until
         batches are exhausted. This option is only used for the training dataset and the
-        default is None (unbound). Lastly, if the `data` is a single batch instead of an
+        default is None (unbounded). Lastly, if the `data` is a single batch instead of an
         iterator, this parameter has no effect.
 
         .. versionadded:: 3.0.0
