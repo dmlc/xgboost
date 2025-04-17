@@ -94,35 +94,63 @@ Currently, ``xgboost-cpu`` package is provided for x86_64 (amd64) Linux and Wind
 Conda
 *****
 
-You may use the Conda packaging manager to install XGBoost:
+The `Conda <https://conda.io>`_ packaging manager provides a language agnostic, cross-platform friendly, ``sudo``-free install experience.
+
+If you don't already have Conda, it can be installed via `the conda-forge installer, Miniforge <https://conda-forge.org/download/>`_. 
+
+To install Python XGBoost:
 
 .. code-block:: bash
 
-   conda install -c conda-forge py-xgboost
+   conda install py-xgboost
 
-Conda should be able to detect the existence of a GPU on your machine and install the correct variant of XGBoost. If you run into issues, try indicating the variant explicitly:
+To install R XGBoost:
+
+.. code-block:: bash
+
+   conda install r-xgboost
+
+To install the XGBoost C++ library:
+
+.. code-block:: bash
+
+   conda install libxgboost
+
+Additionally XGBoost comes in CPU-only and CUDA variants.
+
+If you have an NVIDIA GPU with CUDA driver installed, Conda detects it and prefers the CUDA variant.
+
+If you would like to a specific variant, it can be selected explicitly.
+
+For the CPU variant it can be installed like so
 
 .. code-block:: bash
 
    # CPU only
-   conda install -c conda-forge py-xgboost-cpu
-   # Use NVIDIA GPU
-   conda install -c conda-forge py-xgboost-gpu
+   conda install -n xgboost 'libxgboost=*=cpu*'
 
-To force the installation of the GPU variant on a machine that does not have an NVIDIA GPU, use environment variable ``CONDA_OVERRIDE_CUDA``,
-as described in `"Managing Virtual Packages" in the conda docs <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-virtual.html>`_.
+.. code-block:: batch
+
+   # CPU only
+   conda install -n xgboost "libxgboost=*=cpu*"
+
+For the CUDA variant it can be installed like so.
 
 .. code-block:: bash
 
-  export CONDA_OVERRIDE_CUDA="12.5"
-  conda install -c conda-forge py-xgboost-gpu
+   # Use NVIDIA GPU on UNIX
+   export CONDA_OVERRIDE_CUDA="12.8"
+   conda install -n xgboost 'libxgboost=*=cuda*'
 
-Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
+.. code-block:: batch
 
-.. note:: ``py-xgboost-gpu`` not available on Windows.
+   # Use NVIDIA GPU on Windows
+   set "CONDA_OVERRIDE_CUDA=12.8"
+   conda install -n xgboost "libxgboost=*=cuda*"
 
-   The ``py-xgboost-gpu`` is currently not available on Windows. If you are using Windows,
-   please use ``pip`` to install XGBoost with GPU support.
+
+.. note::  The environment variable ``CONDA_OVERRIDE_CUDA`` sets the CUDA version for builds without a GPU (like a Docker or CI build)
+           More details in the `"Managing Virtual Packages" section of the Conda docs <https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-virtual.html>`_.
 
 R
 -
