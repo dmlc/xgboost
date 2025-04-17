@@ -110,7 +110,7 @@ class Iterator(xgboost.DataIter):
 
 def hist_train(it: Iterator) -> None:
     """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
-    faster initialization and lower memory usage.
+    faster initialization and lower memory usage (recommended).
 
     .. versionadded:: 3.0.0
 
@@ -128,7 +128,7 @@ def hist_train(it: Iterator) -> None:
 
 
 def approx_train(it: Iterator) -> None:
-    """The approx tree method uses the basic `DMatrix`."""
+    """The approx tree method uses the basic `DMatrix` (NOT recommended)."""
 
     # For non-data arguments, specify it here once instead of passing them by the `next`
     # method.
