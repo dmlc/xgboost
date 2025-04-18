@@ -148,7 +148,6 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
     LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
     return true;
   } catch (std::exception const &) {
-    return Invalid();
   }
 
   return Invalid();
