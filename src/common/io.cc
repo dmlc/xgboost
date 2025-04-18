@@ -305,7 +305,9 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 
 [[nodiscard]] std::string CmdOutput(StringView cmd) {
 #if defined(xgboost_IS_WIN) || defined(__i386__)
+  (void)cmd;
   LOG(FATAL) << "Not implemented";
+  return "";
 #else
   // popen is a convient method, but it always return a success even if the command fails.
   std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
