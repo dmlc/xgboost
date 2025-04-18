@@ -10,12 +10,12 @@
 #include <memory>     // for make_unique
 #include <mutex>      // for call_once
 #include <sstream>    // for stringstream
-#include <string>     // for string
+#include <string>     // for string, stoi
 
-#include "common.h"               // for safe_cuda
+#include "common.h"               // for safe_cuda, TrimFirst, Split
 #include "cuda_rt_utils.h"        // for CurrentDevice
 #include "io.h"                   // for CmdOutput
-#include "xgboost/string_view.h"  // for StringVie
+#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::cudr {
 CuDriverApi::CuDriverApi() {
@@ -112,8 +112,16 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   // `nvidia-smi --version` is not available for older versions, as a result, we can't query the
   // cuda driver version unless we want to parse the table output.
 
+  // Example output on a 2-GPU system:
+  //
+  // $ nvidia-smi --query-gpu=driver_version --format=csv
+  //
+  // driver_version
+  // 570.124.06
+  // 570.124.06
+  //
   auto cmd = "nvidia-smi --query-gpu=driver_version --format=csv";
-  auto smi_out_str = common::CmdOutput(xgboost::StringView{cmd});
+  auto smi_out_str = common::CmdOutput(StringView{cmd});
 
   auto Invalid = [=] {
     *p_major = *p_minor = -1;
