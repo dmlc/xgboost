@@ -129,15 +129,15 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   }
 
   // Use the first GPU
-  auto smi_ver = Split(smi_split[1], '.');
+  auto smi_ver = Split(TrimFirst(smi_split[1]), '.');
   // 570.124.06
   if (smi_ver.size() != 3) {
     return Invalid();
   }
-
   try {
     *p_major = std::stoi(smi_ver[0]);
     *p_minor = std::stoi(smi_ver[1]);
+    LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
     return true;
   } catch (std::exception const &) {
     return Invalid();
