@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, by XGBoost Contributors
+ * Copyright 2019-2025, by XGBoost Contributors
  */
 #if defined(__unix__) || defined(__APPLE__)
 

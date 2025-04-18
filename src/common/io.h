@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file io.h
  * \brief general stream interface for serialization, I/O
  * \author Tianqi Chen
