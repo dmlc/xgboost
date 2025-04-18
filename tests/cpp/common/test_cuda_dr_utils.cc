@@ -3,7 +3,7 @@
  */
 #include <gtest/gtest.h>
 
-#if defined(XGBOOST_USE_CUDA)
+#if defined(XGBOOST_USE_CUDA) && defined(__linux__)
 #include "../../../src/common/cuda_dr_utils.h"
 
 namespace xgboost::cudr {
