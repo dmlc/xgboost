@@ -26,6 +26,9 @@ namespace {
     std::int32_t major{0}, minor{0};
     xgboost::curt::DrVersion(&major, &minor);
     if (IsSupportedVersion(major, minor)) {
+      // The result from the driver api is not reliable. The system driver might not match
+      // the CUDA driver in some obscure cases.
+      //
       // https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html
       // Ver                 Linux       Win
       // CUDA 12.5 Update 1  >=555.42.06 >=555.85
