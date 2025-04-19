@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, by XGBoost Contributors
+ * Copyright 2019-2025, by XGBoost Contributors
  */
 #if defined(__unix__) || defined(__APPLE__)
 
@@ -234,7 +234,7 @@ void detail::CloseMmap(MMAPFile* handle) {
   }
 #if defined(xgboost_IS_WIN)
   if (handle->base_ptr) {
-    CHECK(UnmapViewOfFile(handle->base_ptr)) "Faled to call munmap: " << SystemErrorMsg();
+    CHECK(UnmapViewOfFile(handle->base_ptr)) << "Failed to call munmap: " << SystemErrorMsg();
   }
   if (handle->fd != INVALID_HANDLE_VALUE) {
     CHECK(CloseHandle(handle->fd)) << "Failed to close handle: " << SystemErrorMsg();
@@ -245,11 +245,11 @@ void detail::CloseMmap(MMAPFile* handle) {
 #else
   if (handle->base_ptr) {
     CHECK_NE(munmap(handle->base_ptr, handle->base_size), -1)
-        << "Faled to call munmap: `" << handle->path << "`. " << SystemErrorMsg();
+        << "Failed to call munmap: `" << handle->path << "`. " << SystemErrorMsg();
   }
   if (handle->fd != 0) {
     CHECK_NE(close(handle->fd), -1)
-        << "Faled to close: `" << handle->path << "`. " << SystemErrorMsg();
+        << "Failed to close: `" << handle->path << "`. " << SystemErrorMsg();
   }
 #endif
   delete handle;
@@ -301,5 +301,24 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 
 [[nodiscard]] std::size_t AlignedMemWriteStream::Tell() const noexcept(true) {
   return this->pimpl_->Tell();
+}
+
+[[nodiscard]] std::string CmdOutput(StringView cmd) {
+#if defined(xgboost_IS_WIN) || defined(__i386__)
+  (void)cmd;
+  LOG(FATAL) << "Not implemented";
+  return "";
+#else
+  // popen is a convenient method, but it always returns a success even if the command
+  // fails.
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+  CHECK(pipe);
+  std::array<char, 128> buffer;
+  std::string result;
+  while (std::fgets(buffer.data(), static_cast<std::int32_t>(buffer.size()), pipe.get())) {
+    result += buffer.data();
+  }
+  return result;
+#endif
 }
 }  // namespace xgboost::common
