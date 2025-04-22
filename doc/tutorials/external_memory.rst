@@ -7,13 +7,14 @@ Overview
 ********
 
 When working with large datasets, training XGBoost models can be challenging as the entire
-dataset needs to be loaded into memory. This can be costly and sometimes infeasible.
+dataset needs to be loaded into the main memory. This can be costly and sometimes
+infeasible.
 
 External memory training is sometimes called out-of-core training. It refers to the
 capability that XGBoost can optionally cache data in a location external to the main
 processor, be it CPU or GPU. XGBoost doesn't support network file systems by itself. As a
-result, for CPU the external memory usually refers to harddrive. And for GPU, it refers to
-either the host memory or the harddrive.
+result, for CPU, the external memory usually refers to a harddrive. And for GPU, it refers
+to either the host memory or a harddrive.
 
 Users can define a custom iterator to load data in chunks for running XGBoost
 algorithms. External memory can be used for training and prediction, but training is the
@@ -50,8 +51,8 @@ sections for a brief history.
 Data Iterator
 *************
 
-To start using external memory, users need define a data iterator. The data iterator
-interface was added to the Python and C interfaces in 1.5. The R interface is supported in
+To start using the external memory, users need define a data iterator. The data iterator
+interface was added to the Python and C interfaces in 1.5, and to the R interface in
 3.0.0. Like the :py:class:`~xgboost.QuantileDMatrix` with :py:class:`~xgboost.DataIter`,
 XGBoost loads data batch-by-batch using the custom iterator supplied by the user. However,
 unlike the :py:class:`~xgboost.QuantileDMatrix`, external memory does not concatenate the
@@ -61,9 +62,8 @@ see a comparison between :py:class:`~xgboost.QuantileDMatrix` and the external m
 version of :py:class:`~xgboost.ExtMemQuantileDMatrix`.
 
 Some examples are in the ``demo`` directory for a quick start. To enable external memory
-training, users need to define a data iterator with 2 class methods: ``next`` and
-``reset``, then pass it into the :py:class:`~xgboost.DMatrix` or the
-:py:class:`~xgboost.ExtMemQuantileDMatrix` constructor.
+training, the custom data iterator needs to have two class methods: ``next`` and
+``reset``.
 
 .. code-block:: python
 
@@ -101,6 +101,11 @@ training, users need to define a data iterator with 2 class methods: ``next`` an
     def reset(self) -> None:
       """Reset the iterator to its beginning"""
       self._it = 0
+
+After defining the iterator, we can to pass it into the :py:class:`~xgboost.DMatrix` or
+the :py:class:`~xgboost.ExtMemQuantileDMatrix` constructor:
+
+.. code-block:: python
 
   it = Iterator(["file_0.svm", "file_1.svm", "file_2.svm"])
 
@@ -141,7 +146,7 @@ device memory, whereas the external memory can be either a disk or the CPU memor
 stages the cache on CPU memory by default. Users can change the backing storage to disk by
 specifying the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using
 the disk is not recommended as it's likely to make the GPU slower than the CPU. The option
-is here for experimental purposes only. In addition,
+is here for experimentation purposes only. In addition,
 :py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device_pages``,
 ``min_cache_page_bytes``, and ``max_quantile_batches`` can help control the data placement
 and memory usage.
@@ -243,7 +248,9 @@ for training XGBoost models, one should pay extra attention to the C2C bandwidth
 
 To run experiments on these platforms, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
-with version ``>=565.47`` is required, it should come with CTK 12.7 and later versions.
+with version ``>=565.47`` is required, it should come with CTK 12.7 and later
+versions. Lastly, there's a known issue with Linux 6.11 that can lead to CUDA host memory
+allocation failure with an ``invalid argument`` error.
 
 ********************
 Distributed Training
@@ -280,8 +287,7 @@ the entire dataset, only the ``X`` is divided into batches while everything else
 concatenated. As a result, it's recommended for users to define their own management code
 to iterate through the data for inference, especially for SHAP value computation. The size
 of SHAP matrix can be larger than the feature matrix ``X``, making external memory in
-XGBoost less effective. Some frameworks like ``dask`` can help with the data chunking and
-iterate through the data for inference with memory spilling.
+XGBoost less effective.
 
 When external memory is used, the performance of CPU training is limited by disk IO
 (input/output) speed. This means that the disk IO speed primarily determines the training
@@ -290,10 +296,12 @@ used as a cache and address translation services (ATS) is unavailable. During de
 we observed that typical data transfer in XGBoost with PCIe4x16 has about 24GB/s
 bandwidth, which is significantly lower than the GPU processing performance. Whereas with
 a C2C-enabled machine, the performance of data transfer and processing in training are
-similar. Running inference is much less computation-intensive than training and, hence,
-much faster. As a result, the performance bottleneck of inference is back to data
-transfer. For GPU, the time it takes to read the data from host to device completely
-determines the time it takes to run inference, even if a C2C link is available.
+close to each other.
+
+Running inference is much less computation-intensive than training and, hence, much
+faster. As a result, the performance bottleneck of inference is back to data transfer. For
+GPU, the time it takes to read the data from host to device completely determines the time
+it takes to run inference, even if a C2C link is available.
 
 .. code-block:: python
 
@@ -357,8 +365,8 @@ so far focuses on following fronts of optimization for external memory:
 - If the OS can cache the data, the performance should be close to in-core training.
 - For GPU, the actual computation should overlap with memory copy as much as possible.
 
-Starting with XGBoost 2.0, the implementation of external memory uses ``mmap``. It has not
-been tested against system errors like disconnected network devices (`SIGBUS`). In the
+Starting with XGBoost 2.0, the CPU implementation of external memory uses ``mmap``. It has
+not been tested against system errors like disconnected network devices (`SIGBUS`). In the
 face of a bus error, you will see a hard crash and need to clean up the cache files. If
 the training session might take a long time and you use solutions like NVMe-oF, we
 recommend checkpointing your model periodically. Also, it's worth noting that most tests
