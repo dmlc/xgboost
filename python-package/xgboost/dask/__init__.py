@@ -1476,35 +1476,21 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange],
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        if self._can_use_inplace_predict():
-            predts = await inplace_predict(
-                client=self.client,
-                model=self.get_booster(),
-                data=data,
-                iteration_range=iteration_range,
-                predict_type="margin" if output_margin else "value",
-                missing=self.missing,
-                base_margin=base_margin,
-                validate_features=validate_features,
-            )
-            if isinstance(predts, dd.DataFrame):
-                predts = predts.to_dask_array()
-        else:
-            test_dmatrix: DaskDMatrix = await DaskDMatrix(
-                self.client,
-                data=data,
-                base_margin=base_margin,
-                missing=self.missing,
-                feature_types=self.feature_types,
-            )
-            predts = await predict(
-                self.client,
-                model=self.get_booster(),
-                data=test_dmatrix,
-                output_margin=output_margin,
-                validate_features=validate_features,
-                iteration_range=iteration_range,
-            )
+        # Dask doesn't support gblinear and accepts only Dask collection types (array
+        # and dataframe). We can perform inplace predict.
+        assert self._can_use_inplace_predict()
+        predts = await inplace_predict(
+            client=self.client,
+            model=self.get_booster(),
+            data=data,
+            iteration_range=iteration_range,
+            predict_type="margin" if output_margin else "value",
+            missing=self.missing,
+            base_margin=base_margin,
+            validate_features=validate_features,
+        )
+        if isinstance(predts, dd.DataFrame):
+            predts = predts.to_dask_array()
         return predts
 
     @_deprecate_positional_args
