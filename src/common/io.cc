@@ -3,7 +3,7 @@
  */
 #if defined(__unix__) || defined(__APPLE__)
 
-#include <fcntl.h>     // for open, O_RDONLY
+#include <fcntl.h>     // for open, O_RDONLY, posix_fadvise
 #include <sys/mman.h>  // for mmap, munmap, madvise
 #include <unistd.h>    // for close, getpagesize
 
@@ -22,6 +22,7 @@
 #include <cerrno>        // for errno
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t, uint32_t
+#include <cstdio>        // for fread, fseek
 #include <cstring>       // for memcpy
 #include <filesystem>    // for filesystem, weakly_canonical
 #include <fstream>       // for ifstream
@@ -279,6 +280,33 @@ MmapResource::~MmapResource() noexcept(false) = default;
 // NVCC 11.8 doesn't allow `noexcept(false) = default` altogether.
 AlignedResourceReadStream::~AlignedResourceReadStream() noexcept(false) {}  // NOLINT
 PrivateMmapConstStream::~PrivateMmapConstStream() noexcept(false) {}        // NOLINT
+
+std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringView path,
+                                                                         std::size_t offset,
+                                                                         std::size_t length) {
+  CHECK(std::filesystem::exists(path.c_str())) << "`" << path << "` doesn't exist";
+  auto res = std::make_shared<MallocResource>(length);
+  auto ptr = res->DataAs<char>();
+  std::unique_ptr<FILE, decltype(&fclose)> fp{fopen(path.c_str(), "rb"), fclose};
+
+#if defined(__unix__) || defined(__APPLE__)
+  auto fd = fileno(fp.get());
+  if (fd == -1) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+  if (posix_fadvise(fd, offset, length, POSIX_FADV_SEQUENTIAL) != 0) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+#endif  // defined(__unix__) || defined(__APPLE__)
+
+  if (fseek(fp.get(), offset, SEEK_SET) != 0) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+  if (fread(ptr, length, 1, fp.get()) != 1) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+  return res;
+}
 
 AlignedFileWriteStream::AlignedFileWriteStream(StringView path, StringView flags)
     : pimpl_{dmlc::Stream::Create(path.c_str(), flags.c_str())} {}

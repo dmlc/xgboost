@@ -1,13 +1,14 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include "gradient_index_format.h"
 
-#include <cstddef>                        // for size_t
-#include <cstdint>                        // for uint8_t
-#include <type_traits>                    // for underlying_type_t
-#include <vector>                         // for vector
+#include <cstddef>      // for size_t
+#include <cstdint>      // for uint8_t
+#include <type_traits>  // for underlying_type_t
+#include <vector>       // for vector
 
+#include "../common/cuda_rt_utils.h"      // for xgboost_NVTX_FN_RANGE
 #include "../common/hist_util.h"          // for HistogramCuts
 #include "../common/io.h"                 // for AlignedResourceReadStream
 #include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
@@ -16,6 +17,7 @@
 namespace xgboost::data {
 [[nodiscard]] bool GHistIndexRawFormat::Read(GHistIndexMatrix* page,
                                              common::AlignedResourceReadStream* fi) {
+  xgboost_NVTX_FN_RANGE();
   CHECK(fi);
 
   page->Cuts() = this->cuts_;
