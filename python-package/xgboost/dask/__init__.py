@@ -332,7 +332,7 @@ class DaskDMatrix:
 
         self._n_cols = data.shape[1]
         assert isinstance(self._n_cols, int)
-        self.worker_map: Dict[str, List[distributed.Future]] = defaultdict(list)
+        self.worker_map: Dict[str, List[Future]] = defaultdict(list)
         self.is_quantile: bool = False
 
         self._init = client.sync(
@@ -364,7 +364,6 @@ class DaskDMatrix:
         label_upper_bound: Optional[_DaskCollection] = None,
     ) -> "DaskDMatrix":
         """Obtain references to local data."""
-        from dask.delayed import Delayed
 
         def inconsistent(
             left: List[Any], left_name: str, right: List[Any], right_name: str
@@ -376,38 +375,29 @@ class DaskDMatrix:
             )
             return msg
 
-        def check_columns(parts: numpy.ndarray) -> None:
-            # x is required to be 2 dim in __init__
-            assert parts.ndim == 1 or parts.shape[1], (
-                "Data should be"
-                " partitioned by row. To avoid this specify the number"
-                " of columns for your dask Array explicitly. e.g."
-                " chunks=(partition_size, X.shape[1])"
-            )
-
-        def to_delayed(d: _DaskCollection) -> List[Delayed]:
-            """Breaking data into partitions, a trick borrowed from dask_xgboost. `to_delayed`
-            downgrades high-level objects into numpy or pandas equivalents .
-
-            """
+        def to_futures(d: _DaskCollection) -> List[Future]:
+            """Breaking data into partitions."""
             d = client.persist(d)
-            delayed_obj = d.to_delayed()
-            if isinstance(delayed_obj, numpy.ndarray):
-                # da.Array returns an array to delayed objects
-                check_columns(delayed_obj)
-                delayed_list: List[Delayed] = delayed_obj.flatten().tolist()
-            else:
-                # dd.DataFrame
-                delayed_list = delayed_obj
-            return delayed_list
+            if (
+                hasattr(d.partitions, "shape")
+                and len(d.partitions.shape) > 1
+                and d.partitions.shape[1] > 1
+            ):
+                raise ValueError(
+                    "Data should be"
+                    " partitioned by row. To avoid this specify the number"
+                    " of columns for your dask Array explicitly. e.g."
+                    " chunks=(partition_size, -1])"
+                )
+            return client.futures_of(d)
 
-        def flatten_meta(meta: Optional[_DaskCollection]) -> Optional[List[Delayed]]:
+        def flatten_meta(meta: Optional[_DaskCollection]) -> Optional[List[Future]]:
             if meta is not None:
-                meta_parts: List[Delayed] = to_delayed(meta)
+                meta_parts: List[Future] = to_futures(meta)
                 return meta_parts
             return None
 
-        X_parts = to_delayed(data)
+        X_parts = to_futures(data)
         y_parts = flatten_meta(label)
         w_parts = flatten_meta(weights)
         margin_parts = flatten_meta(base_margin)
@@ -415,9 +405,9 @@ class DaskDMatrix:
         ll_parts = flatten_meta(label_lower_bound)
         lu_parts = flatten_meta(label_upper_bound)
 
-        parts: Dict[str, List[Delayed]] = {"data": X_parts}
+        parts: Dict[str, List[Future]] = {"data": X_parts}
 
-        def append_meta(m_parts: Optional[List[Delayed]], name: str) -> None:
+        def append_meta(m_parts: Optional[List[Future]], name: str) -> None:
             if m_parts is not None:
                 assert len(X_parts) == len(m_parts), inconsistent(
                     X_parts, "X", m_parts, name
@@ -431,12 +421,12 @@ class DaskDMatrix:
         append_meta(ll_parts, "label_lower_bound")
         append_meta(lu_parts, "label_upper_bound")
         # At this point, `parts` looks like:
-        # [(x0, x1, ..), (y0, y1, ..), ..] in delayed form
+        # [(x0, x1, ..), (y0, y1, ..), ..] in future form
 
         # turn into list of dictionaries.
-        packed_parts: List[Dict[str, Delayed]] = []
+        packed_parts: List[Dict[str, Future]] = []
         for i in range(len(X_parts)):
-            part_dict: Dict[str, Delayed] = {}
+            part_dict: Dict[str, Future] = {}
             for key, value in parts.items():
                 part_dict[key] = value[i]
             packed_parts.append(part_dict)
@@ -445,16 +435,17 @@ class DaskDMatrix:
         # pylint: disable=no-member
         delayed_parts: List[Delayed] = list(map(dask.delayed, packed_parts))
         # At this point, the mental model should look like:
-        # [(x0, y0, ..), (x1, y1, ..), ..] in delayed form
+        # [{"data": x0, "label": y0, ..}, {"data": x1, "label": y1, ..}, ..]
 
-        # convert delayed objects into futures and make sure they are realized
-        fut_parts: List[distributed.Future] = client.compute(delayed_parts)
+        # Convert delayed objects into futures and make sure they are realized
+        #
+        # This also makes partitions to align (co-locate) on workers (X_0, y_0 should be
+        # on the same worker).
+        fut_parts: List[Future] = client.compute(delayed_parts)
         await distributed.wait(fut_parts)  # async wait for parts to be computed
 
-        # maybe we can call dask.align_partitions here to ease the partition alignment?
-
         for part in fut_parts:
-            # Each part is [x0, y0, w0, ...] in future form.
+            # Each part is [{"data": x0, "label": y0, ..}, ...] in future form.
             assert part.status == "finished", part.status
 
         # Preserving the partition order for prediction.
@@ -467,7 +458,7 @@ class DaskDMatrix:
             keys=[part.key for part in fut_parts]
         )
 
-        worker_map: Dict[str, List[distributed.Future]] = defaultdict(list)
+        worker_map: Dict[str, List[Future]] = defaultdict(list)
 
         for key, workers in who_has.items():
             worker_map[next(iter(workers))].append(key_to_partition[key])
