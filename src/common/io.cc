@@ -293,7 +293,7 @@ std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringV
     auto e = SystemErrorMsg();
     LOG(FATAL) << "Failed to read file `" << path << "`. System error message: " << e;
   };
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(__unix__)
   auto fd = fileno(fp.get());
   if (fd == -1) {
     err();
