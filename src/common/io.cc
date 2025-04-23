@@ -287,7 +287,7 @@ std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringV
   CHECK(std::filesystem::exists(path.c_str())) << "`" << path << "` doesn't exist";
   auto res = std::make_shared<MallocResource>(length);
   auto ptr = res->DataAs<char>();
-  std::unique_ptr<FILE, decltype(&fclose)> fp{fopen(path.c_str(), "rb"), fclose};
+  std::unique_ptr<FILE, std::function<int(FILE*)>> fp{fopen(path.c_str(), "rb"), fclose};
 
   auto err = [&] {
     auto e = SystemErrorMsg();
@@ -336,14 +336,14 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 }
 
 [[nodiscard]] std::string CmdOutput(StringView cmd) {
-#if defined(xgboost_IS_WIN) || defined(__i386__)
+#if defined(xgboost_IS_WIN)
   (void)cmd;
   LOG(FATAL) << "Not implemented";
   return "";
 #else
   // popen is a convenient method, but it always returns a success even if the command
   // fails.
-  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+  std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(popen(cmd.c_str(), "r"), pclose);
   CHECK(pipe);
   std::array<char, 128> buffer;
   std::string result;
