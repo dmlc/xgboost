@@ -3,9 +3,10 @@
  */
 #ifndef XGBOOST_TREE_IO_UTILS_H_
 #define XGBOOST_TREE_IO_UTILS_H_
-#include <string>          // for string
-#include <type_traits>     // for enable_if_t, is_same_v, conditional_t
-#include <vector>          // for vector
+#include <limits>       // for numeric_limits
+#include <string>       // for string
+#include <type_traits>  // for enable_if_t, is_same_v, conditional_t
+#include <vector>       // for vector
 
 #include "xgboost/json.h"  // for Json
 
