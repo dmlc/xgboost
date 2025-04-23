@@ -11,13 +11,13 @@
 #include <type_traits>  // for invoke_result_t, declval
 #include <vector>       // for vector
 
-#include "../common/cuda_rt_utils.h"  // for xgboost_NVTX_FN_RANGE
-#include "../encoder/ordinal.h"       // for HostColumnsView
-#include "adapter.h"                  // for ColumnarAdapter, ArrayAdapter
-#include "xgboost/c_api.h"            // for DataIterHandle
-#include "xgboost/context.h"          // for Context
-#include "xgboost/data.h"             // for MetaInfo
-#include "xgboost/string_view.h"      // for StringView
+#include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
+#include "../encoder/ordinal.h"    // for HostColumnsView
+#include "adapter.h"               // for ColumnarAdapter, ArrayAdapter
+#include "xgboost/c_api.h"         // for DataIterHandle
+#include "xgboost/context.h"       // for Context
+#include "xgboost/data.h"          // for MetaInfo
+#include "xgboost/string_view.h"   // for StringView
 
 namespace xgboost::data {
 /**

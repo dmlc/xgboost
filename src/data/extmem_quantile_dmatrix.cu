@@ -16,14 +16,14 @@
 #include <memory>   // for shared_ptr
 #include <variant>  // for visit, get_if
 
-#include "../common/cuda_rt_utils.h"  // for xgboost_NVTX_FN_RANGE
-#include "batch_utils.h"              // for CheckParam, RegenGHist
-#include "ellpack_page.cuh"           // for EllpackPage
+#include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
+#include "batch_utils.h"           // for CheckParam, RegenGHist
+#include "batch_utils.h"           // for AutoCachePageBytes
+#include "ellpack_page.cuh"        // for EllpackPage
 #include "extmem_quantile_dmatrix.h"
 #include "proxy_dmatrix.h"    // for DataIterProxy
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for BatchParam
-#include "batch_utils.h"      // for AutoCachePageBytes
 
 namespace xgboost::data {
 [[nodiscard]] std::int64_t DftMinCachePageBytes(std::int64_t min_cache_page_bytes) {

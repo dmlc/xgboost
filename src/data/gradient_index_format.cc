@@ -8,9 +8,9 @@
 #include <type_traits>  // for underlying_type_t
 #include <vector>       // for vector
 
-#include "../common/cuda_rt_utils.h"      // for xgboost_NVTX_FN_RANGE
 #include "../common/hist_util.h"          // for HistogramCuts
 #include "../common/io.h"                 // for AlignedResourceReadStream
+#include "../common/nvtx_utils.h"         // for xgboost_NVTX_FN_RANGE
 #include "../common/ref_resource_view.h"  // for ReadVec, WriteVec
 #include "gradient_index.h"               // for GHistIndexMatrix
 
