@@ -63,7 +63,7 @@ class CoordinateUpdater : public LinearUpdater {
     selector_->Setup(ctx_, *model, gpair->ConstHostVector(), p_fmat, tparam_.reg_alpha_denorm,
                      tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
-    for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
+    for (decltype(ngroup) group_idx = 0; group_idx < ngroup; ++group_idx) {
       for (unsigned i = 0U; i < model->learner_model_param->num_feature; i++) {
         int fidx =
             selector_->NextFeature(ctx_, i, *model, group_idx, gpair->ConstHostVector(), p_fmat,
