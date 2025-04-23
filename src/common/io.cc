@@ -301,7 +301,7 @@ std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringV
   if (posix_fadvise(fd, offset, length, POSIX_FADV_SEQUENTIAL) != 0) {
     LOG(FATAL) << SystemErrorMsg();
   }
-#endif  // defined(__unix__) || defined(__APPLE__)
+#endif  // defined(__linux__)
 
   if (fseek(fp.get(), offset, SEEK_SET) != 0) {
     err();
