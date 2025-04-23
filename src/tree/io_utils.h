@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_TREE_IO_UTILS_H_
 #define XGBOOST_TREE_IO_UTILS_H_
@@ -59,5 +59,7 @@ inline std::string const kParent{"parents"};
 inline std::string const kLeft{"left_children"};
 inline std::string const kRight{"right_children"};
 }  // namespace tree_field
+
+constexpr float DftBadValue() { return std::numeric_limits<float>::denorm_min(); }
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_IO_UTILS_H_

@@ -1,20 +1,21 @@
 /**
- * Copyright 2018-2023 by XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  * \author Rory Mitchell
  */
 #pragma once
 #include <algorithm>
+#include <cmath>  // for fpclassify
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
-#include <limits>
 
-#include "xgboost/data.h"
-#include "xgboost/parameter.h"
-#include "./param.h"
-#include "../gbm/gblinear_model.h"
 #include "../common/random.h"
 #include "../common/threading_utils.h"
+#include "../gbm/gblinear_model.h"
+#include "./param.h"
+#include "xgboost/data.h"
+#include "xgboost/parameter.h"
 
 namespace xgboost {
 namespace linear {
@@ -64,6 +65,9 @@ inline double CoordinateDelta(double sum_grad, double sum_hess, double w,
  * \return  The weight update.
  */
 inline double CoordinateDeltaBias(double sum_grad, double sum_hess) {
+  if (std::fpclassify(sum_hess) == FP_ZERO) {
+    return 0;
+  }
   return -sum_grad / sum_hess;
 }
 
