@@ -329,6 +329,8 @@ class DaskDMatrix:
         feature_weights: Optional[_DaskCollection] = None,
         enable_categorical: bool = False,
     ) -> None:
+        from distributed import Future
+
         _assert_dask_support()
         client = _xgb_get_client(client)
 
@@ -386,6 +388,8 @@ class DaskDMatrix:
         label_upper_bound: Optional[_DaskCollection] = None,
     ) -> "DaskDMatrix":
         """Obtain references to local data."""
+        from dask.delayed import Delayed
+        from distributed import Future
 
         def inconsistent(
             left: List[Any], left_name: str, right: List[Any], right_name: str
