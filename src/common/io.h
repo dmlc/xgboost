@@ -547,6 +547,26 @@ class PrivateMmapConstStream : public AlignedResourceReadStream {
 };
 
 /**
+ * @brief Read a portion of a file into a memory buffer. This class helps integration with
+ *        external memory file format.
+ */
+class MemBufFileReadStream : public AlignedResourceReadStream {
+  static std::shared_ptr<MallocResource> ReadFileIntoBuffer(StringView path, std::size_t offset,
+                                                            std::size_t length);
+
+ public:
+  /**
+   * @brief Construct a stream for reading file.
+   *
+   * @param path      File path.
+   * @param offset    The number of bytes into the file.
+   * @param length    The number of bytes to read.
+   */
+  explicit MemBufFileReadStream(StringView path, std::size_t offset, std::size_t length)
+      : AlignedResourceReadStream{ReadFileIntoBuffer(path, offset, length)} {}
+};
+
+/**
  * @brief Base class for write stream with alignment defined by IOAlignment().
  */
 class AlignedWriteStream {

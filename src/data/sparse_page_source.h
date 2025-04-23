@@ -178,6 +178,17 @@ class ExceHandler {
   }
 };
 
+template <typename WriterT>
+std::unique_ptr<WriterT> DftCreateWriterImpl(StringView name, std::uint32_t iter) {
+  std::unique_ptr<common::AlignedFileWriteStream> fo;
+  if (iter == 0) {
+    fo = std::make_unique<common::AlignedFileWriteStream>(name, "wb");
+  } else {
+    fo = std::make_unique<common::AlignedFileWriteStream>(name, "ab");
+  }
+  return fo;
+}
+
 /**
  * @brief Default implementation of the stream creater.
  */
@@ -189,18 +200,29 @@ class DefaultFormatStreamPolicy : public F<S> {
 
  public:
   std::unique_ptr<WriterT> CreateWriter(StringView name, std::uint32_t iter) {
-    std::unique_ptr<common::AlignedFileWriteStream> fo;
-    if (iter == 0) {
-      fo = std::make_unique<common::AlignedFileWriteStream>(name, "wb");
-    } else {
-      fo = std::make_unique<common::AlignedFileWriteStream>(name, "ab");
-    }
-    return fo;
+    return DftCreateWriterImpl<WriterT>(name, iter);
   }
 
   std::unique_ptr<ReaderT> CreateReader(StringView name, std::uint64_t offset,
                                         std::uint64_t length) const {
     return std::make_unique<common::PrivateMmapConstStream>(std::string{name}, offset, length);
+  }
+};
+
+template <typename S, template <typename> typename F>
+class MemBufFileReadFormatStreamPolicy : public F<S> {
+ public:
+  using WriterT = common::AlignedFileWriteStream;
+  using ReaderT = common::AlignedResourceReadStream;
+
+ public:
+  std::unique_ptr<WriterT> CreateWriter(StringView name, std::uint32_t iter) {
+    return DftCreateWriterImpl<WriterT>(name, iter);
+  }
+
+  std::unique_ptr<ReaderT> CreateReader(StringView name, std::uint64_t offset,
+                                        std::uint64_t length) const {
+    return std::make_unique<common::MemBufFileReadStream>(std::string{name}, offset, length);
   }
 };
 

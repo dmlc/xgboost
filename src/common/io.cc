@@ -3,7 +3,7 @@
  */
 #if defined(__unix__) || defined(__APPLE__)
 
-#include <fcntl.h>     // for open, O_RDONLY
+#include <fcntl.h>     // for open, O_RDONLY, posix_fadvise
 #include <sys/mman.h>  // for mmap, munmap, madvise
 #include <unistd.h>    // for close, getpagesize
 
@@ -22,6 +22,7 @@
 #include <cerrno>        // for errno
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t, uint32_t
+#include <cstdio>        // for fread, fseek
 #include <cstring>       // for memcpy
 #include <filesystem>    // for filesystem, weakly_canonical
 #include <fstream>       // for ifstream
@@ -280,6 +281,37 @@ MmapResource::~MmapResource() noexcept(false) = default;
 AlignedResourceReadStream::~AlignedResourceReadStream() noexcept(false) {}  // NOLINT
 PrivateMmapConstStream::~PrivateMmapConstStream() noexcept(false) {}        // NOLINT
 
+std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringView path,
+                                                                         std::size_t offset,
+                                                                         std::size_t length) {
+  CHECK(std::filesystem::exists(path.c_str())) << "`" << path << "` doesn't exist";
+  auto res = std::make_shared<MallocResource>(length);
+  auto ptr = res->DataAs<char>();
+  std::unique_ptr<FILE, std::function<int(FILE*)>> fp{fopen(path.c_str(), "rb"), fclose};
+
+  auto err = [&] {
+    auto e = SystemErrorMsg();
+    LOG(FATAL) << "Failed to read file `" << path << "`. System error message: " << e;
+  };
+#if defined(__linux__)
+  auto fd = fileno(fp.get());
+  if (fd == -1) {
+    err();
+  }
+  if (posix_fadvise(fd, offset, length, POSIX_FADV_SEQUENTIAL) != 0) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+#endif  // defined(__linux__)
+
+  if (fseek(fp.get(), offset, SEEK_SET) != 0) {
+    err();
+  }
+  if (fread(ptr, length, 1, fp.get()) != 1) {
+    err();
+  }
+  return res;
+}
+
 AlignedFileWriteStream::AlignedFileWriteStream(StringView path, StringView flags)
     : pimpl_{dmlc::Stream::Create(path.c_str(), flags.c_str())} {}
 
@@ -304,14 +336,14 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 }
 
 [[nodiscard]] std::string CmdOutput(StringView cmd) {
-#if defined(xgboost_IS_WIN) || defined(__i386__)
+#if defined(xgboost_IS_WIN)
   (void)cmd;
   LOG(FATAL) << "Not implemented";
   return "";
 #else
   // popen is a convenient method, but it always returns a success even if the command
   // fails.
-  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+  std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(popen(cmd.c_str(), "r"), pclose);
   CHECK(pipe);
   std::array<char, 128> buffer;
   std::string result;

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
@@ -50,10 +50,10 @@ DMLC_REGISTRY_FILE_TAG(updater_quantile_hist);
 BatchParam HistBatch(TrainParam const *param) { return {param->max_bin, param->sparse_threshold}; }
 
 template <typename ExpandEntry, typename Updater>
-void UpdateTree(common::Monitor *monitor_, linalg::MatrixView<GradientPair const> gpair,
+void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const> gpair,
                 Updater *updater, DMatrix *p_fmat, TrainParam const *param,
                 HostDeviceVector<bst_node_t> *p_out_position, RegTree *p_tree) {
-  monitor_->Start(__func__);
+  monitor->Start(__func__);
   updater->InitData(p_fmat, p_tree);
 
   Driver<ExpandEntry> driver{*param};
@@ -105,7 +105,7 @@ void UpdateTree(common::Monitor *monitor_, linalg::MatrixView<GradientPair const
 
   auto &h_out_position = p_out_position->HostVector();
   updater->LeafPartition(tree, gpair, &h_out_position);
-  monitor_->Stop(__func__);
+  monitor->Stop(__func__);
 }
 
 /**
