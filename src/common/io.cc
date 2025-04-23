@@ -289,10 +289,14 @@ std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringV
   auto ptr = res->DataAs<char>();
   std::unique_ptr<FILE, decltype(&fclose)> fp{fopen(path.c_str(), "rb"), fclose};
 
+  auto err = [&] {
+    auto e = SystemErrorMsg();
+    LOG(FATAL) << "Failed to read file `" << path << "`. System error message: " << e;
+  };
 #if defined(__unix__) || defined(__APPLE__)
   auto fd = fileno(fp.get());
   if (fd == -1) {
-    LOG(FATAL) << SystemErrorMsg();
+    err();
   }
   if (posix_fadvise(fd, offset, length, POSIX_FADV_SEQUENTIAL) != 0) {
     LOG(FATAL) << SystemErrorMsg();
@@ -300,10 +304,10 @@ std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringV
 #endif  // defined(__unix__) || defined(__APPLE__)
 
   if (fseek(fp.get(), offset, SEEK_SET) != 0) {
-    LOG(FATAL) << SystemErrorMsg();
+    err();
   }
   if (fread(ptr, length, 1, fp.get()) != 1) {
-    LOG(FATAL) << SystemErrorMsg();
+    err();
   }
   return res;
 }
