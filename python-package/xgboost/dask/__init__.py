@@ -32,11 +32,10 @@ Optional dask configuration
 import collections
 import logging
 import platform
-import socket
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import cache, partial, update_wrapper
+from functools import partial, update_wrapper
 from threading import Thread
 from typing import (
     TYPE_CHECKING,
@@ -155,21 +154,18 @@ __all__ = [
 LOGGER = logging.getLogger("[xgboost.dask]")
 
 
-@cache
 def _DASK_VERSION():
     from packaging.version import parse as parse_version
 
     return parse_version(dask.__version__)
 
 
-@cache
 def _DASK_2024_12_1() -> bool:
     from packaging.version import parse as parse_version
 
     return _DASK_VERSION() >= parse_version("2024.12.1")
 
 
-@cache
 def _DASK_2025_3_0() -> bool:
 
     from packaging.version import parse as parse_version
