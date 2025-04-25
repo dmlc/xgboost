@@ -25,8 +25,8 @@ MultiTargetTree::MultiTargetTree(TreeParam const* param)
       parent_(1ul, InvalidNodeId()),
       split_index_(1ul, 0),
       default_left_(1ul, 0),
-      split_conds_(1ul, std::numeric_limits<float>::quiet_NaN()),
-      weights_(param->size_leaf_vector, std::numeric_limits<float>::quiet_NaN()) {
+      split_conds_(1ul, DftBadValue()),
+      weights_(param->size_leaf_vector, DftBadValue()) {
   CHECK_GT(param_->size_leaf_vector, 1);
 }
 
@@ -222,7 +222,7 @@ void MultiTargetTree::Expand(bst_node_t nidx, bst_feature_t split_idx, float spl
   split_index_.Resize(n);
   split_index_.HostVector()[nidx] = split_idx;
 
-  split_conds_.Resize(n, std::numeric_limits<float>::quiet_NaN());
+  split_conds_.Resize(n, DftBadValue());
   split_conds_.HostVector()[nidx] = split_cond;
 
   default_left_.Resize(n);

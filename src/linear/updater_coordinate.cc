@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2023 by XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  * \author Rory Mitchell
  */
 
@@ -49,13 +49,13 @@ class CoordinateUpdater : public LinearUpdater {
               double sum_instance_weight) override {
     auto gpair = in_gpair->Data();
     tparam_.DenormalizePenalties(sum_instance_weight);
-    const int ngroup = model->learner_model_param->num_output_group;
+    auto ngroup = model->learner_model_param->num_output_group;
     // update bias
-    for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
+    for (decltype(ngroup) group_idx = 0; group_idx < ngroup; ++group_idx) {
       auto grad = GetBiasGradientParallel(group_idx, ngroup, gpair->ConstHostVector(), p_fmat,
                                           ctx_->Threads());
-      auto dbias = static_cast<float>(tparam_.learning_rate *
-                                      CoordinateDeltaBias(grad.first, grad.second));
+      auto dbias =
+          static_cast<float>(tparam_.learning_rate * CoordinateDeltaBias(grad.first, grad.second));
       model->Bias()[group_idx] += dbias;
       UpdateBiasResidualParallel(ctx_, group_idx, ngroup, dbias, &gpair->HostVector(), p_fmat);
     }
@@ -63,7 +63,7 @@ class CoordinateUpdater : public LinearUpdater {
     selector_->Setup(ctx_, *model, gpair->ConstHostVector(), p_fmat, tparam_.reg_alpha_denorm,
                      tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
-    for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
+    for (decltype(ngroup) group_idx = 0; group_idx < ngroup; ++group_idx) {
       for (unsigned i = 0U; i < model->learner_model_param->num_feature; i++) {
         int fidx =
             selector_->NextFeature(ctx_, i, *model, group_idx, gpair->ConstHostVector(), p_fmat,

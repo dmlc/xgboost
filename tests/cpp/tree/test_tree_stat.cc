@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>       // for Context
@@ -9,7 +9,8 @@
 
 #include <memory>  // for unique_ptr
 
-#include "../../../src/tree/param.h"  // for TrainParam
+#include "../../../src/tree/io_utils.h"  // for DftBadValue
+#include "../../../src/tree/param.h"     // for TrainParam
 #include "../helpers.h"
 
 namespace xgboost {
@@ -127,8 +128,8 @@ class TestSplitWithEta : public ::testing::Test {
           for (std::size_t i = 0; i < leaf_0.Size(); ++i) {
             CHECK_EQ(leaf_0(i) * eta_ratio, leaf_1(i));
           }
-          CHECK(std::isnan(p_tree0->SplitCond(nidx)));
-          CHECK(std::isnan(p_tree1->SplitCond(nidx)));
+          CHECK_EQ(DftBadValue(), p_tree0->SplitCond(nidx));
+          CHECK_EQ(DftBadValue(), p_tree1->SplitCond(nidx));
         } else {
           // NON-mt tree reuses split cond for leaf value.
           auto leaf_0 = p_tree0->SplitCond(nidx);
