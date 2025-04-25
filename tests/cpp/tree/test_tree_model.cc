@@ -1,10 +1,11 @@
 /**
- * Copyright 2018-2024, XGBoost Contributors
+ * Copyright 2018-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"
+#include "../../../src/tree/io_utils.h"  // for DftBadValue
 #include "../filesystem.h"
 #include "../helpers.h"
 #include "xgboost/tree_model.h"
@@ -166,7 +167,7 @@ TEST(Tree, ExpandCategoricalFeature) {
     ASSERT_EQ(tree.GetSplitTypes()[1], FeatureType::kNumerical);
     ASSERT_EQ(tree.GetSplitTypes()[2], FeatureType::kNumerical);
     ASSERT_EQ(tree.GetSplitCategories().size(), 0ul);
-    ASSERT_TRUE(std::isnan(tree[0].SplitCond()));
+    ASSERT_EQ(tree[0].SplitCond(), DftBadValue());
   }
   {
     RegTree tree;
