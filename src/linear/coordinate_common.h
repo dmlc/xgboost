@@ -65,10 +65,11 @@ inline double CoordinateDelta(double sum_grad, double sum_hess, double w,
  * \return  The weight update.
  */
 inline double CoordinateDeltaBias(double sum_grad, double sum_hess) {
-  if (std::fpclassify(sum_hess) == FP_ZERO) {
-    return 0;
+  auto b = -sum_grad / sum_hess;
+  if (std::isnan(b) || std::isinf(b)) {
+    b = 0;
   }
-  return -sum_grad / sum_hess;
+  return b;
 }
 
 /**
