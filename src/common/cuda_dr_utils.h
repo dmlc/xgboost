@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2025, XGBoost contributors
  *
  * @brief Utility for CUDA driver API.
  *
@@ -102,4 +102,11 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation* loc);
  * @brief Construct a `CUmemAllocationProp`.
  */
 [[nodiscard]] CUmemAllocationProp MakeAllocProp(CUmemLocationType type);
+
+/**
+ * @brief Get system driver version from the `nvidia-smi` command.
+ *
+ * @return Whether the system call is successful.
+ */
+[[nodiscard]] bool GetVersionFromSmi(std::int32_t *p_major, std::int32_t *p_minor);
 }  // namespace xgboost::cudr
