@@ -55,7 +55,7 @@ Optional dask configuration
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import partial, update_wrapper
+from functools import cache, partial, update_wrapper
 from threading import Thread
 from typing import (
     Any,
@@ -169,6 +169,28 @@ __all__ = [
 
 
 LOGGER = logging.getLogger("[xgboost.dask]")
+
+
+@cache
+def _DASK_VERSION():
+    from packaging.version import parse as parse_version
+
+    return parse_version(dask.__version__)
+
+
+@cache
+def _DASK_2024_12_1() -> bool:
+    from packaging.version import parse as parse_version
+
+    return _DASK_VERSION() >= parse_version("2024.12.1")
+
+
+@cache
+def _DASK_2025_3_0() -> bool:
+
+    from packaging.version import parse as parse_version
+
+    return _DASK_VERSION() >= parse_version("2025.3.0")
 
 
 def _try_start_tracker(
@@ -1491,6 +1513,18 @@ class DaskScikitLearnBase(XGBModel):
         )
         if isinstance(predts, dd.DataFrame):
             predts = predts.to_dask_array()
+            # Make sure the booster is part of the task graph implicitly
+            # only needed for certain versions of dask.
+            if _DASK_2024_12_1() and not _DASK_2025_3_0():
+                # Fixes this issue for dask>=2024.1.1,<2025.3.0
+                # Dask==2025.3.0 fails with:
+                #     RuntimeError: Attempting to use an asynchronous
+                #     Client in a synchronous context of `dask.compute`
+                #
+                # Dask==2025.4.0 fails with:
+                #     TypeError: Value type is not supported for data
+                #     iterator:<class 'distributed.client.Future'>
+                predts = predts.persist()
         return predts
 
     @_deprecate_positional_args
