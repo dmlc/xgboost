@@ -1,8 +1,10 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
+
+#include <numeric>  // for partial_sum
 
 #include "../../../src/data/ellpack_page.cuh"           // for EllpackPage, GetRowStride
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
