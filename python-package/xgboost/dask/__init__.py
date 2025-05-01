@@ -85,6 +85,8 @@ from dask import bag as db
 from dask import dataframe as dd
 from dask.delayed import Delayed
 from distributed import Future
+from packaging.version import Version
+from packaging.version import parse as parse_version
 
 from .. import collective, config
 from .._typing import FeatureNames, FeatureTypes, IterationRange
@@ -172,24 +174,17 @@ LOGGER = logging.getLogger("[xgboost.dask]")
 
 
 @cache
-def _DASK_VERSION():
-    from packaging.version import parse as parse_version
-
+def _DASK_VERSION() -> Version:
     return parse_version(dask.__version__)
 
 
 @cache
 def _DASK_2024_12_1() -> bool:
-    from packaging.version import parse as parse_version
-
     return _DASK_VERSION() >= parse_version("2024.12.1")
 
 
 @cache
 def _DASK_2025_3_0() -> bool:
-
-    from packaging.version import parse as parse_version
-
     return _DASK_VERSION() >= parse_version("2025.3.0")
 
 
