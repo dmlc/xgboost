@@ -85,7 +85,7 @@ class HingeObj : public FitIntercept {
 
   void PredTransform(HostDeviceVector<float> *io_preds) const override {
     common::Transform<>::Init(
-        [] XGBOOST_DEVICE(std::size_t _idx, common::Span<float> _preds) {
+        [] XGBOOST_DEVICE(std::size_t _idx, auto has_fp64_support, common::Span<float> _preds) {
           _preds[_idx] = _preds[_idx] > 0.0 ? 1.0 : 0.0;
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size()), 1}, this->ctx_->Threads(),
