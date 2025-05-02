@@ -80,6 +80,7 @@ from typing import (
 import dask
 import distributed
 import numpy
+import numpy.typing
 from dask import array as da
 from dask import bag as db
 from dask import dataframe as dd
@@ -89,7 +90,7 @@ from packaging.version import Version
 from packaging.version import parse as parse_version
 
 from .. import collective, config
-from .._typing import FeatureNames, FeatureTypes, IterationRange
+from .._typing import DataType, FeatureNames, FeatureTypes, IterationRange
 from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
@@ -1461,6 +1462,18 @@ async def _async_wrap_evaluation_matrices(
     return train_dmatrix, awaited
 
 
+def _mapped_predict(
+    partition: DataType,
+    *,
+    booster: Booster,
+    dmatrix_options: dict[str, Any],
+    predict_options: dict[str, Any],
+) -> numpy.ndarray:
+    m = DMatrix(partition, **dmatrix_options)
+    predt = booster.predict(m, **predict_options)
+    return predt
+
+
 @contextmanager
 def _set_worker_client(
     model: "DaskScikitLearnBase", client: "distributed.Client"
@@ -1523,7 +1536,7 @@ class DaskScikitLearnBase(XGBModel):
         return predts
 
     @_deprecate_positional_args
-    def predict(
+    def predict(  # pylint: disable=R0912
         self,
         X: _DataT,
         *,
@@ -1532,14 +1545,72 @@ class DaskScikitLearnBase(XGBModel):
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[IterationRange] = None,
     ) -> Any:
-        return self.client.sync(
-            self._predict_async,
-            X,
-            output_margin=output_margin,
-            validate_features=validate_features,
-            base_margin=base_margin,
-            iteration_range=iteration_range,
-        )
+        iteration_range = self._get_iteration_range(iteration_range)
+        dmatrix_options = {
+            "base_margin": base_margin,
+            "missing": self.missing,
+        }
+        predict_options = {
+            "output_margin": output_margin,
+            "validate_features": validate_features,
+            "iteration_range": iteration_range,
+        }
+
+        is_regression = isinstance(self, XGBRegressorBase)
+
+        meta: numpy.typing.NDArray[numpy.float32]
+        # meta: numpy.typing.NDArray[tuple[int, ...], numpy.float32]
+        if isinstance(X, dd.DataFrame):
+            if not is_regression and self.n_classes_ > 2:
+                meta = numpy.zeros((0, 0), dtype=numpy.float32)
+            else:
+                meta = numpy.zeros((0,), dtype=numpy.float32)
+
+            result = X.map_partitions(
+                _mapped_predict,
+                booster=self.get_booster(),
+                dmatrix_options=dmatrix_options,
+                predict_options=predict_options,
+                meta=meta,
+            )
+            if not is_regression and self.n_classes_ > 2:
+                result = result.argmax(axis=1)
+        elif isinstance(X, da.Array):
+            if is_regression:
+                meta = numpy.zeros((0,), dtype=numpy.float32)
+                chunks = X.chunks[:1]
+                drop_axis = 1
+                n_classes = None
+                is_regression = True
+            else:
+                n_classes = self.n_classes_
+                if n_classes > 2:
+                    drop_axis = None
+                    chunks = X.chunks[:1] + (n_classes,)
+                    meta = numpy.zeros((0, 0), dtype=numpy.float32)
+                else:
+                    meta = numpy.zeros((0,), dtype=numpy.float32)
+                    chunks = X.chunks[:1]
+                    drop_axis = 1
+
+            result = X.map_blocks(  # type: ignore[call-arg]
+                _mapped_predict,  # type: ignore[arg-type]
+                booster=self.get_booster(),
+                dmatrix_options=dmatrix_options,
+                predict_options=predict_options,
+                chunks=chunks,
+                meta=meta,
+                drop_axis=drop_axis,
+            )
+            if not is_regression:
+                assert n_classes is not None  # checked above
+                if n_classes <= 2:
+                    result = (result > 0.5).astype(numpy.int32)
+                else:
+                    result = result.argmax(axis=1)
+        else:
+            raise ValueError(f"Unsupported data type: {type(X)}")
+        return result
 
     async def _apply_async(
         self,
