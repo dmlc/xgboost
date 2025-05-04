@@ -476,8 +476,10 @@ TEST(EllpackPage, IsDense) {
       auto d_acc = page.Impl()->GetDeviceAccessor(&ctx);
       if (sparsity == 0.0) {
         ASSERT_TRUE(d_acc.IsDense());
+        ASSERT_EQ(p.max_bin, d_acc.NullValue());
       } else {
         ASSERT_FALSE(d_acc.IsDense());
+        ASSERT_EQ(p.max_bin * p_fmat->Info().num_col_, d_acc.NullValue());
       }
       std::vector<common::CompressedByteT> h_storage;
       auto h_acc = page.Impl()->GetHostAccessor(&ctx, &h_storage);

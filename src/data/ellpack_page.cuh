@@ -151,7 +151,7 @@ struct EllpackDeviceAccessor {
     return gidx_fvalue_map[gidx];
   }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NullValue() const {
-    return this->null_value_ & (1ul << NullShift());
+    return this->null_value_ & ((1ul << NullShift()) - 1ul);
   }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumBins() const { return gidx_fvalue_map.size(); }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return min_fvalue.size(); }
