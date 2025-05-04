@@ -61,7 +61,8 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   // Prefer device storage for validation dataset since we can't hide the data loading
   // overhead with inference. On the other hand, training procedures can confortably
   // overlap with the data transfer.
-  auto cinfo = EllpackCacheInfo{p, (ref != nullptr), config.max_num_device_pages, config.missing};
+  auto prefer_device = (ref != nullptr) && config.max_num_device_pages > 0;
+  auto cinfo = EllpackCacheInfo{p, prefer_device, config.max_num_device_pages, config.missing};
   CalcCacheMapping(ctx, this->info_.IsDense(), cuts,
                    DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
