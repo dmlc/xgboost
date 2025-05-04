@@ -30,7 +30,8 @@ struct EllpackDeviceAccessor {
    */
   bst_idx_t null_value_;
 
-  constexpr static std::size_t NullShift() { return sizeof(null_value_) * 8 - 1; }
+  constexpr static auto Ind() { return static_cast<bst_idx_t>(1); }
+  constexpr static std::size_t NullShift() { return sizeof(null_value_) * 8 - Ind(); }
 
  public:
   /** @brief Row length for ELLPACK, equal to number of features when the data is dense. */
@@ -77,7 +78,7 @@ struct EllpackDeviceAccessor {
     if (is_dense) {
       static_assert(NullShift() == 63);
       CHECK(!IsDense());
-      this->null_value_ |= (1ul << NullShift());
+      this->null_value_ |= (Ind() << NullShift());
     }
   }
 
@@ -151,7 +152,7 @@ struct EllpackDeviceAccessor {
     return gidx_fvalue_map[gidx];
   }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NullValue() const {
-    return this->null_value_ & ((1ul << NullShift()) - 1ul);
+    return this->null_value_ & ((Ind() << NullShift()) - Ind());
   }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumBins() const { return gidx_fvalue_map.size(); }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return min_fvalue.size(); }

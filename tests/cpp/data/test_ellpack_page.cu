@@ -475,6 +475,7 @@ TEST(EllpackPage, IsDense) {
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(&ctx, p)) {
       auto d_acc = page.Impl()->GetDeviceAccessor(&ctx);
       if (sparsity == 0.0) {
+        ASSERT_EQ(d_acc.IsDense(), page.Impl()->IsDense());
         ASSERT_TRUE(d_acc.IsDense());
         ASSERT_EQ(p.max_bin, d_acc.NullValue());
       } else {
