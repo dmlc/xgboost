@@ -702,15 +702,9 @@ EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
   Context cpu_ctx;
   auto null = this->NullValue();
   auto iter = common::CompressedIterator<uint32_t>{h_gidx_buffer->data(), this->NumSymbols()};
-  return {ctx->IsCPU() ? ctx : &cpu_ctx,
-          this->cuts_,
-          this->info.row_stride,
-          this->base_rowid,
-          this->n_rows,
-          iter,
-          null,
-          this->IsDense(),
-          feature_types};
+  auto sctx = ctx->IsCPU() ? ctx : &cpu_ctx;
+  return {sctx, this->cuts_, this->info.row_stride, this->base_rowid, this->n_rows,
+          iter, null,        this->IsDense(),       feature_types};
 }
 
 [[nodiscard]] bst_idx_t EllpackPageImpl::NumNonMissing(
