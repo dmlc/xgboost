@@ -20,11 +20,20 @@ namespace xgboost {
 /**
  * @brief Struct for accessing and manipulating an ELLPACK matrix on the device.
  *
- * Does not own underlying memory and may be trivially copied into kernels.
+ * Does not own the underlying memory and may be trivially copied into kernels.
  */
 struct EllpackDeviceAccessor {
-  /** @brief Whether or not if the matrix is dense. */
-  bst_idx_t null_value;
+ private:
+  /**
+   * @brief Stores the null value and whether the matrix is dense. The `IsDense` is stored in the
+   * first bit of this value.
+   */
+  bst_idx_t null_value_;
+
+  constexpr static auto Ind() { return static_cast<bst_idx_t>(1); }
+  constexpr static std::size_t NullShift() { return sizeof(null_value_) * 8 - Ind(); }
+
+ public:
   /** @brief Row length for ELLPACK, equal to number of features when the data is dense. */
   bst_idx_t row_stride;
   /** @brief Starting index of the rows. Used for external memory. */
@@ -45,9 +54,9 @@ struct EllpackDeviceAccessor {
   EllpackDeviceAccessor() = delete;
   EllpackDeviceAccessor(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
                         bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
-                        common::CompressedIterator<uint32_t> gidx_iter, bst_idx_t null_value,
-                        common::Span<FeatureType const> feature_types)
-      : null_value{null_value},
+                        common::CompressedIterator<std::uint32_t> gidx_iter, bst_idx_t null_value,
+                        bool is_dense, common::Span<FeatureType const> feature_types)
+      : null_value_{null_value},
         row_stride{row_stride},
         base_rowid{base_rowid},
         n_rows{n_rows},
@@ -65,8 +74,17 @@ struct EllpackDeviceAccessor {
       feature_segments = cuts->cut_ptrs_.ConstHostPointer();
       min_fvalue = cuts->min_vals_.ConstHostSpan();
     }
+
+    if (is_dense) {
+      static_assert(NullShift() == 63);
+      CHECK(!IsDense());
+      this->null_value_ |= (Ind() << NullShift());
+    }
   }
 
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE bool IsDense() const {
+    return (this->null_value_ >> NullShift()) != 0;
+  }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bool IsDenseCompressed() const {
     return this->row_stride == this->NumFeatures();
   }
@@ -133,7 +151,9 @@ struct EllpackDeviceAccessor {
     }
     return gidx_fvalue_map[gidx];
   }
-  [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NullValue() const { return this->null_value; }
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NullValue() const {
+    return this->null_value_ & ((Ind() << NullShift()) - Ind());
+  }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumBins() const { return gidx_fvalue_map.size(); }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return min_fvalue.size(); }
 };
@@ -224,9 +244,7 @@ class EllpackPageImpl {
   [[nodiscard]] bst_idx_t Size() const;
 
   /** @brief Set the base row id for this page. */
-  void SetBaseRowId(std::size_t row_id) {
-    base_rowid = row_id;
-  }
+  void SetBaseRowId(std::size_t row_id) { base_rowid = row_id; }
 
   [[nodiscard]] common::HistogramCuts const& Cuts() const { return *cuts_; }
   [[nodiscard]] std::shared_ptr<common::HistogramCuts const> CutsShared() const { return cuts_; }
@@ -251,6 +269,12 @@ class EllpackPageImpl {
    */
   [[nodiscard]] auto NumSymbols() const { return this->info.n_symbols; }
   void SetNumSymbols(bst_idx_t n_symbols) { this->info.n_symbols = n_symbols; }
+  /**
+   * @brief Get the value used to represent missing.
+   */
+  [[nodiscard]] bst_idx_t NullValue() const {
+    return this->IsDense() ? this->NumSymbols() : this->NumSymbols() - 1;
+  }
   /**
    * @brief Copy basic shape from another page.
    */

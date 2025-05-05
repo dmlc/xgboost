@@ -132,13 +132,11 @@ XGBOOST_DEV_INLINE void AtomicAddGpairGlobal(xgboost::GradientPairInt64* dest,
   auto g = gpair.GetQuantisedGrad();
   auto h = gpair.GetQuantisedHess();
 
-  atomicAdd(dst_ptr,
-            *reinterpret_cast<uint64_t*>(&g));
-  atomicAdd(dst_ptr + 1,
-            *reinterpret_cast<uint64_t*>(&h));
+  atomicAdd(dst_ptr, *reinterpret_cast<uint64_t*>(&g));
+  atomicAdd(dst_ptr + 1, *reinterpret_cast<uint64_t*>(&h));
 }
 
-template <bool kCompressed, int kBlockThreads, int kItemsPerThread>
+template <bool kCompressed, bool kDense, int kBlockThreads, int kItemsPerThread>
 class HistogramAgent {
   int constexpr static kItemsPerTile = kBlockThreads * kItemsPerThread;
 
@@ -153,6 +151,8 @@ class HistogramAgent {
   const int feature_stride_;
   const bst_idx_t n_elements_;
   const GradientQuantiser& rounding_;
+
+  static_assert(kCompressed >= kDense);
 
  public:
   __device__ HistogramAgent(GradientPairInt64* smem_arr,
@@ -176,7 +176,7 @@ class HistogramAgent {
       Idx ridx = d_ridx_[idx / feature_stride_];
       auto fidx = FeatIdx(group_, idx, feature_stride_);
       bst_bin_t compressed_bin = matrix_.gidx_iter[IterIdx(matrix_, ridx, fidx)];
-      if (compressed_bin != matrix_.NullValue()) {
+      if (kDense || compressed_bin != matrix_.NullValue()) {
         // The matrix is compressed with feature-local bins.
         if (kCompressed) {
           compressed_bin += this->matrix_.feature_segments[fidx];
@@ -211,18 +211,20 @@ class HistogramAgent {
       gpair[i] = d_gpair_[ridx[i]];
       auto fidx = FeatIdx(group_, idx[i], feature_stride_);
       gidx[i] = matrix_.gidx_iter[IterIdx(matrix_, ridx[i], fidx)];
-      if (gidx[i] != matrix_.NullValue()) {
-        if (kCompressed) {
+      if (kDense || gidx[i] != matrix_.NullValue()) {
+        if constexpr (kCompressed) {
           gidx[i] += matrix_.feature_segments[fidx];
         }
       } else {
-        gidx[i] = -1;  // missing
+        // Use -1 to denote missing. Since we need to add the beginning bin to gidx, the
+        // result might equal to the `NullValue`.
+        gidx[i] = -1;
       }
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerThread; i++) {
       // Avoid atomic add if it's a null value.
-      if (gidx[i] != -1) {
+      if (kDense || gidx[i] != -1) {
         auto adjusted = rounding_.ToFixedPoint(gpair[i]);
         AtomicAddGpairShared(smem_arr_ + gidx[i] - group_.start_bin, adjusted);
       }
@@ -262,7 +264,8 @@ class HistogramAgent {
   }
 };
 
-template <bool kIsDense, bool use_shared_memory_histograms, int kBlockThreads, int kItemsPerThread>
+template <bool kCompressed, bool kDense, bool use_shared_memory_histograms, int kBlockThreads,
+          int kItemsPerThread>
 __global__ void __launch_bounds__(kBlockThreads)
     SharedMemHistKernel(const EllpackDeviceAccessor matrix,
                         const FeatureGroupsAccessor feature_groups,
@@ -273,7 +276,7 @@ __global__ void __launch_bounds__(kBlockThreads)
   extern __shared__ char smem[];
   const FeatureGroup group = feature_groups[blockIdx.y];
   auto smem_arr = reinterpret_cast<GradientPairInt64*>(smem);
-  auto agent = HistogramAgent<kIsDense, kBlockThreads, kItemsPerThread>(
+  auto agent = HistogramAgent<kCompressed, kDense, kBlockThreads, kItemsPerThread>(
       smem_arr, d_node_hist, group, matrix, d_ridx, rounding, d_gpair);
   if (use_shared_memory_histograms) {
     agent.BuildHistogramWithShared();
@@ -289,30 +292,41 @@ constexpr std::int32_t ItemsPerTile() { return kBlockThreads * kItemsPerThread; 
 }  // namespace
 
 // Use auto deduction guide to workaround compiler error.
-template <auto GlobalDense = SharedMemHistKernel<true, false, kBlockThreads, kItemsPerThread>,
-          auto Global = SharedMemHistKernel<false, false, kBlockThreads, kItemsPerThread>,
-          auto SharedDense = SharedMemHistKernel<true, true, kBlockThreads, kItemsPerThread>,
-          auto Shared = SharedMemHistKernel<false, true, kBlockThreads, kItemsPerThread>>
+template <auto GlobalCompr =
+              SharedMemHistKernel<true, false, false, kBlockThreads, kItemsPerThread>,
+          auto Global = SharedMemHistKernel<false, false, false, kBlockThreads, kItemsPerThread>,
+          auto SharedCompr = SharedMemHistKernel<true, false, true, kBlockThreads, kItemsPerThread>,
+          auto Shared = SharedMemHistKernel<false, false, true, kBlockThreads, kItemsPerThread>,
+          auto GlobalDense = SharedMemHistKernel<true, true, false, kBlockThreads, kItemsPerThread>,
+          auto SharedDense = SharedMemHistKernel<true, true, true, kBlockThreads, kItemsPerThread>>
 struct HistogramKernel {
   enum KernelType : std::size_t {
-    kGlobalDense = 0,
+    kGlobalCompr = 0,
     kGlobal = 1,
-    kSharedDense = 2,
+    kSharedCompr = 2,
     kShared = 3,
+    kGlobalDense = 4,
+    kSharedDense = 5,
   };
   // Kernel for working with dense Ellpack using the global memory.
-  decltype(GlobalDense) global_dense_kernel{
-      SharedMemHistKernel<true, false, kBlockThreads, kItemsPerThread>};
+  decltype(GlobalCompr) global_compr_kernel{
+      SharedMemHistKernel<true, false, false, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the global memory.
-  decltype(Global) global_kernel{SharedMemHistKernel<false, false, kBlockThreads, kItemsPerThread>};
+  decltype(Global) global_kernel{
+      SharedMemHistKernel<false, false, false, kBlockThreads, kItemsPerThread>};
   // Kernel for working with dense Ellpack using the shared memory.
-  decltype(SharedDense) shared_dense_kernel{
-      SharedMemHistKernel<true, true, kBlockThreads, kItemsPerThread>};
+  decltype(SharedCompr) shared_compr_kernel{
+      SharedMemHistKernel<true, false, true, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the shared memory.
-  decltype(Shared) shared_kernel{SharedMemHistKernel<false, true, kBlockThreads, kItemsPerThread>};
+  decltype(Shared) shared_kernel{
+      SharedMemHistKernel<false, false, true, kBlockThreads, kItemsPerThread>};
+  decltype(GlobalDense) global_dense_kernel{
+      SharedMemHistKernel<true, true, false, kBlockThreads, kItemsPerThread>};
+  decltype(SharedDense) shared_dense_kernel{
+      SharedMemHistKernel<true, true, true, kBlockThreads, kItemsPerThread>};
 
   bool shared{false};
-  std::array<std::uint32_t, 4> grid_sizes{0, 0, 0, 0};
+  std::array<std::uint32_t, 6> grid_sizes{0, 0, 0, 0, 0, 0};
   std::size_t smem_size{0};
   bool const force_global;
 
@@ -347,9 +361,11 @@ struct HistogramKernel {
       this->grid_sizes[static_cast<std::size_t>(k)] = n_blocks_per_mp * n_mps;
     };
     // Initialize all kernel instantiations
-    std::array kernel_types{kGlobalDense, kGlobal, kSharedDense, kShared};
+    std::array kernel_types{kGlobalCompr, kGlobal,      kSharedCompr,
+                            kShared,      kGlobalDense, kSharedDense};
     std::int32_t k = 0;
-    for (auto& kernel : {global_dense_kernel, global_kernel, shared_dense_kernel, shared_kernel}) {
+    for (auto& kernel : {global_compr_kernel, global_kernel, shared_compr_kernel, shared_kernel,
+                         global_dense_kernel, shared_dense_kernel}) {
       init(kernel, kernel_types[k]);
       ++k;
     }
@@ -397,19 +413,24 @@ class DeviceHistogramBuilderImpl {
     using K = HistogramKernel<>::KernelType;
     if (!this->kernel_->shared) {  // Use global memory
       CHECK_EQ(this->kernel_->smem_size, 0);
-      if (matrix.IsDenseCompressed()) {
-        // Dense must use shared memory except for testing.
+      if (matrix.IsDense()) {
         CHECK(this->kernel_->force_global);
         launcher(this->kernel_->global_dense_kernel, this->kernel_->grid_sizes[K::kGlobalDense]);
+      } else if (matrix.IsDenseCompressed()) {
+        // Dense must use shared memory except for testing.
+        CHECK(this->kernel_->force_global);
+        launcher(this->kernel_->global_compr_kernel, this->kernel_->grid_sizes[K::kGlobalCompr]);
       } else {
         // Sparse
         launcher(this->kernel_->global_kernel, this->kernel_->grid_sizes[K::kGlobal]);
       }
     } else {  // Use shared memory
       CHECK_NE(this->kernel_->smem_size, 0);
-      if (matrix.IsDenseCompressed()) {
-        // Dense
+      if (matrix.IsDense()) {
         launcher(this->kernel_->shared_dense_kernel, this->kernel_->grid_sizes[K::kSharedDense]);
+      } else if (matrix.IsDenseCompressed()) {
+        // Dense
+        launcher(this->kernel_->shared_compr_kernel, this->kernel_->grid_sizes[K::kSharedCompr]);
       } else {
         // Sparse
         launcher(this->kernel_->shared_kernel, this->kernel_->grid_sizes[K::kShared]);

@@ -685,15 +685,10 @@ std::size_t EllpackPageImpl::MemCostBytes() const {
 
 EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(
     Context const* ctx, common::Span<FeatureType const> feature_types) const {
-  auto null = this->IsDense() ? this->NumSymbols() : this->NumSymbols() - 1;
-  return {ctx,
-          this->cuts_,
-          this->info.row_stride,
-          this->base_rowid,
-          this->n_rows,
-          common::CompressedIterator<uint32_t>{gidx_buffer.data(), this->NumSymbols()},
-          null,
-          feature_types};
+  auto null = this->NullValue();
+  auto iter = common::CompressedIterator<uint32_t>{gidx_buffer.data(), this->NumSymbols()};
+  return {ctx,  this->cuts_, this->info.row_stride, this->base_rowid, this->n_rows,
+          iter, null,        this->IsDense(),       feature_types};
 }
 
 EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
@@ -705,15 +700,11 @@ EllpackDeviceAccessor EllpackPageImpl::GetHostAccessor(
   dh::safe_cuda(cudaMemcpyAsync(h_gidx_buffer->data(), gidx_buffer.data(), gidx_buffer.size_bytes(),
                                 cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
   Context cpu_ctx;
-  auto null = this->IsDense() ? this->NumSymbols() : this->NumSymbols() - 1;
-  return {ctx->IsCPU() ? ctx : &cpu_ctx,
-          this->cuts_,
-          this->info.row_stride,
-          this->base_rowid,
-          this->n_rows,
-          common::CompressedIterator<uint32_t>{h_gidx_buffer->data(), this->NumSymbols()},
-          null,
-          feature_types};
+  auto null = this->NullValue();
+  auto iter = common::CompressedIterator<uint32_t>{h_gidx_buffer->data(), this->NumSymbols()};
+  auto sctx = ctx->IsCPU() ? ctx : &cpu_ctx;
+  return {sctx, this->cuts_, this->info.row_stride, this->base_rowid, this->n_rows,
+          iter, null,        this->IsDense(),       feature_types};
 }
 
 [[nodiscard]] bst_idx_t EllpackPageImpl::NumNonMissing(

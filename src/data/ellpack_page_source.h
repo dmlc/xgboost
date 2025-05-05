@@ -28,7 +28,7 @@ struct EllpackCacheInfo {
   std::int64_t max_num_device_pages{0};  // Maximum number of pages cached in device.
   float missing{std::numeric_limits<float>::quiet_NaN()};
   std::vector<bst_idx_t> cache_mapping;
-  std::vector<bst_idx_t> buffer_bytes;
+  std::vector<bst_idx_t> buffer_bytes;  // N bytes of the concatenated pages.
   std::vector<bst_idx_t> buffer_rows;
 
   EllpackCacheInfo() = default;

@@ -466,4 +466,32 @@ TEST_P(SparseEllpack, FromGHistIndex) { this->TestFromGHistIndex(GetParam()); }
 TEST_P(SparseEllpack, NumNonMissing) { this->TestNumNonMissing(this->GetParam()); }
 
 INSTANTIATE_TEST_SUITE_P(EllpackPage, SparseEllpack, ::testing::Values(.0f, .2f, .4f, .8f));
+
+TEST(EllpackPage, IsDense) {
+  auto test = [](float sparsity) {
+    auto p_fmat = RandomDataGenerator{64, 16, sparsity}.GenerateDMatrix();
+    auto p = BatchParam{16, tree::TrainParam::DftSparseThreshold()};
+    auto ctx = MakeCUDACtx(0);
+    for (auto const& page : p_fmat->GetBatches<EllpackPage>(&ctx, p)) {
+      auto d_acc = page.Impl()->GetDeviceAccessor(&ctx);
+      if (sparsity == 0.0) {
+        ASSERT_EQ(d_acc.IsDense(), page.Impl()->IsDense());
+        ASSERT_TRUE(d_acc.IsDense());
+        ASSERT_EQ(p.max_bin, d_acc.NullValue());
+      } else {
+        ASSERT_FALSE(d_acc.IsDense());
+        ASSERT_EQ(p.max_bin * p_fmat->Info().num_col_, d_acc.NullValue());
+      }
+      std::vector<common::CompressedByteT> h_storage;
+      auto h_acc = page.Impl()->GetHostAccessor(&ctx, &h_storage);
+      if (sparsity == 0.0) {
+        ASSERT_TRUE(h_acc.IsDense());
+      } else {
+        ASSERT_FALSE(h_acc.IsDense());
+      }
+    }
+  };
+  test(0.0);
+  test(0.5);
+}
 }  // namespace xgboost
