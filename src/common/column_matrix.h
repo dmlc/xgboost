@@ -194,12 +194,11 @@ class ColumnMatrix {
 
   template <typename ColumnBinT, typename BinT, typename RIdx>
   void SetBinSparse(BinT bin_id, RIdx rid, bst_feature_t fid, ColumnBinT* local_index) {
+    ColumnBinT* begin = &local_index[feature_offsets_[fid]];
     if (type_[fid] == kDenseColumn) {
-      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[rid] = bin_id - index_base_[fid];
       missing_.SetValid(feature_offsets_[fid] + rid);
     } else {
-      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[num_nonzeros_[fid]] = bin_id - index_base_[fid];
       row_ind_[feature_offsets_[fid] + num_nonzeros_[fid]] = rid;
       ++num_nonzeros_[fid];
@@ -208,12 +207,11 @@ class ColumnMatrix {
 
   template <typename ColumnBinT, typename BinT, typename RIdx>
   void SetBinSparse(BinT bin_id, RIdx rid, bst_feature_t fid, ColumnBinT* local_index, size_t nnz) {
+    ColumnBinT* begin = &local_index[feature_offsets_[fid]];
     if (type_[fid] == kDenseColumn) {
-      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[rid] = bin_id - index_base_[fid];
       missing_.SetValid(feature_offsets_[fid] + rid);
     } else {
-      ColumnBinT* begin = &local_index[feature_offsets_[fid]];
       begin[nnz] = bin_id - index_base_[fid];
       row_ind_[feature_offsets_[fid] + nnz] = rid;
     }
@@ -226,7 +224,7 @@ class ColumnMatrix {
   }
 
   ColumnMatrix() = default;
-  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads = 1) {
+  ColumnMatrix(GHistIndexMatrix const& gmat, double sparse_threshold, int n_threads) {
     this->InitStorage(gmat, sparse_threshold, n_threads);
   }
 
@@ -372,10 +370,13 @@ class ColumnMatrix {
       ColumnBinT* local_index = reinterpret_cast<ColumnBinT*>(index_.data());
       size_t const batch_size = batch.Size();
 
+      // Parallel sparse batch processing
       dmlc::OMPException exc;
       std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);
       std::vector<size_t> k_offsets(n_threads + 1, 0);
       size_t block_size = DivRoundUp(batch_size, n_threads);
+
+      // Parallel row processing for thread-local counting.
       #pragma omp parallel num_threads(n_threads)
       {
         exc.Run([&, is_valid]() {
@@ -399,6 +400,7 @@ class ColumnMatrix {
       }
       exc.Rethrow();
 
+      // Parallel feature processing to aggregate counts & calculate offsets.
       ParallelFor(n_features, n_threads, [&](auto fid) {
         n_elements[fid] += num_nonzeros_[fid];
         for (int tid = 0; tid < n_threads; ++tid) {
@@ -409,6 +411,7 @@ class ColumnMatrix {
       });
       std::partial_sum(k_offsets.cbegin(), k_offsets.cend(), k_offsets.begin());
 
+      // Parallel row processing to place data using offsets into sparse structure.
       #pragma omp parallel num_threads(n_threads)
       {
         std::vector<size_t> nnz_offsets(n_features, 0);
