@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <thrust/functional.h>  // for plus
 #include <thrust/transform.h>   // for transform
@@ -12,7 +12,6 @@
 #include <vector>     // for vector
 
 #include "../collective/aggregator.h"
-#include "../collective/broadcast.h"   // for Broadcast
 #include "../common/categorical.h"     // for KCatBitField
 #include "../common/cuda_context.cuh"  // for CUDAContext
 #include "../common/cuda_rt_utils.h"   // for CheckComputeCapability
@@ -52,6 +51,12 @@ DMLC_REGISTRY_FILE_TAG(updater_gpu_hist);
 using cuda_impl::ApproxBatch;
 using cuda_impl::HistBatch;
 using xgboost::cuda_impl::StaticBatch;
+
+namespace {
+// Use a large number to handle external memory with deep trees.
+inline constexpr std::size_t kMaxNodeBatchSize = 1024;
+inline constexpr std::size_t kNeedCopyThreshold = 4;
+}  // anonymous namespace
 
 // Extra data for each node that is passed to the update position function
 struct NodeSplitData {
@@ -452,6 +457,23 @@ struct GPUHistMakerDevice {
     }
   };
 
+  // Heuristic to avoid copying the data batch.
+  [[nodiscard]] bool NeedCopy(DMatrix* p_fmat,
+                              std::vector<GPUExpandEntry> const& candidates) const {
+    if (p_fmat->SingleColBlock()) {
+      return true;  // use default if it's in-core
+    }
+    bst_idx_t n_total_samples = p_fmat->Info().num_row_;
+    bst_idx_t n_samples = 0;
+    for (auto const& c : candidates) {
+      for (auto const& part : this->partitioners_) {
+        n_samples += part->GetRows(c.nid).size();
+      }
+    }
+    // avoid copy if the kernel is small.
+    return n_samples * kNeedCopyThreshold > n_total_samples;
+  }
+
   // Update position and build histogram.
   void PartitionAndBuildHist(DMatrix* p_fmat, std::vector<GPUExpandEntry> const& expand_set,
                              std::vector<GPUExpandEntry> const& candidates, RegTree const* p_tree) {
@@ -474,7 +496,7 @@ struct GPUHistMakerDevice {
     std::vector<bst_node_t> build_nidx(candidates.size());
     std::vector<bst_node_t> subtraction_nidx(candidates.size());
     AssignNodes(p_tree, this->quantiser.get(), candidates, build_nidx, subtraction_nidx);
-    auto prefetch_copy = !build_nidx.empty();
+    auto prefetch_copy = !build_nidx.empty() && this->NeedCopy(p_fmat, candidates);
 
     this->histogram_.AllocateHistograms(ctx_, build_nidx, subtraction_nidx);
 
@@ -711,8 +733,7 @@ struct GPUHistMakerDevice {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat, ObjInfo const* task,
                   RegTree* p_tree, HostDeviceVector<bst_node_t>* p_out_position) {
-    // Process maximum 32 nodes at a time
-    Driver<GPUExpandEntry> driver(param, 32);
+    Driver<GPUExpandEntry> driver{param, kMaxNodeBatchSize};
 
     p_fmat = this->Reset(gpair_all, p_fmat);
     driver.Push({this->InitRoot(p_fmat, p_tree)});
