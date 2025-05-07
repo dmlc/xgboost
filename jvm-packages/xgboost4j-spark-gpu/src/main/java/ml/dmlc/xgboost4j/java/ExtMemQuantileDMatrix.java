@@ -50,7 +50,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       float missing,
       int maxBin,
       DMatrix ref) throws XGBoostError {
-    this(iter, missing, maxBin, ref, 0, -1, -1, -1);
+    this(iter, missing, maxBin, ref, 0, -1, -1);
   }
 
   public ExtMemQuantileDMatrix(
