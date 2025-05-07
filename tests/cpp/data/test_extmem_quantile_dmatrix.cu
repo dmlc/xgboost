@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>  // for BatchParam
@@ -7,9 +7,11 @@
 #include <tuple>   // for tuple
 #include <vector>  // for vector
 
-#include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
-#include "../helpers.h"                        // for RandomDataGenerator
-#include "test_extmem_quantile_dmatrix.h"      // for TestExtMemQdmBasic
+#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
+#include "../../../src/data/ellpack_page.cuh"           // for EllpackPageImpl
+#include "../../../src/data/extmem_quantile_dmatrix.h"  // for DftHostRatio
+#include "../helpers.h"                                 // for RandomDataGenerator, GMockThrow
+#include "test_extmem_quantile_dmatrix.h"               // for TestExtMemQdmBasic
 
 namespace xgboost::data {
 auto AssertEllpackEq(Context const* ctx, EllpackPageImpl const* lhs, EllpackPageImpl const* rhs) {
@@ -54,7 +56,7 @@ INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, ExtMemQuantileDMatrixGpu,
                          ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f),
                                             ::testing::Bool()));
 
-class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, bool>> {
+class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, bool, float>> {
  public:
   static constexpr bst_idx_t NumSamples() { return 8192; }
   static constexpr bst_idx_t NumFeatures() { return 4; }
@@ -62,7 +64,7 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
   // Assumes dense
   static constexpr bst_idx_t NumBytes() { return NumFeatures() * NumSamples(); }
 
-  void Run(float sparsity, bool is_concat) {
+  void Run(float sparsity, bool is_concat, float cache_host_ratio) {
     auto ctx = MakeCUDACtx(0);
     auto param = BatchParam{NumBins(), tree::TrainParam::DftSparseThreshold()};
     auto n_batches = 4;
@@ -81,6 +83,7 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
                           .Device(ctx.Device())
                           .OnHost(true)
                           .MinPageCacheBytes(min_page_cache_bytes)
+                          .CacheHostRatio(cache_host_ratio)
                           .GenerateExtMemQuantileDMatrix("temp", true);
     if (!is_concat) {
       ASSERT_EQ(p_ext_fmat->NumBatches(), n_batches);
@@ -106,11 +109,20 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
 
 TEST_P(EllpackHostCacheTest, Basic) {
   auto ctx = MakeCUDACtx(0);
-  auto [sparsity, min_page_cache_bytes] = this->GetParam();
-  this->Run(sparsity, min_page_cache_bytes);
+  auto [sparsity, min_page_cache_bytes, cache_host_ratio] = this->GetParam();
+  this->Run(sparsity, min_page_cache_bytes, cache_host_ratio);
 }
 
 INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, EllpackHostCacheTest,
                          ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f),
-                                            ::testing::Bool()));
+                                            ::testing::Bool(),
+                                            ::testing::Values(0.0f, 0.5f, 1.0f)));
+
+TEST(ExtMemQuantileDMatrixGpu, CacheHostRatio) {
+  auto cache_host_ratio = detail::DftHostRatio(::xgboost::cuda_impl::AutoHostRatio(), false);
+  ASSERT_GT(cache_host_ratio, 0.0);
+  ASSERT_LE(cache_host_ratio, 1.0);
+  ASSERT_THAT([&] { [[maybe_unused]] auto r = detail::DftHostRatio(2.0, false); },
+              GMockThrow(R"(cache_host_ratio)"));
+}
 }  // namespace xgboost::data

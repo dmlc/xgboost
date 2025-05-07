@@ -11,26 +11,30 @@
 #include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../common/cuda_rt_utils.h"  // for SupportsPageableMem, SupportsAts
-#include "../common/hist_util.h"      // for HistogramCuts
-#include "ellpack_page.h"             // for EllpackPage
-#include "ellpack_page_raw_format.h"  // for EllpackPageRawFormat
-#include "sparse_page_source.h"       // for PageSourceIncMixIn
-#include "xgboost/base.h"             // for bst_idx_t
-#include "xgboost/context.h"          // for DeviceOrd
-#include "xgboost/data.h"             // for BatchParam
-#include "xgboost/span.h"             // for Span
+#include "../common/compressed_iterator.h"  // for CompressedByteT
+#include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts
+#include "../common/hist_util.h"            // for HistogramCuts
+#include "../common/ref_resource_view.h"    // for RefResourceView
+#include "ellpack_page.h"                   // for EllpackPage
+#include "ellpack_page_raw_format.h"        // for EllpackPageRawFormat
+#include "sparse_page_source.h"             // for PageSourceIncMixIn
+#include "xgboost/base.h"                   // for bst_idx_t
+#include "xgboost/context.h"                // for DeviceOrd
+#include "xgboost/data.h"                   // for BatchParam
+#include "xgboost/span.h"                   // for Span
 
 namespace xgboost::data {
 struct EllpackCacheInfo {
   BatchParam param;
+  float cache_host_ratio{1.0};  // The size ratio the host cache vs. the total cache
   float missing{std::numeric_limits<float>::quiet_NaN()};
   std::vector<bst_idx_t> cache_mapping;
   std::vector<bst_idx_t> buffer_bytes;  // N bytes of the concatenated pages.
   std::vector<bst_idx_t> buffer_rows;
 
   EllpackCacheInfo() = default;
-  EllpackCacheInfo(BatchParam param, float missing) : param{std::move(param)}, missing{missing} {}
+  EllpackCacheInfo(BatchParam param, float h_ratio, float missing)
+      : param{std::move(param)}, cache_host_ratio{h_ratio}, missing{missing} {}
 
   // Only effective for host-based cache.
   // The number of batches for the concatenated cache.
@@ -41,9 +45,17 @@ struct EllpackCacheInfo {
 // concurrent read. As a result, there are two classes, one for cache storage, another one
 // for stream.
 //
-// This is a memory-based cache. It can be a mixed of the device memory and the host memory.
+// This is a memory-based cache. It can be a mixed of the device memory and the host
+// memory.
 struct EllpackMemCache {
-  std::vector<std::unique_ptr<EllpackPageImpl>> pages;
+  // The host portion of each page.
+  std::vector<std::unique_ptr<EllpackPageImpl>> h_pages;
+  // The device portion of each page.
+  using DPage = common::RefResourceView<common::CompressedByteT>;
+  std::vector<DPage> d_pages;
+  using PagePtr = std::pair<EllpackPageImpl const*, DPage const*>;
+  using PageRef = std::pair<std::unique_ptr<EllpackPageImpl>&, DPage&>;
+
   std::vector<std::size_t> offsets;
   // Size of each batch before concatenation.
   std::vector<bst_idx_t> sizes_orig;
@@ -52,20 +64,30 @@ struct EllpackMemCache {
   // Cache info
   std::vector<std::size_t> const buffer_bytes;
   std::vector<bst_idx_t> const buffer_rows;
+  float const cache_host_ratio;
 
   explicit EllpackMemCache(EllpackCacheInfo cinfo);
   ~EllpackMemCache();
 
   // The number of bytes for the entire cache.
-  [[nodiscard]] std::size_t SizeBytes() const;
-
+  [[nodiscard]] std::size_t SizeBytes() const noexcept(true);
+  // The number of bytes for each page.
+  [[nodiscard]] std::size_t SizeBytes(std::size_t i) const noexcept(true);
+  // The number of bytes for the gradient index (ellpack).
+  [[nodiscard]] std::size_t GidxSizeBytes(std::size_t i) const noexcept(true);
+  // The number of pages in the cache.
+  [[nodiscard]] std::size_t Size() const { return this->h_pages.size(); }
+  // Is the cache empty?
   [[nodiscard]] bool Empty() const { return this->SizeBytes() == 0; }
   // No page concatenation is performed. If there's page concatenation, then the number of
   // pages in the cache must be smaller than the input number of pages.
   [[nodiscard]] bool NoConcat() const { return this->NumBatchesOrig() == this->buffer_rows.size(); }
-
+  // The number of pages before concatenatioin.
   [[nodiscard]] bst_idx_t NumBatchesOrig() const { return cache_mapping.size(); }
-  [[nodiscard]] EllpackPageImpl const* At(std::int32_t k) const;
+  // Get the pointers to the k^th concatenated page.
+  [[nodiscard]] PagePtr At(std::int32_t k) const;
+  // Get a reference to the last concatenated page.
+  [[nodiscard]] PageRef Back();
 };
 
 // Pimpl to hide CUDA calls from the host compiler.

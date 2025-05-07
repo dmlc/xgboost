@@ -20,7 +20,7 @@
 #include "../../../src/common/io.h"
 #include "../../../src/data/adapter.h"              // for ArrayAdapter
 #include "../../../src/data/array_interface.h"      // for ArrayInterface
-#include "../../../src/data/batch_utils.h"          // for MatchingPageBytes
+#include "../../../src/data/batch_utils.h"          // for MatchingPageBytes, DftHostRatio
 #include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
 #include "../../../src/data/iterative_dmatrix.h"    // for IterativeDMatrix
 #include "../../../src/data/proxy_dmatrix.h"        // for DMatrixProxy
@@ -470,8 +470,12 @@ auto MakeExtMemForTest(bst_idx_t n_samples, bst_feature_t n_features, Json dconf
            0);
 
   NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
-  auto config = ExtMemConfig{"", false, cuda_impl::MatchingPageBytes(),
-                             std::numeric_limits<float>::quiet_NaN(), 0};
+  auto config = ExtMemConfig{"",
+                             false,
+                             cuda_impl::AutoHostRatio(),
+                             cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(),
+                             0};
   auto Xy = std::make_shared<data::SparsePageDMatrix>(&iter_1, iter_1.Proxy(), Reset, Next, config);
   MakeLabelForTest(Xy, p_fmat);
   return std::pair{p_fmat, Xy};

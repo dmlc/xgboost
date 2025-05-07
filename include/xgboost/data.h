@@ -532,20 +532,23 @@ struct ExtMemConfig {
   // Cache prefix, not used if the cache is in the host memory. (on_host is true)
   std::string cache;
   // Whether the ellpack page is stored in the host memory.
-  bool on_host{true};
+  bool on_host;
+  // Host cache/Total cache for the GPU impl.
+  float cache_host_ratio;
   // Minimum number of of bytes for each ellpack page in cache. Only used for in-host
   // ExtMemQdm.
-  std::int64_t min_cache_page_bytes{0};
+  std::int64_t min_cache_page_bytes;
   // Missing value.
-  float missing{std::numeric_limits<float>::quiet_NaN()};
+  float missing;
   // The number of CPU threads.
   std::int32_t n_threads{0};
 
-  ExtMemConfig() = default;
-  ExtMemConfig(std::string cache, bool on_host, std::int64_t min_cache, float missing,
-               std::int32_t n_threads)
+  ExtMemConfig() = delete;
+  ExtMemConfig(std::string cache, bool on_host, float h_ratio, std::int64_t min_cache,
+               float missing, std::int32_t n_threads)
       : cache{std::move(cache)},
         on_host{on_host},
+        cache_host_ratio{h_ratio},
         min_cache_page_bytes{min_cache},
         missing{missing},
         n_threads{n_threads} {}

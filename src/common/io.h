@@ -630,5 +630,7 @@ class AlignedMemWriteStream : public AlignedFileWriteStream {
 
 // Run a system command, get its stdout.
 [[nodiscard]] std::string CmdOutput(StringView cmd);
+// Get the total number of bytes of the system memory.
+[[nodiscard]] std::size_t SysTotalRam();
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_IO_H_

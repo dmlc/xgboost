@@ -229,4 +229,9 @@ class TestFileStream : public ::testing::Test {
 TEST_F(TestFileStream, PrivateMmapStream) { this->Run<PrivateMmapConstStream>(); }
 
 TEST_F(TestFileStream, MemBufFileReadStream) { this->Run<MemBufFileReadStream>(); }
+
+TEST(IO, SysMemSize) {
+  auto n_bytes = SysTotalRam();
+  ASSERT_GT(n_bytes, 0);
+}
 }  // namespace xgboost::common

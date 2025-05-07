@@ -162,7 +162,7 @@ the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_mem
     # It's important to use RMM for GPU-based external memory to improve performance.
     # If XGBoost is not built with RMM support, a warning will be raised.
     # We use the pool memory resource here for simplicity, you can also try the
-    `ArenaMemoryResource` for # improved memory fragmentation handling.
+    # `ArenaMemoryResource` for # improved memory fragmentation handling.
     mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.

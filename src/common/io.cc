@@ -3,9 +3,9 @@
  */
 #if defined(__unix__) || defined(__APPLE__)
 
-#include <fcntl.h>     // for open, O_RDONLY, posix_fadvise
-#include <sys/mman.h>  // for mmap, munmap, madvise
-#include <unistd.h>    // for close, getpagesize
+#include <fcntl.h>        // for open, O_RDONLY, posix_fadvise
+#include <sys/mman.h>     // for mmap, munmap, madvise
+#include <unistd.h>       // for close, getpagesize
 
 #else
 
@@ -16,6 +16,16 @@
 #endif  // defined(xgboost_IS_WIN)
 
 #endif  // defined(__unix__) || defined(__APPLE__)
+
+#if defined(__linux__)
+
+#include <sys/sysinfo.h>  // for sysinfo
+
+#endif  // defined(__linux__)
+
+#if defined(__APPLE__)
+#include <sys/sysctl.h>  // for sysctl
+#endif  // defined(__APPLE__)
 
 #include <algorithm>     // for copy, transform
 #include <cctype>        // for tolower
@@ -351,6 +361,45 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
     result += buffer.data();
   }
   return result;
+#endif
+}
+
+// Get the total amount of system memory size in bytes.
+[[nodiscard]] std::size_t SysTotalRam() {
+#if defined(__linux__)
+  struct sysinfo info;
+  int status = sysinfo(&info);
+  if (status != 0) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+  return info.totalram;
+#elif defined(__APPLE__)
+  int mib[2] = {CTL_HW, HW_MEMSIZE};
+  std::size_t totalram = 0;
+  std::size_t length = sizeof(totalram);
+  if (sysctl(mib, 2, &totalram, &length, nullptr, 0) != 0) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+  return totalram;
+#elif defined(__unix__)
+  int mib[1] = {HW_PHYSMEM};
+  std::size_t totalram = 0;
+  std::size_t length = sizeof(totalram);
+  if (sysctl(mib, 2, &totalram, &length, nullptr, 0) != 0) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+  return totalram;
+#elif defined(xgboost_IS_WIN)
+  // For Windows
+  MEMORYSTATUSEX memInfo;
+  memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+  if (!GlobalMemoryStatusEx(&memInfo)) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+  return memInfo.ullTotalPhys;
+#else
+  LOG(FATAL) << "SysMemSize() is not implemented for this platform";
+  return 0;
 #endif
 }
 }  // namespace xgboost::common

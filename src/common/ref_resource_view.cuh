@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #pragma once
 
@@ -29,6 +29,9 @@ template <typename T>
   return ref;
 }
 
+/**
+ * @brief Initialize the data in addition to allocation.
+ */
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithCudaMalloc(Context const* ctx,
                                                             std::size_t n_elements, T const& init) {

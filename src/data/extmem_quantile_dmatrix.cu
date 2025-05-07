@@ -6,13 +6,13 @@
  * concatenate user-provded pages to form larger @ref EllpackPage to avoid small GPU
  * kernels.
  *
- * Given 1 training DMatrix and 1 validation DMatrix, with 2 pages from the validation set
- * cached in device memory, we can have at most 6 pages in the device memory. 2 from
- * prefetched training DMatrix, 2 from prefetched validation DMatrix, and 2 in the device
- * cache. If set the minimum @ref EllpackPage to 12GB in a 96GB GPU, 6 pages have 72GB
- * size in total. Without accounting for memory fragmentation, this should be very close
- * the upper boundary.
+ * Given 1 training DMatrix and 1 validation DMatrix, we can have at most 4 pages in the
+ * device memory. 2 from prefetched training DMatrix, 2 from prefetched validation
+ * DMatrix. If set the minimum @ref EllpackPage to 12GB in a 96GB GPU, 4 pages have 48GB
+ * size in total. Accounting for memory fragmentation, we still have some room in the
+ * device that can be used as a faster cache.
  */
+
 #include <memory>   // for shared_ptr
 #include <variant>  // for visit, get_if
 
@@ -26,6 +26,7 @@
 #include "xgboost/data.h"     // for BatchParam
 
 namespace xgboost::data {
+namespace detail {
 [[nodiscard]] std::int64_t DftMinCachePageBytes(std::int64_t min_cache_page_bytes) {
   // Set to 0 if it should match the user input size.
   if (::xgboost::cuda_impl::AutoCachePageBytes() == min_cache_page_bytes) {
@@ -34,6 +35,7 @@ namespace xgboost::data {
   }
   return min_cache_page_bytes;
 }
+}  // namespace detail
 
 void ExtMemQuantileDMatrix::InitFromCUDA(
     Context const *ctx,
@@ -58,10 +60,14 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
   /**
    * Calculate cache info
    */
-  auto cinfo = EllpackCacheInfo{p, config.missing};
+  auto is_validation = (ref != nullptr);
+  auto cinfo = EllpackCacheInfo{p, detail::DftHostRatio(config.cache_host_ratio, is_validation),
+                                config.missing};
   CalcCacheMapping(ctx, this->info_.IsDense(), cuts,
-                   DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
+                   detail::DftMinCachePageBytes(config.min_cache_page_bytes), ext_info, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);
+  CHECK_GE(cinfo.cache_host_ratio, 0.0);
+  CHECK_LE(cinfo.cache_host_ratio, 1.0);
   auto n_batches = cinfo.NumBatchesCc();
   LOG(INFO) << "Number of batches after concatenation:" << n_batches;
 

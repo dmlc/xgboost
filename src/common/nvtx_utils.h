@@ -47,7 +47,18 @@ inline auto MakeScopedRange(StringView, Rgb) { return ScopedRange{}; }
 }  // namespace xgboost::nvtx
 
 #if defined(XGBOOST_USE_NVTX)
+
+// Macro for making NVTX function range.
 #define xgboost_NVTX_FN_RANGE() NVTX3_FUNC_RANGE_IN(::xgboost::nvtx::Domain)
+
+// Macro for making colored NVTX function range.
+#define xgboost_NVTX_FN_RANGE_C(r, g, b) \
+  auto __nvtx_scoped__ = ::xgboost::nvtx::MakeScopedRange(__func__, (nvtx::Rgb((r), (g), (b))))
+
 #else
+
 #define xgboost_NVTX_FN_RANGE()
+
+#define xgboost_NVTX_FN_RANGE_C(r, g, b)
+
 #endif  // defined(XGBOOST_USE_NVTX)

@@ -34,6 +34,11 @@ inline bool RegenGHist(BatchParam old, BatchParam p) {
  * @brief Validate the batch parameter from the caller
  */
 void CheckParam(BatchParam const& init, BatchParam const& param);
+
+/**
+ * @brief Get the default host ratio.
+ */
+[[nodiscard]] float DftHostRatio(float cache_host_ratio, bool is_validation);
 }  // namespace xgboost::data::detail
 
 namespace xgboost::cuda_impl {
@@ -46,6 +51,8 @@ constexpr std::int64_t AutoCachePageBytes() { return -1; }
 // Use two batch for prefecting. There's always one batch being worked on, while the other
 // batch being transferred.
 constexpr auto DftPrefetchBatches() { return 2; }
+// The ratio of the cache split for external memory. Use -1 to indicate not-set.
+constexpr float AutoHostRatio() { return -1; }
 
 // Empty parameter to prevent regen, only used to control external memory prefetching.
 //

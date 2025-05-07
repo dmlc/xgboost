@@ -1821,6 +1821,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
         ref: Optional[DMatrix] = None,
         enable_categorical: bool = False,
         max_quantile_batches: Optional[int] = None,
+        cache_host_ratio: Optional[float] = None,
     ) -> None:
         """
         Parameters
@@ -1830,6 +1831,15 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
 
         max_quantile_batches :
             See :py:class:`QuantileDMatrix`.
+
+        cache_host_ratio :
+
+            .. versionadded:: 3.1.0
+
+            Used by the GPU implementation. For GPU-based inputs, XGBoost can split the
+            cache into host and device caches to reduce the data transfer overhead. This
+            parameter specifies the size of host cache compared to the size of the
+            entire cache: :math:`host / (host + device)`.
 
         """
         self.max_bin = max_bin
@@ -1841,6 +1851,9 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             ref,
             enable_categorical=enable_categorical,
             max_quantile_blocks=max_quantile_batches,
+            cache_host_ratio=(
+                None if cache_host_ratio is None else float(cache_host_ratio)
+            ),
         )
         assert self.handle is not None
 
@@ -1851,6 +1864,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
         *,
         enable_categorical: bool,
         max_quantile_blocks: Optional[int] = None,
+        cache_host_ratio: Optional[float] = None,
     ) -> None:
         args = make_jcargs(
             missing=self.missing,
@@ -1861,6 +1875,7 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             min_cache_page_bytes=it.min_cache_page_bytes,
             # It's called blocks internally due to block-based quantile sketching.
             max_quantile_blocks=max_quantile_blocks,
+            cache_host_ratio=cache_host_ratio,
         )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)
