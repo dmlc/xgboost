@@ -241,7 +241,6 @@ class RandomDataGenerator {
   bool on_host_{false};
   std::shared_ptr<DMatrix> ref_{nullptr};
   std::int64_t min_cache_page_bytes_{0};
-  std::int64_t max_num_device_pages_{1};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
@@ -277,10 +276,6 @@ class RandomDataGenerator {
   }
   RandomDataGenerator& MinPageCacheBytes(std::int64_t min_cache_page_bytes) {
     this->min_cache_page_bytes_ = min_cache_page_bytes;
-    return *this;
-  }
-  RandomDataGenerator& MaxNumDevicePages(std::int64_t max_num_device_pages) {
-    this->max_num_device_pages_ = max_num_device_pages;
     return *this;
   }
   RandomDataGenerator& Seed(uint64_t s) {

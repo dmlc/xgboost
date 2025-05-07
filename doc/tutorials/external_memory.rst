@@ -147,9 +147,8 @@ stages the cache on CPU memory by default. Users can change the backing storage 
 specifying the ``on_host`` parameter in the :py:class:`~xgboost.DataIter`. However, using
 the disk is not recommended as it's likely to make the GPU slower than the CPU. The option
 is here for experimentation purposes only. In addition,
-:py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device_pages``,
-``min_cache_page_bytes``, and ``max_quantile_batches`` can help control the data placement
-and memory usage.
+:py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``min_cache_page_bytes``, and
+``max_quantile_batches`` can help control the data placement and memory usage.
 
 Inputs to the :py:class:`~xgboost.ExtMemQuantileDMatrix` (through the iterator) must be on
 the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_memory.py`:
@@ -194,9 +193,9 @@ memory. XGBoost relies on the asynchronous memory pool to reduce the overhead of
 fetching. In addition, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
 is required for ``Heterogeneous memory management (HMM)`` support. Usually, users need not
-to change :py:class:`~xgboost.ExtMemQuantileDMatrix` parameters ``max_num_device_pages``
-and ``min_cache_page_bytes``, they are automatically configured based on the device and
-don't change model accuracy. However, the ``max_quantile_batches`` can be useful if
+to change :py:class:`~xgboost.ExtMemQuantileDMatrix` parameters like
+``min_cache_page_bytes``, they are automatically configured based on the device and don't
+change model accuracy. However, the ``max_quantile_batches`` can be useful if
 :py:class:`~xgboost.ExtMemQuantileDMatrix` is running out of device memory during
 construction, see :py:class:`~xgboost.QuantileDMatrix` and the following sections for more
 info. Currently, we focus on devices with ``NVLink-C2C`` support for GPU-based external

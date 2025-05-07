@@ -538,19 +538,16 @@ struct ExtMemConfig {
   std::int64_t min_cache_page_bytes{0};
   // Missing value.
   float missing{std::numeric_limits<float>::quiet_NaN()};
-  // Maximum number of pages cached in device.
-  std::int64_t max_num_device_pages{0};
   // The number of CPU threads.
   std::int32_t n_threads{0};
 
   ExtMemConfig() = default;
   ExtMemConfig(std::string cache, bool on_host, std::int64_t min_cache, float missing,
-               std::int64_t max_num_d, std::int32_t n_threads)
+               std::int32_t n_threads)
       : cache{std::move(cache)},
         on_host{on_host},
         min_cache_page_bytes{min_cache},
         missing{missing},
-        max_num_device_pages{max_num_d},
         n_threads{n_threads} {}
 };
 

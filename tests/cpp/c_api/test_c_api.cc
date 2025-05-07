@@ -470,12 +470,8 @@ auto MakeExtMemForTest(bst_idx_t n_samples, bst_feature_t n_features, Json dconf
            0);
 
   NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
-  auto config = ExtMemConfig{"",
-                             false,
-                             cuda_impl::MatchingPageBytes(),
-                             std::numeric_limits<float>::quiet_NaN(),
-                             cuda_impl::MaxNumDevicePages(),
-                             0};
+  auto config = ExtMemConfig{"", false, cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(), 0};
   auto Xy = std::make_shared<data::SparsePageDMatrix>(&iter_1, iter_1.Proxy(), Reset, Next, config);
   MakeLabelForTest(Xy, p_fmat);
   return std::pair{p_fmat, Xy};

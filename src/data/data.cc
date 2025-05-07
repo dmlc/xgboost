@@ -950,12 +950,8 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
     CHECK(data_split_mode != DataSplitMode::kCol)
         << "Column-wise data split is not supported for external memory.";
     data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart)};
-    auto config = ExtMemConfig{cache_file,
-                               false,
-                               cuda_impl::MatchingPageBytes(),
-                               std::numeric_limits<float>::quiet_NaN(),
-                               cuda_impl::MaxNumDevicePages(),
-                               1};
+    auto config = ExtMemConfig{cache_file, false, cuda_impl::MatchingPageBytes(),
+                               std::numeric_limits<float>::quiet_NaN(), 1};
     dmat = new data::SparsePageDMatrix{&iter, iter.Proxy(), data::fileiter::Reset,
                                        data::fileiter::Next, config};
   }
