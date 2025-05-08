@@ -330,13 +330,11 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHandle proxy
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  auto config = ExtMemConfig{
-      cache, on_host, min_cache_page_bytes, missing, /*max_num_device_pages=*/0, n_threads};
+  auto config = ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, n_threads};
   *out = new std::shared_ptr<xgboost::DMatrix>{
       xgboost::DMatrix::Create(iter, proxy, reset, next, config)};
   API_END();
 }
-
 
 namespace {
 std::shared_ptr<DMatrix> GetRefDMatrix(DataIterHandle ref) {
@@ -393,8 +391,6 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
   std::string cache = RequiredArg<String>(jconfig, "cache_prefix", __func__);
   auto min_cache_page_bytes = OptionalArg<Integer, std::int64_t>(jconfig, "min_cache_page_bytes",
                                                                  cuda_impl::AutoCachePageBytes());
-  auto max_num_device_pages = OptionalArg<Integer, std::int64_t>(jconfig, "max_num_device_pages",
-                                                                 cuda_impl::MaxNumDevicePages());
   auto max_quantile_blocks = OptionalArg<Integer, std::int64_t>(
       jconfig, "max_quantile_blocks", std::numeric_limits<std::int64_t>::max());
 
@@ -402,8 +398,7 @@ XGB_DLL int XGExtMemQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatr
   xgboost_CHECK_C_ARG_PTR(reset);
   xgboost_CHECK_C_ARG_PTR(out);
 
-  auto config =
-      ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, max_num_device_pages, n_threads};
+  auto config = ExtMemConfig{cache, on_host, min_cache_page_bytes, missing, n_threads};
   *out = new std::shared_ptr<xgboost::DMatrix>{xgboost::DMatrix::Create(
       iter, proxy, p_ref, reset, next, max_bin, max_quantile_blocks, config)};
   API_END();

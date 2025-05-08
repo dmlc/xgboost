@@ -39,8 +39,6 @@ void CheckParam(BatchParam const& init, BatchParam const& param);
 namespace xgboost::cuda_impl {
 // Indicator for XGBoost to not concatenate any page.
 constexpr std::int64_t MatchingPageBytes() { return 0; }
-// Maxmimum number of pages from the validation dataset to be cached in the device memory.
-constexpr std::int32_t MaxNumDevicePages() { return 1; }
 // Default size of the cached page
 constexpr double CachePageRatio() { return 0.125; }
 // Indicator for XGBoost to automatically concatenate pages.

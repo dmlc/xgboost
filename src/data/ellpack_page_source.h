@@ -24,20 +24,13 @@
 namespace xgboost::data {
 struct EllpackCacheInfo {
   BatchParam param;
-  bool prefer_device{false};  // Prefer to cache the page in the device memory instead of host.
-  std::int64_t max_num_device_pages{0};  // Maximum number of pages cached in device.
   float missing{std::numeric_limits<float>::quiet_NaN()};
   std::vector<bst_idx_t> cache_mapping;
   std::vector<bst_idx_t> buffer_bytes;  // N bytes of the concatenated pages.
   std::vector<bst_idx_t> buffer_rows;
 
   EllpackCacheInfo() = default;
-  EllpackCacheInfo(BatchParam param, bool prefer_device, std::int64_t max_num_device_pages,
-                   float missing)
-      : param{std::move(param)},
-        prefer_device{prefer_device},
-        max_num_device_pages{max_num_device_pages},
-        missing{missing} {}
+  EllpackCacheInfo(BatchParam param, float missing) : param{std::move(param)}, missing{missing} {}
 
   // Only effective for host-based cache.
   // The number of batches for the concatenated cache.
@@ -51,7 +44,6 @@ struct EllpackCacheInfo {
 // This is a memory-based cache. It can be a mixed of the device memory and the host memory.
 struct EllpackMemCache {
   std::vector<std::unique_ptr<EllpackPageImpl>> pages;
-  std::vector<bool> on_device;
   std::vector<std::size_t> offsets;
   // Size of each batch before concatenation.
   std::vector<bst_idx_t> sizes_orig;
@@ -60,8 +52,6 @@ struct EllpackMemCache {
   // Cache info
   std::vector<std::size_t> const buffer_bytes;
   std::vector<bst_idx_t> const buffer_rows;
-  bool const prefer_device;
-  std::int64_t const max_num_device_pages;
 
   explicit EllpackMemCache(EllpackCacheInfo cinfo);
   ~EllpackMemCache();
@@ -76,8 +66,6 @@ struct EllpackMemCache {
 
   [[nodiscard]] bst_idx_t NumBatchesOrig() const { return cache_mapping.size(); }
   [[nodiscard]] EllpackPageImpl const* At(std::int32_t k) const;
-
-  [[nodiscard]] std::int64_t NumDevicePages() const;
 };
 
 // Pimpl to hide CUDA calls from the host compiler.

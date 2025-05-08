@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
@@ -16,7 +16,7 @@ namespace {
 [[nodiscard]] EllpackCacheInfo CInfoForTest(Context const *ctx, DMatrix *Xy, bst_idx_t row_stride,
                                             BatchParam param,
                                             std::shared_ptr<common::HistogramCuts const> cuts) {
-  EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
+  EllpackCacheInfo cinfo{param, std::numeric_limits<float>::quiet_NaN()};
   ExternalDataInfo ext_info;
   ext_info.n_batches = 1;
   ext_info.row_stride = row_stride;
@@ -24,10 +24,6 @@ namespace {
 
   CalcCacheMapping(ctx, Xy->IsDense(), cuts, 0, ext_info, &cinfo);
   CHECK_EQ(ext_info.n_batches, cinfo.cache_mapping.size());
-  if (cinfo.NumBatchesCc() == 1) {
-    EXPECT_TRUE(cinfo.prefer_device);
-    cinfo.prefer_device = false;  // We test the host cache.
-  }
   return cinfo;
 }
 
@@ -120,7 +116,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         if (!format) {
           // Prepare the mapping info.
-          EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
+          EllpackCacheInfo cinfo{param, std::numeric_limits<float>::quiet_NaN()};
           for (std::size_t i = 0; i < 3; ++i) {
             cinfo.cache_mapping.push_back(i);
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
@@ -167,9 +163,8 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   bst_idx_t n_features = 16, n_samples = 128;
 
-  auto test = [&](std::int32_t max_num_device_pages, std::int64_t min_cache_page_bytes) {
-    EllpackCacheInfo cinfo{param, true, max_num_device_pages,
-                           std::numeric_limits<float>::quiet_NaN()};
+  auto test = [&](std::int64_t min_cache_page_bytes) {
+    EllpackCacheInfo cinfo{param, std::numeric_limits<float>::quiet_NaN()};
     ExternalDataInfo ext_info;
 
     ext_info.n_batches = 8;
@@ -188,9 +183,7 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
     for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       auto cuts = page.Impl()->CutsShared();
       CalcCacheMapping(&ctx, true, cuts, min_cache_page_bytes, ext_info, &cinfo);
-      [&] {
-        ASSERT_EQ(cinfo.buffer_rows.size(), 4ul);
-      }();
+      EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
       policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
 
@@ -209,17 +202,8 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
   };
 
   {
-    auto mem_cache = test(1, n_features * n_samples);
-    ASSERT_EQ(mem_cache->on_device.size(), 4);
-    ASSERT_TRUE(mem_cache->on_device[0]);
-    ASSERT_EQ(mem_cache->NumDevicePages(), 1);
-  }
-  {
-    auto mem_cache = test(2, n_features * n_samples);
-    ASSERT_EQ(mem_cache->on_device.size(), 4);
-    ASSERT_TRUE(mem_cache->on_device[0]);
-    ASSERT_TRUE(mem_cache->on_device[1]);
-    ASSERT_EQ(mem_cache->NumDevicePages(), 2);
+    auto mem_cache = test(n_features * n_samples);
+    ASSERT_EQ(mem_cache->pages.size(), 4);
   }
 }
 }  // namespace xgboost::data
