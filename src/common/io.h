@@ -629,6 +629,7 @@ class AlignedMemWriteStream : public AlignedFileWriteStream {
 };
 
 // Run a system command, get its stdout.
-[[nodiscard]] std::string CmdOutput(StringView cmd);
+[[nodiscard]] std::string CmdOutput(StringView cmd,
+                                    std::chrono::seconds timeout = std::chrono::seconds{-1});
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_IO_H_

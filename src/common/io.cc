@@ -18,6 +18,7 @@
 #endif  // defined(__unix__) || defined(__APPLE__)
 
 #include <algorithm>     // for copy, transform
+#include <atomic>        // for atomic
 #include <cctype>        // for tolower
 #include <cerrno>        // for errno
 #include <cstddef>       // for size_t
@@ -30,10 +31,12 @@
 #include <memory>        // for unique_ptr, make_unique
 #include <string>        // for string
 #include <system_error>  // for error_code, system_category
+#include <thread>        // for thread
 #include <utility>       // for move
 #include <vector>        // for vector
 
 #include "io.h"
+#include "timer.h"                      // for Timer
 #include "xgboost/collective/socket.h"  // for LastError
 #include "xgboost/logging.h"            // for CHECK_LE
 #include "xgboost/string_view.h"        // for StringView
@@ -335,7 +338,7 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
   return this->pimpl_->Tell();
 }
 
-[[nodiscard]] std::string CmdOutput(StringView cmd) {
+[[nodiscard]] std::string CmdOutput(StringView cmd, std::chrono::seconds timeout) {
 #if defined(xgboost_IS_WIN)
   (void)cmd;
   LOG(FATAL) << "Not implemented";
@@ -343,13 +346,41 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 #else
   // popen is a convenient method, but it always returns a success even if the command
   // fails.
-  std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(popen(cmd.c_str(), "r"), pclose);
-  CHECK(pipe);
-  std::array<char, 128> buffer;
+  using namespace std::chrono_literals;
+  std::atomic<bool> flag{false};
   std::string result;
-  while (std::fgets(buffer.data(), static_cast<std::int32_t>(buffer.size()), pipe.get())) {
-    result += buffer.data();
-  }
+
+  auto t = std::thread{[&] {
+    std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(popen(cmd.c_str(), "r"), pclose);
+    CHECK(pipe);
+    std::array<char, 128> buffer;
+    while (std::fgets(buffer.data(), static_cast<std::int32_t>(buffer.size()), pipe.get())) {
+      result += buffer.data();
+    }
+    flag = true;
+  }};
+
+  auto constexpr kDftTo = 15s;
+  timeout = timeout.count() < 0 ? kDftTo : timeout;
+  auto warn_dur = 2s;  // Emit a warning whenever this duration is passed.
+
+  common::Timer timer;
+  timer.Start();
+  while (!flag) {
+    auto ela = timer.Duration().count();
+    if (ela > timeout.count()) {
+      LOG(WARNING) << "Timeout waiting for result from:`" << cmd << "`";
+      t.detach();
+      return {};  // don't touch the result to avoid race
+    }
+    if (ela > warn_dur.count()) {
+      LOG(WARNING) << "Waiting for response from:`" << cmd << "`";
+      warn_dur += 2s;
+    }
+    std::this_thread::sleep_for(10ms);
+  };
+  t.join();
+
   return result;
 #endif
 }

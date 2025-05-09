@@ -229,4 +229,17 @@ class TestFileStream : public ::testing::Test {
 TEST_F(TestFileStream, PrivateMmapStream) { this->Run<PrivateMmapConstStream>(); }
 
 TEST_F(TestFileStream, MemBufFileReadStream) { this->Run<MemBufFileReadStream>(); }
+
+TEST(IO, CmdOutput) {
+#if defined(__linux__)
+  {
+    auto result = CmdOutput("date");
+    ASSERT_FALSE(result.empty());
+  }
+  {
+    auto result = CmdOutput("sleep 5", std::chrono::seconds{3});
+    ASSERT_TRUE(result.empty());
+  }
+#endif
+}
 }  // namespace xgboost::common
