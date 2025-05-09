@@ -348,14 +348,14 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
   // fails.
   using namespace std::chrono_literals;
   std::atomic<bool> flag{false};
-  std::string result;
+  auto p_result = std::make_shared<std::string>();
 
-  auto t = std::thread{[&] {
+  auto t = std::thread{[p_result, &flag, cmd] {
     std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(popen(cmd.c_str(), "r"), pclose);
     CHECK(pipe);
     std::array<char, 128> buffer;
     while (std::fgets(buffer.data(), static_cast<std::int32_t>(buffer.size()), pipe.get())) {
-      result += buffer.data();
+      *p_result += buffer.data();
     }
     flag = true;
   }};
@@ -381,7 +381,7 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
   };
   t.join();
 
-  return result;
+  return *p_result;
 #endif
 }
 }  // namespace xgboost::common
