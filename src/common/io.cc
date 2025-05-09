@@ -346,7 +346,7 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 #else
   // popen is a convenient method, but it always returns a success even if the command
   // fails.
-  using namespace std::chrono_literals;
+  using namespace std::chrono_literals;  // NOLINT
   std::atomic<bool> flag{false};
   auto p_result = std::make_shared<std::string>();
 
@@ -378,7 +378,7 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
       warn_dur += 2s;
     }
     std::this_thread::sleep_for(10ms);
-  };
+  }
   t.join();
 
   return *p_result;
