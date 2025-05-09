@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>ml.dmlc</groupId>
-        <artifactId>xgboost-jvm_2.12</artifactId>
+        <artifactId>xgboost-jvm_2.13</artifactId>
         <version>3.1.0-SNAPSHOT</version>
     </parent>
     <name>xgboost4j-spark-gpu</name>
-    <artifactId>xgboost4j-spark-gpu_2.12</artifactId>
+    <artifactId>xgboost4j-spark-gpu_2.13</artifactId>
     <description>JVM Package for XGBoost</description>
     <url>https://github.com/dmlc/xgboost/tree/master/jvm-packages</url>
     <licenses>
@@ -78,17 +78,17 @@
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j_2.12</artifactId>
+            <artifactId>xgboost4j_2.13</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j-spark_2.12</artifactId>
+            <artifactId>xgboost4j-spark_2.13</artifactId>
             <version>${project.version}</version>
             <exclusions>
               <exclusion>
                   <groupId>ml.dmlc</groupId>
-                  <artifactId>xgboost4j_2.12</artifactId>
+                  <artifactId>xgboost4j_2.13</artifactId>
               </exclusion>
             </exclusions>
         </dependency>
