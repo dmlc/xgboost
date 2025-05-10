@@ -247,7 +247,7 @@ XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   auto ctx = DMatrixCtx(R_ExternalPtrAddr(handle));
   if (!strcmp("group", name)) {
     std::vector<unsigned> vec(len);
-    const int* array_ptr = INTEGER_RO(array);
+    const int* array_ptr = INTEGER(array);
     xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
       vec[i] = static_cast<unsigned>(array_ptr[i]);
     });
@@ -255,7 +255,7 @@ XGB_DLL SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
         XGDMatrixSetUIntInfo(R_ExternalPtrAddr(handle), CHAR(Rf_asChar(field)), BeginPtr(vec), len));
   } else {
     std::vector<float> vec(len);
-    const double* array_ptr = REAL_RO(array);
+    const double* array_ptr = REAL(array);
     xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong i) {
       vec[i] = static_cast<float>(array_ptr[i]);
     });
@@ -400,8 +400,8 @@ XGB_DLL SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP h
   int len = Rf_xlength(grad);
   std::vector<float> tgrad(len), thess(len);
   auto ctx = BoosterCtx(R_ExternalPtrAddr(handle));
-  const double* grad_ptr = REAL_RO(grad);
-  const double* hess_ptr = REAL_RO(hess);
+  const double* grad_ptr = REAL(grad);
+  const double* hess_ptr = REAL(hess);
   xgboost::common::ParallelFor(len, ctx->Threads(), [&](xgboost::omp_ulong j) {
     tgrad[j] = static_cast<float>(grad_ptr[j]);
     thess[j] = static_cast<float>(hess_ptr[j]);
