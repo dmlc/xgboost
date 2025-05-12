@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  *
  * @brief cuda pinned allocator for usage with thrust containers
  */
@@ -9,10 +9,10 @@
 
 #include <cstddef>  // for size_t
 #include <limits>   // for numeric_limits
+#include <memory>   // for unique_ptr
 #include <new>      // for bad_array_new_length
 
 #include "common.h"
-#include "cuda_rt_utils.h"
 
 namespace xgboost::common::cuda_impl {
 // \p pinned_allocator is a CUDA-specific host memory allocator
