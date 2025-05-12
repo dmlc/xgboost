@@ -103,6 +103,9 @@ struct SamAllocPolicy {
   }
 };
 
+/**
+ * @brief A RAII handle type to the CUDA memory pool.
+ */
 using MemPoolHdl = std::unique_ptr<cudaMemPool_t, void (*)(cudaMemPool_t*)>;
 
 /**
@@ -111,7 +114,7 @@ using MemPoolHdl = std::unique_ptr<cudaMemPool_t, void (*)(cudaMemPool_t*)>;
 [[nodiscard]] MemPoolHdl CreateHostMemPool();
 
 /**
- * @brief C++ wrapper for the cuda memory pool.
+ * @brief C++ wrapper for the CUDA memory pool.
  */
 class HostPinnedMemPool {
   MemPoolHdl pool_;

@@ -77,6 +77,11 @@ class CudaPinnedResource : public ResourceHandler {
   void Resize(std::size_t n_bytes) { this->storage_.resize(n_bytes); }
 };
 
+/**
+ * @brief Resource for fixed-size memory allocated by @ref HostPinnedMemPool.
+ *
+ * This container shares the pool but owns the memory.
+ */
 class HostPinnedMemPoolResource : public ResourceHandler {
   std::shared_ptr<cuda_impl::HostPinnedMemPool> pool_;
   std::size_t n_bytes_;
