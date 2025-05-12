@@ -77,6 +77,8 @@ struct EllpackMemCache {
   [[nodiscard]] std::size_t SizeBytes(std::size_t i) const noexcept(true);
   // The number of bytes of the gradient index (ellpack).
   [[nodiscard]] std::size_t GidxSizeBytes(std::size_t i) const noexcept(true);
+  // The number of bytes of the gradient index (ellpack) of the entire cache.
+  [[nodiscard]] std::size_t GidxSizeBytes() const noexcept(true);
   // The number of pages in the cache.
   [[nodiscard]] std::size_t Size() const { return this->h_pages.size(); }
   // Is the cache empty?

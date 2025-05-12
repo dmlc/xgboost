@@ -31,6 +31,7 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo)
       buffer_rows{std::move(cinfo.buffer_rows)},
       cache_host_ratio{cinfo.cache_host_ratio} {
   CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
+  CHECK(!detail::HostRatioIsAuto(this->cache_host_ratio));
   CHECK_GE(this->cache_host_ratio, 0) << error::CacheHostRatioInvalid();
   CHECK_LE(this->cache_host_ratio, 1) << error::CacheHostRatioInvalid();
 }
@@ -40,14 +41,14 @@ EllpackMemCache::~EllpackMemCache() = default;
 [[nodiscard]] std::size_t EllpackMemCache::SizeBytes() const noexcept(true) {
   auto it = common::MakeIndexTransformIter([&](auto i) { return this->SizeBytes(i); });
   using T = std::iterator_traits<decltype(it)>::value_type;
-  return std::accumulate(it, it + h_pages.size(), static_cast<T>(0));
+  return std::accumulate(it, it + this->Size(), static_cast<T>(0));
 }
 
 [[nodiscard]] std::size_t EllpackMemCache::DeviceSizeBytes() const noexcept(true) {
   auto it =
       common::MakeIndexTransformIter([&](auto i) { return this->d_pages.at(i).size_bytes(); });
   using T = std::iterator_traits<decltype(it)>::value_type;
-  return std::accumulate(it, it + h_pages.size(), static_cast<T>(0));
+  return std::accumulate(it, it + this->Size(), static_cast<T>(0));
 }
 
 [[nodiscard]] std::size_t EllpackMemCache::SizeBytes(std::size_t i) const noexcept(true) {
@@ -56,6 +57,12 @@ EllpackMemCache::~EllpackMemCache() = default;
 
 [[nodiscard]] std::size_t EllpackMemCache::GidxSizeBytes(std::size_t i) const noexcept(true) {
   return this->h_pages.at(i)->gidx_buffer.size_bytes() + this->d_pages.at(i).size_bytes();
+}
+
+[[nodiscard]] std::size_t EllpackMemCache::GidxSizeBytes() const noexcept(true) {
+  auto it = common::MakeIndexTransformIter([&](auto i) { return this->GidxSizeBytes(i); });
+  using T = std::iterator_traits<decltype(it)>::value_type;
+  return std::accumulate(it, it + this->Size(), static_cast<T>(0));
 }
 
 [[nodiscard]] EllpackMemCache::PagePtr EllpackMemCache::At(std::int32_t k) const {
