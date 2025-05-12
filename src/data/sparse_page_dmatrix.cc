@@ -34,10 +34,9 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
       missing_{config.missing},
       cache_prefix_{config.cache},
       on_host_{config.on_host},
-      cache_host_ratio_{1.0},
+      cache_host_ratio_{detail::DftHostRatio(config.cache_host_ratio, true)},
       min_cache_page_bytes_{config.min_cache_page_bytes} {
-  CHECK_EQ(config.cache_host_ratio, ::xgboost::cuda_impl::AutoHostRatio())
-      << error::CacheHostRatioNotImpl();
+  CHECK(detail::HostRatioIsAuto(config.cache_host_ratio)) << error::CacheHostRatioNotImpl();
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(config.n_threads)}});
   cache_prefix_ = MakeCachePrefix(cache_prefix_);

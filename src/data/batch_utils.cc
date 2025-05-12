@@ -17,7 +17,7 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     // Don't split the cache if this is a validation dataset.
     return 1.0;
   }
-  if (std::abs(cache_host_ratio - ::xgboost::cuda_impl::AutoHostRatio()) <= kRtEps) {
+  if (HostRatioIsAuto(cache_host_ratio)) {
     // Only NVML has the API to detect the topology. We will leave it as-is for now.
     cache_host_ratio = 1.0;
     return cache_host_ratio;

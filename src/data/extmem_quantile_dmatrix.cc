@@ -41,8 +41,7 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
 
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
   if (ctx.IsCPU()) {
-    CHECK_EQ(config.cache_host_ratio, ::xgboost::cuda_impl::AutoHostRatio())
-        << error::CacheHostRatioNotImpl();
+    CHECK(detail::HostRatioIsAuto(config.cache_host_ratio)) << error::CacheHostRatioNotImpl();
     this->InitFromCPU(&ctx, iter, proxy, p, config.missing, ref);
   } else {
     p.n_prefetch_batches = ::xgboost::cuda_impl::DftPrefetchBatches();
