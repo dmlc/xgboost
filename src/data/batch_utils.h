@@ -4,6 +4,9 @@
 #ifndef XGBOOST_DATA_BATCH_UTILS_H_
 #define XGBOOST_DATA_BATCH_UTILS_H_
 
+#include <cmath>   // for isnan
+#include <limits>  // for numeric_limits
+
 #include "xgboost/data.h"  // for BatchParam
 
 namespace xgboost::data::detail {
