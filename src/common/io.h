@@ -288,6 +288,7 @@ class ResourceHandler {
     kCudaMmap = 3,       // CUDA with mmap.
     kCudaHostCache = 4,  // CUDA pinned host memory.
     kCudaGrowOnly = 5,   // CUDA virtual memory allocator.
+    kCudaPinnedMemPool = 6,
   };
 
  private:
@@ -316,6 +317,8 @@ class ResourceHandler {
         return "CudaHostCache";
       case kCudaGrowOnly:
         return "CudaGrowOnly";
+      case kCudaPinnedMemPool:
+        return "CudaPinnedMemPool";
     }
     LOG(FATAL) << "Unreachable.";
     return {};
