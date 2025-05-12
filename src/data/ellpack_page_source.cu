@@ -14,6 +14,7 @@
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
 #include "../common/resource.cuh"           // for PrivateCudaMmapConstStream
 #include "../common/transform_iterator.h"   // for MakeIndexTransformIter
+#include "batch_utils.h"                    // for HostRatioIsAuto
 #include "ellpack_page.cuh"                 // for EllpackPageImpl
 #include "ellpack_page.h"                   // for EllpackPage
 #include "ellpack_page_source.h"
@@ -38,6 +39,13 @@ EllpackMemCache::~EllpackMemCache() = default;
 
 [[nodiscard]] std::size_t EllpackMemCache::SizeBytes() const noexcept(true) {
   auto it = common::MakeIndexTransformIter([&](auto i) { return this->SizeBytes(i); });
+  using T = std::iterator_traits<decltype(it)>::value_type;
+  return std::accumulate(it, it + h_pages.size(), static_cast<T>(0));
+}
+
+[[nodiscard]] std::size_t EllpackMemCache::DeviceSizeBytes() const noexcept(true) {
+  auto it =
+      common::MakeIndexTransformIter([&](auto i) { return this->d_pages.at(i).size_bytes(); });
   using T = std::iterator_traits<decltype(it)>::value_type;
   return std::accumulate(it, it + h_pages.size(), static_cast<T>(0));
 }
@@ -271,6 +279,7 @@ template <typename S, template <typename> typename F>
 [[nodiscard]] std::unique_ptr<typename EllpackCacheStreamPolicy<S, F>::WriterT>
 EllpackCacheStreamPolicy<S, F>::CreateWriter(StringView, std::uint32_t iter) {
   if (!this->p_cache_) {
+    CHECK(!detail::HostRatioIsAuto(this->CacheInfo().cache_host_ratio));
     CHECK_GE(this->CacheInfo().cache_host_ratio, 0.0);
     CHECK_LE(this->CacheInfo().cache_host_ratio, 1.0);
     this->p_cache_ = std::make_unique<EllpackMemCache>(this->CacheInfo());

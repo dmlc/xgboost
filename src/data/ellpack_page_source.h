@@ -69,11 +69,13 @@ struct EllpackMemCache {
   explicit EllpackMemCache(EllpackCacheInfo cinfo);
   ~EllpackMemCache();
 
-  // The number of bytes for the entire cache.
+  // The number of bytes of the entire cache.
   [[nodiscard]] std::size_t SizeBytes() const noexcept(true);
-  // The number of bytes for each page.
+  // The number of bytes of the device cache.
+  [[nodiscard]] std::size_t DeviceSizeBytes() const noexcept(true);
+  // The number of bytes of each page.
   [[nodiscard]] std::size_t SizeBytes(std::size_t i) const noexcept(true);
-  // The number of bytes for the gradient index (ellpack).
+  // The number of bytes of the gradient index (ellpack).
   [[nodiscard]] std::size_t GidxSizeBytes(std::size_t i) const noexcept(true);
   // The number of pages in the cache.
   [[nodiscard]] std::size_t Size() const { return this->h_pages.size(); }
