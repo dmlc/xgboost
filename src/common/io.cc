@@ -398,7 +398,7 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
   }
   return memInfo.ullTotalPhys;
 #else
-  LOG(FATAL) << "SysMemSize() is not implemented for this platform";
+  LOG(FATAL) << __func__ << " is not implemented for this platform";
   return 0;
 #endif
 }
