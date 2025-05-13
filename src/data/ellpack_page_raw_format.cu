@@ -96,7 +96,7 @@ template <typename T>
 }
 
 [[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page, EllpackHostCacheStream* fi) const {
-  xgboost_NVTX_FN_RANGE();
+  xgboost_NVTX_FN_RANGE_C(252, 198, 3);
 
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
@@ -111,13 +111,14 @@ template <typename T>
 
 [[nodiscard]] std::size_t EllpackPageRawFormat::Write(EllpackPage const& page,
                                                       EllpackHostCacheStream* fo) const {
-  xgboost_NVTX_FN_RANGE();
+  xgboost_NVTX_FN_RANGE_C(3, 252, 198);
 
   bool new_page = fo->Write(page);
   dh::DefaultStream().Sync();
 
   if (new_page) {
-    return fo->Share()->pages.back()->MemCostBytes();
+    auto cache = fo->Share();
+    return cache->SizeBytes(cache->Size() - 1);  // last page
   } else {
     return InvalidPageSize();
   }
