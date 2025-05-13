@@ -10,6 +10,7 @@
 
 #include "../common/common.h"               // for HumanMemUnit, safe_cuda
 #include "../common/cuda_rt_utils.h"        // for SetDevice
+#include "../common/cuda_stream_pool.cuh"   // for StreamPool
 #include "../common/device_helpers.cuh"     // for CUDAStreamView, DefaultStream
 #include "../common/ref_resource_view.cuh"  // for MakeFixedVecWithCudaMalloc
 #include "../common/resource.cuh"           // for PrivateCudaMmapConstStream
@@ -25,11 +26,12 @@ namespace xgboost::data {
 /**
  * Cache
  */
-EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo)
+EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
     : cache_mapping{std::move(cinfo.cache_mapping)},
       buffer_bytes{std::move(cinfo.buffer_bytes)},
       buffer_rows{std::move(cinfo.buffer_rows)},
-      cache_host_ratio{cinfo.cache_host_ratio} {
+      cache_host_ratio{cinfo.cache_host_ratio},
+      streams{std::make_unique<curt::StreamPool>(n_workers)} {
   CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
   CHECK(!detail::HostRatioIsAuto(this->cache_host_ratio));
   CHECK_GE(this->cache_host_ratio, 0) << error::CacheHostRatioInvalid();
@@ -289,7 +291,8 @@ EllpackCacheStreamPolicy<S, F>::CreateWriter(StringView, std::uint32_t iter) {
     CHECK(!detail::HostRatioIsAuto(this->CacheInfo().cache_host_ratio));
     CHECK_GE(this->CacheInfo().cache_host_ratio, 0.0);
     CHECK_LE(this->CacheInfo().cache_host_ratio, 1.0);
-    this->p_cache_ = std::make_unique<EllpackMemCache>(this->CacheInfo());
+    constexpr std::int32_t kMaxGpuExtMemWorkers = 4;
+    this->p_cache_ = std::make_unique<EllpackMemCache>(this->CacheInfo(), kMaxGpuExtMemWorkers);
   }
   auto fo = std::make_unique<EllpackHostCacheStream>(this->p_cache_);
   if (iter == 0) {
