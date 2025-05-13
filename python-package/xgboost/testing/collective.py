@@ -4,9 +4,9 @@ import socket
 
 
 def get_avail_port() -> int:
-    """Return a port that's available during the function call. It doesn't prevent the
-    port being used after the function returns. We can't reserve a port. The utility
-    makes a test more likely to pass.
+    """Returns a port that's available during the function call. It doesn't prevent the
+    port from being used after the function returns as we can't reserve the port. The
+    utility makes a test more likely to pass.
 
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
