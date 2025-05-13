@@ -1,11 +1,13 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #pragma once
 #include <cstddef>     // for size_t
 #include <functional>  // for function
+#include <utility>     // for move
 
-#include "cuda_pinned_allocator.h"  // for SamAllocator
+#include "cuda_pinned_allocator.h"  // for SamAllocator, HostPinnedMemPool
+#include "device_helpers.cuh"       // for CUDAStreamView
 #include "device_vector.cuh"        // for DeviceUVector, GrowOnlyVirtualMemVec
 #include "io.h"                     // for ResourceHandler, MMAPFile
 #include "xgboost/string_view.h"    // for StringView
@@ -73,6 +75,30 @@ class CudaPinnedResource : public ResourceHandler {
   [[nodiscard]] void* Data() override { return storage_.data(); }
   [[nodiscard]] std::size_t Size() const override { return storage_.size(); }
   void Resize(std::size_t n_bytes) { this->storage_.resize(n_bytes); }
+};
+
+/**
+ * @brief Resource for fixed-size memory allocated by @ref HostPinnedMemPool.
+ *
+ * This container shares the pool but owns the memory.
+ */
+class HostPinnedMemPoolResource : public ResourceHandler {
+  std::shared_ptr<cuda_impl::HostPinnedMemPool> pool_;
+  std::size_t n_bytes_;
+  dh::CUDAStreamView stream_;
+  void* ptr_;
+
+ public:
+  explicit HostPinnedMemPoolResource(std::shared_ptr<cuda_impl::HostPinnedMemPool> pool,
+                                     std::size_t n_bytes, dh::CUDAStreamView stream)
+      : ResourceHandler{kCudaPinnedMemPool},
+        pool_{std::move(pool)},
+        n_bytes_{n_bytes},
+        stream_{stream},
+        ptr_{this->pool_->AllocateAsync(n_bytes, stream)} {}
+  ~HostPinnedMemPoolResource() override { this->pool_->DeallocateAsync(this->ptr_, this->stream_); }
+  [[nodiscard]] std::size_t Size() const override { return this->n_bytes_; }
+  [[nodiscard]] void* Data() override { return this->ptr_; }
 };
 
 class CudaMmapResource : public ResourceHandler {

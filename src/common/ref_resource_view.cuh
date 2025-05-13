@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #pragma once
 
@@ -40,6 +40,16 @@ template <typename T>
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithPinnedMalloc(std::size_t n_elements) {
   auto resource = std::make_shared<common::CudaPinnedResource>(n_elements * sizeof(T));
+  auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
+  return ref;
+}
+
+template <typename T>
+[[nodiscard]] RefResourceView<T> MakeFixedVecWithPinnedMemPool(
+    std::shared_ptr<cuda_impl::HostPinnedMemPool> pool, std::size_t n_elements,
+    dh::CUDAStreamView stream) {
+  auto resource = std::make_shared<common::HostPinnedMemPoolResource>(
+      std::move(pool), n_elements * sizeof(T), stream);
   auto ref = RefResourceView{resource->DataAs<T>(), n_elements, resource};
   return ref;
 }
