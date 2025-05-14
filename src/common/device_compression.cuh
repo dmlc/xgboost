@@ -51,6 +51,10 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
     dh::CUDAStreamView stream, CuMemParams const& in_params,
     dh::DeviceUVector<std::uint8_t> const& in_buf, CuMemParams* p_out);
 
+// We store decompression parameters in struct of vectors. This is due to nvcomp works
+// with this format. But the CUDA driver works with vector of structs. We can optimize
+// toward the driver decompression function if the overhead is significant (too many
+// chunks).
 struct SnappyDecomprMgrImpl {
   dh::device_vector<void const*> d_in_chunk_ptrs;
   // srcNumBytes of the DE param
