@@ -6,11 +6,16 @@
 #pragma once
 
 #include <cstddef>  // for size_t
-#include <memory>   // for unique_ptr
 #include <numeric>  // for accumulate
 #include <vector>   // for vector
 
 #include "transform_iterator.h"  // for MakeIndexTransformIter
+
+#if defined(XGBOOST_USE_NVCOMP)
+
+#include <memory>  // for unique_ptr
+
+#endif  // defined(XGBOOST_USE_NVCOMP)
 
 namespace xgboost::dc {
 /**
@@ -52,11 +57,11 @@ struct CuMemParams {
 
   explicit CuMemParams(std::size_t n_chunks) : params(n_chunks) {}
 
-  ComprParam const& operator[](std::size_t i) const { return params[i]; }
-  ComprParam& operator[](std::size_t i) { return params[i]; }
-  ComprParam& at(std::size_t i) { return params.at(i); }              // NOLINT
-  ComprParam const& at(std::size_t i) const { return params.at(i); }  // NOLINT
-  void resize(std::size_t n) { params.resize(n); }                    // NOLINT
+  ComprParam const& operator[](std::size_t i) const { return this->params[i]; }
+  ComprParam& operator[](std::size_t i) { return this->params[i]; }
+  ComprParam& at(std::size_t i) { return this->params.at(i); }              // NOLINT
+  ComprParam const& at(std::size_t i) const { return this->params.at(i); }  // NOLINT
+  void resize(std::size_t n) { this->params.resize(n); }                    // NOLINT
 
   [[nodiscard]] auto cbegin() const { return this->params.cbegin(); }  // NOLINT
   [[nodiscard]] auto cend() const { return this->params.cend(); }      // NOLINT
@@ -91,6 +96,9 @@ class SnappyDecomprMgrImpl;
 
 /**
  * @brief Help create and cache all decompression related meta data.
+ *
+ *   This struct is exposed to the CPU code. As a result, it's just a reference to the
+ *   @SnappyDecomprMgrImpl .
  */
 class SnappyDecomprMgr {
  public:

@@ -1,5 +1,9 @@
 /**
- * Copyright 2024-2025, XGBoost contributors
+ * Copyright 2025, XGBoost contributors
+ *
+ * We use NVComp to perform compression and access the DE API directly for
+ * decompression. Invoking the DE directly can help us avoid unnecessary kernal launches
+ * and CUDA API calls and any potential blocking behaviours.
  */
 
 #include <cstddef>  // for size_t
@@ -76,12 +80,11 @@ void FillDecompParams(void const* const* d_in_chunk_ptrs, std::size_t const* d_i
   dh::LaunchN(n_chunks, stream,
               [d_in_chunk_ptrs, d_in_chunk_nbytes, d_out_chunk_nbytes, d_act_nbytes, de_params,
                statuses, n_chunks] XGBOOST_DEVICE(std::size_t ix_chunk) {
-                if (ix_chunk >= n_chunks) return;
-                const size_t dev_in_bytes = d_in_chunk_nbytes[ix_chunk];
+                std::size_t const dev_in_bytes = d_in_chunk_nbytes[ix_chunk];
 
                 // Parse the input buffer to determine the number of bytes to skip
                 // First byte with a 0 msb indicates no more bytes in the header
-                const uint8_t* cur = reinterpret_cast<const uint8_t*>(d_in_chunk_ptrs[ix_chunk]);
+                auto cur = reinterpret_cast<uint8_t const*>(d_in_chunk_ptrs[ix_chunk]);
                 std::uint32_t header_nbytes;
                 std::int32_t error = 0;
                 std::uint32_t uncompressed_size =
@@ -462,7 +465,10 @@ void DecompressSnappy(dh::CUDAStreamView, SnappyDecomprMgr const&,
   return {};
 }
 
-[[nodiscard]] DeStatus const& GetGlobalDeStatus() { return {}; }
+[[nodiscard]] DeStatus const& GetGlobalDeStatus() {
+  static thread_local DeStatus de;
+  return de;
+}
 }  // namespace xgboost::dc
 
 #endif  // defined(XGBOOST_USE_NVCOMP)

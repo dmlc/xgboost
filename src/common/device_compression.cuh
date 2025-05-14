@@ -57,11 +57,13 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
 // toward the driver decompression function if the overhead is significant (too many
 // chunks).
 struct SnappyDecomprMgrImpl {
+  // src of the CUmemDecompressParams
   dh::device_vector<void const*> d_in_chunk_ptrs;
-  // srcNumBytes of the DE param
+  // srcNumBytes of the CUmemDecompressParams
   dh::device_vector<std::size_t> d_in_chunk_sizes;
+  // dstNumBytes of the CUmemDecompressParams
   dh::device_vector<std::size_t> d_out_chunk_sizes;
-  // dstActBytes of the DE param
+  // dstActBytes of the CUmemDecompressParams
   dh::device_vector<std::size_t> act_nbytes;
 
 #if defined(CUDA_HW_DECOM_AVAILABLE)
@@ -70,13 +72,20 @@ struct SnappyDecomprMgrImpl {
   DeParams de_params_copy;
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
 
-  [[nodiscard]] std::size_t Chunks() const { return de_params.size(); }
+  [[nodiscard]] std::size_t Chunks() const {
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+    return de_params.size();
+#else
+    LOG(FATAL) << "CUDA >= 12.8 is required.";
+    return 0;
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
+  }
 
   SnappyDecomprMgrImpl(dh::CUDAStreamView s,
                        std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
                        CuMemParams params, common::Span<std::uint8_t const> in_compressed_data);
 
-#if defined(CUDA_HW_DECOM_AVAILABLE)
+#if defined(CUDA_HW_DECOM_AVAILABLE) && defined(XGBOOST_USE_NVCOMP)
   common::Span<CUmemDecompressParams> GetParams(common::Span<common::CompressedByteT> out);
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
 
