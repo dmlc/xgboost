@@ -236,8 +236,8 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
   }
   if (GetGlobalDeStatus().avail) {
     // Invoke the DE.
-    std::size_t error_index;
 #if defined(CUDA_HW_DECOM_AVAILABLE)
+    std::size_t error_index;
     safe_cu(cudr::GetGlobalCuDriverApi().cuMemBatchDecompressAsync(
         params.data(), params.size(), 0 /*unused*/, &error_index, stream));
 #else

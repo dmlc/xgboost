@@ -41,6 +41,11 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
 
 /**
  * @brief Coalesce the compressed chunks into a contiguous host pinned buffer.
+ *
+ * @param stream CUDA stream.
+ * @param in_params Params from @ref CompressSnappy, spcifies the chunks.
+ * @param in_buf The buffer storing comprssed chunks.
+ * @param p_out Re-newed parameters to keep track of the buffers.
  */
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
     dh::CUDAStreamView stream, CuMemParams const& in_params,
