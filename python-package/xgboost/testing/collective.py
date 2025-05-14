@@ -1,4 +1,4 @@
-"""Collective modele related utilities."""
+"""Collective module related utilities."""
 
 import socket
 
