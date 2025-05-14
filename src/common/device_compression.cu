@@ -148,7 +148,7 @@ void SafeNvComp(nvcompStatus_t status) {
 
 SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(
     dh::CUDAStreamView s, std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
-    CuMemParams params, common::Span<common::CompressedByteT const> in_compressed_data) {
+    CuMemParams params, common::Span<std::uint8_t const> in_compressed_data) {
   std::size_t n_chunks = params.size();
   if (n_chunks == 0) {
     return;

@@ -39,6 +39,9 @@ namespace xgboost::dc {
 void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
                       common::Span<common::CompressedByteT> out, bool allow_fallback);
 
+/**
+ * @brief Coalesce the compressed chunks into a contiguous host pinned buffer.
+ */
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
     dh::CUDAStreamView stream, CuMemParams const& in_params,
     dh::DeviceUVector<std::uint8_t> const& in_buf, CuMemParams* p_out);
@@ -59,8 +62,7 @@ struct SnappyDecomprMgrImpl {
 
   SnappyDecomprMgrImpl(dh::CUDAStreamView s,
                        std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
-                       CuMemParams params,
-                       common::Span<common::CompressedByteT const> in_compressed_data);
+                       CuMemParams params, common::Span<std::uint8_t const> in_compressed_data);
 
   common::Span<CUmemDecompressParams> GetParams(common::Span<common::CompressedByteT> out);
 
@@ -75,9 +77,9 @@ struct SnappyDecomprMgrImpl {
 inline auto MakeSnappyDecomprMgr(dh::CUDAStreamView s,
                                  std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
                                  CuMemParams params,
-                                 common::Span<common::CompressedByteT const> in_compressed_data) {
+                                 common::Span<std::uint8_t const> in_compressed_data) {
   SnappyDecomprMgr mgr;
-  *mgr.Impl() = SnappyDecomprMgrImpl{s, pool, params, in_compressed_data};
+  *mgr.Impl() = SnappyDecomprMgrImpl{s, std::move(pool), std::move(params), in_compressed_data};
   return mgr;
 }
 }  // namespace xgboost::dc
