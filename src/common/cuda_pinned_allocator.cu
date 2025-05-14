@@ -71,3 +71,7 @@ namespace xgboost::common::cuda_impl {
   return mem_pool;
 }
 }  // namespace xgboost::common::cuda_impl
+
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+#undef CUDA_HW_DECOM_AVAILABLE
+#endif

@@ -96,6 +96,8 @@ class RefResourceView {
     SPAN_LT(i, this->size_);
     return ptr_[i];
   }
+  [[nodiscard]] Span<std::add_const_t<T>> ToSpan() const { return {this->data(), this->size()}; }
+  [[nodiscard]] Span<T> ToSpan() { return {this->data(), this->size()}; }
 
   /**
    * @brief Get the underlying resource.

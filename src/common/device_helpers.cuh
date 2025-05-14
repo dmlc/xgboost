@@ -20,6 +20,7 @@
 #include <vector>             // for vector
 
 #include "common.h"
+#include "cuda_rt_utils.h"  // for GetNumaId, CurrentDevice
 #include "device_vector.cuh"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
@@ -118,7 +119,7 @@ inline int32_t CurrentDevice() {
 
 // Helper function to get a device from a potentially CPU context.
 inline auto GetDevice(xgboost::Context const *ctx) {
-  auto d = (ctx->IsCUDA()) ? ctx->Device() : xgboost::DeviceOrd::CUDA(dh::CurrentDevice());
+  auto d = (ctx->IsCUDA()) ? ctx->Device() : xgboost::DeviceOrd::CUDA(::xgboost::curt::CurrentDevice());
   CHECK(!d.IsCPU());
   return d;
 }
@@ -809,6 +810,47 @@ void CopyTo(Src const &src, Dst *dst, CUDAStreamView stream = DefaultStream()) {
   static_assert(std::is_same_v<SVT, DVT>, "Host and device containers must have same value type.");
   dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(dst->data()), src.data(),
                                 src.size() * sizeof(SVT), cudaMemcpyDefault, stream));
+}
+
+
+/**
+ * @brief Wrapper for the @ref cudaMemcpyBatchAsync .
+ *
+ * @param dsts Host pointer to a list of device pointers.
+ * @param srcs Host pointer to a list of device pointers.
+ * @param sizes Host pointer to a list of sizes.
+ * @param count How many batches.
+ * @param fail_idx Which batch has failed, if any. When it's assigned to SIZE_MAX, then
+ *   it's a general error.
+ * @param stream CUDA stream. The wrapper enforces stream order access.
+ */
+template <cudaMemcpyKind kind, typename T, typename U>
+[[nodiscard]] cudaError_t MemcpyBatchAsync(T **dsts, U **srcs, std::size_t const *sizes,
+                                           std::size_t count, std::size_t *fail_idx,
+                                           cudaStream_t stream) {
+  static_assert(kind == cudaMemcpyDeviceToHost || kind == cudaMemcpyHostToDevice,
+                "Not implemented.");
+  cudaMemcpyAttributes attr;
+  attr.srcAccessOrder = cudaMemcpySrcAccessOrderStream;
+  attr.flags = cudaMemcpyFlagPreferOverlapWithCompute;
+
+  auto assign_host = [](cudaMemLocation *hint) {
+    hint->type = cudaMemLocationTypeHostNuma;
+    hint->id = xgboost::curt::GetNumaId();
+  };
+  auto assign_device = [](cudaMemLocation *hint) {
+    hint->type = cudaMemLocationTypeDevice;
+    hint->id = xgboost::curt::CurrentDevice();
+  };
+  if constexpr (kind == cudaMemcpyDeviceToHost) {
+    assign_device(&attr.srcLocHint);
+    assign_host(&attr.dstLocHint);
+  } else {
+    assign_host(&attr.srcLocHint);
+    assign_device(&attr.dstLocHint);
+  }
+  return cudaMemcpyBatchAsync(dsts, srcs, const_cast<std::size_t *>(sizes), count, attr, fail_idx,
+                              stream);
 }
 
 inline auto CachingThrustPolicy() {

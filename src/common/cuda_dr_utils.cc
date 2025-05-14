@@ -40,6 +40,7 @@ CuDriverApi::CuDriverApi() {
   safe_load("cuGetErrorName", &this->cuGetErrorName);
   safe_load("cuDeviceGetAttribute", &this->cuDeviceGetAttribute);
   safe_load("cuDeviceGet", &this->cuDeviceGet);
+  safe_load("cuMemBatchDecompressAsync", &this->cuMemBatchDecompressAsync);
 
   CHECK(this->cuMemGetAllocationGranularity);
 }

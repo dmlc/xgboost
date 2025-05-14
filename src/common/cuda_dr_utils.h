@@ -43,13 +43,15 @@ struct CuDriverApi {
   // Device attributes
   using DeviceGetAttribute = CUresult(int *pi, CUdevice_attribute attrib, CUdevice dev);
   using DeviceGet = CUresult(CUdevice *device, int ordinal);
+  using BatchDecompressAsync = CUresult(CUmemDecompressParams *paramsArray, size_t count,
+                                        unsigned int flags, size_t *errorIndex, CUstream stream);
 
   MemGetAllocationGranularityFn *cuMemGetAllocationGranularity{nullptr};  // NOLINT
   MemCreateFn *cuMemCreate{nullptr};                                      // NOLINT
   /**
    * @param[in] offset - Must be zero.
    */
-  MemMapFn *cuMemMap{nullptr};                                            // NOLINT
+  MemMapFn *cuMemMap{nullptr};  // NOLINT
   /**
    * @param[out] ptr       - Resulting pointer to start of virtual address range allocated
    * @param[in]  size      - Size of the reserved virtual address range requested
@@ -57,16 +59,16 @@ struct CuDriverApi {
    * @param[in]  addr      - Fixed starting address range requested
    * @param[in]  flags     - Currently unused, must be zero
    */
-  MemAddressReserveFn *cuMemAddressReserve{nullptr};  // NOLINT
-  MemSetAccessFn *cuMemSetAccess{nullptr};            // NOLINT
-  MemUnmapFn *cuMemUnmap{nullptr};                    // NOLINT
-  MemReleaseFn *cuMemRelease{nullptr};                // NOLINT
-  MemAddressFreeFn *cuMemAddressFree{nullptr};        // NOLINT
-  GetErrorString *cuGetErrorString{nullptr};          // NOLINT
-  GetErrorName *cuGetErrorName{nullptr};              // NOLINT
-  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};  // NOLINT
-  DeviceGet *cuDeviceGet{nullptr};                    // NOLINT
-
+  MemAddressReserveFn *cuMemAddressReserve{nullptr};      // NOLINT
+  MemSetAccessFn *cuMemSetAccess{nullptr};                // NOLINT
+  MemUnmapFn *cuMemUnmap{nullptr};                        // NOLINT
+  MemReleaseFn *cuMemRelease{nullptr};                    // NOLINT
+  MemAddressFreeFn *cuMemAddressFree{nullptr};            // NOLINT
+  GetErrorString *cuGetErrorString{nullptr};              // NOLINT
+  GetErrorName *cuGetErrorName{nullptr};                  // NOLINT
+  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};      // NOLINT
+  DeviceGet *cuDeviceGet{nullptr};                        // NOLINT
+  BatchDecompressAsync *cuMemBatchDecompressAsync{nullptr};  // NOLINT
   CuDriverApi();
 
   void ThrowIfError(CUresult status, StringView fn, std::int32_t line, char const *file) const;
@@ -96,7 +98,7 @@ inline auto GetAllocGranularity(CUmemAllocationProp const *prop) {
 /**
  * @brief Obtain appropriate device ordinal for `CUmemLocation`.
  */
-void MakeCuMemLocation(CUmemLocationType type, CUmemLocation* loc);
+void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc);
 
 /**
  * @brief Construct a `CUmemAllocationProp`.
