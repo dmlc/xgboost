@@ -23,6 +23,10 @@
 #include "xgboost/data.h"                   // for BatchParam
 #include "xgboost/span.h"                   // for Span
 
+namespace xgboost::curt {
+class StreamPool;
+}
+
 namespace xgboost::data {
 struct EllpackCacheInfo {
   BatchParam param;
@@ -66,7 +70,9 @@ struct EllpackMemCache {
   std::vector<bst_idx_t> const buffer_rows;
   float const cache_host_ratio;
 
-  explicit EllpackMemCache(EllpackCacheInfo cinfo);
+  std::unique_ptr<curt::StreamPool> streams;
+
+  explicit EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers);
   ~EllpackMemCache();
 
   // The number of bytes of the entire cache.
