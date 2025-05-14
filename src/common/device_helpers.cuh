@@ -828,6 +828,7 @@ template <cudaMemcpyKind kind, typename T, typename U>
 [[nodiscard]] cudaError_t MemcpyBatchAsync(T **dsts, U **srcs, std::size_t const *sizes,
                                            std::size_t count, std::size_t *fail_idx,
                                            cudaStream_t stream) {
+#if CUDART_VERSION >= 12080
   static_assert(kind == cudaMemcpyDeviceToHost || kind == cudaMemcpyHostToDevice,
                 "Not implemented.");
   cudaMemcpyAttributes attr;
@@ -851,6 +852,10 @@ template <cudaMemcpyKind kind, typename T, typename U>
   }
   return cudaMemcpyBatchAsync(dsts, srcs, const_cast<std::size_t *>(sizes), count, attr, fail_idx,
                               stream);
+#else
+  LOG(FATAL) << "CUDA >= 12.8 is required.";
+  return cudaErrorInvalidValue;
+#endif
 }
 
 inline auto CachingThrustPolicy() {
