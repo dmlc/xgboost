@@ -14,11 +14,28 @@
 #include "xgboost/span.h"           // for Span
 
 namespace xgboost::dc {
+/**
+ * @brief Use nvcomp to compress the data.
+ *
+ * @param ctx Context, provides the CUDA stream and execution policy.
+ * @param in  Input buffer, data to be compressed
+ * @param p_out Output buffer, storing comprssed data.
+ * @param chunk_size The number of bytes for each chunk.
+ */
 [[nodiscard]] CuMemParams CompressSnappy(Context const* ctx,
                                          common::Span<common::CompressedByteT const> in,
                                          dh::DeviceUVector<std::uint8_t>* p_out,
                                          std::size_t chunk_size);
-
+/**
+ * @brief Run decompression with meta data cached in a mgr object.
+ *
+ * @param stream CUDA stream, it should be an asynchronous stream.
+ * @param mgr Cache for decompression-related data.
+ * @param out Pre-allocated output buffer based on the @ref CuMemParams returned from
+ *   compression.
+ * @param allow_fallback Allow fallback to nvcomp implementation if hardware accelerated
+ *   implementation is not available. Used for testing.
+ */
 void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
                       common::Span<common::CompressedByteT> out, bool allow_fallback);
 

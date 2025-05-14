@@ -58,7 +58,7 @@ XGBOOST_DEVICE std::uint32_t GetUncompressedSize(std::uint8_t const* src, std::s
                 (uncompressed_size & ((0x7f << 21) | (0x7f << 14) | (0x7f << 7) | 0x7f)) |
                 (c << 28);
           } else {
-            *p_error = -1;
+            *p_error = 1;
           }
         }
       }
@@ -70,7 +70,7 @@ XGBOOST_DEVICE std::uint32_t GetUncompressedSize(std::uint8_t const* src, std::s
 
 void FillDecompParams(void const* const* d_in_chunk_ptrs, std::size_t const* d_in_chunk_nbytes,
                       common::Span<CUmemDecompressParams> de_params, size_t* d_act_nbytes,
-                      std::size_t const* d_out_chunk_nbytes, int* statuses,
+                      std::size_t const* d_out_chunk_nbytes, std::int32_t* statuses,
                       dh::CUDAStreamView stream) {
   auto n_chunks = de_params.size();
   dh::LaunchN(n_chunks, stream,
@@ -86,7 +86,7 @@ void FillDecompParams(void const* const* d_in_chunk_ptrs, std::size_t const* d_i
                 std::int32_t error = 0;
                 std::uint32_t uncompressed_size =
                     GetUncompressedSize(cur, dev_in_bytes, &header_nbytes, &error);
-                if (error) {
+                if (error == 1) {
                   statuses[ix_chunk] = 0;
                   return;
                 }
@@ -94,7 +94,7 @@ void FillDecompParams(void const* const* d_in_chunk_ptrs, std::size_t const* d_i
                 de_params[ix_chunk].src = reinterpret_cast<const void*>(cur + header_nbytes);
                 de_params[ix_chunk].dst = nullptr;  // not know yet
                 de_params[ix_chunk].dstNumBytes = d_out_chunk_nbytes[ix_chunk];
-                d_act_nbytes[ix_chunk] = 0;  // WAR for HW only setting 32 lsb for this value
+                d_act_nbytes[ix_chunk] = 0;
                 de_params[ix_chunk].dstActBytes =
                     reinterpret_cast<cuuint32_t*>(&d_act_nbytes[ix_chunk]);
                 de_params[ix_chunk].srcNumBytes = dev_in_bytes - header_nbytes;
@@ -160,7 +160,7 @@ SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(
   std::vector<std::size_t> in_chunk_sizes(n_chunks);
   std::vector<std::size_t> out_chunk_sizes(n_chunks);
 
-  dh::DeviceUVector<int> status(n_chunks);
+  dh::DeviceUVector<std::int32_t> status(n_chunks);
   for (std::size_t i = 0; i < n_chunks; ++i) {
     in_chunk_ptrs[i] = in_compressed_data.subspan(last_in, params[i].src_act_nbytes).data();
     in_chunk_sizes[i] = params[i].src_act_nbytes;
@@ -207,6 +207,7 @@ common::Span<CUmemDecompressParams> SnappyDecomprMgrImpl::GetParams(
   }
   auto n_chunks = this->de_params.size();
   CHECK(!this->de_params_copy.empty());
+  // Set the output buffers.
   std::size_t last_out = 0;
   for (std::size_t i = 0; i < n_chunks; ++i) {
     this->de_params_copy[i].dst = out.subspan(last_out, de_params[i].dstNumBytes).data();
@@ -240,7 +241,7 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
     safe_cu(cudr::GetGlobalCuDriverApi().cuMemBatchDecompressAsync(
         params.data(), params.size(), 0 /*unused*/, &error_index, stream));
 #else
-    static_assert("`cuMemBatchDecompressAsync` requires CUDA >= 12.8.")
+    static_assert(false, "`cuMemBatchDecompressAsync` requires CUDA >= 12.8.")
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   } else {
     // Fallback to nvcomp. This is only used during tests where we don't have access to DE
