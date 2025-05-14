@@ -180,7 +180,7 @@ def get_rabit_args(client: Client, n_workers: int) -> Any:
 
 def get_client_workers(client: Client) -> List[str]:
     "Get workers from a dask client."
-    kwargs = {"n_workers": -1} if _DASK_VERSION >= parse_version("2025.4.0") else {}
+    kwargs = {"n_workers": -1} if _DASK_VERSION() >= parse_version("2025.4.0") else {}
     workers = client.scheduler_info(**kwargs)["workers"]
     return list(workers.keys())
 
