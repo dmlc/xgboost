@@ -64,9 +64,11 @@ struct SnappyDecomprMgrImpl {
   // dstActBytes of the DE param
   dh::device_vector<std::size_t> act_nbytes;
 
+#if defined(CUDA_HW_DECOM_AVAILABLE)
   using DeParams = common::RefResourceView<CUmemDecompressParams>;
-  common::RefResourceView<CUmemDecompressParams> de_params;
-  common::RefResourceView<CUmemDecompressParams> de_params_copy;
+  DeParams de_params;
+  DeParams de_params_copy;
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
 
   [[nodiscard]] std::size_t Chunks() const { return de_params.size(); }
 
