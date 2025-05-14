@@ -2,19 +2,22 @@
  * Copyright 2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <thrust/sequence.h>
+#include <thrust/sequence.h>  // for sequence
+
+#include <memory>  // for make_shared
 
 #include "../../../src/common/cuda_context.cuh"
 #include "../../../src/common/cuda_pinned_allocator.h"
 #include "../../../src/common/device_compression.cuh"
-#include "../../../src/common/device_helpers.cuh"
+#include "../../../src/common/device_helpers.cuh"     // for ToSpan
+#include "../../../src/common/device_vector.cuh"      // for DeviceUVector
 #include "../../../src/common/ref_resource_view.cuh"  // for MakeFixedVecWithPinnedMemPool
-#include "../helpers.h"
+#include "../helpers.h"                               // for MakeCUDACtx
 
 namespace xgboost::dc {
 // We skip the tests but keep the code at compilation time if nvcomp is not enabled. This
 // helps us to ensure correct symbol definitions.
-TEST(NVComp, Snappy) {
+TEST(NvComp, Snappy) {
 #if !defined(XGBOOST_USE_NVCOMP)
   GTEST_SKIP_("XGBoost is not compiled with nvcomp.");
 #endif
@@ -41,7 +44,7 @@ TEST(NVComp, Snappy) {
   bool eq = thrust::equal(ctx.CUDACtx()->CTP(), dout.cbegin(), dout.cend(), in.cbegin());
   ASSERT_TRUE(eq);
 
-  auto const& status = GetGlobalDeStatus();  // just checking the symbol is defined
+  auto const& status = GetGlobalDeStatus();
   ASSERT_LT(status.max_output_size, 1ul << 24);
 }
 
