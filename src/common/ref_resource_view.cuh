@@ -47,6 +47,9 @@ template <typename T>
   return ref;
 }
 
+/**
+ * @brief Create a fixed size resource view from a shared pinned memory pool.
+ */
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithPinnedMemPool(
     std::shared_ptr<cuda_impl::HostPinnedMemPool> pool, std::size_t n_elements,

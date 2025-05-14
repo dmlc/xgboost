@@ -14,11 +14,8 @@
 #endif  // defined(XGBOOST_USE_CUDA)
 
 #include "common.h"
+#include "cuda_dr_utils.h"  // for CUDA_HW_DECOM_AVAILABLE
 #include "cuda_rt_utils.h"  // for CurrentDevice
-
-#if CUDART_VERSION >= 12080
-#define CUDA_HW_DECOM_AVAILABLE 1
-#endif
 
 namespace xgboost::common::cuda_impl {
 [[nodiscard]] MemPoolHdl CreateHostMemPool() {

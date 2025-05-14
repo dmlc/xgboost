@@ -15,6 +15,10 @@
 
 #include "xgboost/string_view.h"  // for StringView
 
+#if CUDART_VERSION >= 12080
+#define CUDA_HW_DECOM_AVAILABLE 1
+#endif
+
 namespace xgboost::cudr {
 /**
  * @brief A struct for retrieving CUDA driver API from the runtime API.
@@ -44,12 +48,17 @@ struct CuDriverApi {
   using DeviceGetAttribute = CUresult(int *pi, CUdevice_attribute attrib, CUdevice dev);
   using DeviceGet = CUresult(CUdevice *device, int ordinal);
 
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+  using BatchDecompressAsync = CUresult(CUmemDecompressParams *paramsArray, size_t count,
+                                        unsigned int flags, size_t *errorIndex, CUstream stream);
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
+
   MemGetAllocationGranularityFn *cuMemGetAllocationGranularity{nullptr};  // NOLINT
   MemCreateFn *cuMemCreate{nullptr};                                      // NOLINT
   /**
    * @param[in] offset - Must be zero.
    */
-  MemMapFn *cuMemMap{nullptr};                                            // NOLINT
+  MemMapFn *cuMemMap{nullptr};  // NOLINT
   /**
    * @param[out] ptr       - Resulting pointer to start of virtual address range allocated
    * @param[in]  size      - Size of the reserved virtual address range requested
@@ -57,15 +66,21 @@ struct CuDriverApi {
    * @param[in]  addr      - Fixed starting address range requested
    * @param[in]  flags     - Currently unused, must be zero
    */
-  MemAddressReserveFn *cuMemAddressReserve{nullptr};  // NOLINT
-  MemSetAccessFn *cuMemSetAccess{nullptr};            // NOLINT
-  MemUnmapFn *cuMemUnmap{nullptr};                    // NOLINT
-  MemReleaseFn *cuMemRelease{nullptr};                // NOLINT
-  MemAddressFreeFn *cuMemAddressFree{nullptr};        // NOLINT
-  GetErrorString *cuGetErrorString{nullptr};          // NOLINT
-  GetErrorName *cuGetErrorName{nullptr};              // NOLINT
-  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};  // NOLINT
-  DeviceGet *cuDeviceGet{nullptr};                    // NOLINT
+  MemAddressReserveFn *cuMemAddressReserve{nullptr};      // NOLINT
+  MemSetAccessFn *cuMemSetAccess{nullptr};                // NOLINT
+  MemUnmapFn *cuMemUnmap{nullptr};                        // NOLINT
+  MemReleaseFn *cuMemRelease{nullptr};                    // NOLINT
+  MemAddressFreeFn *cuMemAddressFree{nullptr};            // NOLINT
+  GetErrorString *cuGetErrorString{nullptr};              // NOLINT
+  GetErrorName *cuGetErrorName{nullptr};                  // NOLINT
+  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};      // NOLINT
+  DeviceGet *cuDeviceGet{nullptr};                        // NOLINT
+
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+
+  BatchDecompressAsync *cuMemBatchDecompressAsync{nullptr};  // NOLINT
+
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
 
   CuDriverApi();
 
@@ -96,7 +111,7 @@ inline auto GetAllocGranularity(CUmemAllocationProp const *prop) {
 /**
  * @brief Obtain appropriate device ordinal for `CUmemLocation`.
  */
-void MakeCuMemLocation(CUmemLocationType type, CUmemLocation* loc);
+void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc);
 
 /**
  * @brief Construct a `CUmemAllocationProp`.
