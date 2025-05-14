@@ -48,7 +48,7 @@ template <typename T>
 }
 
 /**
- * @bref Create a fixed size resource view from a shared pinned memory pool.
+ * @brief Create a fixed size resource view from a shared pinned memory pool.
  */
 template <typename T>
 [[nodiscard]] RefResourceView<T> MakeFixedVecWithPinnedMemPool(
