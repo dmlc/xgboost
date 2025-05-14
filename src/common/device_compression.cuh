@@ -7,6 +7,7 @@
 #include <cstdint>  // for uint8_t
 
 #include "compressed_iterator.h"    // for CompressedByteT
+#include "cuda_dr_utils.h"          // for CUDA_HW_DECOM_AVAILABLE
 #include "cuda_pinned_allocator.h"  // for HostPinnedMemPool
 #include "device_compression.h"     // for CuMemParams
 #include "device_vector.cuh"        // for DeviceUVector
@@ -73,7 +74,9 @@ struct SnappyDecomprMgrImpl {
                        std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
                        CuMemParams params, common::Span<std::uint8_t const> in_compressed_data);
 
+#if defined(CUDA_HW_DECOM_AVAILABLE)
   common::Span<CUmemDecompressParams> GetParams(common::Span<common::CompressedByteT> out);
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
 
   // big 5
   SnappyDecomprMgrImpl() = default;
