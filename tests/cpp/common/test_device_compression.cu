@@ -4,10 +4,13 @@
 #include <gtest/gtest.h>
 #include <thrust/sequence.h>  // for sequence
 
-#include <memory>  // for make_shared
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint8_t
+#include <memory>   // for make_shared
+#include <tuple>    // for tuple
 
-#include "../../../src/common/cuda_context.cuh"
-#include "../../../src/common/cuda_pinned_allocator.h"
+#include "../../../src/common/cuda_context.cuh"         // for CUDAContext
+#include "../../../src/common/cuda_pinned_allocator.h"  // for HostPinnedMemPool
 #include "../../../src/common/device_compression.cuh"
 #include "../../../src/common/device_helpers.cuh"     // for ToSpan
 #include "../../../src/common/device_vector.cuh"      // for DeviceUVector

@@ -40,11 +40,11 @@ namespace {
 // Parse snappy header
 XGBOOST_DEVICE std::uint32_t GetUncompressedSize(std::uint8_t const* src, std::size_t src_bytes,
                                                  std::uint32_t* p_header_nbytes,
-                                                 std::int32_t* p_error) {
+                                                 std::int32_t* p_status) {
   auto& n_bytes = *p_header_nbytes;
   n_bytes = 0;
 
-  *p_error = 0;
+  *p_status = 1;
   std::uint32_t uncompressed_size = src[n_bytes++];
   if (uncompressed_size > 0x7f) {
     std::uint32_t c = (n_bytes < src_bytes) ? src[n_bytes++] : 0;
@@ -62,7 +62,7 @@ XGBOOST_DEVICE std::uint32_t GetUncompressedSize(std::uint8_t const* src, std::s
                 (uncompressed_size & ((0x7f << 21) | (0x7f << 14) | (0x7f << 7) | 0x7f)) |
                 (c << 28);
           } else {
-            *p_error = 1;
+            *p_status = 0;
           }
         }
       }
@@ -84,13 +84,11 @@ void FillDecompParams(void const* const* d_in_chunk_ptrs, std::size_t const* d_i
 
                 // Parse the input buffer to determine the number of bytes to skip
                 // First byte with a 0 msb indicates no more bytes in the header
-                auto cur = reinterpret_cast<uint8_t const*>(d_in_chunk_ptrs[ix_chunk]);
-                std::uint32_t header_nbytes;
-                std::int32_t error = 0;
+                auto cur = reinterpret_cast<std::uint8_t const*>(d_in_chunk_ptrs[ix_chunk]);
+                std::uint32_t header_nbytes = 0;
                 std::uint32_t uncompressed_size =
-                    GetUncompressedSize(cur, dev_in_bytes, &header_nbytes, &error);
-                if (error == 1) {
-                  statuses[ix_chunk] = 0;
+                    GetUncompressedSize(cur, dev_in_bytes, &header_nbytes, &statuses[ix_chunk]);
+                if (statuses[ix_chunk] == 0) {
                   return;
                 }
 
@@ -110,6 +108,12 @@ struct ChkOp {
   XGBOOST_DEVICE bool operator()(int s) { return s == 1; }
 };
 
+void CheckAlign(nvcompAlignmentRequirements_t alignment) {
+  CHECK_EQ(alignment.input, 1);
+  CHECK_EQ(alignment.output, 1);
+  CHECK_EQ(alignment.temp, 1);
+}
+
 void SafeNvComp(nvcompStatus_t status) {
   if (status != nvcompSuccess) {
     LOG(FATAL) << "NVComp error:" << static_cast<std::int32_t>(status);
@@ -121,7 +125,8 @@ void SafeNvComp(nvcompStatus_t status) {
   std::once_flag static flag;
   DeStatus static de;
   std::call_once(flag, [&] {
-    // First check driver
+    // First check driver, we don't need to worry about mismatched libcuda version and rm
+    // version here. The first DE-enabled GPU requires >= 12.8 to work.
     std::int32_t driver_version = 0;
     dh::safe_cuda(cudaDriverGetVersion(&driver_version));
     if (driver_version < 12080) {
@@ -250,6 +255,7 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
     // Fallback to nvcomp. This is only used during tests where we don't have access to DE
     // but still want the test coverage.
     CHECK(allow_fallback);
+    CheckAlign(nvcompBatchedSnappyDecompressRequiredAlignments);
     auto n_chunks = mgr_impl->Chunks();
     // Get sketch space
     std::size_t n_tmp_bytes = 0;
@@ -280,15 +286,12 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
                                          std::size_t chunk_size) {
   CHECK_GT(chunk_size, 0);
   auto cuctx = ctx->CUDACtx();
-
-  auto nvcompBatchedSnappyOpts = nvcompBatchedSnappyDefaultOpts;
+  auto nvcomp_batched_snappy_opts = nvcompBatchedSnappyDefaultOpts;
 
   nvcompAlignmentRequirements_t compression_alignment_reqs;
-  SafeNvComp(nvcompBatchedSnappyCompressGetRequiredAlignments(nvcompBatchedSnappyOpts,
+  SafeNvComp(nvcompBatchedSnappyCompressGetRequiredAlignments(nvcomp_batched_snappy_opts,
                                                               &compression_alignment_reqs));
-  CHECK_EQ(compression_alignment_reqs.input, 1);
-  CHECK_EQ(compression_alignment_reqs.output, 1);
-  CHECK_EQ(compression_alignment_reqs.temp, 1);
+  CheckAlign(compression_alignment_reqs);
 
   /**
    * Inputs
@@ -328,14 +331,14 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
    * Outputs
    */
   std::size_t comp_temp_bytes;
-  SafeNvComp(nvcompBatchedSnappyCompressGetTempSize(n_chunks, chunk_size, nvcompBatchedSnappyOpts,
+  SafeNvComp(nvcompBatchedSnappyCompressGetTempSize(n_chunks, chunk_size, nvcomp_batched_snappy_opts,
                                                     &comp_temp_bytes));
   CHECK_EQ(comp_temp_bytes, 0);
   dh::DeviceUVector<char> comp_tmp(comp_temp_bytes);
 
   std::size_t max_out_nbytes = 0;
   SafeNvComp(nvcompBatchedSnappyCompressGetMaxOutputChunkSize(
-      std::min(max_in_nbytes, chunk_size), nvcompBatchedSnappyOpts, &max_out_nbytes));
+      std::min(max_in_nbytes, chunk_size), nvcomp_batched_snappy_opts, &max_out_nbytes));
   p_out->resize(max_out_nbytes * n_chunks);
   std::vector<void*> h_out_ptrs(n_chunks);
   std::vector<std::size_t> h_out_sizes(n_chunks);
@@ -357,7 +360,7 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
    */
   SafeNvComp(nvcompBatchedSnappyCompressAsync(
       in_ptrs.data(), in_sizes.data(), max_in_nbytes, n_chunks, comp_tmp.data(), comp_temp_bytes,
-      out_ptrs.data(), out_sizes.data(), nvcompBatchedSnappyOpts, cuctx->Stream()));
+      out_ptrs.data(), out_sizes.data(), nvcomp_batched_snappy_opts, cuctx->Stream()));
   auto n_bytes = thrust::reduce(cuctx->CTP(), out_sizes.cbegin(), out_sizes.cend());
   auto n_total_bytes = p_out->size();
   auto ratio = static_cast<double>(n_total_bytes) / in.size_bytes();
