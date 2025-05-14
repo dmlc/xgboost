@@ -236,8 +236,12 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
   if (GetGlobalDeStatus().avail) {
     // Invoke the DE.
     std::size_t error_index;
+#if defined(CUDA_HW_DECOM_AVAILABLE)
     safe_cu(cudr::GetGlobalCuDriverApi().cuMemBatchDecompressAsync(
         params.data(), params.size(), 0 /*unused*/, &error_index, stream));
+#else
+    static_assert("`cuMemBatchDecompressAsync` requires CUDA >= 12.8.")
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   } else {
     // Fallback to nvcomp. This is only used during tests where we don't have access to DE
     // but still want the test coverage.
@@ -456,6 +460,8 @@ void DecompressSnappy(dh::CUDAStreamView, SnappyDecomprMgr const&,
   common::AssertNvCompSupport();
   return {};
 }
+
+[[nodiscard]] DeStatus const& GetGlobalDeStatus() { return {}; }
 }  // namespace xgboost::dc
 
 #endif  // defined(XGBOOST_USE_NVCOMP)

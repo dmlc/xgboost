@@ -40,6 +40,9 @@ TEST(NVComp, Snappy) {
 
   bool eq = thrust::equal(ctx.CUDACtx()->CTP(), dout.cbegin(), dout.cend(), in.cbegin());
   ASSERT_TRUE(eq);
+
+  auto const& status = GetGlobalDeStatus();  // just checking the symbol is defined
+  ASSERT_LT(status.max_output_size, 1ul << 24);
 }
 
 class TestNvComp : public ::testing::TestWithParam<std::tuple<std::size_t, std::size_t>> {

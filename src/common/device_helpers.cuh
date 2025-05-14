@@ -855,7 +855,7 @@ template <cudaMemcpyKind kind, typename T, typename U>
 #else
   LOG(FATAL) << "CUDA >= 12.8 is required.";
   return cudaErrorInvalidValue;
-#endif
+#endif  // CUDART_VERSION >= 12080
 }
 
 inline auto CachingThrustPolicy() {
