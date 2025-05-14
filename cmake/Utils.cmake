@@ -237,7 +237,7 @@ macro(xgboost_target_defs target)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
   endif()
 
-  if (USE_NVCOMP)
+  if(USE_NVCOMP)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_NVCOMP=1)
   endif()
 endmacro()
