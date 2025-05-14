@@ -331,8 +331,8 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
    * Outputs
    */
   std::size_t comp_temp_bytes;
-  SafeNvComp(nvcompBatchedSnappyCompressGetTempSize(n_chunks, chunk_size, nvcomp_batched_snappy_opts,
-                                                    &comp_temp_bytes));
+  SafeNvComp(nvcompBatchedSnappyCompressGetTempSize(n_chunks, chunk_size,
+                                                    nvcomp_batched_snappy_opts, &comp_temp_bytes));
   CHECK_EQ(comp_temp_bytes, 0);
   dh::DeviceUVector<char> comp_tmp(comp_temp_bytes);
 
