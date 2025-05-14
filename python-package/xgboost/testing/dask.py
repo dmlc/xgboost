@@ -7,8 +7,8 @@ import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
 from distributed import Client, get_worker
-from sklearn.datasets import make_classification
 from packaging.version import parse as parse_version
+from sklearn.datasets import make_classification
 
 import xgboost as xgb
 import xgboost.testing as tm
@@ -16,7 +16,7 @@ from xgboost.compat import concat
 from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
-from ..dask import _get_rabit_args, _DASK_VERSION
+from ..dask import _DASK_VERSION, _get_rabit_args
 from .data import make_batches
 from .data import make_categorical as make_cat_local
 
