@@ -2,25 +2,34 @@
  * Copyright 2024-2025, XGBoost contributors
  */
 
-#include <memory>  // for shared_ptr
+#include <cstddef>  // for size_t
+#include <cstdint>  // for uint8_t, uint32_t, int32_t
+#include <memory>   // for shared_ptr
 
 #include "device_compression.cuh"
-#include "device_helpers.cuh"  // for CUDAStreamView
+#include "device_helpers.cuh"  // for CUDAStreamView, MemcpyBatchAsync
+#include "xgboost/span.h"      // for Span
 
 #if defined(XGBOOST_USE_NVCOMP)
 
-#include <nvcomp/snappy.h>
+#include <nvcomp/snappy.h>   // for nvcompBatchedSnappyDecompressAsync
 #include <thrust/logical.h>  // for all_of
+#include <thrust/reduce.h>   // for reduce
 
-#include "compressed_iterator.h"
-#include "cuda_context.cuh"
-#include "cuda_dr_utils.h"
-#include "cuda_pinned_allocator.h"
+#include <algorithm>  // for transform, min
+#include <cstring>    // for memset
+#include <mutex>      // for once_flag, call_once
+#include <vector>     // for vector
+
+#include "compressed_iterator.h"    // for CompressedByteT
+#include "cuda_context.cuh"         // for CUDAContext
+#include "cuda_dr_utils.h"          // for GetGlobalCuDriverApi
+#include "cuda_pinned_allocator.h"  // for HostPinnedMemPool
 #include "device_compression.h"
-#include "device_vector.cuh"
-#include "nvtx_utils.h"
-#include "ref_resource_view.cuh"
-#include "ref_resource_view.h"
+#include "device_vector.cuh"      // for DeviceUVector
+#include "nvtx_utils.h"           // for xgboost_NVTX_FN_RANGE
+#include "ref_resource_view.cuh"  // for MakeFixedVecWithPinnedMemPool
+#include "ref_resource_view.h"    // for RefResourceView
 
 namespace xgboost::dc {
 namespace {
