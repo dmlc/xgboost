@@ -456,7 +456,7 @@ struct DeviceHistogramBuilderImpl {
   void Reset(Args&&... args) {
     this->simpl.Reset(std::forward<Args>(args)...);
     this->dimpl.Reset(std::forward<Args>(args)...);
-  };
+  }
 
   template <typename Accessor, typename... Args>
   void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix, Args&&... args) {

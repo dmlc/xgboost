@@ -582,7 +582,7 @@ struct GPUHistMakerDevice {
         node = s_split_data[nidx].split_node;
       }
       return encode_op(row_id, nidx);
-    };
+    }
   };
 
   // After tree update is finished, update the position of all training

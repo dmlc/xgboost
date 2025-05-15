@@ -319,7 +319,7 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
 
   auto get_ridx = [=] __device__(std::size_t idx) {
     return batch.GetElement(idx).row_idx;
-  };
+  };  // NOLINT
   auto get_is_valid = [=] __device__(std::size_t idx) -> std::size_t {
     return is_valid(batch.GetElement(idx));
   };
