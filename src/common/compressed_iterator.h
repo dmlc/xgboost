@@ -1,12 +1,13 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file compressed_iterator.h
  */
 #pragma once
-#include <xgboost/base.h>
+#include <xgboost/base.h>  // for XGBOOST_RESTRICT
 
 #include <cmath>    // for ceil, log2
 #include <cstddef>  // for size_t
+#include <cstdint>  // for uint32_t
 
 #include "common.h"
 
@@ -242,17 +243,17 @@ class DoubleCompressedIter {
   using reference = value_type;                  // NOLINT
 
  private:
-  using BufT = CompressedByteT const *__restrict__;
-  BufT buf0_{nullptr};
-  BufT buf1_{nullptr};
+  using BufT = CompressedByteT const *;
+  BufT XGBOOST_RESTRICT buf0_{nullptr};
+  BufT XGBOOST_RESTRICT buf1_{nullptr};
   bst_idx_t const n0_{0};  // Size of the first buffer in bytes.
   bst_idx_t const symbol_bits_{0};
   std::size_t offset_{0};
 
  public:
   DoubleCompressedIter() = default;
-  DoubleCompressedIter(CompressedByteT const *__restrict__ buf0, std::size_t n0,
-                       CompressedByteT const *__restrict__ buf1, bst_idx_t num_symbols)
+  DoubleCompressedIter(CompressedByteT const *XGBOOST_RESTRICT buf0, std::size_t n0,
+                       CompressedByteT const *XGBOOST_RESTRICT buf1, bst_idx_t num_symbols)
       : buf0_{buf0}, buf1_{buf1}, n0_{n0}, symbol_bits_{detail::SymbolBits(num_symbols)} {
     CHECK(detail::IsAligned(reinterpret_cast<std::uintptr_t>(buf0), alignof(std::uint32_t)));
     CHECK(detail::IsAligned(reinterpret_cast<std::uintptr_t>(buf1), alignof(std::uint32_t)));
@@ -272,7 +273,7 @@ class DoubleCompressedIter {
         auto shifted = start_byte_idx - shift;
         bool ind = (shifted >= n0_);
         shifted -= ind * n0_;
-        auto const *__restrict__ buf = (start_byte_idx < n0_) ? buf0_ : buf1_;
+        auto const *XGBOOST_RESTRICT buf = (start_byte_idx < n0_) ? buf0_ : buf1_;
         return static_cast<std::uint64_t>(buf[shifted]);
       };
       // Read 5 bytes - the maximum we will need
@@ -282,7 +283,7 @@ class DoubleCompressedIter {
       // Access one of the buffers
       bool ind = start_byte_idx >= n0_;
       // Pick the buffer to read
-      auto const *__restrict__ buf = reinterpret_cast<CompressedByteT const *>(
+      auto const *XGBOOST_RESTRICT buf = reinterpret_cast<CompressedByteT const *>(
           (!ind) * reinterpret_cast<std::uintptr_t>(buf0_) +
           ind * reinterpret_cast<std::uintptr_t>(buf1_));
       auto const shifted = start_byte_idx - n0_ * ind;
@@ -295,7 +296,7 @@ class DoubleCompressedIter {
       auto aligned_beg_u32_ptr = reinterpret_cast<std::uint32_t const *>(aligned_beg_ptr);
       // 2 vector loads for 8 bytes, we will need 5 of them
       std::uint64_t v;
-      auto *__restrict__ v_ptr = reinterpret_cast<std::uint32_t *>(&v);
+      auto *XGBOOST_RESTRICT v_ptr = reinterpret_cast<std::uint32_t *>(&v);
       v_ptr[0] = aligned_beg_u32_ptr[0];
       v_ptr[1] = aligned_beg_u32_ptr[1];
 

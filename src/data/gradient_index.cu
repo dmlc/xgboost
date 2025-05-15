@@ -1,5 +1,5 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include <cstddef>  // for size_t
 #include <memory>   // for unique_ptr

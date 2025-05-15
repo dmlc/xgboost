@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_CUH_
 #define XGBOOST_DATA_ELLPACK_PAGE_CUH_
