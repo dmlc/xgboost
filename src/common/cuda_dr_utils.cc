@@ -84,16 +84,14 @@ void CuDriverApi::ThrowIfError(CUresult status, StringView fn, std::int32_t line
   std::int32_t cu_major = -1, cu_minor = -1;
   GetDrVersionGlobal(&cu_major, &cu_minor);
 
-  std::int32_t kdm_major= -1, kdm_minor = -1;
+  std::int32_t kdm_major = -1, kdm_minor = -1;
   if (!GetVersionFromSmiGlobal(&kdm_major, &kdm_minor)) {
     kdm_major = -1;
   }
 
   static std::once_flag flag;
   static std::unique_ptr<CuDriverApi> cu;
-  std::call_once(flag, [&] {
-    cu = std::make_unique<CuDriverApi>(cu_major, cu_minor, kdm_major);
-  });
+  std::call_once(flag, [&] { cu = std::make_unique<CuDriverApi>(cu_major, cu_minor, kdm_major); });
   return *cu;
 }
 
