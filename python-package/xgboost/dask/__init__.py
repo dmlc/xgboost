@@ -919,12 +919,11 @@ def train(  # pylint: disable=unused-argument
 
     """
     client = _get_client(client)
-    args = locals()
     return client.sync(
         _train_async,
         global_config=config.get_config(),
         dconfig=_get_dask_config(),
-        **args,
+        **locals(),
     )
 
 
