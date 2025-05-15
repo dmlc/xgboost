@@ -283,7 +283,7 @@ class DoubleCompressedIter {
     } else {
       // Access one of the buffers
       bool ind = start_byte_idx >= n0_;
-      // Pick the buffer
+      // Pick the buffer to read
       auto const *__restrict__ buf = reinterpret_cast<CompressedByteT const *>(
           (!ind) * reinterpret_cast<std::uintptr_t>(buf0_) +
           ind * reinterpret_cast<std::uintptr_t>(buf1_));
@@ -291,23 +291,25 @@ class DoubleCompressedIter {
       // Align the pointer for vector load
       auto beg_ptr = buf + shifted - 4;
       // base ptr in bytes
-      auto b_base_ptr = detail::AlignDown(reinterpret_cast<std::uintptr_t>(beg_ptr),
-                                          std::alignment_of_v<std::uint32_t>);
+      auto aligned_beg_ptr = detail::AlignDown(reinterpret_cast<std::uintptr_t>(beg_ptr),
+                                               std::alignment_of_v<std::uint32_t>);
       // base ptr in uint32
-      auto base_ptr = reinterpret_cast<std::uint32_t const *>(b_base_ptr);
-      // 2 vector loads
+      auto aligned_beg_u32_ptr = reinterpret_cast<std::uint32_t const *>(aligned_beg_ptr);
+      // 2 vector loads for 8 bytes, we will need 5 of them
       std::uint64_t v;
-      reinterpret_cast<std::uint32_t *>(&v)[0] = base_ptr[0];
-      reinterpret_cast<std::uint32_t *>(&v)[1] = base_ptr[1];
-      // down alignment
-      auto diff = reinterpret_cast<std::uintptr_t>(beg_ptr) - b_base_ptr;
-      // beginning ptr that points to the read values
-      auto b_ptr = reinterpret_cast<CompressedByteT const *>(&v) + diff;
+      auto *__restrict__ v_ptr = reinterpret_cast<std::uint32_t *>(&v);
+      v_ptr[0] = aligned_beg_u32_ptr[0];
+      v_ptr[1] = aligned_beg_u32_ptr[1];
+
+      // Difference between the original ptr and the aligned ptr.
+      auto diff = reinterpret_cast<std::uintptr_t>(beg_ptr) - aligned_beg_ptr;
+      // Beginning ptr that points to the laoded values
+      auto loaded_beg_ptr = reinterpret_cast<CompressedByteT const *>(&v) + diff;
       // Read 5 bytes - the maximum we will need
-      tmp = static_cast<std::uint64_t>(b_ptr[0]) << 32 |
-            static_cast<std::uint64_t>(b_ptr[1]) << 24 |
-            static_cast<std::uint64_t>(b_ptr[2]) << 16 | static_cast<std::uint64_t>(b_ptr[3]) << 8 |
-            b_ptr[4];
+      tmp = static_cast<std::uint64_t>(loaded_beg_ptr[0]) << 32 |
+            static_cast<std::uint64_t>(loaded_beg_ptr[1]) << 24 |
+            static_cast<std::uint64_t>(loaded_beg_ptr[2]) << 16 |
+            static_cast<std::uint64_t>(loaded_beg_ptr[3]) << 8 | loaded_beg_ptr[4];
     }
 
     std::int32_t bit_shift = (kBitsPerByte - ((offset_ + 1) * symbol_bits_)) % kBitsPerByte;
