@@ -50,8 +50,6 @@ CuDriverApi::CuDriverApi() {
   } else {
     this->cuMemBatchDecompressAsync = nullptr;
   }
-#else
-  this->cuMemBatchDecompressAsync = nullptr;
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   CHECK(this->cuMemGetAllocationGranularity);
 }
