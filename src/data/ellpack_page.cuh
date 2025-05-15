@@ -300,20 +300,40 @@ class EllpackPageImpl {
     this->SetBaseRowId(page->base_rowid);
     this->SetNumSymbols(page->NumSymbols());
   }
+  /**
+   * @brief Get an accessor backed by the device storage.
+   */
   [[nodiscard]] EllpackAccessor GetDeviceEllpack(
       Context const* ctx, common::Span<FeatureType const> feature_types = {}) const;
-
+  /**
+   * @brief Get an accessor backed by the host storage.
+   *
+   * @param h_gidx_buffer A buffer used as the backing storage of the accessor.
+   *
+   * @return An accessor variant.
+   */
   [[nodiscard]] EllpackAccessor GetHostEllpack(
       Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
       common::Span<FeatureType const> feature_types = {}) const;
-
+  /**
+   * @brief Vistor pattern.
+   *
+   * @param fn A callable that accepts both variants of the ellpack accessor.
+   *
+   * @return An accessor variant.
+   */
   template <typename Fn>
   decltype(auto) Visit(Context const* ctx, common::Span<FeatureType const> feature_types,
                        Fn&& fn) const {
     auto acc = this->GetDeviceEllpack(ctx, feature_types);
     return std::visit(std::forward<Fn>(fn), acc);
   }
-
+  /**
+   * @brief Vistor pattern with a host accessor.
+   *
+   * @param h_gidx_buffer A buffer used as the backing storage of the accessor.
+   * @param fn A callable that accepts both variants of the ellpack accessor.
+   */
   template <typename Fn>
   decltype(auto) VisitOnHost(Context const* ctx,
                              std::vector<common::CompressedByteT>* h_gidx_buffer,

@@ -269,6 +269,7 @@ class DoubleCompressedIter {
     std::uint64_t tmp;
 
     if (start_byte_idx - 4 < n0_ && start_byte_idx >= n0_) {
+      // Access between two buffers
       auto getv = [&](auto shift) {
         auto shifted = start_byte_idx - shift;
         bool ind = (shifted >= n0_);
@@ -280,19 +281,21 @@ class DoubleCompressedIter {
       tmp = static_cast<std::uint64_t>(buf0_[start_byte_idx - 4]) << 32 | getv(3) << 24 |
             getv(2) << 16 | getv(1) << 8 | static_cast<std::uint64_t>(buf1_[start_byte_idx - n0_]);
     } else {
+      // Access one of the buffers
       bool ind = start_byte_idx >= n0_;
+      // Pick the buffer
       auto const *__restrict__ buf = reinterpret_cast<CompressedByteT const *>(
           (!ind) * reinterpret_cast<std::uintptr_t>(buf0_) +
           ind * reinterpret_cast<std::uintptr_t>(buf1_));
       auto const shifted = start_byte_idx - n0_ * ind;
-
+      // Align the pointer for vector load
       auto beg_ptr = buf + shifted - 4;
       // base ptr in bytes
       auto b_base_ptr = detail::AlignDown(reinterpret_cast<std::uintptr_t>(beg_ptr),
                                           std::alignment_of_v<std::uint32_t>);
       // base ptr in uint32
       auto base_ptr = reinterpret_cast<std::uint32_t const *>(b_base_ptr);
-      // 2 loads
+      // 2 vector loads
       std::uint64_t v;
       reinterpret_cast<std::uint32_t *>(&v)[0] = base_ptr[0];
       reinterpret_cast<std::uint32_t *>(&v)[1] = base_ptr[1];
