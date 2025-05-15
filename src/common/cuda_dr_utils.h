@@ -124,4 +124,14 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc);
  * @return Whether the system call is successful.
  */
 [[nodiscard]] bool GetVersionFromSmi(std::int32_t *p_major, std::int32_t *p_minor);
+
+/**
+ * @brief Cache the result from @ref GetVersionFromSmi in a global variable
+ */
+[[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor);
+
+/**
+ * @brief Cache the result from @ref DrVersion in a global variable
+ */
+void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor);
 }  // namespace xgboost::cudr

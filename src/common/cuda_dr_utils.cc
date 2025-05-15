@@ -41,7 +41,17 @@ CuDriverApi::CuDriverApi() {
   safe_load("cuDeviceGetAttribute", &this->cuDeviceGetAttribute);
   safe_load("cuDeviceGet", &this->cuDeviceGet);
 #if defined(CUDA_HW_DECOM_AVAILABLE)
-  safe_load("cuMemBatchDecompressAsync", &this->cuMemBatchDecompressAsync);
+  // CTK 12.8
+  std::int32_t major = -1, minor = -1, kdm_major = -1, kdm_minor = -1;
+  GetDrVersionGlobal(&major, &minor);
+  if (((major == 12 && minor >= 8) || major > 12) &&
+      (GetVersionFromSmiGlobal(&kdm_major, &kdm_minor) && kdm_major >= 570)) {
+    safe_load("cuMemBatchDecompressAsync", &this->cuMemBatchDecompressAsync);
+  } else {
+    this->cuMemBatchDecompressAsync = nullptr;
+  }
+#else
+  this->cuMemBatchDecompressAsync = nullptr;
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   CHECK(this->cuMemGetAllocationGranularity);
 }
@@ -153,6 +163,25 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   }
 
   return Invalid();
+}
+
+[[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
+  static std::once_flag flag;
+  static std::int32_t major = -1, minor = -1;
+  static bool result = false;
+  std::call_once(flag, [&] { result = GetVersionFromSmi(&major, &minor); });
+
+  *p_major = major;
+  *p_minor = minor;
+  return result;
+}
+
+void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
+  static std::once_flag once;
+  static std::int32_t major{0}, minor{0};
+  std::call_once(once, [] { xgboost::curt::DrVersion(&major, &minor); });
+  *p_major = major;
+  *p_minor = minor;
 }
 }  // namespace xgboost::cudr
 #endif
