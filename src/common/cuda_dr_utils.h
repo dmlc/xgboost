@@ -82,7 +82,7 @@ struct CuDriverApi {
 
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
 
-  CuDriverApi();
+  CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int32_t kdm_major);
 
   void ThrowIfError(CUresult status, StringView fn, std::int32_t line, char const *file) const;
 };
