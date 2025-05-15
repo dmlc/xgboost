@@ -256,9 +256,9 @@ class CommunicatorContext(collective.CommunicatorContext):
         worker = distributed.get_worker()
         # We use task ID for rank assignment which makes the RABIT rank consistent (but
         # not the same as task ID is string and "10" is sorted before "2") with dask
-        # worker address. This outsources the rank assignment to dask and prevents
+        # worker name. This outsources the rank assignment to dask and prevents
         # non-deterministic issue.
-        self.args["DMLC_TASK_ID"] = f"[xgboost.dask]:{worker.address}"
+        self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{worker.name}]:{worker.address}"
 
 
 def _get_client(client: Optional["distributed.Client"]) -> "distributed.Client":
