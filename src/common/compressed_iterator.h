@@ -260,7 +260,7 @@ class DoubleCompressedIter {
     CHECK(detail::IsAligned(reinterpret_cast<std::uintptr_t>(buf1), alignof(std::uint32_t)));
   }
 
-  __device__ __forceinline__ reference operator*() const {
+  XGBOOST_HOST_DEV_INLINE reference operator*() const {
     constexpr std::int32_t kBitsPerByte = 8;
     std::size_t start_bit_idx = ((offset_ + 1) * symbol_bits_ - 1);
     std::size_t start_byte_idx = start_bit_idx >> 3;
