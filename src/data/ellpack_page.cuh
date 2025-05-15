@@ -22,7 +22,8 @@ namespace xgboost {
  *
  * Does not own the underlying memory and may be trivially copied into kernels.
  */
-struct EllpackDeviceAccessor {
+template <typename IterT>
+struct EllpackDeviceAccessorImpl {
  private:
   /**
    * @brief Stores the null value and whether the matrix is dense. The `IsDense` is stored in the
@@ -34,6 +35,9 @@ struct EllpackDeviceAccessor {
   constexpr static std::size_t NullShift() { return sizeof(null_value_) * 8 - Ind(); }
 
  public:
+  using IterType = IterT;
+
+ public:
   /** @brief Row length for ELLPACK, equal to number of features when the data is dense. */
   bst_idx_t row_stride;
   /** @brief Starting index of the rows. Used for external memory. */
@@ -41,7 +45,7 @@ struct EllpackDeviceAccessor {
   /** @brief Number of rows in this batch. */
   bst_idx_t n_rows;
   /** @brief Acessor for the gradient index. */
-  common::CompressedIterator<std::uint32_t> gidx_iter;
+  IterType gidx_iter;
   /** @brief Minimum value for each feature. Size equals to number of features. */
   common::Span<const float> min_fvalue;
   /** @brief Histogram cut pointers. Size equals to (number of features + 1). */
@@ -51,11 +55,11 @@ struct EllpackDeviceAccessor {
   /** @brief Type of each feature, categorical or numerical. */
   common::Span<const FeatureType> feature_types;
 
-  EllpackDeviceAccessor() = delete;
-  EllpackDeviceAccessor(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
-                        bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
-                        common::CompressedIterator<std::uint32_t> gidx_iter, bst_idx_t null_value,
-                        bool is_dense, common::Span<FeatureType const> feature_types)
+  EllpackDeviceAccessorImpl() = delete;
+  EllpackDeviceAccessorImpl(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
+                            bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
+                            IterType gidx_iter, bst_idx_t null_value, bool is_dense,
+                            common::Span<FeatureType const> feature_types)
       : null_value_{null_value},
         row_stride{row_stride},
         base_rowid{base_rowid},
@@ -158,6 +162,16 @@ struct EllpackDeviceAccessor {
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return min_fvalue.size(); }
 };
 
+using EllpackDeviceAccessor = EllpackDeviceAccessorImpl<common::CompressedIterator<std::uint32_t>>;
+
+using DoubleEllpackAccessor =
+    EllpackDeviceAccessorImpl<common::DoubleCompressedIter<std::uint32_t>>;
+
+/**
+ * @brief The ellpack accessor uses different graident index iterator to facilitate
+ *        external memory training.
+ */
+using EllpackAccessor = std::variant<EllpackDeviceAccessor, DoubleEllpackAccessor>;
 
 class GHistIndexMatrix;
 
@@ -286,17 +300,35 @@ class EllpackPageImpl {
     this->SetBaseRowId(page->base_rowid);
     this->SetNumSymbols(page->NumSymbols());
   }
-  /**
-   * @brief Get an accessor that can be passed into CUDA kernels.
-   */
-  [[nodiscard]] EllpackDeviceAccessor GetDeviceAccessor(
+  [[nodiscard]] EllpackAccessor GetDeviceEllpack(
       Context const* ctx, common::Span<FeatureType const> feature_types = {}) const;
-  /**
-   * @brief Get an accessor for host code.
-   */
-  [[nodiscard]] EllpackDeviceAccessor GetHostAccessor(
+
+  [[nodiscard]] EllpackAccessor GetHostEllpack(
       Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
       common::Span<FeatureType const> feature_types = {}) const;
+
+  template <typename Fn>
+  decltype(auto) Visit(Context const* ctx, common::Span<FeatureType const> feature_types,
+                       Fn&& fn) const {
+    auto acc = this->GetDeviceEllpack(ctx, feature_types);
+    return std::visit(std::forward<Fn>(fn), acc);
+  }
+
+  template <typename Fn>
+  decltype(auto) VisitOnHost(Context const* ctx,
+                             std::vector<common::CompressedByteT>* h_gidx_buffer,
+                             common::Span<FeatureType const> feature_types, Fn&& fn) const {
+    auto acc = this->GetHostEllpack(ctx, h_gidx_buffer, feature_types);
+    return std::visit(std::forward<Fn>(fn), acc);
+  }
+  // helper for visit that doesn't need the raw data.
+  template <typename Fn>
+  decltype(auto) VisitOnHost(Context const* ctx, Fn&& fn) const {
+    common::Span<FeatureType const> feature_types;
+    std::vector<common::CompressedByteT> h_gidx_buffer;
+    auto acc = this->GetHostEllpack(ctx, &h_gidx_buffer, feature_types);
+    return std::visit(std::forward<Fn>(fn), acc);
+  }
   /**
    * @brief Calculate the number of non-missing values.
    */
@@ -329,6 +361,13 @@ class EllpackPageImpl {
    * This can be backed by various storage types.
    */
   common::RefResourceView<common::CompressedByteT> gidx_buffer;
+  /**
+   * @brief Second buffer. Used for external memory where we might have a part of the
+   * cache in device and another part of the cache in host.
+   *
+   * This buffer is optional. It must be on device if not empty.
+   */
+  common::RefResourceView<common::CompressedByteT const> d_gidx_buffer;
   /**
    * @brief Compression infomation.
    */

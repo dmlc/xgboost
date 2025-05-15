@@ -86,7 +86,8 @@ template <typename T>
   bytes += fo->Write(impl->info.row_stride);
   std::vector<common::CompressedByteT> h_gidx_buffer;
   Context ctx = Context{}.MakeCUDA(curt::CurrentDevice());
-  [[maybe_unused]] auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx_buffer);
+  // write data into the h_gidx_buffer
+  [[maybe_unused]] auto h_accessor = impl->GetHostEllpack(&ctx, &h_gidx_buffer);
   bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);
   bytes += fo->Write(impl->NumSymbols());
