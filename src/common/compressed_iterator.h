@@ -302,7 +302,7 @@ class DoubleCompressedIter {
 
       // Difference between the original ptr and the aligned ptr.
       auto diff = reinterpret_cast<std::uintptr_t>(beg_ptr) - aligned_beg_ptr;
-      // Beginning ptr that points to the laoded values
+      // Beginning ptr that points to the first loaded values
       auto loaded_beg_ptr = reinterpret_cast<CompressedByteT const *>(&v) + diff;
       // Read 5 bytes - the maximum we will need
       tmp = static_cast<std::uint64_t>(loaded_beg_ptr[0]) << 32 |
