@@ -23,12 +23,10 @@ namespace detail {
 }
 // rmm::align_down
 [[nodiscard]] constexpr std::size_t AlignDown(std::size_t value, std::size_t alignment) noexcept {
-  assert(is_pow2(alignment));
   return value & ~(alignment - 1);
 }
 // rmm:is_aligned
 [[nodiscard]] constexpr bool IsAligned(std::size_t value, std::size_t alignment) noexcept {
-  assert(is_pow2(alignment));
   return value == AlignDown(value, alignment);
 }
 
