@@ -143,6 +143,7 @@ TEST_P(TestDoubleCompressedIter, Basic) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Gpu, TestDoubleCompressedIter,
-                         ::testing::Values(0, kCnBytes, 1, kCnBytes - 1, kCnBytes / 2,
-                                           kCnBytes / 3));
+                         ::testing::Values(0, kCnBytes, 1, kCnBytes - 1, kCnBytes / 2, kCnBytes / 3,
+                                           kCnBytes / 4, kCnBytes / 6, kCnBytes / 8,
+                                           kCnBytes / 12));
 }  // namespace xgboost::common
