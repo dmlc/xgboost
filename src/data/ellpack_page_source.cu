@@ -245,9 +245,10 @@ class EllpackHostCacheStreamImpl {
                                       ctx.CUDACtx()->Stream()));
       }
     } else {
-      auto res = d_page->empty() ? h_page->gidx_buffer.Resource() : d_page->Resource();
+      auto h_res = h_page->gidx_buffer.Resource();
+      CHECK(h_res->DataAs<common::CompressedByteT>() == h_page->gidx_buffer.data());
       out_impl->gidx_buffer = common::RefResourceView<common::CompressedByteT>{
-          res->DataAs<common::CompressedByteT>(), h_page->gidx_buffer.size(), res};
+          h_res->DataAs<common::CompressedByteT>(), h_page->gidx_buffer.size(), h_res};
       CHECK(out_impl->d_gidx_buffer.empty());
       if (!d_page->empty()) {
         out_impl->d_gidx_buffer = common::RefResourceView<common::CompressedByteT const>{
