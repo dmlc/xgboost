@@ -80,7 +80,8 @@ class CompressedBufferWriter {
     size_t ret = std::ceil(static_cast<double>(compressed_size + detail::kPadding) /
                            static_cast<double>(sizeof(std::uint32_t))) *
                  sizeof(std::uint32_t);
-    return ret;
+    // Need at least 5 bytes for the reader
+    return std::max(ret, static_cast<std::size_t>(detail::kPadding + 1));
   }
 
   template <typename T>
