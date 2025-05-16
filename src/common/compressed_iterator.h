@@ -5,9 +5,10 @@
 #pragma once
 #include <xgboost/base.h>  // for XGBOOST_RESTRICT
 
-#include <cmath>    // for ceil, log2
-#include <cstddef>  // for size_t
-#include <cstdint>  // for uint32_t
+#include <algorithm>  // for max
+#include <cmath>      // for ceil, log2
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
 
 #include "common.h"
 
