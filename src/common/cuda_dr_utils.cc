@@ -18,7 +18,7 @@
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::cudr {
-CuDriverApi::CuDriverApi() {
+CuDriverApi::CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int32_t kdm_major) {
   // similar to dlopen, but without the need to release a handle.
   auto safe_load = [](xgboost::StringView name, auto **fnptr) {
     cudaDriverEntryPointQueryResult status;
@@ -41,7 +41,12 @@ CuDriverApi::CuDriverApi() {
   safe_load("cuDeviceGetAttribute", &this->cuDeviceGetAttribute);
   safe_load("cuDeviceGet", &this->cuDeviceGet);
 #if defined(CUDA_HW_DECOM_AVAILABLE)
-  safe_load("cuMemBatchDecompressAsync", &this->cuMemBatchDecompressAsync);
+  // CTK 12.8
+  if (((cu_major == 12 && cu_minor >= 8) || cu_major > 12) && (kdm_major >= 570)) {
+    safe_load("cuMemBatchDecompressAsync", &this->cuMemBatchDecompressAsync);
+  } else {
+    this->cuMemBatchDecompressAsync = nullptr;
+  }
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   CHECK(this->cuMemGetAllocationGranularity);
 }
@@ -76,9 +81,17 @@ void CuDriverApi::ThrowIfError(CUresult status, StringView fn, std::int32_t line
 }
 
 [[nodiscard]] CuDriverApi &GetGlobalCuDriverApi() {
+  std::int32_t cu_major = -1, cu_minor = -1;
+  GetDrVersionGlobal(&cu_major, &cu_minor);
+
+  std::int32_t kdm_major = -1, kdm_minor = -1;
+  if (!GetVersionFromSmiGlobal(&kdm_major, &kdm_minor)) {
+    kdm_major = -1;
+  }
+
   static std::once_flag flag;
   static std::unique_ptr<CuDriverApi> cu;
-  std::call_once(flag, [&] { cu = std::make_unique<CuDriverApi>(); });
+  std::call_once(flag, [&] { cu = std::make_unique<CuDriverApi>(cu_major, cu_minor, kdm_major); });
   return *cu;
 }
 
@@ -153,6 +166,25 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   }
 
   return Invalid();
+}
+
+[[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
+  static std::once_flag flag;
+  static std::int32_t major = -1, minor = -1;
+  static bool result = false;
+  std::call_once(flag, [&] { result = GetVersionFromSmi(&major, &minor); });
+
+  *p_major = major;
+  *p_minor = minor;
+  return result;
+}
+
+void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
+  static std::once_flag once;
+  static std::int32_t major{0}, minor{0};
+  std::call_once(once, [] { xgboost::curt::DrVersion(&major, &minor); });
+  *p_major = major;
+  *p_minor = minor;
 }
 }  // namespace xgboost::cudr
 #endif
