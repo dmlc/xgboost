@@ -502,17 +502,18 @@ EllpackPageImpl::~EllpackPageImpl() noexcept(false) {
 }
 
 // A functor that copies the data from one EllpackPage to another.
+template <typename IterT>
 struct CopyPage {
   common::CompressedBufferWriter cbw;
   common::CompressedByteT* dst_data_d;
-  common::CompressedIterator<uint32_t> src_iterator_d;
+  IterT src_iterator_d;
   // The number of elements to skip.
   size_t offset;
 
-  CopyPage(EllpackPageImpl* dst, EllpackPageImpl const* src, size_t offset)
+  CopyPage(EllpackPageImpl* dst, EllpackDeviceAccessorImpl<IterT> src, size_t offset)
       : cbw{dst->NumSymbols()},
         dst_data_d{dst->gidx_buffer.data()},
-        src_iterator_d{src->gidx_buffer.data(), src->NumSymbols()},
+        src_iterator_d{src.gidx_iter},
         offset{offset} {}
 
   __device__ void operator()(std::size_t element_id) {
@@ -528,17 +529,20 @@ bst_idx_t EllpackPageImpl::Copy(Context const* ctx, EllpackPageImpl const* page,
   CHECK_EQ(this->info.row_stride, page->info.row_stride);
   CHECK_EQ(this->NumSymbols(), page->NumSymbols());
   CHECK_GE(this->n_rows * this->info.row_stride, offset + n_elements);
-  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), n_elements,
-                     CopyPage{this, page, offset});
+  page->Visit(ctx, {}, [&](auto&& src) {
+    thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), n_elements,
+                       CopyPage{this, src, offset});
+  });
   monitor_.Stop(__func__);
   return n_elements;
 }
 
 // A functor that compacts the rows from one EllpackPage into another.
+template <typename IterT>
 struct CompactPage {
   common::CompressedBufferWriter cbw;
   common::CompressedByteT* dst_data_d;
-  common::CompressedIterator<uint32_t> src_iterator_d;
+  IterT src_iterator_d;
   /**
    * @brief An array that maps the rows from the full DMatrix to the compacted page.
    *
@@ -554,13 +558,14 @@ struct CompactPage {
   size_t base_rowid;
   size_t row_stride;
 
-  CompactPage(EllpackPageImpl* dst, EllpackPageImpl const* src, common::Span<size_t> row_indexes)
+  CompactPage(EllpackPageImpl* dst, EllpackDeviceAccessorImpl<IterT> src,
+              common::Span<size_t> row_indexes)
       : cbw{dst->NumSymbols()},
         dst_data_d{dst->gidx_buffer.data()},
-        src_iterator_d{src->gidx_buffer.data(), src->NumSymbols()},
+        src_iterator_d{src.gidx_iter},
         row_indexes(row_indexes),
-        base_rowid{src->base_rowid},
-        row_stride{src->info.row_stride} {}
+        base_rowid{src.base_rowid},
+        row_stride{src.row_stride} {}
 
   __device__ void operator()(bst_idx_t row_id) {
     size_t src_row = base_rowid + row_id;
@@ -584,7 +589,10 @@ void EllpackPageImpl::Compact(Context const* ctx, EllpackPageImpl const* page,
   CHECK_EQ(this->NumSymbols(), page->NumSymbols());
   CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
   auto cuctx = ctx->CUDACtx();
-  dh::LaunchN(page->n_rows, cuctx->Stream(), CompactPage{this, page, row_indexes});
+  page->Visit(ctx, {}, [&](auto&& src) {
+    dh::LaunchN(page->n_rows, cuctx->Stream(), CompactPage{this, src, row_indexes});
+  });
+
   monitor_.Stop(__func__);
 }
 

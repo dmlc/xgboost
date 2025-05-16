@@ -263,9 +263,9 @@ class DoubleCompressedIter {
       auto getv = [&](auto shift) {
         auto shifted = start_byte_idx - shift;
         bool ind = (shifted >= n0_);  // indicator for which buffer to read
-        shifted -= ind * n0_;
         // Pick the buffer to read
-        auto const *XGBOOST_RESTRICT buf = (start_byte_idx < n0_) ? buf0_ : buf1_;
+        auto const *XGBOOST_RESTRICT buf = ind ? buf1_ : buf0_;
+        shifted -= ind * n0_;
         return static_cast<std::uint64_t>(buf[shifted]);
       };
       // Read 5 bytes - the maximum we will need
