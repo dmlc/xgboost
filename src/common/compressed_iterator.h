@@ -221,7 +221,7 @@ class CompressedIterator {
  *
  * This accessor is significantly slower than the single buffer one due to pipeline
  * stalling and should not be used as default. Pre-calculating the buffer selection
- * indicator can help mitigate it. But we only used this iterator for external memory
+ * indicator can help mitigate it. But we only use this iterator for external memory with
  * direct memory access, which is slow anyway.
  *
  * Use the single buffer one as a reference for how it works.

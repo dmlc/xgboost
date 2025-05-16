@@ -229,11 +229,11 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* p_fmat, const Batc
   }
 }
 
-template <typename AdapterBatchT, typename Accessor>
+template <typename AdapterBatchT, typename IterT>
 struct WriteCompressedEllpackFunctor {
   WriteCompressedEllpackFunctor(common::CompressedByteT* buffer,
                                 const common::CompressedBufferWriter& writer, AdapterBatchT batch,
-                                Accessor accessor,
+                                EllpackAccessorImpl<IterT> accessor,
                                 common::Span<FeatureType const> feature_types,
                                 const data::IsValidFunctor& is_valid)
       : d_buffer(buffer),
@@ -246,7 +246,7 @@ struct WriteCompressedEllpackFunctor {
   common::CompressedByteT* d_buffer;
   common::CompressedBufferWriter writer;
   AdapterBatchT batch;
-  Accessor accessor;
+  EllpackAccessorImpl<IterT> accessor;
   common::Span<FeatureType const> feature_types;
   data::IsValidFunctor is_valid;
 
@@ -324,11 +324,11 @@ void CopyDataToEllpack(Context const* ctx, const AdapterBatchT& batch,
     return is_valid(batch.GetElement(idx));
   };
   dst->Visit(ctx, {}, [&](auto&& device_accessor) {
-    using Accessor = std::remove_reference_t<decltype(device_accessor)>;
+    using IterT = typename std::remove_reference_t<decltype(device_accessor)>::IterType;
     // We redirect the scan output into this functor to do the actual writing
-    using Tuple = typename WriteCompressedEllpackFunctor<AdapterBatchT, Accessor>::Tuple;
+    using Tuple = typename WriteCompressedEllpackFunctor<AdapterBatchT, IterT>::Tuple;
     dh::TypedDiscard<Tuple> discard;
-    WriteCompressedEllpackFunctor<AdapterBatchT, Accessor> functor{
+    WriteCompressedEllpackFunctor<AdapterBatchT, IterT> functor{
         d_compressed_buffer, writer, batch, device_accessor, feature_types, is_valid};
     // For dense compressed data, we can simply copy the data with the input position.
     if (kIsDenseCompressed) {
@@ -510,7 +510,7 @@ struct CopyPage {
   // The number of elements to skip.
   size_t offset;
 
-  CopyPage(EllpackPageImpl* dst, EllpackDeviceAccessorImpl<IterT> src, size_t offset)
+  CopyPage(EllpackPageImpl* dst, EllpackAccessorImpl<IterT> src, size_t offset)
       : cbw{dst->NumSymbols()},
         dst_data_d{dst->gidx_buffer.data()},
         src_iterator_d{src.gidx_iter},
@@ -558,7 +558,7 @@ struct CompactPage {
   size_t base_rowid;
   size_t row_stride;
 
-  CompactPage(EllpackPageImpl* dst, EllpackDeviceAccessorImpl<IterT> src,
+  CompactPage(EllpackPageImpl* dst, EllpackAccessorImpl<IterT> src,
               common::Span<size_t> row_indexes)
       : cbw{dst->NumSymbols()},
         dst_data_d{dst->gidx_buffer.data()},

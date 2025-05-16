@@ -127,11 +127,6 @@ struct GPUHistMakerDevice {
   PartitionNodes CreatePartitionNodes(RegTree const* p_tree,
                                       std::vector<GPUExpandEntry> const& candidates) {
     PartitionNodes nodes(candidates.size());
-    // std::vector<bst_node_t> nidx(candidates.size());
-    // std::vector<bst_node_t> left_nidx(candidates.size());
-    // std::vector<bst_node_t> right_nidx(candidates.size());
-    // std::vector<NodeSplitData> split_data(candidates.size());
-
     for (std::size_t i = 0, n = candidates.size(); i < n; i++) {
       auto const& e = candidates[i];
       RegTree::Node split_node = (*p_tree)[e.nid];
@@ -382,7 +377,7 @@ struct GPUHistMakerDevice {
   }
 
   template <typename Iter>
-  void UpdatePositionColumnSplit(EllpackDeviceAccessorImpl<Iter> d_matrix,
+  void UpdatePositionColumnSplit(EllpackAccessorImpl<Iter> d_matrix,
                                  std::vector<NodeSplitData> const& split_data,
                                  std::vector<bst_node_t> const& nidx,
                                  std::vector<bst_node_t> const& left_nidx,
@@ -542,7 +537,6 @@ struct GPUHistMakerDevice {
                                                    nodes.right_nidx, nodes.split_data,
                                                    GoLeftWrapperOp<Acc>{go_left});
         }
-
         monitor.Stop("UpdatePositionBatch");
 
         for (auto nidx : build_nidx) {

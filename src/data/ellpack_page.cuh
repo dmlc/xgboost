@@ -23,7 +23,7 @@ namespace xgboost {
  * Does not own the underlying memory and may be trivially copied into kernels.
  */
 template <typename IterT>
-struct EllpackDeviceAccessorImpl {
+struct EllpackAccessorImpl {
  private:
   /**
    * @brief Stores the null value and whether the matrix is dense. The `IsDense` is stored in the
@@ -55,11 +55,11 @@ struct EllpackDeviceAccessorImpl {
   /** @brief Type of each feature, categorical or numerical. */
   common::Span<const FeatureType> feature_types;
 
-  EllpackDeviceAccessorImpl() = delete;
-  EllpackDeviceAccessorImpl(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
-                            bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
-                            IterType gidx_iter, bst_idx_t null_value, bool is_dense,
-                            common::Span<FeatureType const> feature_types)
+  EllpackAccessorImpl() = delete;
+  EllpackAccessorImpl(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
+                      bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
+                      IterType gidx_iter, bst_idx_t null_value, bool is_dense,
+                      common::Span<FeatureType const> feature_types)
       : null_value_{null_value},
         row_stride{row_stride},
         base_rowid{base_rowid},
@@ -162,10 +162,9 @@ struct EllpackDeviceAccessorImpl {
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return min_fvalue.size(); }
 };
 
-using EllpackDeviceAccessor = EllpackDeviceAccessorImpl<common::CompressedIterator<std::uint32_t>>;
+using EllpackDeviceAccessor = EllpackAccessorImpl<common::CompressedIterator<std::uint32_t>>;
 
-using DoubleEllpackAccessor =
-    EllpackDeviceAccessorImpl<common::DoubleCompressedIter<std::uint32_t>>;
+using DoubleEllpackAccessor = EllpackAccessorImpl<common::DoubleCompressedIter<std::uint32_t>>;
 
 /**
  * @brief The ellpack accessor uses different graident index iterator to facilitate

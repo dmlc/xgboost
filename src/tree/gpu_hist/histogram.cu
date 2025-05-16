@@ -30,9 +30,9 @@ XGBOOST_DEV_INLINE bst_feature_t FeatIdx(FeatureGroup const& group, bst_idx_t id
   return fidx;
 }
 
-template <typename Accessor>
-XGBOOST_DEV_INLINE bst_idx_t IterIdx(Accessor const& matrix, RowPartitioner::RowIndexT ridx,
-                                     bst_feature_t fidx) {
+template <typename IterT>
+XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
+                                     RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
   // ridx_local = ridx - base_rowid  <== Row index local to each batch
   // entry_idx = ridx_local * row_stride <== Starting entry index for this row in the matrix
   // entry_idx += start_feature  <== Inside a row, first column inside this feature group
