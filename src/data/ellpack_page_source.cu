@@ -243,11 +243,8 @@ class EllpackHostCacheStreamImpl {
       }
       if (!d_page->empty()) {
         auto beg = out_impl->gidx_buffer.data() + h_page->gidx_buffer.size();
-        auto src = d_page->data();
-        std::size_t size = d_page->size_bytes();
-        std::size_t fail_idx = SIZE_MAX;
-        dh::safe_cuda(dh::MemcpyBatchAsync<cudaMemcpyDeviceToDevice>(&beg, &src, &size, 1,
-                                                                     &fail_idx, stream));
+        dh::safe_cuda(
+            cudaMemcpyAsync(beg, d_page->data(), d_page->size_bytes(), cudaMemcpyDefault, stream));
       }
     } else {
       auto h_res = h_page->gidx_buffer.Resource();
