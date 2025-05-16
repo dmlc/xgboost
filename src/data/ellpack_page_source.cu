@@ -226,8 +226,6 @@ class EllpackHostCacheStreamImpl {
   }
 
   void Read(EllpackPage* out, bool prefetch_copy) const {
-    auto stream = this->cache_->streams->Next();
-
     CHECK_EQ(this->cache_->h_pages.size(), this->cache_->d_pages.size());
     auto [h_page, d_page] = this->cache_->At(this->ptr_);
 
@@ -243,8 +241,8 @@ class EllpackHostCacheStreamImpl {
       }
       if (!d_page->empty()) {
         auto beg = out_impl->gidx_buffer.data() + h_page->gidx_buffer.size();
-        dh::safe_cuda(
-            cudaMemcpyAsync(beg, d_page->data(), d_page->size_bytes(), cudaMemcpyDefault, stream));
+        dh::safe_cuda(cudaMemcpyAsync(beg, d_page->data(), d_page->size_bytes(), cudaMemcpyDefault,
+                                      ctx.CUDACtx()->Stream()));
       }
     } else {
       auto h_res = h_page->gidx_buffer.Resource();
@@ -259,10 +257,6 @@ class EllpackHostCacheStreamImpl {
     }
 
     out_impl->CopyInfo(h_page);
-
-    dh::CUDAEvent e;
-    e.Record(stream);
-    dh::DefaultStream().Wait(e);
   }
 };
 
