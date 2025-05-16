@@ -19,18 +19,6 @@ namespace xgboost::common {
 using CompressedByteT = unsigned char;
 
 namespace detail {
-[[nodiscard]] constexpr bool IsPow2(std::size_t value) noexcept {
-  return (value != 0U) && ((value & (value - 1)) == 0U);
-}
-// rmm::align_down
-[[nodiscard]] constexpr std::size_t AlignDown(std::size_t value, std::size_t alignment) noexcept {
-  return value & ~(alignment - 1);
-}
-// rmm:is_aligned
-[[nodiscard]] constexpr bool IsAligned(std::size_t value, std::size_t alignment) noexcept {
-  return value == AlignDown(value, alignment);
-}
-
 inline void SetBit(CompressedByteT *byte, int bit_idx) {
   *byte |= 1 << bit_idx;
 }
@@ -230,7 +218,11 @@ class CompressedIterator {
  * @brief A compressed iterator with two buffers for the underlying storage.
  *
  * This accessor is significantly slower than the single buffer one due to pipeline
- * stalling and should not be used as default.
+ * stalling and should not be used as default. Pre-calculating the buffer selection
+ * indicator can help mitigate it. But we only used this iterator for external memory
+ * direct memory access, which is slow anyway.
+ *
+ * Use the single buffer one as a reference for how it works.
  */
 template <typename OutT>
 class DoubleCompressedIter {
@@ -252,12 +244,9 @@ class DoubleCompressedIter {
 
  public:
   DoubleCompressedIter() = default;
-  DoubleCompressedIter(CompressedByteT const *XGBOOST_RESTRICT buf0, std::size_t n0,
-                       CompressedByteT const *XGBOOST_RESTRICT buf1, bst_idx_t num_symbols)
-      : buf0_{buf0}, buf1_{buf1}, n0_{n0}, symbol_bits_{detail::SymbolBits(num_symbols)} {
-    CHECK(detail::IsAligned(reinterpret_cast<std::uintptr_t>(buf0), alignof(std::uint32_t)));
-    CHECK(detail::IsAligned(reinterpret_cast<std::uintptr_t>(buf1), alignof(std::uint32_t)));
-  }
+  DoubleCompressedIter(CompressedByteT const *XGBOOST_RESTRICT buf0, std::size_t n0_bytes,
+                       CompressedByteT const *XGBOOST_RESTRICT buf1, bst_idx_t n_symbols)
+      : buf0_{buf0}, buf1_{buf1}, n0_{n0_bytes}, symbol_bits_{detail::SymbolBits(n_symbols)} {}
 
   XGBOOST_HOST_DEV_INLINE reference operator*() const {
     constexpr std::int32_t kBitsPerByte = 8;
@@ -267,12 +256,13 @@ class DoubleCompressedIter {
 
     std::uint64_t tmp;
 
-    if (start_byte_idx - 4 < n0_ && start_byte_idx >= n0_) {
-      // Access between two buffers
+    if (start_byte_idx >= this->n0_ && (start_byte_idx - 4) < this->n0_) {
+      // Access between two buffers.
       auto getv = [&](auto shift) {
         auto shifted = start_byte_idx - shift;
-        bool ind = (shifted >= n0_);
+        bool ind = (shifted >= n0_);  // indicator for which buffer to read
         shifted -= ind * n0_;
+        // Pick the buffer to read
         auto const *XGBOOST_RESTRICT buf = (start_byte_idx < n0_) ? buf0_ : buf1_;
         return static_cast<std::uint64_t>(buf[shifted]);
       };
@@ -286,29 +276,35 @@ class DoubleCompressedIter {
       auto const *XGBOOST_RESTRICT buf = reinterpret_cast<CompressedByteT const *>(
           (!ind) * reinterpret_cast<std::uintptr_t>(buf0_) +
           ind * reinterpret_cast<std::uintptr_t>(buf1_));
-      auto const shifted = start_byte_idx - n0_ * ind;
-      // Align the pointer for vector load
-      auto beg_ptr = buf + shifted - 4;
-      // base ptr in bytes
-      auto aligned_beg_ptr = detail::AlignDown(reinterpret_cast<std::uintptr_t>(beg_ptr),
-                                               std::alignment_of_v<std::uint32_t>);
-      // base ptr in uint32
-      auto aligned_beg_u32_ptr = reinterpret_cast<std::uint32_t const *>(aligned_beg_ptr);
-      // 2 vector loads for 8 bytes, we will need 5 of them
-      std::uint64_t v;
-      auto *XGBOOST_RESTRICT v_ptr = reinterpret_cast<std::uint32_t *>(&v);
-      v_ptr[0] = aligned_beg_u32_ptr[0];
-      v_ptr[1] = aligned_beg_u32_ptr[1];
+      auto shifted = start_byte_idx - n0_ * ind;
 
-      // Difference between the original ptr and the aligned ptr.
-      auto diff = reinterpret_cast<std::uintptr_t>(beg_ptr) - aligned_beg_ptr;
-      // Beginning ptr that points to the first loaded values
-      auto loaded_beg_ptr = reinterpret_cast<CompressedByteT const *>(&v) + diff;
+      /**
+       * Alternatively, we can use vector loads, but it requires aligned memory allocation
+       * by the backing storage.
+       *
+       * // Align the pointer for vector load
+       * auto beg_ptr = buf + shifted - 4;
+       * // base ptr in bytes
+       * auto aligned_beg_ptr = rmm::align_down(reinterpret_cast<std::uintptr_t>(beg_ptr),
+       *                                        std::alignment_of_v<std::uint32_t>);
+       * // base ptr in uint32
+       * auto aligned_beg_u32_ptr = reinterpret_cast<std::uint32_t const *>(aligned_beg_ptr);
+       * // 2 vector loads for 8 bytes, we will need 5 of them
+       * std::uint64_t v;
+       * auto *XGBOOST_RESTRICT v_ptr = reinterpret_cast<std::uint32_t *>(&v);
+       * v_ptr[0] = aligned_beg_u32_ptr[0];
+       * v_ptr[1] = aligned_beg_u32_ptr[1];
+       * // Difference between the original ptr and the aligned ptr.
+       * auto diff = reinterpret_cast<std::uintptr_t>(beg_ptr) - aligned_beg_ptr;
+       * // Beginning ptr that points to the first loaded values
+       * auto loaded_beg_ptr = reinterpret_cast<CompressedByteT const *>(&v) + diff;
+       */
+
       // Read 5 bytes - the maximum we will need
-      tmp = static_cast<std::uint64_t>(loaded_beg_ptr[0]) << 32 |
-            static_cast<std::uint64_t>(loaded_beg_ptr[1]) << 24 |
-            static_cast<std::uint64_t>(loaded_beg_ptr[2]) << 16 |
-            static_cast<std::uint64_t>(loaded_beg_ptr[3]) << 8 | loaded_beg_ptr[4];
+      tmp = static_cast<std::uint64_t>(buf[shifted - 4]) << 32 |
+            static_cast<std::uint64_t>(buf[shifted - 3]) << 24 |
+            static_cast<std::uint64_t>(buf[shifted - 2]) << 16 |
+            static_cast<std::uint64_t>(buf[shifted - 1]) << 8 | buf[shifted];
     }
 
     std::int32_t bit_shift = (kBitsPerByte - ((offset_ + 1) * symbol_bits_)) % kBitsPerByte;

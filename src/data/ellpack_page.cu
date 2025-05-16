@@ -692,6 +692,9 @@ std::size_t EllpackPageImpl::MemCostBytes() const {
 
 [[nodiscard]] EllpackAccessor EllpackPageImpl::GetDeviceEllpack(
     Context const* ctx, common::Span<FeatureType const> feature_types) const {
+  // The compress iterator reads at least 5 bytes. The `CalculateBufferSize` method should
+  // guarantee that.
+  CHECK_GE(this->gidx_buffer.size_bytes() + this->d_gidx_buffer.size_bytes(), 5);
   auto null = this->NullValue();
   if (d_gidx_buffer.empty()) {
     auto iter = common::CompressedIterator<std::uint32_t>{gidx_buffer.data(), this->NumSymbols()};
@@ -710,17 +713,19 @@ std::size_t EllpackPageImpl::MemCostBytes() const {
 [[nodiscard]] EllpackAccessor EllpackPageImpl::GetHostEllpack(
     Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
     common::Span<FeatureType const> feature_types) const {
+  CHECK_GE(this->gidx_buffer.size_bytes() + this->d_gidx_buffer.size_bytes(), 5);
   auto null = this->NullValue();
 
-  h_gidx_buffer->resize(gidx_buffer.size() + this->d_gidx_buffer.size());
+  h_gidx_buffer->resize(this->gidx_buffer.size() + this->d_gidx_buffer.size());
   CHECK_NE(gidx_buffer.size(), 0);
-  dh::safe_cuda(cudaMemcpyAsync(h_gidx_buffer->data(), gidx_buffer.data(), gidx_buffer.size_bytes(),
-                                cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
+  dh::safe_cuda(cudaMemcpyAsync(h_gidx_buffer->data(), this->gidx_buffer.data(),
+                                this->gidx_buffer.size_bytes(), cudaMemcpyDefault,
+                                ctx->CUDACtx()->Stream()));
 
   if (!d_gidx_buffer.empty()) {
-    auto dst = h_gidx_buffer->data() + gidx_buffer.size_bytes();
+    auto dst = h_gidx_buffer->data() + this->gidx_buffer.size_bytes();
     auto src = d_gidx_buffer.data();
-    dh::safe_cuda(cudaMemcpyAsync(dst, src, d_gidx_buffer.size_bytes(), cudaMemcpyDefault,
+    dh::safe_cuda(cudaMemcpyAsync(dst, src, this->d_gidx_buffer.size_bytes(), cudaMemcpyDefault,
                                   ctx->CUDACtx()->Stream()));
 
     auto iter = common::DoubleCompressedIter<std::uint32_t>{

@@ -1,12 +1,17 @@
-#include "../../../src/common/compressed_iterator.h"
-#include "../../../src/common/device_helpers.cuh"
-#include "gtest/gtest.h"
-#include <algorithm>
+/**
+ * Copyright 2018-2025, XGBoost Contributors
+ */
 #include <thrust/device_vector.h>
 
-namespace xgboost {
-namespace common {
+#include <algorithm>
+#include <vector>  // for vector
 
+#include "../../../src/common/compressed_iterator.h"
+#include "../../../src/common/device_helpers.cuh"
+#include "../../../src/common/device_vector.cuh"  // for DeviceUVector
+#include "gtest/gtest.h"
+
+namespace xgboost::common {
 struct WriteSymbolFunction {
   CompressedBufferWriter cbw;
   unsigned char* buffer_data_d;
@@ -70,5 +75,8 @@ TEST(CompressedIterator, TestGPU) {
   }
 }
 
-}  // namespace common
-}  // namespace xgboost
+TEST(DoubleCompressedIter, Alignment) {
+  std::vector<std::uint32_t> buf0;
+  dh::DeviceUVector<std::uint32_t> buf1;
+}
+}  // namespace xgboost::common
