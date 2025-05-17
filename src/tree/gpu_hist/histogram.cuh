@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #ifndef HISTOGRAM_CUH_
 #define HISTOGRAM_CUH_
@@ -158,7 +158,8 @@ class DeviceHistogramBuilder {
   void Reset(Context const* ctx, std::size_t max_cached_hist_nodes,
              FeatureGroupsAccessor const& feature_groups, bst_bin_t n_total_bins,
              bool force_global_memory);
-  void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
+
+  void BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const std::uint32_t> ridx,

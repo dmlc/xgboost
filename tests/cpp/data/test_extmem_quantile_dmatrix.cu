@@ -7,9 +7,8 @@
 #include <tuple>   // for tuple
 #include <vector>  // for vector
 
-#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
+#include "../../../src/data/batch_utils.h"              // for AutoHostRatio, DftHostRatio
 #include "../../../src/data/ellpack_page.cuh"           // for EllpackPageImpl
-#include "../../../src/data/extmem_quantile_dmatrix.h"  // for DftHostRatio
 #include "../helpers.h"                                 // for RandomDataGenerator, GMockThrow
 #include "test_extmem_quantile_dmatrix.h"               // for TestExtMemQdmBasic
 
@@ -25,11 +24,15 @@ auto AssertEllpackEq(Context const* ctx, EllpackPageImpl const* lhs, EllpackPage
   ASSERT_EQ(lhs->Cuts().Ptrs(), rhs->Cuts().Ptrs());
 
   std::vector<common::CompressedByteT> h_buf, d_buf;
-  auto h_acc = rhs->GetHostAccessor(ctx, &h_buf);
-  auto d_acc = rhs->GetHostAccessor(ctx, &d_buf);
-  for (std::size_t i = 0; i < h_acc.n_rows * h_acc.row_stride; ++i) {
-    ASSERT_EQ(h_acc.gidx_iter[i], d_acc.gidx_iter[i]);
-  }
+  auto h_acc = rhs->GetHostEllpack(ctx, &h_buf);
+  auto d_acc = rhs->GetHostEllpack(ctx, &d_buf);
+  std::visit(
+      [&](auto&& h_acc, auto&& d_acc) {
+        for (std::size_t i = 0; i < h_acc.n_rows * h_acc.row_stride; ++i) {
+          ASSERT_EQ(h_acc.gidx_iter[i], d_acc.gidx_iter[i]);
+        }
+      },
+      h_acc, d_acc);
 }
 
 class ExtMemQuantileDMatrixGpu : public ::testing::TestWithParam<std::tuple<float, bool>> {

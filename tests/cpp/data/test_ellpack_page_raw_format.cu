@@ -81,8 +81,8 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       ASSERT_EQ(loaded->base_rowid, orig->base_rowid);
       ASSERT_EQ(loaded->info.row_stride, orig->info.row_stride);
       std::vector<common::CompressedByteT> h_loaded, h_orig;
-      [[maybe_unused]] auto h_loaded_acc = loaded->GetHostAccessor(&ctx, &h_loaded);
-      [[maybe_unused]] auto h_orig_acc = orig->GetHostAccessor(&ctx, &h_orig);
+      [[maybe_unused]] auto h_loaded_acc = loaded->GetHostEllpack(&ctx, &h_loaded);
+      [[maybe_unused]] auto h_orig_acc = orig->GetHostEllpack(&ctx, &h_orig);
       ASSERT_EQ(h_loaded, h_orig);
     }
   }
@@ -149,16 +149,20 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
       for (auto const &orig : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         std::vector<common::CompressedByteT> h_orig;
-        auto h_acc_orig = orig.Impl()->GetHostAccessor(&ctx, &h_orig, {});
+        auto h_acc_orig = orig.Impl()->GetHostEllpack(&ctx, &h_orig, {});
         std::vector<common::CompressedByteT> h_page;
-        auto h_acc = page.Impl()->GetHostAccessor(&ctx, &h_page, {});
+        auto h_acc = page.Impl()->GetHostEllpack(&ctx, &h_page, {});
         ASSERT_EQ(h_orig, h_page);
-        ASSERT_EQ(h_acc_orig.NumFeatures(), h_acc.NumFeatures());
-        ASSERT_EQ(h_acc_orig.row_stride, h_acc.row_stride);
-        ASSERT_EQ(h_acc_orig.n_rows, h_acc.n_rows);
-        ASSERT_EQ(h_acc_orig.base_rowid, h_acc.base_rowid);
-        ASSERT_EQ(h_acc_orig.IsDenseCompressed(), h_acc.IsDenseCompressed());
-        ASSERT_EQ(h_acc_orig.NullValue(), h_acc.NullValue());
+        std::visit(
+            [&](auto &&h_acc_orig, auto &&h_acc) {
+              ASSERT_EQ(h_acc_orig.NumFeatures(), h_acc.NumFeatures());
+              ASSERT_EQ(h_acc_orig.row_stride, h_acc.row_stride);
+              ASSERT_EQ(h_acc_orig.n_rows, h_acc.n_rows);
+              ASSERT_EQ(h_acc_orig.base_rowid, h_acc.base_rowid);
+              ASSERT_EQ(h_acc_orig.IsDenseCompressed(), h_acc.IsDenseCompressed());
+              ASSERT_EQ(h_acc_orig.NullValue(), h_acc.NullValue());
+            },
+            h_acc_orig, h_acc);
       }
     }
   }

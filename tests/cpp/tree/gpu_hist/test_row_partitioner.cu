@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
@@ -119,6 +119,19 @@ void GetSplit(RegTree* tree, float split_value, std::vector<GPUExpandEntry>* can
   candidates->front().split.findex = 0;
 }
 
+namespace {
+template <typename Accessor>
+struct LessThanOp {
+  Accessor acc;
+  explicit LessThanOp(Accessor acc) : acc{acc} {}
+  __device__ bool operator()(bst_idx_t ridx, std::int32_t nidx_in_batch,
+                             RegTree::Node const& node) const {
+    auto fvalue = acc.GetFvalue(ridx, node.SplitIndex());
+    return fvalue <= node.SplitCond();
+  }
+};
+}  // namespace
+
 void TestExternalMemory() {
   auto ctx = MakeCUDACtx(0);
 
@@ -149,13 +162,9 @@ void TestExternalMemory() {
     partitioners.emplace_back(std::make_unique<RowPartitioner>());
     partitioners.back()->Reset(&ctx, page.Size(), page.BaseRowId());
     std::vector<RegTree::Node> splits{tree[0]};
-    auto acc = page.Impl()->GetDeviceAccessor(&ctx);
-    partitioners.back()->UpdatePositionBatch(
-        &ctx, {0}, {1}, {2}, splits,
-        [=] __device__(bst_idx_t ridx, std::int32_t nidx_in_batch, RegTree::Node const& node) {
-          auto fvalue = acc.GetFvalue(ridx, node.SplitIndex());
-          return fvalue <= node.SplitCond();
-        });
+    page.Impl()->Visit(&ctx, {}, [&](auto&& acc) {
+      partitioners.back()->UpdatePositionBatch(&ctx, {0}, {1}, {2}, splits, LessThanOp{acc});
+    });
     partitioners.back()->FinalisePosition(
         &ctx, dh::ToSpan(position).subspan(page.BaseRowId(), page.Size()), page.BaseRowId(),
         encode_op);

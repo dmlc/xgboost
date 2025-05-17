@@ -30,7 +30,8 @@ XGBOOST_DEV_INLINE bst_feature_t FeatIdx(FeatureGroup const& group, bst_idx_t id
   return fidx;
 }
 
-XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackDeviceAccessor const& matrix,
+template <typename IterT>
+XGBOOST_DEV_INLINE bst_idx_t IterIdx(EllpackAccessorImpl<IterT> const& matrix,
                                      RowPartitioner::RowIndexT ridx, bst_feature_t fidx) {
   // ridx_local = ridx - base_rowid  <== Row index local to each batch
   // entry_idx = ridx_local * row_stride <== Starting entry index for this row in the matrix
@@ -116,7 +117,7 @@ GradientQuantiser::GradientQuantiser(Context const* ctx, common::Span<GradientPa
 
 XGBOOST_DEV_INLINE void AtomicAddGpairShared(xgboost::GradientPairInt64* dest,
                                              xgboost::GradientPairInt64 const& gpair) {
-  auto dst_ptr = reinterpret_cast<int64_t *>(dest);
+  auto dst_ptr = reinterpret_cast<int64_t*>(dest);
   auto g = gpair.GetQuantisedGrad();
   auto h = gpair.GetQuantisedHess();
 
@@ -136,7 +137,7 @@ XGBOOST_DEV_INLINE void AtomicAddGpairGlobal(xgboost::GradientPairInt64* dest,
   atomicAdd(dst_ptr + 1, *reinterpret_cast<uint64_t*>(&h));
 }
 
-template <bool kCompressed, bool kDense, int kBlockThreads, int kItemsPerThread>
+template <typename Accessor, bool kCompressed, bool kDense, int kBlockThreads, int kItemsPerThread>
 class HistogramAgent {
   int constexpr static kItemsPerTile = kBlockThreads * kItemsPerThread;
 
@@ -147,7 +148,7 @@ class HistogramAgent {
   dh::LDGIterator<const Idx> d_ridx_;
   const GradientPair* d_gpair_;
   const FeatureGroup group_;
-  const EllpackDeviceAccessor& matrix_;
+  Accessor const& matrix_;
   const int feature_stride_;
   const bst_idx_t n_elements_;
   const GradientQuantiser& rounding_;
@@ -157,7 +158,7 @@ class HistogramAgent {
  public:
   __device__ HistogramAgent(GradientPairInt64* smem_arr,
                             GradientPairInt64* __restrict__ d_node_hist, const FeatureGroup& group,
-                            const EllpackDeviceAccessor& matrix, common::Span<const Idx> d_ridx,
+                            Accessor const& matrix, common::Span<const Idx> d_ridx,
                             const GradientQuantiser& rounding, const GradientPair* d_gpair)
       : smem_arr_{smem_arr},
         d_node_hist_{d_node_hist},
@@ -264,11 +265,10 @@ class HistogramAgent {
   }
 };
 
-template <bool kCompressed, bool kDense, bool use_shared_memory_histograms, int kBlockThreads,
-          int kItemsPerThread>
+template <typename Accessor, bool kCompressed, bool kDense, bool use_shared_memory_histograms,
+          int kBlockThreads, int kItemsPerThread>
 __global__ void __launch_bounds__(kBlockThreads)
-    SharedMemHistKernel(const EllpackDeviceAccessor matrix,
-                        const FeatureGroupsAccessor feature_groups,
+    SharedMemHistKernel(Accessor const matrix, const FeatureGroupsAccessor feature_groups,
                         common::Span<const RowPartitioner::RowIndexT> d_ridx,
                         GradientPairInt64* __restrict__ d_node_hist,
                         const GradientPair* __restrict__ d_gpair,
@@ -276,7 +276,7 @@ __global__ void __launch_bounds__(kBlockThreads)
   extern __shared__ char smem[];
   const FeatureGroup group = feature_groups[blockIdx.y];
   auto smem_arr = reinterpret_cast<GradientPairInt64*>(smem);
-  auto agent = HistogramAgent<kCompressed, kDense, kBlockThreads, kItemsPerThread>(
+  auto agent = HistogramAgent<Accessor, kCompressed, kDense, kBlockThreads, kItemsPerThread>(
       smem_arr, d_node_hist, group, matrix, d_ridx, rounding, d_gpair);
   if (use_shared_memory_histograms) {
     agent.BuildHistogramWithShared();
@@ -292,13 +292,19 @@ constexpr std::int32_t ItemsPerTile() { return kBlockThreads * kItemsPerThread; 
 }  // namespace
 
 // Use auto deduction guide to workaround compiler error.
-template <auto GlobalCompr =
-              SharedMemHistKernel<true, false, false, kBlockThreads, kItemsPerThread>,
-          auto Global = SharedMemHistKernel<false, false, false, kBlockThreads, kItemsPerThread>,
-          auto SharedCompr = SharedMemHistKernel<true, false, true, kBlockThreads, kItemsPerThread>,
-          auto Shared = SharedMemHistKernel<false, false, true, kBlockThreads, kItemsPerThread>,
-          auto GlobalDense = SharedMemHistKernel<true, true, false, kBlockThreads, kItemsPerThread>,
-          auto SharedDense = SharedMemHistKernel<true, true, true, kBlockThreads, kItemsPerThread>>
+template <typename Accessor,
+          auto GlobalCompr =
+              SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>,
+          auto Global =
+              SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>,
+          auto SharedCompr =
+              SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>,
+          auto Shared =
+              SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>,
+          auto GlobalDense =
+              SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>,
+          auto SharedDense =
+              SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>>
 struct HistogramKernel {
   enum KernelType : std::size_t {
     kGlobalCompr = 0,
@@ -310,20 +316,20 @@ struct HistogramKernel {
   };
   // Kernel for working with dense Ellpack using the global memory.
   decltype(GlobalCompr) global_compr_kernel{
-      SharedMemHistKernel<true, false, false, kBlockThreads, kItemsPerThread>};
+      SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the global memory.
   decltype(Global) global_kernel{
-      SharedMemHistKernel<false, false, false, kBlockThreads, kItemsPerThread>};
+      SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>};
   // Kernel for working with dense Ellpack using the shared memory.
   decltype(SharedCompr) shared_compr_kernel{
-      SharedMemHistKernel<true, false, true, kBlockThreads, kItemsPerThread>};
+      SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the shared memory.
   decltype(Shared) shared_kernel{
-      SharedMemHistKernel<false, false, true, kBlockThreads, kItemsPerThread>};
+      SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>};
   decltype(GlobalDense) global_dense_kernel{
-      SharedMemHistKernel<true, true, false, kBlockThreads, kItemsPerThread>};
+      SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>};
   decltype(SharedDense) shared_dense_kernel{
-      SharedMemHistKernel<true, true, true, kBlockThreads, kItemsPerThread>};
+      SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>};
 
   bool shared{false};
   std::array<std::uint32_t, 6> grid_sizes{0, 0, 0, 0, 0, 0};
@@ -372,19 +378,21 @@ struct HistogramKernel {
   }
 };
 
-class DeviceHistogramBuilderImpl {
-  std::unique_ptr<HistogramKernel<>> kernel_{nullptr};
+template <typename Accessor>
+class DeviceHistogramDispatchAccessor {
+  std::unique_ptr<HistogramKernel<Accessor>> kernel_{nullptr};
 
  public:
   void Reset(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
              bool force_global_memory) {
-    this->kernel_ = std::make_unique<HistogramKernel<>>(ctx, feature_groups, force_global_memory);
+    this->kernel_ =
+        std::make_unique<HistogramKernel<Accessor>>(ctx, feature_groups, force_global_memory);
     if (force_global_memory) {
       CHECK(!this->kernel_->shared);
     }
   }
 
-  void BuildHistogram(CUDAContext const* ctx, EllpackDeviceAccessor const& matrix,
+  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix,
                       FeatureGroupsAccessor const& feature_groups,
                       common::Span<GradientPair const> gpair,
                       common::Span<const cuda_impl::RowIndexT> d_ridx,
@@ -410,7 +418,7 @@ class DeviceHistogramBuilderImpl {
           kernel, matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding);
     };
 
-    using K = HistogramKernel<>::KernelType;
+    using K = HistogramKernel<EllpackDeviceAccessor>::KernelType;
     if (!this->kernel_->shared) {  // Use global memory
       CHECK_EQ(this->kernel_->smem_size, 0);
       if (matrix.IsDense()) {
@@ -439,6 +447,28 @@ class DeviceHistogramBuilderImpl {
   }
 };
 
+// Dispatch between single buffer accessor and double buffer accessor.
+struct DeviceHistogramBuilderImpl {
+  DeviceHistogramDispatchAccessor<EllpackDeviceAccessor> simpl;
+  DeviceHistogramDispatchAccessor<DoubleEllpackAccessor> dimpl;
+
+  template <typename... Args>
+  void Reset(Args&&... args) {
+    this->simpl.Reset(std::forward<Args>(args)...);
+    this->dimpl.Reset(std::forward<Args>(args)...);
+  }
+
+  template <typename Accessor, typename... Args>
+  void BuildHistogram(CUDAContext const* ctx, Accessor const& matrix, Args&&... args) {
+    if constexpr (std::is_same_v<Accessor, EllpackDeviceAccessor>) {
+      this->simpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
+    } else {
+      static_assert(std::is_same_v<Accessor, DoubleEllpackAccessor>);
+      this->dimpl.BuildHistogram(ctx, matrix, std::forward<Args>(args)...);
+    }
+  }
+};
+
 DeviceHistogramBuilder::DeviceHistogramBuilder()
     : p_impl_{std::make_unique<DeviceHistogramBuilderImpl>()} {
   monitor_.Init(__func__);
@@ -455,15 +485,19 @@ void DeviceHistogramBuilder::Reset(Context const* ctx, std::size_t max_cached_hi
   this->monitor_.Stop(__func__);
 }
 
-void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx,
-                                            EllpackDeviceAccessor const& matrix,
+void DeviceHistogramBuilder::BuildHistogram(CUDAContext const* ctx, EllpackAccessor const& matrix,
                                             FeatureGroupsAccessor const& feature_groups,
                                             common::Span<GradientPair const> gpair,
                                             common::Span<const cuda_impl::RowIndexT> ridx,
                                             common::Span<GradientPairInt64> histogram,
                                             GradientQuantiser rounding) {
   this->monitor_.Start(__func__);
-  this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram, rounding);
+  std::visit(
+      [&](auto&& matrix) {
+        this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram,
+                                      rounding);
+      },
+      matrix);
   this->monitor_.Stop(__func__);
 }
 

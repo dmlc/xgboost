@@ -230,10 +230,6 @@ class EllpackHostCacheStreamImpl {
     auto [h_page, d_page] = this->cache_->At(this->ptr_);
 
     auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
-    // FIXME(jiamingy): Accessing split cache directly is not yet supported.
-    if (0.0 < this->cache_->cache_host_ratio && this->cache_->cache_host_ratio < 1.0) {
-      prefetch_copy = true;
-    }
     auto out_impl = out->Impl();
     if (prefetch_copy) {
       auto n_bytes = this->cache_->GidxSizeBytes(this->ptr_);
@@ -249,10 +245,15 @@ class EllpackHostCacheStreamImpl {
                                       ctx.CUDACtx()->Stream()));
       }
     } else {
-      CHECK(d_page->empty() || h_page->gidx_buffer.empty());
-      auto res = d_page->empty() ? h_page->gidx_buffer.Resource() : d_page->Resource();
+      auto h_res = h_page->gidx_buffer.Resource();
+      CHECK(h_res->DataAs<common::CompressedByteT>() == h_page->gidx_buffer.data());
       out_impl->gidx_buffer = common::RefResourceView<common::CompressedByteT>{
-          res->DataAs<common::CompressedByteT>(), h_page->gidx_buffer.size(), res};
+          h_res->DataAs<common::CompressedByteT>(), h_page->gidx_buffer.size(), h_res};
+      CHECK(out_impl->d_gidx_buffer.empty());
+      if (!d_page->empty()) {
+        out_impl->d_gidx_buffer = common::RefResourceView<common::CompressedByteT const>{
+            d_page->data(), d_page->size(), d_page->Resource()};
+      }
     }
 
     out_impl->CopyInfo(h_page);
