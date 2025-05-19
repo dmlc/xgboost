@@ -12,6 +12,7 @@
 #include <cuda_runtime_api.h>
 
 #include <cstdint>  // for int32_t
+#include <string>   // for string
 
 #include "xgboost/string_view.h"  // for StringView
 
@@ -66,15 +67,15 @@ struct CuDriverApi {
    * @param[in]  addr      - Fixed starting address range requested
    * @param[in]  flags     - Currently unused, must be zero
    */
-  MemAddressReserveFn *cuMemAddressReserve{nullptr};      // NOLINT
-  MemSetAccessFn *cuMemSetAccess{nullptr};                // NOLINT
-  MemUnmapFn *cuMemUnmap{nullptr};                        // NOLINT
-  MemReleaseFn *cuMemRelease{nullptr};                    // NOLINT
-  MemAddressFreeFn *cuMemAddressFree{nullptr};            // NOLINT
-  GetErrorString *cuGetErrorString{nullptr};              // NOLINT
-  GetErrorName *cuGetErrorName{nullptr};                  // NOLINT
-  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};      // NOLINT
-  DeviceGet *cuDeviceGet{nullptr};                        // NOLINT
+  MemAddressReserveFn *cuMemAddressReserve{nullptr};  // NOLINT
+  MemSetAccessFn *cuMemSetAccess{nullptr};            // NOLINT
+  MemUnmapFn *cuMemUnmap{nullptr};                    // NOLINT
+  MemReleaseFn *cuMemRelease{nullptr};                // NOLINT
+  MemAddressFreeFn *cuMemAddressFree{nullptr};        // NOLINT
+  GetErrorString *cuGetErrorString{nullptr};          // NOLINT
+  GetErrorName *cuGetErrorName{nullptr};              // NOLINT
+  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};  // NOLINT
+  DeviceGet *cuDeviceGet{nullptr};                    // NOLINT
 
 #if defined(CUDA_HW_DECOM_AVAILABLE)
 
