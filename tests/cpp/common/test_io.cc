@@ -13,8 +13,8 @@
 
 namespace xgboost::common {
 TEST(MemoryFixSizeBuffer, Seek) {
-  size_t constexpr kSize { 64 };
-  std::vector<int32_t> memory( kSize );
+  size_t constexpr kSize{64};
+  std::vector<int32_t> memory(kSize);
   MemoryFixSizeBuffer buf(memory.data(), memory.size());
   buf.Seek(MemoryFixSizeBuffer::kSeekEnd);
   size_t end = buf.Tell();
@@ -22,13 +22,13 @@ TEST(MemoryFixSizeBuffer, Seek) {
 }
 
 TEST(IO, FileExtension) {
-  std::string filename {u8"model.json"};
+  std::string filename{u8"model.json"};
   auto ext = FileExtension(filename);
   ASSERT_EQ(ext, u8"json");
 }
 
 TEST(IO, FixedSizeStream) {
-  std::string buffer {"This is the content of stream"};
+  std::string buffer{"This is the content of stream"};
   {
     MemoryFixSizeBuffer stream(static_cast<void *>(&buffer[0]), buffer.size());
     PeekableInStream peekable(&stream);
@@ -45,7 +45,7 @@ TEST(IO, FixedSizeStream) {
       huge_buffer += buffer;
     }
 
-    MemoryFixSizeBuffer stream(static_cast<void*>(&huge_buffer[0]), huge_buffer.size());
+    MemoryFixSizeBuffer stream(static_cast<void *>(&huge_buffer[0]), huge_buffer.size());
     PeekableInStream peekable(&stream);
     FixedSizeStream fixed(&peekable);
 
@@ -145,8 +145,7 @@ TEST(IO, Resource) {
     fout << 1.0 << std::endl;
     fout.close();
 
-    auto resource = std::shared_ptr<MmapResource>{
-      new MmapResource{path, 0, sizeof(double)}};
+    auto resource = std::shared_ptr<MmapResource>{new MmapResource{path, 0, sizeof(double)}};
     ASSERT_EQ(resource->Size(), sizeof(double));
     ASSERT_EQ(resource->Type(), ResourceHandler::kMmap);
     ASSERT_EQ(resource->DataAs<double>()[0], val);
@@ -211,8 +210,7 @@ class TestFileStream : public ::testing::Test {
     for (std::size_t i = 0; i < n_batches; ++i) {
       std::size_t off = offset[i];
       std::size_t n = offset.at(i + 1) - offset[i];
-      std::unique_ptr<AlignedResourceReadStream> fi{
-          std::make_unique<TestStreamT>(path, off, n)};
+      std::unique_ptr<AlignedResourceReadStream> fi{std::make_unique<TestStreamT>(path, off, n)};
       std::vector<T> data;
 
       std::uint64_t size{0};
@@ -229,4 +227,11 @@ class TestFileStream : public ::testing::Test {
 TEST_F(TestFileStream, PrivateMmapStream) { this->Run<PrivateMmapConstStream>(); }
 
 TEST_F(TestFileStream, MemBufFileReadStream) { this->Run<MemBufFileReadStream>(); }
+
+TEST(IO, CmdOutput) {
+  // Use a simple command that works in cmd.exe
+  std::string output = CmdOutput("echo HelloWorld");
+  ASSERT_EQ(output, R"(HelloWorld
+)");
+}
 }  // namespace xgboost::common
