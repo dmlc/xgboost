@@ -129,7 +129,7 @@ the :py:class:`~xgboost.ExtMemQuantileDMatrix` constructor:
 
 .. code-block:: python
 
-  it = Iterator(device="cpu", file_paths=["file_0.npy", "file_.npy", "file_2.npy"])
+  it = Iterator(device="cpu", file_paths=["file_0.npy", "file_1.npy", "file_2.npy"])
 
   # Use the ``ExtMemQuantileDMatrix`` for the hist tree method, recommended.
   Xy = xgboost.ExtMemQuantileDMatrix(it)
