@@ -30,14 +30,14 @@ class StreamPool;
 namespace xgboost::data {
 struct EllpackCacheInfo {
   BatchParam param;
-  float cache_host_ratio{1.0};  // The size ratio the host cache vs. the total cache
+  double cache_host_ratio{1.0};  // The size ratio the host cache vs. the total cache
   float missing{std::numeric_limits<float>::quiet_NaN()};
   std::vector<bst_idx_t> cache_mapping;
   std::vector<bst_idx_t> buffer_bytes;  // N bytes of the concatenated pages.
   std::vector<bst_idx_t> buffer_rows;
 
   EllpackCacheInfo() = default;
-  EllpackCacheInfo(BatchParam param, float h_ratio, float missing)
+  EllpackCacheInfo(BatchParam param, double h_ratio, float missing)
       : param{std::move(param)}, cache_host_ratio{h_ratio}, missing{missing} {}
 
   // Only effective for host-based cache.
@@ -68,7 +68,7 @@ struct EllpackMemCache {
   // Cache info
   std::vector<std::size_t> const buffer_bytes;
   std::vector<bst_idx_t> const buffer_rows;
-  float const cache_host_ratio;
+  double const cache_host_ratio;
 
   std::unique_ptr<curt::StreamPool> streams;
 
@@ -254,7 +254,7 @@ class EllpackMmapStreamPolicy : public F<S> {
 void CalcCacheMapping(Context const* ctx, bool is_dense,
                       std::shared_ptr<common::HistogramCuts const> cuts,
                       std::int64_t min_cache_page_bytes, ExternalDataInfo const& ext_info,
-                      EllpackCacheInfo* cinfo);
+                      bool is_validation, EllpackCacheInfo* cinfo);
 
 /**
  * @brief Ellpack source with sparse pages as the underlying source.

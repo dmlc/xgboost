@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -15,5 +15,19 @@ TEST(Common, HumanMemUnit) {
   ASSERT_EQ(name, "1KB");
   name = HumanMemUnit(1);
   ASSERT_EQ(name, "1B");
+}
+
+TEST(Common, TrimLast) {
+  {
+    std::string in{"foobar "};
+    auto out = TrimLast(in);
+    ASSERT_EQ(out, "foobar");
+  }
+  {
+    std::string in{R"(foobar
+)"};
+    auto out = TrimLast(in);
+    ASSERT_EQ(out, "foobar");
+  }
 }
 }  // namespace xgboost::common

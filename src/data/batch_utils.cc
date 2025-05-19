@@ -3,7 +3,13 @@
  */
 #include "batch_utils.h"
 
-#include "../common/error_msg.h"  // for InconsistentMaxBin
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int64_t
+#include <utility>  // for pair
+
+#include "../common/cuda_dr_utils.h"  // for GetC2cLinkCountFromSmiGlobal
+#include "../common/cuda_rt_utils.h"  // for TotalMemory
+#include "../common/error_msg.h"      // for InconsistentMaxBin
 
 namespace xgboost::data::detail {
 void CheckParam(BatchParam const& init, BatchParam const& param) {
@@ -12,19 +18,56 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
       << "Only the `hist` tree method can use the `QuantileDMatrix`.";
 }
 
-[[nodiscard]] float DftHostRatio(float cache_host_ratio, bool is_validation) {
-  if (is_validation) {
-    // Don't split the cache if this is a validation dataset.
-    return 1.0;
+[[nodiscard]] std::pair<double, std::int64_t> DftPageSizeHostRatio(
+    std::size_t n_cache_bytes, bool is_validation, double cache_host_ratio,
+    std::int64_t min_cache_page_bytes) {
+  if (!HostRatioIsAuto(cache_host_ratio)) {
+    // Use user config.
+    CHECK_GE(cache_host_ratio, 0.0f) << error::CacheHostRatioInvalid();
+    CHECK_LE(cache_host_ratio, 1.0f) << error::CacheHostRatioInvalid();
   }
-  if (HostRatioIsAuto(cache_host_ratio)) {
-    // Only NVML has the API to detect the topology. We will leave it as-is for now.
+
+  auto n_d_bytes = curt::TotalMemory();
+
+  using xgboost::cuda_impl::CachePageRatio;
+
+  auto lc = cudr::GetC2cLinkCountFromSmiGlobal();
+  if (lc >= 10) {
+    // >= 10, life is easy.
+    if (CachePageBytesIsAuto(min_cache_page_bytes)) {
+      min_cache_page_bytes = n_d_bytes * CachePageRatio();
+    }
+    if (HostRatioIsAuto(cache_host_ratio)) {
+      cache_host_ratio = 1.0;
+    }
+    return {cache_host_ratio, min_cache_page_bytes};
+  }
+
+  // -1 if PCIe device, or something went wrong when running nvidia-smi
+  //
+  // GH200 1 CPU + 1 GPU has 10. For 1 CPU + 2 GPU, it's 5.
+  //
+  // Either way, we configure the cache based on the ratio between cache sizes and the
+  // available memory.
+  // Use half of the device memory for cache.
+  auto d_cache_nbytes = n_d_bytes / 2;
+
+  // Since half of the device is used for the cache, we have to use smaller page size.
+  if (CachePageBytesIsAuto(min_cache_page_bytes)) {
+    min_cache_page_bytes = n_d_bytes * (CachePageRatio() / 2.0);
+  }
+
+  if (!HostRatioIsAuto(cache_host_ratio)) {
+    // Do nothing if it's provided by the user
+  } else if (is_validation || (n_cache_bytes <= d_cache_nbytes)) {
+    // Use full host cache for the validation dataset.
     cache_host_ratio = 1.0;
-    return cache_host_ratio;
+  } else {
+    // The number of bytes that must be in the host memory.
+    auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes;
+    cache_host_ratio = static_cast<double>(h_cache_nbytes) / static_cast<double>(n_cache_bytes);
   }
-  // Use user config.
-  CHECK_GE(cache_host_ratio, 0.0f) << error::CacheHostRatioInvalid();
-  CHECK_LE(cache_host_ratio, 1.0f) << error::CacheHostRatioInvalid();
-  return cache_host_ratio;
+
+  return {cache_host_ratio, min_cache_page_bytes};
 }
 }  // namespace xgboost::data::detail

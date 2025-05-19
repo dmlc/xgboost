@@ -34,7 +34,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
       missing_{config.missing},
       cache_prefix_{config.cache},
       on_host_{config.on_host},
-      cache_host_ratio_{detail::DftHostRatio(config.cache_host_ratio, true)},
+      cache_host_ratio_{config.cache_host_ratio},
       min_cache_page_bytes_{config.min_cache_page_bytes} {
   CHECK(detail::HostRatioIsAuto(config.cache_host_ratio)) << error::CacheHostRatioNotImpl();
   Context ctx;

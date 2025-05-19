@@ -39,19 +39,34 @@ inline bool RegenGHist(BatchParam old, BatchParam p) {
 void CheckParam(BatchParam const& init, BatchParam const& param);
 
 /**
- * @brief Get the default host ratio.
+ * @brief Configure the `cache_host_ratio` and the `min_cache_page_bytes`.
  */
-[[nodiscard]] float DftHostRatio(float cache_host_ratio, bool is_validation);
+[[nodiscard]] std::pair<double, std::int64_t> DftPageSizeHostRatio(
+    std::size_t n_cache_bytes, bool is_validation, double cache_host_ratio,
+    std::int64_t min_cache_page_bytes);
 
+/**
+ * @brief Check whether we should configure `cache_host_ratio`.
+ *
+ * Defined by @ref AutoHostRatio .
+ */
 [[nodiscard]] inline bool HostRatioIsAuto(float cache_host_ratio) {
   return std::isnan(cache_host_ratio);
+}
+/**
+ * @brief Check whether we should configure `min_cache_page_bytes`.
+ *
+ * Defined by @ref AutoCachePageBytes .
+ */
+[[nodiscard]] inline bool CachePageBytesIsAuto(std::int64_t min_cache_page_bytes) {
+  return min_cache_page_bytes == -1;
 }
 }  // namespace xgboost::data::detail
 
 namespace xgboost::cuda_impl {
 // Indicator for XGBoost to not concatenate any page.
 constexpr std::int64_t MatchingPageBytes() { return 0; }
-// Default size of the cached page
+// Default size of the cached page, 1/8
 constexpr double CachePageRatio() { return 0.125; }
 // Indicator for XGBoost to automatically concatenate pages.
 constexpr std::int64_t AutoCachePageBytes() { return -1; }
