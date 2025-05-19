@@ -3,9 +3,10 @@
  */
 #include "batch_utils.h"
 
-#include <cstddef>  // for size_t
-#include <cstdint>  // for int64_t
-#include <utility>  // for pair
+#include <algorithm>  // for max
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int64_t
+#include <utility>    // for pair
 
 #include "../common/common.h"         // for AssertGPUSupport
 #include "../common/cuda_rt_utils.h"  // for TotalMemory
