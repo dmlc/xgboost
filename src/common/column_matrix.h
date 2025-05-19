@@ -170,7 +170,8 @@ class ColumnMatrix {
     void InitOffsetsExpand(const RefResourceView<std::size_t>& feature_offsets,
                            const RefResourceView<ColumnType>& type) {
       if (feature_offsets_expand.size() != feature_offsets.size()) {
-        feature_offsets_expand = common::MakeFixedVecWithMalloc(feature_offsets.size(), std::size_t{0});
+        feature_offsets_expand = common::MakeFixedVecWithMalloc(feature_offsets.size(),
+                                                                std::size_t{0});
       }
 
       /*
@@ -213,7 +214,7 @@ class ColumnMatrix {
       missing = LBitField32{Span{storage.data(), static_cast<size_t>(storage.size())}};
     }
 
-    void GrowTo(const RefResourceView<std::size_t>& feature_offsets, 
+    void GrowTo(const RefResourceView<std::size_t>& feature_offsets,
                 const RefResourceView<ColumnType>& type, bool init) {
       InitOffsetsExpand(feature_offsets, type);
       size_t n_elements = feature_offsets_expand.back();
