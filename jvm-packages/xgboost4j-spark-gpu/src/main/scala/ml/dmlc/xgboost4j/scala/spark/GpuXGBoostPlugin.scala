@@ -134,6 +134,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 
     val maxQuantileBatches = estimator.getMaxQuantileBatches
     val minCachePageBytes = estimator.getMinCachePageBytes
+    val cacheBatchNumber = estimator.getCacheBatchNumber
 
     /** build QuantileDMatrix on the executor side */
     def buildQuantileDMatrix(input: Iterator[Table],
@@ -141,7 +142,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 
       extMemPath match {
         case Some(_) =>
-          val itr = new ExternalMemoryIterator(input, indices, extMemPath)
+          val itr = new ExternalMemoryIterator(input, indices, extMemPath, cacheBatchNumber)
           new ExtMemQuantileDMatrix(itr, missing, maxBin, ref, nthread,
             maxQuantileBatches, minCachePageBytes)
 

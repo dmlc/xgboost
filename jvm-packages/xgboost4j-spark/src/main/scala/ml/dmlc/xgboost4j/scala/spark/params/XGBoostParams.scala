@@ -198,11 +198,19 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getMinCachePageBytes: Int = $(minCachePageBytes)
 
+  final val cacheBatchNumber = new IntParam(this, "cacheBatchNumber",
+    "Maximum batches to be allowed to be cached. When enabling ExternalMemory, to overlap " +
+    "the caching time, we put the caching process run in the backgroud, this number is to " +
+      "limit how many batches must be cached before continuing to handling the current batch.",
+    ParamValidators.gtEq(1))
+
+  final def getCacheBatchNumber: Int = $(cacheBatchNumber)
+
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
     featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,
-    maxQuantileBatches -> -1, minCachePageBytes -> -1)
+    maxQuantileBatches -> -1, minCachePageBytes -> -1, cacheBatchNumber -> 1)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
@@ -249,6 +257,9 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setMaxQuantileBatches(value: Int): T = set(maxQuantileBatches, value).asInstanceOf[T]
 
   def setMinCachePageBytes(value: Int): T = set(minCachePageBytes, value).asInstanceOf[T]
+
+  def setCacheBatchNumber(value: Int): T = set(cacheBatchNumber, value)
+    .asInstanceOf[T]
 
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]
