@@ -131,7 +131,7 @@ class EllpackHostCacheStreamImpl {
 
     // Get the size of the host cache.
     auto get_host_nbytes = [&](EllpackPageImpl const* old_impl) {
-      // Special hanlding due to floating points.
+      // Special handling due to floating points.
       if (this->cache_->cache_host_ratio == 1.0) {
         return old_impl->gidx_buffer.size_bytes();
       }
