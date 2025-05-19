@@ -17,12 +17,6 @@
 
 #endif  // defined(__unix__) || defined(__APPLE__)
 
-#if defined(__linux__)
-
-#include <sys/sysinfo.h>  // for sysinfo
-
-#endif  // defined(__linux__)
-
 #include <algorithm>     // for copy, transform
 #include <cctype>        // for tolower
 #include <cerrno>        // for errno
@@ -357,46 +351,6 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
     result += buffer.data();
   }
   return result;
-#endif
-}
-
-// Get the total amount of system memory size in bytes.
-[[nodiscard]] std::size_t SysTotalRam() {
-#if defined(__linux__)
-  struct sysinfo info;
-  int status = sysinfo(&info);
-  if (status != 0) {
-    LOG(FATAL) << SystemErrorMsg();
-  }
-  return info.totalram;
-#elif defined(__APPLE__)
-  // should we use HW_PHYSMEM for other unix platforms like freebsd?
-  int mib[2] = {CTL_HW, HW_MEMSIZE};
-  std::size_t totalram = 0;
-  std::size_t length = sizeof(totalram);
-  if (sysctl(mib, 2, &totalram, &length, nullptr, 0) != 0) {
-    LOG(FATAL) << SystemErrorMsg();
-  }
-  return totalram;
-#elif defined(__unix__)
-  unsigned long long totalram;
-  std::size_t len = sizeof(totalram);
-  if (sysctlbyname("hw.physmem", &totalram, &len, NULL, 0) == -1) {
-    LOG(FATAL) << SystemErrorMsg();
-  }
-  return totalram;
-#elif defined(xgboost_IS_WIN)
-  // For Windows
-  MEMORYSTATUSEX memInfo;
-  memInfo.dwLength = sizeof(MEMORYSTATUSEX);
-  if (!GlobalMemoryStatusEx(&memInfo)) {
-    LOG(FATAL) << SystemErrorMsg();
-  }
-  return memInfo.ullTotalPhys;
-#else
-  // Implement this for freebsd, AI!
-  LOG(FATAL) << "SysMemSize() is not implemented for this platform";
-  return 0;
 #endif
 }
 }  // namespace xgboost::common
