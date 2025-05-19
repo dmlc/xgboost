@@ -136,7 +136,7 @@ TEST(ColumnMatrix, GrowMissing) {
     auto const& column_matrix = page.Transpose();
     auto const& missing = column_matrix.Missing();
     auto n = NumpyArrayIterForTest::Rows() * NumpyArrayIterForTest::Cols();
-    auto expected = n;
+    auto expected = std::remove_reference_t<decltype(missing)>::BitFieldT::ComputeStorageSize(n);
     auto got = missing.storage.size();
     ASSERT_EQ(expected, got);
     DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {
