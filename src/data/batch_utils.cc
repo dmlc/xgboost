@@ -69,9 +69,13 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
 
   if (!HostRatioIsAuto(cache_host_ratio)) {
     // Do nothing if it's provided by the user
-  } else if (is_validation || (n_cache_bytes <= d_cache_nbytes)) {
+  } else if (is_validation) {
     // Use full host cache for the validation dataset.
     cache_host_ratio = 1.0;
+  } else if (n_cache_bytes <= d_cache_nbytes) {
+    // Not optimal, just a baseline. For small devices, we still want to save some room
+    // for the training algorithm.
+    cache_host_ratio = 0.5;
   } else {
     // The number of bytes that must be in the host memory.
     auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes;
