@@ -368,8 +368,6 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
   }
   std::tie(cinfo->cache_host_ratio, min_cache_page_bytes) = detail::DftPageSizeHostRatio(
       n_cache_bytes, is_validation, cinfo->cache_host_ratio, min_cache_page_bytes);
-  LOG(INFO) << "`cache_host_ratio`=" << cinfo->cache_host_ratio
-            << ", `min_cache_page_bytes`:" << min_cache_page_bytes << std::endl;
 
   /**
    * Calculate the cache buffer size
