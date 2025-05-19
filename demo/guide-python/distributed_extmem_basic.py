@@ -46,7 +46,6 @@ def device_mem_total() -> int:
     return total
 
 
-
 def make_batches(
     n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int
 ) -> List[Tuple[str, str]]:
