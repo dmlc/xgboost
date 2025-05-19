@@ -7,9 +7,15 @@
 #include <cstdint>  // for int64_t
 #include <utility>  // for pair
 
-#include "../common/cuda_dr_utils.h"  // for GetC2cLinkCountFromSmiGlobal
+#include "../common/common.h"         // for AssertGPUSupport
 #include "../common/cuda_rt_utils.h"  // for TotalMemory
 #include "../common/error_msg.h"      // for InconsistentMaxBin
+
+#if defined(XGBOOST_USE_CUDA)
+
+#include "../common/cuda_dr_utils.h"  // for GetC2cLinkCountFromSmiGlobal
+
+#endif  // defined(XGBOOST_USE_CUDA)
 
 namespace xgboost::data::detail {
 void CheckParam(BatchParam const& init, BatchParam const& param) {
@@ -21,12 +27,15 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
 [[nodiscard]] std::pair<double, std::int64_t> DftPageSizeHostRatio(
     std::size_t n_cache_bytes, bool is_validation, double cache_host_ratio,
     std::int64_t min_cache_page_bytes) {
+  common::AssertGPUSupport();
+
   if (!HostRatioIsAuto(cache_host_ratio)) {
     // Use user config.
     CHECK_GE(cache_host_ratio, 0.0f) << error::CacheHostRatioInvalid();
     CHECK_LE(cache_host_ratio, 1.0f) << error::CacheHostRatioInvalid();
   }
 
+#if defined(XGBOOST_USE_CUDA)
   auto n_d_bytes = curt::TotalMemory();
 
   using xgboost::cuda_impl::CachePageRatio;
@@ -67,7 +76,10 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes;
     cache_host_ratio = static_cast<double>(h_cache_nbytes) / static_cast<double>(n_cache_bytes);
   }
-
+#else
+  (void)n_cache_bytes;
+  (void)is_validation;
+#endif  // defined(XGBOOST_USE_CUDA)
   return {cache_host_ratio, min_cache_page_bytes};
 }
 }  // namespace xgboost::data::detail
