@@ -187,5 +187,38 @@ void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
   *p_major = major;
   *p_minor = minor;
 }
+
+namespace detail {
+// Split up an impl function for simple tests.
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiImpl(std::string const &smi_output) {
+  using common::Split, common::TrimFirst, common::TrimLast;
+  auto smi_out_str = TrimLast(TrimFirst(smi_output));
+  auto lines = Split(smi_out_str, '\n');
+  if (lines.size() <= 1) {
+    return -1;
+  }
+  return lines.size() - 1;
+}
+}  // namespace detail
+
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmi() {
+  auto n_devices = curt::AllVisibleGPUs();
+  if (n_devices < 1) {
+    return -1;
+  }
+
+  // See test for example output from smi.
+  auto cmd = "nvidia-smi c2c -s -i 0";  // Select the first GPU to query.
+  auto out = common::CmdOutput(StringView{cmd});
+  auto cnt = detail::GetC2cLinkCountFromSmiImpl(out);
+  return cnt;
+}
+
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiGlobal() {
+  static std::once_flag once;
+  static std::int32_t cnt = -1;
+  std::call_once(once, [&] { cnt = GetC2cLinkCountFromSmi(); });
+  return cnt;
+}
 }  // namespace xgboost::cudr
 #endif

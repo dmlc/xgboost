@@ -75,6 +75,17 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return str.substr(first);
 }
 
+[[nodiscard]] inline std::string TrimLast(std::string const &str) {
+  if (str.empty()) {
+    return str;
+  }
+  std::size_t last = str.find_last_not_of(" \t\n\r");
+  if (last == std::string::npos) {
+    return "";
+  }
+  return str.substr(0, last + 1);
+}
+
 /**
  * @brief Add escapes for a UTF-8 string.
  */

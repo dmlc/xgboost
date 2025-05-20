@@ -49,8 +49,7 @@ size_t PeekableInStream::Read(void* dptr, size_t size) {
   if (nbuffer < size) {
     std::memcpy(dptr, dmlc::BeginPtr(buffer_) + buffer_ptr_, nbuffer);
     buffer_ptr_ += nbuffer;
-    return nbuffer + strm_->Read(reinterpret_cast<char*>(dptr) + nbuffer,
-                                 size - nbuffer);
+    return nbuffer + strm_->Read(reinterpret_cast<char*>(dptr) + nbuffer, size - nbuffer);
   } else {
     std::memcpy(dptr, dmlc::BeginPtr(buffer_) + buffer_ptr_, size);
     buffer_ptr_ += size;
@@ -97,7 +96,7 @@ size_t FixedSizeStream::Read(void* dptr, size_t size) {
 }
 
 size_t FixedSizeStream::PeekRead(void* dptr, size_t size) {
-  if (size >= buffer_.size() - pointer_)  {
+  if (size >= buffer_.size() - pointer_) {
     std::copy(buffer_.cbegin() + pointer_, buffer_.cend(), reinterpret_cast<char*>(dptr));
     return std::distance(buffer_.cbegin() + pointer_, buffer_.cend());
   } else {
@@ -337,13 +336,12 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 
 [[nodiscard]] std::string CmdOutput(StringView cmd) {
 #if defined(xgboost_IS_WIN)
-  (void)cmd;
-  LOG(FATAL) << "Not implemented";
-  return "";
+  std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(_popen(cmd.c_str(), "r"), _pclose);
 #else
   // popen is a convenient method, but it always returns a success even if the command
   // fails.
   std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(popen(cmd.c_str(), "r"), pclose);
+#endif
   CHECK(pipe);
   std::array<char, 128> buffer;
   std::string result;
@@ -351,6 +349,5 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
     result += buffer.data();
   }
   return result;
-#endif
 }
 }  // namespace xgboost::common

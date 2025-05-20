@@ -20,10 +20,9 @@
 #include "../../../src/common/io.h"
 #include "../../../src/data/adapter.h"              // for ArrayAdapter
 #include "../../../src/data/array_interface.h"      // for ArrayInterface
-#include "../../../src/data/batch_utils.h"          // for MatchingPageBytes, DftHostRatio
+#include "../../../src/data/batch_utils.h"          // for MatchingPageBytes
 #include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
 #include "../../../src/data/iterative_dmatrix.h"    // for IterativeDMatrix
-#include "../../../src/data/proxy_dmatrix.h"        // for DMatrixProxy
 #include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
 #include "../helpers.h"
 

@@ -12,6 +12,7 @@
 #include <cuda_runtime_api.h>
 
 #include <cstdint>  // for int32_t
+#include <string>   // for string
 
 #include "xgboost/string_view.h"  // for StringView
 
@@ -66,15 +67,15 @@ struct CuDriverApi {
    * @param[in]  addr      - Fixed starting address range requested
    * @param[in]  flags     - Currently unused, must be zero
    */
-  MemAddressReserveFn *cuMemAddressReserve{nullptr};      // NOLINT
-  MemSetAccessFn *cuMemSetAccess{nullptr};                // NOLINT
-  MemUnmapFn *cuMemUnmap{nullptr};                        // NOLINT
-  MemReleaseFn *cuMemRelease{nullptr};                    // NOLINT
-  MemAddressFreeFn *cuMemAddressFree{nullptr};            // NOLINT
-  GetErrorString *cuGetErrorString{nullptr};              // NOLINT
-  GetErrorName *cuGetErrorName{nullptr};                  // NOLINT
-  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};      // NOLINT
-  DeviceGet *cuDeviceGet{nullptr};                        // NOLINT
+  MemAddressReserveFn *cuMemAddressReserve{nullptr};  // NOLINT
+  MemSetAccessFn *cuMemSetAccess{nullptr};            // NOLINT
+  MemUnmapFn *cuMemUnmap{nullptr};                    // NOLINT
+  MemReleaseFn *cuMemRelease{nullptr};                // NOLINT
+  MemAddressFreeFn *cuMemAddressFree{nullptr};        // NOLINT
+  GetErrorString *cuGetErrorString{nullptr};          // NOLINT
+  GetErrorName *cuGetErrorName{nullptr};              // NOLINT
+  DeviceGetAttribute *cuDeviceGetAttribute{nullptr};  // NOLINT
+  DeviceGet *cuDeviceGet{nullptr};                    // NOLINT
 
 #if defined(CUDA_HW_DECOM_AVAILABLE)
 
@@ -134,4 +135,19 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc);
  * @brief Cache the result from @ref DrVersion in a global variable
  */
 void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor);
+
+namespace detail {
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiImpl(std::string const &smi_output);
+}  // namespace detail
+
+/**
+ * @brief Get the total number of C2C links `NVML_FI_DEV_C2C_LINK_COUNT`.
+ *
+ * @return -1 if there's no C2C. Otherwise, the number of links.
+ */
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmi();
+/**
+ * @brief Cache the result from @ref GetC2cLinkCountFromSmi in a global variable
+ */
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiGlobal();
 }  // namespace xgboost::cudr

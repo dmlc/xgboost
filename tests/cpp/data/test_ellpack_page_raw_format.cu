@@ -8,7 +8,7 @@
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
-#include "../../../src/data/batch_utils.h"              // for DftHostRatio
+#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../filesystem.h"                              // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
@@ -17,14 +17,14 @@ namespace {
 [[nodiscard]] EllpackCacheInfo CInfoForTest(Context const *ctx, DMatrix *Xy, bst_idx_t row_stride,
                                             BatchParam param,
                                             std::shared_ptr<common::HistogramCuts const> cuts) {
-  EllpackCacheInfo cinfo{param, detail::DftHostRatio(::xgboost::cuda_impl::AutoHostRatio(), false),
+  EllpackCacheInfo cinfo{param, ::xgboost::cuda_impl::AutoHostRatio(),
                          std::numeric_limits<float>::quiet_NaN()};
   ExternalDataInfo ext_info;
   ext_info.n_batches = 1;
   ext_info.row_stride = row_stride;
   ext_info.base_rowids.push_back(Xy->Info().num_row_);
 
-  CalcCacheMapping(ctx, Xy->IsDense(), cuts, 0, ext_info, &cinfo);
+  CalcCacheMapping(ctx, Xy->IsDense(), cuts, 0, ext_info, false, &cinfo);
   CHECK_EQ(ext_info.n_batches, cinfo.cache_mapping.size());
   if (cinfo.NumBatchesCc() == 1) {
     EXPECT_EQ(cinfo.cache_host_ratio, 0.0);
@@ -121,10 +121,11 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
       for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         if (!format) {
+          auto n_cache_bytes = page.Impl()->MemCostBytes() * 3;
           // Prepare the mapping info.
-          EllpackCacheInfo cinfo{param,
-                                 detail::DftHostRatio(::xgboost::cuda_impl::AutoHostRatio(), false),
-                                 std::numeric_limits<float>::quiet_NaN()};
+          auto [cache_host_ratio, min_cache_page_bytes] = detail::DftPageSizeHostRatio(
+              n_cache_bytes, false, 1.0, ::xgboost::cuda_impl::AutoCachePageBytes());
+          EllpackCacheInfo cinfo{param, cache_host_ratio, std::numeric_limits<float>::quiet_NaN()};
           for (std::size_t i = 0; i < 3; ++i) {
             cinfo.cache_mapping.push_back(i);
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
@@ -176,9 +177,7 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
   bst_idx_t n_features = 16, n_samples = 128;
 
   auto test = [&](std::int64_t min_cache_page_bytes, float cache_host_ratio) {
-    EllpackCacheInfo cinfo{param,
-                           detail::DftHostRatio(cache_host_ratio, false),
-                           std::numeric_limits<float>::quiet_NaN()};
+    EllpackCacheInfo cinfo{param, cache_host_ratio, std::numeric_limits<float>::quiet_NaN()};
     ExternalDataInfo ext_info;
 
     ext_info.n_batches = 8;
@@ -197,7 +196,8 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
     for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       auto cuts = page.Impl()->CutsShared();
       EXPECT_TRUE(page.Impl()->IsDense());
-      CalcCacheMapping(&ctx, page.Impl()->IsDense(), cuts, min_cache_page_bytes, ext_info, &cinfo);
+      CalcCacheMapping(&ctx, page.Impl()->IsDense(), cuts, min_cache_page_bytes, ext_info, false,
+                       &cinfo);
       EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
       policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
@@ -223,7 +223,7 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
     auto mem_cache = test(n_features * n_samples, ::xgboost::cuda_impl::AutoHostRatio());
     ASSERT_EQ(mem_cache->h_pages.size(), 4);
     ASSERT_EQ(mem_cache->d_pages.size(), 4);
-    ASSERT_TRUE(mem_cache->d_pages[0].empty());
+    ASSERT_FALSE(mem_cache->d_pages[0].empty());
   }
   {
     float cache_host_ratio = 0.65;

@@ -34,8 +34,8 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
       streams{std::make_unique<curt::StreamPool>(n_workers)} {
   CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
   CHECK(!detail::HostRatioIsAuto(this->cache_host_ratio));
-  CHECK_GE(this->cache_host_ratio, 0) << error::CacheHostRatioInvalid();
-  CHECK_LE(this->cache_host_ratio, 1) << error::CacheHostRatioInvalid();
+  CHECK_GE(this->cache_host_ratio, 0.0) << error::CacheHostRatioInvalid();
+  CHECK_LE(this->cache_host_ratio, 1.0) << error::CacheHostRatioInvalid();
 }
 
 EllpackMemCache::~EllpackMemCache() = default;
@@ -131,12 +131,14 @@ class EllpackHostCacheStreamImpl {
 
     // Get the size of the host cache.
     auto get_host_nbytes = [&](EllpackPageImpl const* old_impl) {
+      // Special handling due to floating points.
       if (this->cache_->cache_host_ratio == 1.0) {
         return old_impl->gidx_buffer.size_bytes();
       }
       if (this->cache_->cache_host_ratio == 0.0) {
         return static_cast<std::size_t>(0);
       }
+      // Calculate based on the `cache_host_ratio` parameter.
       auto n_bytes =
           std::max(static_cast<std::size_t>(old_impl->gidx_buffer.size_bytes() * cache_host_ratio),
                    std::size_t{1});
@@ -349,17 +351,36 @@ EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>::CreateReader(StringVi
 void CalcCacheMapping(Context const* ctx, bool is_dense,
                       std::shared_ptr<common::HistogramCuts const> cuts,
                       std::int64_t min_cache_page_bytes, ExternalDataInfo const& ext_info,
-                      EllpackCacheInfo* cinfo) {
+                      bool is_validation, EllpackCacheInfo* cinfo) {
   CHECK(cinfo->param.Initialized()) << "Need to initialize scalar fields first.";
   auto ell_info = CalcNumSymbols(ctx, ext_info.row_stride, is_dense, cuts);
+
+  /**
+   * Configure the cache
+   */
+  // The total size of the cache.
+  std::size_t n_cache_bytes = 0;
+  for (std::size_t i = 0; i < ext_info.n_batches; ++i) {
+    auto n_samples = ext_info.base_rowids.at(i + 1) - ext_info.base_rowids[i];
+    auto n_bytes = common::CompressedBufferWriter::CalculateBufferSize(
+        ext_info.row_stride * n_samples, ell_info.n_symbols);
+    n_cache_bytes += n_bytes;
+  }
+  std::tie(cinfo->cache_host_ratio, min_cache_page_bytes) = detail::DftPageSizeHostRatio(
+      n_cache_bytes, is_validation, cinfo->cache_host_ratio, min_cache_page_bytes);
+
+  /**
+   * Calculate the cache buffer size
+   */
   std::vector<std::size_t> cache_bytes;
   std::vector<std::size_t> cache_mapping(ext_info.n_batches, 0);
   std::vector<std::size_t> cache_rows;
 
   for (std::size_t i = 0; i < ext_info.n_batches; ++i) {
-    auto n_samples = ext_info.base_rowids.at(i + 1) - ext_info.base_rowids[i];
+    auto n_samples = ext_info.base_rowids[i+1] - ext_info.base_rowids[i];
     auto n_bytes = common::CompressedBufferWriter::CalculateBufferSize(
         ext_info.row_stride * n_samples, ell_info.n_symbols);
+
     if (cache_bytes.empty()) {
       // Push the first page
       cache_bytes.push_back(n_bytes);
@@ -380,11 +401,14 @@ void CalcCacheMapping(Context const* ctx, bool is_dense,
   cinfo->cache_mapping = std::move(cache_mapping);
   cinfo->buffer_bytes = std::move(cache_bytes);
   cinfo->buffer_rows = std::move(cache_rows);
+
   // Directly store in device if there's only one batch.
   if (cinfo->NumBatchesCc() == 1) {
     cinfo->cache_host_ratio = 0.0;
-    LOG(INFO) << "Prefer device cache as there's only 1 page.";
   }
+
+  LOG(INFO) << "`cache_host_ratio`=" << cinfo->cache_host_ratio
+            << " `min_cache_page_bytes`=" << min_cache_page_bytes;
 }
 
 /**

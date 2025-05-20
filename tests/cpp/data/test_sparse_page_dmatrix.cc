@@ -9,7 +9,7 @@
 
 #include "../../../src/common/io.h"
 #include "../../../src/data/adapter.h"
-#include "../../../src/data/batch_utils.h"  // for MatchingPageBytes, DftHostRatio
+#include "../../../src/data/batch_utils.h"  // for MatchingPageBytes
 #include "../../../src/data/file_iterator.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/sparse_page_dmatrix.h"

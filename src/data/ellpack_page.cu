@@ -725,10 +725,11 @@ std::size_t EllpackPageImpl::MemCostBytes() const {
   auto null = this->NullValue();
 
   h_gidx_buffer->resize(this->gidx_buffer.size() + this->d_gidx_buffer.size());
-  CHECK_NE(gidx_buffer.size(), 0);
-  dh::safe_cuda(cudaMemcpyAsync(h_gidx_buffer->data(), this->gidx_buffer.data(),
-                                this->gidx_buffer.size_bytes(), cudaMemcpyDefault,
-                                ctx->CUDACtx()->Stream()));
+  if (!this->gidx_buffer.empty()) {
+    dh::safe_cuda(cudaMemcpyAsync(h_gidx_buffer->data(), this->gidx_buffer.data(),
+                                  this->gidx_buffer.size_bytes(), cudaMemcpyDefault,
+                                  ctx->CUDACtx()->Stream()));
+  }
 
   if (!d_gidx_buffer.empty()) {
     auto dst = h_gidx_buffer->data() + this->gidx_buffer.size_bytes();

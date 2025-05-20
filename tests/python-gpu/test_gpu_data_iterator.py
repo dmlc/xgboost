@@ -239,8 +239,8 @@ def test_uneven_sizes() -> None:
 
 def test_cache_host_ratio() -> None:
     boosters = []
-    for min_cache_page_bytes in [0, 64, np.iinfo(np.int64).max]:
-        for cache_host_ratio in [0, 0.5, 1.0]:
+    for min_cache_page_bytes in [0, 64, np.iinfo(np.int64).max, None]:
+        for cache_host_ratio in [0, 0.5, 1.0, None]:
             it = tm.IteratorForTest(
                 *tm.make_batches(64, 16, 4, use_cupy=True),
                 cache=None,
