@@ -124,8 +124,7 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
           auto n_cache_bytes = page.Impl()->MemCostBytes() * 3;
           // Prepare the mapping info.
           auto [cache_host_ratio, min_cache_page_bytes] = detail::DftPageSizeHostRatio(
-              n_cache_bytes, false, ::xgboost::cuda_impl::AutoHostRatio(),
-              ::xgboost::cuda_impl::AutoCachePageBytes());
+              n_cache_bytes, false, 1.0, ::xgboost::cuda_impl::AutoCachePageBytes());
           EllpackCacheInfo cinfo{param, cache_host_ratio, std::numeric_limits<float>::quiet_NaN()};
           for (std::size_t i = 0; i < 3; ++i) {
             cinfo.cache_mapping.push_back(i);

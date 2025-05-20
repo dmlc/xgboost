@@ -7,9 +7,10 @@
 #include <tuple>   // for tuple
 #include <vector>  // for vector
 
-#include "../../../src/data/ellpack_page.cuh"           // for EllpackPageImpl
-#include "../helpers.h"                                 // for RandomDataGenerator, GMockThrow
-#include "test_extmem_quantile_dmatrix.h"               // for TestExtMemQdmBasic
+#include "../../../src/data/batch_utils.h"     // for AutoHostRatio
+#include "../../../src/data/ellpack_page.cuh"  // for EllpackPageImpl
+#include "../helpers.h"                        // for RandomDataGenerator, GMockThrow
+#include "test_extmem_quantile_dmatrix.h"      // for TestExtMemQdmBasic
 
 namespace xgboost::data {
 auto AssertEllpackEq(Context const* ctx, EllpackPageImpl const* lhs, EllpackPageImpl const* rhs) {
@@ -115,8 +116,8 @@ TEST_P(EllpackHostCacheTest, Basic) {
   this->Run(sparsity, min_page_cache_bytes, cache_host_ratio);
 }
 
-INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, EllpackHostCacheTest,
-                         ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f),
-                                            ::testing::Bool(),
-                                            ::testing::Values(0.0f, 0.5f, 1.0f)));
+INSTANTIATE_TEST_SUITE_P(
+    ExtMemQuantileDMatrix, EllpackHostCacheTest,
+    ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f), ::testing::Bool(),
+                       ::testing::Values(0.0f, 0.5f, 1.0f, ::xgboost::cuda_impl::AutoHostRatio())));
 }  // namespace xgboost::data
