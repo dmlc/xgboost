@@ -224,7 +224,7 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
     auto mem_cache = test(n_features * n_samples, ::xgboost::cuda_impl::AutoHostRatio());
     ASSERT_EQ(mem_cache->h_pages.size(), 4);
     ASSERT_EQ(mem_cache->d_pages.size(), 4);
-    ASSERT_TRUE(mem_cache->d_pages[0].empty());
+    ASSERT_FALSE(mem_cache->d_pages[0].empty());
   }
   {
     float cache_host_ratio = 0.65;

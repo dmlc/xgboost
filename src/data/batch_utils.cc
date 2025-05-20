@@ -53,6 +53,9 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     return {cache_host_ratio, min_cache_page_bytes};
   }
 
+  /**
+   * Configure the min_cache_page_bytes
+   */
   // -1 if PCIe device, or something went wrong when running nvidia-smi
   //
   // GH200 1 CPU + 1 GPU has 10. For 1 CPU + 2 GPU, it's 5.
@@ -67,20 +70,27 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     min_cache_page_bytes = n_d_bytes * (CachePageRatio() / 2.0);
   }
 
+  /**
+   * Configure the ratio.
+   */
   if (!HostRatioIsAuto(cache_host_ratio)) {
     // Do nothing if it's provided by the user
-  } else if (is_validation || (n_cache_bytes <= d_cache_nbytes)) {
+    return {cache_host_ratio, min_cache_page_bytes};
+  } else if (is_validation) {
     // Use full host cache for the validation dataset.
     cache_host_ratio = 1.0;
+  } else if (n_cache_bytes <= d_cache_nbytes) {
+    // The total size of the cache is smaller than the available device cache.
+    cache_host_ratio = 0.0;
   } else {
     // The number of bytes that must be in the host memory.
     auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes;
     cache_host_ratio = static_cast<double>(h_cache_nbytes) / static_cast<double>(n_cache_bytes);
-  }
-  if (lc > 0) {
-    // 0 < lc < 10
-    // No need to exceed half in practice.
-    cache_host_ratio = std::max(cache_host_ratio, 0.5);
+    if (lc > 0) {
+      // 0 < lc < 10, C2C is available, but with reduced link count.
+      // No need to exceed half in practice.
+      cache_host_ratio = std::max(cache_host_ratio, 0.5);
+    }
   }
 #else
   (void)n_cache_bytes;
