@@ -139,7 +139,8 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   // Use the first GPU
   auto smi_ver = Split(TrimFirst(smi_split[1]), '.');
   // 570.124.06
-  if (smi_ver.size() != 3) {
+  // On WSL2, you can have driver version with two components, e.g. 573.24
+  if (smi_ver.size() != 2 && smi_ver.size() != 3) {
     return Invalid();
   }
   try {
