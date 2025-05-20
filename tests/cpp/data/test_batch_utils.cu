@@ -18,8 +18,7 @@ TEST(BatchUtils, CacheHostRatio) {
     std::int64_t min_cache_page_bytes = ::xgboost::cuda_impl::AutoCachePageBytes();
     std::tie(cache_host_ratio, min_cache_page_bytes) =
         detail::DftPageSizeHostRatio(n_cache_bytes, false, cache_host_ratio, min_cache_page_bytes);
-    ASSERT_GT(cache_host_ratio, 0.0);
-    ASSERT_LE(cache_host_ratio, 1.0);
+    ASSERT_EQ(cache_host_ratio, 0.0);  // Assuming the device has more than 256 bytes of memory ..
     ASSERT_GT(min_cache_page_bytes, 0);
     ASSERT_THAT(
         [&] {
