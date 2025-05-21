@@ -54,7 +54,6 @@ class ConsoleLogger : public BaseLogger {
   static void Configure(Args const& args);
 
   static LogVerbosity GlobalVerbosity();
-  static LogVerbosity DefaultVerbosity();
   static bool ShouldLog(LogVerbosity verbosity);
 
   ConsoleLogger() = delete;

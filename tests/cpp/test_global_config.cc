@@ -16,7 +16,6 @@ TEST(GlobalConfiguration, Verbosity) {
   FromJson(config, &global_config);
   // Now verbosity should be updated
   EXPECT_EQ(ConsoleLogger::GlobalVerbosity(), ConsoleLogger::LogVerbosity::kSilent);
-  EXPECT_NE(ConsoleLogger::LogVerbosity::kSilent, ConsoleLogger::DefaultVerbosity());
   // GetConfig() should also return updated verbosity
   Json current_config{ToJson(*GlobalConfigThreadLocalStore::Get())};
   EXPECT_EQ(get<String>(current_config["verbosity"]), "0");
