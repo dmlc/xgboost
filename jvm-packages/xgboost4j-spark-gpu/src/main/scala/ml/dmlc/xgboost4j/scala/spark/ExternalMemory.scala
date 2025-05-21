@@ -150,13 +150,14 @@ private[spark] class DiskExternalMemoryIterator(val parent: String) extends Exte
     // TODO, make it configurable
     while (count < 120) {
       val futureOpt = taskFutures.get(path)
-      if (futureOpt.isDefined && futureOpt.get.isCompleted) {
+      val exist = new File(path).exists()
+      if (futureOpt.isDefined && futureOpt.get.isCompleted && exist) {
         return
       }
       count += 1
       Thread.sleep(50)
     }
-    throw new RuntimeException(s"Caching $path is not finished")
+    throw new RuntimeException(s"The cache file $path does not exist")
   }
 
   /**
@@ -167,13 +168,10 @@ private[spark] class DiskExternalMemoryIterator(val parent: String) extends Exte
    */
   override def loadTable(path: String): Table = {
     val file = new File(path)
-    if (!file.exists()) {
-      throw new RuntimeException(s"The cache file ${path} doesn't exist" )
-    }
-
-    checkAndWaitCachingDone(path)
 
     try {
+      checkAndWaitCachingDone(path)
+
       withResource(Table.readArrowIPCChunked(file)) { reader =>
         val tables = ArrayBuffer.empty[Table]
         closeOnExcept(tables) { tables =>
