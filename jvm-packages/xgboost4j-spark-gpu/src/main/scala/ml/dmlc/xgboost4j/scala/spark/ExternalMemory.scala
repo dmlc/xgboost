@@ -22,7 +22,8 @@ import java.util.concurrent.Executors
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.DurationInt
 
 import ai.rapids.cudf._
 import org.apache.commons.logging.LogFactory
@@ -145,19 +146,17 @@ private[spark] class DiskExternalMemoryIterator(val parent: String) extends Exte
   }
 
   private def checkAndWaitCachingDone(path: String): Unit = {
-    var count = 1
+    val futureOpt = taskFutures.get(path)
+    if (futureOpt.isEmpty) {
+      throw new RuntimeException(s"Failed to find the caching process for $path")
+    }
     // Wait 6s to check if the caching is done.
     // TODO, make it configurable
-    while (count < 120) {
-      val futureOpt = taskFutures.get(path)
-      val exist = new File(path).exists()
-      if (futureOpt.isDefined && futureOpt.get.isCompleted && exist) {
-        return
-      }
-      count += 1
-      Thread.sleep(50)
+    // If timeout, it's going to throw exception
+    val success = Await.result(futureOpt.get, 6.seconds)
+    if (!success) { // Failed to cache
+      throw new RuntimeException(s"Failed to cache table to $path")
     }
-    throw new RuntimeException(s"The cache file $path does not exist")
   }
 
   /**
