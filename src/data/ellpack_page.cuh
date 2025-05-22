@@ -274,7 +274,7 @@ class EllpackPageImpl {
   }
 
   /** @return Estimation of memory cost of this page. */
-  std::size_t MemCostBytes() const;
+  [[nodiscard]] std::size_t MemCostBytes() const;
 
   /**
    * @brief Return the total number of symbols (total number of bins plus 1 for not

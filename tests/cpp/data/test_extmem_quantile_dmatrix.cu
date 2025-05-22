@@ -120,4 +120,51 @@ INSTANTIATE_TEST_SUITE_P(
     ExtMemQuantileDMatrix, EllpackHostCacheTest,
     ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.4f, 0.8f), ::testing::Bool(),
                        ::testing::Values(0.0f, 0.5f, 1.0f, ::xgboost::cuda_impl::AutoHostRatio())));
+
+TEST(EllpackHostCacheTest, Accessor) {
+  auto ctx = MakeCUDACtx(0);
+  auto param = BatchParam{32, tree::TrainParam::DftSparseThreshold()};
+  param.prefetch_copy = false;
+  std::size_t n_bytes = 0;
+  {
+    auto p_ext_fmat = RandomDataGenerator{128, 16, 0.0}
+                          .Batches(4)
+                          .Bins(param.max_bin)
+                          .Device(ctx.Device())
+                          .OnHost(true)
+                          .MinPageCacheBytes(1024 * 1024 * 1024)
+                          .CacheHostRatio(0.0)
+                          .GenerateExtMemQuantileDMatrix("temp", true);
+    ASSERT_EQ(p_ext_fmat->NumBatches(), 1);
+
+    for (auto const& page : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+      auto acc = page.Impl()->GetDeviceEllpack(&ctx, {});
+      // Fully on device
+      auto dacc = std::get_if<EllpackDeviceAccessor>(&acc);
+      ASSERT_TRUE(dacc);
+      n_bytes = page.Impl()->MemCostBytes();
+    }
+  }
+  if (!curt::SupportsPageableMem()) {
+    GTEST_SKIP_("Requires HMM or ATS.");
+  }
+  {
+    std::size_t n_pages = 2;  // split for 2 pages
+    auto p_ext_fmat = RandomDataGenerator{128, 16, 0.0}
+                          .Batches(4)
+                          .Bins(param.max_bin)
+                          .Device(ctx.Device())
+                          .OnHost(true)
+                          .MinPageCacheBytes(n_bytes / n_pages)
+                          .CacheHostRatio(0.5)
+                          .GenerateExtMemQuantileDMatrix("temp", true);
+    ASSERT_EQ(p_ext_fmat->NumBatches(), n_pages);
+    for (auto const& page : p_ext_fmat->GetBatches<EllpackPage>(&ctx, param)) {
+      auto acc = page.Impl()->GetDeviceEllpack(&ctx, {});
+      // Host + device
+      auto dacc = std::get_if<DoubleEllpackAccessor>(&acc);
+      ASSERT_TRUE(dacc);
+    }
+  }
+}
 }  // namespace xgboost::data
