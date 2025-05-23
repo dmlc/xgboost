@@ -175,7 +175,7 @@ private[spark] class DiskExternalMemoryIterator(val parent: String,
     // Wait 6s to check if the caching is done.
     // TODO, make it configurable
     // If timeout, it's going to throw exception
-    val success = Await.result(futureOpt.get, 6.seconds)
+    val success = Await.result(futureOpt.get, 20.seconds)
     if (!success) { // Failed to cache
       throw new RuntimeException(s"Failed to cache table to $path")
     }
