@@ -1239,6 +1239,61 @@ class _SparkXGBModel(Model, _SparkXGBParams, MLReadable, MLWritable):
         assert self._xgb_sklearn_model is not None
         return self._xgb_sklearn_model.get_booster()
 
+    @classmethod
+    def _load_model_as_sklearn_model(cls, model_path: str) -> XGBModel:
+        """
+        Subclasses should override this method and
+        returns a _SparkXGBModel subclass
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def convert_sklearn_model_to_spark_xgb_model(
+        cls,
+        xgb_sklearn_model: XGBModel,
+        training_summary: Optional[XGBoostTrainingSummary] = None,
+    ) -> "_SparkXGBModel":
+        """
+        Convert a sklearn model to pyspark xgboost model.
+        """
+        spark_xgb_model = cls(
+            xgb_sklearn_model=xgb_sklearn_model, training_summary=training_summary
+        )
+        spark_xgb_model._setDefault(
+            device="cpu",
+            use_gpu=False,
+            tree_method="hist",
+        )
+        return spark_xgb_model
+
+    @classmethod
+    def load_model(
+        cls, model_path: str, training_summary: Optional[XGBoostTrainingSummary] = None
+    ) -> "_SparkXGBModel":
+        """Load a model from the specified path and convert it into a Spark XGBoost model.
+
+        The model is loaded from the given file path, and then it's converted into a
+        Spark XGBoost model. The optional training summary can provide additional
+        details related to the training process.
+
+        Parameters
+        ----------
+        model_path: str
+            The file path to the saved model that needs to be loaded.
+        training_summary: Optional[XGBoostTrainingSummary], default None
+            An optional summary of the training process, which can be used for further
+            analysis or reference when converting the model.
+
+        Returns
+        -------
+        _SparkXGBModel
+            The converted Spark XGBoost model.
+        """
+        xgb_sklearn_model = cls._load_model_as_sklearn_model(model_path)
+        return cls.convert_sklearn_model_to_spark_xgb_model(
+            xgb_sklearn_model=xgb_sklearn_model, training_summary=training_summary
+        )
+
     def get_feature_importances(
         self, importance_type: str = "weight"
     ) -> Dict[str, Union[float, List[float]]]:
