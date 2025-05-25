@@ -117,7 +117,7 @@ as described in `"Managing Virtual Packages" in the conda docs <https://conda.io
   export CONDA_OVERRIDE_CUDA="12.8"
   conda install -c conda-forge py-xgboost=*=cuda*
 
-Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
+You can install Conda from the following link: `Download the conda-forge Installer <https://conda-forge.org/download/>`_.
 
 R
 -
