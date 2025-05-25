@@ -119,11 +119,6 @@ as described in `"Managing Virtual Packages" in the conda docs <https://conda.io
 
 Visit the `Miniconda website <https://docs.conda.io/en/latest/miniconda.html>`_ to obtain Conda.
 
-.. note:: The GPU variant not available on Windows.
-
-   The GPU variant (``py-xgboost=*=cuda*``) is currently not available on Windows.
-   If you are using Windows, please use ``pip`` to install XGBoost with GPU support.
-
 R
 -
 
