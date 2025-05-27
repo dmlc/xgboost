@@ -248,7 +248,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   def setMaxQuantileBatches(value: Int): T = set(maxQuantileBatches, value).asInstanceOf[T]
 
-  def setMinCachePageBytes(value: Int): T = set(minCachePageBytes, value).asInstanceOf[T]
+  def setMinCachePageBytes(value: Long): T = set(minCachePageBytes, value).asInstanceOf[T]
 
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]
