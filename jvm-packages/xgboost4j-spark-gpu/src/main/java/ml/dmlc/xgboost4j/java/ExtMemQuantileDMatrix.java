@@ -31,7 +31,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       DMatrix ref,
       int nthread,
       int maxQuantileBatches,
-      int minCachePageBytes) throws XGBoostError {
+      long minCachePageBytes) throws XGBoostError {
     long[] out = new long[1];
     long[] refHandle = null;
     if (ref != null) {
@@ -61,7 +61,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
   }
 
   private String getConfig(float missing, int maxBin, int nthread,
-                           int maxQuantileBatches, int minCachePageBytes) {
+                           int maxQuantileBatches, long minCachePageBytes) {
     Map<String, Object> conf = new java.util.HashMap<>();
     conf.put("missing", missing);
     conf.put("max_bin", maxBin);
@@ -70,6 +70,8 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
     if (maxQuantileBatches > 0) {
       conf.put("max_quantile_blocks", maxQuantileBatches);
     }
+    System.err.println("minCachePageBytes");
+    System.err.println(minCachePageBytes);
     if (minCachePageBytes > 0) {
       conf.put("min_cache_page_bytes", minCachePageBytes);
     }

@@ -193,10 +193,10 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getMaxQuantileBatches: Int = $(maxQuantileBatches)
 
-  final val minCachePageBytes = new IntParam(this, "minCachePageBytes", "Minimum number of " +
+  final val minCachePageBytes = new LongParam(this, "minCachePageBytes", "Minimum number of " +
     "bytes for each ellpack page in cache. Only used for in-host")
 
-  final def getMinCachePageBytes: Int = $(minCachePageBytes)
+  final def getMinCachePageBytes: Long = $(minCachePageBytes)
 
   final val cacheBatchNumber = new IntParam(this, "cacheBatchNumber",
     "Maximum batches to be allowed to be cached. When enabling ExternalMemory, to overlap " +
