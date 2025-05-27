@@ -28,7 +28,7 @@ class ExtMemQuantileDMatrix private[scala](
            ref: Option[QuantileDMatrix],
            nthread: Int,
            maxQuantileBatches: Int,
-           minCachePageBytes: Int) {
+           minCachePageBytes: Long) {
     this(new jExtMemQuantileDMatrix(iter.asJava, missing, maxBin,
       ref.map(_.jDMatrix).orNull,
       nthread, maxQuantileBatches, minCachePageBytes))
