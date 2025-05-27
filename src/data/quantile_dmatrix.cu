@@ -103,6 +103,9 @@ void MakeSketches(Context const* ctx,
       }
       if (sketches.back().second > (1ul << (sketches.size() - 1)) ||
           sketches.back().second == static_cast<bst_idx_t>(max_quantile_blocks)) {
+        LOG(DEBUG) << "Prune sub-stream. sketch:" << (1ul << (sketches.size() - 1))
+                   << " mqb:" << max_quantile_blocks
+                   << " sub-stream size:" << sketches.back().second;
         // Cut the sub-stream.
         auto n_cuts_per_feat =
             common::detail::RequiredSampleCutsPerColumn(p.max_bin, ext_info.accumulated_rows);

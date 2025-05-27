@@ -181,7 +181,7 @@ class SketchContainer {
     this->Current().shrink_to_fit();
     this->Other().clear();
     this->Other().shrink_to_fit();
-    LOG(DEBUG) << "Quantile memory cost:" << this->MemCapacityBytes();
+    LOG(DEBUG) << "Quantile memory cost:" << common::HumanMemUnit(this->MemCapacityBytes());
   }
 
   /* \brief Merge quantiles from other GPU workers. */
