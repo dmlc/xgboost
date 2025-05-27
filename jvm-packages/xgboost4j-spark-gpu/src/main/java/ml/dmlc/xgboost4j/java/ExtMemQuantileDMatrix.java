@@ -70,8 +70,6 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
     if (maxQuantileBatches > 0) {
       conf.put("max_quantile_blocks", maxQuantileBatches);
     }
-    System.err.println("minCachePageBytes");
-    System.err.println(minCachePageBytes);
     if (minCachePageBytes > 0) {
       conf.put("min_cache_page_bytes", minCachePageBytes);
     }
