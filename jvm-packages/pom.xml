@@ -47,8 +47,8 @@
         <maven.compiler.target>17</maven.compiler.target>
         <flink.version>1.20.0</flink.version>
         <junit.version>4.13.2</junit.version>
-        <spark.version>4.0.1-SNAPSHOT</spark.version>
-        <spark.version.gpu>4.0.1-SNAPSHOT</spark.version.gpu>
+        <spark.version>4.0.0</spark.version>
+        <spark.version.gpu>4.0.0</spark.version.gpu>
         <fasterxml.jackson.version>2.15.0</fasterxml.jackson.version>
         <scala.version>2.13.11</scala.version>
         <scala.binary.version>2.13</scala.binary.version>
