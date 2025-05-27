@@ -256,7 +256,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   def setMaxQuantileBatches(value: Int): T = set(maxQuantileBatches, value).asInstanceOf[T]
 
-  def setMinCachePageBytes(value: Int): T = set(minCachePageBytes, value).asInstanceOf[T]
+  def setMinCachePageBytes(value: Long): T = set(minCachePageBytes, value).asInstanceOf[T]
 
   def setCacheBatchNumber(value: Int): T = set(cacheBatchNumber, value)
     .asInstanceOf[T]
