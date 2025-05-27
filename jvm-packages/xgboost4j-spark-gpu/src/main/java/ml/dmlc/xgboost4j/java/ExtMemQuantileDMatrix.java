@@ -68,7 +68,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
     conf.put("nthread", nthread);
 
     if (maxQuantileBatches > 0) {
-      conf.put("max_quantile_batches", maxQuantileBatches);
+      conf.put("max_quantile_blocks", maxQuantileBatches);
     }
     if (minCachePageBytes > 0) {
       conf.put("min_cache_page_bytes", minCachePageBytes);
