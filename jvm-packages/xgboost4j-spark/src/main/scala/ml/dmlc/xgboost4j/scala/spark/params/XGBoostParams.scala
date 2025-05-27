@@ -193,10 +193,10 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getMaxQuantileBatches: Int = $(maxQuantileBatches)
 
-  final val minCachePageBytes = new IntParam(this, "minCachePageBytes", "Minimum number of " +
+  final val minCachePageBytes = new LongParam(this, "minCachePageBytes", "Minimum number of " +
     "bytes for each ellpack page in cache. Only used for in-host")
 
-  final def getMinCachePageBytes: Int = $(minCachePageBytes)
+  final def getMinCachePageBytes: Long = $(minCachePageBytes)
 
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
