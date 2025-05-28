@@ -137,6 +137,10 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
     val cacheBatchNumber = estimator.getCacheBatchNumber
     val cacheHostRatio = estimator.getCacheHostRatio
 
+    logger.info(s"maxQuantileBatches: $maxQuantileBatches, " +
+      s"minCachePageBytes: $minCachePageBytes cacheBatchNumber: $cacheBatchNumber " +
+      s"cacheHostRatio: $cacheHostRatio")
+
     /** build QuantileDMatrix on the executor side */
     def buildQuantileDMatrix(input: Iterator[Table],
                              ref: Option[QuantileDMatrix] = None): QuantileDMatrix = {
