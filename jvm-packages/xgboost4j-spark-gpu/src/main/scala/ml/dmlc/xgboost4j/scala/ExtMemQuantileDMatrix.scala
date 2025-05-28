@@ -28,10 +28,11 @@ class ExtMemQuantileDMatrix private[scala](
            ref: Option[QuantileDMatrix],
            nthread: Int,
            maxQuantileBatches: Int,
-           minCachePageBytes: Long) {
+           minCachePageBytes: Long,
+           cacheHostRatio: Float) {
     this(new jExtMemQuantileDMatrix(iter.asJava, missing, maxBin,
       ref.map(_.jDMatrix).orNull,
-      nthread, maxQuantileBatches, minCachePageBytes))
+      nthread, maxQuantileBatches, minCachePageBytes, cacheHostRatio))
   }
 
   def this(iter: Iterator[ColumnBatch], missing: Float, maxBin: Int) {
