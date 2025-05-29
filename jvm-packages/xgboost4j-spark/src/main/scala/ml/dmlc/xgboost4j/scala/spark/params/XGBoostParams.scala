@@ -219,7 +219,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
     featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,
     maxQuantileBatches -> -1, minCachePageBytes -> -1, cacheBatchNumber -> 1,
-    cacheHostRatio -> -1.0f)
+    cacheHostRatio -> 1.0f)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
