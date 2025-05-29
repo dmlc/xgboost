@@ -717,20 +717,6 @@ class Dart : public GBTree {
     }
   }
 
-  void Load(dmlc::Stream* fi) override {
-    GBTree::Load(fi);
-    weight_drop_.resize(model_.param.num_trees);
-    if (model_.param.num_trees != 0) {
-      fi->Read(&weight_drop_);
-    }
-  }
-  void Save(dmlc::Stream* fo) const override {
-    GBTree::Save(fo);
-    if (weight_drop_.size() != 0) {
-      fo->Write(weight_drop_);
-    }
-  }
-
   void LoadConfig(Json const& in) override {
     CHECK_EQ(get<String>(in["name"]), "dart");
     auto const& gbtree = in["gbtree"];

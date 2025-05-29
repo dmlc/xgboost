@@ -696,12 +696,6 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
 
     assert get_score(config_0) == get_score(config_1)
 
-    with pytest.warns(Warning, match="Model format is default to UBJSON"):
-        raw_booster = booster_1.save_raw(raw_format="deprecated")
-    booster_2 = xgb.Booster(model_file=raw_booster)
-    config_2 = json.loads(booster_2.save_config())
-    assert get_score(config_1) == get_score(config_2)
-
     raw_booster = booster_1.save_raw(raw_format="ubj")
     booster_2 = xgb.Booster(model_file=raw_booster)
     config_2 = json.loads(booster_2.save_config())

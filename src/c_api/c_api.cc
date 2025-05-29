@@ -1421,7 +1421,38 @@ XGB_DLL int XGBoosterPredictFromCUDAColumnar(BoosterHandle handle, char const *,
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
-XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
+namespace {
+template <typename Buffer, typename Iter = typename Buffer::const_iterator>
+Json DispatchModelType(Buffer const &buffer, StringView ext, bool warn) {
+  auto first_non_space = [&](Iter beg, Iter end) {
+    for (auto i = beg; i != end; ++i) {
+      if (!std::isspace(*i)) {
+        return i;
+      }
+    }
+    return end;
+  };
+
+  Json model;
+  auto it = first_non_space(buffer.cbegin() + 1, buffer.cend());
+  if (it != buffer.cend() && *it == '"') {
+    if (warn) {
+      LOG(WARNING) << "Unknown file format: `" << ext << "`. Using JSON as a guess.";
+    }
+    model = Json::Load(StringView{buffer.data(), buffer.size()});
+  } else if (it != buffer.cend() && std::isalpha(*it)) {
+    if (warn) {
+      LOG(WARNING) << "Unknown file format: `" << ext << "`. Using UBJ as a guess.";
+    }
+    model = Json::Load(StringView{buffer.data(), buffer.size()}, std::ios::binary);
+  } else {
+    LOG(FATAL) << "Invalid model format";
+  }
+  return model;
+}
+}  // namespace
+
+XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char *fname) {
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(fname);
@@ -1431,27 +1462,22 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
     CHECK_EQ(str[0], '{');
     return str;
   };
-  if (common::FileExtension(fname) == "json") {
+  auto ext = common::FileExtension(fname);
+  if (ext == "json") {
     auto buffer = read_file();
     Json in{Json::Load(StringView{buffer.data(), buffer.size()})};
-    static_cast<Learner*>(handle)->LoadModel(in);
-  } else if (common::FileExtension(fname) == "ubj") {
+    static_cast<Learner *>(handle)->LoadModel(in);
+  } else if (ext == "ubj") {
     auto buffer = read_file();
     Json in = Json::Load(StringView{buffer.data(), buffer.size()}, std::ios::binary);
     static_cast<Learner *>(handle)->LoadModel(in);
   } else {
-    std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname, "r"));
-    static_cast<Learner*>(handle)->LoadModel(fi.get());
+    auto buffer = read_file();
+    auto in = DispatchModelType(buffer, ext, true);
+    static_cast<Learner *>(handle)->LoadModel(in);
   }
   API_END();
 }
-
-namespace {
-void WarnOldModel() {
-  LOG(WARNING) << "Saving into deprecated binary model format, please consider using `json` or "
-                  "`ubj`. Model format is default to UBJSON in XGBoost 2.1 if not specified.";
-}
-}  // anonymous namespace
 
 XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char *fname) {
   API_BEGIN();
@@ -1468,17 +1494,14 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char *fname) {
     Json::Dump(out, &str, mode);
     fo->Write(str.data(), str.size());
   };
-  if (common::FileExtension(fname) == "json") {
+  auto ext = common::FileExtension(fname);
+  if (ext == "json") {
     save_json(std::ios::out);
-  } else if (common::FileExtension(fname) == "ubj") {
+  } else if (ext == "ubj") {
     save_json(std::ios::binary);
-  } else if (common::FileExtension(fname) == "deprecated") {
-    WarnOldModel();
-    auto *bst = static_cast<Learner *>(handle);
-    bst->SaveModel(fo.get());
   } else {
     LOG(WARNING) << "Saving model in the UBJSON format as default.  You can use file extension:"
-                    " `json`, `ubj` or `deprecated` to choose between formats.";
+                    " `json` or `ubj` to choose between formats.";
     save_json(std::ios::binary);
   }
   API_END();
@@ -1489,9 +1512,11 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle, const void *buf,
   API_BEGIN();
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(buf);
-
+  auto buffer = common::Span<char const>{static_cast<char const *>(buf), len};
+  // Don't warn, we have to guess the format with buffer input.
+  auto in = DispatchModelType(buffer, "", false);
   common::MemoryFixSizeBuffer fs((void *)buf, len);  // NOLINT(*)
-  static_cast<Learner *>(handle)->LoadModel(&fs);
+  static_cast<Learner *>(handle)->LoadModel(in);
   API_END();
 }
 
@@ -1524,15 +1549,6 @@ XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *json_co
     save_json(std::ios::out);
   } else if (format == "ubj") {
     save_json(std::ios::binary);
-  } else if (format == "deprecated") {
-    WarnOldModel();
-    auto &raw_str = learner->GetThreadLocal().ret_str;
-    raw_str.clear();
-    common::MemoryBufferStream fo(&raw_str);
-    learner->SaveModel(&fo);
-
-    *out_dptr = dmlc::BeginPtr(raw_str);
-    *out_len = static_cast<xgboost::bst_ulong>(raw_str.size());
   } else {
     LOG(FATAL) << "Unknown format: `" << format << "`";
   }

@@ -853,11 +853,6 @@ class LearnerConfiguration : public Learner {
 std::string const LearnerConfiguration::kEvalMetric {"eval_metric"};  // NOLINT
 
 class LearnerIO : public LearnerConfiguration {
- private:
-  // Used to identify the offset of JSON string when
-  // Will be removed once JSON takes over.  Right now we still loads some RDS files from R.
-  std::string const serialisation_header_ { u8"CONFIG-offset:" };
-
  protected:
   void ClearCaches() { this->prediction_container_ = PredictionContainer{}; }
 
@@ -952,192 +947,6 @@ class LearnerIO : public LearnerConfiguration {
     }
   }
 
-  // About to be deprecated by JSON format
-  void LoadModel(dmlc::Stream* fi) override {
-    ctx_.UpdateAllowUnknown(Args{});
-    tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
-    // TODO(tqchen) mark deprecation of old format.
-    common::PeekableInStream fp(fi);
-
-    // backward compatible header check.
-    std::string header;
-    header.resize(4);
-    if (fp.PeekRead(&header[0], 4) == 4) {
-      CHECK_NE(header, "bs64")
-          << "Base64 format is no longer supported in brick.";
-      if (header == "binf") {
-        CHECK_EQ(fp.Read(&header[0], 4), 4U);
-      }
-    }
-
-    // FIXME(jiamingy): Move this out of learner after the old binary model is remove.
-    auto first_non_space = [&](std::string::const_iterator beg, std::string::const_iterator end) {
-      for (auto i = beg; i != end; ++i) {
-        if (!std::isspace(*i)) {
-          return i;
-        }
-      }
-      return end;
-    };
-
-    if (header[0] == '{') {  // Dispatch to JSON
-      auto buffer = common::ReadAll(fi, &fp);
-      Json model;
-      auto it = first_non_space(buffer.cbegin() + 1, buffer.cend());
-      if (it != buffer.cend() && *it == '"') {
-        model = Json::Load(StringView{buffer});
-      } else if (it != buffer.cend() && std::isalpha(*it)) {
-        model = Json::Load(StringView{buffer}, std::ios::binary);
-      } else {
-        LOG(FATAL) << "Invalid model format";
-      }
-      this->LoadModel(model);
-      return;
-    }
-
-    // use the peekable reader.
-    fi = &fp;
-    // read parameter
-    CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
-        << "BoostLearner: wrong model format";
-    if (!DMLC_IO_NO_ENDIAN_SWAP) {
-      mparam_ = mparam_.ByteSwap();
-    }
-    CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
-    CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
-
-    obj_.reset(ObjFunction::Create(tparam_.objective, &ctx_));
-    gbm_.reset(GradientBooster::Create(tparam_.booster, &ctx_, &learner_model_param_));
-    gbm_->Load(fi);
-    if (mparam_.contain_extra_attrs != 0) {
-      std::vector<std::pair<std::string, std::string> > attr;
-      fi->Read(&attr);
-      attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
-    }
-    bool warn_old_model { false };
-    if (attributes_.find("count_poisson_max_delta_step") != attributes_.cend()) {
-      // Loading model from < 1.0.0, objective is not saved.
-      cfg_["max_delta_step"] = attributes_.at("count_poisson_max_delta_step");
-      attributes_.erase("count_poisson_max_delta_step");
-      warn_old_model = true;
-    } else {
-      warn_old_model = false;
-    }
-
-    if (mparam_.major_version < 1) {
-      // Before 1.0.0, base_score is saved as a transformed value, and there's no version
-      // attribute (saved a 0) in the saved model.
-      std::string multi{"multi:"};
-      if (!std::equal(multi.cbegin(), multi.cend(), tparam_.objective.cbegin())) {
-        HostDeviceVector<float> t;
-        t.HostVector().resize(1);
-        t.HostVector().at(0) = mparam_.base_score;
-        this->obj_->PredTransform(&t);
-        auto base_score = t.HostVector().at(0);
-        mparam_.base_score = base_score;
-      }
-      warn_old_model = true;
-    }
-
-    learner_model_param_ =
-        LearnerModelParam(&ctx_, mparam_,
-                          linalg::Tensor<float, 1>{{std::isnan(mparam_.base_score)
-                                                        ? std::numeric_limits<float>::quiet_NaN()
-                                                        : obj_->ProbToMargin(mparam_.base_score)},
-                                                   {1},
-                                                   DeviceOrd::CPU()},
-                          obj_->Task(), tparam_.multi_strategy);
-
-    if (attributes_.find("objective") != attributes_.cend()) {
-      auto obj_str = attributes_.at("objective");
-      auto j_obj = Json::Load({obj_str.c_str(), obj_str.size()});
-      obj_->LoadConfig(j_obj);
-      attributes_.erase("objective");
-    } else {
-      warn_old_model = true;
-    }
-    if (attributes_.find("metrics") != attributes_.cend()) {
-      auto metrics_str = attributes_.at("metrics");
-      std::vector<std::string> names { common::Split(metrics_str, ';') };
-      attributes_.erase("metrics");
-      for (auto const& n : names) {
-        this->SetParam(kEvalMetric, n);
-      }
-    }
-
-    if (warn_old_model) {
-      LOG(WARNING) << "Loading model from XGBoost < 1.0.0, consider saving it "
-                      "again for improved compatibility";
-    }
-
-    // Renew the version.
-    mparam_.major_version = std::get<0>(Version::Self());
-    mparam_.minor_version = std::get<1>(Version::Self());
-
-    cfg_["num_feature"] = std::to_string(mparam_.num_feature);
-
-    auto n = tparam_.__DICT__();
-    cfg_.insert(n.cbegin(), n.cend());
-
-    this->need_configuration_ = true;
-    this->ClearCaches();
-  }
-
-  // Save model into binary format.  The code is about to be deprecated by more robust
-  // JSON serialization format.
-  void SaveModel(dmlc::Stream* fo) const override {
-    this->CheckModelInitialized();
-    CHECK(!this->learner_model_param_.IsVectorLeaf())
-        << "Please use JSON/UBJ format for model serialization with multi-output models.";
-
-    LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
-    std::vector<std::pair<std::string, std::string> > extra_attr;
-    mparam.contain_extra_attrs = 1;
-
-    if (!this->feature_names_.empty() || !this->feature_types_.empty()) {
-      LOG(WARNING) << "feature names and feature types are being disregarded, use JSON/UBJSON "
-                      "format instead.";
-    }
-
-    {
-      // Similar to JSON model IO, we save the objective.
-      Json j_obj { Object() };
-      obj_->SaveConfig(&j_obj);
-      std::string obj_doc;
-      Json::Dump(j_obj, &obj_doc);
-      extra_attr.emplace_back("objective", obj_doc);
-    }
-    // As of 1.0.0, JVM Package and R Package uses Save/Load model for serialization.
-    // Remove this part once they are ported to use actual serialization methods.
-    if (mparam.contain_eval_metrics != 0) {
-      std::stringstream os;
-      for (auto& ev : metrics_) {
-        os << ev->Name() << ";";
-      }
-      extra_attr.emplace_back("metrics", os.str());
-    }
-
-    std::string header {"binf"};
-    fo->Write(header.data(), 4);
-    if (DMLC_IO_NO_ENDIAN_SWAP) {
-      fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
-    } else {
-      LearnerModelParamLegacy x = mparam.ByteSwap();
-      fo->Write(&x, sizeof(LearnerModelParamLegacy));
-    }
-    fo->Write(tparam_.objective);
-    fo->Write(tparam_.booster);
-    gbm_->Save(fo);
-    if (mparam.contain_extra_attrs != 0) {
-      std::map<std::string, std::string> attr(attributes_);
-      for (const auto& kv : extra_attr) {
-        attr[kv.first] = kv.second;
-      }
-      fo->Write(std::vector<std::pair<std::string, std::string>>(
-          attr.begin(), attr.end()));
-    }
-  }
-
   void Save(dmlc::Stream* fo) const override {
     this->CheckModelInitialized();
 
@@ -1158,46 +967,28 @@ class LearnerIO : public LearnerConfiguration {
     common::PeekableInStream fp(fi);
     char header[2];
     fp.PeekRead(header, 2);
-    if (header[0] == '{') {
-      auto buffer = common::ReadAll(fi, &fp);
-      Json memory_snapshot;
-      if (header[1] == '"') {
-        memory_snapshot = Json::Load(StringView{buffer});
-        error::WarnOldSerialization();
-      } else if (std::isalpha(header[1])) {
-        memory_snapshot = Json::Load(StringView{buffer}, std::ios::binary);
-      } else {
-        LOG(FATAL) << "Invalid serialization file.";
-      }
-      if (IsA<Null>(memory_snapshot["Model"])) {
-        // R has xgb.load that doesn't distinguish whether configuration is saved.
-        // We should migrate to use `xgb.load.raw` instead.
-        this->LoadModel(memory_snapshot);
-      } else {
-        this->LoadModel(memory_snapshot["Model"]);
-        this->LoadConfig(memory_snapshot["Config"]);
-      }
+    StringView msg = "Invalid serialization file.";
+    CHECK_EQ(header[0], '{') << msg;
+
+    auto buffer = common::ReadAll(fi, &fp);
+    Json memory_snapshot;
+    CHECK(std::isalpha(header[1])) << msg;
+    if (header[1] == '"') {
+      memory_snapshot = Json::Load(StringView{buffer});
+      error::WarnOldSerialization();
+    } else if (std::isalpha(header[1])) {
+      memory_snapshot = Json::Load(StringView{buffer}, std::ios::binary);
     } else {
-      std::string header;
-      header.resize(serialisation_header_.size());
-      CHECK_EQ(fp.Read(&header[0], header.size()), serialisation_header_.size());
-      // Avoid printing the content in loaded header, which might be random binary code.
-      CHECK(header == serialisation_header_) << error::OldSerialization();
-      int64_t sz {-1};
-      CHECK_EQ(fp.Read(&sz, sizeof(sz)), sizeof(sz));
-      if (!DMLC_IO_NO_ENDIAN_SWAP) {
-        dmlc::ByteSwap(&sz, sizeof(sz), 1);
-      }
-      CHECK_GT(sz, 0);
-      size_t json_offset = static_cast<size_t>(sz);
-      std::string buffer;
-      common::FixedSizeStream{&fp}.Take(&buffer);
+      LOG(FATAL) << "Invalid serialization file.";
+    }
 
-      common::MemoryFixSizeBuffer binary_buf(&buffer[0], json_offset);
-      this->LoadModel(&binary_buf);
-
-      auto config = Json::Load({buffer.c_str() + json_offset, buffer.size() - json_offset});
-      this->LoadConfig(config);
+    if (IsA<Null>(memory_snapshot["Model"])) {
+      // R has xgb.load that doesn't distinguish whether configuration is saved.
+      // We should migrate to use `xgb.load.raw` instead.
+      this->LoadModel(memory_snapshot);
+    } else {
+      this->LoadModel(memory_snapshot["Model"]);
+      this->LoadConfig(memory_snapshot["Config"]);
     }
   }
 };

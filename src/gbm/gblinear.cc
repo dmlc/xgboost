@@ -104,13 +104,6 @@ class GBLinear : public GradientBooster {
 
   bool ModelFitted() const override { return BoostedRounds() != 0; }
 
-  void Load(dmlc::Stream* fi) override {
-    model_.Load(fi);
-  }
-  void Save(dmlc::Stream* fo) const override {
-    model_.Save(fo);
-  }
-
   void SaveModel(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String{"gblinear"};

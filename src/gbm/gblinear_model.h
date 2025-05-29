@@ -71,17 +71,6 @@ class GBLinearModel : public Model {
   void SaveModel(Json *p_out) const override;
   void LoadModel(Json const &in) override;
 
-  // save the model to file
-  void Save(dmlc::Stream *fo) const {
-    fo->Write(&param_, sizeof(param_));
-    fo->Write(weight);
-  }
-  // load model from file
-  void Load(dmlc::Stream *fi) {
-    CHECK_EQ(fi->Read(&param_, sizeof(param_)), sizeof(param_));
-    fi->Read(&weight);
-  }
-
   // model bias
   inline bst_float *Bias() {
     return &weight[learner_model_param->num_feature *
