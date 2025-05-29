@@ -93,7 +93,7 @@ struct SamAllocPolicy {
     auto constexpr kAlign = 1024ul * 1024ul * 512ul;
     pointer result = nullptr;
     if (n_bytes >= kAlign) {
-      result = std::aligned_alloc(kAlign, n_bytes);
+      result = reinterpret_cast<pointer>(std::aligned_alloc(kAlign, n_bytes));
       if (!result) {
         throw std::bad_alloc{};
       }
