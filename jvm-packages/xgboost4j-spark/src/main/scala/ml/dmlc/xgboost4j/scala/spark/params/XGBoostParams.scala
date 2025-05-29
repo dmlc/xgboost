@@ -209,8 +209,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   final val cacheHostRatio = new FloatParam(this, "cacheHostRatio",
     "Used by the GPU implementation. For GPU-based inputs, XGBoost can split the cache into " +
       "host and device caches to reduce the data transfer overhead. This parameter specifies " +
-      "the size of host cache compared to the size of the entire cache: host / (host + device)",
-    ParamValidators.inRange(0.0, 1.0))
+      "the size of host cache compared to the size of the entire cache: host / (host + device)")
 
   final def getCacheHostRatio: Float = $(cacheHostRatio)
 
@@ -219,7 +218,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
     featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,
     maxQuantileBatches -> -1, minCachePageBytes -> -1, cacheBatchNumber -> 1,
-    cacheHostRatio -> 1.0f)
+    cacheHostRatio -> -1.0f)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
