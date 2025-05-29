@@ -1,5 +1,6 @@
 import glob
 import logging
+import os
 import random
 import tempfile
 import uuid
@@ -1307,6 +1308,60 @@ class TestPySparkLocal:
             spark_xgb_model.training_summary.validation_objective_history["logloss"],
             atol=1e-3,
         )
+
+    def test_convert_sklearn_model_to_spark_xgb_model_classifier(
+        self, clf_data: ClfData
+    ) -> None:
+        X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+        y = np.array([0, 1])
+        cl1 = xgb.XGBClassifier()
+        cl1.fit(X, y)
+        spark_xgb_model = (
+            SparkXGBClassifierModel.convert_sklearn_model_to_spark_xgb_model(
+                xgb_sklearn_model=cl1
+            )
+        )
+        pred_result = spark_xgb_model.transform(clf_data.cls_df_test).collect()
+        for row in pred_result:
+            assert np.isclose(row.prediction, row.expected_prediction, atol=1e-3)
+            np.testing.assert_allclose(
+                row.probability, row.expected_probability, atol=1e-3
+            )
+
+    def test_convert_sklearn_model_to_spark_xgb_model_regressor(
+        self, reg_data: RegData
+    ):
+        X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+        y = np.array([0, 1])
+        reg1 = xgb.XGBRegressor()
+        reg1.fit(X, y)
+        spark_xgb_model = (
+            SparkXGBRegressorModel.convert_sklearn_model_to_spark_xgb_model(
+                xgb_sklearn_model=reg1
+            )
+        )
+        pred_result = spark_xgb_model.transform(reg_data.reg_df_test).collect()
+        for row in pred_result:
+            assert np.isclose(row.prediction, row.expected_prediction, atol=1e-3)
+
+    def test_load_model_as_spark_model(self):
+        X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+        y = np.array([0, 1])
+        cl1 = xgb.XGBClassifier()
+        cl1.fit(X, y)
+
+        X = np.array([[1.0, 2.0, 3.0], [0.0, 1.0, 5.5]])
+        y = np.array([0, 1])
+        reg1 = xgb.XGBRegressor()
+        reg1.fit(X, y)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            clf_model_path = os.path.join(tmpdir, "clf_model.json")
+            cl1.get_booster().save_model(clf_model_path)
+            SparkXGBClassifierModel.load_model(model_path=clf_model_path)
+
+            reg_model_path = os.path.join(tmpdir, "reg_model.json")
+            reg1.get_booster().save_model(reg_model_path)
+            SparkXGBRegressorModel.load_model(model_path=reg_model_path)
 
 
 class XgboostLocalTest(SparkTestCase):
