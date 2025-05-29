@@ -11,6 +11,7 @@
 #include <limits>   // for numeric_limits
 #include <memory>   // for unique_ptr
 #include <new>      // for bad_array_new_length
+#include <sys/mman.h>
 
 #include "common.h"
 
@@ -89,9 +90,23 @@ struct SamAllocPolicy {
     }
 
     size_type n_bytes = cnt * sizeof(value_type);
-    pointer result = reinterpret_cast<pointer>(std::malloc(n_bytes));
-    if (!result) {
-      throw std::bad_alloc{};
+    auto constexpr kAlign = 1024ul * 1024ul * 512ul;
+    pointer result = nullptr;
+    if (n_bytes >= kAlign) {
+      result = reinterpret_cast<pointer>(std::aligned_alloc(kAlign, n_bytes));
+      if (!result) {
+        throw std::bad_alloc{};
+      }
+      if (madvise(result, n_bytes, MADV_HUGEPAGE) != 0) {
+        std::int32_t errsv = errno;
+        auto err = std::error_code{errsv, std::system_category()};
+        LOG(FATAL) << err.message();
+      }
+    } else {
+      result = reinterpret_cast<pointer>(std::malloc(n_bytes));
+      if (!result) {
+        throw std::bad_alloc{};
+      }
     }
     dh::safe_cuda(cudaHostRegister(result, n_bytes, cudaHostRegisterDefault));
     return result;
