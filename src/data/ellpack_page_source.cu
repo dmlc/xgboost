@@ -21,8 +21,24 @@
 #include "ellpack_page_source.h"
 #include "proxy_dmatrix.cuh"  // for Dispatch
 #include "xgboost/base.h"     // for bst_idx_t
+#include <nvml.h>
 
 namespace xgboost::data {
+void SetCpuAff() {
+  if (nvmlInit() != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlInit";
+  }
+  nvmlDevice_t nvml_dev;
+  if (nvmlDeviceGetHandleByIndex(curt::CurrentDevice(), &nvml_dev) != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlDeviceGetHandleByIndex";
+  }
+  if (nvmlDeviceSetCpuAffinity(nvml_dev) != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlDeviceSetCpuAffinity";
+  }
+  if (nvmlShutdown() != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlShutdown";
+  }
+}
 /**
  * Cache
  */
@@ -144,6 +160,7 @@ class EllpackHostCacheStreamImpl {
                    std::size_t{1});
       return n_bytes;
     };
+    static thread_local bool nvml_set = false;
     // Finish writing a (concatenated) cache page.
     auto commit_page = [cache_host_ratio, get_host_nbytes](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
@@ -154,6 +171,12 @@ class EllpackHostCacheStreamImpl {
       // Host cache
       auto n_bytes = get_host_nbytes(old_impl);
       CHECK_LE(n_bytes, old_impl->gidx_buffer.size_bytes());
+
+      if (!nvml_set) {
+        SetCpuAff();
+        nvml_set = true;
+      }
+
       new_impl->gidx_buffer =
           common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(n_bytes);
       if (n_bytes > 0) {
@@ -230,6 +253,12 @@ class EllpackHostCacheStreamImpl {
   void Read(EllpackPage* out, bool prefetch_copy) const {
     CHECK_EQ(this->cache_->h_pages.size(), this->cache_->d_pages.size());
     auto [h_page, d_page] = this->cache_->At(this->ptr_);
+
+    static thread_local bool nvml_set = false;
+    if (!nvml_set) {
+      SetCpuAff();
+      nvml_set = true;
+    }
 
     auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
     auto out_impl = out->Impl();
