@@ -39,24 +39,6 @@ void SetCpuAff() {
     LOG(FATAL) << "nvmlShutdown";
   }
 }
-namespace {
-inline constexpr std::size_t kUuidLength =
-    sizeof(std::declval<cudaDeviceProp>().uuid) / sizeof(std::uint64_t);
-
-void GetCudaUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid, int32_t device) {
-  cudaDeviceProp prob{};
-  dh::safe_cuda(cudaGetDeviceProperties(&prob, device));
-  std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), sizeof(prob.uuid));
-}
-
-std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid) {
-  std::stringstream ss;
-  for (auto v : uuid) {
-    ss << std::hex << v;
-  }
-  return ss.str();
-}
-}  // namespace
 
 void SetOptimalCpuAffinity() {
   if (nvmlInit() != NVML_SUCCESS) {
