@@ -24,28 +24,6 @@
 #include <nvml.h>
 
 namespace xgboost::data {
-void SetCpuAff() {
-  if (nvmlInit() != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlInit";
-  }
-  nvmlDevice_t nvml_dev;
-  if (nvmlDeviceGetHandleByIndex(curt::CurrentDevice(), &nvml_dev) != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlDeviceGetHandleByIndex";
-  }
-  if (nvmlDeviceSetCpuAffinity(nvml_dev) != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlDeviceSetCpuAffinity";
-  }
-  if (nvmlShutdown() != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlShutdown";
-  }
-}
-
-void SafeNvml(nvmlReturn_t status) {
-  if (status != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlInit";
-  }
-}
-
 #define safe_nvml(call)                                          \
   do {                                                           \
     auto __status = (call);                                      \
@@ -65,7 +43,7 @@ void SetOptimalCpuAffinity() {
   std::stringstream s;
   std::unordered_set<unsigned char> dashPos{0, 4, 6, 8, 10};
 
-  safe_cu(cuDeviceGetUuid(&dev_uuid, ordinal));
+  cudr::GetGlobalCuDriverApi().cuDeviceGetUuid(&dev_uuid, ordinal);
 
   s << "GPU";
   for (int i = 0; i < 16; i++) {

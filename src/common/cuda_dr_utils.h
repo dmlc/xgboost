@@ -48,6 +48,7 @@ struct CuDriverApi {
   // Device attributes
   using DeviceGetAttribute = CUresult(int *pi, CUdevice_attribute attrib, CUdevice dev);
   using DeviceGet = CUresult(CUdevice *device, int ordinal);
+  using DeviceGetUuid = CUresult(CUuuid *uuid, CUdevice dev);
 
 #if defined(CUDA_HW_DECOM_AVAILABLE)
   using BatchDecompressAsync = CUresult(CUmemDecompressParams *paramsArray, size_t count,
@@ -76,6 +77,7 @@ struct CuDriverApi {
   GetErrorName *cuGetErrorName{nullptr};              // NOLINT
   DeviceGetAttribute *cuDeviceGetAttribute{nullptr};  // NOLINT
   DeviceGet *cuDeviceGet{nullptr};                    // NOLINT
+  DeviceGetUuid *cuDeviceGetUuid{nullptr};            // NOLINT
 
 #if defined(CUDA_HW_DECOM_AVAILABLE)
 

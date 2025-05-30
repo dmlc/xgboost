@@ -40,6 +40,7 @@ CuDriverApi::CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int3
   safe_load("cuGetErrorName", &this->cuGetErrorName);
   safe_load("cuDeviceGetAttribute", &this->cuDeviceGetAttribute);
   safe_load("cuDeviceGet", &this->cuDeviceGet);
+  safe_load("cuDeviceGetUuid", &this->cuDeviceGetUuid);
 #if defined(CUDA_HW_DECOM_AVAILABLE)
   // CTK 12.8
   if (((cu_major == 12 && cu_minor >= 8) || cu_major > 12) && (kdm_major >= 570)) {
