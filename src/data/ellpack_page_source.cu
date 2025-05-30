@@ -39,6 +39,45 @@ void SetCpuAff() {
     LOG(FATAL) << "nvmlShutdown";
   }
 }
+namespace {
+inline constexpr std::size_t kUuidLength =
+    sizeof(std::declval<cudaDeviceProp>().uuid) / sizeof(std::uint64_t);
+
+void GetCudaUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid, int32_t device) {
+  cudaDeviceProp prob{};
+  dh::safe_cuda(cudaGetDeviceProperties(&prob, device.ordinal));
+  std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), sizeof(prob.uuid));
+}
+
+std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid) {
+  std::stringstream ss;
+  for (auto v : uuid) {
+    ss << std::hex << v;
+  }
+  return ss.str();
+}
+}  // namespace
+
+void SetOptimalCpuAffinity() {
+  nvmlDevice_t device;
+
+  std::vector<std::uint64_t> uuids(kUuidLength, 0);
+  auto s_uuid = xgboost::common::Span<std::uint64_t>{uuids.data(), uuids.size()};
+  GetCudaUUID(s_uuid, curt::CurrentDevice());
+  auto uuid_str = PrintUUID(s_uuid);
+  std::stringstream ss;
+  ss << "UUID:" << uuid_str << std::endl;
+  std::cout << ss.str() << std::endl;
+
+  if (nvmlDeviceGetHandleByUUID(uuid_str.c_str(), &device) != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlDeviceGetHandleByUUID";
+  }
+
+  nvmlReturn_t result = nvmlDeviceSetCpuAffinity(device);
+  if (result != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlDeviceSetCpuAffinity";
+  }
+}
 /**
  * Cache
  */
@@ -173,7 +212,8 @@ class EllpackHostCacheStreamImpl {
       CHECK_LE(n_bytes, old_impl->gidx_buffer.size_bytes());
 
       if (!nvml_set) {
-        SetCpuAff();
+        SetOptimalCpuAffinity();
+        // SetCpuAff();
         nvml_set = true;
       }
 
@@ -256,7 +296,8 @@ class EllpackHostCacheStreamImpl {
 
     static thread_local bool nvml_set = false;
     if (!nvml_set) {
-      SetCpuAff();
+      SetOptimalCpuAffinity();
+      // SetCpuAff();
       nvml_set = true;
     }
 
