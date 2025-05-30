@@ -45,7 +45,7 @@ inline constexpr std::size_t kUuidLength =
 
 void GetCudaUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& uuid, int32_t device) {
   cudaDeviceProp prob{};
-  dh::safe_cuda(cudaGetDeviceProperties(&prob, device.ordinal));
+  dh::safe_cuda(cudaGetDeviceProperties(&prob, device));
   std::memcpy(uuid.data(), static_cast<void*>(&(prob.uuid)), sizeof(prob.uuid));
 }
 
