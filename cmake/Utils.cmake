@@ -120,6 +120,7 @@ function(xgboost_set_cuda_flags target)
     # need to link with CCCL and CUDA runtime.
     target_link_libraries(${target} PRIVATE CCCL::CCCL CUDA::cudart_static)
   endif()
+  target_link_libraries(${target} PRIVATE CUDA::nvml_static)
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
   target_include_directories(
     ${target} PRIVATE
