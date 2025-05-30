@@ -59,6 +59,10 @@ std::string PrintUUID(xgboost::common::Span<std::uint64_t, kUuidLength> const& u
 }  // namespace
 
 void SetOptimalCpuAffinity() {
+  if (nvmlInit() != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlInit";
+  }
+
   nvmlDevice_t device;
 
   std::vector<std::uint64_t> uuids(kUuidLength, 0);
@@ -76,6 +80,10 @@ void SetOptimalCpuAffinity() {
   nvmlReturn_t result = nvmlDeviceSetCpuAffinity(device);
   if (result != NVML_SUCCESS) {
     LOG(FATAL) << "nvmlDeviceSetCpuAffinity";
+  }
+
+  if (nvmlShutdown() != NVML_SUCCESS) {
+    LOG(FATAL) << "nvmlShutdown";
   }
 }
 /**
