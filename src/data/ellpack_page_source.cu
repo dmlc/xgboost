@@ -40,19 +40,32 @@ void SetCpuAff() {
   }
 }
 
-void SetOptimalCpuAffinity() {
-  if (nvmlInit() != NVML_SUCCESS) {
+void SafeNvml(nvmlReturn_t status) {
+  if (status != NVML_SUCCESS) {
     LOG(FATAL) << "nvmlInit";
   }
+}
 
-  int cudaDeviceID = curt::CurrentDevice();
+#define safe_nvml(call)                                          \
+  do {                                                           \
+    auto __status = (call);                                      \
+    if (__status != NVML_SUCCESS) {                              \
+      LOG(FATAL) << (#call) << ":" << nvmlErrorString(__status); \
+    }                                                            \
+  } while (0)
+
+void SetOptimalCpuAffinity() {
+  // fixme: check win
+  safe_nvml(nvmlInit());
+
+  std::int32_t ordinal = curt::CurrentDevice();
   nvmlDevice_t device;
   CUuuid dev_uuid;
 
   std::stringstream s;
   std::unordered_set<unsigned char> dashPos{0, 4, 6, 8, 10};
 
-  safe_cu(cuDeviceGetUuid(&dev_uuid, cudaDeviceID));
+  safe_cu(cuDeviceGetUuid(&dev_uuid, ordinal));
 
   s << "GPU";
   for (int i = 0; i < 16; i++) {
@@ -62,20 +75,10 @@ void SetOptimalCpuAffinity() {
     s << std::hex << std::setfill('0') << std::setw(2) << (0xFF & (int)dev_uuid.bytes[i]);
   }
   std::cout << "s:" << s.str() << std::endl;
-
-  auto status = nvmlDeviceGetHandleByUUID(s.str().c_str(), &device);
-  if (status != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlDeviceGetHandleByUUID:" << nvmlErrorString(status);
-  }
-
-  nvmlReturn_t result = nvmlDeviceSetCpuAffinity(device);
-  if (result != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlDeviceSetCpuAffinity";
-  }
-
-  if (nvmlShutdown() != NVML_SUCCESS) {
-    LOG(FATAL) << "nvmlShutdown";
-  }
+  // fixme: maybe check not not supported error
+  safe_nvml(nvmlDeviceGetHandleByUUID(s.str().c_str(), &device));
+  safe_nvml(nvmlDeviceSetCpuAffinity(device));
+  safe_nvml(nvmlShutdown());
 }
 
 /**
