@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 
@@ -29,7 +29,7 @@ void TestEquivalent(float sparsity) {
     offset += num_elements;
   }
   std::vector<common::CompressedByteT> h_iter_buffer;
-  auto from_iter = page_concatenated->GetHostAccessor(&ctx, &h_iter_buffer);
+  auto from_iter = page_concatenated->GetHostEllpack(&ctx, &h_iter_buffer);
   ASSERT_EQ(m.Info().num_col_, CudaArrayIterForTest::Cols());
   ASSERT_EQ(m.Info().num_row_, CudaArrayIterForTest::Rows());
 
@@ -40,31 +40,45 @@ void TestEquivalent(float sparsity) {
   auto bp = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   for (auto& ellpack : dm->GetBatches<EllpackPage>(&ctx, bp)) {
     std::vector<common::CompressedByteT> h_data_buffer;
-    auto from_data = ellpack.Impl()->GetHostAccessor(&ctx, &h_data_buffer);
+    auto from_data = ellpack.Impl()->GetHostEllpack(&ctx, &h_data_buffer);
 
-    ASSERT_EQ(from_iter.gidx_fvalue_map.size(), from_data.gidx_fvalue_map.size());
-    for (size_t i = 0; i < from_iter.gidx_fvalue_map.size(); ++i) {
-      EXPECT_NEAR(from_iter.gidx_fvalue_map[i], from_data.gidx_fvalue_map[i], kRtEps);
-    }
-    ASSERT_EQ(from_iter.min_fvalue.size(), from_data.min_fvalue.size());
-    for (size_t i = 0; i < from_iter.min_fvalue.size(); ++i) {
-      ASSERT_NEAR(from_iter.min_fvalue[i], from_data.min_fvalue[i], kRtEps);
-    }
-    ASSERT_EQ(from_iter.NumFeatures(), from_data.NumFeatures());
-    for (size_t i = 0; i < from_iter.NumFeatures() + 1; ++i) {
-      ASSERT_EQ(from_iter.feature_segments[i], from_data.feature_segments[i]);
-    }
+    std::visit(
+        [](auto&& from_iter, auto&& from_data) {
+          ASSERT_EQ(from_iter.gidx_fvalue_map.size(), from_data.gidx_fvalue_map.size());
+          for (size_t i = 0; i < from_iter.gidx_fvalue_map.size(); ++i) {
+            EXPECT_NEAR(from_iter.gidx_fvalue_map[i], from_data.gidx_fvalue_map[i], kRtEps);
+          }
+          ASSERT_EQ(from_iter.min_fvalue.size(), from_data.min_fvalue.size());
+          for (size_t i = 0; i < from_iter.min_fvalue.size(); ++i) {
+            ASSERT_NEAR(from_iter.min_fvalue[i], from_data.min_fvalue[i], kRtEps);
+          }
+          ASSERT_EQ(from_iter.NumFeatures(), from_data.NumFeatures());
+          for (size_t i = 0; i < from_iter.NumFeatures() + 1; ++i) {
+            ASSERT_EQ(from_iter.feature_segments[i], from_data.feature_segments[i]);
+          }
+        },
+        from_iter, from_data);
 
     std::vector<common::CompressedByteT> buffer_from_iter, buffer_from_data;
-    auto data_iter = page_concatenated->GetHostAccessor(&ctx, &buffer_from_iter);
-    auto data_buf = ellpack.Impl()->GetHostAccessor(&ctx, &buffer_from_data);
+    auto data_iter = page_concatenated->GetHostEllpack(&ctx, &buffer_from_iter);
+    auto data_buf = ellpack.Impl()->GetHostEllpack(&ctx, &buffer_from_data);
     ASSERT_NE(buffer_from_data.size(), 0);
     ASSERT_NE(buffer_from_iter.size(), 0);
     CHECK_EQ(ellpack.Impl()->NumSymbols(), page_concatenated->NumSymbols());
-    CHECK_EQ(from_data.n_rows * from_data.row_stride, from_data.n_rows * from_iter.row_stride);
-    for (size_t i = 0; i < from_data.n_rows * from_data.row_stride; ++i) {
-      CHECK_EQ(data_buf.gidx_iter[i], data_iter.gidx_iter[i]);
-    }
+
+    std::visit(
+        [](auto&& from_iter, auto&& from_data) {
+          CHECK_EQ(from_data.n_rows * from_data.row_stride,
+                   from_data.n_rows * from_iter.row_stride);
+        },
+        from_iter, from_data);
+    std::visit(
+        [](auto&& from_data, auto&& data_buf, auto&& data_iter) {
+          for (size_t i = 0; i < from_data.n_rows * from_data.row_stride; ++i) {
+            CHECK_EQ(data_buf.gidx_iter[i], data_iter.gidx_iter[i]);
+          }
+        },
+        from_data, data_buf, data_iter);
   }
 }
 
@@ -84,8 +98,7 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
   for (auto& ellpack : m.GetBatches<EllpackPage>(&ctx, {})) {
     n_batches ++;
     auto impl = ellpack.Impl();
-    std::vector<common::CompressedByteT> h_gidx;
-    auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx);
+
     auto cols = CudaArrayIterForTest::Cols();
     auto rows = CudaArrayIterForTest::Rows();
 
@@ -96,12 +109,15 @@ TEST(IterativeDeviceDMatrix, RowMajor) {
     common::Span<float const> s_data{static_cast<float const*>(loaded.data), cols * rows};
     dh::CopyDeviceSpanToVector(&h_data, s_data);
 
-    auto cut_ptr = h_accessor.feature_segments;
-    for (auto i = 0ull; i < rows * cols; i++) {
-      int column_idx = i % cols;
-      EXPECT_EQ(impl->Cuts().SearchBin(h_data[i], column_idx),
-                h_accessor.gidx_iter[i] + cut_ptr[column_idx]);
-    }
+    impl->VisitOnHost(&ctx, [&](auto&& h_accessor) {
+      auto cut_ptr = h_accessor.feature_segments;
+      for (auto i = 0ull; i < rows * cols; i++) {
+        int column_idx = i % cols;
+        EXPECT_EQ(impl->Cuts().SearchBin(h_data[i], column_idx),
+                  h_accessor.gidx_iter[i] + cut_ptr[column_idx]);
+      }
+    });
+
     EXPECT_EQ(m.Info().num_col_, cols);
     EXPECT_EQ(m.Info().num_row_, rows);
     EXPECT_EQ(m.Info().num_nonzero_, rows * cols);
@@ -137,15 +153,15 @@ TEST(IterativeDeviceDMatrix, RowMajorMissing) {
       *m.GetBatches<EllpackPage>(&ctx, BatchParam{256, tree::TrainParam::DftSparseThreshold()})
            .begin();
   auto impl = ellpack.Impl();
-  std::vector<common::CompressedByteT> h_gidx;
-  auto h_acc = impl->GetHostAccessor(&ctx, &h_gidx);
-  // null values get placed after valid values in a row
-  ASSERT_FALSE(h_acc.IsDenseCompressed());
-  ASSERT_EQ(h_acc.row_stride, cols - 1);
-  ASSERT_EQ(h_acc.gidx_iter[7], impl->GetDeviceAccessor(&ctx).NullValue());
-  for (std::size_t i = 0; i < 7; ++i) {
-  ASSERT_NE(h_acc.gidx_iter[i], impl->GetDeviceAccessor(&ctx).NullValue());
-  }
+  impl->VisitOnHost(&ctx, [&](auto&& h_acc) {
+    // null values get placed after valid values in a row
+    ASSERT_FALSE(h_acc.IsDenseCompressed());
+    ASSERT_EQ(h_acc.row_stride, cols - 1);
+    ASSERT_EQ(h_acc.gidx_iter[7], impl->NullValue());
+    for (std::size_t i = 0; i < 7; ++i) {
+      ASSERT_NE(h_acc.gidx_iter[i], impl->NullValue());
+    }
+  });
 
   EXPECT_EQ(m.Info().num_col_, cols);
   EXPECT_EQ(m.Info().num_row_, rows);

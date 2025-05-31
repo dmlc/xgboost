@@ -163,3 +163,4 @@ Rplots.pdf
 
 # nsys
 *.nsys-rep
+rmm_log.dev*

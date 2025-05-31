@@ -1,12 +1,14 @@
 /**
- * Copyright 2017-2024, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file compressed_iterator.h
  */
 #pragma once
-#include <xgboost/base.h>
+#include <xgboost/base.h>  // for XGBOOST_RESTRICT
 
-#include <cmath>    // for ceil, log2
-#include <cstddef>  // for size_t
+#include <algorithm>  // for max
+#include <cmath>      // for ceil, log2
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
 
 #include "common.h"
 
@@ -79,7 +81,8 @@ class CompressedBufferWriter {
     size_t ret = std::ceil(static_cast<double>(compressed_size + detail::kPadding) /
                            static_cast<double>(sizeof(std::uint32_t))) *
                  sizeof(std::uint32_t);
-    return ret;
+    // Need at least 5 bytes for the reader
+    return std::max(ret, static_cast<std::size_t>(detail::kPadding + 1));
   }
 
   template <typename T>
@@ -207,6 +210,113 @@ class CompressedIterator {
   }
 
   XGBOOST_DEVICE reference operator[](size_t idx) const {
+    self_type offset = (*this);
+    offset.offset_ += idx;
+    return *offset;
+  }
+};
+
+/**
+ * @brief A compressed iterator with two buffers for the underlying storage.
+ *
+ * This accessor is significantly slower than the single buffer one due to pipeline
+ * stalling and should not be used as default. Pre-calculating the buffer selection
+ * indicator can help mitigate it. But we only use this iterator for external memory with
+ * direct memory access, which is slow anyway.
+ *
+ * Use the single buffer one as a reference for how it works.
+ */
+template <typename OutT>
+class DoubleCompressedIter {
+ public:
+  // Type definitions for thrust
+  using self_type = DoubleCompressedIter<OutT>;  // NOLINT
+  using difference_type = ptrdiff_t;             // NOLINT
+  using value_type = OutT;                       // NOLINT
+  using pointer = value_type *;                  // NOLINT
+  using reference = value_type;                  // NOLINT
+
+ private:
+  using BufT = CompressedByteT const *;
+  BufT XGBOOST_RESTRICT buf0_{nullptr};
+  BufT XGBOOST_RESTRICT buf1_{nullptr};
+  bst_idx_t const n0_{0};  // Size of the first buffer in bytes.
+  bst_idx_t const symbol_bits_{0};
+  std::size_t offset_{0};
+
+ public:
+  DoubleCompressedIter() = default;
+  DoubleCompressedIter(CompressedByteT const *XGBOOST_RESTRICT buf0, std::size_t n0_bytes,
+                       CompressedByteT const *XGBOOST_RESTRICT buf1, bst_idx_t n_symbols)
+      : buf0_{buf0}, buf1_{buf1}, n0_{n0_bytes}, symbol_bits_{detail::SymbolBits(n_symbols)} {}
+
+  XGBOOST_HOST_DEV_INLINE reference operator*() const {
+    constexpr std::int32_t kBitsPerByte = 8;
+    std::size_t start_bit_idx = ((offset_ + 1) * symbol_bits_ - 1);
+    std::size_t start_byte_idx = start_bit_idx >> 3;
+    start_byte_idx += detail::kPadding;
+
+    std::uint64_t tmp;
+
+    if (start_byte_idx >= this->n0_ && (start_byte_idx - 4) < this->n0_) {
+      // Access between two buffers.
+      auto getv = [&](auto shift) {
+        auto shifted = start_byte_idx - shift;
+        bool ind = (shifted >= n0_);  // indicator for which buffer to read
+        // Pick the buffer to read
+        auto const *XGBOOST_RESTRICT buf = ind ? buf1_ : buf0_;
+        shifted -= ind * n0_;
+        return static_cast<std::uint64_t>(buf[shifted]);
+      };
+      // Read 5 bytes - the maximum we will need
+      tmp = static_cast<std::uint64_t>(buf0_[start_byte_idx - 4]) << 32 | getv(3) << 24 |
+            getv(2) << 16 | getv(1) << 8 | static_cast<std::uint64_t>(buf1_[start_byte_idx - n0_]);
+    } else {
+      // Access one of the buffers
+      bool ind = start_byte_idx >= n0_;
+      // Pick the buffer to read
+      auto const *XGBOOST_RESTRICT buf = reinterpret_cast<CompressedByteT const *>(
+          (!ind) * reinterpret_cast<std::uintptr_t>(buf0_) +
+          ind * reinterpret_cast<std::uintptr_t>(buf1_));
+      auto shifted = start_byte_idx - n0_ * ind;
+
+      /**
+       * Alternatively, we can use vector loads, but it requires aligned memory allocation
+       * by the backing storage.
+       *
+       * // Align the pointer for vector load
+       * auto beg_ptr = buf + shifted - 4;
+       * // base ptr in bytes
+       * auto aligned_beg_ptr = rmm::align_down(reinterpret_cast<std::uintptr_t>(beg_ptr),
+       *                                        std::alignment_of_v<std::uint32_t>);
+       * // base ptr in uint32
+       * auto aligned_beg_u32_ptr = reinterpret_cast<std::uint32_t const *>(aligned_beg_ptr);
+       * // 2 vector loads for 8 bytes, we will need 5 of them
+       * std::uint64_t v;
+       * auto *XGBOOST_RESTRICT v_ptr = reinterpret_cast<std::uint32_t *>(&v);
+       * v_ptr[0] = aligned_beg_u32_ptr[0];
+       * v_ptr[1] = aligned_beg_u32_ptr[1];
+       * // Difference between the original ptr and the aligned ptr.
+       * auto diff = reinterpret_cast<std::uintptr_t>(beg_ptr) - aligned_beg_ptr;
+       * // Beginning ptr that points to the first loaded values
+       * auto loaded_beg_ptr = reinterpret_cast<CompressedByteT const *>(&v) + diff;
+       */
+
+      // Read 5 bytes - the maximum we will need
+      tmp = static_cast<std::uint64_t>(buf[shifted - 4]) << 32 |
+            static_cast<std::uint64_t>(buf[shifted - 3]) << 24 |
+            static_cast<std::uint64_t>(buf[shifted - 2]) << 16 |
+            static_cast<std::uint64_t>(buf[shifted - 1]) << 8 | buf[shifted];
+    }
+
+    std::int32_t bit_shift = (kBitsPerByte - ((offset_ + 1) * symbol_bits_)) % kBitsPerByte;
+    tmp >>= bit_shift;
+    // Mask off unneeded bits
+    std::uint64_t mask = (static_cast<std::uint64_t>(1) << symbol_bits_) - 1;
+    return static_cast<OutT>(tmp & mask);
+  }
+
+  XGBOOST_DEVICE reference operator[](std::size_t idx) const {
     self_type offset = (*this);
     offset.offset_ += idx;
     return *offset;

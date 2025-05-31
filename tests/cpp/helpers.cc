@@ -1,7 +1,9 @@
 /**
- * Copyright 2016-2024, XGBoost contributors
+ * Copyright 2016-2025, XGBoost contributors
  */
 #include "helpers.h"
+
+#include "../../src/data/batch_utils.h"  // for AutoHostRatio
 
 #include <gtest/gtest.h>
 #include <xgboost/gbm.h>
@@ -212,6 +214,13 @@ SimpleLCG::StateType SimpleLCG::Min() const { return min(); }
 SimpleLCG::StateType SimpleLCG::Max() const { return max(); }
 // Make sure it's compile time constant.
 static_assert(SimpleLCG::max() - SimpleLCG::min());
+
+RandomDataGenerator::RandomDataGenerator(bst_idx_t rows, std::size_t cols, float sparsity)
+    : rows_{rows},
+      cols_{cols},
+      sparsity_{sparsity},
+      lcg_{seed_},
+      cache_host_ratio_{cuda_impl::AutoHostRatio()} {}
 
 void RandomDataGenerator::GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const {
   RandomDataGenerator{static_cast<bst_idx_t>(p_fmat->Info().num_row_), this->n_targets_, 0.0f}.GenerateDense(
@@ -451,9 +460,9 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   auto config = ExtMemConfig{
       prefix,
       this->on_host_,
+      this->cache_host_ratio_,
       this->min_cache_page_bytes_,
       std::numeric_limits<float>::quiet_NaN(),
-      this->max_num_device_pages_,
       Context{}.Threads(),
   };
   std::shared_ptr<DMatrix> p_fmat{
@@ -501,9 +510,9 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   auto config = ExtMemConfig{
       prefix,
       this->on_host_,
+      this->cache_host_ratio_,
       this->min_cache_page_bytes_,
       std::numeric_limits<float>::quiet_NaN(),
-      this->max_num_device_pages_,
       Context{}.Threads(),
   };
   std::shared_ptr<DMatrix> p_fmat{

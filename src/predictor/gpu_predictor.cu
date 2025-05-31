@@ -151,17 +151,16 @@ struct SparsePageLoader {
   }
 };
 
-template <typename EncAccessor>
+template <typename Accessor, typename EncAccessor>
 struct EllpackLoader {
-  EllpackDeviceAccessor matrix;
+  Accessor matrix;
   EncAccessor acc;
 
-  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor m, bool /*use_shared*/,
-                               bst_feature_t /*n_features*/, bst_idx_t /*n_samples*/,
-                               float /*missing*/, EncAccessor&& acc)
+  XGBOOST_DEVICE EllpackLoader(Accessor m, bool /*use_shared*/, bst_feature_t /*n_features*/,
+                               bst_idx_t /*n_samples*/, float /*missing*/, EncAccessor&& acc)
       : matrix{std::move(m)}, acc{std::forward<EncAccessor>(acc)} {}
   [[nodiscard]] XGBOOST_DEV_INLINE float GetElement(size_t ridx, size_t fidx) const {
-    auto gidx = matrix.GetBinIndex<false>(ridx, fidx);
+    auto gidx = matrix.template GetBinIndex<false>(ridx, fidx);
     if (gidx == -1) {
       return std::numeric_limits<float>::quiet_NaN();
     }
@@ -177,6 +176,12 @@ struct EllpackLoader {
   }
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return this->matrix.NumFeatures(); }
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return this->matrix.n_rows; }
+};
+
+template <typename Accessor>
+struct EllpackPartial {
+  template <typename EncAccessor>
+  using Type = EllpackLoader<Accessor, EncAccessor>;
 };
 
 /**
@@ -1058,13 +1063,15 @@ class GPUPredictor : public xgboost::Predictor {
 
       bst_idx_t batch_offset = 0;
       for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        auto batch = page.Impl()->GetDeviceAccessor(ctx_, feature_types);
-        // No shared memory use for ellpack
-        bst_feature_t n_features = batch.NumFeatures();
-        LaunchConfig<256, false> cfg{this->ctx_, n_features};
-        cfg.LaunchPredict<EllpackLoader>(
-            this->ctx_, std::move(batch), std::numeric_limits<float>::quiet_NaN(), page.Size(),
-            n_features, d_model, p_fmat->IsDense(), new_enc, batch_offset, out_preds);
+        page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& batch) {
+          using Acc = std::remove_reference_t<decltype(batch)>;
+          // No shared memory use for ellpack
+          bst_feature_t n_features = batch.NumFeatures();
+          LaunchConfig<256, false> cfg{this->ctx_, n_features};
+          cfg.LaunchPredict<EllpackPartial<Acc>::template Type>(
+              this->ctx_, std::move(batch), std::numeric_limits<float>::quiet_NaN(), page.Size(),
+              n_features, d_model, p_fmat->IsDense(), new_enc, batch_offset, out_preds);
+        });
         batch_offset += page.Size() * model.learner_model_param->OutputLength();
       }
     }
@@ -1221,19 +1228,20 @@ class GPUPredictor : public xgboost::Predictor {
       p_fmat->Info().feature_types.SetDevice(ctx_->Device());
       auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
 
-      for (auto& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        EllpackDeviceAccessor ellpack{batch.Impl()->GetDeviceAccessor(ctx_, feature_types)};
-        auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
-        LaunchShapKernel(this->ctx_, new_enc, d_model, [&](auto&& acc) {
-          using EncAccessor = std::remove_reference_t<decltype(acc)>;
-          auto X = EllpackLoader{ellpack,
-                                 true,
-                                 model.learner_model_param->num_feature,
-                                 batch.Size(),
-                                 std::numeric_limits<float>::quiet_NaN(),
-                                 std::forward<EncAccessor>(acc)};
-          gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
-              X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+        page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& ellpack) {
+          auto begin = dh::tbegin(phis) + page.BaseRowId() * dim_size;
+          LaunchShapKernel(this->ctx_, new_enc, d_model, [&](auto&& acc) {
+            using EncAccessor = std::remove_reference_t<decltype(acc)>;
+            auto X = EllpackLoader{ellpack,
+                                   true,
+                                   model.learner_model_param->num_feature,
+                                   page.Size(),
+                                   std::numeric_limits<float>::quiet_NaN(),
+                                   std::forward<EncAccessor>(acc)};
+            gpu_treeshap::GPUTreeShap<dh::XGBDeviceAllocator<int>>(
+                X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+          });
         });
       }
     }
@@ -1302,22 +1310,22 @@ class GPUPredictor : public xgboost::Predictor {
       p_fmat->Info().feature_types.SetDevice(ctx_->Device());
       auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
 
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        auto impl = batch.Impl();
-        auto ellpack = impl->GetDeviceAccessor(ctx_, feature_types);
-        auto begin = dh::tbegin(phis) + batch.BaseRowId() * dim_size;
-        auto launch = [&](auto&& acc) {
-          using EncAccessor = std::remove_reference_t<decltype(acc)>;
-          auto X = EllpackLoader{ellpack,
-                                 /*use_shared=*/false,
-                                 model.learner_model_param->num_feature,
-                                 batch.Size(),
-                                 std::numeric_limits<float>::quiet_NaN(),
-                                 std::forward<EncAccessor>(acc)};
-          gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
-              X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
-        };
-        LaunchShapKernel(this->ctx_, new_enc, d_model, launch);
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+        page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& ellpack) {
+          auto begin = dh::tbegin(phis) + page.BaseRowId() * dim_size;
+          auto launch = [&](auto&& acc) {
+            using EncAccessor = std::remove_reference_t<decltype(acc)>;
+            auto X = EllpackLoader{ellpack,
+                                   /*use_shared=*/false,
+                                   model.learner_model_param->num_feature,
+                                   page.Size(),
+                                   std::numeric_limits<float>::quiet_NaN(),
+                                   std::forward<EncAccessor>(acc)};
+            gpu_treeshap::GPUTreeShapInteractions<dh::XGBDeviceAllocator<int>>(
+                X, device_paths.begin(), device_paths.end(), ngroup, begin, dh::tend(phis));
+          };
+          LaunchShapKernel(this->ctx_, new_enc, d_model, launch);
+        });
       }
     }
 
@@ -1376,12 +1384,14 @@ class GPUPredictor : public xgboost::Predictor {
       auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
 
       bst_idx_t batch_offset = 0;
-      for (auto const& batch : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
-        EllpackDeviceAccessor data{batch.Impl()->GetDeviceAccessor(ctx_, feature_types)};
-        cfg.LaunchLeaf<EllpackLoader>(this->ctx_, std::move(data), batch.Size(), n_features,
-                                      d_model, p_fmat->IsDense(), new_enc, batch_offset,
-                                      predictions);
-        batch_offset += batch.Size();
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
+        page.Impl()->Visit(this->ctx_, feature_types, [&](auto&& batch) {
+          using Acc = std::remove_reference_t<decltype(batch)>;
+          cfg.LaunchLeaf<EllpackPartial<Acc>::template Type>(
+              this->ctx_, std::forward<Acc>(batch), page.Size(), n_features, d_model,
+              p_fmat->IsDense(), new_enc, batch_offset, predictions);
+        });
+        batch_offset += page.Size();
       }
     }
   }

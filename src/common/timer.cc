@@ -1,12 +1,12 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include "timer.h"
 
 #include <utility>
 
 #include "../collective/communicator-inl.h"
-#include "cuda_rt_utils.h"
+#include "nvtx_utils.h"  // for Domain
 
 #if defined(XGBOOST_USE_NVTX)
 #include <nvtx3/nvtx3.hpp>
@@ -18,7 +18,7 @@ void Monitor::Start(std::string const &name) {
     auto &stats = statistics_map_[name];
     stats.timer.Start();
 #if defined(XGBOOST_USE_NVTX)
-    auto range_handle = nvtx3::start_range_in<curt::NvtxDomain>(label_ + "::" + name);
+    auto range_handle = nvtx3::start_range_in<nvtx::Domain>(label_ + "::" + name);
     stats.nvtx_id = range_handle.get_value();
 #endif  // defined(XGBOOST_USE_NVTX)
   }
@@ -30,7 +30,7 @@ void Monitor::Stop(const std::string &name) {
     stats.timer.Stop();
     stats.count++;
 #if defined(XGBOOST_USE_NVTX)
-    nvtx3::end_range_in<curt::NvtxDomain>(nvtx3::range_handle{stats.nvtx_id});
+    nvtx3::end_range_in<nvtx::Domain>(nvtx3::range_handle{stats.nvtx_id});
 #endif  // defined(XGBOOST_USE_NVTX)
   }
 }

@@ -188,11 +188,6 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getUseExternalMemory: Boolean = $(useExternalMemory)
 
-  final val maxNumDevicePages = new IntParam(this, "maxNumDevicePages", "Maximum number of " +
-    "pages cached in device")
-
-  final def getMaxNumDevicePages: Int = $(maxNumDevicePages)
-
   final val maxQuantileBatches = new IntParam(this, "maxQuantileBatches", "Maximum quantile " +
     "batches")
 
@@ -207,7 +202,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
     featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,
-    maxNumDevicePages -> -1, maxQuantileBatches -> -1, minCachePageBytes -> -1)
+    maxQuantileBatches -> -1, minCachePageBytes -> -1)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
@@ -250,8 +245,6 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   def setFeatureTypes(value: Array[String]): T = set(featureTypes, value).asInstanceOf[T]
 
   def setUseExternalMemory(value: Boolean): T = set(useExternalMemory, value).asInstanceOf[T]
-
-  def setMaxNumDevicePages(value: Int): T = set(maxNumDevicePages, value).asInstanceOf[T]
 
   def setMaxQuantileBatches(value: Int): T = set(maxQuantileBatches, value).asInstanceOf[T]
 

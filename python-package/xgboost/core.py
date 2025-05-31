@@ -1651,9 +1651,9 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
         For GPU-based inputs from an iterator, XGBoost handles incoming batches with
         multiple growing substreams. This parameter sets the maximum number of batches
         before XGBoost can cut the sub-stream and create a new one. This can help bound
-        the memory usage. By default, XGBoost grows new sub-streams exponentially until
-        batches are exhausted. Only used for the training dataset and the default is
-        None (unbounded). Lastly, if the `data` is a single batch instead of an
+        the memory usage. By default, XGBoost grows a sub-stream exponentially until
+        batches are exhausted. This option is only used for the training dataset and the
+        default is None (unbounded). Lastly, if the `data` is a single batch instead of an
         iterator, this parameter has no effect.
 
         .. versionadded:: 3.0.0
@@ -1820,8 +1820,8 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
         max_bin: Optional[int] = None,
         ref: Optional[DMatrix] = None,
         enable_categorical: bool = False,
-        max_num_device_pages: Optional[int] = None,
         max_quantile_batches: Optional[int] = None,
+        cache_host_ratio: Optional[float] = None,
     ) -> None:
         """
         Parameters
@@ -1829,17 +1829,17 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
         data :
             A user-defined :py:class:`DataIter` for loading data.
 
-        max_num_device_pages :
-            For a GPU-based validation dataset, XGBoost can optionally cache some pages
-            in device memory instead of host memory to reduce data transfer. Each cached
-            page has size of `min_cache_page_bytes`. Set this to 0 if you don't want
-            pages to be cached in the device memory. This can be useful for preventing
-            OOM error where there are more than one validation datasets. The default
-            number of device-based page is 1. Lastly, XGBoost infers whether a dataset
-            is used for valdiation by checking whether ref is not None.
-
         max_quantile_batches :
             See :py:class:`QuantileDMatrix`.
+
+        cache_host_ratio :
+
+            .. versionadded:: 3.1.0
+
+            Used by the GPU implementation. For GPU-based inputs, XGBoost can split the
+            cache into host and device caches to reduce the data transfer overhead. This
+            parameter specifies the size of host cache compared to the size of the
+            entire cache: :math:`host / (host + device)`.
 
         """
         self.max_bin = max_bin
@@ -1850,8 +1850,10 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             data,
             ref,
             enable_categorical=enable_categorical,
-            max_num_device_pages=max_num_device_pages,
             max_quantile_blocks=max_quantile_batches,
+            cache_host_ratio=(
+                None if cache_host_ratio is None else float(cache_host_ratio)
+            ),
         )
         assert self.handle is not None
 
@@ -1861,8 +1863,8 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
         ref: Optional[DMatrix],
         *,
         enable_categorical: bool,
-        max_num_device_pages: Optional[int] = None,
         max_quantile_blocks: Optional[int] = None,
+        cache_host_ratio: Optional[float] = None,
     ) -> None:
         args = make_jcargs(
             missing=self.missing,
@@ -1871,9 +1873,9 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             on_host=it.on_host,
             max_bin=self.max_bin,
             min_cache_page_bytes=it.min_cache_page_bytes,
-            max_num_device_pages=max_num_device_pages,
             # It's called blocks internally due to block-based quantile sketching.
             max_quantile_blocks=max_quantile_blocks,
+            cache_host_ratio=cache_host_ratio,
         )
         handle = ctypes.c_void_p()
         reset_callback, next_callback = it.get_callbacks(enable_categorical)
@@ -2559,9 +2561,9 @@ class Booster:
             prediction. Note the final column is the bias term.
 
         approx_contribs :
-            Approximate the contributions of each feature.  Used when ``pred_contribs`` or
-            ``pred_interactions`` is set to True.  Changing the default of this parameter
-            (False) is not recommended.
+            Approximate the contributions of each feature.  Used when ``pred_contribs``
+            or ``pred_interactions`` is set to True.  Changing the default of this
+            parameter (False) is not recommended.
 
         pred_interactions :
             When this is True the output will be a matrix of size (nsample,
@@ -2579,10 +2581,10 @@ class Booster:
 
         training :
             Whether the prediction value is used for training.  This can effect `dart`
-            booster, which performs dropouts during training iterations but use all trees
-            for inference. If you want to obtain result with dropouts, set this parameter
-            to `True`.  Also, the parameter is set to true when obtaining prediction for
-            custom objective function.
+            booster, which performs dropouts during training iterations but use all
+            trees for inference. If you want to obtain result with dropouts, set this
+            parameter to `True`.  Also, the parameter is set to true when obtaining
+            prediction for custom objective function.
 
             .. versionadded:: 1.0.0
 
@@ -2595,8 +2597,8 @@ class Booster:
             .. versionadded:: 1.4.0
 
         strict_shape :
-            When set to True, output shape is invariant to whether classification is used.
-            For both value and margin prediction, the output shape is (n_samples,
+            When set to True, output shape is invariant to whether classification is
+            used.  For both value and margin prediction, the output shape is (n_samples,
             n_groups), n_groups == 1 when multi-class is not used.  Default to False, in
             which case the output shape can be (n_samples, ) if multi-class is not used.
 
@@ -3116,8 +3118,8 @@ class Booster:
 
         .. note:: Zero-importance features will not be included
 
-           Keep in mind that this function does not include zero-importance feature, i.e.
-           those features that have not been used in any split conditions.
+           Keep in mind that this function does not include zero-importance feature,
+           i.e.  those features that have not been used in any split conditions.
 
         Parameters
         ----------
@@ -3141,13 +3143,13 @@ class Booster:
 
         .. note::
 
-           For linear model, only "weight" is defined and it's the normalized coefficients
-           without bias.
+           For linear model, only "weight" is defined and it's the normalized
+           coefficients without bias.
 
         .. note:: Zero-importance features will not be included
 
-           Keep in mind that this function does not include zero-importance feature, i.e.
-           those features that have not been used in any split conditions.
+           Keep in mind that this function does not include zero-importance feature,
+           i.e.  those features that have not been used in any split conditions.
 
         Parameters
         ----------

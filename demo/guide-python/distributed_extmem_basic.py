@@ -36,6 +36,16 @@ from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
 
 
+def device_mem_total() -> int:
+    """The total number of bytes of memory this GPU has."""
+    from cuda import cudart
+
+    status, free, total = cudart.cudaMemGetInfo()
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
+    return total
+
+
 def make_batches(
     n_samples_per_batch: int, n_features: int, n_batches: int, tmpdir: str, rank: int
 ) -> List[Tuple[str, str]]:
@@ -108,16 +118,13 @@ def setup_rmm() -> None:
 
     """
     import rmm
-    from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
     from rmm.mr import ArenaMemoryResource
 
     if not xgboost.build_info()["USE_RMM"]:
         return
 
-    status, free, total = cudart.cudaMemGetInfo()
-    if status != cudart.cudaError_t.cudaSuccess:
-        raise RuntimeError(cudart.cudaGetErrorString(status))
+    total = device_mem_total()
 
     mr = rmm.mr.CudaMemoryResource()
     mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))

@@ -34,12 +34,22 @@ If `device` is `cuda`, following are also needed:
 import argparse
 import os
 import tempfile
-from typing import Callable, List, Tuple
+from typing import Callable, List, Literal, Tuple
 
 import numpy as np
 from sklearn.datasets import make_regression
 
 import xgboost
+
+
+def device_mem_total() -> int:
+    """The total number of bytes of memory this GPU has."""
+    from cuda import cudart
+
+    status, free, total = cudart.cudaMemGetInfo()
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
+    return total
 
 
 def make_batches(
@@ -63,7 +73,9 @@ def make_batches(
 class Iterator(xgboost.DataIter):
     """A custom iterator for loading files in batches."""
 
-    def __init__(self, device: str, file_paths: List[Tuple[str, str]]) -> None:
+    def __init__(
+        self, device: Literal["cpu", "cuda"], file_paths: List[Tuple[str, str]]
+    ) -> None:
         self.device = device
 
         self._file_paths = file_paths
@@ -110,7 +122,7 @@ class Iterator(xgboost.DataIter):
 
 def hist_train(it: Iterator) -> None:
     """The hist tree method can use a special data structure `ExtMemQuantileDMatrix` for
-    faster initialization and lower memory usage.
+    faster initialization and lower memory usage (recommended).
 
     .. versionadded:: 3.0.0
 
@@ -128,7 +140,7 @@ def hist_train(it: Iterator) -> None:
 
 
 def approx_train(it: Iterator) -> None:
-    """The approx tree method uses the basic `DMatrix`."""
+    """The approx tree method uses the basic `DMatrix` (not recommended)."""
 
     # For non-data arguments, specify it here once instead of passing them by the `next`
     # method.
@@ -167,16 +179,13 @@ def setup_rmm() -> None:
     """
 
     import rmm
-    from cuda import cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
     from rmm.mr import ArenaMemoryResource
 
     if not xgboost.build_info()["USE_RMM"]:
         return
 
-    status, free, total = cudart.cudaMemGetInfo()
-    if status != cudart.cudaError_t.cudaSuccess:
-        raise RuntimeError(cudart.cudaGetErrorString(status))
+    total = device_mem_total()
 
     mr = rmm.mr.CudaMemoryResource()
     mr = ArenaMemoryResource(mr, arena_size=int(total * 0.9))

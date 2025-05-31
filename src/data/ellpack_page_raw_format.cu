@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost contributors
+ * Copyright 2019-2025, XGBoost contributors
  */
 #include <dmlc/registry.h>
 
@@ -86,7 +86,8 @@ template <typename T>
   bytes += fo->Write(impl->info.row_stride);
   std::vector<common::CompressedByteT> h_gidx_buffer;
   Context ctx = Context{}.MakeCUDA(curt::CurrentDevice());
-  [[maybe_unused]] auto h_accessor = impl->GetHostAccessor(&ctx, &h_gidx_buffer);
+  // write data into the h_gidx_buffer
+  [[maybe_unused]] auto h_accessor = impl->GetHostEllpack(&ctx, &h_gidx_buffer);
   bytes += common::WriteVec(fo, h_gidx_buffer);
   bytes += fo->Write(impl->base_rowid);
   bytes += fo->Write(impl->NumSymbols());
@@ -96,7 +97,7 @@ template <typename T>
 }
 
 [[nodiscard]] bool EllpackPageRawFormat::Read(EllpackPage* page, EllpackHostCacheStream* fi) const {
-  xgboost_NVTX_FN_RANGE();
+  xgboost_NVTX_FN_RANGE_C(252, 198, 3);
 
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
@@ -111,13 +112,14 @@ template <typename T>
 
 [[nodiscard]] std::size_t EllpackPageRawFormat::Write(EllpackPage const& page,
                                                       EllpackHostCacheStream* fo) const {
-  xgboost_NVTX_FN_RANGE();
+  xgboost_NVTX_FN_RANGE_C(3, 252, 198);
 
   bool new_page = fo->Write(page);
   dh::DefaultStream().Sync();
 
   if (new_page) {
-    return fo->Share()->pages.back()->MemCostBytes();
+    auto cache = fo->Share();
+    return cache->SizeBytes(cache->Size() - 1);  // last page
   } else {
     return InvalidPageSize();
   }

@@ -588,6 +588,10 @@ XGB_DLL int XGQuantileDMatrixCreateFromCallback(DataIterHandle iter, DMatrixHand
  *       help bound the memory usage. By default, XGBoost grows new sub-streams
  *       exponentially until batches are exhausted. Only used for the training dataset and
  *       the default is None (unbounded).
+ * - cache_host_ratio (optioinal): For GPU-based inputs, XGBoost can split the cache into
+ *      host and device portitions to reduce the data transfer overhead. This parameter
+ *      specifies the size of host cache compared to the size of the entire cache:
+ *      `host / (host + device)`.
  * @param out The created Quantile DMatrix.
  *
  * @return 0 when success, -1 when failure happens

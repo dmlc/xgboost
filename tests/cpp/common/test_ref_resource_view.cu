@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #if defined(__linux__)
 
@@ -10,7 +10,8 @@
 #include <thrust/sequence.h>                    // for sequence
 
 #include "../../../src/common/ref_resource_view.cuh"
-#include "../helpers.h"  // for MakeCUDACtx
+#include "../../../src/common/threadpool.h"  // for ThreadPool
+#include "../helpers.h"                      // for MakeCUDACtx
 
 namespace xgboost::common {
 class TestCudaGrowOnly : public ::testing::TestWithParam<std::size_t> {
@@ -44,6 +45,48 @@ class TestCudaGrowOnly : public ::testing::TestWithParam<std::size_t> {
 TEST_P(TestCudaGrowOnly, Resize) { this->Run(this->GetParam()); }
 
 INSTANTIATE_TEST_SUITE_P(RefResourceView, TestCudaGrowOnly, ::testing::Values(1 << 20, 1 << 21));
+
+TEST(HostPinnedMemPool, Alloc) {
+  std::vector<RefResourceView<double>> refs;
+
+  {
+    // pool goes out of scope before refs does. Test memory safety.
+    auto pool = std::make_shared<cuda_impl::HostPinnedMemPool>();
+    for (std::size_t i = 0; i < 4; ++i) {
+      auto ref = MakeFixedVecWithPinnedMemPool<double>(pool, 128 + i, dh::DefaultStream());
+      refs.emplace_back(std::move(ref));
+    }
+    for (std::size_t i = 0; i < 4; ++i) {
+      auto const& ref = refs[i];
+      ASSERT_EQ(ref.size(), 128 + i);
+      ASSERT_EQ(ref.size_bytes(), ref.size() * sizeof(double));
+    }
+
+    // Thread safety.
+    auto n_threads = static_cast<std::int32_t>(std::thread::hardware_concurrency());
+    common::ThreadPool workers{"tmempool", n_threads, [] {
+                               }};
+    std::vector<std::future<RefResourceView<double>>> alloc_futs;
+    for (std::int32_t i = 0, n = n_threads * 4; i < n; ++i) {
+      auto fut = workers.Submit([i, pool] {
+        auto ref = MakeFixedVecWithPinnedMemPool<double>(pool, 128 + i, dh::DefaultStream());
+        return ref;
+      });
+      alloc_futs.emplace_back(std::move(fut));
+    }
+    std::vector<std::future<void>> free_futs(alloc_futs.size());
+    for (std::int32_t i = 0, n = n_threads * 4; i < n; ++i) {
+      auto fut = workers.Submit([i, pool, &alloc_futs, &free_futs] {
+        auto ref = alloc_futs[i].get();
+        ASSERT_EQ(ref.size(), 128 + i);
+      });
+      free_futs[i] = std::move(fut);
+    }
+    for (std::int32_t i = 0, n = n_threads * 4; i < n; ++i) {
+      free_futs[i].get();
+    }
+  }
+}
 }  // namespace xgboost::common
 
 #endif  // defined(__linux__)
