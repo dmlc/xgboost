@@ -428,7 +428,7 @@ class ColumnMatrix {
       size_t block_size = DivRoundUp(batch_size, n_threads);
 
       /*
-       * We use bitfield as a missing indicator. To insure thread safe access to the bitfield
+       * We use bitfield as a missing indicator. To ensure thread safe access to the bitfield
        * each underlying word of the bitfiled should be processed by the only thread.
        * So we need to allign the row-blocks.
        */
