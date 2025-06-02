@@ -165,7 +165,7 @@ class ColumnMatrix {
 
     /**
      * @param feature_offsets Offest of the first element for each feature
-     * @param type            Type of each column (Dense or Sparce).
+     * @param type            Type of each column (Dense or Sparse).
      */
     void InitOffsetsExpand(const RefResourceView<std::size_t>& feature_offsets,
                            const RefResourceView<ColumnType>& type) {
