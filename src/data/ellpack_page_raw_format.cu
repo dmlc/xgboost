@@ -107,8 +107,7 @@ template <typename T>
     impl->SetCuts(this->cuts_);
   };
 
-  if (static_cast<ConsoleLogger::LogVerbosity>(GlobalConfigThreadLocalStore::Get()->verbosity) ==
-      ConsoleLogger::LogVerbosity::kDebug) {
+  if (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LogVerbosity::kDebug) {
     dh::CUDAEvent start{false}, stop{false};
     float milliseconds = 0;
     start.Record(dh::DefaultStream());
