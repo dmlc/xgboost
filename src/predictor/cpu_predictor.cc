@@ -152,7 +152,7 @@ class Buffer {
 
   void inline Process(std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
                       std::size_t const block_size, bst_node_t* p_nidx) {
-    for (int depth = 0; depth < kNumDeepLevels, ++depth) {
+    for (int depth = 0; depth < kNumDeepLevels; ++depth) {
       std::size_t first_node = (1u << depth) - 1;
 
       for (std::size_t i = 0; i < block_size; ++i) {
