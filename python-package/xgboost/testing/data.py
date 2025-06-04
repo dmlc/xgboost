@@ -46,7 +46,7 @@ memory = joblib.Memory("./cachedir", verbose=0)
 
 def np_dtypes(
     n_samples: int, n_features: int
-) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+) -> Generator[Union[Tuple[np.ndarray, np.ndarray], Tuple[list, list]], None, None]:
     """Enumerate all supported dtypes from numpy."""
     pd = pytest.importorskip("pandas")
 
