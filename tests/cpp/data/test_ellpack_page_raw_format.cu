@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
@@ -8,6 +8,7 @@
 #include "../../../src/data/ellpack_page_raw_format.h"  // for EllpackPageRawFormat
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
+#include "../../../src/data/batch_utils.h"              // for AutoHostRatio
 #include "../filesystem.h"                              // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
@@ -16,17 +17,18 @@ namespace {
 [[nodiscard]] EllpackCacheInfo CInfoForTest(Context const *ctx, DMatrix *Xy, bst_idx_t row_stride,
                                             BatchParam param,
                                             std::shared_ptr<common::HistogramCuts const> cuts) {
-  EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
+  EllpackCacheInfo cinfo{param, ::xgboost::cuda_impl::AutoHostRatio(),
+                         std::numeric_limits<float>::quiet_NaN()};
   ExternalDataInfo ext_info;
   ext_info.n_batches = 1;
   ext_info.row_stride = row_stride;
   ext_info.base_rowids.push_back(Xy->Info().num_row_);
 
-  CalcCacheMapping(ctx, Xy->IsDense(), cuts, 0, ext_info, &cinfo);
+  CalcCacheMapping(ctx, Xy->IsDense(), cuts, 0, ext_info, false, &cinfo);
   CHECK_EQ(ext_info.n_batches, cinfo.cache_mapping.size());
   if (cinfo.NumBatchesCc() == 1) {
-    EXPECT_TRUE(cinfo.prefer_device);
-    cinfo.prefer_device = false;  // We test the host cache.
+    EXPECT_EQ(cinfo.cache_host_ratio, 0.0);
+    cinfo.cache_host_ratio = 1.0;  // We test the host cache.
   }
   return cinfo;
 }
@@ -79,8 +81,8 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       ASSERT_EQ(loaded->base_rowid, orig->base_rowid);
       ASSERT_EQ(loaded->info.row_stride, orig->info.row_stride);
       std::vector<common::CompressedByteT> h_loaded, h_orig;
-      [[maybe_unused]] auto h_loaded_acc = loaded->GetHostAccessor(&ctx, &h_loaded);
-      [[maybe_unused]] auto h_orig_acc = orig->GetHostAccessor(&ctx, &h_orig);
+      [[maybe_unused]] auto h_loaded_acc = loaded->GetHostEllpack(&ctx, &h_loaded);
+      [[maybe_unused]] auto h_orig_acc = orig->GetHostEllpack(&ctx, &h_orig);
       ASSERT_EQ(h_loaded, h_orig);
     }
   }
@@ -119,8 +121,11 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
       for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         if (!format) {
+          auto n_cache_bytes = page.Impl()->MemCostBytes() * 3;
           // Prepare the mapping info.
-          EllpackCacheInfo cinfo{param, false, 1, std::numeric_limits<float>::quiet_NaN()};
+          auto [cache_host_ratio, min_cache_page_bytes] = detail::DftPageSizeHostRatio(
+              n_cache_bytes, false, 1.0, ::xgboost::cuda_impl::AutoCachePageBytes());
+          EllpackCacheInfo cinfo{param, cache_host_ratio, std::numeric_limits<float>::quiet_NaN()};
           for (std::size_t i = 0; i < 3; ++i) {
             cinfo.cache_mapping.push_back(i);
             cinfo.buffer_bytes.push_back(page.Impl()->MemCostBytes());
@@ -145,16 +150,20 @@ TEST_P(TestEllpackPageRawFormat, HostIO) {
       auto p_fmat = RandomDataGenerator{100, 14, 0.5}.Seed(i).GenerateDMatrix();
       for (auto const &orig : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         std::vector<common::CompressedByteT> h_orig;
-        auto h_acc_orig = orig.Impl()->GetHostAccessor(&ctx, &h_orig, {});
+        auto h_acc_orig = orig.Impl()->GetHostEllpack(&ctx, &h_orig, {});
         std::vector<common::CompressedByteT> h_page;
-        auto h_acc = page.Impl()->GetHostAccessor(&ctx, &h_page, {});
+        auto h_acc = page.Impl()->GetHostEllpack(&ctx, &h_page, {});
         ASSERT_EQ(h_orig, h_page);
-        ASSERT_EQ(h_acc_orig.NumFeatures(), h_acc.NumFeatures());
-        ASSERT_EQ(h_acc_orig.row_stride, h_acc.row_stride);
-        ASSERT_EQ(h_acc_orig.n_rows, h_acc.n_rows);
-        ASSERT_EQ(h_acc_orig.base_rowid, h_acc.base_rowid);
-        ASSERT_EQ(h_acc_orig.IsDenseCompressed(), h_acc.IsDenseCompressed());
-        ASSERT_EQ(h_acc_orig.NullValue(), h_acc.NullValue());
+        std::visit(
+            [&](auto &&h_acc_orig, auto &&h_acc) {
+              ASSERT_EQ(h_acc_orig.NumFeatures(), h_acc.NumFeatures());
+              ASSERT_EQ(h_acc_orig.row_stride, h_acc.row_stride);
+              ASSERT_EQ(h_acc_orig.n_rows, h_acc.n_rows);
+              ASSERT_EQ(h_acc_orig.base_rowid, h_acc.base_rowid);
+              ASSERT_EQ(h_acc_orig.IsDenseCompressed(), h_acc.IsDenseCompressed());
+              ASSERT_EQ(h_acc_orig.NullValue(), h_acc.NullValue());
+            },
+            h_acc_orig, h_acc);
       }
     }
   }
@@ -167,9 +176,8 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
   bst_idx_t n_features = 16, n_samples = 128;
 
-  auto test = [&](std::int32_t max_num_device_pages, std::int64_t min_cache_page_bytes) {
-    EllpackCacheInfo cinfo{param, true, max_num_device_pages,
-                           std::numeric_limits<float>::quiet_NaN()};
+  auto test = [&](std::int64_t min_cache_page_bytes, float cache_host_ratio) {
+    EllpackCacheInfo cinfo{param, cache_host_ratio, std::numeric_limits<float>::quiet_NaN()};
     ExternalDataInfo ext_info;
 
     ext_info.n_batches = 8;
@@ -187,39 +195,45 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
 
     for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
       auto cuts = page.Impl()->CutsShared();
-      CalcCacheMapping(&ctx, true, cuts, min_cache_page_bytes, ext_info, &cinfo);
-      [&] {
-        ASSERT_EQ(cinfo.buffer_rows.size(), 4ul);
-      }();
+      EXPECT_TRUE(page.Impl()->IsDense());
+      CalcCacheMapping(&ctx, page.Impl()->IsDense(), cuts, min_cache_page_bytes, ext_info, false,
+                       &cinfo);
+      EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
       policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
 
     auto format = policy.CreatePageFormat(param);
 
-    // write multipe pages
+    // write multipe identical pages
+    std::size_t n_gidx_total_bytes = 0;
     for (bst_idx_t i = 0; i < ext_info.n_batches; ++i) {
       for (auto const &page : p_fmat->GetBatches<EllpackPage>(&ctx, param)) {
         auto writer = policy.CreateWriter({}, i);
         [[maybe_unused]] auto n_bytes = format->Write(page, writer.get());
+        n_gidx_total_bytes += page.Impl()->gidx_buffer.size_bytes();
       }
     }
     // check correct concatenation.
     auto mem_cache = policy.Share();
+    EXPECT_EQ(mem_cache->GidxSizeBytes(), n_gidx_total_bytes);
     return mem_cache;
   };
 
   {
-    auto mem_cache = test(1, n_features * n_samples);
-    ASSERT_EQ(mem_cache->on_device.size(), 4);
-    ASSERT_TRUE(mem_cache->on_device[0]);
-    ASSERT_EQ(mem_cache->NumDevicePages(), 1);
+    auto mem_cache = test(n_features * n_samples, ::xgboost::cuda_impl::AutoHostRatio());
+    ASSERT_EQ(mem_cache->h_pages.size(), 4);
+    ASSERT_EQ(mem_cache->d_pages.size(), 4);
+    ASSERT_FALSE(mem_cache->d_pages[0].empty());
   }
   {
-    auto mem_cache = test(2, n_features * n_samples);
-    ASSERT_EQ(mem_cache->on_device.size(), 4);
-    ASSERT_TRUE(mem_cache->on_device[0]);
-    ASSERT_TRUE(mem_cache->on_device[1]);
-    ASSERT_EQ(mem_cache->NumDevicePages(), 2);
+    float cache_host_ratio = 0.65;
+    auto mem_cache = test(n_features * n_samples, cache_host_ratio);
+    ASSERT_EQ(mem_cache->h_pages.size(), 4);
+    ASSERT_EQ(mem_cache->d_pages.size(), 4);
+    ASSERT_FALSE(mem_cache->d_pages[0].empty());
+    auto n_total_bytes = mem_cache->SizeBytes();
+    ASSERT_LT(mem_cache->DeviceSizeBytes(), n_total_bytes - (n_total_bytes * cache_host_ratio));
+    ASSERT_GT(mem_cache->DeviceSizeBytes(), n_total_bytes - (n_total_bytes * 0.7));
   }
 }
 }  // namespace xgboost::data

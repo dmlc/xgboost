@@ -74,6 +74,7 @@ class SparsePageDMatrix : public DMatrix {
   Context fmat_ctx_;
   std::string cache_prefix_;
   bool const on_host_;
+  float const cache_host_ratio_;
   std::int64_t const min_cache_page_bytes_;
   ExternalDataInfo ext_info_;
 

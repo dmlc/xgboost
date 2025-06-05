@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2025, XGBoost contributors
  */
 #if defined(XGBOOST_USE_CUDA)
 #include "cuda_dr_utils.h"
@@ -10,14 +10,15 @@
 #include <memory>     // for make_unique
 #include <mutex>      // for call_once
 #include <sstream>    // for stringstream
-#include <string>     // for string
+#include <string>     // for string, stoi
 
-#include "common.h"               // for safe_cuda
+#include "common.h"               // for safe_cuda, TrimFirst, Split
 #include "cuda_rt_utils.h"        // for CurrentDevice
-#include "xgboost/string_view.h"  // for StringVie
+#include "io.h"                   // for CmdOutput
+#include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::cudr {
-CuDriverApi::CuDriverApi() {
+CuDriverApi::CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int32_t kdm_major) {
   // similar to dlopen, but without the need to release a handle.
   auto safe_load = [](xgboost::StringView name, auto **fnptr) {
     cudaDriverEntryPointQueryResult status;
@@ -39,7 +40,14 @@ CuDriverApi::CuDriverApi() {
   safe_load("cuGetErrorName", &this->cuGetErrorName);
   safe_load("cuDeviceGetAttribute", &this->cuDeviceGetAttribute);
   safe_load("cuDeviceGet", &this->cuDeviceGet);
-
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+  // CTK 12.8
+  if (((cu_major == 12 && cu_minor >= 8) || cu_major > 12) && (kdm_major >= 570)) {
+    safe_load("cuMemBatchDecompressAsync", &this->cuMemBatchDecompressAsync);
+  } else {
+    this->cuMemBatchDecompressAsync = nullptr;
+  }
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   CHECK(this->cuMemGetAllocationGranularity);
 }
 
@@ -73,9 +81,17 @@ void CuDriverApi::ThrowIfError(CUresult status, StringView fn, std::int32_t line
 }
 
 [[nodiscard]] CuDriverApi &GetGlobalCuDriverApi() {
+  std::int32_t cu_major = -1, cu_minor = -1;
+  GetDrVersionGlobal(&cu_major, &cu_minor);
+
+  std::int32_t kdm_major = -1, kdm_minor = -1;
+  if (!GetVersionFromSmiGlobal(&kdm_major, &kdm_minor)) {
+    kdm_major = -1;
+  }
+
   static std::once_flag flag;
   static std::unique_ptr<CuDriverApi> cu;
-  std::call_once(flag, [&] { cu = std::make_unique<CuDriverApi>(); });
+  std::call_once(flag, [&] { cu = std::make_unique<CuDriverApi>(cu_major, cu_minor, kdm_major); });
   return *cu;
 }
 
@@ -103,6 +119,106 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
   MakeCuMemLocation(type, &prop.location);
   return prop;
+}
+
+[[nodiscard]] bool GetVersionFromSmi(std::int32_t *p_major, std::int32_t *p_minor) {
+  using ::xgboost::common::Split;
+  using ::xgboost::common::TrimFirst;
+  // `nvidia-smi --version` is not available for older versions, as a result, we can't query the
+  // cuda driver version unless we want to parse the table output.
+
+  // Example output on a 2-GPU system:
+  //
+  // $ nvidia-smi --query-gpu=driver_version --format=csv
+  //
+  // driver_version
+  // 570.124.06
+  // 570.124.06
+  //
+  auto cmd = "nvidia-smi --query-gpu=driver_version --format=csv";
+  auto smi_out_str = common::CmdOutput(StringView{cmd});
+
+  auto Invalid = [=] {
+    *p_major = *p_minor = -1;
+    return false;
+  };
+  if (smi_out_str.empty()) {
+    return Invalid();
+  }
+
+  auto smi_split = Split(smi_out_str, '\n');
+  if (smi_split.size() < 2) {
+    return Invalid();
+  }
+
+  // Use the first GPU
+  auto smi_ver = Split(TrimFirst(smi_split[1]), '.');
+  // 570.124.06
+  // On WSL2, you can have driver version with two components, e.g. 573.24
+  if (smi_ver.size() != 2 && smi_ver.size() != 3) {
+    return Invalid();
+  }
+  try {
+    *p_major = std::stoi(smi_ver[0]);
+    *p_minor = std::stoi(smi_ver[1]);
+    LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
+    return true;
+  } catch (std::exception const &) {
+  }
+
+  return Invalid();
+}
+
+[[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
+  static std::once_flag flag;
+  static std::int32_t major = -1, minor = -1;
+  static bool result = false;
+  std::call_once(flag, [&] { result = GetVersionFromSmi(&major, &minor); });
+
+  *p_major = major;
+  *p_minor = minor;
+  return result;
+}
+
+void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
+  static std::once_flag once;
+  static std::int32_t major{0}, minor{0};
+  std::call_once(once, [] { xgboost::curt::DrVersion(&major, &minor); });
+  *p_major = major;
+  *p_minor = minor;
+}
+
+namespace detail {
+// Split up an impl function for simple tests.
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiImpl(std::string const &smi_output) {
+  using common::Split, common::TrimFirst, common::TrimLast;
+  auto smi_out_str = TrimLast(TrimFirst(smi_output));
+  auto lines = Split(smi_out_str, '\n');
+  if (lines.size() <= 1) {
+    return -1;
+  }
+  return lines.size() - 1;
+}
+}  // namespace detail
+
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmi() {
+  auto n_devices = curt::AllVisibleGPUs();
+  if (n_devices < 1) {
+    return -1;
+  }
+
+  // See test for example output from smi.
+  auto cmd = "nvidia-smi c2c -s -i 0";  // Select the first GPU to query.
+  auto out = common::CmdOutput(StringView{cmd});
+  auto cnt = detail::GetC2cLinkCountFromSmiImpl(out);
+  return cnt;
+}
+
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiGlobal() {
+  static std::once_flag once;
+  static std::int32_t cnt = -1;
+  std::call_once(once, [&] { cnt = GetC2cLinkCountFromSmi(); });
+  return cnt;
 }
 }  // namespace xgboost::cudr
 #endif

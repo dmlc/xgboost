@@ -1,23 +1,31 @@
-#include "../../../src/common/compressed_iterator.h"
-#include "../../../src/common/device_helpers.cuh"
-#include "gtest/gtest.h"
-#include <algorithm>
+/**
+ * Copyright 2018-2025, XGBoost Contributors
+ */
+#include <gtest/gtest.h>
 #include <thrust/device_vector.h>
+#include <thrust/sequence.h>  // for sequence
 
-namespace xgboost {
-namespace common {
+#include <algorithm>  // for generate
+#include <cstddef>    // for size_t
+#include <cstdint>    // for int32_t, uint32_t
+#include <vector>     // for vector
 
+#include "../../../src/common/compressed_iterator.h"
+#include "../../../src/common/cuda_context.cuh"    // for CUDAContext
+#include "../../../src/common/device_helpers.cuh"  // for LaunchN
+#include "../../../src/common/device_vector.cuh"   // for DeviceUVector
+#include "../helpers.h"
+
+namespace xgboost::common {
 struct WriteSymbolFunction {
   CompressedBufferWriter cbw;
   unsigned char* buffer_data_d;
-  int* input_data_d;
+  int const* input_data_d;
   WriteSymbolFunction(CompressedBufferWriter cbw, unsigned char* buffer_data_d,
-                      int* input_data_d)
-    : cbw(cbw), buffer_data_d(buffer_data_d), input_data_d(input_data_d) {}
+                      int const* input_data_d)
+      : cbw(cbw), buffer_data_d(buffer_data_d), input_data_d(input_data_d) {}
 
-  __device__ void operator()(size_t i) {
-    cbw.AtomicWriteSymbol(buffer_data_d, input_data_d[i], i);
-  }
+  __device__ void operator()(size_t i) { cbw.AtomicWriteSymbol(buffer_data_d, input_data_d[i], i); }
 };
 
 struct ReadSymbolFunction {
@@ -70,5 +78,72 @@ TEST(CompressedIterator, TestGPU) {
   }
 }
 
-}  // namespace common
-}  // namespace xgboost
+namespace {
+class TestDoubleCompressedIter : public ::testing::TestWithParam<std::size_t> {
+ public:
+  constexpr std::size_t static CompressedBytes() { return 24; }
+
+ private:
+  dh::DeviceUVector<std::int32_t> input_;
+  Context ctx_{MakeCUDACtx(0)};
+  std::size_t n_symbols_{11};
+
+  void SetUp() override {
+    input_.resize(n_symbols_ * 3);
+    auto policy = ctx_.CUDACtx()->CTP();
+    for (std::size_t i = 0; i < 3; ++i) {
+      auto beg = input_.begin() + n_symbols_ * i;
+      auto end = beg + n_symbols_;
+      thrust::sequence(policy, beg, end, 0);
+    }
+  }
+
+ public:
+  void Run(std::size_t n0_bytes) const {
+    auto policy = ctx_.CUDACtx()->CTP();
+
+    auto compressed_nbytes = CompressedBufferWriter::CalculateBufferSize(input_.size(), n_symbols_);
+    ASSERT_EQ(compressed_nbytes, CompressedBytes());
+
+    dh::device_vector<CompressedByteT> buf(compressed_nbytes, 0);
+    CompressedBufferWriter cbw(n_symbols_);
+    dh::LaunchN(input_.size(), ctx_.CUDACtx()->Stream(),
+                WriteSymbolFunction{cbw, buf.data().get(), input_.data()});
+
+    dh::device_vector<CompressedByteT> buf0(n0_bytes);
+    dh::device_vector<CompressedByteT> buf1(compressed_nbytes - buf0.size());
+    thrust::copy_n(policy, buf.begin(), buf0.size(), buf0.begin());
+    thrust::copy_n(policy, buf.begin() + buf0.size(), buf1.size(), buf1.begin());
+
+    HostDeviceVector<std::int32_t> output(input_.size(), 0, ctx_.Device());
+    auto it = DoubleCompressedIter<std::uint32_t>{buf0.data().get(), buf0.size(), buf1.data().get(),
+                                                  n_symbols_};
+    auto d_out = output.DeviceSpan();
+    dh::LaunchN(input_.size(), ctx_.CUDACtx()->Stream(),
+                [=] __device__(std::size_t i) { d_out[i] = it[i]; });
+    auto h_out = output.ConstHostVector();
+    for (std::size_t i = 0; i < 3; ++i) {
+      auto beg = h_out.begin() + n_symbols_ * i;
+      auto end = beg + n_symbols_;
+      std::size_t k = 0;
+      for (auto it = beg; it != end; ++it) {
+        ASSERT_EQ(*it, k);
+        k++;
+      }
+    }
+  }
+};
+
+inline auto kCnBytes = TestDoubleCompressedIter::CompressedBytes();
+}  // namespace
+
+TEST_P(TestDoubleCompressedIter, Basic) {
+  auto n0_bytes = this->GetParam();
+  this->Run(n0_bytes);
+}
+
+INSTANTIATE_TEST_SUITE_P(Gpu, TestDoubleCompressedIter,
+                         ::testing::Values(0, kCnBytes, 1, kCnBytes - 1, kCnBytes / 2, kCnBytes / 3,
+                                           kCnBytes / 4, kCnBytes / 6, kCnBytes / 8,
+                                           kCnBytes / 12));
+}  // namespace xgboost::common

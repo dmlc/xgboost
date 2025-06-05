@@ -5,7 +5,9 @@
 
 #if defined(XGBOOST_USE_CUDA)
 #include <cuda_runtime_api.h>
-#endif  // defined(XGBOOST_USE_CUDA)
+
+#include <algorithm>  // for max
+#endif                // defined(XGBOOST_USE_CUDA)
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for int32_t
@@ -102,6 +104,13 @@ void DrVersion(std::int32_t* major, std::int32_t* minor) {
   GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaDriverGetVersion(ver)); }, major, minor);
 }
 
+[[nodiscard]] std::int32_t GetNumaId() {
+  std::int32_t numa_id = -1;
+  dh::safe_cuda(cudaDeviceGetAttribute(&numa_id, cudaDevAttrNumaId, curt::CurrentDevice()));
+  numa_id = std::max(numa_id, 0);
+  return numa_id;
+}
+
 #else
 std::int32_t AllVisibleGPUs() { return 0; }
 
@@ -125,5 +134,11 @@ void SetDevice(std::int32_t device) {
     common::AssertGPUSupport();
   }
 }
+
+[[nodiscard]] std::int32_t GetNumaId() {
+  common::AssertGPUSupport();
+  return 0;
+}
+
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::curt

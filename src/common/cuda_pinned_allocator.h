@@ -1,15 +1,15 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  *
  * @brief cuda pinned allocator for usage with thrust containers
  */
-
 #pragma once
 
 #include <cuda_runtime.h>
 
 #include <cstddef>  // for size_t
 #include <limits>   // for numeric_limits
+#include <memory>   // for unique_ptr
 #include <new>      // for bad_array_new_length
 
 #include "common.h"
@@ -100,6 +100,34 @@ struct SamAllocPolicy {
   void deallocate(pointer p, size_type) {  // NOLINT
     dh::safe_cuda(cudaHostUnregister(p));
     std::free(p);
+  }
+};
+
+/**
+ * @brief A RAII handle type to the CUDA memory pool.
+ */
+using MemPoolHdl = std::unique_ptr<cudaMemPool_t, void (*)(cudaMemPool_t*)>;
+
+/**
+ * @brief Create a CUDA memory pool for allocating host pinned memory.
+ */
+[[nodiscard]] MemPoolHdl CreateHostMemPool();
+
+/**
+ * @brief C++ wrapper for the CUDA memory pool.
+ */
+class HostPinnedMemPool {
+  MemPoolHdl pool_;
+
+ public:
+  HostPinnedMemPool() : pool_{CreateHostMemPool()} {}
+  void* AllocateAsync(std::size_t n_bytes, cudaStream_t stream) {
+    void* ptr = nullptr;
+    dh::safe_cuda(cudaMallocFromPoolAsync(&ptr, n_bytes, *this->pool_, stream));
+    return ptr;
+  }
+  void DeallocateAsync(void* ptr, cudaStream_t stream) {
+    dh::safe_cuda(cudaFreeAsync(ptr, stream));
   }
 };
 

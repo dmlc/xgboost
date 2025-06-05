@@ -891,24 +891,23 @@ void RegTree::ExpandNode(bst_node_t nidx, bst_feature_t split_index, float split
   this->param_.num_nodes = this->p_mt_tree_->Size();
 }
 
-void RegTree::ExpandCategorical(bst_node_t nid, bst_feature_t split_index,
-                                common::Span<const uint32_t> split_cat, bool default_left,
-                                bst_float base_weight, bst_float left_leaf_weight,
-                                bst_float right_leaf_weight, bst_float loss_change, float sum_hess,
-                                float left_sum, float right_sum) {
+void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
+                                common::Span<common::KCatBitField::value_type> split_cat,
+                                bool default_left, bst_float base_weight,
+                                bst_float left_leaf_weight, bst_float right_leaf_weight,
+                                bst_float loss_change, float sum_hess, float left_sum,
+                                float right_sum) {
   CHECK(!IsMultiTarget());
-  this->ExpandNode(nid, split_index, std::numeric_limits<float>::quiet_NaN(),
-                   default_left, base_weight,
-                   left_leaf_weight, right_leaf_weight, loss_change, sum_hess,
-                   left_sum, right_sum);
+  this->ExpandNode(nidx, split_index, DftBadValue(), default_left, base_weight, left_leaf_weight,
+                   right_leaf_weight, loss_change, sum_hess, left_sum, right_sum);
 
   size_t orig_size = split_categories_.size();
   this->split_categories_.resize(orig_size + split_cat.size());
   std::copy(split_cat.data(), split_cat.data() + split_cat.size(),
             split_categories_.begin() + orig_size);
-  this->split_types_.at(nid) = FeatureType::kCategorical;
-  this->split_categories_segments_.at(nid).beg = orig_size;
-  this->split_categories_segments_.at(nid).size = split_cat.size();
+  this->split_types_.at(nidx) = FeatureType::kCategorical;
+  this->split_categories_segments_.at(nidx).beg = orig_size;
+  this->split_categories_segments_.at(nidx).size = split_cat.size();
 }
 
 void RegTree::Load(dmlc::Stream* fi) {

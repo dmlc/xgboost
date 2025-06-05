@@ -23,7 +23,6 @@
 #include "../../../src/data/batch_utils.h"          // for MatchingPageBytes
 #include "../../../src/data/gradient_index.h"       // for GHistIndexMatrix
 #include "../../../src/data/iterative_dmatrix.h"    // for IterativeDMatrix
-#include "../../../src/data/proxy_dmatrix.h"        // for DMatrixProxy
 #include "../../../src/data/sparse_page_dmatrix.h"  // for SparsePageDMatrix
 #include "../helpers.h"
 
@@ -472,9 +471,9 @@ auto MakeExtMemForTest(bst_idx_t n_samples, bst_feature_t n_features, Json dconf
   NumpyArrayIterForTest iter_1{0.0f, n_samples, n_features, n_batches};
   auto config = ExtMemConfig{"",
                              false,
+                             cuda_impl::AutoHostRatio(),
                              cuda_impl::MatchingPageBytes(),
                              std::numeric_limits<float>::quiet_NaN(),
-                             cuda_impl::MaxNumDevicePages(),
                              0};
   auto Xy = std::make_shared<data::SparsePageDMatrix>(&iter_1, iter_1.Proxy(), Reset, Next, config);
   MakeLabelForTest(Xy, p_fmat);

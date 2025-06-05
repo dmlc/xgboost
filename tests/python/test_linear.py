@@ -1,3 +1,5 @@
+from typing import Dict
+
 from hypothesis import given, note, settings, strategies
 
 import xgboost as xgb
@@ -20,8 +22,8 @@ coord_strategy = strategies.fixed_dictionaries({
 })
 
 
-def train_result(param, dmat, num_rounds):
-    result = {}
+def train_result(param: dict, dmat: xgb.DMatrix, num_rounds: int) -> Dict[str, Dict]:
+    result: Dict[str, Dict] = {}
     xgb.train(
         param,
         dmat,

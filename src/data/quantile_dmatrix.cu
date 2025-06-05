@@ -10,10 +10,10 @@
 #include "../collective/allreduce.h"    // for Allreduce
 #include "../common/cuda_context.cuh"   // for CUDAContext
 #include "../common/cuda_rt_utils.h"    // for AllVisibleGPUs
-#include "../common/cuda_rt_utils.h"    // for xgboost_NVTX_FN_RANGE
 #include "../common/device_vector.cuh"  // for XGBCachingDeviceAllocator
 #include "../common/error_msg.h"        // for InconsistentCategories
 #include "../common/hist_util.cuh"      // for AdapterDeviceSketch
+#include "../common/nvtx_utils.h"       // for xgboost_NVTX_FN_RANGE
 #include "../common/quantile.cuh"       // for SketchContainer
 #include "cat_container.h"              // for CatContainer
 #include "ellpack_page.cuh"             // for EllpackPage

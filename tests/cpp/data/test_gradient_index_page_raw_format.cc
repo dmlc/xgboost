@@ -10,8 +10,9 @@
 #include "../../../src/common/column_matrix.h"  // for common::ColumnMatrix
 #include "../../../src/common/io.h"             // for MmapResource, AlignedResourceReadStream...
 #include "../../../src/data/gradient_index.h"   // for GHistIndexMatrix
-#include "../../../src/data/gradient_index_format.h"  // for GHistIndexRawFormat
-#include "../helpers.h"                               // for RandomDataGenerator
+#include "../../../src/data/gradient_index_format.h"       // for GHistIndexRawFormat
+#include "../../../src/data/gradient_index_page_source.h"  // for GHistIndexFormatPolicy
+#include "../helpers.h"                                    // for RandomDataGenerator
 
 namespace xgboost::data {
 TEST(GHistIndexPageRawFormat, IO) {
@@ -58,5 +59,13 @@ TEST(GHistIndexPageRawFormat, IO) {
 
     ASSERT_EQ(loaded.Transpose().GetTypeSize(), loaded.Transpose().GetTypeSize());
   }
+}
+
+TEST(GHistIndexPageRawFormat, File) {
+  auto policy = MemBufFileReadFormatStreamPolicy<GHistIndexMatrix, GHistIndexFormatPolicy>{};
+
+  std::string path = "ghist.page";
+  ASSERT_THAT([&] { policy.CreateReader(StringView{path}, static_cast<bst_idx_t>(0), 0); },
+              GMockThrow("doesn't exist"));
 }
 }  // namespace xgboost::data

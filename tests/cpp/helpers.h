@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2024, XGBoost contributors
+ * Copyright 2016-2025, XGBoost contributors
  */
 #pragma once
 
@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 
 #if defined(__CUDACC__)
 #include "../../src/collective/communicator-inl.h"  // for GetRank
@@ -241,15 +242,14 @@ class RandomDataGenerator {
   bool on_host_{false};
   std::shared_ptr<DMatrix> ref_{nullptr};
   std::int64_t min_cache_page_bytes_{0};
-  std::int64_t max_num_device_pages_{1};
+  float cache_host_ratio_;
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
   void GenerateLabels(std::shared_ptr<DMatrix> p_fmat) const;
 
  public:
-  RandomDataGenerator(bst_idx_t rows, size_t cols, float sparsity)
-      : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lcg_{seed_} {}
+  RandomDataGenerator(bst_idx_t rows, std::size_t cols, float sparsity);
 
   RandomDataGenerator& Lower(float v) {
     lower_ = v;
@@ -279,8 +279,8 @@ class RandomDataGenerator {
     this->min_cache_page_bytes_ = min_cache_page_bytes;
     return *this;
   }
-  RandomDataGenerator& MaxNumDevicePages(std::int64_t max_num_device_pages) {
-    this->max_num_device_pages_ = max_num_device_pages;
+  [[nodiscard]] RandomDataGenerator& CacheHostRatio(float cache_host_ratio) {
+    this->cache_host_ratio_ = cache_host_ratio;
     return *this;
   }
   RandomDataGenerator& Seed(uint64_t s) {

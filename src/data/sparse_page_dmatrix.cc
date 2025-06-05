@@ -13,11 +13,11 @@
 #include <utility>    // for move
 #include <variant>    // for visit
 
-#include "batch_utils.h"         // for RegenGHist
-#include "cat_container.h"       // for CatContainer
-#include "gradient_index.h"      // for GHistIndexMatrix
-#include "sparse_page_source.h"  // for MakeCachePrefix
-#include "../common/error_msg.h"             // for InconsistentCategories
+#include "../common/error_msg.h"  // for InconsistentCategories, CacheHostRatio
+#include "batch_utils.h"          // for RegenGHist
+#include "cat_container.h"        // for CatContainer
+#include "gradient_index.h"       // for GHistIndexMatrix
+#include "sparse_page_source.h"   // for MakeCachePrefix
 
 namespace xgboost::data {
 MetaInfo &SparsePageDMatrix::Info() { return info_; }
@@ -34,7 +34,9 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
       missing_{config.missing},
       cache_prefix_{config.cache},
       on_host_{config.on_host},
+      cache_host_ratio_{config.cache_host_ratio},
       min_cache_page_bytes_{config.min_cache_page_bytes} {
+  CHECK(detail::HostRatioIsAuto(config.cache_host_ratio)) << error::CacheHostRatioNotImpl();
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(config.n_threads)}});
   cache_prefix_ = MakeCachePrefix(cache_prefix_);

@@ -7,6 +7,7 @@ import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
 from distributed import Client, get_worker
+from packaging.version import parse as parse_version
 from sklearn.datasets import make_classification
 
 import xgboost as xgb
@@ -15,7 +16,7 @@ from xgboost.compat import concat
 from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
-from ..dask import _get_rabit_args
+from ..dask import _DASK_VERSION, _get_rabit_args
 from .data import make_batches
 from .data import make_categorical as make_cat_local
 
@@ -179,7 +180,8 @@ def get_rabit_args(client: Client, n_workers: int) -> Any:
 
 def get_client_workers(client: Client) -> List[str]:
     "Get workers from a dask client."
-    workers = client.scheduler_info()["workers"]
+    kwargs = {"n_workers": -1} if _DASK_VERSION() >= parse_version("2025.4.0") else {}
+    workers = client.scheduler_info(**kwargs)["workers"]
     return list(workers.keys())
 
 

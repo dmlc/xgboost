@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file base.h
  * \brief Defines configuration macros and basic types for xgboost.
  */
@@ -72,6 +72,14 @@
 #define XGBOOST_DEV_INLINE
 #endif  // defined(__CUDA__) || defined(__CUDACC__)
 
+
+// restrict
+#if defined(_MSC_VER)
+#define XGBOOST_RESTRICT __restrict
+#else
+#define XGBOOST_RESTRICT __restrict__
+#endif
+
 // These check are for Makefile.
 #if !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
 /* default logic for software pre-fetching */
@@ -122,7 +130,7 @@ using bst_target_t = std::uint32_t;  // NOLINT
  */
 using bst_layer_t = std::int32_t;  // NOLINT
 /**
- * \brief Type for indexing trees.
+ * @brief Type for indexing trees.
  */
 using bst_tree_t = std::int32_t;  // NOLINT
 /**

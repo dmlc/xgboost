@@ -1,9 +1,9 @@
 /**
- * Copyright 2019-2024, by XGBoost Contributors
+ * Copyright 2019-2025, by XGBoost Contributors
  */
 #if defined(__unix__) || defined(__APPLE__)
 
-#include <fcntl.h>     // for open, O_RDONLY
+#include <fcntl.h>     // for open, O_RDONLY, posix_fadvise
 #include <sys/mman.h>  // for mmap, munmap, madvise
 #include <unistd.h>    // for close, getpagesize
 
@@ -22,6 +22,7 @@
 #include <cerrno>        // for errno
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t, uint32_t
+#include <cstdio>        // for fread, fseek
 #include <cstring>       // for memcpy
 #include <filesystem>    // for filesystem, weakly_canonical
 #include <fstream>       // for ifstream
@@ -48,8 +49,7 @@ size_t PeekableInStream::Read(void* dptr, size_t size) {
   if (nbuffer < size) {
     std::memcpy(dptr, dmlc::BeginPtr(buffer_) + buffer_ptr_, nbuffer);
     buffer_ptr_ += nbuffer;
-    return nbuffer + strm_->Read(reinterpret_cast<char*>(dptr) + nbuffer,
-                                 size - nbuffer);
+    return nbuffer + strm_->Read(reinterpret_cast<char*>(dptr) + nbuffer, size - nbuffer);
   } else {
     std::memcpy(dptr, dmlc::BeginPtr(buffer_) + buffer_ptr_, size);
     buffer_ptr_ += size;
@@ -96,7 +96,7 @@ size_t FixedSizeStream::Read(void* dptr, size_t size) {
 }
 
 size_t FixedSizeStream::PeekRead(void* dptr, size_t size) {
-  if (size >= buffer_.size() - pointer_)  {
+  if (size >= buffer_.size() - pointer_) {
     std::copy(buffer_.cbegin() + pointer_, buffer_.cend(), reinterpret_cast<char*>(dptr));
     return std::distance(buffer_.cbegin() + pointer_, buffer_.cend());
   } else {
@@ -234,7 +234,7 @@ void detail::CloseMmap(MMAPFile* handle) {
   }
 #if defined(xgboost_IS_WIN)
   if (handle->base_ptr) {
-    CHECK(UnmapViewOfFile(handle->base_ptr)) "Faled to call munmap: " << SystemErrorMsg();
+    CHECK(UnmapViewOfFile(handle->base_ptr)) << "Failed to call munmap: " << SystemErrorMsg();
   }
   if (handle->fd != INVALID_HANDLE_VALUE) {
     CHECK(CloseHandle(handle->fd)) << "Failed to close handle: " << SystemErrorMsg();
@@ -245,11 +245,11 @@ void detail::CloseMmap(MMAPFile* handle) {
 #else
   if (handle->base_ptr) {
     CHECK_NE(munmap(handle->base_ptr, handle->base_size), -1)
-        << "Faled to call munmap: `" << handle->path << "`. " << SystemErrorMsg();
+        << "Failed to call munmap: `" << handle->path << "`. " << SystemErrorMsg();
   }
   if (handle->fd != 0) {
     CHECK_NE(close(handle->fd), -1)
-        << "Faled to close: `" << handle->path << "`. " << SystemErrorMsg();
+        << "Failed to close: `" << handle->path << "`. " << SystemErrorMsg();
   }
 #endif
   delete handle;
@@ -280,6 +280,37 @@ MmapResource::~MmapResource() noexcept(false) = default;
 AlignedResourceReadStream::~AlignedResourceReadStream() noexcept(false) {}  // NOLINT
 PrivateMmapConstStream::~PrivateMmapConstStream() noexcept(false) {}        // NOLINT
 
+std::shared_ptr<MallocResource> MemBufFileReadStream::ReadFileIntoBuffer(StringView path,
+                                                                         std::size_t offset,
+                                                                         std::size_t length) {
+  CHECK(std::filesystem::exists(path.c_str())) << "`" << path << "` doesn't exist";
+  auto res = std::make_shared<MallocResource>(length);
+  auto ptr = res->DataAs<char>();
+  std::unique_ptr<FILE, std::function<int(FILE*)>> fp{fopen(path.c_str(), "rb"), fclose};
+
+  auto err = [&] {
+    auto e = SystemErrorMsg();
+    LOG(FATAL) << "Failed to read file `" << path << "`. System error message: " << e;
+  };
+#if defined(__linux__)
+  auto fd = fileno(fp.get());
+  if (fd == -1) {
+    err();
+  }
+  if (posix_fadvise(fd, offset, length, POSIX_FADV_SEQUENTIAL) != 0) {
+    LOG(FATAL) << SystemErrorMsg();
+  }
+#endif  // defined(__linux__)
+
+  if (fseek(fp.get(), offset, SEEK_SET) != 0) {
+    err();
+  }
+  if (fread(ptr, length, 1, fp.get()) != 1) {
+    err();
+  }
+  return res;
+}
+
 AlignedFileWriteStream::AlignedFileWriteStream(StringView path, StringView flags)
     : pimpl_{dmlc::Stream::Create(path.c_str(), flags.c_str())} {}
 
@@ -301,5 +332,22 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 
 [[nodiscard]] std::size_t AlignedMemWriteStream::Tell() const noexcept(true) {
   return this->pimpl_->Tell();
+}
+
+[[nodiscard]] std::string CmdOutput(StringView cmd) {
+#if defined(xgboost_IS_WIN)
+  std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(_popen(cmd.c_str(), "r"), _pclose);
+#else
+  // popen is a convenient method, but it always returns a success even if the command
+  // fails.
+  std::unique_ptr<FILE, std::function<int(FILE*)>> pipe(popen(cmd.c_str(), "r"), pclose);
+#endif
+  CHECK(pipe);
+  std::array<char, 128> buffer;
+  std::string result;
+  while (std::fgets(buffer.data(), static_cast<std::int32_t>(buffer.size()), pipe.get())) {
+    result += buffer.data();
+  }
+  return result;
 }
 }  // namespace xgboost::common

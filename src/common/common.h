@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file common.h
  * \brief Common utilities
  */
@@ -60,6 +60,30 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
     ret.push_back(item);
   }
   return ret;
+}
+
+// Trims leading whitespace from a string
+[[nodiscard]] inline std::string TrimFirst(const std::string &str) {
+  if (str.empty()) {
+    return str;
+  }
+
+  std::size_t first = str.find_first_not_of(" \t\n\r");
+  if (first == std::string::npos) {
+    return "";
+  }
+  return str.substr(first);
+}
+
+[[nodiscard]] inline std::string TrimLast(std::string const &str) {
+  if (str.empty()) {
+    return str;
+  }
+  std::size_t last = str.find_last_not_of(" \t\n\r");
+  if (last == std::string::npos) {
+    return "";
+  }
+  return str.substr(0, last + 1);
 }
 
 /**
@@ -165,13 +189,19 @@ class Range {
 
 inline void AssertGPUSupport() {
 #ifndef XGBOOST_USE_CUDA
-    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
+  LOG(FATAL) << "XGBoost version not compiled with GPU support.";
+#endif  // XGBOOST_USE_CUDA
+}
+
+inline void AssertNvCompSupport() {
+#ifndef XGBOOST_USE_NVCOMP
+  LOG(FATAL) << "XGBoost is not compiled with NVCOMP support.";
 #endif  // XGBOOST_USE_CUDA
 }
 
 inline void AssertNCCLSupport() {
 #if !defined(XGBOOST_USE_NCCL)
-    LOG(FATAL) << "XGBoost version not compiled with NCCL support.";
+  LOG(FATAL) << "XGBoost version not compiled with NCCL support.";
 #endif  // !defined(XGBOOST_USE_NCCL)
 }
 
