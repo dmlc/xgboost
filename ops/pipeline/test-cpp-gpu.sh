@@ -33,7 +33,7 @@ case "${suite}" in
     echo "--- Run Google Tests, using multiple GPUs"
     python3 ops/docker_run.py --image-uri ${IMAGE_URI} --use-gpus \
       --run-args='--shm-size=4g --privileged' \
-      -- build/testxgboost --gtest_filter=*MGPU*
+      -- bash -c 'nvidia-smi && build/testxgboost --gtest_filter=*MGPU*'
     ;;
 
   *)
