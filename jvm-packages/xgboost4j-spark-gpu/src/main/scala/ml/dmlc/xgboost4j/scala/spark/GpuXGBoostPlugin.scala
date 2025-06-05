@@ -134,6 +134,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 
     val maxQuantileBatches = estimator.getMaxQuantileBatches
     val minCachePageBytes = estimator.getMinCachePageBytes
+    val cacheHostRatio = estimator.getCacheHostRatio
 
     /** build QuantileDMatrix on the executor side */
     def buildQuantileDMatrix(input: Iterator[Table],
@@ -143,7 +144,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
         case Some(_) =>
           val itr = new ExternalMemoryIterator(input, indices, extMemPath)
           new ExtMemQuantileDMatrix(itr, missing, maxBin, ref, nthread,
-            maxQuantileBatches, minCachePageBytes)
+            maxQuantileBatches, minCachePageBytes, cacheHostRatio)
 
         case None =>
           val itr = input.map { table =>
@@ -188,7 +189,6 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
 
     val sconf = dataset.sparkSession.conf
     val rmmEnabled: Boolean = try {
-      sconf.get("spark.rapids.memory.gpu.pooling.enabled").toBoolean &&
       sconf.get("spark.rapids.memory.gpu.pool").trim.toLowerCase != "none"
     } catch {
       case _: Throwable => false // Any exception will return false
