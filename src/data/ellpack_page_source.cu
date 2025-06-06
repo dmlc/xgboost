@@ -230,10 +230,17 @@ class EllpackHostCacheStreamImpl {
   void Read(EllpackPage* out, bool prefetch_copy) const {
     CHECK_EQ(this->cache_->h_pages.size(), this->cache_->d_pages.size());
     auto [h_page, d_page] = this->cache_->At(this->ptr_);
-
+    // Skip copy if the full page is on device
+    bool on_device = h_page->gidx_buffer.empty() && !d_page->empty();
     auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
     auto out_impl = out->Impl();
-    if (prefetch_copy) {
+    if (on_device) {
+      CHECK(h_page->gidx_buffer.empty());
+      auto d_res = d_page->Resource();
+      out_impl->gidx_buffer = common::RefResourceView<common::CompressedByteT>{
+          d_res->DataAs<common::CompressedByteT>(), d_page->size(), d_res};
+      CHECK(out_impl->d_gidx_buffer.empty());
+    } else if (prefetch_copy) {
       auto n_bytes = this->cache_->GidxSizeBytes(this->ptr_);
       out_impl->gidx_buffer = common::MakeFixedVecWithCudaMalloc<common::CompressedByteT>(n_bytes);
       if (!h_page->gidx_buffer.empty()) {
