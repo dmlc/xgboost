@@ -102,8 +102,27 @@ template <typename T>
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
 
-  fi->Read(page, this->param_.prefetch_copy || !this->has_hmm_ats_);
-  impl->SetCuts(this->cuts_);
+  auto dispatch = [&] {
+    fi->Read(page, this->param_.prefetch_copy || !this->has_hmm_ats_);
+    impl->SetCuts(this->cuts_);
+  };
+
+  if (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LogVerbosity::kDebug) {
+    dh::CUDAEvent start{false}, stop{false};
+    float milliseconds = 0;
+    start.Record(dh::DefaultStream());
+
+    dispatch();
+
+    stop.Record(dh::DefaultStream());
+    stop.Sync();
+    dh::safe_cuda(cudaEventElapsedTime(&milliseconds, start, stop));
+    double n_bytes = page->Impl()->MemCostBytes();
+    double tp = (n_bytes / static_cast<double>((1ul << 30))) * 1000.0 / milliseconds;
+    LOG(DEBUG) << "Ellpack " << __func__ << " throughput:" << tp << "GB/s";
+  } else {
+    dispatch();
+  }
 
   dh::DefaultStream().Sync();
 
