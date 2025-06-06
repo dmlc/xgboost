@@ -113,7 +113,6 @@ class Buffer {
   std::array<bst_feature_t, kNodesCount> split_index;
   DefaultLeftType default_left;
   std::array<float, kNodesCount> split_cond;
-  std::array<uint8_t, kNodesCount> is_leaf;
   std::array<bst_node_t, kNodesCount + 1> global_nidx;
 
   template <int depth = 0>
@@ -143,7 +142,7 @@ class Buffer {
   }
 
  public:
-  constexpr static int kMaxNumDeepLevels = 5;
+  constexpr static int kMaxNumDeepLevels = 6;
   static_assert(kNumDeepLevels <= kMaxNumDeepLevels);
 
   Buffer(const RegTree& tree) {
@@ -200,6 +199,13 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
                        std::size_t const block_size, linalg::MatrixView<float> out_predt,
                        const std::vector<int>& tree_depth, bool any_missing) {
   std::vector<bst_node_t> nidx(block_size, 0);
+  if (any_missing) {
+    any_missing = false;
+    for (std::size_t i = 0; i < block_size; ++i) {
+      any_missing |= thread_temp[offset + i].HasMissing();
+      if (any_missing) break;
+    }
+  }
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
     auto const &tree = *model.trees.at(tree_id);
     auto const &cats = tree.GetCategoriesMatrix();
