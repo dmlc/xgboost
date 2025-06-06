@@ -11,6 +11,7 @@ import pytest
 import xgboost as xgb
 import xgboost.testing as tm
 from xgboost.data import is_pd_cat_dtype
+from xgboost.core import _parse_version
 
 from ..core import DataIter
 from .data_iter import CatIter
@@ -653,6 +654,7 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     rng = np.random.RandomState(1994)
     from sklearn.datasets import make_regression
     from sklearn.utils import stats
+    from sklearn import __version__ as sklearn_version
 
     n_samples = 256
     X, y = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
@@ -662,8 +664,14 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         w = rng.normal(size=n_samples)
         w -= w.min()
         Xy = xgb.DMatrix(X, y, weight=w)
+
+        (sk_major, sk_minor, _), _ = _parse_version(sklearn_version)
+        if sk_major > 1 or sk_minor >= 7:
+            kwargs = {"percentile_rank": 50}
+        else:
+            kwargs = {"percentile": 50}
         base_score = stats._weighted_percentile(  # pylint: disable=protected-access
-            y, w, percentile=50
+            y, w, **kwargs
         )
     else:
         Xy = xgb.DMatrix(X, y)
