@@ -10,8 +10,8 @@ import pytest
 
 import xgboost as xgb
 import xgboost.testing as tm
-from xgboost.data import is_pd_cat_dtype
 from xgboost.core import _parse_version
+from xgboost.data import is_pd_cat_dtype
 
 from ..core import DataIter
 from .data_iter import CatIter
@@ -652,9 +652,9 @@ def run_invalid_category(tree_method: str, device: Device) -> None:
 def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     """Test for adaptive trees."""
     rng = np.random.RandomState(1994)
+    from sklearn import __version__ as sklearn_version
     from sklearn.datasets import make_regression
     from sklearn.utils import stats
-    from sklearn import __version__ as sklearn_version
 
     n_samples = 256
     X, y = make_regression(  # pylint: disable=unbalanced-tuple-unpacking
