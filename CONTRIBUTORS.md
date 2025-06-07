@@ -11,7 +11,7 @@ The Project Management Committee(PMC) consists group of active committers that m
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Michael is a lawyer and data scientist in France. He is the creator of XGBoost interactive analysis module in R.
 * [Yuan Tang](https://github.com/terrytangyuan), Red Hat
-  - Yuan is a principal software engineer at Red Hat. He contributed mostly in R and Python packages.
+  - Yuan is a Senior Principal Software Engineer at Red Hat AI. He contributed mostly in R and Python packages.
 * [Nan Zhu](https://github.com/CodingCat), Uber
   - Nan is a software engineer in Uber. He contributed mostly in JVM packages.
 * [Jiaming Yuan](https://github.com/trivialfis)
