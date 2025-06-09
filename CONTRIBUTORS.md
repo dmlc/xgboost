@@ -43,8 +43,8 @@ Committers are people who have made substantial contribution to the project and 
 
 Become a Committer
 ------------------
-XGBoost is a open source project and we are actively looking for new committers who are willing to help maintaining and lead the project.
-Committers comes from contributors who:
+XGBoost is an open source project and we are actively looking for new committers who are willing to help maintaining and lead the project.
+Committers come from contributors who:
 * Made substantial contribution to the project.
 * Willing to spent time on maintaining and lead the project.
 
