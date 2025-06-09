@@ -173,10 +173,10 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
     // the iteration.
     auto ret =
         cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
-                          cub::NullType, std::int64_t>::Dispatch(nullptr, n_bytes, input_iterator,
+                          cub::NullType, std::uint64_t>::Dispatch(nullptr, n_bytes, input_iterator,
                                                                  discard_write_iterator,
                                                                  IndexFlagOp{}, cub::NullType{},
-                                                                 total_rows,
+                                                                 static_cast<std::uint64_t>(total_rows),
                                                                  ctx->CUDACtx()->Stream());
     dh::safe_cuda(ret);
     tmp->resize(n_bytes);
@@ -184,10 +184,10 @@ void SortPositionBatch(Context const* ctx, common::Span<const PerNodeData<OpData
   n_bytes = tmp->size();
   auto ret =
       cub::DispatchScan<decltype(input_iterator), decltype(discard_write_iterator), IndexFlagOp,
-                        cub::NullType, std::int64_t>::Dispatch(tmp->data(), n_bytes, input_iterator,
+                        cub::NullType, std::uint64_t>::Dispatch(tmp->data(), n_bytes, input_iterator,
                                                                discard_write_iterator,
                                                                IndexFlagOp{}, cub::NullType{},
-                                                               total_rows,
+                                                               static_cast<std::uint64_t>(total_rows),
                                                                ctx->CUDACtx()->Stream());
   dh::safe_cuda(ret);
 
