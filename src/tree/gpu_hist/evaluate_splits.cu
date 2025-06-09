@@ -115,7 +115,11 @@ class EvaluateSplitAgent {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
       GradientPairInt64 bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
                                               : GradientPairInt64();
-      BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum(), prefix_op);
+#if CUB_VERSION >= 300000
+      BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cuda::std::plus{}, prefix_op);
+#else
+      BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum{}, prefix_op);
+#endif
       // Whether the gradient of missing values is put to the left side.
       bool missing_left = true;
       float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum, param, nidx, fidx,

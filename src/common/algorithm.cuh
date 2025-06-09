@@ -51,9 +51,9 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
   cub::DoubleBuffer<cub::NullType> d_values;
 
-  constexpr auto sort_order = IS_DESCENDING ? cub_sort_order_descending : cub_sort_order_ascending;
+  constexpr auto cub_sort_order = IS_DESCENDING ? cub_sort_order_descending : cub_sort_order_ascending;
   dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 sort_order, KeyT, cub::NullType, BeginOffsetIteratorT, EndOffsetIteratorT,
+                 cub_sort_order, KeyT, cub::NullType, BeginOffsetIteratorT, EndOffsetIteratorT,
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, ctx->Stream(), debug_synchronous)));
@@ -78,22 +78,22 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
   CHECK_LE(num_items, std::numeric_limits<OffsetT>::max());
   // For Thrust >= 1.12 or CUDA >= 11.4, we require system cub installation
 
-  constexpr auto sort_order = descending ? cub_sort_order_descending : cub_sort_order_ascending;
+  constexpr auto cub_sort_order = descending ? cub_sort_order_descending : cub_sort_order_ascending;
 #if THRUST_MAJOR_VERSION >= 2
   dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 sort_order, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
+                 cub_sort_order, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, stream)));
 #elif (THRUST_MAJOR_VERSION == 1 && THRUST_MINOR_VERSION >= 13)
   dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 sort_order, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
+                 cub_sort_order, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, stream, false)));
 #else
   dh::safe_cuda(
-      (cub::DispatchSegmentedRadixSort<sort_order, KeyT, ValueT, BeginOffsetIteratorT,
+      (cub::DispatchSegmentedRadixSort<cub_sort_order, KeyT, ValueT, BeginOffsetIteratorT,
                                        OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes,
                                                           d_keys, d_values, num_items, num_segments,
                                                           d_begin_offsets, d_end_offsets, begin_bit,
