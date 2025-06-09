@@ -246,6 +246,7 @@ class TestDistributedGPU:
                 check_uneven_nan(client, "hist", "cuda", n_workers)
 
     @pytest.mark.skipif(**tm.no_dask_cudf())
+    @pytest.mark.xfail(reason="Incompatible with Dask 2025.2.0+")
     def test_dask_dataframe(self, local_cuda_client: Client) -> None:
         run_with_dask_dataframe(dxgb.DaskDMatrix, local_cuda_client)
         run_with_dask_dataframe(dxgb.DaskQuantileDMatrix, local_cuda_client)
