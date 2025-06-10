@@ -28,11 +28,11 @@ namespace xgboost::common {
 namespace detail {
 
 #if CUB_VERSION >= 300000
-  constexpr auto cub_sort_order_ascending = cub::SortOrder::Ascending;
-  constexpr auto cub_sort_order_descending = cub::SortOrder::Descending;
+  constexpr auto kCubSortOrderAscending = cub::SortOrder::Ascending;
+  constexpr auto kCubSortOrderDescending = cub::SortOrder::Descending;
 #else
-  constexpr bool cub_sort_order_ascending = false;
-  constexpr bool cub_sort_order_descending = true;
+  constexpr bool kCubSortOrderAscending = false;
+  constexpr bool kCubSortOrderDescending = true;
 #endif
 
 // Wrapper around cub sort to define is_decending
@@ -51,9 +51,9 @@ static void DeviceSegmentedRadixSortKeys(CUDAContext const *ctx, void *d_temp_st
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
   cub::DoubleBuffer<cub::NullType> d_values;
 
-  constexpr auto cub_sort_order = IS_DESCENDING ? cub_sort_order_descending : cub_sort_order_ascending;
+  constexpr auto kCubSortOrder = IS_DESCENDING ? kCubSortOrderDescending : kCubSortOrderAscending;
   dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 cub_sort_order, KeyT, cub::NullType, BeginOffsetIteratorT, EndOffsetIteratorT,
+                 kCubSortOrder, KeyT, cub::NullType, BeginOffsetIteratorT, EndOffsetIteratorT,
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, ctx->Stream(), debug_synchronous)));
@@ -78,22 +78,22 @@ void DeviceSegmentedRadixSortPair(void *d_temp_storage,
   CHECK_LE(num_items, std::numeric_limits<OffsetT>::max());
   // For Thrust >= 1.12 or CUDA >= 11.4, we require system cub installation
 
-  constexpr auto cub_sort_order = descending ? cub_sort_order_descending : cub_sort_order_ascending;
+  constexpr auto kCubSortOrder = descending ? kCubSortOrderDescending : kCubSortOrderAscending;
 #if THRUST_MAJOR_VERSION >= 2
   dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 cub_sort_order, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
+                 kCubSortOrder, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, stream)));
 #elif (THRUST_MAJOR_VERSION == 1 && THRUST_MINOR_VERSION >= 13)
   dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 cub_sort_order, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
+                 kCubSortOrder, KeyT, ValueT, BeginOffsetIteratorT, EndOffsetIteratorT,
                  OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys, d_values, num_items,
                                     num_segments, d_begin_offsets, d_end_offsets, begin_bit,
                                     end_bit, false, stream, false)));
 #else
   dh::safe_cuda(
-      (cub::DispatchSegmentedRadixSort<cub_sort_order, KeyT, ValueT, BeginOffsetIteratorT,
+      (cub::DispatchSegmentedRadixSort<kCubSortOrder, KeyT, ValueT, BeginOffsetIteratorT,
                                        OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes,
                                                           d_keys, d_values, num_items, num_segments,
                                                           d_begin_offsets, d_end_offsets, begin_bit,
@@ -222,44 +222,44 @@ void ArgSort(Context const *ctx, Span<U> keys, Span<IdxT> sorted_idx) {
   if (accending) {
     void *d_temp_storage = nullptr;
 #if THRUST_MAJOR_VERSION >= 2
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_ascending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderAscending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         cuctx->Stream())));
 #else
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_ascending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderAscending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         nullptr, false)));
 #endif
     dh::TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
 #if THRUST_MAJOR_VERSION >= 2
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_ascending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderAscending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         cuctx->Stream())));
 #else
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_ascending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderAscending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         nullptr, false)));
 #endif
   } else {
     void *d_temp_storage = nullptr;
 #if THRUST_MAJOR_VERSION >= 2
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_descending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderDescending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         cuctx->Stream())));
 #else
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_descending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderDescending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         nullptr, false)));
 #endif
     dh::TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
 #if THRUST_MAJOR_VERSION >= 2
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_descending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderDescending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         cuctx->Stream())));
 #else
-    dh::safe_cuda((cub::DispatchRadixSort<detail::cub_sort_order_descending, KeyT, ValueT, OffsetT>::Dispatch(
+    dh::safe_cuda((cub::DispatchRadixSort<detail::kCubSortOrderDescending, KeyT, ValueT, OffsetT>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0, sizeof(KeyT) * 8, false,
         nullptr, false)));
 #endif
