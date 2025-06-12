@@ -72,7 +72,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Load a new Booster model from modelPath
-   * @param modelPath The path to the model with the root from your project folder.
+   * @param modelPath model path
    * @return The created Booster.
    * @throws XGBoostError
    */
@@ -544,7 +544,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Save model to modelPath
    *
-   * @param modelPath the model path from the root of the project folder
+   * @param modelPath model path
    */
   public void saveModel(String modelPath) throws XGBoostError{
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSaveModel(handle, modelPath));
