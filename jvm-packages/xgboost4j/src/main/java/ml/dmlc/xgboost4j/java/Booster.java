@@ -581,7 +581,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get the dump of the model as a string array
    *
-   * @param featureMap A string containing the feature map.
+   * @param featureMap A string containing the path to a feature map.
    * @param withStats Controls whether the split statistics are output.
    * @return The dumped model information
    * @throws XGBoostError native error
@@ -593,7 +593,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get the dump of the model as a string array with specified feature map, stats, and the specified format.
    *
-   * @param featureMap A string containing the feature map.
+   * @param featureMap A string containing the path to a feature map.
    * @param withStats Controls whether the split statistics are output.
    * @param format The format in which the model is dumped (text, json, ubj).
    * @return The dumped model information
