@@ -25,9 +25,11 @@
 #include <mutex>      // for once_flag, call_once
 #include <vector>     // for vector
 
+#include "common.h"               // for HumanMemUnit
 #include "compressed_iterator.h"  // for CompressedByteT
 #include "cuda_context.cuh"       // for CUDAContext
 #include "cuda_dr_utils.h"        // for GetGlobalCuDriverApi
+#include "cuda_rt_utils.h"        // for CurrentDevice
 #include "device_compression.h"
 #include "device_vector.cuh"      // for DeviceUVector
 #include "nvtx_utils.h"           // for xgboost_NVTX_FN_RANGE
@@ -290,7 +292,6 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
     dh::device_vector<void*> d_out_ptrs(n_chunks);
     dh::safe_cuda(cudaMemcpyAsync(d_out_ptrs.data().get(), h_out_ptrs.data(),
                                   dh::ToSpan(d_out_ptrs).size_bytes(), cudaMemcpyDefault, stream));
-    CHECK(curt::SupportsPageableMem() || curt::SupportsAts());
     // Run nvcomp
     SafeNvComp(nvcompBatchedSnappyDecompressAsync(
         mgr_impl->d_in_chunk_ptrs.data().get(), mgr_impl->d_in_chunk_sizes.data().get(),
@@ -383,8 +384,11 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
   auto n_bytes = thrust::reduce(cuctx->CTP(), out_sizes.cbegin(), out_sizes.cend());
   auto n_total_bytes = p_out->size();
   auto ratio = static_cast<double>(n_total_bytes) / in.size_bytes();
-  LOG(DEBUG) << "[snappy] Input: " << in.size_bytes() << ", need:" << n_bytes
-             << " allocated:" << n_total_bytes << " ratio:" << ratio;
+  auto ratio_act = static_cast<double>(n_bytes) / in.size_bytes();
+  LOG(DEBUG) << "[snappy] Input: " << common::HumanMemUnit(in.size_bytes())
+             << ", need:" << common::HumanMemUnit(n_bytes)
+             << ", allocated:" << common::HumanMemUnit(n_total_bytes) << ", ratio:" << ratio
+             << ", actual ratio:" << ratio_act;
 
   /**
    * Meta
