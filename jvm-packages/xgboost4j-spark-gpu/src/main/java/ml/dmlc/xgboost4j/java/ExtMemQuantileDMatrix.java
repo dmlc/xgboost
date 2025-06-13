@@ -51,7 +51,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       float missing,
       int maxBin,
       DMatrix ref) throws XGBoostError {
-    this(iter, missing, maxBin, ref, 0, -1, -1, -1.0f);
+    this(iter, missing, maxBin, ref, 0, -1, -1, Float.NaN);
   }
 
   public ExtMemQuantileDMatrix(
@@ -75,7 +75,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       conf.put("min_cache_page_bytes", minCachePageBytes);
     }
 
-    if (cacheHostRatio > 0.0 && cacheHostRatio <= 1.0) {
+    if (cacheHostRatio >= 0.0 && cacheHostRatio <= 1.0) {
       conf.put("cache_host_ratio", cacheHostRatio);
     }
 
