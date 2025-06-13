@@ -591,7 +591,8 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Get the dump of the model as a string array with specified feature map, stats, and the specified format.
+   * Get the dump of the model as a string array with specified feature map, stats,
+   * and the specified format.
    *
    * @param featureMap A string containing the path to a feature map.
    * @param withStats Controls whether the split statistics are output.
@@ -629,7 +630,8 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Get the dump of the model as a string array with specified feature map, stats, and the specified format.
+   * Get the dump of the model as a string array with specified feature map, stats,
+   * and the specified format.
    *
    * @param featureMap An array of strings containing the feature names.
    * @param withStats Controls whether the split statistics are output.
