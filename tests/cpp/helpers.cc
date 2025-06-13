@@ -464,14 +464,21 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  auto config = ExtMemConfig{
-      prefix,
-      this->on_host_,
-      this->cache_host_ratio_,
-      this->min_cache_page_bytes_,
-      std::numeric_limits<float>::quiet_NaN(),
-      Context{}.Threads(),
-  };
+#if defined(XGBOOST_USE_NVCOMP)
+  bool allow_decomp_fallback = true;
+#else
+  bool allow_decomp_fallback = false;
+#endif
+  auto config =
+      ExtMemConfig{
+          prefix,
+          this->on_host_,
+          this->cache_host_ratio_,
+          this->min_cache_page_bytes_,
+          std::numeric_limits<float>::quiet_NaN(),
+          Context{}.Threads(),
+      }
+          .SetParamsForTest(this->hw_decomp_ratio_, allow_decomp_fallback);
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
@@ -514,14 +521,22 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   CHECK(iter);
 
-  auto config = ExtMemConfig{
-      prefix,
-      this->on_host_,
-      this->cache_host_ratio_,
-      this->min_cache_page_bytes_,
-      std::numeric_limits<float>::quiet_NaN(),
-      Context{}.Threads(),
-  };
+#if defined(XGBOOST_USE_NVCOMP)
+  bool allow_decomp_fallback = true;
+#else
+  bool allow_decomp_fallback = false;
+#endif
+  auto config =
+      ExtMemConfig{
+          prefix,
+          this->on_host_,
+          this->cache_host_ratio_,
+          this->min_cache_page_bytes_,
+          std::numeric_limits<float>::quiet_NaN(),
+          Context{}.Threads(),
+      }
+          .SetParamsForTest(this->hw_decomp_ratio_, allow_decomp_fallback);
+
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), this->ref_, Reset,
                       Next, this->bins_, std::numeric_limits<std::int64_t>::max(), config)};
@@ -718,6 +733,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   for (int i = 0; i < ptr->n_gpu; ++i) {
     rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i].get());
   }
+  GlobalConfigThreadLocalStore::Get()->UpdateAllowUnknown(Args{{"use_rmm", "true"}});
   return ptr;
 }
 #else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1

@@ -243,6 +243,7 @@ class RandomDataGenerator {
   std::shared_ptr<DMatrix> ref_{nullptr};
   std::int64_t min_cache_page_bytes_{0};
   float cache_host_ratio_;
+  float hw_decomp_ratio_{true};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
@@ -281,6 +282,10 @@ class RandomDataGenerator {
   }
   [[nodiscard]] RandomDataGenerator& CacheHostRatio(float cache_host_ratio) {
     this->cache_host_ratio_ = cache_host_ratio;
+    return *this;
+  }
+  [[nodiscard]] RandomDataGenerator& HwDecompRatio(float hw_decomp_ratio) {
+    this->hw_decomp_ratio_ = hw_decomp_ratio;
     return *this;
   }
   RandomDataGenerator& Seed(uint64_t s) {
