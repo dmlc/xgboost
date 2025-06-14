@@ -469,6 +469,12 @@ SnappyDecomprMgr& SnappyDecomprMgr::operator=(SnappyDecomprMgr&& that) = default
 SnappyDecomprMgr::~SnappyDecomprMgr() = default;
 SnappyDecomprMgrImpl* SnappyDecomprMgr::Impl() const { return nullptr; }
 
+[[nodiscard]] bool SnappyDecomprMgr::Empty() const { return true; }
+[[nodiscard]] std::size_t SnappyDecomprMgr::DecompressedBytes() const {
+  common::AssertNvCompSupport();
+  return 0;
+}
+
 // Round-trip compression
 void DecompressSnappy(dh::CUDAStreamView, SnappyDecomprMgr const&,
                       common::Span<common::CompressedByteT>, bool) {
