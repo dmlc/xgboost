@@ -212,6 +212,7 @@ SnappyDecomprMgrImpl::SnappyDecomprMgrImpl(dh::CUDAStreamView s,
 
 common::Span<CUmemDecompressParams> SnappyDecomprMgrImpl::GetParams(
     common::Span<common::CompressedByteT> out) {
+  xgboost_NVTX_FN_RANGE_C(3, 252, 198);
   if (this->de_params.empty()) {
     return {};
   }
