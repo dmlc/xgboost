@@ -289,6 +289,7 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
     dh::device_vector<void*> d_out_ptrs(n_chunks);
     dh::safe_cuda(cudaMemcpyAsync(d_out_ptrs.data().get(), h_out_ptrs.data(),
                                   dh::ToSpan(d_out_ptrs).size_bytes(), cudaMemcpyDefault, stream));
+    CHECK(curt::SupportsPageableMem() || curt::SupportsAts());
     // Run nvcomp
     SafeNvComp(nvcompBatchedSnappyDecompressAsync(
         mgr_impl->d_in_chunk_ptrs.data().get(), mgr_impl->d_in_chunk_sizes.data().get(),
