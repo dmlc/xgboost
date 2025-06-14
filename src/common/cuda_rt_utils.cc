@@ -42,13 +42,13 @@ std::int32_t CurrentDevice(bool raise) {
 }
 
 // alternatively: `nvidia-smi -q | grep Addressing`
-bool SupportsPageableMem() {
+[[nodiscard]] bool SupportsPageableMem() {
   std::int32_t res{0};
   dh::safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrPageableMemoryAccess, CurrentDevice()));
   return res == 1;
 }
 
-bool SupportsAts() {
+[[nodiscard]] bool SupportsAts() {
   std::int32_t res{0};
   dh::safe_cuda(cudaDeviceGetAttribute(&res, cudaDevAttrPageableMemoryAccessUsesHostPageTables,
                                        CurrentDevice()));
@@ -106,7 +106,7 @@ void DrVersion(std::int32_t* major, std::int32_t* minor) {
 
 [[nodiscard]] std::int32_t GetNumaId() {
   std::int32_t numa_id = -1;
-  dh::safe_cuda(cudaDeviceGetAttribute(&numa_id, cudaDevAttrNumaId, curt::CurrentDevice()));
+  dh::safe_cuda(cudaDeviceGetAttribute(&numa_id, cudaDevAttrHostNumaId, curt::CurrentDevice()));
   numa_id = std::max(numa_id, 0);
   return numa_id;
 }
