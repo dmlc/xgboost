@@ -483,7 +483,8 @@ void DecompressSnappy(dh::CUDAStreamView, SnappyDecomprMgr const&,
 }
 
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
-    dh::CUDAStreamView, CuMemParams const&, dh::DeviceUVector<std::uint8_t> const&, CuMemParams*) {
+    dh::CUDAStreamView, std::shared_ptr<HostPinnedMemPool>, CuMemParams const&,
+    dh::DeviceUVector<std::uint8_t> const&, CuMemParams*) {
   common::AssertNvCompSupport();
   return {};
 }
