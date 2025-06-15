@@ -12,7 +12,7 @@ from pyspark.ml.param import Param, Params
 from pyspark.ml.param.shared import HasProbabilityCol, HasRawPredictionCol
 
 from ..collective import Config
-from ..sklearn import XGBClassifier, XGBRanker, XGBRegressor
+from ..sklearn import XGBClassifier, XGBModel, XGBRanker, XGBRegressor
 from .core import (  # type: ignore
     _ClassificationModel,
     _SparkXGBEstimator,
@@ -256,6 +256,12 @@ class SparkXGBRegressorModel(_SparkXGBModel):
     def _xgb_cls(cls) -> Type[XGBRegressor]:
         return XGBRegressor
 
+    @classmethod
+    def _load_model_as_sklearn_model(cls, model_path: str) -> XGBModel:
+        sklearn_model = XGBRegressor()
+        sklearn_model.load_model(model_path)
+        return sklearn_model
+
 
 _set_pyspark_xgb_cls_param_attrs(SparkXGBRegressor, SparkXGBRegressorModel)
 
@@ -452,6 +458,12 @@ class SparkXGBClassifierModel(_ClassificationModel):
     def _xgb_cls(cls) -> Type[XGBClassifier]:
         return XGBClassifier
 
+    @classmethod
+    def _load_model_as_sklearn_model(cls, model_path: str) -> XGBModel:
+        sklearn_model = XGBClassifier()
+        sklearn_model.load_model(model_path)
+        return sklearn_model
+
 
 _set_pyspark_xgb_cls_param_attrs(SparkXGBClassifier, SparkXGBClassifierModel)
 
@@ -638,6 +650,12 @@ class SparkXGBRankerModel(_SparkXGBModel):
     @classmethod
     def _xgb_cls(cls) -> Type[XGBRanker]:
         return XGBRanker
+
+    @classmethod
+    def _load_model_as_sklearn_model(cls, model_path: str) -> XGBModel:
+        sklearn_model = XGBRanker()
+        sklearn_model.load_model(model_path)
+        return sklearn_model
 
 
 _set_pyspark_xgb_cls_param_attrs(SparkXGBRanker, SparkXGBRankerModel)
