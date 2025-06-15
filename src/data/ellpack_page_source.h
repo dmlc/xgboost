@@ -11,33 +11,34 @@
 #include <utility>  // for move
 #include <vector>   // for vector
 
-#include "../common/cuda_rt_utils.h"  // for SupportsPageableMem, SupportsAts
-#include "../common/hist_util.h"      // for HistogramCuts
-#include "ellpack_page.h"             // for EllpackPage
-#include "ellpack_page_raw_format.h"  // for EllpackPageRawFormat
-#include "sparse_page_source.h"       // for PageSourceIncMixIn
-#include "xgboost/base.h"             // for bst_idx_t
-#include "xgboost/context.h"          // for DeviceOrd
-#include "xgboost/data.h"             // for BatchParam
-#include "xgboost/span.h"             // for Span
+#include "../common/compressed_iterator.h"  // for CompressedByteT
+#include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts
+#include "../common/hist_util.h"            // for HistogramCuts
+#include "../common/ref_resource_view.h"    // for RefResourceView
+#include "ellpack_page.h"                   // for EllpackPage
+#include "ellpack_page_raw_format.h"        // for EllpackPageRawFormat
+#include "sparse_page_source.h"             // for PageSourceIncMixIn
+#include "xgboost/base.h"                   // for bst_idx_t
+#include "xgboost/context.h"                // for DeviceOrd
+#include "xgboost/data.h"                   // for BatchParam
+#include "xgboost/span.h"                   // for Span
+
+namespace xgboost::curt {
+class StreamPool;
+}
 
 namespace xgboost::data {
 struct EllpackCacheInfo {
   BatchParam param;
-  bool prefer_device{false};  // Prefer to cache the page in the device memory instead of host.
-  std::int64_t max_num_device_pages{0};  // Maximum number of pages cached in device.
+  double cache_host_ratio{1.0};  // The size ratio the host cache vs. the total cache
   float missing{std::numeric_limits<float>::quiet_NaN()};
   std::vector<bst_idx_t> cache_mapping;
-  std::vector<bst_idx_t> buffer_bytes;
+  std::vector<bst_idx_t> buffer_bytes;  // N bytes of the concatenated pages.
   std::vector<bst_idx_t> buffer_rows;
 
   EllpackCacheInfo() = default;
-  EllpackCacheInfo(BatchParam param, bool prefer_device, std::int64_t max_num_device_pages,
-                   float missing)
-      : param{std::move(param)},
-        prefer_device{prefer_device},
-        max_num_device_pages{max_num_device_pages},
-        missing{missing} {}
+  EllpackCacheInfo(BatchParam param, double h_ratio, float missing)
+      : param{std::move(param)}, cache_host_ratio{h_ratio}, missing{missing} {}
 
   // Only effective for host-based cache.
   // The number of batches for the concatenated cache.
@@ -48,10 +49,17 @@ struct EllpackCacheInfo {
 // concurrent read. As a result, there are two classes, one for cache storage, another one
 // for stream.
 //
-// This is a memory-based cache. It can be a mixed of the device memory and the host memory.
+// This is a memory-based cache. It can be a mixed of the device memory and the host
+// memory.
 struct EllpackMemCache {
-  std::vector<std::unique_ptr<EllpackPageImpl>> pages;
-  std::vector<bool> on_device;
+  // The host portion of each page.
+  std::vector<std::unique_ptr<EllpackPageImpl>> h_pages;
+  // The device portion of each page.
+  using DPage = common::RefResourceView<common::CompressedByteT>;
+  std::vector<DPage> d_pages;
+  using PagePtr = std::pair<EllpackPageImpl const*, DPage const*>;
+  using PageRef = std::pair<std::unique_ptr<EllpackPageImpl>&, DPage&>;
+
   std::vector<std::size_t> offsets;
   // Size of each batch before concatenation.
   std::vector<bst_idx_t> sizes_orig;
@@ -60,24 +68,36 @@ struct EllpackMemCache {
   // Cache info
   std::vector<std::size_t> const buffer_bytes;
   std::vector<bst_idx_t> const buffer_rows;
-  bool const prefer_device;
-  std::int64_t const max_num_device_pages;
+  double const cache_host_ratio;
 
-  explicit EllpackMemCache(EllpackCacheInfo cinfo);
+  std::unique_ptr<curt::StreamPool> streams;
+
+  explicit EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers);
   ~EllpackMemCache();
 
-  // The number of bytes for the entire cache.
-  [[nodiscard]] std::size_t SizeBytes() const;
-
+  // The number of bytes of the entire cache.
+  [[nodiscard]] std::size_t SizeBytes() const noexcept(true);
+  // The number of bytes of the device cache.
+  [[nodiscard]] std::size_t DeviceSizeBytes() const noexcept(true);
+  // The number of bytes of each page.
+  [[nodiscard]] std::size_t SizeBytes(std::size_t i) const noexcept(true);
+  // The number of bytes of the gradient index (ellpack).
+  [[nodiscard]] std::size_t GidxSizeBytes(std::size_t i) const noexcept(true);
+  // The number of bytes of the gradient index (ellpack) of the entire cache.
+  [[nodiscard]] std::size_t GidxSizeBytes() const noexcept(true);
+  // The number of pages in the cache.
+  [[nodiscard]] std::size_t Size() const { return this->h_pages.size(); }
+  // Is the cache empty?
   [[nodiscard]] bool Empty() const { return this->SizeBytes() == 0; }
   // No page concatenation is performed. If there's page concatenation, then the number of
   // pages in the cache must be smaller than the input number of pages.
   [[nodiscard]] bool NoConcat() const { return this->NumBatchesOrig() == this->buffer_rows.size(); }
-
+  // The number of pages before concatenatioin.
   [[nodiscard]] bst_idx_t NumBatchesOrig() const { return cache_mapping.size(); }
-  [[nodiscard]] EllpackPageImpl const* At(std::int32_t k) const;
-
-  [[nodiscard]] std::int64_t NumDevicePages() const;
+  // Get the pointers to the k^th concatenated page.
+  [[nodiscard]] PagePtr At(std::int32_t k) const;
+  // Get a reference to the last concatenated page.
+  [[nodiscard]] PageRef Back();
 };
 
 // Pimpl to hide CUDA calls from the host compiler.
@@ -234,7 +254,7 @@ class EllpackMmapStreamPolicy : public F<S> {
 void CalcCacheMapping(Context const* ctx, bool is_dense,
                       std::shared_ptr<common::HistogramCuts const> cuts,
                       std::int64_t min_cache_page_bytes, ExternalDataInfo const& ext_info,
-                      EllpackCacheInfo* cinfo);
+                      bool is_validation, EllpackCacheInfo* cinfo);
 
 /**
  * @brief Ellpack source with sparse pages as the underlying source.

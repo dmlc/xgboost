@@ -1,7 +1,6 @@
 import itertools
 import json
 import os
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
@@ -11,9 +10,11 @@ import pytest
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
-
-sys.path.append("tests/python")
-import test_with_sklearn as twskl  # noqa
+from xgboost.testing.with_skl import (
+    run_boost_from_prediction_binary,
+    run_boost_from_prediction_multi_clasas,
+    run_housing_rf_regression,
+)
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
@@ -31,8 +32,15 @@ def test_gpu_binary_classification():
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
         for train_index, test_index in kf.split(X, y):
             xgb_model = cls(
-                random_state=42, tree_method="gpu_hist", n_estimators=4, gpu_id="0"
+                random_state=42,
+                tree_method="hist",
+                n_estimators=4,
+                device="cuda",
             ).fit(X[train_index], y[train_index])
+            cfg: str = json.loads(xgb_model.get_booster().save_config())["learner"][
+                "generic_param"
+            ]["device"]
+            assert cfg.startswith("cuda")
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
             err = sum(
@@ -43,31 +51,31 @@ def test_gpu_binary_classification():
 
 @pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.skipif(**tm.no_cudf())
-def test_boost_from_prediction_gpu_hist():
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_boost_from_prediction_gpu_hist(tree_method: str) -> None:
     import cudf
     import cupy as cp
     from sklearn.datasets import load_breast_cancer, load_digits
 
-    tree_method = "gpu_hist"
     X, y = load_breast_cancer(return_X_y=True)
     X, y = cp.array(X), cp.array(y)
 
-    twskl.run_boost_from_prediction_binary(tree_method, X, y, None)
-    twskl.run_boost_from_prediction_binary(tree_method, X, y, cudf.DataFrame)
+    run_boost_from_prediction_binary(tree_method, "cuda", X, y, None)
+    run_boost_from_prediction_binary(tree_method, "cuda", X, y, cudf.DataFrame)
 
     X, y = load_digits(return_X_y=True)
     X, y = cp.array(X), cp.array(y)
 
-    twskl.run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, X, y, None
+    run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, "cuda", X, y, None
     )
-    twskl.run_boost_from_prediction_multi_clasas(
-        xgb.XGBClassifier, tree_method, X, y, cudf.DataFrame
+    run_boost_from_prediction_multi_clasas(
+        xgb.XGBClassifier, tree_method, "cuda", X, y, cudf.DataFrame
     )
 
 
-def test_num_parallel_tree():
-    twskl.run_housing_rf_regression("gpu_hist")
+def test_num_parallel_tree() -> None:
+    run_housing_rf_regression("hist", "cuda")
 
 
 @pytest.mark.skipif(**tm.no_pandas())
@@ -258,7 +266,7 @@ def test_custom_objective(
 def test_ranking_qid_df():
     import cudf
 
-    run_ranking_qid_df(cudf, "gpu_hist")
+    run_ranking_qid_df(cudf, "hist", "cuda")
 
 
 @pytest.mark.skipif(**tm.no_pandas())

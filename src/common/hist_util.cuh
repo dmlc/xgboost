@@ -45,7 +45,11 @@ __global__ void GetColumnSizeSharedMemKernel(IterSpan<BatchIt> batch_iter,
 
   dh::BlockFill(smem_cs_ptr, out_column_size.size(), 0);
 
+#if CUB_VERSION >= 300000
+  __syncthreads();
+#else
   cub::CTA_SYNC();
+#endif
 
   auto n = batch_iter.size();
 
@@ -56,7 +60,11 @@ __global__ void GetColumnSizeSharedMemKernel(IterSpan<BatchIt> batch_iter,
     }
   }
 
+#if CUB_VERSION >= 300000
+  __syncthreads();
+#else
   cub::CTA_SYNC();
+#endif
 
   auto out_global_ptr = out_column_size;
   for (auto i : dh::BlockStrideRange(static_cast<std::size_t>(0), out_column_size.size())) {

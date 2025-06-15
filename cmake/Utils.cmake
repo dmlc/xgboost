@@ -236,6 +236,10 @@ macro(xgboost_target_defs target)
   if(PLUGIN_RMM)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_RMM=1)
   endif()
+
+  if(USE_NVCOMP)
+    target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_NVCOMP=1)
+  endif()
 endmacro()
 
 # handles dependencies
@@ -260,6 +264,10 @@ macro(xgboost_target_link_libraries target)
 
   if(PLUGIN_RMM)
     target_link_libraries(${target} PRIVATE rmm::rmm)
+  endif()
+
+  if(USE_NVCOMP)
+    target_link_libraries(${target} PRIVATE nvcomp::nvcomp)
   endif()
 
   if(USE_NCCL)

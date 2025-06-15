@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file io.h
  * \brief general stream interface for serialization, I/O
  * \author Tianqi Chen
@@ -282,12 +282,13 @@ class ResourceHandler {
  public:
   // RTTI
   enum Kind : std::uint8_t {
-    kMalloc = 0,         // System memory.
-    kMmap = 1,           // Memory mapp.
-    kCudaMalloc = 2,     // CUDA device memory.
-    kCudaMmap = 3,       // CUDA with mmap.
-    kCudaHostCache = 4,  // CUDA pinned host memory.
-    kCudaGrowOnly = 5,   // CUDA virtual memory allocator.
+    kMalloc = 0,             // System memory.
+    kMmap = 1,               // Memory mapp.
+    kCudaMalloc = 2,         // CUDA device memory.
+    kCudaMmap = 3,           // CUDA with mmap.
+    kCudaHostCache = 4,      // CUDA pinned host memory.
+    kCudaGrowOnly = 5,       // CUDA virtual memory allocator.
+    kCudaPinnedMemPool = 6,  // CUDA memory pool for pinned host memory.
   };
 
  private:
@@ -316,6 +317,8 @@ class ResourceHandler {
         return "CudaHostCache";
       case kCudaGrowOnly:
         return "CudaGrowOnly";
+      case kCudaPinnedMemPool:
+        return "CudaPinnedMemPool";
     }
     LOG(FATAL) << "Unreachable.";
     return {};
@@ -547,6 +550,26 @@ class PrivateMmapConstStream : public AlignedResourceReadStream {
 };
 
 /**
+ * @brief Read a portion of a file into a memory buffer. This class helps integration with
+ *        external memory file format.
+ */
+class MemBufFileReadStream : public AlignedResourceReadStream {
+  static std::shared_ptr<MallocResource> ReadFileIntoBuffer(StringView path, std::size_t offset,
+                                                            std::size_t length);
+
+ public:
+  /**
+   * @brief Construct a stream for reading file.
+   *
+   * @param path      File path.
+   * @param offset    The number of bytes into the file.
+   * @param length    The number of bytes to read.
+   */
+  explicit MemBufFileReadStream(StringView path, std::size_t offset, std::size_t length)
+      : AlignedResourceReadStream{ReadFileIntoBuffer(path, offset, length)} {}
+};
+
+/**
  * @brief Base class for write stream with alignment defined by IOAlignment().
  */
 class AlignedWriteStream {
@@ -607,5 +630,8 @@ class AlignedMemWriteStream : public AlignedFileWriteStream {
 
   [[nodiscard]] std::size_t Tell() const noexcept(true);
 };
+
+// Run a system command, get its stdout.
+[[nodiscard]] std::string CmdOutput(StringView cmd);
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_IO_H_

@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_CUH_
 #define XGBOOST_DATA_ELLPACK_PAGE_CUH_
@@ -20,11 +20,24 @@ namespace xgboost {
 /**
  * @brief Struct for accessing and manipulating an ELLPACK matrix on the device.
  *
- * Does not own underlying memory and may be trivially copied into kernels.
+ * Does not own the underlying memory and may be trivially copied into kernels.
  */
-struct EllpackDeviceAccessor {
-  /** @brief Whether or not if the matrix is dense. */
-  bst_idx_t null_value;
+template <typename IterT>
+struct EllpackAccessorImpl {
+ private:
+  /**
+   * @brief Stores the null value and whether the matrix is dense. The `IsDense` is stored in the
+   * first bit of this value.
+   */
+  bst_idx_t null_value_;
+
+  constexpr static auto Ind() { return static_cast<bst_idx_t>(1); }
+  constexpr static std::size_t NullShift() { return sizeof(null_value_) * 8 - Ind(); }
+
+ public:
+  using IterType = IterT;
+
+ public:
   /** @brief Row length for ELLPACK, equal to number of features when the data is dense. */
   bst_idx_t row_stride;
   /** @brief Starting index of the rows. Used for external memory. */
@@ -32,7 +45,7 @@ struct EllpackDeviceAccessor {
   /** @brief Number of rows in this batch. */
   bst_idx_t n_rows;
   /** @brief Acessor for the gradient index. */
-  common::CompressedIterator<std::uint32_t> gidx_iter;
+  IterType gidx_iter;
   /** @brief Minimum value for each feature. Size equals to number of features. */
   common::Span<const float> min_fvalue;
   /** @brief Histogram cut pointers. Size equals to (number of features + 1). */
@@ -42,12 +55,12 @@ struct EllpackDeviceAccessor {
   /** @brief Type of each feature, categorical or numerical. */
   common::Span<const FeatureType> feature_types;
 
-  EllpackDeviceAccessor() = delete;
-  EllpackDeviceAccessor(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
-                        bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
-                        common::CompressedIterator<uint32_t> gidx_iter, bst_idx_t null_value,
-                        common::Span<FeatureType const> feature_types)
-      : null_value{null_value},
+  EllpackAccessorImpl() = delete;
+  EllpackAccessorImpl(Context const* ctx, std::shared_ptr<const common::HistogramCuts> cuts,
+                      bst_idx_t row_stride, bst_idx_t base_rowid, bst_idx_t n_rows,
+                      IterType gidx_iter, bst_idx_t null_value, bool is_dense,
+                      common::Span<FeatureType const> feature_types)
+      : null_value_{null_value},
         row_stride{row_stride},
         base_rowid{base_rowid},
         n_rows{n_rows},
@@ -65,8 +78,17 @@ struct EllpackDeviceAccessor {
       feature_segments = cuts->cut_ptrs_.ConstHostPointer();
       min_fvalue = cuts->min_vals_.ConstHostSpan();
     }
+
+    if (is_dense) {
+      static_assert(NullShift() == 63);
+      CHECK(!IsDense());
+      this->null_value_ |= (Ind() << NullShift());
+    }
   }
 
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE bool IsDense() const {
+    return (this->null_value_ >> NullShift()) != 0;
+  }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bool IsDenseCompressed() const {
     return this->row_stride == this->NumFeatures();
   }
@@ -133,11 +155,22 @@ struct EllpackDeviceAccessor {
     }
     return gidx_fvalue_map[gidx];
   }
-  [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NullValue() const { return this->null_value; }
+  [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NullValue() const {
+    return this->null_value_ & ((Ind() << NullShift()) - Ind());
+  }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE bst_idx_t NumBins() const { return gidx_fvalue_map.size(); }
   [[nodiscard]] XGBOOST_HOST_DEV_INLINE size_t NumFeatures() const { return min_fvalue.size(); }
 };
 
+using EllpackDeviceAccessor = EllpackAccessorImpl<common::CompressedIterator<std::uint32_t>>;
+
+using DoubleEllpackAccessor = EllpackAccessorImpl<common::DoubleCompressedIter<std::uint32_t>>;
+
+/**
+ * @brief The ellpack accessor uses different graident index iterator to facilitate
+ *        external memory training.
+ */
+using EllpackAccessor = std::variant<EllpackDeviceAccessor, DoubleEllpackAccessor>;
 
 class GHistIndexMatrix;
 
@@ -224,9 +257,7 @@ class EllpackPageImpl {
   [[nodiscard]] bst_idx_t Size() const;
 
   /** @brief Set the base row id for this page. */
-  void SetBaseRowId(std::size_t row_id) {
-    base_rowid = row_id;
-  }
+  void SetBaseRowId(std::size_t row_id) { base_rowid = row_id; }
 
   [[nodiscard]] common::HistogramCuts const& Cuts() const { return *cuts_; }
   [[nodiscard]] std::shared_ptr<common::HistogramCuts const> CutsShared() const { return cuts_; }
@@ -243,7 +274,7 @@ class EllpackPageImpl {
   }
 
   /** @return Estimation of memory cost of this page. */
-  std::size_t MemCostBytes() const;
+  [[nodiscard]] std::size_t MemCostBytes() const;
 
   /**
    * @brief Return the total number of symbols (total number of bins plus 1 for not
@@ -251,6 +282,12 @@ class EllpackPageImpl {
    */
   [[nodiscard]] auto NumSymbols() const { return this->info.n_symbols; }
   void SetNumSymbols(bst_idx_t n_symbols) { this->info.n_symbols = n_symbols; }
+  /**
+   * @brief Get the value used to represent missing.
+   */
+  [[nodiscard]] bst_idx_t NullValue() const {
+    return this->IsDense() ? this->NumSymbols() : this->NumSymbols() - 1;
+  }
   /**
    * @brief Copy basic shape from another page.
    */
@@ -263,16 +300,54 @@ class EllpackPageImpl {
     this->SetNumSymbols(page->NumSymbols());
   }
   /**
-   * @brief Get an accessor that can be passed into CUDA kernels.
+   * @brief Get an accessor backed by the device storage.
    */
-  [[nodiscard]] EllpackDeviceAccessor GetDeviceAccessor(
+  [[nodiscard]] EllpackAccessor GetDeviceEllpack(
       Context const* ctx, common::Span<FeatureType const> feature_types = {}) const;
   /**
-   * @brief Get an accessor for host code.
+   * @brief Get an accessor backed by the host storage.
+   *
+   * @param h_gidx_buffer A buffer used as the backing storage of the accessor.
+   *
+   * @return An accessor variant.
    */
-  [[nodiscard]] EllpackDeviceAccessor GetHostAccessor(
+  [[nodiscard]] EllpackAccessor GetHostEllpack(
       Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
       common::Span<FeatureType const> feature_types = {}) const;
+  /**
+   * @brief Vistor pattern.
+   *
+   * @param fn A callable that accepts both variants of the ellpack accessor.
+   *
+   * @return An accessor variant.
+   */
+  template <typename Fn>
+  decltype(auto) Visit(Context const* ctx, common::Span<FeatureType const> feature_types,
+                       Fn&& fn) const {
+    auto acc = this->GetDeviceEllpack(ctx, feature_types);
+    return std::visit(std::forward<Fn>(fn), acc);
+  }
+  /**
+   * @brief Vistor pattern with a host accessor.
+   *
+   * @param h_gidx_buffer A buffer used as the backing storage of the accessor.
+   * @param fn A callable that accepts both variants of the ellpack accessor.
+   */
+  template <typename Fn>
+  decltype(auto) VisitOnHost(Context const* ctx,
+                             std::vector<common::CompressedByteT>* h_gidx_buffer,
+                             common::Span<FeatureType const> feature_types, Fn&& fn) const {
+    auto acc = this->GetHostEllpack(ctx, h_gidx_buffer, feature_types);
+    return std::visit(std::forward<Fn>(fn), acc);
+  }
+  // helper for visit that doesn't need the raw data.
+  template <typename Fn>
+  decltype(auto) VisitOnHost(Context const* ctx, Fn&& fn) const {
+    common::Span<FeatureType const> feature_types;
+    std::vector<common::CompressedByteT> h_gidx_buffer;
+    auto acc = this->GetHostEllpack(ctx, &h_gidx_buffer, feature_types);
+    return std::visit(std::forward<Fn>(fn), acc);
+  }
   /**
    * @brief Calculate the number of non-missing values.
    */
@@ -305,6 +380,13 @@ class EllpackPageImpl {
    * This can be backed by various storage types.
    */
   common::RefResourceView<common::CompressedByteT> gidx_buffer;
+  /**
+   * @brief Second buffer. Used for external memory where we might have a part of the
+   * cache in device and another part of the cache in host.
+   *
+   * This buffer is optional. It must be on device if not empty.
+   */
+  common::RefResourceView<common::CompressedByteT const> d_gidx_buffer;
   /**
    * @brief Compression infomation.
    */

@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost contributors
+ * Copyright 2024-2025, XGBoost contributors
  *
  * @brief Utility for CUDA driver API.
  *
@@ -12,8 +12,13 @@
 #include <cuda_runtime_api.h>
 
 #include <cstdint>  // for int32_t
+#include <string>   // for string
 
 #include "xgboost/string_view.h"  // for StringView
+
+#if CUDART_VERSION >= 12080
+#define CUDA_HW_DECOM_AVAILABLE 1
+#endif
 
 namespace xgboost::cudr {
 /**
@@ -44,12 +49,17 @@ struct CuDriverApi {
   using DeviceGetAttribute = CUresult(int *pi, CUdevice_attribute attrib, CUdevice dev);
   using DeviceGet = CUresult(CUdevice *device, int ordinal);
 
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+  using BatchDecompressAsync = CUresult(CUmemDecompressParams *paramsArray, size_t count,
+                                        unsigned int flags, size_t *errorIndex, CUstream stream);
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
+
   MemGetAllocationGranularityFn *cuMemGetAllocationGranularity{nullptr};  // NOLINT
   MemCreateFn *cuMemCreate{nullptr};                                      // NOLINT
   /**
    * @param[in] offset - Must be zero.
    */
-  MemMapFn *cuMemMap{nullptr};                                            // NOLINT
+  MemMapFn *cuMemMap{nullptr};  // NOLINT
   /**
    * @param[out] ptr       - Resulting pointer to start of virtual address range allocated
    * @param[in]  size      - Size of the reserved virtual address range requested
@@ -67,7 +77,13 @@ struct CuDriverApi {
   DeviceGetAttribute *cuDeviceGetAttribute{nullptr};  // NOLINT
   DeviceGet *cuDeviceGet{nullptr};                    // NOLINT
 
-  CuDriverApi();
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+
+  BatchDecompressAsync *cuMemBatchDecompressAsync{nullptr};  // NOLINT
+
+#endif  // defined(CUDA_HW_DECOM_AVAILABLE)
+
+  CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int32_t kdm_major);
 
   void ThrowIfError(CUresult status, StringView fn, std::int32_t line, char const *file) const;
 };
@@ -96,10 +112,42 @@ inline auto GetAllocGranularity(CUmemAllocationProp const *prop) {
 /**
  * @brief Obtain appropriate device ordinal for `CUmemLocation`.
  */
-void MakeCuMemLocation(CUmemLocationType type, CUmemLocation* loc);
+void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc);
 
 /**
  * @brief Construct a `CUmemAllocationProp`.
  */
 [[nodiscard]] CUmemAllocationProp MakeAllocProp(CUmemLocationType type);
+
+/**
+ * @brief Get system driver version from the `nvidia-smi` command.
+ *
+ * @return Whether the system call is successful.
+ */
+[[nodiscard]] bool GetVersionFromSmi(std::int32_t *p_major, std::int32_t *p_minor);
+
+/**
+ * @brief Cache the result from @ref GetVersionFromSmi in a global variable
+ */
+[[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor);
+
+/**
+ * @brief Cache the result from @ref DrVersion in a global variable
+ */
+void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor);
+
+namespace detail {
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiImpl(std::string const &smi_output);
+}  // namespace detail
+
+/**
+ * @brief Get the total number of C2C links `NVML_FI_DEV_C2C_LINK_COUNT`.
+ *
+ * @return -1 if there's no C2C. Otherwise, the number of links.
+ */
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmi();
+/**
+ * @brief Cache the result from @ref GetC2cLinkCountFromSmi in a global variable
+ */
+[[nodiscard]] std::int32_t GetC2cLinkCountFromSmiGlobal();
 }  // namespace xgboost::cudr

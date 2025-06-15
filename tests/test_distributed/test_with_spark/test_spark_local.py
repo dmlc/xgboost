@@ -31,6 +31,7 @@ from xgboost.spark import (
 )
 from xgboost.spark.core import _non_booster_params
 from xgboost.spark.data import pred_contribs
+from xgboost.testing.collective import get_avail_port
 
 from .utils import SparkTestCase
 
@@ -1772,16 +1773,17 @@ class XgboostLocalTest(SparkTestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = "file:" + tmpdir
+            port = get_avail_port()
             classifier = SparkXGBClassifier(
                 launch_tracker_on_driver=True,
-                coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=58894),
+                coll_cfg=Config(tracker_host_ip="127.0.0.1", tracker_port=port),
                 num_workers=1,
                 n_estimators=1,
             )
 
             def check_conf(conf: Config) -> None:
                 assert conf.tracker_host_ip == "127.0.0.1"
-                assert conf.tracker_port == 58894
+                assert conf.tracker_port == port
 
             check_conf(classifier.getOrDefault(classifier.coll_cfg))
             classifier.write().overwrite().save(path)

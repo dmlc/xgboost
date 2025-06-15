@@ -36,28 +36,6 @@ jobs:
             --prefix cache/${{ github.run_id }}/build-cpu \
             ./xgboost
 
-  build-cpu-arm64:
-    name: Build CPU ARM64 + manylinux_2_28_aarch64 wheel
-    runs-on:
-      - runs-on=${{ github.run_id }}
-      - runner=linux-arm64-cpu
-      - tag=build-cpu-arm64
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-cpu-arm64.sh
-      - name: Stash files
-        run: |
-          python3 ops/pipeline/manage-artifacts.py upload \
-            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
-            --prefix cache/${{ github.run_id }}/build-cpu-arm64 \
-            ./xgboost python-package/dist/*.whl
-
   build-cuda:
     name: Build CUDA + manylinux_2_28_x86_64 wheel
     runs-on:
@@ -122,13 +100,35 @@ jobs:
           bash ops/pipeline/build-cuda.sh \
             xgb-ci.gpu_build_rockylinux8_dev_ver enable-rmm
 
-  build-manylinux2014:
+  build-python-wheels-arm64:
+    name: Build manylinux_2_28_aarch64 wheel
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-arm64-cpu
+      - tag=build-python-wheels-arm64
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-python-wheels-arm64.sh
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-python-wheels-arm64 \
+            ./xgboost python-package/dist/*.whl
+
+  build-python-wheels-manylinux2014:
     name: Build manylinux2014_${{ matrix.arch }} wheel
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
       - run-id=${{ github.run_id }}
-      - tag=main-build-manylinux2014-${{ matrix.arch }}
+      - tag=main-build-python-wheels-manylinux2014-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -145,7 +145,42 @@ jobs:
           submodules: "true"
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-manylinux2014.sh ${{ matrix.arch }}
+      - run: bash ops/pipeline/build-python-wheels-manylinux2014.sh ${{ matrix.arch }}
+
+  build-python-wheels-cpu:
+    name: Build CPU wheel for ${{ matrix.manylinux_target }}_${{ matrix.arch }}
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-build-python-wheels-cpu-${{ matrix.manylinux_target }}-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - manylinux_target: manylinux2014
+          arch: aarch64
+          runner: linux-arm64-cpu
+        - manylinux_target: manylinux2014
+          arch: x86_64
+          runner: linux-amd64-cpu
+        - manylinux_target: manylinux_2_28
+          arch: aarch64
+          runner: linux-arm64-cpu
+        - manylinux_target: manylinux_2_28
+          arch: x86_64
+          runner: linux-amd64-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-python-wheels-cpu.sh \
+            ${{ matrix.manylinux_target }} ${{ matrix.arch }}
 
   build-gpu-rpkg:
     name: Build GPU-enabled R package
@@ -162,7 +197,6 @@ jobs:
       - name: Log into Docker registry (AWS ECR)
         run: bash ops/pipeline/login-docker-registry.sh
       - run: bash ops/pipeline/build-gpu-rpkg.sh
-
 
   test-cpp-gpu:
     name: >-
@@ -208,7 +242,7 @@ jobs:
 
   test-python-wheel:
     name: Run Python tests (${{ matrix.description }})
-    needs: [build-cuda, build-cpu-arm64]
+    needs: [build-cuda, build-python-wheels-arm64]
     runs-on:
       - runs-on
       - runner=${{ matrix.runner }}
@@ -235,10 +269,10 @@ jobs:
             runner: linux-amd64-cpu
             artifact_from: build-cuda
           - description: cpu-arm64
-            image_repo: xgb-ci.aarch64
+            image_repo: xgb-ci.manylinux_2_28_aarch64
             suite: cpu-arm64
             runner: linux-arm64-cpu
-            artifact_from: build-cpu-arm64
+            artifact_from: build-python-wheels-arm64
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker

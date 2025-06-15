@@ -55,7 +55,7 @@ Optional dask configuration
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import partial, update_wrapper
+from functools import cache, partial, update_wrapper
 from threading import Thread
 from typing import (
     Any,
@@ -85,6 +85,8 @@ from dask import bag as db
 from dask import dataframe as dd
 from dask.delayed import Delayed
 from distributed import Future
+from packaging.version import Version
+from packaging.version import parse as parse_version
 
 from .. import collective, config
 from .._typing import FeatureNames, FeatureTypes, IterationRange
@@ -171,6 +173,21 @@ __all__ = [
 LOGGER = logging.getLogger("[xgboost.dask]")
 
 
+@cache
+def _DASK_VERSION() -> Version:
+    return parse_version(dask.__version__)
+
+
+@cache
+def _DASK_2024_12_1() -> bool:
+    return _DASK_VERSION() >= parse_version("2024.12.1")
+
+
+@cache
+def _DASK_2025_3_0() -> bool:
+    return _DASK_VERSION() >= parse_version("2025.3.0")
+
+
 def _try_start_tracker(
     n_workers: int,
     addrs: List[Union[Optional[str], Optional[Tuple[str, int]]]],
@@ -237,15 +254,11 @@ class CommunicatorContext(collective.CommunicatorContext):
         super().__init__(**args)
 
         worker = distributed.get_worker()
-        with distributed.worker_client() as client:
-            info = client.scheduler_info()
-            w = info["workers"][worker.address]
-            wid = w["id"]
         # We use task ID for rank assignment which makes the RABIT rank consistent (but
         # not the same as task ID is string and "10" is sorted before "2") with dask
-        # worker ID. This outsources the rank assignment to dask and prevents
+        # worker name. This outsources the rank assignment to dask and prevents
         # non-deterministic issue.
-        self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{wid}]:" + str(worker.address)
+        self.args["DMLC_TASK_ID"] = f"[xgboost.dask-{worker.name}]:{worker.address}"
 
 
 def _get_client(client: Optional["distributed.Client"]) -> "distributed.Client":
@@ -682,6 +695,7 @@ async def _get_rabit_args(
         _start_tracker, n_workers, sched_addr, user_addr, coll_cfg.tracker_timeout
     )
     env = coll_cfg.get_comm_config(env)
+    assert env is not None
     return env
 
 
@@ -906,12 +920,11 @@ def train(  # pylint: disable=unused-argument
 
     """
     client = _get_client(client)
-    args = locals()
     return client.sync(
         _train_async,
         global_config=config.get_config(),
         dconfig=_get_dask_config(),
-        **args,
+        **locals(),
     )
 
 
@@ -1476,35 +1489,33 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[IterationRange],
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        if self._can_use_inplace_predict():
-            predts = await inplace_predict(
-                client=self.client,
-                model=self.get_booster(),
-                data=data,
-                iteration_range=iteration_range,
-                predict_type="margin" if output_margin else "value",
-                missing=self.missing,
-                base_margin=base_margin,
-                validate_features=validate_features,
-            )
-            if isinstance(predts, dd.DataFrame):
-                predts = predts.to_dask_array()
-        else:
-            test_dmatrix: DaskDMatrix = await DaskDMatrix(
-                self.client,
-                data=data,
-                base_margin=base_margin,
-                missing=self.missing,
-                feature_types=self.feature_types,
-            )
-            predts = await predict(
-                self.client,
-                model=self.get_booster(),
-                data=test_dmatrix,
-                output_margin=output_margin,
-                validate_features=validate_features,
-                iteration_range=iteration_range,
-            )
+        # Dask doesn't support gblinear and accepts only Dask collection types (array
+        # and dataframe). We can perform inplace predict.
+        assert self._can_use_inplace_predict()
+        predts = await inplace_predict(
+            client=self.client,
+            model=self.get_booster(),
+            data=data,
+            iteration_range=iteration_range,
+            predict_type="margin" if output_margin else "value",
+            missing=self.missing,
+            base_margin=base_margin,
+            validate_features=validate_features,
+        )
+        if isinstance(predts, dd.DataFrame):
+            predts = predts.to_dask_array()
+            # Make sure the booster is part of the task graph implicitly
+            # only needed for certain versions of dask.
+            if _DASK_2024_12_1() and not _DASK_2025_3_0():
+                # Fixes this issue for dask>=2024.1.1,<2025.3.0
+                # Dask==2025.3.0 fails with:
+                #     RuntimeError: Attempting to use an asynchronous
+                #     Client in a synchronous context of `dask.compute`
+                #
+                # Dask==2025.4.0 fails with:
+                #     TypeError: Value type is not supported for data
+                #     iterator:<class 'distributed.client.Future'>
+                predts = predts.persist()
         return predts
 
     @_deprecate_positional_args

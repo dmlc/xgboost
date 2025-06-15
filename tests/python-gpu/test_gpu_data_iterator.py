@@ -235,3 +235,20 @@ def test_invalid_cat_batches() -> None:
 
 def test_uneven_sizes() -> None:
     check_uneven_sizes("cuda")
+
+
+def test_cache_host_ratio() -> None:
+    boosters = []
+    for min_cache_page_bytes in [0, 64, np.iinfo(np.int64).max, None]:
+        for cache_host_ratio in [0, 0.5, 1.0, None]:
+            it = tm.IteratorForTest(
+                *tm.make_batches(64, 16, 4, use_cupy=True),
+                cache=None,
+                on_host=True,
+            )
+            Xy = xgb.ExtMemQuantileDMatrix(it, cache_host_ratio=cache_host_ratio)
+            booster = xgb.train({"device": "cuda"}, Xy)
+            boosters.append(booster.save_raw(raw_format="json"))
+
+        for model in boosters[1:]:
+            assert str(model) == str(boosters[0])

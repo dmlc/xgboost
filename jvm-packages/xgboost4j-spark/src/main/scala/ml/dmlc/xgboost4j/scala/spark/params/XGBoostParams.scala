@@ -188,26 +188,29 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getUseExternalMemory: Boolean = $(useExternalMemory)
 
-  final val maxNumDevicePages = new IntParam(this, "maxNumDevicePages", "Maximum number of " +
-    "pages cached in device")
-
-  final def getMaxNumDevicePages: Int = $(maxNumDevicePages)
-
   final val maxQuantileBatches = new IntParam(this, "maxQuantileBatches", "Maximum quantile " +
     "batches")
 
   final def getMaxQuantileBatches: Int = $(maxQuantileBatches)
 
-  final val minCachePageBytes = new IntParam(this, "minCachePageBytes", "Minimum number of " +
+  final val minCachePageBytes = new LongParam(this, "minCachePageBytes", "Minimum number of " +
     "bytes for each ellpack page in cache. Only used for in-host")
 
-  final def getMinCachePageBytes: Int = $(minCachePageBytes)
+  final def getMinCachePageBytes: Long = $(minCachePageBytes)
+
+  final val cacheHostRatio = new FloatParam(this, "cacheHostRatio",
+    "Used by the GPU implementation. For GPU-based inputs, XGBoost can split the cache into " +
+      "host and device caches to reduce the data transfer overhead. This parameter specifies " +
+      "the size of host cache compared to the size of the entire cache: host / (host + device)",
+    ParamValidators.inRange(0.0, 1.0))
+
+  final def getCacheHostRatio: Float = $(cacheHostRatio)
 
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
     featuresCols -> Array.empty, customObj -> null, customEval -> null,
     featureNames -> Array.empty, featureTypes -> Array.empty, useExternalMemory -> false,
-    maxNumDevicePages -> -1, maxQuantileBatches -> -1, minCachePageBytes -> -1)
+    maxQuantileBatches -> -1, minCachePageBytes -> -1)
 
   addNonXGBoostParam(numWorkers, numRound, numEarlyStoppingRounds, inferBatchSize, featuresCol,
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
@@ -251,11 +254,12 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   def setUseExternalMemory(value: Boolean): T = set(useExternalMemory, value).asInstanceOf[T]
 
-  def setMaxNumDevicePages(value: Int): T = set(maxNumDevicePages, value).asInstanceOf[T]
-
   def setMaxQuantileBatches(value: Int): T = set(maxQuantileBatches, value).asInstanceOf[T]
 
-  def setMinCachePageBytes(value: Int): T = set(minCachePageBytes, value).asInstanceOf[T]
+  def setMinCachePageBytes(value: Long): T = set(minCachePageBytes, value).asInstanceOf[T]
+
+  def setCacheHostRatio(value: Float): T = set(cacheHostRatio, value)
+    .asInstanceOf[T]
 
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]

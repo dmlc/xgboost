@@ -30,17 +30,17 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       int maxBin,
       DMatrix ref,
       int nthread,
-      int maxNumDevicePages,
       int maxQuantileBatches,
-      int minCachePageBytes) throws XGBoostError {
+      long minCachePageBytes,
+      float cacheHostRatio) throws XGBoostError {
     long[] out = new long[1];
     long[] refHandle = null;
     if (ref != null) {
       refHandle = new long[1];
       refHandle[0] = ref.getHandle();
     }
-    String conf = this.getConfig(missing, maxBin, nthread, maxNumDevicePages,
-        maxQuantileBatches, minCachePageBytes);
+    String conf = this.getConfig(missing, maxBin, nthread,
+                                 maxQuantileBatches, minCachePageBytes, cacheHostRatio);
     XGBoostJNI.checkCall(XGBoostJNI.XGExtMemQuantileDMatrixCreateFromCallback(
         iter, refHandle, conf, out));
     handle = out[0];
@@ -51,7 +51,7 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
       float missing,
       int maxBin,
       DMatrix ref) throws XGBoostError {
-    this(iter, missing, maxBin, ref, 0, -1, -1, -1);
+    this(iter, missing, maxBin, ref, 0, -1, -1, Float.NaN);
   }
 
   public ExtMemQuantileDMatrix(
@@ -61,21 +61,22 @@ public class ExtMemQuantileDMatrix extends QuantileDMatrix {
     this(iter, missing, maxBin, null);
   }
 
-  private String getConfig(float missing, int maxBin, int nthread, int maxNumDevicePages,
-      int maxQuantileBatches, int minCachePageBytes) {
+  private String getConfig(float missing, int maxBin, int nthread,
+                           int maxQuantileBatches, long minCachePageBytes, float cacheHostRatio) {
     Map<String, Object> conf = new java.util.HashMap<>();
     conf.put("missing", missing);
     conf.put("max_bin", maxBin);
     conf.put("nthread", nthread);
 
-    if (maxNumDevicePages > 0) {
-      conf.put("max_num_device_pages", maxNumDevicePages);
-    }
     if (maxQuantileBatches > 0) {
-      conf.put("max_quantile_batches", maxQuantileBatches);
+      conf.put("max_quantile_blocks", maxQuantileBatches);
     }
     if (minCachePageBytes > 0) {
       conf.put("min_cache_page_bytes", minCachePageBytes);
+    }
+
+    if (cacheHostRatio >= 0.0 && cacheHostRatio <= 1.0) {
+      conf.put("cache_host_ratio", cacheHostRatio);
     }
 
     conf.put("on_host", true);

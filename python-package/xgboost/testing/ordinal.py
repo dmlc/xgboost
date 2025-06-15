@@ -472,12 +472,13 @@ def run_specified_cat(  # pylint: disable=too-many-locals
     # make sure we cover all the cases.
     n_features = 4096
     n_samples = 1024
-    df = pd.DataFrame()
+
     col_numeric = rng.uniform(0, 1, size=(n_samples, n_features // 2))
     col_categorical = rng.integers(
         low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
     )
 
+    df = {}  # avoid fragmentation warning from pandas
     for c in range(n_features):
         if c % 2 == 0:
             col = col_numeric[:, c // 2]

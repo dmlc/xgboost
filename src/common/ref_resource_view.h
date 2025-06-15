@@ -68,7 +68,7 @@ class RefResourceView {
 
   [[nodiscard]] size_type size() const { return size_; }  // NOLINT
   [[nodiscard]] size_type size_bytes() const {            // NOLINT
-    return Span<const value_type>{data(), static_cast<size_t>(size())}.size_bytes();
+    return Span<const value_type>{data(), static_cast<std::size_t>(size())}.size_bytes();
   }
   [[nodiscard]] value_type* data() { return ptr_; };              // NOLINT
   [[nodiscard]] value_type const* data() const { return ptr_; };  // NOLINT
@@ -96,6 +96,8 @@ class RefResourceView {
     SPAN_LT(i, this->size_);
     return ptr_[i];
   }
+  [[nodiscard]] Span<std::add_const_t<T>> ToSpan() const { return {this->data(), this->size()}; }
+  [[nodiscard]] Span<T> ToSpan() { return {this->data(), this->size()}; }
 
   /**
    * @brief Get the underlying resource.

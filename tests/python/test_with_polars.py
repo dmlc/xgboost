@@ -15,7 +15,7 @@ pl = pytest.importorskip("polars")
 
 @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
 def test_polars_basic(
-    DMatrixT: Union[Type[xgb.DMatrix], Type[xgb.QuantileDMatrix]]
+    DMatrixT: Union[Type[xgb.DMatrix], Type[xgb.QuantileDMatrix]],
 ) -> None:
     df = pl.DataFrame({"a": [1, 2, 3], "b": [3, 4, 5]})
     Xy = DMatrixT(df)
@@ -134,12 +134,13 @@ def test_regressor() -> None:
 
     np.testing.assert_allclose(predt0, predt1)
 
-def test_categorical() ->  None:
+
+def test_categorical() -> None:
     import polars as pl
 
     df = pl.DataFrame(
         {"f0": [1, 2, 3], "b": ["a", "b", "c"]},
-        schema=[("a", pl.Int64()), ("b", pl.Categorical())]
+        schema=[("a", pl.Int64()), ("b", pl.Categorical())],
     )
     with pytest.raises(NotImplementedError, match="Categorical feature"):
         xgb.DMatrix(df, enable_categorical=True)

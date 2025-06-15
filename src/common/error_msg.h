@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  *
  * \brief Common error message for various checks.
  */
@@ -134,6 +134,13 @@ constexpr StringView ZeroCudaMemory() {
 constexpr StringView NoFloatCat() {
   return "Category index from DataFrame has floating point dtype, consider using strings or "
          "integers instead.";
+}
+
+constexpr StringView CacheHostRatioNotImpl() {
+  return "`cache_host_ratio` is only used by the GPU `ExtMemQuantileDMatrix`.";
+}
+constexpr StringView CacheHostRatioInvalid() {
+  return "`cache_host_ratio` must be in range [0, 1].";
 }
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

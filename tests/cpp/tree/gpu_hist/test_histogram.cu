@@ -1,15 +1,16 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
 
 #include <memory>  // for unique_ptr
+#include <tuple>   // for tuple
 #include <vector>  // for vector
 
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"  // for RowPartitioner
-#include "../../../../src/tree/hist/param.h"                  // for HistMakerTrainParam
+#include "../../../../src/tree/hist/hist_param.h"             // for HistMakerTrainParam
 #include "../../../../src/tree/param.h"                       // for TrainParam
 #include "../../categorical_helpers.h"                        // for OneHotEncodeFeature
 #include "../../helpers.h"
@@ -127,9 +128,11 @@ void TestBuildHist(bool use_shared_memory_histograms) {
                 feature_groups.DeviceAccessor(ctx.Device()), page->Cuts().TotalBins(),
                 !use_shared_memory_histograms);
   builder.AllocateHistograms(&ctx, {0});
-  builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(&ctx),
-                         feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(),
-                         row_partitioner->GetRows(0), builder.GetNodeHistogram(0), *quantiser);
+  page->Visit(&ctx, {}, [&](auto&& acc) {
+    builder.BuildHistogram(ctx.CUDACtx(), acc, feature_groups.DeviceAccessor(ctx.Device()),
+                           gpair.DeviceSpan(), row_partitioner->GetRows(0),
+                           builder.GetNodeHistogram(0), *quantiser);
+  });
 
   auto node_histogram = builder.GetNodeHistogram(0);
 
@@ -181,9 +184,10 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                   feature_groups.DeviceAccessor(ctx.Device()), num_bins, force_global);
-    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(&ctx),
-                           feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                           d_histogram, quantiser);
+    page->Visit(&ctx, {}, [&](auto&& acc) {
+      builder.BuildHistogram(ctx.CUDACtx(), acc, feature_groups.DeviceAccessor(ctx.Device()),
+                             gpair.DeviceSpan(), ridx, d_histogram, quantiser);
+    });
 
     std::vector<GradientPairInt64> histogram_h(num_bins);
     dh::safe_cuda(cudaMemcpy(histogram_h.data(), d_histogram.data(),
@@ -197,9 +201,10 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
       DeviceHistogramBuilder builder;
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                     feature_groups.DeviceAccessor(ctx.Device()), num_bins, force_global);
-      builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(&ctx),
-                             feature_groups.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                             d_new_histogram, quantiser);
+      page->Visit(&ctx, {}, [&](auto&& acc) {
+        builder.BuildHistogram(ctx.CUDACtx(), acc, feature_groups.DeviceAccessor(ctx.Device()),
+                               gpair.DeviceSpan(), ridx, d_new_histogram, quantiser);
+      });
 
       std::vector<GradientPairInt64> new_histogram_h(num_bins);
       dh::safe_cuda(cudaMemcpy(new_histogram_h.data(), d_new_histogram.data(),
@@ -222,9 +227,10 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
       // Single group must use global memory.
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                     single_group.DeviceAccessor(ctx.Device()), num_bins, /*force_global=*/true);
-      builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(&ctx),
-                             single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                             dh::ToSpan(baseline), quantiser);
+      page->Visit(&ctx, {}, [&](auto&& acc) {
+        builder.BuildHistogram(ctx.CUDACtx(), acc, single_group.DeviceAccessor(ctx.Device()),
+                               gpair.DeviceSpan(), ridx, dh::ToSpan(baseline), quantiser);
+      });
 
       std::vector<GradientPairInt64> baseline_h(num_bins);
       dh::safe_cuda(cudaMemcpy(baseline_h.data(), baseline.data().get(),
@@ -296,9 +302,10 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                   single_group.DeviceAccessor(ctx.Device()), num_categories, false);
-    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(&ctx),
-                           single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                           dh::ToSpan(cat_hist), quantiser);
+    page->Visit(&ctx, {}, [&](auto&& acc) {
+      builder.BuildHistogram(ctx.CUDACtx(), acc, single_group.DeviceAccessor(ctx.Device()),
+                             gpair.DeviceSpan(), ridx, dh::ToSpan(cat_hist), quantiser);
+    });
   }
 
   /**
@@ -313,9 +320,10 @@ void TestGPUHistogramCategorical(size_t num_categories) {
     DeviceHistogramBuilder builder;
     builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                   single_group.DeviceAccessor(ctx.Device()), encode_hist.size(), false);
-    builder.BuildHistogram(ctx.CUDACtx(), page->GetDeviceAccessor(&ctx),
-                           single_group.DeviceAccessor(ctx.Device()), gpair.DeviceSpan(), ridx,
-                           dh::ToSpan(encode_hist), quantiser);
+    page->Visit(&ctx, {}, [&](auto&& acc) {
+      builder.BuildHistogram(ctx.CUDACtx(), acc, single_group.DeviceAccessor(ctx.Device()),
+                             gpair.DeviceSpan(), ridx, dh::ToSpan(encode_hist), quantiser);
+    });
   }
 
   std::vector<GradientPairInt64> h_cat_hist(cat_hist.size());
@@ -417,17 +425,45 @@ TEST(Histogram, Quantiser) {
   }
 }
 namespace {
-class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<float, bool>> {
+enum CacheMode {
+  kNoCache = 0,
+  kCopy = 1,
+  kDirect = 2,
+};
+
+class HistogramExternalMemoryTest
+    : public ::testing::TestWithParam<std::tuple<float, bool, CacheMode>> {
  public:
-  void Run(float sparsity, bool force_global) {
+  void Run(float sparsity, bool force_global, CacheMode cache_mode) {
+    auto ctx = MakeCUDACtx(0);
     bst_idx_t n_samples{512}, n_features{12}, n_batches{3};
     std::vector<std::unique_ptr<RowPartitioner>> partitioners;
-    auto p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
-                      .Batches(n_batches)
-                      .GenerateSparsePageDMatrix("cache", true);
+    auto rng = RandomDataGenerator{n_samples, n_features, sparsity}.Batches(n_batches);
     bst_bin_t n_bins = 16;
+    std::shared_ptr<DMatrix> p_fmat;
+    switch (cache_mode) {
+      case kCopy:
+      case kDirect: {
+        p_fmat = rng.CacheHostRatio(0.5)
+                     .Device(ctx.Device())
+                     .Bins(n_bins)
+                     .OnHost(true)
+                     .MinPageCacheBytes(n_bins * n_features)
+                     .GenerateExtMemQuantileDMatrix("cache", true);
+        break;
+      }
+      case kNoCache: {
+        p_fmat = rng.GenerateSparsePageDMatrix("cache", true);
+        break;
+      }
+    }
+
     BatchParam p{n_bins, TrainParam::DftSparseThreshold()};
-    auto ctx = MakeCUDACtx(0);
+    if (cache_mode == kDirect) {
+      p.prefetch_copy = false;
+    } else if (cache_mode == kCopy) {
+      p.prefetch_copy = true;
+    }
 
     std::unique_ptr<FeatureGroups> fg;
     dh::device_vector<GradientPairInt64> single_hist;
@@ -438,6 +474,7 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
     auto quantiser = GradientQuantiser{&ctx, gpair.ConstDeviceSpan(), p_fmat->Info()};
     std::shared_ptr<common::HistogramCuts> cuts;
 
+    std::size_t row_stride = 0;
     {
       /**
        * Multi page.
@@ -445,6 +482,7 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
       std::int32_t k{0};
       for (auto const& page : p_fmat->GetBatches<EllpackPage>(&ctx, p)) {
         auto impl = page.Impl();
+        row_stride = impl->info.row_stride;
         if (k == 0) {
           // Initialization
           fg = std::make_unique<FeatureGroups>(impl->Cuts());
@@ -462,9 +500,10 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
         DeviceHistogramBuilder builder;
         builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(),
                       fg->DeviceAccessor(ctx.Device()), d_histogram.size(), force_global);
-        builder.BuildHistogram(ctx.CUDACtx(), impl->GetDeviceAccessor(&ctx),
-                               fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
-                               d_histogram, quantiser);
+        impl->Visit(&ctx, {}, [&](auto&& acc) {
+          builder.BuildHistogram(ctx.CUDACtx(), acc, fg->DeviceAccessor(ctx.Device()),
+                                 gpair.ConstDeviceSpan(), ridx, d_histogram, quantiser);
+        });
         ++k;
       }
       ASSERT_EQ(k, n_batches);
@@ -477,20 +516,22 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
       RowPartitioner partitioner;
       partitioner.Reset(&ctx, p_fmat->Info().num_row_, 0);
 
-      SparsePage concat;
+      auto concat = EllpackPageImpl(&ctx, cuts, sparsity == 0.0, row_stride, n_samples);
       std::vector<float> hess(p_fmat->Info().num_row_, 1.0f);
-      for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
-        concat.Push(page);
+      std::size_t offset = 0;
+      for (auto const& page : p_fmat->GetBatches<EllpackPage>(&ctx, p)) {
+        bst_idx_t num_elements = concat.Copy(&ctx, page.Impl(), offset);
+        offset += num_elements;
       }
-      EllpackPageImpl page{&ctx, cuts, concat, p_fmat->IsDense(), p_fmat->Info().num_col_, {}};
       auto ridx = partitioner.GetRows(0);
       auto d_histogram = dh::ToSpan(single_hist);
       DeviceHistogramBuilder builder;
       builder.Reset(&ctx, HistMakerTrainParam::CudaDefaultNodes(), fg->DeviceAccessor(ctx.Device()),
                     d_histogram.size(), force_global);
-      builder.BuildHistogram(ctx.CUDACtx(), page.GetDeviceAccessor(&ctx),
-                             fg->DeviceAccessor(ctx.Device()), gpair.ConstDeviceSpan(), ridx,
-                             d_histogram, quantiser);
+      concat.Visit(&ctx, {}, [&](auto&& acc) {
+        builder.BuildHistogram(ctx.CUDACtx(), acc, fg->DeviceAccessor(ctx.Device()),
+                               gpair.ConstDeviceSpan(), ridx, d_histogram, quantiser);
+      });
     }
 
     std::vector<GradientPairInt64> h_single(single_hist.size());
@@ -499,7 +540,7 @@ class HistogramExternalMemoryTest : public ::testing::TestWithParam<std::tuple<f
     thrust::copy(multi_hist.begin(), multi_hist.end(), h_multi.begin());
 
     for (std::size_t i = 0; i < single_hist.size(); ++i) {
-      ASSERT_EQ(h_single[i].GetQuantisedGrad(), h_multi[i].GetQuantisedGrad());
+      ASSERT_EQ(h_single[i].GetQuantisedGrad(), h_multi[i].GetQuantisedGrad()) << i;
       ASSERT_EQ(h_single[i].GetQuantisedHess(), h_multi[i].GetQuantisedHess());
     }
   }
@@ -510,7 +551,25 @@ TEST_P(HistogramExternalMemoryTest, ExternalMemory) {
   std::apply(&HistogramExternalMemoryTest::Run, std::tuple_cat(std::make_tuple(this), GetParam()));
 }
 
-INSTANTIATE_TEST_SUITE_P(Histogram, HistogramExternalMemoryTest,
-                         ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.8f),
-                                            ::testing::Bool()));
+INSTANTIATE_TEST_SUITE_P(
+    Histogram, HistogramExternalMemoryTest,
+    ::testing::Combine(::testing::Values(0.0f, 0.2f, 0.8f), ::testing::Bool(),
+                       ::testing::Values(kNoCache, kDirect, kCopy)),
+    [](::testing::TestParamInfo<HistogramExternalMemoryTest::ParamType> const& info) {
+      std::stringstream ss;
+      auto const& p = info.param;
+      ss << "sparsity_0" << (std::get<0>(p) * 10) << "_global_" << std::get<1>(p) << "_dcache_";
+      switch (std::get<2>(p)) {
+        case kNoCache:
+          ss << "nocache";
+          break;
+        case kDirect:
+          ss << "direct";
+          break;
+        case kCopy:
+          ss << "copy";
+          break;
+      }
+      return ss.str();
+    });
 }  // namespace xgboost::tree

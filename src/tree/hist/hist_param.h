@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #pragma once
 

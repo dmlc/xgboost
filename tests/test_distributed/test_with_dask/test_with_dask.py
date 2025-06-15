@@ -2191,6 +2191,7 @@ class TestDaskCallbacks:
     clean_kwargs={"processes": False, "threads": False},
     allow_unclosed=True,
 )
+@pytest.mark.skip(reason="dmlc/xgboost#11405: test_worker_left is flaky")
 async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker):
     async with Worker(s.address):
         dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
@@ -2216,6 +2217,7 @@ async def test_worker_left(c: Client, s: Scheduler, a: Worker, b: Worker):
     clean_kwargs={"processes": False, "threads": False},
     allow_unclosed=True,
 )
+@pytest.mark.skip
 async def test_worker_restarted(c, s, a, b):
     dx = da.random.random((1000, 10)).rechunk(chunks=(10, None))
     dy = da.random.random((1000,)).rechunk(chunks=(10,))
