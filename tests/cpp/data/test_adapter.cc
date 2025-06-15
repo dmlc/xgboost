@@ -1,13 +1,15 @@
-// Copyright (c) 2019-2021 by XGBoost Contributors
+/**
+ *  Copyright 2019-2025, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
+#include <xgboost/data.h>
+
 #include <type_traits>
 #include <utility>
-#include <xgboost/data.h>
+
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
-#include "../../../src/common/timer.h"
 #include "../helpers.h"
-
 #include "xgboost/base.h"
 #include "xgboost/c_api.h"
 
@@ -58,11 +60,16 @@ TEST(Adapter, CSRArrayAdapter) {
 }
 
 TEST(Adapter, CSCAdapterColsMoreThanRows) {
-  std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8};
-  std::vector<unsigned> row_idx = {0, 1, 0, 1, 0, 1, 0, 1};
-  std::vector<size_t> col_ptr = {0, 2, 4, 6, 8};
+  HostDeviceVector<float> data{1, 2, 3, 4, 5, 6, 7, 8};
+  HostDeviceVector<unsigned> row_idx{0, 1, 0, 1, 0, 1, 0, 1};
+  HostDeviceVector<size_t> col_ptr{0, 2, 4, 6, 8};
+
+  auto j_data = Json::Dump(GetArrayInterface(&data, data.Size(), 1));
+  auto j_row_idx = Json::Dump(GetArrayInterface(&row_idx, row_idx.Size(), 1));
+  auto j_col_ptr = Json::Dump(GetArrayInterface(&col_ptr, col_ptr.Size(), 1));
+
+  data::CSCArrayAdapter adapter{j_col_ptr, j_row_idx, j_data, 0};
   // Infer row count
-  data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 4, 0);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
   EXPECT_EQ(dmat.Info().num_col_, 4);
   EXPECT_EQ(dmat.Info().num_row_, 2);
