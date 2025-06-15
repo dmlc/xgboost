@@ -47,7 +47,7 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
  * @brief Coalesce the compressed chunks into a contiguous host pinned buffer.
  *
  * @param stream CUDA stream.
- * @PARAM pool Pinned memory pool for storing the results.
+ * @param pool Pinned memory pool for storing the results.
  * @param in_params Params from @ref CompressSnappy, specifies the chunks.
  * @param in_buf The buffer storing compressed chunks.
  * @param p_out Re-newed parameters to keep track of the buffers.
