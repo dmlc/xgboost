@@ -263,14 +263,6 @@ XGB_DLL int XGDMatrixCreateFromDense(char const *data, char const *config, DMatr
 XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char const *data,
                                    bst_ulong nrow, char const *config, DMatrixHandle *out);
 
-/*!
- * \brief create a matrix content from CSC format
- * \deprecated since 2.0.0
- * \see XGDMatrixCreateFromCSC()
- */
-XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t *col_ptr, const unsigned *indices,
-                                     const float *data, size_t nindptr, size_t nelem,
-                                     size_t num_row, DMatrixHandle *out);
 
 /*!
  * \brief create matrix content from dense matrix
