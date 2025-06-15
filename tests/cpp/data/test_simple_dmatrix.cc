@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2024, XGBoost Contributors
+ * Copyright 2016-2025, XGBoost Contributors
  */
 #include <xgboost/data.h>
 
@@ -106,16 +106,6 @@ TEST(SimpleDMatrix, Empty) {
   for (auto &batch : dmat->GetBatches<SparsePage>()) {
     CHECK_EQ(batch.Size(), 0);
   }
-
-  data::CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
-  dmat.reset(new data::SimpleDMatrix(
-      &csc_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
-  CHECK_EQ(dmat->Info().num_nonzero_, 0);
-  CHECK_EQ(dmat->Info().num_row_, 0);
-  CHECK_EQ(dmat->Info().num_col_, 0);
-  for (auto &batch : dmat->GetBatches<SparsePage>()) {
-    CHECK_EQ(batch.Size(), 0);
-  }
 }
 
 TEST(SimpleDMatrix, MissingData) {
@@ -178,12 +168,16 @@ TEST(SimpleDMatrix, FromDense) {
 }
 
 TEST(SimpleDMatrix, FromCSC) {
-  std::vector<float> data = {1, 3, 2, 4, 5};
-  std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
-  std::vector<size_t> col_ptr = {0, 2, 5};
-  data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2, 3);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  HostDeviceVector<float> data{1, 3, 2, 4, 5};
+  HostDeviceVector<unsigned> row_idx{0, 1, 0, 1, 2};
+  HostDeviceVector<size_t> col_ptr{0, 2, 5};
+
+  auto j_data = Json::Dump(GetArrayInterface(&data, data.Size(), 1));
+  auto j_row_idx = Json::Dump(GetArrayInterface(&row_idx, row_idx.Size(), 1));
+  auto j_col_ptr = Json::Dump(GetArrayInterface(&col_ptr, col_ptr.Size(), 1));
+
+  data::CSCArrayAdapter adapter{j_col_ptr, j_row_idx, j_data, 3};
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 5);

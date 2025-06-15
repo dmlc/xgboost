@@ -1021,7 +1021,6 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const st
 INSTANTIATION_CREATE(DenseAdapter)
 INSTANTIATION_CREATE(ArrayAdapter)
 INSTANTIATION_CREATE(CSRAdapter)
-INSTANTIATION_CREATE(CSCAdapter)
 INSTANTIATION_CREATE(FileAdapter)
 INSTANTIATION_CREATE(CSRArrayAdapter)
 INSTANTIATION_CREATE(CSCArrayAdapter)
@@ -1298,7 +1297,6 @@ template uint64_t SparsePage::Push(const data::CSRArrayAdapterBatch& batch, floa
                                    int nthread);
 template uint64_t SparsePage::Push(const data::CSCArrayAdapterBatch& batch, float missing,
                                    int nthread);
-template uint64_t SparsePage::Push(const data::CSCAdapterBatch& batch, float missing, int nthread);
 template uint64_t SparsePage::Push(const data::FileAdapterBatch& batch, float missing, int nthread);
 template uint64_t SparsePage::Push(const data::ColumnarAdapterBatch& batch, float missing,
                                    std::int32_t nthread);

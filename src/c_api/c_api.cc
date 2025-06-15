@@ -572,17 +572,6 @@ XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t *col_ptr, const unsigned *indices,
-                                     const bst_float *data, size_t nindptr, size_t, size_t num_row,
-                                     DMatrixHandle *out) {
-  API_BEGIN();
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSC");
-  data::CSCAdapter adapter(col_ptr, indices, data, nindptr - 1, num_row);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
-  API_END();
-}
-
 XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
                                    xgboost::bst_ulong nrow,
                                    xgboost::bst_ulong ncol, bst_float missing,
