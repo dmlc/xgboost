@@ -282,15 +282,15 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
         n_features_{n_features} {
   }
 
-  size_t NumRows() const {
+  [[nodiscard]] std::size_t NumRows() const {
     size_t size = indptr_.Shape<0>();
     size = size == 0 ? 0 : size - 1;
     return size;
   }
-  size_t NumCols() const { return n_features_; }
-  size_t Size() const { return this->NumRows(); }
+  [[nodiscard]] std::size_t NumCols() const { return n_features_; }
+  [[nodiscard]] std::size_t Size() const { return this->NumRows(); }
 
-  Line const GetLine(size_t idx) const {
+  [[nodiscard]] Line const GetLine(size_t idx) const {
     auto begin_no_stride = TypedIndex<size_t, 1>{indptr_}(idx);
     auto end_no_stride = TypedIndex<size_t, 1>{indptr_}(idx + 1);
 
@@ -308,9 +308,7 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
 };
 
 /**
- * Adapter for CSR array on host, in Python that's `scipy.sparse.csr_matrix`.  This is
- * similar to `CSRAdapter`, but supports __array_interface__ instead of raw pointers.  An
- * advantage is this can handle various data type without making a copy.
+ * @brief Adapter for CSR array on host, in Python that's `scipy.sparse.csr_matrix`.
  */
 class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch> {
  public:
@@ -321,15 +319,13 @@ class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch>
                                   static_cast<bst_feature_t>(num_cols_)};
   }
 
-  CSRArrayAdapterBatch const& Value() const override {
-    return batch_;
-  }
-  size_t NumRows() const {
+  [[nodiscard]] CSRArrayAdapterBatch const& Value() const override { return batch_; }
+  [[nodiscard]] std::size_t NumRows() const {
     size_t size = indptr_.Shape<0>();
     size = size == 0 ? 0 : size - 1;
     return size;
   }
-  size_t NumColumns() const { return num_cols_; }
+  [[nodiscard]] std::size_t NumColumns() const { return num_cols_; }
 
  private:
   CSRArrayAdapterBatch batch_;
@@ -357,8 +353,8 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
           values_{std::move(values)},
           offset_{offset} {}
 
-    std::size_t Size() const { return values_.Shape<0>(); }
-    COOTuple GetElement(std::size_t idx) const {
+    [[nodiscard]] std::size_t Size() const { return values_.Shape<0>(); }
+    [[nodiscard]] COOTuple GetElement(std::size_t idx) const {
       return {TypedIndex<std::size_t, 1>{row_idx_}(offset_ + idx), column_idx_,
               values_(offset_ + idx)};
     }
@@ -371,8 +367,11 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
                        ArrayInterface<1> values)
       : indptr_{std::move(indptr)}, indices_{std::move(indices)}, values_{std::move(values)} {}
 
-  std::size_t Size() const { return indptr_.n - 1; }
-  Line GetLine(std::size_t idx) const {
+  [[nodiscard]] std::size_t Size() const noexcept(true) {
+    auto n = indptr_.n;
+    return (n == 0) ? n : (n - 1);
+  }
+  [[nodiscard]] Line GetLine(std::size_t idx) const {
     auto begin_no_stride = TypedIndex<std::size_t, 1>{indptr_}(idx);
     auto end_no_stride = TypedIndex<std::size_t, 1>{indptr_}(idx + 1);
 
@@ -389,7 +388,7 @@ class CSCArrayAdapterBatch : public detail::NoMetaInfo {
 };
 
 /**
- * \brief CSC adapter with support for array interface.
+ * @brief CSC adapter with support for array interface.
  */
 class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch> {
   ArrayInterface<1> indptr_;
