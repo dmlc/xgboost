@@ -193,10 +193,18 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final def getMaxQuantileBatches: Int = $(maxQuantileBatches)
 
-  final val minCachePageBytes = new IntParam(this, "minCachePageBytes", "Minimum number of " +
+  final val minCachePageBytes = new LongParam(this, "minCachePageBytes", "Minimum number of " +
     "bytes for each ellpack page in cache. Only used for in-host")
 
-  final def getMinCachePageBytes: Int = $(minCachePageBytes)
+  final def getMinCachePageBytes: Long = $(minCachePageBytes)
+
+  final val cacheHostRatio = new FloatParam(this, "cacheHostRatio",
+    "Used by the GPU implementation. For GPU-based inputs, XGBoost can split the cache into " +
+      "host and device caches to reduce the data transfer overhead. This parameter specifies " +
+      "the size of host cache compared to the size of the entire cache: host / (host + device)",
+    ParamValidators.inRange(0.0, 1.0))
+
+  final def getCacheHostRatio: Float = $(cacheHostRatio)
 
   setDefault(numRound -> 100, numWorkers -> 1, inferBatchSize -> (32 << 10),
     numEarlyStoppingRounds -> 0, forceRepartition -> false, missing -> Float.NaN,
@@ -248,7 +256,10 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   def setMaxQuantileBatches(value: Int): T = set(maxQuantileBatches, value).asInstanceOf[T]
 
-  def setMinCachePageBytes(value: Int): T = set(minCachePageBytes, value).asInstanceOf[T]
+  def setMinCachePageBytes(value: Long): T = set(minCachePageBytes, value).asInstanceOf[T]
+
+  def setCacheHostRatio(value: Float): T = set(cacheHostRatio, value)
+    .asInstanceOf[T]
 
   protected[spark] def featureIsArrayType(schema: StructType): Boolean =
     schema(getFeaturesCol).dataType.isInstanceOf[ArrayType]

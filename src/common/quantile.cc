@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #include "quantile.h"
 
@@ -111,7 +111,7 @@ void HostSketchContainer::PushAdapterBatch(Batch const &batch, size_t base_rowid
 
 INSTANTIATE(ArrayAdapterBatch)
 INSTANTIATE(CSRArrayAdapterBatch)
-INSTANTIATE(CSCAdapterBatch)
+INSTANTIATE(CSCArrayAdapterBatch)
 INSTANTIATE(SparsePageAdapterBatch)
 INSTANTIATE(ColumnarAdapterBatch)
 

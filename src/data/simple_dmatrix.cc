@@ -315,8 +315,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
         offset_vec.emplace_back(offset_vec.back());
       }
     } else {
-      CHECK((std::is_same_v<AdapterT, CSCAdapter> || std::is_same_v<AdapterT, CSCArrayAdapter>))
-          << "Expecting CSCAdapter";
+      CHECK((std::is_same_v<AdapterT, CSCArrayAdapter>)) << "Expecting a CSC adapter.";
       info_.num_row_ = offset_vec.size() - 1;
     }
   } else {
@@ -365,8 +364,6 @@ template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing, int nt
 template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing, int nthread,
                                       DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(CSCArrayAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing, int nthread,
                                       DataSplitMode data_split_mode);
 template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing, int nthread,
                                       DataSplitMode data_split_mode);
