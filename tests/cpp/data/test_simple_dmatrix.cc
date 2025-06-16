@@ -110,7 +110,7 @@ TEST(SimpleDMatrix, Empty) {
   }
 
   data::CSCArrayAdapter csc_adapter(j_row_ptr, j_feature_idx, j_data, 0);
-  dmat.reset(new data::SimpleDMatrix(&csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  dmat.reset(new data::SimpleDMatrix(&csc_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
