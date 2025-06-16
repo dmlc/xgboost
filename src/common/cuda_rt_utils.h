@@ -15,10 +15,10 @@ std::int32_t CurrentDevice(bool raise = true);
 
 // Whether the device supports coherently accessing pageable memory without calling
 // `cudaHostRegister` on it
-bool SupportsPageableMem();
+[[nodiscard]] bool SupportsPageableMem();
 
 // Address Translation Service (ATS)
-bool SupportsAts();
+[[nodiscard]] bool SupportsAts();
 
 void CheckComputeCapability();
 
