@@ -416,6 +416,10 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   HostDeviceVector<std::size_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;
   this->GenerateCSR(&data, &rptrs, &columns);
+  // Initialize on CPU.
+  data.HostVector();
+  rptrs.HostVector();
+  columns.HostVector();
   auto adapter =
       data::CSRArrayAdapter{Json::Dump(GetArrayInterface(&rptrs, rptrs.Size(), 1)),
                             Json::Dump(GetArrayInterface(&columns, columns.Size(), 1)),
