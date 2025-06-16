@@ -23,7 +23,7 @@ TEST(Adapter, CSRArrayAdapter) {
 
     auto j_data = Json::Dump(GetArrayInterface(&data, data.Size(), 1));
     auto j_feature_idx = Json::Dump(GetArrayInterface(&feature_idx, feature_idx.Size(), 1));
-    auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, 3, 1));
+    auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, row_ptr.Size(), 1));
 
     data::CSRArrayAdapter adapter{j_row_ptr, j_feature_idx, j_data, n};
     adapter.Next();
