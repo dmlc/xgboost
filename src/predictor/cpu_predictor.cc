@@ -870,9 +870,6 @@ class CPUPredictor : public Predictor {
     if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
       this->DispatchedInplacePredict<data::DenseAdapter>(x, p_m, model, missing, out_preds,
                                                          tree_begin, tree_end);
-    } else if (x.type() == typeid(std::shared_ptr<data::CSRAdapter>)) {
-      this->DispatchedInplacePredict<data::CSRAdapter>(x, p_m, model, missing, out_preds,
-                                                       tree_begin, tree_end);
     } else if (x.type() == typeid(std::shared_ptr<data::ArrayAdapter>)) {
       this->DispatchedInplacePredict<data::ArrayAdapter>(x, p_m, model, missing, out_preds,
                                                          tree_begin, tree_end);

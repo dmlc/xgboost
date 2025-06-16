@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -149,15 +149,6 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname, int silent, DMatrixHandle
  */
 XGB_DLL int XGDMatrixCreateFromURI(char const *config, DMatrixHandle *out);
 
-
-/*!
- * \brief create a matrix content from CSR format
- * \deprecated since 2.0.0
- * \see XGDMatrixCreateFromCSR()
- */
-XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indices,
-                                     const float *data, size_t nindptr, size_t nelem,
-                                     size_t num_col, DMatrixHandle *out);
 /**
  * @brief Create a DMatrix from columnar data. (table)
  *
