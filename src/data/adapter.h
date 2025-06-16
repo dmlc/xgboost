@@ -131,65 +131,7 @@ class NoMetaInfo {
   const uint64_t* Qid() const { return nullptr; }
   const float* BaseMargin() const { return nullptr; }
 };
-
 };  // namespace detail
-
-class CSRAdapterBatch : public detail::NoMetaInfo {
- public:
-  class Line {
-   public:
-    Line(bst_idx_t row_idx, bst_idx_t size, const unsigned* feature_idx, const float* values)
-        : row_idx_(row_idx), size_(size), feature_idx_(feature_idx), values_(values) {}
-
-    size_t Size() const { return size_; }
-    COOTuple GetElement(size_t idx) const {
-      return COOTuple{row_idx_, feature_idx_[idx], values_[idx]};
-    }
-
-   private:
-    bst_idx_t row_idx_;
-    bst_idx_t size_;
-    const unsigned* feature_idx_;
-    const float* values_;
-  };
-  CSRAdapterBatch(const size_t* row_ptr, const unsigned* feature_idx,
-                  const float* values, size_t num_rows, size_t, size_t)
-      : row_ptr_(row_ptr),
-        feature_idx_(feature_idx),
-        values_(values),
-        num_rows_(num_rows) {}
-  const Line GetLine(size_t idx) const {
-    size_t begin_offset = row_ptr_[idx];
-    size_t end_offset = row_ptr_[idx + 1];
-    return Line(idx, end_offset - begin_offset, &feature_idx_[begin_offset],
-                &values_[begin_offset]);
-  }
-  size_t Size() const { return num_rows_; }
-  static constexpr bool kIsRowMajor = true;
-
- private:
-  const size_t* row_ptr_;
-  const unsigned* feature_idx_;
-  const float* values_;
-  size_t num_rows_;
-};
-
-class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
- public:
-  CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx, const float* values,
-             bst_idx_t num_rows, bst_idx_t num_elements, size_t num_features)
-      : batch_(row_ptr, feature_idx, values, num_rows, num_elements, num_features),
-        num_rows_(num_rows),
-        num_columns_(num_features) {}
-  const CSRAdapterBatch& Value() const override { return batch_; }
-  bst_idx_t NumRows() const { return num_rows_; }
-  bst_idx_t NumColumns() const { return num_columns_; }
-
- private:
-  CSRAdapterBatch batch_;
-  bst_idx_t num_rows_;
-  bst_idx_t num_columns_;
-};
 
 class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
