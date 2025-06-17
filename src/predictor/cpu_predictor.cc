@@ -355,7 +355,8 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
       int depth = use_eytzinger_layout ? tree_depth[tree_id - tree_begin] : 0;
       std::visit([&](auto has_categorical, auto any_missing, auto use_eytzinger_layout) {
         scalar::PredValueByOneTree<has_categorical, any_missing, use_eytzinger_layout>
-          (tree, predict_offset, thread_temp, offset, block_size, out_predt, nidx.data(), depth, gid);
+          (tree, predict_offset, thread_temp, offset, block_size,
+           out_predt, nidx.data(), depth, gid);
       }, to_variant(has_categorical), to_variant(any_missing), to_variant(use_eytzinger_layout));
     }
   }
