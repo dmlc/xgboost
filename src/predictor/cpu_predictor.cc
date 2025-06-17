@@ -154,15 +154,7 @@ class Buffer {
     }
   }
 
- public:
-  constexpr static int kMaxNumDeepLevels = 6;
-  static_assert(kNumDeepLevels <= kMaxNumDeepLevels);
-
-  Buffer(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats) {
-    Populate(tree, cats);
-  }
-
-  bool inline GoLeft(float fvalue, bst_node_t nidx) {
+  bool inline GoLeft(float fvalue, bst_node_t nidx) const {
     if constexpr (has_categorical) {
       if (is_cat[nidx]) {
        return common::Decision(cat_segment[nidx], fvalue);
@@ -172,6 +164,14 @@ class Buffer {
     } else {
       return fvalue < split_cond[nidx];
     }
+  }
+
+ public:
+  constexpr static int kMaxNumDeepLevels = 6;
+  static_assert(kNumDeepLevels <= kMaxNumDeepLevels);
+
+  Buffer(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats) {
+    Populate(tree, cats);
   }
 
   void inline Process(std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
@@ -264,9 +264,13 @@ void PredValueByOneTree(const RegTree& tree,
         (tree, cats, thread_temp, offset, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
+    bst_node_t nidx = 0;
+    if constexpr (use_eytzinger_layout) {
+      nidx = p_nidx[i];
+      p_nidx[i] = 0;
+    }
     out_predt(predict_offset + i, gid) +=
-      PredValueByOneTree<has_categorical>(thread_temp[offset + i], tree, cats, p_nidx[i]);
-    p_nidx[i] = 0;
+      PredValueByOneTree<has_categorical>(thread_temp[offset + i], tree, cats, nidx);
   }
 }
 
@@ -314,51 +318,83 @@ void PredValueByOneTree(const RegTree& tree,
         (mt_tree, cats, thread_temp, offset, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
+    bst_node_t nidx = 0;
+    if constexpr (use_eytzinger_layout) {
+      nidx = p_nidx[i];
+      p_nidx[i] = 0;
+    }
     auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
     PredValueByOneTree<has_categorical>(thread_temp[offset + i], mt_tree, cats,
-                                        t_predts, p_nidx[i]);
-    p_nidx[i] = 0;
+                                        t_predts, nidx);
   }
 }
 
 }  // namespace multi
 
 namespace {
+
+template <bool use_eytzinger_layout, bool any_missing>
 void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
                        bst_tree_t const tree_end, std::size_t const predict_offset,
                        std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
                        std::size_t const block_size, linalg::MatrixView<float> out_predt,
-                       const std::vector<int>& tree_depth, bool any_missing) {
-  std::vector<bst_node_t> nidx(block_size, 0);
-
-  const bool use_eytzinger_layout = (block_size > 1);
-  if (any_missing) {
-    any_missing = false;
-    for (std::size_t i = 0; i < block_size; ++i) {
-      any_missing |= thread_temp[offset + i].HasMissing();
-      if (any_missing) break;
-    }
-  }
-
+                       const std::vector<int>& tree_depth) {
+  std::vector<bst_node_t> nidx;
+  if constexpr (use_eytzinger_layout) nidx.resize(block_size, 0);
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
     auto const &tree = *model.trees.at(tree_id);
     bool has_categorical = tree.HasCategoricalSplit();
 
     if (tree.IsMultiTarget()) {
       int depth = use_eytzinger_layout ? tree_depth[tree_id - tree_begin] : 0;
-      std::visit([&](auto has_categorical, auto any_missing, auto use_eytzinger_layout) {
-        multi::PredValueByOneTree<has_categorical, any_missing, use_eytzinger_layout>
+      if (has_categorical) {
+        multi::PredValueByOneTree<true, any_missing, use_eytzinger_layout>
           (tree, predict_offset, thread_temp, offset, block_size, out_predt, nidx.data(), depth);
-      }, to_variant(has_categorical), to_variant(any_missing), to_variant(use_eytzinger_layout));
+      } else {
+        multi::PredValueByOneTree<false, any_missing, use_eytzinger_layout>
+          (tree, predict_offset, thread_temp, offset, block_size, out_predt, nidx.data(), depth);
+      }
     } else {
       auto const gid = model.tree_info[tree_id];
       int depth = use_eytzinger_layout ? tree_depth[tree_id - tree_begin] : 0;
-      std::visit([&](auto has_categorical, auto any_missing, auto use_eytzinger_layout) {
-        scalar::PredValueByOneTree<has_categorical, any_missing, use_eytzinger_layout>
+      if (has_categorical) {
+        scalar::PredValueByOneTree<true, any_missing, use_eytzinger_layout>
           (tree, predict_offset, thread_temp, offset, block_size,
            out_predt, nidx.data(), depth, gid);
-      }, to_variant(has_categorical), to_variant(any_missing), to_variant(use_eytzinger_layout));
+      } else {
+        scalar::PredValueByOneTree<false, any_missing, use_eytzinger_layout>
+          (tree, predict_offset, thread_temp, offset, block_size,
+           out_predt, nidx.data(), depth, gid);
+      }
     }
+  }
+}
+
+
+void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
+                       bst_tree_t const tree_end, std::size_t const predict_offset,
+                       std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
+                       std::size_t const block_size, linalg::MatrixView<float> out_predt,
+                       const std::vector<int>& tree_depth, bool any_missing) {
+  const bool use_eytzinger_layout = (block_size > 1);
+  if (use_eytzinger_layout) {
+    if (any_missing) {
+      any_missing = false;
+      for (std::size_t i = 0; i < block_size; ++i) {
+        any_missing |= thread_temp[offset + i].HasMissing();
+        if (any_missing) break;
+      }
+    }
+    if (any_missing) {
+      PredictByAllTrees<true, true>(model, tree_begin, tree_end, predict_offset, thread_temp,
+                                    offset, block_size, out_predt, tree_depth);
+    } else {
+      PredictByAllTrees<true, false>(model, tree_begin, tree_end, predict_offset, thread_temp,
+                                     offset, block_size, out_predt, tree_depth);
+    }
+  } else {
+    PredictByAllTrees<false, true>(model, tree_begin, tree_end, predict_offset, thread_temp,
+                                   offset, block_size, out_predt, tree_depth);
   }
 }
 
