@@ -36,7 +36,7 @@ using position_t = std::uint32_t;  // NOLINT
 /**
  * \brief Maximum relevance degree for NDCG
  */
-constexpr std::size_t MaxRel() { return sizeof(rel_degree_t) * 8 - 1; }
+constexpr std::size_t MaxRel() { return sizeof(MaxRel()) * 8 - 1; }
 static_assert(MaxRel() == 127);
 
 XGBOOST_DEVICE inline double CalcDCGGain(rel_degree_t label) {
