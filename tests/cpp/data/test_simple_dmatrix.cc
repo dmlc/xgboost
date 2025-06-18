@@ -82,14 +82,17 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
 }
 
 TEST(SimpleDMatrix, Empty) {
-  std::vector<float> data{};
-  std::vector<unsigned> feature_idx = {};
-  std::vector<size_t> row_ptr = {};
+  HostDeviceVector<float> data{};
+  HostDeviceVector<unsigned> feature_idx{};
+  HostDeviceVector<size_t> row_ptr{};
 
-  data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(),
-                               0, 0, 0);
-  std::unique_ptr<data::SimpleDMatrix> dmat(new data::SimpleDMatrix(
-      &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  auto j_data = Json::Dump(GetArrayInterface(&data, 0, 1));
+  auto j_feature_idx = Json::Dump(GetArrayInterface(&feature_idx, 0, 1));
+  auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, 0, 1));
+
+  data::CSRArrayAdapter csr_adapter(j_row_ptr, j_feature_idx, j_data, 0);
+  std::unique_ptr<data::SimpleDMatrix> dmat(
+      new data::SimpleDMatrix(&csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
@@ -98,8 +101,16 @@ TEST(SimpleDMatrix, Empty) {
   }
 
   data::DenseAdapter dense_adapter(nullptr, 0, 0);
-  dmat.reset( new data::SimpleDMatrix(&dense_adapter,
-                                      std::numeric_limits<float>::quiet_NaN(), 1) );
+  dmat.reset(new data::SimpleDMatrix(&dense_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  CHECK_EQ(dmat->Info().num_nonzero_, 0);
+  CHECK_EQ(dmat->Info().num_row_, 0);
+  CHECK_EQ(dmat->Info().num_col_, 0);
+  for (auto &batch : dmat->GetBatches<SparsePage>()) {
+    CHECK_EQ(batch.Size(), 0);
+  }
+
+  data::CSCArrayAdapter csc_adapter(j_row_ptr, j_feature_idx, j_data, 0);
+  dmat.reset(new data::SimpleDMatrix(&csc_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
@@ -109,36 +120,40 @@ TEST(SimpleDMatrix, Empty) {
 }
 
 TEST(SimpleDMatrix, MissingData) {
-  std::vector<float> data{0.0, std::nanf(""), 1.0};
-  std::vector<unsigned> feature_idx = {0, 1, 0};
-  std::vector<size_t> row_ptr = {0, 2, 3};
+  HostDeviceVector<float> data{0.0, std::nanf(""), 1.0};
+  HostDeviceVector<unsigned> feature_idx = {0, 1, 0};
+  HostDeviceVector<size_t> row_ptr = {0, 2, 3};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           3, 2);
-  std::unique_ptr<data::SimpleDMatrix> dmat{new data::SimpleDMatrix{
-      &adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
+  auto j_data = Json::Dump(GetArrayInterface(&data, 3, 1));
+  auto j_feature_idx = Json::Dump(GetArrayInterface(&feature_idx, 3, 1));
+  auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, 3, 1));
+
+  data::CSRArrayAdapter adapter{j_row_ptr, j_feature_idx, j_data, 2ul};
+  std::unique_ptr<data::SimpleDMatrix> dmat{
+      new data::SimpleDMatrix{&adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
   CHECK_EQ(dmat->Info().num_nonzero_, 2);
   dmat.reset(new data::SimpleDMatrix(&adapter, 1.0, 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 1);
 
   {
-    data[1] = std::numeric_limits<float>::infinity();
-    data::DenseAdapter adapter(data.data(), data.size(), 1);
-    EXPECT_THROW(data::SimpleDMatrix dmat(
-                     &adapter, std::numeric_limits<float>::quiet_NaN(), -1),
+    data.HostVector()[1] = std::numeric_limits<float>::infinity();
+    data::DenseAdapter adapter(data.ConstHostPointer(), data.Size(), 1);
+    EXPECT_THROW(data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1),
                  dmlc::Error);
   }
 }
 
 TEST(SimpleDMatrix, EmptyRow) {
-  std::vector<float> data{0.0, 1.0};
-  std::vector<unsigned> feature_idx = {0, 1};
-  std::vector<size_t> row_ptr = {0, 2, 2};
+  HostDeviceVector<float> data{0.0, 1.0};
+  HostDeviceVector<unsigned> feature_idx{0, 1};
+  HostDeviceVector<size_t> row_ptr{0, 2, 2};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           2, 2);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
+  auto j_data = Json::Dump(GetArrayInterface(&data, 2, 1));
+  auto j_feature_idx = Json::Dump(GetArrayInterface(&feature_idx, 2, 1));
+  auto j_row_ptr = Json::Dump(GetArrayInterface(&row_ptr, 3, 1));
+
+  data::CSRArrayAdapter adapter{j_row_ptr, j_feature_idx, j_data, 2};
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 2);
   CHECK_EQ(dmat.Info().num_row_, 2);
   CHECK_EQ(dmat.Info().num_col_, 2);
