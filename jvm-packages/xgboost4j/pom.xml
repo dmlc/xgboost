@@ -68,7 +68,6 @@
               <artifactId>maven-javadoc-plugin</artifactId>
               <version>3.11.1</version>
               <configuration>
-                  <excludePackageNames>ml.dmlc.xgboost4j.java</excludePackageNames>
                   <show>protected</show>
                   <nohelp>true</nohelp>
               </configuration>
