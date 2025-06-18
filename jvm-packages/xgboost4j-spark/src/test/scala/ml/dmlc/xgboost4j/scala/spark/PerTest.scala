@@ -21,7 +21,7 @@ import java.io.{File, FileInputStream}
 import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.ml.linalg.Vectors
-import org.apache.spark.sql._
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.funsuite.AnyFunSuite
 
