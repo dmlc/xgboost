@@ -1020,7 +1020,6 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const st
 
 INSTANTIATION_CREATE(DenseAdapter)
 INSTANTIATION_CREATE(ArrayAdapter)
-INSTANTIATION_CREATE(CSRAdapter)
 INSTANTIATION_CREATE(FileAdapter)
 INSTANTIATION_CREATE(CSRArrayAdapter)
 INSTANTIATION_CREATE(CSCArrayAdapter)
@@ -1288,18 +1287,18 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   self_offset = std::move(offset);
 }
 
-template uint64_t SparsePage::Push(const data::DenseAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::ArrayAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::CSRAdapterBatch& batch, float missing, int nthread);
-template uint64_t SparsePage::Push(const data::CSRArrayAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::CSCArrayAdapterBatch& batch, float missing,
-                                   int nthread);
-template uint64_t SparsePage::Push(const data::FileAdapterBatch& batch, float missing, int nthread);
-template uint64_t SparsePage::Push(const data::ColumnarAdapterBatch& batch, float missing,
-                                   std::int32_t nthread);
+#define INSTANTIATE_PUSH(__BATCH_T)                                                    \
+  template std::uint64_t SparsePage::Push(const data::__BATCH_T& batch, float missing, \
+                                          std::int32_t nthread);
+
+INSTANTIATE_PUSH(DenseAdapterBatch)
+INSTANTIATE_PUSH(ArrayAdapterBatch)
+INSTANTIATE_PUSH(CSRArrayAdapterBatch)
+INSTANTIATE_PUSH(CSCArrayAdapterBatch)
+INSTANTIATE_PUSH(FileAdapterBatch)
+INSTANTIATE_PUSH(ColumnarAdapterBatch)
+
+#undef INSTANTIATE_PUSH
 
 namespace data {
 // List of files that will be force linked in static links.
