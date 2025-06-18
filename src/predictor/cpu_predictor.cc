@@ -370,13 +370,12 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
   }
 }
 
-
 void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
                        bst_tree_t const tree_end, std::size_t const predict_offset,
                        std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
                        std::size_t const block_size, linalg::MatrixView<float> out_predt,
                        const std::vector<int>& tree_depth, bool any_missing) {
-  const bool use_eytzinger_layout = (block_size > 1);
+  const bool use_eytzinger_layout = block_size > 1;
   if (use_eytzinger_layout) {
     if (any_missing) {
       any_missing = false;
@@ -654,7 +653,7 @@ auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView const &new_enc,
 
 bool ShouldUseBlock(DMatrix *p_fmat) {
   // Threshold to use block-based prediction.
-  constexpr double kDensityThresh = .5;
+  constexpr double kDensityThresh = .125;
   bst_idx_t n_samples = p_fmat->Info().num_row_;
   bst_idx_t total = std::max(n_samples * p_fmat->Info().num_col_, static_cast<bst_idx_t>(1));
   double density = static_cast<double>(p_fmat->Info().num_nonzero_) / static_cast<double>(total);
