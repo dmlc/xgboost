@@ -81,8 +81,6 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
   bool lambdarank_normalization{true};
   bool lambdarank_score_normalization{true};
   double lambdarank_bias_norm{1.0};
-  // ndcg
-  // bool ndcg_exp_gain{true};
 
   bool operator==(LambdaRankParam const& that) const {
     return lambdarank_pair_method == that.lambdarank_pair_method &&
