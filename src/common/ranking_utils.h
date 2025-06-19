@@ -225,7 +225,7 @@ class RankingCache {
       return param_.NumPair();
     }
     // Hardcoded maximum size of positions to track. We don't need too many of them as the
-    // bias decreases exponentially..
+    // bias decreases exponentially.
     return std::min(max_group_size_, static_cast<std::size_t>(32));
   }
   // Constructed as [1, n_samples] if group ptr is not supplied by the user
