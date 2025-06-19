@@ -6,7 +6,7 @@
 #include <algorithm>                     // for min
 #include <cmath>                         // for log2, fabs, floor
 #include <cstddef>                       // for size_t
-#include <cstdint>                       // for uint64_t, uint8_t, int64_t
+#include <cstdint>                       // for uint32_t, uint8_t, int32_t
 #include <limits>                        // for numeric_limits
 #include <string>                        // for char_traits, string
 #include <vector>                        // for vector
@@ -27,17 +27,17 @@ namespace xgboost::ltr {
 /**
  * \brief Relevance degree
  */
-using rel_degree_t = std::uint64_t;  // NOLINT
+using rel_degree_t = std::uint32_t;  // NOLINT
 /**
  * \brief top-k position
  */
-using position_t = std::uint64_t;  // NOLINT
+using position_t = std::uint32_t;  // NOLINT
 
 /**
  * \brief Maximum relevance degree for NDCG
  */
 constexpr std::size_t MaxRel() { return sizeof(rel_degree_t) * 8 - 1; }
-static_assert(MaxRel() == 63);
+static_assert(MaxRel() == 31);
 
 XGBOOST_DEVICE inline double CalcDCGGain(rel_degree_t label) {
   return static_cast<double>((1u << label) - 1);
@@ -52,7 +52,7 @@ XGBOOST_DEVICE inline double CalcInvIDCG(double idcg) {
   return inv_idcg;
 }
 
-enum class PairMethod : std::int64_t {
+enum class PairMethod : std::int32_t {
   kTopK = 0,
   kMean = 1,
 };
@@ -63,7 +63,7 @@ DECLARE_FIELD_ENUM_CLASS(xgboost::ltr::PairMethod);
 namespace xgboost::ltr {
 struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
  private:
-  static constexpr position_t DefaultK() { return 64; }
+  static constexpr position_t DefaultK() { return 32; }
   static constexpr position_t DefaultSamplePairs() { return 1; }
 
  protected:
@@ -227,8 +227,8 @@ class RankingCache {
       return param_.NumPair();
     }
     // Hardcoded maximum size of positions to track. We don't need too many of them as the
-    // bias decreases exponentially.
-    return std::min(max_group_size_, static_cast<std::size_t>(64));
+    // bias decreases exponentially..
+    return std::min(max_group_size_, static_cast<std::size_t>(32));
   }
   // Constructed as [1, n_samples] if group ptr is not supplied by the user
   common::Span<bst_group_t const> DataGroupPtr(Context const* ctx) const {
