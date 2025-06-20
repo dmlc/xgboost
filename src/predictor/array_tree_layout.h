@@ -29,25 +29,25 @@ class ArrayTreeLayout {
 
   struct Empty {};
   using DefaultLeftType =
-        typename std::conditional<any_missing,
-                                  std::array<uint8_t, kNodesCount>,
-                                  struct Empty>::type;
+        typename std::conditional_t<any_missing,
+                                   std::array<uint8_t, kNodesCount>,
+                                   struct Empty>;
   using IsCatType =
-        typename std::conditional<has_categorical,
-                                  std::array<uint8_t, kNodesCount>,
-                                  struct Empty>::type;
+        typename std::conditional_t<has_categorical,
+                                   std::array<uint8_t, kNodesCount>,
+                                   struct Empty>;
   using CatSegmentType =
-        typename std::conditional<has_categorical,
-                                  std::array<common::Span<uint32_t const>, kNodesCount>,
-                                  struct Empty>::type;
+        typename std::conditional_t<has_categorical,
+                                   std::array<common::Span<uint32_t const>, kNodesCount>,
+                                   struct Empty>;
 
-  DefaultLeftType default_left;
-  IsCatType is_cat;
-  CatSegmentType cat_segment;
+  DefaultLeftType default_left_;
+  IsCatType is_cat_;
+  CatSegmentType cat_segment_;
 
-  std::array<bst_feature_t, kNodesCount> split_index;
-  std::array<float, kNodesCount> split_cond;
-  std::array<bst_node_t, kNodesCount + 1> nidx_in_tree;
+  std::array<bst_feature_t, kNodesCount> split_index_;
+  std::array<float, kNodesCount> split_cond_;
+  std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
   inline static bool IsLeaf(const RegTree& tree, bst_feature_t nidx) {
     return tree[nidx].IsLeaf();
@@ -122,10 +122,10 @@ class ArrayTreeLayout {
         /* We save the node index in the origianl tree to able to continue processing
          * for nodes not egligable for array layout optimisation. 
          */
-        nidx_in_tree[nidx_array - kNodesCount] = nidx;
+        nidx_in_tree_[nidx_array - kNodesCount] = nidx;
     } else {
       if (IsLeaf(tree, nidx)) {
-        split_index[nidx_array]  = 0;
+        split_index_[nidx_array]  = 0;
 
         /* 
          * if the tree is not fully populated, we can reduce transfering costs.
@@ -133,21 +133,23 @@ class ArrayTreeLayout {
          * that a moove will always done in "right" direction.
          * here we exploiting that comparison with nan always results to false.
          */
-        if constexpr (any_missing) default_left[nidx_array] = 0;
-        if constexpr (has_categorical) is_cat[nidx_array] = 0;
-        split_cond[nidx_array]   = std::numeric_limits<float>::quiet_NaN();
+        if constexpr (any_missing) default_left_[nidx_array] = 0;
+        if constexpr (has_categorical) is_cat_[nidx_array] = 0;
+        split_cond_[nidx_array]   = std::numeric_limits<float>::quiet_NaN();
 
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, nidx);
       } else {
-        if constexpr (any_missing) default_left[nidx_array] = DefaultLeft(tree, nidx);
+        if constexpr (any_missing) default_left_[nidx_array] = DefaultLeft(tree, nidx);
         if constexpr (has_categorical) {
-          is_cat[nidx_array] = common::IsCat(cats.split_type, nidx);
-          cat_segment[nidx_array] = cats.categories.subspan(cats.node_ptr[nidx].beg,
-                                                            cats.node_ptr[nidx].size);
+          is_cat_[nidx_array] = common::IsCat(cats.split_type, nidx);
+          if (is_cat_[nidx_array]) {
+            cat_segment_[nidx_array] = cats.categories.subspan(cats.node_ptr[nidx].beg,
+                                                               cats.node_ptr[nidx].size);
+          }
         }
 
-        split_index[nidx_array]  = SplitIndex(tree, nidx);
-        split_cond[nidx_array]   = SplitCond(tree, nidx);
+        split_index_[nidx_array]  = SplitIndex(tree, nidx);
+        split_cond_[nidx_array]   = SplitCond(tree, nidx);
 
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 1, LeftChild(tree, nidx));
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, RightChild(tree, nidx));
@@ -157,13 +159,13 @@ class ArrayTreeLayout {
 
   bool inline GetDecision(float fvalue, bst_node_t nidx) const {
     if constexpr (has_categorical) {
-      if (is_cat[nidx]) {
-       return common::Decision(cat_segment[nidx], fvalue);
+      if (is_cat_[nidx]) {
+       return common::Decision(cat_segment_[nidx], fvalue);
       } else {
-        return fvalue < split_cond[nidx];
+        return fvalue < split_cond_[nidx];
       }
     } else {
-      return fvalue < split_cond[nidx];
+      return fvalue < split_cond_[nidx];
     }
   }
 
@@ -205,10 +207,10 @@ class ArrayTreeLayout {
         bst_node_t idx = p_nidx[i];
 
         const auto& feat = thread_temp[offset + i];
-        bst_feature_t split = split_index[first_node + idx];
+        bst_feature_t split = split_index_[first_node + idx];
         auto fvalue = feat.GetFvalue(split);
         if constexpr (any_missing) {
-          bool go_left = feat.IsMissing(split) ? default_left[first_node + idx]
+          bool go_left = feat.IsMissing(split) ? default_left_[first_node + idx]
                                                : GetDecision(fvalue, first_node + idx);
           p_nidx[i] = 2 * idx + !go_left;
         } else {
@@ -217,7 +219,7 @@ class ArrayTreeLayout {
       }
     }
     for (std::size_t i = 0; i < block_size; ++i) {
-      p_nidx[i] = nidx_in_tree[p_nidx[i]];
+      p_nidx[i] = nidx_in_tree_[p_nidx[i]];
     }
   }
 };
@@ -227,7 +229,10 @@ void inline ProcessArrayTree(const TreeType& tree, RegTree::CategoricalSplitMatr
                              std::vector<RegTree::FVec> const &thread_temp,
                              std::size_t const offset, std::size_t const block_size,
                              bst_node_t* p_nidx, int tree_depth) {
-  if constexpr (num_deep_levels == ArrayTreeLayout<TreeType, 0, 0, 0>::kMaxNumDeepLevels) {
+  constexpr int kMaxNumDeepLevels =
+    ArrayTreeLayout<TreeType, has_categorical, any_missing, 0>::kMaxNumDeepLevels;
+
+  if constexpr (num_deep_levels == kMaxNumDeepLevels) {
     ArrayTreeLayout<TreeType, has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
     buffer.Process(thread_temp, offset, block_size, p_nidx);
   } else {
