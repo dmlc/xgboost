@@ -27,7 +27,7 @@
 #include "cpu_treeshap.h"                     // for CalculateContributions
 #include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
 #include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
-#include "eytzinger_layout.h"                 // for ProcessEytzinger
+#include "array_tree_layout.h"                // for ProcessArrayTree
 #include "xgboost/base.h"                     // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
 #include "xgboost/context.h"                  // for Context
 #include "xgboost/data.h"                     // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
@@ -67,7 +67,7 @@ template <bool has_categorical>
   return tree[leaf].LeafValue();
 }
 
-template <bool has_categorical, bool any_missing, bool use_eytzinger_layout>
+template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
 void PredValueByOneTree(const RegTree& tree,
                         std::size_t const predict_offset,
                         std::vector<RegTree::FVec> const &thread_temp,
@@ -75,13 +75,13 @@ void PredValueByOneTree(const RegTree& tree,
                         linalg::MatrixView<float> out_predt,
                         bst_node_t* p_nidx, int depth, int gid) {
   auto const &cats = tree.GetCategoriesMatrix();
-  if constexpr (use_eytzinger_layout) {
-    ProcessEytzinger<RegTree, has_categorical, any_missing>
+  if constexpr (use_array_tree_layout) {
+    ProcessArrayTree<RegTree, has_categorical, any_missing>
         (tree, cats, thread_temp, offset, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
-    if constexpr (use_eytzinger_layout) {
+    if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
       p_nidx[i] = 0;
     }
@@ -120,7 +120,7 @@ void PredValueByOneTree(RegTree::FVec const &p_feats, MultiTargetTree const &tre
   }
 }
 
-template <bool has_categorical, bool any_missing, bool use_eytzinger_layout>
+template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
 void PredValueByOneTree(const RegTree& tree,
                         std::size_t const predict_offset,
                         std::vector<RegTree::FVec> const &thread_temp,
@@ -129,13 +129,13 @@ void PredValueByOneTree(const RegTree& tree,
                         bst_node_t* p_nidx, int depth) {
   const auto& mt_tree = *(tree.GetMultiTargetTree());
   auto const &cats = tree.GetCategoriesMatrix();
-  if constexpr (use_eytzinger_layout) {
-    ProcessEytzinger<MultiTargetTree, has_categorical, any_missing>
+  if constexpr (use_array_tree_layout) {
+    ProcessArrayTree<MultiTargetTree, has_categorical, any_missing>
         (mt_tree, cats, thread_temp, offset, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
-    if constexpr (use_eytzinger_layout) {
+    if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
       p_nidx[i] = 0;
     }
@@ -149,36 +149,36 @@ void PredValueByOneTree(const RegTree& tree,
 
 namespace {
 
-template <bool use_eytzinger_layout, bool any_missing>
+template <bool use_array_tree_layout, bool any_missing>
 void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
                        bst_tree_t const tree_end, std::size_t const predict_offset,
                        std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
                        std::size_t const block_size, linalg::MatrixView<float> out_predt,
                        const std::vector<int>& tree_depth) {
   std::vector<bst_node_t> nidx;
-  if constexpr (use_eytzinger_layout) nidx.resize(block_size, 0);
+  if constexpr (use_array_tree_layout) nidx.resize(block_size, 0);
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
     auto const &tree = *model.trees.at(tree_id);
     bool has_categorical = tree.HasCategoricalSplit();
 
     if (tree.IsMultiTarget()) {
-      int depth = use_eytzinger_layout ? tree_depth[tree_id - tree_begin] : 0;
+      int depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
       if (has_categorical) {
-        multi::PredValueByOneTree<true, any_missing, use_eytzinger_layout>
+        multi::PredValueByOneTree<true, any_missing, use_array_tree_layout>
           (tree, predict_offset, thread_temp, offset, block_size, out_predt, nidx.data(), depth);
       } else {
-        multi::PredValueByOneTree<false, any_missing, use_eytzinger_layout>
+        multi::PredValueByOneTree<false, any_missing, use_array_tree_layout>
           (tree, predict_offset, thread_temp, offset, block_size, out_predt, nidx.data(), depth);
       }
     } else {
       auto const gid = model.tree_info[tree_id];
-      int depth = use_eytzinger_layout ? tree_depth[tree_id - tree_begin] : 0;
+      int depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
       if (has_categorical) {
-        scalar::PredValueByOneTree<true, any_missing, use_eytzinger_layout>
+        scalar::PredValueByOneTree<true, any_missing, use_array_tree_layout>
           (tree, predict_offset, thread_temp, offset, block_size,
            out_predt, nidx.data(), depth, gid);
       } else {
-        scalar::PredValueByOneTree<false, any_missing, use_eytzinger_layout>
+        scalar::PredValueByOneTree<false, any_missing, use_array_tree_layout>
           (tree, predict_offset, thread_temp, offset, block_size,
            out_predt, nidx.data(), depth, gid);
       }
@@ -186,13 +186,19 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
   }
 }
 
+// Dispatch between template implementations
 void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
                        bst_tree_t const tree_end, std::size_t const predict_offset,
                        std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
                        std::size_t const block_size, linalg::MatrixView<float> out_predt,
                        const std::vector<int>& tree_depth, bool any_missing) {
-  const bool use_eytzinger_layout = block_size > 1;
-  if (use_eytzinger_layout) {
+  /*
+   * We use transfer trees to array layout for each block of data to avoid memory overheads.
+   * It makes the array layout ineffetient for block_size == 1
+   */ 
+  const bool use_array_tree_layout = block_size > 1;
+  if (use_array_tree_layout) {
+    // Recheck if the current block has missing values.
     if (any_missing) {
       any_missing = false;
       for (std::size_t i = 0; i < block_size; ++i) {
