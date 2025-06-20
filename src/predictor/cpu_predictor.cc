@@ -193,8 +193,8 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
                        std::size_t const block_size, linalg::MatrixView<float> out_predt,
                        const std::vector<int>& tree_depth, bool any_missing) {
   /*
-   * We use transfer trees to array layout for each block of data to avoid memory overheads.
-   * It makes the array layout ineffetient for block_size == 1
+   * We use transforming trees to array layout for each block of data to avoid memory overheads.
+   * It makes the array layout inefficient for block_size == 1
    */ 
   const bool use_array_tree_layout = block_size > 1;
   if (use_array_tree_layout) {
@@ -402,6 +402,10 @@ void PredictBatchByBlockOfRowsKernel(DataView const &batch, gbm::GBTreeModel con
   auto const n_features = model.learner_model_param->num_feature;
   auto const n_blocks = common::DivRoundUp(n_samples, kBlockOfRowsSize);
 
+  /* Precalculate depth for each tree.
+   * This values are requared only for ArrayLyout optimization,
+   * so we don't need them if kBlockOfRowsSize == 1
+   */
   std::vector<int> tree_depth;
   if constexpr (kBlockOfRowsSize > 1) {
     tree_depth.resize(tree_end - tree_begin);

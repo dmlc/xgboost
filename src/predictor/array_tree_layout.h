@@ -168,7 +168,7 @@ class ArrayTreeLayout {
   }
 
  public:
-  /* Add-hock value.
+  /* Ad-hoc value.
    * Increasing doesn't lead to perf gain, since bottleneck is now at gather instructions.
    */
   constexpr static int kMaxNumDeepLevels = 6;
@@ -181,9 +181,10 @@ class ArrayTreeLayout {
   /**
    * @brief
    * Traverse top levels of the tree for an entire block_size.
-   * In array layout is orginised to garantie that 
-   * the node index for left child is always 2*nidx
-   * the node index for right child is always 2*nidx+1
+   * In array layout is orginised to garantie that
+   * if the node at the current level has index nidx, than
+   * the node index for left child at the next level is always 2*nidx
+   * the node index for right child at the next level is always 2*nidx+1
    * This greatly improve data locality
    * 
    * \param thread_temp buffer holding the feature values
@@ -222,7 +223,7 @@ class ArrayTreeLayout {
 };
 
 template <class TreeType, bool has_categorical, bool any_missing, int num_deep_levels = 1>
-void inline ArrayTreeLayout(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats,
+void inline ProcessArrayTree(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats,
                              std::vector<RegTree::FVec> const &thread_temp,
                              std::size_t const offset, std::size_t const block_size,
                              bst_node_t* p_nidx, int tree_depth) {
