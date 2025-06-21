@@ -47,16 +47,7 @@ class GradientBooster : public Model, public Configurable {
    * @param cfg configurations on both training and model parameters.
    */
   virtual void Configure(Args const& cfg) = 0;
-  /*!
-   * \brief load model from stream
-   * \param fi input stream.
-   */
-  virtual void Load(dmlc::Stream* fi) = 0;
-  /*!
-   * \brief save model to stream.
-   * \param fo output stream
-   */
-  virtual void Save(dmlc::Stream* fo) const = 0;
+
   /**
    * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
    *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
