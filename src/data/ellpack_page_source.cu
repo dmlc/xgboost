@@ -44,7 +44,7 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
       buffer_bytes{std::move(cinfo.buffer_bytes)},
       buffer_rows{std::move(cinfo.buffer_rows)},
       cache_host_ratio{cinfo.cache_host_ratio},
-      hw_comp_ratio{cinfo.hw_comp_ratio},
+      hw_decomp_ratio{cinfo.hw_decomp_ratio},
       allow_decomp_fallback{cinfo.allow_decomp_fallback},
       streams{std::make_unique<curt::StreamPool>(n_workers)},
       pool{std::make_shared<dc::HostPinnedMemPool>()} {
@@ -180,7 +180,7 @@ class EllpackHostCacheStreamImpl {
       std::size_t n_h_bytes = n_bytes, n_comp_bytes = 0;
       if (CanUseHwDecomp(old_impl, this->cache_->allow_decomp_fallback)) {
         // FIXME: Find a sweet spot.
-        auto r = std::isnan(this->cache_->hw_comp_ratio) ? 1.0 : this->cache_->hw_comp_ratio;
+        auto r = std::isnan(this->cache_->hw_decomp_ratio) ? 1.0 : this->cache_->hw_decomp_ratio;
         CHECK_LE(r, 1.0);
         CHECK_GE(r, 0.0);
         n_comp_bytes = n_bytes * r;

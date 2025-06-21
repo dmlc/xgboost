@@ -38,7 +38,7 @@ struct EllpackCacheInfo {
   // The size ratio the host cache vs. the total cache
   double cache_host_ratio{1.0};
   // The ratio of the cache that can be compressed. Used for testing.
-  float hw_comp_ratio{std::numeric_limits<float>::quiet_NaN()};
+  float hw_decomp_ratio{std::numeric_limits<float>::quiet_NaN()};
   float missing{std::numeric_limits<float>::quiet_NaN()};
   bool allow_decomp_fallback{false};
   std::vector<bst_idx_t> cache_mapping;
@@ -83,7 +83,7 @@ struct EllpackMemCache {
   std::vector<std::size_t> const buffer_bytes;
   std::vector<bst_idx_t> const buffer_rows;
   double const cache_host_ratio;
-  float const hw_comp_ratio;  // FIXME: rename to decomp
+  float const hw_decomp_ratio;
   bool const allow_decomp_fallback;
 
   std::unique_ptr<curt::StreamPool> streams;  // For decompression

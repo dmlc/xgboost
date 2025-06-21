@@ -542,7 +542,7 @@ struct ExtMemConfig {
   // The number of CPU threads.
   std::int32_t n_threads{0};
   // The ratio of the cache that can be compressed. Used for testing.
-  float hw_comp_ratio{true};
+  float hw_decomp_ratio{true};
 
   ExtMemConfig() = delete;
   ExtMemConfig(std::string cache, bool on_host, float h_ratio, std::int64_t min_cache,

@@ -472,7 +472,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
       std::numeric_limits<float>::quiet_NaN(),
       Context{}.Threads(),
   };
-  config.hw_comp_ratio = this->hw_comp_ratio_;
+  config.hw_decomp_ratio = this->hw_comp_ratio_;
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
@@ -523,7 +523,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
       std::numeric_limits<float>::quiet_NaN(),
       Context{}.Threads(),
   };
-  config.hw_comp_ratio = this->hw_comp_ratio_;
+  config.hw_decomp_ratio = this->hw_comp_ratio_;
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), this->ref_, Reset,
                       Next, this->bins_, std::numeric_limits<std::int64_t>::max(), config)};
