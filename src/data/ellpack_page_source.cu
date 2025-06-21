@@ -281,13 +281,13 @@ class EllpackHostCacheStreamImpl {
     return new_page;
   }
 
-  void Read(EllpackPage* out, bool prefetch_copy) const {
+  void Read(Context const* ctx, EllpackPage* out, bool prefetch_copy) const {
     CHECK_EQ(this->cache_->h_pages.size(), this->cache_->d_pages.size());
     CHECK_EQ(this->cache_->h_pages.size(), this->cache_->c_pages.size());
     auto [h_page, d_page, c_page] = this->cache_->At(this->ptr_);
     // Skip copy if the full page is on device
     bool on_device = (h_page->gidx_buffer.empty() && c_page->first.Empty()) && !d_page->empty();
-    auto ctx = Context{}.MakeCUDA(dh::CurrentDevice());
+
     auto out_impl = out->Impl();
     // We can't access a compressed page directly.
     if (!c_page->first.Empty()) {
@@ -310,7 +310,7 @@ class EllpackHostCacheStreamImpl {
       if (!h_page->gidx_buffer.empty()) {
         dh::safe_cuda(cudaMemcpyAsync(out_impl->gidx_buffer.data(), h_page->gidx_buffer.data(),
                                       h_page->gidx_buffer.size_bytes(), cudaMemcpyDefault,
-                                      ctx.CUDACtx()->Stream()));
+                                      ctx->CUDACtx()->Stream()));
       }
       // Compressed host cache
       if (!c_page->first.Empty()) {
@@ -321,7 +321,7 @@ class EllpackHostCacheStreamImpl {
         dc::DecompressSnappy(stream, c_page->first, out, this->cache_->allow_decomp_fallback);
         dh::CUDAEvent e;
         e.Record(stream);
-        ctx.CUDACtx()->Stream().Wait(e);
+        ctx->CUDACtx()->Stream().Wait(e);
       }
       // Device cache
       if (!d_page->empty()) {
@@ -329,7 +329,7 @@ class EllpackHostCacheStreamImpl {
                                                           c_page->first.DecompressedBytes());
         CHECK_EQ(out.size_bytes(), d_page->size_bytes());
         dh::safe_cuda(cudaMemcpyAsync(out.data(), d_page->data(), d_page->size_bytes(),
-                                      cudaMemcpyDefault, ctx.CUDACtx()->Stream()));
+                                      cudaMemcpyDefault, ctx->CUDACtx()->Stream()));
       }
     } else {
       // Direct access
@@ -362,8 +362,8 @@ std::shared_ptr<EllpackMemCache const> EllpackHostCacheStream::Share() const {
 
 void EllpackHostCacheStream::Seek(bst_idx_t offset_bytes) { this->p_impl_->Seek(offset_bytes); }
 
-void EllpackHostCacheStream::Read(EllpackPage* page, bool prefetch_copy) const {
-  this->p_impl_->Read(page, prefetch_copy);
+void EllpackHostCacheStream::Read(Context const* ctx, EllpackPage* page, bool prefetch_copy) const {
+  this->p_impl_->Read(ctx, page, prefetch_copy);
 }
 
 [[nodiscard]] bool EllpackHostCacheStream::Write(EllpackPage const& page) {

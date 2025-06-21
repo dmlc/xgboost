@@ -147,7 +147,7 @@ class EllpackHostCacheStream {
    * @param page[out] The returned page.
    * @param prefetch_copy[in] Does the stream need to copy the page?
    */
-  void Read(EllpackPage* page, bool prefetch_copy) const;
+  void Read(Context const* ctx, EllpackPage* page, bool prefetch_copy) const;
   /**
    * @brief Add a new page to the host cache.
    *
