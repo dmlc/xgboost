@@ -102,8 +102,10 @@ template <typename T>
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
 
+  auto ctx = Context{}.MakeCUDA(curt::CurrentDevice());
+
   auto dispatch = [&] {
-    fi->Read(page, this->param_.prefetch_copy || !this->has_hmm_ats_);
+    fi->Read(&ctx, page, this->param_.prefetch_copy || !this->has_hmm_ats_);
     impl->SetCuts(this->cuts_);
   };
 
