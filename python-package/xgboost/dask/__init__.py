@@ -695,6 +695,7 @@ async def _get_rabit_args(
         _start_tracker, n_workers, sched_addr, user_addr, coll_cfg.tracker_timeout
     )
     env = coll_cfg.get_comm_config(env)
+    assert env is not None
     return env
 
 

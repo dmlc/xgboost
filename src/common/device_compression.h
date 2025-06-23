@@ -112,6 +112,12 @@ class SnappyDecomprMgr {
 
   SnappyDecomprMgrImpl* Impl() const;
 
+  [[nodiscard]] bool Empty() const;
+  /**
+   * @brief The number of bytes of the uncompressed data.
+   */
+  [[nodiscard]] std::size_t DecompressedBytes() const;
+
  private:
   // Hide the CUDA API calls.
 #if defined(XGBOOST_USE_NVCOMP)

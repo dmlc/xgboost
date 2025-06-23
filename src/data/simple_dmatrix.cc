@@ -315,8 +315,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
         offset_vec.emplace_back(offset_vec.back());
       }
     } else {
-      CHECK((std::is_same_v<AdapterT, CSCAdapter> || std::is_same_v<AdapterT, CSCArrayAdapter>))
-          << "Expecting CSCAdapter";
+      CHECK((std::is_same_v<AdapterT, CSCArrayAdapter>)) << "Expecting a CSC adapter.";
       info_.num_row_ = offset_vec.size() - 1;
     }
   } else {
@@ -356,23 +355,20 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
   fo->Write(sparse_page_->data.HostVector());
 }
 
-template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(ArrayAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(CSCArrayAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(ColumnarAdapter* adapter, float missing, int nthread,
-                                      DataSplitMode data_split_mode);
-template SimpleDMatrix::SimpleDMatrix(
-    IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, DataSplitMode data_split_mode);
+#define INSTANTIATE_SDCTOR(__ADAPTER_T)                                                            \
+  template SimpleDMatrix::SimpleDMatrix(__ADAPTER_T* adapter, float missing, std::int32_t nthread, \
+                                        DataSplitMode data_split_mode);
+
+INSTANTIATE_SDCTOR(DenseAdapter)
+INSTANTIATE_SDCTOR(ArrayAdapter)
+INSTANTIATE_SDCTOR(CSRArrayAdapter)
+INSTANTIATE_SDCTOR(CSCArrayAdapter)
+INSTANTIATE_SDCTOR(FileAdapter)
+INSTANTIATE_SDCTOR(ColumnarAdapter)
+namespace {
+using IterAdapterT = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
+}
+INSTANTIATE_SDCTOR(IterAdapterT)
+
+#undef INSTANTIATE_SDCTOR
 }  // namespace xgboost::data

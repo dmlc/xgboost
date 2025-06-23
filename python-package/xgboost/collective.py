@@ -16,6 +16,7 @@ from .core import _LIB, _check_call, build_info, c_str, make_jcargs, py_str
 LOGGER = logging.getLogger("[xgboost.collective]")
 
 
+_Conf: TypeAlias = Dict[str, Union[int, str]]
 _ArgVals: TypeAlias = Optional[Union[int, str]]
 _Args: TypeAlias = Dict[str, _ArgVals]
 
@@ -53,7 +54,7 @@ class Config:
     tracker_port: Optional[int] = None
     tracker_timeout: Optional[int] = None
 
-    def get_comm_config(self, args: _Args) -> _Args:
+    def get_comm_config(self, args: _Conf) -> _Conf:
         """Update the arguments for the communicator."""
         if self.retry is not None:
             args["dmlc_retry"] = self.retry

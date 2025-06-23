@@ -10,6 +10,7 @@ import pytest
 
 import xgboost as xgb
 import xgboost.testing as tm
+from xgboost.core import _parse_version
 from xgboost.data import is_pd_cat_dtype
 
 from ..core import DataIter
@@ -651,6 +652,7 @@ def run_invalid_category(tree_method: str, device: Device) -> None:
 def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     """Test for adaptive trees."""
     rng = np.random.RandomState(1994)
+    from sklearn import __version__ as sklearn_version
     from sklearn.datasets import make_regression
     from sklearn.utils import stats
 
@@ -662,8 +664,14 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         w = rng.normal(size=n_samples)
         w -= w.min()
         Xy = xgb.DMatrix(X, y, weight=w)
+
+        (sk_major, sk_minor, _), _ = _parse_version(sklearn_version)
+        if sk_major > 1 or sk_minor >= 7:
+            kwargs = {"percentile_rank": 50}
+        else:
+            kwargs = {"percentile": 50}
         base_score = stats._weighted_percentile(  # pylint: disable=protected-access
-            y, w, percentile=50
+            y, w, **kwargs
         )
     else:
         Xy = xgb.DMatrix(X, y)

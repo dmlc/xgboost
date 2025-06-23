@@ -46,7 +46,7 @@ memory = joblib.Memory("./cachedir", verbose=0)
 
 def np_dtypes(
     n_samples: int, n_features: int
-) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+) -> Generator[Union[Tuple[np.ndarray, np.ndarray], Tuple[list, list]], None, None]:
     """Enumerate all supported dtypes from numpy."""
     pd = pytest.importorskip("pandas")
 
@@ -92,12 +92,12 @@ def np_dtypes(
     orig = rng.binomial(1, 0.5, size=n_samples * n_features).reshape(
         n_samples, n_features
     )
-    for dtype in [np.bool_, bool]:
-        X = np.array(orig, dtype=dtype)
+    for dtype1 in [np.bool_, bool]:
+        X = np.array(orig, dtype=dtype1)
         yield orig, X
 
-    for dtype in [np.bool_, bool]:
-        X = np.array(orig, dtype=dtype)
+    for dtype2 in [np.bool_, bool]:
+        X = np.array(orig, dtype=dtype2)
         df_orig = pd.DataFrame(orig)
         df = pd.DataFrame(X)
         yield df_orig, df
@@ -660,7 +660,7 @@ def init_rank_score(
     # random sample
     rng = np.random.default_rng(1994)
     n_samples = int(X.shape[0] * sample_rate)
-    index = np.arange(0, X.shape[0], dtype=np.uint64)
+    index: npt.NDArray = np.arange(0, X.shape[0], dtype=np.uint64)
     rng.shuffle(index)
     index = index[:n_samples]
 

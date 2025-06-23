@@ -721,10 +721,11 @@ class CUDAEvent {
   std::unique_ptr<cudaEvent_t, void (*)(cudaEvent_t *)> event_;
 
  public:
-  CUDAEvent()
-      : event_{[] {
+  explicit CUDAEvent(bool disable_timing = true)
+      : event_{[disable_timing] {
                  auto e = new cudaEvent_t;
-                 dh::safe_cuda(cudaEventCreateWithFlags(e, cudaEventDisableTiming));
+                 dh::safe_cuda(cudaEventCreateWithFlags(
+                     e, disable_timing ? cudaEventDisableTiming : cudaEventDefault));
                  return e;
                }(),
                [](cudaEvent_t *e) {
@@ -744,6 +745,7 @@ class CUDAEvent {
 
   operator cudaEvent_t() const { return *event_; }                // NOLINT
   cudaEvent_t const *data() const { return this->event_.get(); }  // NOLINT
+  void Sync() { dh::safe_cuda(cudaEventSynchronize(*this->data())); }
 };
 
 class CUDAStreamView {

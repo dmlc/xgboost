@@ -177,7 +177,7 @@ class CallbackContainer:
         self.is_cv = is_cv
 
         if self.is_cv:
-            self.aggregated_cv = None
+            self.aggregated_cv: Optional[list[tuple[str, float, float]]] = None
 
     def before_training(self, model: _Model) -> _Model:
         """Function called before training."""
@@ -386,8 +386,8 @@ class EarlyStopping(TrainingCallback):
         self.starting_round = model.num_boosted_rounds()
         if not isinstance(model, Booster) and self.save_best:
             raise ValueError(
-                "`save_best` is not applicable to the `cv` function as it doesn't return"
-                " a model."
+                "`save_best` is not applicable to the `cv` function as it doesn't"
+                " return a model."
             )
         return model
 
