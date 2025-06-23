@@ -50,6 +50,7 @@ class ArrayTreeLayout {
   std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
   inline static bool IsLeaf(const RegTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<RegTree, TreeType>); 
     return tree[nidx].IsLeaf();
   }
 
