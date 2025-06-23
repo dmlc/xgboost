@@ -15,6 +15,9 @@
 #include "xgboost/span.h"           // for Span
 
 namespace xgboost::dc {
+
+using HostPinnedMemPool = common::cuda_impl::HostPinnedMemPool;
+
 /**
  * @brief Use nvcomp to compress the data.
  *
@@ -44,19 +47,22 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
  * @brief Coalesce the compressed chunks into a contiguous host pinned buffer.
  *
  * @param stream CUDA stream.
+ * @param pool Pinned memory pool for storing the results.
  * @param in_params Params from @ref CompressSnappy, specifies the chunks.
  * @param in_buf The buffer storing compressed chunks.
  * @param p_out Re-newed parameters to keep track of the buffers.
  */
 [[nodiscard]] common::RefResourceView<std::uint8_t> CoalesceCompressedBuffersToHost(
-    dh::CUDAStreamView stream, CuMemParams const& in_params,
-    dh::DeviceUVector<std::uint8_t> const& in_buf, CuMemParams* p_out);
+    dh::CUDAStreamView stream, std::shared_ptr<HostPinnedMemPool> pool,
+    CuMemParams const& in_params, dh::DeviceUVector<std::uint8_t> const& in_buf,
+    CuMemParams* p_out);
 
 // We store decompression parameters in struct of vectors. This is due to nvcomp works
 // with this format. But the CUDA driver works with vector of structs. We can optimize
 // toward the driver decompression function if the overhead is significant (too many
 // chunks).
 struct SnappyDecomprMgrImpl {
+  std::size_t n_dst_bytes{0};
   // src of the CUmemDecompressParams
   dh::device_vector<void const*> d_in_chunk_ptrs;
   // srcNumBytes of the CUmemDecompressParams
@@ -81,8 +87,7 @@ struct SnappyDecomprMgrImpl {
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   }
 
-  SnappyDecomprMgrImpl(dh::CUDAStreamView s,
-                       std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
+  SnappyDecomprMgrImpl(dh::CUDAStreamView s, std::shared_ptr<HostPinnedMemPool> pool,
                        CuMemParams params, common::Span<std::uint8_t const> in_compressed_data);
 
 #if defined(CUDA_HW_DECOM_AVAILABLE) && defined(XGBOOST_USE_NVCOMP)
@@ -95,10 +100,11 @@ struct SnappyDecomprMgrImpl {
   SnappyDecomprMgrImpl(SnappyDecomprMgrImpl&& that) = default;
   SnappyDecomprMgrImpl& operator=(SnappyDecomprMgrImpl const&) = delete;
   SnappyDecomprMgrImpl& operator=(SnappyDecomprMgrImpl&&) = default;
+
+  [[nodiscard]] bool Empty() const;
 };
 
-inline auto MakeSnappyDecomprMgr(dh::CUDAStreamView s,
-                                 std::shared_ptr<common::cuda_impl::HostPinnedMemPool> pool,
+inline auto MakeSnappyDecomprMgr(dh::CUDAStreamView s, std::shared_ptr<HostPinnedMemPool> pool,
                                  CuMemParams params,
                                  common::Span<std::uint8_t const> in_compressed_data) {
   SnappyDecomprMgr mgr;

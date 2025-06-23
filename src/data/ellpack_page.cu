@@ -693,7 +693,7 @@ void EllpackPageImpl::CreateHistIndices(Context const* ctx, const SparsePage& ro
 // Return the number of rows contained in this page.
 [[nodiscard]] bst_idx_t EllpackPageImpl::Size() const { return n_rows; }
 
-std::size_t EllpackPageImpl::MemCostBytes() const {
+[[nodiscard]] std::size_t EllpackPageImpl::MemCostBytes() const {
   return this->gidx_buffer.size_bytes() + sizeof(this->is_dense) + sizeof(this->n_rows) +
          sizeof(this->base_rowid) + sizeof(this->info) + this->d_gidx_buffer.size_bytes();
 }

@@ -71,11 +71,12 @@ class TestNvComp : public ::testing::TestWithParam<std::tuple<std::size_t, std::
       ASSERT_GE(params.size(), n_bytes / n_chunk_bytes);
     }
 
+    auto pool = std::make_shared<common::cuda_impl::HostPinnedMemPool>();
+
     CuMemParams out_params;
-    auto page = CoalesceCompressedBuffersToHost(cuctx->Stream(), params, compr, &out_params);
+    auto page = CoalesceCompressedBuffersToHost(cuctx->Stream(), pool, params, compr, &out_params);
 
     dh::device_vector<common::CompressedByteT> dout(in.size(), 0);
-    auto pool = std::make_shared<common::cuda_impl::HostPinnedMemPool>();
     auto mgr = MakeSnappyDecomprMgr(cuctx->Stream(), pool, out_params, page.ToSpan());
     DecompressSnappy(cuctx->Stream(), mgr, dh::ToSpan(dout), true);
 

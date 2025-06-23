@@ -483,16 +483,6 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr, c
 
 // End Create from data iterator
 
-XGB_DLL int XGDMatrixCreateFromCSREx(const size_t *indptr, const unsigned *indices,
-                                     const bst_float *data, size_t nindptr, size_t nelem,
-                                     size_t num_col, DMatrixHandle *out) {
-  API_BEGIN();
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSR");
-  data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
-  API_END();
-}
-
 XGB_DLL int XGDMatrixCreateFromColumnar(char const *data, char const *c_json_config,
                                         DMatrixHandle *out) {
   API_BEGIN();
@@ -569,17 +559,6 @@ XGB_DLL int XGDMatrixCreateFromCSC(char const *indptr, char const *indices, char
   *out = new std::shared_ptr<DMatrix>(
       DMatrix::Create(&adapter, missing, n_threads, "", data_split_mode));
 
-  API_END();
-}
-
-XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t *col_ptr, const unsigned *indices,
-                                     const bst_float *data, size_t nindptr, size_t, size_t num_row,
-                                     DMatrixHandle *out) {
-  API_BEGIN();
-  LOG(WARNING) << error::DeprecatedFunc(__func__, "2.0.0", "XGDMatrixCreateFromCSC");
-  data::CSCAdapter adapter(col_ptr, indices, data, nindptr - 1, num_row);
-  xgboost_CHECK_C_ARG_PTR(out);
-  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
 }
 
