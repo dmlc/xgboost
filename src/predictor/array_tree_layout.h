@@ -163,8 +163,19 @@ class ArrayTreeLayout {
         split_index_[nidx_array]  = SplitIndex(tree, nidx);
         split_cond_[nidx_array]   = SplitCond(tree, nidx);
 
+        /*
+         * LeftChild is used to find if the node is leaf, so it is a valid value,
+         * howerwer RightChild can be invalid in some exotic case.
+         * The tree with invalid right-child can be correctly processed by a classical method,
+         * if the split conditions are propper.
+         * But for array layout invalid RightChild, even unreachable, will lead to memory corruption.
+         * Add check to prevent it.
+         */
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 1, LeftChild(tree, nidx));
-        Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, RightChild(tree, nidx));
+        bst_feature_t right_child = RightChild(tree, nidx);
+        if (right_child != RegTree::kInvalidNodeId) {
+          Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, right_child);
+        }
       }
     }
   }
