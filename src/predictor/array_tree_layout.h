@@ -49,62 +49,62 @@ class ArrayTreeLayout {
   std::array<float, kNodesCount> split_cond_;
   std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
-  inline static bool IsLeaf(const RegTree& tree, bst_feature_t nidx) {
+  inline static bool IsLeaf(const RegTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].IsLeaf();
   }
 
-  inline static bool IsLeaf(const MultiTargetTree& tree, bst_feature_t nidx) {
+  inline static bool IsLeaf(const MultiTargetTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.IsLeaf(nidx);
   }
 
-  inline static uint8_t DefaultLeft(const RegTree& tree, bst_feature_t nidx) {
+  inline static uint8_t DefaultLeft(const RegTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].DefaultLeft();
   }
 
-  inline static uint8_t DefaultLeft(const MultiTargetTree& tree, bst_feature_t nidx) {
+  inline static uint8_t DefaultLeft(const MultiTargetTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.DefaultLeft(nidx);
   }
 
-  inline static bst_feature_t SplitIndex(const RegTree& tree, bst_feature_t nidx) {
+  inline static bst_feature_t SplitIndex(const RegTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].SplitIndex();
   }
 
-  inline static bst_feature_t SplitIndex(const MultiTargetTree& tree, bst_feature_t nidx) {
+  inline static bst_feature_t SplitIndex(const MultiTargetTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.SplitIndex(nidx);
   }
 
-  inline static float SplitCond(const RegTree& tree, bst_feature_t nidx) {
+  inline static float SplitCond(const RegTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].SplitCond();
   }
 
-  inline static float SplitCond(const MultiTargetTree& tree, bst_feature_t nidx) {
+  inline static float SplitCond(const MultiTargetTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.SplitCond(nidx);
   }
 
-  inline static bst_feature_t LeftChild(const RegTree& tree, bst_feature_t nidx) {
+  inline static bst_node_t LeftChild(const RegTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].LeftChild();
   }
 
-  inline static bst_feature_t LeftChild(const MultiTargetTree& tree, bst_feature_t nidx) {
+  inline static bst_node_t LeftChild(const MultiTargetTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.LeftChild(nidx);
   }
 
-  inline static bst_feature_t RightChild(const RegTree& tree, bst_feature_t nidx) {
+  inline static bst_node_t RightChild(const RegTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].LeftChild() + 1;
   }
 
-  inline static bst_feature_t RightChild(const MultiTargetTree& tree, bst_feature_t nidx) {
+  inline static bst_node_t RightChild(const MultiTargetTree& tree, bst_node_t nidx) {
     static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.RightChild(nidx);
   }
@@ -127,7 +127,7 @@ class ArrayTreeLayout {
  */
   template <int depth = 0>
   void inline Populate(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats,
-                       bst_feature_t nidx_array = 0, bst_feature_t nidx = 0) {
+                       bst_node_t nidx_array = 0, bst_node_t nidx = 0) {
     if constexpr (depth == kNumDeepLevels + 1) {
       return;
     } else if constexpr (depth == kNumDeepLevels) {
@@ -172,7 +172,7 @@ class ArrayTreeLayout {
          * Add check to prevent it.
          */
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 1, LeftChild(tree, nidx));
-        bst_feature_t right_child = RightChild(tree, nidx);
+        bst_node_t right_child = RightChild(tree, nidx);
         if (right_child != RegTree::kInvalidNodeId) {
           Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, right_child);
         }
