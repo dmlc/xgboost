@@ -50,51 +50,62 @@ class ArrayTreeLayout {
   std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
   inline static bool IsLeaf(const RegTree& tree, bst_feature_t nidx) {
-    static_assert(std::is_same_v<RegTree, TreeType>); 
+    static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].IsLeaf();
   }
 
   inline static bool IsLeaf(const MultiTargetTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.IsLeaf(nidx);
   }
 
   inline static uint8_t DefaultLeft(const RegTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].DefaultLeft();
   }
 
   inline static uint8_t DefaultLeft(const MultiTargetTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.DefaultLeft(nidx);
   }
 
   inline static bst_feature_t SplitIndex(const RegTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].SplitIndex();
   }
 
   inline static bst_feature_t SplitIndex(const MultiTargetTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.SplitIndex(nidx);
   }
 
   inline static float SplitCond(const RegTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].SplitCond();
   }
 
   inline static float SplitCond(const MultiTargetTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.SplitCond(nidx);
   }
 
   inline static bst_feature_t LeftChild(const RegTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].LeftChild();
   }
 
   inline static bst_feature_t LeftChild(const MultiTargetTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.LeftChild(nidx);
   }
 
   inline static bst_feature_t RightChild(const RegTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<RegTree, TreeType>);
     return tree[nidx].LeftChild() + 1;
   }
 
   inline static bst_feature_t RightChild(const MultiTargetTree& tree, bst_feature_t nidx) {
+    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
     return tree.RightChild(nidx);
   }
 
