@@ -14,13 +14,13 @@ namespace xgboost::predictor {
 /**
  * @brief The class holds the array-based representation of the top levels of a single tree.
  * 
- * \tparam TreeType The type of the origianl tree (RegTree or MultiTargetTree)
+ * @tparam TreeType The type of the origianl tree (RegTree or MultiTargetTree)
  *
- * \tparam has_categorical if the tree has categorical features
+ * @tparam has_categorical if the tree has categorical features
  *
- * \tparam any_missing if the class is able to process missing values
+ * @tparam any_missing if the class is able to process missing values
  * 
- * \tparam kNumDeepLevels number of tree leveles being unrolled into array-based structure
+ * @tparam kNumDeepLevels number of tree leveles being unrolled into array-based structure
  */
 template <class TreeType, bool has_categorical, bool any_missing, int kNumDeepLevels>
 class ArrayTreeLayout {
@@ -120,17 +120,17 @@ class ArrayTreeLayout {
  /**
  * @brief Traverse the top levels of original tree and fill internal arrays
  * 
- * \tparam TreeType The type of the origianl tree (RegTree or MultiTargetTree)
+ * @tparam TreeType The type of the origianl tree (RegTree or MultiTargetTree)
  *
- * \tparam depth the tree level being processing
+ * @tparam depth the tree level being processing
  *
- * \param tree the original tree
+ * @param tree the original tree
  * 
- * \param cats matrix of categorical splits
+ * @param cats matrix of categorical splits
  * 
- * \param nidx_array node idx in the array layout
+ * @param nidx_array node idx in the array layout
  * 
- * \param nidx node idx in the original tree
+ * @param nidx node idx in the original tree
  * 
  */
   template <int depth = 0>
@@ -220,13 +220,13 @@ class ArrayTreeLayout {
    * the node index for the right child at the next level is always 2*nidx+1.
    * This greatly improves data locality.
    * 
-   * \param thread_temp buffer holding the feature values
+   * @param thread_temp buffer holding the feature values
    * 
-   * \param offset offset of the current data block
+   * @param offset offset of the current data block
    * 
-   * \param block_size size of the current block (1 < block_size <= 64)
+   * @param block_size size of the current block (1 < block_size <= 64)
    * 
-   * \param p_nidx pointer to the vector of node indexes in the original tree,
+   * @param p_nidx pointer to the vector of node indexes in the original tree,
    *               corresponding to the level next after kNumDeepLevels
    */
   void inline Process(std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
