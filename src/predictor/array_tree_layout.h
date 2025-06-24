@@ -49,6 +49,12 @@ class ArrayTreeLayout {
 
   std::array<bst_feature_t, kNodesCount> split_index_;
   std::array<float, kNodesCount> split_cond_;
+  /* The nodes at tree levels 0, 1, ..., kNumDeepLevels - 1 are unrolled into an array-based structure.
+   *  If the tree has additional levels, this array stores the node indices of the sub-trees at level kNumDeepLevels.
+   *  This is necessary to continue processing nodes that are not eligible for array-based unrolling.
+   *  The number of sub-trees packed into this array is equal to the number of nodes at tree level kNumDeepLevels,
+   *  which is calculated as (1u << kNumDeepLevels) == kNodesCount + 1.
+   */
   std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
   inline static bool IsLeaf(const RegTree& tree, bst_node_t nidx) {
