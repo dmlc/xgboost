@@ -213,12 +213,12 @@ class ArrayTreeLayout {
 
   /**
    * @brief
-   * Traverse top levels of the tree for an entire block_size.
-   * In array layout is orginised to garantie that
-   * if the node at the current level has index nidx, than
-   * the node index for left child at the next level is always 2*nidx
-   * the node index for right child at the next level is always 2*nidx+1
-   * This greatly improve data locality
+   * Traverse the top levels of the tree for the entire block_size.
+   * In the array layout, it is organized to guarantee that
+   * if a node at the current level has index nidx, then
+   * the node index for the left child at the next level is always 2*nidx, and
+   * the node index for the right child at the next level is always 2*nidx+1.
+   * This greatly improves data locality.
    * 
    * \param thread_temp buffer holding the feature values
    * 
