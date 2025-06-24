@@ -133,8 +133,8 @@ class ArrayTreeLayout {
     if constexpr (depth == kNumDeepLevels + 1) {
       return;
     } else if constexpr (depth == kNumDeepLevels) {
-        /* We save the node index in the origianl tree to able to continue processing
-         * for nodes not egligable for array layout optimisation. 
+        /* We store the node index in the original tree to ensure continued processing
+         * for nodes that are not eligible for array layout optimization. 
          */
         nidx_in_tree_[nidx_array - kNodesCount] = nidx;
     } else {
