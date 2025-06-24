@@ -291,7 +291,7 @@ class Predictor : public xgboost::Predictor {
         }
 
         if (num_group == 1) {
-          float sum = 0.0;
+          float& sum = out_predictions[row_idx];
           for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
             const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
             if constexpr (any_missing) {
@@ -300,7 +300,6 @@ class Predictor : public xgboost::Predictor {
               sum += GetLeafWeight(first_node, fval_buff_row_ptr);
             }
           }
-          out_predictions[row_idx] += sum;
         } else {
           for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
             const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
