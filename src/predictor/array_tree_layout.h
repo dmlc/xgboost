@@ -25,6 +25,8 @@ namespace xgboost::predictor {
 template <class TreeType, bool has_categorical, bool any_missing, int kNumDeepLevels>
 class ArrayTreeLayout {
  private:
+  /* Number of nodes in the array based representation of the top levels of the tree
+   */
   constexpr static size_t kNodesCount = (1u << kNumDeepLevels) - 1;
 
   struct Empty {};
