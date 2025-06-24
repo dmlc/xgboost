@@ -108,9 +108,6 @@ struct GBTreeModel : public Model {
     }
   }
 
-  void Load(dmlc::Stream* fi);
-  void Save(dmlc::Stream* fo) const;
-
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& p_out) override;
 
