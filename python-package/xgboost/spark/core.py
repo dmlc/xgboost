@@ -510,7 +510,7 @@ class _SparkXGBParams(
         )
 
     def _col_is_defined_not_empty(self, param: "Param[str]") -> bool:
-        return self.isDefined(param) and self.getOrDefault(param) != ""
+        return self.isDefined(param) and self.getOrDefault(param) not in (None, "")
 
 
 def _validate_and_convert_feature_col_as_float_col_list(
