@@ -142,10 +142,10 @@ class ArrayTreeLayout {
         split_index_[nidx_array]  = 0;
 
         /* 
-         * if the tree is not fully populated, we can reduce transfering costs.
-         * the values for unpopulated part of the tree are set in a way to guarantie
-         * that a moove will always done in "right" direction.
-         * here we exploiting that comparison with nan always results to false.
+         * If the tree is not fully populated, we can reduce transfer costs.
+         * The values for the unpopulated parts of the tree are set to ensure
+         * that any move will always proceed in the "right" direction.
+         * This is achieved by exploiting the fact that comparisons with NaN always result in false.
          */
         if constexpr (any_missing) default_left_[nidx_array] = 0;
         if constexpr (has_categorical) is_cat_[nidx_array] = 0;
