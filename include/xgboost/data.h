@@ -542,7 +542,7 @@ struct ExtMemConfig {
   // The number of CPU threads.
   std::int32_t n_threads{0};
   // The ratio of the cache that can be compressed. Used for testing.
-  float hw_decomp_ratio{1.0};
+  float hw_decomp_ratio{std::numeric_limits<float>::quiet_NaN()};
   // Fallback to using nvcomp. Used for testing.
   bool allow_decomp_fallback{false};
 
