@@ -201,7 +201,6 @@ double GetMultiMetricEval(xgboost::Metric* metric,
 }
 
 namespace xgboost {
-
 float GetBaseScore(Json const &config) {
   return std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
 }
@@ -408,6 +407,15 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
     out->Info().feature_types.ConstDevicePointer();
   }
 }
+
+[[nodiscard]] bool DecompAllowFallback() {
+#if defined(XGBOOST_USE_NVCOMP)
+  bool allow_decomp_fallback = true;
+#else
+  bool allow_decomp_fallback = false;
+#endif
+  return allow_decomp_fallback;
+}
 }  // namespace
 
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(
@@ -464,11 +472,6 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-#if defined(XGBOOST_USE_NVCOMP)
-  bool allow_decomp_fallback = true;
-#else
-  bool allow_decomp_fallback = false;
-#endif
   auto config =
       ExtMemConfig{
           prefix,
@@ -478,7 +481,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
           std::numeric_limits<float>::quiet_NaN(),
           Context{}.Threads(),
       }
-          .SetParamsForTest(this->hw_decomp_ratio_, allow_decomp_fallback);
+          .SetParamsForTest(this->hw_decomp_ratio_, DecompAllowFallback());
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
@@ -521,11 +524,6 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   CHECK(iter);
 
-#if defined(XGBOOST_USE_NVCOMP)
-  bool allow_decomp_fallback = true;
-#else
-  bool allow_decomp_fallback = false;
-#endif
   auto config =
       ExtMemConfig{
           prefix,
@@ -535,7 +533,7 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
           std::numeric_limits<float>::quiet_NaN(),
           Context{}.Threads(),
       }
-          .SetParamsForTest(this->hw_decomp_ratio_, allow_decomp_fallback);
+          .SetParamsForTest(this->hw_decomp_ratio_, DecompAllowFallback());
 
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), this->ref_, Reset,
