@@ -194,7 +194,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Set feature names to the Booster.
    *
-   * @param An array of all the feature names.
+   * @param featureNames An array of all the feature names.
    * @throws XGBoostError
    */
   public void setFeatureNames(String[] featureNames) throws XGBoostError {
