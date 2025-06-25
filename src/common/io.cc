@@ -359,7 +359,7 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
 #if defined(__linux__)
   struct sysinfo info;
   CHECK_EQ(sysinfo(&info), 0) << SystemErrorMsg();
-  return info.totalram;
+  return info.totalram * info.mem_unit;
 #else
   LOG(FATAL) << "Not implemented.";
 #endif  // defined(__linux__)
