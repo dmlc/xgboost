@@ -26,6 +26,7 @@
 
 namespace xgboost::data {
 namespace {
+// Can we use hardware decompression?
 [[nodiscard]] bool CanUseHwDecomp(EllpackPageImpl const* page, bool allow_fallback) {
 #if defined(CUDA_HW_DECOM_AVAILABLE) && defined(XGBOOST_USE_NVCOMP)
   // We use it only for sparse pages.
@@ -166,6 +167,7 @@ class EllpackHostCacheStreamImpl {
                    std::size_t{1});
       return n_bytes;
     };
+
     // Finish writing a (concatenated) cache page.
     auto commit_page = [&](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
@@ -179,7 +181,9 @@ class EllpackHostCacheStreamImpl {
       std::size_t n_h_bytes = n_bytes, n_comp_bytes = 0;
       bool can_use_hw = CanUseHwDecomp(old_impl, this->cache_->allow_decomp_fallback);
       if (can_use_hw) {
-        // FIXME: Find a sweet spot.
+        // FIXME(jiamingy): The decomp_ratio is not exposed to the user and we don't yet
+        // have auto configuration for this parameter. We can make it more flexible. More
+        // profiling is needed.
         auto r = std::isnan(this->cache_->hw_decomp_ratio) ? 1.0 : this->cache_->hw_decomp_ratio;
         CHECK_LE(r, 1.0);
         CHECK_GE(r, 0.0);
