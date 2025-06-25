@@ -234,4 +234,10 @@ TEST(IO, CmdOutput) {
   ASSERT_EQ(output, R"(HelloWorld
 )");
 }
+
+TEST(IO, TotalMemory) {
+  auto a = TotalMemory(), b = TotalMemory();
+  ASSERT_EQ(a, b);
+  ASSERT_GT(a, 0);
+}
 }  // namespace xgboost::common

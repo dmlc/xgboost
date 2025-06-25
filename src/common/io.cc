@@ -360,8 +360,16 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
   struct sysinfo info;
   CHECK_EQ(sysinfo(&info), 0) << SystemErrorMsg();
   return info.totalram * info.mem_unit;
+#elif defined(xgboost_IS_WIN)
+  MEMORYSTATUSEX status;
+  status.dwLength = sizeof(status);
+  CHECK(GlobalMemoryStatusEx(&status)) << SystemErrorMsg();
+  return static_cast<std::size_t>(status.ullTotalPhys);
 #else
-  LOG(FATAL) << "Not implemented.";
+  std::uint64_t memsize = 0;
+  std::size_t size = sizeof(memsize);
+  CHECK_EQ(sysctlbyname("hw.physmem", &memsize, &size, nullptr, 0), 0) << SystemErrorMsg();
+  return static_cast<std::size_t>(memsize);
 #endif  // defined(__linux__)
 }
 }  // namespace xgboost::common
