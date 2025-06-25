@@ -42,6 +42,10 @@
 #include <limits>  // for numeric_limits
 #endif
 
+#if defined(__linux__)
+#include <sys/sysinfo.h>
+#endif
+
 namespace xgboost::common {
 size_t PeekableInStream::Read(void* dptr, size_t size) {
   size_t nbuffer = buffer_.length() - buffer_ptr_;
@@ -349,5 +353,15 @@ AlignedMemWriteStream::~AlignedMemWriteStream() = default;
     result += buffer.data();
   }
   return result;
+}
+
+[[nodiscard]] std::size_t TotalMemory() {
+#if defined(__linux__)
+  struct sysinfo info;
+  CHECK_EQ(sysinfo(&info), 0) << SystemErrorMsg();
+  return info.totalram;
+#else
+  LOG(FATAL) << "Not implemented.";
+#endif  // defined(__linux__)
 }
 }  // namespace xgboost::common

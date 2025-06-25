@@ -16,11 +16,14 @@
 #include "common.h"
 #include "cuda_dr_utils.h"  // for CUDA_HW_DECOM_AVAILABLE
 #include "cuda_rt_utils.h"  // for CurrentDevice
+#include "io.h"             // for TotalMemory
 
 namespace xgboost::common::cuda_impl {
 [[nodiscard]] MemPoolHdl CreateHostMemPool() {
   auto mem_pool = std::unique_ptr<cudaMemPool_t, void (*)(cudaMemPool_t*)>{
       [] {
+        std::size_t h_total_mem = TotalMemory();
+
         cudaMemPoolProps h_props;
         std::memset(&h_props, '\0', sizeof(h_props));
         auto numa_id = curt::GetNumaId();
@@ -31,6 +34,7 @@ namespace xgboost::common::cuda_impl {
         h_props.usage = cudaMemPoolCreateUsageHwDecompress;
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
         h_props.handleTypes = cudaMemHandleTypeNone;
+        h_props.maxSize = h_total_mem;
 
         cudaMemPoolProps d_props;
         std::memset(&d_props, '\0', sizeof(d_props));
@@ -42,6 +46,7 @@ namespace xgboost::common::cuda_impl {
         d_props.usage = cudaMemPoolCreateUsageHwDecompress;
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
         d_props.handleTypes = cudaMemHandleTypeNone;
+        d_props.maxSize = h_total_mem;
 
         std::array<cudaMemPoolProps, 2> vprops{h_props, d_props};
 
