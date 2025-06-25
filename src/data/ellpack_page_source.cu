@@ -166,9 +166,6 @@ class EllpackHostCacheStreamImpl {
                    std::size_t{1});
       return n_bytes;
     };
-    // failing: nsys profile --event-sample=system-wide --cpu-socket-metrics=102,103,104,130,131,132 --gpu-metrics-devices=all --gpu-metrics-set=gb10x -t cuda,nvtx --cuda-um-gpu-page-faults=true --cuda-um-cpu-page-faults=true --cudabacktrace=all --cuda-memory-usage=true -o /ws/jun-17-2.nsys-rep python $(which dxgb-ext-bench) --fly --task=ext-qdm --mr=arena --n_samples_per_batch=4194304 --n_features=512 --n_batches=128 --device=cuda --n_rounds=16 --verbosity=3 --sparsity=0.25
-    // /ws/xgboost/src/data/ellpack_page_source.cu:125: Check failed: orig_ptr < this->cache_->NumBatchesOrig() (128 vs. 128) :
-    // Next: 126
     // Finish writing a (concatenated) cache page.
     auto commit_page = [&](EllpackPageImpl const* old_impl) {
       CHECK_EQ(old_impl->gidx_buffer.Resource()->Type(), common::ResourceHandler::kCudaMalloc);
