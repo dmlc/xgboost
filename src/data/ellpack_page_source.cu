@@ -50,7 +50,13 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
       hw_decomp_ratio{cinfo.hw_decomp_ratio},
       allow_decomp_fallback{cinfo.allow_decomp_fallback},
       streams{std::make_unique<curt::StreamPool>(n_workers)},
-      pool{std::make_shared<dc::HostPinnedMemPool>()} {
+      pool{[] {
+#if defined(__linux__)
+        return std::make_shared<dc::HostPinnedMemPool>();
+#else
+        return std::shared_ptr<dc::HostPinnedMemPool>{nullptr};
+#endif
+      }()} {
   CHECK_EQ(buffer_bytes.size(), buffer_rows.size());
   CHECK(!detail::HostRatioIsAuto(this->cache_host_ratio));
   CHECK_GE(this->cache_host_ratio, 0.0) << error::CacheHostRatioInvalid();
@@ -184,7 +190,7 @@ class EllpackHostCacheStreamImpl {
         // FIXME(jiamingy): The decomp_ratio is not exposed to the user and we don't yet
         // have auto configuration for this parameter. We can make it more flexible. More
         // profiling is needed.
-        auto r = std::isnan(this->cache_->hw_decomp_ratio) ? 0.4 : this->cache_->hw_decomp_ratio;
+        auto r = std::isnan(this->cache_->hw_decomp_ratio) ? 1.0f : this->cache_->hw_decomp_ratio;
         CHECK_LE(r, 1.0);
         CHECK_GE(r, 0.0);
         n_comp_bytes = n_bytes * r;
