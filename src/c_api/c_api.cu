@@ -1,11 +1,10 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <thrust/transform.h>  // for transform
 
 #include "../common/api_entry.h"       // for XGBAPIThreadLocalEntry
 #include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/threading_utils.h"
 #include "../data/array_interface.h"  // for DispatchDType, ArrayInterface
 #include "../data/device_adapter.cuh"
 #include "../data/proxy_dmatrix.h"
@@ -18,6 +17,9 @@
 #if defined(XGBOOST_USE_NCCL)
 #include <nccl.h>
 #endif
+#if defined(XGBOOST_USE_NVCOMP)
+#include <nvcomp/version.h>
+#endif  // defined(XGBOOST_USE_NVCOMP)
 
 namespace xgboost {
 void XGBBuildInfoDevice(Json *p_info) {
@@ -55,6 +57,15 @@ void XGBBuildInfoDevice(Json *p_info) {
   info["RMM_VERSION"] = v;
 #else
   info["USE_RMM"] = Boolean{false};
+#endif
+
+#if defined(XGBOOST_USE_NVCOMP)
+  info["USE_NVCOMP"] = Boolean{true};
+  v = {Json{Integer{NVCOMP_VER_MAJOR}}, Json{Integer{NVCOMP_VER_MINOR}},
+       Json{Integer{NVCOMP_VER_PATCH}}};
+  info["NVCOMP_VERSION"] = v;
+#else
+  info["USE_NVCOMP"] = Boolean{false};
 #endif
 }
 
