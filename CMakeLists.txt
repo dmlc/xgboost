@@ -38,6 +38,9 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   endif()
 endif()
 
+include(${xgboost_SOURCE_DIR}/cmake/CheckSVEsupport.cmake)
+check_xgboost_sve_support()
+
 include(${xgboost_SOURCE_DIR}/cmake/PrefetchIntrinsics.cmake)
 find_prefetch_intrinsics()
 include(${xgboost_SOURCE_DIR}/cmake/Version.cmake)
