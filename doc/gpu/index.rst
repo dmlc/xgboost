@@ -43,7 +43,7 @@ XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as
   shap_values = booster.predict(dtrain, pred_contribs=True)
   shap_interaction_values = model.predict(dtrain, pred_interactions=True)
 
-See :ref:`sphx_glr_python_gpu-examples_tree_shap.py` for a worked example.
+See :ref:`sphx_glr_python_examples_gpu_tree_shap.py` for a worked example.
 
 Multi-node Multi-GPU Training
 =============================
