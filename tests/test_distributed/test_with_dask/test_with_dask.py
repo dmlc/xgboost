@@ -1686,10 +1686,7 @@ class TestWithDask:
         X, y = da.array(Xn), da.array(yn)
 
         clf = dxgb.DaskXGBClassifier(
-            tree_method="hist",
-            eval_metric=["logloss", hinge_loss],
-            n_estimators=16,
-            objective="binary:logistic",
+            eval_metric=["logloss", hinge_loss], n_estimators=2
         )
         clf.fit(X, y, eval_set=[(X, y)])
         results = clf.evals_result()["validation_0"]
@@ -1697,10 +1694,7 @@ class TestWithDask:
         assert "hinge_loss" in results
 
         clf = dxgb.DaskXGBClassifier(
-            tree_method="hist",
-            eval_metric=[hamming_loss, log_loss],
-            n_estimators=16,
-            objective="binary:logistic",
+            eval_metric=[hamming_loss, log_loss], n_estimators=2
         )
         with pytest.raises(
             NotImplementedError, match="multiple custom metrics is not yet supported."
