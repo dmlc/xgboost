@@ -36,6 +36,7 @@ def concat_or_none(seq: Optional[Sequence[np.ndarray]]) -> Optional[np.ndarray]:
 
 
 def is_bool_column(dtype: Any) -> bool:
+    """Check whether a dataframe column has boolean type."""
     if is_cudf_available():
         cudf_is_bool_dtype = _lazy_load_cudf_is_bool()
         is_bool = cudf_is_bool_dtype(dtype)
