@@ -22,6 +22,10 @@
 
 #endif  // !defined(XGBOOST_USE_CUDA)
 
+#if defined(XGBOOST_USE_SYCL)
+#include "../plugin/sycl/context_helper.h"
+#endif  // defined (XGBOOST_USE_SYCL)
+
 namespace xgboost {
 
 DMLC_REGISTER_PARAMETER(Context);
@@ -280,6 +284,14 @@ std::int32_t Context::Threads() const {
     n_threads = std::min(n_threads, cfs_cpu_count_);
   }
   return n_threads;
+}
+
+DeviceOrd Context::DeviceFP64() const {
+  #if defined(XGBOOST_USE_SYCL)
+    return sycl::DeviceFP64(device_);
+  #else
+    return device_;
+  #endif  // defined(XGBOOST_USE_SYCL)
 }
 
 #if !defined(XGBOOST_USE_CUDA)

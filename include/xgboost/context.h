@@ -206,6 +206,13 @@ struct Context : public XGBoostParameter<Context> {
    * @brief Get the current device and ordinal.
    */
   [[nodiscard]] DeviceOrd Device() const { return device_; }
+
+   /**
+   * @brief Get the current device and ordinal, if it supports fp64,
+            otherwise returns default CPU
+   */
+  [[nodiscard]] DeviceOrd DeviceFP64() const;
+
   /**
    * @brief Get the CUDA device ordinal. -1 if XGBoost is running on CPU.
    */
