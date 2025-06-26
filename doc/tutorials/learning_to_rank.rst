@@ -60,12 +60,50 @@ Notice that the samples are sorted based on their query index in a non-decreasin
   y = y[sorted_idx]
   qid = qid[sorted_idx]
 
+.. code-block:: r
+
+  library(xgboost)
+
+  # Make a synthetic ranking dataset for demonstration
+  seed <- 1994
+  set.seed(seed)
+  n_samples <- 100
+  n_features <- 20
+  X <- matrix(rnorm(n_samples * n_features), nrow = n_samples, ncol = n_features)
+  y <- sample(0:1, n_samples, replace = TRUE)
+  
+  n_query_groups <- 3
+  qid <- sample(0:(n_query_groups-1), n_samples, replace = TRUE)
+
+  # Sort the inputs based on query index
+  sorted_idx <- order(qid)
+  X <- X[sorted_idx, ]
+  y <- y[sorted_idx]
+  qid <- qid[sorted_idx]
+
 The simplest way to train a ranking model is by using the scikit-learn estimator interface. Continuing the previous snippet, we can train a simple ranking model without tuning:
 
 .. code-block:: python
 
   ranker = xgb.XGBRanker(tree_method="hist", lambdarank_num_pair_per_sample=8, objective="rank:ndcg", lambdarank_pair_method="topk")
   ranker.fit(X, y, qid=qid)
+
+.. code-block:: r
+
+  # Using the low-level interface with DMatrix
+  dtrain <- xgb.DMatrix(X, label = y)
+  setinfo(dtrain, "group", as.integer(table(qid)))
+  
+  ranker <- xgb.train(
+      list(
+          tree_method = "hist",
+          lambdarank_num_pair_per_sample = 8,
+          objective = "rank:ndcg",
+          lambdarank_pair_method = "topk"
+      ),
+      data = dtrain,
+      nrounds = 10
+  )
 
 Please note that, as of writing, there's no learning-to-rank interface in scikit-learn. As a result, the :py:class:`xgboost.XGBRanker` class does not fully conform the scikit-learn estimator guideline and can not be directly used with some of its utility functions. For instances, the ``auc_score`` and ``ndcg_score`` in scikit-learn don't consider query group information nor the pairwise loss. Most of the metrics are implemented as part of XGBoost, but to use scikit-learn utilities like :py:func:`sklearn.model_selection.cross_validation`, we need to make some adjustments in order to pass the ``qid`` as an additional parameter for :py:meth:`xgboost.XGBRanker.score`. Given a data frame ``X`` (either pandas or cuDF), add the column ``qid`` as follows:
 
@@ -92,6 +130,14 @@ The above snippets build a model using ``LambdaMART`` with the ``NDCG@8`` metric
   sorted_idx = np.argsort(scores)[::-1]
   # Sort the relevance scores from most relevant to least relevant
   scores = scores[sorted_idx]
+
+.. code-block:: r
+
+  dtest <- xgb.DMatrix(X)
+  scores <- predict(ranker, dtest)
+  sorted_idx <- order(scores, decreasing = TRUE)
+  # Sort the relevance scores from most relevant to least relevant
+  scores <- scores[sorted_idx]
 
 
 *************
@@ -209,6 +255,24 @@ The learning to rank implementation has been significantly updated in 2.0 with a
         # You can leave it as unset.
         "lambdarank_num_pair_per_sample": 1,
     }
+
+.. code-block:: r
+
+    params <- list(
+        # 1.7 only supports sampling, while 2.0 and later use top-k as the default.
+        # See above sections for the trade-off.
+        lambdarank_pair_method = "mean",
+        # 1.7 uses the ranknet loss while later versions use the NDCG weighted loss
+        objective = "rank:pairwise",
+        # 1.7 doesn't have this normalization.
+        lambdarank_score_normalization = FALSE,
+        base_score = 0.5,
+        # The default tree method has been changed from approx to hist.
+        tree_method = "approx",
+        # The default for `mean` pair method is one pair each sample, which is the default in 1.7 as well.
+        # You can leave it as unset.
+        lambdarank_num_pair_per_sample = 1
+    )
 
 The result still differs due to the change of random seed. But the overall training strategy would be the same for ``rank:pairwise``.
 

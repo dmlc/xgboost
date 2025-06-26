@@ -16,6 +16,17 @@ estimation:
     reg = xgb.XGBRegressor()
     reg.set_params(base_score=0.5)
 
+.. code-block:: r
+
+    library(xgboost)
+
+    # Using the high-level interface (when available)
+    # reg <- xgb.XGBRegressor(base_score = 0.5)
+
+    # Using the low-level interface
+    params <- list(base_score = 0.5)
+    # Use params in xgb.train()
+
 In addition, here 0.5 represents the value after applying the inverse link function. See
 the end of the document for a description.
 
@@ -40,6 +51,40 @@ and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targe
     # Feed the prediction into the next model
     reg_1.fit(X, y, base_margin=m)
     reg_1.predict(X, base_margin=m)
+
+.. code-block:: r
+
+    library(xgboost)
+    
+    # Generate regression data
+    set.seed(42)
+    n_samples <- 100
+    n_features <- 20
+    X <- matrix(rnorm(n_samples * n_features), nrow = n_samples, ncol = n_features)
+    y <- rnorm(n_samples)
+    
+    # First model
+    dtrain <- xgb.DMatrix(X, label = y)
+    reg <- xgb.train(
+        list(objective = "reg:squarederror"),
+        data = dtrain,
+        nrounds = 10
+    )
+    
+    # Request for raw prediction (output_margin = TRUE)
+    m <- predict(reg, dtrain, outputmargin = TRUE)
+    
+    # Second model with base_margin
+    dtrain_with_margin <- xgb.DMatrix(X, label = y, base_margin = m)
+    reg_1 <- xgb.train(
+        list(objective = "reg:squarederror"),
+        data = dtrain_with_margin,
+        nrounds = 10
+    )
+    
+    # Predict with base_margin
+    dtest <- xgb.DMatrix(X, base_margin = m)
+    predict(reg_1, dtest)
 
 
 It specifies the bias for each sample and can be used for stacking an XGBoost model on top

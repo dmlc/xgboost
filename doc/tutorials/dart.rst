@@ -109,3 +109,21 @@ Sample Script
   num_round = 50
   bst = xgb.train(param, dtrain, num_round)
   preds = bst.predict(dtest)
+
+.. code-block:: r
+
+  library(xgboost)
+  # read in data
+  dtrain <- xgb.DMatrix('demo/data/agaricus.txt.train?format=libsvm')
+  dtest <- xgb.DMatrix('demo/data/agaricus.txt.test?format=libsvm')
+  # specify parameters via list
+  param <- list(booster = 'dart',
+                max_depth = 5, learning_rate = 0.1,
+                objective = 'binary:logistic',
+                sample_type = 'uniform',
+                normalize_type = 'tree',
+                rate_drop = 0.1,
+                skip_drop = 0.5)
+  num_round <- 50
+  bst <- xgb.train(param, dtrain, num_round)
+  preds <- predict(bst, dtest)

@@ -64,6 +64,12 @@ Suppose the following code fits your model without monotonicity constraints
                                    num_boost_round = 1000, evals = evallist,
                                    early_stopping_rounds = 10)
 
+.. code-block:: r
+
+  model_no_constraints <- xgb.train(params, dtrain,
+                                    nrounds = 1000, watchlist = evallist,
+                                    early_stopping_rounds = 10)
+
 Then fitting with monotonicity constraints only requires adding a single parameter
 
 .. code-block:: python
@@ -74,6 +80,15 @@ Then fitting with monotonicity constraints only requires adding a single paramet
   model_with_constraints = xgb.train(params_constrained, dtrain,
                                      num_boost_round = 1000, evals = evallist,
                                      early_stopping_rounds = 10)
+
+.. code-block:: r
+
+  params_constrained <- params
+  params_constrained$monotone_constraints <- c(1, -1)
+
+  model_with_constraints <- xgb.train(params_constrained, dtrain,
+                                      nrounds = 1000, watchlist = evallist,
+                                      early_stopping_rounds = 10)
 
 In this example the training data ``X`` has two columns, and by using the parameter values ``(1,-1)`` we are telling XGBoost to impose an increasing constraint on the first predictor and a decreasing constraint on the second.
 

@@ -43,6 +43,35 @@ dense matrix for labels.
     clf.fit(X, y)
     np.testing.assert_allclose(clf.predict(X), y)
 
+.. code-block:: r
+
+    library(xgboost)
+    
+    # Generate multilabel classification data
+    # Note: R doesn't have direct equivalent to sklearn's make_multilabel_classification
+    # You would need to create or load suitable multi-label data
+    
+    # Example with synthetic data:
+    set.seed(0)
+    n_samples <- 32
+    n_classes <- 5
+    n_features <- 10
+    
+    X <- matrix(rnorm(n_samples * n_features), nrow = n_samples, ncol = n_features)
+    y <- matrix(sample(0:1, n_samples * n_classes, replace = TRUE), 
+                nrow = n_samples, ncol = n_classes)
+    
+    # Using the high-level interface (when available)
+    # clf <- xgboost(X, y, tree_method = "hist")
+    
+    # Using the low-level interface with DMatrix
+    dtrain <- xgb.DMatrix(X, label = y)
+    model <- xgb.train(
+        list(tree_method = "hist", objective = "binary:logistic"),
+        data = dtrain,
+        nrounds = 10
+    )
+
 
 The feature is still under development with limited support from objectives and metrics.
 
@@ -65,6 +94,15 @@ multi-output trees.
 .. code-block:: python
 
   clf = xgb.XGBClassifier(tree_method="hist", multi_strategy="multi_output_tree")
+
+.. code-block:: r
+
+  # Using the low-level interface
+  model <- xgb.train(
+      list(tree_method = "hist", multi_strategy = "multi_output_tree"),
+      data = dtrain,
+      nrounds = 10
+  )
 
 See :ref:`sphx_glr_python_examples_multioutput_regression.py` for a worked example with
 regression.

@@ -100,17 +100,45 @@ amount of memory:
 
     X_train, X_test, y_train, y_test = train_test_split(X, y)
 
+.. code-block:: r
+
+    # This creates a copy of dataset. X and X_train are both in memory at the same time.
+    
+    # Be careful with data splitting functions that create copies
+    library(caret)
+    train_indices <- createDataPartition(y, p = 0.8, list = FALSE)
+    X_train <- X[train_indices, ]
+    X_test <- X[-train_indices, ]
+    y_train <- y[train_indices]
+    y_test <- y[-train_indices]
+
 .. code-block:: python
 
     df = pd.DataFrame()
     # This creates a new copy of the dataframe, even if you specify the inplace parameter
     new_df = df.drop(...)
 
+.. code-block:: r
+
+    df <- data.frame()
+    # This creates a new copy of the dataframe in R
+    new_df <- df[, !names(df) %in% c("column_to_drop")]
+    # Or using dplyr (also creates a copy)
+    # new_df <- df %>% select(-column_to_drop)
+
 .. code-block:: python
 
     array = np.array(...)
     # This may or may not make a copy of the data, depending on the type of the data
     array.astype(np.float32)
+
+.. code-block:: r
+
+    array <- array(...)
+    # This may or may not make a copy of the data, depending on the type of the data
+    storage.mode(array) <- "double"  # or "integer", etc.
+    # Or create new array with specific type
+    # new_array <- as.numeric(array)
 
 .. code-block::
 

@@ -158,6 +158,12 @@ Suppose the following code fits your model without feature interaction constrain
                                    num_boost_round = 1000, evals = evallist,
                                    early_stopping_rounds = 10)
 
+.. code-block:: r
+
+  model_no_constraints <- xgb.train(params, dtrain,
+                                    nrounds = 1000, watchlist = evallist,
+                                    early_stopping_rounds = 10)
+
 Then fitting with feature interaction constraints only requires adding a single
 parameter:
 
@@ -173,6 +179,19 @@ parameter:
   model_with_constraints = xgb.train(params_constrained, dtrain,
                                      num_boost_round = 1000, evals = evallist,
                                      early_stopping_rounds = 10)
+
+.. code-block:: r
+
+  params_constrained <- params
+  # Use nested list to define feature interaction constraints
+  params_constrained$interaction_constraints <- '[[0, 2], [1, 3, 4], [5, 6]]'
+  # Features 0 and 2 are allowed to interact with each other but with no other feature
+  # Features 1, 3, 4 are allowed to interact with one another but with no other feature
+  # Features 5 and 6 are allowed to interact with each other but with no other feature
+
+  model_with_constraints <- xgb.train(params_constrained, dtrain,
+                                      nrounds = 1000, watchlist = evallist,
+                                      early_stopping_rounds = 10)
 
 **************************
 Using feature name instead
