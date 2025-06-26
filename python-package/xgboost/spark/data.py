@@ -8,8 +8,9 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 
 from .._typing import ArrayLike
-from ..compat import concat
+from ..compat import concat, is_cudf_available
 from ..core import DataIter, DMatrix, QuantileDMatrix
+from ..data import _lazy_load_cudf_is_bool
 from ..sklearn import XGBModel
 from .utils import get_logger
 
@@ -34,6 +35,20 @@ def concat_or_none(seq: Optional[Sequence[np.ndarray]]) -> Optional[np.ndarray]:
     return None
 
 
+def is_bool_column(dtype: Any) -> bool:
+    """Check whether a dataframe column has boolean type."""
+    if is_cudf_available():
+        cudf_is_bool_dtype = _lazy_load_cudf_is_bool()
+        is_bool = cudf_is_bool_dtype(dtype)
+    else:
+        is_bool = False
+
+    from pandas.api.types import is_bool_dtype as pd_is_bool_dtype
+
+    is_bool = is_bool or pd_is_bool_dtype(dtype)
+    return is_bool
+
+
 def cache_partitions(
     iterator: Iterator[pd.DataFrame], append: Callable[[pd.DataFrame, str, bool], None]
 ) -> None:
@@ -56,8 +71,11 @@ def cache_partitions(
             assert alias.valid in part.columns
 
         if has_validation:
-            train = part.loc[~part[alias.valid], :]
-            valid = part.loc[part[alias.valid], :]
+            col = part[alias.valid]
+            if not is_bool_column(col.dtype):
+                raise TypeError("The validation indicator must be of boolean type.")
+            train = part.loc[~col, :]
+            valid = part.loc[col, :]
         else:
             train, valid = part, None
 
