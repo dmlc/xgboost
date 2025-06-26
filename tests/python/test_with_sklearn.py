@@ -1398,17 +1398,32 @@ def test_evaluation_metric():
 
 
 def test_mixed_metrics() -> None:
-    from sklearn.metrics import log_loss, hamming_loss
     from sklearn.datasets import make_classification
+    from sklearn.metrics import hamming_loss, log_loss, hinge_loss
+
+    X, y = make_classification(random_state=2025)
 
     clf = xgb.XGBClassifier(
         tree_method="hist",
-        eval_metric=["logloss", log_loss],
+        eval_metric=["logloss", hinge_loss],
         n_estimators=16,
         objective="binary:logistic",
     )
-    X, y = make_classification(random_state=2025)
-    clf.fit(X, y)
+    clf.fit(X, y, eval_set=[(X, y)])
+    results = clf.evals_result()["validation_0"]
+    assert "logloss" in results
+    assert "hinge_loss" in results
+
+    clf = xgb.XGBClassifier(
+        tree_method="hist",
+        eval_metric=[hamming_loss, log_loss],
+        n_estimators=16,
+        objective="binary:logistic",
+    )
+    with pytest.raises(
+        NotImplementedError, match="multiple custom metrics is not yet supported."
+    ):
+        clf.fit(X, y, eval_set=[(X, y)])
 
 
 def test_weighted_evaluation_metric():

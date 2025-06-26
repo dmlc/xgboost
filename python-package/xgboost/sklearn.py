@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
+import collections
 import copy
 import json
 import os
@@ -1104,11 +1105,27 @@ class XGBModel(XGBModelBase):
         # - configure callable evaluation metric
         metric: Optional[Metric] = None
         if self.eval_metric is not None:
-            if callable(self.eval_metric):
-                if self._get_type() == "ranker":
-                    metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
-                else:
-                    metric = _metric_decorator(self.eval_metric)
+            if not isinstance(self.eval_metric, str):
+                if not isinstance(self.eval_metric, collections.abc.Sequence):
+                    raise TypeError("Invalid type for the `eval_metric`.")
+                # Could be a list of strings or callable
+                builtin_metrics: List[str] = []
+                for m in self.eval_metric:
+                    if callable(m):
+                        if metric is not None:
+                            raise NotImplementedError(
+                                "Using multiple custom metrics is not yet supported."
+                            )
+                        if self._get_type() == "ranker":
+                            metric = ltr_metric_decorator(m, self.n_jobs)
+                        else:
+                            metric = _metric_decorator(m)
+                    else:
+                        if not isinstance(m, str):
+                            raise TypeError("Invalid type for the `eval_metric`.")
+                        builtin_metrics.append(m)
+                if builtin_metrics:
+                    params.update({"eval_metric": builtin_metrics})
             else:
                 params.update({"eval_metric": self.eval_metric})
 
