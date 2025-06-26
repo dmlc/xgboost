@@ -433,7 +433,7 @@ __model_doc = f"""
         - ``one_output_per_tree``: One model for each target.
         - ``multi_output_tree``:  Use multi-target trees.
 
-    eval_metric : {Optional[Union[str, List[str], Callable]]}
+    eval_metric : {Optional[Union[str, List[Union[str, Callable]], Callable]]}
 
         .. versionadded:: 1.6.0
 
@@ -764,7 +764,7 @@ class XGBModel(XGBModelBase):
         max_cat_to_onehot: Optional[int] = None,
         max_cat_threshold: Optional[int] = None,
         multi_strategy: Optional[str] = None,
-        eval_metric: Optional[Union[str, List[str], Callable]] = None,
+        eval_metric: Optional[Union[str, List[Union[str, Callable]], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
         **kwargs: Any,
