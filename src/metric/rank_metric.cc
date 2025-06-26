@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2023 by XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  */
 #include "rank_metric.h"
 
@@ -10,7 +10,6 @@
 #include <array>                             // for array
 #include <cmath>                             // for log, sqrt
 #include <functional>                        // for less, greater
-#include <limits>                            // for numeric_limits
 #include <map>                               // for operator!=, _Rb_tree_const_iterator
 #include <memory>                            // for allocator, unique_ptr, shared_ptr, __shared_...
 #include <numeric>                           // for accumulate
@@ -22,7 +21,6 @@
 #include "../collective/aggregator.h"        // for ApplyWithLabels
 #include "../common/algorithm.h"             // for ArgSort, Sort
 #include "../common/linalg_op.h"             // for cbegin, cend
-#include "../common/math.h"                  // for CmpFirst
 #include "../common/optional_weight.h"       // for OptionalWeights, MakeOptionalWeights
 #include "dmlc/common.h"                     // for OMPException
 #include "metric_common.h"                   // for MetricNoCache, GPUMetric, PackedReduceResult
@@ -250,10 +248,6 @@ class EvalRankWithCache : public Metric {
     }
     param_.UpdateAllowUnknown(Args{});
   }
-  void Configure(Args const&) override {
-    // do not configure, otherwise the ndcg param will be forced into the same as the one in
-    // objective.
-  }
   void LoadConfig(Json const& in) override {
     if (IsA<Null>(in)) {
       return;
@@ -364,6 +358,18 @@ class EvalPrecision : public EvalRankWithCache<ltr::PreCache> {
 class EvalNDCG : public EvalRankWithCache<ltr::NDCGCache> {
  public:
   using EvalRankWithCache::EvalRankWithCache;
+
+  void Configure(Args const& args) override {
+    // do not configure, otherwise the ndcg param like top-k will be forced into the same
+    // as the one in objective. The metric has its own syntax for parameter.
+    for (auto const& [key, value] : args) {
+      // Make a special case for the exp gain parameter, which is not exposed in the
+      // metric configuration syntax.
+      if (key == "ndcg_exp_gain") {
+        this->param_.UpdateAllowUnknown(Args{{key, value}});
+      }
+    }
+  }
 
   double Eval(HostDeviceVector<float> const& preds, MetaInfo const& info,
               std::shared_ptr<ltr::NDCGCache> p_cache) override {
