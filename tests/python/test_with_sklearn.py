@@ -1397,6 +1397,20 @@ def test_evaluation_metric():
         clf.fit(X, y, eval_set=[(X, y)])
 
 
+def test_mixed_metrics() -> None:
+    from sklearn.metrics import log_loss, hamming_loss
+    from sklearn.datasets import make_classification
+
+    clf = xgb.XGBClassifier(
+        tree_method="hist",
+        eval_metric=["logloss", log_loss],
+        n_estimators=16,
+        objective="binary:logistic",
+    )
+    X, y = make_classification(random_state=2025)
+    clf.fit(X, y)
+
+
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss
