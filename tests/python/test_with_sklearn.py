@@ -1403,26 +1403,20 @@ def test_mixed_metrics() -> None:
 
     X, y = make_classification(random_state=2025)
 
-    clf = xgb.XGBClassifier(
-        tree_method="hist",
-        eval_metric=["logloss", hinge_loss],
-        n_estimators=16,
-        objective="binary:logistic",
-    )
+    clf = xgb.XGBClassifier(eval_metric=["logloss", hinge_loss], n_estimators=2)
     clf.fit(X, y, eval_set=[(X, y)])
     results = clf.evals_result()["validation_0"]
     assert "logloss" in results
     assert "hinge_loss" in results
 
-    clf = xgb.XGBClassifier(
-        tree_method="hist",
-        eval_metric=[hamming_loss, log_loss],
-        n_estimators=16,
-        objective="binary:logistic",
-    )
+    clf = xgb.XGBClassifier(eval_metric=[hamming_loss, log_loss], n_estimators=2)
     with pytest.raises(
         NotImplementedError, match="multiple custom metrics is not yet supported."
     ):
+        clf.fit(X, y, eval_set=[(X, y)])
+
+    clf = xgb.XGBClassifier(eval_metric=[123, log_loss], n_estimators=2)
+    with pytest.raises(TypeError, match="Invalid type for the `eval_metric`"):
         clf.fit(X, y, eval_set=[(X, y)])
 
 

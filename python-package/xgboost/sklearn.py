@@ -1104,11 +1104,28 @@ class XGBModel(XGBModelBase):
 
         # - configure callable evaluation metric
         metric: Optional[Metric] = None
+
+        def custom_metric(m: Callable) -> Metric:
+            if self._get_type() == "ranker":
+                wrapped = ltr_metric_decorator(m, self.n_jobs)
+            else:
+                wrapped = _metric_decorator(m)
+            return wrapped
+
+        def invalid_type(m: Any) -> None:
+            msg = f"Invalid type for the `eval_metric`: {type(m)}"
+            raise TypeError(msg)
+
         if self.eval_metric is not None:
-            if not isinstance(self.eval_metric, str):
+            if callable(self.eval_metric):
+                metric = custom_metric(self.eval_metric)
+            elif isinstance(self.eval_metric, str):
+                params.update({"eval_metric": self.eval_metric})
+            else:
+                # A sequence of metrics
                 if not isinstance(self.eval_metric, collections.abc.Sequence):
-                    raise TypeError("Invalid type for the `eval_metric`.")
-                # Could be a list of strings or callable
+                    invalid_type(self.eval_metric)
+                # Could be a list of strings or callables
                 builtin_metrics: List[str] = []
                 for m in self.eval_metric:
                     if callable(m):
@@ -1116,18 +1133,13 @@ class XGBModel(XGBModelBase):
                             raise NotImplementedError(
                                 "Using multiple custom metrics is not yet supported."
                             )
-                        if self._get_type() == "ranker":
-                            metric = ltr_metric_decorator(m, self.n_jobs)
-                        else:
-                            metric = _metric_decorator(m)
-                    else:
-                        if not isinstance(m, str):
-                            raise TypeError("Invalid type for the `eval_metric`.")
+                        metric = custom_metric(m)
+                    elif isinstance(m, str):
                         builtin_metrics.append(m)
+                    else:
+                        invalid_type(m)
                 if builtin_metrics:
                     params.update({"eval_metric": builtin_metrics})
-            else:
-                params.update({"eval_metric": self.eval_metric})
 
         if feature_weights is not None:
             _deprecated("feature_weights")
