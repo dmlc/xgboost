@@ -1308,6 +1308,27 @@ class TestPySparkLocal:
             atol=1e-3,
         )
 
+    def test_valid_type(self, spark: SparkSession) -> None:
+        # integer as indicator is invalid
+        df_train = spark.createDataFrame(
+            [
+                (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
+                (Vectors.sparse(3, {1: 1.0, 2: 5.5}), 1, 0),
+                (Vectors.dense(4.0, 5.0, 6.0), 0, 1),
+                (Vectors.sparse(3, {1: 6.0, 2: 7.5}), 1, 1),
+            ],
+            ["features", "label", "isVal"],
+        )
+        reg = SparkXGBRegressor(
+            features_col="features",
+            label_col="label",
+            validation_indicator_col="isVal",
+        )
+        # Use Exception here since spark might return a py4j error instead of specific
+        # exception.
+        with pytest.raises(Exception, match="The validation indicator must be boolean"):
+            reg.fit(df_train)
+
 
 class XgboostLocalTest(SparkTestCase):
     def setUp(self):
