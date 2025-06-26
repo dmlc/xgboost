@@ -9,12 +9,7 @@ then
   exit 1
 fi
 
-if [[ "$#" -lt 1 ]]
-then
-  echo "Usage: $0 [image_repo]"
-  exit 2
-fi
-image_repo="$1"
+image_repo='xgb-ci.gpu_build_rockylinux8'
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
