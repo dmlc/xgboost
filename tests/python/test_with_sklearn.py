@@ -1399,7 +1399,7 @@ def test_evaluation_metric():
 
 def test_mixed_metrics() -> None:
     from sklearn.datasets import make_classification
-    from sklearn.metrics import hamming_loss, log_loss, hinge_loss
+    from sklearn.metrics import hamming_loss, hinge_loss, log_loss
 
     X, y = make_classification(random_state=2025)
 
