@@ -199,9 +199,15 @@ class EllpackHostCacheStreamImpl {
       }
       CHECK_EQ(n_bytes, n_h_bytes + n_comp_bytes);
 
-      // Normal host cache
+      // Normal host cache. Use the memory pool if we have a new CUDA version. The memory
+      // pool allocation takes NUMA into consideration.
+#if defined(CUDA_HW_DECOM_AVAILABLE)
+      new_impl->gidx_buffer = common::MakeFixedVecWithPinnedMemPool<common::CompressedByteT>(
+          this->cache_->pool, n_h_bytes, ctx.CUDACtx()->Stream());
+#else
       new_impl->gidx_buffer =
           common::MakeFixedVecWithPinnedMalloc<common::CompressedByteT>(n_h_bytes);
+#endif
       if (n_h_bytes > 0) {
         dh::safe_cuda(cudaMemcpyAsync(new_impl->gidx_buffer.data(), old_impl->gidx_buffer.data(),
                                       n_h_bytes, cudaMemcpyDefault));

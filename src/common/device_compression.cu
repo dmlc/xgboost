@@ -388,7 +388,7 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
   LOG(DEBUG) << "[snappy] Input: " << common::HumanMemUnit(in.size_bytes())
              << ", need:" << common::HumanMemUnit(n_bytes)
              << ", allocated:" << common::HumanMemUnit(n_total_bytes) << ", ratio:" << ratio
-             << ", actual ratio:" << ratio_act;
+             << ", actual ratio:" << ratio_act << ", n_chunks:" << n_chunks;
 
   /**
    * Meta
