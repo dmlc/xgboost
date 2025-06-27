@@ -92,6 +92,8 @@ def get_cpu_affinity(ordinal: int) -> List[int]:
         assert cnt is not None
 
         uuid = _get_uuid(ordinal)
+
+        nm.nvmlInit()
         hdl = nm.nvmlDeviceGetHandleByUUID(uuid)
 
         affinity = nm.nvmlDeviceGetCpuAffinity(
@@ -99,12 +101,7 @@ def get_cpu_affinity(ordinal: int) -> List[int]:
             math.ceil(cnt / _MASK_SIZE),
         )
         cpumask = _BitField64(affinity)
-
-        cpus = []
         cpus = list(filter(cpumask.check, range(cnt)))
-        for i in range(cnt):
-            if cpumask.check(i):
-                cpus.append(i)
 
         nm.nvmlShutdown()
         return cpus
