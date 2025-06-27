@@ -13,8 +13,9 @@ example, following packages in addition to XGBoost native dependencies are requi
 If `device` is `cuda`, following are also needed:
 
 - cupy
-- python-cuda
 - rmm
+- pynvml (optional)
+- python-cuda
 
 """
 
@@ -34,11 +35,12 @@ from sklearn.datasets import make_regression
 import xgboost
 from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
+from xgboost.utils import set_cpu_affinity
 
 
 def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
-    from cuda import cudart
+    import cuda.bindings.runtime as cudart
 
     status, free, total = cudart.cudaMemGetInfo()
     if status != cudart.cudaError_t.cudaSuccess:
@@ -216,9 +218,11 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx) - 1  # 1-based indexing from loky
             # Assuming two workers for demo.
-            devices = ",".join([str(idx), str((idx + 1) % n_workers)])
+            ordinals = [idx, (idx + 1) % n_workers]
+            devices = ",".join(map(str, ordinals))
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
+            set_cpu_affinity(ordinals[0])
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
             setup_rmm()
 

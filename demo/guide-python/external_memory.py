@@ -23,6 +23,7 @@ If `device` is `cuda`, following are also needed:
 
 - cupy
 - rmm
+- pynvml (optional)
 - python-cuda
 
 .. seealso::
@@ -40,11 +41,12 @@ import numpy as np
 from sklearn.datasets import make_regression
 
 import xgboost
+from xgboost.utils import set_cpu_affinity
 
 
 def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
-    from cuda import cudart
+    import cuda.bindings.runtime as cudart
 
     status, free, total = cudart.cudaMemGetInfo()
     if status != cudart.cudaError_t.cudaSuccess:
@@ -202,6 +204,8 @@ if __name__ == "__main__":
     if args.device == "cuda":
         import cupy as cp
 
+        # Make sure the correct affinity is set if this is a NUMA system
+        set_cpu_affinity()
         setup_rmm()
         # Make sure XGBoost is using RMM for all allocations.
         with xgboost.config_context(use_rmm=True):
