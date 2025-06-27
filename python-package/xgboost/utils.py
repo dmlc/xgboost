@@ -106,7 +106,9 @@ def get_cpu_affinity(ordinal: int) -> List[int]:
         nm.nvmlShutdown()
         return cpus
     except ImportError:
-        warnings.warn("Failed to import nvml. CPU affinity is not set.", UserWarning)
+        warnings.warn("Failed to import nvml.", UserWarning)
+
+        return []
 
 
 def set_cpu_affinity(ordinal: Optional[int] = None) -> None:
