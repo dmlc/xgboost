@@ -2,6 +2,13 @@
 Using XGBoost External Memory Version
 #####################################
 
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
+
+
 ********
 Overview
 ********
@@ -39,12 +46,6 @@ introduce the difference between CPU and GPU in the following sections.
 
 The external memory support has undergone multiple development iterations. See below
 sections for a brief history.
-
-**Contents**
-
-.. contents::
-  :backlinks: none
-  :local:
 
 
 *************
@@ -272,6 +273,27 @@ To run experiments on these platforms, the open source `NVIDIA Linux driver
 with version ``>=565.47`` is required, it should come with CTK 12.7 and later
 versions. Lastly, there's a known issue with Linux 6.11 that can lead to CUDA host memory
 allocation failure with an ``invalid argument`` error.
+
+================================
+Non-Uniform Memory Access (NUMA)
+================================
+
+On multi-socket systems, `NUMA
+<https://en.wikipedia.org/wiki/Non-uniform_memory_access>`__ helps optimize data access by
+prioritizing memory that is local to each socket.  On these systems, it's essential to set
+the correct CPU affinity to reduce the overhead of cross-socket data access. Since the out
+of core training stages the data cache on the host and trains the model using a GPU, the
+training performance is particularly sensitive to data read bandwidth. To provide some
+context, on a GB200 machine, accessing the wrong NUMA node from a GPU can reduce the C2C
+bandwidth up to half. The `dask-cuda <https://github.com/rapidsai/dask-cuda>`__ project
+configures optimal CPU affinity for the Dask interface through using the `nvml` library in
+addition to the Linux sched routines. We show a simplified version of the configuration in
+this example :ref:`sphx_glr_python_examples_external_memory.py`.
+
+Even if you are not using distributed training, you should still pay attention to NUMA
+control since there's no guarantee that your process will have the correct
+configuration. Other than the `dask-cuda` approach, one can also use tools like `numactl`,
+which is the recommended way to launch NUMA-aware processes.
 
 ********************
 Distributed Training

@@ -13,8 +13,9 @@ example, following packages in addition to XGBoost native dependencies are requi
 If `device` is `cuda`, following are also needed:
 
 - cupy
-- python-cuda
 - rmm
+- pynvml (optional)
+- python-cuda
 
 """
 
@@ -24,6 +25,7 @@ import os
 import sys
 import tempfile
 import traceback
+import warnings
 from functools import partial, update_wrapper, wraps
 from typing import Callable, List, ParamSpec, Tuple, TypeVar
 
@@ -38,12 +40,27 @@ from xgboost.tracker import RabitTracker
 
 def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
-    from cuda import cudart
+    import cuda.bindings.runtime as cudart
 
     status, free, total = cudart.cudaMemGetInfo()
     if status != cudart.cudaError_t.cudaSuccess:
         raise RuntimeError(cudart.cudaGetErrorString(status))
     return total
+
+
+def set_cpu_affinity(ordinal: int) -> None:
+    """Set CPU affinity for NUMA."""
+    try:
+        import pynvml as nm
+
+        nm.nvmlInit()
+
+        hdl = nm.nvmlDeviceGetHandleByIndex(ordinal)
+        nm.nvmlDeviceSetCpuAffinity(hdl)
+
+        nm.nvmlShutdown()
+    except ImportError:
+        warnings.warn("Failed to import nvml. CPU affinity is not set.", UserWarning)
 
 
 def make_batches(
@@ -216,10 +233,12 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx) - 1  # 1-based indexing from loky
             # Assuming two workers for demo.
-            devices = ",".join([str(idx), str((idx + 1) % n_workers)])
+            ordinals = [idx, (idx + 1) % n_workers]
+            devices = ",".join(map(str, ordinals))
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
+            set_cpu_affinity(ordinals[0])
             setup_rmm()
 
     with get_reusable_executor(
