@@ -1,3 +1,4 @@
+# pylint: disable=c-extension-no-member
 """Various helper functions."""
 
 import math
@@ -10,7 +11,7 @@ import numpy as np
 if TYPE_CHECKING:
     from cuda.bindings import runtime as cudart
 
-_mask_size = 64
+_MASK_SIZE = 64
 
 
 class _BitField64:
@@ -23,15 +24,17 @@ class _BitField64:
 
     @staticmethod
     def to_bit(i: int) -> Tuple[int, int]:
+        """Split the index into bit position and value position."""
         int_pos, bit_pos = 0, 0
         if i == 0:
             return int_pos, bit_pos
 
-        int_pos = i // _mask_size
-        bit_pos = i % _mask_size
+        int_pos = i // _MASK_SIZE
+        bit_pos = i % _MASK_SIZE
         return int_pos, bit_pos
 
     def check(self, i: int) -> bool:
+        """Check whether the i bit is set."""
         ip, bp = self.to_bit(i)
         value = self.mask[ip]
         test_bit = 1 << bp
@@ -92,7 +95,7 @@ def get_cpu_affinity(ordinal: int) -> List[int]:
 
     affinity = nm.nvmlDeviceGetCpuAffinity(
         hdl,
-        math.ceil(cnt / _mask_size),
+        math.ceil(cnt / _MASK_SIZE),
     )
     cpumask = _BitField64(affinity)
 

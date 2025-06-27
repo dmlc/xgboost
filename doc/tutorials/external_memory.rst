@@ -287,7 +287,8 @@ training performance is particularly sensitive to data read bandwidth. To provid
 context, on a GB200 machine, accessing the wrong NUMA node from a GPU can reduce the C2C
 bandwidth by half. The `dask-cuda <https://github.com/rapidsai/dask-cuda>`__ project
 configures optimal CPU affinity for the Dask interface through using the `nvml` library in
-addition to the Linux sched routines. We show a simplified version of the configuration in
+addition to the Linux sched routines. We added a utility function
+:py:func:`~xgboost.utils.set_cpu_affinity` and a simplified version of the configuration in
 this example :ref:`sphx_glr_python_examples_external_memory.py`.
 
 Even if you are not using distributed training, you should still pay attention to NUMA
