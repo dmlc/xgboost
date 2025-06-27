@@ -85,26 +85,31 @@ def get_cpu_affinity(ordinal: int) -> List[int]:
     A list of CPU index.
 
     """
-    import pynvml as nm
+    try:
+        import pynvml as nm
 
-    cnt = os.cpu_count()
-    assert cnt is not None
+        cnt = os.cpu_count()
+        assert cnt is not None
 
-    uuid = _get_uuid(ordinal)
-    hdl = nm.nvmlDeviceGetHandleByUUID(uuid)
+        uuid = _get_uuid(ordinal)
+        hdl = nm.nvmlDeviceGetHandleByUUID(uuid)
 
-    affinity = nm.nvmlDeviceGetCpuAffinity(
-        hdl,
-        math.ceil(cnt / _MASK_SIZE),
-    )
-    cpumask = _BitField64(affinity)
+        affinity = nm.nvmlDeviceGetCpuAffinity(
+            hdl,
+            math.ceil(cnt / _MASK_SIZE),
+        )
+        cpumask = _BitField64(affinity)
 
-    cpus = []
-    for i in range(cnt):
-        if cpumask.check(i):
-            cpus.append(i)
+        cpus = []
+        cpus = list(filter(cpumask.check, range(cnt)))
+        for i in range(cnt):
+            if cpumask.check(i):
+                cpus.append(i)
 
-    return cpus
+        nm.nvmlShutdown()
+        return cpus
+    except ImportError:
+        warnings.warn("Failed to import nvml. CPU affinity is not set.", UserWarning)
 
 
 def set_cpu_affinity(ordinal: Optional[int] = None) -> None:
