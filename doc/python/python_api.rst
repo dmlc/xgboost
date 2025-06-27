@@ -207,3 +207,13 @@ Collective
 .. automodule:: xgboost.tracker
 
 .. autoclass:: xgboost.tracker.RabitTracker
+
+
+Utility
+-------
+
+.. automodule:: xgboost.utils
+
+.. autofunction:: xgboost.utils.get_cpu_affinity
+
+.. autofunction:: xgboost.utils.set_cpu_affinity
