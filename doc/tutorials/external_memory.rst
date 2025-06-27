@@ -285,7 +285,7 @@ the correct CPU affinity to reduce the overhead of cross-socket data access. Sin
 of core training stages the data cache on the host and trains the model using a GPU, the
 training performance is particularly sensitive to data read bandwidth. To provide some
 context, on a GB200 machine, accessing the wrong NUMA node from a GPU can reduce the C2C
-bandwidth up to half. The `dask-cuda <https://github.com/rapidsai/dask-cuda>`__ project
+bandwidth by half. The `dask-cuda <https://github.com/rapidsai/dask-cuda>`__ project
 configures optimal CPU affinity for the Dask interface through using the `nvml` library in
 addition to the Linux sched routines. We show a simplified version of the configuration in
 this example :ref:`sphx_glr_python_examples_external_memory.py`.
@@ -453,7 +453,8 @@ undergone multiple development iterations. Here's a brief summary of major chang
   objectives support.
 - In addition, we begin support for distributed training in 3.0
 - 3.1 added support for having divided cache pages. One can have part of a cache page in
-  the GPU and the rest of the cache in the host memory.
+  the GPU and the rest of the cache in the host memory. In addition, XGBoost works with
+  the Grace Blackwell hardware decompression engine when data is sparse.
 
 ****************
 Text File Inputs
