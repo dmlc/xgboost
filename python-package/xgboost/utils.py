@@ -2,7 +2,8 @@
 
 import math
 import os
-from typing import TYPE_CHECKING, Sequence
+import warnings
+from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -13,15 +14,15 @@ _mask_size = 64
 
 
 class _BitField64:
-    """A simplified version of the bit field in XGBoost."""
+    """A simplified version of the bit field in XGBoost C++."""
 
     def __init__(self, mask: Sequence) -> None:
-        self.mask: list[int] = []
+        self.mask: List[int] = []
         for m in mask:
             self.mask.append(m)
 
     @staticmethod
-    def to_bit(i: int) -> tuple[int, int]:
+    def to_bit(i: int) -> Tuple[int, int]:
         int_pos, bit_pos = 0, 0
         if i == 0:
             return int_pos, bit_pos
@@ -68,7 +69,7 @@ def _get_uuid(ordinal: int) -> str:
     return uuid
 
 
-def get_cpu_affinity(ordinal: int) -> list[int]:
+def get_cpu_affinity(ordinal: int) -> List[int]:
     """Get optimal affinity using nvml.
 
     Parameters
@@ -107,21 +108,32 @@ def get_cpu_affinity(ordinal: int) -> list[int]:
     return cpus
 
 
-def set_cpu_affinity() -> None:
-    """Set affinity according to nvml."""
-    import pynvml as nm
+def set_cpu_affinity(ordinal: Optional[int] = None) -> None:
+    """Set affinity according to nvml.
 
-    def current_device() -> int:
-        """Get the current GPU ordinal."""
-        from cuda.bindings import runtime as cudart
+    Parameters
+    ----------
+    ordinal :
+        CUDA device ordinal.
 
-        status, ordinal = cudart.cudaGetDevice()
-        _checkcu(status)
-        return ordinal
+    """
+    try:
+        import pynvml as nm
 
-    nm.nvmlInit()
+        def current_device() -> int:
+            """Get the current GPU ordinal."""
+            from cuda.bindings import runtime as cudart
 
-    cpus = get_cpu_affinity(current_device())
-    os.sched_setaffinity(0, cpus)
+            status, ordinal = cudart.cudaGetDevice()
+            _checkcu(status)
+            return ordinal
 
-    nm.nvmlShutdown()
+        nm.nvmlInit()
+
+        ordinal = ordinal if ordinal is not None else current_device()
+        cpus = get_cpu_affinity(ordinal)
+        os.sched_setaffinity(0, cpus)
+
+        nm.nvmlShutdown()
+    except ImportError:
+        warnings.warn("Failed to import nvml. CPU affinity is not set.", UserWarning)

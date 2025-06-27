@@ -25,7 +25,6 @@ import os
 import sys
 import tempfile
 import traceback
-import warnings
 from functools import partial, update_wrapper, wraps
 from typing import Callable, List, ParamSpec, Tuple, TypeVar
 
@@ -36,6 +35,7 @@ from sklearn.datasets import make_regression
 import xgboost
 from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
+from xgboost.utils import set_cpu_affinity
 
 
 def device_mem_total() -> int:
@@ -46,21 +46,6 @@ def device_mem_total() -> int:
     if status != cudart.cudaError_t.cudaSuccess:
         raise RuntimeError(cudart.cudaGetErrorString(status))
     return total
-
-
-def set_cpu_affinity(ordinal: int) -> None:
-    """Set CPU affinity for NUMA."""
-    try:
-        import pynvml as nm
-
-        nm.nvmlInit()
-
-        hdl = nm.nvmlDeviceGetHandleByIndex(ordinal)
-        nm.nvmlDeviceSetCpuAffinity(hdl)
-
-        nm.nvmlShutdown()
-    except ImportError:
-        warnings.warn("Failed to import nvml. CPU affinity is not set.", UserWarning)
 
 
 def make_batches(
@@ -237,8 +222,8 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             devices = ",".join(map(str, ordinals))
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
-            os.environ["CUDA_VISIBLE_DEVICES"] = devices
             set_cpu_affinity(ordinals[0])
+            os.environ["CUDA_VISIBLE_DEVICES"] = devices
             setup_rmm()
 
     with get_reusable_executor(

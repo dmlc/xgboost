@@ -35,13 +35,13 @@ If `device` is `cuda`, following are also needed:
 import argparse
 import os
 import tempfile
-import warnings
 from typing import Callable, List, Literal, Tuple
 
 import numpy as np
 from sklearn.datasets import make_regression
 
 import xgboost
+from xgboost.utils import set_cpu_affinity
 
 
 def device_mem_total() -> int:
@@ -52,21 +52,6 @@ def device_mem_total() -> int:
     if status != cudart.cudaError_t.cudaSuccess:
         raise RuntimeError(cudart.cudaGetErrorString(status))
     return total
-
-
-def set_cpu_affinity() -> None:
-    """Set CPU affinity for NUMA."""
-    try:
-        import pynvml as nm
-
-        nm.nvmlInit()
-
-        hdl = nm.nvmlDeviceGetHandleByIndex(0)
-        nm.nvmlDeviceSetCpuAffinity(hdl)
-
-        nm.nvmlShutdown()
-    except ImportError:
-        warnings.warn("Failed to import nvml. CPU affinity is not set.", UserWarning)
 
 
 def make_batches(
