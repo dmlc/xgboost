@@ -45,8 +45,7 @@ python3 -m wheel tags --python-tag py3 --abi-tag none --platform ${WHEEL_TAG} --
   wheelhouse/*.whl
 mv -v wheelhouse/*.whl python-package/dist/
 
-mamba create -n wheelnext python=3.13 python-build
-python -m pip install -v git+https://github.com/wheelnext/pep_xxx_wheel_variants.git@f3b287090f8a6f510b0e1723896e1c7e638f6bff#subdirectory=pep_xxx_wheel_variants
-
-pip config set --site global.index-url https://variants-index.wheelnext.dev/
-variantlib make-variant -f python-package/dist/xgboost-*.whl -p "nvidia :: cuda :: 12" -o . --pyproject-toml python-package/pyproject.toml
+echo "--- Convert Python wheel to variant wheel"
+python3 ops/docker_run.py \
+  --image-uri ${BUILD_IMAGE_URI} \
+  -- ops/pipeline/build-variant-wheels-impl.sh
