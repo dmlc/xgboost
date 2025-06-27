@@ -96,10 +96,6 @@ def get_cpu_affinity(ordinal: int) -> List[int]:
     )
     cpumask = _BitField64(affinity)
 
-    ints = []
-    for i, mask in enumerate(affinity):
-        ints.append(mask)
-
     cpus = []
     for i in range(cnt):
         if cpumask.check(i):
