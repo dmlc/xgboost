@@ -220,11 +220,13 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     learner->Save(&mem_out);
     ASSERT_EQ(model_at_kiter, serialised_model_tmp);
 
+    // Set the model to device
     for (auto const& [key, value] : args) {
-      if (key == "tree_method" && value == "gpu_hist") {
-        learner->SetParam("gpu_id", "0");
+      if (key == "device") {
+        learner->SetParam(key, value);
       }
     }
+
     // Pull data to device
     for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
       batch.data.SetDevice(DeviceOrd::CUDA(0));
@@ -243,8 +245,10 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     Json m_0 = Json::Load(StringView{model_at_2kiter}, std::ios::binary);
     Json m_1 = Json::Load(StringView{serialised_model_tmp}, std::ios::binary);
     // GPU ID is changed as data is coming from device.
-    ASSERT_EQ(get<Object>(m_0["Config"]["learner"]["generic_param"]).erase("gpu_id"),
-              get<Object>(m_1["Config"]["learner"]["generic_param"]).erase("gpu_id"));
+    get<Object>(m_0["Config"]["learner"]["generic_param"]).erase("device");
+    get<Object>(m_1["Config"]["learner"]["generic_param"]).erase("device");
+    ASSERT_EQ(get<Object>(m_0["Config"]["learner"]["generic_param"]),
+              get<Object>(m_1["Config"]["learner"]["generic_param"]));
   }
 }
 
@@ -368,7 +372,8 @@ TEST_F(SerializationTest, GpuHist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "gbtree"},
@@ -376,14 +381,16 @@ TEST_F(SerializationTest, GpuHist) {
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "dart"},
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 }
 
@@ -399,7 +406,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
   {
     auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
 
-    learner->SetParam("tree_method", "gpu_hist");
+    learner->SetParams(Args{{"tree_method", "hist"}, {"device", "cuda"}});
 
     for (size_t i = 0; i < 10; ++i) {
       learner->UpdateOneIter(i, p_dmat);
@@ -478,7 +485,8 @@ TEST_F(L1SerializationTest, GpuHist) {
                             {"objective", "reg:absoluteerror"},
                             {"seed", "0"},
                             {"max_depth", "2"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 }
 #endif  //  defined(XGBOOST_USE_CUDA)
@@ -574,7 +582,8 @@ TEST_F(LogitSerializationTest, GpuHist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "gbtree"},
@@ -583,7 +592,8 @@ TEST_F(LogitSerializationTest, GpuHist) {
                             {"nthread", "1"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "dart"},
@@ -591,7 +601,8 @@ TEST_F(LogitSerializationTest, GpuHist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", "2"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 }
 
@@ -720,7 +731,8 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             // Mitigate the difference caused by hardware fused multiply
                             // add to tree weight during update prediction cache.
                             {"learning_rate", "1.0"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "gbtree"},
@@ -732,7 +744,8 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             // after num_parallel_tree goes to 4
                             {"num_parallel_tree", "4"},
                             {"learning_rate", "1.0"},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 
   TestLearnerSerialization({{"booster", "dart"},
@@ -741,7 +754,8 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             {"nthread", "1"},
                             {"learning_rate", "1.0"},
                             {"max_depth", std::to_string(kClasses)},
-                            {"tree_method", "gpu_hist"}},
+                            {"device", "cuda"},
+                            {"tree_method", "hist"}},
                            fmap_, p_dmat_);
 }
 

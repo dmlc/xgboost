@@ -25,7 +25,7 @@ namespace xgboost {
 TEST(Objective, PredTransform) {
   // Test that show PredTransform uses the same device with predictor.
   xgboost::Context tparam;
-  tparam.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
+  tparam.UpdateAllowUnknown(Args{{"device", "cuda"}});
   size_t n = 100;
 
   for (const auto& entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {

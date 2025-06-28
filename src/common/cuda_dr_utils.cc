@@ -47,6 +47,10 @@ CuDriverApi::CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int3
   } else {
     this->cuMemBatchDecompressAsync = nullptr;
   }
+#else
+  (void)cu_major;
+  (void)cu_minor;
+  (void)kdm_major;
 #endif  // defined(CUDA_HW_DECOM_AVAILABLE)
   CHECK(this->cuMemGetAllocationGranularity);
 }
