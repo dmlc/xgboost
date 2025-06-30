@@ -35,7 +35,7 @@ from sklearn.datasets import make_regression
 import xgboost
 from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
-from xgboost.utils import set_cpu_affinity
+from xgboost.utils import set_device_cpu_affinity
 
 
 def device_mem_total() -> int:
@@ -222,7 +222,7 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             devices = ",".join(map(str, ordinals))
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
-            set_cpu_affinity(ordinals[0])
+            set_device_cpu_affinity(f"cuda:{ordinals[0]}")
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
             setup_rmm()
 
