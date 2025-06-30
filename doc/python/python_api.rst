@@ -214,6 +214,6 @@ Utility
 
 .. automodule:: xgboost.utils
 
-.. autofunction:: xgboost.utils.get_cpu_affinity
+.. autofunction:: xgboost.utils.get_device_cpu_affinity
 
-.. autofunction:: xgboost.utils.set_cpu_affinity
+.. autofunction:: xgboost.utils.set_device_cpu_affinity

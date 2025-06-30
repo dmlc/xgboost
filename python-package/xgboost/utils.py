@@ -72,19 +72,36 @@ def _get_uuid(ordinal: int) -> str:
     return uuid
 
 
-def get_cpu_affinity(ordinal: int) -> List[int]:
-    """Get optimal affinity using nvml.
+def _get_ordinal(device: Optional[str]) -> int:
+    if device is None:
+        device = "cuda"
+
+    split = device.split(":")
+    if len(split) == 1:
+        ordinal = 0
+    elif len(split) == 2:
+        ordinal = int(split[1])
+    else:
+        raise ValueError(f"Invalid device: {device}")
+    return ordinal
+
+
+def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
+    """Get optimal affinity using nvml. CUDA-only and requires NVML.
 
     Parameters
     ----------
-    ordinal :
-        CUDA device ordinal.
+    device :
+        CUDA device. Same as the `device` parameter for the :py:class:`xgboost.Booster`
+        and the :py:class:`XGBRegressor`.
 
     Returns
     -------
     A list of CPU index.
 
     """
+    ordinal = _get_ordinal(device)
+
     try:
         import pynvml as nm
 
@@ -111,15 +128,18 @@ def get_cpu_affinity(ordinal: int) -> List[int]:
         return []
 
 
-def set_cpu_affinity(ordinal: Optional[int] = None) -> None:
-    """Set affinity according to nvml.
+def set_device_cpu_affinity(device: Optional[str] = None) -> None:
+    """Set affinity according to nvml. CUDA-only and requires NVML.
 
     Parameters
     ----------
-    ordinal :
-        CUDA device ordinal.
+    device :
+        CUDA device. Same as the `device` parameter for the :py:class:`xgboost.Booster`
+        and the :py:class:`XGBRegressor`.
 
     """
+    ordinal = _get_ordinal(device)
+
     try:
         import pynvml as nm
 
@@ -127,14 +147,14 @@ def set_cpu_affinity(ordinal: Optional[int] = None) -> None:
             """Get the current GPU ordinal."""
             from cuda.bindings import runtime as cudart
 
-            status, ordinal = cudart.cudaGetDevice()
+            status, cur = cudart.cudaGetDevice()
             _checkcu(status)
-            return ordinal
+            return cur
 
         nm.nvmlInit()
 
         ordinal = ordinal if ordinal is not None else current_device()
-        cpus = get_cpu_affinity(ordinal)
+        cpus = get_device_cpu_affinity(device)
         os.sched_setaffinity(0, cpus)
 
         nm.nvmlShutdown()
