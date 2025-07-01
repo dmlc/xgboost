@@ -1309,7 +1309,7 @@ class TestPySparkLocal:
         )
 
     def test_valid_type(self, spark: SparkSession) -> None:
-        # integer as indicator is invalid
+        # Validation indicator must be boolean.
         df_train = spark.createDataFrame(
             [
                 (Vectors.dense(1.0, 2.0, 3.0), 0, 0),
@@ -1326,7 +1326,7 @@ class TestPySparkLocal:
         )
         # Use Exception here since spark might return a py4j error instead of specific
         # exception.
-        with pytest.raises(Exception, match="The validation indicator must be boolean"):
+        with pytest.raises(TypeError, match="The validation indicator must be boolean"):
             reg.fit(df_train)
 
 
