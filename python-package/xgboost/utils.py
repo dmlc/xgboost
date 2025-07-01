@@ -118,18 +118,5 @@ def set_device_cpu_affinity(device: Optional[str] = None) -> None:
         and the :py:class:`XGBRegressor`.
 
     """
-    try:
-        import pynvml as nm
-
-        nm.nvmlInit()
-
-        cpus = get_device_cpu_affinity(device)
-        os.sched_setaffinity(0, cpus)
-
-        nm.nvmlShutdown()
-    except ImportError:
-        msg = (
-            "Failed to import pynvml. CPU affinity is not set. "
-            "Please install `nvidia-ml-py`"
-        )
-        warnings.warn(msg, UserWarning)
+    cpus = get_device_cpu_affinity(device)
+    os.sched_setaffinity(0, cpus)
