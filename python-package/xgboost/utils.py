@@ -47,15 +47,6 @@ def _checkcu(status: "cudart.cudaError_t") -> None:
         raise RuntimeError(cudart.cudaGetErrorString(status))
 
 
-def _get_hdl_uuid(ordinal: int) -> tuple[Any, str]:
-    """Get a string representation of UUID."""
-    import pynvml as nm
-
-    hdl = nm.nvmlDeviceGetHandleByIndex(ordinal)
-    uuid = nm.nvmlDeviceGetUUID(hdl)
-    return hdl, uuid
-
-
 def _get_ordinal(device: Optional[str]) -> int:
     if device is None:
         device = "cuda"
@@ -94,7 +85,7 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
 
         nm.nvmlInit()
 
-        hdl, uuid = _get_hdl_uuid(ordinal)
+        hdl = nm.nvmlDeviceGetHandleByIndex(ordinal)
         affinity = nm.nvmlDeviceGetCpuAffinity(
             hdl,
             math.ceil(cnt / _MASK_SIZE),
