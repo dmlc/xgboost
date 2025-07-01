@@ -4,7 +4,7 @@
 import math
 import os
 import warnings
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
     from cuda.bindings import runtime as cudart
