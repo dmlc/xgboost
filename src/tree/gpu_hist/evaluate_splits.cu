@@ -114,7 +114,7 @@ class EvaluateSplitAgent {
     for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
       GradientPairInt64 bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
-                                              : GradientPairInt64();
+                                            : GradientPairInt64();
 #if CUB_VERSION >= 300000
       BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, cuda::std::plus{}, prefix_op);
 #else
@@ -142,6 +142,8 @@ class EvaluateSplitAgent {
         best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue, fidx, left, right,
                            false, param, rounding);
       }
+
+      __syncwarp();
     }
   }
 
@@ -172,6 +174,8 @@ class EvaluateSplitAgent {
         best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir,
                               static_cast<bst_cat_t>(fvalue), fidx, left, right, param, rounding);
       }
+
+      __syncwarp();
     }
   }
   /**
@@ -181,7 +185,7 @@ class EvaluateSplitAgent {
                                                   bool missing_left, bst_bin_t it,
                                                   GradientPairInt64 const &left_sum,
                                                   GradientPairInt64 const &right_sum,
-                                                  DeviceSplitCandidate *best_split) {
+                                                  DeviceSplitCandidate *__restrict__ best_split) {
     auto gain = thread_active
                     ? evaluator.CalcSplitGain(param, nidx, fidx, rounding.ToFloatingPoint(left_sum),
                                               rounding.ToFloatingPoint(right_sum))
@@ -200,11 +204,13 @@ class EvaluateSplitAgent {
       best_split->UpdateCat(gain, missing_left ? kLeftDir : kRightDir, best_thresh, fidx, left_sum,
                             right_sum, param, rounding);
     }
+
+    __syncwarp();
   }
   /**
    * \brief Partition-based split for categorical feature.
    */
-  __device__ __forceinline__ void Partition(DeviceSplitCandidate *best_split,
+  __device__ __forceinline__ void Partition(DeviceSplitCandidate *__restrict__ best_split,
                                             common::Span<bst_feature_t> sorted_idx,
                                             std::size_t node_offset,
                                             GPUTrainingParam const &param) {
