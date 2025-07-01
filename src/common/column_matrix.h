@@ -405,7 +405,7 @@ class ColumnMatrix {
    * \brief Set column index for both dense and sparse columns
    */
   template <typename Batch>
-  void SetIndexMixedColumns(size_t base_rowid, Batch const& batch, const GHistIndexMatrix& gmat,
+  void SetIndexMixedColumns(bst_idx_t base_rowid, Batch const& batch, const GHistIndexMatrix& gmat,
                             float missing, int n_threads) {
     auto n_features = gmat.Features();
 
@@ -432,18 +432,20 @@ class ColumnMatrix {
 
       /*
        * We use bitfield as a missing indicator. To ensure thread safe access to the bitfield
-       * each underlying word of the bitfiled should be processed by the only thread.
-       * So we need to allign the row-blocks.
+       * each underlying word of the bitfiled should be processed by a single thread.
+       * So we need to align the row-blocks.
        */
       block_size = DivRoundUp(block_size, MissingIndicator::BitFieldT::kValueSize) *
-                                          MissingIndicator::BitFieldT::kValueSize;
+                   MissingIndicator::BitFieldT::kValueSize;
       /*
        * If base_rowid > 0 we need to shift the blocks boundaries.
        * Otherwise the two threads may operate with the single word of bitfield.
        */
       size_t shift = MissingIndicator::BitFieldT::kValueSize -
                      (base_rowid % MissingIndicator::BitFieldT::kValueSize);
-      if (shift == MissingIndicator::BitFieldT::kValueSize) shift = 0;
+      if (shift == MissingIndicator::BitFieldT::kValueSize) {
+        shift = 0;
+      }
 
       // Parallel row processing for thread-local counting.
       #pragma omp parallel num_threads(n_threads)
@@ -453,7 +455,9 @@ class ColumnMatrix {
           size_t begin = block_size * tid;
           size_t end = std::min(begin + shift + block_size, batch_size);
           // Apply shift for threads > 0 to maintain word alignment across blocks.
-          if (tid > 0) begin += shift;
+          if (tid > 0) {
+            begin += shift;
+          }
           for (size_t rid = begin; rid < end; ++rid) {
             const auto& line = batch.GetLine(rid);
             for (size_t i = 0; i < line.Size(); ++i) {
@@ -491,7 +495,9 @@ class ColumnMatrix {
           size_t begin = block_size * tid;
           size_t end = std::min(begin + shift + block_size, batch_size);
           // Apply shift for threads > 0 to maintain word alignment across blocks.
-          if (tid > 0) begin += shift;
+          if (tid > 0) {
+            begin += shift;
+          }
 
           size_t k = 0;
           for (size_t rid = begin; rid < end; ++rid) {
