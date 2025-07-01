@@ -619,7 +619,7 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   learner->Configure();
 
   if (ctx->IsCUDA()) {
-    learner->SetParam("tree_method", "gpu_hist");
+    learner->SetParam("tree_method", "hist");
     learner->SetParam("device", ctx->Device().Name());
   }
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
@@ -637,7 +637,7 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   }
 
   learner->SetParam("tree_method", "hist");
-  learner->SetParam("gpu_id", "-1");
+  learner->SetParam("device", "cpu");
   // Xcode_12.4 doesn't compile with `std::make_shared`.
   auto dense = std::shared_ptr<DMatrix>(new data::DMatrixProxy{});
   auto array_interface = GetArrayInterface(&with_nan, kRows, kCols);

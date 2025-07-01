@@ -337,7 +337,7 @@ TEST(Learner, GPUConfiguration) {
   }
   {
     std::unique_ptr<Learner> learner{Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "gpu_hist"}});
+    learner->SetParams({Arg{"tree_method", "hist"}, {"device", "cuda"}});
     learner->Configure();
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
     learner->UpdateOneIter(0, p_dmat);
@@ -345,8 +345,7 @@ TEST(Learner, GPUConfiguration) {
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "gpu_hist"},
-                        Arg{"gpu_id", "-1"}});
+    learner->SetParams({Arg{"tree_method", "hist"}, Arg{"device", "cuda"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
@@ -356,13 +355,6 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CPU());
-  }
-  {
-    // with CPU algorithm, but `gpu_id` takes priority
-    std::unique_ptr<Learner> learner {Learner::Create(mat)};
-    learner->SetParams({Arg{"tree_method", "hist"}, Arg{"gpu_id", "0"}});
-    learner->UpdateOneIter(0, p_dmat);
-    ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
 }
 #endif  // defined(XGBOOST_USE_CUDA)
