@@ -155,7 +155,8 @@ class ColumnMatrix {
 
     BitFieldT missing;
     RefResourceView<T> storage;
-    RefResourceView<std::size_t> feature_offsets_expand;
+    // Feature offset padded to allow concurrent access.
+    RefResourceView<std::size_t> feature_offsets_padded;
     static_assert(std::is_same_v<T, std::uint32_t>);
 
     template <typename U>
@@ -167,26 +168,28 @@ class ColumnMatrix {
      * @param feature_offsets Offest of the first element for each feature
      * @param type            Type of each column (Dense or Sparse).
      */
-    void InitOffsetsExpand(const RefResourceView<std::size_t>& feature_offsets,
+    void InitOffsetsPadded(const RefResourceView<std::size_t>& feature_offsets,
                            const RefResourceView<ColumnType>& type) {
-      if (feature_offsets_expand.size() != feature_offsets.size()) {
-        feature_offsets_expand = common::MakeFixedVecWithMalloc(feature_offsets.size(),
+      if (feature_offsets_padded.size() != feature_offsets.size()) {
+        CHECK(feature_offsets_padded.empty());
+        feature_offsets_padded = common::MakeFixedVecWithMalloc(feature_offsets.size(),
                                                                 std::size_t{0});
       }
 
       /*
-       * For missing indicator feature offsets are alligned to be a factor of 
+       * For missing indicator feature offsets are alligned to be a factor of
        * BitFieldT::kValueSize (4 bytes).
        * This is critical requariment for thread-safe access to bitfield.
        * Each word processed by one thread.
-       */ 
-      for (size_t fid = 1; fid < feature_offsets.size(); ++fid) {
+       */
+      for (std::size_t fid = 1; fid < feature_offsets.size(); ++fid) {
         if (type[fid - 1] == ColumnType::kDenseColumn) {
-          size_t n_rows = feature_offsets[fid] - feature_offsets[fid - 1];
-          size_t n_rows_expand = DivRoundUp(n_rows, BitFieldT::kValueSize) * BitFieldT::kValueSize;
-          feature_offsets_expand[fid] = feature_offsets_expand[fid - 1] + n_rows_expand;
+          std::size_t n_rows = feature_offsets[fid] - feature_offsets[fid - 1];
+          std::size_t n_rows_padded =
+              DivRoundUp(n_rows, BitFieldT::kValueSize) * BitFieldT::kValueSize;
+          feature_offsets_padded[fid] = feature_offsets_padded[fid - 1] + n_rows_padded;
         } else {
-          feature_offsets_expand[fid] = feature_offsets_expand[fid - 1];
+          feature_offsets_padded[fid] = feature_offsets_padded[fid - 1];
         }
       }
     }
@@ -198,16 +201,16 @@ class ColumnMatrix {
      */
     MissingIndicator(const RefResourceView<std::size_t>& feature_offsets,
                      const RefResourceView<ColumnType>& type, bool init) {
-      InitOffsetsExpand(feature_offsets, type);
-      size_t n_elements = feature_offsets_expand.back();
+      this->InitOffsetsPadded(feature_offsets, type);
+      size_t n_elements = feature_offsets_padded.back();
       auto m_size = missing.ComputeStorageSize(n_elements);
       storage = common::MakeFixedVecWithMalloc(m_size, InitValue<T>(init));
       this->InitView();
     }
-    /** @brief Set the i^th element corresponding to feature fid 
+    /** @brief Set the i^th element corresponding to feature fid
       * to be a valid element (instead of missing). */
     void SetValid(typename LBitField32::index_type i, std::size_t fid) {
-      missing.Clear(feature_offsets_expand[fid] + i);
+      missing.Clear(feature_offsets_padded[fid] + i);
     }
     /** @brief assign the storage to the view. */
     void InitView() {
@@ -216,8 +219,8 @@ class ColumnMatrix {
 
     void GrowTo(const RefResourceView<std::size_t>& feature_offsets,
                 const RefResourceView<ColumnType>& type, bool init) {
-      InitOffsetsExpand(feature_offsets, type);
-      size_t n_elements = feature_offsets_expand.back();
+      this->InitOffsetsPadded(feature_offsets, type);
+      size_t n_elements = feature_offsets_padded.back();
 
       CHECK(storage.Resource()->Type() == ResourceHandler::kMalloc)
           << "[Internal Error]: Cannot grow the vector when external memory is used.";
@@ -366,12 +369,12 @@ class ColumnMatrix {
         reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
         column_size};
     /*
-     * Pass the pre-calculated starting offset missing_.feature_offsets_expand[fidx] 
+     * Pass the pre-calculated starting offset missing_.feature_offsets_expand[fidx]
      * in the bitfield for this specific feature (fidx).
      */
     return DenseColumnIter<BinIdxType, any_missing>{
         bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_.missing,
-                                          missing_.feature_offsets_expand[fidx]};
+                                          missing_.feature_offsets_padded[fidx]};
   }
 
   // all columns are dense column and has no missing value

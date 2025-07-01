@@ -94,7 +94,7 @@ bool ColumnMatrix::Read(AlignedResourceReadStream* fi, uint32_t const* index_bas
   if (!common::ReadVec(fi, &missing_.storage)) {
     return false;
   }
-  if (!common::ReadVec(fi, &missing_.feature_offsets_expand)) {
+  if (!common::ReadVec(fi, &missing_.feature_offsets_padded)) {
     return false;
   }
   missing_.InitView();
@@ -117,7 +117,7 @@ std::size_t ColumnMatrix::Write(AlignedFileWriteStream* fo) const {
   bytes += common::WriteVec(fo, row_ind_);
   bytes += common::WriteVec(fo, feature_offsets_);
   bytes += common::WriteVec(fo, missing_.storage);
-  bytes += common::WriteVec(fo, missing_.feature_offsets_expand);
+  bytes += common::WriteVec(fo, missing_.feature_offsets_padded);
 
   bytes += fo->Write(bins_type_size_);
   bytes += fo->Write(any_missing_);
