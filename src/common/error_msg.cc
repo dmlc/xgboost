@@ -37,15 +37,6 @@ void WarnManualUpdater() {
   });
 }
 
-void WarnDeprecatedGPUId() {
-  static std::once_flag flag;
-  std::call_once(flag, [] {
-    auto msg = DeprecatedFunc("gpu_id", "2.0.0", "device");
-    msg += " E.g. device=cpu/cuda/cuda:0";
-    LOG(FATAL) << msg;
-  });
-}
-
 void WarnEmptyDataset() {
   static std::once_flag flag;
   std::call_once(flag,

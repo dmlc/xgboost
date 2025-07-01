@@ -245,7 +245,7 @@ void Context::SetDeviceOrdinal(Args const& kwargs) {
                                 [](auto const& p) { return p.first == "gpu_id"; });
   auto has_gpu_id = gpu_id_it != kwargs.cend();
   if (has_gpu_id) {
-    error::WarnDeprecatedGPUId();
+    LOG(FATAL) << "`gpu_id` has been removed since 3.1. Use `device` instead.";
   }
 
   auto device_it = std::find_if(kwargs.cbegin(), kwargs.cend(),
