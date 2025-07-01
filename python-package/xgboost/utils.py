@@ -123,7 +123,9 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
         nm.nvmlShutdown()
         return cpus
     except ImportError:
-        warnings.warn("Failed to import nvml.", UserWarning)
+        warnings.warn(
+            "Failed to import nvml. Please install `nvidia-ml-py`", UserWarning
+        )
 
         return []
 
@@ -159,4 +161,8 @@ def set_device_cpu_affinity(device: Optional[str] = None) -> None:
 
         nm.nvmlShutdown()
     except ImportError:
-        warnings.warn("Failed to import nvml. CPU affinity is not set.", UserWarning)
+        msg = (
+            "Failed to import nvml. CPU affinity is not set. "
+            "Please install `nvidia-ml-py`"
+        )
+        warnings.warn(msg, UserWarning)

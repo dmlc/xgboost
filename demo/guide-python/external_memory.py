@@ -23,7 +23,7 @@ If `device` is `cuda`, following are also needed:
 
 - cupy
 - rmm
-- pynvml (optional)
+- nvidia-ml-py (optional)
 - python-cuda
 
 .. seealso::
