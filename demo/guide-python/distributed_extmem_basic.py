@@ -223,7 +223,8 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
-            # Must follow the environment configuration.
+            # Must follow the environment configuration. Do not call any CUDA-related
+            # method until the environment variable is set.
             set_device_cpu_affinity(f"cuda:{ordinals[0]}")
             setup_rmm()
 

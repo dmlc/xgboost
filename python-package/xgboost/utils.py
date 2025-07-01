@@ -4,9 +4,7 @@
 import math
 import os
 import warnings
-from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
-
-import numpy as np
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
     from cuda.bindings import runtime as cudart
@@ -49,27 +47,13 @@ def _checkcu(status: "cudart.cudaError_t") -> None:
         raise RuntimeError(cudart.cudaGetErrorString(status))
 
 
-def _get_uuid(ordinal: int) -> str:
-    """Construct a string representation of UUID."""
-    from cuda.bindings import runtime as cudart
+def _get_hdl_uuid(ordinal: int) -> tuple[Any, str]:
+    """Get a string representation of UUID."""
+    import pynvml as nm
 
-    status, prop = cudart.cudaGetDeviceProperties(ordinal)
-    _checkcu(status)
-
-    dash_pos = {0, 4, 6, 8, 10}
-    uuid = "GPU"
-
-    for i in range(16):
-        if i in dash_pos:
-            uuid += "-"
-        h = hex(0xFF & np.int32(prop.uuid.bytes[i]))
-        assert h[:2] == "0x"
-        h = h[2:]
-
-        while len(h) < 2:
-            h = "0" + h
-        uuid += h
-    return uuid
+    hdl = nm.nvmlDeviceGetHandleByIndex(ordinal)
+    uuid = nm.nvmlDeviceGetUUID(hdl)
+    return hdl, uuid
 
 
 def _get_ordinal(device: Optional[str]) -> int:
@@ -108,11 +92,9 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
         cnt = os.cpu_count()
         assert cnt is not None
 
-        uuid = _get_uuid(ordinal)
-
         nm.nvmlInit()
-        hdl = nm.nvmlDeviceGetHandleByUUID(uuid)
 
+        hdl, uuid = _get_hdl_uuid(ordinal)
         affinity = nm.nvmlDeviceGetCpuAffinity(
             hdl,
             math.ceil(cnt / _MASK_SIZE),
