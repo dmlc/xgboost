@@ -222,8 +222,9 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             devices = ",".join(map(str, ordinals))
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
-            set_device_cpu_affinity(f"cuda:{ordinals[0]}")
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
+            # Must follow the environment configuration.
+            set_device_cpu_affinity(f"cuda:{ordinals[0]}")
             setup_rmm()
 
     with get_reusable_executor(
