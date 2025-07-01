@@ -709,7 +709,6 @@ class LearnerConfiguration : public Learner {
     // FIXME(trivialfis): Make eval_metric a training parameter.
     keys.emplace_back(kEvalMetric);
     keys.emplace_back("num_output_group");
-    keys.emplace_back("gpu_id");  // deprecated param.
 
     std::sort(keys.begin(), keys.end());
 

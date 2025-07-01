@@ -42,7 +42,7 @@ void WarnDeprecatedGPUId() {
   std::call_once(flag, [] {
     auto msg = DeprecatedFunc("gpu_id", "2.0.0", "device");
     msg += " E.g. device=cpu/cuda/cuda:0";
-    LOG(WARNING) << msg;
+    LOG(FATAL) << msg;
   });
 }
 

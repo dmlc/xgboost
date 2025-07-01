@@ -244,26 +244,13 @@ void Context::SetDeviceOrdinal(Args const& kwargs) {
   auto gpu_id_it = std::find_if(kwargs.cbegin(), kwargs.cend(),
                                 [](auto const& p) { return p.first == "gpu_id"; });
   auto has_gpu_id = gpu_id_it != kwargs.cend();
+  if (has_gpu_id) {
+    error::WarnDeprecatedGPUId();
+  }
+
   auto device_it = std::find_if(kwargs.cbegin(), kwargs.cend(),
                                 [](auto const& p) { return p.first == kDevice; });
   auto has_device = device_it != kwargs.cend();
-  if (has_device && has_gpu_id) {
-    LOG(FATAL) << "Both `device` and `gpu_id` are specified. Use `device` instead.";
-  }
-
-  if (has_gpu_id) {
-    // Compatible with XGBoost < 2.0.0
-    error::WarnDeprecatedGPUId();
-    auto opt_id = ParseInt(StringView{gpu_id_it->second});
-    CHECK(opt_id.has_value()) << "Invalid value for `gpu_id`. Got:" << gpu_id_it->second;
-    if (opt_id.value() > DeviceOrd::CPUOrdinal()) {
-      this->UpdateAllowUnknown(Args{{kDevice, DeviceOrd::CUDA(opt_id.value()).Name()}});
-    } else {
-      this->UpdateAllowUnknown(Args{{kDevice, DeviceOrd::CPU().Name()}});
-    }
-    return;
-  }
-
   auto new_d = MakeDeviceOrd(this->device, this->fail_on_invalid_gpu_id);
 
   if (!has_device) {
