@@ -71,7 +71,7 @@ def _get_ordinal(device: Optional[str]) -> int:
 
 
 def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
-    """Get optimal affinity using nvml. CUDA-only and requires NVML.
+    """Get optimal affinity using nvml. CUDA-only and requires `nvidia-ml-py`.
 
     Parameters
     ----------
@@ -106,14 +106,14 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
         return cpus
     except ImportError:
         warnings.warn(
-            "Failed to import nvml. Please install `nvidia-ml-py`", UserWarning
+            "Failed to import pynvml. Please install `nvidia-ml-py`", UserWarning
         )
 
         return []
 
 
 def set_device_cpu_affinity(device: Optional[str] = None) -> None:
-    """Set affinity according to nvml. CUDA-only and requires NVML.
+    """Set affinity according to nvml. CUDA-only and requires `nvidia-ml-py`.
 
     Parameters
     ----------
@@ -144,7 +144,7 @@ def set_device_cpu_affinity(device: Optional[str] = None) -> None:
         nm.nvmlShutdown()
     except ImportError:
         msg = (
-            "Failed to import nvml. CPU affinity is not set. "
+            "Failed to import pynvml. CPU affinity is not set. "
             "Please install `nvidia-ml-py`"
         )
         warnings.warn(msg, UserWarning)
