@@ -1,20 +1,19 @@
 /**
- * Copyright 2017-2023, XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \brief Utility for fast column-wise access
  */
 #include "column_matrix.h"
 
-#include <algorithm>    // for transform
 #include <cstddef>      // for size_t
 #include <cstdint>      // for uint64_t, uint8_t
 #include <limits>       // for numeric_limits
 #include <type_traits>  // for remove_reference_t
 #include <vector>       // for vector
 
-#include "../data/gradient_index.h"  // for GHistIndexMatrix
-#include "io.h"                      // for AlignedResourceReadStream, AlignedFileWriteStream
-#include "xgboost/base.h"            // for bst_feaature_t
-#include "xgboost/span.h"            // for Span
+#include "../common/ref_resource_view.h"  // for MakeFixedVecWithMalloc
+#include "../data/gradient_index.h"       // for GHistIndexMatrix
+#include "io.h"                           // for AlignedResourceReadStream, AlignedFileWriteStream
+#include "xgboost/base.h"                 // for bst_feaature_t
 
 namespace xgboost::common {
 void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_threshold,
