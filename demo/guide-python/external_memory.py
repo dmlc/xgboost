@@ -24,7 +24,7 @@ If `device` is `cuda`, following are also needed:
 - cupy
 - rmm
 - nvidia-ml-py (optional)
-- python-cuda
+- cuda-python
 
 .. seealso::
 

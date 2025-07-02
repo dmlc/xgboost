@@ -37,22 +37,42 @@ class _BitField64:
         return bool(res)
 
 
+def _get_uuid(ordinal: int) -> str:
+    """Construct a string representation of UUID."""
+    from cuda.bindings import runtime as cudart
+
+    status, prop = cudart.cudaGetDeviceProperties(ordinal)
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
+
+    dash_pos = {0, 4, 6, 8, 10}
+    uuid = "GPU"
+
+    for i in range(16):
+        if i in dash_pos:
+            uuid += "-"
+        h = hex(0xFF & int(prop.uuid.bytes[i]))
+        assert h[:2] == "0x"
+        h = h[2:]
+
+        while len(h) < 2:
+            h = "0" + h
+        uuid += h
+    return uuid
+
+
 def _get_ordinal(device: Optional[str]) -> int:
     if device is None:
         device = "cuda"
 
     def current_device() -> int:
         """Get the current GPU ordinal."""
-        try:
-            from cuda.bindings import runtime as cudart
+        from cuda.bindings import runtime as cudart
 
-            status, cur = cudart.cudaGetDevice()
-            if status != cudart.cudaError_t.cudaSuccess:
-                raise RuntimeError(cudart.cudaGetErrorString(status))
-            return cur
-        except ImportError:
-            warnings.warn("Failed to import `cuda`. Use the first device.")
-            return 0
+        status, cur = cudart.cudaGetDevice()
+        if status != cudart.cudaError_t.cudaSuccess:
+            raise RuntimeError(cudart.cudaGetErrorString(status))
+        return cur
 
     split = device.split(":")
     if len(split) == 1:
@@ -67,7 +87,9 @@ def _get_ordinal(device: Optional[str]) -> int:
 
 
 def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
-    """Get optimal affinity using nvml. CUDA-only and requires `nvidia-ml-py`.
+    """Get optimal affinity using `nvidia-ml-py
+    <https://pypi.org/project/nvidia-ml-py/>`__ and `cuda-python
+    <https://nvidia.github.io/cuda-python/latest/>`__. This is CUDA-only.
 
     Parameters
     ----------
@@ -80,7 +102,12 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
     A list of CPU index.
 
     """
-    ordinal = _get_ordinal(device)
+    try:
+        ordinal = _get_ordinal(device)
+        uuid = _get_uuid(ordinal)
+    except ImportError:
+        warnings.warn("Failed to import `cuda`. Please install `cuda-python`.")
+        return []
 
     try:
         import pynvml as nm
@@ -90,7 +117,7 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
 
         nm.nvmlInit()
 
-        hdl = nm.nvmlDeviceGetHandleByIndex(ordinal)
+        hdl = nm.nvmlDeviceGetHandleByUUID(uuid)
         affinity = nm.nvmlDeviceGetCpuAffinity(
             hdl,
             math.ceil(cnt / _MASK_SIZE),
@@ -109,7 +136,9 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
 
 
 def set_device_cpu_affinity(device: Optional[str] = None) -> None:
-    """Set affinity according to nvml. CUDA-only and requires `nvidia-ml-py`.
+    """Set optimal affinity using `nvidia-ml-py
+    <https://pypi.org/project/nvidia-ml-py/>`__ and `cuda-python
+    <https://nvidia.github.io/cuda-python/latest/>`__. This is CUDA-only.
 
     Parameters
     ----------
