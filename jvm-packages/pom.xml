@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost-jvm_2.12</artifactId>
+    <artifactId>xgboost-jvm_2.13</artifactId>
     <version>3.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
@@ -43,15 +43,15 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <flink.version>1.20.0</flink.version>
         <junit.version>4.13.2</junit.version>
-        <spark.version>3.5.3</spark.version>
-        <spark.version.gpu>3.5.1</spark.version.gpu>
+        <spark.version>4.0.1-SNAPSHOT</spark.version>
+        <spark.version.gpu>4.0.1-SNAPSHOT</spark.version.gpu>
         <fasterxml.jackson.version>2.15.0</fasterxml.jackson.version>
-        <scala.version>2.12.18</scala.version>
-        <scala.binary.version>2.12</scala.binary.version>
+        <scala.version>2.13.11</scala.version>
+        <scala.binary.version>2.13</scala.binary.version>
         <hadoop.version>3.4.1</hadoop.version>
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
@@ -89,6 +89,17 @@
             <name>central maven</name>
             <url>https://repo1.maven.org/maven2</url>
         </repository>
+      <repository>
+        <id>apache-snapshots</id>
+        <url>https://repository.apache.org/content/repositories/snapshots/</url>
+        <snapshots>
+          <enabled>true</enabled>
+        </snapshots>
+        <releases>
+          <enabled>false</enabled>
+        </releases>
+      </repository>
+
     </repositories>
     <modules>
     </modules>
