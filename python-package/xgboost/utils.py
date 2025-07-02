@@ -81,7 +81,7 @@ def _get_ordinal(device: Optional[str]) -> int:
         ordinal = int(split[1])
     else:
         raise ValueError(f"Invalid device: {device}")
-    if split[0] != "gpu" and split[0] != "cuda":
+    if split[0] not in {"gpu", "cuda"}:
         raise ValueError(f"Invalid device: {device}")
     return ordinal
 

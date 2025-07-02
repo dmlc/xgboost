@@ -108,6 +108,14 @@ def no_ubjson() -> PytestSkip:
     return no_mod("ubjson")
 
 
+def no_cuda() -> PytestSkip:
+    return no_mod("cuda")
+
+
+def no_pynvml() -> PytestSkip:
+    return no_mod("pynvml")
+
+
 def no_sklearn() -> PytestSkip:
     return no_mod("sklearn")
 
