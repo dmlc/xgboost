@@ -31,7 +31,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
- * Booster for xgboost, this is a model API that support interactive build of an XGBoost Model
+ * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
  */
 public class Booster implements Serializable, KryoSerializable {
   public static final String DEFAULT_FORMAT = "ubj";
@@ -39,9 +39,7 @@ public class Booster implements Serializable, KryoSerializable {
   // handle to the booster.
   private long handle = 0;
   private int version = 0;
-
   /**
-   * This enumeration defines the type of prediction to be made and is used for inplace predictions.
    * Type of prediction, used for inplace_predict.
    */
   public enum PredictionType {
@@ -60,9 +58,9 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Create a new Booster with empty stage.
    *
-   * @param params  Model parameters that are used to build the Booster
-   * @param cacheMats Cached DMatrix entries that help increase the speed of Booster prediction
-   *
+   * @param params  Model parameters
+   * @param cacheMats Cached DMatrix entries,
+   *                  the prediction of these DMatrices will become faster than not-cached data.
    * @throws XGBoostError native error
    */
   Booster(Map<String, Object> params, DMatrix[] cacheMats) throws XGBoostError {
@@ -72,7 +70,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Load a new Booster model from modelPath
-   * @param modelPath model path
+   * @param modelPath The path to the model.
    * @return The created Booster.
    * @throws XGBoostError
    */
@@ -91,7 +89,7 @@ public class Booster implements Serializable, KryoSerializable {
    * This can be used to load existing booster models saved by other xgboost bindings.
    *
    * @param buffer The byte contents of the booster.
-   * @return The created booster.
+   * @return The created boosted
    * @throws XGBoostError
    */
   static Booster loadModel(byte[] buffer) throws XGBoostError {
@@ -142,7 +140,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Get attribute value from the Booster based on the key provided.
+   * Get attribute from the Booster.
    *
    * @param key   attribute key
    * @return attribute value
@@ -155,7 +153,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Set an attribute key-value pair to the Booster.
+   * Set attribute to the Booster.
    *
    * @param key   attribute key
    * @param value attribute value
@@ -166,7 +164,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Set multiple attribute key-value pairs to the Booster.
+   * Set attributes to the Booster.
    *
    * @param attrs attributes key-value map
    * @throws XGBoostError native error
@@ -180,8 +178,8 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Get all the feature names from the Booster.
-   * @return An array of all the feature names.
+   * Get feature names from the Booster.
+   * @return
    * @throws XGBoostError
    */
   public final String[] getFeatureNames() throws XGBoostError {
@@ -194,7 +192,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Set feature names to the Booster.
    *
-   * @param An array of all the feature names.
+   * @param featureNames
    * @throws XGBoostError
    */
   public void setFeatureNames(String[] featureNames) throws XGBoostError {
@@ -204,7 +202,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Get feature types from the Booster.
-   * @return An array of all the feature types.
+   * @return
    * @throws XGBoostError
    */
   public final String[] getFeatureTypes() throws XGBoostError {
@@ -216,7 +214,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Set feature types to the Booster.
-   * @param An array of all the feature types.
+   * @param featureTypes
    * @throws XGBoostError
    */
   public void setFeatureTypes(String[] featureTypes) throws XGBoostError {
@@ -243,7 +241,7 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Update with customize object functon
+   * Update with customize obj func
    *
    * @param dtrain training data
    * @param iter   The current training iteration.
@@ -280,12 +278,12 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Evaluate the Booster model with given dmatrixs.
+   * evaluate with given dmatrixs.
    *
    * @param evalMatrixs dmatrixs for evaluation
    * @param evalNames   name for eval dmatrixs, used for check results
    * @param iter        current eval iteration
-   * @return eval Information containing the evaluation results
+   * @return eval information
    * @throws XGBoostError native error
    */
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, int iter) throws XGBoostError {
@@ -297,13 +295,13 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Evaluate the Booster model with given dmatrixs.
+   * evaluate with given dmatrixs.
    *
    * @param evalMatrixs dmatrixs for evaluation
    * @param evalNames   name for eval dmatrixs, used for check results
    * @param iter        current eval iteration
    * @param metricsOut  output array containing the evaluation metrics for each evalMatrix
-   * @return eval Information containing the evaluation results
+   * @return eval information
    * @throws XGBoostError native error
    */
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, int iter, float[] metricsOut)
@@ -324,12 +322,12 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Evaluate the Booster model given customized Evaluation class
+   * evaluate with given customized Evaluation class
    *
    * @param evalMatrixs evaluation matrix
    * @param evalNames   evaluation names
    * @param eval        custom evaluator
-   * @return eval Information containing the evaluation results
+   * @return eval information
    * @throws XGBoostError native error
    */
   public String evalSet(DMatrix[] evalMatrixs, String[] evalNames, IEvaluation eval)
@@ -353,14 +351,14 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * An advanced prediction function with all the options.
+   * Advanced predict function with all the options.
    *
-   * @param data         the test data for which prodictions are to be made
+   * @param data         data
    * @param outputMargin output margin
    * @param treeLimit    limit number of trees, 0 means all trees.
    * @param predLeaf     prediction minimum to keep leafs
    * @param predContribs prediction feature contributions
-   * @return predict two dimensional array of results, where each row corresponds to a prediction.
+   * @return predict results
    */
   private synchronized float[][] predict(DMatrix data,
                                          boolean outputMargin,
@@ -508,10 +506,10 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Make a prediction with test data in a DMatrix format.
+   * Predict with data
    *
-   * @param data dmatrix storing the test input on which predictions are to be made
-   * @return predict The results of the prediction, where each row corresponds to a prediction.
+   * @param data dmatrix storing the input
+   * @return predict result
    * @throws XGBoostError native error
    */
   public float[][] predict(DMatrix data) throws XGBoostError {
@@ -519,11 +517,11 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Make a prediction with test data in a DMatrix format and output margin.
+   * Predict with data
    *
-   * @param data  dmatrix storing the test input on which predictions are to be made
+   * @param data  data
    * @param outputMargin output margin
-   * @return predict The results of the prediction, where each row corresponds to a prediction.
+   * @return predict results
    */
   public float[][] predict(DMatrix data, boolean outputMargin) throws XGBoostError {
     return this.predict(data, outputMargin, 0, false, false);
@@ -532,10 +530,10 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Advanced predict function with all the options.
    *
-   * @param data         matrix storing the test input on which predictions are to be made
+   * @param data         data
    * @param outputMargin output margin
    * @param treeLimit    limit number of trees, 0 means all trees.
-   * @return predict The results of the prediction, where each row corresponds to a prediction.
+   * @return predict results
    */
   public float[][] predict(DMatrix data, boolean outputMargin, int treeLimit) throws XGBoostError {
     return this.predict(data, outputMargin, treeLimit, false, false);
@@ -581,25 +579,14 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Get the dump of the model as a string array
    *
-   * @param featureMap A string containing the path to a feature map.
    * @param withStats Controls whether the split statistics are output.
-   * @return The dumped model information
+   * @return dumped model information
    * @throws XGBoostError native error
    */
   public String[] getModelDump(String featureMap, boolean withStats) throws XGBoostError {
     return getModelDump(featureMap, withStats, "text");
   }
 
-  /**
-   * Get the dump of the model as a string array with specified feature map, stats,
-   * and the specified format.
-   *
-   * @param featureMap A string containing the path to a feature map.
-   * @param withStats Controls whether the split statistics are output.
-   * @param format The format in which the model is dumped (text, json, ubj).
-   * @return The dumped model information
-   * @throws XGBoostError
-   */
   public String[] getModelDump(String featureMap, boolean withStats, String format)
          throws XGBoostError {
     int statsFlag = 0;
@@ -629,16 +616,6 @@ public class Booster implements Serializable, KryoSerializable {
     return getModelDump(featureNames, withStats, "text");
   }
 
-  /**
-   * Get the dump of the model as a string array with specified feature map, stats,
-   * and the specified format.
-   *
-   * @param featureMap An array of strings containing the feature names.
-   * @param withStats Controls whether the split statistics are output.
-   * @param format The format in which the model is dumped (text, json, ubj).
-   * @return The dumped model information
-   * @throws XGBoostError
-   */
   public String[] getModelDump(String[] featureNames, boolean withStats, String format)
       throws XGBoostError {
     int statsFlag = 0;
