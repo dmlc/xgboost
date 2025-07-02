@@ -89,13 +89,13 @@ def _get_ordinal(device: Optional[str]) -> int:
 def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
     """Get optimal affinity using `nvidia-ml-py
     <https://pypi.org/project/nvidia-ml-py/>`__ and `cuda-python
-    <https://nvidia.github.io/cuda-python/latest/>`__. This is CUDA-only.
+    <https://nvidia.github.io/cuda-python/latest/>`__. This is Linux-only.
 
     Parameters
     ----------
     device :
-        CUDA device. Same as the `device` parameter for the :py:class:`xgboost.Booster`
-        and the :py:class:`XGBRegressor`.
+        CUDA device. Same as the `device` parameter for the
+        :py:class:`~xgboost.XGBRegressor`. Only `cuda` and `gpu` is supported.
 
     Returns
     -------
@@ -138,13 +138,13 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
 def set_device_cpu_affinity(device: Optional[str] = None) -> None:
     """Set optimal affinity using `nvidia-ml-py
     <https://pypi.org/project/nvidia-ml-py/>`__ and `cuda-python
-    <https://nvidia.github.io/cuda-python/latest/>`__. This is CUDA-only.
+    <https://nvidia.github.io/cuda-python/latest/>`__. This is Linux-only.
 
     Parameters
     ----------
     device :
-        CUDA device. Same as the `device` parameter for the :py:class:`xgboost.Booster`
-        and the :py:class:`XGBRegressor`.
+        CUDA device. Same as the `device` parameter for the
+        :py:class:`~xgboost.XGBRegressor`. Only `cuda` and `gpu` is supported.
 
     """
     cpus = get_device_cpu_affinity(device)
