@@ -86,7 +86,7 @@ def _get_ordinal(device: Optional[str]) -> int:
     return ordinal
 
 
-def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
+def get_device_cpu_affinity(device: Optional[str] = None) -> List[int]:
     """Get optimal affinity using `nvidia-ml-py
     <https://pypi.org/project/nvidia-ml-py/>`__ and `cuda-python
     <https://nvidia.github.io/cuda-python/latest/>`__. This is Linux-only.
@@ -95,7 +95,8 @@ def get_device_cpu_affinity(device: Optional[str]) -> List[int]:
     ----------
     device :
         CUDA device. Same as the `device` parameter for the
-        :py:class:`~xgboost.XGBRegressor`. Only `cuda` and `gpu` is supported.
+        :py:class:`~xgboost.XGBRegressor`. Only `cuda` and `gpu` is supported. Use the
+        current device if input is None.
 
     Returns
     -------
@@ -144,7 +145,8 @@ def set_device_cpu_affinity(device: Optional[str] = None) -> None:
     ----------
     device :
         CUDA device. Same as the `device` parameter for the
-        :py:class:`~xgboost.XGBRegressor`. Only `cuda` and `gpu` is supported.
+        :py:class:`~xgboost.XGBRegressor`. Only `cuda` and `gpu` is supported. Use the
+        current device if input is None.
 
     """
     cpus = get_device_cpu_affinity(device)

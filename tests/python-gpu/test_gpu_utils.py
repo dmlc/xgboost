@@ -10,7 +10,7 @@ def test_get_cpu_affinity() -> None:
     assert cpus
     cpus = get_device_cpu_affinity("cuda")
     assert cpus
-    cpus = get_device_cpu_affinity(None)
+    cpus = get_device_cpu_affinity()
     assert cpus
 
     with pytest.raises(ValueError, match="Invalid device"):
