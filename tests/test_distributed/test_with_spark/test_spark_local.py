@@ -1324,8 +1324,6 @@ class TestPySparkLocal:
             label_col="label",
             validation_indicator_col="isVal",
         )
-        # Use Exception here since spark might return a py4j error instead of specific
-        # exception.
         with pytest.raises(TypeError, match="The validation indicator must be boolean"):
             reg.fit(df_train)
 
