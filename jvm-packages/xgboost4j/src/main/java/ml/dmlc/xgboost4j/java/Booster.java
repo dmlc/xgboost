@@ -633,7 +633,7 @@ public class Booster implements Serializable, KryoSerializable {
    * Get the dump of the model as a string array with specified feature map, stats,
    * and the specified format.
    *
-   * @param featureMap An array of strings containing the feature names.
+   * @param featureNames An array of strings containing the feature names.
    * @param withStats Controls whether the split statistics are output.
    * @param format The format in which the model is dumped (text, json, ubj).
    * @return The dumped model information
