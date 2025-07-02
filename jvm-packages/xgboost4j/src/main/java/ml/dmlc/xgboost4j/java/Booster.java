@@ -216,7 +216,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Set feature types to the Booster.
-   * @param An array of all the feature types.
+   * @param featureTypes An array of all the feature types.
    * @throws XGBoostError
    */
   public void setFeatureTypes(String[] featureTypes) throws XGBoostError {
