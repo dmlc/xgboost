@@ -23,12 +23,14 @@ If `device` is `cuda`, following are also needed:
 
 - cupy
 - rmm
-- nvidia-ml-py (optional)
 - cuda-python
 
 .. seealso::
 
   :ref:`sphx_glr_python_examples_distributed_extmem_basic.py`
+
+Not shown in this example, but you should pay attention to NUMA configuration as
+discussed in the tutorial.
 
 """
 

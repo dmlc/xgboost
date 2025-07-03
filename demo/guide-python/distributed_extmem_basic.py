@@ -14,8 +14,10 @@ If `device` is `cuda`, following are also needed:
 
 - cupy
 - rmm
-- nvidia-ml-py (optional)
 - cuda-python
+
+Not shown in this example, but you should pay attention to NUMA configuration as
+discussed in the tutorial.
 
 """
 
