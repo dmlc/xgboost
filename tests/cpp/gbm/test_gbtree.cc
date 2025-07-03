@@ -46,10 +46,10 @@ TEST(GBTree, SelectTreeMethod) {
   ASSERT_EQ(tparam.updater_seq, "grow_quantile_histmaker");
 
 #ifdef XGBOOST_USE_CUDA
-  ctx.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
-  gbtree.Configure({{"tree_method", "gpu_hist"}});
+  ctx.UpdateAllowUnknown(Args{{"device", "cuda"}});
+  gbtree.Configure({{"tree_method", "hist"}});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");
-  gbtree.Configure({{"booster", "dart"}, {"tree_method", "gpu_hist"}});
+  gbtree.Configure({{"booster", "dart"}, {"tree_method", "hist"}});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");
 #endif  // XGBOOST_USE_CUDA
 }
@@ -128,7 +128,7 @@ TEST(GBTree, ChoosePredictor) {
   p_dmat->Info().labels.Reshape(kRows);
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
-  learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
+  learner->SetParams(Args{{"tree_method", "hist"}, {"device", "cuda"}});
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
   }
@@ -146,7 +146,7 @@ TEST(GBTree, ChoosePredictor) {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
     learner->Load(fi.get());
   }
-  learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
+  learner->SetParams(Args{{"tree_method", "hist"}, {"device", "cuda"}});
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
   }
@@ -162,7 +162,7 @@ TEST(GBTree, ChoosePredictor) {
 
   // another new learner
   learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
-  learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
+  learner->SetParams(Args{{"tree_method", "hist"}, {"device", "cuda"}});
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
   }
@@ -183,11 +183,7 @@ TEST(GBTree, ChooseTreeMethod) {
     }
     if (device.has_value()) {
       auto const& d = device.value();
-      if (std::isdigit(d.front()) || d.front() == '-') {
-        learner->SetParam("gpu_id", d);
-      } else {
-        learner->SetParam("device", d);
-      }
+      learner->SetParam("device", d);
     }
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
@@ -207,11 +203,7 @@ TEST(GBTree, ChooseTreeMethod) {
     }
     if (device.has_value()) {
       auto const& d = device.value();
-      if (std::isdigit(d.front()) || d.front() == '-') {
-        learner->SetParam("gpu_id", d);
-      } else {
-        learner->SetParam("device", d);
-      }
+      learner->SetParam("device", d);
     }
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
@@ -249,29 +241,21 @@ TEST(GBTree, ChooseTreeMethod) {
   std::map<std::pair<std::optional<std::string>, std::optional<std::string>>, std::string>
       expectation{
           // hist
-          {{"hist", "-1"}, "grow_quantile_histmaker"},
-          {{"hist", "0"}, "grow_gpu_hist"},
           {{"hist", "cpu"}, "grow_quantile_histmaker"},
           {{"hist", "cuda"}, "grow_gpu_hist"},
           {{"hist", "cuda:0"}, "grow_gpu_hist"},
           {{"hist", std::nullopt}, "grow_quantile_histmaker"},
           // gpu_hist
-          {{"gpu_hist", "-1"}, "grow_gpu_hist"},
-          {{"gpu_hist", "0"}, "grow_gpu_hist"},
           {{"gpu_hist", "cpu"}, "grow_gpu_hist"},
           {{"gpu_hist", "cuda"}, "grow_gpu_hist"},
           {{"gpu_hist", "cuda:0"}, "grow_gpu_hist"},
           {{"gpu_hist", std::nullopt}, "grow_gpu_hist"},
           // exact
-          {{"exact", "-1"}, "grow_colmaker,prune"},
-          {{"exact", "0"}, "err"},
           {{"exact", "cpu"}, "grow_colmaker,prune"},
           {{"exact", "cuda"}, "err"},
           {{"exact", "cuda:0"}, "err"},
           {{"exact", std::nullopt}, "grow_colmaker,prune"},
           // NA
-          {{std::nullopt, "-1"}, "grow_quantile_histmaker"},
-          {{std::nullopt, "0"}, "grow_gpu_hist"},  // default to hist
           {{std::nullopt, "cpu"}, "grow_quantile_histmaker"},
           {{std::nullopt, "cuda"}, "grow_gpu_hist"},
           {{std::nullopt, "cuda:0"}, "grow_gpu_hist"},

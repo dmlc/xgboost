@@ -416,7 +416,7 @@ if(JVM_BINDINGS)
   xgboost_target_defs(xgboost4j)
 endif()
 
-if(USE_OPENMP AND APPLE)
+if(USE_OPENMP AND APPLE AND NOT BUILD_STATIC_LIB)
   patch_openmp_path_macos(xgboost libxgboost)
 endif()
 

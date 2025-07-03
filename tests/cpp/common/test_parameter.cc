@@ -1,10 +1,11 @@
-/*!
- * Copyright (c) by Contributors 2019
+/**
+ * Copyright 2019-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
-
 #include <xgboost/base.h>
 #include <xgboost/parameter.h>
+
+#include "xgboost/json.h"  // for ToJson, FromJson
 
 enum class Foo : int {
   kBar = 0, kFrog = 1, kCat = 2, kDog = 3
@@ -103,3 +104,16 @@ TEST(XGBoostParameter, Update) {
   a.UpdateAllowUnknown(xgboost::Args{{"f", "2.71828"}});
   ASSERT_NE(a.f, b.f);
 }
+namespace xgboost {
+TEST(XGBoostParameter, Json) {
+  UpdatableParam a, b;
+  a.UpdateAllowUnknown(Args{{"f", "1024"}, {"d", "2048"}});
+  auto ja = Json{ToJson(a)};
+
+  UpdatableParam c;
+  FromJson(ja, &c);
+  ASSERT_FLOAT_EQ(a.f, 1024);
+  ASSERT_FLOAT_EQ(c.f, 1024);
+  ASSERT_FLOAT_EQ(b.f, 0);  // Make sure dmlc global variable is not used here.
+}
+}  // namespace xgboost

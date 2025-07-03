@@ -87,8 +87,6 @@ void WarnDeprecatedGPUHist();
 
 void WarnManualUpdater();
 
-void WarnDeprecatedGPUId();
-
 void WarnEmptyDataset();
 
 [[nodiscard]] std::string DeprecatedFunc(StringView old, StringView since, StringView replacement);

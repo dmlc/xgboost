@@ -45,5 +45,6 @@ print("GPU Training Time: %s seconds" % (str(time.time() - start)))
 # Repeat for CPU algorithm
 clf = xgb.XGBClassifier(device="cpu", n_estimators=num_round)
 start = time.time()
+clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
 cpu_res = clf.evals_result()
 print("CPU Training Time: %s seconds" % (str(time.time() - start)))
