@@ -158,10 +158,6 @@ class GradientBooster : public Model, public Configurable {
                             common::Span<int32_t const> trees,
                             std::vector<bst_feature_t>* features,
                             std::vector<float>* scores) const = 0;
-  /**
-   * @brief Whether the current booster uses GPU.
-   */
-  [[nodiscard]] virtual bool UseGPU() const = 0;
   /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster

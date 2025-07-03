@@ -62,11 +62,6 @@ std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) 
     case TreeMethod::kExact:
       CHECK(ctx->IsCPU()) << "The `exact` tree method is not supported on GPU.";
       return "grow_colmaker,prune";
-    case TreeMethod::kGPUHist: {
-      common::AssertGPUSupport();
-      error::WarnDeprecatedGPUHist();
-      return "grow_gpu_hist";
-    }
     default:
       auto tm = static_cast<std::underlying_type_t<TreeMethod>>(tree_method);
       LOG(FATAL) << "Unknown tree_method: `" << tm << "`.";
@@ -356,20 +351,6 @@ void GBTree::LoadConfig(Json const& in) {
   // e.g. updating a model, then saving and loading it would result in an empty model
   tparam_.process_type = TreeProcessType::kDefault;
   std::int32_t const n_gpus = curt::AllVisibleGPUs();
-
-  auto msg = StringView{
-      R"(
-  Loading from a raw memory buffer (like pickle in Python, RDS in R) on a CPU-only
-  machine. Consider using `save_model/load_model` instead. See:
-
-    https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-  for more details about differences between saving model and serializing.)"};
-
-  if (n_gpus == 0 && tparam_.tree_method == TreeMethod::kGPUHist) {
-    tparam_.UpdateAllowUnknown(Args{{"tree_method", "hist"}});
-    LOG(WARNING) << msg << "  Changing `tree_method` to `hist`.";
-  }
 
   std::vector<Json> updater_seq;
   if (IsA<Object>(in["updater"])) {

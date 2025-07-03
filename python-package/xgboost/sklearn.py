@@ -84,7 +84,7 @@ def _check_rf_callback(
 
 def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     not_sycl = (device is None) or (not device.startswith("sycl"))
-    return tree_method in ("hist", "gpu_hist", None, "auto") and not_sycl
+    return tree_method in ("hist", None, "auto") and not_sycl
 
 
 class _SklObjWProto(Protocol):
