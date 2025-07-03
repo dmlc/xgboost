@@ -16,17 +16,6 @@ estimation:
     reg = xgb.XGBRegressor()
     reg.set_params(base_score=0.5)
 
-.. code-block:: r
-
-    library(xgboost)
-
-    # Using the high-level interface (when available)
-    # reg <- xgb.XGBRegressor(base_score = 0.5)
-
-    # Using the low-level interface
-    params <- list(base_score = 0.5)
-    # Use params in xgb.train()
-
 In addition, here 0.5 represents the value after applying the inverse link function. See
 the end of the document for a description.
 
