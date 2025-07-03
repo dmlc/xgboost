@@ -112,14 +112,6 @@ dataframe input:
   # Must use JSON for serialization, otherwise the information is lost
   booster.save_model("categorical-model.json")
 
-.. code:: r
-
-  # X is a data.frame with factor columns for categorical features
-  Xy <- xgb.DMatrix(X, label = y, enable_categorical = TRUE)
-  booster <- xgb.train(list(tree_method = "hist", max_cat_to_onehot = 5), Xy)
-  # Must use JSON for serialization, otherwise the information is lost
-  xgb.save(booster, "categorical-model.json")
-
 SHAP value computation:
 
 .. code:: python
@@ -128,13 +120,6 @@ SHAP value computation:
 
   # categorical features are listed as "c"
   print(booster.feature_types)
-
-.. code:: r
-
-  SHAP <- predict(booster, Xy, predinteraction = TRUE)
-
-  # categorical features are listed as "c"
-  print(xgb.feature.info(booster)$feature_type)
 
 For other types of input, like ``numpy array``, we can tell XGBoost about the feature
 types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatrix>`:
@@ -146,14 +131,6 @@ types by using the ``feature_types`` parameter in :class:`DMatrix <xgboost.DMatr
   X: np.ndarray = load_my_data()
   assert X.shape[1] == 3
   Xy = xgb.DMatrix(X, y, feature_types=ft, enable_categorical=True)
-
-.. code:: r
-
-  # "q" is numerical feature, while "c" is categorical feature
-  ft <- c("q", "c", "c")
-  X <- load_my_data()  # matrix or data.frame
-  stopifnot(ncol(X) == 3)
-  Xy <- xgb.DMatrix(X, label = y, feature_types = ft, enable_categorical = TRUE)
 
 For numerical data, the feature type can be ``"q"`` or ``"float"``, while for categorical
 feature it's specified as ``"c"``.  The Dask module in XGBoost has the same interface so
