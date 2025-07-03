@@ -261,7 +261,7 @@ private[spark] trait XGBoostEstimator[
           // To make "0" meaningful, we convert sparse vector if possible to dense.
           features.toArray.map(_.toFloat)
       }
-      XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
+      new XGBLabeledPoint(label, values.length, null, values, weight, group, baseMargin)
     }
   }
 
@@ -655,7 +655,7 @@ private[spark] trait XGBoostModel[M <: XGBoostModel[M]] extends Model[M] with ML
                 }
               case _ => throw new RuntimeException("Unsupported feature type")
             }
-            XGBLabeledPoint(0.0f, values.size, null, values)
+            new XGBLabeledPoint(0.0f, values.size, null, values)
           }
         })
         // DMatrix used to prediction

@@ -52,9 +52,9 @@ private[scala] object Utils {
     // TODO support sparsevector
     def asXGB: XGBLabeledPoint = v match {
       case v: DenseVector =>
-        XGBLabeledPoint(0.0f, v.size, null, v.values.map(_.toFloat))
+        new XGBLabeledPoint(0.0f, v.size, null, v.values.map(_.toFloat))
       case v: SparseVector =>
-        XGBLabeledPoint(0.0f, v.size, v.indices, v.toDense.values.map(_.toFloat))
+        new XGBLabeledPoint(0.0f, v.size, v.indices, v.toDense.values.map(_.toFloat))
     }
   }
 
