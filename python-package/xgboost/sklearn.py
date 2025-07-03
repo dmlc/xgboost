@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
+import collections
 import copy
 import json
 import os
@@ -432,7 +433,7 @@ __model_doc = f"""
         - ``one_output_per_tree``: One model for each target.
         - ``multi_output_tree``:  Use multi-target trees.
 
-    eval_metric : {Optional[Union[str, List[str], Callable]]}
+    eval_metric : {Optional[Union[str, List[Union[str, Callable]], Callable]]}
 
         .. versionadded:: 1.6.0
 
@@ -763,7 +764,7 @@ class XGBModel(XGBModelBase):
         max_cat_to_onehot: Optional[int] = None,
         max_cat_threshold: Optional[int] = None,
         multi_strategy: Optional[str] = None,
-        eval_metric: Optional[Union[str, List[str], Callable]] = None,
+        eval_metric: Optional[Union[str, List[Union[str, Callable]], Callable]] = None,
         early_stopping_rounds: Optional[int] = None,
         callbacks: Optional[List[TrainingCallback]] = None,
         **kwargs: Any,
@@ -1103,14 +1104,42 @@ class XGBModel(XGBModelBase):
 
         # - configure callable evaluation metric
         metric: Optional[Metric] = None
+
+        def custom_metric(m: Callable) -> Metric:
+            if self._get_type() == "ranker":
+                wrapped = ltr_metric_decorator(m, self.n_jobs)
+            else:
+                wrapped = _metric_decorator(m)
+            return wrapped
+
+        def invalid_type(m: Any) -> None:
+            msg = f"Invalid type for the `eval_metric`: {type(m)}"
+            raise TypeError(msg)
+
         if self.eval_metric is not None:
             if callable(self.eval_metric):
-                if self._get_type() == "ranker":
-                    metric = ltr_metric_decorator(self.eval_metric, self.n_jobs)
-                else:
-                    metric = _metric_decorator(self.eval_metric)
-            else:
+                metric = custom_metric(self.eval_metric)
+            elif isinstance(self.eval_metric, str):
                 params.update({"eval_metric": self.eval_metric})
+            else:
+                # A sequence of metrics
+                if not isinstance(self.eval_metric, collections.abc.Sequence):
+                    invalid_type(self.eval_metric)
+                # Could be a list of strings or callables
+                builtin_metrics: List[str] = []
+                for m in self.eval_metric:
+                    if callable(m):
+                        if metric is not None:
+                            raise NotImplementedError(
+                                "Using multiple custom metrics is not yet supported."
+                            )
+                        metric = custom_metric(m)
+                    elif isinstance(m, str):
+                        builtin_metrics.append(m)
+                    else:
+                        invalid_type(m)
+                if builtin_metrics:
+                    params.update({"eval_metric": builtin_metrics})
 
         if feature_weights is not None:
             _deprecated("feature_weights")
