@@ -306,7 +306,7 @@ To obtain the node ID, you can check the machine topology via ``nvidia-smi``:
 The column ``NUMA Affinity`` lists the NUMA node ID for each GPU. In the example output
 shown below, the `GPU0` is associated with the `0` node ID::
 
-	    GPU0    GPU1    NIC0    NIC1    NIC2    NIC3    CPU Affinity    NUMA Affinity   GPU NUMA ID
+            GPU0    GPU1    NIC0    NIC1    NIC2    NIC3    CPU Affinity    NUMA Affinity   GPU NUMA ID
     GPU0     X      NV18    NODE    NODE    NODE    SYS     0-71            0               2
     GPU1    NV18     X      SYS     SYS     SYS     NODE    72-143          1               10
     NIC0    NODE    SYS      X      PIX     NODE    SYS
