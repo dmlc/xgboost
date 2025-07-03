@@ -23,11 +23,14 @@ If `device` is `cuda`, following are also needed:
 
 - cupy
 - rmm
-- python-cuda
+- cuda-python
 
 .. seealso::
 
   :ref:`sphx_glr_python_examples_distributed_extmem_basic.py`
+
+Not shown in this example, but you should pay attention to NUMA configuration as
+discussed in the tutorial.
 
 """
 
@@ -44,7 +47,7 @@ import xgboost
 
 def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
-    from cuda import cudart
+    import cuda.bindings.runtime as cudart
 
     status, free, total = cudart.cudaMemGetInfo()
     if status != cudart.cudaError_t.cudaSuccess:

@@ -2,6 +2,13 @@
 Using XGBoost External Memory Version
 #####################################
 
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
+
+
 ********
 Overview
 ********
@@ -39,12 +46,6 @@ introduce the difference between CPU and GPU in the following sections.
 
 The external memory support has undergone multiple development iterations. See below
 sections for a brief history.
-
-**Contents**
-
-.. contents::
-  :backlinks: none
-  :local:
 
 
 *************
@@ -273,6 +274,56 @@ with version ``>=565.47`` is required, it should come with CTK 12.7 and later
 versions. Lastly, there's a known issue with Linux 6.11 that can lead to CUDA host memory
 allocation failure with an ``invalid argument`` error.
 
+================================
+Non-Uniform Memory Access (NUMA)
+================================
+
+On multi-socket systems, `NUMA
+<https://en.wikipedia.org/wiki/Non-uniform_memory_access>`__ helps optimize data access by
+prioritizing memory that is local to each socket.  On these systems, it's essential to set
+the correct affinity to reduce the overhead of cross-socket data access. Since the out of
+core training stages the data cache on the host and trains the model using a GPU, the
+training performance is particularly sensitive to the data read bandwidth. To provide some
+context, on a GB200 machine, accessing the wrong NUMA node from a GPU can reduce the C2C
+bandwidth by half. Even if you are not using distributed training, you should still pay
+attention to NUMA control since there's no guarantee that your process will have the
+correct configuration.
+
+We have tested two approaches of NUMA configuration. The first (and recommended) way is to
+use the ``numactl`` command line available on Linux distributions:
+
+.. code-block:: sh
+
+    numactl --membind=${NODEID} --cpunodebind=${NODEID} ./myapp
+
+
+To obtain the node ID, you can check the machine topology via ``nvidia-smi``:
+
+.. code-block:: sh
+
+    nvidia-smi topo -m
+
+The column ``NUMA Affinity`` lists the NUMA node ID for each GPU. In the example output
+shown below, the `GPU0` is associated with the `0` node ID::
+
+            GPU0    GPU1    NIC0    NIC1    NIC2    NIC3    CPU Affinity    NUMA Affinity   GPU NUMA ID
+    GPU0     X      NV18    NODE    NODE    NODE    SYS     0-71            0               2
+    GPU1    NV18     X      SYS     SYS     SYS     NODE    72-143          1               10
+    NIC0    NODE    SYS      X      PIX     NODE    SYS
+    NIC1    NODE    SYS     PIX      X      NODE    SYS
+    NIC2    NODE    SYS     NODE    NODE     X      SYS
+    NIC3    SYS     NODE    SYS     SYS     SYS      X
+
+Another approach is to use the CPU affinity. The `dask-cuda
+<https://github.com/rapidsai/dask-cuda>`__ project configures optimal CPU affinity for the
+Dask interface through using the `nvml` library in addition to the Linux sched
+routines. This can help guide the memory allocation policy but does not enforce it. As a
+result, when the memory is under pressure, the OS can allocate memory on different NUMA
+nodes. On the other hand, it's easier to use since launchers like
+:py:class:`~dask_cuda.LocalCUDACluster` have already integrated the solution.
+
+We use the first approach for benchmarks as it has better enforcement.
+
 ********************
 Distributed Training
 ********************
@@ -431,7 +482,8 @@ undergone multiple development iterations. Here's a brief summary of major chang
   objectives support.
 - In addition, we begin support for distributed training in 3.0
 - 3.1 added support for having divided cache pages. One can have part of a cache page in
-  the GPU and the rest of the cache in the host memory.
+  the GPU and the rest of the cache in the host memory. In addition, XGBoost works with
+  the Grace Blackwell hardware decompression engine when data is sparse.
 
 ****************
 Text File Inputs
