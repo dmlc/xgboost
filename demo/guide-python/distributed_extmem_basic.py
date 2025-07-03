@@ -37,7 +37,6 @@ from sklearn.datasets import make_regression
 import xgboost
 from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
-from xgboost.utils import set_device_cpu_affinity
 
 
 def device_mem_total() -> int:
@@ -220,15 +219,10 @@ def main(tmpdir: str, args: argparse.Namespace) -> None:
             lop, sidx = mp.current_process().name.split("-")
             idx = int(sidx) - 1  # 1-based indexing from loky
             # Assuming two workers for demo.
-            ordinals = [idx, (idx + 1) % n_workers]
-            devices = ",".join(map(str, ordinals))
+            devices = ",".join([str(idx), str((idx + 1) % n_workers)])
             # P0: CUDA_VISIBLE_DEVICES=0,1
             # P1: CUDA_VISIBLE_DEVICES=1,0
             os.environ["CUDA_VISIBLE_DEVICES"] = devices
-            # Must follow the environment configuration as XGBoost uses the CUDA device
-            # enumeration. Do not call any CUDA-related method until the environment
-            # variable is set.
-            set_device_cpu_affinity()
             setup_rmm()
 
     with get_reusable_executor(
