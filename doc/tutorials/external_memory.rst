@@ -140,22 +140,6 @@ the :py:class:`~xgboost.ExtMemQuantileDMatrix` constructor:
   Xy = xgboost.DMatrix(it)
   booster = xgboost.train({"tree_method": "approx"}, Xy)
 
-.. code-block:: r
-
-  # Note: R interface for external memory is more limited than Python
-  # For large datasets, consider using the built-in file reading capabilities
-  
-  # Example using multiple files (simplified approach)
-  # Load data in chunks
-  file_paths <- c("file_0.csv", "file_1.csv", "file_2.csv")
-  
-  # For external memory in R, you typically need to process data in chunks
-  # and use techniques like cross-validation splits or iterative training
-  
-  # Simple example with large files:
-  # dtrain <- xgb.DMatrix("large_file.libsvm")  # For libsvm format
-  # booster <- xgb.train(list(tree_method = "hist"), dtrain)
-
 The above snippet is a simplified version of :ref:`sphx_glr_python_examples_external_memory.py`.
 For an example in C, please see ``demo/c-api/external-memory/``. The iterator is the
 common interface for using external memory with XGBoost, you can pass the resulting
