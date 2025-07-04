@@ -90,6 +90,30 @@ namely prediction and labels.  For implementing ``SLE``, we define:
         hess = hessian(predt, dtrain)
         return grad, hess
 
+.. code-block:: r
+
+    library(xgboost)
+
+    gradient <- function(predt, dtrain) {
+        # Compute the gradient squared log error.
+        y <- getinfo(dtrain, "label")
+        return((log1p(predt) - log1p(y)) / (predt + 1))
+    }
+
+    hessian <- function(predt, dtrain) {
+        # Compute the hessian for squared log error.
+        y <- getinfo(dtrain, "label")
+        return((-log1p(predt) + log1p(y) + 1) / (predt + 1)^2)
+    }
+
+    squared_log <- function(predt, dtrain) {
+        # Squared Log Error objective. A simplified version for RMSLE used as
+        # objective function.
+        predt[predt < -1] <- -1 + 1e-6
+        grad <- gradient(predt, dtrain)
+        hess <- hessian(predt, dtrain)
+        return(list(grad = grad, hess = hess))
+    }
 
 In the above code snippet, ``squared_log`` is the objective function we want.  It accepts a
 numpy array ``predt`` as model prediction, and the training DMatrix for obtaining required
@@ -103,6 +127,13 @@ a callback function for XGBoost during training by passing it as an argument to
               dtrain=dtrain,
               num_boost_round=10,
               obj=squared_log)
+
+.. code-block:: r
+
+   xgb.train(list(tree_method = 'hist', seed = 1994),  # any other tree method is fine.
+             data = dtrain,
+             nrounds = 10,
+             obj = squared_log)
 
 Notice that in our definition of the objective, whether we subtract the labels from the
 prediction or the other way around is important.  If you find the training error goes up
@@ -126,6 +157,16 @@ monitor our model's performance.  As mentioned above, the default metric for ``S
         elements = np.power(np.log1p(y) - np.log1p(predt), 2)
         return 'PyRMSLE', float(np.sqrt(np.sum(elements) / len(y)))
 
+.. code-block:: r
+
+    rmsle <- function(predt, dtrain) {
+        # Root mean squared log error metric.
+        y <- getinfo(dtrain, "label")
+        predt[predt < -1] <- -1 + 1e-6
+        elements <- (log1p(y) - log1p(predt))^2
+        return(list("RRMSLE", sqrt(sum(elements) / length(y))))
+    }
+
 Since we are demonstrating in Python, the metric or objective need not be a function, any
 callable object should suffice.  Similar to the objective function, our metric also
 accepts ``predt`` and ``dtrain`` as inputs, but returns the name of the metric itself and
@@ -142,6 +183,17 @@ a floating point value as the result.  After passing it into XGBoost as argument
               custom_metric=rmsle,
               evals=[(dtrain, 'dtrain'), (dtest, 'dtest')],
               evals_result=results)
+
+.. code-block:: r
+
+    xgb.train(list(tree_method = 'hist', seed = 1994,
+                   disable_default_eval_metric = 1),
+              data = dtrain,
+              nrounds = 10,
+              obj = squared_log,
+              feval = rmsle,
+              watchlist = list(dtrain = dtrain, dtest = dtest),
+              evals_result = results)
 
 We will be able to see XGBoost printing something like:
 
@@ -209,6 +261,30 @@ metric functions implementing the same underlying metric for comparison,
         errors[y != out] = 1.0
         return 'PyMError', np.sum(errors) / dtrain.num_row()
 
+.. code-block:: r
+
+    library(xgboost)
+
+    merror_with_transform <- function(predt, dtrain) {
+        # Used when custom objective is supplied.
+        y <- getinfo(dtrain, "label")
+        n_classes <- length(predt) / nrow(dtrain)
+        # Like custom objective, the predt is untransformed leaf weight when custom objective
+        # is provided.
+
+        # With the use of `feval` parameter in train function, custom metric receives
+        # raw input only when custom objective is also being used.  Otherwise custom metric
+        # will receive transformed prediction.
+        stopifnot(length(predt) == nrow(dtrain) * n_classes)
+        predt_mat <- matrix(predt, nrow = nrow(dtrain), ncol = n_classes, byrow = TRUE)
+        out <- apply(predt_mat, 1, which.max) - 1  # R is 1-indexed, adjust to 0-indexed
+
+        stopifnot(length(y) == length(out))
+
+        errors <- as.numeric(y != out)
+        return(list('RMError', sum(errors) / nrow(dtrain)))
+    }
+
 The above function is only needed when we want to use custom objective and XGBoost doesn't
 know how to transform the prediction.  The normal implementation for multi-class error
 function is:
@@ -221,6 +297,16 @@ function is:
         errors = np.zeros(dtrain.num_row())
         errors[y != out] = 1.0
         return 'PyMError', np.sum(errors) / dtrain.num_row()
+
+.. code-block:: r
+
+    merror <- function(predt, dtrain) {
+        # Used when there's no custom objective.
+        y <- getinfo(dtrain, "label")
+        # No need to do transform, XGBoost handles it internally.
+        errors <- as.numeric(y != predt)
+        return(list('RMError', sum(errors) / nrow(dtrain)))
+    }
 
 
 Next we need the custom softprob objective:
@@ -237,6 +323,18 @@ Next we need the custom softprob objective:
 
         return grad, hess
 
+.. code-block:: r
+
+    softprob_obj <- function(predt, dtrain) {
+        # Loss function. Computing the gradient and approximated hessian (diagonal).
+        # Reimplements the `multi:softprob` inside XGBoost.
+        
+        # Full implementation is available in the R demo script linked below
+        # ...
+        
+        return(list(grad = grad, hess = hess))
+    }
+
 Lastly we can train the model using ``obj`` and ``custom_metric`` parameters:
 
 .. code-block:: python
@@ -250,6 +348,19 @@ Lastly we can train the model using ``obj`` and ``custom_metric`` parameters:
         custom_metric=merror_with_transform,
         evals_result=custom_results,
         evals=[(m, "train")],
+    )
+
+.. code-block:: r
+
+    Xy <- xgb.DMatrix(X, label = y)
+    booster <- xgb.train(
+        list(num_class = kClasses, disable_default_eval_metric = TRUE),
+        data = m,
+        nrounds = kRounds,
+        obj = softprob_obj,
+        feval = merror_with_transform,
+        evals_result = custom_results,
+        watchlist = list(train = m)
     )
 
 Or if you don't need the custom objective and just want to supply a metric that's not
@@ -269,6 +380,22 @@ available in XGBoost:
         custom_metric=merror,
         evals_result=custom_results,
         evals=[(m, "train")],
+    )
+
+.. code-block:: r
+
+    booster <- xgb.train(
+        list(
+            num_class = kClasses,
+            disable_default_eval_metric = TRUE,
+            objective = "multi:softmax"
+        ),
+        data = m,
+        nrounds = kRounds,
+        # Use a simpler metric implementation.
+        feval = merror,
+        evals_result = custom_results,
+        watchlist = list(train = m)
     )
 
 We use ``multi:softmax`` to illustrate the differences of transformed prediction.  With
@@ -297,6 +424,29 @@ function (not scoring functions) from scikit-learn out of the box:
     )
     reg.fit(X, y, eval_set=[(X, y)])
 
+.. code-block:: r
+
+    library(xgboost)
+    
+    # Load diabetes dataset (you may need to load from another source or create similar data)
+    # X, y <- load_diabetes_data()  # placeholder - use your own data loading
+    
+    mae_metric <- function(predt, dtrain) {
+        y <- getinfo(dtrain, "label")
+        mae <- mean(abs(y - predt))
+        return(list("MAE", mae))
+    }
+    
+    # Using the low-level interface
+    dtrain <- xgb.DMatrix(X, label = y)
+    model <- xgb.train(
+        list(tree_method = "hist"),
+        data = dtrain,
+        nrounds = 100,
+        feval = mae_metric,
+        watchlist = list(train = dtrain)
+    )
+
 Also, for custom objective function, users can define the objective without having to
 access ``DMatrix``:
 
@@ -322,3 +472,38 @@ access ``DMatrix``:
         return grad, hess
 
     clf = xgb.XGBClassifier(tree_method="hist", objective=softprob_obj)
+
+.. code-block:: r
+
+    softmax <- function(x) {
+        exp_x <- exp(x - max(x))  # subtract max for numerical stability
+        return(exp_x / sum(exp_x))
+    }
+    
+    softprob_obj <- function(labels, predt) {
+        # Note: In R, this simplified interface is not directly available
+        # You would typically use the DMatrix-based interface shown earlier
+        rows <- length(labels)
+        classes <- ncol(predt)
+        grad <- matrix(0, nrow = rows, ncol = classes)
+        hess <- matrix(0, nrow = rows, ncol = classes)
+        eps <- 1e-6
+        
+        for (r in 1:rows) {
+            target <- labels[r] + 1  # R is 1-indexed
+            p <- softmax(predt[r, ])
+            for (c in 1:classes) {
+                g <- ifelse(c == target, p[c] - 1.0, p[c])
+                h <- max(2.0 * p[c] * (1.0 - p[c]), eps)
+                grad[r, c] <- g
+                hess[r, c] <- h
+            }
+        }
+        
+        grad <- as.vector(t(grad))
+        hess <- as.vector(t(hess))
+        return(list(grad = grad, hess = hess))
+    }
+    
+    # For R, use the low-level interface with DMatrix
+    # clf <- xgb.train(list(tree_method = "hist"), data = dtrain, obj = softprob_obj)
