@@ -181,7 +181,7 @@ class EllpackHostCacheStreamImpl {
       new_impl->CopyInfo(old_impl);
 
       // Split the cache into host cache, compressed host cache, and the device cache. We
-      // use the decompression engin only for sparse data.
+      // use the decompression engine only for sparse data.
       auto n_bytes = get_host_nbytes(old_impl);
       CHECK_LE(n_bytes, old_impl->gidx_buffer.size_bytes());
       std::size_t n_h_bytes = n_bytes, n_comp_bytes = 0;
