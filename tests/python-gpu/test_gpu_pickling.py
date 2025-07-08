@@ -3,6 +3,7 @@
 import os
 import pickle
 import subprocess
+from typing import Any, Dict
 
 import numpy as np
 import pytest
@@ -111,37 +112,42 @@ class TestPickling:
         x, y = tm.make_sparse_regression(10, 10, sparsity=0.8, as_dense=True)
         train_x = xgb.DMatrix(x, label=y)
 
+        def run_test(param: Dict[str, Any]) -> None:
+            bst = xgb.train(param, train_x)
+
+            save_pickle(bst, model_path)
+
+            args = self.args_template.copy()
+            root = tm.project_root(__file__)
+            path = os.path.join(root, "tests", "python-gpu", "load_pickle.py")
+            args.append(path + "::TestLoadPickle::test_context_is_removed")
+
+            cuda_environment = {"CUDA_VISIBLE_DEVICES": "-1"}
+            env = os.environ.copy()
+            env.update(cuda_environment)
+
+            # Load model in a CPU only environment.
+            status = subprocess.call(args, env=env)
+            assert status == 0
+
+            args = self.args_template.copy()
+            args.append(
+                "./tests/python-gpu/"
+                "load_pickle.py::TestLoadPickle::test_context_is_preserved"
+            )
+
+            # Load in environment that has GPU.
+            env = os.environ.copy()
+            assert "CUDA_VISIBLE_DEVICES" not in env.keys()
+            status = subprocess.call(args, env=env)
+            assert status == 0
+
+            os.remove(model_path)
+
         param = {"tree_method": "hist", "verbosity": 1, "device": "cuda"}
-        bst = xgb.train(param, train_x)
-
-        save_pickle(bst, model_path)
-
-        args = self.args_template.copy()
-        root = tm.project_root(__file__)
-        path = os.path.join(root, "tests", "python-gpu", "load_pickle.py")
-        args.append(path + "::TestLoadPickle::test_context_is_removed")
-
-        cuda_environment = {"CUDA_VISIBLE_DEVICES": "-1"}
-        env = os.environ.copy()
-        env.update(cuda_environment)
-
-        # Load model in a CPU only environment.
-        status = subprocess.call(args, env=env)
-        assert status == 0
-
-        args = self.args_template.copy()
-        args.append(
-            "./tests/python-gpu/"
-            "load_pickle.py::TestLoadPickle::test_context_is_preserved"
-        )
-
-        # Load in environment that has GPU.
-        env = os.environ.copy()
-        assert "CUDA_VISIBLE_DEVICES" not in env.keys()
-        status = subprocess.call(args, env=env)
-        assert status == 0
-
-        os.remove(model_path)
+        run_test(param)
+        param = {"booster": "gblinear", "updater": "coord_descent", "device": "cuda"}
+        run_test(param)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_predict_sklearn_pickle(self) -> None:
