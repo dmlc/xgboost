@@ -102,7 +102,7 @@ class GpuXGBoostPlugin extends XGBoostPlugin {
   private[spark] def validate[T <: XGBoostEstimator[T, M], M <: XGBoostModel[M]](
       estimator: XGBoostEstimator[T, M],
       dataset: Dataset[_]): Unit = {
-    require(estimator.getTreeMethod == "gpu_hist" || estimator.getDevice != "cpu",
+    require(estimator.getDevice != "cpu",
       "Using Spark-Rapids to accelerate XGBoost must set device=cuda")
   }
 

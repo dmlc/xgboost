@@ -921,12 +921,12 @@ class TestPySparkLocal:
         with pytest.raises(ValueError, match="not supported for distributed"):
             regressor.fit(reg_data.reg_df_train)
 
-        reg = SparkXGBRegressor(device="cuda", tree_method="gpu_hist")
+        reg = SparkXGBRegressor(device="cuda", tree_method="hist")
         reg._validate_params()
         reg = SparkXGBRegressor(device="cuda")
         reg._validate_params()
 
-        clf = SparkXGBClassifier(device="cuda", tree_method="gpu_hist")
+        clf = SparkXGBClassifier(device="cuda", tree_method="hist")
         clf._validate_params()
         clf = SparkXGBClassifier(device="cuda")
         clf._validate_params()
@@ -941,7 +941,7 @@ class TestPySparkLocal:
         clf = SparkXGBClassifier(device="cuda")
         assert clf._run_on_gpu()
 
-        clf = SparkXGBClassifier(tree_method="gpu_hist")
+        clf = SparkXGBClassifier(tree_method="hist")
         assert clf._run_on_gpu()
 
         clf = SparkXGBClassifier(use_gpu=True)

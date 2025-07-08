@@ -245,11 +245,11 @@ TEST(GBTree, ChooseTreeMethod) {
           {{"hist", "cuda"}, "grow_gpu_hist"},
           {{"hist", "cuda:0"}, "grow_gpu_hist"},
           {{"hist", std::nullopt}, "grow_quantile_histmaker"},
-          // gpu_hist
-          {{"gpu_hist", "cpu"}, "grow_gpu_hist"},
-          {{"gpu_hist", "cuda"}, "grow_gpu_hist"},
-          {{"gpu_hist", "cuda:0"}, "grow_gpu_hist"},
-          {{"gpu_hist", std::nullopt}, "grow_gpu_hist"},
+          // approx
+          {{"approx", "cpu"}, "grow_gpu_approx"},
+          {{"approx", "cuda"}, "grow_gpu_approx"},
+          {{"approx", "cuda:0"}, "grow_gpu_approx"},
+          {{"approx", std::nullopt}, "grow_gpu_approx"},
           // exact
           {{"exact", "cpu"}, "grow_colmaker,prune"},
           {{"exact", "cuda"}, "err"},

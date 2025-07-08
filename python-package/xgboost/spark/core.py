@@ -506,7 +506,6 @@ class _SparkXGBParams(
         return (
             use_cuda(self.getOrDefault(self.device))
             or self.getOrDefault(self.use_gpu)
-            or self.getOrDefault(self.getParam("tree_method")) == "gpu_hist"
         )
 
     def _col_is_defined_not_empty(self, param: "Param[str]") -> bool:
