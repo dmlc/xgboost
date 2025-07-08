@@ -942,7 +942,7 @@ class TestPySparkLocal:
         assert clf._run_on_gpu()
 
         clf = SparkXGBClassifier(tree_method="hist")
-        assert clf._run_on_gpu()
+        assert not clf._run_on_gpu()
 
         clf = SparkXGBClassifier(use_gpu=True)
         assert clf._run_on_gpu()
