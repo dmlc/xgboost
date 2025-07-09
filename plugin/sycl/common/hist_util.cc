@@ -103,10 +103,16 @@ inline auto GetBlocksParameters(::sycl::queue* qu, size_t size, size_t max_nbloc
   size_t nblocks = max_compute_units;
 
   size_t block_size = size / nblocks + !!(size % nblocks);
-  if (block_size > (1u << 12)) {
-    nblocks = max_nblocks;
+  while (block_size > (1u << 11)) {
+    nblocks *= 2;
+    if (nblocks >= max_nblocks) {
+      nblocks = max_nblocks;
+      block_size = size / nblocks + !!(size % nblocks);
+      break;
+    }
     block_size = size / nblocks + !!(size % nblocks);
   }
+
   if (block_size < min_block_size) {
     block_size = min_block_size;
     nblocks = size / block_size + !!(size % block_size);
@@ -144,7 +150,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
 
   GradientPairT* hist_buffer_data = hist_buffer->Data();
   auto event_fill = qu->fill(hist_buffer_data, GradientPairT(0, 0),
-                             nblocks * nbins * 2, event_priv);
+                             nblocks * nbins, event_priv);
   auto event_main = qu->submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event_fill);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(nblocks, work_group_size),
@@ -173,6 +179,96 @@ template<typename FPType, typename BinIdxType, bool isDense>
               hist_local[idx_bin] += pgh_row;
             }
           }
+        }
+      }
+    });
+  });
+
+  GradientPairT* hist_data = hist->Data();
+  auto event_save = qu->submit([&](::sycl::handler& cgh) {
+    cgh.depends_on(event_main);
+    cgh.parallel_for<>(::sycl::range<1>(nbins), [=](::sycl::item<1> pid) {
+      size_t idx_bin = pid.get_id(0);
+
+      GradientPairT gpair = {0, 0};
+
+      for (size_t j = 0; j < nblocks; ++j) {
+        gpair += hist_buffer_data[j * nbins + idx_bin];
+      }
+
+      hist_data[idx_bin] = gpair;
+    });
+  });
+  return event_save;
+}
+
+// Kernel with buffer and local hist using
+template<typename FPType, typename BinIdxType>
+::sycl::event BuildHistKernelLocal(::sycl::queue* qu,
+                            const HostDeviceVector<GradientPair>& gpair,
+                            const RowSetCollection::Elem& row_indices,
+                            const GHistIndexMatrix& gmat,
+                            GHistRow<FPType, MemoryType::on_device>* hist,
+                            GHistRow<FPType, MemoryType::on_device>* hist_buffer,
+                            ::sycl::event event_priv) {
+  constexpr int kMaxNumBins = 256;
+  using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
+  const size_t size = row_indices.Size();
+  const size_t* rid = row_indices.begin;
+  const size_t n_columns = gmat.nfeatures;
+  const auto* pgh = gpair.ConstDevicePointer();
+  const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
+  const uint32_t* offsets = gmat.cut.cut_ptrs_.ConstDevicePointer();
+  const size_t nbins = gmat.nbins;
+
+  const size_t max_work_group_size =
+    std::min<size_t>(256, qu->get_device().get_info<::sycl::info::device::max_work_group_size>());
+
+  size_t work_group_size = std::min(n_columns, max_work_group_size);
+
+  // Captured structured bindings are a C++20 extension
+  const auto block_params = GetBlocksParameters(qu, size, hist_buffer->Size() / (nbins * 2));
+  const size_t block_size = block_params.block_size;
+  const size_t nblocks = block_params.nblocks;
+
+  GradientPairT* hist_buffer_data = hist_buffer->Data();
+
+  auto event_main = qu->submit([&](::sycl::handler& cgh) {
+    cgh.depends_on(event_priv);
+    cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(nblocks, work_group_size),
+                                           ::sycl::range<2>(1, work_group_size)),
+                       [=](::sycl::nd_item<2> pid) {
+      size_t block = pid.get_global_id(0);
+      size_t feat = pid.get_global_id(1);
+
+      GradientPairT hist_fast[kMaxNumBins];
+
+      GradientPairT* hist_local = hist_buffer_data + block * nbins;
+      for (size_t fid = feat; fid < n_columns; fid += work_group_size) {
+        size_t n_bins_feature = offsets[fid+1] - offsets[fid];
+
+        for (int bin = 0; bin < n_bins_feature; ++bin) {
+          hist_fast[bin] = {0,0};
+        }
+
+        for (size_t idx = 0; idx < block_size; ++idx) {
+          size_t i = block * block_size + idx;
+          if (i < size) {
+            size_t row_id = rid[i];
+
+            const size_t icol_start = n_columns * row_id;
+            const GradientPairT pgh_row(pgh[row_id].GetGrad(),
+                                        pgh[row_id].GetHess());
+
+            const BinIdxType* gr_index_local = gradient_index + icol_start;
+            uint32_t idx_bin = gr_index_local[fid];
+
+            hist_fast[idx_bin] += pgh_row;
+          }
+        }
+        
+        for (int bin = 0 ; bin < n_bins_feature; ++bin) {
+          hist_local[bin + offsets[fid]] = hist_fast[bin];
         }
       }
     });
@@ -271,11 +367,31 @@ template<typename FPType, typename BinIdxType>
 
   // force_atomic_use flag is used only for testing
   use_atomic = use_atomic || force_atomic_use;
+
+  const auto block_params = GetBlocksParameters(qu, size, hist_buffer->Size() / (nbins * 2));
+  const size_t block_size = block_params.block_size;
   if (!use_atomic) {
+    const size_t th_block_size = 256;
+    const auto block_params = GetBlocksParameters(qu, size, hist_buffer->Size() / (nbins * 2));
+    const size_t block_size = block_params.block_size;
+    const size_t max_num_bins = gmat.max_num_bins;
+    using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
+    const int max_n_bins_for_buffer = 
+      qu->get_device().get_info<::sycl::info::device::local_mem_size>() / sizeof(GradientPairT);
+    bool use_local_hist = (nbins < 0.7 * max_n_bins_for_buffer)
+                          && (max_num_bins == 256)
+                          && (block_size >= th_block_size);
+
     if (isDense) {
-      return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair, row_indices,
-                                                       gmat, hist, hist_buffer,
-                                                       events_priv);
+      if (use_local_hist) {
+        return BuildHistKernelLocal<FPType, BinIdxType>(qu, gpair, row_indices,
+                                                        gmat, hist, hist_buffer,
+                                                        events_priv);
+      } else {
+        return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair, row_indices,
+                                                         gmat, hist, hist_buffer,
+                                                         events_priv);
+      } 
     } else {
       return BuildHistKernel<FPType, uint32_t, false>(qu, gpair, row_indices,
                                                       gmat, hist, hist_buffer,

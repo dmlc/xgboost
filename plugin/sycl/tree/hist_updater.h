@@ -230,7 +230,6 @@ class HistUpdater {
   enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
   DataLayout data_layout_;
 
-  constexpr static size_t kBufferSize = 2048;
   common::GHistBuilder<GradientSumT> hist_builder_;
   common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
   /*! \brief culmulative histogram of gradients. */
