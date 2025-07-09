@@ -947,6 +947,9 @@ class TestPySparkLocal:
         clf = SparkXGBClassifier(use_gpu=True)
         assert clf._run_on_gpu()
 
+        clf = SparkXGBClassifier(device="cuda", tree_method="approx")
+        assert clf._run_on_gpu()
+
     def test_gpu_transform(self, clf_data: ClfData) -> None:
         """local mode"""
         classifier = SparkXGBClassifier(device="cpu")
