@@ -926,7 +926,7 @@ class TestPySparkLocal:
         reg = SparkXGBRegressor(device="cuda")
         reg._validate_params()
 
-        clf = SparkXGBClassifier(device="cuda", tree_method="hist")
+        clf = SparkXGBClassifier(device="cuda", tree_method="approx")
         clf._validate_params()
         clf = SparkXGBClassifier(device="cuda")
         clf._validate_params()
