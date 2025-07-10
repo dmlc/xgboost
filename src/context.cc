@@ -234,12 +234,6 @@ void Context::Init(Args const& kwargs) {
   }
 }
 
-void Context::ConfigureGpuId(bool require_gpu) {
-  if (this->IsCPU() && require_gpu) {
-    this->UpdateAllowUnknown(Args{{kDevice, DeviceSym::CUDA()}});
-  }
-}
-
 void Context::SetDeviceOrdinal(Args const& kwargs) {
   auto gpu_id_it = std::find_if(kwargs.cbegin(), kwargs.cend(),
                                 [](auto const& p) { return p.first == "gpu_id"; });

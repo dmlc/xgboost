@@ -503,10 +503,8 @@ class _SparkXGBParams(
     def _run_on_gpu(self) -> bool:
         """If train or transform on the gpu according to the parameters"""
 
-        return (
-            use_cuda(self.getOrDefault(self.device))
-            or self.getOrDefault(self.use_gpu)
-            or self.getOrDefault(self.getParam("tree_method")) == "gpu_hist"
+        return use_cuda(self.getOrDefault(self.device)) or self.getOrDefault(
+            self.use_gpu
         )
 
     def _col_is_defined_not_empty(self, param: "Param[str]") -> bool:

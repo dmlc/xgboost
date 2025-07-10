@@ -374,7 +374,7 @@ private[spark] trait XGBoostEstimator[
 
   private[spark] def getRuntimeParameters(isLocal: Boolean,
       configs: Map[String, AnyRef] = Map.empty): RuntimeParams = {
-    val runOnGpu = if (getDevice != "cpu" || getTreeMethod == "gpu_hist") true else false
+    val runOnGpu = if (getDevice != "cpu") true else false
     RuntimeParams(
       getNumWorkers,
       getNumRound,

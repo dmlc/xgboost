@@ -133,16 +133,6 @@ class XGBoostEstimatorSuite extends AnyFunSuite with PerTest with TmpFolderPerSu
       Map("device" -> "cuda")).setNumWorkers(1).setNumRound(1)
       .getRuntimeParameters(true)
     assert(runtimeParams.runOnGpu)
-
-    runtimeParams = new XGBoostClassifier(
-      Map("device" -> "cpu", "tree_method" -> "gpu_hist")).setNumWorkers(1).setNumRound(1)
-      .getRuntimeParameters(true)
-    assert(runtimeParams.runOnGpu)
-
-    runtimeParams = new XGBoostClassifier(
-      Map("device" -> "cuda", "tree_method" -> "gpu_hist")).setNumWorkers(1).setNumRound(1)
-      .getRuntimeParameters(true)
-    assert(runtimeParams.runOnGpu)
   }
 
   test("missing value exception for sparse vector") {

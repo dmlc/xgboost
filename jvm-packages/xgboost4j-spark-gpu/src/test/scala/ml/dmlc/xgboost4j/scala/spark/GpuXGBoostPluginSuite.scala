@@ -129,10 +129,6 @@ class GpuXGBoostPluginSuite extends GpuTestSuite {
 
       classifier.setDevice("gpu")
       plugin.validate(classifier, df)
-
-      classifier.setDevice("cpu")
-      classifier.setTreeMethod("gpu_hist")
-      plugin.validate(classifier, df)
     }
   }
 
