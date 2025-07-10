@@ -41,6 +41,40 @@ and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targe
     reg_1.fit(X, y, base_margin=m)
     reg_1.predict(X, base_margin=m)
 
+.. code-block:: r
+
+    library(xgboost)
+    
+    # Generate regression data
+    set.seed(42)
+    n_samples <- 100
+    n_features <- 20
+    X <- matrix(rnorm(n_samples * n_features), nrow = n_samples, ncol = n_features)
+    y <- rnorm(n_samples)
+    
+    # First model
+    dtrain <- xgb.DMatrix(X, label = y)
+    reg <- xgb.train(
+        list(objective = "reg:squarederror"),
+        data = dtrain,
+        nrounds = 10
+    )
+    
+    # Request for raw prediction (output_margin = TRUE)
+    m <- predict(reg, dtrain, outputmargin = TRUE)
+    
+    # Second model with base_margin
+    dtrain_with_margin <- xgb.DMatrix(X, label = y, base_margin = m)
+    reg_1 <- xgb.train(
+        list(objective = "reg:squarederror"),
+        data = dtrain_with_margin,
+        nrounds = 10
+    )
+    
+    # Predict with base_margin
+    dtest <- xgb.DMatrix(X, base_margin = m)
+    predict(reg_1, dtest)
+
 
 It specifies the bias for each sample and can be used for stacking an XGBoost model on top
 of other models, see :ref:`sphx_glr_python_examples_boost_from_prediction.py` for a worked
