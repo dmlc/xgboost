@@ -127,6 +127,8 @@ def test_model_compatibility():
     assert models
 
     for path in models:
+        if path.endswith(".bin"):  # removed
+            continue
         name = os.path.basename(path)
         if name.startswith("xgboost-"):
             booster = xgboost.Booster(model_file=path)
