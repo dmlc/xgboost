@@ -1570,18 +1570,17 @@ def test_doc_link() -> None:
 
 
 def test_apply_method():
-    import numpy as np
     import pandas as pd
-    import xgboost as xgb
 
     X_num = np.random.rand(5, 5)
     df = pd.DataFrame(X_num, columns=[f"f{i}" for i in range(X_num.shape[1])])
-    df["test"] = pd.Series(["one", "two", "three", "four", "five"],
-                           dtype="category")     # <- categorical column
+    df["test"] = pd.Series(
+        ["one", "two", "three", "four", "five"], dtype="category"
+    )  # <- categorical column
     y = np.arange(len(df))
 
     model = xgb.XGBClassifier(enable_categorical=True)
     model.fit(df, y)
 
     # ----- this must not raise -----
-    leaves = model.apply(df)
+    model.apply(df)
