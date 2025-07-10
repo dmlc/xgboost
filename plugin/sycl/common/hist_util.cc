@@ -382,12 +382,13 @@ template<typename FPType, typename BinIdxType>
       eu_l1_size = (512 / 8) * 1024;
       eu_registers_size = (256 / 8) * 1024;
     } else if (false) {
-      // Xe-HPG
-      eu_l1_size = (192 / 16) * 1024;
-      eu_registers_size = (448 / 16) * 1024;
+      // Xe2-HPG; BMG
+      eu_l1_size = (256 / 8) * 1024;
+      // L1 and registers share the same block
+      eu_registers_size = 0;
     } else if (false) {
-      // Xe2-HPG
-      eu_l1_size = (192 / 8) * 1024;
+      // Xe2-HPG; LNL
+      eu_l1_size = (196 / 8) * 1024;
       // L1 and registers share the same block
       eu_registers_size = 0;
     }
