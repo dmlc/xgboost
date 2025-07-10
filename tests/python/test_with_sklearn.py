@@ -1582,5 +1582,8 @@ def test_apply_method():
     model = xgb.XGBClassifier(enable_categorical=True)
     model.fit(df, y)
 
-    # ----- this must not raise -----
-    model.apply(df)
+    model.apply(df)  # this must not raise
+
+    model.set_params(enable_categorical=False)
+    with pytest.raises(ValueError, match="`enable_categorical`"):
+        model.apply(df)
