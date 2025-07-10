@@ -232,7 +232,7 @@ class CLI {
       if (param_.save_period != 0 && (i + 1) % param_.save_period == 0) {
         std::ostringstream os;
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
-           << i + 1 << ".model";
+           << i + 1 << ".ubj";
         this->SaveModel(os.str(), learner_.get());
       }
 
@@ -246,7 +246,7 @@ class CLI {
       std::ostringstream os;
       if (param_.model_out == CLIParam::kNull) {
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
-           << param_.num_round << ".model";
+           << param_.num_round << ".ubj";
       } else {
         os << param_.model_out;
       }
