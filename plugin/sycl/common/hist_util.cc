@@ -368,19 +368,35 @@ template<typename FPType, typename BinIdxType>
   // force_atomic_use flag is used only for testing
   use_atomic = use_atomic || force_atomic_use;
 
-  const auto block_params = GetBlocksParameters(qu, size, hist_buffer->Size() / (nbins * 2));
-  const size_t block_size = block_params.block_size;
   if (!use_atomic) {
     const size_t th_block_size = 256;
     const auto block_params = GetBlocksParameters(qu, size, hist_buffer->Size() / (nbins * 2));
     const size_t block_size = block_params.block_size;
     const size_t max_num_bins = gmat.max_num_bins;
     using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
-    const int max_n_bins_for_buffer = 
-      qu->get_device().get_info<::sycl::info::device::local_mem_size>() / sizeof(GradientPairT);
-    bool use_local_hist = (nbins < 0.7 * max_n_bins_for_buffer)
-                          && (max_num_bins == 256)
-                          && (block_size >= th_block_size);
+
+    int eu_l1_size = 0;
+    int eu_registers_size = 0;
+    if (true) {
+      // Xe-HPC
+      eu_l1_size = (512 / 8) * 1024;
+      eu_registers_size = (256 / 8) * 1024;
+    } else if (false) {
+      // Xe-HPG
+      eu_l1_size = (192 / 16) * 1024;
+      eu_registers_size = (448 / 16) * 1024;
+    } else if (false) {
+      // Xe2-HPG
+      eu_l1_size = (192 / 8) * 1024;
+      // L1 and registers share the same block
+      eu_registers_size = 0;
+    }
+    const int eu_sram_size = eu_l1_size + eu_registers_size;
+    const int buff_size = nbins * sizeof(GradientPairT);
+
+    bool use_local_hist = (buff_size < 0.8 * eu_sram_size)
+                       && (max_num_bins == 256)
+                       && (block_size >= th_block_size);
 
     if (isDense) {
       if (use_local_hist) {
