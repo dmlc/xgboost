@@ -1619,3 +1619,23 @@ def test_doc_link() -> None:
         name = est.__class__.__name__
         link = est._get_doc_link()
         assert f"xgboost.{name}" in link
+
+
+def test_apply_method():
+    import pandas as pd
+
+    X_num = np.random.rand(5, 5)
+    df = pd.DataFrame(X_num, columns=[f"f{i}" for i in range(X_num.shape[1])])
+    df["test"] = pd.Series(
+        ["one", "two", "three", "four", "five"], dtype="category"
+    )  # <- categorical column
+    y = np.arange(len(df))
+
+    model = xgb.XGBClassifier(enable_categorical=True)
+    model.fit(df, y)
+
+    model.apply(df)  # this must not raise
+
+    model.set_params(enable_categorical=False)
+    with pytest.raises(ValueError, match="`enable_categorical`"):
+        model.apply(df)
