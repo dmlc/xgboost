@@ -501,8 +501,8 @@ void HistUpdater<GradientSumT>::InitData(
     hist_local_worker_.Init(qu_, nbins);
 
     hist_buffer_.Init(qu_, nbins);
-    size_t buffer_size = kBufferSize;
-    hist_buffer_.Reset(kBufferSize);
+    size_t buffer_size = 4 * qu_->get_device().get_info<::sycl::info::device::max_compute_units>();
+    hist_buffer_.Reset(buffer_size);
 
     // initialize histogram builder
     hist_builder_ = common::GHistBuilder<GradientSumT>(qu_, nbins);
