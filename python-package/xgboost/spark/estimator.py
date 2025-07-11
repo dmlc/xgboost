@@ -1,9 +1,8 @@
 """Xgboost pyspark integration submodule for estimator API."""
 
-# pylint: disable=fixme, protected-access, no-member, invalid-name
+# pylint: disable=protected-access, no-member, invalid-name
 # pylint: disable=unused-argument, too-many-locals
 
-import warnings
 from typing import Any, List, Optional, Type, Union
 
 import numpy as np
