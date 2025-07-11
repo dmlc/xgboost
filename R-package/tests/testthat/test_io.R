@@ -22,10 +22,10 @@ test_that("load/save raw works", {
   from_json <- xgb.load.raw(json_bytes)
   from_ubj <- xgb.load.raw(ubj_bytes)
 
-  json2old <- xgb.save.raw(from_json, raw_format = "deprecated")
-  ubj2old <- xgb.save.raw(from_ubj, raw_format = "deprecated")
+  json2ubj <- xgb.save.raw(from_json, raw_format = "ubj")
+  ubj2ubj <- xgb.save.raw(from_ubj, raw_format = "ubj")
 
-  expect_equal(json2old, ubj2old)
+  expect_equal(json2ubj, ubj2ubj)
 })
 
 test_that("saveRDS preserves C and R attributes", {
