@@ -187,7 +187,7 @@ MMAPFile* detail::OpenMmap(std::string path, std::size_t offset, std::size_t len
   HANDLE fd = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
   CHECK_NE(fd, INVALID_HANDLE_VALUE)
-      << "Failed to open:" << path << ". " << SystemError().message();
+      << "Failed to open:" << path << ". " << error::SystemError().message();
 #else
   auto fd = open(path.c_str(), O_RDONLY);
   CHECK_GE(fd, 0) << "Failed to open:" << path << ". " << error::SystemError().message();
