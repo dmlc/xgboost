@@ -27,15 +27,18 @@ namespace xgboost::common {
 
 namespace {
 namespace fs = std::filesystem;
+
+using MaskT = unsigned long;  // NOLINT
+
 #if defined(__linux__)
 // Wrapper for the system call
-auto GetMemPolicy(int *mode, unsigned long *nodemask, unsigned long maxnode, void *addr,  // NOLINT
-                  unsigned long flags) {                                                  // NOLINT
+auto GetMemPolicy(int *mode, MaskT *nodemask, unsigned long maxnode, void *addr,  // NOLINT
+                  unsigned long flags) {                                          // NOLINT
   return syscall(SYS_get_mempolicy, mode, nodemask, maxnode, addr, flags);
 }
 
-auto GetMemPolicy(int *policy, unsigned long *nmask, unsigned long maxnode) {  // NOLINT
-  return GetMemPolicy(policy, nmask, maxnode, nullptr, 0);
+auto GetMemPolicy(int *policy, MaskT *nodemask, unsigned long maxnode) {  // NOLINT
+  return GetMemPolicy(policy, nodemask, maxnode, nullptr, 0);
 }
 #endif  // defined(__linux__)
 }  // namespace
@@ -109,7 +112,7 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
   // Estimate the size of the CPU set based on the error returned from get mempolicy.
   // Strategy used by hwloc and libnuma.
   while (true) {
-    std::vector<std::uint64_t> mask(max_n_nodes, 0);
+    std::vector<MaskT> mask(max_n_nodes, 0);
 
     std::int32_t mode = -1;
     auto err = GetMemPolicy(&mode, mask.data(), max_n_nodes);
@@ -135,7 +138,7 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
   if (max_n_nodes <= 0) {
     return false;
   }
-  std::vector<std::uint64_t> mask(max_n_nodes / 8);
+  std::vector<MaskT> mask(max_n_nodes / 8);
   CHECK_GE(GetMemPolicy(&mode, mask.data(), max_n_nodes), 0) << error::SystemError().message();
   return mode == MPOL_BIND;
 #else
