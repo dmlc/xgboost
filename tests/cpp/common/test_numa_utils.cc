@@ -117,7 +117,11 @@ TEST(Numa, GetCpus) {
 
 TEST(Numa, GetMaxNumNodes) {
   auto n_nodes = GetNumaMaxNumNodes();
+#if defined(__linux__)
   ASSERT_GE(n_nodes, 0);
+#else
+  ASSERT_EQ(n_nodes, -1);
+#endif  // defined(__linux__)
 }
 
 TEST(Numa, GetMemBind) {
@@ -128,6 +132,10 @@ TEST(Numa, GetMemBind) {
 
 TEST(Numa, GetNumNodes) {
   auto n_nodes = GetNumaNumNodes();
+#if defined(__linux__)
   ASSERT_GE(n_nodes, 1);
+#else
+  ASSERT_EQ(n_nodes, -1);
+#endif  // defined(__linux__)
 }
 }  // namespace xgboost::common
