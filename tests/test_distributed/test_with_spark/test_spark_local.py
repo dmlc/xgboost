@@ -944,9 +944,6 @@ class TestPySparkLocal:
         clf = SparkXGBClassifier(tree_method="hist")
         assert not clf._run_on_gpu()
 
-        clf = SparkXGBClassifier(use_gpu=True)
-        assert clf._run_on_gpu()
-
         clf = SparkXGBClassifier(device="cuda", tree_method="approx")
         assert clf._run_on_gpu()
 
@@ -988,8 +985,8 @@ class TestPySparkLocal:
             .set("spark.executor.resource.gpu.amount", "1")
             .set("spark.task.resource.gpu.amount", "0.08")
         )
-        classifer_on_cpu = SparkXGBClassifier(use_gpu=False)
-        classifer_on_gpu = SparkXGBClassifier(use_gpu=True)
+        classifer_on_cpu = SparkXGBClassifier(device="cpu")
+        classifer_on_gpu = SparkXGBClassifier(device="cuda")
 
         # No exception for classifier on CPU
         classifer_on_cpu._validate_gpu_params("3.4.0", standalone_conf)
@@ -1107,8 +1104,8 @@ class TestPySparkLocal:
             .set("spark.task.resource.gpu.amount", "0.08")
         )
 
-        classifer_on_cpu = SparkXGBClassifier(use_gpu=False)
-        classifer_on_gpu = SparkXGBClassifier(use_gpu=True)
+        classifer_on_cpu = SparkXGBClassifier(device="cpu")
+        classifer_on_gpu = SparkXGBClassifier(device="cuda")
 
         # the correct configurations should not skip stage-level scheduling
         assert not classifer_on_gpu._skip_stage_level_scheduling(
