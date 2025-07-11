@@ -978,14 +978,8 @@ class LearnerIO : public LearnerConfiguration {
       LOG(FATAL) << "Invalid serialization file.";
     }
 
-    if (IsA<Null>(memory_snapshot["Model"])) {
-      // R has xgb.load that doesn't distinguish whether configuration is saved.
-      // We should migrate to use `xgb.load.raw` instead.
-      this->LoadModel(memory_snapshot);
-    } else {
-      this->LoadModel(memory_snapshot["Model"]);
-      this->LoadConfig(memory_snapshot["Config"]);
-    }
+    this->LoadModel(memory_snapshot["Model"]);
+    this->LoadConfig(memory_snapshot["Config"]);
   }
 };
 
