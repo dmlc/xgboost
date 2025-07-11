@@ -1,5 +1,5 @@
 /**
- * Copyright 2014-2024, XGBoost Contributors
+ * Copyright 2014-2025, XGBoost Contributors
  * \file learner.cc
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
@@ -35,7 +35,6 @@
 #include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
-#include "common/common.h"                // for ToString, Split
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
 #include "common/observer.h"              // for TrainingObserver
