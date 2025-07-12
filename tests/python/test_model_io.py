@@ -240,10 +240,16 @@ class TestBoosterIO:
             with pytest.warns(UserWarning, match="UBJSON"):
                 booster.save_model(path_no)
 
-            booster_1 = xgb.Booster(model_file=path_no)
+            with pytest.warns(UserWarning, match="Using UBJ as a guess"):
+                booster_1 = xgb.Booster(model_file=path_no)
             r0 = booster.save_raw(raw_format="json")
             r1 = booster_1.save_raw(raw_format="json")
             assert r0 == r1
+
+            booster.save_model(path_json)
+            rename(path_json, path_no)
+            with pytest.warns(UserWarning, match="Using JSON as a guess"):
+                xgb.Booster(model_file=path_no)
 
     def test_invalid_format(self) -> None:
         X, y, w = tm.make_regression(64, 16, False)
