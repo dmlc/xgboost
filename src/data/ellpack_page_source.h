@@ -14,17 +14,18 @@
 
 #include "../common/compressed_iterator.h"  // for CompressedByteT
 #include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts
-#include "../common/device_compression.h"
-#include "../common/hist_util.h"          // for HistogramCuts
-#include "../common/ref_resource_view.h"  // for RefResourceView
-#include "../data/batch_utils.h"          // for AutoHostRatio
-#include "ellpack_page.h"                 // for EllpackPage
-#include "ellpack_page_raw_format.h"      // for EllpackPageRawFormat
-#include "sparse_page_source.h"           // for PageSourceIncMixIn
-#include "xgboost/base.h"                 // for bst_idx_t
-#include "xgboost/context.h"              // for DeviceOrd
-#include "xgboost/data.h"                 // for BatchParam
-#include "xgboost/span.h"                 // for Span
+#include "../common/device_compression.h"   // for SnappyDecomprMgr
+#include "../common/hist_util.h"            // for HistogramCuts
+#include "../common/numa_utils.h"           // for GetNumaNumNodes, GetNumaMemBind
+#include "../common/ref_resource_view.h"    // for RefResourceView
+#include "../data/batch_utils.h"            // for AutoHostRatio
+#include "ellpack_page.h"                   // for EllpackPage
+#include "ellpack_page_raw_format.h"        // for EllpackPageRawFormat
+#include "sparse_page_source.h"             // for PageSourceIncMixIn
+#include "xgboost/base.h"                   // for bst_idx_t
+#include "xgboost/context.h"                // for DeviceOrd
+#include "xgboost/data.h"                   // for BatchParam
+#include "xgboost/span.h"                   // for Span
 
 namespace xgboost::curt {
 class StreamPool;
@@ -200,6 +201,9 @@ class EllpackFormatPolicy {
       LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7."
                    << "The latest version of CTK supported by the current driver: " << major << "."
                    << minor << "." << msg;
+    }
+    if (common::GetNumaNumNodes() > 1 && !common::GetNumaMemBind()) {
+      LOG(WARNING) << "Running on a NUMA system without membind." << msg;
     }
   }
   // For testing with the HMM flag.

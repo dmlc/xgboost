@@ -6,9 +6,10 @@
 #ifndef XGBOOST_COMMON_ERROR_MSG_H_
 #define XGBOOST_COMMON_ERROR_MSG_H_
 
-#include <cstdint>    // for uint64_t
-#include <limits>     // for numeric_limits
-#include <string>     // for string
+#include <cstdint>       // for uint64_t
+#include <limits>        // for numeric_limits
+#include <string>        // for string
+#include <system_error>  // for error_code
 
 #include "xgboost/base.h"     // for bst_feature_t
 #include "xgboost/context.h"  // for Context
@@ -140,5 +141,7 @@ constexpr StringView CacheHostRatioNotImpl() {
 constexpr StringView CacheHostRatioInvalid() {
   return "`cache_host_ratio` must be in range [0, 1].";
 }
+
+[[nodiscard]] std::error_code SystemError();
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

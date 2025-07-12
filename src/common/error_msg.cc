@@ -1,12 +1,14 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  */
 #include "error_msg.h"
 
-#include <mutex>    // for call_once, once_flag
-#include <sstream>  // for stringstream
+#include <mutex>         // for call_once, once_flag
+#include <sstream>       // for stringstream
+#include <system_error>  // for error_code, system_category
 
 #include "../collective/communicator-inl.h"  // for GetRank
+#include "xgboost/collective/socket.h"       // for LastError
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/logging.h"
 
@@ -75,5 +77,11 @@ void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch) {
   if (minor < 23) {
     LOG(WARNING) << msg();
   }
+}
+
+[[nodiscard]] std::error_code SystemError() {
+  std::int32_t errsv = system::LastError();
+  auto err = std::error_code{errsv, std::system_category()};
+  return err;
 }
 }  // namespace xgboost::error
