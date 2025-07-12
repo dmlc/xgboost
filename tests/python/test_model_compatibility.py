@@ -12,8 +12,8 @@ from xgboost import testing as tm
 
 
 def run_model_param_check(config):
-    assert config['learner']['learner_model_param']['num_feature'] == str(4)
-    assert config['learner']['learner_train_param']['booster'] == 'gbtree'
+    assert config["learner"]["learner_model_param"]["num_feature"] == str(4)
+    assert config["learner"]["learner_train_param"]["booster"] == "gbtree"
 
 
 def run_booster_check(booster, name):

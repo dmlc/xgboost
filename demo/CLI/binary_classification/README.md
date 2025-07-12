@@ -150,9 +150,9 @@ xgboost also supports monitoring multiple metrics, suppose we also want to monit
 If you want to save model every two round, simply set save_period=2. You will find 0002.model in the current folder. If you want to change the output folder of models, add model_dir=foldername. By default xgboost saves the model of last round.
 
 #### Continue from Existing Model
-If you want to continue boosting from existing model, say 0002.model, use
+If you want to continue boosting from existing model, say 0002.ubj, use
 ```
-../../xgboost mushroom.conf model_in=0002.model num_round=2 model_out=continue.model
+../../xgboost mushroom.conf model_in=0002.model num_round=2 model_out=continue.ubj
 ```
 xgboost will load from 0002.model continue boosting for 2 rounds, and save output to continue.model. However, beware that the training and evaluation data specified in mushroom.conf should not change when you use this function.
 #### Use Multi-Threading

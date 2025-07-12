@@ -244,7 +244,7 @@ def test_cli_binary_classification() -> None:
         pytest.skip("CLI executable not found.")
     with tm.DirectoryExcursion(cls_dir, cleanup=True):
         subprocess.check_call(["./runexp.sh"])
-        os.remove("0002.model")
+        os.remove("0002.ubj")
 
 
 # year prediction is not tested due to data size being too large.
