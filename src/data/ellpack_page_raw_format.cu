@@ -112,11 +112,11 @@ template <typename T>
   if (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LogVerbosity::kDebug) {
     dh::CUDAEvent start{false}, stop{false};
     float milliseconds = 0;
-    start.Record(dh::DefaultStream());
+    start.Record(ctx.CUDACtx()->Stream());
 
     dispatch();
 
-    stop.Record(dh::DefaultStream());
+    stop.Record(ctx.CUDACtx()->Stream());
     stop.Sync();
     dh::safe_cuda(cudaEventElapsedTime(&milliseconds, start, stop));
     double n_bytes = page->Impl()->MemCostBytes();
