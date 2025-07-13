@@ -16,6 +16,10 @@ def run_model_param_check(config: Dict[str, Any]) -> None:
     assert config["learner"]["learner_model_param"]["num_feature"] == str(4)
     assert config["learner"]["learner_train_param"]["booster"] == "gbtree"
 
+    booster = config["learner"]["gradient_booster"]
+    assert booster["name"] == "gbtree"
+    assert booster["gbtree_model_param"]["num_parallel_tree"] == "2"
+
 
 def run_booster_check(booster: xgboost.Booster, name: str) -> None:
     config = json.loads(booster.save_config())
@@ -120,7 +124,7 @@ def test_model_compatibility() -> None:
         for f in files
         if f != "version"
     ]
-    assert models
+    assert len(models) == 22
 
     for path in models:
         name = os.path.basename(path)
