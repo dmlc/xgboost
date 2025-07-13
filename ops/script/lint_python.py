@@ -17,6 +17,8 @@ class LintersPaths:
         # core
         "python-package/",
         # tests
+        "tests/python/generate_models.py",
+        "tests/python/test_model_compatibility.py",
         "tests/python/test_config.py",
         "tests/python/test_callback.py",
         "tests/python/test_collective.py",
@@ -98,6 +100,8 @@ class LintersPaths:
         # core
         "python-package/",
         # tests
+        "tests/python/generate_models.py",
+        "tests/python/test_model_compatibility.py",
         "tests/python/test_collective.py",
         "tests/python/test_demos.py",
         "tests/python/test_data_iterator.py",
