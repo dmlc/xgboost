@@ -178,7 +178,7 @@ def generate_ranking_model() -> None:
 
 
 def generate_aft_survival_models() -> None:
-    print("AFT survival")
+    print("AFT Survival")
     X, y_lower = make_categorical(
         n_samples=kRows, n_features=kCols, n_categories=16, onehot=False, cat_ratio=0.5
     )

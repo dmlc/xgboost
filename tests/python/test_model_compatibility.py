@@ -45,6 +45,10 @@ def run_booster_check(booster: xgboost.Booster, name: str) -> None:
         assert config["learner"]["learner_train_param"]["objective"] == "rank:ndcg"
     elif name.find("aft") != -1:
         assert config["learner"]["learner_train_param"]["objective"] == "survival:aft"
+        assert (
+            config["learner"]["objective"]["aft_loss_param"]["aft_loss_distribution"]
+            == "normal"
+        )
     else:
         assert name.find("reg") != -1
         assert len(booster.get_dump()) == gm.kForests * gm.kRounds
