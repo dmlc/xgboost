@@ -178,6 +178,7 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
     }
     if (n_nodes == 0) {
       // Something went wrong, we should have at lease 1 node.
+      LOG(WARNING) << "Failed to list NUMA nodes.";
       return -1;
     }
     return n_nodes;
