@@ -94,7 +94,7 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
   p_cpus->clear();
 #if defined(__linux__)
   std::string nodename = "node" + std::to_string(node_id);
-  auto p_cpulist = fs::path{"/sys/devices/system/node"} / nodename / "cpulist";
+  auto p_cpulist = fs::path{"/sys/devices/system/node"} / nodename / "cpulist";  // NOLINT
 
   if (!fs::exists(p_cpulist)) {
     return;
