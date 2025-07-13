@@ -272,7 +272,7 @@ inline std::uint32_t TrailingZeroBits(std::uint32_t value) {
   }
 #if defined(__GNUC__)
   return __builtin_ctz(value);
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && defined(_M_X64)
   return _tzcnt_u32(value);
 #else
   return detail::TrailingZeroBitsImpl(value);
