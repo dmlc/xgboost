@@ -135,6 +135,9 @@ TEST(Numa, GetMaxNumNodes) {
 TEST(Numa, GetMemBind) {
   // You can run this test with:
   // numactl --membind=0 ./testxgboost --gtest_filter="Numa.GetMemBind"
+  // or
+  // hwloc-bind --strict --membind node:0 ./testxgboost --gtest_filter="Numa.GetMemBind"
+  // The strict flag is required.
   [[maybe_unused]] auto bind = GetNumaMemBind();
 }
 

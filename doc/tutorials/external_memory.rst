@@ -314,6 +314,13 @@ shown below, the `GPU0` is associated with the `0` node ID::
     NIC2    NODE    SYS     NODE    NODE     X      SYS
     NIC3    SYS     NODE    SYS     SYS     SYS      X
 
+Alternatively, one can also use the ``hwloc`` command line interface, please make sure the
+strict flag is used:
+
+.. code-block:: sh
+
+    hwloc-bind --strict --membind node:${NODEID} --cpubind node:${NODEID} ./myapp
+
 Another approach is to use the CPU affinity. The `dask-cuda
 <https://github.com/rapidsai/dask-cuda>`__ project configures optimal CPU affinity for the
 Dask interface through using the `nvml` library in addition to the Linux sched
