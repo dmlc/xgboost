@@ -19,7 +19,7 @@ def run_model_param_check(config: Dict[str, Any]) -> None:
 
     booster = config["learner"]["gradient_booster"]
     assert booster["name"] == "gbtree"
-    assert booster["gbtree_model_param"]["num_parallel_tree"] == "2"
+    assert booster["gbtree_model_param"]["num_parallel_tree"] == str(gm.kForests)
 
 
 def run_booster_check(booster: xgboost.Booster, name: str) -> None:
