@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import os
 import urllib.request
@@ -115,6 +116,10 @@ def test_model_compatibility() -> None:
             "https://xgboost-ci-jenkins-artifacts.s3-us-west-2"
             + ".amazonaws.com/xgboost_model_compatibility_test.zip"
         )
+        sha = "679b8ffd29c6ee4ebf8e9c0956064197f5d7c7a46d5b573b5794138bbe782aca"
+        with open(zip_path, "rb") as fd:
+            digest = hashlib.file_digest(fd, "sha256")
+            assert digest.hexdigest() == sha
         with zipfile.ZipFile(zip_path, "r") as z:
             z.extractall(path)
 
