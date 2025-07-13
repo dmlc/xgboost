@@ -200,12 +200,6 @@ def generate_aft_survival_models() -> None:
     booster.save_model(booster_json("aft"))
 
 
-def write_versions() -> None:
-    versions = {"numpy": np.__version__, "xgboost": version}
-    with open(os.path.join(target_dir, "version"), "w") as fd:
-        fd.write(str(versions))
-
-
 if __name__ == "__main__":
     if not os.path.exists(target_dir):
         os.mkdir(target_dir)
@@ -215,4 +209,3 @@ if __name__ == "__main__":
     generate_classification_model()
     generate_ranking_model()
     generate_aft_survival_models()
-    write_versions()
