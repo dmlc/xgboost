@@ -346,7 +346,8 @@ class CLI {
       Json in = Json::Load(StringView{buffer.data(), buffer.size()}, std::ios::binary);
       learner->LoadModel(in);
     } else {
-      LOG(FATAL) << "Unknown model format:" << path << ", expecting either json or ubj.";
+      LOG(FATAL) << "Unknown model format:" << path
+                 << ", expecting either UBJSON (`ubj`) or JSON (`json`).";
     }
   }
 

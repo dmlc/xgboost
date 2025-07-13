@@ -1,17 +1,14 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include "gbtree_model.h"
 
-#include <algorithm>                    // for transform, max_element
-#include <cstddef>                      // for size_t
-#include <numeric>                      // for partial_sum
-#include <ostream>                      // for operator<<, basic_ostream
-#include <utility>                      // for move, pair
+#include <algorithm>  // for transform, max_element
+#include <cstddef>    // for size_t
+#include <numeric>    // for partial_sum
+#include <utility>    // for move, pair
 
 #include "../common/threading_utils.h"  // for ParallelFor
-#include "dmlc/base.h"                  // for BeginPtr
-#include "dmlc/io.h"                    // for Stream
 #include "xgboost/context.h"            // for Context
 #include "xgboost/json.h"               // for Json, get, Integer, Array, FromJson, ToJson, Json...
 #include "xgboost/learner.h"            // for LearnerModelParam
