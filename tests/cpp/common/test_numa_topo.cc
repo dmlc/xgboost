@@ -7,7 +7,7 @@
 #include <fstream>     // for ofstream
 #include <vector>      // for vector
 
-#include "../../../src/common/numa_utils.h"
+#include "../../../src/common/numa_topo.h"
 #include "../filesystem.h"
 
 namespace xgboost::common {

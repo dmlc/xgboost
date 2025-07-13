@@ -1,7 +1,7 @@
 /**
  * Copyright 2025, XGBoost Contributors
  */
-#include "numa_utils.h"
+#include "numa_topo.h"
 
 #if defined(__linux__)
 
