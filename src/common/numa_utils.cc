@@ -150,7 +150,12 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
   }
   CHECK_GE(max_n_nodes, kMaskBits);
   std::vector<MaskT> mask(max_n_nodes / kMaskBits);
-  CHECK_GE(GetMemPolicy(&mode, mask.data(), max_n_nodes), 0) << error::SystemError().message();
+  auto status = GetMemPolicy(&mode, mask.data(), max_n_nodes);
+  if (status < 0) {
+    auto msg = error::SystemError().message();
+    LOG(WARNING) << msg;
+    return false;
+  }
   return mode == MPOL_BIND;
 #else
   return false;
