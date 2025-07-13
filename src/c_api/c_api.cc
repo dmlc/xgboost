@@ -1416,16 +1416,17 @@ Json DispatchModelType(Buffer const &buffer, StringView ext, bool warn) {
   auto it = first_non_space(buffer.cbegin() + 1, buffer.cend());
   if (it != buffer.cend() && *it == '"') {
     if (warn) {
-      LOG(WARNING) << "Unknown file format: `" << ext << "`. Using JSON as a guess.";
+      LOG(WARNING) << "Unknown file format: `" << ext << "`. Using JSON (`json`) as a guess.";
     }
     model = Json::Load(StringView{buffer.data(), buffer.size()});
   } else if (it != buffer.cend() && std::isalpha(*it)) {
     if (warn) {
-      LOG(WARNING) << "Unknown file format: `" << ext << "`. Using UBJ as a guess.";
+      LOG(WARNING) << "Unknown file format: `" << ext << "`. Using UBJSON (`ubj`) as a guess.";
     }
     model = Json::Load(StringView{buffer.data(), buffer.size()}, std::ios::binary);
   } else {
-    LOG(FATAL) << "Invalid model format";
+    LOG(FATAL) << "Invalid model format. Expecting UBJSON (`ubj`) or JSON (`json`), got `" << ext
+               << "`";
   }
   return model;
 }
@@ -1479,7 +1480,7 @@ XGB_DLL int XGBoosterSaveModel(BoosterHandle handle, const char *fname) {
   } else if (ext == "ubj") {
     save_json(std::ios::binary);
   } else {
-    LOG(WARNING) << "Saving model in the UBJSON format as default.  You can use file extension:"
+    LOG(WARNING) << "Saving model in the UBJSON format as default.  You can use a file extension:"
                     " `json` or `ubj` to choose between formats.";
     save_json(std::ios::binary);
   }
@@ -1529,7 +1530,8 @@ XGB_DLL int XGBoosterSaveModelToBuffer(BoosterHandle handle, char const *json_co
   } else if (format == "ubj") {
     save_json(std::ios::binary);
   } else {
-    LOG(FATAL) << "Unknown format: `" << format << "`";
+    LOG(FATAL) << "Unknown model format: `" << format
+               << "`. Expecting UBJSON (`ubj`) or JSON (`json`).";
   }
 
   API_END();
