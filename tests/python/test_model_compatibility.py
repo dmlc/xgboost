@@ -102,6 +102,21 @@ def run_scikit_model_check(name: str, path: str) -> None:
         assert False
 
 
+def download(path: str) -> None:
+    """Download the model files from S3."""
+    zip_path, _ = urllib.request.urlretrieve(
+        "https://xgboost-ci-jenkins-artifacts.s3-us-west-2"
+        + ".amazonaws.com/xgboost_model_compatibility_test.zip"
+    )
+    sha = "679b8ffd29c6ee4ebf8e9c0956064197f5d7c7a46d5b573b5794138bbe782aca"
+    if hasattr(hashlib, "file_digest"):  # not in py 3.10
+        with open(zip_path, "rb") as fd:
+            digest = hashlib.file_digest(fd, "sha256")  # pylint: disable=attr-defined
+            assert digest.hexdigest() == sha
+    with zipfile.ZipFile(zip_path, "r") as z:
+        z.extractall(path)
+
+
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_model_compatibility() -> None:
     """Test model compatibility, can only be run on CI as others don't
@@ -112,16 +127,7 @@ def test_model_compatibility() -> None:
     path = os.path.join(path, "models")
 
     if not os.path.exists(path):
-        zip_path, _ = urllib.request.urlretrieve(
-            "https://xgboost-ci-jenkins-artifacts.s3-us-west-2"
-            + ".amazonaws.com/xgboost_model_compatibility_test.zip"
-        )
-        sha = "679b8ffd29c6ee4ebf8e9c0956064197f5d7c7a46d5b573b5794138bbe782aca"
-        with open(zip_path, "rb") as fd:
-            digest = hashlib.file_digest(fd, "sha256")
-            assert digest.hexdigest() == sha
-        with zipfile.ZipFile(zip_path, "r") as z:
-            z.extractall(path)
+        download(path)
 
     models = [
         os.path.join(root, f)
