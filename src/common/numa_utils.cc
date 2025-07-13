@@ -29,9 +29,12 @@ namespace {
 namespace fs = std::filesystem;
 
 using MaskT = unsigned long;  // NOLINT
+inline constexpr std::size_t kMaskBits = sizeof(MaskT) * 8;
 
 #if defined(__linux__)
-// Wrapper for the system call
+// Wrapper for the system call.
+//
+// https://github.com/torvalds/linux/blob/3f31a806a62e44f7498e2d17719c03f816553f11/mm/mempolicy.c#L1075
 auto GetMemPolicy(int *mode, MaskT *nodemask, unsigned long maxnode, void *addr,  // NOLINT
                   unsigned long flags) {                                          // NOLINT
   return syscall(SYS_get_mempolicy, mode, nodemask, maxnode, addr, flags);
@@ -47,9 +50,14 @@ void ReadCpuList(fs::path const &path, std::vector<std::int32_t> *p_cpus) {
   auto &cpus = *p_cpus;
   cpus.clear();
 
-  std::ifstream fin{path};
   std::string buff;
+  std::ifstream fin{path};
   fin >> buff;
+  if (fin.fail()) {
+    LOG(WARNING) << "Failed to read: " << path;
+    return;
+  }
+
   CHECK(!buff.empty());
   buff = common::TrimFirst(common::TrimLast(buff));
 
@@ -64,6 +72,7 @@ void ReadCpuList(fs::path const &path, std::vector<std::int32_t> *p_cpus) {
     CHECK_LE(last, buff.size());
     k = last + 1;  // new begin
     if (last == buff.size() || buff[last] != '-') {
+      // Single value
       cpus.push_back(val0);
       continue;
     }
@@ -73,7 +82,7 @@ void ReadCpuList(fs::path const &path, std::vector<std::int32_t> *p_cpus) {
     CHECK_LT(k, buff.size());
     val1 = std::stoi(buff.data() + k, &idx);
     CHECK_GE(idx, 1);
-    // Parse range
+    // Range
     for (auto i = val0; i <= val1; ++i) {
       cpus.push_back(i);
     }
@@ -85,7 +94,7 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
   p_cpus->clear();
 #if defined(__linux__)
   std::string nodename = "node" + std::to_string(node_id);
-  auto p_cpulist = fs::path{"/sys/devices/system/node"} / fs::path{nodename} / fs::path{"cpulist"};
+  auto p_cpulist = fs::path{"/sys/devices/system/node"} / nodename / "cpulist";
 
   if (!fs::exists(p_cpulist)) {
     return;
@@ -97,38 +106,39 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
 [[nodiscard]] std::int32_t GetNumaMaxNumNodes() {
 #if defined(__linux__)
   auto p_possible = fs::path{"/sys/devices/system/node/possible"};
-  std::int32_t max_n_nodes = -1;
+
+  std::int32_t max_n_nodes = kMaskBits;
+
   if (fs::exists(p_possible)) {
     std::vector<std::int32_t> cpus;
     ReadCpuList(p_possible, &cpus);
     auto it = std::max_element(cpus.cbegin(), cpus.cend());
-    if (it != cpus.cend()) {
-      max_n_nodes = *it;
+    // +1 since node/CPU uses 0-based indexing.
+    if (it != cpus.cend() && (*it + 1) > max_n_nodes) {
+      max_n_nodes = (*it + 1);
     }
   }
 
   // Just in case if it keeps getting into error
-  constexpr decltype(max_n_nodes) kThresh = 16384;
+  constexpr decltype(max_n_nodes) kStop = 16384;
   // Estimate the size of the CPU set based on the error returned from get mempolicy.
   // Strategy used by hwloc and libnuma.
   while (true) {
-    std::vector<MaskT> mask(max_n_nodes, 0);
+    std::vector<MaskT> mask(max_n_nodes / kMaskBits, 0);
 
     std::int32_t mode = -1;
     auto err = GetMemPolicy(&mode, mask.data(), max_n_nodes);
     if (!err || errno != EINVAL) {
-      return max_n_nodes;
+      return max_n_nodes;  // Got it.
     }
     max_n_nodes *= 2;
 
-    if (max_n_nodes > kThresh) {
+    if (max_n_nodes > kStop) {
       break;
     }
   }
-  return -1;
-#else
-  return -1;
 #endif  // defined(__linux__)
+  return -1;
 }
 
 [[nodiscard]] bool GetNumaMemBind() {
@@ -136,9 +146,10 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
   std::int32_t mode = -1;
   auto max_n_nodes = GetNumaMaxNumNodes();
   if (max_n_nodes <= 0) {
-    return false;
+    return false;  // Sth went wrong, assume there's no membind.
   }
-  std::vector<MaskT> mask(max_n_nodes / 8);
+  CHECK_GE(max_n_nodes, kMaskBits);
+  std::vector<MaskT> mask(max_n_nodes / kMaskBits);
   CHECK_GE(GetMemPolicy(&mode, mask.data(), max_n_nodes), 0) << error::SystemError().message();
   return mode == MPOL_BIND;
 #else
@@ -152,19 +163,23 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
   if (!fs::exists(p_node)) {
     return -1;
   }
-  std::int32_t n_nodes{0};
-  for (auto const &entry : fs::directory_iterator{p_node}) {
-    auto name = entry.path().filename().string();
-    if (name.find("node") == 0) {  // starts with `node`
-      n_nodes += 1;
+  try {
+    std::int32_t n_nodes{0};
+    for (auto const &entry : fs::directory_iterator{p_node}) {
+      auto name = entry.path().filename().string();
+      if (name.find("node") == 0) {  // starts with `node`
+        n_nodes += 1;
+      }
     }
+    if (n_nodes == 0) {
+      // Something went wrong, we should have at lease 1 node.
+      return -1;
+    }
+    return n_nodes;
+  } catch (std::exception const &e) {
+    LOG(WARNING) << "Failed to list NUMA nodes: " << e.what();
   }
-  if (n_nodes == 0) {
-    return -1;
-  }
-  return n_nodes;
-#else
-  return -1;
 #endif  // defined(__linux__)
+  return -1;
 }
 }  // namespace xgboost::common

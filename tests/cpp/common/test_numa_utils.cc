@@ -103,6 +103,14 @@ TEST(Numa, CpuListParser) {
     ReadCpuList(path, &cpus);
     check_4cpu_case();
   }
+  {
+    auto path = fs::path{tmpdir.path} / "foo";
+    testing::internal::CaptureStderr();
+    ReadCpuList(path, &cpus);
+    std::string output = testing::internal::GetCapturedStderr();
+    ASSERT_TRUE(cpus.empty());
+    ASSERT_NE(output.find("foo"), std::string::npos);
+  }
 }
 
 TEST(Numa, GetCpus) {
