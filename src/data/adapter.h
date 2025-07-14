@@ -525,7 +525,7 @@ template <typename CategoricalIndex, bool allow_mask>
 /**
  * @brief Adapter for columnar format (arrow).
  *
- *   Supports for both numeric values and categorical values.
+ *   Supports both numeric values and categorical values.
  */
 class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch> {
   std::vector<ArrayInterface<1>> columns_;

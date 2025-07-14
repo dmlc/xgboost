@@ -108,6 +108,7 @@ class LintersPaths:
         "tests/python/test_interaction_constraints.py",
         "tests/python-gpu/test_gpu_callbacks.py",
         "tests/python-gpu/test_gpu_data_iterator.py",
+        "tests/python-gpu/test_gpu_ordinal.py",
         "tests/python-gpu/load_pickle.py",
         "tests/python-gpu/test_gpu_training_continuation.py",
         "tests/python-gpu/test_gpu_plotting.py",
