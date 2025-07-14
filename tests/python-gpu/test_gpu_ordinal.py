@@ -18,6 +18,7 @@ from xgboost.testing.ordinal import (
     run_cat_shap,
     run_cat_thread_safety,
     run_specified_cat,
+    run_validation,
 )
 
 pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_arrow(), tm.no_cudf()))
@@ -104,3 +105,7 @@ def test_mixed_devices() -> None:
 
 def test_spcified_cat() -> None:
     run_specified_cat("cuda")
+
+
+def test_validation() -> None:
+    run_validation("cuda")

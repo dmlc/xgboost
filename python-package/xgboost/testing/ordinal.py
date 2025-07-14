@@ -435,7 +435,7 @@ def run_specified_cat(  # pylint: disable=too-many-locals
     """Run with manually specified category encoding."""
     import pandas as pd
 
-    # Same between old and new, wiht 0 ("a") and 1 ("b") exchanged their position.
+    # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
     old_cats = ["a", "b", "c", "d"]
     new_cats = ["b", "a", "c", "d"]
     mapping = {0: 1, 1: 0}
@@ -527,3 +527,55 @@ def run_specified_cat(  # pylint: disable=too-many-locals
 
     predt3 = booster.inplace_predict(array)
     assert_allclose(device, predt0, predt3)
+
+
+def run_validation(device: Literal["cpu", "cuda"]) -> None:
+    Df, _ = get_df_impl(device)
+
+    import pandas as pd
+
+    n_features = 4096
+    n_samples = 1024
+
+    old_cats = ["a", "b", "c", "d"]
+    new_cats = ["b", "a", "c", "d"]
+    mapping = {0: 1, 1: 0}
+
+    rng = np.random.default_rng(2025)
+
+    col_numeric = rng.uniform(0, 1, size=(n_samples, n_features // 2))
+    col_categorical = rng.integers(
+        low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
+    )
+
+    df = {}  # avoid fragmentation warning from pandas
+    for c in range(n_features):
+        if c % 2 == 0:
+            col = col_numeric[:, c // 2]
+        else:
+            codes = col_categorical[:, c // 2]
+            col = pd.Categorical.from_codes(
+                categories=old_cats,
+                codes=codes,
+            )
+        df[f"f{c}"] = col
+
+    df = Df(df)
+    y = rng.normal(size=n_samples)
+
+    Xy = DMatrix(df, y, enable_categorical=True)
+
+    for c in range(n_features):
+        if c % 2 == 0:
+            continue
+
+        name = f"f{c}"
+        codes_ser = df[name].cat.codes
+        if hasattr(codes_ser, "to_pandas"):  # cudf
+            codes_ser = codes_ser.to_pandas()
+        new_codes = codes_ser.replace(mapping)
+        df[name] = pd.Categorical.from_codes(categories=new_cats, codes=new_codes)
+
+    Xy_valid = DMatrix(df, y, enable_categorical=True)
+    booster = train({"device": device}, Xy, evals=[(Xy, "Train"), (Xy_valid, "Valid")])
+    # Evaluation dataset should have the exact same performance as the training dataset.

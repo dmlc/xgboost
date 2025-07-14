@@ -1289,8 +1289,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         return indptr, data
 
     def get_categories(self) -> Optional[Dict[str, "pa.DictionaryArray"]]:
-        """Get the categories in the dataset. Return `None` if there's no categorical
-        features.
+        """Get the categories in the dataset using `pyarrow`. Returns `None` if there's
+        no categorical features.
 
         .. warning::
 
