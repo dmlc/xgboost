@@ -156,7 +156,7 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
     LOG(WARNING) << msg;
     return false;
   }
-  return mode == MPOL_BIND;
+  return mode == MPOL_BIND || mode == MPOL_PREFERRED || mode == MPOL_PREFERRED_MANY;
 #else
   return false;
 #endif  // defined(__linux__)
