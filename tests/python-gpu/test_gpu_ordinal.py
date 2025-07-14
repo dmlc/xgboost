@@ -61,7 +61,7 @@ def test_mixed_devices() -> None:
     n_features = 4
     X, y = make_categorical(n_samples, n_features, 7, onehot=False, device="cpu")
 
-    def run_cpu_gpu(DMatrixT: Type):
+    def run_cpu_gpu(DMatrixT: Type) -> bool:
         Xy = DMatrixT(X, y, enable_categorical=True)
         booster = xgb.train({"tree_method": "hist", "device": "cuda"}, Xy)
         predt0 = booster.inplace_predict(X)
@@ -84,7 +84,7 @@ def test_mixed_devices() -> None:
 
     X, y = make_categorical(n_samples, n_features, 7, onehot=False, device="cuda")
 
-    def run_gpu_cpu(DMatrixT: Type):
+    def run_gpu_cpu(DMatrixT: Type) -> bool:
         Xy = DMatrixT(X, y, enable_categorical=True)
         booster = xgb.train({"tree_method": "hist", "device": "cpu"}, Xy)
         predt0 = booster.inplace_predict(X).get()
