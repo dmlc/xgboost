@@ -111,7 +111,7 @@ build directory. Following is a list of environment variables used by the fetche
    points to a file that doesn't exist, the configuration script will download the
    packaged document to that path for future reuse.
  - ``XGBOOST_JVM_DOCS``: Local path for pre-built JVM document, used for
-   development. Similar to the R docs environment variable when it points to a non-exist
+   development. Similar to the R docs environment variable when it points to a non-existent
    file.
 
 As of writing, RTD doesn't provide any facility to be embedded as a GitHub action but we
