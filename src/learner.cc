@@ -860,7 +860,7 @@ class LearnerIO : public LearnerConfiguration {
     if (std::get<0>(version) == 1 && std::get<1>(version) < 6) {
       LOG(WARNING)
           << "Found JSON model saved before XGBoost 1.6, please save the model using current "
-             "version again. The support for old JSON model will be discontinued in XGBoost 2.3.";
+             "version again. The support for old JSON model will be discontinued in XGBoost 3.2";
     }
 
     auto const& learner = get<Object>(in["learner"]);
