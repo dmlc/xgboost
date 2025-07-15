@@ -126,9 +126,9 @@ def download(path: str) -> None:
     """Download the model files from S3."""
     zip_path, _ = urllib.request.urlretrieve(
         "https://xgboost-ci-jenkins-artifacts.s3-us-west-2"
-        + ".amazonaws.com/xgboost_model_compatibility_tests-3.0.1.zip"
+        + ".amazonaws.com/xgboost_model_compatibility_tests-3.0.2.zip"
     )
-    sha = "48dbfc22bf2490dbdd30aa17c477998ae7d8689fa0f6e0216fa3345b5271625a"
+    sha = "49d4d4db667a73590099dad9dca4f078532df05c5ea6e035ad4fa09596b1905a"
     if hasattr(hashlib, "file_digest"):  # not in py 3.10
         with open(zip_path, "rb") as fd:
             digest = hashlib.file_digest(fd, "sha256")  # pylint: disable=attr-defined

@@ -1,5 +1,3 @@
-library(testthat)
-library(xgboost)
 context("Models from previous versions of XGBoost can be loaded")
 
 metadata <- list(
@@ -95,7 +93,7 @@ run_booster_check <- function(booster, model_file) {
 test_that("Models from previous versions of XGBoost can be loaded", {
   bucket <- "xgboost-ci-jenkins-artifacts"
   region <- "us-west-2"
-  file_name <- "xgboost_model_compatibility_tests-3.0.1.zip"
+  file_name <- "xgboost_model_compatibility_tests-3.0.2.zip"
   zipfile <- tempfile(fileext = ".zip")
   extract_dir <- tempdir()
   download.file(
