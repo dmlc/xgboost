@@ -919,16 +919,10 @@ DMatrix* TryLoadBinary(std::string fname, bool silent) {
 }  // namespace
 
 DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
-  std::string fname, cache_file;
   auto dlm_pos = uri.find('#');
-  if (dlm_pos != std::string::npos) {
-    cache_file = uri.substr(dlm_pos + 1, uri.length());
-    fname = uri.substr(0, dlm_pos);
-    CHECK_EQ(cache_file.find('#'), std::string::npos)
-        << "Only one `#` is allowed in file path for cache file specification.";
-  } else {
-    fname = uri;
-  }
+  CHECK(dlm_pos == std::string::npos)
+      << "External memory training with text input has been removed.";
+  std::string fname = uri;
 
   // legacy handling of binary data loading
   DMatrix* loaded = TryLoadBinary(fname, silent);
@@ -937,30 +931,13 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   int partid = 0, npart = 1;
-  DMatrix* dmat{};
 
-  if (cache_file.empty()) {
-    fname = data::ValidateFileFormat(fname);
-    std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
-        dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
-    data::FileAdapter adapter(parser.get());
-    dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
-                           cache_file, data_split_mode);
-  } else {
-    CHECK(data_split_mode != DataSplitMode::kCol)
-        << "Column-wise data split is not supported for external memory.";
-    data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart)};
-    auto config = ExtMemConfig{cache_file,
-                               false,
-                               cuda_impl::AutoHostRatio(),
-                               cuda_impl::MatchingPageBytes(),
-                               std::numeric_limits<float>::quiet_NaN(),
-                               1};
-    dmat = new data::SparsePageDMatrix{&iter, iter.Proxy(), data::fileiter::Reset,
-                                       data::fileiter::Next, config};
-  }
-
-  return dmat;
+  fname = data::ValidateFileFormat(fname);
+  std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
+      dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
+  data::FileAdapter adapter(parser.get());
+  return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), "",
+                         data_split_mode);
 }
 
 template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
@@ -1029,7 +1006,7 @@ INSTANTIATION_CREATE(ColumnarAdapter)
 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, const std::string& cache_prefix, DataSplitMode data_split_mode);
+    float missing, int nthread, std::string const& cache_prefix, DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;

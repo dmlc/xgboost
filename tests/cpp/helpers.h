@@ -370,6 +370,10 @@ inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n, size_t nu
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::size_t num_rows,
                                             bst_feature_t num_columns);
 
+[[nodiscard]] std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
+    HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
+    const dmlc::TemporaryDirectory& tempdir, bst_idx_t n_batches = 4);
+
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
                                                   LearnerModelParam const* learner_model_param,

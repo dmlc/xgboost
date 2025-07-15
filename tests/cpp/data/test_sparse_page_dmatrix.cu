@@ -8,34 +8,27 @@
 #include "../../../src/data/ellpack_page.h"
 #include "../../../src/data/sparse_page_dmatrix.h"
 #include "../../../src/tree/param.h"  // TrainParam
-#include "../filesystem.h"            // dmlc::TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost {
-
 TEST(SparsePageDMatrix, EllpackPage) {
   auto ctx = MakeCUDACtx(0);
   auto param = BatchParam{256, tree::TrainParam::DftSparseThreshold()};
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  CreateSimpleTestData(tmp_file);
-  DMatrix* dmat = DMatrix::Load(tmp_file + "?format=libsvm" + "#" + tmp_file + ".cache");
+  auto dmat = RandomDataGenerator{512, 12, 0.0}.Batches(4).GenerateSparsePageDMatrix("temp", true);
 
   // Loop over the batches and assert the data is as expected
-  size_t n = 0;
+  std::size_t n = 0;
   for (const auto& batch : dmat->GetBatches<EllpackPage>(&ctx, param)) {
     n += batch.Size();
   }
   EXPECT_EQ(n, dmat->Info().num_row_);
 
-  auto path =
-      data::MakeId(tmp_file + ".cache", dynamic_cast<data::SparsePageDMatrix*>(dmat)) + ".row.page";
-  EXPECT_TRUE(FileExists(path));
-  path = data::MakeId(tmp_file + ".cache", dynamic_cast<data::SparsePageDMatrix*>(dmat)) +
+  auto path = data::MakeId("temp", std::dynamic_pointer_cast<data::SparsePageDMatrix>(dmat).get()) +
+              ".row.page";
+  ASSERT_TRUE(FileExists(path));
+  path = data::MakeId("temp", std::dynamic_pointer_cast<data::SparsePageDMatrix>(dmat).get()) +
          ".ellpack.page";
-  EXPECT_TRUE(FileExists(path));
-
-  delete dmat;
+  ASSERT_TRUE(FileExists(path));
 }
 
 TEST(SparsePageDMatrix, EllpackSkipSparsePage) {
