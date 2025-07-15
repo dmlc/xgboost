@@ -19,12 +19,6 @@
 #include "../helpers.h"
 
 using namespace xgboost;  // NOLINT
-namespace {
-std::string UriSVM(std::string name, std::string cache) {
-  return name + "?format=libsvm" + "#" + cache + ".cache";
-}
-}  // namespace
-
 template <typename Page>
 void TestSparseDMatrixLoadFile(Context const* ctx) {
   dmlc::TemporaryDirectory tmpdir;
@@ -246,16 +240,13 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
 
 TEST(SparsePageDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tmpdir;
-  const std::string tmp_file = tmpdir.path + "/simple.libsvm";
-  size_t constexpr kEntries = 24;
-  CreateBigTestData(tmp_file, kEntries);
-
-  std::unique_ptr<DMatrix> dmat{xgboost::DMatrix::Load(UriSVM(tmp_file, tmp_file), false)};
+  auto dmat = RandomDataGenerator{256, 5, 0.0}.Batches(4).GenerateSparsePageDMatrix(
+      tmpdir.path + "/", true);
 
   // Test the metadata that was parsed
-  EXPECT_EQ(dmat->Info().num_row_, 8ul);
+  EXPECT_EQ(dmat->Info().num_row_, 256ul);
   EXPECT_EQ(dmat->Info().num_col_, 5ul);
-  EXPECT_EQ(dmat->Info().num_nonzero_, kEntries);
+  EXPECT_EQ(dmat->Info().num_nonzero_, dmat->Info().num_col_ * dmat->Info().num_row_);
   EXPECT_EQ(dmat->Info().labels.Size(), dmat->Info().num_row_);
 }
 
