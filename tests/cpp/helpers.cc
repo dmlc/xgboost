@@ -3,8 +3,6 @@
  */
 #include "helpers.h"
 
-#include "../../src/data/batch_utils.h"  // for AutoHostRatio
-
 #include <gtest/gtest.h>
 #include <xgboost/gbm.h>
 #include <xgboost/json.h>
@@ -14,10 +12,12 @@
 #include <xgboost/objective.h>
 
 #include <algorithm>
-#include <limits>  // for numeric_limits
+#include <filesystem>  // for path
+#include <limits>      // for numeric_limits
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"
+#include "../../src/data/batch_utils.h"  // for AutoHostRatio, AutoCachePageBytes
 #include "../../src/data/iterative_dmatrix.h"
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
@@ -611,6 +611,26 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
   return p_fmat;
 }
 
+[[nodiscard]] std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
+    HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
+    const dmlc::TemporaryDirectory& tempdir, bst_idx_t n_batches) {
+  Context ctx;
+  auto iter = NumpyArrayIterForTest{&ctx, x, n_samples / n_batches, n_features, n_batches};
+
+  auto prefix = std::filesystem::path{tempdir.path} / "temp";
+  auto config = ExtMemConfig{
+      prefix.filename().string(),
+      false,
+      ::xgboost::cuda_impl::AutoHostRatio(),
+      ::xgboost::cuda_impl::AutoCachePageBytes(),
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
+  };
+  std::shared_ptr<DMatrix> p_fmat{
+      DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next, config)};
+  return p_fmat;
+}
+
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
                                                   LearnerModelParam const* learner_model_param,
@@ -655,7 +675,7 @@ ArrayIterForTest::ArrayIterForTest(Context const* ctx, HostDeviceVector<float> c
   CHECK_EQ(this->data_.Size(), rows_ * cols_ * n_batches);
   this->data_.Copy(data);
   std::tie(batches_, interface_) =
-      MakeArrayInterfaceBatch(&data_, rows_, cols_, n_batches_, ctx->Device());
+      MakeArrayInterfaceBatch(&data_, rows_ * n_batches_, cols_, n_batches_, ctx->Device());
 }
 
 ArrayIterForTest::~ArrayIterForTest() { XGDMatrixFree(proxy_); }

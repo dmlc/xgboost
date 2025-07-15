@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
 
 #include <future>
 #include <thread>
@@ -272,10 +273,14 @@ TEST(SparsePageDMatrix, RowAccess) {
 
 TEST(SparsePageDMatrix, ColAccess) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(UriSVM(tmp_file, tmp_file));
   Context ctx;
+
+  auto nan = std::numeric_limits<float>::quiet_NaN();
+  HostDeviceVector<float> x{
+      0, 10,  20,  nan, nan,  // row-0
+      0, nan, nan, 30,  40    // row-1
+  };
+  auto dmat = GetExternalMemoryDMatrixFromData(x, 2, 5, tempdir, 2);
 
   // Loop over the batches and assert the data is as expected
   size_t iter = 0;
@@ -291,7 +296,7 @@ TEST(SparsePageDMatrix, ColAccess) {
       ASSERT_EQ(col_page[1][0].fvalue, 10.0f);
       ASSERT_EQ(col_page[1].size(), 1);
     }
-    CHECK_LE(col_batch.base_rowid, dmat->Info().num_row_);
+    ASSERT_LE(col_batch.base_rowid, dmat->Info().num_row_);
     ++iter;
   }
 
@@ -299,17 +304,16 @@ TEST(SparsePageDMatrix, ColAccess) {
   iter = 0;
   for (auto const &col_batch : dmat->GetBatches<xgboost::CSCPage>(&ctx)) {
     auto col_page = col_batch.GetView();
-    EXPECT_EQ(col_page.Size(), dmat->Info().num_col_);
+    ASSERT_EQ(col_page.Size(), dmat->Info().num_col_);
     if (iter == 0) {
-      EXPECT_EQ(col_page[1][0].fvalue, 10.0f);
-      EXPECT_EQ(col_page[1].size(), 1);
+      ASSERT_EQ(col_page[1][0].fvalue, 10.0f);
+      ASSERT_EQ(col_page[1].size(), 1);
     } else {
-      EXPECT_EQ(col_page[3][0].fvalue, 30.f);
-      EXPECT_EQ(col_page[3].size(), 1);
+      ASSERT_EQ(col_page[3][0].fvalue, 30.f);
+      ASSERT_EQ(col_page[3].size(), 1);
     }
     iter++;
   }
-  delete dmat;
 }
 
 TEST(SparsePageDMatrix, ThreadSafetyException) {
