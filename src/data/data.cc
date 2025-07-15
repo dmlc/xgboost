@@ -1006,7 +1006,7 @@ INSTANTIATION_CREATE(ColumnarAdapter)
 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, std::string const&, DataSplitMode data_split_mode);
+    float missing, int nthread, std::string const& cache_prefix, DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;

@@ -619,7 +619,7 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
   auto prefix = std::filesystem::path{tempdir.path} / "temp";
   auto config = ExtMemConfig{
-      prefix.filename().string(),
+      prefix.string(),
       false,
       ::xgboost::cuda_impl::AutoHostRatio(),
       ::xgboost::cuda_impl::AutoCachePageBytes(),
