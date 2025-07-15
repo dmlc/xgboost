@@ -348,7 +348,7 @@ auto TestSparsePageDMatrixDeterminism(std::int32_t n_threads) {
   std::vector<bst_feature_t> sparse_cids;
 
   dmlc::TemporaryDirectory tmpdir;
-  auto prefix = std::filesystem::path{tmpdir.path} / "temp";
+  auto prefix = (std::filesystem::path{tmpdir.path} / "temp").string();
   auto dmat = RandomDataGenerator{4096, 64, 0.0}.Batches(4).GenerateSparsePageDMatrix(prefix, true);
 
   auto config = ExtMemConfig{prefix,
