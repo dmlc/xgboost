@@ -936,7 +936,7 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
       dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
   data::FileAdapter adapter(parser.get());
-  return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(),
+  return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), "",
                          data_split_mode);
 }
 
@@ -984,16 +984,16 @@ DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback, XGDMatrixC
     XGDMatrixCallbackNext*, bst_bin_t, std::int64_t, ExtMemConfig const&);
 
 template <typename AdapterT>
-DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,
                          DataSplitMode data_split_mode) {
   return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
 }
 
 // Instantiate the factory function for various adapters
-#define INSTANTIATION_CREATE(_AdapterT)                                                        \
-  template DMatrix* DMatrix::Create<data::_AdapterT>(data::_AdapterT * adapter, float missing, \
-                                                     std::int32_t nthread,                     \
-                                                     DataSplitMode data_split_mode);
+#define INSTANTIATION_CREATE(_AdapterT)                               \
+  template DMatrix* DMatrix::Create<data::_AdapterT>(                 \
+      data::_AdapterT * adapter, float missing, std::int32_t nthread, \
+      const std::string& cache_prefix, DataSplitMode data_split_mode);
 
 INSTANTIATION_CREATE(DenseAdapter)
 INSTANTIATION_CREATE(ArrayAdapter)
@@ -1006,7 +1006,7 @@ INSTANTIATION_CREATE(ColumnarAdapter)
 
 template DMatrix* DMatrix::Create(
     data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
-    float missing, int nthread, DataSplitMode data_split_mode);
+    float missing, int nthread, std::string const&, DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
