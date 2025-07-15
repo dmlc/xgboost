@@ -635,15 +635,13 @@ class DMatrix {
    * @tparam  AdapterT  Type of the adapter.
    * @param [in,out]  adapter         View onto an external data.
    * @param           missing         Values to count as missing.
-   * @param           nthread         Number of threads for construction.
-   * @param           cache_prefix    (Optional) The cache prefix for external memory.
+   * @param           n_threads       Number of threads for construction.
    * @param           data_split_mode (Optional) Data split mode.
    *
    * @return  a Created DMatrix.
    */
   template <typename AdapterT>
-  static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "",
+  static DMatrix* Create(AdapterT* adapter, float missing, std::int32_t n_threads,
                          DataSplitMode data_split_mode = DataSplitMode::kRow);
 
   /**
