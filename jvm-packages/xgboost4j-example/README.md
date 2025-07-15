@@ -9,7 +9,6 @@ XGBoost4J Code Examples
 * [Generalized Linear Model](src/main/java/ml/dmlc/xgboost4j/java/example/GeneralizedLinearModel.java)
 * [Cross validation](src/main/java/ml/dmlc/xgboost4j/java/example/CrossValidation.java)
 * [Predicting leaf indices](src/main/java/ml/dmlc/xgboost4j/java/example/PredictLeafIndices.java)
-* [External Memory](src/main/java/ml/dmlc/xgboost4j/java/example/ExternalMemory.java)
 * [Early Stopping](src/main/java/ml/dmlc/xgboost4j/java/example/EarlyStopping.java)
 
 ## Scala API
