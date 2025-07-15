@@ -6,6 +6,11 @@ Text Input Format of DMatrix
 
 Here we will briefly describe the text input formats for XGBoost. However, for users with access to a supported language environment like Python or R, it's recommended to use data parsers from that ecosystem instead. For instance, :py:func:`sklearn.datasets.load_svmlight_file`.
 
+.. warning::
+
+   As stated above, users are encouraged to use third-party data parsers. The text parsers
+   in XGBoost have been deprecated.
+
 ******************
 Basic Input Format
 ******************
