@@ -185,7 +185,7 @@ the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_mem
     # It's important to use RMM for GPU-based external memory to improve performance.
     # If XGBoost is not built with RMM support, a warning will be raised.
     # We use the pool memory resource here for simplicity, you can also try the
-    # `ArenaMemoryResource` for # improved memory fragmentation handling.
+    # `ArenaMemoryResource` for improved memory fragmentation handling.
     mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
@@ -374,13 +374,14 @@ Best Practices
 **************
 
 In previous sections, we demonstrated how to train a tree-based model with data residing
-on an external memory and made some recommendations for batch size. Here are some other
-configurations we find useful. The external memory feature involves iterating through data
-batches stored in a cache during tree construction. For optimal performance, we recommend
-using the ``grow_policy=depthwise`` setting, which allows XGBoost to build an entire layer
-of tree nodes with only a few batch iterations. Conversely, using the ``lossguide`` policy
-requires XGBoost to iterate over the data set for each tree node, resulting in
-significantly slower performance.
+on an external memory. In addition, we made some recommendations for batch size and
+NUMA. Here are some other configurations we find useful. The external memory feature
+involves iterating through data batches stored in a cache during tree construction. For
+optimal performance, we recommend using the ``grow_policy=depthwise`` setting, which
+allows XGBoost to build an entire layer of tree nodes with only a few batch
+iterations. Conversely, using the ``lossguide`` policy requires XGBoost to iterate over
+the data set for each tree node, resulting in significantly slower performance (tree size
+is exponential to the depth).
 
 In addition, the ``hist`` tree method should be preferred over the ``approx`` tree method
 as the former doesn't recreate the histogram bins for every iteration. Creating the
@@ -399,10 +400,10 @@ When external memory is used, the performance of CPU training is limited by disk
 (input/output) speed. This means that the disk IO speed primarily determines the training
 speed. Similarly, PCIe bandwidth limits the GPU performance, assuming the CPU memory is
 used as a cache and address translation services (ATS) is unavailable. During development,
-we observed that typical data transfer in XGBoost with PCIe4x16 has about 24GB/s
-bandwidth, which is significantly lower than the GPU processing performance. Whereas with
-a C2C-enabled machine, the performance of data transfer and processing in training are
-close to each other.
+we observed that typical data transfer in XGBoost with PCIe4x16 has about 24GB/s bandwidth
+and about 42GB/s with PCIe5, which is significantly lower than the GPU processing
+performance. Whereas with a C2C-enabled machine, the performance of data transfer and
+processing in training are close to each other.
 
 Running inference is much less computation-intensive than training and, hence, much
 faster. As a result, the performance bottleneck of inference is back to data transfer. For
@@ -422,7 +423,7 @@ that the pool is not full yet (pool memory usage can be profiled with ``nsight-s
 consider using the :py:class:`~rmm.mr.ArenaMemoryResource` memory resource. Alternatively,
 using :py:class:`~rmm.mr.CudaAsyncMemoryResource` in conjunction with
 :py:class:`BinningMemoryResource(mr, 21, 25) <rmm.mr.BinningMemoryResource>` instead of
-the default :py:class:`~rmm.mr.PoolMemoryResource` can be an option.
+the default :py:class:`~rmm.mr.PoolMemoryResource`.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some
