@@ -20,7 +20,6 @@ XGBoost4J Code Examples
 * [Generalized Linear Model](src/main/scala/ml/dmlc/xgboost4j/scala/example/GeneralizedLinearModel.scala)
 * [Cross validation](src/main/scala/ml/dmlc/xgboost4j/scala/example/CrossValidation.scala)
 * [Predicting leaf indices](src/main/scala/ml/dmlc/xgboost4j/scala/example/PredictLeafIndices.scala)
-* [External Memory](src/main/scala/ml/dmlc/xgboost4j/scala/example/ExternalMemory.scala)
 
 ## Spark API
 * [Distributed Training with Spark](src/main/scala/ml/dmlc/xgboost4j/scala/example/spark/SparkMLlibPipeline.scala)
