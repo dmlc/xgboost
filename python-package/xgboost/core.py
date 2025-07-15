@@ -1841,6 +1841,8 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             parameter specifies the size of host cache compared to the size of the
             entire cache: :math:`host / (host + device)`.
 
+            See :ref:`extmem-adaptive-cache` for more info.
+
         """
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan

@@ -274,6 +274,33 @@ with version ``>=565.47`` is required, it should come with CTK 12.7 and later
 versions. Lastly, there's a known issue with Linux 6.11 that can lead to CUDA host memory
 allocation failure with an ``invalid argument`` error.
 
+.. _extmem-adaptive-cache:
+
+==============
+Adaptive Cache
+==============
+
+Starting with 3.1, XGBoost introduces an adaptive cache for GPU-based external memory
+training. The feature helps split the data cache into a host cache and a device cache. By
+keeping a portion of the cache on the GPU, we can reduce the amount of data transfer
+during training when there's sufficient amount of GPU memory. The feature can be
+controlled by the ``cache_host_ratio`` parameter in the
+:py:class:`xgboost.ExtMemQuantileDMatrix`. It is disabled when the device has full C2C
+bandwidth since it's not needed there. On devices that with reduced bandwidth or devices
+with PCIe connections, unless explicitly specified, the ratio is automatically estimated
+based on device memory size and the size of the dataset.
+
+However, this parameter increases memory fragmentation as XGBoost needs large memory pages
+with irregular sizes. As a result, you might see out of memory error after the
+construction of the ``DMatrix`` but before the actual training begins.
+
+For reference, we tested the adaptive cache with a 128GB (512 features) dense 32bit
+floating dataset using a NVIDIA A6000 GPU, which comes with 48GB device memory. The
+``cache_host_ratio`` was estimated to be about 0.3, meaning about 30 percent of the
+quantized cache was on the host and rest of 70 percent was actually in-core. Given this
+ratio, the overhead is minimal. However, the estimated ratio increases as the data size
+grows.
+
 ================================
 Non-Uniform Memory Access (NUMA)
 ================================
@@ -313,6 +340,13 @@ shown below, the `GPU0` is associated with the `0` node ID::
     NIC1    NODE    SYS     PIX      X      NODE    SYS
     NIC2    NODE    SYS     NODE    NODE     X      SYS
     NIC3    SYS     NODE    SYS     SYS     SYS      X
+
+Alternatively, one can also use the ``hwloc`` command line interface, please make sure the
+strict flag is used:
+
+.. code-block:: sh
+
+    hwloc-bind --strict --membind node:${NODEID} --cpubind node:${NODEID} ./myapp
 
 Another approach is to use the CPU affinity. The `dask-cuda
 <https://github.com/rapidsai/dask-cuda>`__ project configures optimal CPU affinity for the
