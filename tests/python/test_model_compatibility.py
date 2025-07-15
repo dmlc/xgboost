@@ -13,30 +13,35 @@ import xgboost
 from xgboost import testing as tm
 
 
-def run_model_param_check(config: Dict[str, Any]) -> None:
+def run_model_param_check(name: str, config: Dict[str, Any]) -> None:
     assert config["learner"]["learner_model_param"]["num_feature"] == str(4)
     assert config["learner"]["learner_train_param"]["booster"] == "gbtree"
 
     booster = config["learner"]["gradient_booster"]
     assert booster["name"] == "gbtree"
+    if name.find("1.0.0rc1") != -1:
+        # There's no `num_parallel_tree` in the model parameter in 1.0 (it was a
+        # configuration instead of a model parameter).
+        return
     assert booster["gbtree_model_param"]["num_parallel_tree"] == str(gm.kForests)
 
 
 def run_booster_check(booster: xgboost.Booster, name: str) -> None:
     config = json.loads(booster.save_config())
-    run_model_param_check(config)
+    run_model_param_check(name, config)
+    n_rounds = get_n_rounds(name)
     if name.find("cls") != -1:
-        assert len(booster.get_dump()) == gm.kForests * gm.kRounds * gm.kClasses
+        assert len(booster.get_dump()) == gm.kForests * n_rounds * gm.kClasses
         assert float(config["learner"]["learner_model_param"]["base_score"]) == 0.5
         assert config["learner"]["learner_train_param"]["objective"] == "multi:softmax"
     elif name.find("logitraw") != -1:
-        assert len(booster.get_dump()) == gm.kForests * gm.kRounds
+        assert len(booster.get_dump()) == gm.kForests * n_rounds
         assert config["learner"]["learner_model_param"]["num_class"] == str(0)
         assert (
             config["learner"]["learner_train_param"]["objective"] == "binary:logitraw"
         )
     elif name.find("logit") != -1:
-        assert len(booster.get_dump()) == gm.kForests * gm.kRounds
+        assert len(booster.get_dump()) == gm.kForests * n_rounds
         assert config["learner"]["learner_model_param"]["num_class"] == str(0)
         assert (
             config["learner"]["learner_train_param"]["objective"] == "binary:logistic"
@@ -51,11 +56,19 @@ def run_booster_check(booster: xgboost.Booster, name: str) -> None:
         )
     else:
         assert name.find("reg") != -1
-        assert len(booster.get_dump()) == gm.kForests * gm.kRounds
+        assert len(booster.get_dump()) == gm.kForests * n_rounds
         assert float(config["learner"]["learner_model_param"]["base_score"]) == 0.5
         assert (
             config["learner"]["learner_train_param"]["objective"] == "reg:squarederror"
         )
+
+
+def get_n_rounds(name: str) -> int:
+    if name.find("1.0.0rc1") != -1:
+        n_rounds = 2
+    else:
+        n_rounds = gm.kRounds
+    return n_rounds
 
 
 def run_scikit_model_check(name: str, path: str) -> None:
@@ -66,42 +79,45 @@ def run_scikit_model_check(name: str, path: str) -> None:
         assert (
             config["learner"]["learner_train_param"]["objective"] == "reg:squarederror"
         )
-        assert len(reg.get_booster().get_dump()) == gm.kRounds * gm.kForests
-        run_model_param_check(config)
+        assert len(reg.get_booster().get_dump()) == get_n_rounds(name) * gm.kForests
+        run_model_param_check(name, config)
     elif name.find("cls") != -1:
         cls = xgboost.XGBClassifier()
         cls.load_model(path)
+        n_rounds = get_n_rounds(name)
         assert (
-            len(cls.get_booster().get_dump()) == gm.kRounds * gm.kForests * gm.kClasses
+            len(cls.get_booster().get_dump()) == n_rounds * gm.kForests * gm.kClasses
         ), path
         config = json.loads(cls.get_booster().save_config())
         assert (
             config["learner"]["learner_train_param"]["objective"] == "multi:softprob"
         ), path
-        run_model_param_check(config)
+        run_model_param_check(name, config)
     elif name.find("ltr") != -1:
         ltr = xgboost.XGBRanker()
         ltr.load_model(path)
-        assert len(ltr.get_booster().get_dump()) == gm.kRounds * gm.kForests
+        assert len(ltr.get_booster().get_dump()) == get_n_rounds(name) * gm.kForests
         config = json.loads(ltr.get_booster().save_config())
         assert config["learner"]["learner_train_param"]["objective"] == "rank:ndcg"
-        run_model_param_check(config)
+        run_model_param_check(name, config)
     elif name.find("logitraw") != -1:
         logit = xgboost.XGBClassifier()
         logit.load_model(path)
-        assert len(logit.get_booster().get_dump()) == gm.kRounds * gm.kForests
+        assert len(logit.get_booster().get_dump()) == get_n_rounds(name) * gm.kForests
         config = json.loads(logit.get_booster().save_config())
         assert (
             config["learner"]["learner_train_param"]["objective"] == "binary:logitraw"
         )
+        run_model_param_check(name, config)
     elif name.find("logit") != -1:
         logit = xgboost.XGBClassifier()
         logit.load_model(path)
-        assert len(logit.get_booster().get_dump()) == gm.kRounds * gm.kForests
+        assert len(logit.get_booster().get_dump()) == get_n_rounds(name) * gm.kForests
         config = json.loads(logit.get_booster().save_config())
         assert (
             config["learner"]["learner_train_param"]["objective"] == "binary:logistic"
         )
+        run_model_param_check(name, config)
     else:
         assert False
 
@@ -110,9 +126,9 @@ def download(path: str) -> None:
     """Download the model files from S3."""
     zip_path, _ = urllib.request.urlretrieve(
         "https://xgboost-ci-jenkins-artifacts.s3-us-west-2"
-        + ".amazonaws.com/xgboost_model_compatibility_test.zip"
+        + ".amazonaws.com/xgboost_model_compatibility_tests-3.0.1.zip"
     )
-    sha = "679b8ffd29c6ee4ebf8e9c0956064197f5d7c7a46d5b573b5794138bbe782aca"
+    sha = "48dbfc22bf2490dbdd30aa17c477998ae7d8689fa0f6e0216fa3345b5271625a"
     if hasattr(hashlib, "file_digest"):  # not in py 3.10
         with open(zip_path, "rb") as fd:
             digest = hashlib.file_digest(fd, "sha256")  # pylint: disable=attr-defined
@@ -123,10 +139,7 @@ def download(path: str) -> None:
 
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_model_compatibility() -> None:
-    """Test model compatibility, can only be run on CI as others don't
-    have the credentials.
-
-    """
+    """Test model compatibility."""
     path = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(path, "models")
 
@@ -134,12 +147,9 @@ def test_model_compatibility() -> None:
         download(path)
 
     models = [
-        os.path.join(root, f)
-        for root, subdir, files in os.walk(path)
-        for f in files
-        if f != "version"
+        os.path.join(root, f) for root, subdir, files in os.walk(path) for f in files
     ]
-    assert len(models) == 22
+    assert len(models) == 54
 
     for path in models:
         name = os.path.basename(path)
