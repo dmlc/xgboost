@@ -353,29 +353,27 @@ TEST(SparsePageDMatrix, ColAccessBatches) {
   }
 }
 
-auto TestSparsePageDMatrixDeterminism(int32_t threads) {
+auto TestSparsePageDMatrixDeterminism(std::int32_t n_threads) {
   std::vector<float> sparse_data;
   std::vector<size_t> sparse_rptr;
   std::vector<bst_feature_t> sparse_cids;
-  dmlc::TemporaryDirectory tempdir;
-  std::string filename = tempdir.path + "/simple.libsvm";
-  CreateBigTestData(filename, 1 << 16);
 
-  data::FileIterator iter(filename + "?format=libsvm", 0, 1);
-  auto config = ExtMemConfig{filename,
+  dmlc::TemporaryDirectory tmpdir;
+  auto prefix = std::filesystem::path{tmpdir.path} / "temp";
+  auto dmat = RandomDataGenerator{4096, 64, 0.0}.Batches(4).GenerateSparsePageDMatrix(prefix, true);
+
+  auto config = ExtMemConfig{prefix,
                              false,
                              ::xgboost::cuda_impl::AutoHostRatio(),
                              cuda_impl::MatchingPageBytes(),
                              std::numeric_limits<float>::quiet_NaN(),
-                             threads};
-  std::unique_ptr<DMatrix> sparse{new data::SparsePageDMatrix{
-      &iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next, config}};
-  CHECK(sparse->Ctx()->Threads() == threads || sparse->Ctx()->Threads() == AllThreadsForTest());
+                             n_threads};
+  CHECK(dmat->Ctx()->Threads() == n_threads || dmat->Ctx()->Threads() == AllThreadsForTest());
 
-  DMatrixToCSR(sparse.get(), &sparse_data, &sparse_rptr, &sparse_cids);
+  DMatrixToCSR(dmat.get(), &sparse_data, &sparse_rptr, &sparse_cids);
 
   auto cache_name =
-      data::MakeId(filename, dynamic_cast<data::SparsePageDMatrix *>(sparse.get())) + ".row.page";
+      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) + ".row.page";
   auto cache = common::LoadSequentialFile(cache_name);
   return cache;
 }
