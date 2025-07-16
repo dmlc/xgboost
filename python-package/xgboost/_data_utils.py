@@ -311,10 +311,14 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
         return off_len * (np.iinfo(typ).bits // 8)
 
     if offset.size == get_n_bytes(np.int64):
+        if not isinstance(cats, pa.LargeStringArray):
+            raise TypeError(
+                "Expecting `pyarrow.StringArray` or `pyarrow.LargeStringArray`,"
+                f" got: {type(cats)}."
+            )
         # Convert to 32bit integer, arrow recommends against the use of i64. Also,
         # XGBoost cannot handle large number of categories (> 2**31).
-        assert isinstance(cats, pa.LargeStringArray), type(cats)
-        i32cats = pa.Array.from_pandas(cats.to_numpy(zero_copy_only=False))
+        i32cats = cats.cast(pa.string())
         mask, offset, data = i32cats.buffers()
 
     if offset.size != get_n_bytes(np.int32):
