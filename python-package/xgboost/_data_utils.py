@@ -239,6 +239,27 @@ def npstr_to_arrow_strarr(strarr: np.ndarray) -> Tuple[np.ndarray, str]:
     return offsets.astype(np.int32), values
 
 
+@functools.cache
+def _arrow_npdtype() -> Dict[Any, Type[np.number]]:
+    import pyarrow as pa
+
+    mapping: Dict[Any, Type[np.number]] = {
+        pa.int8(): np.int8,
+        pa.int16(): np.int16,
+        pa.int32(): np.int32,
+        pa.int64(): np.int64,
+        pa.uint8(): np.uint8,
+        pa.uint16(): np.uint16,
+        pa.uint32(): np.uint32,
+        pa.uint64(): np.uint64,
+        pa.float16(): np.float16,
+        pa.float32(): np.float32,
+        pa.float64(): np.float64,
+    }
+
+    return mapping
+
+
 def _arrow_cat_inf(  # pylint: disable=too-many-locals
     cats: "pa.StringArray",
     codes: Union[_ArrayLikeArg, _CudaArrayLikeArg, "pa.IntegerArray"],
@@ -254,8 +275,19 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
     assert offset.is_cpu
 
     off_len = len(cats) + 1
-    if offset.size != off_len * (np.iinfo(np.int32).bits / 8):
-        raise TypeError("Arrow dictionary type offsets is required to be 32 bit.")
+
+    def get_n_bytes(typ: Type) -> int:
+        return off_len * (np.iinfo(typ).bits // 8)
+
+    if offset.size == get_n_bytes(np.int64):
+        # Convert to 32bit integer, arrow recommends against the use of i32. Also,
+        # there's no way to construct a `pa.StringArray` with 64bit integer backed
+        # offset.
+        i32cats = pa.Array.from_pandas(cats.to_numpy(zero_copy_only=False))
+        mask, offset, data = i32cats.buffers()
+
+    if offset.size != get_n_bytes(np.int32):
+        raise TypeError("Arrow dictionary type offsets is required to be 32 or 64 bit.")
 
     joffset: ArrayInf = {
         "data": (offset.address, True),
@@ -290,9 +322,30 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
         if hasattr(array, "__cuda_array_interface__"):
             inf = cuda_array_interface_dict(array)
             return inf, None
+        if isinstance(array, pa.Array):
+            mask, data = array.buffers()
+            jdata = make_array_interface(
+                data.address,
+                shape=(len(array),),
+                dtype=_arrow_npdtype()[array.type],
+                is_cuda=not data.is_cpu,
+            )
+            if mask is not None:
+                jmask: ArrayInf = {
+                    "data": (mask.address, True),
+                    "typestr": "<t1",
+                    "version": 3,
+                    "strides": None,
+                    "shape": (len(array),),
+                    "mask": None,
+                }
+                if not mask.is_cpu:
+                    jmask["stream"] = 2  # type: ignore
+                jdata["mask"] = jmask
+            return jdata, None
 
         # Other types (like arrow itself) are not yet supported.
-        raise TypeError("Invalid input type.")
+        raise TypeError(f"Invalid input type: {type(array)}")
 
     cats_tmp = (mask, offset, data)
     jcodes, codes_tmp = make_array_inf(codes)

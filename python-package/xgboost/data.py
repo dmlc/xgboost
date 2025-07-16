@@ -15,7 +15,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Type,
+    TypeAlias,
     TypeGuard,
     Union,
 )
@@ -27,6 +27,8 @@ from ._data_utils import (
     DfCatAccessor,
     StringArray,
     TransformedDf,
+    _arrow_cat_inf,
+    _arrow_npdtype,
     _ensure_np_dtype,
     _is_df_cat,
     array_hasobject,
@@ -768,25 +770,16 @@ def _from_pandas_series(
     )
 
 
-@functools.cache
-def _arrow_npdtype() -> Dict[Any, Type[np.number]]:
-    import pyarrow as pa
-
-    mapping: Dict[Any, Type[np.number]] = {
-        pa.int8(): np.int8,
-        pa.int16(): np.int16,
-        pa.int32(): np.int32,
-        pa.int64(): np.int64,
-        pa.uint8(): np.uint8,
-        pa.uint16(): np.uint16,
-        pa.uint32(): np.uint32,
-        pa.uint64(): np.uint64,
-        pa.float16(): np.float16,
-        pa.float32(): np.float32,
-        pa.float64(): np.float64,
-    }
-
-    return mapping
+# Type for storing JSON-encoded array interface
+AifT: TypeAlias = List[
+    Union[
+        ArrayInf,  # numeric column
+        Tuple[  # categorical column
+            Union[ArrayInf, StringArray],  # string index, numeric index
+            ArrayInf,  # codes
+        ],
+    ]
+]
 
 
 class ArrowTransformed(TransformedDf):
@@ -797,45 +790,57 @@ class ArrowTransformed(TransformedDf):
     ) -> None:
         self.columns = columns
 
-    def array_interface(self) -> bytes:
-        """Return a byte string for JSON encoded array interface."""
+        self.temporary_buffers: List[Tuple] = []
+
         if TYPE_CHECKING:
             import pyarrow as pa
         else:
             pa = import_pyarrow()
 
-        def array_inf(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> ArrayInf:
-            buffers = col.buffers()
+        aitfs: AifT = []
+
+        def array_inf(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> None:
             if isinstance(col, pa.DictionaryArray):
-                mask, _, data = col.buffers()
+                cats = col.dictionary
+                codes = col.indices
+                # fixme: numeric index.
+                jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
+                self.temporary_buffers.append(buf)
+                aitfs.append((jnames, jcodes))
             else:
-                mask, data = buffers
+                mask, data = col.buffers()
 
-            assert data.is_cpu
-            assert col.offset == 0
+                assert data.is_cpu
+                assert col.offset == 0
 
-            jdata = make_array_interface(
-                data.address,
-                shape=(len(col),),
-                dtype=_arrow_npdtype()[col.type],
-                is_cuda=not data.is_cpu,
-            )
-            if mask is not None:
-                jmask: ArrayInf = {
-                    "data": (mask.address, True),
-                    "typestr": "<t1",
-                    "version": 3,
-                    "strides": None,
-                    "shape": (len(col),),
-                    "mask": None,
-                }
-                if not data.is_cpu:
-                    jmask["stream"] = 2  # type: ignore
-                jdata["mask"] = jmask
-            return jdata
+                jdata = make_array_interface(
+                    data.address,
+                    shape=(len(col),),
+                    dtype=_arrow_npdtype()[col.type],
+                    is_cuda=not data.is_cpu,
+                )
+                if mask is not None:
+                    jmask: ArrayInf = {
+                        "data": (mask.address, True),
+                        "typestr": "<t1",
+                        "version": 3,
+                        "strides": None,
+                        "shape": (len(col),),
+                        "mask": None,
+                    }
+                    if not data.is_cpu:
+                        jmask["stream"] = 2  # type: ignore
+                    jdata["mask"] = jmask
+                aitfs.append(jdata)
 
-        arrays = list(map(array_inf, self.columns))
-        sarrays = bytes(json.dumps(arrays), "utf-8")
+        for col in self.columns:
+            array_inf(col)
+
+        self.aitfs = aitfs
+
+    def array_interface(self) -> bytes:
+        """Return a byte string for JSON encoded array interface."""
+        sarrays = bytes(json.dumps(self.aitfs), "utf-8")
         return sarrays
 
     @property
@@ -850,7 +855,7 @@ def _is_arrow(data: DataType) -> bool:
 
 def _transform_arrow_table(
     data: "pa.Table",
-    _: bool,  # not used yet, enable_categorical
+    enable_categorical: bool,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
 ) -> Tuple[ArrowTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
@@ -872,6 +877,10 @@ def _transform_arrow_table(
         col: Union["pa.NumericArray", "pa.DictionaryArray"] = col0.combine_chunks()
         if isinstance(col, pa.BooleanArray):
             col = col.cast(pa.int8())  # bit-compressed array, not supported.
+        if is_arrow_dict(col) and not enable_categorical:
+            # None because the function doesn't know how to get the type info from arrow
+            # table.
+            _invalid_dataframe_dtype(None)
         columns.append(col)
 
     df_t = ArrowTransformed(columns)
@@ -937,10 +946,6 @@ def _arrow_feature_info(data: DataType) -> Tuple[List[str], List]:
     def map_type(name: str) -> str:
         col = table.column(name)
         if isinstance(col.type, pa.DictionaryType):
-            raise NotImplementedError(
-                "Categorical feature is not yet supported with the current input data "
-                "type."
-            )
             return CAT_T  # pylint: disable=unreachable
 
         return _arrow_dtype()[col.type]
@@ -1073,15 +1078,7 @@ class CudfTransformed(TransformedDf):
         # the DMatrix or the booster.
         self.temporary_buffers: List[Tuple] = []
 
-        aitfs: List[
-            Union[
-                ArrayInf,  # numeric column
-                Tuple[  # categorical column
-                    Union[ArrayInf, StringArray],  # string index, numeric index
-                    ArrayInf,  # codes
-                ],
-            ]
-        ] = []
+        aitfs: AifT = []
 
         def push_series(ser: Any) -> None:
             if _is_df_cat(ser):
