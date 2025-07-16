@@ -271,10 +271,24 @@ def _arrow_mask_inf(mask: Optional["pa.Buffer"], size: int) -> Optional[ArrayInf
             "mask": None,
         }
         if not mask.is_cpu:
-            jmask["stream"] = 2  # type: ignore
+            jmask["stream"] = STREAM_PER_THREAD  # type: ignore
     else:
         jmask = None
     return jmask
+
+
+def _arrow_buf_inf(buf: "pa.Buffer", typestr: str, size: int) -> ArrayInf:
+    jdata: ArrayInf = {
+        "data": (buf.address, True),
+        "typestr": typestr,
+        "version": 3,
+        "strides": None,
+        "shape": (size,),
+        "mask": None,
+    }
+    if not buf.is_cpu:
+        jdata["stream"] = STREAM_PER_THREAD  # type: ignore
+    return jdata
 
 
 def _arrow_cat_inf(  # pylint: disable=too-many-locals
@@ -308,26 +322,8 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
             "Arrow dictionary type offsets is required to be 32-bit integer."
         )
 
-    joffset: ArrayInf = {
-        "data": (offset.address, True),
-        "typestr": "<i4",
-        "version": 3,
-        "strides": None,
-        "shape": (off_len,),
-        "mask": None,
-    }
-
-    def make_buf_inf(buf: pa.Buffer, typestr: str) -> ArrayInf:
-        return {
-            "data": (buf.address, True),
-            "typestr": typestr,
-            "version": 3,
-            "strides": None,
-            "shape": (buf.size,),
-            "mask": None,
-        }
-
-    jdata = make_buf_inf(data, "<i1")
+    joffset = _arrow_buf_inf(offset, "<i4", off_len)
+    jdata = _arrow_buf_inf(data, "|i1", data.size)
     # Categories should not have missing values.
     assert mask is None
 

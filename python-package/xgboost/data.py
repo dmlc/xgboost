@@ -800,13 +800,13 @@ class ArrowTransformed(TransformedDf):
 
         aitfs: AifType = []
 
-        def array_inf(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> None:
+        def push_series(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> None:
             if isinstance(col, pa.DictionaryArray):
                 cats = col.dictionary
                 codes = col.indices
                 if not isinstance(cats, (pa.StringArray, pa.LargeStringArray)):
                     raise TypeError(
-                        "Only string-based categorical type is supported for arrow."
+                        "Only string-based categorical index is supported for arrow."
                     )
                 jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
                 self.temporary_buffers.append(buf)
@@ -827,7 +827,7 @@ class ArrowTransformed(TransformedDf):
                 aitfs.append(jdata)
 
         for col in self.columns:
-            array_inf(col)
+            push_series(col)
 
         self.aitfs = aitfs
 
