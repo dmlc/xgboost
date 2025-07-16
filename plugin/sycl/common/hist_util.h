@@ -14,6 +14,7 @@
 
 #include "../../src/common/hist_util.h"
 #include "../data/gradient_index.h"
+#include "../tree/hist_dispatcher.h"
 
 #include <sycl/sycl.hpp>
 
@@ -161,6 +162,7 @@ class GHistBuilder {
                           GHistRowT<MemoryType::on_device>* HistCollection,
                           bool isDense,
                           GHistRowT<MemoryType::on_device>* hist_buffer,
+                          const tree::HistDispatcher& dispatcher,
                           ::sycl::event event,
                           bool force_atomic_use = false);
 

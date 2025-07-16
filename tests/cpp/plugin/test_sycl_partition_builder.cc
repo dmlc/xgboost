@@ -67,7 +67,7 @@ void TestPartitioning(float sparsity, int max_bins) {
 
   std::vector<uint8_t> ridx_left(num_rows, 0);
   std::vector<uint8_t> ridx_right(num_rows, 0);
-  for (auto &batch : gmat.p_fmat->GetBatches<SparsePage>()) {
+  for (auto &batch : p_fmat->GetBatches<SparsePage>()) {
     const auto& data_vec = batch.data.HostVector();
     const auto& offset_vec = batch.offset.HostVector();
 

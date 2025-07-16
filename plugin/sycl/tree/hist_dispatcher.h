@@ -1,0 +1,248 @@
+/*!
+ * Copyright 2017-2025 by Contributors
+ * \file hist_dispatcher.h
+ */
+#ifndef PLUGIN_SYCL_TREE_HIST_DISPATCHER_H_
+#define PLUGIN_SYCL_TREE_HIST_DISPATCHER_H_
+
+#include <algorithm>
+#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+
+namespace xgboost {
+namespace sycl {
+namespace tree {
+
+struct BlockParams { size_t size, nblocks; };
+
+struct HistBuildParameters {
+  bool use_local_hist = false;
+  bool use_atomics = false;
+  size_t work_group_size;
+  BlockParams block;
+};
+
+class HistDispatcher {
+  bool is_gpu;
+  size_t max_compute_units;
+  size_t max_work_group_size;
+  float sram_size_per_eu = 0;
+  float l2_size_per_eu = 0;
+
+  void GetL2Size(const ::sycl::device& device) {
+    size_t l2_size = device.get_info<::sycl::info::device::global_mem_cache_size>();
+    LOG(INFO) << "Detected L2 Size = " << l2_size / 1024 / 1024 << "MB";
+    l2_size_per_eu = static_cast<float>(l2_size) / max_compute_units;
+  }
+
+  void GetSRAMSize(const ::sycl::device& device) {
+    auto arch =
+      device.get_info<::sycl::ext::oneapi::experimental::info::device::architecture>();
+    size_t eu_per_core =
+      device.get_info<::sycl::ext::intel::info::device::gpu_eu_count_per_subslice>();
+    switch (arch) {
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g10:
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g11:
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g12: {
+        LOG(INFO) << "Xe-HPG (Alchemist) Architecture";
+        size_t l1_size = 128 * 1024;
+        size_t registers_size = 128 * 1024;
+        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
+        break;
+      }
+
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_mtl_u:
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_mtl_h:
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_arl_h: {
+        LOG(INFO) << "Xe-LPG (MTL) and Xe-LPG+ (ARL) Architectures";
+        size_t l1_size = 192 * 1024;
+        size_t registers_size =  128 * 1024;
+        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
+        break;
+      }
+
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_lnl_m: {
+        LOG(INFO) << "Xe2-LPG (Lunar Lake) Architecture";
+        size_t l1_size = 192 * 1024;
+        // Xe2 share the registers and L1
+        size_t registers_size = 0;
+        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
+        break;
+      }
+
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_bmg_g21: {
+        LOG(INFO) << "Xe2-HPG (Battlemage) Architecture";
+        size_t l1_size = 256 * 1024;
+        // Xe2 share the registers and L1
+        size_t registers_size = 0;
+        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
+        break;
+      }
+
+      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc: {
+        LOG(INFO) << "Xe-HPC (Ponte Vecchio) Architecture";
+        size_t l1_size = 512 * 1024;
+        size_t registers_size = 256 * 1024;
+        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
+        break;
+      }
+    default:
+      LOG(WARNING) << "Unknown SYCL GPU architecture. Performance may be suboptimal.";
+      sram_size_per_eu = 0;
+    }
+  }
+
+  inline BlockParams GetBlocksParameters(size_t size, size_t max_nblocks) const {
+    size_t nblocks = max_compute_units;
+
+    size_t block_size = size / nblocks + !!(size % nblocks);
+    while (block_size > (1u << 11)) {
+      nblocks *= 2;
+      if (nblocks >= max_nblocks) {
+        nblocks = max_nblocks;
+        block_size = size / nblocks + !!(size % nblocks);
+        break;
+      }
+      block_size = size / nblocks + !!(size % nblocks);
+    }
+
+    if (block_size < KMinBlockSize) {
+      block_size = KMinBlockSize;
+      nblocks = size / block_size + !!(size % block_size);
+    }
+
+    return {block_size, nblocks};
+  }
+
+ public:
+  // Max n_blocks/max_compute_units ration.
+  // Higher -> better GPU utilisation with higer memory overhead.
+  constexpr static int kMaxGPUUtilisation = 4;
+  // Minimal value of block size for buffer-based hist building
+  constexpr static size_t KMinBlockSize = 32;
+  // Maximal value of block size, when increasing can affect performance
+  constexpr static size_t KMaxEffectiveBlockSize = 1u << 11;
+  // Maximal number of bins acceptable for local histograms
+  constexpr static size_t KMaxNumBins = 256;
+  // Max workgroups size, used by atomic-based hist-building
+  constexpr static size_t kMaxWorkGroupSizeAtomic = 32;
+  // Max workgroups size, used for local histograms
+  constexpr static size_t kMaxWorkGroupSizeLocal = 256;
+  // Atomic efficency normalization
+  constexpr static float kAtomicEfficiencyNormalization = 16 * 1024;
+  // Block kernel launch penalty normalization
+  constexpr static float kBlockPenaltyNormalization = 32 * 1024;
+  // Relative weight of quadratic term in atomic penalty model
+  constexpr static float kAtomicQuadraticWeight = 1.0 / 8.0;
+  // Minimal value of threshold GPU load
+  constexpr static float kMinTh = 1.0 / 16.0;
+
+  explicit HistDispatcher(const ::sycl::device& device):
+    is_gpu(device.is_gpu()),
+    max_compute_units(device.get_info<::sycl::info::device::max_compute_units>()),
+    max_work_group_size(device.get_info<::sycl::info::device::max_work_group_size>()) {
+      GetL2Size(device);
+      if (is_gpu) {
+        GetSRAMSize(device);
+      }
+    }
+
+  template<typename GradientPairT>
+  HistBuildParameters GetHistBuildParameters(bool isDense, size_t size, size_t max_nblocks,
+                                             size_t nbins, size_t ncolumns, size_t max_num_bins,
+                                             size_t min_num_bins) const {
+    HistBuildParameters build_params;
+
+    build_params.block = GetBlocksParameters(size, max_nblocks);
+    build_params.work_group_size = std::min(ncolumns, max_work_group_size);
+    if (!is_gpu) return build_params;
+
+    /* If local histogram is possible and beneficial */
+    const int buff_size = nbins * sizeof(GradientPairT);
+    /* block_size writes into array of size max_num_bins are made,
+    * if (block_size < max_num_bins)
+    * most part of buffer isn't used and perf suffers.
+    */
+    const size_t th_block_size = max_num_bins;
+    build_params.use_local_hist = (buff_size < 0.8 * sram_size_per_eu)
+                                  && isDense
+                                  && (max_num_bins <= KMaxNumBins)
+                                  && (build_params.block.size >= th_block_size);
+
+    /* Predict penalty from atomic usage and compare with one from block-based build with buffer */
+    // EUs processing different columns do not trigger conflicts.
+    float wg_per_columns = std::max(1.0f, static_cast<float>(ncolumns) / kMaxWorkGroupSizeAtomic);
+    /* Rows are processed per execution unit.
+     * Some EUs process different columns, and don't triiger conflicts.
+     * We use a worse case scenario, i.e. use the minimal number of bins per feature
+     */
+    float conflicts_per_bin = (max_compute_units / wg_per_columns) / min_num_bins;
+
+    // Atomics resolve conflicts between EUs, so L2 size can be a proxy for atomic efficiency.
+    float atomic_efficency = l2_size_per_eu / kAtomicEfficiencyNormalization;
+    // We use simple quadratic model to predict atomic penalty
+    float atomic_penalty = conflicts_per_bin
+                         + kAtomicQuadraticWeight * (conflicts_per_bin * conflicts_per_bin);
+
+    // Block-based builder operates with buffer of type FPType, placed in L2.
+    using FPType = typename GradientPairT::ValueT;
+    float base_block_penalty = kBlockPenaltyNormalization / l2_size_per_eu * (sizeof(FPType) / 4);
+
+    if (build_params.block.nblocks >= max_compute_units) {
+      // if GPU is fully loaded, we can simply compare penaltys.
+      build_params.use_atomics = base_block_penalty > atomic_penalty / atomic_efficency;
+    } else {
+      float blocks_per_eu = static_cast<float>(build_params.block.nblocks) / max_compute_units;
+      /* The GPU is not 100% loaded. We need to take this into account in our model:
+       * block_penalty = base_block_penalty + base_time * (1 - blocks_per_eu);
+       * 
+       * atomics should be used, if:
+       * block_penalty > atomic_penalty
+       * 
+       * The normalization is chosen so that: base_time = 1
+       * base_block_penalty + 1 - blocks_per_eu > atomic_penalty / atomic_efficency
+       * 
+       * blocks_per_eu < 1 + base_block_penalty - atomic_penalty / atomic_efficency
+       */
+      float th_block_per_eu = 1 + base_block_penalty - atomic_penalty / atomic_efficency;
+
+      /* The model will failed mostly 
+       * if (1 + base_block_penalty) ~ (atomic_penalty / atomic_efficency)
+       * We manually limit the minimal value of th_block_per_eu,
+       * to determine the behaviour in this region.
+       */
+      th_block_per_eu = std::max<float>(kMinTh, th_block_per_eu);
+
+      build_params.use_atomics = (blocks_per_eu < th_block_per_eu);
+    }
+
+    if (build_params.use_atomics) {
+      build_params.work_group_size = std::min(kMaxWorkGroupSizeAtomic,
+                                              build_params.work_group_size);
+    } else if (build_params.use_local_hist) {
+      build_params.work_group_size = std::min(kMaxWorkGroupSizeLocal,
+                                              build_params.work_group_size);
+    }
+
+    return build_params;
+  }
+
+  // For some datasets buffer is not used, we estimate if it is the case.
+  template<typename GradientPairT>
+  size_t GetRequaredBufferSize(size_t max_n_rows, size_t nbins, size_t ncolumns,
+                               size_t max_num_bins, size_t min_num_bins) const {
+    size_t max_nblocks = kMaxGPUUtilisation * max_compute_units;
+    auto build_params = GetHistBuildParameters<GradientPairT>
+                        (true, max_n_rows, max_nblocks, nbins,
+                         ncolumns, max_num_bins, min_num_bins);
+
+    return build_params.use_atomics ? 0 : build_params.block.nblocks;
+  }
+};
+
+
+}  // namespace tree
+}  // namespace sycl
+}  // namespace xgboost
+
+#endif  // PLUGIN_SYCL_TREE_HIST_DISPATCHER_H_

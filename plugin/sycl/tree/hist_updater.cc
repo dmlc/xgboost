@@ -500,10 +500,6 @@ void HistUpdater<GradientSumT>::InitData(
     hist_.Init(qu_, nbins);
     hist_local_worker_.Init(qu_, nbins);
 
-    hist_buffer_.Init(qu_, nbins);
-    size_t buffer_size = 4 * qu_->get_device().get_info<::sycl::info::device::max_compute_units>();
-    hist_buffer_.Reset(buffer_size);
-
     // initialize histogram builder
     hist_builder_ = common::GHistBuilder<GradientSumT>(qu_, nbins);
 
@@ -613,6 +609,18 @@ void HistUpdater<GradientSumT>::InitData(
       qexpand_depth_wise_.clear();
     }
   }
+
+  {
+    uint32_t nbins = gmat.cut.Ptrs().back();
+    hist_buffer_.Init(qu_, nbins);
+    using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
+    bool isDense = data_layout_ != kSparseData;
+    const size_t ncolumns = isDense ? gmat.nfeatures : gmat.row_stride;
+    size_t buffer_size = hist_dispatcher_.GetRequaredBufferSize<GradientPairT>
+                        (info.num_row_, nbins, ncolumns, gmat.max_num_bins, gmat.min_num_bins);
+    hist_buffer_.Reset(buffer_size);
+  }
+
   builder_monitor_.Stop("InitData");
 }
 
