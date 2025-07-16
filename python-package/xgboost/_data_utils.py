@@ -239,6 +239,58 @@ def npstr_to_arrow_strarr(strarr: np.ndarray) -> Tuple[np.ndarray, str]:
     return offsets.astype(np.int32), values
 
 
+@functools.cache
+def _arrow_npdtype() -> Dict[Any, Type[np.number]]:
+    import pyarrow as pa
+
+    mapping: Dict[Any, Type[np.number]] = {
+        pa.int8(): np.int8,
+        pa.int16(): np.int16,
+        pa.int32(): np.int32,
+        pa.int64(): np.int64,
+        pa.uint8(): np.uint8,
+        pa.uint16(): np.uint16,
+        pa.uint32(): np.uint32,
+        pa.uint64(): np.uint64,
+        pa.float16(): np.float16,
+        pa.float32(): np.float32,
+        pa.float64(): np.float64,
+    }
+
+    return mapping
+
+
+def _arrow_mask_inf(mask: Optional["pa.Buffer"], size: int) -> Optional[ArrayInf]:
+    if mask is not None:
+        jmask: Optional[ArrayInf] = {
+            "data": (mask.address, True),
+            "typestr": "<t1",
+            "version": 3,
+            "strides": None,
+            "shape": (size,),
+            "mask": None,
+        }
+        if not mask.is_cpu:
+            jmask["stream"] = STREAM_PER_THREAD  # type: ignore
+    else:
+        jmask = None
+    return jmask
+
+
+def _arrow_buf_inf(buf: "pa.Buffer", typestr: str, size: int) -> ArrayInf:
+    jdata: ArrayInf = {
+        "data": (buf.address, True),
+        "typestr": typestr,
+        "version": 3,
+        "strides": None,
+        "shape": (size,),
+        "mask": None,
+    }
+    if not buf.is_cpu:
+        jdata["stream"] = STREAM_PER_THREAD  # type: ignore
+    return jdata
+
+
 def _arrow_cat_inf(  # pylint: disable=too-many-locals
     cats: "pa.StringArray",
     codes: Union[_ArrayLikeArg, _CudaArrayLikeArg, "pa.IntegerArray"],
@@ -254,29 +306,28 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
     assert offset.is_cpu
 
     off_len = len(cats) + 1
-    if offset.size != off_len * (np.iinfo(np.int32).bits / 8):
-        raise TypeError("Arrow dictionary type offsets is required to be 32 bit.")
 
-    joffset: ArrayInf = {
-        "data": (offset.address, True),
-        "typestr": "<i4",
-        "version": 3,
-        "strides": None,
-        "shape": (off_len,),
-        "mask": None,
-    }
+    def get_n_bytes(typ: Type) -> int:
+        return off_len * (np.iinfo(typ).bits // 8)
 
-    def make_buf_inf(buf: pa.Buffer, typestr: str) -> ArrayInf:
-        return {
-            "data": (buf.address, True),
-            "typestr": typestr,
-            "version": 3,
-            "strides": None,
-            "shape": (buf.size,),
-            "mask": None,
-        }
+    if offset.size == get_n_bytes(np.int64):
+        if not isinstance(cats, pa.LargeStringArray):
+            raise TypeError(
+                "Expecting `pyarrow.StringArray` or `pyarrow.LargeStringArray`,"
+                f" got: {type(cats)}."
+            )
+        # Convert to 32bit integer, arrow recommends against the use of i64. Also,
+        # XGBoost cannot handle large number of categories (> 2**31).
+        i32cats = cats.cast(pa.string())
+        mask, offset, data = i32cats.buffers()
 
-    jdata = make_buf_inf(data, "<i1")
+    if offset.size != get_n_bytes(np.int32):
+        raise TypeError(
+            "Arrow dictionary type offsets is required to be 32-bit integer."
+        )
+
+    joffset = _arrow_buf_inf(offset, "<i4", off_len)
+    jdata = _arrow_buf_inf(data, "|i1", data.size)
     # Categories should not have missing values.
     assert mask is None
 
@@ -290,9 +341,19 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
         if hasattr(array, "__cuda_array_interface__"):
             inf = cuda_array_interface_dict(array)
             return inf, None
+        if isinstance(array, pa.Array):
+            mask, data = array.buffers()
+            jdata = make_array_interface(
+                data.address,
+                shape=(len(array),),
+                dtype=_arrow_npdtype()[array.type],
+                is_cuda=not data.is_cpu,
+            )
+            jdata["mask"] = _arrow_mask_inf(mask, len(array))
+            return jdata, None
 
-        # Other types (like arrow itself) are not yet supported.
-        raise TypeError("Invalid input type.")
+        # Other types are not yet supported.
+        raise TypeError(f"Invalid input type: {type(array)}")
 
     cats_tmp = (mask, offset, data)
     jcodes, codes_tmp = make_array_inf(codes)

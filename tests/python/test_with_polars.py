@@ -138,9 +138,43 @@ def test_regressor() -> None:
 def test_categorical() -> None:
     import polars as pl
 
+    cats = ["aa", "cc", "bb", "ee", "ee"]
     df = pl.DataFrame(
-        {"f0": [1, 2, 3], "b": ["a", "b", "c"]},
-        schema=[("a", pl.Int64()), ("b", pl.Categorical())],
+        {"f0": [1, 3, 2, 4, 4], "f1": cats},
+        schema=[("f0", pl.Int64()), ("f1", pl.Categorical(ordering="lexical"))],
     )
-    with pytest.raises(NotImplementedError, match="Categorical feature"):
-        xgb.DMatrix(df, enable_categorical=True)
+    with pytest.raises(ValueError, match="enable_categorical"):
+        xgb.DMatrix(df)
+
+    data = xgb.DMatrix(df, enable_categorical=True)
+    categories = data.get_categories()
+    assert categories is not None
+    assert categories["f0"] is None
+    assert categories["f1"].to_pylist() == cats[:4]
+
+    df = pl.DataFrame(
+        {"f0": [1, 3, 2, 4, 4], "f1": cats},
+        schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4]))],
+    )
+    data = xgb.DMatrix(df, enable_categorical=True)
+    categories = data.get_categories()
+    assert categories is not None
+    assert categories["f0"] is None
+    assert categories["f1"].to_pylist() == cats[:4]
+
+    rng = np.random.default_rng(2025)
+    y = rng.normal(size=(df.shape[0]))
+    Xy = xgb.QuantileDMatrix(df, y, enable_categorical=True)
+    booster = xgb.train({}, Xy, num_boost_round=8)
+    predt_0 = booster.inplace_predict(df)
+
+    df_rev = pl.DataFrame(
+        {"f0": [1, 3, 2, 4, 4], "f1": cats},
+        schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4][::-1]))],
+    )
+    predt_1 = booster.inplace_predict(df_rev)
+    assert (
+        df["f1"].cat.get_categories().to_list()
+        != df_rev["f1"].cat.get_categories().to_list()
+    )
+    np.testing.assert_allclose(predt_0, predt_1)
