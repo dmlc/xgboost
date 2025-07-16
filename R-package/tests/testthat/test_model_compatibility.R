@@ -96,17 +96,33 @@ test_that("Models from previous versions of XGBoost can be loaded", {
   file_name <- "xgboost_model_compatibility_tests-3.0.2.zip"
   zipfile <- tempfile(fileext = ".zip")
   extract_dir <- tempdir()
-  download.file(
-    paste(
-      "https://", bucket, ".s3-", region, ".amazonaws.com/", file_name, sep = ""
-    ),
-    destfile = zipfile, mode = "wb", quiet = TRUE
+  result <- tryCatch(
+    {
+      download.file(
+        paste(
+          "https://", bucket, ".s3-", region, ".amazonaws.com/", file_name,
+          sep = ""
+        ),
+        destfile = zipfile, mode = "wb", quiet = TRUE
+      )
+      zipfile
+    },
+    error = function(e) {
+      print(e)
+      NA_character_
+    }
   )
+  if (is.na(result)) {
+    print("Failed to download old models.")
+    return()
+  }
+
   unzip(zipfile, exdir = extract_dir, overwrite = TRUE)
   model_dir <- file.path(extract_dir, "models")
 
   pred_data <- xgb.DMatrix(
-    matrix(c(0, 0, 0, 0), nrow = 1, ncol = 4), nthread = 2
+    matrix(c(0, 0, 0, 0), nrow = 1, ncol = 4),
+    nthread = 2
   )
 
   lapply(list.files(model_dir), function(x) {
