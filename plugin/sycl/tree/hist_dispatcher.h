@@ -93,6 +93,7 @@ class HistDispatcher {
   }
 
   inline BlockParams GetBlocksParameters(size_t size, size_t max_nblocks) const {
+    if (max_nblocks == 0) return {0, 0};
     size_t nblocks = max_compute_units;
 
     size_t block_size = size / nblocks + !!(size % nblocks);
