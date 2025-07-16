@@ -2,6 +2,13 @@
 Using XGBoost External Memory Version
 #####################################
 
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
+
+
 ********
 Overview
 ********
@@ -39,12 +46,6 @@ introduce the difference between CPU and GPU in the following sections.
 
 The external memory support has undergone multiple development iterations. See below
 sections for a brief history.
-
-**Contents**
-
-.. contents::
-  :backlinks: none
-  :local:
 
 
 *************
@@ -184,7 +185,7 @@ the GPU. Following is a snippet from :ref:`sphx_glr_python_examples_external_mem
     # It's important to use RMM for GPU-based external memory to improve performance.
     # If XGBoost is not built with RMM support, a warning will be raised.
     # We use the pool memory resource here for simplicity, you can also try the
-    # `ArenaMemoryResource` for # improved memory fragmentation handling.
+    # `ArenaMemoryResource` for improved memory fragmentation handling.
     mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaAsyncMemoryResource())
     rmm.mr.set_current_device_resource(mr)
     # Set the allocator for cupy as well.
@@ -273,6 +274,90 @@ with version ``>=565.47`` is required, it should come with CTK 12.7 and later
 versions. Lastly, there's a known issue with Linux 6.11 that can lead to CUDA host memory
 allocation failure with an ``invalid argument`` error.
 
+.. _extmem-adaptive-cache:
+
+==============
+Adaptive Cache
+==============
+
+Starting with 3.1, XGBoost introduces an adaptive cache for GPU-based external memory
+training. The feature helps split the data cache into a host cache and a device cache. By
+keeping a portion of the cache on the GPU, we can reduce the amount of data transfer
+during training when there's sufficient amount of GPU memory. The feature can be
+controlled by the ``cache_host_ratio`` parameter in the
+:py:class:`xgboost.ExtMemQuantileDMatrix`. It is disabled when the device has full C2C
+bandwidth since it's not needed there. On devices that with reduced bandwidth or devices
+with PCIe connections, unless explicitly specified, the ratio is automatically estimated
+based on device memory size and the size of the dataset.
+
+However, this parameter increases memory fragmentation as XGBoost needs large memory pages
+with irregular sizes. As a result, you might see out of memory error after the
+construction of the ``DMatrix`` but before the actual training begins.
+
+For reference, we tested the adaptive cache with a 128GB (512 features) dense 32bit
+floating dataset using a NVIDIA A6000 GPU, which comes with 48GB device memory. The
+``cache_host_ratio`` was estimated to be about 0.3, meaning about 30 percent of the
+quantized cache was on the host and rest of 70 percent was actually in-core. Given this
+ratio, the overhead is minimal. However, the estimated ratio increases as the data size
+grows.
+
+================================
+Non-Uniform Memory Access (NUMA)
+================================
+
+On multi-socket systems, `NUMA
+<https://en.wikipedia.org/wiki/Non-uniform_memory_access>`__ helps optimize data access by
+prioritizing memory that is local to each socket.  On these systems, it's essential to set
+the correct affinity to reduce the overhead of cross-socket data access. Since the out of
+core training stages the data cache on the host and trains the model using a GPU, the
+training performance is particularly sensitive to the data read bandwidth. To provide some
+context, on a GB200 machine, accessing the wrong NUMA node from a GPU can reduce the C2C
+bandwidth by half. Even if you are not using distributed training, you should still pay
+attention to NUMA control since there's no guarantee that your process will have the
+correct configuration.
+
+We have tested two approaches of NUMA configuration. The first (and recommended) way is to
+use the ``numactl`` command line available on Linux distributions:
+
+.. code-block:: sh
+
+    numactl --membind=${NODEID} --cpunodebind=${NODEID} ./myapp
+
+
+To obtain the node ID, you can check the machine topology via ``nvidia-smi``:
+
+.. code-block:: sh
+
+    nvidia-smi topo -m
+
+The column ``NUMA Affinity`` lists the NUMA node ID for each GPU. In the example output
+shown below, the `GPU0` is associated with the `0` node ID::
+
+            GPU0    GPU1    NIC0    NIC1    NIC2    NIC3    CPU Affinity    NUMA Affinity   GPU NUMA ID
+    GPU0     X      NV18    NODE    NODE    NODE    SYS     0-71            0               2
+    GPU1    NV18     X      SYS     SYS     SYS     NODE    72-143          1               10
+    NIC0    NODE    SYS      X      PIX     NODE    SYS
+    NIC1    NODE    SYS     PIX      X      NODE    SYS
+    NIC2    NODE    SYS     NODE    NODE     X      SYS
+    NIC3    SYS     NODE    SYS     SYS     SYS      X
+
+Alternatively, one can also use the ``hwloc`` command line interface, please make sure the
+strict flag is used:
+
+.. code-block:: sh
+
+    hwloc-bind --strict --membind node:${NODEID} --cpubind node:${NODEID} ./myapp
+
+Another approach is to use the CPU affinity. The `dask-cuda
+<https://github.com/rapidsai/dask-cuda>`__ project configures optimal CPU affinity for the
+Dask interface through using the `nvml` library in addition to the Linux sched
+routines. This can help guide the memory allocation policy but does not enforce it. As a
+result, when the memory is under pressure, the OS can allocate memory on different NUMA
+nodes. On the other hand, it's easier to use since launchers like
+:py:class:`~dask_cuda.LocalCUDACluster` have already integrated the solution.
+
+We use the first approach for benchmarks as it has better enforcement.
+
 ********************
 Distributed Training
 ********************
@@ -289,13 +374,14 @@ Best Practices
 **************
 
 In previous sections, we demonstrated how to train a tree-based model with data residing
-on an external memory and made some recommendations for batch size. Here are some other
-configurations we find useful. The external memory feature involves iterating through data
-batches stored in a cache during tree construction. For optimal performance, we recommend
-using the ``grow_policy=depthwise`` setting, which allows XGBoost to build an entire layer
-of tree nodes with only a few batch iterations. Conversely, using the ``lossguide`` policy
-requires XGBoost to iterate over the data set for each tree node, resulting in
-significantly slower performance.
+on an external memory. In addition, we made some recommendations for batch size and
+NUMA. Here are some other configurations we find useful. The external memory feature
+involves iterating through data batches stored in a cache during tree construction. For
+optimal performance, we recommend using the ``grow_policy=depthwise`` setting, which
+allows XGBoost to build an entire layer of tree nodes with only a few batch
+iterations. Conversely, using the ``lossguide`` policy requires XGBoost to iterate over
+the data set for each tree node, resulting in significantly slower performance (tree size
+is exponential to the depth).
 
 In addition, the ``hist`` tree method should be preferred over the ``approx`` tree method
 as the former doesn't recreate the histogram bins for every iteration. Creating the
@@ -314,10 +400,10 @@ When external memory is used, the performance of CPU training is limited by disk
 (input/output) speed. This means that the disk IO speed primarily determines the training
 speed. Similarly, PCIe bandwidth limits the GPU performance, assuming the CPU memory is
 used as a cache and address translation services (ATS) is unavailable. During development,
-we observed that typical data transfer in XGBoost with PCIe4x16 has about 24GB/s
-bandwidth, which is significantly lower than the GPU processing performance. Whereas with
-a C2C-enabled machine, the performance of data transfer and processing in training are
-close to each other.
+we observed that typical data transfer in XGBoost with PCIe4x16 has about 24GB/s bandwidth
+and about 42GB/s with PCIe5, which is significantly lower than the GPU processing
+performance. Whereas with a C2C-enabled machine, the performance of data transfer and
+processing in training are close to each other.
 
 Running inference is much less computation-intensive than training and, hence, much
 faster. As a result, the performance bottleneck of inference is back to data transfer. For
@@ -337,7 +423,7 @@ that the pool is not full yet (pool memory usage can be profiled with ``nsight-s
 consider using the :py:class:`~rmm.mr.ArenaMemoryResource` memory resource. Alternatively,
 using :py:class:`~rmm.mr.CudaAsyncMemoryResource` in conjunction with
 :py:class:`BinningMemoryResource(mr, 21, 25) <rmm.mr.BinningMemoryResource>` instead of
-the default :py:class:`~rmm.mr.PoolMemoryResource` can be an option.
+the default :py:class:`~rmm.mr.PoolMemoryResource`.
 
 During CPU benchmarking, we used an NVMe connected to a PCIe-4 slot. Other types of
 storage can be too slow for practical usage. However, your system will likely perform some
@@ -431,48 +517,6 @@ undergone multiple development iterations. Here's a brief summary of major chang
   objectives support.
 - In addition, we begin support for distributed training in 3.0
 - 3.1 added support for having divided cache pages. One can have part of a cache page in
-  the GPU and the rest of the cache in the host memory.
-
-****************
-Text File Inputs
-****************
-
-.. warning::
-
-   This is the original form of external memory support before 1.5 and is now deprecated,
-   users are encouraged to use a custom data iterator instead.
-
-There is no significant difference between using the external memory version of text input
-and the in-memory version of text input. The only difference is the filename format.
-
-The external memory version takes in the following `URI
-<https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>`_ format:
-
-.. code-block:: none
-
-  filename?format=libsvm#cacheprefix
-
-The ``filename`` is the typical path to LIBSVM format file you want to load in, and
-``cacheprefix`` is a path to a cache file that XGBoost will use for caching preprocessed
-data in binary form.
-
-To load from csv files, use the following syntax:
-
-.. code-block:: none
-
-  filename.csv?format=csv&label_column=0#cacheprefix
-
-where ``label_column`` should point to the csv column acting as the label.
-
-If you have a dataset stored in a file similar to ``demo/data/agaricus.txt.train`` with LIBSVM
-format, the external memory support can be enabled by:
-
-.. code-block:: python
-
-  dtrain = DMatrix('../data/agaricus.txt.train?format=libsvm#dtrain.cache')
-
-XGBoost will first load ``agaricus.txt.train`` in, preprocess it, then write to a new file named
-``dtrain.cache`` as an on disk cache for storing preprocessed data in an internal binary format. For
-more notes about text input formats, see :doc:`/tutorials/input_format`.
-
-For the CLI version, simply add the cache suffix, e.g. ``"../data/agaricus.txt.train?format=libsvm#dtrain.cache"``.
+  the GPU and the rest of the cache in the host memory. In addition, XGBoost works with
+  the Grace Blackwell hardware decompression engine when data is sparse.
+- The text file cache format has been removed in 3.1.0.

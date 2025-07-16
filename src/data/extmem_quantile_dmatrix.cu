@@ -61,7 +61,7 @@ void ExtMemQuantileDMatrix::InitFromCUDA(
    * Calculate cache info
    */
   auto is_validation = (ref != nullptr);
-  auto cinfo = EllpackCacheInfo{p, config.cache_host_ratio, config.missing};
+  auto cinfo = EllpackCacheInfo{p, config};
   CalcCacheMapping(ctx, this->info_.IsDense(), cuts, config.min_cache_page_bytes, ext_info,
                    is_validation, &cinfo);
   CHECK_EQ(cinfo.cache_mapping.size(), ext_info.n_batches);

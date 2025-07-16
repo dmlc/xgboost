@@ -16,7 +16,7 @@
 
 #include "xgboost/string_view.h"  // for StringView
 
-#if CUDART_VERSION >= 12080
+#if CUDART_VERSION >= 12080 && defined(__linux__)
 #define CUDA_HW_DECOM_AVAILABLE 1
 #endif
 

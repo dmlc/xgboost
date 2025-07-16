@@ -1289,8 +1289,8 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         return indptr, data
 
     def get_categories(self) -> Optional[Dict[str, "pa.DictionaryArray"]]:
-        """Get the categories in the dataset. Return `None` if there's no categorical
-        features.
+        """Get the categories in the dataset using `pyarrow`. Returns `None` if there's
+        no categorical features.
 
         .. warning::
 
@@ -1840,6 +1840,8 @@ class ExtMemQuantileDMatrix(DMatrix, _RefMixIn):
             cache into host and device caches to reduce the data transfer overhead. This
             parameter specifies the size of host cache compared to the size of the
             entire cache: :math:`host / (host + device)`.
+
+            See :ref:`extmem-adaptive-cache` for more info.
 
         """
         self.max_bin = max_bin

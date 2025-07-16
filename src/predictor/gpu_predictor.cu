@@ -364,6 +364,20 @@ class DeviceModel {
   int num_group;
   CatContainer const* cat_enc{nullptr};
 
+  [[nodiscard]] std::size_t MemCostBytes() const {
+    std::size_t n_bytes = 0;
+    n_bytes += stats.ConstDeviceSpan().size_bytes();
+    n_bytes += tree_segments.ConstDeviceSpan().size_bytes();
+    n_bytes += nodes.ConstDeviceSpan().size_bytes();
+    n_bytes += tree_group.ConstDeviceSpan().size_bytes();
+    n_bytes += split_types.ConstDeviceSpan().size_bytes();
+    n_bytes += categories_tree_segments.ConstDeviceSpan().size_bytes();
+    n_bytes += categories_node_segments.ConstDeviceSpan().size_bytes();
+    n_bytes += categories.ConstDeviceSpan().size_bytes();
+    n_bytes += sizeof(tree_beg_) + sizeof(tree_end_) + sizeof(num_group) + sizeof(cat_enc);
+    return n_bytes;
+  }
+
   void Init(const gbm::GBTreeModel& model, bst_tree_t tree_begin, bst_tree_t tree_end,
             DeviceOrd device) {
     dh::safe_cuda(cudaSetDevice(device.ordinal));
@@ -438,6 +452,9 @@ class DeviceModel {
 
     this->cat_enc = model.Cats();
     CHECK(this->cat_enc);
+
+    auto n_bytes = this->MemCostBytes();  // Pull data to device, and get the size of the model.
+    LOG(DEBUG) << "Model size:" << common::HumanMemUnit(n_bytes);
   }
 };
 

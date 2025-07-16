@@ -69,6 +69,28 @@ def test_ndcg_custom_gain():
     )
 
 
+def test_ndcg_non_exp() -> None:
+    # NDCG exp gain must have label smaller than 32
+    X, y, q, w = tm.make_ltr(n_samples=1024, n_features=4, n_query_groups=3, max_rel=44)
+
+    def fit(ltr: xgboost.XGBRanker):
+        ltr.fit(
+            X,
+            y,
+            qid=q,
+            sample_weight=w,
+            eval_set=[(X, y)],
+            eval_qid=(q,),
+            sample_weight_eval_set=(w,),
+        )
+
+    ltr = xgboost.XGBRanker(tree_method="hist", ndcg_exp_gain=True, n_estimators=2)
+    with pytest.raises(ValueError, match="Set `ndcg_exp_gain`"):
+        fit(ltr)
+    ltr = xgboost.XGBRanker(tree_method="hist", ndcg_exp_gain=False, n_estimators=2)
+    fit(ltr)
+
+
 def test_ranking_with_unweighted_data():
     Xrow = np.array([1, 2, 6, 8, 11, 14, 16, 17])
     Xcol = np.array([0, 0, 1, 1,  2,  2,  3,  3])

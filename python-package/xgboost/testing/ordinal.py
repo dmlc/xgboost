@@ -9,6 +9,7 @@ from typing import Any, Literal, Tuple, Type, TypeVar
 import numpy as np
 import pytest
 
+from ..callback import TrainingCallback
 from ..compat import import_cupy
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..data import _lazy_load_cudf_is_cat
@@ -429,16 +430,70 @@ def run_cat_leaf(device: Literal["cpu", "cuda"]) -> None:
     )
 
 
+# pylint: disable=too-many-locals
+def make_recoded(device: Literal["cpu", "cuda"]) -> Tuple:
+    """Synthesize a test dataset with changed encoding."""
+    Df, _ = get_df_impl(device)
+
+    import pandas as pd
+
+    # Test large column numbers. XGBoost makes some specializations for slim datasets,
+    # make sure we cover all the cases.
+    n_features = 4096
+    n_samples = 1024
+
+    # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
+    old_cats = ["a", "b", "c", "d"]
+    new_cats = ["b", "a", "c", "d"]
+    mapping = {0: 1, 1: 0}
+
+    rng = np.random.default_rng(2025)
+
+    col_numeric = rng.uniform(0, 1, size=(n_samples, n_features // 2))
+    col_categorical = rng.integers(
+        low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
+    )
+
+    df = {}  # avoid fragmentation warning from pandas
+    for c in range(n_features):
+        if c % 2 == 0:
+            col = col_numeric[:, c // 2]
+        else:
+            codes = col_categorical[:, c // 2]
+            col = pd.Categorical.from_codes(
+                categories=old_cats,
+                codes=codes,
+            )
+        df[f"f{c}"] = col
+
+    enc = Df(df)
+    y = rng.normal(size=n_samples)
+
+    reenc = enc.copy()
+    for c in range(n_features):
+        if c % 2 == 0:
+            continue
+
+        name = f"f{c}"
+        codes_ser = reenc[name].cat.codes
+        if hasattr(codes_ser, "to_pandas"):  # cudf
+            codes_ser = codes_ser.to_pandas()
+        new_codes = codes_ser.replace(mapping)
+        reenc[name] = pd.Categorical.from_codes(categories=new_cats, codes=new_codes)
+    reenc = Df(reenc)
+    assert (reenc.iloc[:, 1].cat.codes != enc.iloc[:, 1].cat.codes).any()
+    return enc, reenc, y, col_numeric, col_categorical
+
+
 def run_specified_cat(  # pylint: disable=too-many-locals
     device: Literal["cpu", "cuda"],
 ) -> None:
     """Run with manually specified category encoding."""
     import pandas as pd
 
-    # Same between old and new, wiht 0 ("a") and 1 ("b") exchanged their position.
+    # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
     old_cats = ["a", "b", "c", "d"]
     new_cats = ["b", "a", "c", "d"]
-    mapping = {0: 1, 1: 0}
 
     col0 = np.arange(0, 9)
     col1 = pd.Categorical.from_codes(
@@ -468,57 +523,23 @@ def run_specified_cat(  # pylint: disable=too-many-locals
         predt2 = booster.inplace_predict(df1)
         assert_allclose(device, predt0, predt2)
 
-    # Test large column numbers. XGBoost makes some specializations for slim datasets,
-    # make sure we cover all the cases.
-    n_features = 4096
-    n_samples = 1024
+    enc, reenc, y, col_numeric, col_categorical = make_recoded(device)
 
-    col_numeric = rng.uniform(0, 1, size=(n_samples, n_features // 2))
-    col_categorical = rng.integers(
-        low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
-    )
-
-    df = {}  # avoid fragmentation warning from pandas
-    for c in range(n_features):
-        if c % 2 == 0:
-            col = col_numeric[:, c // 2]
-        else:
-            codes = col_categorical[:, c // 2]
-            col = pd.Categorical.from_codes(
-                categories=old_cats,
-                codes=codes,
-            )
-        df[f"f{c}"] = col
-
-    df = Df(df)
-    y = rng.normal(size=n_samples)
-
-    Xy = DMatrix(df, y, enable_categorical=True)
+    Xy = DMatrix(enc, y, enable_categorical=True)
     booster = train({"device": device}, Xy)
 
     predt0 = booster.predict(Xy)
-    predt1 = booster.inplace_predict(df)
+    predt1 = booster.inplace_predict(enc)
     assert_allclose(device, predt0, predt1)
 
-    for c in range(n_features):
-        if c % 2 == 0:
-            continue
-
-        name = f"f{c}"
-        codes_ser = df[name].cat.codes
-        if hasattr(codes_ser, "to_pandas"):  # cudf
-            codes_ser = codes_ser.to_pandas()
-        new_codes = codes_ser.replace(mapping)
-        df[name] = pd.Categorical.from_codes(categories=new_cats, codes=new_codes)
-
-    df = Df(df)
-    Xy = DMatrix(df, y, enable_categorical=True)
+    Xy = DMatrix(reenc, y, enable_categorical=True)
     predt2 = booster.predict(Xy)
     assert_allclose(device, predt0, predt2)
 
-    array = np.empty(shape=(n_samples, n_features))
-    array[:, np.arange(0, n_features) % 2 == 0] = col_numeric
-    array[:, np.arange(0, n_features) % 2 != 0] = col_categorical
+    array = np.empty(shape=(reenc.shape[0], reenc.shape[1]))
+
+    array[:, enc.dtypes == "category"] = col_categorical
+    array[:, enc.dtypes != "category"] = col_numeric
 
     if device == "cuda":
         import cupy as cp
@@ -527,3 +548,24 @@ def run_specified_cat(  # pylint: disable=too-many-locals
 
     predt3 = booster.inplace_predict(array)
     assert_allclose(device, predt0, predt3)
+
+
+def run_validation(device: Literal["cpu", "cuda"]) -> None:
+    """CHeck the validation dataset is using the correct encoding."""
+    enc, reenc, y, _, _ = make_recoded(device)
+
+    Xy = DMatrix(enc, y, enable_categorical=True)
+    Xy_valid = DMatrix(reenc, y, enable_categorical=True)
+
+    evals_result: TrainingCallback.EvalsLog = {}
+    train(
+        {"device": device},
+        Xy,
+        evals=[(Xy, "Train"), (Xy_valid, "Valid")],
+        evals_result=evals_result,
+    )
+
+    # Evaluation dataset should have the exact same performance as the training dataset.
+    assert_allclose(
+        device, evals_result["Train"]["rmse"], evals_result["Valid"]["rmse"]
+    )

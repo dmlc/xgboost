@@ -1397,6 +1397,29 @@ def test_evaluation_metric():
         clf.fit(X, y, eval_set=[(X, y)])
 
 
+def test_mixed_metrics() -> None:
+    from sklearn.datasets import make_classification
+    from sklearn.metrics import hamming_loss, hinge_loss, log_loss
+
+    X, y = make_classification(random_state=2025)
+
+    clf = xgb.XGBClassifier(eval_metric=["logloss", hinge_loss], n_estimators=2)
+    clf.fit(X, y, eval_set=[(X, y)])
+    results = clf.evals_result()["validation_0"]
+    assert "logloss" in results
+    assert "hinge_loss" in results
+
+    clf = xgb.XGBClassifier(eval_metric=[hamming_loss, log_loss], n_estimators=2)
+    with pytest.raises(
+        NotImplementedError, match="multiple custom metrics is not yet supported."
+    ):
+        clf.fit(X, y, eval_set=[(X, y)])
+
+    clf = xgb.XGBClassifier(eval_metric=[123, log_loss], n_estimators=2)
+    with pytest.raises(TypeError, match="Invalid type for the `eval_metric`"):
+        clf.fit(X, y, eval_set=[(X, y)])
+
+
 def test_weighted_evaluation_metric():
     from sklearn.datasets import make_hastie_10_2
     from sklearn.metrics import log_loss
@@ -1544,3 +1567,23 @@ def test_doc_link() -> None:
         name = est.__class__.__name__
         link = est._get_doc_link()
         assert f"xgboost.{name}" in link
+
+
+def test_apply_method():
+    import pandas as pd
+
+    X_num = np.random.rand(5, 5)
+    df = pd.DataFrame(X_num, columns=[f"f{i}" for i in range(X_num.shape[1])])
+    df["test"] = pd.Series(
+        ["one", "two", "three", "four", "five"], dtype="category"
+    )  # <- categorical column
+    y = np.arange(len(df))
+
+    model = xgb.XGBClassifier(enable_categorical=True)
+    model.fit(df, y)
+
+    model.apply(df)  # this must not raise
+
+    model.set_params(enable_categorical=False)
+    with pytest.raises(ValueError, match="`enable_categorical`"):
+        model.apply(df)

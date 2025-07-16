@@ -102,19 +102,21 @@ template <typename T>
   auto* impl = page->Impl();
   CHECK(this->cuts_->cut_values_.DeviceCanRead());
 
+  auto ctx = Context{}.MakeCUDA(curt::CurrentDevice());
+
   auto dispatch = [&] {
-    fi->Read(page, this->param_.prefetch_copy || !this->has_hmm_ats_);
+    fi->Read(&ctx, page, this->param_.prefetch_copy || !this->has_hmm_ats_);
     impl->SetCuts(this->cuts_);
   };
 
   if (ConsoleLogger::GlobalVerbosity() == ConsoleLogger::LogVerbosity::kDebug) {
     dh::CUDAEvent start{false}, stop{false};
     float milliseconds = 0;
-    start.Record(dh::DefaultStream());
+    start.Record(ctx.CUDACtx()->Stream());
 
     dispatch();
 
-    stop.Record(dh::DefaultStream());
+    stop.Record(ctx.CUDACtx()->Stream());
     stop.Sync();
     dh::safe_cuda(cudaEventElapsedTime(&milliseconds, start, stop));
     double n_bytes = page->Impl()->MemCostBytes();

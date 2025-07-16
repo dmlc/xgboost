@@ -15,6 +15,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeAlias,
     TypeVar,
     Union,
     cast,
@@ -54,7 +55,8 @@ class TrainingCallback(ABC):
 
     """
 
-    EvalsLog = Dict[str, Dict[str, _ScoreList]]  # pylint: disable=invalid-name
+    # pylint: disable=invalid-name
+    EvalsLog: TypeAlias = Dict[str, Dict[str, _ScoreList]]
 
     def __init__(self) -> None:
         pass

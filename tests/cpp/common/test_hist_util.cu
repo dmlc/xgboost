@@ -333,7 +333,7 @@ TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
   auto sizes = {100, 1000, 1500};
   int num_columns =5;
   for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
+    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
     dmlc::TemporaryDirectory temp;
     auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
     for (auto num_bins : bin_sizes) {
@@ -351,7 +351,7 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
   int num_columns = 5;
   dmlc::TemporaryDirectory temp;
   for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
+    HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
     auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
     dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
     for (auto num_bins : bin_sizes) {

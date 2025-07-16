@@ -484,7 +484,6 @@ class LearnerConfiguration : public Learner {
 
     learner_model_param_.task = obj_->Task();  // required by gbm configuration.
     this->ConfigureGBM(old_tparam, args);
-    ctx_.ConfigureGpuId(this->gbm_->UseGPU());
 
     this->ConfigureModelParamWithoutBaseScore();
 
@@ -555,8 +554,6 @@ class LearnerConfiguration : public Learner {
     }
 
     FromJson(learner_parameters.at("generic_param"), &ctx_);
-    // make sure the GPU ID is valid in new environment before start running configure.
-    ctx_.ConfigureGpuId(false);
 
     this->need_configuration_ = true;
   }
@@ -709,7 +706,6 @@ class LearnerConfiguration : public Learner {
     // FIXME(trivialfis): Make eval_metric a training parameter.
     keys.emplace_back(kEvalMetric);
     keys.emplace_back("num_output_group");
-    keys.emplace_back("gpu_id");  // deprecated param.
 
     std::sort(keys.begin(), keys.end());
 

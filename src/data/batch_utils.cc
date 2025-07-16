@@ -84,7 +84,7 @@ void CheckParam(BatchParam const& init, BatchParam const& param) {
     cache_host_ratio = 0.0;
   } else {
     // The number of bytes that must be in the host memory.
-    auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes;
+    auto h_cache_nbytes = n_cache_bytes - d_cache_nbytes * 0.85;
     cache_host_ratio = static_cast<double>(h_cache_nbytes) / static_cast<double>(n_cache_bytes);
     if (lc > 0) {
       // 0 < lc < 10, C2C is available, but with reduced link count.
