@@ -299,7 +299,7 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
     if offset.size == get_n_bytes(np.int64):
         # Convert to 32bit integer, arrow recommends against the use of i64. Also,
         # XGBoost cannot handle large number of categories (> 2**31).
-        assert isinstance(cats, pa.LargeStringArray)
+        assert isinstance(cats, pa.LargeStringArray), type(cats)
         i32cats = pa.Array.from_pandas(cats.to_numpy(zero_copy_only=False))
         mask, offset, data = i32cats.buffers()
 
