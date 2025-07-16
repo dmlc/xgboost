@@ -260,6 +260,23 @@ def _arrow_npdtype() -> Dict[Any, Type[np.number]]:
     return mapping
 
 
+def _arrow_mask_inf(mask: Optional["pa.Buffer"], size: int) -> Optional[ArrayInf]:
+    if mask is not None:
+        jmask: Optional[ArrayInf] = {
+            "data": (mask.address, True),
+            "typestr": "<t1",
+            "version": 3,
+            "strides": None,
+            "shape": (size,),
+            "mask": None,
+        }
+        if not mask.is_cpu:
+            jmask["stream"] = 2  # type: ignore
+    else:
+        jmask = None
+    return jmask
+
+
 def _arrow_cat_inf(  # pylint: disable=too-many-locals
     cats: "pa.StringArray",
     codes: Union[_ArrayLikeArg, _CudaArrayLikeArg, "pa.IntegerArray"],
@@ -280,14 +297,16 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
         return off_len * (np.iinfo(typ).bits // 8)
 
     if offset.size == get_n_bytes(np.int64):
-        # Convert to 32bit integer, arrow recommends against the use of i32. Also,
-        # there's no way to construct a `pa.StringArray` with 64bit integer backed
-        # offset.
+        # Convert to 32bit integer, arrow recommends against the use of i64. Also,
+        # XGBoost cannot handle large number of categories (> 2**31).
+        assert isinstance(cats, pa.LargeStringArray)
         i32cats = pa.Array.from_pandas(cats.to_numpy(zero_copy_only=False))
         mask, offset, data = i32cats.buffers()
 
     if offset.size != get_n_bytes(np.int32):
-        raise TypeError("Arrow dictionary type offsets is required to be 32 or 64 bit.")
+        raise TypeError(
+            "Arrow dictionary type offsets is required to be 32-bit integer."
+        )
 
     joffset: ArrayInf = {
         "data": (offset.address, True),
@@ -330,21 +349,10 @@ def _arrow_cat_inf(  # pylint: disable=too-many-locals
                 dtype=_arrow_npdtype()[array.type],
                 is_cuda=not data.is_cpu,
             )
-            if mask is not None:
-                jmask: ArrayInf = {
-                    "data": (mask.address, True),
-                    "typestr": "<t1",
-                    "version": 3,
-                    "strides": None,
-                    "shape": (len(array),),
-                    "mask": None,
-                }
-                if not mask.is_cpu:
-                    jmask["stream"] = 2  # type: ignore
-                jdata["mask"] = jmask
+            jdata["mask"] = _arrow_mask_inf(mask, len(array))
             return jdata, None
 
-        # Other types (like arrow itself) are not yet supported.
+        # Other types are not yet supported.
         raise TypeError(f"Invalid input type: {type(array)}")
 
     cats_tmp = (mask, offset, data)

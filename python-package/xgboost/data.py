@@ -28,6 +28,7 @@ from ._data_utils import (
     StringArray,
     TransformedDf,
     _arrow_cat_inf,
+    _arrow_mask_inf,
     _arrow_npdtype,
     _ensure_np_dtype,
     _is_df_cat,
@@ -771,7 +772,7 @@ def _from_pandas_series(
 
 
 # Type for storing JSON-encoded array interface
-AifT: TypeAlias = List[
+AifType: TypeAlias = List[
     Union[
         ArrayInf,  # numeric column
         Tuple[  # categorical column
@@ -797,13 +798,16 @@ class ArrowTransformed(TransformedDf):
         else:
             pa = import_pyarrow()
 
-        aitfs: AifT = []
+        aitfs: AifType = []
 
         def array_inf(col: Union["pa.NumericArray", "pa.DictionaryArray"]) -> None:
             if isinstance(col, pa.DictionaryArray):
                 cats = col.dictionary
                 codes = col.indices
-                # fixme: numeric index.
+                if not isinstance(cats, (pa.StringArray, pa.LargeStringArray)):
+                    raise TypeError(
+                        "Only string-based categorical type is supported for arrow."
+                    )
                 jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
@@ -819,18 +823,7 @@ class ArrowTransformed(TransformedDf):
                     dtype=_arrow_npdtype()[col.type],
                     is_cuda=not data.is_cpu,
                 )
-                if mask is not None:
-                    jmask: ArrayInf = {
-                        "data": (mask.address, True),
-                        "typestr": "<t1",
-                        "version": 3,
-                        "strides": None,
-                        "shape": (len(col),),
-                        "mask": None,
-                    }
-                    if not data.is_cpu:
-                        jmask["stream"] = 2  # type: ignore
-                    jdata["mask"] = jmask
+                jdata["mask"] = _arrow_mask_inf(mask, len(col))
                 aitfs.append(jdata)
 
         for col in self.columns:
@@ -1078,7 +1071,7 @@ class CudfTransformed(TransformedDf):
         # the DMatrix or the booster.
         self.temporary_buffers: List[Tuple] = []
 
-        aitfs: AifT = []
+        aitfs: AifType = []
 
         def push_series(ser: Any) -> None:
             if _is_df_cat(ser):
