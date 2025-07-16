@@ -179,7 +179,7 @@ template<typename FPType, typename BinIdxType>
                             GHistRow<FPType, MemoryType::on_device>* hist_buffer,
                             const tree::HistBuildParameters& params,
                             ::sycl::event event_priv) {
-  constexpr int kMaxNumBins = HistDispatcher::KMaxNumBins;
+  constexpr int kMaxNumBins = tree::HistDispatcher::KMaxNumBins;
   using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
