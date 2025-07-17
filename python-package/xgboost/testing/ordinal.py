@@ -51,6 +51,7 @@ def assert_allclose(device: str, a: Any, b: Any) -> None:
 
 
 def comp_booster(device: Literal["cpu", "cuda"], Xy: DMatrix, booster: str) -> None:
+    """Compare the results from DMatrix and Booster."""
     cats = Xy.get_categories()
     assert cats is not None
 
@@ -60,7 +61,7 @@ def comp_booster(device: Literal["cpu", "cuda"], Xy: DMatrix, booster: str) -> N
     cats_bst = bst.get_categories()
     assert cats_bst is not None
     for k, v in cats_bst.items():
-        assert cats_bst[k] == cats[k]
+        assert v == cats[k]
 
 
 def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
