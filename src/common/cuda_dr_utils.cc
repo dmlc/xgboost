@@ -164,8 +164,9 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
     return Invalid();
   }
 
-  auto ret0 = std::from_chars(smi_ver[0].cbegin(), smi_ver[0].cend(), *p_major);
-  auto ret1 = std::from_chars(smi_ver[1].cbegin(), smi_ver[1].cend(), *p_minor);
+  auto [smajor, sminor] = std::tie(smi_ver[0], smi_ver[1]);
+  auto ret0 = std::from_chars(smajor.data(), smajor.data() + smajor.size(), *p_major);
+  auto ret1 = std::from_chars(sminor.data(), sminor.data() + sminor.size(), *p_minor);
   if (ret0.ec != std::errc{} || ret1.ec != std::errc{}) {
     return Invalid();
   }
