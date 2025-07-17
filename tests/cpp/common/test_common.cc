@@ -3,6 +3,11 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>    // for equal
+#include <cstddef>      // for size_t
+#include <string>       // for string
+#include <string_view>  // for string_view
+
 #include "../../../src/common/common.h"
 
 namespace xgboost::common {
@@ -17,7 +22,8 @@ TEST(Common, HumanMemUnit) {
   ASSERT_EQ(name, "1B");
 }
 
-TEST(Common, TrimLast) {
+TEST(Common, Trim) {
+  // string
   {
     std::string in{"foobar "};
     auto out = TrimLast(in);
@@ -28,6 +34,15 @@ TEST(Common, TrimLast) {
 )"};
     auto out = TrimLast(in);
     ASSERT_EQ(out, "foobar");
+  }
+  // string view
+  {
+    auto res = TrimFirst(" foo ");
+    ASSERT_EQ(res, std::string_view{"foo "});
+  }
+  {
+    auto res = TrimLast(" foo ");
+    ASSERT_EQ(res, std::string_view{" foo"});
   }
 }
 
@@ -51,16 +66,5 @@ TEST(Common, Split) {
   check(",foo,bar,", 3);  // last is ignored
   check(",,,,foo,bar", 6);
   check(",foo,,,,bar", 6);
-}
-
-TEST(Common, Trim) {
-  {
-    auto res = TrimFirst(" foo ");
-    ASSERT_EQ(res, std::string_view{"foo "});
-  }
-  {
-    auto res = TrimLast(" foo ");
-    ASSERT_EQ(res, std::string_view{" foo"});
-  }
 }
 }  // namespace xgboost::common
