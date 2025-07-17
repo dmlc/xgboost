@@ -643,6 +643,10 @@ class LearnerConfiguration : public Learner {
     auto& ft = *p_ft;
     ft = this->feature_types_;
   }
+  [[nodiscard]] CatContainer const* Cats() const override {
+    this->CheckModelInitialized();
+    return this->gbm_->Cats();
+  }
 
   std::vector<std::string> GetAttrNames() const override {
     std::vector<std::string> out;

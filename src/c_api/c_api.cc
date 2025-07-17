@@ -700,21 +700,16 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
-  // We can directly use the storage in the cat container instead of allocating temporary storage.
-  API_BEGIN()
-  CHECK_HANDLE()
-  auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
-  auto const cats = p_fmat->Cats()->HostView();
-
-  auto &ret_str = p_fmat->GetThreadLocal().ret_str;
-  xgboost_CHECK_C_ARG_PTR(out);
-
+namespace {
+template <typename FidxT>
+void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
+                       std::string *p_out_storage, char const **out) {
+  auto &ret_str = *p_out_storage;
   if (cats.Empty()) {
     *out = nullptr;
   } else {
+    // We can directly use the storage in the cat container instead of allocating temporary storage.
     Json jout{Array{}};
-    auto n_features = p_fmat->Info().num_col_;
     for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
       auto const &col = cats[f_idx];
       if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
@@ -746,6 +741,23 @@ XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
 
     *out = ret_str.c_str();
   }
+}
+}  // anonymous namespace
+
+/**
+ * Experimental (3.1), hidden.
+ */
+XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
+  API_BEGIN()
+  CHECK_HANDLE()
+  auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  auto const cats = p_fmat->Cats()->HostView();
+  auto n_features = p_fmat->Info().num_col_;
+
+  auto &ret_str = p_fmat->GetThreadLocal().ret_str;
+  xgboost_CHECK_C_ARG_PTR(out);
+
+  GetCategoriesImpl(cats, n_features, &ret_str, out);
 
   API_END()
 }
@@ -1649,6 +1661,24 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
   }
   XGBoostDumpModelImpl(handle, &featmap, with_stats, format, len, out_models);
   API_END();
+}
+
+/**
+ * Experimental (3.1), hidden.
+ */
+XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const **out) {
+  API_BEGIN()
+  CHECK_HANDLE()
+  auto *bst = static_cast<Learner *>(handle);
+  auto const cats = bst->Cats()->HostView();
+  auto n_features = bst->GetNumFeature();
+
+  auto &ret_str = bst->GetThreadLocal().ret_str;
+  xgboost_CHECK_C_ARG_PTR(out);
+
+  GetCategoriesImpl(cats, n_features, &ret_str, out);
+
+  API_END()
 }
 
 XGB_DLL int XGBoosterGetAttr(BoosterHandle handle, const char *key, const char **out,
