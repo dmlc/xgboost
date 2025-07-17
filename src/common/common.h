@@ -79,7 +79,6 @@ namespace xgboost::common {
   if (str.empty()) {
     return str;
   }
-
   auto first = str.find_first_not_of(" \t\n\r");
   if (first == std::string_view::npos) {
     return {};

@@ -44,6 +44,18 @@ TEST(Common, Trim) {
     auto res = TrimLast(" foo ");
     ASSERT_EQ(res, std::string_view{" foo"});
   }
+  {
+    auto res = TrimLast("  ");
+    ASSERT_EQ(res, std::string_view{});
+  }
+  {
+    auto res = TrimFirst("  ");
+    ASSERT_EQ(res, std::string_view{});
+  }
+  {
+    auto res = TrimFirst("");
+    ASSERT_EQ(res, std::string_view{});
+  }
 }
 
 TEST(Common, Split) {
