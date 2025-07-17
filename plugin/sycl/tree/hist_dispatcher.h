@@ -41,54 +41,15 @@ class HistDispatcher {
     size_t eu_per_core =
       device.get_info<::sycl::ext::intel::info::device::gpu_eu_count_per_subslice>();
     switch (arch) {
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g10:
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g11:
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_acm_g12: {
-        LOG(INFO) << "Xe-HPG (Alchemist) Architecture";
-        size_t l1_size = 128 * 1024;
-        size_t registers_size = 128 * 1024;
-        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
-        break;
-      }
-
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_mtl_u:
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_mtl_h:
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_arl_h: {
-        LOG(INFO) << "Xe-LPG (MTL) and Xe-LPG+ (ARL) Architectures";
-        size_t l1_size = 192 * 1024;
-        size_t registers_size =  128 * 1024;
-        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
-        break;
-      }
-
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_lnl_m: {
-        LOG(INFO) << "Xe2-LPG (Lunar Lake) Architecture";
-        size_t l1_size = 192 * 1024;
-        // Xe2 share the registers and L1
-        size_t registers_size = 0;
-        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
-        break;
-      }
-
-      case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_bmg_g21: {
-        LOG(INFO) << "Xe2-HPG (Battlemage) Architecture";
-        size_t l1_size = 256 * 1024;
-        // Xe2 share the registers and L1
-        size_t registers_size = 0;
-        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
-        break;
-      }
-
       case ::sycl::ext::oneapi::experimental::architecture::intel_gpu_pvc: {
-        LOG(INFO) << "Xe-HPC (Ponte Vecchio) Architecture";
+        LOG(INFO) << "Xe-HPC (Ponte Vecchio) Architecture. L1 friendly optimization enabled.";
         size_t l1_size = 512 * 1024;
-        size_t registers_size = 256 * 1024;
-        sram_size_per_eu = (l1_size + registers_size) / eu_per_core;
+        size_t registers_size = 64 * 1024;
+        sram_size_per_eu = l1_size  / eu_per_core + registers_size;
         break;
       }
-    default:
-      LOG(WARNING) << "Unknown SYCL GPU architecture. Performance may be suboptimal.";
-      sram_size_per_eu = 0;
+      default:
+        sram_size_per_eu = 0;
     }
   }
 
@@ -125,6 +86,8 @@ class HistDispatcher {
   constexpr static size_t KMaxEffectiveBlockSize = 1u << 11;
   // Maximal number of bins acceptable for local histograms
   constexpr static size_t KMaxNumBins = 256;
+  // Amount of sram for local-histogram kernel launch
+  constexpr static float KLocalHistSRAM = 32. * 1024;
   // Max workgroups size, used by atomic-based hist-building
   constexpr static size_t kMaxWorkGroupSizeAtomic = 32;
   // Max workgroups size, used for local histograms
@@ -165,7 +128,7 @@ class HistDispatcher {
     * most part of buffer isn't used and perf suffers.
     */
     const size_t th_block_size = max_num_bins;
-    build_params.use_local_hist = (buff_size < 0.8 * sram_size_per_eu)
+    build_params.use_local_hist = (buff_size < sram_size_per_eu - KLocalHistSRAM)
                                   && isDense
                                   && (max_num_bins <= KMaxNumBins)
                                   && (build_params.block.size >= th_block_size);
