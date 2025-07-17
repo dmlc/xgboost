@@ -6,13 +6,6 @@ Since 2.1.0, the default model format for XGBoost is the UBJSON format, the opti
 enabled for serializing models to file, serializing models to buffer, and for memory
 snapshot (pickle and alike).
 
-In XGBoost 1.0.0, we introduced support of using `JSON
-<https://www.json.org/json-en.html>`_ for saving/loading XGBoost models and related
-hyper-parameters for training, aiming to replace the old binary internal format with an
-open format that can be easily reused.  Later in XGBoost 1.6.0, additional support for
-`Universal Binary JSON <https://ubjson.org/>`__ is added as an optimization for more
-efficient model IO, which is set to default in 2.1.
-
 JSON and UBJSON have the same document structure with different representations, and we
 will refer them collectively as the JSON format. This tutorial aims to share some basic
 insights into the JSON serialisation method used in XGBoost.  Without explicitly
@@ -27,40 +20,32 @@ which means inside XGBoost, there are 2 distinct parts:
 1. The model consisting of trees and
 2. Hyperparameters and configurations used for building the model.
 
-If you come from Deep Learning community, then it should be
-clear to you that there are differences between the neural network structures composed of
-weights with fixed tensor operations, and the optimizers (like RMSprop) used to train them.
+If you come from the Deep Learning community, then it should be clear to you that there
+are differences between the neural network structures composed of weights with fixed
+tensor operations, and the optimizers (like RMSprop) used to train them.
 
 So when one calls ``booster.save_model`` (``xgb.save`` in R), XGBoost saves the trees,
 some model parameters like number of input columns in trained trees, and the objective
 function, which combined to represent the concept of "model" in XGBoost.  As for why are
 we saving the objective as part of model, that's because objective controls transformation
-of global bias (called ``base_score`` in XGBoost) and task-specific information.  Users
-can share this model with others for prediction, evaluation or continue the training with
-a different set of hyper-parameters etc.
+of global bias (called ``base_score`` or the intercept in XGBoost) and task-specific
+information.  Users can share this model with others for inference, evaluation or continue
+the training with a different set of hyper-parameters etc.
 
 However, this is not the end of story.  There are cases where we need to save something
 more than just the model itself.  For example, in distributed training, XGBoost performs
 checkpointing operation.  Or for some reasons, your favorite distributed computing
 framework decide to copy the model from one worker to another and continue the training in
-there.  In such cases, the serialisation output is required to contain enough information
+there. In such cases, the serialisation output is required to contain enough information
 to continue previous training without user providing any parameters again.  We consider
-such scenario as **memory snapshot** (or memory based serialisation method) and distinguish it
-with normal model IO operation. Currently, memory snapshot is used in the following places:
+such scenario as **memory snapshot** (or memory based serialisation method) and
+distinguish it with normal model IO operation. Currently, memory snapshot is used in the
+following places:
 
 * Python package: when the ``Booster`` object is pickled with the built-in ``pickle`` module.
 * R package: when the ``xgb.Booster`` object is persisted with the built-in functions ``saveRDS``
   or ``save``.
 * JVM packages: when the ``Booster`` object is serialized with the built-in functions ``saveModel``.
-
-Other language bindings are still working in progress.
-
-.. note::
-
-  The old binary format doesn't distinguish difference between model and raw memory
-  serialisation format, it's a mix of everything, which is part of the reason why we want
-  to replace it with a more robust serialisation method.  JVM Package has its own memory
-  based serialisation methods.
 
 To enable JSON format support for model IO (saving only the trees and objective), provide
 a filename with ``.json`` or ``.ubj`` as file extension, the latter is the extension for
@@ -88,10 +73,9 @@ a filename with ``.json`` or ``.ubj`` as file extension, the latter is the exten
   JSON files that were produced by an external source may lead to undefined behaviors
   and crashes.
 
-While for memory snapshot, UBJSON is the default starting with xgboost 1.6. When loading
-the model back, XGBoost recognizes the file extensions ``.json`` and ``.ubj``, and can
-dispatch accordingly. If the extension is not specified, XGBoost tries to guess the right
-one.
+When loading the model back, XGBoost recognizes the file extensions ``.json`` and
+``.ubj``, and can dispatch accordingly. If the extension is not specified, XGBoost tries
+to guess the right one.
 
 ***************************************************************
 A note on backward compatibility of models and memory snapshots
@@ -234,7 +218,7 @@ You can load it back to the model generated by same version of XGBoost by:
 
   bst.load_config(config)
 
-This way users can study the internal representation more closely.  Please note that some
+This way users can study the internal representation more closely. Please note that some
 JSON generators make use of locale dependent floating point serialization methods, which
 is not supported by XGBoost.
 
@@ -242,10 +226,10 @@ is not supported by XGBoost.
 Difference between saving model and dumping model
 *************************************************
 
-XGBoost has a function called ``dump_model`` in Booster object, which lets you to export
-the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The primary
-use case for it is for model interpretation or visualization, and is not supposed to be
-loaded back to XGBoost.  The JSON version has a `schema
+XGBoost has a function called ``dump_model`` in the Booster class, which lets you to
+export the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The
+primary use case for it is for model interpretation and visualization, and is not supposed
+to be loaded back to XGBoost.  The JSON version has a `schema
 <https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`__.  See next section for
 more info.
 
@@ -263,3 +247,15 @@ array.
 
 .. include:: ../model.schema
    :code: json
+
+
+*************
+Brief History
+*************
+
+- The JSON format was introduced in 1.0, aiming to replace the now removed old binary
+  internal format with an open format that can be easily reused
+- Later in XGBoost 1.6.0, additional support for Universal Binary JSON was introduced as
+  an optimization for more efficient model IO.
+- UBJSON has been set to default in 2.1.
+- The old binary format was removed in 3.1.

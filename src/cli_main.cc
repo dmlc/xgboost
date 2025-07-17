@@ -232,7 +232,7 @@ class CLI {
       if (param_.save_period != 0 && (i + 1) % param_.save_period == 0) {
         std::ostringstream os;
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
-           << i + 1 << ".model";
+           << i + 1 << ".ubj";
         this->SaveModel(os.str(), learner_.get());
       }
 
@@ -246,7 +246,7 @@ class CLI {
       std::ostringstream os;
       if (param_.model_out == CLIParam::kNull) {
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)
-           << param_.num_round << ".model";
+           << param_.num_round << ".ubj";
       } else {
         os << param_.model_out;
       }
@@ -329,29 +329,46 @@ class CLI {
   }
 
   void LoadModel(std::string const& path, Learner* learner) const {
-    if (common::FileExtension(path) == "json") {
-      auto buffer = common::LoadSequentialFile(path);
-      CHECK_GT(buffer.size(), 2);
-      CHECK_EQ(buffer[0], '{');
-      Json in{Json::Load({buffer.data(), buffer.size()})};
+    auto ext = common::FileExtension(path);
+    auto read_file = [&]() {
+      auto str = common::LoadSequentialFile(path);
+      CHECK_GE(str.size(), 3);  // "{}\0"
+      CHECK_EQ(str[0], '{');
+      return str;
+    };
+
+    if (ext == "json") {
+      auto buffer = read_file();
+      Json in{Json::Load(StringView{buffer.data(), buffer.size()})};
+      learner->LoadModel(in);
+    } else if (ext == "ubj") {
+      auto buffer = read_file();
+      Json in = Json::Load(StringView{buffer.data(), buffer.size()}, std::ios::binary);
       learner->LoadModel(in);
     } else {
-      std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(path.c_str(), "r"));
-      learner->LoadModel(fi.get());
+      LOG(FATAL) << "Unknown model format:" << path
+                 << ", expecting either UBJSON (`ubj`) or JSON (`json`).";
     }
   }
 
   void SaveModel(std::string const& path, Learner* learner) const {
     learner->Configure();
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(path.c_str(), "w"));
-    if (common::FileExtension(path) == "json") {
+    auto ext = common::FileExtension(path);
+    auto save_json = [&](std::ios::openmode mode) {
       Json out{Object()};
       learner->SaveModel(&out);
-      std::string str;
-      Json::Dump(out, &str);
-      fo->Write(str.c_str(), str.size());
+      std::vector<char> str;
+      Json::Dump(out, &str, mode);
+      fo->Write(str.data(), str.size());
+    };
+
+    if (ext == "json") {
+      save_json(std::ios::out);
+    } else if (ext == "ubj") {
+      save_json(std::ios::binary);
     } else {
-      learner->SaveModel(fo.get());
+      LOG(FATAL) << "Unknown model format:" << path << ", expecting either json or ubj.";
     }
   }
 
