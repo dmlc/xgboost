@@ -14,7 +14,12 @@ from ..compat import import_cupy
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..data import _lazy_load_cudf_is_cat
 from ..training import train
-from .data import IteratorForTest, is_pd_cat_dtype, make_categorical
+from .data import (
+    IteratorForTest,
+    is_pd_cat_dtype,
+    make_batches,
+    make_categorical,
+)
 
 
 def get_df_impl(device: str) -> Tuple[Type, Type]:
@@ -50,10 +55,24 @@ def assert_allclose(device: str, a: Any, b: Any) -> None:
         cp.testing.assert_allclose(a, b)
 
 
+def comp_booster(device: Literal["cpu", "cuda"], Xy: DMatrix, booster: str) -> None:
+    """Compare the results from DMatrix and Booster."""
+    cats = Xy.get_categories()
+    assert cats is not None
+
+    rng = np.random.default_rng(2025)
+    Xy.set_label(rng.normal(size=Xy.num_row()))
+    bst = train({"booster": booster, "device": device}, Xy, 1)
+    cats_bst = bst.get_categories()
+    assert cats_bst is not None
+    for k, v in cats_bst.items():
+        assert v == cats[k]
+
+
 def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
     """Basic tests for the container class used by the DMatrix."""
 
-    def run_dispatch(device: str, DMatrixT: Type) -> None:
+    def run_dispatch(device: Literal["cpu", "cuda"], DMatrixT: Type) -> None:
         Df, _ = get_df_impl(device)
         # Basic test with a single feature
         df = Df({"c": ["cdef", "abc"]}, dtype="category")
@@ -86,9 +105,15 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
         assert_allclose(device, csr.indptr, np.array([0, 1, 1, 2, 3]))
         assert_allclose(device, csr.indices, np.array([0, 0, 0]))
 
+        comp_booster(device, Xy, "gbtree")
+        comp_booster(device, Xy, "dart")
+
         # Test with explicit null-terminated strings.
         df = Df({"c": ["cdef", None, "abc", "abc\0"]}, dtype="category")
         Xy = DMatrixT(df, enable_categorical=True)
+
+        comp_booster(device, Xy, "gbtree")
+        comp_booster(device, Xy, "dart")
 
     for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(device, dm)
@@ -129,6 +154,7 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
                 assert cats[fname] is None
 
         if not hasattr(Xy, "ref"):  # not quantile DMatrix.
+            assert not isinstance(Xy, QuantileDMatrix)
             with tempfile.TemporaryDirectory() as tmpdir:
                 fname = os.path.join(tmpdir, "DMatrix.binary")
                 Xy.save_binary(fname)
@@ -143,6 +169,9 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
                         assert v_1 is None
                     else:
                         assert v_0.to_pylist() == v_1.to_pylist()
+
+        comp_booster(device, Xy, "gbtree")
+        comp_booster(device, Xy, "dart")
 
     def run_dispatch(DMatrixT: Type) -> None:
         # full str type
@@ -215,6 +244,15 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
 
     for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(dm)
+
+    batches = make_batches(
+        n_samples_per_batch=128, n_features=4, n_batches=1, use_cupy=device == "cuda"
+    )
+    X, y, w = map(lambda x: x[0], batches)
+    Xy = DMatrix(X, y, weight=w)
+    assert Xy.get_categories() is None
+    Xy = QuantileDMatrix(X, y, weight=w)
+    assert Xy.get_categories() is None
 
 
 def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:

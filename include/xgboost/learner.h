@@ -1,6 +1,6 @@
 /**
  * Copyright 2015-2025, XGBoost Contributors
- * \file learner.h
+ *
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
  * \author Tianqi Chen
@@ -35,6 +35,7 @@ class Json;
 struct XGBAPIThreadLocalEntry;
 template <typename T>
 class HostDeviceVector;
+class CatContainer;
 
 enum class PredictionType : std::uint8_t {  // NOLINT
   kValue = 0,
@@ -167,11 +168,11 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual void SetParam(const std::string& key, const std::string& value) = 0;
 
-  /*!
-   * \brief Get the number of features of the booster.
-   * \return number of features
+  /**
+   * @brief Get the number of features of the booster.
+   * @return The number of features
    */
-  virtual uint32_t GetNumFeature() const = 0;
+  virtual bst_feature_t GetNumFeature() const = 0;
 
   /*!
    * \brief Set additional attribute to the Booster.
@@ -221,16 +222,19 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param fn Output feature types
    */
   virtual void GetFeatureTypes(std::vector<std::string>* ft) const = 0;
-
   /**
-   * \brief Slice the model.
+   * @brief Getter for categories.
+   */
+  [[nodiscard]] virtual CatContainer const* Cats() const = 0;
+  /**
+   * @brief Slice the model.
    *
    * See InplacePredict for layer parameters.
    *
-   * \param step step size between slice.
-   * \param out_of_bound Return true if end layer is out of bound.
+   * @param step step size between slice.
+   * @param out_of_bound Return true if end layer is out of bound.
    *
-   * \return a sliced model.
+   * @return a sliced model.
    */
   virtual Learner* Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step,
                          bool* out_of_bound) = 0;

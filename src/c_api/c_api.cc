@@ -700,52 +700,66 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
+namespace {
+template <typename FidxT>
+void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
+                       std::string *p_out_storage, char const **out) {
+  auto &ret_str = *p_out_storage;
+  if (cats.Empty()) {
+    ret_str.clear();
+    *out = nullptr;
+    return;
+  }
+
   // We can directly use the storage in the cat container instead of allocating temporary storage.
+  Json jout{Array{}};
+  for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
+    auto const &col = cats[f_idx];
+    if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
+      get<Array>(jout).emplace_back();
+      continue;
+    }
+    std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &str) {
+                                 auto const &offsets = str.offsets;
+                                 auto ovec = linalg::MakeVec(offsets.data(), offsets.size());
+                                 auto jovec = linalg::ArrayInterface(ovec);
+
+                                 auto const &values = str.values;
+                                 auto dvec = linalg::MakeVec(values.data(), values.size());
+                                 auto jdvec = linalg::ArrayInterface(dvec);
+
+                                 get<Array>(jout).emplace_back(Object{});
+                                 get<Array>(jout).back()["offsets"] = std::move(jovec);
+                                 get<Array>(jout).back()["values"] = std::move(jdvec);
+                               },
+                               [&](auto &&values) {
+                                 auto vec = linalg::MakeVec(values.data(), values.size());
+                                 auto jvec = linalg::ArrayInterface(vec);
+                                 get<Array>(jout).emplace_back(std::move(jvec));
+                               }},
+               col);
+  }
+  auto str = Json::Dump(jout);
+  ret_str = std::move(str);
+
+  *out = ret_str.c_str();
+}
+}  // anonymous namespace
+
+/**
+ * Experimental (3.1), hidden.
+ */
+XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
   API_BEGIN()
   CHECK_HANDLE()
   auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   auto const cats = p_fmat->Cats()->HostView();
+  auto n_features = p_fmat->Info().num_col_;
 
   auto &ret_str = p_fmat->GetThreadLocal().ret_str;
   xgboost_CHECK_C_ARG_PTR(out);
 
-  if (cats.Empty()) {
-    *out = nullptr;
-  } else {
-    Json jout{Array{}};
-    auto n_features = p_fmat->Info().num_col_;
-    for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
-      auto const &col = cats[f_idx];
-      if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
-        get<Array>(jout).emplace_back();
-        continue;
-      }
-      std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &str) {
-                                   auto const &offsets = str.offsets;
-                                   auto ovec = linalg::MakeVec(offsets.data(), offsets.size());
-                                   auto jovec = linalg::ArrayInterface(ovec);
-
-                                   auto const &values = str.values;
-                                   auto dvec = linalg::MakeVec(values.data(), values.size());
-                                   auto jdvec = linalg::ArrayInterface(dvec);
-
-                                   get<Array>(jout).emplace_back(Object{});
-                                   get<Array>(jout).back()["offsets"] = std::move(jovec);
-                                   get<Array>(jout).back()["values"] = std::move(jdvec);
-                                 },
-                                 [&](auto &&values) {
-                                   auto vec = linalg::MakeVec(values.data(), values.size());
-                                   auto jvec = linalg::ArrayInterface(vec);
-                                   get<Array>(jout).emplace_back(std::move(jvec));
-                                 }},
-                 col);
-    }
-    auto str = Json::Dump(jout);
-    ret_str = std::move(str);
-
-    *out = ret_str.c_str();
-  }
+  GetCategoriesImpl(cats, n_features, &ret_str, out);
 
   API_END()
 }
@@ -1667,6 +1681,24 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
   }
   XGBoostDumpModelImpl(handle, &featmap, with_stats, format, len, out_models);
   API_END();
+}
+
+/**
+ * Experimental (3.1), hidden.
+ */
+XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const **out) {
+  API_BEGIN()
+  CHECK_HANDLE()
+  auto *bst = static_cast<Learner *>(handle);
+  auto const cats = bst->Cats()->HostView();
+  auto n_features = bst->GetNumFeature();
+
+  auto &ret_str = bst->GetThreadLocal().ret_str;
+  xgboost_CHECK_C_ARG_PTR(out);
+
+  GetCategoriesImpl(cats, n_features, &ret_str, out);
+
+  API_END()
 }
 
 XGB_DLL int XGBoosterGetAttr(BoosterHandle handle, const char *key, const char **out,

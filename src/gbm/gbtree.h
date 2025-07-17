@@ -281,6 +281,8 @@ class GBTree : public GradientBooster {
     }
   }
 
+  [[nodiscard]] CatContainer const* Cats() const override { return this->model_.Cats(); }
+
   void PredictLeaf(DMatrix* p_fmat,
                    HostDeviceVector<bst_float>* out_preds,
                    uint32_t layer_begin, uint32_t layer_end) override {
