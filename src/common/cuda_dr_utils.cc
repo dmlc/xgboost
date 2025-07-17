@@ -3,6 +3,7 @@
  */
 #if defined(XGBOOST_USE_CUDA)
 #include "cuda_dr_utils.h"
+#include <charconv>
 
 #include <algorithm>  // for max
 #include <cstdint>    // for int32_t
@@ -162,13 +163,14 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   if (smi_ver.size() != 2 && smi_ver.size() != 3) {
     return Invalid();
   }
-  try {
-    *p_major = std::stoi(smi_ver[0]);
-    *p_minor = std::stoi(smi_ver[1]);
-    LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
-    return true;
-  } catch (std::exception const &) {
+
+  auto ret0 = std::from_chars(smi_ver[0].cbegin(), smi_ver[0].cend(), *p_major);
+  auto ret1 = std::from_chars(smi_ver[1].cbegin(), smi_ver[1].cend(), *p_minor);
+  if (ret0.ec != std::errc{} || ret1.ec != std::errc{}) {
+    return Invalid();
   }
+  LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
+  return true;
 
   return Invalid();
 }

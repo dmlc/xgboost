@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
@@ -7,6 +7,7 @@
 #include <thrust/logical.h>  // for any_of
 
 #include "categorical.h"
+#include "common.h"          // for HumanMemUnit
 #include "cuda_context.cuh"  // for CUDAContext
 #include "cuda_rt_utils.h"   // for SetDevice
 #include "device_helpers.cuh"
@@ -181,7 +182,7 @@ class SketchContainer {
     this->Current().shrink_to_fit();
     this->Other().clear();
     this->Other().shrink_to_fit();
-    LOG(DEBUG) << "Quantile memory cost:" << this->MemCapacityBytes();
+    LOG(DEBUG) << "Quantile memory cost:" << common::HumanMemUnit(this->MemCapacityBytes());
   }
 
   /* \brief Merge quantiles from other GPU workers. */
