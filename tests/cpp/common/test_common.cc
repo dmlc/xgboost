@@ -36,7 +36,7 @@ TEST(Common, Split) {
     std::string str{chars};
     auto res_str = Split(str, ',');
     std::string_view view{chars};
-    auto res_view = Split(str, ',');
+    auto res_view = Split(view, ',');
     ASSERT_EQ(res_view.size(), res_str.size());
     ASSERT_EQ(res_view.size(), n);
     for (std::size_t i = 0; i < res_str.size(); ++i) {

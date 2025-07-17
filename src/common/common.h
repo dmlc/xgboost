@@ -85,7 +85,7 @@ namespace xgboost::common {
 
   auto first = str.find_first_not_of(" \t\n\r");
   if (first == std::string_view::npos) {
-    return "";
+    return {};
   }
   return str.substr(first);
 }
@@ -96,7 +96,7 @@ namespace xgboost::common {
   }
   auto last = str.find_last_not_of(" \t\n\r");
   if (last == std::string_view::npos) {
-    return "";
+    return {};
   }
   return str.substr(0, last + 1);
 }
