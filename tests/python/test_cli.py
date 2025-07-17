@@ -177,7 +177,7 @@ eval[test] = {data_path}
         seed = 1994
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_out_cli = os.path.join(tmpdir, '0010.model')
+            model_out_cli = os.path.join(tmpdir, '0010.ubj')
             config_path = os.path.join(tmpdir, 'test_load_cli_model.conf')
 
             train_conf = self.template.format(data_path=data_path,

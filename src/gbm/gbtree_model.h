@@ -60,10 +60,8 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
 
   // declare parameters, only declare those that need to be set.
   DMLC_DECLARE_PARAMETER(GBTreeModelParam) {
-    DMLC_DECLARE_FIELD(num_trees)
-        .set_lower_bound(0)
-        .set_default(0)
-        .describe("Number of features used for training and prediction.");
+    DMLC_DECLARE_FIELD(num_trees).set_lower_bound(0).set_default(0).describe(
+        "Number of trees for the entire booster model.");
     DMLC_DECLARE_FIELD(num_parallel_tree)
         .set_default(1)
         .set_lower_bound(1)
@@ -107,9 +105,6 @@ struct GBTreeModel : public Model {
       iteration_indptr.push_back(0);
     }
   }
-
-  void Load(dmlc::Stream* fi);
-  void Save(dmlc::Stream* fo) const;
 
   void SaveModel(Json* p_out) const override;
   void LoadModel(Json const& p_out) override;
