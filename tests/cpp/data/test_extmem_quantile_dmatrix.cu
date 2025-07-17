@@ -74,7 +74,7 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
     auto p_fmat = RandomDataGenerator{NumSamples(), NumFeatures(), sparsity}
                       .Device(ctx.Device())
                       .GenerateDMatrix();
-    bst_idx_t min_page_cache_bytes = 0;
+    bst_idx_t min_page_cache_bytes = ::xgboost::cuda_impl::MatchingPageBytes();
     if (is_concat) {
       min_page_cache_bytes =
           p_fmat->GetBatches<EllpackPage>(&ctx, param).begin().Page()->Impl()->MemCostBytes() / 3;
@@ -111,9 +111,8 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
 };
 
 TEST_P(EllpackHostCacheTest, Basic) {
-  auto ctx = MakeCUDACtx(0);
-  auto [sparsity, min_page_cache_bytes, cache_host_ratio] = this->GetParam();
-  this->Run(sparsity, min_page_cache_bytes, cache_host_ratio);
+  auto [sparsity, is_concat, cache_host_ratio] = this->GetParam();
+  this->Run(sparsity, is_concat, cache_host_ratio);
 }
 
 INSTANTIATE_TEST_SUITE_P(

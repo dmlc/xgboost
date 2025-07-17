@@ -540,7 +540,7 @@ class DataIter(ABC):  # pylint: disable=too-many-instance-attributes
         with GPU-based :py:class:`ExtMemQuantileDMatrix`. When using GPU-based external
         memory with the data cached in the host memory, XGBoost can concatenate the
         pages internally to increase the batch size for the GPU. The default page size
-        is about 1/8 of the total device memory. Users can manually set the value based
+        is about 1/16 of the total device memory. Users can manually set the value based
         on the actual hardware and datasets. Set this to 0 to disable page
         concatenation.
 

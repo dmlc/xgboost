@@ -35,7 +35,6 @@
 #include "../data/iterative_dmatrix.h"        // for IterativeDMatrix
 #include "./sparse_page_dmatrix.h"            // for SparsePageDMatrix
 #include "array_interface.h"                  // for ArrayInterfaceHandler, ArrayInterface, Dispa...
-#include "batch_utils.h"                      // for MatchingPageBytes
 #include "cat_container.h"                    // for CatContainer
 #include "dmlc/base.h"                        // for BeginPtr
 #include "dmlc/common.h"                      // for OMPException
