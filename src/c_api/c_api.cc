@@ -706,41 +706,43 @@ void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
                        std::string *p_out_storage, char const **out) {
   auto &ret_str = *p_out_storage;
   if (cats.Empty()) {
+    ret_str.clear();
     *out = nullptr;
-  } else {
-    // We can directly use the storage in the cat container instead of allocating temporary storage.
-    Json jout{Array{}};
-    for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
-      auto const &col = cats[f_idx];
-      if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
-        get<Array>(jout).emplace_back();
-        continue;
-      }
-      std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &str) {
-                                   auto const &offsets = str.offsets;
-                                   auto ovec = linalg::MakeVec(offsets.data(), offsets.size());
-                                   auto jovec = linalg::ArrayInterface(ovec);
-
-                                   auto const &values = str.values;
-                                   auto dvec = linalg::MakeVec(values.data(), values.size());
-                                   auto jdvec = linalg::ArrayInterface(dvec);
-
-                                   get<Array>(jout).emplace_back(Object{});
-                                   get<Array>(jout).back()["offsets"] = std::move(jovec);
-                                   get<Array>(jout).back()["values"] = std::move(jdvec);
-                                 },
-                                 [&](auto &&values) {
-                                   auto vec = linalg::MakeVec(values.data(), values.size());
-                                   auto jvec = linalg::ArrayInterface(vec);
-                                   get<Array>(jout).emplace_back(std::move(jvec));
-                                 }},
-                 col);
-    }
-    auto str = Json::Dump(jout);
-    ret_str = std::move(str);
-
-    *out = ret_str.c_str();
+    return;
   }
+
+  // We can directly use the storage in the cat container instead of allocating temporary storage.
+  Json jout{Array{}};
+  for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
+    auto const &col = cats[f_idx];
+    if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
+      get<Array>(jout).emplace_back();
+      continue;
+    }
+    std::visit(enc::Overloaded{[&](enc::CatStrArrayView const &str) {
+                                 auto const &offsets = str.offsets;
+                                 auto ovec = linalg::MakeVec(offsets.data(), offsets.size());
+                                 auto jovec = linalg::ArrayInterface(ovec);
+
+                                 auto const &values = str.values;
+                                 auto dvec = linalg::MakeVec(values.data(), values.size());
+                                 auto jdvec = linalg::ArrayInterface(dvec);
+
+                                 get<Array>(jout).emplace_back(Object{});
+                                 get<Array>(jout).back()["offsets"] = std::move(jovec);
+                                 get<Array>(jout).back()["values"] = std::move(jdvec);
+                               },
+                               [&](auto &&values) {
+                                 auto vec = linalg::MakeVec(values.data(), values.size());
+                                 auto jvec = linalg::ArrayInterface(vec);
+                                 get<Array>(jout).emplace_back(std::move(jvec));
+                               }},
+               col);
+  }
+  auto str = Json::Dump(jout);
+  ret_str = std::move(str);
+
+  *out = ret_str.c_str();
 }
 }  // anonymous namespace
 

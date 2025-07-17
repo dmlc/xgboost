@@ -14,7 +14,12 @@ from ..compat import import_cupy
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..data import _lazy_load_cudf_is_cat
 from ..training import train
-from .data import IteratorForTest, is_pd_cat_dtype, make_categorical
+from .data import (
+    IteratorForTest,
+    is_pd_cat_dtype,
+    make_batches,
+    make_categorical,
+)
 
 
 def get_df_impl(device: str) -> Tuple[Type, Type]:
@@ -239,6 +244,15 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
 
     for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(dm)
+
+    batches = make_batches(
+        n_samples_per_batch=128, n_features=4, n_batches=1, use_cupy=device == "cuda"
+    )
+    X, y, w = map(lambda x: x[0], batches)
+    Xy = DMatrix(X, y, weight=w)
+    assert Xy.get_categories() is None
+    Xy = QuantileDMatrix(X, y, weight=w)
+    assert Xy.get_categories() is None
 
 
 def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
