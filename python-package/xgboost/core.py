@@ -780,7 +780,9 @@ _deprecate_positional_args = require_keyword_args(False)
 
 
 def _get_categories(
-    cfn: Callable, feature_names: Optional[FeatureNames], n_features: int
+    cfn: Callable[[ctypes.c_char_p], int],
+    feature_names: Optional[FeatureNames],
+    n_features: int,
 ) -> Optional[Dict[str, "pa.DictionaryArray"]]:
     if not is_pyarrow_available():
         raise ImportError("`pyarrow` is required for exporting categories.")
