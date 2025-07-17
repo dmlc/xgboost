@@ -769,4 +769,11 @@ TEST(Json, Dump) {
     ASSERT_EQ(result_s[i], result_v[i]);
   }
 }
+
+TEST(Json, NonNullTerminated) {
+  // garbage at the end, not terminated by \0
+  std::vector<char> str{'{', '"', 'a', '"', ':', '"', 'b', '"', '}', 'c', 'c'};
+  auto jobj = Json::Load(StringView{str.data(), str.size()});
+  ASSERT_EQ(get<String const>(jobj["a"]), "b");
+}
 }  // namespace xgboost

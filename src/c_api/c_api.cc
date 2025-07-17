@@ -1438,7 +1438,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char *fname) {
   xgboost_CHECK_C_ARG_PTR(fname);
   auto read_file = [&]() {
     auto str = common::LoadSequentialFile(fname);
-    CHECK_GE(str.size(), 3);  // "{}\0"
+    CHECK_GE(str.size(), 2);  // "{}"
     CHECK_EQ(str[0], '{');
     return str;
   };
