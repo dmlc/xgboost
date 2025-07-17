@@ -6,15 +6,12 @@
 #ifndef XGBOOST_COMMON_COMMON_H_
 #define XGBOOST_COMMON_COMMON_H_
 
-#include <array>        // for array
 #include <cmath>        // for ceil
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t, int64_t
-#include <sstream>      // for basic_istream, operator<<, istringstream
+#include <sstream>      // for istringstream
 #include <string>       // for string, basic_string, getline, char_traits
 #include <string_view>  // for string_view
-#include <tuple>        // for make_tuple
-#include <utility>      // for forward, index_sequence, make_index_sequence
 #include <vector>       // for vector
 
 #include "xgboost/base.h"     // for XGBOOST_DEVICE
@@ -123,19 +120,6 @@ XGBOOST_DEVICE T Max(T a, T b) {
 template <typename T1, typename T2>
 XGBOOST_DEVICE T1 DivRoundUp(const T1 a, const T2 b) {
   return static_cast<T1>(std::ceil(static_cast<double>(a) / b));
-}
-
-namespace detail {
-template <class T, std::size_t N, std::size_t... Idx>
-constexpr auto UnpackArr(std::array<T, N> &&arr, std::index_sequence<Idx...>) {
-  return std::make_tuple(std::forward<std::array<T, N>>(arr)[Idx]...);
-}
-}  // namespace detail
-
-template <class T, std::size_t N>
-constexpr auto UnpackArr(std::array<T, N> &&arr) {
-  return detail::UnpackArr(std::forward<std::array<T, N>>(arr),
-                           std::make_index_sequence<N>{});
 }
 
 /*
