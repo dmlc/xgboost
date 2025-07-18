@@ -6,15 +6,13 @@
 #ifndef XGBOOST_COMMON_COMMON_H_
 #define XGBOOST_COMMON_COMMON_H_
 
-#include <array>      // for array
-#include <cmath>      // for ceil
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t, int64_t
-#include <sstream>    // for basic_istream, operator<<, istringstream
-#include <string>     // for string, basic_string, getline, char_traits
-#include <tuple>      // for make_tuple
-#include <utility>    // for forward, index_sequence, make_index_sequence
-#include <vector>     // for vector
+#include <cmath>        // for ceil
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t, int64_t
+#include <sstream>      // for istringstream
+#include <string>       // for string, basic_string, getline, char_traits
+#include <string_view>  // for string_view
+#include <vector>       // for vector
 
 #include "xgboost/base.h"     // for XGBOOST_DEVICE
 #include "xgboost/logging.h"  // for LOG, LOG_FATAL, LogMessageFatal
@@ -52,9 +50,9 @@ namespace xgboost::common {
  * \param s String to be split.
  * \param delim The delimiter.
  */
-inline std::vector<std::string> Split(const std::string& s, char delim) {
+[[nodiscard]] inline std::vector<std::string> Split(std::string const &s, char delim) {
   std::string item;
-  std::istringstream is(s);
+  std::istringstream is{s};
   std::vector<std::string> ret;
   while (std::getline(is, item, delim)) {
     ret.push_back(item);
@@ -62,26 +60,39 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return ret;
 }
 
+[[nodiscard]] inline std::vector<std::string_view> Split(std::string_view s, char delim) {
+  std::size_t cur = 0;
+  std::vector<std::string_view> ret;
+  while ((cur = s.find_first_of(delim)) != std::string_view::npos) {
+    auto segment = s.substr(0, cur);
+    ret.push_back(segment);
+    s = s.substr(cur + 1);
+  }
+  if (!s.empty()) {
+    ret.push_back(s);
+  }
+  return ret;
+}
+
 // Trims leading whitespace from a string
-[[nodiscard]] inline std::string TrimFirst(const std::string &str) {
+[[nodiscard]] inline std::string_view TrimFirst(std::string_view const &str) {
   if (str.empty()) {
     return str;
   }
-
-  std::size_t first = str.find_first_not_of(" \t\n\r");
-  if (first == std::string::npos) {
-    return "";
+  auto first = str.find_first_not_of(" \t\n\r");
+  if (first == std::string_view::npos) {
+    return {};
   }
   return str.substr(first);
 }
 
-[[nodiscard]] inline std::string TrimLast(std::string const &str) {
+[[nodiscard]] inline std::string_view TrimLast(std::string_view const &str) {
   if (str.empty()) {
     return str;
   }
-  std::size_t last = str.find_last_not_of(" \t\n\r");
-  if (last == std::string::npos) {
-    return "";
+  auto last = str.find_last_not_of(" \t\n\r");
+  if (last == std::string_view::npos) {
+    return {};
   }
   return str.substr(0, last + 1);
 }
@@ -108,19 +119,6 @@ XGBOOST_DEVICE T Max(T a, T b) {
 template <typename T1, typename T2>
 XGBOOST_DEVICE T1 DivRoundUp(const T1 a, const T2 b) {
   return static_cast<T1>(std::ceil(static_cast<double>(a) / b));
-}
-
-namespace detail {
-template <class T, std::size_t N, std::size_t... Idx>
-constexpr auto UnpackArr(std::array<T, N> &&arr, std::index_sequence<Idx...>) {
-  return std::make_tuple(std::forward<std::array<T, N>>(arr)[Idx]...);
-}
-}  // namespace detail
-
-template <class T, std::size_t N>
-constexpr auto UnpackArr(std::array<T, N> &&arr) {
-  return detail::UnpackArr(std::forward<std::array<T, N>>(arr),
-                           std::make_index_sequence<N>{});
 }
 
 /*
