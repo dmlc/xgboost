@@ -122,7 +122,7 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
   final val numWorkers = new IntParam(this, "numWorkers", "Number of workers used to train xgboost",
     ParamValidators.gtEq(1))
 
-  final def getNumRound: Int = $(numRound)
+  final def getNumWorkers: Int = $(numWorkers)
 
   final val forceRepartition = new BooleanParam(this, "forceRepartition", "If the partition " +
     "is equal to numWorkers, xgboost won't repartition the dataset. Set forceRepartition to " +
@@ -132,6 +132,8 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
 
   final val numRound = new IntParam(this, "numRound", "The number of rounds for boosting",
     ParamValidators.gtEq(1))
+
+  final def getNumRound: Int = $(numRound)
 
   final val numEarlyStoppingRounds = new IntParam(this, "numEarlyStoppingRounds", "Stop training " +
     "Number of rounds of decreasing eval metric to tolerate before stopping training",
@@ -216,13 +218,13 @@ private[spark] trait SparkParams[T <: Params] extends HasFeaturesCols with HasFe
     labelCol, baseMarginCol, weightCol, predictionCol, leafPredictionCol, contribPredictionCol,
     forceRepartition, featuresCols, customEval, customObj, featureTypes, featureNames)
 
-  final def getNumWorkers: Int = $(numWorkers)
-
   def setNumWorkers(value: Int): T = set(numWorkers, value).asInstanceOf[T]
 
   def setForceRepartition(value: Boolean): T = set(forceRepartition, value).asInstanceOf[T]
 
   def setNumRound(value: Int): T = set(numRound, value).asInstanceOf[T]
+
+  def setNumEarlyStoppingRounds(value: Int): T = set(numEarlyStoppingRounds, value).asInstanceOf[T]
 
   def setFeaturesCol(value: Array[String]): T = set(featuresCols, value).asInstanceOf[T]
 
