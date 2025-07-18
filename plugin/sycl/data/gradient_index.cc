@@ -121,6 +121,14 @@ void GHistIndexMatrix::Init(::sycl::queue* qu,
   max_num_bins = max_bins;
   nbins = cut.Ptrs().back();
 
+  min_num_bins = nbins;
+  const size_t n_offsets = cut.cut_ptrs_.Size() - 1;
+  for (unsigned fid = 0; fid < n_offsets; ++fid) {
+    auto ibegin = cut.cut_ptrs_.ConstHostVector()[fid];
+    auto iend = cut.cut_ptrs_.ConstHostVector()[fid + 1];
+    min_num_bins = std::min<size_t>(min_num_bins, iend - ibegin);
+  }
+
   hit_count.SetDevice(ctx->Device());
   hit_count.Resize(nbins, 0);
 
@@ -141,7 +149,7 @@ void GHistIndexMatrix::Init(::sycl::queue* qu,
     row_stride = nfeatures;
     n_rows = dmat->Info().num_row_;
   }
-  const size_t n_offsets = cut.cut_ptrs_.Size() - 1;
+
   const size_t n_index = n_rows * row_stride;
   ResizeIndex(qu, n_index);
 

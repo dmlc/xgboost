@@ -20,6 +20,6 @@ dependencies:
 - pytest-cov
 - dask=2024.11
 - ninja
-- dpcpp_linux-64
+- dpcpp_linux-64>=2024.2.1
 - onedpl-devel
 - intel-openmp

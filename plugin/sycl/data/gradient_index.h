@@ -86,6 +86,7 @@ struct GHistIndexMatrix {
   /*! \brief The corresponding cuts */
   xgboost::common::HistogramCuts cut;
   size_t max_num_bins;
+  size_t min_num_bins;
   size_t nbins;
   size_t nfeatures;
   size_t row_stride;
