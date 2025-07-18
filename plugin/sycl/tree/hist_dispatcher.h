@@ -9,6 +9,8 @@
 #include <sycl/sycl.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 
+#include "../../../src/common/common.h"               // for HumanMemUnit
+
 namespace xgboost {
 namespace sycl {
 namespace tree {
@@ -31,7 +33,7 @@ class HistDispatcher {
 
   void GetL2Size(const ::sycl::device& device) {
     size_t l2_size = device.get_info<::sycl::info::device::global_mem_cache_size>();
-    LOG(INFO) << "Detected L2 Size = " << l2_size / 1024 / 1024 << "MB";
+    LOG(INFO) << "Detected L2 Size = " << ::xgboost::common::HumanMemUnit(l2_size);
     l2_size_per_eu = static_cast<float>(l2_size) / max_compute_units;
   }
 
@@ -170,8 +172,9 @@ class HistDispatcher {
        */
       float th_block_per_eu = 1 + base_block_penalty - atomic_penalty / atomic_efficency;
 
-      /* The model will failed mostly 
-       * if (1 + base_block_penalty) ~ (atomic_penalty / atomic_efficency)
+      /* We can't trust the decision of the approximate performance model
+       * if penalties are close to each other
+       * i.e. (1 + base_block_penalty) ~ (atomic_penalty / atomic_efficency)
        * We manually limit the minimal value of th_block_per_eu,
        * to determine the behaviour in this region.
        */
@@ -193,7 +196,7 @@ class HistDispatcher {
 
   // For some datasets buffer is not used, we estimate if it is the case.
   template<typename GradientPairT>
-  size_t GetRequaredBufferSize(size_t max_n_rows, size_t nbins, size_t ncolumns,
+  size_t GetRequiredBufferSize(size_t max_n_rows, size_t nbins, size_t ncolumns,
                                size_t max_num_bins, size_t min_num_bins) const {
     size_t max_nblocks = kMaxGPUUtilisation * max_compute_units;
     auto build_params = GetHistBuildParameters<GradientPairT>
