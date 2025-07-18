@@ -15,22 +15,7 @@ namespace xgboost {
 namespace sycl {
 namespace tree {
 
-struct BlockParams { size_t size, nblocks; };
-
-struct HistBuildParameters {
-  bool use_local_hist = false;
-  bool use_atomics = false;
-  size_t work_group_size;
-  BlockParams block;
-};
-
-class HistDispatcher {
-  bool is_gpu;
-  size_t max_compute_units;
-  size_t max_work_group_size;
-  float sram_size_per_eu = 0;
-  float l2_size_per_eu = 0;
-
+class DeviceProperties {
   void GetL2Size(const ::sycl::device& device) {
     size_t l2_size = device.get_info<::sycl::info::device::global_mem_cache_size>();
     LOG(INFO) << "Detected L2 Size = " << ::xgboost::common::HumanMemUnit(l2_size);
@@ -55,29 +40,28 @@ class HistDispatcher {
     }
   }
 
-  inline BlockParams GetBlocksParameters(size_t size, size_t max_nblocks) const {
-    if (max_nblocks == 0) return {0, 0};
-    size_t nblocks = max_compute_units;
+ public:
+  bool is_gpu;
+  size_t max_compute_units;
+  size_t max_work_group_size;
+  float sram_size_per_eu = 0;
+  float l2_size_per_eu = 0;
 
-    size_t block_size = size / nblocks + !!(size % nblocks);
-    while (block_size > (1u << 11)) {
-      nblocks *= 2;
-      if (nblocks >= max_nblocks) {
-        nblocks = max_nblocks;
-        block_size = size / nblocks + !!(size % nblocks);
-        break;
+  explicit DeviceProperties(const ::sycl::device& device):
+    is_gpu(device.is_gpu()),
+    max_compute_units(device.get_info<::sycl::info::device::max_compute_units>()),
+    max_work_group_size(device.get_info<::sycl::info::device::max_work_group_size>()) {
+      GetL2Size(device);
+      if (is_gpu) {
+        GetSRAMSize(device);
       }
-      block_size = size / nblocks + !!(size % nblocks);
     }
+};
 
-    if (block_size < KMinBlockSize) {
-      block_size = KMinBlockSize;
-      nblocks = size / block_size + !!(size % block_size);
-    }
+struct BlockParams { size_t size, nblocks; };
 
-    return {block_size, nblocks};
-  }
-
+template <typename FPType>
+class HistDispatcher {
  public:
   // Max n_blocks/max_compute_units ration.
   // Higher -> better GPU utilisation with higer memory overhead.
@@ -103,26 +87,43 @@ class HistDispatcher {
   // Minimal value of threshold GPU load
   constexpr static float kMinTh = 1.0 / 16.0;
 
-  explicit HistDispatcher(const ::sycl::device& device):
-    is_gpu(device.is_gpu()),
-    max_compute_units(device.get_info<::sycl::info::device::max_compute_units>()),
-    max_work_group_size(device.get_info<::sycl::info::device::max_work_group_size>()) {
-      GetL2Size(device);
-      if (is_gpu) {
-        GetSRAMSize(device);
+  bool use_local_hist = false;
+  bool use_atomics = false;
+  size_t work_group_size;
+  BlockParams block;
+
+  inline BlockParams GetBlocksParameters(size_t size, size_t max_nblocks,
+                                         size_t max_compute_units) const {
+    if (max_nblocks == 0) return {0, 0};
+    size_t nblocks = max_compute_units;
+
+    size_t block_size = size / nblocks + !!(size % nblocks);
+    while (block_size > (1u << 11)) {
+      nblocks *= 2;
+      if (nblocks >= max_nblocks) {
+        nblocks = max_nblocks;
+        block_size = size / nblocks + !!(size % nblocks);
+        break;
       }
+      block_size = size / nblocks + !!(size % nblocks);
     }
 
-  template<typename GradientPairT>
-  HistBuildParameters GetHistBuildParameters(bool isDense, size_t size, size_t max_nblocks,
-                                             size_t nbins, size_t ncolumns, size_t max_num_bins,
-                                             size_t min_num_bins) const {
-    HistBuildParameters build_params;
+    if (block_size < KMinBlockSize) {
+      block_size = KMinBlockSize;
+      nblocks = size / block_size + !!(size % block_size);
+    }
 
-    build_params.block = GetBlocksParameters(size, max_nblocks);
-    build_params.work_group_size = std::min(ncolumns, max_work_group_size);
-    if (!is_gpu) return build_params;
+    return {block_size, nblocks};
+  }
 
+  HistDispatcher(const DeviceProperties& device_prop, bool isDense, size_t size,
+                 size_t max_nblocks, size_t nbins, size_t ncolumns,
+                 size_t max_num_bins, size_t min_num_bins) {
+    block = GetBlocksParameters(size, max_nblocks, device_prop.max_compute_units);
+    work_group_size = std::min(ncolumns, device_prop.max_work_group_size);
+    if (!device_prop.is_gpu) return;
+
+    using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
     /* If local histogram is possible and beneficial */
     const int buff_size = nbins * sizeof(GradientPairT);
     /* block_size writes into array of size max_num_bins are made,
@@ -130,83 +131,81 @@ class HistDispatcher {
     * most part of buffer isn't used and perf suffers.
     */
     const size_t th_block_size = max_num_bins;
-    build_params.use_local_hist = (buff_size < sram_size_per_eu - KLocalHistSRAM)
-                                  && isDense
-                                  && (max_num_bins <= KMaxNumBins)
-                                  && (build_params.block.size >= th_block_size);
+    use_local_hist = (buff_size < device_prop.sram_size_per_eu - KLocalHistSRAM)
+                      && isDense
+                      && (max_num_bins <= KMaxNumBins)
+                      && (block.size >= th_block_size);
 
     /* Predict penalty from atomic usage and compare with one from block-based build with buffer */
     // EUs processing different columns do not trigger conflicts.
     float wg_per_columns = std::max(1.0f, static_cast<float>(ncolumns) / kMaxWorkGroupSizeAtomic);
     /* Rows are processed per execution unit.
-     * Some EUs process different columns, and don't triiger conflicts.
-     * We use a worse case scenario, i.e. use the minimal number of bins per feature
-     */
-    float conflicts_per_bin = (max_compute_units / wg_per_columns) / min_num_bins;
+    * Some EUs process different columns, and don't triiger conflicts.
+    * We use a worse case scenario, i.e. use the minimal number of bins per feature
+    */
+    float conflicts_per_bin = (device_prop.max_compute_units / wg_per_columns) / min_num_bins;
 
     // Atomics resolve conflicts between EUs, so L2 size can be a proxy for atomic efficiency.
-    float atomic_efficency = l2_size_per_eu / kAtomicEfficiencyNormalization;
+    float atomic_efficency = device_prop.l2_size_per_eu / kAtomicEfficiencyNormalization;
     // We use simple quadratic model to predict atomic penalty
     float atomic_penalty = conflicts_per_bin
-                         + kAtomicQuadraticWeight * (conflicts_per_bin * conflicts_per_bin);
+                        + kAtomicQuadraticWeight * (conflicts_per_bin * conflicts_per_bin);
 
     // Block-based builder operates with buffer of type FPType, placed in L2.
-    using FPType = typename GradientPairT::ValueT;
-    float base_block_penalty = kBlockPenaltyNormalization / l2_size_per_eu * (sizeof(FPType) / 4);
+    float base_block_penalty = kBlockPenaltyNormalization /
+                                device_prop.l2_size_per_eu * (sizeof(FPType) / 4);
 
-    if (build_params.block.nblocks >= max_compute_units) {
+    if (block.nblocks >= device_prop.max_compute_units) {
       // if GPU is fully loaded, we can simply compare penaltys.
-      build_params.use_atomics = base_block_penalty > atomic_penalty / atomic_efficency;
+      use_atomics = base_block_penalty > atomic_penalty / atomic_efficency;
     } else {
-      float blocks_per_eu = static_cast<float>(build_params.block.nblocks) / max_compute_units;
+      float blocks_per_eu = static_cast<float>(block.nblocks) / device_prop.max_compute_units;
       /* The GPU is not 100% loaded. We need to take this into account in our model:
-       * block_penalty = base_block_penalty + base_time * (1 - blocks_per_eu);
-       * 
-       * atomics should be used, if:
-       * block_penalty > atomic_penalty
-       * 
-       * The normalization is chosen so that: base_time = 1
-       * base_block_penalty + 1 - blocks_per_eu > atomic_penalty / atomic_efficency
-       * 
-       * blocks_per_eu < 1 + base_block_penalty - atomic_penalty / atomic_efficency
-       */
+      * block_penalty = base_block_penalty + base_time * (1 - blocks_per_eu);
+      *
+      * atomics should be used, if:
+      * block_penalty > atomic_penalty
+      *
+      * The normalization is chosen so that: base_time = 1
+      * base_block_penalty + 1 - blocks_per_eu > atomic_penalty / atomic_efficency
+      *
+      * blocks_per_eu < 1 + base_block_penalty - atomic_penalty / atomic_efficency
+      */
       float th_block_per_eu = 1 + base_block_penalty - atomic_penalty / atomic_efficency;
 
       /* We can't trust the decision of the approximate performance model
-       * if penalties are close to each other
-       * i.e. (1 + base_block_penalty) ~ (atomic_penalty / atomic_efficency)
-       * We manually limit the minimal value of th_block_per_eu,
-       * to determine the behaviour in this region.
-       */
+      * if penalties are close to each other
+      * i.e. (1 + base_block_penalty) ~ (atomic_penalty / atomic_efficency)
+      * We manually limit the minimal value of th_block_per_eu,
+      * to determine the behaviour in this region.
+      */
       th_block_per_eu = std::max<float>(kMinTh, th_block_per_eu);
 
-      build_params.use_atomics = (blocks_per_eu < th_block_per_eu);
+      use_atomics = (blocks_per_eu < th_block_per_eu);
     }
 
-    if (build_params.use_atomics) {
-      build_params.work_group_size = std::min(kMaxWorkGroupSizeAtomic,
-                                              build_params.work_group_size);
-    } else if (build_params.use_local_hist) {
-      build_params.work_group_size = std::min(kMaxWorkGroupSizeLocal,
-                                              build_params.work_group_size);
+    if (use_atomics) {
+      work_group_size = std::min(kMaxWorkGroupSizeAtomic,
+                                 work_group_size);
+    } else if (use_local_hist) {
+      work_group_size = std::min(kMaxWorkGroupSizeLocal,
+                                 work_group_size);
     }
-
-    return build_params;
-  }
-
-  // For some datasets buffer is not used, we estimate if it is the case.
-  template<typename GradientPairT>
-  size_t GetRequiredBufferSize(size_t max_n_rows, size_t nbins, size_t ncolumns,
-                               size_t max_num_bins, size_t min_num_bins) const {
-    size_t max_nblocks = kMaxGPUUtilisation * max_compute_units;
-    auto build_params = GetHistBuildParameters<GradientPairT>
-                        (true, max_n_rows, max_nblocks, nbins,
-                         ncolumns, max_num_bins, min_num_bins);
-
-    return build_params.use_atomics ? 0 : build_params.block.nblocks;
   }
 };
 
+// For some datasets buffer is not used, we estimate if it is the case.
+template<typename FPType>
+size_t GetRequiredBufferSize(const DeviceProperties& device_prop, size_t max_n_rows, size_t nbins,
+                             size_t ncolumns, size_t max_num_bins, size_t min_num_bins) {
+  size_t max_nblocks = HistDispatcher<FPType>::kMaxGPUUtilisation * device_prop.max_compute_units;
+  // Buffer size doesn't depend on isDense flag.
+  auto build_params = HistDispatcher<FPType>
+                      (device_prop, true, max_n_rows, max_nblocks, nbins,
+                       ncolumns, max_num_bins, min_num_bins);
+
+  return build_params.use_atomics ? 0 : build_params.block.nblocks;
+}
 
 }  // namespace tree
 }  // namespace sycl

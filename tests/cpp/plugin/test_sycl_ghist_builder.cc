@@ -68,9 +68,9 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
   InitHist(qu, &hist, hist.Size(), &event);
   InitHist(qu, &hist_buffer, hist_buffer.Size(), &event);
 
-  tree::HistDispatcher dispatcher(qu->get_device());
+  tree::DeviceProperties device_prop(qu->get_device());
   event = builder.BuildHist(gpair, row_set_collection[0], gmat_sycl, &hist,
-                            sparsity < eps , &hist_buffer, dispatcher, event, force_atomic_use);
+                            sparsity < eps , &hist_buffer, device_prop, event, force_atomic_use);
   qu->memcpy(hist_host.data(), hist.Data(),
             2 * n_bins * sizeof(GradientSumT), event);
   qu->wait_and_throw();

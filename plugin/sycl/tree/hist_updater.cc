@@ -613,11 +613,11 @@ void HistUpdater<GradientSumT>::InitData(
   {
     uint32_t nbins = gmat.cut.Ptrs().back();
     hist_buffer_.Init(qu_, nbins);
-    using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     bool isDense = data_layout_ != kSparseData;
     const size_t ncolumns = isDense ? gmat.nfeatures : gmat.row_stride;
-    size_t buffer_size = hist_dispatcher_.GetRequiredBufferSize<GradientPairT>
-                        (info.num_row_, nbins, ncolumns, gmat.max_num_bins, gmat.min_num_bins);
+    size_t buffer_size = GetRequiredBufferSize<GradientSumT>
+                         (device_properties_, info.num_row_, nbins, ncolumns,
+                          gmat.max_num_bins, gmat.min_num_bins);
     hist_buffer_.Reset(buffer_size);
   }
 

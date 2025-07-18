@@ -92,6 +92,29 @@ template ::sycl::event SubtractionHist(::sycl::queue* qu,
                               const GHistRow<double, MemoryType::on_device>& src2,
                               size_t size, ::sycl::event event_priv);
 
+template <typename GradientPairT>
+::sycl::event ReduceHist(::sycl::queue* qu, GradientPairT* hist_data,
+                         GradientPairT* hist_buffer_data,
+                         size_t  nblocks, size_t nbins,
+                         const ::sycl::event& event_main) {
+  auto event_save = qu->submit([&](::sycl::handler& cgh) {
+    cgh.depends_on(event_main);
+    cgh.parallel_for<>(::sycl::range<1>(nbins), [=](::sycl::item<1> pid) {
+      size_t idx_bin = pid.get_id(0);
+
+      GradientPairT gpair = {0, 0};
+
+      for (size_t j = 0; j < nblocks; ++j) {
+        gpair += hist_buffer_data[j * nbins + idx_bin];
+      }
+
+      hist_data[idx_bin] = gpair;
+    });
+  });
+
+  return event_save;
+}
+
 // Kernel with buffer using
 template<typename FPType, typename BinIdxType, bool isDense>
 ::sycl::event BuildHistKernel(::sycl::queue* qu,
@@ -100,7 +123,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
                             const GHistIndexMatrix& gmat,
                             GHistRow<FPType, MemoryType::on_device>* hist,
                             GHistRow<FPType, MemoryType::on_device>* hist_buffer,
-                            const tree::HistBuildParameters& params,
+                            const tree::HistDispatcher<FPType>& dispatcher,
                             ::sycl::event event_priv) {
   using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
   const size_t size = row_indices.Size();
@@ -111,9 +134,9 @@ template<typename FPType, typename BinIdxType, bool isDense>
   const uint32_t* offsets = gmat.cut.cut_ptrs_.ConstDevicePointer();
   const size_t nbins = gmat.nbins;
 
-  const size_t work_group_size = params.work_group_size;
-  const size_t block_size = params.block.size;
-  const size_t nblocks = params.block.nblocks;
+  const size_t work_group_size = dispatcher.work_group_size;
+  const size_t block_size = dispatcher.block.size;
+  const size_t nblocks = dispatcher.block.nblocks;
 
   GradientPairT* hist_buffer_data = hist_buffer->Data();
   auto event_fill = qu->fill(hist_buffer_data, GradientPairT(0, 0),
@@ -152,20 +175,9 @@ template<typename FPType, typename BinIdxType, bool isDense>
   });
 
   GradientPairT* hist_data = hist->Data();
-  auto event_save = qu->submit([&](::sycl::handler& cgh) {
-    cgh.depends_on(event_main);
-    cgh.parallel_for<>(::sycl::range<1>(nbins), [=](::sycl::item<1> pid) {
-      size_t idx_bin = pid.get_id(0);
+  auto event_save = ReduceHist(qu, hist_data, hist_buffer_data, nblocks,
+                               nbins, event_main);
 
-      GradientPairT gpair = {0, 0};
-
-      for (size_t j = 0; j < nblocks; ++j) {
-        gpair += hist_buffer_data[j * nbins + idx_bin];
-      }
-
-      hist_data[idx_bin] = gpair;
-    });
-  });
   return event_save;
 }
 
@@ -177,9 +189,9 @@ template<typename FPType, typename BinIdxType>
                             const GHistIndexMatrix& gmat,
                             GHistRow<FPType, MemoryType::on_device>* hist,
                             GHistRow<FPType, MemoryType::on_device>* hist_buffer,
-                            const tree::HistBuildParameters& params,
+                            const tree::HistDispatcher<FPType>& dispatcher,
                             ::sycl::event event_priv) {
-  constexpr int kMaxNumBins = tree::HistDispatcher::KMaxNumBins;
+  constexpr int kMaxNumBins = tree::HistDispatcher<FPType>::KMaxNumBins;
   using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
@@ -189,9 +201,9 @@ template<typename FPType, typename BinIdxType>
   const uint32_t* offsets = gmat.cut.cut_ptrs_.ConstDevicePointer();
   const size_t nbins = gmat.nbins;
 
-  const size_t work_group_size = params.work_group_size;
-  const size_t block_size = params.block.size;
-  const size_t nblocks = params.block.nblocks;
+  const size_t work_group_size = dispatcher.work_group_size;
+  const size_t block_size = dispatcher.block.size;
+  const size_t nblocks = dispatcher.block.nblocks;
 
   GradientPairT* hist_buffer_data = hist_buffer->Data();
 
@@ -239,20 +251,8 @@ template<typename FPType, typename BinIdxType>
   });
 
   GradientPairT* hist_data = hist->Data();
-  auto event_save = qu->submit([&](::sycl::handler& cgh) {
-    cgh.depends_on(event_main);
-    cgh.parallel_for<>(::sycl::range<1>(nbins), [=](::sycl::item<1> pid) {
-      size_t idx_bin = pid.get_id(0);
-
-      GradientPairT gpair = {0, 0};
-
-      for (size_t j = 0; j < nblocks; ++j) {
-        gpair += hist_buffer_data[j * nbins + idx_bin];
-      }
-
-      hist_data[idx_bin] = gpair;
-    });
-  });
+  auto event_save = ReduceHist(qu, hist_data, hist_buffer_data, nblocks,
+                               nbins, event_main);
   return event_save;
 }
 
@@ -263,7 +263,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
                             const RowSetCollection::Elem& row_indices,
                             const GHistIndexMatrix& gmat,
                             GHistRow<FPType, MemoryType::on_device>* hist,
-                            const tree::HistBuildParameters& params,
+                            const tree::HistDispatcher<FPType>& dispatcher,
                             ::sycl::event event_priv) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
@@ -275,7 +275,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
   FPType* hist_data = reinterpret_cast<FPType*>(hist->Data());
   const size_t nbins = gmat.nbins;
 
-  size_t work_group_size = params.work_group_size;
+  size_t work_group_size = dispatcher.work_group_size;
   const size_t n_work_groups = n_columns / work_group_size + (n_columns % work_group_size > 0);
 
   auto event_fill = qu->fill(hist_data, FPType(0), nbins * 2, event_priv);
@@ -321,7 +321,7 @@ template<typename FPType, typename BinIdxType>
                 GHistRow<FPType, MemoryType::on_device>* hist,
                 bool isDense,
                 GHistRow<FPType, MemoryType::on_device>* hist_buffer,
-                const tree::HistDispatcher& dispatcher,
+                const tree::DeviceProperties& device_prop,
                 ::sycl::event events_priv,
                 bool force_atomic_use) {
   const size_t size = row_indices.Size();
@@ -329,39 +329,39 @@ template<typename FPType, typename BinIdxType>
   const size_t nbins = gmat.nbins;
   const size_t max_num_bins = gmat.max_num_bins;
   const size_t min_num_bins = gmat.min_num_bins;
-  using GradientPairT = xgboost::detail::GradientPairInternal<FPType>;
 
-  size_t max_n_blocks = hist_buffer->Size() / (nbins * 2);
-  auto build_params = dispatcher.GetHistBuildParameters<GradientPairT>
-                       (isDense, size, max_n_blocks, nbins, n_columns, max_num_bins, min_num_bins);
+  size_t max_n_blocks = hist_buffer->Size() / nbins;
+  auto dispatcher = tree::HistDispatcher<FPType>
+                       (device_prop, isDense, size, max_n_blocks, nbins,
+                        n_columns, max_num_bins, min_num_bins);
 
   // force_atomic_use flag is used only for testing
-  bool use_atomic = build_params.use_atomics || force_atomic_use;
+  bool use_atomic = dispatcher.use_atomics || force_atomic_use;
   if (!use_atomic) {
     if (isDense) {
-      if (build_params.use_local_hist) {
+      if (dispatcher.use_local_hist) {
         return BuildHistKernelLocal<FPType, BinIdxType>(qu, gpair, row_indices,
                                                         gmat, hist, hist_buffer,
-                                                        build_params, events_priv);
+                                                        dispatcher, events_priv);
       } else {
         return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair, row_indices,
                                                          gmat, hist, hist_buffer,
-                                                         build_params, events_priv);
+                                                         dispatcher, events_priv);
       }
     } else {
       return BuildHistKernel<FPType, uint32_t, false>(qu, gpair, row_indices,
                                                       gmat, hist, hist_buffer,
-                                                      build_params, events_priv);
+                                                      dispatcher, events_priv);
     }
   } else {
     if (isDense) {
       return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair, row_indices,
                                                        gmat, hist,
-                                                       build_params, events_priv);
+                                                       dispatcher, events_priv);
     } else {
       return BuildHistKernel<FPType, uint32_t, false>(qu, gpair, row_indices,
                                                       gmat, hist,
-                                                      build_params, events_priv);
+                                                      dispatcher, events_priv);
     }
   }
 }
@@ -373,7 +373,7 @@ template<typename FPType>
                             const GHistIndexMatrix& gmat, const bool isDense,
                             GHistRow<FPType, MemoryType::on_device>* hist,
                             GHistRow<FPType, MemoryType::on_device>* hist_buffer,
-                            const tree::HistDispatcher& dispatcher,
+                            const tree::DeviceProperties& device_prop,
                             ::sycl::event event_priv,
                             bool force_atomic_use) {
   const bool is_dense = isDense;
@@ -381,19 +381,19 @@ template<typename FPType>
     case BinTypeSize::kUint8BinsTypeSize:
       return BuildHistDispatchKernel<FPType, uint8_t>(qu, gpair, row_indices,
                                                       gmat, hist, is_dense, hist_buffer,
-                                                      dispatcher,
+                                                      device_prop,
                                                       event_priv, force_atomic_use);
       break;
     case BinTypeSize::kUint16BinsTypeSize:
       return BuildHistDispatchKernel<FPType, uint16_t>(qu, gpair, row_indices,
                                                        gmat, hist, is_dense, hist_buffer,
-                                                       dispatcher,
+                                                       device_prop,
                                                        event_priv, force_atomic_use);
       break;
     case BinTypeSize::kUint32BinsTypeSize:
       return BuildHistDispatchKernel<FPType, uint32_t>(qu, gpair, row_indices,
                                                        gmat, hist, is_dense, hist_buffer,
-                                                       dispatcher,
+                                                       device_prop,
                                                        event_priv, force_atomic_use);
       break;
     default:
@@ -409,12 +409,12 @@ template <typename GradientSumT>
               GHistRowT<MemoryType::on_device>* hist,
               bool isDense,
               GHistRowT<MemoryType::on_device>* hist_buffer,
-              const tree::HistDispatcher& dispatcher,
+              const tree::DeviceProperties& device_prop,
               ::sycl::event event_priv,
               bool force_atomic_use) {
   return BuildHistKernel<GradientSumT>(qu_, gpair, row_indices, gmat,
                                        isDense, hist, hist_buffer,
-                                       dispatcher, event_priv,
+                                       device_prop, event_priv,
                                        force_atomic_use);
 }
 
@@ -426,7 +426,7 @@ template
               GHistRow<float, MemoryType::on_device>* hist,
               bool isDense,
               GHistRow<float, MemoryType::on_device>* hist_buffer,
-              const tree::HistDispatcher& dispatcher,
+              const tree::DeviceProperties& device_prop,
               ::sycl::event event_priv,
               bool force_atomic_use);
 template
@@ -437,7 +437,7 @@ template
               GHistRow<double, MemoryType::on_device>* hist,
               bool isDense,
               GHistRow<double, MemoryType::on_device>* hist_buffer,
-              const tree::HistDispatcher& dispatcher,
+              const tree::DeviceProperties& device_prop,
               ::sycl::event event_priv,
               bool force_atomic_use);
 

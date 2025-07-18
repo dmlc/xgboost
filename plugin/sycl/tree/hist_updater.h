@@ -57,7 +57,7 @@ class HistUpdater {
                        const xgboost::tree::TrainParam& param,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
-    : ctx_(ctx), qu_(qu), hist_dispatcher_(qu->get_device()), param_(param),
+    : ctx_(ctx), qu_(qu), device_properties_(qu->get_device()), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
       interaction_constraints_{std::move(int_constraints_)},
       p_last_tree_(nullptr), p_last_fmat_(fmat) {
@@ -136,7 +136,7 @@ class HistUpdater {
                         ::sycl::event event_priv) {
     return hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
                                    data_layout_ != kSparseData, hist_buffer,
-                                   hist_dispatcher_, event_priv);
+                                   device_properties_, event_priv);
   }
 
   void InitNewNode(int nid,
@@ -204,7 +204,7 @@ class HistUpdater {
   bool has_fp64_support_;
   size_t sub_group_size_;
 
-  HistDispatcher hist_dispatcher_;
+  DeviceProperties device_properties_;
 
   // the internal row sets
   common::RowSetCollection row_set_collection_;
