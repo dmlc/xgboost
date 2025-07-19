@@ -47,11 +47,12 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
 
   auto get_cats = [](DMatrixProxy const *proxy) {
     if (proxy->Ctx()->IsCPU()) {
-      return std::make_shared<CatContainer>(cpu_impl::BatchCats(proxy));
+      return std::make_shared<CatContainer>(cpu_impl::BatchCats(proxy, true));
     } else {
       common::AssertGPUSupport();
 #if defined(XGBOOST_USE_CUDA)
-      return std::make_shared<CatContainer>(proxy->Ctx()->Device(), cuda_impl::BatchCats(proxy));
+      return std::make_shared<CatContainer>(proxy->Ctx()->Device(),
+                                            cuda_impl::BatchCats(proxy, true));
 #else
       common::AssertGPUSupport();
       return std::make_shared<CatContainer>();

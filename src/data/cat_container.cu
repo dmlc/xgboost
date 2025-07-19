@@ -133,7 +133,7 @@ CatContainer::CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df) :
   thrust::copy_n(dh::tcbegin(df.feature_segments), df.feature_segments.size(), dh::tbegin(d_segs));
 
   // FIXME(jiamingy): We can use a single kernel for copying data once cuDF can return
-  // device data.
+  // device data. Remove this along with the one in the device cuDF adapter.
   this->cu_impl_->CopyFrom(df);
 
   this->sorted_idx_.SetDevice(device);
@@ -260,6 +260,7 @@ void CatContainer::Sort(Context const* ctx) {
   CHECK(this->DeviceCanRead());
   if (this->n_total_cats_ != 0) {
     CHECK(!this->cu_impl_->columns_v.empty());
+    CHECK_EQ(this->feature_segments_.Size(), this->cu_impl_->columns_v.size() + 1);
   }
   return {dh::ToSpan(this->cu_impl_->columns_v), this->feature_segments_.ConstDeviceSpan(),
           this->n_total_cats_};

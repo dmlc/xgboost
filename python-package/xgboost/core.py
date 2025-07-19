@@ -345,7 +345,7 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
 def _validate_feature_info(
     feature_info: Sequence[str], n_features: int, is_column_split: bool, name: str
 ) -> List[str]:
-    if isinstance(feature_info, str) or not isinstance(feature_info, Sequence):
+    if not isinstance(feature_info, (str, Sequence, Categories)):
         raise TypeError(
             f"Expecting a sequence of strings for {name}, got: {type(feature_info)}"
         )
@@ -861,7 +861,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         missing: Optional[float] = None,
         silent: bool = False,
         feature_names: Optional[FeatureNames] = None,
-        feature_types: Optional[FeatureTypes] = None,
+        feature_types: Optional[Union[FeatureTypes, Categories]] = None,
         nthread: Optional[int] = None,
         group: Optional[ArrayLike] = None,
         qid: Optional[ArrayLike] = None,
@@ -904,27 +904,34 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_types :
 
             Set types for features. If `data` is a DataFrame type and passing
-            `enable_categorical=True`, the types will be deduced automatically
-            from the column types.
+            `enable_categorical=True`, the types will be deduced automatically from the
+            column types.
 
-            Otherwise, one can pass a list-like input with the same length as number
-            of columns in `data`, with the following possible values:
+            Otherwise, one can pass a list-like input with the same length as number of
+            columns in `data`, with the following possible values:
 
             - "c", which represents categorical columns.
             - "q", which represents numeric columns.
             - "int", which represents integer columns.
             - "i", which represents boolean columns.
 
-            Note that, while categorical types are treated differently from
-            the rest for model fitting purposes, the other types do not influence
-            the generated model, but have effects in other functionalities such as
-            feature importances.
+            Note that, while categorical types are treated differently from the rest for
+            model fitting purposes, the other types do not influence the generated
+            model, but have effects in other functionalities such as feature
+            importances.
 
             For categorical features, the input is assumed to be preprocessed and
             encoded by the users. The encoding can be done via
             :py:class:`sklearn.preprocessing.OrdinalEncoder` or pandas dataframe
             `.cat.codes` method. This is useful when users want to specify categorical
             features without having to construct a dataframe as input.
+
+            .. versionadded:: 3.1.0
+
+            Alternatively, user can pass a :py:class:`~xgboost.core.Categories` object
+            returned from previous training as a reference for re-coding. One can obtain
+            the reference with the :py:meth:`.get_categories` from the previous training
+            DMatrix or the Booster. This feature is experimental.
 
         nthread :
             Number of threads to use for loading data when parallelization is

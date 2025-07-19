@@ -12,12 +12,14 @@
 #include <cstddef>           // for size_t
 #include <cuda/std/variant>  // for variant
 #include <limits>            // for numeric_limits
+#include <memory>            // for make_unique
 #include <string>            // for string
 
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "adapter.h"
 #include "array_interface.h"
+#include "cat_container.cuh"      // for MakeCatAccessor
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::data {
@@ -29,9 +31,9 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
   CudfAdapterBatch(common::Span<ArrayInterface<1>> columns, size_t num_rows)
       : columns_(columns), num_rows_(num_rows) {}
   [[nodiscard]] std::size_t Size() const { return num_rows_ * columns_.size(); }
-  [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(size_t idx) const {
-    size_t column_idx = idx % columns_.size();
-    size_t row_idx = idx / columns_.size();
+  [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(bst_idx_t idx) const {
+    auto column_idx = idx % columns_.size();
+    auto row_idx = idx / columns_.size();
     auto const& column = columns_[column_idx];
     float value = column.valid.Data() == nullptr || column.valid.Check(row_idx)
                       ? column(row_idx)
@@ -53,6 +55,37 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
  private:
   common::Span<ArrayInterface<1>> columns_;
   size_t num_rows_{0};
+};
+
+class EncCudfAdapterBatch : public detail::NoMetaInfo {
+ private:
+  common::Span<ArrayInterface<1> const> columns_;
+  bst_idx_t n_samples_{0};
+  CatAccessorBase acc_;
+
+ public:
+  EncCudfAdapterBatch() = default;
+  EncCudfAdapterBatch(common::Span<ArrayInterface<1> const> columns, CatAccessorBase const& acc,
+                      bst_idx_t n_samples)
+      : columns_(columns), n_samples_(n_samples), acc_{acc} {}
+  [[nodiscard]] std::size_t Size() const { return n_samples_ * columns_.size(); }
+  [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(bst_idx_t idx) const {
+    auto column_idx = idx % columns_.size();
+    auto row_idx = idx / columns_.size();
+    auto value = this->GetElement(row_idx, column_idx);
+    return {row_idx, column_idx, value};
+  }
+
+  [[nodiscard]] __device__ float GetElement(bst_idx_t ridx, bst_feature_t fidx) const {
+    auto const& column = columns_[fidx];
+    float value = column.valid.Data() == nullptr || column.valid.Check(ridx)
+                      ? column(ridx)
+                      : std::numeric_limits<float>::quiet_NaN();
+    return acc_(value, fidx);
+  }
+
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return n_samples_; }
+  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return columns_.size(); }
 };
 
 /*!
@@ -125,7 +158,13 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   [[nodiscard]] enc::DeviceColumnsView DCats() const {
     return {dh::ToSpan(this->d_cats_), dh::ToSpan(this->cat_segments_), this->n_total_cats_};
   }
-  [[nodiscard]] bool HasCategorical() const { return !(n_total_cats_ == 0); }
+  [[nodiscard]] enc::DeviceColumnsView RefCats() const { return ref_cats_; }
+  [[nodiscard]] bool HasCategorical() const { return n_total_cats_ != 0; }
+  [[nodiscard]] bool HasRefCategorical() const { return this->ref_cats_.n_total_cats != 0; }
+
+  [[nodiscard]] common::Span<ArrayInterface<1> const> Columns() const {
+    return dh::ToSpan(this->columns_);
+  }
 
  private:
   CudfAdapterBatch batch_;
@@ -136,6 +175,9 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   dh::device_vector<enc::DeviceCatIndexView> d_cats_;
   dh::device_vector<std::int32_t> cat_segments_;
   std::int32_t n_total_cats_{0};
+
+  enc::DeviceColumnsView ref_cats_;
+  std::vector<enc::DeviceCatIndexView> h_ref_cats_;
 
   size_t num_rows_{0};
   bst_idx_t n_bytes_{0};
@@ -168,6 +210,15 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
  private:
   ArrayInterface<2> array_interface_;
 };
+
+inline auto MakeEncColumnarBatch(Context const* ctx, CudfAdapter const* adapter) {
+  auto cats = std::make_unique<CatContainer>(adapter->Device(), adapter->RefCats());
+  cats->Sort(ctx);
+  auto [acc, mapping] =
+      ::xgboost::cuda_impl::MakeCatAccessor<CatAccessorBase>(ctx, adapter->Cats(), *cats);
+  return std::tuple{EncCudfAdapterBatch{adapter->Columns(), acc, adapter->NumRows()},
+                    std::move(mapping)};
+}
 
 class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
  public:

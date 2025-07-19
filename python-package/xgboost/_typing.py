@@ -18,8 +18,6 @@ from typing import (
     Union,
 )
 
-# os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/dt.Frame/
-# cudf.DataFrame/cupy.array/dlpack
 import numpy as np
 
 DataType = Any
@@ -121,3 +119,6 @@ TransformedData = Tuple[Any, Optional[FeatureNames], Optional[FeatureTypes]]
 # template parameter
 _T = TypeVar("_T")
 _F = TypeVar("_F", bound=Callable[..., Any])
+
+_ScoreList = Union[List[float], List[Tuple[float, float]]]
+EvalsLog: TypeAlias = Dict[str, Dict[str, _ScoreList]]

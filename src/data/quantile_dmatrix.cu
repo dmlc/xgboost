@@ -77,7 +77,7 @@ void MakeSketches(Context const* ctx,
     CHECK_LT(ctx->Ordinal(), curt::AllVisibleGPUs());
     auto device = dh::GetDevice(ctx);
     curt::SetDevice(device.ordinal);
-    auto cats = cuda_impl::BatchCats(proxy);
+    auto cats = cuda_impl::BatchCats(proxy, true);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
       ext_info.cats = std::make_shared<CatContainer>(device, cats);

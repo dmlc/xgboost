@@ -242,11 +242,21 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   uint64_t total_batch_size = 0;
   // batch_size is either number of rows or cols, depending on data layout
 
+  auto push_page = [&](auto const& batch) {
+    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
+      if (adapter->HasRefCategorical()) {
+        auto [enc_batch, mapping] = MakeEncColumnarBatch(&ctx, adapter);
+        return sparse_page_->Push(enc_batch, missing, ctx.Threads());
+      }
+    }
+    return sparse_page_->Push(batch, missing, ctx.Threads());
+  };
+
   adapter->BeforeFirst();
   // Iterate over batches of input data
   while (adapter->Next()) {
     auto& batch = adapter->Value();
-    auto batch_max_columns = sparse_page_->Push(batch, missing, ctx.Threads());
+    bst_idx_t batch_max_columns = push_page(batch);
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
     // Append meta information if available
@@ -294,7 +304,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
 
   if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-    if (adapter->HasCategorical()) {
+    if (adapter->HasRefCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(adapter->RefCats()));
+    } else if (adapter->HasCategorical()) {
       info_.Cats(std::make_shared<CatContainer>(adapter->Cats()));
     }
   }

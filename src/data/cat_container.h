@@ -12,6 +12,7 @@
 #include <tuple>    // for tuple
 #include <vector>   // for vector
 
+#include "../common/categorical.h"       // for AsCat
 #include "../encoder/ordinal.h"          // for CatStrArrayView
 #include "../encoder/types.h"            // for Overloaded
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -206,6 +207,8 @@ class CatContainer {
   [[nodiscard]] enc::DeviceColumnsView DeviceView(Context const* ctx) const;
 #endif  // defined(XGBOOST_USE_CUDA)
 
+  [[nodiscard]] std::string& ArrowJsonBuffer() { return arrow_buf_; }
+
  private:
   mutable std::mutex device_mu_;  // mutex for copying between devices.
   HostDeviceVector<std::int32_t> feature_segments_;
@@ -217,5 +220,41 @@ class CatContainer {
 #if defined(XGBOOST_USE_CUDA)
   std::unique_ptr<cuda_impl::CatContainerImpl> cu_impl_;
 #endif  // defined(XGBOOST_USE_CUDA)
+
+  std::string arrow_buf_;
 };
+
+/**
+ * @brief Accessor for obtaining re-coded categories.
+ */
+struct CatAccessorBase {
+  enc::MappingView enc;
+
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx f_idx) const {
+    if (!enc.Empty() && !enc[f_idx].empty()) {
+      auto f_mapping = enc[f_idx];
+      auto cat_idx = common::AsCat(fvalue);
+      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
+        fvalue = f_mapping.data()[cat_idx];
+      }
+    }
+    return fvalue;
+  }
+};
+
+namespace cpu_impl {
+template <typename CatAccessor>
+auto MakeCatAccessor(Context const* ctx, enc::HostColumnsView const& new_enc,
+                     CatContainer const& orig_cats) {
+  std::vector<std::int32_t> mapping(new_enc.n_total_cats);
+  auto sorted_idx = orig_cats.RefSortedIndex(ctx);
+  auto orig_enc = orig_cats.HostView();
+  enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, new_enc, common::Span{mapping});
+  CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
+  auto cats_mapping = enc::MappingView{new_enc.feature_segments, mapping};
+  auto acc = CatAccessor{cats_mapping};
+  return std::tuple{acc, std::move(mapping)};
+}
+}  // namespace cpu_impl
 }  // namespace xgboost

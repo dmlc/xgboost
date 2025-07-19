@@ -13,7 +13,7 @@
 
 #include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../encoder/ordinal.h"    // for HostColumnsView
-#include "adapter.h"               // for ColumnarAdapter, ArrayAdapter
+#include "adapter.h"               // for ColumnarAdapter, ArrayAdapter, MakeEncColumnarBatch
 #include "xgboost/c_api.h"         // for DataIterHandle
 #include "xgboost/context.h"       // for Context
 #include "xgboost/data.h"          // for MetaInfo
@@ -211,12 +211,16 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
       *type_error = false;
     }
   } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
+    auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter());
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter())->Value();
+      auto value = adapter->Value();
+      if (adapter->HasRefCategorical()) {
+        auto [batch, mapping] = MakeEncColumnarBatch(proxy->Ctx(), adapter.get());
+        return fn(batch);
+      }
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter());
-      return fn(value);
+      return fn(adapter);
     }
     if (type_error) {
       *type_error = false;
@@ -247,7 +251,7 @@ namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
 #if defined(XGBOOST_USE_CUDA)
-[[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*);
+[[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*, bool);
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
@@ -278,11 +282,20 @@ namespace cuda_impl {
 }
 
 namespace cpu_impl {
-// Get categories for the current batch.
-[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
-  return HostAdapterDispatch<false>(proxy, [](auto const& adapter) -> decltype(auto) {
+/**
+ * @brief Get categories for the current batch.
+ *
+ * @param ref_if_avail Use the reference categories if present.
+ *
+ * @return A host view to the categories
+ */
+[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy, bool ref_if_avail) {
+  return HostAdapterDispatch<false>(proxy, [ref_if_avail](auto const& adapter) -> decltype(auto) {
     using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
+      if (ref_if_avail && adapter->HasRefCategorical()) {
+        return adapter->RefCats();
+      }
       return adapter->Cats();
     }
     return enc::HostColumnsView{};

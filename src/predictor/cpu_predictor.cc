@@ -369,14 +369,7 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
 
 auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView const &new_enc,
                      gbm::GBTreeModel const &model) {
-  std::vector<std::int32_t> mapping(new_enc.n_total_cats);
-  auto sorted_idx = model.Cats()->RefSortedIndex(ctx);
-  auto orig_enc = model.Cats()->HostView();
-  enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, new_enc, common::Span{mapping});
-  CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
-  auto cats_mapping = enc::MappingView{new_enc.feature_segments, mapping};
-  auto acc = CatAccessor{cats_mapping};
-  return std::tuple{acc, std::move(mapping)};
+  return cpu_impl::MakeCatAccessor<CatAccessor>(ctx, new_enc, *model.Cats());
 }
 
 bool ShouldUseBlock(DMatrix *p_fmat) {
