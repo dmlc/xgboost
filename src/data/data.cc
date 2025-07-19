@@ -1278,6 +1278,7 @@ INSTANTIATE_PUSH(CSRArrayAdapterBatch)
 INSTANTIATE_PUSH(CSCArrayAdapterBatch)
 INSTANTIATE_PUSH(FileAdapterBatch)
 INSTANTIATE_PUSH(ColumnarAdapterBatch)
+INSTANTIATE_PUSH(EncColumnarAdapterBatch)
 
 #undef INSTANTIATE_PUSH
 

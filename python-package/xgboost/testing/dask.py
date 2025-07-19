@@ -16,6 +16,7 @@ from xgboost.compat import concat
 from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
+from .._typing import EvalsLog
 from ..dask import _DASK_VERSION, _get_rabit_args
 from .data import make_batches
 from .data import make_categorical as make_cat_local
@@ -129,7 +130,7 @@ def check_external_memory(  # pylint: disable=too-many-locals
             Xy: xgb.DMatrix = xgb.ExtMemQuantileDMatrix(it, nthread=n_threads)
         else:
             Xy = xgb.DMatrix(it, nthread=n_threads)
-        results: xgb.callback.TrainingCallback.EvalsLog = {}
+        results: EvalsLog = {}
         xgb.train(
             {"tree_method": "hist", "nthread": n_threads, "device": device},
             Xy,
@@ -160,7 +161,7 @@ def check_external_memory(  # pylint: disable=too-many-locals
     else:
         Xy = xgb.DMatrix(X, yconcat, weight=wconcat, nthread=n_threads)
 
-    results_local: xgb.callback.TrainingCallback.EvalsLog = {}
+    results_local: EvalsLog = {}
     xgb.train(
         {"tree_method": "hist", "nthread": n_threads, "device": device},
         Xy,

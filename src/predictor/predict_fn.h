@@ -9,6 +9,7 @@
 
 #include "../common/categorical.h"  // for IsCat, Decision
 #include "../data/adapter.h"        // for COOTuple
+#include "../data/cat_container.h"  // for CatAccessor
 #include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
@@ -69,27 +70,16 @@ inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &tree
 /**
  * @brief Accessor for obtaining re-coded categories.
  */
-struct CatAccessor {
-  enc::MappingView enc;
-
-  template <typename T, typename Fidx>
-  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx f_idx) const {
-    if (!enc.Empty() && !enc[f_idx].empty()) {
-      auto f_mapping = enc[f_idx];
-      auto cat_idx = common::AsCat(fvalue);
-      if (cat_idx >= 0 && cat_idx < common::AsCat(f_mapping.size())) {
-        fvalue = f_mapping.data()[cat_idx];
-      }
-    }
-    return fvalue;
-  }
+struct CatAccessor : public ::xgboost::CatAccessorBase {
+  using Super = ::xgboost::CatAccessorBase;
+  using Super::operator();
 
   [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
-    return this->operator()(e.value, e.column_idx);
+    return Super::operator()(e.value, e.column_idx);
   }
 
   [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const {
-    return this->operator()(e.fvalue, e.index);
+    return Super::operator()(e.fvalue, e.index);
   }
 };
 

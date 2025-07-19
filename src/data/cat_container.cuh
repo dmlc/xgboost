@@ -4,6 +4,7 @@
 #pragma once
 #include "../common/device_helpers.cuh"  // for ToSpan
 #include "../common/device_vector.cuh"   // for device_vector, XGBDeviceAllocator
+#include "../encoder/ordinal.cuh"        // for Recode
 #include "../encoder/ordinal.h"          // for CatCharT
 #include "cat_container.h"               // for EncErrorPolicy
 
@@ -71,4 +72,17 @@ struct EncThrustPolicy {
 using EncPolicyT = enc::Policy<EncErrorPolicy, EncThrustPolicy>;
 
 inline EncPolicyT EncPolicy = EncPolicyT{};
+
+template <typename CatAccessor>
+auto MakeCatAccessor(Context const* ctx, enc::DeviceColumnsView const& new_enc,
+                     CatContainer const& orig_cats) {
+  dh::DeviceUVector<std::int32_t> mapping(new_enc.n_total_cats);
+  auto d_sorted_idx = orig_cats.RefSortedIndex(ctx);
+  auto orig_enc = orig_cats.DeviceView(ctx);
+  enc::Recode(EncPolicy, orig_enc, d_sorted_idx, new_enc, dh::ToSpan(mapping));
+  CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
+  auto cats_mapping = enc::MappingView{new_enc.feature_segments, dh::ToSpan(mapping)};
+  auto acc = CatAccessor{cats_mapping};
+  return std::tuple{acc, std::move(mapping)};
+}
 }  // namespace xgboost::cuda_impl

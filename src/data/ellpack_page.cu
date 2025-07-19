@@ -396,6 +396,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, AdapterBatch batch, float m
       std::shared_ptr<common::HistogramCuts const> cuts);
 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
+ELLPACK_BATCH_SPECIALIZE(data::EncCudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
 
 #undef ELLPACK_BATCH_SPECIALIZE
