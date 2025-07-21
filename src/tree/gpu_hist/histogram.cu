@@ -334,23 +334,23 @@ struct HistogramKernel {
   bool shared{false};
   std::array<std::uint32_t, 6> grid_sizes{0, 0, 0, 0, 0, 0};
   std::size_t smem_size{0};
+  std::size_t const max_shared_memory;
   bool const force_global;
 
   HistogramKernel(Context const* ctx, FeatureGroupsAccessor const& feature_groups,
                   bool force_global_memory)
-      : force_global{force_global_memory} {
+      : max_shared_memory{dh::MaxSharedMemoryOptin(ctx->Ordinal())},
+        force_global{force_global_memory} {
     // Decide whether to use shared memory
     // Opt into maximum shared memory for the kernel if necessary
-    std::size_t max_shared_memory = dh::MaxSharedMemoryOptin(ctx->Ordinal());
-
-    this->smem_size = sizeof(GradientPairInt64) * feature_groups.max_group_bins;
-    this->shared = !force_global_memory && this->smem_size <= max_shared_memory;
+    this->smem_size = feature_groups.ShmemSize();
+    this->shared = !force_global_memory && this->smem_size <= this->max_shared_memory;
     this->smem_size = this->shared ? this->smem_size : 0;
 
     auto init = [&](auto& kernel, KernelType k) {
       if (this->shared) {
         dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                                           max_shared_memory));
+                                           this->max_shared_memory));
       }
 
       // determine the launch configuration
@@ -422,11 +422,12 @@ class DeviceHistogramDispatchAccessor {
     if (!this->kernel_->shared) {  // Use global memory
       CHECK_EQ(this->kernel_->smem_size, 0);
       if (matrix.IsDense()) {
-        CHECK(this->kernel_->force_global);
+        CHECK(this->kernel_->force_global ||
+              (feature_groups.ShmemSize() >= this->kernel_->max_shared_memory));
         launcher(this->kernel_->global_dense_kernel, this->kernel_->grid_sizes[K::kGlobalDense]);
       } else if (matrix.IsDenseCompressed()) {
-        // Dense must use shared memory except for testing.
-        CHECK(this->kernel_->force_global);
+        CHECK(this->kernel_->force_global ||
+              (feature_groups.ShmemSize() >= this->kernel_->max_shared_memory));
         launcher(this->kernel_->global_compr_kernel, this->kernel_->grid_sizes[K::kGlobalCompr]);
       } else {
         // Sparse

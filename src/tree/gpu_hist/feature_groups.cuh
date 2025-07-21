@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
+ * Copyright 2020-2025, XGBoost Contributors
  */
 #ifndef FEATURE_GROUPS_CUH_
 #define FEATURE_GROUPS_CUH_
@@ -58,6 +58,11 @@ struct FeatureGroupsAccessor {
   XGBOOST_DEVICE FeatureGroup operator[](bst_feature_t i) const {
     return {feature_segments[i], feature_segments[i + 1] - feature_segments[i], bin_segments[i],
             bin_segments[i + 1] - bin_segments[i]};
+  }
+  /** @brief The needed shared memory size for the largest group. */
+  [[nodiscard]] std::size_t ShmemSize() const {
+    return sizeof(GradientPairInt64) * this->max_group_bins;
+    ;
   }
 };
 
