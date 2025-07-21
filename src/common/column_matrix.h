@@ -438,11 +438,18 @@ class ColumnMatrix {
       block_size = DivRoundUp(block_size, MissingIndicator::BitFieldT::kValueSize) *
                    MissingIndicator::BitFieldT::kValueSize;
       /*
-       * If base_rowid > 0 we need to shift the blocks boundaries.
-       * Otherwise the two threads may operate with the single word of bitfield.
+       * To prevent race conditions on the bitfield, we ensure each thread operates on
+       * distinct 32-bit words. If a data batch (starting at `base_rowid`) doesn't align
+       * with a word boundary, this `shift` is calculated. It represents the number of rows
+       * the first thread must process to reach the next aligned word. This guarantees all
+       * subsequent thread workloads start on a clean boundary, making parallel updates safe.
        */
       size_t shift = MissingIndicator::BitFieldT::kValueSize -
                      (base_rowid % MissingIndicator::BitFieldT::kValueSize);
+      /*
+       * If `base_rowid` is already on a word boundary, the calculation results in
+       * `kValueSize`. In this case, no shift is needed.
+       */
       if (shift == MissingIndicator::BitFieldT::kValueSize) {
         shift = 0;
       }
