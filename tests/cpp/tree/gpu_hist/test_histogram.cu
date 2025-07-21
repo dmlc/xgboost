@@ -343,7 +343,7 @@ TEST(Histogram, GPUHistCategorical) {
   // Larger than the shared memory size, must use global memory since there's no feature
   // group with a single feature.
   auto max_shmem = dh::MaxSharedMemoryOptin(0);
-  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64));
+  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64)) * 2;
   TestGPUHistogramCategorical(n_categories);
 }
 
