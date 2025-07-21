@@ -81,6 +81,10 @@ void PredValueByOneTree(const RegTree& tree,
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
+    /*
+     * if array_tree_layout was used,
+     * we start processing from pre-calculated nidx.
+     */
     if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
       p_nidx[i] = 0;
