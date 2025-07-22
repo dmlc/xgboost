@@ -53,7 +53,7 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
       pool{[] {
 #if defined(__linux__)
         std::int32_t major = -1, minor = -1;
-        curt::DrVersion(&major, &minor);
+        cudr::GetDrVersionGlobal(&major, &minor);
         if (major >= 12 && minor >= 5 || major > 12) {
           return std::make_shared<dc::HostPinnedMemPool>();
         }

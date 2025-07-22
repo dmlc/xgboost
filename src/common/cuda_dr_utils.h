@@ -131,6 +131,11 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc);
  */
 [[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor);
 
+/**
+ * @brief Cache the result from @ref DrVersion in a global variable
+ */
+void GetDrVersionGlobal(std::int32_t *p_major, std::int32_t *p_minor);
+
 namespace detail {
 [[nodiscard]] std::int32_t GetC2cLinkCountFromSmiImpl(std::string const &smi_output);
 }  // namespace detail
