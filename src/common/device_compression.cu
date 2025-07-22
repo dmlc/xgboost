@@ -421,6 +421,7 @@ void DecompressSnappy(dh::CUDAStreamView stream, SnappyDecomprMgr const& mgr,
   }
   // copy from device buffer to the host cache.
   CHECK_EQ(n_total_bytes, in_buf.size());
+  CHECK(pool);
   auto c_page =
       common::MakeFixedVecWithPinnedMemPool<std::remove_reference_t<decltype(in_buf)>::value_type>(
           pool, n_total_act_bytes, stream);
