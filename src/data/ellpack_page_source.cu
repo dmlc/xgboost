@@ -604,11 +604,12 @@ ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolic
 
 namespace detail {
 void EllpackFormatCheckNuma(StringView msg) {
+#if defined(__linux__)
   bool can_cross = common::NumaMemCanCross();
   std::uint32_t numa = -1;
   auto incorrect = [&] {
     std::uint32_t cpu = -1;
-    return common::GetCpuNuma(&cpu, &numa) && numa != curt::GetNumaId();
+    return common::GetCpuNuma(&cpu, &numa) && static_cast<std::int32_t>(numa) != curt::GetNumaId();
   };
 
   if (can_cross && !common::GetNumaMemBind()) {
@@ -617,6 +618,9 @@ void EllpackFormatCheckNuma(StringView msg) {
     LOG(WARNING) << "Incorrect NUMA CPU bind, CPU node:" << numa
                  << ", GPU node:" << curt::GetNumaId() << "." << msg;
   }
+#else
+  (void)msg;
+#endif
 }
 }  // namespace detail
 }  // namespace xgboost::data
