@@ -168,6 +168,11 @@ class EllpackHostCacheStream {
   [[nodiscard]] bool Write(EllpackPage const& page);
 };
 
+namespace detail {
+// Not a member of `EllpackFormatPolicy`. Hide the impl without requiring template specialization.
+void EllpackFormatCheckNuma(StringView msg);
+}  // namespace detail
+
 template <typename S>
 class EllpackFormatPolicy {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
@@ -202,9 +207,7 @@ class EllpackFormatPolicy {
                    << "The latest version of CTK supported by the current driver: " << major << "."
                    << minor << "." << msg;
     }
-    if (common::NumaMemCanCross() && !common::GetNumaMemBind()) {
-      LOG(WARNING) << "Running on a NUMA system without membind." << msg;
-    }
+    detail::EllpackFormatCheckNuma(msg);
   }
   // For testing with the HMM flag.
   explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}

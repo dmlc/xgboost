@@ -601,4 +601,22 @@ template void
 ExtEllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
 template void
 ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+
+namespace detail {
+void EllpackFormatCheckNuma(StringView msg) {
+  bool can_cross = common::NumaMemCanCross();
+  std::uint32_t numa = -1;
+  auto incorrect = [&] {
+    std::uint32_t cpu = -1;
+    return common::GetCpuNuma(&cpu, &numa) && numa != curt::GetNumaId();
+  };
+
+  if (can_cross && !common::GetNumaMemBind()) {
+    LOG(WARNING) << "Running on a NUMA system without membind." << msg;
+  } else if (can_cross && incorrect()) {
+    LOG(WARNING) << "Incorrect NUMA CPU bind, CPU node:" << numa
+                 << ", GPU node:" << curt::GetNumaId() << "." << msg;
+  }
+}
+}  // namespace detail
 }  // namespace xgboost::data
