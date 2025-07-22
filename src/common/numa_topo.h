@@ -50,4 +50,32 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus);
  * @return -1 if there's no NUMA node. Otherwise, returns the number of NUMA nodes.
  */
 [[nodiscard]] std::int32_t GetNumaNumNodes();
+
+/**
+ * @brief Read the `has_normal_memory` system file.
+ */
+void GetNumaHasNormalMemoryNodes(std::vector<std::int32_t> *p_nodes);
+
+/**
+ * @brief Read the `has_normal_memory` system file.
+ */
+void GetNumaHasCpuNodes(std::vector<std::int32_t> *p_nodes);
+
+/**
+ * @brief Get numa node on Linux. Other platforms are not supported. Returns false if the
+ *        call fails.
+ */
+[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa);
+
+/**
+ * @brief Is it physically possible to access the wrong memory?
+ */
+[[nodiscard]] inline bool NumaMemCanCross() {
+  std::vector<std::int32_t> nodes;
+  GetNumaHasCpuNodes(&nodes);
+  bool result = nodes.size() > 1;
+  GetNumaHasNormalMemoryNodes(&nodes);
+  result &= nodes.size() > 1;
+  return result;
+}
 }  // namespace xgboost::common

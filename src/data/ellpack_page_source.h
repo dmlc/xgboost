@@ -202,7 +202,7 @@ class EllpackFormatPolicy {
                    << "The latest version of CTK supported by the current driver: " << major << "."
                    << minor << "." << msg;
     }
-    if (common::GetNumaNumNodes() > 1 && !common::GetNumaMemBind()) {
+    if (common::NumaMemCanCross() && !common::GetNumaMemBind()) {
       LOG(WARNING) << "Running on a NUMA system without membind." << msg;
     }
   }
