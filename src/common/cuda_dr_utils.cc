@@ -5,6 +5,7 @@
 #include "cuda_dr_utils.h"
 
 #include <algorithm>  // for max
+#include <charconv>   // for from_chars
 #include <cstdint>    // for int32_t
 #include <cstring>    // for memset
 #include <memory>     // for make_unique
@@ -162,15 +163,15 @@ void MakeCuMemLocation(CUmemLocationType type, CUmemLocation *loc) {
   if (smi_ver.size() != 2 && smi_ver.size() != 3) {
     return Invalid();
   }
-  try {
-    *p_major = std::stoi(smi_ver[0]);
-    *p_minor = std::stoi(smi_ver[1]);
-    LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
-    return true;
-  } catch (std::exception const &) {
-  }
 
-  return Invalid();
+  auto [smajor, sminor] = std::tie(smi_ver[0], smi_ver[1]);
+  auto ret0 = std::from_chars(smajor.data(), smajor.data() + smajor.size(), *p_major);
+  auto ret1 = std::from_chars(sminor.data(), sminor.data() + sminor.size(), *p_minor);
+  if (ret0.ec != std::errc{} || ret1.ec != std::errc{}) {
+    return Invalid();
+  }
+  LOG(INFO) << "Driver version: `" << *p_major << "." << *p_minor << "`";
+  return true;
 }
 
 [[nodiscard]] bool GetVersionFromSmiGlobal(std::int32_t *p_major, std::int32_t *p_minor) {
