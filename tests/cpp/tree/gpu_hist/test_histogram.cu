@@ -274,7 +274,7 @@ void ValidateCategoricalHistogram(size_t n_categories, common::Span<GradientPair
 // Test 1 vs rest categorical histogram is equivalent to one hot encoded data.
 void TestGPUHistogramCategorical(size_t num_categories) {
   auto ctx = MakeCUDACtx(0);
-  size_t constexpr kRows = 340;
+  size_t kRows = std::max(static_cast<decltype(num_categories)>(340), num_categories);
   size_t constexpr kBins = 256;
   auto x = GenerateRandomCategoricalSingleColumn(kRows, num_categories);
   auto cat_m = GetDMatrixFromData(x, kRows, 1);
@@ -332,6 +332,11 @@ TEST(Histogram, GPUHistCategorical) {
   for (size_t num_categories = 2; num_categories < 8; ++num_categories) {
     TestGPUHistogramCategorical(num_categories);
   }
+  // Larger than the shared memory size, must use global memory since there's no feature
+  // group with a single feature.
+  auto max_shmem = dh::MaxSharedMemoryOptin(0);
+  auto n_categories = common::DivRoundUp(max_shmem, sizeof(GradientPairInt64)) * 2;
+  TestGPUHistogramCategorical(n_categories);
 }
 
 namespace {

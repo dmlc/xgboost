@@ -386,8 +386,6 @@ class DeviceHistogramBuilderImpl {
     if (!this->kernel_->shared) {  // Use global memory
       CHECK_EQ(this->kernel_->smem_size, 0);
       if (matrix.IsDenseCompressed()) {
-        // Dense must use shared memory except for testing.
-        CHECK(this->kernel_->force_global);
         launcher(this->kernel_->global_dense_kernel);
       } else {
         launcher(this->kernel_->global_kernel);
