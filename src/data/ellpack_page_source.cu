@@ -606,9 +606,9 @@ namespace detail {
 void EllpackFormatCheckNuma(StringView msg) {
 #if defined(__linux__)
   bool can_cross = common::NumaMemCanCross();
-  std::uint32_t numa = -1;
-  auto incorrect = [&] {
-    std::uint32_t cpu = -1;
+  std::uint32_t numa = 0;
+  auto incorrect = [&numa] {
+    std::uint32_t cpu = 0;
     return common::GetCpuNuma(&cpu, &numa) && static_cast<std::int32_t>(numa) != curt::GetNumaId();
   };
 
