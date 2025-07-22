@@ -57,7 +57,7 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus);
 void GetNumaHasNormalMemoryNodes(std::vector<std::int32_t> *p_nodes);
 
 /**
- * @brief Read the `has_normal_memory` system file.
+ * @brief Read the `has_cpu` system file.
  */
 void GetNumaHasCpuNodes(std::vector<std::int32_t> *p_nodes);
 
