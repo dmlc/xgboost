@@ -202,12 +202,12 @@ void GetNumaHasNormalMemoryNodes(std::vector<std::int32_t> *p_nodes) {
 
 void GetNumaHasCpuNodes(std::vector<std::int32_t> *p_nodes) {
 #if defined(__linux__)
-  fs::path has_nm{"/sys/devices/system/node/has_cpu"};
+  fs::path has_cpu{"/sys/devices/system/node/has_cpu"};
   p_nodes->clear();
-  if (!fs::exists(has_nm)) {
+  if (!fs::exists(has_cpu)) {
     return;
   }
-  ReadCpuList(has_nm, p_nodes);
+  ReadCpuList(has_cpu, p_nodes);
 #endif  // defined(__linux__)
 }
 
