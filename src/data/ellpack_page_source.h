@@ -16,7 +16,6 @@
 #include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts
 #include "../common/device_compression.h"   // for SnappyDecomprMgr
 #include "../common/hist_util.h"            // for HistogramCuts
-#include "../common/numa_topo.h"            // for GetNumaNumNodes, GetNumaMemBind
 #include "../common/ref_resource_view.h"    // for RefResourceView
 #include "../data/batch_utils.h"            // for AutoHostRatio
 #include "ellpack_page.h"                   // for EllpackPage
