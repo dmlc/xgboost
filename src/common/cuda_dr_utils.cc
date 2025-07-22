@@ -86,7 +86,7 @@ void CuDriverApi::ThrowIfError(CUresult status, StringView fn, std::int32_t line
 
 [[nodiscard]] CuDriverApi &GetGlobalCuDriverApi() {
   std::int32_t cu_major = -1, cu_minor = -1;
-  curt::DrVersion(&cu_major, &cu_minor);
+  curt::GetDrVersionGlobal(&cu_major, &cu_minor);
 
   std::int32_t kdm_major = -1, kdm_minor = -1;
   if (!GetVersionFromSmiGlobal(&kdm_major, &kdm_minor)) {

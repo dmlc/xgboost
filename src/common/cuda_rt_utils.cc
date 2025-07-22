@@ -95,12 +95,12 @@ void GetVersionImpl(Fn&& fn, std::int32_t* major, std::int32_t* minor) {
 }
 }  // namespace
 
-void RtVersion(std::int32_t* major, std::int32_t* minor) {
+void GetRtVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaRuntimeGetVersion(ver)); }, major,
                  minor);
 }
 
-void DrVersion(std::int32_t* major, std::int32_t* minor) {
+void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaDriverGetVersion(ver)); }, major, minor);
 }
 
