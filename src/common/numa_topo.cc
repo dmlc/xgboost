@@ -9,9 +9,8 @@
 #include <sys/syscall.h>      // for SYS_get_mempolicy
 #include <unistd.h>           // for syscall
 
-
 #endif  // defined(__linux__)
-#include <sched.h>
+
 #include <cctype>      // for isalnum
 #include <cstddef>     // for size_t
 #include <cstdint>     // for int32_t
