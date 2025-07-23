@@ -14,7 +14,7 @@
 #include "../collective/aggregator.h"
 #include "../common/categorical.h"     // for KCatBitField
 #include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/cuda_rt_utils.h"   // for CheckComputeCapability
+#include "../common/cuda_rt_utils.h"   // for SetDevice
 #include "../common/device_helpers.cuh"
 #include "../common/device_vector.cuh"  // for device_vector
 #include "../common/hist_util.h"        // for HistogramCuts
@@ -840,7 +840,6 @@ class GPUHistMaker : public TreeUpdater {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Hist]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
-    curt::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init("updater_gpu_hist");
@@ -958,7 +957,6 @@ class GPUGlobalApproxMaker : public TreeUpdater {
     // Used in test to count how many configurations are performed
     LOG(DEBUG) << "[GPU Approx]: Configure";
     hist_maker_param_.UpdateAllowUnknown(args);
-    curt::CheckComputeCapability();
     initialised_ = false;
 
     monitor_.Init(this->Name());
