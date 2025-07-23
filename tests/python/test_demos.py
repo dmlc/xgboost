@@ -67,6 +67,7 @@ def test_sklearn_demo() -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.timeout(60)
 def test_sklearn_parallel_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "sklearn_parallel.py")
     cmd = ["python", script]
