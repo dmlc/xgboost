@@ -12,11 +12,11 @@ Markers
 
 - T: Supported.
 - F: Not supported.
-- NE: Invalid type for the use case. For instance, `pd.Series` can not be multi-target label.
+- NE: Invalid type for the use case. For instance, :py:class:`pandas.Series` can not be multi-target label.
 - NPA: Support with the help of numpy array.
 - AT: Support with the help of arrow table.
 - CPA: Support with the help of cupy array.
-- SciCSR: Support with the help of scripy sparse CSR. The conversion to scipy CSR may or may not be possible. Raise a type error if conversion fails.
+- SciCSR: Support with the help of scipy sparse CSR :py:class:`scipy.sparse.csr_matrix`. The conversion to scipy CSR may or may not be possible. Raise a type error if conversion fails.
 - FF: We can look forward to having its support in recent future if requested.
 - empty: To be filled in.
 
