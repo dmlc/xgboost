@@ -118,11 +118,11 @@ Training a model requires a parameter list and data set.
   num_round = 10
   bst = xgb.train(param, dtrain, num_round, evallist)
 
-After training, the model can be saved.
+After training, the model can be saved into ``JSON`` or ``UBJSON``:
 
 .. code-block:: python
 
-  bst.save_model('0001.model')
+  bst.save_model('model.ubj')
 
 The model and its feature map can also be dumped to a text file.
 
@@ -138,10 +138,10 @@ A saved model can be loaded as follows:
 .. code-block:: python
 
   bst = xgb.Booster({'nthread': 4})  # init model
-  bst.load_model('model.bin')  # load model data
+  bst.load_model('model.ubj')  # load model data
 
-Methods including `update` and `boost` from `xgboost.Booster` are designed for
-internal usage only.  The wrapper function `xgboost.train` does some
+Methods including `update` and `boost` from :py:class:`xgboost.Booster` are designed for
+internal usage only.  The wrapper function :py:class:`xgboost.train` does some
 pre-configuration including setting up caches and some other parameters.
 
 Early Stopping
