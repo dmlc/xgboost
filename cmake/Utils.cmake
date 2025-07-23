@@ -43,6 +43,14 @@ function(set_default_configuration_release)
     endif()
 endfunction()
 
+if(BUILD_WITH_GIT_HASH)
+  execute_process(COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${xgboost_SOURCE_DIR}
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    OUTPUT_VARIABLE XGBOOST_GIT_HASH)
+  message(STATUS "Git hash: ${XGBOOST_GIT_HASH}")
+endif()
+
 # Generate CMAKE_CUDA_ARCHITECTURES form a list of architectures
 # Also generates PTX for the most recent architecture for forwards compatibility
 function(compute_cmake_cuda_archs archs)
@@ -239,6 +247,9 @@ macro(xgboost_target_defs target)
 
   if(USE_NVCOMP)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_NVCOMP=1)
+  endif()
+  if(BUILD_WITH_GIT_HASH)
+    target_compile_definitions(objxgboost PUBLIC -DXGBOOST_GIT_HASH="${XGBOOST_GIT_HASH}")
   endif()
 endmacro()
 
