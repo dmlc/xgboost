@@ -20,8 +20,6 @@ std::int32_t CurrentDevice(bool raise = true);
 // Address Translation Service (ATS)
 [[nodiscard]] bool SupportsAts();
 
-void CheckComputeCapability();
-
 void SetDevice(std::int32_t device);
 
 /**
