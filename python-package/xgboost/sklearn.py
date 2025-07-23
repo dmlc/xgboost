@@ -1387,6 +1387,7 @@ class XGBModel(XGBModelBase):
                 missing=self.missing,
                 feature_types=self.feature_types,
                 nthread=self.n_jobs,
+                enable_categorical=self.enable_categorical,
             )
             return self.get_booster().predict(
                 test_dmatrix, pred_leaf=True, iteration_range=iteration_range
