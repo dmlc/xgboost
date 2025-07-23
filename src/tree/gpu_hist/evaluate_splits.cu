@@ -302,7 +302,11 @@ __global__ __launch_bounds__(kBlockSize) void EvaluateSplitsKernel(
     agent.Numerical(&best_split);
   }
 
+#if CUB_VERSION >= 300000
+  __syncthreads();
+#else
   cub::CTA_SYNC();
+#endif
   if (threadIdx.x == 0) {
     // Record best loss for each feature
     out_candidates[blockIdx.x] = best_split;

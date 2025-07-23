@@ -8,6 +8,7 @@ from hypothesis import given, note, settings, strategies
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.core import _parse_version
 from xgboost.testing.params import (
     cat_parameter_strategy,
     exact_parameter_strategy,
@@ -375,16 +376,25 @@ class TestTreeMethod:
 
     def run_adaptive(self, tree_method, weighted) -> None:
         rng = np.random.RandomState(1994)
+        from sklearn import __version__ as sklearn_version
         from sklearn.datasets import make_regression
         from sklearn.utils import stats
 
         n_samples = 256
         X, y = make_regression(n_samples, 16, random_state=rng)
+        (sk_major, sk_minor, _), _ = _parse_version(sklearn_version)
+        if sk_major > 1 or sk_minor >= 7:
+            kwargs = {"percentile_rank": 50}
+        else:
+            kwargs = {"percentile": 50}
+
         if weighted:
             w = rng.normal(size=n_samples)
             w -= w.min()
             Xy = xgb.DMatrix(X, y, weight=w)
-            base_score = stats._weighted_percentile(y, w, percentile=50)
+            base_score = stats._weighted_percentile(  # pylint: disable=protected-access
+                y, w, **kwargs
+            )
         else:
             Xy = xgb.DMatrix(X, y)
             base_score = np.median(y)
