@@ -100,9 +100,8 @@ class RegLossObj : public FitInterceptGlmLike {
   HostDeviceVector<float> additional_input_;
 
  public:
-
   // 0 - scale_pos_weight, 1 - is_null_weight
-  RegLossObj(): additional_input_(2) {}
+  RegLossObj() : additional_input_(2) {}
 
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
