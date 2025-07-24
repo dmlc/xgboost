@@ -77,7 +77,7 @@ void ValidateLabel(Context const* ctx, MetaInfo const& info) {
       },
       [&] {
 #if defined(XGBOOST_USE_SYCL)
-        return sycl::linalg::Validate(ctx_->Device(), label,
+        return sycl::linalg::Validate(ctx->Device(), label,
                                       [](float y) -> bool { return Loss::CheckLabel(y); });
 #else
         common::AssertSYCLSupport();
