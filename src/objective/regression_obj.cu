@@ -298,7 +298,7 @@ XGBOOST_REGISTER_OBJECTIVE(SquaredLogErrorRegression, SquaredLogErrorRegression:
     .set_body([]() { return new SquaredLogErrorRegression(); });
 
 class PseudoHuberRegression : public FitIntercept {
-  PesudoHuberParam param_;
+  PseudoHuberParam param_;
 
  public:
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
