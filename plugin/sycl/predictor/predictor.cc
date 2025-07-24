@@ -338,7 +338,7 @@ class Predictor : public xgboost::Predictor {
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;
 
-        PredictKernel<any_missing>(&event, data, out_predictions + base_rowid,
+        PredictKernel<any_missing>(&event, data, out_predictions + base_rowid * num_group,
                                    row_ptr, batch_size, num_features,
                                    num_group, tree_begin, tree_end);
       }
