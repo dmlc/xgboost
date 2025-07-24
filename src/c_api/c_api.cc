@@ -127,6 +127,11 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["USE_FEDERATED"] = Boolean{false};
 #endif
 
+#if defined(XGBOOST_GIT_HASH)
+  char const *git_hash = XGBOOST_GIT_HASH;
+  info["GIT_HASH"] = String{git_hash};
+#endif
+
   XGBBuildInfoDevice(&info);
 
   auto &out_str = GlobalConfigAPIThreadLocalStore::Get()->ret_str;
