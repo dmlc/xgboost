@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
@@ -9,7 +9,6 @@
 #include <cmath>
 
 #include "../common/math.h"
-#include "xgboost/data.h"  // MetaInfo
 #include "xgboost/logging.h"
 #include "xgboost/task.h"  // ObjInfo
 
