@@ -256,6 +256,9 @@ class Predictor : public xgboost::Predictor {
 
     size_t l2_size = qu_->get_device().get_info<::sycl::info::device::global_mem_cache_size>();
     size_t block_size = 0.5 * l2_size / (num_features * sizeof(float));
+    if (block_size < 1) block_size = 1;
+    if (block_size > num_rows) block_size = num_rows;
+
     size_t n_blocks = num_rows / block_size + (num_rows % block_size > 0);
 
     fval_buff.ResizeNoCopy(qu_, num_features * block_size);
