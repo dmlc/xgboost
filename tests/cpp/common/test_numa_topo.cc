@@ -149,4 +149,24 @@ TEST(Numa, GetNumNodes) {
   ASSERT_EQ(n_nodes, -1);
 #endif  // defined(__linux__)
 }
+
+TEST(Numa, GetHasCpuNodes) {
+  std::vector<std::int32_t> nodes;
+  GetNumaHasCpuNodes(&nodes);
+#if defined(__linux__)
+  ASSERT_GE(nodes.size(), 1);
+#else
+  ASSERT_EQ(nodes.size(), 0);
+#endif  // defined(__linux__)
+}
+
+TEST(Numa, GetHasNormalMemoryNodes) {
+  std::vector<std::int32_t> nodes;
+  GetNumaHasNormalMemoryNodes(&nodes);
+#if defined(__linux__)
+  ASSERT_GE(nodes.size(), 1);
+#else
+  ASSERT_EQ(nodes.size(), 0);
+#endif  // defined(__linux__)
+}
 }  // namespace xgboost::common
