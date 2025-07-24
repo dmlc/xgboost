@@ -129,31 +129,18 @@ class DeviceModel {
   }
 };
 
-float GetLeafWeight(const Node* nodes, const float* fval_buff, const uint8_t* miss_buff) {
+float GetLeafWeight(const Node* nodes, const float* fval_buff) {
   const Node* node = nodes;
   while (!node->IsLeaf()) {
-    if (miss_buff[node->GetFidx()] == 1) {
+    const float fvalue = fval_buff[node->GetFidx()];
+    if (std::isnan(fvalue)) {
       node = nodes + node->MissingIdx();
     } else {
-      const float fvalue = fval_buff[node->GetFidx()];
       if (fvalue < node->GetFvalue()) {
         node = nodes + node->LeftChildIdx();
       } else {
         node = nodes + node->RightChildIdx();
       }
-    }
-  }
-  return node->GetWeight();
-}
-
-float GetLeafWeight(const Node* nodes, const float* fval_buff) {
-  const Node* node = nodes;
-  while (!node->IsLeaf()) {
-    const float fvalue = fval_buff[node->GetFidx()];
-    if (fvalue < node->GetFvalue()) {
-      node = nodes + node->LeftChildIdx();
-    } else {
-      node = nodes + node->RightChildIdx();
     }
   }
   return node->GetWeight();
@@ -191,7 +178,6 @@ class Predictor : public xgboost::Predictor {
       }
       out_preds->Fill(base_score);
     }
-    needs_buffer_update = true;
   }
 
   explicit Predictor(Context const* context) :
@@ -268,53 +254,60 @@ class Predictor : public xgboost::Predictor {
     const size_t* first_node_position = device_model.first_node_position.ConstDevicePointer();
     const int* tree_group = device_model.tree_group.ConstDevicePointer();
 
+    size_t l2_size = qu_->get_device().get_info<::sycl::info::device::global_mem_cache_size>();
+    size_t block_size = 0.5 * l2_size / (num_features * sizeof(float));
+    size_t n_blocks = num_rows / block_size + (num_rows % block_size > 0);
+
+    fval_buff.ResizeNoCopy(qu_, num_features * block_size);
     float* fval_buff_ptr = fval_buff.Data();
-    uint8_t* miss_buff_ptr = miss_buff.Data();
-    bool needs_buffer_update = this->needs_buffer_update;
 
-    *event = qu_->submit([&](::sycl::handler& cgh) {
-      cgh.depends_on(*event);
-      cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::id<1> pid) {
-        int row_idx = pid[0];
-        auto* fval_buff_row_ptr = fval_buff_ptr + num_features * row_idx;
-        auto* miss_buff_row_ptr = miss_buff_ptr + num_features * row_idx;
+    for (size_t block = 0; block < n_blocks; ++block) {
+      if constexpr (any_missing) {
+        *event = qu_->fill(fval_buff_ptr, std::numeric_limits<float>::quiet_NaN(),
+                           num_features * block_size, *event);
+      }
 
-        if (needs_buffer_update) {
-          const Entry* first_entry = data + row_ptr[row_idx];
-          const Entry* last_entry = data + row_ptr[row_idx + 1];
-          for (const Entry* entry = first_entry; entry < last_entry; entry += 1) {
-            fval_buff_row_ptr[entry->index] = entry->fvalue;
-            if constexpr (any_missing) {
-              miss_buff_row_ptr[entry->index] = 0;
+      *event = qu_->submit([&](::sycl::handler& cgh) {
+        cgh.depends_on(*event);
+        cgh.parallel_for<>(::sycl::range<1>(block_size), [=](::sycl::id<1> pid) {
+          int row_idx = block * block_size + pid[0];
+          if (row_idx < num_rows) {
+            auto* fval_buff_row_ptr = fval_buff_ptr + num_features * pid[0];
+
+            const Entry* first_entry = data + row_ptr[row_idx];
+            const Entry* last_entry = data + row_ptr[row_idx + 1];
+            for (const Entry* entry = first_entry; entry < last_entry; entry += 1) {
+              fval_buff_row_ptr[entry->index] = entry->fvalue;
             }
           }
-        }
-
-        if (num_group == 1) {
-          float& sum = out_predictions[row_idx];
-          for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-            const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
-            if constexpr (any_missing) {
-              sum += GetLeafWeight(first_node, fval_buff_row_ptr, miss_buff_row_ptr);
-            } else {
-              sum += GetLeafWeight(first_node, fval_buff_row_ptr);
-            }
-          }
-        } else {
-          for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
-            const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
-            int out_prediction_idx = row_idx * num_group + tree_group[tree_idx];
-            if constexpr (any_missing) {
-              out_predictions[out_prediction_idx] +=
-                GetLeafWeight(first_node, fval_buff_row_ptr, miss_buff_row_ptr);
-            } else {
-              out_predictions[out_prediction_idx] +=
-                GetLeafWeight(first_node, fval_buff_row_ptr);
-            }
-          }
-        }
+        });
       });
-    });
+
+      *event = qu_->submit([&](::sycl::handler& cgh) {
+        cgh.depends_on(*event);
+        cgh.parallel_for<>(::sycl::range<1>(block_size), [=](::sycl::id<1> pid) {
+          int row_idx = block * block_size + pid[0];
+          if (row_idx < num_rows) {
+            auto* fval_buff_row_ptr = fval_buff_ptr + num_features * pid[0];
+
+            if (num_group == 1) {
+              float& sum = out_predictions[row_idx];
+              for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+                const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
+                sum += GetLeafWeight(first_node, fval_buff_row_ptr);
+              }
+            } else {
+              for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+                const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
+                int out_prediction_idx = row_idx * num_group + tree_group[tree_idx];
+                out_predictions[out_prediction_idx] +=
+                    GetLeafWeight(first_node, fval_buff_row_ptr);
+              }
+            }
+          }
+        });
+      });
+    }
   }
 
   template <bool any_missing>
@@ -342,26 +335,16 @@ class Predictor : public xgboost::Predictor {
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;
 
-        if (needs_buffer_update) {
-          fval_buff.ResizeNoCopy(qu_, num_features * batch_size);
-          if constexpr (any_missing) {
-            miss_buff.ResizeAndFill(qu_, num_features * batch_size, 1, &event);
-          }
-        }
-
         PredictKernel<any_missing>(&event, data, out_predictions + base_rowid,
                                    row_ptr, batch_size, num_features,
                                    num_group, tree_begin, tree_end);
-        needs_buffer_update = (batch_size != out_preds->Size());
       }
     }
     qu_->wait();
   }
 
   mutable USMVector<float,   MemoryType::on_device> fval_buff;
-  mutable USMVector<uint8_t, MemoryType::on_device> miss_buff;
   mutable DeviceModel device_model;
-  mutable bool needs_buffer_update = true;
 
   mutable ::sycl::queue* qu_ = nullptr;
 
