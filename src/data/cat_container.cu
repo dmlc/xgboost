@@ -208,6 +208,13 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
   return this->HostCanRead() ? this->cpu_impl_->columns.empty() : this->cu_impl_->columns.empty();
 }
 
+[[nodiscard]] std::size_t CatContainer::NumFeatures() const {
+  if (this->HostCanRead()) {
+    return this->cpu_impl_->columns.size();
+  }
+  return this->cu_impl_->columns.size();
+}
+
 void CatContainer::Sort(Context const* ctx) {
   if (!this->HasCategorical()) {
     return;

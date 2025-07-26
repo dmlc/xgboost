@@ -749,40 +749,53 @@ void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
 
   *out = ret_str.c_str();
 }
+
+CatContainer *CopyCatContainer(Context const *ctx, CatContainer const *cats,
+                               bst_feature_t n_features) {
+  CatContainer *new_cats = new CatContainer{};
+  new_cats->Copy(ctx, *cats);
+  CHECK_EQ(new_cats->Empty(), cats->Empty());
+  if (!new_cats->Empty()) {
+    CHECK_EQ(new_cats->NumFeatures(), n_features);
+    CHECK_EQ(new_cats->NumFeatures(), cats->NumFeatures());
+  }
+  return new_cats;
+}
 }  // anonymous namespace
 
 typedef  void * CategoriesHandle;  // NOLINT
 
 /**
- * Fetching categories is experimental (3.1), hidden.
+ * Fetching categories is experimental (3.1), C functions are hidden at the moment.
+ *
+ * No actual container method is exposed through the C API. It's just an opaque handler at
+ * the moment. This way we get to reuse the methods and the context from the DMatrix and
+ * Booster.
  */
 /**
  * @brief Create an opaque handle to the internal container.
  *
- * @param out        Created handle to the category container
+ * @param handle An instance of the data matrix.
+ * @param out     Created handle to the category container
  *
  * @return 0 when success, -1 when failure happens.
  */
 XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
+
   auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   auto const cats = p_fmat->Cats();
-
+  auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
   xgboost_CHECK_C_ARG_PTR(out);
-  auto new_cats = new CatContainer{};
-  new_cats->Copy(p_fmat->Ctx(), *cats);
   *out = new_cats;
-  if (!new_cats->Empty()) {
-    CHECK_EQ(new_cats->NumFeatures(), p_fmat->Info().num_col_);
-  }
 
   API_END()
 }
 /**
  * @brief Create an opaque handle to the internal container and export it to arrow.
  *
- * @param handle     An instance of data matrix.
+ * @param handle     An instance of the data matrix.
  * @param out        Created handle to the category container
  * @param export_out JSON encoded array of categories, with length equal to the number of features.
  *
@@ -797,11 +810,7 @@ XGB_DLL int XGBDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, Categorie
   auto const cats = p_fmat->Cats();
   auto n_features = p_fmat->Info().num_col_;
   // Create a new container
-  auto new_cats = new CatContainer{};
-  new_cats->Copy(p_fmat->Ctx(), *cats);
-  if (!new_cats->Empty()) {
-    CHECK_EQ(new_cats->NumFeatures(), p_fmat->Info().num_col_);
-  }
+  auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, n_features);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new_cats;
   // Export to arrow
@@ -814,7 +823,7 @@ XGB_DLL int XGBDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, Categorie
 /**
  * @brief Free the opaque handle.
  *
- * @param handle An instance of category container.
+ * @param handle An instance of the category container.
  *
  * @return 0 when success, -1 when failure happens.
  */
@@ -1755,16 +1764,12 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
 XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
+
   auto *bst = static_cast<Learner *>(handle);
   auto const cats = bst->Cats();
-
+  auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
   xgboost_CHECK_C_ARG_PTR(out);
-  auto new_cats = new CatContainer{};
-  new_cats->Copy(bst->Ctx(), *cats);
   *out = new_cats;
-  if (!new_cats->Empty()) {
-    CHECK_EQ(new_cats->NumFeatures(), bst->GetNumFeature());
-  }
 
   API_END()
 }
@@ -1780,11 +1785,7 @@ XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, Categories
   auto const cats = bst->Cats();
   auto n_features = bst->GetNumFeature();
   // Create a new container
-  auto new_cats = new CatContainer{};
-  new_cats->Copy(bst->Ctx(), *cats);
-  if (!new_cats->Empty()) {
-    CHECK_EQ(new_cats->NumFeatures(), bst->GetNumFeature());
-  }
+  auto new_cats = CopyCatContainer(bst->Ctx(), cats, n_features);
   xgboost_CHECK_C_ARG_PTR(out);
   *out = new_cats;
   // Export to arrow

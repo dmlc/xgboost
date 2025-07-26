@@ -160,7 +160,7 @@ class CatContainer {
    */
   [[nodiscard]] bool Empty() const;
 
-  [[nodiscard]] std::size_t NumFeatures() const { return this->cpu_impl_->columns.size(); }
+  [[nodiscard]] std::size_t NumFeatures() const;
   /**
    * @brief The number of categories across all features.
    */
