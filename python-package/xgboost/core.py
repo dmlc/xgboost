@@ -953,9 +953,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             :doc:`/tutorials/categorical` for more info.
 
             If passing `True` and `data` is a data frame (from supported libraries such
-            as Pandas, Modin or cuDF), The DMatrix recognizes categorical columns and
-            automatically set the `feature_types` parameter. If `data` is not a data
-            frame, this argument is ignored.
+            as Pandas, Modin, polars, and cuDF), The DMatrix recognizes categorical
+            columns and automatically set the `feature_types` parameter. If `data` is
+            not a data frame, this argument is ignored.
 
             If passing `False` and `data` is a data frame with categorical columns, it
             will result in an error.
@@ -1660,12 +1660,12 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
 
     max_quantile_batches :
         For GPU-based inputs from an iterator, XGBoost handles incoming batches with
-        multiple growing substreams. This parameter sets the maximum number of batches
-        before XGBoost can cut the sub-stream and create a new one. This can help bound
+        multiple growing sub-streams. This parameter sets the maximum number of batches
+        before XGBoost can cut a sub-stream and create a new one. This can help bound
         the memory usage. By default, XGBoost grows a sub-stream exponentially until
         batches are exhausted. This option is only used for the training dataset and the
-        default is None (unbounded). Lastly, if the `data` is a single batch instead of an
-        iterator, this parameter has no effect.
+        default is None (unbounded). Lastly, if the `data` is a single batch instead of
+        an iterator, this parameter has no effect.
 
         .. versionadded:: 3.0.0
 
