@@ -430,7 +430,7 @@ class SparsePage {
    * \return  The maximum number of columns encountered in this input batch. Useful when pushing many adapter batches to work out the total number of columns.
    */
   template <typename AdapterBatchT>
-  uint64_t Push(const AdapterBatchT& batch, float missing, int nthread);
+  bst_idx_t Push(AdapterBatchT const& batch, float missing, std::int32_t nthread);
 
   /*!
    * \brief Push a sparse page

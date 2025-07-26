@@ -57,16 +57,15 @@ def assert_allclose(device: str, a: Any, b: Any) -> None:
 
 def comp_booster(device: Literal["cpu", "cuda"], Xy: DMatrix, booster: str) -> None:
     """Compare the results from DMatrix and Booster."""
-    cats = Xy.get_categories()
-    assert cats is not None
+    cats_dm = Xy.get_categories(export_to_arrow=True).to_arrow()
+    assert cats_dm is not None
 
     rng = np.random.default_rng(2025)
     Xy.set_label(rng.normal(size=Xy.num_row()))
     bst = train({"booster": booster, "device": device}, Xy, 1)
-    cats_bst = bst.get_categories()
+    cats_bst = bst.get_categories(export_to_arrow=True).to_arrow()
     assert cats_bst is not None
-    for k, v in cats_bst.items():
-        assert v == cats[k]
+    assert cats_dm == cats_bst
 
 
 def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
@@ -79,12 +78,13 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
         categories = df.c.cat.categories
 
         Xy = DMatrixT(df, enable_categorical=True)
-        results = Xy.get_categories()
+        results = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert results is not None
-        assert len(results["c"]) == len(categories)
-        for i in range(len(results["c"])):
-            assert str(results["c"][i]) == str(categories[i]), (
-                results["c"][i],
+        results_di = {k: v for k, v in results}
+        assert len(results_di["c"]) == len(categories)
+        for i in range(len(results_di["c"])):
+            assert str(results_di["c"][i]) == str(categories[i]), (
+                results_di["c"][i],
                 categories[i],
             )
 
@@ -92,9 +92,10 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
         df = Df({"c": ["cdef", None, "abc", "abc"]}, dtype="category")
         Xy = DMatrixT(df, enable_categorical=True)
 
-        cats = Xy.get_categories()
+        cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
-        ser = cats["c"].to_pandas()
+        cats_id = {k: v for k, v in cats}
+        ser = cats_id["c"].to_pandas()
         assert ser.iloc[0] == "abc"
         assert ser.iloc[1] == "cdef"
         assert ser.size == 2
@@ -115,6 +116,9 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
         comp_booster(device, Xy, "gbtree")
         comp_booster(device, Xy, "dart")
 
+        with pytest.raises(ValueError, match="export_to_arrow"):
+            Xy.get_categories(export_to_arrow=False).to_arrow()
+
     for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(device, dm)
 
@@ -134,12 +138,15 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     n_samples = int(2**10)
 
     def check(Xy: DMatrix, X: pd.DataFrame) -> None:
-        cats = Xy.get_categories()
+        cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
+        cats_di = {k: v for k, v in cats}
 
         for fname in X.columns:
             if is_pd_cat_dtype(X[fname].dtype) or is_cudf_cat(X[fname].dtype):
-                aw_list = sorted(cats[fname].to_pylist())
+                vf = cats_di[fname]
+                assert vf is not None
+                aw_list = sorted(vf.to_pylist())
                 if is_cudf_cat(X[fname].dtype):
                     pd_list: list = X[fname].unique().to_arrow().to_pylist()
                 else:
@@ -151,7 +158,7 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
                 pd_list = sorted(pd_list)
                 assert aw_list == pd_list
             else:
-                assert cats[fname] is None
+                assert cats_di[fname] is None
 
         if not hasattr(Xy, "ref"):  # not quantile DMatrix.
             assert not isinstance(Xy, QuantileDMatrix)
@@ -160,14 +167,16 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
                 Xy.save_binary(fname)
 
                 Xy_1 = DMatrix(fname)
-                cats_1 = Xy_1.get_categories()
+                cats_1 = Xy_1.get_categories(export_to_arrow=True).to_arrow()
                 assert cats_1 is not None
+                cats_1_di = {k: v for k, v in cats_1}
 
-                for k, v_0 in cats.items():
-                    v_1 = cats_1[k]
+                for k, v_0 in cats_di.items():
+                    v_1 = cats_1_di[k]
                     if v_0 is None:
                         assert v_1 is None
                     else:
+                        assert v_1 is not None
                         assert v_0.to_pylist() == v_1.to_pylist()
 
         comp_booster(device, Xy, "gbtree")
@@ -245,14 +254,21 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(dm)
 
+    # No category
     batches = make_batches(
         n_samples_per_batch=128, n_features=4, n_batches=1, use_cupy=device == "cuda"
     )
     X, y, w = map(lambda x: x[0], batches)
-    Xy = DMatrix(X, y, weight=w)
-    assert Xy.get_categories() is None
-    Xy = QuantileDMatrix(X, y, weight=w)
-    assert Xy.get_categories() is None
+
+    for DMatrixT in (DMatrix, QuantileDMatrix):
+        Xy = DMatrixT(X, y, weight=w)
+        all_num = Xy.get_categories(export_to_arrow=True).to_arrow()
+        assert all_num is not None
+        for _, v in all_num:
+            assert v is None
+
+        with pytest.raises(ValueError, match="export_to_arrow"):
+            Xy.get_categories(export_to_arrow=False).to_arrow()
 
 
 def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
@@ -279,9 +295,11 @@ def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
     it = IteratorForTest(X, y, None, cache="cache", on_host=device == "cuda")
 
     Xy = ExtMemQuantileDMatrix(it, enable_categorical=True)
-    cats = Xy.get_categories()
+    cats = Xy.get_categories(export_to_arrow=True).to_arrow()
     assert cats is not None and len(cats) == n_features
-    for _, v in cats.items():
+    cats_di = {k: v for k, v in cats}
+    for _, v in cats_di.items():
+        assert v is not None
         assert v.null_count == 0
         assert len(v) == n_cats
 

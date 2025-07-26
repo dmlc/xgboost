@@ -1105,7 +1105,7 @@ void SparsePage::Push(const SparsePage &batch) {
 }
 
 template <typename AdapterBatchT>
-uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
+bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32_t nthread) {
   constexpr bool kIsRowMajor = AdapterBatchT::kIsRowMajor;
   // Allow threading only for row-major case as column-major requires O(nthread*batch_size) memory
   nthread = kIsRowMajor ? nthread : 1;

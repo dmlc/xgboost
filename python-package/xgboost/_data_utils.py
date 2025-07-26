@@ -23,8 +23,15 @@ from typing import (
 
 import numpy as np
 
-from ._typing import CNumericPtr, DataType, NumpyDType, NumpyOrCupy
-from .compat import import_cupy, import_pyarrow, lazy_isinstance
+from ._typing import (
+    ArrowCatList,
+    CNumericPtr,
+    DataType,
+    FeatureNames,
+    NumpyDType,
+    NumpyOrCupy,
+)
+from .compat import import_cupy, import_pyarrow, is_pyarrow_available, lazy_isinstance
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -480,3 +487,46 @@ def cudf_cat_inf(
 
     joffset, jdata, buf = _arrow_cat_inf(cats.to_arrow(), codes)
     return joffset, jdata, buf
+
+
+class Categories:
+    """An internal storage class for categories returned by the DMatrix and the
+    Booster. This class is designed to be opaque. It is intended to be used exclusively
+    by XGBoost as an intermediate storage for re-coding categorical data.
+
+    The categories are saved along with the booster object. As a result, users don't
+    need to preserve this class for re-coding. Use the booster model IO instead if you
+    want to preserve the categories in a stable format.
+
+    """
+
+    def __init__(
+        self,
+        handle: ctypes.c_void_p,
+        feature_names: FeatureNames,
+        arrow_arrays: Optional[ArrowCatList],
+    ) -> None:
+        self._handle = handle
+        self._feature_names = feature_names
+        self._arrow_arrays = arrow_arrays
+
+    def to_arrow(self) -> Optional[ArrowCatList]:
+        """Get the categories in the dataset. The results are stored in a list of arrow
+        arrays with one array for each feature. If a feature is numerical, then the
+        corresponding element in the list is None. A value error is rasied if this
+        container is created without the export option.
+
+        """
+        if self._arrow_arrays is None:
+            raise ValueError(
+                "The `export_to_arrow` option of the `get_categories` method"
+                " is required."
+            )
+        return self._arrow_arrays
+
+    def __del__(self) -> None:
+        from .core import _LIB, _check_call
+
+        assert self._handle is not None
+        _check_call(_LIB.XGBCategoriesFree(self._handle))
+        del self._handle
