@@ -80,7 +80,7 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
         Xy = DMatrixT(df, enable_categorical=True)
         results = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert results is not None
-        results_di = {k: v for k, v in results}
+        results_di = dict(results)
         assert len(results_di["c"]) == len(categories)
         for i in range(len(results_di["c"])):
             assert str(results_di["c"][i]) == str(categories[i]), (
@@ -94,7 +94,7 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
 
         cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
-        cats_id = {k: v for k, v in cats}
+        cats_id = dict(cats)
         ser = cats_id["c"].to_pandas()
         assert ser.iloc[0] == "abc"
         assert ser.iloc[1] == "cdef"
@@ -140,7 +140,7 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     def check(Xy: DMatrix, X: pd.DataFrame) -> None:
         cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
-        cats_di = {k: v for k, v in cats}
+        cats_di = dict(cats)
 
         for fname in X.columns:
             if is_pd_cat_dtype(X[fname].dtype) or is_cudf_cat(X[fname].dtype):
@@ -169,7 +169,7 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
                 Xy_1 = DMatrix(fname)
                 cats_1 = Xy_1.get_categories(export_to_arrow=True).to_arrow()
                 assert cats_1 is not None
-                cats_1_di = {k: v for k, v in cats_1}
+                cats_1_di = dict(cats_1)
 
                 for k, v_0 in cats_di.items():
                     v_1 = cats_1_di[k]
@@ -297,7 +297,7 @@ def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
     Xy = ExtMemQuantileDMatrix(it, enable_categorical=True)
     cats = Xy.get_categories(export_to_arrow=True).to_arrow()
     assert cats is not None and len(cats) == n_features
-    cats_di = {k: v for k, v in cats}
+    cats_di = dict(cats)
     for _, v in cats_di.items():
         assert v is not None
         assert v.null_count == 0

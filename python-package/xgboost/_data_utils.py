@@ -31,7 +31,7 @@ from ._typing import (
     NumpyDType,
     NumpyOrCupy,
 )
-from .compat import import_cupy, import_pyarrow, is_pyarrow_available, lazy_isinstance
+from .compat import import_cupy, import_pyarrow, lazy_isinstance
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -497,6 +497,12 @@ class Categories:
     The categories are saved along with the booster object. As a result, users don't
     need to preserve this class for re-coding. Use the booster model IO instead if you
     want to preserve the categories in a stable format.
+
+    .. versionadded:: 3.1.0
+
+    .. warning::
+
+        This class is still working in progress.
 
     """
 
