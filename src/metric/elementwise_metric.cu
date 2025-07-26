@@ -182,7 +182,7 @@ struct EvalRowLogLoss {
 };
 
 class PseudoErrorLoss : public MetricNoCache {
-  PesudoHuberParam param_;
+  PseudoHuberParam param_;
 
  public:
   const char* Name() const override { return "mphe"; }
