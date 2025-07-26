@@ -1352,7 +1352,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         Parameters
         ----------
         export_to_arrow :
-            The returned container will contain a dictionary to `pyarrow` arrays for the
+            The returned container will contain a list to `pyarrow` arrays for the
             categories. See the :py:meth:`~Categories.to_arrow` for more info.
 
         """
@@ -2337,21 +2337,8 @@ class Booster:
         self._set_feature_info(features, "feature_name")
 
     def get_categories(self, export_to_arrow: bool = False) -> Categories:
-        """Get the categories in the dataset.
+        """Same method as :py:meth:`DMatrix.get_categories`."""
 
-        .. versionadded:: 3.1.0
-
-        .. warning::
-
-            This function is still working in progress.
-
-        Parameters
-        ----------
-        export_to_arrow :
-            The returned container will contain a dictionary to `pyarrow` arrays for the
-            categories. See the :py:meth:`~Categories.to_arrow` for more info.
-
-        """
         fnames = self.feature_names
         n_features = self.num_features()
         if fnames is None:
