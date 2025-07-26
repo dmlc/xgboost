@@ -84,8 +84,6 @@ inline void WarnOldSerialization() {
   logged = true;
 }
 
-void WarnDeprecatedGPUHist();
-
 void WarnManualUpdater();
 
 void WarnEmptyDataset();

@@ -19,16 +19,6 @@ namespace xgboost::error {
   return ss.str();
 }
 
-void WarnDeprecatedGPUHist() {
-  auto msg =
-      "The tree method `gpu_hist` is deprecated since 2.0.0. To use GPU training, set the `device` "
-      R"(parameter to CUDA instead.
-
-    E.g. tree_method = "hist", device = "cuda"
-)";
-  LOG(WARNING) << msg;
-}
-
 void WarnManualUpdater() {
   static std::once_flag flag;
   std::call_once(flag, [] {
