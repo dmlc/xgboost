@@ -27,7 +27,6 @@ from ._typing import (
     ArrowCatList,
     CNumericPtr,
     DataType,
-    FeatureNames,
     NumpyDType,
     NumpyOrCupy,
 )
@@ -507,20 +506,17 @@ class Categories:
     """
 
     def __init__(
-        self,
-        handle: ctypes.c_void_p,
-        feature_names: FeatureNames,
-        arrow_arrays: Optional[ArrowCatList],
+        self, handle: ctypes.c_void_p, arrow_arrays: Optional[ArrowCatList]
     ) -> None:
         self._handle = handle
-        self._feature_names = feature_names
         self._arrow_arrays = arrow_arrays
 
     def to_arrow(self) -> Optional[ArrowCatList]:
-        """Get the categories in the dataset. The results are stored in a list of arrow
-        arrays with one array for each feature. If a feature is numerical, then the
-        corresponding column in the list is None. A value error will be raised if this
-        container was created without the `export_to_arrow` option.
+        """Get the categories in the dataset. The results are stored in a list of
+        (feature name, arrow array) pairs, with one array for each categorical
+        feature. If a feature is numerical, then the corresponding column in the list is
+        None. A value error will be raised if this container was created without the
+        `export_to_arrow` option.
 
         """
         if self._arrow_arrays is None:

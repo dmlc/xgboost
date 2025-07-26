@@ -784,7 +784,9 @@ def _get_categories(
     n_features: int,
 ) -> Optional[ArrowCatList]:
     if not is_pyarrow_available():
-        raise ImportError("`pyarrow` is required for exporting categories.")
+        raise ImportError(
+            "`pyarrow` is required for exporting categories to arrow arrays."
+        )
 
     if not TYPE_CHECKING:
         pa = import_pyarrow()
@@ -1352,7 +1354,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         Parameters
         ----------
         export_to_arrow :
-            The returned container will contain a list to `pyarrow` arrays for the
+            The returned container will contain a list to ``pyarrow`` arrays for the
             categories. See the :py:meth:`~Categories.to_arrow` for more info.
 
         """
@@ -1374,7 +1376,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             arrow_arrays = None
             _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(hdl)))
 
-        return Categories(hdl, fnames, arrow_arrays)
+        return Categories(hdl, arrow_arrays)
 
     def num_row(self) -> int:
         """Get the number of rows in the DMatrix."""
@@ -2357,7 +2359,7 @@ class Booster:
             arrow_arrays = None
             _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(hdl)))
 
-        return Categories(hdl, fnames, arrow_arrays)
+        return Categories(hdl, arrow_arrays)
 
     def set_param(
         self,
