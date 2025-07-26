@@ -13,6 +13,7 @@ from typing import (
     Sequence,
     Tuple,
     Type,
+    TypeAlias,
     TypeVar,
     Union,
 )
@@ -30,9 +31,15 @@ BoosterParam = Union[List, Dict[str, Any]]  # better be sequence
 
 ArrayLike = Any
 if TYPE_CHECKING:
+    import pyarrow as pa
+
     PathLike = Union[str, os.PathLike[str]]
 else:
     PathLike = Union[str, os.PathLike]
+
+ArrowCatCol: TypeAlias = Optional[Union["pa.StringArray", "pa.NumericArray"]]
+ArrowCatList: TypeAlias = List[Tuple[str, Optional[ArrowCatCol]]]
+
 CupyT = ArrayLike  # maybe need a stub for cupy arrays
 NumpyOrCupy = Any
 NumpyDType = Union[str, Type[np.number]]  # pylint: disable=invalid-name

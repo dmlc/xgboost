@@ -38,6 +38,7 @@ import numpy as np
 import scipy.sparse
 
 from ._data_utils import (
+    Categories,
     TransformedDf,
     array_interface,
     cuda_array_interface,
@@ -47,6 +48,7 @@ from ._data_utils import (
 from ._typing import (
     _T,
     ArrayLike,
+    ArrowCatList,
     BoosterParam,
     CFloatPtr,
     CNumeric,
@@ -75,9 +77,6 @@ from .compat import (
     py_str,
 )
 from .libpath import find_lib_path, is_sphinx_build
-
-if TYPE_CHECKING:
-    import pyarrow as pa
 
 
 class XGBoostError(ValueError):
@@ -781,27 +780,24 @@ _deprecate_positional_args = require_keyword_args(False)
 
 def _get_categories(
     cfn: Callable[[ctypes.c_char_p], int],
-    feature_names: Optional[FeatureNames],
+    feature_names: FeatureNames,
     n_features: int,
-) -> Optional[Dict[str, "pa.DictionaryArray"]]:
+) -> Optional[ArrowCatList]:
     if not is_pyarrow_available():
-        raise ImportError("`pyarrow` is required for exporting categories.")
+        raise ImportError(
+            "`pyarrow` is required for exporting categories to arrow arrays."
+        )
 
-    if TYPE_CHECKING:
-        import pyarrow as pa
-    else:
+    if not TYPE_CHECKING:
         pa = import_pyarrow()
+    else:
+        import pyarrow as pa
 
-    fnames = feature_names
-    if fnames is None:
-        fnames = [str(i) for i in range(n_features)]
-
-    results: Dict[str, "pa.DictionaryArray"] = {}
+    results: ArrowCatList = []
 
     ret = ctypes.c_char_p()
     _check_call(cfn(ret))
-    if ret.value is None:
-        return None
+    assert ret.value is not None
 
     retstr = ret.value.decode()  # pylint: disable=no-member
     jcats = json.loads(retstr)
@@ -811,19 +807,19 @@ def _get_categories(
         f_jcats = jcats[fidx]
         if f_jcats is None:
             # Numeric data
-            results[fnames[fidx]] = None
+            results.append((feature_names[fidx], None))
             continue
 
         if "offsets" not in f_jcats:
             values = from_array_interface(f_jcats)
             pa_values = pa.Array.from_pandas(values)
-            results[fnames[fidx]] = pa_values
+            results.append((feature_names[fidx], pa_values))
             continue
 
         joffsets = f_jcats["offsets"]
         jvalues = f_jcats["values"]
-        offsets = from_array_interface(joffsets, True)
-        values = from_array_interface(jvalues, True)
+        offsets = from_array_interface(joffsets)
+        values = from_array_interface(jvalues)
         pa_offsets = pa.array(offsets).buffers()
         pa_values = pa.array(values).buffers()
         assert (
@@ -832,7 +828,7 @@ def _get_categories(
         pa_dict = pa.StringArray.from_buffers(
             len(offsets) - 1, pa_offsets[1], pa_values[1]
         )
-        results[fnames[fidx]] = pa_dict
+        results.append((feature_names[fidx], pa_dict))
 
     return results
 
@@ -1346,22 +1342,41 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         assert data.dtype == np.float32
         return indptr, data
 
-    def get_categories(self) -> Optional[Dict[str, "pa.DictionaryArray"]]:
-        """Get the categories in the dataset using `pyarrow`. Returns `None` if there's
-        no categorical features.
+    def get_categories(self, export_to_arrow: bool = False) -> Categories:
+        """Get the categories in the dataset.
+
+        .. versionadded:: 3.1.0
 
         .. warning::
 
             This function is still working in progress.
 
-        .. versionadded:: 3.1.0
+        Parameters
+        ----------
+        export_to_arrow :
+            The returned container will contain a list to ``pyarrow`` arrays for the
+            categories. See the :py:meth:`~Categories.to_arrow` for more info.
 
         """
-        return _get_categories(
-            lambda ret: _LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(ret)),
-            self.feature_names,
-            self.num_col(),
-        )
+        fnames = self.feature_names
+        n_features = self.num_col()
+        if fnames is None:
+            fnames = [str(i) for i in range(n_features)]
+
+        hdl = ctypes.c_void_p()
+        if export_to_arrow:
+            arrow_arrays = _get_categories(
+                lambda ret: _LIB.XGBDMatrixGetCategoriesExportToArrow(
+                    self.handle, ctypes.byref(hdl), ctypes.byref(ret)
+                ),
+                fnames,
+                n_features,
+            )
+        else:
+            arrow_arrays = None
+            _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(hdl)))
+
+        return Categories(hdl, arrow_arrays)
 
     def num_row(self) -> int:
         """Get the number of rows in the DMatrix."""
@@ -2323,22 +2338,28 @@ class Booster:
     def feature_names(self, features: Optional[FeatureNames]) -> None:
         self._set_feature_info(features, "feature_name")
 
-    def get_categories(self) -> Optional[Dict[str, "pa.DictionaryArray"]]:
-        """Get the categories in the dataset using `pyarrow`. Returns `None` if there's
-        no categorical features.
+    def get_categories(self, export_to_arrow: bool = False) -> Categories:
+        """Same method as :py:meth:`DMatrix.get_categories`."""
 
-        .. warning::
+        fnames = self.feature_names
+        n_features = self.num_features()
+        if fnames is None:
+            fnames = [str(i) for i in range(n_features)]
 
-            This function is still working in progress.
+        hdl = ctypes.c_void_p()
+        if export_to_arrow:
+            arrow_arrays = _get_categories(
+                lambda ret: _LIB.XGBoosterGetCategoriesExportToArrow(
+                    self.handle, ctypes.byref(hdl), ctypes.byref(ret)
+                ),
+                fnames,
+                n_features,
+            )
+        else:
+            arrow_arrays = None
+            _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(hdl)))
 
-        .. versionadded:: 3.1.0
-
-        """
-        return _get_categories(
-            lambda ret: _LIB.XGBoosterGetCategories(self.handle, ctypes.byref(ret)),
-            self.feature_names,
-            self.num_features(),
-        )
+        return Categories(hdl, arrow_arrays)
 
     def set_param(
         self,

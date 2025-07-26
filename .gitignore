@@ -15,6 +15,7 @@
 *.Rcheck
 *.rds
 *.tar.gz
+*.tar.bz2
 *conf
 *buffer
 *.model

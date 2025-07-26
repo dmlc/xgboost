@@ -249,6 +249,10 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
 
 [[nodiscard]] bool CatContainer::Empty() const { return this->cpu_impl_->columns.empty(); }
 
+[[nodiscard]] std::size_t CatContainer::NumFeatures() const {
+  return this->cpu_impl_->columns.size();
+}
+
 void CatContainer::Sort(Context const* ctx) {
   CHECK(ctx->IsCPU());
   auto view = this->HostView();
