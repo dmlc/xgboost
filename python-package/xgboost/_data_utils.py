@@ -513,8 +513,8 @@ class Categories:
     def to_arrow(self) -> Optional[ArrowCatList]:
         """Get the categories in the dataset. The results are stored in a list of arrow
         arrays with one array for each feature. If a feature is numerical, then the
-        corresponding element in the list is None. A value error is rasied if this
-        container is created without the export option.
+        corresponding element in the list is None. A value error will be raised if this
+        container was created without the export option.
 
         """
         if self._arrow_arrays is None:

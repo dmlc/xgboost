@@ -824,7 +824,6 @@ XGB_DLL int XGBCategoriesFree(CategoriesHandle handle) {
   auto p_cats = static_cast<CatContainer *>(handle);
   CHECK(p_cats);
   delete p_cats;
-  p_cats = nullptr;
   API_END();
 }
 
