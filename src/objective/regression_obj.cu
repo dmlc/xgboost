@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file regression_obj.cu
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>  // std::int32_t
-#include <memory>
 #include <vector>
 
 #include "../common/common.h"
@@ -53,13 +52,47 @@ void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& pre
   CheckInitInputs(info);
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 }
+
+template <typename Loss>
+void ValidateLabel(Context const* ctx, MetaInfo const& info) {
+  auto label = info.labels.View(ctx->Device());
+  auto valid = ctx->DispatchDevice(
+      [&] {
+        return std::all_of(linalg::cbegin(label), linalg::cend(label),
+                           [](float y) -> bool { return Loss::CheckLabel(y); });
+      },
+      [&] {
+#if defined(XGBOOST_USE_CUDA)
+        auto cuctx = ctx->CUDACtx();
+        auto it = dh::MakeTransformIterator<bool>(
+            thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
+              auto [m, n] = linalg::UnravelIndex(i, label.Shape());
+              return Loss::CheckLabel(label(m, n));
+            });
+        return dh::Reduce(cuctx->CTP(), it, it + label.Size(), true, thrust::logical_and<>{});
+#else
+        common::AssertGPUSupport();
+        return false;
+#endif  // defined(XGBOOST_USE_CUDA)
+      },
+      [&] {
+#if defined(XGBOOST_USE_SYCL)
+        return sycl::linalg::Validate(ctx->Device(), label,
+                                      [](float y) -> bool { return Loss::CheckLabel(y); });
+#else
+        common::AssertSYCLSupport();
+        return false;
+#endif  // defined(XGBOOST_USE_SYCL)
+      });
+  if (!valid) {
+    LOG(FATAL) << Loss::LabelErrorMsg();
+  }
+}
 }  // anonymous namespace
 
 #if defined(XGBOOST_USE_CUDA)
 DMLC_REGISTRY_FILE_TAG(regression_obj_gpu);
 #endif  // defined(XGBOOST_USE_CUDA)
-
-
 
 template<typename Loss>
 class RegLossObj : public FitInterceptGlmLike {
@@ -67,42 +100,8 @@ class RegLossObj : public FitInterceptGlmLike {
   HostDeviceVector<float> additional_input_;
 
  public:
-  void ValidateLabel(MetaInfo const& info) {
-    auto label = info.labels.View(ctx_->Device());
-    auto valid = ctx_->DispatchDevice(
-        [&] {
-          return std::all_of(linalg::cbegin(label), linalg::cend(label),
-                             [](float y) -> bool { return Loss::CheckLabel(y); });
-        },
-        [&] {
-#if defined(XGBOOST_USE_CUDA)
-          auto cuctx = ctx_->CUDACtx();
-          auto it = dh::MakeTransformIterator<bool>(
-              thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
-                auto [m, n] = linalg::UnravelIndex(i, label.Shape());
-                return Loss::CheckLabel(label(m, n));
-              });
-          return dh::Reduce(cuctx->CTP(), it, it + label.Size(), true, thrust::logical_and<>{});
-#else
-          common::AssertGPUSupport();
-          return false;
-#endif  // defined(XGBOOST_USE_CUDA)
-        },
-        [&] {
-#if defined(XGBOOST_USE_SYCL)
-          return sycl::linalg::Validate(ctx_->Device(), label,
-                                        [](float y) -> bool { return Loss::CheckLabel(y); });
-#else
-          common::AssertSYCLSupport();
-          return false;
-#endif  // defined(XGBOOST_USE_SYCL)
-        });
-    if (!valid) {
-      LOG(FATAL) << Loss::LabelErrorMsg();
-    }
-  }
   // 0 - scale_pos_weight, 1 - is_null_weight
-  RegLossObj(): additional_input_(2) {}
+  RegLossObj() : additional_input_(2) {}
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
@@ -119,7 +118,7 @@ class RegLossObj : public FitInterceptGlmLike {
                    std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) override {
     CheckRegInputs(info, preds);
     if (iter == 0) {
-      ValidateLabel(info);
+      ValidateLabel<Loss>(this->ctx_, info);
     }
 
     size_t const ndata = preds.Size();
@@ -222,10 +221,6 @@ XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, LinearSquareLoss::Name())
 .describe("Regression with squared error.")
 .set_body([]() { return new RegLossObj<LinearSquareLoss>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(SquareLogError, SquaredLogError::Name())
-.describe("Regression with root mean squared logarithmic error.")
-.set_body([]() { return new RegLossObj<SquaredLogError>(); });
-
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
 .describe("Logistic regression for probability regression task.")
 .set_body([]() { return new RegLossObj<LogisticRegression>(); });
@@ -251,8 +246,57 @@ XGBOOST_REGISTER_OBJECTIVE(LinearRegression, "reg:linear")
     return new RegLossObj<LinearSquareLoss>(); });
 // End deprecated
 
+class SquaredLogErrorRegression : public FitIntercept {
+ public:
+  static auto Name() { return SquaredLogError::Name(); }
+
+  void Configure(Args const&) override {}
+  [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
+  [[nodiscard]] bst_target_t Targets(MetaInfo const& info) const override {
+    return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
+  }
+  void GetGradient(HostDeviceVector<bst_float> const& preds, const MetaInfo& info,
+                   std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) override {
+    if (iter == 0) {
+      ValidateLabel<SquaredLogError>(this->ctx_, info);
+    }
+    auto labels = info.labels.View(ctx_->Device());
+
+    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->Reshape(info.num_row_, this->Targets(info));
+    auto gpair = out_gpair->View(ctx_->Device());
+
+    preds.SetDevice(ctx_->Device());
+    auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
+
+    info.weights_.SetDevice(ctx_->Device());
+    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
+                                                 : info.weights_.ConstDeviceSpan()};
+    linalg::ElementWiseKernel(this->ctx_, labels,
+                              [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
+                                auto p = predt(i, j);
+                                auto y = labels(i, j);
+                                auto w = weight[i];
+                                auto grad = SquaredLogError::FirstOrderGradient(p, y);
+                                auto hess = SquaredLogError::SecondOrderGradient(p, y);
+                                gpair(i) = {grad * w, hess * w};
+                              });
+  }
+  [[nodiscard]] const char* DefaultEvalMetric() const override { return "rmsle"; }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(Name());
+  }
+  void LoadConfig(Json const&) override {}
+};
+
+XGBOOST_REGISTER_OBJECTIVE(SquaredLogErrorRegression, SquaredLogErrorRegression::Name())
+    .describe("Root mean squared log error.")
+    .set_body([]() { return new SquaredLogErrorRegression(); });
+
 class PseudoHuberRegression : public FitIntercept {
-  PesudoHuberParam param_;
+  PseudoHuberParam param_;
 
  public:
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }

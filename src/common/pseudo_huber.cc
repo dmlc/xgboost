@@ -3,5 +3,5 @@
  */
 #include "pseudo_huber.h"
 namespace xgboost {
-DMLC_REGISTER_PARAMETER(PesudoHuberParam);
+DMLC_REGISTER_PARAMETER(PseudoHuberParam);
 }
