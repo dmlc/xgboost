@@ -710,15 +710,15 @@ template <typename FidxT>
 void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
                        std::string *p_out_storage, char const **out) {
   auto &ret_str = *p_out_storage;
-  if (cats.Empty()) {
-    ret_str.clear();
-    *out = nullptr;
-    return;
-  }
+  ret_str.clear();
 
   // We can directly use the storage in the cat container instead of allocating temporary storage.
   Json jout{Array{}};
   for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
+    if (cats.Empty()) {
+      get<Array>(jout).emplace_back();
+      continue;
+    }
     auto const &col = cats[f_idx];
     if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
       get<Array>(jout).emplace_back();
@@ -749,24 +749,91 @@ void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
 
   *out = ret_str.c_str();
 }
+
+CatContainer *CopyCatContainer(Context const *ctx, CatContainer const *cats,
+                               bst_feature_t n_features) {
+  CatContainer *new_cats = new CatContainer{};
+  new_cats->Copy(ctx, *cats);
+  CHECK_EQ(new_cats->Empty(), cats->Empty());
+  if (!new_cats->Empty()) {
+    CHECK_EQ(new_cats->NumFeatures(), n_features);
+    CHECK_EQ(new_cats->NumFeatures(), cats->NumFeatures());
+  }
+  return new_cats;
+}
 }  // anonymous namespace
 
+typedef  void * CategoriesHandle;  // NOLINT
+
 /**
- * Experimental (3.1), hidden.
+ * Fetching categories is experimental (3.1), C functions are hidden at the moment.
+ *
+ * No actual container method is exposed through the C API. It's just an opaque handler at
+ * the moment. This way we get to reuse the methods and the context from the DMatrix and
+ * Booster.
  */
-XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
+/**
+ * @brief Create an opaque handle to the internal container.
+ *
+ * @param handle An instance of the data matrix.
+ * @param out     Created handle to the category container
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
+
   auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
-  auto const cats = p_fmat->Cats()->HostView();
-  auto n_features = p_fmat->Info().num_col_;
-
-  auto &ret_str = p_fmat->GetThreadLocal().ret_str;
+  auto const cats = p_fmat->Cats();
+  auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
   xgboost_CHECK_C_ARG_PTR(out);
-
-  GetCategoriesImpl(cats, n_features, &ret_str, out);
+  *out = new_cats;
 
   API_END()
+}
+/**
+ * @brief Create an opaque handle to the internal container and export it to arrow.
+ *
+ * @param handle     An instance of the data matrix.
+ * @param out        Created handle to the category container
+ * @param export_out JSON encoded array of categories, with length equal to the number of features.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGBDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, CategoriesHandle *out,
+                                                 char const **export_out) {
+  API_BEGIN();
+  CHECK_HANDLE()
+
+  auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  auto const cats = p_fmat->Cats();
+  auto n_features = p_fmat->Info().num_col_;
+  // Create a new container
+  auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, n_features);
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = new_cats;
+  // Export to arrow
+  auto &ret_str = p_fmat->GetThreadLocal().ret_str;
+  xgboost_CHECK_C_ARG_PTR(export_out);
+  GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
+
+  API_END();
+}
+/**
+ * @brief Free the opaque handle.
+ *
+ * @param handle An instance of the category container.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGBCategoriesFree(CategoriesHandle handle) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(handle);
+  auto p_cats = static_cast<CatContainer *>(handle);
+  CHECK(p_cats);
+  delete p_cats;
+  API_END();
 }
 
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void const *data,
@@ -1691,17 +1758,40 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
 /**
  * Experimental (3.1), hidden.
  */
-XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const **out) {
+/**
+ * See @ref XGBDMatrixGetCategories
+ */
+XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
+
   auto *bst = static_cast<Learner *>(handle);
-  auto const cats = bst->Cats()->HostView();
-  auto n_features = bst->GetNumFeature();
-
-  auto &ret_str = bst->GetThreadLocal().ret_str;
+  auto const cats = bst->Cats();
+  auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
   xgboost_CHECK_C_ARG_PTR(out);
+  *out = new_cats;
 
-  GetCategoriesImpl(cats, n_features, &ret_str, out);
+  API_END()
+}
+/**
+ * See @ref XGBDMatrixGetCategoriesExportToArrow
+ */
+XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, CategoriesHandle *out,
+                                                char const **export_out) {
+  API_BEGIN()
+  CHECK_HANDLE()
+
+  auto *bst = static_cast<Learner *>(handle);
+  auto const cats = bst->Cats();
+  auto n_features = bst->GetNumFeature();
+  // Create a new container
+  auto new_cats = CopyCatContainer(bst->Ctx(), cats, n_features);
+  xgboost_CHECK_C_ARG_PTR(out);
+  *out = new_cats;
+  // Export to arrow
+  auto &ret_str = bst->GetThreadLocal().ret_str;
+  xgboost_CHECK_C_ARG_PTR(export_out);
+  GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
 
   API_END()
 }
