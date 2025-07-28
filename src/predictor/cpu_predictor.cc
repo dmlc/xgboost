@@ -747,7 +747,7 @@ class CPUPredictor : public Predictor {
       DataView batch, const MetaInfo &info, const gbm::GBTreeModel &model,
       const std::vector<bst_float> *tree_weights, std::vector<std::vector<float>> *mean_values,
       std::vector<RegTree::FVec> *feat_vecs, std::vector<bst_float> *contribs,
-      bst_tree_t ntree_limit, bool approximate, int condition, unsigned condition_feature) const {
+      bst_tree_t ntree_limit, bool approximate, int condition, unsigned condition_feature, std::vector<bst_feature_t> *feature_reprs = nullptr) const {
     const int num_feature = model.learner_model_param->num_feature;
     const int ngroup = model.learner_model_param->num_output_group;
     CHECK_NE(ngroup, 0);
@@ -778,7 +778,7 @@ class CPUPredictor : public Predictor {
           }
           if (!approximate) {
             CalculateContributions(*model.trees[j], feats, tree_mean_values,
-                                   &this_tree_contribs[0], condition, condition_feature);
+                                   &this_tree_contribs[0], condition, condition_feature, feature_reprs == nullptr ? nullptr : feature_reprs->data());
           } else {
             model.trees[j]->CalculateContributionsApprox(
                 feats, tree_mean_values, &this_tree_contribs[0]);
@@ -950,7 +950,7 @@ class CPUPredictor : public Predictor {
   void PredictContribution(DMatrix *p_fmat, HostDeviceVector<float> *out_contribs,
                            const gbm::GBTreeModel &model, bst_tree_t ntree_limit,
                            std::vector<bst_float> const *tree_weights, bool approximate,
-                           int condition, unsigned condition_feature) const override {
+                           int condition, unsigned condition_feature, HostDeviceVector<bst_feature_t> *feature_reprs = nullptr) const override {
     CHECK(!model.learner_model_param->IsVectorLeaf())
         << "Predict contribution" << MTNotImplemented();
     CHECK(!p_fmat->Info().IsColumnSplit())
@@ -982,13 +982,13 @@ class CPUPredictor : public Predictor {
         for (const auto &batch : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, {})) {
           PredictContributionKernel(GHistIndexMatrixView{batch, std::forward<Enc>(acc), ft}, info,
                                     model, tree_weights, &mean_values, &feat_vecs, &contribs,
-                                    ntree_limit, approximate, condition, condition_feature);
+                                    ntree_limit, approximate, condition, condition_feature, feature_reprs == nullptr ? nullptr : &feature_reprs->HostVector());
         }
       } else {
         for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
           PredictContributionKernel(SparsePageView{&batch, std::forward<Enc>(acc)}, info, model,
                                     tree_weights, &mean_values, &feat_vecs, &contribs, ntree_limit,
-                                    approximate, condition, condition_feature);
+                                    approximate, condition, condition_feature, feature_reprs == nullptr ? nullptr : &feature_reprs->HostVector());
         }
       }
     };

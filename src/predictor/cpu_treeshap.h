@@ -14,9 +14,10 @@ namespace xgboost {
  * \param out_contribs output vector to hold the contributions
  * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
  * \param condition_feature the index of the feature to fix
+ * \param feature_reprs mapping of features to group representatives, for groupSHAP calculation
  */
 void CalculateContributions(RegTree const &tree, const RegTree::FVec &feat,
                             std::vector<float> *mean_values, bst_float *out_contribs, int condition,
-                            unsigned condition_feature);
+                            unsigned condition_feature, std::uint32_t* feature_reprs);
 }  // namespace xgboost
 #endif  // XGBOOST_PREDICTOR_CPU_TREESHAP_H_
