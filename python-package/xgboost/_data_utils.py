@@ -486,6 +486,10 @@ def cudf_cat_inf(
         codes_ainf = cuda_array_interface_dict(codes)
         return cats_ainf, codes_ainf, (cats, codes)
 
+    # print(help(cats._column.to_pylibcudf))
+    cucats = cats._column.to_pylibcudf(mode="read")
+    ca = cucats.__arrow_c_device_array__()
+    print(ca)
     joffset, jdata, buf = _arrow_cat_inf(cats.to_arrow(), codes)
     return joffset, jdata, buf
 
