@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2024, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 
 #include "proxy_dmatrix.h"
@@ -16,23 +16,23 @@
 #endif
 
 namespace xgboost::data {
-void DMatrixProxy::SetColumnarData(StringView interface_str) {
-  std::shared_ptr<ColumnarAdapter> adapter{new ColumnarAdapter{interface_str}};
+void DMatrixProxy::SetColumnar(StringView data) {
+  std::shared_ptr<ColumnarAdapter> adapter{new ColumnarAdapter{data}};
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
   this->ctx_.Init(Args{{"device", "cpu"}});
 }
 
-void DMatrixProxy::SetArrayData(StringView interface_str) {
-  std::shared_ptr<ArrayAdapter> adapter{new ArrayAdapter{interface_str}};
+void DMatrixProxy::SetArray(StringView data) {
+  std::shared_ptr<ArrayAdapter> adapter{new ArrayAdapter{data}};
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
   this->ctx_.Init(Args{{"device", "cpu"}});
 }
 
-void DMatrixProxy::SetCSRData(char const *c_indptr, char const *c_indices, char const *c_values,
+void DMatrixProxy::SetCsr(char const *c_indptr, char const *c_indices, char const *c_values,
                               bst_feature_t n_features, bool on_host) {
   CHECK(on_host) << "Not implemented on device.";
   std::shared_ptr<CSRArrayAdapter> adapter{new CSRArrayAdapter(
@@ -42,6 +42,11 @@ void DMatrixProxy::SetCSRData(char const *c_indptr, char const *c_indices, char 
   this->Info().num_row_ = adapter->NumRows();
   this->ctx_.Init(Args{{"device", "cpu"}});
 }
+
+#if !defined(XGBOOST_USE_CUDA)
+void DMatrixProxy::SetCudaArray(StringView) { common::AssertGPUSupport(); }
+void DMatrixProxy::SetCudaColumnar(StringView) { common::AssertGPUSupport(); }
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 namespace cuda_impl {
 std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,

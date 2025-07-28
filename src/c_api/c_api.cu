@@ -150,7 +150,7 @@ int InplacePreidctCUDA(BoosterHandle handle, char const *c_array_interface,
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
 
-  proxy->SetCUDAArray(c_array_interface);
+  proxy->SetCudaArray(c_array_interface);
 
   auto config = Json::Load(StringView{c_json_config});
   auto *learner = static_cast<Learner *>(handle);
