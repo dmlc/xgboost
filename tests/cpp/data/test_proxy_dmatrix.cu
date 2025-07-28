@@ -25,7 +25,7 @@ TEST(ProxyDMatrix, DeviceData) {
                     .GenerateColumnarArrayInterface(&label_storage);
 
   DMatrixProxy proxy;
-  proxy.SetCudaArray(data.c_str());
+  proxy.SetCudaColumnar(data.c_str());
   proxy.SetInfo("label", labels.c_str());
 
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CupyAdapter>));
@@ -37,7 +37,7 @@ TEST(ProxyDMatrix, DeviceData) {
   data = RandomDataGenerator(kRows, kCols, 0)
              .Device(FstCU())
              .GenerateColumnarArrayInterface(&columnar_storage);
-  proxy.SetCudaArray(data.c_str());
+  proxy.SetCudaColumnar(data.c_str());
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CudfAdapter>));
   ASSERT_EQ(std::any_cast<std::shared_ptr<CudfAdapter>>(proxy.Adapter())->NumRows(), kRows);
   ASSERT_EQ(std::any_cast<std::shared_ptr<CudfAdapter>>(proxy.Adapter())->NumColumns(), kCols);

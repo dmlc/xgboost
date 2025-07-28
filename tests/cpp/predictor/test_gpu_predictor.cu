@@ -215,7 +215,7 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   std::vector<HostDeviceVector<float>> storage(kCols);
   auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
   std::shared_ptr<DMatrix> p_fmat{new data::DMatrixProxy};
-  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCudaArray(interface_str.c_str());
+  dynamic_cast<data::DMatrixProxy*>(p_fmat.get())->SetCudaColumnar(interface_str.c_str());
   TestInplacePrediction(&ctx, p_fmat, kRows, kCols);
 }
 
