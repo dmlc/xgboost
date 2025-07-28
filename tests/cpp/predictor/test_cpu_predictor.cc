@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2024, XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
@@ -80,7 +80,7 @@ TEST(CpuPredictor, InplacePredict) {
     auto array_interface = GetArrayInterface(&data, kRows, kCols);
     std::string arr_str;
     Json::Dump(array_interface, &arr_str);
-    x->SetArrayData(arr_str.data());
+    x->SetArray(arr_str.data());
     TestInplacePrediction(&ctx, x, kRows, kCols);
   }
 
@@ -97,7 +97,7 @@ TEST(CpuPredictor, InplacePredict) {
     Json::Dump(rptr_interface, &rptr_str);
     Json::Dump(col_interface, &col_str);
     std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy};
-    x->SetCSRData(rptr_str.data(), col_str.data(), data_str.data(), kCols, true);
+    x->SetCsr(rptr_str.data(), col_str.data(), data_str.data(), kCols, true);
     TestInplacePrediction(&ctx, x, kRows, kCols);
   }
 }

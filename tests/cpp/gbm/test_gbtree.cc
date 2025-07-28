@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost contributors
+ * Copyright 2019-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -401,9 +401,9 @@ class Dart : public testing::TestWithParam<char const*> {
     HostDeviceVector<float>* inplace_predts;
     std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
     if (ctx.IsCUDA()) {
-      x->SetCUDAArray(array_str.c_str());
+      x->SetCudaArray(array_str.c_str());
     } else {
-      x->SetArrayData(array_str.c_str());
+      x->SetArray(array_str.c_str());
     }
     learner->InplacePredict(x, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                             &inplace_predts, 0, 0);
@@ -628,7 +628,7 @@ TEST(GBTree, PredictRange) {
     HostDeviceVector<float> raw_storage;
     auto raw = RandomDataGenerator{n_samples, n_features, 0.5}.GenerateArrayInterface(&raw_storage);
     std::shared_ptr<data::DMatrixProxy> x{new data::DMatrixProxy{}};
-    x->SetArrayData(raw.data());
+    x->SetArray(raw.data());
 
     HostDeviceVector<float>* out_predt;
     learner->InplacePredict(x, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),

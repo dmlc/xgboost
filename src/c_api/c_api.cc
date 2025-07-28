@@ -422,52 +422,45 @@ XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle *out) {
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
-                                                    char const *c_interface_str) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
+namespace {
+[[nodiscard]] xgboost::data::DMatrixProxy *GetDMatrixProxy(DMatrixHandle handle) {
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
   CHECK(p_m);
   auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
   CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetCUDAArray(c_interface_str);
+  return m;
+}
+}  // namespace
+
+XGB_DLL int XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle, char const *data) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetCudaArray(data);
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle, char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle, char const *data) {
   API_BEGIN();
   CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetCUDAArray(c_interface_str);
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetCudaColumnar(data);
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataColumnar(DMatrixHandle handle, char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataColumnar(DMatrixHandle handle, char const *data) {
   API_BEGIN();
   CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetColumnarData(c_interface_str);
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetColumnar(data);
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle, char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle, char const *data) {
   API_BEGIN();
   CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetArrayData(c_interface_str);
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetArray(data);
   API_END();
 }
 
@@ -478,11 +471,7 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr, c
   xgboost_CHECK_C_ARG_PTR(indptr);
   xgboost_CHECK_C_ARG_PTR(indices);
   xgboost_CHECK_C_ARG_PTR(data);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetCSRData(indptr, indices, data, ncol, true);
+  GetDMatrixProxy(handle)->SetCsr(indptr, indices, data, ncol, true);
   API_END();
 }
 
@@ -1402,7 +1391,7 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   *out_shape = dmlc::BeginPtr(shape);
 }
 
-XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_interface,
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *data,
                                       char const *c_json_config, DMatrixHandle m,
                                       xgboost::bst_ulong const **out_shape,
                                       xgboost::bst_ulong *out_dim, const float **out_result) {
@@ -1416,8 +1405,8 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_in
   }
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
-  xgboost_CHECK_C_ARG_PTR(array_interface);
-  proxy->SetArrayData(array_interface);
+  xgboost_CHECK_C_ARG_PTR(data);
+  proxy->SetArray(data);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
@@ -1438,7 +1427,7 @@ XGB_DLL int XGBoosterPredictFromColumnar(BoosterHandle handle, char const *array
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
   xgboost_CHECK_C_ARG_PTR(array_interface);
-  proxy->SetColumnarData(array_interface);
+  proxy->SetColumnar(array_interface);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
@@ -1460,7 +1449,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
   xgboost_CHECK_C_ARG_PTR(indptr);
-  proxy->SetCSRData(indptr, indices, data, cols, true);
+  proxy->SetCsr(indptr, indices, data, cols, true);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();

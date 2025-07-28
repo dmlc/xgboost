@@ -65,51 +65,39 @@ class DataIterProxy {
 };
 
 /**
- * @brief A proxy of DMatrix used by external iterator.
+ * @brief A proxy of DMatrix used by the external iterator.
  */
 class DMatrixProxy : public DMatrix {
   MetaInfo info_;
   std::any batch_;
   Context ctx_;
 
-#if defined(XGBOOST_USE_CUDA)
-  void FromCudaColumnar(StringView interface_str);
-  void FromCudaArray(StringView interface_str);
-#endif  // defined(XGBOOST_USE_CUDA)
-
  public:
   DeviceOrd Device() const { return ctx_.Device(); }
 
-  void SetCUDAArray(char const* c_interface) {
-    common::AssertGPUSupport();
-    CHECK(c_interface);
-#if defined(XGBOOST_USE_CUDA)
-    StringView interface_str{c_interface};
-    Json json_array_interface = Json::Load(interface_str);
-    if (IsA<Array>(json_array_interface)) {
-      this->FromCudaColumnar(interface_str);
-    } else {
-      this->FromCudaArray(interface_str);
-    }
-#endif  // defined(XGBOOST_USE_CUDA)
-  }
-
-  void SetColumnarData(StringView interface_str);
-
-  void SetArrayData(StringView interface_str);
-  void SetCSRData(char const* c_indptr, char const* c_indices, char const* c_values,
+  /**
+   * Device setters
+   */
+  void SetCudaColumnar(StringView data);
+  void SetCudaArray(StringView data);
+  /**
+   * Host setters
+   */
+  void SetColumnar(StringView data);
+  void SetArray(StringView data);
+  void SetCsr(char const* c_indptr, char const* c_indices, char const* c_values,
                   bst_feature_t n_features, bool on_host);
 
   MetaInfo& Info() override { return info_; }
   MetaInfo const& Info() const override { return info_; }
   Context const* Ctx() const override { return &ctx_; }
 
-  bool EllpackExists() const override { return false; }
-  bool GHistIndexExists() const override { return false; }
-  bool SparsePageExists() const override { return false; }
+  [[nodiscard]] bool EllpackExists() const override { return false; }
+  [[nodiscard]] bool GHistIndexExists() const override { return false; }
+  [[nodiscard]] bool SparsePageExists() const override { return false; }
 
   template <typename Page>
-  BatchSet<Page> NoBatch() {
+  static BatchSet<Page> NoBatch() {
     LOG(FATAL) << "Proxy DMatrix cannot return data batch.";
     return BatchSet<Page>(BatchIterator<Page>(nullptr));
   }

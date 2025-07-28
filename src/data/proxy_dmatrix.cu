@@ -7,8 +7,8 @@
 #include "proxy_dmatrix.h"
 
 namespace xgboost::data {
-void DMatrixProxy::FromCudaColumnar(StringView interface_str) {
-  auto adapter{std::make_shared<CudfAdapter>(interface_str)};
+void DMatrixProxy::SetCudaColumnar(StringView data) {
+  auto adapter{std::make_shared<CudfAdapter>(data)};
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
@@ -21,8 +21,8 @@ void DMatrixProxy::FromCudaColumnar(StringView interface_str) {
   ctx_ = ctx_.MakeCUDA(adapter->Device().ordinal);
 }
 
-void DMatrixProxy::FromCudaArray(StringView interface_str) {
-  auto adapter(std::make_shared<CupyAdapter>(StringView{interface_str}));
+void DMatrixProxy::SetCudaArray(StringView data) {
+  auto adapter(std::make_shared<CupyAdapter>(StringView{data}));
   this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
