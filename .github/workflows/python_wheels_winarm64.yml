@@ -54,6 +54,7 @@ jobs:
           python -m wheel tags --python-tag py3 --abi-tag none --platform win_arm64 --remove $wheelFile
 
       - name: Upload Python wheel
+        if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
         run: |
           $wheelFile = Get-ChildItem python-package/wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
           python ops/pipeline/manage-artifacts.py upload `
