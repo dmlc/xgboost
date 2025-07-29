@@ -312,34 +312,37 @@ def run_cat_container_iter(device: Device) -> None:
         assert len(v) == n_cats
 
 
+def run_basic_predict(DMatrixT: Type, device: Device, tdevice: Device) -> None:
+    """Enable tests with mixed devices."""
+    Df, _ = get_df_impl(device)
+    df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
+    y = np.array([0, 1, 2])
+
+    codes = df.c.cat.codes
+    encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
+
+    Xy = DMatrixT(df, y, enable_categorical=True)
+    booster = train({"device": tdevice}, Xy, num_boost_round=4)
+
+    df = Df({"c": ["def", "abc"]}, dtype="category")
+    codes = df.c.cat.codes
+
+    predt0 = booster.inplace_predict(df)
+    predt1 = booster.inplace_predict(encoded)
+
+    assert_allclose(device, predt0, predt1)
+
+    fmat = DMatrixT(df, enable_categorical=True)
+    predt2 = booster.predict(fmat)
+    assert_allclose(device, predt0, predt2)
+
+
 def run_cat_predict(device: Device) -> None:
     """Basic tests for re-coding during prediction."""
     Df, _ = get_df_impl(device)
 
-    def run_basic(DMatrixT: Type) -> None:
-        df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
-        y = np.array([0, 1, 2])
-
-        codes = df.c.cat.codes
-        encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
-
-        Xy = DMatrixT(df, y, enable_categorical=True)
-        booster = train({"device": device}, Xy, num_boost_round=4)
-
-        df = Df({"c": ["def", "abc"]}, dtype="category")
-        codes = df.c.cat.codes
-
-        predt0 = booster.inplace_predict(df)
-        predt1 = booster.inplace_predict(encoded)
-
-        assert_allclose(device, predt0, predt1)
-
-        fmat = DMatrixT(df, enable_categorical=True)
-        predt2 = booster.predict(fmat)
-        assert_allclose(device, predt0, predt2)
-
     for dm in (DMatrix, QuantileDMatrix):
-        run_basic(dm)
+        run_basic_predict(dm, device, device)
 
     def run_mixed(DMatrixT: Type) -> None:
         df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")

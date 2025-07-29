@@ -9,6 +9,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import make_categorical
 from xgboost.testing.ordinal import (
+    run_basic_predict,
     run_cat_container,
     run_cat_container_iter,
     run_cat_container_mixed,
@@ -124,3 +125,9 @@ def test_training_continuation() -> None:
 
 def test_update() -> None:
     run_update("cuda")
+
+
+@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+def test_mixed_device(DMatrixT: Type) -> None:
+    run_basic_predict(DMatrixT, "cuda", "cpu")
+    run_basic_predict(DMatrixT, "cpu", "cuda")
