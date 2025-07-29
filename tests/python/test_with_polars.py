@@ -147,20 +147,22 @@ def test_categorical() -> None:
         xgb.DMatrix(df)
 
     data = xgb.DMatrix(df, enable_categorical=True)
-    categories = data.get_categories()
-    assert categories is not None
-    assert categories["f0"] is None
-    assert categories["f1"].to_pylist() == cats[:4]
+    categories = data.get_categories(export_to_arrow=True)
+    assert dict(categories.to_arrow())["f0"] is None
+    f1 = dict(categories.to_arrow())["f1"]
+    assert f1 is not None
+    assert f1.to_pylist() == cats[:4]
 
     df = pl.DataFrame(
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4]))],
     )
     data = xgb.DMatrix(df, enable_categorical=True)
-    categories = data.get_categories()
-    assert categories is not None
-    assert categories["f0"] is None
-    assert categories["f1"].to_pylist() == cats[:4]
+    categories = data.get_categories(export_to_arrow=True)
+    assert dict(categories.to_arrow())["f0"] is None
+    f1 = dict(categories.to_arrow())["f1"]
+    assert f1 is not None
+    assert f1.to_pylist() == cats[:4]
 
     rng = np.random.default_rng(2025)
     y = rng.normal(size=(df.shape[0]))

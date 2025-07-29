@@ -24,26 +24,23 @@ import numpy as np
 
 from ._data_utils import (
     AifType,
-    ArrayInf,
     Categories,
     DfCatAccessor,
-    StringArray,
     TransformedDf,
-    _arrow_cat_inf,
-    _arrow_mask_inf,
-    _arrow_npdtype,
+    _arrow_array_inf,
     _ensure_np_dtype,
     _is_df_cat,
     array_hasobject,
     array_interface,
     array_interface_dict,
+    arrow_cat_inf,
     check_cudf_meta,
     cuda_array_interface,
     cuda_array_interface_dict,
     cudf_cat_inf,
     get_ref_categories,
     is_arrow_dict,
-    make_array_interface,
+    pd_cats_inf,
 )
 from ._typing import (
     CupyT,
@@ -615,7 +612,7 @@ class PandasTransformed(TransformedDf):
 
     def __init__(
         self,
-        columns: List[Union[np.ndarray, DfCatAccessor, "pa.DictionaryType"]],
+        columns: List[Union[np.ndarray, DfCatAccessor]],
         ref_categories: Optional[Categories],
     ) -> None:
         self.columns = columns
@@ -624,14 +621,14 @@ class PandasTransformed(TransformedDf):
 
         # Get the array interface representation for each column.
         for col in self.columns:
-            inf = array_interface_dict(col)
-            if isinstance(inf, tuple):
+            if _is_df_cat(col):
                 # Categorical column
-                jnames, jcodes, buf = inf
-                # Store the transformed results to avoid garbage collection.
+                jnames, jcodes, buf = pd_cats_inf(col.categories, col.codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
             else:
+                assert isinstance(col, np.ndarray)
+                inf = array_interface_dict(col)
                 # Numeric column
                 aitfs.append(inf)
 
@@ -802,22 +799,11 @@ class ArrowTransformed(TransformedDf):
                     raise TypeError(
                         "Only string-based categorical index is supported for arrow."
                     )
-                jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
+                jnames, jcodes, buf = arrow_cat_inf(cats, codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
             else:
-                mask, data = col.buffers()
-
-                assert data.is_cpu
-                assert col.offset == 0
-
-                jdata = make_array_interface(
-                    data.address,
-                    shape=(len(col),),
-                    dtype=_arrow_npdtype()[col.type],
-                    is_cuda=not data.is_cpu,
-                )
-                jdata["mask"] = _arrow_mask_inf(mask, len(col))
+                jdata = _arrow_array_inf(col)
                 aitfs.append(jdata)
 
         for col in self.columns:
@@ -1069,9 +1055,8 @@ class CudfTransformed(TransformedDf):
         def push_series(ser: Any) -> None:
             if _is_df_cat(ser):
                 cats, codes = ser.categories, ser.codes
-                cats_ainf: Union[StringArray, ArrayInf]  # string or numeric index
                 cats_ainf, codes_ainf, buf = cudf_cat_inf(cats, codes)
-                self.temporary_buffers.append(buf)
+                self.temporary_buffers.append((buf, ser))
                 aitfs.append((cats_ainf, codes_ainf))
             else:
                 # numeric column

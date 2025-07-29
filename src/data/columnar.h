@@ -8,7 +8,6 @@
 #include <algorithm>    // for max
 #include <cstddef>      // for size_t
 #include <cstdint>      // for int32_t
-#include <numeric>      // for partial_sum
 #include <type_traits>  // for is_floating_point_v
 #include <vector>       // for vector
 
@@ -18,6 +17,12 @@
 #include "xgboost/context.h"      // for DeviceOrd
 #include "xgboost/json.h"         // for Json, Object
 #include "xgboost/span.h"         // for Span
+
+#if !defined(XGBOOST_USE_CUDA)
+#include "../common/common.h"  // for AssertGPUSupport
+#else
+#include <cuda_runtime_api.h>  // for cudaMemcpy
+#endif
 
 namespace xgboost::data {
 /**
@@ -34,6 +39,44 @@ auto GetArrowNames(Object::Map const& jnames, std::vector<CategoricalIndex>* p_c
   auto offset = ArrayInterface<1>{joffset};
   auto const& jstr = get<Object const>(jnames.at("values"));
   auto strbuf = ArrayInterface<1>(jstr);
+
+  // Obtain the size of the string buffer using the offset
+  CHECK_GE(offset.n, 2);
+  auto offset_last_idx = offset.n - 1;
+  if (ArrayInterfaceHandler::IsCudaPtr(offset.data)) {
+    CHECK_EQ(strbuf.n, 0);  // Unknown
+#if defined(XGBOOST_USE_CUDA)
+    DispatchDType(offset.type, [&](auto t) {
+      using T = decltype(t);
+      if (!std::is_same_v<T, std::int32_t>) {
+        LOG(FATAL) << "Invalid type for the string offset from category index.";
+      }
+#if defined(__CUDACC__)
+#pragma nv_diagnostic push
+#pragma nv_diag_suppress 20208  // long double is treated as double in device code
+#endif  // defined(__CUDACC__)
+      T back{0};
+      dh::safe_cuda(cudaMemcpy(&back, static_cast<T const*>(offset.data) + offset_last_idx,
+                               sizeof(T), cudaMemcpyDeviceToHost));
+      strbuf.n = back;
+#if defined(__CUDACC__)
+#pragma nv_diagnostic pop
+#endif  // defined(__CUDACC__)
+    });
+#else
+    common::AssertGPUSupport();
+#endif
+  } else {
+    DispatchDType(offset.type, [&](auto t) {
+      using T = decltype(t);
+      if (!std::is_same_v<T, std::int32_t>) {
+        LOG(FATAL) << "Invalid type for the string offset from category index.";
+      }
+      auto back = offset(offset_last_idx);
+      strbuf.n = back;
+    });
+  }
+
   CHECK_EQ(strbuf.type, ArrayInterfaceHandler::kI1);
   CHECK_EQ(offset.type, ArrayInterfaceHandler::kI4);
   auto names = enc::CatStrArrayView{

@@ -1383,7 +1383,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             arrow_arrays = None
             _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(hdl)))
 
-        return Categories(hdl, arrow_arrays)
+        return Categories(
+            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
+        )
 
     def num_row(self) -> int:
         """Get the number of rows in the DMatrix."""
@@ -2364,9 +2366,11 @@ class Booster:
             )
         else:
             arrow_arrays = None
-            _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(hdl)))
+            _check_call(_LIB.XGBoosterGetCategories(self.handle, ctypes.byref(hdl)))
 
-        return Categories(hdl, arrow_arrays)
+        return Categories(
+            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
+        )
 
     def set_param(
         self,

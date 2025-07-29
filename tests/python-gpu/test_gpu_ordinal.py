@@ -9,7 +9,6 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import make_categorical
 from xgboost.testing.ordinal import (
-    run_training_continuation,
     run_cat_container,
     run_cat_container_iter,
     run_cat_container_mixed,
@@ -20,6 +19,8 @@ from xgboost.testing.ordinal import (
     run_cat_thread_safety,
     run_recode_dmatrix,
     run_specified_cat,
+    run_training_continuation,
+    run_update,
     run_validation,
 )
 
@@ -119,3 +120,7 @@ def test_recode_dmatrix() -> None:
 
 def test_training_continuation() -> None:
     run_training_continuation("cuda")
+
+
+def test_update() -> None:
+    run_update("cuda")

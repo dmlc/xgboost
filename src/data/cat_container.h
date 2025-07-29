@@ -10,6 +10,7 @@
 #include <mutex>    // for mutex
 #include <string>   // for string
 #include <tuple>    // for tuple
+#include <utility>  // for move
 #include <vector>   // for vector
 
 #include "../common/categorical.h"       // for AsCat

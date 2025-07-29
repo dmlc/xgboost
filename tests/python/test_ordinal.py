@@ -13,6 +13,7 @@ from xgboost.testing.ordinal import (
     run_recode_dmatrix,
     run_specified_cat,
     run_training_continuation,
+    run_update,
     run_validation,
 )
 
@@ -65,3 +66,7 @@ def test_recode_dmatrix() -> None:
 
 def test_training_continuation() -> None:
     run_training_continuation("cpu")
+
+
+def test_update() -> None:
+    run_update("cpu")
