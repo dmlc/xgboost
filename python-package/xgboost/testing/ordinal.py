@@ -53,7 +53,7 @@ def asarray(device: Device, data: Any) -> np.ndarray:
 
 
 def assert_allclose(
-    device: Device, a: Any, b: Any, rtol: float = 1e-7, atol: float = 0
+    device: Device, a: Any, b: Any, *, rtol: float = 1e-7, atol: float = 0
 ) -> None:
     """Dispatch the assert_allclose for devices."""
     if device == "cpu":

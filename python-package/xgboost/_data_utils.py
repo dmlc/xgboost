@@ -672,8 +672,6 @@ class Categories:
 
     def __del__(self) -> None:
         self._free()
-        del self._handle
-        del self._free
 
 
 def get_ref_categories(
