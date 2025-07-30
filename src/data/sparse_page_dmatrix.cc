@@ -51,8 +51,7 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
     } else {
       common::AssertGPUSupport();
 #if defined(XGBOOST_USE_CUDA)
-      return std::make_shared<CatContainer>(proxy->Ctx()->Device(),
-                                            cuda_impl::BatchCats(proxy, true));
+      return std::make_shared<CatContainer>(proxy->Ctx(), cuda_impl::BatchCats(proxy, true));
 #else
       common::AssertGPUSupport();
       return std::make_shared<CatContainer>();

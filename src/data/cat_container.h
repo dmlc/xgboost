@@ -146,7 +146,7 @@ class CatContainer {
   CatContainer();
   explicit CatContainer(enc::HostColumnsView const& df);
 #if defined(XGBOOST_USE_CUDA)
-  explicit CatContainer(DeviceOrd device, enc::DeviceColumnsView const& df);
+  explicit CatContainer(Context const* ctx, enc::DeviceColumnsView const& df);
 #endif  // defined(XGBOOST_USE_CUDA)
   ~CatContainer();
 

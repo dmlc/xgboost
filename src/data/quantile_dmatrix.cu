@@ -80,7 +80,7 @@ void MakeSketches(Context const* ctx,
     auto cats = cuda_impl::BatchCats(proxy, true);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
-      ext_info.cats = std::make_shared<CatContainer>(device, cats);
+      ext_info.cats = std::make_shared<CatContainer>(p_ctx, cats);
       auto rc = collective::Allreduce(ctx, linalg::MakeVec(&ext_info.n_features, 1),
                                       collective::Op::kMax);
       SafeColl(rc);

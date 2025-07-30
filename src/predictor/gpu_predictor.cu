@@ -1143,7 +1143,7 @@ class GPUPredictor : public xgboost::Predictor {
       if (m->HasCategorical()) {
         // FIXME(jiamingy): Remove this container construction once cuDF can return device
         // arrow.
-        auto container = std::make_shared<CatContainer>(m->Device(), m->Cats());
+        auto container = std::make_shared<CatContainer>(ctx_, m->Cats());
         auto new_enc = container->DeviceView(this->ctx_);
         cfg.LaunchPredict<PartialLoader<BatchT>::template Type>(
             this->ctx_, m->Value(), missing, n_samples, n_features, d_model, false, new_enc, 0,

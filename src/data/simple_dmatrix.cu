@@ -58,9 +58,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
 
   if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
     if (adapter->HasRefCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(adapter->Device(), adapter->RefCats()));
+      info_.Cats(std::make_shared<CatContainer>(&ctx, adapter->RefCats()));
     } else if (adapter->HasCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(adapter->Device(), adapter->Cats()));
+      info_.Cats(std::make_shared<CatContainer>(&ctx, adapter->Cats()));
     }
   }
   this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
