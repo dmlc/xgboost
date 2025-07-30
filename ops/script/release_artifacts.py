@@ -154,6 +154,7 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
     ]
     minimal_platforms = [
         "win_amd64",
+        "win_arm64",
         "manylinux2014_x86_64",
         "manylinux2014_aarch64",
     ]
