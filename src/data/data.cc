@@ -30,7 +30,8 @@
 #include "../common/numeric.h"                // for Iota, RunLengthEncode
 #include "../common/threading_utils.h"        // for ParallelFor
 #include "../common/version.h"                // for Version
-#include "../data/adapter.h"                  // for COOTuple, FileAdapter, IsValidFunctor
+#include "../data/adapter.h"                  // for FileAdapter
+#include "../data/entry.h"                    // for COOTuple, IsValidFunctor
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
 #include "../data/iterative_dmatrix.h"        // for IterativeDMatrix
 #include "./sparse_page_dmatrix.h"            // for SparsePageDMatrix

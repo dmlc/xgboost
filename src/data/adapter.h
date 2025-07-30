@@ -384,17 +384,18 @@ class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch>
 
 template <typename EncAccessor>
 class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
-  common::Span<ArrayInterface<1> const> columns_;
+  using ArrayInf = std::add_const_t<ArrayInterface<1>>;
+
+  common::Span<ArrayInf> columns_;
   EncAccessor acc_;
 
   class Line {
-    common::Span<ArrayInterface<1> const> const& columns_;
+    common::Span<ArrayInf> const& columns_;
     std::size_t const ridx_;
     EncAccessor const& acc_;
 
    public:
-    explicit Line(common::Span<ArrayInterface<1> const> const& columns, EncAccessor const& acc,
-                  std::size_t ridx)
+    explicit Line(common::Span<ArrayInf> const& columns, EncAccessor const& acc, std::size_t ridx)
         : columns_{columns}, ridx_{ridx}, acc_{acc} {}
     [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
 
@@ -409,8 +410,7 @@ class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
 
  public:
   EncColumnarAdapterBatchImpl() = default;
-  explicit EncColumnarAdapterBatchImpl(common::Span<ArrayInterface<1> const> columns,
-                                       EncAccessor acc)
+  explicit EncColumnarAdapterBatchImpl(common::Span<ArrayInf> columns, EncAccessor acc)
       : columns_{columns}, acc_{std::move(acc)} {}
   [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, this->acc_, ridx}; }
   [[nodiscard]] std::size_t Size() const {
@@ -430,9 +430,7 @@ using EncColumnarAdapterBatch = EncColumnarAdapterBatchImpl<CatAccessor>;
  *
  *   Supports both numeric values and categorical values.
  *
- * This is the most complicated adapter in XGBoost, by far. We started support for
- * auto-recoding of categorical features in 3.1, as a result, there are multiple input
- * formats for this adapter, depending on whether a reference encoding is present.
+ * See @ref XGDMatrixCreateFromColumnar for notes
  */
 class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch> {
   std::vector<ArrayInterface<1>> columns_;

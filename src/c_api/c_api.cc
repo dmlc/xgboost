@@ -21,7 +21,7 @@
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"   // for OmpGetNumThreads, ParallelFor
-#include "../data/adapter.h"             // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
+#include "../data/adapter.h"             // for ArrayAdapter, DenseAdapter
 #include "../data/batch_utils.h"         // for MatchingPageBytes, CachePageRatio
 #include "../data/cat_container.h"       // for CatContainer
 #include "../data/ellpack_page.h"        // for EllpackPage

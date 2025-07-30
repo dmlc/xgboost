@@ -1373,7 +1373,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         hdl = ctypes.c_void_p()
         if export_to_arrow:
             arrow_arrays = _get_categories(
-                lambda ret: _LIB.XGBMatrixGetCategoriesExportToArrow(
+                lambda ret: _LIB.XGDMatrixGetCategoriesExportToArrow(
                     self.handle, None, ctypes.byref(hdl), ctypes.byref(ret)
                 ),
                 fnames,

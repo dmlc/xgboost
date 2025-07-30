@@ -1,3 +1,6 @@
+/**
+ *  Copyright 2019-2025, XGBoost Contributors
+ */
 #pragma once
 
 #include "../common/math.h"  // for CheckNAN
