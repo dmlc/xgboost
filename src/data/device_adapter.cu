@@ -16,8 +16,10 @@ auto GetRefCats(Context const* ctx, Json handle,
   // FIXME(jiamingy): Remove this along with the host copy in the cat container once
   // cuDF can return device-only data.
   h_ref_cats.resize(d_cats.columns.size());
-  thrust::copy(ctx->CUDACtx()->CTP(), dh::tcbegin(d_cats.columns), dh::tcend(d_cats.columns),
-               h_ref_cats.begin());
+  if (!h_ref_cats.empty()) {
+    thrust::copy(ctx->CUDACtx()->CTP(), dh::tcbegin(d_cats.columns), dh::tcend(d_cats.columns),
+                 h_ref_cats.begin());
+  }
   d_cats.columns = common::Span{h_ref_cats};
   return d_cats;
 }
