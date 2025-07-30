@@ -757,7 +757,7 @@ typedef  void * CategoriesHandle;  // NOLINT
 /**
  * Fetching categories is experimental (3.1), C functions are hidden at the moment.
  *
- * No actual container method is exposed through the C API. It's just an opaque handler at
+ * No actual container method is exposed through the C API. It's just an opaque handle at
  * the moment. This way we get to reuse the methods and the context from the DMatrix and
  * Booster.
  */
@@ -769,7 +769,8 @@ typedef  void * CategoriesHandle;  // NOLINT
  *
  * @return 0 when success, -1 when failure happens.
  */
-XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, CategoriesHandle *out) {
+XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/,
+                                   CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
 
@@ -790,8 +791,8 @@ XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, CategoriesHandle *out)
  *
  * @return 0 when success, -1 when failure happens.
  */
-XGB_DLL int XGBDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, CategoriesHandle *out,
-                                                 char const **export_out) {
+XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const * /*config*/,
+                                                CategoriesHandle *out, char const **export_out) {
   API_BEGIN();
   CHECK_HANDLE()
 
@@ -1748,9 +1749,10 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
  * Experimental (3.1), hidden.
  */
 /**
- * See @ref XGBDMatrixGetCategories
+ * See @ref XGDMatrixGetCategories
  */
-XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, CategoriesHandle *out) {
+XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, char const * /*config*/,
+                                   CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
 
@@ -1763,10 +1765,10 @@ XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, CategoriesHandle *out) 
   API_END()
 }
 /**
- * See @ref XGBDMatrixGetCategoriesExportToArrow
+ * See @ref XGDMatrixGetCategoriesExportToArrow
  */
-XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, CategoriesHandle *out,
-                                                char const **export_out) {
+XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const * /*config*/,
+                                                CategoriesHandle *out, char const **export_out) {
   API_BEGIN()
   CHECK_HANDLE()
 

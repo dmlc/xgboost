@@ -1373,15 +1373,17 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         hdl = ctypes.c_void_p()
         if export_to_arrow:
             arrow_arrays = _get_categories(
-                lambda ret: _LIB.XGBDMatrixGetCategoriesExportToArrow(
-                    self.handle, ctypes.byref(hdl), ctypes.byref(ret)
+                lambda ret: _LIB.XGBMatrixGetCategoriesExportToArrow(
+                    self.handle, None, ctypes.byref(hdl), ctypes.byref(ret)
                 ),
                 fnames,
                 n_features,
             )
         else:
             arrow_arrays = None
-            _check_call(_LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(hdl)))
+            _check_call(
+                _LIB.XGDMatrixGetCategories(self.handle, None, ctypes.byref(hdl))
+            )
 
         return Categories(
             (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
@@ -2359,14 +2361,16 @@ class Booster:
         if export_to_arrow:
             arrow_arrays = _get_categories(
                 lambda ret: _LIB.XGBoosterGetCategoriesExportToArrow(
-                    self.handle, ctypes.byref(hdl), ctypes.byref(ret)
+                    self.handle, None, ctypes.byref(hdl), ctypes.byref(ret)
                 ),
                 fnames,
                 n_features,
             )
         else:
             arrow_arrays = None
-            _check_call(_LIB.XGBoosterGetCategories(self.handle, ctypes.byref(hdl)))
+            _check_call(
+                _LIB.XGBoosterGetCategories(self.handle, None, ctypes.byref(hdl))
+            )
 
         return Categories(
             (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
