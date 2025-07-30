@@ -103,14 +103,18 @@ struct CatContainerImpl {
                        auto& out_str = std::get<cpu_impl::CatStrArray>(out_col);
                        // Offsets
                        out_str.offsets.resize(str.offsets.size());
-                       dh::safe_cuda(cudaMemcpyAsync(
-                           out_str.offsets.data(), thrust::raw_pointer_cast(str.offsets.data()),
-                           common::Span{out_str.offsets}.size_bytes(), cudaMemcpyDefault));
+                       if (!out_str.offsets.empty()) {
+                         dh::safe_cuda(cudaMemcpyAsync(
+                             out_str.offsets.data(), thrust::raw_pointer_cast(str.offsets.data()),
+                             common::Span{out_str.offsets}.size_bytes(), cudaMemcpyDefault));
+                       }
                        // Values
                        out_str.values.resize(str.values.size());
-                       dh::safe_cuda(cudaMemcpyAsync(
-                           out_str.values.data(), thrust::raw_pointer_cast(str.values.data()),
-                           common::Span{out_str.values}.size_bytes(), cudaMemcpyDefault));
+                       if (!out_str.values.empty()) {
+                         dh::safe_cuda(cudaMemcpyAsync(
+                             out_str.values.data(), thrust::raw_pointer_cast(str.values.data()),
+                             common::Span{out_str.values}.size_bytes(), cudaMemcpyDefault));
+                       }
                      },
                      [&](auto&& values) {
                        using T0 = decltype(values);
@@ -119,9 +123,11 @@ struct CatContainerImpl {
                        out_col.emplace<Vec>();
                        auto& out_vec = std::get<Vec>(out_col);
                        out_vec.resize(values.size());
-                       dh::safe_cuda(
-                           cudaMemcpyAsync(out_vec.data(), thrust::raw_pointer_cast(values.data()),
-                                           common::Span{out_vec}.size_bytes(), cudaMemcpyDefault));
+                       if (!out_vec.empty()) {
+                         dh::safe_cuda(cudaMemcpyAsync(
+                             out_vec.data(), thrust::raw_pointer_cast(values.data()),
+                             common::Span{out_vec}.size_bytes(), cudaMemcpyDefault));
+                       }
                      }},
                  col);
     }
