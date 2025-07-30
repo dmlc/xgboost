@@ -143,7 +143,7 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
 inline auto MakeEncColumnarBatch(Context const* ctx, CudfAdapter const* adapter) {
   auto cats = std::make_unique<CatContainer>(ctx, adapter->RefCats());
   cats->Sort(ctx);
-  auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, adapter->Cats(), cats.get());
+  auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, adapter->DCats(), cats.get());
   return std::tuple{EncCudfAdapterBatch{adapter->Columns(), acc, adapter->NumRows()},
                     std::move(mapping)};
 }
