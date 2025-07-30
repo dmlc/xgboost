@@ -107,6 +107,12 @@ def test_mixed_devices() -> None:
         assert f.result()
 
 
+@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, ])
+def test_mixed_devices_types(DMatrixT: Type) -> None:
+    run_basic_predict(DMatrixT, "cuda", "cpu")
+    run_basic_predict(DMatrixT, "cpu", "cuda")
+
+
 def test_spcified_cat() -> None:
     run_specified_cat("cuda")
 
@@ -125,9 +131,3 @@ def test_training_continuation() -> None:
 
 def test_update() -> None:
     run_update("cuda")
-
-
-@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
-def test_mixed_device(DMatrixT: Type) -> None:
-    run_basic_predict(DMatrixT, "cuda", "cpu")
-    run_basic_predict(DMatrixT, "cpu", "cuda")

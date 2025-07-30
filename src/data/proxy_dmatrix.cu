@@ -4,6 +4,7 @@
 #include "../encoder/ordinal.h"  // for DeviceColumnsView
 #include "device_adapter.cuh"
 #include "proxy_dmatrix.cuh"
+#include "../common/type.h"  // for GetValueT
 #include "proxy_dmatrix.h"
 
 namespace xgboost::data {
@@ -41,6 +42,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
                                                 float missing) {
   return Dispatch<false>(proxy.get(), [&](auto const& adapter) {
     auto p_fmat = std::shared_ptr<DMatrix>{DMatrix::Create(adapter.get(), missing, ctx->Threads())};
+    CHECK_EQ(p_fmat->Info().num_row_, adapter->NumRows());
     return p_fmat;
   });
 }
@@ -55,7 +57,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 
 [[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const* proxy, bool ref_if_avail) {
   return Dispatch<false>(proxy, [&](auto const& adapter) {
-    using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
+    using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
       if (ref_if_avail && adapter->HasRefCategorical()) {
         return adapter->RefCats();

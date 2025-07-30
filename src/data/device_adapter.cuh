@@ -176,8 +176,8 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   dh::device_vector<std::int32_t> cat_segments_;
   std::int32_t n_total_cats_{0};
 
-  enc::DeviceColumnsView ref_cats_;
-  std::vector<enc::DeviceCatIndexView> h_ref_cats_;
+  enc::DeviceColumnsView ref_cats_;                  // A view to the reference category.
+  std::vector<enc::DeviceCatIndexView> h_ref_cats_;  // host storage for column view
 
   size_t num_rows_{0};
   bst_idx_t n_bytes_{0};

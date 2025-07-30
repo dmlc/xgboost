@@ -33,7 +33,7 @@ void DMatrixProxy::SetArray(StringView data) {
 }
 
 void DMatrixProxy::SetCsr(char const *c_indptr, char const *c_indices, char const *c_values,
-                              bst_feature_t n_features, bool on_host) {
+                          bst_feature_t n_features, bool on_host) {
   CHECK(on_host) << "Not implemented on device.";
   std::shared_ptr<CSRArrayAdapter> adapter{new CSRArrayAdapter(
       StringView{c_indptr}, StringView{c_indices}, StringView{c_values}, n_features)};
@@ -49,14 +49,7 @@ void DMatrixProxy::SetCudaColumnar(StringView) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
 namespace cuda_impl {
-std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
-                                                std::shared_ptr<DMatrixProxy> proxy, float missing);
 #if !defined(XGBOOST_USE_CUDA)
-std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *, std::shared_ptr<DMatrixProxy>,
-                                                float) {
-  return nullptr;
-}
-
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const *) {
   common::AssertGPUSupport();
   return 0;
@@ -65,6 +58,9 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *, std::shared_ptr
   common::AssertGPUSupport();
   return 0;
 }
+#else
+std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
+                                                std::shared_ptr<DMatrixProxy> proxy, float missing);
 #endif  // XGBOOST_USE_CUDA
 }  // namespace cuda_impl
 
@@ -73,21 +69,27 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
                                                 float missing) {
   bool type_error{false};
   std::shared_ptr<DMatrix> p_fmat{nullptr};
+
   if (proxy->Ctx()->IsCUDA()) {
+#if defined(XGBOOST_USE_CUDA)
     p_fmat = cuda_impl::CreateDMatrixFromProxy(ctx, proxy, missing);
+#else
+    common::AssertGPUSupport();
+#endif
   } else {
     p_fmat = data::HostAdapterDispatch<false>(
         proxy.get(),
         [&](auto const &adapter) {
           auto p_fmat =
               std::shared_ptr<DMatrix>(DMatrix::Create(adapter.get(), missing, ctx->Threads()));
+          CHECK_EQ(p_fmat->Info().num_row_, adapter->NumRows());
           return p_fmat;
         },
         &type_error);
   }
 
   CHECK(p_fmat) << "Failed to fallback.";
-  p_fmat->Info() = proxy->Info().Copy();
+  p_fmat->Info().Extend(proxy->Info(), /*accumulate_rows=*/false, true);
   return p_fmat;
 }
 }  // namespace xgboost::data

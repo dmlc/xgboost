@@ -318,18 +318,20 @@ def run_basic_predict(DMatrixT: Type, device: Device, tdevice: Device) -> None:
     df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
     y = np.array([0, 1, 2])
 
+    # 1, 0, 2
     codes = df.c.cat.codes
-    encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
+    encoded = np.array([codes.iloc[2], codes.iloc[1]])
+    np.testing.assert_allclose(encoded, [2, 0])
 
     Xy = DMatrixT(df, y, enable_categorical=True)
     booster = train({"device": tdevice}, Xy, num_boost_round=4)
 
     df = Df({"c": ["def", "abc"]}, dtype="category")
     codes = df.c.cat.codes
+    assert_allclose(device, codes, np.array([1, 0]))
 
     predt0 = booster.inplace_predict(df)
     predt1 = booster.inplace_predict(encoded)
-
     assert_allclose(device, predt0, predt1)
 
     fmat = DMatrixT(df, enable_categorical=True)

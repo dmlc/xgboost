@@ -14,6 +14,7 @@
 #include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../encoder/ordinal.h"    // for HostColumnsView
 #include "adapter.h"               // for ColumnarAdapter, ArrayAdapter, MakeEncColumnarBatch
+#include "cat_container.h"         // for CatContainer
 #include "xgboost/c_api.h"         // for DataIterHandle
 #include "xgboost/context.h"       // for Context
 #include "xgboost/data.h"          // for MetaInfo
@@ -86,7 +87,7 @@ class DMatrixProxy : public DMatrix {
   void SetColumnar(StringView data);
   void SetArray(StringView data);
   void SetCsr(char const* c_indptr, char const* c_indices, char const* c_values,
-                  bst_feature_t n_features, bool on_host);
+              bst_feature_t n_features, bool on_host);
 
   MetaInfo& Info() override { return info_; }
   MetaInfo const& Info() const override { return info_; }
@@ -243,6 +244,8 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
 
 /**
  * @brief Create a `SimpleDMatrix` instance from a `DMatrixProxy`.
+ *
+ *    This is used for enabling inplace-predict fallback.
  */
 std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
                                                 std::shared_ptr<DMatrixProxy> proxy, float missing);

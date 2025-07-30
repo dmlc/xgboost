@@ -14,6 +14,7 @@
 #include "cat_container.cuh"             // for CatStrArray
 #include "cat_container.h"               // for CatContainer
 #include "xgboost/span.h"                // for Span
+#include "../common/type.h"  // for GetValueT
 
 namespace xgboost {
 namespace cuda_impl {
@@ -65,7 +66,7 @@ struct CatContainerImpl {
             col_v = dh::ToSpan(col);
           }};
       auto visit = [&](auto const& col) {
-        using ColT = std::remove_cv_t<std::remove_reference_t<decltype(col)>>;
+        using ColT = common::GetValueT<decltype(col)>;
         if constexpr (std::is_same_v<ColT, enc::HostCatIndexView>) {
           std::visit(dispatch, col);
         } else {
