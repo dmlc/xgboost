@@ -1,6 +1,6 @@
 #################################
 3.0.3 Patch Release (Jul 30 2025)
-################################
+#################################
 
 - Fix NDCG metric with non-exp gain. (:pr:`11534`)
 - Avoid using mean intercept for ``rmsle``. (:pr:`11588`)
