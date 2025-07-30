@@ -209,8 +209,6 @@ class CatContainer {
   [[nodiscard]] enc::DeviceColumnsView DeviceView(Context const* ctx) const;
 #endif  // defined(XGBOOST_USE_CUDA)
 
-  [[nodiscard]] std::string& ArrowJsonBuffer() { return arrow_buf_; }
-
  private:
   mutable std::mutex device_mu_;  // mutex for copying between devices.
   HostDeviceVector<std::int32_t> feature_segments_;
@@ -222,8 +220,6 @@ class CatContainer {
 #if defined(XGBOOST_USE_CUDA)
   std::unique_ptr<cuda_impl::CatContainerImpl> cu_impl_;
 #endif  // defined(XGBOOST_USE_CUDA)
-
-  std::string arrow_buf_;
 };
 
 /**

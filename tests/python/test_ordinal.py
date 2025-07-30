@@ -52,7 +52,7 @@ def test_cat_leaf() -> None:
     run_cat_leaf("cpu")
 
 
-def test_spcified_cat() -> None:
+def test_specified_cat() -> None:
     run_specified_cat("cpu")
 
 

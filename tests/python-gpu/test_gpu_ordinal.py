@@ -113,7 +113,7 @@ def test_mixed_devices_types(DMatrixT: Type) -> None:
     run_basic_predict(DMatrixT, "cpu", "cuda")
 
 
-def test_spcified_cat() -> None:
+def test_specified_cat() -> None:
     run_specified_cat("cuda")
 
 
