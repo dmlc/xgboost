@@ -451,16 +451,16 @@ def _run_predt(
     df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
     y = np.array([0, 1, 2])
 
+    # 1, 0, 2
     codes = df.c.cat.codes
     encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
+    np.testing.assert_allclose(encoded, [2, 0])
 
     Xy = DMatrixT(df, y, enable_categorical=True)
     booster = train({"device": device}, Xy, num_boost_round=4)
 
     df = Df({"c": ["def", "abc"]}, dtype="category")
-    codes = df.c.cat.codes
 
-    # Contribution
     predt0 = booster.predict(
         _make_dm(DMatrixT, ref=Xy, data=df),
         pred_contribs=pred_contribs,
