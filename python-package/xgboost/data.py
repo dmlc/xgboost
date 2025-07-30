@@ -1056,7 +1056,7 @@ class CudfTransformed(TransformedDf):
             if _is_df_cat(ser):
                 cats, codes = ser.categories, ser.codes
                 cats_ainf, codes_ainf, buf = cudf_cat_inf(cats, codes)
-                self.temporary_buffers.append((buf, ser))
+                self.temporary_buffers.append(buf)
                 aitfs.append((cats_ainf, codes_ainf))
             else:
                 # numeric column
