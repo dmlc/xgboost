@@ -25,7 +25,7 @@ TEST(ProxyDMatrix, DeviceData) {
                     .GenerateColumnarArrayInterface(&label_storage);
 
   DMatrixProxy proxy;
-  proxy.SetCudaColumnar(data.c_str());
+  proxy.SetCudaArray(data.c_str());
   proxy.SetInfo("label", labels.c_str());
 
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CupyAdapter>));
