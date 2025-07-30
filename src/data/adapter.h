@@ -390,7 +390,7 @@ class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
   class Line {
     common::Span<ArrayInterface<1> const> const& columns_;
     std::size_t const ridx_;
-    CatAccessor const& acc_;
+    EncAccessor const& acc_;
 
    public:
     explicit Line(common::Span<ArrayInterface<1> const> const& columns, EncAccessor const& acc,
@@ -410,8 +410,8 @@ class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
  public:
   EncColumnarAdapterBatchImpl() = default;
   explicit EncColumnarAdapterBatchImpl(common::Span<ArrayInterface<1> const> columns,
-                                       CatAccessor acc)
-      : columns_{columns}, acc_{acc} {}
+                                       EncAccessor acc)
+      : columns_{columns}, acc_{std::move(acc)} {}
   [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, this->acc_, ridx}; }
   [[nodiscard]] std::size_t Size() const {
     return columns_.empty() ? 0 : columns_.front().Shape<0>();
@@ -422,77 +422,8 @@ class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
   static constexpr bool kIsRowMajor = true;
 };
 
-class ColumnarAdapterBatch : public EncColumnarAdapterBatchImpl<NoOpAccessor> {
-  common::Span<ArrayInterface<1>> columns_;
-
-  class Line {
-    common::Span<ArrayInterface<1>> const& columns_;
-    std::size_t const ridx_;
-
-   public:
-    explicit Line(common::Span<ArrayInterface<1>> const& columns, std::size_t ridx)
-        : columns_{columns}, ridx_{ridx} {}
-    [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
-
-    [[nodiscard]] COOTuple GetElement(std::size_t fidx) const {
-      auto const& column = columns_.data()[fidx];
-      float value = column.valid.Data() == nullptr || column.valid.Check(ridx_)
-                        ? column(ridx_)
-                        : std::numeric_limits<float>::quiet_NaN();
-      return {ridx_, fidx, value};
-    }
-  };
-
- public:
-  ColumnarAdapterBatch() = default;
-  explicit ColumnarAdapterBatch(common::Span<ArrayInterface<1>> columns) : columns_{columns} {}
-  [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, ridx}; }
-  [[nodiscard]] std::size_t Size() const {
-    return columns_.empty() ? 0 : columns_.front().Shape<0>();
-  }
-  [[nodiscard]] std::size_t NumCols() const { return columns_.empty() ? 0 : columns_.size(); }
-  [[nodiscard]] std::size_t NumRows() const { return this->Size(); }
-
-  static constexpr bool kIsRowMajor = true;
-};
-
-class EncColumnarAdapterBatch : public detail::NoMetaInfo {
-  common::Span<ArrayInterface<1> const> columns_;
-  CatAccessor acc_;
-
-  class Line {
-    common::Span<ArrayInterface<1> const> const& columns_;
-    std::size_t const ridx_;
-    CatAccessor const& acc_;
-
-   public:
-    explicit Line(common::Span<ArrayInterface<1> const> const& columns, CatAccessor const& acc,
-                  std::size_t ridx)
-        : columns_{columns}, ridx_{ridx}, acc_{acc} {}
-    [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
-
-    [[nodiscard]] COOTuple GetElement(std::size_t fidx) const {
-      auto const& column = columns_.data()[fidx];
-      float value = column.valid.Data() == nullptr || column.valid.Check(ridx_)
-                        ? column(ridx_)
-                        : std::numeric_limits<float>::quiet_NaN();
-      return {ridx_, fidx, acc_(value, fidx)};
-    }
-  };
-
- public:
-  EncColumnarAdapterBatch() = default;
-  explicit EncColumnarAdapterBatch(common::Span<ArrayInterface<1> const> columns, CatAccessor acc)
-      : columns_{columns}, acc_{acc} {}
-  [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, this->acc_, ridx}; }
-  [[nodiscard]] std::size_t Size() const {
-    return columns_.empty() ? 0 : columns_.front().Shape<0>();
-  }
-  [[nodiscard]] std::size_t NumCols() const { return columns_.empty() ? 0 : columns_.size(); }
-  [[nodiscard]] std::size_t NumRows() const { return this->Size(); }
-
-  static constexpr bool kIsRowMajor = true;
-};
+using ColumnarAdapterBatch = EncColumnarAdapterBatchImpl<NoOpAccessor>;
+using EncColumnarAdapterBatch = EncColumnarAdapterBatchImpl<CatAccessor>;
 
 /**
  * @brief Adapter for columnar format (arrow).

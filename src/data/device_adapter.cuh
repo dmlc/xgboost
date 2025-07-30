@@ -23,51 +23,18 @@
 #include "xgboost/string_view.h"  // for StringView
 
 namespace xgboost::data {
-class CudfAdapterBatch : public detail::NoMetaInfo {
-  friend class CudfAdapter;
-
- public:
-  CudfAdapterBatch() = default;
-  CudfAdapterBatch(common::Span<ArrayInterface<1>> columns, size_t num_rows)
-      : columns_(columns), num_rows_(num_rows) {}
-  [[nodiscard]] std::size_t Size() const { return num_rows_ * columns_.size(); }
-  [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(bst_idx_t idx) const {
-    auto column_idx = idx % columns_.size();
-    auto row_idx = idx / columns_.size();
-    auto const& column = columns_[column_idx];
-    float value = column.valid.Data() == nullptr || column.valid.Check(row_idx)
-                      ? column(row_idx)
-                      : std::numeric_limits<float>::quiet_NaN();
-    return {row_idx, column_idx, value};
-  }
-
-  [[nodiscard]] __device__ float GetElement(bst_idx_t ridx, bst_feature_t fidx) const {
-    auto const& column = columns_[fidx];
-    float value = column.valid.Data() == nullptr || column.valid.Check(ridx)
-                      ? column(ridx)
-                      : std::numeric_limits<float>::quiet_NaN();
-    return value;
-  }
-
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return num_rows_; }
-  [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return columns_.size(); }
-
- private:
-  common::Span<ArrayInterface<1>> columns_;
-  size_t num_rows_{0};
-};
-
-class EncCudfAdapterBatch : public detail::NoMetaInfo {
+template <typename EncAccessor>
+class EncCudfAdapterBatchImpl : public detail::NoMetaInfo {
  private:
   common::Span<ArrayInterface<1> const> columns_;
   bst_idx_t n_samples_{0};
-  CatAccessor acc_;
+  EncAccessor acc_;
 
  public:
-  EncCudfAdapterBatch() = default;
-  EncCudfAdapterBatch(common::Span<ArrayInterface<1> const> columns, CatAccessor const& acc,
-                      bst_idx_t n_samples)
-      : columns_(columns), n_samples_(n_samples), acc_{acc} {}
+  EncCudfAdapterBatchImpl() = default;
+  EncCudfAdapterBatchImpl(common::Span<ArrayInterface<1> const> columns, EncAccessor acc,
+                          bst_idx_t n_samples)
+      : columns_(columns), n_samples_(n_samples), acc_{std::move(acc)} {}
   [[nodiscard]] std::size_t Size() const { return n_samples_ * columns_.size(); }
   [[nodiscard]] __device__ __forceinline__ COOTuple GetElement(bst_idx_t idx) const {
     auto column_idx = idx % columns_.size();
@@ -86,7 +53,11 @@ class EncCudfAdapterBatch : public detail::NoMetaInfo {
 
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumRows() const { return n_samples_; }
   [[nodiscard]] XGBOOST_DEVICE bst_idx_t NumCols() const { return columns_.size(); }
+  [[nodiscard]] common::Span<ArrayInterface<1> const> Columns() const { return this->columns_; }
 };
+
+using CudfAdapterBatch = EncCudfAdapterBatchImpl<NoOpAccessor>;
+using EncCudfAdapterBatch = EncCudfAdapterBatchImpl<CatAccessor>;
 
 /*!
  * Please be careful that, in official specification, the only three required
@@ -143,7 +114,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
       : CudfAdapter{StringView{cuda_interfaces_str}} {}
 
   [[nodiscard]] CudfAdapterBatch const& Value() const override {
-    CHECK_EQ(batch_.columns_.data(), columns_.data().get());
+    CHECK_EQ(batch_.Columns().data(), columns_.data().get());
     return batch_;
   }
 

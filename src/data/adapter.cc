@@ -74,7 +74,7 @@ ColumnarAdapter::ColumnarAdapter(StringView columns) {
                                                     });
   this->cat_segments_ = std::move(cat_segments);
   CHECK(consistent) << "Size of columns should be the same.";
-  batch_ = ColumnarAdapterBatch{columns_};
+  batch_ = ColumnarAdapterBatch{columns_, NoOpAccessor{}};
 
   if (!this->ref_cats_.Empty()) {
     CHECK_EQ(this->ref_cats_.Size(), this->columns_.size())

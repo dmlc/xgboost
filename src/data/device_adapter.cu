@@ -92,7 +92,7 @@ CudfAdapter::CudfAdapter(StringView cuda_arrinf) {
   curt::SetDevice(device_.ordinal);
 
   this->columns_ = columns;
-  batch_ = CudfAdapterBatch(dh::ToSpan(columns_), num_rows_);
+  batch_ = CudfAdapterBatch(dh::ToSpan(columns_), NoOpAccessor{}, num_rows_);
 
   if (!this->ref_cats_.Empty()) {
     CHECK_EQ(this->ref_cats_.Size(), this->columns_.size())
