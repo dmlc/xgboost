@@ -107,7 +107,7 @@ def test_mixed_devices() -> None:
         assert f.result()
 
 
-@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, ])
+@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
 def test_mixed_devices_types(DMatrixT: Type) -> None:
     run_basic_predict(DMatrixT, "cuda", "cpu")
     run_basic_predict(DMatrixT, "cpu", "cuda")
