@@ -29,6 +29,7 @@
 #include "../../src/gbm/gbtree_model.h"
 
 #include "../device_manager.h"
+#include "../device_properties.h"
 
 namespace xgboost {
 namespace sycl {
@@ -230,9 +231,9 @@ class Predictor : public xgboost::Predictor {
 
   explicit Predictor(Context const* context) :
       xgboost::Predictor::Predictor{context},
-      cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)) {
-        qu_ = device_manager.GetQueue(ctx_->Device());
-      }
+      cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)),
+      qu_(device_manager.GetQueue(context->Device())),
+      device_prop_(qu_->get_device()) {}
 
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, bst_tree_t tree_begin,
@@ -288,58 +289,47 @@ class Predictor : public xgboost::Predictor {
   }
 
  private:
-  // 16KB fits EU registers
-  static constexpr int kMaxFeatureBufferSize = 4096;
+  // 8KB fits EU registers
+  static constexpr int kMaxFeatureBufferSize = 2048;
+
+  static constexpr float kCostCalibrationIntegrated = 64;
+  static constexpr float kCostCalibrationDescrete = 4;
 
   template <bool any_missing, int kFeatureBufferSize = 8>
-  void PredictKernelDispatch(::sycl::event* event,
-                             const Entry* data,
-                             float* out_predictions,
-                             const size_t* row_ptr,
-                             size_t num_rows,
-                             size_t num_features,
-                             size_t num_group,
-                             size_t tree_begin,
-                             size_t tree_end,
-                             float sparsity) const {
+  void PredictKernelBufferDispatch(::sycl::event* event,
+                                   const Entry* data,
+                                   float* out_predictions,
+                                   const size_t* row_ptr,
+                                   size_t num_rows,
+                                   size_t num_features,
+                                   size_t num_group,
+                                   size_t tree_begin,
+                                   size_t tree_end,
+                                   float sparsity) const {
     if constexpr (kFeatureBufferSize > kMaxFeatureBufferSize) {
       LOG(FATAL) << "Unreachable";
     } else {
       if (num_features > kFeatureBufferSize) {
-        PredictKernelDispatch<any_missing, 2 * kFeatureBufferSize>
-                             (event, data, out_predictions, row_ptr, num_rows,
-                              num_features, num_group, tree_begin, tree_end, sparsity);
+        PredictKernelBufferDispatch<any_missing, 2 * kFeatureBufferSize>
+                                   (event, data, out_predictions, row_ptr, num_rows,
+                                    num_features, num_group, tree_begin, tree_end, sparsity);
       } else {
-        PredictKernel<any_missing, kFeatureBufferSize>
-                     (event, data, out_predictions, row_ptr, num_rows,
-                      num_features, num_group, tree_begin, tree_end, sparsity);
+        PredictKernelBuffer<any_missing, kFeatureBufferSize>
+                           (event, data, out_predictions, row_ptr, num_rows,
+                            num_features, num_group, tree_begin, tree_end, sparsity);
       }
     }
   }
 
-  template <bool any_missing, int kFeatureBufferSize>
-  void PredictKernel(::sycl::event* event,
-                     const Entry* data,
-                     float* out_predictions,
-                     const size_t* row_ptr,
-                     size_t num_rows,
-                     size_t num_features,
-                     size_t num_group,
-                     size_t tree_begin,
-                     size_t tree_end,
-                     float sparsity) const {
-    const Node* nodes = device_model.nodes.DataConst();
-    const size_t* first_node_position = device_model.first_node_position.ConstDevicePointer();
-    const int* tree_group = device_model.tree_group.ConstDevicePointer();
-
-    size_t max_compute_units = qu_->get_device().get_info<::sycl::info::device::max_compute_units>();
-    size_t l2_size = qu_->get_device().get_info<::sycl::info::device::global_mem_cache_size>();
-    size_t sub_group_size = qu_->get_device().get_info<::sycl::info::device::sub_group_sizes>().back();
+  size_t GetBlockSize(size_t n_nodes, size_t num_features, size_t num_rows, float sparsity) const {
+    size_t max_compute_units = device_prop_.max_compute_units;
+    size_t l2_size = device_prop_.l2_size;
+    size_t sub_group_size = device_prop_.sub_group_size;
     /* L2 occupation:
      * data:  block_size * num_features * sizeof(Entry)
      * nodes: n_nodes * sizeof(Node)
      */
-    size_t nodes_bytes = device_model.nodes.Size() * sizeof(Node);
+    size_t nodes_bytes = n_nodes * sizeof(Node);
     bool nodes_fit_l2 = l2_size > 2 * nodes_bytes;
     size_t block_size = nodes_fit_l2
                       ? 0.8 * (l2_size - nodes_bytes) / (sparsity * num_features * sizeof(Entry))
@@ -350,7 +340,26 @@ class Predictor : public xgboost::Predictor {
     }
 
     if (block_size > num_rows) block_size = num_rows;
+    return block_size;
+  }
 
+  template <bool any_missing, int kFeatureBufferSize>
+  void PredictKernelBuffer(::sycl::event* event,
+                           const Entry* data,
+                           float* out_predictions,
+                           const size_t* row_ptr,
+                           size_t num_rows,
+                           size_t num_features,
+                           size_t num_group,
+                           size_t tree_begin,
+                           size_t tree_end,
+                           float sparsity) const {
+    const Node* nodes = device_model.nodes.DataConst();
+    const size_t* first_node_position = device_model.first_node_position.ConstDevicePointer();
+    const int* tree_group = device_model.tree_group.ConstDevicePointer();
+
+    size_t block_size = GetBlockSize(device_model.nodes.Size(),
+                                     num_features, num_rows, sparsity);
     size_t n_blocks = num_rows / block_size + (num_rows % block_size > 0);
 
     for (size_t block = 0; block < n_blocks; ++block) {
@@ -406,25 +415,8 @@ class Predictor : public xgboost::Predictor {
     const size_t* first_node_position = device_model.first_node_position.ConstDevicePointer();
     const int* tree_group = device_model.tree_group.ConstDevicePointer();
 
-    size_t max_compute_units = qu_->get_device().get_info<::sycl::info::device::max_compute_units>();
-    size_t l2_size = qu_->get_device().get_info<::sycl::info::device::global_mem_cache_size>();
-    size_t sub_group_size = qu_->get_device().get_info<::sycl::info::device::sub_group_sizes>().back();
-    /* L2 occupation:
-     * data:  block_size * num_features * sizeof(Entry)
-     * nodes: n_nodes * sizeof(Node)
-     */
-    size_t nodes_bytes = device_model.nodes.Size() * sizeof(Node);
-    bool nodes_fit_l2 = l2_size > 2 * nodes_bytes;
-    size_t block_size = nodes_fit_l2
-                      ? 0.8 * (l2_size - nodes_bytes) / (sparsity * num_features * sizeof(Entry))
-                      : 0.8 * (l2_size) / (sparsity * num_features * sizeof(Entry));
-    block_size = (block_size / sub_group_size) * sub_group_size;
-    if (block_size < max_compute_units * sub_group_size) {
-      block_size = max_compute_units * sub_group_size;
-    }
-
-    if (block_size > num_rows) block_size = num_rows;
-
+    size_t block_size = GetBlockSize(device_model.nodes.Size(),
+                                     num_features, num_rows, sparsity);
     size_t n_blocks = num_rows / block_size + (num_rows % block_size > 0);
 
     for (size_t block = 0; block < n_blocks; ++block) {
@@ -457,6 +449,33 @@ class Predictor : public xgboost::Predictor {
   }
 
   template <bool any_missing>
+  bool UseFvalueBuffer(size_t tree_begin,
+                       size_t tree_end,
+                       int num_features) const {
+    size_t n_nodes = device_model.nodes.Size();
+    size_t n_trees = tree_end - tree_begin;
+    float av_depth = std::log2(static_cast<float>(n_nodes) / n_trees);
+    // the last one is leaf
+    float av_nodes_per_traversal = av_depth - 1;
+    // number of reads in case of no-bufer
+    float n_reads = av_nodes_per_traversal * n_trees;
+    if (any_missing) {
+      // we use binary search for sparse
+      n_reads *= std::log2(static_cast<float>(num_features));
+    }
+
+    float cost_callibration = device_prop_.usm_host_allocations
+                            ? kCostCalibrationIntegrated
+                            : kCostCalibrationDescrete;
+
+    // number of writes in local memory.
+    float n_writes = num_features;
+    bool use_fvalue_buffer = (num_features <= kMaxFeatureBufferSize) &&
+                             (n_reads > cost_callibration * n_writes);
+    return use_fvalue_buffer;
+  }
+
+  template <bool any_missing>
   void DevicePredictInternal(DMatrix *dmat,
                              HostDeviceVector<float>* out_preds,
                              const gbm::GBTreeModel& model,
@@ -482,31 +501,11 @@ class Predictor : public xgboost::Predictor {
         const auto base_rowid = batch.base_rowid;
 
         float sparsity = static_cast<float>(batch.data.Size()) / (batch_size * num_features);
-
-        size_t n_nodes = device_model.nodes.Size();
-        size_t n_trees = tree_end - tree_begin;
-        float av_depth = std::log2(static_cast<float>(n_nodes) / n_trees);
-        // the last one is leaf
-        float av_nodes_per_traversal = av_depth - 1;
-        // number of reads in case of no-bufer
-        float n_reads = av_nodes_per_traversal * n_trees;
-        if (any_missing) {
-          // we use binary search for sparse
-          n_reads *= std::log2(static_cast<float>(num_features));
-        }
-        float cost_no_buffer = n_reads;
-
-        // number of writes in local memory.
-        float n_writes = num_features;
-        float cost_buffer = 64 * n_writes;
-
-        bool use_fvalue_buffer = (num_features <= kMaxFeatureBufferSize) &&
-                                 (cost_no_buffer > cost_buffer);
-        if (use_fvalue_buffer) {
-          PredictKernelDispatch<any_missing>(&event, data,
-                                             out_predictions + base_rowid * num_group,
-                                             row_ptr, batch_size, num_features,
-                                             num_group, tree_begin, tree_end, sparsity);
+        if (UseFvalueBuffer<any_missing>(tree_begin, tree_end, num_features)) {
+          PredictKernelBufferDispatch<any_missing>(&event, data,
+                                                   out_predictions + base_rowid * num_group,
+                                                   row_ptr, batch_size, num_features,
+                                                   num_group, tree_begin, tree_end, sparsity);
         } else {
           PredictKernel(&event, data,
                         out_predictions + base_rowid * num_group,
@@ -519,10 +518,10 @@ class Predictor : public xgboost::Predictor {
   }
 
   mutable DeviceModel device_model;
+  DeviceManager device_manager;
 
   mutable ::sycl::queue* qu_ = nullptr;
-
-  DeviceManager device_manager;
+  DeviceProperties device_prop_;
 
   std::unique_ptr<xgboost::Predictor> cpu_predictor;
 };
