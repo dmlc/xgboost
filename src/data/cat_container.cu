@@ -37,14 +37,18 @@ struct CatContainerImpl {
             auto& col = std::get<CatStrArray>(this->columns[f_idx]);
             // Handle the offsets
             col.offsets.resize(str.offsets.size());
-            dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.offsets.data()),
-                                          str.offsets.data(), str.offsets.size_bytes(),
-                                          cudaMemcpyDefault));
+            if (!str.offsets.empty()) {
+              dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.offsets.data()),
+                                            str.offsets.data(), str.offsets.size_bytes(),
+                                            cudaMemcpyDefault));
+            }
             // Handle the values
             col.values.resize(str.values.size());
-            dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.values.data()),
-                                          str.values.data(), str.values.size_bytes(),
-                                          cudaMemcpyDefault));
+            if (!col.values.empty()) {
+              dh::safe_cuda(cudaMemcpyAsync(thrust::raw_pointer_cast(col.values.data()),
+                                            str.values.data(), str.values.size_bytes(),
+                                            cudaMemcpyDefault));
+            }
             // Create the view
             h_columns_v[f_idx].emplace<enc::CatStrArrayView>();
             auto& col_v = cuda::std::get<enc::CatStrArrayView>(h_columns_v[f_idx]);
@@ -57,7 +61,9 @@ struct CatContainerImpl {
             auto& col = std::get<dh::device_vector<T>>(this->columns[f_idx]);
 
             col.resize(values.size());
-            thrust::copy_n(values.data(), values.size(), col.data());
+            if (!values.empty()) {
+              thrust::copy_n(values.data(), values.size(), col.data());
+            }
 
             // Create the view
             using V = common::Span<std::add_const_t<T>>;
