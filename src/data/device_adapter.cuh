@@ -61,11 +61,11 @@ class EncCudfAdapterBatch : public detail::NoMetaInfo {
  private:
   common::Span<ArrayInterface<1> const> columns_;
   bst_idx_t n_samples_{0};
-  CatAccessorBase acc_;
+  CatAccessor acc_;
 
  public:
   EncCudfAdapterBatch() = default;
-  EncCudfAdapterBatch(common::Span<ArrayInterface<1> const> columns, CatAccessorBase const& acc,
+  EncCudfAdapterBatch(common::Span<ArrayInterface<1> const> columns, CatAccessor const& acc,
                       bst_idx_t n_samples)
       : columns_(columns), n_samples_(n_samples), acc_{acc} {}
   [[nodiscard]] std::size_t Size() const { return n_samples_ * columns_.size(); }
@@ -214,8 +214,7 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
 inline auto MakeEncColumnarBatch(Context const* ctx, CudfAdapter const* adapter) {
   auto cats = std::make_unique<CatContainer>(adapter->Device(), adapter->RefCats());
   cats->Sort(ctx);
-  auto [acc, mapping] =
-      ::xgboost::cuda_impl::MakeCatAccessor<CatAccessorBase>(ctx, adapter->Cats(), *cats);
+  auto [acc, mapping] = ::xgboost::cuda_impl::MakeCatAccessor(ctx, adapter->Cats(), cats.get());
   return std::tuple{EncCudfAdapterBatch{adapter->Columns(), acc, adapter->NumRows()},
                     std::move(mapping)};
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020-2024, XGBoost contributors
+ * Copyright 2020-2025, XGBoost contributors
  *
  * \brief Front end and utilities for GPU based sketching.  Works on sliding window
  *        instead of stream.
@@ -15,9 +15,9 @@
 #include <cstdint>    // for uint32_t
 #include <limits>     // for numeric_limits
 
-#include "../data/adapter.h"  // for IsValidFunctor
-#include "algorithm.cuh"      // for CopyIf
-#include "cuda_context.cuh"   // for CUDAContext
+#include "../data/entry.h"   // for IsValidFunctor
+#include "algorithm.cuh"     // for CopyIf
+#include "cuda_context.cuh"  // for CUDAContext
 #include "device_helpers.cuh"
 #include "hist_util.h"
 #include "quantile.cuh"

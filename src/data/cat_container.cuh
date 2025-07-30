@@ -73,12 +73,11 @@ using EncPolicyT = enc::Policy<EncErrorPolicy, EncThrustPolicy>;
 
 inline EncPolicyT EncPolicy = EncPolicyT{};
 
-template <typename CatAccessor>
-auto MakeCatAccessor(Context const* ctx, enc::DeviceColumnsView const& new_enc,
-                     CatContainer const& orig_cats) {
+inline auto MakeCatAccessor(Context const* ctx, enc::DeviceColumnsView const& new_enc,
+                            CatContainer const* orig_cats) {
   dh::DeviceUVector<std::int32_t> mapping(new_enc.n_total_cats);
-  auto d_sorted_idx = orig_cats.RefSortedIndex(ctx);
-  auto orig_enc = orig_cats.DeviceView(ctx);
+  auto d_sorted_idx = orig_cats->RefSortedIndex(ctx);
+  auto orig_enc = orig_cats->DeviceView(ctx);
   enc::Recode(EncPolicy, orig_enc, d_sorted_idx, new_enc, dh::ToSpan(mapping));
   CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
   auto cats_mapping = enc::MappingView{new_enc.feature_segments, dh::ToSpan(mapping)};

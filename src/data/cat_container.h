@@ -3,8 +3,6 @@
  */
 #pragma once
 
-#include <xgboost/base.h>  // for bst_cat_t
-
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for unique_ptr
 #include <mutex>    // for mutex
@@ -16,6 +14,9 @@
 #include "../common/categorical.h"       // for AsCat
 #include "../encoder/ordinal.h"          // for CatStrArrayView
 #include "../encoder/types.h"            // for Overloaded
+#include "entry.h"                       // for COOTuple
+#include "xgboost/base.h"                // for bst_cat_t
+#include "xgboost/data.h"                // for Entry
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
 #include "xgboost/json.h"                // for Json
 
@@ -228,7 +229,7 @@ class CatContainer {
 /**
  * @brief Accessor for obtaining re-coded categories.
  */
-struct CatAccessorBase {
+struct CatAccessor {
   enc::MappingView enc;
 
   template <typename T, typename Fidx>
@@ -242,15 +243,34 @@ struct CatAccessorBase {
     }
     return fvalue;
   }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const& e) const {
+    return this->operator()(e.fvalue, e.index);
+  }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const& e) const {
+    return this->operator()(e.value, e.column_idx);
+  }
+};
+
+/**
+ * @brief No-op accessor used to handle numeric data.
+ */
+struct NoOpAccessor {
+  XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const&) {}
+  NoOpAccessor() = default;
+  template <typename T, typename Fidx>
+  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
+    return fvalue;
+  }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const& e) const { return e.value; }
+  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const& e) const { return e.fvalue; }
 };
 
 namespace cpu_impl {
-template <typename CatAccessor>
-auto MakeCatAccessor(Context const* ctx, enc::HostColumnsView const& new_enc,
-                     CatContainer const& orig_cats) {
+inline auto MakeCatAccessor(Context const* ctx, enc::HostColumnsView const& new_enc,
+                            CatContainer const* orig_cats) {
   std::vector<std::int32_t> mapping(new_enc.n_total_cats);
-  auto sorted_idx = orig_cats.RefSortedIndex(ctx);
-  auto orig_enc = orig_cats.HostView();
+  auto sorted_idx = orig_cats->RefSortedIndex(ctx);
+  auto orig_enc = orig_cats->HostView();
   enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, new_enc, common::Span{mapping});
   CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
   auto cats_mapping = enc::MappingView{new_enc.feature_segments, mapping};

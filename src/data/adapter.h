@@ -15,9 +15,9 @@
 #include <variant>    // for variant
 #include <vector>     // for vector
 
-#include "../common/math.h"         // for CheckNAN
-#include "../data/cat_container.h"  // for CatAccessorBase
+#include "../data/cat_container.h"  // for CatAccessor
 #include "array_interface.h"        // for ArrayInterface
+#include "entry.h"                  // for COOTuple
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
@@ -69,34 +69,6 @@ namespace xgboost::data {
  * indicating that this value is currently unknown and should be inferred while
  * passing over the data. */
 constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
-
-struct COOTuple {
-  COOTuple() = default;
-  XGBOOST_DEVICE COOTuple(bst_idx_t row_idx, bst_idx_t column_idx, float value)
-      : row_idx(row_idx), column_idx(column_idx), value(value) {}
-
-  bst_idx_t row_idx{0};
-  bst_idx_t column_idx{0};
-  float value{0};
-};
-
-struct IsValidFunctor {
-  float missing;
-
-  XGBOOST_DEVICE explicit IsValidFunctor(float missing) : missing(missing) {}
-
-  XGBOOST_DEVICE bool operator()(float value) const {
-    return !(common::CheckNAN(value) || value == missing);
-  }
-
-  XGBOOST_DEVICE bool operator()(const data::COOTuple& e) const {
-    return !(common::CheckNAN(e.value) || e.value == missing);
-  }
-
-  XGBOOST_DEVICE bool operator()(const Entry& e) const {
-    return !(common::CheckNAN(e.fvalue) || e.fvalue == missing);
-  }
-};
 
 namespace detail {
 
@@ -410,7 +382,47 @@ class CSCArrayAdapter : public detail::SingleBatchDataIter<CSCArrayAdapterBatch>
   [[nodiscard]] const CSCArrayAdapterBatch& Value() const override { return batch_; }
 };
 
-class ColumnarAdapterBatch : public detail::NoMetaInfo {
+template <typename EncAccessor>
+class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
+  common::Span<ArrayInterface<1> const> columns_;
+  EncAccessor acc_;
+
+  class Line {
+    common::Span<ArrayInterface<1> const> const& columns_;
+    std::size_t const ridx_;
+    CatAccessor const& acc_;
+
+   public:
+    explicit Line(common::Span<ArrayInterface<1> const> const& columns, EncAccessor const& acc,
+                  std::size_t ridx)
+        : columns_{columns}, ridx_{ridx}, acc_{acc} {}
+    [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
+
+    [[nodiscard]] COOTuple GetElement(std::size_t fidx) const {
+      auto const& column = columns_.data()[fidx];
+      float value = column.valid.Data() == nullptr || column.valid.Check(ridx_)
+                        ? column(ridx_)
+                        : std::numeric_limits<float>::quiet_NaN();
+      return {ridx_, fidx, acc_(value, fidx)};
+    }
+  };
+
+ public:
+  EncColumnarAdapterBatchImpl() = default;
+  explicit EncColumnarAdapterBatchImpl(common::Span<ArrayInterface<1> const> columns,
+                                       CatAccessor acc)
+      : columns_{columns}, acc_{acc} {}
+  [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, this->acc_, ridx}; }
+  [[nodiscard]] std::size_t Size() const {
+    return columns_.empty() ? 0 : columns_.front().Shape<0>();
+  }
+  [[nodiscard]] std::size_t NumCols() const { return columns_.empty() ? 0 : columns_.size(); }
+  [[nodiscard]] std::size_t NumRows() const { return this->Size(); }
+
+  static constexpr bool kIsRowMajor = true;
+};
+
+class ColumnarAdapterBatch : public EncColumnarAdapterBatchImpl<NoOpAccessor> {
   common::Span<ArrayInterface<1>> columns_;
 
   class Line {
@@ -446,15 +458,15 @@ class ColumnarAdapterBatch : public detail::NoMetaInfo {
 
 class EncColumnarAdapterBatch : public detail::NoMetaInfo {
   common::Span<ArrayInterface<1> const> columns_;
-  CatAccessorBase acc_;
+  CatAccessor acc_;
 
   class Line {
     common::Span<ArrayInterface<1> const> const& columns_;
     std::size_t const ridx_;
-    CatAccessorBase const& acc_;
+    CatAccessor const& acc_;
 
    public:
-    explicit Line(common::Span<ArrayInterface<1> const> const& columns, CatAccessorBase const& acc,
+    explicit Line(common::Span<ArrayInterface<1> const> const& columns, CatAccessor const& acc,
                   std::size_t ridx)
         : columns_{columns}, ridx_{ridx}, acc_{acc} {}
     [[nodiscard]] std::size_t Size() const { return columns_.empty() ? 0 : columns_.size(); }
@@ -470,8 +482,7 @@ class EncColumnarAdapterBatch : public detail::NoMetaInfo {
 
  public:
   EncColumnarAdapterBatch() = default;
-  explicit EncColumnarAdapterBatch(common::Span<ArrayInterface<1> const> columns,
-                                   CatAccessorBase acc)
+  explicit EncColumnarAdapterBatch(common::Span<ArrayInterface<1> const> columns, CatAccessor acc)
       : columns_{columns}, acc_{acc} {}
   [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, this->acc_, ridx}; }
   [[nodiscard]] std::size_t Size() const {
@@ -538,7 +549,7 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
 inline auto MakeEncColumnarBatch(Context const* ctx, ColumnarAdapter const* adapter) {
   auto cats = std::make_unique<CatContainer>(adapter->RefCats());
   cats->Sort(ctx);
-  auto [acc, mapping] = cpu_impl::MakeCatAccessor<CatAccessorBase>(ctx, adapter->Cats(), *cats);
+  auto [acc, mapping] = cpu_impl::MakeCatAccessor(ctx, adapter->Cats(), cats.get());
   return std::tuple{EncColumnarAdapterBatch{adapter->Columns(), acc}, std::move(mapping)};
 }
 

@@ -367,10 +367,7 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
   }
 }
 
-auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView const &new_enc,
-                     gbm::GBTreeModel const &model) {
-  return cpu_impl::MakeCatAccessor<CatAccessor>(ctx, new_enc, *model.Cats());
-}
+using cpu_impl::MakeCatAccessor;
 
 bool ShouldUseBlock(DMatrix *p_fmat) {
   // Threshold to use block-based prediction.
@@ -728,7 +725,7 @@ class CPUPredictor : public Predictor {
     };
 
     if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
       launch(acc);
     } else {
       launch(NoOpAccessor{});
@@ -844,7 +841,7 @@ class CPUPredictor : public Predictor {
     if constexpr (std::is_same_v<Adapter, data::ColumnarAdapter>) {
       // Make specialization for DataFrame where we need encoding.
       if (model.Cats()->HasCategorical()) {
-        auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model);
+        auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model.Cats());
         return launch(acc);
       }
     }
@@ -932,7 +929,7 @@ class CPUPredictor : public Predictor {
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
       if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
-        auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+        auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
         launch(batch, std::move(acc));
       } else {
         launch(batch, NoOpAccessor{});
@@ -986,7 +983,7 @@ class CPUPredictor : public Predictor {
       }
     };
     if (model.Cats()->HasCategorical() && !p_fmat->CatsShared()->Empty()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
       launch(acc);
     } else {
       launch(NoOpAccessor{});

@@ -22,7 +22,6 @@
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
 #include "../data/proxy_dmatrix.h"
-#include "../encoder/ordinal.cuh"  // for CudaCategoryRecoder
 #include "../gbm/gbtree_model.h"
 #include "predict_fn.h"
 #include "xgboost/data.h"
@@ -892,10 +891,7 @@ class ColumnSplitHelper {
   Context const* ctx_;
 };
 
-auto MakeCatAccessor(Context const* ctx, enc::DeviceColumnsView const& new_enc,
-                     DeviceModel const& model) {
-  return cuda_impl::MakeCatAccessor<CatAccessor>(ctx, new_enc, *model.cat_enc);
-}
+using cuda_impl::MakeCatAccessor;
 
 template <typename EncAccessor>
 struct ShapSparsePageView {
@@ -917,7 +913,7 @@ void LaunchPredictKernel(Context const* ctx, bool is_dense, enc::DeviceColumnsVi
   if (is_dense) {
     auto is_dense = std::true_type{};
     if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model);
+      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
       launch(is_dense, std::move(acc));
     } else {
       launch(is_dense, NoOpAccessor{});
@@ -925,7 +921,7 @@ void LaunchPredictKernel(Context const* ctx, bool is_dense, enc::DeviceColumnsVi
   } else {
     auto is_dense = std::false_type{};
     if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model);
+      auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
       launch(is_dense, std::move(acc));
     } else {
       launch(is_dense, NoOpAccessor{});
@@ -1026,7 +1022,7 @@ template <typename Kernel>
 void LaunchShapKernel(Context const* ctx, enc::DeviceColumnsView const& new_enc,
                       DeviceModel const& model, Kernel launch) {
   if (model.cat_enc->HasCategorical() && new_enc.HasCategorical()) {
-    auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model);
+    auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.cat_enc);
     launch(std::move(acc));
   } else {
     launch(NoOpAccessor{});

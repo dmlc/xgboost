@@ -66,35 +66,5 @@ inline bst_tree_t GetTreeLimit(std::vector<std::unique_ptr<RegTree>> const &tree
   }
   return ntree_limit;
 }
-
-/**
- * @brief Accessor for obtaining re-coded categories.
- */
-struct CatAccessor : public ::xgboost::CatAccessorBase {
-  using Super = ::xgboost::CatAccessorBase;
-  using Super::operator();
-
-  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const {
-    return Super::operator()(e.value, e.column_idx);
-  }
-
-  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const {
-    return Super::operator()(e.fvalue, e.index);
-  }
-};
-
-/**
- * @brief No-op accessor used to handle numeric data.
- */
-struct NoOpAccessor {
-  XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const &) {}
-  NoOpAccessor() = default;
-  template <typename T, typename Fidx>
-  [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
-    return fvalue;
-  }
-  [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const &e) const { return e.value; }
-  [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const &e) const { return e.fvalue; }
-};
 }  // namespace xgboost::predictor
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_
