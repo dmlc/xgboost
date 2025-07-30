@@ -414,7 +414,7 @@ class EncColumnarAdapterBatchImpl : public detail::NoMetaInfo {
       : columns_{columns}, acc_{std::move(acc)} {}
   [[nodiscard]] Line GetLine(std::size_t ridx) const { return Line{columns_, this->acc_, ridx}; }
   [[nodiscard]] std::size_t Size() const {
-    return columns_.empty() ? 0 : columns_.front().Shape<0>();
+    return columns_.empty() ? 0 : columns_.front().template Shape<0>();
   }
   [[nodiscard]] std::size_t NumCols() const { return columns_.empty() ? 0 : columns_.size(); }
   [[nodiscard]] std::size_t NumRows() const { return this->Size(); }
