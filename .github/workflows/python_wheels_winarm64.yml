@@ -1,0 +1,66 @@
+name: Build Python wheels targeting Windows ARM64
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: pwsh
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+    
+jobs:
+  python-wheels-Win-ARM64:
+    name: Build wheel for Windows ARM64
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install wheel setuptools awscli
+
+      - name: Build XGBoost for Win-ARM64
+        run: |
+          mkdir build
+          cd build
+          cmake .. -G"Visual Studio 17 2022" -A ARM64
+          cmake --build . --config Release -- /m /nodeReuse:false "/consoleloggerparameters:ShowCommandLine;Verbosity=minimal"
+          
+      - name: Build XGBoost Python wheel for Win-ARM64
+        run: |
+          # Patch to rename pkg to xgboost-cpu
+          python ops/script/pypi_variants.py --use-cpu-suffix=1 --require-nccl-dep=0
+          cd python-package
+          mkdir -p wheelhouse
+          pip wheel --no-deps -v . --wheel-dir wheelhouse/
+          $wheelFile = Get-ChildItem wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
+          python -m wheel tags --python-tag py3 --abi-tag none --platform win_arm64 --remove $wheelFile
+
+      - name: Upload Python wheel
+        if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+        run: |
+          $wheelFile = Get-ChildItem python-package/wheelhouse/*.whl | Select-Object -First 1 -ExpandProperty FullName
+          python ops/pipeline/manage-artifacts.py upload `
+            --s3-bucket xgboost-nightly-builds `
+            --prefix ${{ env.BRANCH_NAME }}/${{ github.sha }} --make-public `
+            $wheelFile
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
