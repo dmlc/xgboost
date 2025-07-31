@@ -28,11 +28,11 @@ class Json;
 
 /** @brief meta parameters of the tree */
 struct TreeParam {
-  /** @brief (Deprecated) number of start root */
+  /** @brief The number of nodes */
   bst_node_t num_nodes{1};
-  /** @brief number of deleted nodes */
+  /** @brief The number of deleted nodes */
   bst_node_t num_deleted{0};
-  /** @brief number of features used for tree construction */
+  /** @brief The number of features used for tree construction */
   bst_feature_t num_feature{0};
   /** @brief leaf vector size. Used by the vector leaf. */
   bst_target_t size_leaf_vector{1};
