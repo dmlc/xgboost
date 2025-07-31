@@ -11,6 +11,7 @@ from xgboost.testing.ordinal import (
     run_cat_shap,
     run_cat_thread_safety,
     run_recode_dmatrix,
+    run_recode_dmatrix_predict,
     run_specified_cat,
     run_training_continuation,
     run_update,
@@ -70,3 +71,7 @@ def test_training_continuation() -> None:
 
 def test_update() -> None:
     run_update("cpu")
+
+
+def test_recode_dmatrix_predict() -> None:
+    run_recode_dmatrix_predict("cpu")

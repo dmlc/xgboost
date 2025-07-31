@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 
 from .._typing import EvalsLog
-from ..compat import import_cupy
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..data import _lazy_load_cudf_is_cat
 from ..training import train
@@ -24,7 +23,7 @@ from .data import (
     memory,
 )
 from .updater import get_basescore
-from .utils import Device
+from .utils import Device, assert_allclose
 
 
 @fcache
@@ -50,17 +49,6 @@ def asarray(device: Device, data: Any) -> np.ndarray:
     import cupy as cp
 
     return cp.asarray(data)
-
-
-def assert_allclose(
-    device: Device, a: Any, b: Any, *, rtol: float = 1e-7, atol: float = 0
-) -> None:
-    """Dispatch the assert_allclose for devices."""
-    if device == "cpu" and not hasattr(a, "get") and not hasattr(b, "get"):
-        np.testing.assert_allclose(a, b, atol=atol, rtol=rtol)
-    else:
-        cp = import_cupy()
-        cp.testing.assert_allclose(a, b, atol=atol, rtol=rtol)
 
 
 def comp_booster(device: Device, Xy: DMatrix, booster: str) -> None:
@@ -621,7 +609,7 @@ def run_specified_cat(  # pylint: disable=too-many-locals
 
 
 def run_validation(device: Device) -> None:
-    """CHeck the validation dataset is using the correct encoding."""
+    """Check the validation dataset is using the correct encoding."""
     enc, reenc, y, _, _ = make_recoded(device)
 
     Xy = DMatrix(enc, y, enable_categorical=True)
@@ -806,3 +794,24 @@ def run_update(device: Device) -> None:
     model_1 = booster_1.save_raw()
 
     assert model_0 == model_1  # also compares the cat container inside
+
+
+def run_recode_dmatrix_predict(device: Device) -> None:
+    """Run prediction with re-coded DMatrix."""
+    enc, reenc, y, _, _ = make_recoded(device)
+
+    for DMatrixT in (DMatrix, QuantileDMatrix):
+        Xy = DMatrix(enc, y, enable_categorical=True)
+        booster = train({"device": device}, Xy, num_boost_round=4)
+        cats_0 = booster.get_categories()
+
+        Xy_1 = _make_dm(DMatrixT, Xy, reenc, y, feature_types=cats_0)
+        Xy_1 = _make_dm(DMatrix, Xy, reenc, y, feature_types=cats_0)
+        Xy_2 = _make_dm(DMatrix, Xy, reenc, y)
+
+        predt_0 = booster.predict(Xy)
+        predt_1 = booster.predict(Xy_1)
+        predt_2 = booster.predict(Xy_2)
+        predt_3 = booster.inplace_predict(enc)
+        for predt in (predt_1, predt_2, predt_3):
+            assert_allclose(device, predt_0, predt)
