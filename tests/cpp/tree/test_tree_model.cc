@@ -6,7 +6,6 @@
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/categorical.h"
 #include "../../../src/tree/io_utils.h"  // for DftBadValue
-#include "../filesystem.h"
 #include "../helpers.h"
 #include "xgboost/tree_model.h"
 

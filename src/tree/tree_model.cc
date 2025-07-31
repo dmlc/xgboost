@@ -1,12 +1,12 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file tree_model.cc
  * \brief model structure for tree
  */
+#include "xgboost/tree_model.h"
+
 #include <dmlc/json.h>
 #include <dmlc/registry.h>
-#include <xgboost/json.h>
-#include <xgboost/tree_model.h>
 
 #include <cmath>
 #include <iomanip>
@@ -16,11 +16,11 @@
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
-#include "../predictor/predict_fn.h"
-#include "io_utils.h"  // for GetElem
+#include "io_utils.h"               // for GetElem
 #include "param.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/json.h"
 #include "xgboost/logging.h"
 
 namespace xgboost {
@@ -790,9 +790,9 @@ constexpr bst_node_t RegTree::kRoot;
 
 void TreeParam::FromJson(Json const& in) {
   this->num_deleted = std::stoi(get<String const>(in["num_deleted"]));
-  this->num_feature = std::stoi(get<String const>(in["num_feature"]));
+  this->num_feature = std::stoul(get<String const>(in["num_feature"]));
   this->num_nodes = std::stoi(get<String const>(in["num_nodes"]));
-  this->size_leaf_vector = std::stoi(get<String const>(in["size_leaf_vector"]));
+  this->size_leaf_vector = std::stoul(get<String const>(in["size_leaf_vector"]));
 }
 
 void TreeParam::ToJson(Json* p_out) const {
