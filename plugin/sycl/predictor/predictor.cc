@@ -131,7 +131,8 @@ class DeviceModel {
 };
 
 // Binary search
-float BinarySearch(const Entry* begin_ptr, const Entry* end_ptr, size_t col_idx, size_t num_features) {
+float BinarySearch(const Entry* begin_ptr, const Entry* end_ptr,
+                   size_t col_idx, size_t num_features) {
   const size_t n_elems = end_ptr - begin_ptr;
   if (n_elems == num_features) {
     return (begin_ptr + col_idx)->fvalue;
@@ -176,7 +177,8 @@ size_t NextNodeIdx(float fvalue, const Node& node) {
   }
 }
 
-float GetLeafWeight(const Node* nodes, const Entry* first_entry, const Entry* last_entry, size_t num_features) {
+float GetLeafWeight(const Node* nodes, const Entry* first_entry,
+                    const Entry* last_entry, size_t num_features) {
   size_t is_dense = (last_entry - first_entry == num_features);
 
   const Node* node = nodes;
