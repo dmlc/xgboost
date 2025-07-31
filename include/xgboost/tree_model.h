@@ -28,18 +28,12 @@
 namespace xgboost {
 class Json;
 
-// FIXME(trivialfis): Once binary IO is gone, make this parameter internal as it should
-// not be configured by users.
 /*! \brief meta parameters of the tree */
-struct TreeParam : public dmlc::Parameter<TreeParam> {
+struct TreeParam {
   /*! \brief (Deprecated) number of start root */
-  int deprecated_num_roots{1};
-  /*! \brief total number of nodes */
   int num_nodes{1};
   /*!\brief number of deleted nodes */
   int num_deleted{0};
-  /*! \brief maximum depth, this is a statistics of the tree */
-  int deprecated_max_depth{0};
   /*! \brief number of features used for tree construction */
   bst_feature_t num_feature{0};
   /*!
@@ -47,48 +41,14 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
    * used to store more than one dimensional information in tree
    */
   bst_target_t size_leaf_vector{1};
-  /*! \brief reserved part, make sure alignment works for 64bit */
-  int reserved[31];
-  /*! \brief constructor */
-  TreeParam() {
-    // assert compact alignment
-    static_assert(sizeof(TreeParam) == (31 + 6) * sizeof(int), "TreeParam: 64 bit align");
-    std::memset(reserved, 0, sizeof(reserved));
-  }
-
-  // Swap byte order for all fields. Useful for transporting models between machines with different
-  // endianness (big endian vs little endian)
-  [[nodiscard]] TreeParam ByteSwap() const {
-    TreeParam x = *this;
-    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
-    dmlc::ByteSwap(&x.num_nodes, sizeof(x.num_nodes), 1);
-    dmlc::ByteSwap(&x.num_deleted, sizeof(x.num_deleted), 1);
-    dmlc::ByteSwap(&x.deprecated_max_depth, sizeof(x.deprecated_max_depth), 1);
-    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
-    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
-    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
-    return x;
-  }
-
-  // declare the parameters
-  DMLC_DECLARE_PARAMETER(TreeParam) {
-    // only declare the parameters that can be set by the user.
-    // other arguments are set by the algorithm.
-    DMLC_DECLARE_FIELD(num_nodes).set_lower_bound(1).set_default(1);
-    DMLC_DECLARE_FIELD(num_feature)
-        .set_default(0)
-        .describe("Number of features used in tree construction.");
-    DMLC_DECLARE_FIELD(num_deleted).set_default(0);
-    DMLC_DECLARE_FIELD(size_leaf_vector)
-        .set_lower_bound(0)
-        .set_default(1)
-        .describe("Size of leaf vector, reserved for vector tree");
-  }
 
   bool operator==(const TreeParam& b) const {
     return num_nodes == b.num_nodes && num_deleted == b.num_deleted &&
            num_feature == b.num_feature && size_leaf_vector == b.size_leaf_vector;
   }
+
+  void FromJson(Json const& in);
+  void ToJson(Json* p_out) const;
 };
 
 /*! \brief node statistics used in regression tree */
@@ -166,12 +126,11 @@ class RegTree : public Model {
    public:
     XGBOOST_DEVICE Node()  {
       // assert compact alignment
-      static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info),
-                    "Node: 64 bit align");
+      static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info), "Node: 64 bit align");
     }
-    Node(int32_t cleft, int32_t cright, int32_t parent,
-         uint32_t split_ind, float split_cond, bool default_left) :
-        parent_{parent}, cleft_{cleft}, cright_{cright} {
+    Node(int32_t cleft, int32_t cright, int32_t parent, uint32_t split_ind, float split_cond,
+         bool default_left)
+        : parent_{parent}, cleft_{cleft}, cright_{cright} {
       this->SetParent(parent_);
       this->SetSplit(split_ind, split_cond, default_left);
     }
@@ -320,7 +279,6 @@ class RegTree : public Model {
   }
 
   RegTree() {
-    param_.Init(Args{});
     nodes_.resize(param_.num_nodes);
     stats_.resize(param_.num_nodes);
     split_types_.resize(param_.num_nodes, FeatureType::kNumerical);
@@ -589,14 +547,6 @@ class RegTree : public Model {
     bool has_missing_;
   };
 
-  /*!
-   * \brief calculate the approximate feature contributions for the given root
-   * \param feat dense feature vector, if the feature is missing the field is set to NaN
-   * \param out_contribs output vector to hold the contributions
-   */
-  void CalculateContributionsApprox(const RegTree::FVec& feat,
-                                    std::vector<float>* mean_values,
-                                    bst_float* out_contribs) const;
   /*!
    * \brief dump the model in the requested format as a text string
    * \param fmap feature map that may help give interpretations of feature
