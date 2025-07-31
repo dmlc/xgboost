@@ -618,7 +618,7 @@ class Categories:
 
     .. warning::
 
-        This class is still working in progress.
+        This class is internal.
 
     .. code-block:: python
 
@@ -629,7 +629,7 @@ class Categories:
 
         # Use categories as a reference for re-coding
         Xy_new = xgboost.QuantileDMatrix(
-            X_new, y_new, feature_types=categories, enable_categorical=True
+            X_new, y_new, feature_types=categories, enable_categorical=True, ref=Xy
         )
 
         # Categories will be part of the `model.json`.
@@ -686,14 +686,14 @@ def get_ref_categories(
     return feature_types, ref_categories
 
 
-# Type for storing JSON-encoded array interface
+# Type schema for storing JSON-encoded array interface
 AifType: TypeAlias = List[
     Union[
         # numeric column
         Union[ArrayInf, CudaArrayInf],
         # categorical column
         Tuple[
-            # numeric index | string index
+            # (cuda) numeric index | (cuda) string index
             Union[ArrayInf, CudaArrayInf, StringArray, CudaStringArray],
             Union[ArrayInf, CudaArrayInf],  # codes
         ],
