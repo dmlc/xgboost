@@ -158,7 +158,7 @@ class Predictor {
                                    gbm::GBTreeModel const& model, bst_tree_t tree_end = 0,
                                    std::vector<float> const* tree_weights = nullptr,
                                    bool approximate = false, int condition = 0,
-                                   unsigned condition_feature = 0) const = 0;
+                                   unsigned condition_feature = 0, HostDeviceVector<bst_feature_t>* feature_reprs = nullptr) const = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat, HostDeviceVector<float>* out_contribs,
                                                gbm::GBTreeModel const& model,

@@ -106,11 +106,13 @@ float UnwoundPathSum(const PathElement* unique_path, std::uint32_t unique_depth,
  * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
  * \param condition_feature the index of the feature to fix
  * \param condition_fraction what fraction of the current weight matches our conditioning feature
+ * \param feature_reprs mapping of features to group representatives, for groupSHAP calculation
  */
 void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_node_t node_index,
               std::uint32_t unique_depth, PathElement* parent_unique_path,
               float parent_zero_fraction, float parent_one_fraction, int parent_feature_index,
-              int condition, std::uint32_t condition_feature, float condition_fraction) {
+              int condition, std::uint32_t condition_feature, float condition_fraction, 
+              std::uint32_t* feature_reprs) {
   const auto node = tree[node_index];
 
   // stop if we have no weight coming down to us
@@ -125,6 +127,7 @@ void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_no
                parent_feature_index);
   }
   const std::uint32_t split_index = node.SplitIndex();
+  const std::uint32_t split_index_repr = feature_reprs == nullptr ? split_index : feature_reprs[split_index];
 
   // leaf node
   if (node.IsLeaf()) {
@@ -153,7 +156,7 @@ void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_no
     // if so we undo that split so we can redo it for this node
     std::uint32_t path_index = 0;
     for (; path_index <= unique_depth; ++path_index) {
-      if (static_cast<std::uint32_t>(unique_path[path_index].feature_index) == split_index) break;
+      if (static_cast<std::uint32_t>(unique_path[path_index].feature_index) == split_index_repr) break;
     }
     if (path_index != unique_depth + 1) {
       incoming_zero_fraction = unique_path[path_index].zero_fraction;
@@ -165,28 +168,28 @@ void TreeShap(RegTree const& tree, const RegTree::FVec& feat, float* phi, bst_no
     // divide up the condition_fraction among the recursive calls
     float hot_condition_fraction = condition_fraction;
     float cold_condition_fraction = condition_fraction;
-    if (condition > 0 && split_index == condition_feature) {
+    if (condition > 0 && split_index_repr == condition_feature) {
       cold_condition_fraction = 0;
       unique_depth -= 1;
-    } else if (condition < 0 && split_index == condition_feature) {
+    } else if (condition < 0 && split_index_repr == condition_feature) {
       hot_condition_fraction *= hot_zero_fraction;
       cold_condition_fraction *= cold_zero_fraction;
       unique_depth -= 1;
     }
 
     TreeShap(tree, feat, phi, hot_index, unique_depth + 1, unique_path,
-             hot_zero_fraction * incoming_zero_fraction, incoming_one_fraction, split_index,
-             condition, condition_feature, hot_condition_fraction);
+             hot_zero_fraction * incoming_zero_fraction, incoming_one_fraction, split_index_repr,
+             condition, condition_feature, hot_condition_fraction, feature_reprs);
 
     TreeShap(tree, feat, phi, cold_index, unique_depth + 1, unique_path,
-             cold_zero_fraction * incoming_zero_fraction, 0, split_index, condition,
-             condition_feature, cold_condition_fraction);
+             cold_zero_fraction * incoming_zero_fraction, 0, split_index_repr, condition,
+             condition_feature, cold_condition_fraction, feature_reprs);
   }
 }
 
 void CalculateContributions(RegTree const& tree, const RegTree::FVec& feat,
                             std::vector<float>* mean_values, float* out_contribs, int condition,
-                            std::uint32_t condition_feature) {
+                            std::uint32_t condition_feature, std::uint32_t* feature_reprs) {
   // find the expected value of the tree's predictions
   if (condition == 0) {
     float node_value = (*mean_values)[0];
@@ -198,6 +201,6 @@ void CalculateContributions(RegTree const& tree, const RegTree::FVec& feat,
   std::vector<PathElement> unique_path_data((maxd * (maxd + 1)) / 2);
 
   TreeShap(tree, feat, out_contribs, 0, 0, unique_path_data.data(), 1, 1, -1, condition,
-           condition_feature, 1);
+           condition_feature, 1, feature_reprs);
 }
 }  // namespace xgboost
