@@ -1,17 +1,46 @@
 /**
- * Copyright by XGBoost Contributors 2017-2022
+ * Copyright 2017-2025, XGBoost Contributors
  */
-#include "cpu_treeshap.h"
+#include "treeshap.h"
 
-#include <algorithm>             // copy
-#include <cinttypes>             // std::uint32_t
+#include <algorithm>  // copy
+#include <cstdint>    // std::uint32_t
 
-#include "predict_fn.h"          // GetNextNode
-#include "xgboost/base.h"        // bst_node_t
+#include "predict_fn.h"    // GetNextNode
+#include "xgboost/base.h"  // bst_node_t
 #include "xgboost/logging.h"
 #include "xgboost/tree_model.h"  // RegTree
 
 namespace xgboost {
+void CalculateContributionsApprox(RegTree const& tree, const RegTree::FVec& feat,
+                                  std::vector<float>* mean_values, float* out_contribs) {
+  CHECK_GT(mean_values->size(), 0U);
+  bst_feature_t split_index = 0;
+  // update bias value
+  float node_value = (*mean_values)[0];
+  out_contribs[feat.Size()] += node_value;
+  if (tree[0].IsLeaf()) {
+    // nothing to do anymore
+    return;
+  }
+
+  bst_node_t nid = 0;
+  auto const& cats = tree.GetCategoriesMatrix();
+
+  while (!tree[nid].IsLeaf()) {
+    split_index = tree[nid].SplitIndex();
+    nid = predictor::GetNextNode<true, true>(tree[nid], nid, feat.GetFvalue(split_index),
+                                             feat.IsMissing(split_index), cats);
+    bst_float new_value = (*mean_values)[nid];
+    // update feature weight
+    out_contribs[split_index] += new_value - node_value;
+    node_value = new_value;
+  }
+  bst_float leaf_value = tree[nid].LeafValue();
+  // update leaf feature weight
+  out_contribs[split_index] += leaf_value - node_value;
+}
+
 // Used by TreeShap
 // data we keep about our decision path
 // note that pweight is included for convenience and is not tied with the other attributes

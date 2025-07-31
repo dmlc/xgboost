@@ -6,9 +6,7 @@
 #include "xgboost/json.h"
 #include "gblinear_model.h"
 
-namespace xgboost {
-namespace gbm {
-
+namespace xgboost::gbm {
 void GBLinearModel::SaveModel(Json* p_out) const {
   auto& out = *p_out;
 
@@ -42,7 +40,4 @@ void GBLinearModel::LoadModel(Json const& in) {
     this->num_boosted_rounds = 0;
   }
 }
-
-DMLC_REGISTER_PARAMETER(DeprecatedGBLinearModelParam);
-}  // namespace gbm
-}  // namespace xgboost
+}  // namespace xgboost::gbm

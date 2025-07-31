@@ -1,12 +1,12 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file tree_model.cc
  * \brief model structure for tree
  */
+#include "xgboost/tree_model.h"
+
 #include <dmlc/json.h>
 #include <dmlc/registry.h>
-#include <xgboost/json.h>
-#include <xgboost/tree_model.h>
 
 #include <cmath>
 #include <iomanip>
@@ -16,17 +16,14 @@
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
-#include "../predictor/predict_fn.h"
-#include "io_utils.h"  // for GetElem
+#include "io_utils.h"               // for GetElem
 #include "param.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/json.h"
 #include "xgboost/logging.h"
 
 namespace xgboost {
-// register tree parameter
-DMLC_REGISTER_PARAMETER(TreeParam);
-
 namespace tree {
 DMLC_REGISTER_PARAMETER(TrainParam);
 }
@@ -791,6 +788,26 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
 
 constexpr bst_node_t RegTree::kRoot;
 
+void TreeParam::FromJson(Json const& in) {
+  auto const& obj = get<Object const>(in);
+  auto n_deleted_it = obj.find(StringView{"num_deleted"});
+  if (n_deleted_it != obj.cend()) {
+    // Missing in 1.0 models.
+    this->num_deleted = std::stoi(get<String const>(n_deleted_it->second));
+  }
+  this->num_feature = std::stoul(get<String const>(obj.at("num_feature")));
+  this->num_nodes = std::stoi(get<String const>(obj.at("num_nodes")));
+  this->size_leaf_vector = std::stoul(get<String const>(obj.at("size_leaf_vector")));
+}
+
+void TreeParam::ToJson(Json* p_out) const {
+  auto& out = *p_out;
+  out["num_deleted"] = std::to_string(this->num_deleted);
+  out["num_feature"] = std::to_string(this->num_feature);
+  out["num_nodes"] = std::to_string(this->num_nodes);
+  out["size_leaf_vector"] = std::to_string(this->size_leaf_vector);
+}
+
 std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::string format) const {
   if (this->IsMultiTarget() && format != "dot") {
     LOG(FATAL) << format << " tree dump " << MTNotImplemented();
@@ -1073,7 +1090,7 @@ void RegTree::LoadModel(Json const& in) {
   bool typed = IsA<I32Array>(in[tf::kParent]);
   auto const& in_obj = get<Object const>(in);
   // basic properties
-  FromJson(in["tree_param"], &param_);
+  param_.FromJson(in["tree_param"]);
   // categorical splits
   bool has_cat = in_obj.find("split_type") != in_obj.cend();
   if (has_cat) {
@@ -1127,7 +1144,8 @@ void RegTree::LoadModel(Json const& in) {
 void RegTree::SaveModel(Json* p_out) const {
   auto& out = *p_out;
   // basic properties
-  out["tree_param"] = ToJson(param_);
+  out["tree_param"] = Object{};
+  param_.ToJson(&out["tree_param"]);
   // categorical splits
   this->SaveCategoricalSplit(p_out);
   // multi-target
@@ -1201,37 +1219,5 @@ void RegTree::SaveModel(Json* p_out) const {
 
   out[tf::kSplitCond] = std::move(conds);
   out[tf::kDftLeft] = std::move(default_left);
-}
-
-void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
-                                           std::vector<float>* mean_values,
-                                           bst_float *out_contribs) const {
-  CHECK_GT(mean_values->size(), 0U);
-  // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
-  unsigned split_index = 0;
-  // update bias value
-  bst_float node_value = (*mean_values)[0];
-  out_contribs[feat.Size()] += node_value;
-  if ((*this)[0].IsLeaf()) {
-    // nothing to do anymore
-    return;
-  }
-
-  bst_node_t nid = 0;
-  auto cats = this->GetCategoriesMatrix();
-
-  while (!(*this)[nid].IsLeaf()) {
-    split_index = (*this)[nid].SplitIndex();
-    nid = predictor::GetNextNode<true, true>((*this)[nid], nid,
-                                             feat.GetFvalue(split_index),
-                                             feat.IsMissing(split_index), cats);
-    bst_float new_value = (*mean_values)[nid];
-    // update feature weight
-    out_contribs[split_index] += new_value - node_value;
-    node_value = new_value;
-  }
-  bst_float leaf_value = (*this)[nid].LeafValue();
-  // update leaf feature weight
-  out_contribs[split_index] += leaf_value - node_value;
 }
 }  // namespace xgboost

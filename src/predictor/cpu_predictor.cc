@@ -24,9 +24,9 @@
 #include "../data/gradient_index.h"           // for GHistIndexMatrix
 #include "../data/proxy_dmatrix.h"            // for DMatrixProxy
 #include "../gbm/gbtree_model.h"              // for GBTreeModel, GBTreeModelParam
-#include "cpu_treeshap.h"                     // for CalculateContributions
 #include "dmlc/registry.h"                    // for DMLC_REGISTRY_FILE_TAG
 #include "predict_fn.h"                       // for GetNextNode, GetNextNodeMulti
+#include "treeshap.h"                         // for CalculateContributions
 #include "xgboost/base.h"                     // for bst_float, bst_node_t, bst_omp_uint, bst_fe...
 #include "xgboost/context.h"                  // for Context
 #include "xgboost/data.h"                     // for Entry, DMatrix, MetaInfo, SparsePage, Batch...
@@ -780,8 +780,8 @@ class CPUPredictor : public Predictor {
             CalculateContributions(*model.trees[j], feats, tree_mean_values,
                                    &this_tree_contribs[0], condition, condition_feature);
           } else {
-            model.trees[j]->CalculateContributionsApprox(
-                feats, tree_mean_values, &this_tree_contribs[0]);
+            CalculateContributionsApprox(*model.trees[j], feats, tree_mean_values,
+                                         &this_tree_contribs[0]);
           }
           for (size_t ci = 0; ci < ncolumns; ++ci) {
             p_contribs[ci] +=
