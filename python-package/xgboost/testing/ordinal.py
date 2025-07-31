@@ -23,7 +23,7 @@ from .data import (
     memory,
 )
 from .updater import get_basescore
-from .utils import Device, assert_allclose
+from .utils import Device, assert_allclose, predictor_equal
 
 
 @fcache
@@ -705,13 +705,7 @@ def run_recode_dmatrix(device: Device) -> None:
         assert cats_1 is not None
 
         assert cats_0.to_arrow() == cats_1.to_arrow()
-
-        csr_0 = Xy_0.get_data()
-        csr_1 = Xy_1.get_data()
-
-        np.testing.assert_allclose(csr_0.indptr, csr_1.indptr)
-        np.testing.assert_allclose(csr_0.indices, csr_1.indices)
-        np.testing.assert_allclose(csr_0.data, csr_1.data)
+        assert predictor_equal(Xy_0, Xy_1)
 
 
 def run_training_continuation(device: Device) -> None:

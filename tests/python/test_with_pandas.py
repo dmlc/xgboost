@@ -7,6 +7,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import DataSplitMode
 from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes, run_base_margin_info
+from xgboost.testing.utils import predictor_equal
 
 try:
     import pandas as pd
@@ -482,9 +483,9 @@ class TestPandas:
             if hasattr(orig.dtypes, "__iter__") and any(
                 dtype == "bool" for dtype in orig.dtypes
             ):
-                assert not tm.predictor_equal(m_orig, m_etype)
+                assert not predictor_equal(m_orig, m_etype)
             else:
-                assert tm.predictor_equal(m_orig, m_etype)
+                assert predictor_equal(m_orig, m_etype)
 
             np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
             np.testing.assert_allclose(m_etype.get_label(), y.values.astype(np.float32))
@@ -511,7 +512,7 @@ class TestPandas:
             m_orig = DMatrixT(orig, enable_categorical=True, label=y_orig)
             m_etype = DMatrixT(df, enable_categorical=True, label=y)
 
-            assert tm.predictor_equal(m_orig, m_etype)
+            assert predictor_equal(m_orig, m_etype)
             if y is not None:
                 np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
                 np.testing.assert_allclose(m_etype.get_label(), y.values)
