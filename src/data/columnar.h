@@ -128,7 +128,8 @@ template <typename CategoricalIndex>
   DispatchDType(names, device, [&](auto t) {
     using T = typename decltype(t)::value_type;
     constexpr bool kKnownType = enc::MemberOf<std::remove_cv_t<T>, enc::CatPrimIndexTypes>::value;
-    CHECK(kKnownType) << "Unsupported categorical index type.";
+    CHECK(kKnownType) << "Unsupported categorical index type: `"
+                      << ArrayInterfaceHandler::TypeStr(names.type) << "`.";
     if constexpr (std::is_floating_point_v<T>) {
       LOG(FATAL) << error::NoFloatCat();
     }

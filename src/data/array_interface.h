@@ -116,6 +116,8 @@ class ArrayInterfaceHandler {
     kU8 = 11,
   };
 
+  static std::string TypeStr(Type type);
+
   template <typename PtrType>
   static PtrType GetPtrFromArrayData(Object::Map const &obj) {
     auto data_it = obj.find("data");

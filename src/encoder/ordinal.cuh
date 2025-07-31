@@ -225,8 +225,11 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
   auto check_it = thrust::make_transform_iterator(
       thrust::make_counting_iterator(0ul),
       cuda::proclaim_return_type<bool>([=] __device__(std::size_t i) {
-        auto l_f = orig_enc.columns[i];
-        auto r_f = new_enc.columns[i];
+        auto const& l_f = orig_enc.columns[i];
+        auto const& r_f = new_enc.columns[i];
+        if (l_f.index() != r_f.index()) {
+          return false;
+        }
         auto l_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, l_f);
         auto r_is_empty = cuda::std::visit([](auto&& arg) { return arg.empty(); }, r_f);
         return l_is_empty == r_is_empty;
@@ -237,7 +240,9 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
   if (!valid) {
     policy.Error(
         "Invalid new DataFrame. "
-        "The data type doesn't match the one used in the training dataset.");
+        "The data type doesn't match the one used in the training dataset. "
+        "Both should be either numeric or categorical. For a categorical feature, the index "
+        "For a categorical feature, the index type must match between the training and test set.");
   }
 
   /**
