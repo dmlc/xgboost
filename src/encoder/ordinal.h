@@ -81,7 +81,8 @@ struct CatStrArrayView {
  * @brief All the primitive types supported by the encoder.
  */
 using CatPrimIndexTypes =
-    std::tuple<std::int8_t, std::int16_t, std::int32_t, std::int64_t, float, double>;
+    std::tuple<std::uint8_t, std::int8_t, std::uint16_t, std::int16_t, std::uint32_t, std::int32_t,
+               std::uint64_t, std::int64_t, float, double>;
 
 /**
  * @brief All the column types supported by the encoder.
