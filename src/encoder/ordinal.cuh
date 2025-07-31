@@ -241,7 +241,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
     policy.Error(
         "Invalid new DataFrame. "
         "The data type doesn't match the one used in the training dataset. "
-        "Both should be either numeric or categorical. For a categorical feature, the index "
+        "Both should be either numeric or categorical. "
         "For a categorical feature, the index type must match between the training and test set.");
   }
 

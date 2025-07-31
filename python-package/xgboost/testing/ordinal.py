@@ -376,10 +376,10 @@ def run_cat_predict(device: Device) -> None:
 def run_cat_invalid(device: Device) -> None:
     """Basic tests for invalid inputs."""
     Df, _ = get_df_impl(device)
+    y = np.array([0, 1, 2])
 
     def run_invalid(DMatrixT: Type) -> None:
         df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
-        y = np.array([0, 1, 2])
 
         Xy = DMatrixT(df, y, enable_categorical=True)
         booster = train({"device": device}, Xy, num_boost_round=4)
@@ -399,6 +399,24 @@ def run_cat_invalid(device: Device) -> None:
 
     for dm in (DMatrix, QuantileDMatrix):
         run_invalid(dm)
+
+    df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
+    Xy = DMatrix(df, y, enable_categorical=True)
+    booster = train({"device": device}, Xy, num_boost_round=4)
+    df["c"] = asarray(device, [0, 1, 1])
+
+    msg = "index type must match between the training and test set"
+
+    with pytest.raises(ValueError, match=msg):
+        booster.inplace_predict(df)
+
+    with pytest.raises(ValueError, match=msg):
+        DMatrix(df, enable_categorical=True, feature_types=booster.get_categories())
+
+    with pytest.raises(ValueError, match=msg):
+        QuantileDMatrix(
+            df, enable_categorical=True, feature_types=booster.get_categories()
+        )
 
 
 def run_cat_thread_safety(device: Device) -> None:
@@ -460,14 +478,6 @@ def _run_predt(
         pred_leaf=pred_leaf,
     )
     assert_allclose(device, predt_0, predt_1)
-    df = Df({"c": encoded})
-    predt_2 = booster.predict(
-        _make_dm(DMatrixT, ref=Xy, data=df),
-        pred_contribs=pred_contribs,
-        pred_interactions=pred_interactions,
-        pred_leaf=pred_leaf,
-    )
-    assert_allclose(device, predt_0, predt_2)
 
 
 def run_cat_shap(device: Device) -> None:
