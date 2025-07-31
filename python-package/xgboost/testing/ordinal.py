@@ -300,29 +300,36 @@ def run_cat_container_iter(device: Device) -> None:
         assert len(v) == n_cats
 
 
-def run_basic_predict(DMatrixT: Type, device: Device, tdevice: Device) -> None:
-    """Enable tests with mixed devices."""
+def _basic_example(device: Device) -> Tuple[Any, Any, np.ndarray, np.ndarray]:
     Df, _ = get_df_impl(device)
-    df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
-    y = np.array([0, 1, 2])
 
-    # 1, 0, 2
-    codes = df.c.cat.codes
-    encoded = np.array([codes.iloc[2], codes.iloc[1]])
+    enc = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
+    codes = enc.c.cat.codes  # 1, 0, 2
+    assert_allclose(device, asarray(device, codes), np.array([1, 0, 2]))
+    encoded = np.array([codes.iloc[2], codes.iloc[1]])  # def, abc
     np.testing.assert_allclose(encoded, [2, 0])
 
-    Xy = DMatrixT(df, y, enable_categorical=True)
-    booster = train({"device": tdevice}, Xy, num_boost_round=4)
-
-    df = Df({"c": ["def", "abc"]}, dtype="category")
-    codes = df.c.cat.codes
+    reenc = Df({"c": ["def", "abc"]}, dtype="category")  # same as `encoded`
+    codes = reenc.c.cat.codes
     assert_allclose(device, codes, np.array([1, 0]))
 
-    predt0 = booster.inplace_predict(df)
+    y = np.array([0, 1, 2])
+
+    return enc, reenc, encoded, y
+
+
+def run_basic_predict(DMatrixT: Type, device: Device, tdevice: Device) -> None:
+    """Enable tests with mixed devices."""
+    enc, reenc, encoded, y = _basic_example(device)
+
+    Xy = DMatrixT(enc, y, enable_categorical=True)
+    booster = train({"device": tdevice}, Xy, num_boost_round=4)
+
+    predt0 = booster.inplace_predict(reenc)
     predt1 = booster.inplace_predict(encoded)
     assert_allclose(device, predt0, predt1)
 
-    fmat = DMatrixT(df, enable_categorical=True)
+    fmat = DMatrixT(reenc, enable_categorical=True)
     predt2 = booster.predict(fmat)
     assert_allclose(device, predt0, predt2)
 
@@ -435,34 +442,32 @@ def _run_predt(
     pred_leaf: bool,
 ) -> None:
     Df, _ = get_df_impl(device)
+    enc, reenc, encoded, y = _basic_example(device)
 
-    df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
-    y = np.array([0, 1, 2])
-
-    # 1, 0, 2
-    codes = df.c.cat.codes
-    encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
-    np.testing.assert_allclose(encoded, [2, 0])
-
-    Xy = DMatrixT(df, y, enable_categorical=True)
+    Xy = DMatrixT(enc, y, enable_categorical=True)
     booster = train({"device": device}, Xy, num_boost_round=4)
 
-    df = Df({"c": ["def", "abc"]}, dtype="category")
-
-    predt0 = booster.predict(
-        _make_dm(DMatrixT, ref=Xy, data=df),
+    predt_0 = booster.predict(
+        _make_dm(DMatrixT, ref=Xy, data=reenc),
         pred_contribs=pred_contribs,
         pred_interactions=pred_interactions,
         pred_leaf=pred_leaf,
     )
-    df = Df({"c": encoded})
-    predt1 = booster.predict(
+    predt_1 = booster.predict(
         _make_dm(DMatrixT, ref=Xy, data=encoded.reshape(2, 1), feature_names=["c"]),
         pred_contribs=pred_contribs,
         pred_interactions=pred_interactions,
         pred_leaf=pred_leaf,
     )
-    assert_allclose(device, predt0, predt1)
+    assert_allclose(device, predt_0, predt_1)
+    df = Df({"c": encoded})
+    predt_2 = booster.predict(
+        _make_dm(DMatrixT, ref=Xy, data=df),
+        pred_contribs=pred_contribs,
+        pred_interactions=pred_interactions,
+        pred_leaf=pred_leaf,
+    )
+    assert_allclose(device, predt_0, predt_2)
 
 
 def run_cat_shap(device: Device) -> None:
