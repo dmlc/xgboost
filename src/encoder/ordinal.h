@@ -346,15 +346,21 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
   for (std::size_t f_idx = 0, n_features = orig_enc.Size(); f_idx < n_features; f_idx++) {
     auto const& l_f = orig_enc.columns[f_idx];
     auto const& r_f = new_enc.columns[f_idx];
-    bool is_empty = std::visit([](auto &&arg) { return arg.empty(); }, l_f);
-    bool new_is_empty = std::visit([](auto &&arg) { return arg.empty(); }, r_f);
-    if (is_empty != new_is_empty) {
+    auto report = [&] {
       std::stringstream ss;
       ss << "Invalid new DataFrame input for the: " << f_idx << "th feature (0-based). "
          << "The data type doesn't match the one used in the training dataset."
          << "Both should be either numeric or categorical. For a categorical feature, the index "
             "type must match between the training and test set.";
       policy.Error(ss.str());
+    };
+    if (l_f.index() != r_f.index()) {
+      report();
+    }
+    bool is_empty = std::visit([](auto &&arg) { return arg.empty(); }, l_f);
+    bool new_is_empty = std::visit([](auto &&arg) { return arg.empty(); }, r_f);
+    if (is_empty != new_is_empty) {
+      report();
     }
     if (is_empty) {
       continue;

@@ -375,7 +375,7 @@ def run_cat_predict(device: Device) -> None:
 
 def run_cat_invalid(device: Device) -> None:
     """Basic tests for invalid inputs."""
-    Df, _ = get_df_impl(device)
+    Df, Ser = get_df_impl(device)
     y = np.array([0, 1, 2])
 
     def run_invalid(DMatrixT: Type) -> None:
@@ -403,7 +403,7 @@ def run_cat_invalid(device: Device) -> None:
     df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
     Xy = DMatrix(df, y, enable_categorical=True)
     booster = train({"device": device}, Xy, num_boost_round=4)
-    df["c"] = asarray(device, [0, 1, 1])
+    df["c"] = Ser(asarray(device, [0, 1, 1]), dtype="category")
 
     msg = "index type must match between the training and test set"
 
@@ -459,7 +459,6 @@ def _run_predt(
     pred_interactions: bool,
     pred_leaf: bool,
 ) -> None:
-    Df, _ = get_df_impl(device)
     enc, reenc, encoded, y = _basic_example(device)
 
     Xy = DMatrixT(enc, y, enable_categorical=True)
@@ -821,12 +820,12 @@ def run_recode_dmatrix_predict(device: Device) -> None:
         cats_0 = booster.get_categories()
 
         Xy_1 = _make_dm(DMatrixT, Xy, reenc, y, feature_types=cats_0)
-        Xy_1 = _make_dm(DMatrix, Xy, reenc, y, feature_types=cats_0)
-        Xy_2 = _make_dm(DMatrix, Xy, reenc, y)
+        Xy_2 = _make_dm(DMatrixT, Xy, reenc, y)
 
         predt_0 = booster.predict(Xy)
         predt_1 = booster.predict(Xy_1)
         predt_2 = booster.predict(Xy_2)
         predt_3 = booster.inplace_predict(enc)
+
         for predt in (predt_1, predt_2, predt_3):
             assert_allclose(device, predt_0, predt)

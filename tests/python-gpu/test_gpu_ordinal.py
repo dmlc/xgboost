@@ -135,4 +135,4 @@ def test_update() -> None:
 
 
 def test_recode_dmatrix_predict() -> None:
-    run_recode_dmatrix_predict("cpu")
+    run_recode_dmatrix_predict("cuda")
