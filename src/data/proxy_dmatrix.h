@@ -254,7 +254,7 @@ namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
 #if defined(XGBOOST_USE_CUDA)
-[[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*, bool);
+[[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*);
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
 
@@ -292,11 +292,11 @@ namespace cpu_impl {
  *
  * @return A host view to the categories
  */
-[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy, bool ref_if_avail) {
-  return HostAdapterDispatch<false>(proxy, [ref_if_avail](auto const& adapter) -> decltype(auto) {
+[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
+  return HostAdapterDispatch<false>(proxy, [](auto const& adapter) -> decltype(auto) {
     using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-      if (ref_if_avail && adapter->HasRefCategorical()) {
+      if (adapter->HasRefCategorical()) {
         return adapter->RefCats();
       }
       return adapter->Cats();
