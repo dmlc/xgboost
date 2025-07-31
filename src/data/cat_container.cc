@@ -71,6 +71,22 @@ template <typename T>
 struct PrimToUbj;
 
 template <>
+struct PrimToUbj<std::uint8_t> {
+  using Type = U8Array;
+};
+template <>
+struct PrimToUbj<std::uint16_t> {
+  using Type = U16Array;
+};
+template <>
+struct PrimToUbj<std::uint32_t> {
+  using Type = U32Array;
+};
+template <>
+struct PrimToUbj<std::uint64_t> {
+  using Type = U64Array;
+};
+template <>
 struct PrimToUbj<std::int8_t> {
   using Type = I8Array;
 };
@@ -193,16 +209,32 @@ void CatContainer::Load(Json const& in) {
           LoadJson<std::int8_t>(jvalues, &columns.back());
           break;
         }
+        case T::kU8Array: {
+          LoadJson<std::uint8_t>(jvalues, &columns.back());
+          break;
+        }
         case T::kI16Array: {
           LoadJson<std::int16_t>(jvalues, &columns.back());
+          break;
+        }
+        case T::kU16Array: {
+          LoadJson<std::uint16_t>(jvalues, &columns.back());
           break;
         }
         case T::kI32Array: {
           LoadJson<std::int32_t>(jvalues, &columns.back());
           break;
         }
+        case T::kU32Array: {
+          LoadJson<std::uint32_t>(jvalues, &columns.back());
+          break;
+        }
         case T::kI64Array: {
           LoadJson<std::int64_t>(jvalues, &columns.back());
+          break;
+        }
+        case T::kU64Array: {
+          LoadJson<std::uint64_t>(jvalues, &columns.back());
           break;
         }
         case T::kF32Array: {

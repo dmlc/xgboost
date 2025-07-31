@@ -9,6 +9,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import make_categorical
 from xgboost.testing.ordinal import (
+    run_basic_predict,
     run_cat_container,
     run_cat_container_iter,
     run_cat_container_mixed,
@@ -17,7 +18,11 @@ from xgboost.testing.ordinal import (
     run_cat_predict,
     run_cat_shap,
     run_cat_thread_safety,
+    run_recode_dmatrix,
+    run_recode_dmatrix_predict,
     run_specified_cat,
+    run_training_continuation,
+    run_update,
     run_validation,
 )
 
@@ -103,9 +108,31 @@ def test_mixed_devices() -> None:
         assert f.result()
 
 
-def test_spcified_cat() -> None:
+@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+def test_mixed_devices_types(DMatrixT: Type) -> None:
+    run_basic_predict(DMatrixT, "cuda", "cpu")
+    run_basic_predict(DMatrixT, "cpu", "cuda")
+
+
+def test_specified_cat() -> None:
     run_specified_cat("cuda")
 
 
 def test_validation() -> None:
     run_validation("cuda")
+
+
+def test_recode_dmatrix() -> None:
+    run_recode_dmatrix("cuda")
+
+
+def test_training_continuation() -> None:
+    run_training_continuation("cuda")
+
+
+def test_update() -> None:
+    run_update("cuda")
+
+
+def test_recode_dmatrix_predict() -> None:
+    run_recode_dmatrix_predict("cuda")

@@ -13,6 +13,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import DataSplitMode
 from xgboost.testing.data import np_dtypes, run_base_margin_info
+from xgboost.testing.utils import predictor_equal
 
 dpath = "demo/data/"
 rng = np.random.RandomState(1994)
@@ -397,7 +398,7 @@ class TestDMatrix:
         for orig, x in np_dtypes(n_samples, n_features):
             m0 = xgb.DMatrix(orig)
             m1 = xgb.DMatrix(x)
-            assert tm.predictor_equal(m0, m1)
+            assert predictor_equal(m0, m1)
 
 
 @pytest.mark.skipif(tm.is_windows(), reason="Rabit does not run on windows")

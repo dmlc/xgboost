@@ -178,8 +178,8 @@ class SparsePageView : public DataToFeatVec<SparsePageView<EncAccessor>> {
  public:
   bst_idx_t const base_rowid;
 
-  SparsePageView(SparsePage const *p, EncAccessor &&acc)
-      : acc_{std::forward<EncAccessor>(acc)}, view_{p->GetView()}, base_rowid{p->base_rowid} {}
+  SparsePageView(HostSparsePageView const p, bst_idx_t base_rowid, EncAccessor &&acc)
+      : acc_{std::forward<EncAccessor>(acc)}, view_{p}, base_rowid{base_rowid} {}
   [[nodiscard]] std::size_t Size() const { return view_.Size(); }
 
   [[nodiscard]] bst_idx_t DoFill(bst_idx_t ridx, float *out) const {
@@ -367,17 +367,7 @@ static void InitThreadTemp(int nthread, std::vector<RegTree::FVec> *out) {
   }
 }
 
-auto MakeCatAccessor(Context const *ctx, enc::HostColumnsView const &new_enc,
-                     gbm::GBTreeModel const &model) {
-  std::vector<std::int32_t> mapping(new_enc.n_total_cats);
-  auto sorted_idx = model.Cats()->RefSortedIndex(ctx);
-  auto orig_enc = model.Cats()->HostView();
-  enc::Recode(cpu_impl::EncPolicy, orig_enc, sorted_idx, new_enc, common::Span{mapping});
-  CHECK_EQ(new_enc.feature_segments.size(), orig_enc.feature_segments.size());
-  auto cats_mapping = enc::MappingView{new_enc.feature_segments, mapping};
-  auto acc = CatAccessor{cats_mapping};
-  return std::tuple{acc, std::move(mapping)};
-}
+using cpu_impl::MakeCatAccessor;
 
 bool ShouldUseBlock(DMatrix *p_fmat) {
   // Threshold to use block-based prediction.
@@ -453,7 +443,8 @@ class ColumnSplitHelper {
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
                p_fmat->Info().num_row_ * model_.learner_model_param->num_output_group);
-      PredictBatchKernel<kBlockOfRowsSize>(ctx, SparsePageView{&batch, NoOpAccessor{}}, out_preds);
+      PredictBatchKernel<kBlockOfRowsSize>(
+          ctx, SparsePageView{batch.GetView(), batch.base_rowid, NoOpAccessor{}}, out_preds);
     }
   }
 
@@ -463,8 +454,8 @@ class ColumnSplitHelper {
 
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(), p_fmat->Info().num_row_ * (tree_end_ - tree_begin_));
-      PredictBatchKernel<kBlockOfRowsSize, true>(ctx, SparsePageView{&batch, NoOpAccessor{}},
-                                                 out_preds);
+      PredictBatchKernel<kBlockOfRowsSize, true>(
+          ctx, SparsePageView{batch.GetView(), batch.base_rowid, NoOpAccessor{}}, out_preds);
     }
   }
 
@@ -722,7 +713,7 @@ class CPUPredictor : public Predictor {
       } else {
         // Run prediction on SparsePage
         for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-          auto batch = SparsePageView{&page, std::forward<Enc>(acc)};
+          auto batch = SparsePageView{page.GetView(), page.base_rowid, std::forward<Enc>(acc)};
           if (blocked) {
             PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(batch, model, tree_begin, tree_end,
                                                               &feat_vecs, n_threads, out_predt);
@@ -735,7 +726,7 @@ class CPUPredictor : public Predictor {
     };
 
     if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
       launch(acc);
     } else {
       launch(NoOpAccessor{});
@@ -851,7 +842,7 @@ class CPUPredictor : public Predictor {
     if constexpr (std::is_same_v<Adapter, data::ColumnarAdapter>) {
       // Make specialization for DataFrame where we need encoding.
       if (model.Cats()->HasCategorical()) {
-        auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model);
+        auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model.Cats());
         return launch(acc);
       }
     }
@@ -910,6 +901,7 @@ class CPUPredictor : public Predictor {
 
     auto launch = [&](SparsePage const &page, auto &&acc) {
       using Enc = std::remove_reference_t<decltype(acc)>;  // The encoder.
+      auto view_impl = page.GetView();
       common::ParallelFor(page.Size(), n_threads, [&](auto i) {
         auto tid = omp_get_thread_num();
         auto ridx = static_cast<bst_idx_t>(page.base_rowid + i);
@@ -917,7 +909,7 @@ class CPUPredictor : public Predictor {
         if (feats.Size() == 0) {
           feats.Init(n_features);
         }
-        SparsePageView view{&page, std::forward<Enc>(acc)};
+        SparsePageView view{view_impl, page.base_rowid, std::forward<Enc>(acc)};
         view.Fill(i, &feats);
 
         for (bst_tree_t j = 0; j < ntree_limit; ++j) {
@@ -939,7 +931,7 @@ class CPUPredictor : public Predictor {
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
       if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
-        auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+        auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
         launch(batch, std::move(acc));
       } else {
         launch(batch, NoOpAccessor{});
@@ -986,14 +978,15 @@ class CPUPredictor : public Predictor {
         }
       } else {
         for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-          PredictContributionKernel(SparsePageView{&batch, std::forward<Enc>(acc)}, info, model,
-                                    tree_weights, &mean_values, &feat_vecs, &contribs, ntree_limit,
-                                    approximate, condition, condition_feature);
+          PredictContributionKernel(
+              SparsePageView{batch.GetView(), batch.base_rowid, std::forward<Enc>(acc)}, info,
+              model, tree_weights, &mean_values, &feat_vecs, &contribs, ntree_limit, approximate,
+              condition, condition_feature);
         }
       }
     };
     if (model.Cats()->HasCategorical() && !p_fmat->CatsShared()->Empty()) {
-      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model);
+      auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
       launch(acc);
     } else {
       launch(NoOpAccessor{});

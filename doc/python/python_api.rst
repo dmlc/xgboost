@@ -43,6 +43,8 @@ Core Data Structure
     :members:
     :show-inheritance:
 
+.. autoclass:: xgboost.core.Categories
+
 Learning API
 ------------
 .. automodule:: xgboost.training

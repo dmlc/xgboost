@@ -7,7 +7,7 @@ import pytest
 import scipy.sparse
 
 import xgboost as xgb
-from xgboost import testing as tm
+from xgboost.testing.utils import predictor_equal
 
 
 @pytest.mark.filterwarnings("error")
@@ -59,7 +59,7 @@ def test_csc(DMatrixT: Type[xgb.DMatrix], CSC: Type) -> None:
         data = np.array([0, 1, 2, 3, 4])
         row_idx = np.array([0, 1, 2, 0, 2])
         X = CSC((data, row_idx, indptr), shape=(3, 2))
-        assert tm.predictor_equal(DMatrixT(X.tocsr()), DMatrixT(X))
+        assert predictor_equal(DMatrixT(X.tocsr()), DMatrixT(X))
 
 
 @pytest.mark.filterwarnings("error")
@@ -84,4 +84,4 @@ def test_coo(DMatrixT: Type[xgb.DMatrix], COO: Type) -> None:
         assert dtrain.num_col() == 3
         assert dtrain.num_nonmissing() == data.size
 
-        assert tm.predictor_equal(DMatrixT(X.tocsr()), DMatrixT(X))
+        assert predictor_equal(DMatrixT(X.tocsr()), DMatrixT(X))

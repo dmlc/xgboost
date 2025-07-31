@@ -23,24 +23,24 @@ from typing import (
 import numpy as np
 
 from ._data_utils import (
-    ArrayInf,
+    AifType,
+    Categories,
     DfCatAccessor,
-    StringArray,
     TransformedDf,
-    _arrow_cat_inf,
-    _arrow_mask_inf,
-    _arrow_npdtype,
+    _arrow_array_inf,
     _ensure_np_dtype,
     _is_df_cat,
     array_hasobject,
     array_interface,
     array_interface_dict,
+    arrow_cat_inf,
     check_cudf_meta,
     cuda_array_interface,
     cuda_array_interface_dict,
     cudf_cat_inf,
+    get_ref_categories,
     is_arrow_dict,
-    make_array_interface,
+    pd_cats_inf,
 )
 from ._typing import (
     CupyT,
@@ -77,7 +77,7 @@ if TYPE_CHECKING:
     from pandas import Series as PdSeries
 
 
-DispatchedDataBackendReturnType = Tuple[
+DispatchedDataBackendReturnType: TypeAlias = Tuple[
     ctypes.c_void_p, Optional[FeatureNames], Optional[FeatureTypes]
 ]
 
@@ -611,32 +611,28 @@ class PandasTransformed(TransformedDf):
     """A storage class for transformed pandas DataFrame."""
 
     def __init__(
-        self, columns: List[Union[np.ndarray, DfCatAccessor, "pa.DictionaryType"]]
+        self,
+        columns: List[Union[np.ndarray, DfCatAccessor]],
+        ref_categories: Optional[Categories],
     ) -> None:
         self.columns = columns
 
-        aitfs = []
-        self.temporary_buffers = []
+        aitfs: AifType = []
 
         # Get the array interface representation for each column.
         for col in self.columns:
-            inf = array_interface_dict(col)
-            if isinstance(inf, tuple):
+            if _is_df_cat(col):
                 # Categorical column
-                jnames, jcodes, buf = inf
-                # Store the transformed results to avoid garbage collection.
+                jnames, jcodes, buf = pd_cats_inf(col.categories, col.codes)
                 self.temporary_buffers.append(buf)
-                aitfs.append([jnames, jcodes])
+                aitfs.append((jnames, jcodes))
             else:
+                assert isinstance(col, np.ndarray)
+                inf = array_interface_dict(col)
                 # Numeric column
                 aitfs.append(inf)
 
-        self.aitfs = aitfs
-
-    def array_interface(self) -> bytes:
-        """Return a byte string for JSON encoded array interface."""
-        sarrays = bytes(json.dumps(self.aitfs), "utf-8")
-        return sarrays
+        super().__init__(ref_categories=ref_categories, aitfs=aitfs)
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -657,18 +653,23 @@ def _transform_pandas_df(
     data: DataFrame,
     enable_categorical: bool,
     feature_names: Optional[FeatureNames] = None,
-    feature_types: Optional[FeatureTypes] = None,
+    feature_types: Optional[Union[FeatureTypes, Categories]] = None,
     meta: Optional[str] = None,
 ) -> Tuple[PandasTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
     if meta and len(data.columns) > 1 and meta not in _matrix_meta:
         raise ValueError(f"DataFrame for {meta} cannot have multiple columns")
 
+    feature_types, ref_categories = get_ref_categories(feature_types)
     feature_names, feature_types = pandas_feature_info(
         data, meta, feature_names, feature_types, enable_categorical
     )
 
     arrays = pandas_transform_data(data)
-    return PandasTransformed(arrays), feature_names, feature_types
+    return (
+        PandasTransformed(arrays, ref_categories=ref_categories),
+        feature_names,
+        feature_types,
+    )
 
 
 def _meta_from_pandas_df(
@@ -694,7 +695,7 @@ def _from_pandas_df(
     missing: FloatCompatible,
     nthread: int,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     df, feature_names, feature_types = _transform_pandas_df(
@@ -771,23 +772,13 @@ def _from_pandas_series(
     )
 
 
-# Type for storing JSON-encoded array interface
-AifType: TypeAlias = List[
-    Union[
-        ArrayInf,  # numeric column
-        Tuple[  # categorical column
-            Union[ArrayInf, StringArray],  # string index, numeric index
-            ArrayInf,  # codes
-        ],
-    ]
-]
-
-
 class ArrowTransformed(TransformedDf):
     """A storage class for transformed arrow table."""
 
     def __init__(
-        self, columns: List[Union["pa.NumericArray", "pa.DictionaryArray"]]
+        self,
+        columns: List[Union["pa.NumericArray", "pa.DictionaryArray"]],
+        ref_categories: Optional[Categories] = None,
     ) -> None:
         self.columns = columns
 
@@ -808,33 +799,17 @@ class ArrowTransformed(TransformedDf):
                     raise TypeError(
                         "Only string-based categorical index is supported for arrow."
                     )
-                jnames, jcodes, buf = _arrow_cat_inf(cats, codes)
+                jnames, jcodes, buf = arrow_cat_inf(cats, codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
             else:
-                mask, data = col.buffers()
-
-                assert data.is_cpu
-                assert col.offset == 0
-
-                jdata = make_array_interface(
-                    data.address,
-                    shape=(len(col),),
-                    dtype=_arrow_npdtype()[col.type],
-                    is_cuda=not data.is_cpu,
-                )
-                jdata["mask"] = _arrow_mask_inf(mask, len(col))
+                jdata = _arrow_array_inf(col)
                 aitfs.append(jdata)
 
         for col in self.columns:
             push_series(col)
 
-        self.aitfs = aitfs
-
-    def array_interface(self) -> bytes:
-        """Return a byte string for JSON encoded array interface."""
-        sarrays = bytes(json.dumps(self.aitfs), "utf-8")
-        return sarrays
+        super().__init__(ref_categories=ref_categories, aitfs=aitfs)
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -850,7 +825,7 @@ def _transform_arrow_table(
     data: "pa.Table",
     enable_categorical: bool,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
 ) -> Tuple[ArrowTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
     if TYPE_CHECKING:
         import pyarrow as pa
@@ -858,6 +833,7 @@ def _transform_arrow_table(
         pa = import_pyarrow()
 
     t_names, t_types = _arrow_feature_info(data)
+    feature_types, ref_categories = get_ref_categories(feature_types)
 
     if feature_names is None:
         feature_names = t_names
@@ -876,7 +852,7 @@ def _transform_arrow_table(
             _invalid_dataframe_dtype(None)
         columns.append(col)
 
-    df_t = ArrowTransformed(columns)
+    df_t = ArrowTransformed(columns, ref_categories=ref_categories)
     return df_t, feature_names, feature_types
 
 
@@ -886,7 +862,7 @@ def _from_arrow_table(  # pylint: disable=too-many-positional-arguments
     missing: FloatCompatible,
     n_threads: int,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     df_t, feature_names, feature_types = _transform_arrow_table(
@@ -980,7 +956,7 @@ def _transform_polars_df(
     data: DataType,
     enable_categorical: bool,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
 ) -> Tuple[ArrowTransformed, Optional[FeatureNames], Optional[FeatureTypes]]:
     if _is_polars_lazyframe(data):
         df = data.collect()
@@ -1005,7 +981,7 @@ def _from_polars_df(  # pylint: disable=too-many-positional-arguments
     missing: FloatCompatible,
     n_threads: int,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     df_t, feature_names, feature_types = _transform_polars_df(
@@ -1065,18 +1041,20 @@ def _lazy_load_cudf_is_bool() -> Callable[[Any], bool]:
 class CudfTransformed(TransformedDf):
     """A storage class for transformed cuDF dataframe."""
 
-    def __init__(self, columns: List[Union["PdSeries", DfCatAccessor]]) -> None:
+    def __init__(
+        self,
+        columns: List[Union["PdSeries", DfCatAccessor]],
+        ref_categories: Optional[Categories],
+    ) -> None:
         self.columns = columns
         # Buffers for temporary data that cannot be freed until the data is consumed by
         # the DMatrix or the booster.
-        self.temporary_buffers: List[Tuple] = []
 
         aitfs: AifType = []
 
         def push_series(ser: Any) -> None:
             if _is_df_cat(ser):
                 cats, codes = ser.categories, ser.codes
-                cats_ainf: Union[StringArray, ArrayInf]  # string or numeric index
                 cats_ainf, codes_ainf, buf = cudf_cat_inf(cats, codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((cats_ainf, codes_ainf))
@@ -1088,12 +1066,7 @@ class CudfTransformed(TransformedDf):
         for col in self.columns:
             push_series(col)
 
-        self.aitfs = aitfs
-
-    def array_interface(self) -> bytes:
-        """Return a byte string for JSON encoded array interface."""
-        sarrays = bytes(json.dumps(self.aitfs), "utf-8")
-        return sarrays
+        super().__init__(ref_categories=ref_categories, aitfs=aitfs)
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -1108,7 +1081,7 @@ class CudfTransformed(TransformedDf):
 def _transform_cudf_df(
     data: DataType,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
     enable_categorical: bool,
 ) -> Tuple[
     CudfTransformed,
@@ -1146,6 +1119,7 @@ def _transform_cudf_df(
             feature_names = list(data.columns.map(str))
 
     # handle feature types
+    feature_types, ref_categories = get_ref_categories(feature_types)
     if feature_types is None:
         feature_types = []
         for dtype in dtypes:
@@ -1165,16 +1139,20 @@ def _transform_cudf_df(
         else:
             result.append(data)
     else:
-        for col in data:
-            dtype = data[col].dtype
+        for col, dtype in zip(data.columns, data.dtypes):
+            series = data[col]
             if is_categorical_dtype(dtype) and enable_categorical:
-                result.append(data[col].cat)
+                result.append(series.cat)
             elif is_categorical_dtype(dtype):
                 raise ValueError(_ENABLE_CAT_ERR)
             else:
-                result.append(data[col])
+                result.append(series)
 
-    return CudfTransformed(result), feature_names, feature_types
+    return (
+        CudfTransformed(result, ref_categories=ref_categories),
+        feature_names,
+        feature_types,
+    )
 
 
 def _from_cudf_df(
@@ -1183,7 +1161,7 @@ def _from_cudf_df(
     missing: FloatCompatible,
     nthread: int,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
     enable_categorical: bool,
 ) -> DispatchedDataBackendReturnType:
     df, feature_names, feature_types = _transform_cudf_df(
@@ -1376,11 +1354,21 @@ def dispatch_data_backend(
     missing: FloatCompatible,  # Or Optional[Float]
     threads: int,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
     enable_categorical: bool = False,
     data_split_mode: DataSplitMode = DataSplitMode.ROW,
 ) -> DispatchedDataBackendReturnType:
     """Dispatch data for DMatrix."""
+
+    def check_cats(
+        feature_types: Optional[Union[FeatureTypes, Categories]],
+    ) -> TypeGuard[Optional[FeatureTypes]]:
+        if isinstance(feature_types, Categories):
+            raise ValueError(
+                "Reference category is only supported by DataFrame inputs."
+            )
+        return True
+
     if (
         not _is_cudf_ser(data)
         and not _is_pandas_series(data)
@@ -1388,6 +1376,7 @@ def dispatch_data_backend(
     ):
         _check_data_shape(data)
     if is_scipy_csr(data):
+        assert check_cats(feature_types)
         return _from_scipy_csr(
             data=data,
             missing=missing,
@@ -1397,6 +1386,7 @@ def dispatch_data_backend(
             data_split_mode=data_split_mode,
         )
     if is_scipy_csc(data):
+        assert check_cats(feature_types)
         return _from_scipy_csc(
             data=data,
             missing=missing,
@@ -1406,6 +1396,7 @@ def dispatch_data_backend(
             data_split_mode=data_split_mode,
         )
     if is_scipy_coo(data):
+        assert check_cats(feature_types)
         return _from_scipy_csr(
             data=data.tocsr(),
             missing=missing,
@@ -1415,6 +1406,7 @@ def dispatch_data_backend(
             data_split_mode=data_split_mode,
         )
     if _is_np_array_like(data):
+        assert check_cats(feature_types)
         return _from_numpy_array(
             data=data,
             missing=missing,
@@ -1424,8 +1416,10 @@ def dispatch_data_backend(
             data_split_mode=data_split_mode,
         )
     if _is_uri(data):
+        assert check_cats(feature_types)
         return _from_uri(data, missing, feature_names, feature_types, data_split_mode)
     if _is_list(data):
+        assert check_cats(feature_types)
         return _from_list(
             data=data,
             missing=missing,
@@ -1435,6 +1429,7 @@ def dispatch_data_backend(
             data_split_mode=data_split_mode,
         )
     if _is_tuple(data):
+        assert check_cats(feature_types)
         return _from_tuple(
             data=data,
             missing=missing,
@@ -1493,13 +1488,19 @@ def dispatch_data_backend(
             enable_categorical=enable_categorical,
         )
     if _is_cupy_alike(data):
+        assert check_cats(feature_types)
         return _from_cupy_array(data, missing, threads, feature_names, feature_types)
     if _is_cupy_csr(data):
         raise TypeError("cupyx CSR is not supported yet.")
     if _is_cupy_csc(data):
         raise TypeError("cupyx CSC is not supported yet.")
     if _is_dlpack(data):
+        assert check_cats(feature_types)
         return _from_dlpack(data, missing, threads, feature_names, feature_types)
+    if _is_modin_series(data):
+        import pandas as pd
+
+        data = pd.DataFrame(data)
     if _is_modin_df(data):
         return _from_pandas_df(
             data=data,
@@ -1509,16 +1510,9 @@ def dispatch_data_backend(
             feature_names=feature_names,
             feature_types=feature_types,
         )
-    if _is_modin_series(data):
-        return _from_pandas_series(
-            data=data,
-            missing=missing,
-            nthread=threads,
-            enable_categorical=enable_categorical,
-            feature_names=feature_names,
-            feature_types=feature_types,
-        )
+
     if _has_array_protocol(data):
+        assert check_cats(feature_types)
         array = np.asarray(data)
         return _from_numpy_array(
             data=array,
@@ -1530,6 +1524,7 @@ def dispatch_data_backend(
 
     converted = _convert_unknown_data(data)
     if converted is not None:
+        assert check_cats(feature_types)
         return _from_scipy_csr(
             data=converted,
             missing=missing,

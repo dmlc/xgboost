@@ -10,7 +10,11 @@ from xgboost.testing.ordinal import (
     run_cat_predict,
     run_cat_shap,
     run_cat_thread_safety,
+    run_recode_dmatrix,
+    run_recode_dmatrix_predict,
     run_specified_cat,
+    run_training_continuation,
+    run_update,
     run_validation,
 )
 
@@ -49,9 +53,25 @@ def test_cat_leaf() -> None:
     run_cat_leaf("cpu")
 
 
-def test_spcified_cat() -> None:
+def test_specified_cat() -> None:
     run_specified_cat("cpu")
 
 
 def test_validation() -> None:
     run_validation("cpu")
+
+
+def test_recode_dmatrix() -> None:
+    run_recode_dmatrix("cpu")
+
+
+def test_training_continuation() -> None:
+    run_training_continuation("cpu")
+
+
+def test_update() -> None:
+    run_update("cpu")
+
+
+def test_recode_dmatrix_predict() -> None:
+    run_recode_dmatrix_predict("cpu")

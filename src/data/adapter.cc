@@ -3,18 +3,41 @@
  */
 #include "adapter.h"
 
-#include <utility>  // for move
+#include <algorithm>  // for all_of
+#include <cstdint>    // for int32_t
+#include <numeric>    // for partial_sum
+#include <utility>    // for move
+#include <vector>     // for vector
 
 #include "../c_api/c_api_error.h"  // for API_BEGIN, API_END
+#include "../encoder/ordinal.h"    // for HostCatIndexView
 #include "array_interface.h"       // for ArrayInterface
-#include "xgboost/c_api.h"
+#include "columnar.h"              // for GetRefCats, GetArrowDictionary
+#include "xgboost/c_api.h"         // for DataIterHandle
+#include "xgboost/json.h"          // for Json, Object, Array
 #include "xgboost/logging.h"
 
 namespace xgboost::data {
+namespace {
+auto GetRefCats(Json handle) {
+  auto cats = reinterpret_cast<CatContainer const*>(get<Integer const>(handle));
+  CHECK(cats);
+  auto h_cats = cats->HostView();
+  return h_cats;
+}
+}  // anonymous namespace
+
 ColumnarAdapter::ColumnarAdapter(StringView columns) {
-  auto jarray = Json::Load(columns);
-  CHECK(IsA<Array>(jarray));
-  auto const& array = get<Array const>(jarray);
+  auto jdf = Json::Load(columns);
+
+  if (IsA<Object>(jdf)) {
+    // Has reference categories.
+    this->ref_cats_ = GetRefCats(jdf["ref_categories"]);
+    jdf = jdf["columns"];
+  }
+
+  CHECK(IsA<Array>(jdf));
+  auto const& array = get<Array const>(jdf);
   bst_idx_t n_samples{0};
   std::vector<std::int32_t> cat_segments{0};
   for (auto const& jcol : array) {
@@ -51,7 +74,12 @@ ColumnarAdapter::ColumnarAdapter(StringView columns) {
                                                     });
   this->cat_segments_ = std::move(cat_segments);
   CHECK(consistent) << "Size of columns should be the same.";
-  batch_ = ColumnarAdapterBatch{columns_};
+  batch_ = ColumnarAdapterBatch{columns_, NoOpAccessor{}};
+
+  if (!this->ref_cats_.Empty()) {
+    CHECK_EQ(this->ref_cats_.Size(), this->columns_.size())
+        << "Invalid reference categories, different number of columns";
+  }
 }
 
 template <typename DataIterHandle, typename XGBCallbackDataIterNext, typename XGBoostBatchCSR>

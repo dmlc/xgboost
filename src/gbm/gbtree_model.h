@@ -139,6 +139,7 @@ struct GBTreeModel : public Model {
 
   [[nodiscard]] CatContainer const* Cats() const { return this->cats_.get(); }
   [[nodiscard]] CatContainer* Cats() { return this->cats_.get(); }
+  [[nodiscard]] std::shared_ptr<CatContainer> CatsShared() const { return this->cats_; }
   void Cats(std::shared_ptr<CatContainer> cats) { this->cats_ = cats; }
 
  private:
