@@ -41,7 +41,6 @@
 #include "common/random.h"                // for GlobalRandom
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
-#include "dmlc/endian.h"                  // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
 #include "xgboost/base.h"                 // for Args, bst_float, GradientPair, bst_feature_t, ...
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
@@ -84,22 +83,22 @@ T& UsePtr(T& ptr) {  // NOLINT
  */
 struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy> {
   /* \brief global bias */
-  bst_float base_score;
+  bst_float base_score{ObjFunction::DefaultBaseScore()};
   /* \brief number of features  */
   bst_feature_t num_feature;
   /* \brief number of classes, if it is multi-class classification  */
-  std::int32_t num_class;
+  std::int32_t num_class{0};
   /*! \brief Model contain additional properties */
-  int32_t contain_extra_attrs;
+  int32_t contain_extra_attrs{0};
   /*! \brief Model contain eval metrics */
-  int32_t contain_eval_metrics;
+  int32_t contain_eval_metrics{0};
   /*! \brief the version of XGBoost. */
-  std::uint32_t major_version;
-  std::uint32_t minor_version;
+  std::int32_t major_version{std::get<0>(Version::Self())};
+  std::int32_t minor_version{std::get<1>(Version::Self())};
   /**
    * \brief Number of target variables.
    */
-  bst_target_t num_target;
+  bst_target_t num_target{1};
   /**
    * \brief Whether we should calculate the base score from training data.
    *
@@ -110,19 +109,8 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
    *   of bool for the ease of serialization.
    */
   std::int32_t boost_from_average{true};
-  /*! \brief reserved field */
-  int reserved[25];
-  /*! \brief constructor */
-  LearnerModelParamLegacy() {
-    std::memset(this, 0, sizeof(LearnerModelParamLegacy));
-    base_score = ObjFunction::DefaultBaseScore();
-    num_target = 1;
-    major_version = std::get<0>(Version::Self());
-    minor_version = std::get<1>(Version::Self());
-    boost_from_average = true;
-    static_assert(sizeof(LearnerModelParamLegacy) == 136,
-                  "Do not change the size of this struct, as it will break binary IO.");
-  }
+
+  LearnerModelParamLegacy() = default;
 
   // Skip other legacy fields.
   [[nodiscard]] Json ToJson() const {
@@ -173,21 +161,6 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
-  }
-
-  [[nodiscard]] LearnerModelParamLegacy ByteSwap() const {
-    LearnerModelParamLegacy x = *this;
-    dmlc::ByteSwap(&x.base_score, sizeof(x.base_score), 1);
-    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
-    dmlc::ByteSwap(&x.num_class, sizeof(x.num_class), 1);
-    dmlc::ByteSwap(&x.contain_extra_attrs, sizeof(x.contain_extra_attrs), 1);
-    dmlc::ByteSwap(&x.contain_eval_metrics, sizeof(x.contain_eval_metrics), 1);
-    dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
-    dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
-    dmlc::ByteSwap(&x.num_target, sizeof(x.num_target), 1);
-    dmlc::ByteSwap(&x.boost_from_average, sizeof(x.boost_from_average), 1);
-    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
-    return x;
   }
 
   template <typename Container>
