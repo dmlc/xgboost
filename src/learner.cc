@@ -85,7 +85,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /* \brief global bias */
   bst_float base_score{ObjFunction::DefaultBaseScore()};
   /* \brief number of features  */
-  bst_feature_t num_feature;
+  bst_feature_t num_feature{0};
   /* \brief number of classes, if it is multi-class classification  */
   std::int32_t num_class{0};
   /*! \brief Model contain additional properties */

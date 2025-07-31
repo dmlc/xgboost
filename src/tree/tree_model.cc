@@ -789,18 +789,18 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
 constexpr bst_node_t RegTree::kRoot;
 
 void TreeParam::FromJson(Json const& in) {
-  this->num_deleted = get<Integer const>(in["num_deleted"]);
-  this->num_feature = get<Integer const>(in["num_feature"]);
-  this->num_nodes = get<Integer const>(in["num_nodes"]);
-  this->size_leaf_vector = get<Integer const>(in["size_leaf_vector"]);
+  this->num_deleted = std::stoi(get<String const>(in["num_deleted"]));
+  this->num_feature = std::stoi(get<String const>(in["num_feature"]));
+  this->num_nodes = std::stoi(get<String const>(in["num_nodes"]));
+  this->size_leaf_vector = std::stoi(get<String const>(in["size_leaf_vector"]));
 }
 
 void TreeParam::ToJson(Json* p_out) const {
   auto& out = *p_out;
-  out["num_deleted"] = this->num_deleted;
-  out["num_feature"] = this->num_feature;
-  out["num_nodes"] = this->num_nodes;
-  out["size_leaf_vector"] = this->size_leaf_vector;
+  out["num_deleted"] = std::to_string(this->num_deleted);
+  out["num_feature"] = std::to_string(this->num_feature);
+  out["num_nodes"] = std::to_string(this->num_nodes);
+  out["size_leaf_vector"] = std::to_string(this->size_leaf_vector);
 }
 
 std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::string format) const {
@@ -1139,6 +1139,7 @@ void RegTree::LoadModel(Json const& in) {
 void RegTree::SaveModel(Json* p_out) const {
   auto& out = *p_out;
   // basic properties
+  out["tree_param"] = Object{};
   param_.ToJson(&out["tree_param"]);
   // categorical splits
   this->SaveCategoricalSplit(p_out);
