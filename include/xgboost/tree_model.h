@@ -1,14 +1,12 @@
 /**
  * Copyright 2014-2025, XGBoost Contributors
- * \file tree_model.h
+ *
  * \brief model structure for tree
  * \author Tianqi Chen
  */
 #ifndef XGBOOST_TREE_MODEL_H_
 #define XGBOOST_TREE_MODEL_H_
 
-#include <dmlc/io.h>
-#include <dmlc/parameter.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/feature_map.h>
@@ -28,18 +26,15 @@
 namespace xgboost {
 class Json;
 
-/*! \brief meta parameters of the tree */
+/** @brief meta parameters of the tree */
 struct TreeParam {
-  /*! \brief (Deprecated) number of start root */
-  int num_nodes{1};
-  /*!\brief number of deleted nodes */
-  int num_deleted{0};
-  /*! \brief number of features used for tree construction */
+  /** @brief (Deprecated) number of start root */
+  bst_node_t num_nodes{1};
+  /** @brief number of deleted nodes */
+  bst_node_t num_deleted{0};
+  /** @brief number of features used for tree construction */
   bst_feature_t num_feature{0};
-  /*!
-   * \brief leaf vector size, used for vector tree
-   * used to store more than one dimensional information in tree
-   */
+  /** @brief leaf vector size. Used by the vector leaf. */
   bst_target_t size_leaf_vector{1};
 
   bool operator==(const TreeParam& b) const {

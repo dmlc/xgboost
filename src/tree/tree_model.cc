@@ -789,10 +789,15 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
 constexpr bst_node_t RegTree::kRoot;
 
 void TreeParam::FromJson(Json const& in) {
-  this->num_deleted = std::stoi(get<String const>(in["num_deleted"]));
-  this->num_feature = std::stoul(get<String const>(in["num_feature"]));
-  this->num_nodes = std::stoi(get<String const>(in["num_nodes"]));
-  this->size_leaf_vector = std::stoul(get<String const>(in["size_leaf_vector"]));
+  auto const& obj = get<Object const>(in);
+  auto n_deleted_it = obj.find(StringView{"num_deleted"});
+  if (n_deleted_it != obj.cend()) {
+    // Missing in 1.0 models.
+    this->num_deleted = std::stoi(get<String const>(n_deleted_it->second));
+  }
+  this->num_feature = std::stoul(get<String const>(obj.at("num_feature")));
+  this->num_nodes = std::stoi(get<String const>(obj.at("num_nodes")));
+  this->size_leaf_vector = std::stoul(get<String const>(obj.at("size_leaf_vector")));
 }
 
 void TreeParam::ToJson(Json* p_out) const {
