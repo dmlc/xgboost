@@ -136,6 +136,9 @@ float BinarySearch(const Entry* begin_ptr, const Entry* end_ptr, size_t col_idx,
   if (n_elems == num_features) {
     return (begin_ptr + col_idx)->fvalue;
   }
+
+  // Since indexes are in range [0: num_features),
+  // we can squeeze the search window from [0: n_elems) to [offset_left: offset_right)
   const size_t shift = (num_features - 1) - col_idx;
   const size_t offset_left = shift > n_elems - 1 ? 0 : std::max<size_t>(0, (n_elems - 1) - shift);
   const size_t offset_right = std::min<size_t>(col_idx + 1, n_elems);
@@ -292,6 +295,7 @@ class Predictor : public xgboost::Predictor {
   // 8KB fits EU registers
   static constexpr int kMaxFeatureBufferSize = 2048;
 
+  // Relative cost of reading and writing for discrete and integrated devices.
   static constexpr float kCostCalibrationIntegrated = 64;
   static constexpr float kCostCalibrationDescrete = 4;
 
@@ -325,14 +329,12 @@ class Predictor : public xgboost::Predictor {
     size_t max_compute_units = device_prop_.max_compute_units;
     size_t l2_size = device_prop_.l2_size;
     size_t sub_group_size = device_prop_.sub_group_size;
-    /* L2 occupation:
-     * data:  block_size * num_features * sizeof(Entry)
-     * nodes: n_nodes * sizeof(Node)
-     */
     size_t nodes_bytes = n_nodes * sizeof(Node);
     bool nodes_fit_l2 = l2_size > 2 * nodes_bytes;
     size_t block_size = nodes_fit_l2
+                      // nodes and data fit L2
                       ? 0.8 * (l2_size - nodes_bytes) / (sparsity * num_features * sizeof(Entry))
+                      // only data fit L2
                       : 0.8 * (l2_size) / (sparsity * num_features * sizeof(Entry));
     block_size = (block_size / sub_group_size) * sub_group_size;
     if (block_size < max_compute_units * sub_group_size) {
