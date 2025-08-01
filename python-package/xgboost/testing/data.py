@@ -1001,6 +1001,8 @@ def make_categorical(
         choice = rng.binomial(1, cat_ratio, size=1)[0]
         if choice == 1:
             if np.issubdtype(cat_dtype, np.str_):
+                # we rely on using the feature index as the seed to generate the same
+                # categories for multiple calls to `make_categorical`.
                 categories = np.array(unique_random_strings(n_categories, i))
                 c = rng.choice(categories, size=n_samples, replace=True)
             else:

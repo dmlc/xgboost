@@ -11,6 +11,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.with_skl import (
+    run_recoding,
     run_boost_from_prediction_binary,
     run_boost_from_prediction_multi_clasas,
     run_housing_rf_regression,
@@ -315,3 +316,7 @@ def test_device_ordinal() -> None:
             fut.result()
 
     cp.cuda.runtime.setDevice(0)
+
+
+def test_recoding() -> None:
+    run_recoding("cuda")

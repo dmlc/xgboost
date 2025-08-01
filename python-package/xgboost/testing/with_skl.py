@@ -7,8 +7,10 @@ import numpy as np
 import pytest
 
 from ..core import DMatrix
-from ..sklearn import XGBClassifier, XGBRFRegressor
+from ..sklearn import XGBClassifier, XGBRFRegressor, XGBRegressor
 from .utils import Device
+from .data import make_categorical
+from .ordinal import make_recoded
 
 
 def run_boost_from_prediction_binary(
@@ -132,3 +134,31 @@ def run_housing_rf_regression(tree_method: str, device: Device) -> None:
     with pytest.raises(NotImplementedError):
         rfreg.set_params(early_stopping_rounds=10)
         rfreg.fit(X, y)
+
+
+def run_recoding(device: Device) -> None:
+    X, y = make_categorical(
+        n_samples=256,
+        n_features=16,
+        cat_ratio=0.5,
+        n_categories=64,
+        onehot=False,
+        cat_dtype=np.str_,
+    )
+    reg = XGBRegressor(enable_categorical=True)
+    reg.fit(X, y)
+    booster = reg.get_booster()
+    assert not booster.get_categories().empty()
+
+    X, y = make_categorical(
+        n_samples=32,
+        n_features=16,
+        cat_ratio=0.5,
+        n_categories=64,
+        onehot=False,
+        cat_dtype=np.str_,
+    )
+    reg = XGBRegressor(enable_categorical=True)
+    reg.fit(X, y, xgb_model=booster)
+    booster = reg.get_booster()
+    assert not booster.get_categories().empty()

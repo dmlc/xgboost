@@ -107,14 +107,14 @@ def get_ref_categories(
         return model, None
 
     if isinstance(model, str):
-        xgb_model = Booster(model_file=model)
+        model = Booster(model_file=model)
 
-    categories = xgb_model.get_categories()
+    categories = model.get_categories()
 
     if not categories.empty():
         feature_types = categories
 
-    return xgb_model, feature_types
+    return model, feature_types
 
 
 class _SklObjWProto(Protocol):
@@ -712,7 +712,7 @@ def _wrap_evaluation_matrices(
                     # No reference categories from a previous model, use the one in the
                     # training DMatrix.
                     categories = Xy_cats
-                if categories is not None:
+                if categories is not None and not categories.empty():
                     feature_types = categories
 
                 m = create_dmatrix(
@@ -845,6 +845,11 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
         self.enable_categorical = enable_categorical
         self.feature_types = feature_types
+        if isinstance(self.feature_types, Categories):
+            raise TypeError(
+                "If you are training with a prior model (training continuation), "
+                "XGBoost can automatically reuse the categories from that model."
+            )
         self.feature_weights = feature_weights
         self.max_cat_to_onehot = max_cat_to_onehot
         self.max_cat_threshold = max_cat_threshold
