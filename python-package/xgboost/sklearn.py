@@ -100,21 +100,18 @@ def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
 def get_ref_categories(
     X: ArrayLike,
     model: Optional[Union[Booster, str]],
-    feature_types: Optional[Union[FeatureTypes, Categories]],
+    feature_types: Optional[FeatureTypes],
 ) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
-    """Configure the reference categories based on optional model and input data types."""
-    if model is None:
-        return model, None
-    if not is_dataframe(X):
-        return model, None
+    """Configure the reference categories."""
+    if model is None or not is_dataframe(X):
+        return model, feature_types
 
     if isinstance(model, str):
         model = Booster(model_file=model)
 
     categories = model.get_categories()
-
     if not categories.empty():
-        feature_types = categories
+        return model, categories
 
     return model, feature_types
 
