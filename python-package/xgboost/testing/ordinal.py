@@ -74,6 +74,8 @@ def run_cat_container(device: Device) -> None:
         categories = df.c.cat.categories
 
         Xy = DMatrixT(df, enable_categorical=True)
+        assert Xy.feature_names == ["c"]
+        assert Xy.feature_types == ["c"]
         results = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert results is not None
         results_di = dict(results)
@@ -662,6 +664,7 @@ def run_recode_dmatrix(device: Device) -> None:
 
     Xy = DMatrix(df, enable_categorical=True)
     cats_0 = Xy.get_categories(export_to_arrow=True)
+    assert Xy.feature_types == ["int", "c"]
 
     col1 = pd.Categorical.from_codes(
         # b, b, c, d, a, c, c, d, a
@@ -670,6 +673,9 @@ def run_recode_dmatrix(device: Device) -> None:
     )
     df = Df({"f0": col0, "f1": col1})
     Xy = DMatrix(df, enable_categorical=True, feature_types=cats_0)
+    # feature_types is still correct
+    assert Xy.feature_names == ["f0", "f1"]
+    assert Xy.feature_types == ["int", "c"]
     cats_1 = Xy.get_categories(export_to_arrow=True)
     assert cats_0.to_arrow() == cats_1.to_arrow()
 
