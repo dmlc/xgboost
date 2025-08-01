@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 
 from ..core import DMatrix
-from ..sklearn import XGBClassifier, XGBRFRegressor, XGBRegressor
-from .utils import Device
+from ..sklearn import XGBClassifier, XGBRegressor, XGBRFRegressor
 from .data import make_categorical
 from .ordinal import make_recoded
+from .utils import Device
 
 
 def run_boost_from_prediction_binary(
@@ -137,6 +137,7 @@ def run_housing_rf_regression(tree_method: str, device: Device) -> None:
 
 
 def run_recoding(device: Device) -> None:
+    """Test re-coding for training continuation."""
     X, y = make_categorical(
         n_samples=256,
         n_features=16,
