@@ -126,7 +126,8 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
       collective::SafeColl(collective::Allreduce(ctx, &info.n_features, collective::Op::kMax));
       info.column_sizes.clear();
       info.column_sizes.resize(info.n_features, 0);
-      p_info->cats = std::make_shared<CatContainer>(cpu_impl::BatchCats(proxy));
+      p_info->cats =
+          std::make_shared<CatContainer>(cpu_impl::BatchCats(proxy), BatchCatsIsRef(proxy));
     } else {
       CHECK_EQ(info.n_features, BatchColumns(proxy)) << "Inconsistent number of columns.";
       auto cats = cpu_impl::BatchCats(proxy);

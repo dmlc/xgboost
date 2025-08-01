@@ -254,6 +254,7 @@ namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
 #if defined(XGBOOST_USE_CUDA)
+[[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const*);
 [[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*);
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
@@ -305,5 +306,6 @@ namespace cpu_impl {
   });
 }
 }  // namespace cpu_impl
+[[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy);
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_PROXY_DMATRIX_H_

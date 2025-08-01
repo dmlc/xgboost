@@ -4,8 +4,11 @@
 
 #include "proxy_dmatrix.h"
 
-#include <memory>  // for shared_ptr
+#include <memory>       // for shared_ptr
+#include <type_traits>  // for is_same_v
 
+#include "../common/type.h"   // for GetValueT
+#include "adapter.h"          // for ColumnarAdapter
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for DMatrix
 #include "xgboost/logging.h"
@@ -91,5 +94,22 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
   CHECK(p_fmat) << "Failed to fallback.";
   p_fmat->Info().Extend(proxy->Info(), /*accumulate_rows=*/false, true);
   return p_fmat;
+}
+
+[[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const *proxy) {
+  if (proxy->Device().IsCUDA()) {
+#if defined(XGBOOST_USE_CUDA)
+    return cuda_impl::BatchCatsIsRef(proxy);
+#else
+    common::AssertGPUSupport();
+#endif
+  }
+  return HostAdapterDispatch<false>(proxy, [&](auto const &adapter) {
+    using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;
+    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
+      return adapter->HasRefCategorical();
+    }
+    return false;
+  });
 }
 }  // namespace xgboost::data

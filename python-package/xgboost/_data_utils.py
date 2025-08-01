@@ -647,8 +647,6 @@ class Categories:
         # core module to avoid cyclic model dependency. Importing modules in __del__ can
         # result in Python abort if __del__ is called during exception handling
         # (interpreter is shutting down).
-        if handle[0].value is None:
-            assert arrow_arrays is None
         self._handle, self._free = handle
         self._arrow_arrays = arrow_arrays
 

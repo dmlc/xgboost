@@ -140,7 +140,9 @@ CatContainer::CatContainer()  // NOLINT
     : cpu_impl_{std::make_unique<cpu_impl::CatContainerImpl>()},
       cu_impl_{std::make_unique<cuda_impl::CatContainerImpl>()} {}
 
-CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df) : CatContainer{} {
+CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df, bool is_ref)
+    : CatContainer{} {
+  this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
 
   this->feature_segments_.SetDevice(ctx->Device());

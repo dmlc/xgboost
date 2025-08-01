@@ -725,7 +725,7 @@ class CPUPredictor : public Predictor {
       }
     };
 
-    if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
+    if (model.Cats()->HasCategorical() && p_fmat->Cats()->NeedRecode()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
       launch(acc);
     } else {
@@ -841,7 +841,7 @@ class CPUPredictor : public Predictor {
 
     if constexpr (std::is_same_v<Adapter, data::ColumnarAdapter>) {
       // Make specialization for DataFrame where we need encoding.
-      if (model.Cats()->HasCategorical()) {
+      if (model.Cats()->HasCategorical() && !m->Cats().Empty()) {
         auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model.Cats());
         return launch(acc);
       }
@@ -930,7 +930,7 @@ class CPUPredictor : public Predictor {
     // Start collecting the prediction
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
-      if (model.Cats()->HasCategorical() && !p_fmat->Cats()->Empty()) {
+      if (model.Cats()->HasCategorical() && p_fmat->Cats()->NeedRecode()) {
         auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
         launch(batch, std::move(acc));
       } else {
@@ -985,7 +985,7 @@ class CPUPredictor : public Predictor {
         }
       }
     };
-    if (model.Cats()->HasCategorical() && !p_fmat->CatsShared()->Empty()) {
+    if (model.Cats()->HasCategorical() && p_fmat->CatsShared()->NeedRecode()) {
       auto [acc, mapping] = MakeCatAccessor(ctx_, p_fmat->Cats()->HostView(), model.Cats());
       launch(acc);
     } else {
