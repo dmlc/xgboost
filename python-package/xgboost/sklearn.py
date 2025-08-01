@@ -669,7 +669,10 @@ def _wrap_evaluation_matrices(
     )
 
     n_validation = 0 if eval_set is None else len(eval_set)
-    Xy_cats = train_dmatrix.get_categories()
+    if hasattr(train_dmatrix, "get_categories"):
+        Xy_cats = train_dmatrix.get_categories()
+    else:
+        Xy_cats = None
 
     def validate_or_none(meta: Optional[Sequence], name: str) -> Sequence:
         if meta is None:
