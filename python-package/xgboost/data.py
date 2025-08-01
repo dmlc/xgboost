@@ -29,7 +29,18 @@ from ._data_utils import (
     TransformedDf,
     _arrow_array_inf,
     _ensure_np_dtype,
+    _is_arrow,
+    _is_cudf_df,
+    _is_cudf_pandas,
+    _is_cudf_ser,
     _is_df_cat,
+    _is_modin_df,
+    _is_modin_series,
+    _is_pandas_df,
+    _is_pandas_series,
+    _is_polars,
+    _is_polars_lazyframe,
+    _is_polars_series,
     array_hasobject,
     array_interface,
     array_interface_dict,
@@ -40,7 +51,7 @@ from ._data_utils import (
     cudf_cat_inf,
     get_ref_categories,
     is_arrow_dict,
-    pd_cats_inf,
+    pd_cat_inf,
 )
 from ._typing import (
     CupyT,
@@ -283,22 +294,6 @@ def _from_numpy_array(
         )
     )
     return handle, feature_names, feature_types
-
-
-def _is_pandas_df(data: DataType) -> TypeGuard[DataFrame]:
-    try:
-        import pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.DataFrame)
-
-
-def _is_modin_df(data: DataType) -> bool:
-    try:
-        import modin.pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.DataFrame)
 
 
 _pandas_dtype_mapper = {
@@ -623,7 +618,7 @@ class PandasTransformed(TransformedDf):
         for col in self.columns:
             if _is_df_cat(col):
                 # Categorical column
-                jnames, jcodes, buf = pd_cats_inf(col.categories, col.codes)
+                jnames, jcodes, buf = pd_cat_inf(col.categories, col.codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
             else:
@@ -715,14 +710,6 @@ def _from_pandas_df(
     return handle, feature_names, feature_types
 
 
-def _is_pandas_series(data: DataType) -> bool:
-    try:
-        import pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.Series)
-
-
 def _meta_from_pandas_series(
     data: DataType, name: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
@@ -738,14 +725,6 @@ def _meta_from_pandas_series(
         data = data.to_dense()  # type: ignore
     assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
     _meta_from_numpy(data, name, dtype, handle)
-
-
-def _is_modin_series(data: DataType) -> bool:
-    try:
-        import modin.pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.Series)
 
 
 def _from_pandas_series(
@@ -815,10 +794,6 @@ class ArrowTransformed(TransformedDf):
     def shape(self) -> Tuple[int, int]:
         """Return shape of the transformed DataFrame."""
         return len(self.columns[0]), len(self.columns)
-
-
-def _is_arrow(data: DataType) -> bool:
-    return lazy_isinstance(data, "pyarrow.lib", "Table")
 
 
 def _transform_arrow_table(
@@ -933,20 +908,6 @@ def _meta_from_arrow_table(
     _meta_from_pandas_df(table.to_pandas(), name=name, dtype=dtype, handle=handle)
 
 
-def _is_polars_lazyframe(data: DataType) -> bool:
-    return lazy_isinstance(data, "polars.lazyframe.frame", "LazyFrame")
-
-
-def _is_polars_series(data: DataType) -> bool:
-    return lazy_isinstance(data, "polars.series.series", "Series")
-
-
-def _is_polars(data: DataType) -> bool:
-    lf = _is_polars_lazyframe(data)
-    df = lazy_isinstance(data, "polars.dataframe.frame", "DataFrame")
-    return lf or df
-
-
 def _check_pyarrow_for_polars() -> None:
     if not is_pyarrow_available():
         raise ImportError("`pyarrow` is required for polars.")
@@ -998,20 +959,6 @@ def _from_polars_df(  # pylint: disable=too-many-positional-arguments
         )
     )
     return handle, feature_names, feature_types
-
-
-def _is_cudf_df(data: DataType) -> bool:
-    return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
-
-
-def _is_cudf_pandas(data: DataType) -> bool:
-    """Must go before both pandas and cudf checks."""
-    return (
-        lazy_isinstance(data, "pandas.core.frame", "DataFrame")
-        or lazy_isinstance(data, "pandas.core.series", "Series")
-    ) and lazy_isinstance(
-        type(data), "cudf.pandas.fast_slow_proxy", "_FastSlowProxyMeta"
-    )
 
 
 @functools.cache
@@ -1176,10 +1123,6 @@ def _from_cudf_df(
         )
     )
     return handle, feature_names, feature_types
-
-
-def _is_cudf_ser(data: DataType) -> bool:
-    return lazy_isinstance(data, "cudf.core.series", "Series")
 
 
 def _is_cupy_alike(data: DataType) -> bool:

@@ -9,8 +9,15 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
+from xgboost._data_utils import is_dataframe
 
 pl = pytest.importorskip("polars")
+
+
+def test_type_check() -> None:
+    df = pl.DataFrame({"a": [1, 2, 3], "b": [3, 4, 5]})
+    assert is_dataframe(df)
+    assert is_dataframe(df["a"])
 
 
 @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])

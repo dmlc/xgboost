@@ -782,7 +782,7 @@ def _get_categories(
     cfn: Callable[[ctypes.c_char_p], int],
     feature_names: FeatureNames,
     n_features: int,
-) -> Optional[ArrowCatList]:
+) -> ArrowCatList:
     if not is_pyarrow_available():
         raise ImportError(
             "`pyarrow` is required for exporting categories to arrow arrays."
@@ -797,7 +797,9 @@ def _get_categories(
 
     ret = ctypes.c_char_p()
     _check_call(cfn(ret))
-    assert ret.value is not None
+    if ret.value is None:
+        results = [(feature_names[i], None) for i in range(n_features)]
+        return results
 
     retstr = ret.value.decode()  # pylint: disable=no-member
     jcats = json.loads(retstr)

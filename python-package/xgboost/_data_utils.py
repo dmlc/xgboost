@@ -397,7 +397,7 @@ def array_interface_dict(data: np.ndarray) -> ArrayInf:
     return cast(ArrayInf, ainf)
 
 
-def pd_cats_inf(  # pylint: disable=too-many-locals
+def pd_cat_inf(  # pylint: disable=too-many-locals
     cats: DfCatAccessor, codes: "pd.Series"
 ) -> Tuple[Union[StringArray, ArrayInf], ArrayInf, Tuple]:
     """Get the array interface representation of pandas category accessor."""
@@ -647,6 +647,8 @@ class Categories:
         # core module to avoid cyclic model dependency. Importing modules in __del__ can
         # result in Python abort if __del__ is called during exception handling
         # (interpreter is shutting down).
+        if handle[0].value is None:
+            assert arrow_arrays is None
         self._handle, self._free = handle
         self._arrow_arrays = arrow_arrays
 
@@ -665,12 +667,18 @@ class Categories:
             )
         return self._arrow_arrays
 
+    def empty(self) -> bool:
+        """Returns True if there's no category."""
+        return self._handle.value is None
+
     def get_handle(self) -> int:
         """Internal method for retrieving the handle."""
         assert self._handle.value
         return self._handle.value
 
     def __del__(self) -> None:
+        if self._handle.value is None:
+            return
         self._free()
 
 
@@ -718,7 +726,7 @@ class TransformedDf(ABC):
 
     def __init__(self, ref_categories: Optional[Categories], aitfs: AifType) -> None:
         self.ref_categories = ref_categories
-        if ref_categories is not None:
+        if ref_categories is not None and ref_categories.get_handle() is not None:
             aif = ref_categories.get_handle()
             self.ref_aif: Optional[int] = aif
         else:
@@ -739,3 +747,82 @@ class TransformedDf(ABC):
     @abstractmethod
     def shape(self) -> Tuple[int, int]:
         """Return the shape of the dataframe."""
+
+
+def _is_polars_lazyframe(data: DataType) -> bool:
+    return lazy_isinstance(data, "polars.lazyframe.frame", "LazyFrame")
+
+
+def _is_polars_series(data: DataType) -> bool:
+    return lazy_isinstance(data, "polars.series.series", "Series")
+
+
+def _is_polars(data: DataType) -> bool:
+    lf = _is_polars_lazyframe(data)
+    df = lazy_isinstance(data, "polars.dataframe.frame", "DataFrame")
+    return lf or df
+
+
+def _is_arrow(data: DataType) -> TypeGuard["pa.Table"]:
+    return lazy_isinstance(data, "pyarrow.lib", "Table")
+
+
+def _is_cudf_df(data: DataType) -> bool:
+    return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
+
+
+def _is_cudf_ser(data: DataType) -> bool:
+    return lazy_isinstance(data, "cudf.core.series", "Series")
+
+
+def _is_cudf_pandas(data: DataType) -> bool:
+    """Must go before both pandas and cudf checks."""
+    return (_is_pandas_df(data) or _is_pandas_series(data)) and lazy_isinstance(
+        type(data), "cudf.pandas.fast_slow_proxy", "_FastSlowProxyMeta"
+    )
+
+
+def _is_pandas_df(data: DataType) -> TypeGuard["pd.DataFrame"]:
+    return lazy_isinstance(data, "pandas.core.frame", "DataFrame")
+
+
+def _is_pandas_series(data: DataType) -> TypeGuard["pd.Series"]:
+    return lazy_isinstance(data, "pandas.core.series", "Series")
+
+
+def _is_modin_df(data: DataType) -> bool:
+    return lazy_isinstance(data, "modin.pandas.dataframe", "DataFrame")
+
+
+def _is_modin_series(data: DataType) -> bool:
+    return lazy_isinstance(data, "modin.pandas.series", "Series")
+
+
+def is_dataframe(data: DataType) -> bool:
+    """Whether the input is a dataframe. Currently supported dataframes:
+
+    - pandas
+    - cudf
+    - cudf.pandas
+    - polars
+    - pyarrow
+    - modin
+
+
+    """
+    return any(
+        p(data)
+        for p in (
+            _is_polars_lazyframe,
+            _is_polars,
+            _is_polars_series,
+            _is_arrow,
+            _is_cudf_df,
+            _is_cudf_ser,
+            _is_cudf_pandas,
+            _is_pandas_df,
+            _is_pandas_series,
+            _is_modin_df,
+            _is_modin_series,
+        )
+    )
