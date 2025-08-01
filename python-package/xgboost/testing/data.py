@@ -994,7 +994,10 @@ def make_categorical(
     """
     pd = pytest.importorskip("pandas")
 
+    # Use different rngs for column and rows. We can change the `n_samples` without
+    # changing the column type.
     rng = np.random.RandomState(random_state)
+    row_rng = np.random.RandomState(random_state + 1)
 
     df = pd.DataFrame()
     for i in range(n_features):
@@ -1004,15 +1007,15 @@ def make_categorical(
                 # we rely on using the feature index as the seed to generate the same
                 # categories for multiple calls to `make_categorical`.
                 categories = np.array(unique_random_strings(n_categories, i))
-                c = rng.choice(categories, size=n_samples, replace=True)
+                c = row_rng.choice(categories, size=n_samples, replace=True)
             else:
                 categories = np.arange(0, n_categories)
-                c = rng.randint(low=0, high=n_categories, size=n_samples)
+                c = row_rng.randint(low=0, high=n_categories, size=n_samples)
 
             df[str(i)] = pd.Series(c, dtype="category")
             df[str(i)] = df[str(i)].cat.set_categories(categories)
         else:
-            num = rng.randint(low=0, high=n_categories, size=n_samples)
+            num = row_rng.randint(low=0, high=n_categories, size=n_samples)
             df[str(i)] = pd.Series(num, dtype=num.dtype)
 
     label = np.zeros(shape=(n_samples,))
@@ -1025,7 +1028,7 @@ def make_categorical(
 
     if sparsity > 0.0:
         for i in range(n_features):
-            index = rng.randint(
+            index = row_rng.randint(
                 low=0, high=n_samples - 1, size=int(n_samples * sparsity)
             )
             df.iloc[index, i] = np.nan
@@ -1038,7 +1041,7 @@ def make_categorical(
 
     if shuffle:
         columns = list(df.columns)
-        rng.shuffle(columns)
+        row_rng.shuffle(columns)
         df = df[columns]
 
     if device != "cpu":

@@ -503,7 +503,7 @@ def run_cat_leaf(device: Device) -> None:
 
 # pylint: disable=too-many-locals
 @memory.cache
-def make_recoded(device: Device) -> Tuple:
+def make_recoded(device: Device, *, n_features: int = 4096) -> Tuple:
     """Synthesize a test dataset with changed encoding."""
     Df, _ = get_df_impl(device)
 
@@ -511,7 +511,6 @@ def make_recoded(device: Device) -> Tuple:
 
     # Test large column numbers. XGBoost makes some specializations for slim datasets,
     # make sure we cover all the cases.
-    n_features = 4096
     n_samples = 1024
 
     # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.

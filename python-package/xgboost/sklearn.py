@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
+
 import collections
 import copy
 import json
@@ -101,6 +102,7 @@ def get_ref_categories(
     model: Optional[Union[Booster, str]],
     feature_types: Optional[Union[FeatureTypes, Categories]],
 ) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
+    """Configure the reference categories based on optional model and input data types."""
     if model is None:
         return model, None
     if not is_dataframe(X):
@@ -2228,6 +2230,14 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
 
         """
         with config_context(verbosity=self.verbosity):
+            params = self.get_xgb_params()
+
+            model, metric, params, feature_weights = self._configure_fit(
+                xgb_model, params, feature_weights
+            )
+            model, feature_types = get_ref_categories(X, model, self.feature_types)
+
+            evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
                 X=X,
@@ -2244,16 +2254,9 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
                 eval_qid=eval_qid,
                 create_dmatrix=self._create_ltr_dmatrix,
                 enable_categorical=self.enable_categorical,
-                feature_types=self.feature_types,
+                feature_types=feature_types,
             )
-            params = self.get_xgb_params()
 
-            model, metric, params, feature_weights = self._configure_fit(
-                xgb_model, params, feature_weights
-            )
-            model, feature_types = get_ref_categories(X, model, self.feature_types)
-
-            evals_result: EvalsLog = {}
             self._Booster = train(
                 params,
                 train_dmatrix,
