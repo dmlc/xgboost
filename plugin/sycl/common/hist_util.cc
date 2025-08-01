@@ -321,7 +321,7 @@ template<typename FPType, typename BinIdxType>
                 GHistRow<FPType, MemoryType::on_device>* hist,
                 bool isDense,
                 GHistRow<FPType, MemoryType::on_device>* hist_buffer,
-                const tree::DeviceProperties& device_prop,
+                const DeviceProperties& device_prop,
                 ::sycl::event events_priv,
                 bool force_atomic_use) {
   const size_t size = row_indices.Size();
@@ -373,7 +373,7 @@ template<typename FPType>
                             const GHistIndexMatrix& gmat, const bool isDense,
                             GHistRow<FPType, MemoryType::on_device>* hist,
                             GHistRow<FPType, MemoryType::on_device>* hist_buffer,
-                            const tree::DeviceProperties& device_prop,
+                            const DeviceProperties& device_prop,
                             ::sycl::event event_priv,
                             bool force_atomic_use) {
   const bool is_dense = isDense;
@@ -409,7 +409,7 @@ template <typename GradientSumT>
               GHistRowT<MemoryType::on_device>* hist,
               bool isDense,
               GHistRowT<MemoryType::on_device>* hist_buffer,
-              const tree::DeviceProperties& device_prop,
+              const DeviceProperties& device_prop,
               ::sycl::event event_priv,
               bool force_atomic_use) {
   return BuildHistKernel<GradientSumT>(qu_, gpair, row_indices, gmat,
@@ -426,7 +426,7 @@ template
               GHistRow<float, MemoryType::on_device>* hist,
               bool isDense,
               GHistRow<float, MemoryType::on_device>* hist_buffer,
-              const tree::DeviceProperties& device_prop,
+              const DeviceProperties& device_prop,
               ::sycl::event event_priv,
               bool force_atomic_use);
 template
@@ -437,7 +437,7 @@ template
               GHistRow<double, MemoryType::on_device>* hist,
               bool isDense,
               GHistRow<double, MemoryType::on_device>* hist_buffer,
-              const tree::DeviceProperties& device_prop,
+              const DeviceProperties& device_prop,
               ::sycl::event event_priv,
               bool force_atomic_use);
 
