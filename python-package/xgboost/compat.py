@@ -134,6 +134,7 @@ def import_pyarrow() -> types.ModuleType:
 
 @functools.cache
 def import_pandas() -> types.ModuleType:
+    """Import pandas with memory cache."""
     import pandas as pd
 
     return pd
