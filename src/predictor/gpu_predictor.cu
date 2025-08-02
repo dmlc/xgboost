@@ -1049,7 +1049,9 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     CHECK_LE(p_fmat->Info().num_col_, model.learner_model_param->num_feature);
-    auto new_enc = p_fmat->Cats()->DeviceView(ctx_);
+    auto new_enc =
+        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
+
     if (p_fmat->PageExists<SparsePage>()) {
       bst_idx_t batch_offset = 0;
       for (auto& page : p_fmat->GetBatches<SparsePage>()) {
@@ -1208,7 +1210,8 @@ class GPUPredictor : public xgboost::Predictor {
     dh::device_vector<gpu_treeshap::PathElement<ShapSplitCondition>> device_paths;
     DeviceModel d_model;
     d_model.Init(model, 0, tree_end, ctx_->Device());
-    auto new_enc = p_fmat->Cats()->DeviceView(this->ctx_);
+    auto new_enc =
+        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
     dh::device_vector<uint32_t> categories;
     ExtractPaths(ctx_, &device_paths, &d_model, &categories, ctx_->Device());
@@ -1292,7 +1295,8 @@ class GPUPredictor : public xgboost::Predictor {
     d_model.Init(model, 0, tree_end, ctx_->Device());
     dh::device_vector<uint32_t> categories;
     ExtractPaths(ctx_, &device_paths, &d_model, &categories, ctx_->Device());
-    auto new_enc = p_fmat->Cats()->DeviceView(ctx_);
+    auto new_enc =
+        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
 
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
@@ -1367,7 +1371,8 @@ class GPUPredictor : public xgboost::Predictor {
     }
 
     bst_feature_t n_features = info.num_col_;
-    auto new_enc = p_fmat->Cats()->DeviceView(this->ctx_);
+    auto new_enc =
+        p_fmat->Cats()->NeedRecode() ? p_fmat->Cats()->DeviceView(ctx_) : enc::DeviceColumnsView{};
     LaunchConfig cfg{this->ctx_, n_features};
 
     if (p_fmat->PageExists<SparsePage>()) {

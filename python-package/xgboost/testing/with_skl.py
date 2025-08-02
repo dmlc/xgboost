@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 
 from ..core import DMatrix
-from ..sklearn import XGBClassifier, XGBRFRegressor
+from ..sklearn import XGBClassifier, XGBRegressor, XGBRFRegressor
+from .ordinal import make_recoded
 from .utils import Device
 
 
@@ -132,3 +133,34 @@ def run_housing_rf_regression(tree_method: str, device: Device) -> None:
     with pytest.raises(NotImplementedError):
         rfreg.set_params(early_stopping_rounds=10)
         rfreg.fit(X, y)
+
+
+def run_recoding(device: Device) -> None:
+    """Test re-coding for training continuation."""
+    enc, reenc, y, _, _ = make_recoded(device, n_features=16)
+    reg = XGBRegressor(enable_categorical=True, n_estimators=2, device=device)
+    reg.fit(enc, y, eval_set=[(reenc, y)])
+    results_0 = reg.evals_result()
+
+    booster = reg.get_booster()
+    assert not booster.get_categories().empty()
+
+    reg = XGBRegressor(enable_categorical=True, n_estimators=2, device=device)
+    reg.fit(reenc, y, xgb_model=booster, eval_set=[(enc, y)])
+    results_1 = reg.evals_result()
+
+    booster = reg.get_booster()
+    assert booster.num_boosted_rounds() == 4
+    assert not booster.get_categories().empty()
+
+    reg = XGBRegressor(enable_categorical=True, n_estimators=4, device=device)
+    reg.fit(enc, y, eval_set=[(reenc, y)])
+    results_2 = reg.evals_result()
+
+    np.testing.assert_allclose(
+        results_2["validation_0"]["rmse"],
+        results_0["validation_0"]["rmse"] + results_1["validation_0"]["rmse"],
+    )
+
+    np.testing.assert_allclose(reg.predict(reenc), reg.predict(enc))
+    np.testing.assert_allclose(reg.apply(reenc), reg.apply(enc))

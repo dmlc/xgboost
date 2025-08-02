@@ -349,7 +349,7 @@ void Recode(ExecPolicy const &policy, HostColumnsView orig_enc, Span<std::int32_
     auto report = [&] {
       std::stringstream ss;
       ss << "Invalid new DataFrame input for the: " << f_idx << "th feature (0-based). "
-         << "The data type doesn't match the one used in the training dataset."
+         << "The data type doesn't match the one used in the training dataset. "
          << "Both should be either numeric or categorical. For a categorical feature, the index "
             "type must match between the training and test set.";
       policy.Error(ss.str());

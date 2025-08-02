@@ -19,6 +19,7 @@ from xgboost.testing.with_skl import (
     run_boost_from_prediction_binary,
     run_boost_from_prediction_multi_clasas,
     run_housing_rf_regression,
+    run_recoding,
 )
 
 rng = np.random.RandomState(1994)
@@ -1569,7 +1570,7 @@ def test_doc_link() -> None:
         assert f"xgboost.{name}" in link
 
 
-def test_apply_method():
+def test_apply_method() -> None:
     import pandas as pd
 
     X_num = np.random.rand(5, 5)
@@ -1587,3 +1588,7 @@ def test_apply_method():
     model.set_params(enable_categorical=False)
     with pytest.raises(ValueError, match="`enable_categorical`"):
         model.apply(df)
+
+
+def test_recoding() -> None:
+    run_recoding("cpu")

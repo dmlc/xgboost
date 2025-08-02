@@ -1,6 +1,7 @@
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
+
 import copy
 import ctypes
 import json
@@ -69,14 +70,16 @@ from ._typing import (
     c_bst_ulong,
 )
 from .compat import (
-    PANDAS_INSTALLED,
-    DataFrame,
     import_polars,
     import_pyarrow,
+    is_pandas_available,
     is_pyarrow_available,
     py_str,
 )
 from .libpath import find_lib_path, is_sphinx_build
+
+if TYPE_CHECKING:
+    from pandas import DataFrame as PdDataFrame
 
 
 class XGBoostError(ValueError):
@@ -782,7 +785,7 @@ def _get_categories(
     cfn: Callable[[ctypes.c_char_p], int],
     feature_names: FeatureNames,
     n_features: int,
-) -> Optional[ArrowCatList]:
+) -> ArrowCatList:
     if not is_pyarrow_available():
         raise ImportError(
             "`pyarrow` is required for exporting categories to arrow arrays."
@@ -797,7 +800,9 @@ def _get_categories(
 
     ret = ctypes.c_char_p()
     _check_call(cfn(ret))
-    assert ret.value is not None
+    if ret.value is None:
+        results = [(feature_names[i], None) for i in range(n_features)]
+        return results
 
     retstr = ret.value.decode()  # pylint: disable=no-member
     jcats = json.loads(retstr)
@@ -3201,7 +3206,8 @@ class Booster:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
 
-        * 'weight': the number of times a feature is used to split the data across all trees.
+        * 'weight': the number of times a feature is used to split the data across all
+           trees.
         * 'gain': the average gain across all splits the feature is used in.
         * 'cover': the average coverage across all splits the feature is used in.
         * 'total_gain': the total gain across all splits the feature is used in.
@@ -3261,7 +3267,7 @@ class Booster:
         return results
 
     # pylint: disable=too-many-statements
-    def trees_to_dataframe(self, fmap: PathLike = "") -> DataFrame:
+    def trees_to_dataframe(self, fmap: PathLike = "") -> "PdDataFrame":
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -3274,8 +3280,10 @@ class Booster:
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
+        from pandas import DataFrame
+
         fmap = os.fspath(os.path.expanduser(fmap))
-        if not PANDAS_INSTALLED:
+        if not is_pandas_available():
             raise ImportError(
                 (
                     "pandas must be available to use this method."
@@ -3426,7 +3434,7 @@ class Booster:
         fmap: PathLike = "",
         bins: Optional[int] = None,
         as_pandas: bool = True,
-    ) -> Union[np.ndarray, DataFrame]:
+    ) -> Union[np.ndarray, "PdDataFrame"]:
         """Get split value histogram of a feature
 
         Parameters
@@ -3482,9 +3490,11 @@ class Booster:
                     "Split value historgam doesn't support categorical split."
                 )
 
-        if as_pandas and PANDAS_INSTALLED:
+        if as_pandas and is_pandas_available():
+            from pandas import DataFrame
+
             return DataFrame(nph_stacked, columns=["SplitValue", "Count"])
-        if as_pandas and not PANDAS_INSTALLED:
+        if as_pandas and not is_pandas_available():
             warnings.warn(
                 "Returning histogram as ndarray"
                 " (as_pandas == True, but pandas is not installed).",

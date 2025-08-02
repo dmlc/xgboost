@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, too-many-lines
 """Scikit-Learn Wrapper interface for XGBoost."""
+
 import collections
 import copy
 import json
@@ -26,7 +27,15 @@ from typing import (
 import numpy as np
 from scipy.special import softmax
 
-from ._typing import ArrayLike, FeatureNames, FeatureTypes, IterationRange, ModelIn
+from ._data_utils import Categories
+from ._typing import (
+    ArrayLike,
+    EvalsLog,
+    FeatureNames,
+    FeatureTypes,
+    IterationRange,
+    ModelIn,
+)
 from .callback import TrainingCallback
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
@@ -39,6 +48,7 @@ from .compat import (
     _sklearn_Tags,
     _sklearn_version,
     import_cupy,
+    is_dataframe,
 )
 from .config import config_context
 from .core import (
@@ -86,6 +96,25 @@ def _check_rf_callback(
 def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     not_sycl = (device is None) or (not device.startswith("sycl"))
     return tree_method in ("hist", None, "auto") and not_sycl
+
+
+def get_ref_categories(
+    X: ArrayLike,
+    model: Optional[Union[Booster, str]],
+    feature_types: Optional[FeatureTypes],
+) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
+    """Configure the reference categories."""
+    if model is None or not is_dataframe(X):
+        return model, feature_types
+
+    if isinstance(model, str):
+        model = Booster(model_file=model)
+
+    categories = model.get_categories()
+    if not categories.empty():
+        return model, categories
+
+    return model, feature_types
 
 
 class _SklObjWProto(Protocol):
@@ -622,7 +651,7 @@ def _wrap_evaluation_matrices(
     eval_qid: Optional[Sequence[Any]],
     create_dmatrix: Callable,
     enable_categorical: bool,
-    feature_types: Optional[FeatureTypes],
+    feature_types: Optional[Union[FeatureTypes, Categories]],
 ) -> Tuple[Any, List[Tuple[Any, str]]]:
     """Convert array_like evaluation matrices into DMatrix.  Perform validation on the
     way."""
@@ -641,6 +670,10 @@ def _wrap_evaluation_matrices(
     )
 
     n_validation = 0 if eval_set is None else len(eval_set)
+    if hasattr(train_dmatrix, "get_categories"):
+        Xy_cats = train_dmatrix.get_categories()
+    else:
+        Xy_cats = None
 
     def validate_or_none(meta: Optional[Sequence], name: str) -> Sequence:
         if meta is None:
@@ -677,6 +710,14 @@ def _wrap_evaluation_matrices(
             ):
                 evals.append(train_dmatrix)
             else:
+                categories = None
+                if not isinstance(feature_types, Categories) and is_dataframe(X):
+                    # No reference categories from a previous model, use the one in the
+                    # training DMatrix.
+                    categories = Xy_cats
+                if categories is not None and not categories.empty():
+                    feature_types = categories
+
                 m = create_dmatrix(
                     data=valid_X,
                     label=valid_y,
@@ -807,6 +848,11 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
         self.enable_categorical = enable_categorical
         self.feature_types = feature_types
+        if isinstance(self.feature_types, Categories):
+            raise TypeError(
+                "If you are training with a prior model (training continuation), "
+                "XGBoost can automatically reuse the categories from that model."
+            )
         self.feature_weights = feature_weights
         self.max_cat_to_onehot = max_cat_to_onehot
         self.max_cat_threshold = max_cat_threshold
@@ -1170,7 +1216,7 @@ class XGBModel(XGBModelBase):
                 pass
         return DMatrix(**kwargs, nthread=self.n_jobs)
 
-    def _set_evaluation_result(self, evals_result: TrainingCallback.EvalsLog) -> None:
+    def _set_evaluation_result(self, evals_result: EvalsLog) -> None:
         if evals_result:
             self.evals_result_ = cast(Dict[str, Dict[str, List[float]]], evals_result)
 
@@ -1246,8 +1292,9 @@ class XGBModel(XGBModelBase):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
+            model, feature_types = get_ref_categories(X, model, self.feature_types)
 
-            evals_result: TrainingCallback.EvalsLog = {}
+            evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
                 X=X,
@@ -1264,7 +1311,7 @@ class XGBModel(XGBModelBase):
                 eval_qid=None,
                 create_dmatrix=self._create_dmatrix,
                 enable_categorical=self.enable_categorical,
-                feature_types=self.feature_types,
+                feature_types=feature_types,
             )
 
             if callable(self.objective):
@@ -1291,9 +1338,7 @@ class XGBModel(XGBModelBase):
             return self
 
     def _can_use_inplace_predict(self) -> bool:
-        if self.booster != "gblinear":
-            return True
-        return False
+        return self.booster != "gblinear"
 
     def _get_iteration_range(
         self, iteration_range: Optional[IterationRange]
@@ -1641,7 +1686,6 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
     ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
         with config_context(verbosity=self.verbosity):
-            evals_result: TrainingCallback.EvalsLog = {}
             # We keep the n_classes_ as a simple member instead of loading it from
             # booster in a Python property. This way we can have efficient and
             # thread-safe prediction.
@@ -1690,6 +1734,9 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
+            model, feature_types = get_ref_categories(X, model, self.feature_types)
+
+            evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
                 X=X,
@@ -1706,7 +1753,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
                 eval_qid=None,
                 create_dmatrix=self._create_dmatrix,
                 enable_categorical=self.enable_categorical,
-                feature_types=self.feature_types,
+                feature_types=feature_types,
             )
 
             self._Booster = train(
@@ -2184,6 +2231,14 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
 
         """
         with config_context(verbosity=self.verbosity):
+            params = self.get_xgb_params()
+
+            model, metric, params, feature_weights = self._configure_fit(
+                xgb_model, params, feature_weights
+            )
+            model, feature_types = get_ref_categories(X, model, self.feature_types)
+
+            evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
                 missing=self.missing,
                 X=X,
@@ -2200,15 +2255,9 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
                 eval_qid=eval_qid,
                 create_dmatrix=self._create_ltr_dmatrix,
                 enable_categorical=self.enable_categorical,
-                feature_types=self.feature_types,
+                feature_types=feature_types,
             )
 
-            evals_result: TrainingCallback.EvalsLog = {}
-            params = self.get_xgb_params()
-
-            model, metric, params, feature_weights = self._configure_fit(
-                xgb_model, params, feature_weights
-            )
             self._Booster = train(
                 params,
                 train_dmatrix,

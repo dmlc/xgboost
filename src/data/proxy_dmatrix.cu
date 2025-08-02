@@ -55,6 +55,16 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
   return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
 }
 
+[[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy) {
+  return Dispatch<false>(proxy, [&](auto const& adapter) {
+    using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;
+    if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
+      return adapter->HasRefCategorical();
+    }
+    return false;
+  });
+}
+
 [[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const* proxy) {
   return Dispatch<false>(proxy, [&](auto const& adapter) {
     using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;

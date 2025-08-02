@@ -94,7 +94,7 @@ from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
 from ..collective import _Args as CollArgs
 from ..collective import _ArgVals as CollArgsVals
-from ..compat import DataFrame, lazy_isinstance
+from ..compat import _is_cudf_df
 from ..core import (
     Booster,
     DMatrix,
@@ -942,7 +942,7 @@ def _maybe_dataframe(
         # In older versions of dask, the partition is actually a numpy array when input
         # is dataframe.
         index = getattr(data, "index", None)
-        if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
+        if _is_cudf_df(data):
             import cudf
 
             if prediction.size == 0:
@@ -952,10 +952,14 @@ def _maybe_dataframe(
                 prediction, columns=columns, dtype=numpy.float32, index=index
             )
         else:
-            if prediction.size == 0:
-                return DataFrame({}, columns=columns, dtype=numpy.float32, index=index)
+            import pandas as pd
 
-            prediction = DataFrame(
+            if prediction.size == 0:
+                return pd.DataFrame(
+                    {}, columns=columns, dtype=numpy.float32, index=index
+                )
+
+            prediction = pd.DataFrame(
                 prediction, columns=columns, dtype=numpy.float32, index=index
             )
     return prediction

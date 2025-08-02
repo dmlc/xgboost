@@ -876,8 +876,8 @@ bool MetaInfo::ShouldHaveLabels() const {
 
 void MetaInfo::Cats(std::shared_ptr<CatContainer> cats) {
   this->cats_ = std::move(cats);
-  CHECK_LT(cats_->NumFeatures(),
-           static_cast<decltype(cats->NumFeatures())>(std::numeric_limits<bst_cat_t>::max()));
+  CHECK_LT(cats_->NumCatsTotal(),
+           static_cast<decltype(cats->NumCatsTotal())>(std::numeric_limits<bst_cat_t>::max()));
 }
 
 using DMatrixThreadLocal =

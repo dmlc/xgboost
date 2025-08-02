@@ -305,9 +305,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
 
   if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
     if (adapter->HasRefCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(adapter->RefCats()));
+      info_.Cats(std::make_shared<CatContainer>(adapter->RefCats(), true));
     } else if (adapter->HasCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(adapter->Cats()));
+      info_.Cats(std::make_shared<CatContainer>(adapter->Cats(), false));
     }
   }
 

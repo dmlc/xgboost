@@ -765,7 +765,7 @@ typedef  void * CategoriesHandle;  // NOLINT
  * @brief Create an opaque handle to the internal container.
  *
  * @param handle An instance of the data matrix.
- * @param out     Created handle to the category container
+ * @param out    Created handle to the category container. Set to NULL if there's no category.
  *
  * @return 0 when success, -1 when failure happens.
  */
@@ -776,9 +776,13 @@ XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/
 
   auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   auto const cats = p_fmat->Cats();
-  auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new_cats;
+  if (cats->Empty()) {
+    out = nullptr;
+  } else {
+    auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
+    *out = new_cats;
+  }
 
   API_END()
 }
@@ -799,14 +803,21 @@ XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const
   auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
   auto const cats = p_fmat->Cats();
   auto n_features = p_fmat->Info().num_col_;
-  // Create a new container
-  auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, n_features);
+
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new_cats;
-  // Export to arrow
-  auto &ret_str = p_fmat->GetThreadLocal().ret_str;
   xgboost_CHECK_C_ARG_PTR(export_out);
-  GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
+
+  if (cats->Empty()) {
+    *out = nullptr;
+    *export_out = nullptr;
+  } else {
+    // Create a new container
+    auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, n_features);
+    *out = new_cats;
+    // Export to arrow
+    auto &ret_str = p_fmat->GetThreadLocal().ret_str;
+    GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
+  }
 
   API_END();
 }
@@ -1758,9 +1769,13 @@ XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, char const * /*config*/
 
   auto *bst = static_cast<Learner *>(handle);
   auto const cats = bst->Cats();
-  auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new_cats;
+  if (cats->Empty()) {
+    out = nullptr;
+  } else {
+    auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
+    *out = new_cats;
+  }
 
   API_END()
 }
@@ -1775,14 +1790,21 @@ XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const
   auto *bst = static_cast<Learner *>(handle);
   auto const cats = bst->Cats();
   auto n_features = bst->GetNumFeature();
-  // Create a new container
-  auto new_cats = CopyCatContainer(bst->Ctx(), cats, n_features);
+
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = new_cats;
-  // Export to arrow
-  auto &ret_str = bst->GetThreadLocal().ret_str;
   xgboost_CHECK_C_ARG_PTR(export_out);
-  GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
+
+  if (cats->Empty()) {
+    *out = nullptr;
+    *export_out = nullptr;
+  } else {
+    // Create a new container
+    auto new_cats = CopyCatContainer(bst->Ctx(), cats, n_features);
+    *out = new_cats;
+    // Export to arrow
+    auto &ret_str = bst->GetThreadLocal().ret_str;
+    GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
+  }
 
   API_END()
 }

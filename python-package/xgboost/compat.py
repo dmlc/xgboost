@@ -5,11 +5,15 @@ import importlib.util
 import logging
 import sys
 import types
-from typing import Any, Sequence, cast
+from typing import TYPE_CHECKING, Any, Sequence, TypeGuard, cast
 
 import numpy as np
 
-from ._typing import _T
+from ._typing import _T, DataType
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyarrow as pa
 
 assert sys.version_info[0] == 3, "Python 2 is no longer supported."
 
@@ -29,17 +33,6 @@ def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
     is_same_module = cls.__module__ == module
     has_same_name = cls.__name__ == name
     return is_same_module and has_same_name
-
-
-# pandas
-try:
-    from pandas import DataFrame, Series
-
-    PANDAS_INSTALLED = True
-except ImportError:
-    DataFrame = object
-    Series = object
-    PANDAS_INSTALLED = False
 
 
 # sklearn
@@ -140,11 +133,27 @@ def import_pyarrow() -> types.ModuleType:
 
 
 @functools.cache
+def import_pandas() -> types.ModuleType:
+    """Import pandas with memory cache."""
+    import pandas as pd
+
+    return pd
+
+
+@functools.cache
 def import_polars() -> types.ModuleType:
     """Import polars with memory cache."""
     import polars as pl
 
     return pl
+
+
+@functools.cache
+def is_pandas_available() -> bool:
+    """Check the pandas package is available or not."""
+    if importlib.util.find_spec("pandas") is None:
+        return False
+    return True
 
 
 try:
@@ -153,6 +162,84 @@ try:
 except ImportError:
     scipy_sparse = False
     scipy_csr = object
+
+
+def _is_polars_lazyframe(data: DataType) -> bool:
+    return lazy_isinstance(data, "polars.lazyframe.frame", "LazyFrame")
+
+
+def _is_polars_series(data: DataType) -> bool:
+    return lazy_isinstance(data, "polars.series.series", "Series")
+
+
+def _is_polars(data: DataType) -> bool:
+    lf = _is_polars_lazyframe(data)
+    df = lazy_isinstance(data, "polars.dataframe.frame", "DataFrame")
+    return lf or df
+
+
+def _is_arrow(data: DataType) -> TypeGuard["pa.Table"]:
+    return lazy_isinstance(data, "pyarrow.lib", "Table")
+
+
+def _is_cudf_df(data: DataType) -> bool:
+    return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
+
+
+def _is_cudf_ser(data: DataType) -> bool:
+    return lazy_isinstance(data, "cudf.core.series", "Series")
+
+
+def _is_cudf_pandas(data: DataType) -> bool:
+    """Must go before both pandas and cudf checks."""
+    return (_is_pandas_df(data) or _is_pandas_series(data)) and lazy_isinstance(
+        type(data), "cudf.pandas.fast_slow_proxy", "_FastSlowProxyMeta"
+    )
+
+
+def _is_pandas_df(data: DataType) -> TypeGuard["pd.DataFrame"]:
+    return lazy_isinstance(data, "pandas.core.frame", "DataFrame")
+
+
+def _is_pandas_series(data: DataType) -> TypeGuard["pd.Series"]:
+    return lazy_isinstance(data, "pandas.core.series", "Series")
+
+
+def _is_modin_df(data: DataType) -> bool:
+    return lazy_isinstance(data, "modin.pandas.dataframe", "DataFrame")
+
+
+def _is_modin_series(data: DataType) -> bool:
+    return lazy_isinstance(data, "modin.pandas.series", "Series")
+
+
+def is_dataframe(data: DataType) -> bool:
+    """Whether the input is a dataframe. Currently supported dataframes:
+
+    - pandas
+    - cudf
+    - cudf.pandas
+    - polars
+    - pyarrow
+    - modin
+
+
+    """
+    return any(
+        p(data)
+        for p in (
+            _is_polars,
+            _is_polars_series,
+            _is_arrow,
+            _is_cudf_df,
+            _is_cudf_ser,
+            _is_cudf_pandas,
+            _is_pandas_df,
+            _is_pandas_series,
+            _is_modin_df,
+            _is_modin_series,
+        )
+    )
 
 
 def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statements
@@ -167,7 +254,7 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
         # other sparse format will be converted to CSR.
         return scipy_sparse.vstack(value, format="csr")
-    if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
+    if _is_pandas_df(value[0]) or _is_pandas_series(value[0]):
         from pandas import concat as pd_concat
 
         return pd_concat(value, axis=0)

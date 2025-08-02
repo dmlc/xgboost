@@ -80,7 +80,8 @@ void MakeSketches(Context const* ctx,
     auto cats = cuda_impl::BatchCats(proxy);
     if (ext_info.n_features == 0) {
       ext_info.n_features = data::BatchColumns(proxy);
-      ext_info.cats = std::make_shared<CatContainer>(p_ctx, cats);
+      ext_info.cats =
+          std::make_shared<CatContainer>(p_ctx, cats, ::xgboost::data::BatchCatsIsRef(proxy));
       auto rc = collective::Allreduce(ctx, linalg::MakeVec(&ext_info.n_features, 1),
                                       collective::Op::kMax);
       SafeColl(rc);
