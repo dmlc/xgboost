@@ -318,5 +318,6 @@ def test_device_ordinal() -> None:
     cp.cuda.runtime.setDevice(0)
 
 
+@pytest.mark.skipif(**tm.no_cudf())
 def test_recoding() -> None:
     run_recoding("cuda")
