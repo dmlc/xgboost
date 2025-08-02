@@ -4,7 +4,7 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost._data_utils import is_dataframe
+from xgboost.compat import is_dataframe
 from xgboost.testing.data import run_base_margin_info
 
 try:

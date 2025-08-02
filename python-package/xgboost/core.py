@@ -70,14 +70,16 @@ from ._typing import (
     c_bst_ulong,
 )
 from .compat import (
-    PANDAS_INSTALLED,
-    DataFrame,
     import_polars,
     import_pyarrow,
+    is_pandas_available,
     is_pyarrow_available,
     py_str,
 )
 from .libpath import find_lib_path, is_sphinx_build
+
+if TYPE_CHECKING:
+    from pandas import DataFrame as PdDataFrame
 
 
 class XGBoostError(ValueError):
@@ -3204,7 +3206,8 @@ class Booster:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
 
-        * 'weight': the number of times a feature is used to split the data across all trees.
+        * 'weight': the number of times a feature is used to split the data across all
+           trees.
         * 'gain': the average gain across all splits the feature is used in.
         * 'cover': the average coverage across all splits the feature is used in.
         * 'total_gain': the total gain across all splits the feature is used in.
@@ -3264,7 +3267,7 @@ class Booster:
         return results
 
     # pylint: disable=too-many-statements
-    def trees_to_dataframe(self, fmap: PathLike = "") -> DataFrame:
+    def trees_to_dataframe(self, fmap: PathLike = "") -> "PdDataFrame":
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -3278,7 +3281,7 @@ class Booster:
         """
         # pylint: disable=too-many-locals
         fmap = os.fspath(os.path.expanduser(fmap))
-        if not PANDAS_INSTALLED:
+        if not is_pandas_available():
             raise ImportError(
                 (
                     "pandas must be available to use this method."
@@ -3485,9 +3488,9 @@ class Booster:
                     "Split value historgam doesn't support categorical split."
                 )
 
-        if as_pandas and PANDAS_INSTALLED:
+        if as_pandas and is_pandas_available():
             return DataFrame(nph_stacked, columns=["SplitValue", "Count"])
-        if as_pandas and not PANDAS_INSTALLED:
+        if as_pandas and not is_pandas_available():
             warnings.warn(
                 "Returning histogram as ndarray"
                 " (as_pandas == True, but pandas is not installed).",

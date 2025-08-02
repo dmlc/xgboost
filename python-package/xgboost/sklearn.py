@@ -27,7 +27,7 @@ from typing import (
 import numpy as np
 from scipy.special import softmax
 
-from ._data_utils import Categories, is_dataframe
+from ._data_utils import Categories
 from ._typing import (
     ArrayLike,
     EvalsLog,
@@ -48,6 +48,7 @@ from .compat import (
     _sklearn_Tags,
     _sklearn_version,
     import_cupy,
+    is_dataframe,
 )
 from .config import config_context
 from .core import (

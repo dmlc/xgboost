@@ -30,18 +30,7 @@ from ._data_utils import (
     TransformedDf,
     _arrow_array_inf,
     _ensure_np_dtype,
-    _is_arrow,
-    _is_cudf_df,
-    _is_cudf_pandas,
-    _is_cudf_ser,
     _is_df_cat,
-    _is_modin_df,
-    _is_modin_series,
-    _is_pandas_df,
-    _is_pandas_series,
-    _is_polars,
-    _is_polars_lazyframe,
-    _is_polars_series,
     array_hasobject,
     array_interface,
     array_interface_dict,
@@ -67,7 +56,17 @@ from ._typing import (
     c_bst_ulong,
 )
 from .compat import (
-    DataFrame,
+    _is_arrow,
+    _is_cudf_df,
+    _is_cudf_pandas,
+    _is_cudf_ser,
+    _is_modin_df,
+    _is_modin_series,
+    _is_pandas_df,
+    _is_pandas_series,
+    _is_polars,
+    _is_polars_lazyframe,
+    _is_polars_series,
     import_polars,
     import_pyarrow,
     is_pyarrow_available,
@@ -86,6 +85,7 @@ from .core import (
 
 if TYPE_CHECKING:
     import pyarrow as pa
+    from pandas import DataFrame as PdDataFrame
     from pandas import Series as PdSeries
 
 
@@ -372,7 +372,7 @@ def _invalid_dataframe_dtype(data: DataType) -> None:
 
 
 def pandas_feature_info(
-    data: DataFrame,
+    data: "PdDataFrame",
     meta: Optional[str],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
@@ -535,7 +535,9 @@ def _lazy_load_pd_floats() -> tuple:
     return Float32Dtype, Float64Dtype
 
 
-def pandas_transform_data(data: DataFrame) -> List[Union[np.ndarray, DfCatAccessor]]:
+def pandas_transform_data(
+    data: "PdDataFrame",
+) -> List[Union[np.ndarray, DfCatAccessor]]:
     """Handle categorical dtype and extension types from pandas."""
     Float32Dtype, Float64Dtype = _lazy_load_pd_floats()
 
@@ -646,7 +648,7 @@ class PandasTransformed(TransformedDf):
 
 
 def _transform_pandas_df(
-    data: DataFrame,
+    data: "PdDataFrame",
     enable_categorical: bool,
     feature_names: Optional[FeatureNames] = None,
     feature_types: Optional[Union[FeatureTypes, Categories]] = None,
@@ -686,7 +688,7 @@ def _meta_from_pandas_df(
 
 def _from_pandas_df(
     *,
-    data: DataFrame,
+    data: "PdDataFrame",
     enable_categorical: bool,
     missing: FloatCompatible,
     nthread: int,
