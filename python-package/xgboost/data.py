@@ -67,6 +67,7 @@ from .compat import (
     _is_polars,
     _is_polars_lazyframe,
     _is_polars_series,
+    import_pandas,
     import_polars,
     import_pyarrow,
     is_pyarrow_available,
@@ -379,7 +380,7 @@ def pandas_feature_info(
     enable_categorical: bool,
 ) -> Tuple[Optional[FeatureNames], Optional[FeatureTypes]]:
     """Handle feature info for pandas dataframe."""
-    import pandas as pd
+    pd = import_pandas()
 
     # handle feature names
     if feature_names is None and meta is None:
@@ -444,7 +445,7 @@ def is_pa_ext_categorical_dtype(dtype: Any) -> bool:
 
 @functools.cache
 def _lazy_load_pd_is_cat() -> Callable[[PandasDType], bool]:
-    import pandas as pd
+    pd = import_pandas()
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
         Version = pd.util.version.Version
@@ -468,7 +469,7 @@ def is_pd_cat_dtype(dtype: PandasDType) -> bool:
 
 @functools.cache
 def _lazy_load_pd_is_sparse() -> Callable[[PandasDType], bool]:
-    import pandas as pd
+    pd = import_pandas()
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
         Version = pd.util.version.Version
@@ -494,7 +495,7 @@ def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
 
 def pandas_pa_type(ser: Any) -> np.ndarray:
     """Handle pandas pyarrow extention."""
-    import pandas as pd
+    pd = import_pandas()
 
     if TYPE_CHECKING:
         import pyarrow as pa
@@ -1411,7 +1412,7 @@ def dispatch_data_backend(
     if _is_cudf_pandas(data):
         data = data._fsproxy_fast  # pylint: disable=protected-access
     if _is_pandas_series(data):
-        import pandas as pd
+        pd = import_pandas()
 
         data = pd.DataFrame(data)
     if _is_pandas_df(data):
@@ -1444,7 +1445,7 @@ def dispatch_data_backend(
         assert check_cats(feature_types)
         return _from_dlpack(data, missing, threads, feature_names, feature_types)
     if _is_modin_series(data):
-        import pandas as pd
+        pd = import_pandas()
 
         data = pd.DataFrame(data)
     if _is_modin_df(data):
@@ -1672,7 +1673,7 @@ def _proxy_transform(
         )
         return df_pl, feature_names, feature_types
     if _is_pandas_series(data):
-        import pandas as pd
+        pd = import_pandas()
 
         data = pd.DataFrame(data)
     if _is_arrow(data):

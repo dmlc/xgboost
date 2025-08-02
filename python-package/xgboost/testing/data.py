@@ -36,7 +36,7 @@ from ..sklearn import ArrayLike, XGBRanker
 from ..training import train as train_fn
 
 if TYPE_CHECKING:
-    from ..compat import DataFrame as DataFrameT
+    from pandas import DataFrame as DataFrameT
 else:
     DataFrameT = Any
 

@@ -133,6 +133,13 @@ def import_pyarrow() -> types.ModuleType:
 
 
 @functools.cache
+def import_pandas() -> types.ModuleType:
+    import pandas as pd
+
+    return pd
+
+
+@functools.cache
 def import_polars() -> types.ModuleType:
     """Import polars with memory cache."""
     import polars as pl

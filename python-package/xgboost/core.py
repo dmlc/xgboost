@@ -3280,6 +3280,8 @@ class Booster:
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
+        from pandas import DataFrame
+
         fmap = os.fspath(os.path.expanduser(fmap))
         if not is_pandas_available():
             raise ImportError(
@@ -3432,7 +3434,7 @@ class Booster:
         fmap: PathLike = "",
         bins: Optional[int] = None,
         as_pandas: bool = True,
-    ) -> Union[np.ndarray, DataFrame]:
+    ) -> Union[np.ndarray, "PdDataFrame"]:
         """Get split value histogram of a feature
 
         Parameters
@@ -3489,6 +3491,8 @@ class Booster:
                 )
 
         if as_pandas and is_pandas_available():
+            from pandas import DataFrame
+
             return DataFrame(nph_stacked, columns=["SplitValue", "Count"])
         if as_pandas and not is_pandas_available():
             warnings.warn(
