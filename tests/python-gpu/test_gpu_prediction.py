@@ -9,7 +9,6 @@ from hypothesis.extra.pandas import column, data_frames, range_indexes
 import xgboost as xgb
 from xgboost import testing as tm
 
-
 sys.path.append("tests/python")
 from test_predict import run_predict_leaf  # noqa
 from test_predict import run_threaded_predict  # noqa
