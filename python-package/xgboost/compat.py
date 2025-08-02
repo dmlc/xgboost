@@ -228,7 +228,6 @@ def is_dataframe(data: DataType) -> bool:
     return any(
         p(data)
         for p in (
-            _is_polars_lazyframe,
             _is_polars,
             _is_polars_series,
             _is_arrow,
