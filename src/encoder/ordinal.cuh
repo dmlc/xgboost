@@ -254,7 +254,7 @@ void Recode(ExecPolicy const& policy, DeviceColumnsView orig_enc,
         auto f_idx = dh::SegmentId(new_enc.feature_segments, i);
         std::int32_t searched_idx{detail::NotFound()};
         auto const& col = orig_enc.columns[f_idx];
-        cuda::std::visit(Overloaded{[&](CatStrArrayView const& str) {
+        cuda::std::visit(Overloaded{[&](CatStrArrayView const&) {
                                       auto op = cuda_impl::SegmentedSearchSortedStrOp{
                                           orig_enc, sorted_idx, new_enc, f_idx};
                                       searched_idx = op(i);

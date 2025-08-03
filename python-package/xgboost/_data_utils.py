@@ -397,7 +397,7 @@ def array_interface_dict(data: np.ndarray) -> ArrayInf:
     return cast(ArrayInf, ainf)
 
 
-def pd_cats_inf(  # pylint: disable=too-many-locals
+def pd_cat_inf(  # pylint: disable=too-many-locals
     cats: DfCatAccessor, codes: "pd.Series"
 ) -> Tuple[Union[StringArray, ArrayInf], ArrayInf, Tuple]:
     """Get the array interface representation of pandas category accessor."""
@@ -665,12 +665,18 @@ class Categories:
             )
         return self._arrow_arrays
 
+    def empty(self) -> bool:
+        """Returns True if there's no category."""
+        return self._handle.value is None
+
     def get_handle(self) -> int:
         """Internal method for retrieving the handle."""
         assert self._handle.value
         return self._handle.value
 
     def __del__(self) -> None:
+        if self._handle.value is None:
+            return
         self._free()
 
 
@@ -718,7 +724,7 @@ class TransformedDf(ABC):
 
     def __init__(self, ref_categories: Optional[Categories], aitfs: AifType) -> None:
         self.ref_categories = ref_categories
-        if ref_categories is not None:
+        if ref_categories is not None and ref_categories.get_handle() is not None:
             aif = ref_categories.get_handle()
             self.ref_aif: Optional[int] = aif
         else:

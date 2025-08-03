@@ -4,19 +4,10 @@ from copy import copy
 import numpy as np
 import pytest
 from hypothesis import assume, given, settings, strategies
+from hypothesis.extra.pandas import column, data_frames, range_indexes
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.compat import PANDAS_INSTALLED
-
-if PANDAS_INSTALLED:
-    from hypothesis.extra.pandas import column, data_frames, range_indexes
-else:
-
-    def noop(*args, **kwargs):
-        pass
-
-    column, data_frames, range_indexes = noop, noop, noop
 
 sys.path.append("tests/python")
 from test_predict import run_predict_leaf  # noqa

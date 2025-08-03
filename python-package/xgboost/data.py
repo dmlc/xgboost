@@ -1,6 +1,7 @@
 # pylint: disable=too-many-arguments, too-many-branches, too-many-lines
 # pylint: disable=too-many-return-statements
 """Data dispatching for DMatrix."""
+
 import ctypes
 import functools
 import json
@@ -40,7 +41,7 @@ from ._data_utils import (
     cudf_cat_inf,
     get_ref_categories,
     is_arrow_dict,
-    pd_cats_inf,
+    pd_cat_inf,
 )
 from ._typing import (
     CupyT,
@@ -55,7 +56,18 @@ from ._typing import (
     c_bst_ulong,
 )
 from .compat import (
-    DataFrame,
+    _is_arrow,
+    _is_cudf_df,
+    _is_cudf_pandas,
+    _is_cudf_ser,
+    _is_modin_df,
+    _is_modin_series,
+    _is_pandas_df,
+    _is_pandas_series,
+    _is_polars,
+    _is_polars_lazyframe,
+    _is_polars_series,
+    import_pandas,
     import_polars,
     import_pyarrow,
     is_pyarrow_available,
@@ -74,6 +86,7 @@ from .core import (
 
 if TYPE_CHECKING:
     import pyarrow as pa
+    from pandas import DataFrame as PdDataFrame
     from pandas import Series as PdSeries
 
 
@@ -285,22 +298,6 @@ def _from_numpy_array(
     return handle, feature_names, feature_types
 
 
-def _is_pandas_df(data: DataType) -> TypeGuard[DataFrame]:
-    try:
-        import pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.DataFrame)
-
-
-def _is_modin_df(data: DataType) -> bool:
-    try:
-        import modin.pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.DataFrame)
-
-
 _pandas_dtype_mapper = {
     "int8": "int",
     "int16": "int",
@@ -376,14 +373,14 @@ def _invalid_dataframe_dtype(data: DataType) -> None:
 
 
 def pandas_feature_info(
-    data: DataFrame,
+    data: "PdDataFrame",
     meta: Optional[str],
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
     enable_categorical: bool,
 ) -> Tuple[Optional[FeatureNames], Optional[FeatureTypes]]:
     """Handle feature info for pandas dataframe."""
-    import pandas as pd
+    pd = import_pandas()
 
     # handle feature names
     if feature_names is None and meta is None:
@@ -448,7 +445,7 @@ def is_pa_ext_categorical_dtype(dtype: Any) -> bool:
 
 @functools.cache
 def _lazy_load_pd_is_cat() -> Callable[[PandasDType], bool]:
-    import pandas as pd
+    pd = import_pandas()
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
         Version = pd.util.version.Version
@@ -472,7 +469,7 @@ def is_pd_cat_dtype(dtype: PandasDType) -> bool:
 
 @functools.cache
 def _lazy_load_pd_is_sparse() -> Callable[[PandasDType], bool]:
-    import pandas as pd
+    pd = import_pandas()
 
     if hasattr(pd.util, "version") and hasattr(pd.util.version, "Version"):
         Version = pd.util.version.Version
@@ -498,7 +495,7 @@ def is_pd_sparse_dtype(dtype: PandasDType) -> bool:
 
 def pandas_pa_type(ser: Any) -> np.ndarray:
     """Handle pandas pyarrow extention."""
-    import pandas as pd
+    pd = import_pandas()
 
     if TYPE_CHECKING:
         import pyarrow as pa
@@ -539,7 +536,9 @@ def _lazy_load_pd_floats() -> tuple:
     return Float32Dtype, Float64Dtype
 
 
-def pandas_transform_data(data: DataFrame) -> List[Union[np.ndarray, DfCatAccessor]]:
+def pandas_transform_data(
+    data: "PdDataFrame",
+) -> List[Union[np.ndarray, DfCatAccessor]]:
     """Handle categorical dtype and extension types from pandas."""
     Float32Dtype, Float64Dtype = _lazy_load_pd_floats()
 
@@ -623,7 +622,7 @@ class PandasTransformed(TransformedDf):
         for col in self.columns:
             if _is_df_cat(col):
                 # Categorical column
-                jnames, jcodes, buf = pd_cats_inf(col.categories, col.codes)
+                jnames, jcodes, buf = pd_cat_inf(col.categories, col.codes)
                 self.temporary_buffers.append(buf)
                 aitfs.append((jnames, jcodes))
             else:
@@ -650,7 +649,7 @@ class PandasTransformed(TransformedDf):
 
 
 def _transform_pandas_df(
-    data: DataFrame,
+    data: "PdDataFrame",
     enable_categorical: bool,
     feature_names: Optional[FeatureNames] = None,
     feature_types: Optional[Union[FeatureTypes, Categories]] = None,
@@ -690,7 +689,7 @@ def _meta_from_pandas_df(
 
 def _from_pandas_df(
     *,
-    data: DataFrame,
+    data: "PdDataFrame",
     enable_categorical: bool,
     missing: FloatCompatible,
     nthread: int,
@@ -715,14 +714,6 @@ def _from_pandas_df(
     return handle, feature_names, feature_types
 
 
-def _is_pandas_series(data: DataType) -> bool:
-    try:
-        import pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.Series)
-
-
 def _meta_from_pandas_series(
     data: DataType, name: str, dtype: Optional[NumpyDType], handle: ctypes.c_void_p
 ) -> None:
@@ -738,14 +729,6 @@ def _meta_from_pandas_series(
         data = data.to_dense()  # type: ignore
     assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
     _meta_from_numpy(data, name, dtype, handle)
-
-
-def _is_modin_series(data: DataType) -> bool:
-    try:
-        import modin.pandas as pd
-    except ImportError:
-        return False
-    return isinstance(data, pd.Series)
 
 
 def _from_pandas_series(
@@ -815,10 +798,6 @@ class ArrowTransformed(TransformedDf):
     def shape(self) -> Tuple[int, int]:
         """Return shape of the transformed DataFrame."""
         return len(self.columns[0]), len(self.columns)
-
-
-def _is_arrow(data: DataType) -> bool:
-    return lazy_isinstance(data, "pyarrow.lib", "Table")
 
 
 def _transform_arrow_table(
@@ -933,20 +912,6 @@ def _meta_from_arrow_table(
     _meta_from_pandas_df(table.to_pandas(), name=name, dtype=dtype, handle=handle)
 
 
-def _is_polars_lazyframe(data: DataType) -> bool:
-    return lazy_isinstance(data, "polars.lazyframe.frame", "LazyFrame")
-
-
-def _is_polars_series(data: DataType) -> bool:
-    return lazy_isinstance(data, "polars.series.series", "Series")
-
-
-def _is_polars(data: DataType) -> bool:
-    lf = _is_polars_lazyframe(data)
-    df = lazy_isinstance(data, "polars.dataframe.frame", "DataFrame")
-    return lf or df
-
-
 def _check_pyarrow_for_polars() -> None:
     if not is_pyarrow_available():
         raise ImportError("`pyarrow` is required for polars.")
@@ -998,20 +963,6 @@ def _from_polars_df(  # pylint: disable=too-many-positional-arguments
         )
     )
     return handle, feature_names, feature_types
-
-
-def _is_cudf_df(data: DataType) -> bool:
-    return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
-
-
-def _is_cudf_pandas(data: DataType) -> bool:
-    """Must go before both pandas and cudf checks."""
-    return (
-        lazy_isinstance(data, "pandas.core.frame", "DataFrame")
-        or lazy_isinstance(data, "pandas.core.series", "Series")
-    ) and lazy_isinstance(
-        type(data), "cudf.pandas.fast_slow_proxy", "_FastSlowProxyMeta"
-    )
 
 
 @functools.cache
@@ -1176,10 +1127,6 @@ def _from_cudf_df(
         )
     )
     return handle, feature_names, feature_types
-
-
-def _is_cudf_ser(data: DataType) -> bool:
-    return lazy_isinstance(data, "cudf.core.series", "Series")
 
 
 def _is_cupy_alike(data: DataType) -> bool:
@@ -1465,7 +1412,7 @@ def dispatch_data_backend(
     if _is_cudf_pandas(data):
         data = data._fsproxy_fast  # pylint: disable=protected-access
     if _is_pandas_series(data):
-        import pandas as pd
+        pd = import_pandas()
 
         data = pd.DataFrame(data)
     if _is_pandas_df(data):
@@ -1498,7 +1445,7 @@ def dispatch_data_backend(
         assert check_cats(feature_types)
         return _from_dlpack(data, missing, threads, feature_names, feature_types)
     if _is_modin_series(data):
-        import pandas as pd
+        pd = import_pandas()
 
         data = pd.DataFrame(data)
     if _is_modin_df(data):
@@ -1726,7 +1673,7 @@ def _proxy_transform(
         )
         return df_pl, feature_names, feature_types
     if _is_pandas_series(data):
-        import pandas as pd
+        pd = import_pandas()
 
         data = pd.DataFrame(data)
     if _is_arrow(data):

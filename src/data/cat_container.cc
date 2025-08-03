@@ -14,7 +14,8 @@
 #include "xgboost/json.h"         // for Json
 
 namespace xgboost {
-CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
+CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatContainer{} {
+  this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
   if (this->n_total_cats_ == 0) {
     return;

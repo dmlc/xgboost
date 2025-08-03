@@ -476,7 +476,7 @@ class ColumnarAdapter : public detail::SingleBatchDataIter<ColumnarAdapterBatch>
 };
 
 inline auto MakeEncColumnarBatch(Context const* ctx, ColumnarAdapter const* adapter) {
-  auto cats = std::make_unique<CatContainer>(adapter->RefCats());
+  auto cats = std::make_unique<CatContainer>(adapter->RefCats(), true);
   cats->Sort(ctx);
   auto [acc, mapping] = cpu_impl::MakeCatAccessor(ctx, adapter->Cats(), cats.get());
   return std::tuple{EncColumnarAdapterBatch{adapter->Columns(), acc}, std::move(mapping)};
