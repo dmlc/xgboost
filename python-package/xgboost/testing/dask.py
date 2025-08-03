@@ -20,6 +20,8 @@ from .._typing import EvalsLog
 from ..dask import _DASK_VERSION, _get_rabit_args
 from .data import make_batches
 from .data import make_categorical as make_cat_local
+from .ordinal import make_recoded
+from .utils import Device
 
 
 def check_init_estimation_clf(
@@ -244,7 +246,12 @@ def check_no_group_split(client: Client, device: str) -> None:
         client, 1024, 128, n_query_groups=4, max_rel=5, device=device
     )
 
-    ltr = dxgb.DaskXGBRanker(allow_group_split=False, n_estimators=36, device=device)
+    ltr = dxgb.DaskXGBRanker(
+        allow_group_split=False,
+        n_estimators=36,
+        device=device,
+        objective="rank:pairwise",
+    )
     ltr.fit(
         X_tr,
         y_tr,
@@ -313,3 +320,45 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     if onehot:
         return dd.get_dummies(X), y
     return X, y
+
+
+def run_recode(client: "Client", device: Device) -> None:
+    """Run re-coding test with the Dask interface."""
+    enc, reenc, y, _, _ = make_recoded(device, n_features=96)
+    denc, dreenc, dy = dd.from_pandas(enc), dd.from_pandas(reenc), da.from_array(y)
+    if device == "cuda":
+        denc = denc.to_backend("cudf")
+        dreenc = dreenc.to_backend("cudf")
+        dy = dy.to_backend("cupy")
+
+    Xy = dxgb.DaskQuantileDMatrix(client, denc, dy, enable_categorical=True)
+    Xy_valid = dxgb.DaskQuantileDMatrix(
+        client, dreenc, dy, enable_categorical=True, ref=Xy
+    )
+    # Base model
+    results = dxgb.train(client, {"device": device}, Xy, evals=[(Xy_valid, "Valid")])
+
+    # Training continuation
+    results_1 = dxgb.train(
+        client,
+        {"device": device},
+        Xy,
+        evals=[(Xy_valid, "Valid")],
+        xgb_model=results["booster"],
+    )
+
+    # Reversed training continuation
+    Xy = dxgb.DaskQuantileDMatrix(client, dreenc, dy, enable_categorical=True)
+    Xy_valid = dxgb.DaskQuantileDMatrix(
+        client, denc, dy, enable_categorical=True, ref=Xy
+    )
+    results_2 = dxgb.train(
+        client,
+        {"device": device},
+        Xy,
+        evals=[(Xy_valid, "Valid")],
+        xgb_model=results["booster"],
+    )
+    np.testing.assert_allclose(
+        results_1["history"]["Valid"]["rmse"], results_2["history"]["Valid"]["rmse"]
+    )

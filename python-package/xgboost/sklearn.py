@@ -89,7 +89,7 @@ def _check_rf_callback(
     if early_stopping_rounds is not None or callbacks is not None:
         raise NotImplementedError(
             "`early_stopping_rounds` and `callbacks` are not implemented for"
-            " random forest."
+            " the sklearn random forest estimator interface."
         )
 
 
@@ -103,7 +103,12 @@ def get_ref_categories(
     model: Optional[Union[Booster, str]],
     feature_types: Optional[FeatureTypes],
 ) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
-    """Configure the reference categories."""
+    """Extract the optional reference categories from the booster."""
+    # Skip if it's not a dataframe as there's no new encoding to be recoded.
+    #
+    # This function helps override the `feature_types` parameter. The `feature_types`
+    # from user is not useful when input is a dataframe as the real feature type should
+    # be encoded into the DF.
     if model is None or not is_dataframe(X):
         return model, feature_types
 
@@ -113,7 +118,7 @@ def get_ref_categories(
     categories = model.get_categories()
     if not categories.empty():
         return model, categories
-
+    # Convert empty into None.
     return model, feature_types
 
 
@@ -417,7 +422,7 @@ __model_doc = f"""
         .. versionadded:: 1.7.0
 
         Used for specifying feature types without constructing a dataframe. See
-        :py:class:`DMatrix` for details.
+        the :py:class:`DMatrix` for details.
 
     feature_weights : Optional[ArrayLike]
 
@@ -634,6 +639,22 @@ Parameters
     return adddoc
 
 
+def _pick_ref_categories(
+    X: Any,
+    model_cats: Optional[Union[FeatureTypes, Categories]],
+    Xy_cats: Optional[Categories],
+) -> Optional[Union[FeatureTypes, Categories]]:
+    # Use the reference categories from the model. If none, then use the reference
+    # categories from the training DMatrix.
+    categories: Optional[Categories] = None
+    if not isinstance(model_cats, Categories) and is_dataframe(X):
+        categories = Xy_cats
+    if categories is not None and not categories.empty():
+        model_cats = categories
+
+    return model_cats
+
+
 def _wrap_evaluation_matrices(
     *,
     missing: float,
@@ -653,8 +674,11 @@ def _wrap_evaluation_matrices(
     enable_categorical: bool,
     feature_types: Optional[Union[FeatureTypes, Categories]],
 ) -> Tuple[Any, List[Tuple[Any, str]]]:
-    """Convert array_like evaluation matrices into DMatrix.  Perform validation on the
-    way."""
+    """Convert array_like evaluation matrices into DMatrix. Perform sanity checks on the
+    way.
+
+    """
+    # Feature_types contains the optional reference categories from the booster object.
     train_dmatrix = create_dmatrix(
         data=X,
         label=y,
@@ -680,7 +704,7 @@ def _wrap_evaluation_matrices(
             return [None] * n_validation
         if len(meta) != n_validation:
             raise ValueError(
-                f"{name}'s length does not equal `eval_set`'s length, "
+                f"{name}'s length does not equal to `eval_set`'s length, "
                 + f"expecting {n_validation}, got {len(meta)}"
             )
         return meta
@@ -697,7 +721,7 @@ def _wrap_evaluation_matrices(
 
         evals = []
         for i, (valid_X, valid_y) in enumerate(eval_set):
-            # Skip the duplicated entry.
+            # Skip the entry if it's the training DMatrix.
             if all(
                 (
                     valid_X is X,
@@ -709,28 +733,23 @@ def _wrap_evaluation_matrices(
                 )
             ):
                 evals.append(train_dmatrix)
-            else:
-                categories = None
-                if not isinstance(feature_types, Categories) and is_dataframe(X):
-                    # No reference categories from a previous model, use the one in the
-                    # training DMatrix.
-                    categories = Xy_cats
-                if categories is not None and not categories.empty():
-                    feature_types = categories
+                continue
 
-                m = create_dmatrix(
-                    data=valid_X,
-                    label=valid_y,
-                    weight=sample_weight_eval_set[i],
-                    group=eval_group[i],
-                    qid=eval_qid[i],
-                    base_margin=base_margin_eval_set[i],
-                    missing=missing,
-                    enable_categorical=enable_categorical,
-                    feature_types=feature_types,
-                    ref=train_dmatrix,
-                )
-                evals.append(m)
+            feature_types = _pick_ref_categories(valid_X, feature_types, Xy_cats)
+            m = create_dmatrix(
+                data=valid_X,
+                label=valid_y,
+                weight=sample_weight_eval_set[i],
+                group=eval_group[i],
+                qid=eval_qid[i],
+                base_margin=base_margin_eval_set[i],
+                missing=missing,
+                enable_categorical=enable_categorical,
+                feature_types=feature_types,
+                ref=train_dmatrix,
+            )
+            evals.append(m)
+
         nevals = len(evals)
         eval_names = [f"validation_{i}" for i in range(nevals)]
         evals = list(zip(evals, eval_names))

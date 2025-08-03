@@ -23,10 +23,13 @@ import pandas as pd
 from dask import dataframe as dd
 
 from .. import collective as coll
-from .._typing import FeatureNames
+from .._data_utils import Categories
+from .._typing import FeatureNames, FeatureTypes
 from ..compat import concat, import_cupy
-from ..core import DataIter, DMatrix, QuantileDMatrix
+from ..core import Booster, DataIter, DMatrix, QuantileDMatrix
 from ..data import is_on_cuda
+from ..sklearn import _pick_ref_categories, get_ref_categories
+from ..training import _RefError
 
 LOGGER = logging.getLogger("[xgboost.dask]")
 
@@ -50,7 +53,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         self,
         data: List[Any],
         feature_names: Optional[FeatureNames] = None,
-        feature_types: Optional[Union[Any, List[Any]]] = None,
+        feature_types: Optional[Union[FeatureTypes, Categories]] = None,
         feature_weights: Optional[Any] = None,
         **kwargs: Optional[List[Any]],
     ) -> None:
@@ -251,6 +254,7 @@ def sort_data_by_qid(**kwargs: List[Any]) -> Dict[str, List[Any]]:
 
 
 def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
+    """Convert list of dictionaries into a dictionary of lists."""
     assert isinstance(list_of_parts, list)
     result: Dict[str, List[Any]] = {}
 
@@ -294,10 +298,10 @@ def _make_empty(is_cuda: bool) -> np.ndarray:
     return empty
 
 
-def _create_quantile_dmatrix(
+def _create_quantile_dmatrix(  # pylint: disable=too-many-locals
     *,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[Union[Any, List[Any]]],
+    feature_types: Optional[FeatureTypes],
     feature_weights: Optional[Any],
     missing: float,
     nthread: int,
@@ -306,6 +310,8 @@ def _create_quantile_dmatrix(
     enable_categorical: bool,
     max_quantile_batches: Optional[int],
     ref: Optional[DMatrix] = None,
+    model: Optional[Booster],
+    Xy_cats: Optional[Categories],
 ) -> QuantileDMatrix:
     worker = distributed.get_worker()
     is_cuda = _get_is_cuda(parts)
@@ -321,9 +327,15 @@ def _create_quantile_dmatrix(
             max_quantile_batches=max_quantile_batches,
         )
 
+    unzipped_dict = _get_worker_parts(parts)
+
+    X = unzipped_dict["data"][0]
+    _, model_cats = get_ref_categories(X, model, feature_types)
+    model_cats = _pick_ref_categories(X, model_cats, Xy_cats)
+
     it = DaskPartitionIter(
-        **_get_worker_parts(parts),
-        feature_types=feature_types,
+        **unzipped_dict,
+        feature_types=model_cats,
         feature_names=feature_names,
         feature_weights=feature_weights,
     )
@@ -341,12 +353,14 @@ def _create_quantile_dmatrix(
 def _create_dmatrix(  # pylint: disable=too-many-locals
     *,
     feature_names: Optional[FeatureNames],
-    feature_types: Optional[Union[Any, List[Any]]],
+    feature_types: Optional[FeatureTypes],
     feature_weights: Optional[Any],
     missing: float,
     nthread: int,
     enable_categorical: bool,
     parts: Optional[_DataParts],
+    model: Optional[Booster],
+    Xy_cats: Optional[Categories],
 ) -> DMatrix:
     """Get data that local to worker from DaskDMatrix.
 
@@ -356,10 +370,9 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
 
     """
     worker = distributed.get_worker()
-    list_of_parts = parts
     is_cuda = _get_is_cuda(parts)
 
-    if list_of_parts is None:
+    if parts is None:
         msg = f"Worker {worker.address} has an empty DMatrix."
         LOGGER.warning(msg)
         Xy = DMatrix(
@@ -377,7 +390,11 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
             return None
         return concat(data)
 
-    unzipped_dict = _get_worker_parts(list_of_parts)
+    unzipped_dict = _get_worker_parts(parts)
+    X = unzipped_dict["data"][0]
+    _, model_cats = get_ref_categories(X, model, feature_types)
+    model_cats = _pick_ref_categories(X, model_cats, Xy_cats)
+
     concated_dict: Dict[str, Any] = {}
     for key, value in unzipped_dict.items():
         v = concat_or_none(value)
@@ -387,9 +404,54 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
         **concated_dict,
         missing=missing,
         feature_names=feature_names,
-        feature_types=feature_types,
+        feature_types=model_cats,
         nthread=nthread,
         enable_categorical=enable_categorical,
         feature_weights=feature_weights,
     )
     return Xy
+
+
+def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
+    if is_quantile:
+        return _create_quantile_dmatrix(**kwargs)
+    return _create_dmatrix(**kwargs)
+
+
+def _get_dmatrices(
+    train_ref: dict,
+    train_id: int,
+    *refs: dict,
+    evals_id: Sequence[int],
+    evals_name: Sequence[str],
+    n_threads: int,
+    model: Optional[Booster],
+) -> Tuple[DMatrix, List[Tuple[DMatrix, str]]]:
+    # Create the training DMatrix
+    Xy = _dmatrix_from_list_of_parts(
+        **train_ref, nthread=n_threads, model=model, Xy_cats=None
+    )
+
+    # Create evaluation DMatrices
+    evals: List[Tuple[DMatrix, str]] = []
+    Xy_cats = Xy.get_categories()
+
+    for i, ref in enumerate(refs):
+        # Same DMatrix as the training
+        if evals_id[i] == train_id:
+            evals.append((Xy, evals_name[i]))
+            continue
+        # Check whether the training DMatrix has been used as a reference.
+        if ref.get("ref", None) is not None:
+            if ref["ref"] != train_id:
+                raise ValueError(_RefError)
+            del ref["ref"]  # Avoid duplicated parameter in the next fn call.
+            eval_xy = _dmatrix_from_list_of_parts(
+                **ref, nthread=n_threads, ref=Xy, Xy_cats=Xy_cats, model=model
+            )
+        else:
+            eval_xy = _dmatrix_from_list_of_parts(
+                **ref, nthread=n_threads, Xy_cats=Xy_cats, model=model
+            )
+        evals.append((eval_xy, evals_name[i]))
+    return Xy, evals

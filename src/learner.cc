@@ -41,7 +41,7 @@
 #include "common/random.h"                // for GlobalRandom
 #include "common/timer.h"                 // for Monitor
 #include "common/version.h"               // for Version
-#include "xgboost/base.h"                 // for Args, bst_float, GradientPair, bst_feature_t, ...
+#include "xgboost/base.h"                 // for Args, GradientPair, bst_feature_t
 #include "xgboost/context.h"              // for Context
 #include "xgboost/data.h"                 // for DMatrix, MetaInfo
 #include "xgboost/gbm.h"                  // for GradientBooster
@@ -83,15 +83,11 @@ T& UsePtr(T& ptr) {  // NOLINT
  */
 struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy> {
   /* \brief global bias */
-  bst_float base_score{ObjFunction::DefaultBaseScore()};
+  float base_score{ObjFunction::DefaultBaseScore()};
   /* \brief number of features  */
   bst_feature_t num_feature{0};
   /* \brief number of classes, if it is multi-class classification  */
   std::int32_t num_class{0};
-  /*! \brief Model contain additional properties */
-  int32_t contain_extra_attrs{0};
-  /*! \brief Model contain eval metrics */
-  int32_t contain_eval_metrics{0};
   /*! \brief the version of XGBoost. */
   std::int32_t major_version{std::get<0>(Version::Self())};
   std::int32_t minor_version{std::get<1>(Version::Self())};
@@ -582,7 +578,6 @@ class LearnerConfiguration : public Learner {
 
   void SetAttr(const std::string& key, const std::string& value) override {
     attributes_[key] = value;
-    mparam_.contain_extra_attrs = 1;
   }
 
   bool GetAttr(const std::string& key, std::string* out) const override {
@@ -781,7 +776,6 @@ class LearnerConfiguration : public Learner {
       auto DupCheck = [&name](std::unique_ptr<Metric> const& m) { return m->Name() != name; };
       if (std::all_of(metrics_.begin(), metrics_.end(), DupCheck)) {
         metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_)));
-        mparam_.contain_eval_metrics = 1;
       }
     }
 
@@ -1129,9 +1123,9 @@ class LearnerImpl : public LearnerIO {
   }
 
   void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
-               HostDeviceVector<bst_float>* out_preds, bst_layer_t layer_begin,
-               bst_layer_t layer_end, bool training, bool pred_leaf, bool pred_contribs,
-               bool approx_contribs, bool pred_interactions) override {
+               HostDeviceVector<float>* out_preds, bst_layer_t layer_begin, bst_layer_t layer_end,
+               bool training, bool pred_leaf, bool pred_contribs, bool approx_contribs,
+               bool pred_interactions) override {
     int multiple_predictions = static_cast<int>(pred_leaf) +
                                static_cast<int>(pred_interactions) +
                                static_cast<int>(pred_contribs);
@@ -1248,8 +1242,8 @@ class LearnerImpl : public LearnerIO {
   }
 
  private:
-  void GetGradient(HostDeviceVector<bst_float> const& preds, MetaInfo const& info,
-                   std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) {
+  void GetGradient(HostDeviceVector<float> const& preds, MetaInfo const& info, std::int32_t iter,
+                   linalg::Matrix<GradientPair>* out_gpair) {
     out_gpair->Reshape(info.num_row_, this->learner_model_param_.OutputLength());
     collective::ApplyWithLabels(&ctx_, info, out_gpair->Data(),
                                 [&] { obj_->GetGradient(preds, info, iter, out_gpair); });
