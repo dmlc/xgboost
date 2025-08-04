@@ -5,7 +5,7 @@
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for make_shared
 
-#include "../common/cuda_rt_utils.h"  // for CurrentDevice
+#include "../common/cuda_rt_utils.h"  // for CurrentDevice, SetDevice
 #include "cat_container.h"            // for CatContainer
 #include "device_adapter.cuh"
 #include "simple_dmatrix.cuh"
@@ -21,12 +21,12 @@ template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthread,
                              DataSplitMode data_split_mode) {
   CHECK(data_split_mode != DataSplitMode::kCol)
-      << "Column-wise data split is currently not supported on the GPU.";
+      << "Column-wise data split is currently not supported by the GPU.";
   auto device = (!adapter->Device().IsCUDA() || adapter->NumRows() == 0)
                     ? DeviceOrd::CUDA(curt::CurrentDevice())
                     : adapter->Device();
   CHECK(device.IsCUDA());
-  dh::safe_cuda(cudaSetDevice(device.ordinal));
+  curt::SetDevice(device.ordinal);
 
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(nthread)}, {"device", device.Name()}});
@@ -40,14 +40,27 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   // Enforce single batch
   CHECK(!adapter->Next());
 
-  info_.num_nonzero_ =
-      CopyToSparsePage(&ctx, adapter->Value(), device, missing, sparse_page_.get());
+  auto copy_page = [&] {
+    if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
+      if (adapter->HasRefCategorical()) {
+        auto [batch, mapping] = MakeEncColumnarBatch(&ctx, adapter);
+        info_.num_nonzero_ = CopyToSparsePage(&ctx, batch, device, missing, sparse_page_.get());
+        return;
+      }
+    }
+    info_.num_nonzero_ =
+        CopyToSparsePage(&ctx, adapter->Value(), device, missing, sparse_page_.get());
+  };
+
+  copy_page();
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
 
   if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
-    if (adapter->HasCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(adapter->Device(), adapter->Cats()));
+    if (adapter->HasRefCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(&ctx, adapter->RefCats(), true));
+    } else if (adapter->HasCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(&ctx, adapter->Cats(), false));
     }
   }
   this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);

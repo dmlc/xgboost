@@ -13,8 +13,11 @@ example, following packages in addition to XGBoost native dependencies are requi
 If `device` is `cuda`, following are also needed:
 
 - cupy
-- python-cuda
 - rmm
+- cuda-python
+
+Not shown in this example, but you should pay attention to NUMA configuration as
+discussed in the tutorial.
 
 """
 
@@ -38,7 +41,7 @@ from xgboost.tracker import RabitTracker
 
 def device_mem_total() -> int:
     """The total number of bytes of memory this GPU has."""
-    from cuda import cudart
+    import cuda.bindings.runtime as cudart
 
     status, free, total = cudart.cudaMemGetInfo()
     if status != cudart.cudaError_t.cudaSuccess:

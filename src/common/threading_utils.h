@@ -320,12 +320,6 @@ class MemStackAllocator {
 std::int32_t constexpr DefaultMaxThreads() { return 128; }
 
 /**
- * @brief Get numa node on Linux. Other platforms are not supported. Returns false if the
- *        call fails.
- */
-[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa);
-
-/**
  * @brief Give the thread a name. Supports only pthread on linux.
  */
 void NameThread(std::thread* t, StringView name);

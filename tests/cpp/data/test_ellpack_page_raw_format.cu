@@ -198,7 +198,11 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
       EXPECT_TRUE(page.Impl()->IsDense());
       CalcCacheMapping(&ctx, page.Impl()->IsDense(), cuts, min_cache_page_bytes, ext_info, false,
                        &cinfo);
-      EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
+      if (min_cache_page_bytes == ::xgboost::cuda_impl::MatchingPageBytes()) {
+        EXPECT_EQ(cinfo.NumBatchesCc(), ext_info.n_batches);
+      } else {
+        EXPECT_EQ(cinfo.buffer_rows.size(), 4ul);
+      }
       policy.SetCuts(page.Impl()->CutsShared(), ctx.Device(), std::move(cinfo));
     }
 
@@ -219,6 +223,11 @@ TEST(EllpackPageRawFormat, DevicePageConcat) {
     return mem_cache;
   };
 
+  {
+    auto mem_cache =
+        test(::xgboost::cuda_impl::MatchingPageBytes(), ::xgboost::cuda_impl::AutoHostRatio());
+    ASSERT_EQ(mem_cache->d_pages.size(), 8);
+  }
   {
     auto mem_cache = test(n_features * n_samples, ::xgboost::cuda_impl::AutoHostRatio());
     ASSERT_EQ(mem_cache->h_pages.size(), 4);

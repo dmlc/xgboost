@@ -1,12 +1,14 @@
 /**
- * Copyright 2023 by XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  */
 #include "error_msg.h"
 
-#include <mutex>    // for call_once, once_flag
-#include <sstream>  // for stringstream
+#include <mutex>         // for call_once, once_flag
+#include <sstream>       // for stringstream
+#include <system_error>  // for error_code, system_category
 
 #include "../collective/communicator-inl.h"  // for GetRank
+#include "xgboost/collective/socket.h"       // for LastError
 #include "xgboost/context.h"                 // for Context
 #include "xgboost/logging.h"
 
@@ -17,16 +19,6 @@ namespace xgboost::error {
   return ss.str();
 }
 
-void WarnDeprecatedGPUHist() {
-  auto msg =
-      "The tree method `gpu_hist` is deprecated since 2.0.0. To use GPU training, set the `device` "
-      R"(parameter to CUDA instead.
-
-    E.g. tree_method = "hist", device = "cuda"
-)";
-  LOG(WARNING) << msg;
-}
-
 void WarnManualUpdater() {
   static std::once_flag flag;
   std::call_once(flag, [] {
@@ -34,15 +26,6 @@ void WarnManualUpdater() {
         << "You have manually specified the `updater` parameter. The `tree_method` parameter "
            "will be ignored. Incorrect sequence of updaters will produce undefined "
            "behavior. For common uses, we recommend using `tree_method` parameter instead.";
-  });
-}
-
-void WarnDeprecatedGPUId() {
-  static std::once_flag flag;
-  std::call_once(flag, [] {
-    auto msg = DeprecatedFunc("gpu_id", "2.0.0", "device");
-    msg += " E.g. device=cpu/cuda/cuda:0";
-    LOG(WARNING) << msg;
   });
 }
 
@@ -84,5 +67,11 @@ void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch) {
   if (minor < 23) {
     LOG(WARNING) << msg();
   }
+}
+
+[[nodiscard]] std::error_code SystemError() {
+  std::int32_t errsv = system::LastError();
+  auto err = std::error_code{errsv, std::system_category()};
+  return err;
 }
 }  // namespace xgboost::error

@@ -114,6 +114,7 @@ INSTANTIATE(CSRArrayAdapterBatch)
 INSTANTIATE(CSCArrayAdapterBatch)
 INSTANTIATE(SparsePageAdapterBatch)
 INSTANTIATE(ColumnarAdapterBatch)
+INSTANTIATE(EncColumnarAdapterBatch)
 
 namespace {
 /**

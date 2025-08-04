@@ -41,8 +41,11 @@ auto to_i64 = [](auto v) { return Json{static_cast<int64_t>(v)}; };
 void JsonWriter::Visit(I8Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(U8Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(I16Array const* arr) { this->WriteArray(arr, to_i64); }
+void JsonWriter::Visit(U16Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(I32Array const* arr) { this->WriteArray(arr, to_i64); }
+void JsonWriter::Visit(U32Array const* arr) { this->WriteArray(arr, to_i64); }
 void JsonWriter::Visit(I64Array const* arr) { this->WriteArray(arr, to_i64); }
+void JsonWriter::Visit(U64Array const* arr) { this->WriteArray(arr, to_i64); }  // dangerous
 
 void JsonWriter::Visit(JsonObject const* obj) {
   stream_->emplace_back('{');
@@ -156,10 +159,16 @@ std::string Value::TypeStr() const {
       return "U8Array";
     case ValueKind::kI16Array:
       return "I16Array";
+    case ValueKind::kU16Array:
+      return "U16Array";
     case ValueKind::kI32Array:
       return "I32Array";
+    case ValueKind::kU32Array:
+      return "U32Array";
     case ValueKind::kI64Array:
       return "I64Array";
+    case ValueKind::kU64Array:
+      return "U64Array";
   }
   return "";
 }
@@ -276,8 +285,11 @@ template class JsonTypedArray<double, Value::ValueKind::kF64Array>;
 template class JsonTypedArray<std::int8_t, Value::ValueKind::kI8Array>;
 template class JsonTypedArray<std::uint8_t, Value::ValueKind::kU8Array>;
 template class JsonTypedArray<std::int16_t, Value::ValueKind::kI16Array>;
+template class JsonTypedArray<std::uint16_t, Value::ValueKind::kU16Array>;
 template class JsonTypedArray<std::int32_t, Value::ValueKind::kI32Array>;
+template class JsonTypedArray<std::uint32_t, Value::ValueKind::kU32Array>;
 template class JsonTypedArray<std::int64_t, Value::ValueKind::kI64Array>;
+template class JsonTypedArray<std::uint64_t, Value::ValueKind::kU64Array>;
 
 // Json Number
 bool JsonNumber::operator==(Value const& rhs) const {

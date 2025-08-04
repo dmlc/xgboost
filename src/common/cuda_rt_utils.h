@@ -20,8 +20,6 @@ std::int32_t CurrentDevice(bool raise = true);
 // Address Translation Service (ATS)
 [[nodiscard]] bool SupportsAts();
 
-void CheckComputeCapability();
-
 void SetDevice(std::int32_t device);
 
 /**
@@ -30,10 +28,10 @@ void SetDevice(std::int32_t device);
 [[nodiscard]] std::size_t TotalMemory();
 
 // Returns the CUDA Runtime version.
-void RtVersion(std::int32_t* major, std::int32_t* minor);
+void GetRtVersionGlobal(std::int32_t* major, std::int32_t* minor);
 
 // Returns the latest version of CUDA supported by the driver.
-void DrVersion(std::int32_t* major, std::int32_t* minor);
+void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor);
 
 // Get the current device's numa ID.
 [[nodiscard]] std::int32_t GetNumaId();

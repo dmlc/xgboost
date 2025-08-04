@@ -3,8 +3,6 @@
  */
 #include "helpers.h"
 
-#include "../../src/data/batch_utils.h"  // for AutoHostRatio
-
 #include <gtest/gtest.h>
 #include <xgboost/gbm.h>
 #include <xgboost/json.h>
@@ -14,10 +12,12 @@
 #include <xgboost/objective.h>
 
 #include <algorithm>
-#include <limits>  // for numeric_limits
+#include <filesystem>  // for path
+#include <limits>      // for numeric_limits
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"
+#include "../../src/data/batch_utils.h"  // for AutoHostRatio, AutoCachePageBytes
 #include "../../src/data/iterative_dmatrix.h"
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/data/sparse_page_dmatrix.h"
@@ -201,7 +201,6 @@ double GetMultiMetricEval(xgboost::Metric* metric,
 }
 
 namespace xgboost {
-
 float GetBaseScore(Json const &config) {
   return std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
 }
@@ -408,6 +407,15 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
     out->Info().feature_types.ConstDevicePointer();
   }
 }
+
+[[nodiscard]] bool DecompAllowFallback() {
+#if defined(XGBOOST_USE_NVCOMP)
+  bool allow_decomp_fallback = true;
+#else
+  bool allow_decomp_fallback = false;
+#endif
+  return allow_decomp_fallback;
+}
 }  // namespace
 
 [[nodiscard]] std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDMatrix(
@@ -464,14 +472,16 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 
-  auto config = ExtMemConfig{
-      prefix,
-      this->on_host_,
-      this->cache_host_ratio_,
-      this->min_cache_page_bytes_,
-      std::numeric_limits<float>::quiet_NaN(),
-      Context{}.Threads(),
-  };
+  auto config =
+      ExtMemConfig{
+          prefix,
+          this->on_host_,
+          this->cache_host_ratio_,
+          this->min_cache_page_bytes_,
+          std::numeric_limits<float>::quiet_NaN(),
+          Context{}.Threads(),
+      }
+          .SetParamsForTest(this->hw_decomp_ratio_, DecompAllowFallback());
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), Reset, Next, config)};
 
@@ -514,14 +524,17 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   CHECK(iter);
 
-  auto config = ExtMemConfig{
-      prefix,
-      this->on_host_,
-      this->cache_host_ratio_,
-      this->min_cache_page_bytes_,
-      std::numeric_limits<float>::quiet_NaN(),
-      Context{}.Threads(),
-  };
+  auto config =
+      ExtMemConfig{
+          prefix,
+          this->on_host_,
+          this->cache_host_ratio_,
+          this->min_cache_page_bytes_,
+          std::numeric_limits<float>::quiet_NaN(),
+          Context{}.Threads(),
+      }
+          .SetParamsForTest(this->hw_decomp_ratio_, DecompAllowFallback());
+
   std::shared_ptr<DMatrix> p_fmat{
       DMatrix::Create(static_cast<DataIterHandle>(iter.get()), iter->Proxy(), this->ref_, Reset,
                       Next, this->bins_, std::numeric_limits<std::int64_t>::max(), config)};
@@ -598,6 +611,26 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
   return p_fmat;
 }
 
+[[nodiscard]] std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
+    HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
+    const dmlc::TemporaryDirectory& tempdir, bst_idx_t n_batches) {
+  Context ctx;
+  auto iter = NumpyArrayIterForTest{&ctx, x, n_samples / n_batches, n_features, n_batches};
+
+  auto prefix = std::filesystem::path{tempdir.path} / "temp";
+  auto config = ExtMemConfig{
+      prefix.string(),
+      false,
+      ::xgboost::cuda_impl::AutoHostRatio(),
+      ::xgboost::cuda_impl::AutoCachePageBytes(),
+      std::numeric_limits<float>::quiet_NaN(),
+      Context{}.Threads(),
+  };
+  std::shared_ptr<DMatrix> p_fmat{
+      DMatrix::Create(static_cast<DataIterHandle>(&iter), iter.Proxy(), Reset, Next, config)};
+  return p_fmat;
+}
+
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,
                                                   LearnerModelParam const* learner_model_param,
@@ -642,7 +675,7 @@ ArrayIterForTest::ArrayIterForTest(Context const* ctx, HostDeviceVector<float> c
   CHECK_EQ(this->data_.Size(), rows_ * cols_ * n_batches);
   this->data_.Copy(data);
   std::tie(batches_, interface_) =
-      MakeArrayInterfaceBatch(&data_, rows_, cols_, n_batches_, ctx->Device());
+      MakeArrayInterfaceBatch(&data_, rows_ * n_batches_, cols_, n_batches_, ctx->Device());
 }
 
 ArrayIterForTest::~ArrayIterForTest() { XGDMatrixFree(proxy_); }
@@ -718,6 +751,7 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   for (int i = 0; i < ptr->n_gpu; ++i) {
     rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i].get());
   }
+  GlobalConfigThreadLocalStore::Get()->UpdateAllowUnknown(Args{{"use_rmm", "true"}});
   return ptr;
 }
 #else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1

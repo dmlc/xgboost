@@ -1677,6 +1677,30 @@ class TestWithDask:
             results_custom = reg.evals_result()
             tm.non_increasing(results_custom["validation_0"]["rmse"])
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_custom_metrics(self, client: "Client") -> None:
+        from sklearn.datasets import make_classification
+        from sklearn.metrics import hamming_loss, hinge_loss, log_loss
+
+        Xn, yn = make_classification(random_state=2025)
+        X, y = da.array(Xn), da.array(yn)
+
+        clf = dxgb.DaskXGBClassifier(
+            eval_metric=["logloss", hinge_loss], n_estimators=2
+        )
+        clf.fit(X, y, eval_set=[(X, y)])
+        results = clf.evals_result()["validation_0"]
+        assert "logloss" in results
+        assert "hinge_loss" in results
+
+        clf = dxgb.DaskXGBClassifier(
+            eval_metric=[hamming_loss, log_loss], n_estimators=2
+        )
+        with pytest.raises(
+            NotImplementedError, match="multiple custom metrics is not yet supported."
+        ):
+            clf.fit(X, y, eval_set=[(X, y)])
+
     def test_no_duplicated_partition(self) -> None:
         """Assert each worker has the correct amount of data, and DMatrix initialization
         doesn't generate unnecessary copies of data.

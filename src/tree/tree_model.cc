@@ -1,12 +1,12 @@
 /**
- * Copyright 2015-2024, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file tree_model.cc
  * \brief model structure for tree
  */
+#include "xgboost/tree_model.h"
+
 #include <dmlc/json.h>
 #include <dmlc/registry.h>
-#include <xgboost/json.h>
-#include <xgboost/tree_model.h>
 
 #include <cmath>
 #include <iomanip>
@@ -16,17 +16,14 @@
 
 #include "../common/categorical.h"  // for GetNodeCats
 #include "../common/common.h"       // for EscapeU8
-#include "../predictor/predict_fn.h"
-#include "io_utils.h"  // for GetElem
+#include "io_utils.h"               // for GetElem
 #include "param.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/json.h"
 #include "xgboost/logging.h"
 
 namespace xgboost {
-// register tree parameter
-DMLC_REGISTER_PARAMETER(TreeParam);
-
 namespace tree {
 DMLC_REGISTER_PARAMETER(TrainParam);
 }
@@ -791,6 +788,26 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
 
 constexpr bst_node_t RegTree::kRoot;
 
+void TreeParam::FromJson(Json const& in) {
+  auto const& obj = get<Object const>(in);
+  auto n_deleted_it = obj.find(StringView{"num_deleted"});
+  if (n_deleted_it != obj.cend()) {
+    // Missing in 1.0 models.
+    this->num_deleted = std::stoi(get<String const>(n_deleted_it->second));
+  }
+  this->num_feature = std::stoul(get<String const>(obj.at("num_feature")));
+  this->num_nodes = std::stoi(get<String const>(obj.at("num_nodes")));
+  this->size_leaf_vector = std::stoul(get<String const>(obj.at("size_leaf_vector")));
+}
+
+void TreeParam::ToJson(Json* p_out) const {
+  auto& out = *p_out;
+  out["num_deleted"] = std::to_string(this->num_deleted);
+  out["num_feature"] = std::to_string(this->num_feature);
+  out["num_nodes"] = std::to_string(this->num_nodes);
+  out["size_leaf_vector"] = std::to_string(this->size_leaf_vector);
+}
+
 std::string RegTree::DumpModel(const FeatureMap& fmap, bool with_stats, std::string format) const {
   if (this->IsMultiTarget() && format != "dot") {
     LOG(FATAL) << format << " tree dump " << MTNotImplemented();
@@ -908,76 +925,6 @@ void RegTree::ExpandCategorical(bst_node_t nidx, bst_feature_t split_index,
   this->split_types_.at(nidx) = FeatureType::kCategorical;
   this->split_categories_segments_.at(nidx).beg = orig_size;
   this->split_categories_segments_.at(nidx).size = split_cat.size();
-}
-
-void RegTree::Load(dmlc::Stream* fi) {
-  CHECK_EQ(fi->Read(&param_, sizeof(TreeParam)), sizeof(TreeParam));
-  if (!DMLC_IO_NO_ENDIAN_SWAP) {
-    param_ = param_.ByteSwap();
-  }
-  nodes_.resize(param_.num_nodes);
-  stats_.resize(param_.num_nodes);
-  CHECK_NE(param_.num_nodes, 0);
-  CHECK_EQ(fi->Read(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size()),
-           sizeof(Node) * nodes_.size());
-  if (!DMLC_IO_NO_ENDIAN_SWAP) {
-    for (Node& node : nodes_) {
-      node = node.ByteSwap();
-    }
-  }
-  CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * stats_.size()),
-           sizeof(RTreeNodeStat) * stats_.size());
-  if (!DMLC_IO_NO_ENDIAN_SWAP) {
-    for (RTreeNodeStat& stat : stats_) {
-      stat = stat.ByteSwap();
-    }
-  }
-  // chg deleted nodes
-  deleted_nodes_.resize(0);
-  for (int i = 1; i < param_.num_nodes; ++i) {
-    if (nodes_[i].IsDeleted()) {
-      deleted_nodes_.push_back(i);
-    }
-  }
-  CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param_.num_deleted);
-
-  split_types_.resize(param_.num_nodes, FeatureType::kNumerical);
-  split_categories_segments_.resize(param_.num_nodes);
-}
-
-void RegTree::Save(dmlc::Stream* fo) const {
-  CHECK_EQ(param_.num_nodes, static_cast<int>(nodes_.size()));
-  CHECK_EQ(param_.num_nodes, static_cast<int>(stats_.size()));
-  CHECK_EQ(param_.deprecated_num_roots, 1);
-  CHECK_NE(param_.num_nodes, 0);
-  CHECK(!IsMultiTarget())
-      << "Please use JSON/UBJSON for saving models with multi-target trees.";
-  CHECK(!HasCategoricalSplit())
-      << "Please use JSON/UBJSON for saving models with categorical splits.";
-
-  if (DMLC_IO_NO_ENDIAN_SWAP) {
-    fo->Write(&param_, sizeof(TreeParam));
-  } else {
-    TreeParam x = param_.ByteSwap();
-    fo->Write(&x, sizeof(x));
-  }
-
-  if (DMLC_IO_NO_ENDIAN_SWAP) {
-    fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
-  } else {
-    for (const Node& node : nodes_) {
-      Node x = node.ByteSwap();
-      fo->Write(&x, sizeof(x));
-    }
-  }
-  if (DMLC_IO_NO_ENDIAN_SWAP) {
-    fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
-  } else {
-    for (const RTreeNodeStat& stat : stats_) {
-      RTreeNodeStat x = stat.ByteSwap();
-      fo->Write(&x, sizeof(x));
-    }
-  }
 }
 
 template <bool typed>
@@ -1143,7 +1090,7 @@ void RegTree::LoadModel(Json const& in) {
   bool typed = IsA<I32Array>(in[tf::kParent]);
   auto const& in_obj = get<Object const>(in);
   // basic properties
-  FromJson(in["tree_param"], &param_);
+  param_.FromJson(in["tree_param"]);
   // categorical splits
   bool has_cat = in_obj.find("split_type") != in_obj.cend();
   if (has_cat) {
@@ -1197,7 +1144,8 @@ void RegTree::LoadModel(Json const& in) {
 void RegTree::SaveModel(Json* p_out) const {
   auto& out = *p_out;
   // basic properties
-  out["tree_param"] = ToJson(param_);
+  out["tree_param"] = Object{};
+  param_.ToJson(&out["tree_param"]);
   // categorical splits
   this->SaveCategoricalSplit(p_out);
   // multi-target
@@ -1271,37 +1219,5 @@ void RegTree::SaveModel(Json* p_out) const {
 
   out[tf::kSplitCond] = std::move(conds);
   out[tf::kDftLeft] = std::move(default_left);
-}
-
-void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
-                                           std::vector<float>* mean_values,
-                                           bst_float *out_contribs) const {
-  CHECK_GT(mean_values->size(), 0U);
-  // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
-  unsigned split_index = 0;
-  // update bias value
-  bst_float node_value = (*mean_values)[0];
-  out_contribs[feat.Size()] += node_value;
-  if ((*this)[0].IsLeaf()) {
-    // nothing to do anymore
-    return;
-  }
-
-  bst_node_t nid = 0;
-  auto cats = this->GetCategoriesMatrix();
-
-  while (!(*this)[nid].IsLeaf()) {
-    split_index = (*this)[nid].SplitIndex();
-    nid = predictor::GetNextNode<true, true>((*this)[nid], nid,
-                                             feat.GetFvalue(split_index),
-                                             feat.IsMissing(split_index), cats);
-    bst_float new_value = (*mean_values)[nid];
-    // update feature weight
-    out_contribs[split_index] += new_value - node_value;
-    node_value = new_value;
-  }
-  bst_float leaf_value = (*this)[nid].LeafValue();
-  // update leaf feature weight
-  out_contribs[split_index] += leaf_value - node_value;
 }
 }  // namespace xgboost

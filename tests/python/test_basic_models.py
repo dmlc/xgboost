@@ -450,12 +450,6 @@ class TestModels:
             booster, dtrain, num_parallel_tree, num_classes, num_boost_round, False
         )
 
-        bytesarray = booster.save_raw(raw_format="deprecated")
-        booster = xgb.Booster(model_file=bytesarray)
-        self.run_slice(
-            booster, dtrain, num_parallel_tree, num_classes, num_boost_round, True
-        )
-
     def test_slice_multi(self) -> None:
         from sklearn.datasets import make_classification
 

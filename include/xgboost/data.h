@@ -291,7 +291,6 @@ struct BatchParam {
    * @brief The number of batches to pre-fetch for external memory.
    */
   std::int32_t n_prefetch_batches{3};
-
   /**
    * @brief Exact or others that don't need histogram.
    */
@@ -431,7 +430,7 @@ class SparsePage {
    * \return  The maximum number of columns encountered in this input batch. Useful when pushing many adapter batches to work out the total number of columns.
    */
   template <typename AdapterBatchT>
-  uint64_t Push(const AdapterBatchT& batch, float missing, int nthread);
+  bst_idx_t Push(AdapterBatchT const& batch, float missing, std::int32_t nthread);
 
   /*!
    * \brief Push a sparse page
@@ -542,6 +541,10 @@ struct ExtMemConfig {
   float missing;
   // The number of CPU threads.
   std::int32_t n_threads{0};
+  // The ratio of the cache that can be compressed. Used for testing.
+  float hw_decomp_ratio{std::numeric_limits<float>::quiet_NaN()};
+  // Fallback to using nvcomp. Used for testing.
+  bool allow_decomp_fallback{false};
 
   ExtMemConfig() = delete;
   ExtMemConfig(std::string cache, bool on_host, float h_ratio, std::int64_t min_cache,
@@ -552,6 +555,12 @@ struct ExtMemConfig {
         min_cache_page_bytes{min_cache},
         missing{missing},
         n_threads{n_threads} {}
+
+  ExtMemConfig& SetParamsForTest(float _hw_decomp_ratio, bool _allow_decomp_fallback) {
+    this->hw_decomp_ratio = _hw_decomp_ratio;
+    this->allow_decomp_fallback = _allow_decomp_fallback;
+    return *this;
+  }
 };
 
 /**

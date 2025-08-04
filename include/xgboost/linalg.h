@@ -15,8 +15,8 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cinttypes>  // for int32_t
-#include <cstddef>    // for size_t
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t
 #include <limits>
 #include <string>
 #include <tuple>  // for make_tuple

@@ -101,6 +101,7 @@ class HostDeviceVector {
 
   [[nodiscard]] bool Empty() const { return Size() == 0; }
   [[nodiscard]] std::size_t Size() const;
+  [[nodiscard]] std::size_t SizeBytes() const { return this->Size() * sizeof(T); }
   [[nodiscard]] DeviceOrd Device() const;
   common::Span<T> DeviceSpan();
   common::Span<const T> ConstDeviceSpan() const;

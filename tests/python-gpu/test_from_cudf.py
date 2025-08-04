@@ -5,9 +5,16 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.compat import is_dataframe
 from xgboost.testing.data import run_base_margin_info
 
 cudf = pytest.importorskip("cudf")
+
+
+def test_type_check() -> None:
+    df = cudf.DataFrame([[1, 2.0], [2, 3.0]], columns=["a", "b"])
+    assert is_dataframe(df)
+    assert is_dataframe(df.a)
 
 
 def dmatrix_from_cudf(input_type, DMatrixT, missing=np.nan):

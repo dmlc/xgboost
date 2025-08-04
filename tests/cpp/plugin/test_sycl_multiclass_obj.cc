@@ -21,7 +21,7 @@ TEST(SyclObjective, SoftmaxMultiClassObjGPair) {
 TEST(SyclObjective, SoftmaxMultiClassBasic) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  TestSoftmaxMultiClassObjGPair(&ctx);
+  TestSoftmaxMultiClassBasic(&ctx);
 }
 
 TEST(SyclObjective, SoftprobMultiClassBasic) {

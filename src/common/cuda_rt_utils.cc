@@ -55,18 +55,6 @@ std::int32_t CurrentDevice(bool raise) {
   return res == 1;
 }
 
-void CheckComputeCapability() {
-  for (std::int32_t d_idx = 0; d_idx < AllVisibleGPUs(); ++d_idx) {
-    cudaDeviceProp prop;
-    dh::safe_cuda(cudaGetDeviceProperties(&prop, d_idx));
-    std::ostringstream oss;
-    oss << "CUDA Capability Major/Minor version number: " << prop.major << "." << prop.minor
-        << " is insufficient.  Need >=3.5";
-    int failed = prop.major < 3 || (prop.major == 3 && prop.minor < 5);
-    if (failed) LOG(WARNING) << oss.str() << " for device: " << d_idx;
-  }
-}
-
 void SetDevice(std::int32_t device) {
   if (device >= 0) {
     dh::safe_cuda(cudaSetDevice(device));
@@ -95,12 +83,12 @@ void GetVersionImpl(Fn&& fn, std::int32_t* major, std::int32_t* minor) {
 }
 }  // namespace
 
-void RtVersion(std::int32_t* major, std::int32_t* minor) {
+void GetRtVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaRuntimeGetVersion(ver)); }, major,
                  minor);
 }
 
-void DrVersion(std::int32_t* major, std::int32_t* minor) {
+void GetDrVersionGlobal(std::int32_t* major, std::int32_t* minor) {
   GetVersionImpl([](std::int32_t* ver) { dh::safe_cuda(cudaDriverGetVersion(ver)); }, major, minor);
 }
 

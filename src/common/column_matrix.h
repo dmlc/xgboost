@@ -15,7 +15,8 @@
 #include <memory>
 #include <type_traits>  // for enable_if_t, is_same_v, is_signed_v
 
-#include "../data/adapter.h"
+#include "../data/adapter.h"  // for SparsePageAdapterBatch
+#include "../data/entry.h"    // for IsValidFunctor
 #include "../data/gradient_index.h"
 #include "bitfield.h"  // for RBitField8
 #include "hist_util.h"

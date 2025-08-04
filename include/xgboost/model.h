@@ -1,14 +1,11 @@
-/*!
- * Copyright (c) 2019 by Contributors
- * \file model.h
- * \brief Defines the abstract interface for different components in XGBoost.
+/**
+ * Copyright 2019-2025, XGBoost Contributors
+ *
+ * @file model.h
+ * @brief Defines the abstract interface for different components in XGBoost.
  */
 #ifndef XGBOOST_MODEL_H_
 #define XGBOOST_MODEL_H_
-
-namespace dmlc {
-class Stream;
-}  // namespace dmlc
 
 namespace xgboost {
 

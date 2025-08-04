@@ -20,6 +20,7 @@
 #include "split_evaluator.h"
 #include "hist_synchronizer.h"
 #include "hist_row_adder.h"
+#include "hist_dispatcher.h"
 
 #include "../../src/common/random.h"
 #include "../data.h"
@@ -56,7 +57,7 @@ class HistUpdater {
                        const xgboost::tree::TrainParam& param,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
-    : ctx_(ctx), qu_(qu), param_(param),
+    : ctx_(ctx), qu_(qu), device_properties_(qu->get_device()), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
       interaction_constraints_{std::move(int_constraints_)},
       p_last_tree_(nullptr), p_last_fmat_(fmat) {
@@ -134,7 +135,8 @@ class HistUpdater {
                         GHistRowT<MemoryType::on_device>* hist_buffer,
                         ::sycl::event event_priv) {
     return hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
-                                   data_layout_ != kSparseData, hist_buffer, event_priv);
+                                   data_layout_ != kSparseData, hist_buffer,
+                                   device_properties_, event_priv);
   }
 
   void InitNewNode(int nid,
@@ -198,8 +200,11 @@ class HistUpdater {
 
   //  --data fields--
   const Context* ctx_;
+  ::sycl::queue* qu_;
   bool has_fp64_support_;
   size_t sub_group_size_;
+
+  DeviceProperties device_properties_;
 
   // the internal row sets
   common::RowSetCollection row_set_collection_;
@@ -230,7 +235,6 @@ class HistUpdater {
   enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
   DataLayout data_layout_;
 
-  constexpr static size_t kBufferSize = 2048;
   common::GHistBuilder<GradientSumT> hist_builder_;
   common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
   /*! \brief culmulative histogram of gradients. */
@@ -263,7 +267,6 @@ class HistUpdater {
   std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;
 
   std::vector<GradientPairT> reduce_buffer_;
-  ::sycl::queue* qu_;
 };
 
 }  // namespace tree

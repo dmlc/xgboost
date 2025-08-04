@@ -130,6 +130,8 @@ INSTANTIATION_PUSH(data::CSRArrayAdapterBatch)
 INSTANTIATION_PUSH(data::ArrayAdapterBatch)
 INSTANTIATION_PUSH(data::SparsePageAdapterBatch)
 INSTANTIATION_PUSH(data::ColumnarAdapterBatch)
+INSTANTIATION_PUSH(data::EncColumnarAdapterBatch)
+
 #undef INSTANTIATION_PUSH
 
 void GHistIndexMatrix::ResizeColumns(double sparse_thresh) {

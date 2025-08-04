@@ -5,8 +5,10 @@ import pytest
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.compat import is_dataframe
 from xgboost.core import DataSplitMode
 from xgboost.testing.data import pd_arrow_dtypes, pd_dtypes, run_base_margin_info
+from xgboost.testing.utils import predictor_equal
 
 try:
     import pandas as pd
@@ -21,10 +23,18 @@ dpath = "demo/data/"
 rng = np.random.RandomState(1994)
 
 
+def test_type_check() -> None:
+    df = pd.DataFrame([[1, 2.0], [2, 3.0]], columns=["a", "b"])
+    assert is_dataframe(df)
+    assert is_dataframe(df.a)
+
+
 class TestPandas:
     def test_pandas(self, data_split_mode=DataSplitMode.ROW):
         world_size = xgb.collective.get_world_size()
         df = pd.DataFrame([[1, 2.0, True], [2, 3.0, False]], columns=["a", "b", "c"])
+        assert is_dataframe(df)
+        assert is_dataframe(df.a)
         dm = xgb.DMatrix(df, label=pd.Series([1, 2]), data_split_mode=data_split_mode)
         assert dm.num_row() == 2
         if data_split_mode == DataSplitMode.ROW:
@@ -482,9 +492,9 @@ class TestPandas:
             if hasattr(orig.dtypes, "__iter__") and any(
                 dtype == "bool" for dtype in orig.dtypes
             ):
-                assert not tm.predictor_equal(m_orig, m_etype)
+                assert not predictor_equal(m_orig, m_etype)
             else:
-                assert tm.predictor_equal(m_orig, m_etype)
+                assert predictor_equal(m_orig, m_etype)
 
             np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
             np.testing.assert_allclose(m_etype.get_label(), y.values.astype(np.float32))
@@ -511,7 +521,7 @@ class TestPandas:
             m_orig = DMatrixT(orig, enable_categorical=True, label=y_orig)
             m_etype = DMatrixT(df, enable_categorical=True, label=y)
 
-            assert tm.predictor_equal(m_orig, m_etype)
+            assert predictor_equal(m_orig, m_etype)
             if y is not None:
                 np.testing.assert_allclose(m_orig.get_label(), m_etype.get_label())
                 np.testing.assert_allclose(m_etype.get_label(), y.values)

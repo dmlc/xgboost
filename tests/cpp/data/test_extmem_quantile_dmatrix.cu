@@ -74,7 +74,7 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
     auto p_fmat = RandomDataGenerator{NumSamples(), NumFeatures(), sparsity}
                       .Device(ctx.Device())
                       .GenerateDMatrix();
-    bst_idx_t min_page_cache_bytes = 0;
+    bst_idx_t min_page_cache_bytes = ::xgboost::cuda_impl::MatchingPageBytes();
     if (is_concat) {
       min_page_cache_bytes =
           p_fmat->GetBatches<EllpackPage>(&ctx, param).begin().Page()->Impl()->MemCostBytes() / 3;
@@ -111,9 +111,8 @@ class EllpackHostCacheTest : public ::testing::TestWithParam<std::tuple<double, 
 };
 
 TEST_P(EllpackHostCacheTest, Basic) {
-  auto ctx = MakeCUDACtx(0);
-  auto [sparsity, min_page_cache_bytes, cache_host_ratio] = this->GetParam();
-  this->Run(sparsity, min_page_cache_bytes, cache_host_ratio);
+  auto [sparsity, is_concat, cache_host_ratio] = this->GetParam();
+  this->Run(sparsity, is_concat, cache_host_ratio);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -167,4 +166,77 @@ TEST(EllpackHostCacheTest, Accessor) {
     }
   }
 }
+
+class EllpackDecompTest : public ::testing::TestWithParam<float> {
+ public:
+  void Run(float hw_decomp_ratio) {
+    auto ctx = MakeCUDACtx(0);
+    auto param = BatchParam{128, tree::TrainParam::DftSparseThreshold()};
+    std::size_t n_samples = 8192, n_features = 512;
+    float sparsity = 0.6;
+    auto full_p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
+                           .Batches(4)
+                           .Bins(param.max_bin)
+                           .Device(ctx.Device())
+                           .HwDecompRatio(0.0)
+                           .OnHost(true)
+                           .MinPageCacheBytes(n_samples * n_features / 4)
+                           .CacheHostRatio(0.8)
+                           .GenerateExtMemQuantileDMatrix("temp", false);
+
+    auto comp_p_fmat = RandomDataGenerator{n_samples, n_features, sparsity}
+                           .Batches(4)
+                           .Bins(param.max_bin)
+                           .Device(ctx.Device())
+                           .HwDecompRatio(hw_decomp_ratio)
+                           .OnHost(true)
+                           .MinPageCacheBytes(n_samples * n_features / 4)
+                           .CacheHostRatio(0.8)
+                           .GenerateExtMemQuantileDMatrix("temp", false);
+
+    auto get_pages = [&](std::shared_ptr<DMatrix> p_fmat) {
+      std::vector<std::shared_ptr<EllpackPage const>> pages;
+      auto it = p_fmat->GetBatches<EllpackPage>(&ctx, param).begin();
+      while (!it.AtEnd()) {
+        auto page = it.Page();
+        EXPECT_FALSE(page->Impl()->IsDenseCompressed());
+        pages.emplace_back(std::move(page));
+        ++it;
+      }
+      return pages;
+    };
+
+    std::vector<std::shared_ptr<EllpackPage const>> full_pages = get_pages(full_p_fmat);
+    std::vector<std::shared_ptr<EllpackPage const>> comp_pages = get_pages(comp_p_fmat);
+
+    ASSERT_EQ(full_pages.size(), comp_pages.size());
+    for (std::size_t i = 0, n = full_pages.size(); i < n; ++i) {
+      auto impl_f = full_pages[i]->Impl();
+      auto impl_c = comp_pages[i]->Impl();
+      ASSERT_EQ(impl_f->gidx_buffer.size(), impl_c->gidx_buffer.size());
+      ASSERT_EQ(impl_f->d_gidx_buffer.size(), impl_c->d_gidx_buffer.size());
+      ASSERT_EQ(impl_f->NumNonMissing(&ctx, {}), impl_c->NumNonMissing(&ctx, {}));
+
+      std::vector<common::CompressedByteT> buf_f;
+      [[maybe_unused]] auto acc_f = impl_f->GetHostEllpack(&ctx, &buf_f);
+
+      std::vector<common::CompressedByteT> buf_c;
+      [[maybe_unused]] auto acc_c = impl_c->GetHostEllpack(&ctx, &buf_c);
+
+      ASSERT_EQ(buf_f.size(), buf_c.size());
+      for (std::size_t i = 0, m = buf_f.size(); i < m; ++i) {
+        ASSERT_EQ(buf_f[i], buf_c[i]) << i;
+      }
+    }
+  }
+};
+
+TEST_P(EllpackDecompTest, Basic) {
+  auto ctx = MakeCUDACtx(0);
+  auto hw_decomp_ratio = this->GetParam();
+  this->Run(hw_decomp_ratio);
+}
+
+INSTANTIATE_TEST_SUITE_P(ExtMemQuantileDMatrix, EllpackDecompTest,
+                         ::testing::Values(1.0f, 0.1f, 0.5f, 0.0f));
 }  // namespace xgboost::data

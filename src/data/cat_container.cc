@@ -14,7 +14,8 @@
 #include "xgboost/json.h"         // for Json
 
 namespace xgboost {
-CatContainer::CatContainer(enc::HostColumnsView const& df) : CatContainer{} {
+CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatContainer{} {
+  this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
   if (this->n_total_cats_ == 0) {
     return;
@@ -70,6 +71,22 @@ namespace {
 template <typename T>
 struct PrimToUbj;
 
+template <>
+struct PrimToUbj<std::uint8_t> {
+  using Type = U8Array;
+};
+template <>
+struct PrimToUbj<std::uint16_t> {
+  using Type = U16Array;
+};
+template <>
+struct PrimToUbj<std::uint32_t> {
+  using Type = U32Array;
+};
+template <>
+struct PrimToUbj<std::uint64_t> {
+  using Type = U64Array;
+};
 template <>
 struct PrimToUbj<std::int8_t> {
   using Type = I8Array;
@@ -193,16 +210,32 @@ void CatContainer::Load(Json const& in) {
           LoadJson<std::int8_t>(jvalues, &columns.back());
           break;
         }
+        case T::kU8Array: {
+          LoadJson<std::uint8_t>(jvalues, &columns.back());
+          break;
+        }
         case T::kI16Array: {
           LoadJson<std::int16_t>(jvalues, &columns.back());
+          break;
+        }
+        case T::kU16Array: {
+          LoadJson<std::uint16_t>(jvalues, &columns.back());
           break;
         }
         case T::kI32Array: {
           LoadJson<std::int32_t>(jvalues, &columns.back());
           break;
         }
+        case T::kU32Array: {
+          LoadJson<std::uint32_t>(jvalues, &columns.back());
+          break;
+        }
         case T::kI64Array: {
           LoadJson<std::int64_t>(jvalues, &columns.back());
+          break;
+        }
+        case T::kU64Array: {
+          LoadJson<std::uint64_t>(jvalues, &columns.back());
           break;
         }
         case T::kF32Array: {
@@ -248,6 +281,10 @@ void CatContainer::Copy(Context const* ctx, CatContainer const& that) {
 [[nodiscard]] enc::HostColumnsView CatContainer::HostView() const { return this->HostViewImpl(); }
 
 [[nodiscard]] bool CatContainer::Empty() const { return this->cpu_impl_->columns.empty(); }
+
+[[nodiscard]] std::size_t CatContainer::NumFeatures() const {
+  return this->cpu_impl_->columns.size();
+}
 
 void CatContainer::Sort(Context const* ctx) {
   CHECK(ctx->IsCPU());

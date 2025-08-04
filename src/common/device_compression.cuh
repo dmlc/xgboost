@@ -104,11 +104,20 @@ struct SnappyDecomprMgrImpl {
   [[nodiscard]] bool Empty() const;
 };
 
-inline auto MakeSnappyDecomprMgr(dh::CUDAStreamView s, std::shared_ptr<HostPinnedMemPool> pool,
-                                 CuMemParams params,
-                                 common::Span<std::uint8_t const> in_compressed_data) {
+#if defined(XGBOOST_USE_NVCOMP)
+[[nodiscard]] inline auto MakeSnappyDecomprMgr(
+    dh::CUDAStreamView s, std::shared_ptr<HostPinnedMemPool> pool, CuMemParams params,
+    common::Span<std::uint8_t const> in_compressed_data) {
   SnappyDecomprMgr mgr;
   *mgr.Impl() = SnappyDecomprMgrImpl{s, std::move(pool), std::move(params), in_compressed_data};
   return mgr;
 }
+#else
+[[nodiscard]] inline auto MakeSnappyDecomprMgr(dh::CUDAStreamView,
+                                               std::shared_ptr<HostPinnedMemPool>, CuMemParams,
+                                               common::Span<std::uint8_t const>) {
+  SnappyDecomprMgr mgr;
+  return mgr;
+}
+#endif  // defined(XGBOOST_USE_NVCOMP)
 }  // namespace xgboost::dc

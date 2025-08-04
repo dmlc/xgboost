@@ -243,6 +243,7 @@ class RandomDataGenerator {
   std::shared_ptr<DMatrix> ref_{nullptr};
   std::int64_t min_cache_page_bytes_{0};
   float cache_host_ratio_;
+  float hw_decomp_ratio_{true};
 
   Json ArrayInterfaceImpl(HostDeviceVector<float>* storage, size_t rows, size_t cols) const;
 
@@ -281,6 +282,10 @@ class RandomDataGenerator {
   }
   [[nodiscard]] RandomDataGenerator& CacheHostRatio(float cache_host_ratio) {
     this->cache_host_ratio_ = cache_host_ratio;
+    return *this;
+  }
+  [[nodiscard]] RandomDataGenerator& HwDecompRatio(float hw_decomp_ratio) {
+    this->hw_decomp_ratio_ = hw_decomp_ratio;
     return *this;
   }
   RandomDataGenerator& Seed(uint64_t s) {
@@ -364,6 +369,10 @@ inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n, size_t nu
 
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::size_t num_rows,
                                             bst_feature_t num_columns);
+
+[[nodiscard]] std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
+    HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
+    const dmlc::TemporaryDirectory& tempdir, bst_idx_t n_batches = 4);
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,

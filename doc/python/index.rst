@@ -12,9 +12,9 @@ Contents
   python_intro
   sklearn_estimator
   python_api
+  data_input
   callbacks
   examples/index
   dask-examples/index
   survival-examples/index
-  gpu-examples/index
   rmm-examples/index

@@ -13,7 +13,8 @@
 
 #include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
 #include "../encoder/ordinal.h"    // for HostColumnsView
-#include "adapter.h"               // for ColumnarAdapter, ArrayAdapter
+#include "adapter.h"               // for ColumnarAdapter, ArrayAdapter, MakeEncColumnarBatch
+#include "cat_container.h"         // for CatContainer
 #include "xgboost/c_api.h"         // for DataIterHandle
 #include "xgboost/context.h"       // for Context
 #include "xgboost/data.h"          // for MetaInfo
@@ -65,51 +66,39 @@ class DataIterProxy {
 };
 
 /**
- * @brief A proxy of DMatrix used by external iterator.
+ * @brief A proxy of DMatrix used by the external iterator.
  */
 class DMatrixProxy : public DMatrix {
   MetaInfo info_;
   std::any batch_;
   Context ctx_;
 
-#if defined(XGBOOST_USE_CUDA)
-  void FromCudaColumnar(StringView interface_str);
-  void FromCudaArray(StringView interface_str);
-#endif  // defined(XGBOOST_USE_CUDA)
-
  public:
   DeviceOrd Device() const { return ctx_.Device(); }
 
-  void SetCUDAArray(char const* c_interface) {
-    common::AssertGPUSupport();
-    CHECK(c_interface);
-#if defined(XGBOOST_USE_CUDA)
-    StringView interface_str{c_interface};
-    Json json_array_interface = Json::Load(interface_str);
-    if (IsA<Array>(json_array_interface)) {
-      this->FromCudaColumnar(interface_str);
-    } else {
-      this->FromCudaArray(interface_str);
-    }
-#endif  // defined(XGBOOST_USE_CUDA)
-  }
-
-  void SetColumnarData(StringView interface_str);
-
-  void SetArrayData(StringView interface_str);
-  void SetCSRData(char const* c_indptr, char const* c_indices, char const* c_values,
-                  bst_feature_t n_features, bool on_host);
+  /**
+   * Device setters
+   */
+  void SetCudaColumnar(StringView data);
+  void SetCudaArray(StringView data);
+  /**
+   * Host setters
+   */
+  void SetColumnar(StringView data);
+  void SetArray(StringView data);
+  void SetCsr(char const* c_indptr, char const* c_indices, char const* c_values,
+              bst_feature_t n_features, bool on_host);
 
   MetaInfo& Info() override { return info_; }
   MetaInfo const& Info() const override { return info_; }
   Context const* Ctx() const override { return &ctx_; }
 
-  bool EllpackExists() const override { return false; }
-  bool GHistIndexExists() const override { return false; }
-  bool SparsePageExists() const override { return false; }
+  [[nodiscard]] bool EllpackExists() const override { return false; }
+  [[nodiscard]] bool GHistIndexExists() const override { return false; }
+  [[nodiscard]] bool SparsePageExists() const override { return false; }
 
   template <typename Page>
-  BatchSet<Page> NoBatch() {
+  static BatchSet<Page> NoBatch() {
     LOG(FATAL) << "Proxy DMatrix cannot return data batch.";
     return BatchSet<Page>(BatchIterator<Page>(nullptr));
   }
@@ -223,12 +212,16 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
       *type_error = false;
     }
   } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
+    auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter());
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter())->Value();
+      auto value = adapter->Value();
+      if (adapter->HasRefCategorical()) {
+        auto [batch, mapping] = MakeEncColumnarBatch(proxy->Ctx(), adapter.get());
+        return fn(batch);
+      }
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter());
-      return fn(value);
+      return fn(adapter);
     }
     if (type_error) {
       *type_error = false;
@@ -251,6 +244,8 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
 
 /**
  * @brief Create a `SimpleDMatrix` instance from a `DMatrixProxy`.
+ *
+ *    This is used for enabling inplace-predict fallback.
  */
 std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
                                                 std::shared_ptr<DMatrixProxy> proxy, float missing);
@@ -259,6 +254,7 @@ namespace cuda_impl {
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const*);
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const*);
 #if defined(XGBOOST_USE_CUDA)
+[[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const*);
 [[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const*);
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace cuda_impl
@@ -290,16 +286,26 @@ namespace cuda_impl {
 }
 
 namespace cpu_impl {
-// Get categories for the current batch.
+/**
+ * @brief Get categories for the current batch.
+ *
+ * @param ref_if_avail Use the reference categories if present.
+ *
+ * @return A host view to the categories
+ */
 [[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
   return HostAdapterDispatch<false>(proxy, [](auto const& adapter) -> decltype(auto) {
     using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
+      if (adapter->HasRefCategorical()) {
+        return adapter->RefCats();
+      }
       return adapter->Cats();
     }
     return enc::HostColumnsView{};
   });
 }
 }  // namespace cpu_impl
+[[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy);
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_PROXY_DMATRIX_H_

@@ -194,7 +194,7 @@ public class Booster implements Serializable, KryoSerializable {
   /**
    * Set feature names to the Booster.
    *
-   * @param An array of all the feature names.
+   * @param featureNames An array of all the feature names.
    * @throws XGBoostError
    */
   public void setFeatureNames(String[] featureNames) throws XGBoostError {
@@ -216,7 +216,7 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Set feature types to the Booster.
-   * @param An array of all the feature types.
+   * @param featureTypes An array of all the feature types.
    * @throws XGBoostError
    */
   public void setFeatureTypes(String[] featureTypes) throws XGBoostError {
@@ -633,7 +633,7 @@ public class Booster implements Serializable, KryoSerializable {
    * Get the dump of the model as a string array with specified feature map, stats,
    * and the specified format.
    *
-   * @param featureMap An array of strings containing the feature names.
+   * @param featureNames An array of strings containing the feature names.
    * @param withStats Controls whether the split statistics are output.
    * @param format The format in which the model is dumped (text, json, ubj).
    * @return The dumped model information

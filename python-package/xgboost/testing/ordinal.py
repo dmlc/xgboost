@@ -1,22 +1,33 @@
 # pylint: disable=invalid-name
 """Tests for the ordinal re-coder."""
 
+import itertools
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Literal, Tuple, Type, TypeVar
+from functools import cache as fcache
+from typing import Any, Tuple, Type, TypeVar
 
 import numpy as np
 import pytest
 
-from ..compat import import_cupy
+from .._typing import EvalsLog
 from ..core import DMatrix, ExtMemQuantileDMatrix, QuantileDMatrix
 from ..data import _lazy_load_cudf_is_cat
 from ..training import train
-from .data import IteratorForTest, is_pd_cat_dtype, make_categorical
+from .data import (
+    IteratorForTest,
+    is_pd_cat_dtype,
+    make_batches,
+    make_categorical,
+    memory,
+)
+from .updater import get_basescore
+from .utils import Device, assert_allclose, predictor_equal
 
 
-def get_df_impl(device: str) -> Tuple[Type, Type]:
+@fcache
+def get_df_impl(device: Device) -> Tuple[Type, Type]:
     """Get data frame implementation based on the ]device."""
     if device == "cpu":
         import pandas as pd
@@ -31,7 +42,7 @@ def get_df_impl(device: str) -> Tuple[Type, Type]:
     return Df, Ser
 
 
-def asarray(device: str, data: Any) -> np.ndarray:
+def asarray(device: Device, data: Any) -> np.ndarray:
     """Wrapper to get an array."""
     if device == "cpu":
         return np.asarray(data)
@@ -40,31 +51,38 @@ def asarray(device: str, data: Any) -> np.ndarray:
     return cp.asarray(data)
 
 
-def assert_allclose(device: str, a: Any, b: Any) -> None:
-    """Dispatch the assert_allclose for devices."""
-    if device == "cpu":
-        np.testing.assert_allclose(a, b)
-    else:
-        cp = import_cupy()
-        cp.testing.assert_allclose(a, b)
+def comp_booster(device: Device, Xy: DMatrix, booster: str) -> None:
+    """Compare the results from DMatrix and Booster."""
+    cats_dm = Xy.get_categories(export_to_arrow=True).to_arrow()
+    assert cats_dm is not None
+
+    rng = np.random.default_rng(2025)
+    Xy.set_label(rng.normal(size=Xy.num_row()))
+    bst = train({"booster": booster, "device": device}, Xy, 1)
+    cats_bst = bst.get_categories(export_to_arrow=True).to_arrow()
+    assert cats_bst is not None
+    assert cats_dm == cats_bst
 
 
-def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
+def run_cat_container(device: Device) -> None:
     """Basic tests for the container class used by the DMatrix."""
 
-    def run_dispatch(device: str, DMatrixT: Type) -> None:
+    def run_dispatch(device: Device, DMatrixT: Type) -> None:
         Df, _ = get_df_impl(device)
         # Basic test with a single feature
         df = Df({"c": ["cdef", "abc"]}, dtype="category")
         categories = df.c.cat.categories
 
         Xy = DMatrixT(df, enable_categorical=True)
-        results = Xy.get_categories()
+        assert Xy.feature_names == ["c"]
+        assert Xy.feature_types == ["c"]
+        results = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert results is not None
-        assert len(results["c"]) == len(categories)
-        for i in range(len(results["c"])):
-            assert str(results["c"][i]) == str(categories[i]), (
-                results["c"][i],
+        results_di = dict(results)
+        assert len(results_di["c"]) == len(categories)
+        for i in range(len(results_di["c"])):
+            assert str(results_di["c"][i]) == str(categories[i]), (
+                results_di["c"][i],
                 categories[i],
             )
 
@@ -72,9 +90,10 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
         df = Df({"c": ["cdef", None, "abc", "abc"]}, dtype="category")
         Xy = DMatrixT(df, enable_categorical=True)
 
-        cats = Xy.get_categories()
+        cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
-        ser = cats["c"].to_pandas()
+        cats_id = dict(cats)
+        ser = cats_id["c"].to_pandas()
         assert ser.iloc[0] == "abc"
         assert ser.iloc[1] == "cdef"
         assert ser.size == 2
@@ -85,16 +104,25 @@ def run_cat_container(device: Literal["cpu", "cuda"]) -> None:
         assert_allclose(device, csr.indptr, np.array([0, 1, 1, 2, 3]))
         assert_allclose(device, csr.indices, np.array([0, 0, 0]))
 
+        comp_booster(device, Xy, "gbtree")
+        comp_booster(device, Xy, "dart")
+
         # Test with explicit null-terminated strings.
         df = Df({"c": ["cdef", None, "abc", "abc\0"]}, dtype="category")
         Xy = DMatrixT(df, enable_categorical=True)
+
+        comp_booster(device, Xy, "gbtree")
+        comp_booster(device, Xy, "dart")
+
+        with pytest.raises(ValueError, match="export_to_arrow"):
+            Xy.get_categories(export_to_arrow=False).to_arrow()
 
     for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(device, dm)
 
 
 # pylint: disable=too-many-statements
-def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
+def run_cat_container_mixed(device: Device) -> None:
     """Run checks with mixed types."""
     import pandas as pd
 
@@ -108,12 +136,15 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     n_samples = int(2**10)
 
     def check(Xy: DMatrix, X: pd.DataFrame) -> None:
-        cats = Xy.get_categories()
+        cats = Xy.get_categories(export_to_arrow=True).to_arrow()
         assert cats is not None
+        cats_di = dict(cats)
 
         for fname in X.columns:
             if is_pd_cat_dtype(X[fname].dtype) or is_cudf_cat(X[fname].dtype):
-                aw_list = sorted(cats[fname].to_pylist())
+                vf = cats_di[fname]
+                assert vf is not None
+                aw_list = sorted(vf.to_pylist())
                 if is_cudf_cat(X[fname].dtype):
                     pd_list: list = X[fname].unique().to_arrow().to_pylist()
                 else:
@@ -125,23 +156,29 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
                 pd_list = sorted(pd_list)
                 assert aw_list == pd_list
             else:
-                assert cats[fname] is None
+                assert cats_di[fname] is None
 
         if not hasattr(Xy, "ref"):  # not quantile DMatrix.
+            assert not isinstance(Xy, QuantileDMatrix)
             with tempfile.TemporaryDirectory() as tmpdir:
                 fname = os.path.join(tmpdir, "DMatrix.binary")
                 Xy.save_binary(fname)
 
                 Xy_1 = DMatrix(fname)
-                cats_1 = Xy_1.get_categories()
+                cats_1 = Xy_1.get_categories(export_to_arrow=True).to_arrow()
                 assert cats_1 is not None
+                cats_1_di = dict(cats_1)
 
-                for k, v_0 in cats.items():
-                    v_1 = cats_1[k]
+                for k, v_0 in cats_di.items():
+                    v_1 = cats_1_di[k]
                     if v_0 is None:
                         assert v_1 is None
                     else:
+                        assert v_1 is not None
                         assert v_0.to_pylist() == v_1.to_pylist()
+
+        comp_booster(device, Xy, "gbtree")
+        comp_booster(device, Xy, "dart")
 
     def run_dispatch(DMatrixT: Type) -> None:
         # full str type
@@ -215,8 +252,24 @@ def run_cat_container_mixed(device: Literal["cpu", "cuda"]) -> None:
     for dm in (DMatrix, QuantileDMatrix):
         run_dispatch(dm)
 
+    # No category
+    batches = make_batches(
+        n_samples_per_batch=128, n_features=4, n_batches=1, use_cupy=device == "cuda"
+    )
+    X, y, w = map(lambda x: x[0], batches)
 
-def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
+    for DMatrixT in (DMatrix, QuantileDMatrix):
+        Xy = DMatrixT(X, y, weight=w)
+        all_num = Xy.get_categories(export_to_arrow=True).to_arrow()
+        assert all_num is not None
+        for _, v in all_num:
+            assert v is None
+
+        with pytest.raises(ValueError, match="export_to_arrow"):
+            Xy.get_categories(export_to_arrow=False).to_arrow()
+
+
+def run_cat_container_iter(device: Device) -> None:
     """Test the categories container for iterator-based inputs."""
     n_batches = 4
     n_features = 8
@@ -240,41 +293,55 @@ def run_cat_container_iter(device: Literal["cpu", "cuda"]) -> None:
     it = IteratorForTest(X, y, None, cache="cache", on_host=device == "cuda")
 
     Xy = ExtMemQuantileDMatrix(it, enable_categorical=True)
-    cats = Xy.get_categories()
+    cats = Xy.get_categories(export_to_arrow=True).to_arrow()
     assert cats is not None and len(cats) == n_features
-    for _, v in cats.items():
+    cats_di = dict(cats)
+    for _, v in cats_di.items():
+        assert v is not None
         assert v.null_count == 0
         assert len(v) == n_cats
 
 
-def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
+def _basic_example(device: Device) -> Tuple[Any, Any, np.ndarray, np.ndarray]:
+    Df, _ = get_df_impl(device)
+
+    enc = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
+    codes = enc.c.cat.codes  # 1, 0, 2
+    assert_allclose(device, asarray(device, codes), np.array([1, 0, 2]))
+    encoded = np.array([codes.iloc[2], codes.iloc[1]])  # def, abc
+    np.testing.assert_allclose(encoded, [2, 0])
+
+    reenc = Df({"c": ["def", "abc"]}, dtype="category")  # same as `encoded`
+    codes = reenc.c.cat.codes
+    assert_allclose(device, codes, np.array([1, 0]))
+
+    y = np.array([0, 1, 2])
+
+    return enc, reenc, encoded, y
+
+
+def run_basic_predict(DMatrixT: Type, device: Device, tdevice: Device) -> None:
+    """Enable tests with mixed devices."""
+    enc, reenc, encoded, y = _basic_example(device)
+
+    Xy = DMatrixT(enc, y, enable_categorical=True)
+    booster = train({"device": tdevice}, Xy, num_boost_round=4)
+
+    predt0 = booster.inplace_predict(reenc)
+    predt1 = booster.inplace_predict(encoded)
+    assert_allclose(device, predt0, predt1)
+
+    fmat = DMatrixT(reenc, enable_categorical=True)
+    predt2 = booster.predict(fmat)
+    assert_allclose(device, predt0, predt2)
+
+
+def run_cat_predict(device: Device) -> None:
     """Basic tests for re-coding during prediction."""
     Df, _ = get_df_impl(device)
 
-    def run_basic(DMatrixT: Type) -> None:
-        df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
-        y = np.array([0, 1, 2])
-
-        codes = df.c.cat.codes
-        encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
-
-        Xy = DMatrixT(df, y, enable_categorical=True)
-        booster = train({"device": device}, Xy, num_boost_round=4)
-
-        df = Df({"c": ["def", "abc"]}, dtype="category")
-        codes = df.c.cat.codes
-
-        predt0 = booster.inplace_predict(df)
-        predt1 = booster.inplace_predict(encoded)
-
-        assert_allclose(device, predt0, predt1)
-
-        fmat = DMatrixT(df, enable_categorical=True)
-        predt2 = booster.predict(fmat)
-        assert_allclose(device, predt0, predt2)
-
     for dm in (DMatrix, QuantileDMatrix):
-        run_basic(dm)
+        run_basic_predict(dm, device, device)
 
     def run_mixed(DMatrixT: Type) -> None:
         df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
@@ -308,13 +375,13 @@ def run_cat_predict(device: Literal["cpu", "cuda"]) -> None:
         run_mixed(dm)
 
 
-def run_cat_invalid(device: Literal["cpu", "cuda"]) -> None:
+def run_cat_invalid(device: Device) -> None:
     """Basic tests for invalid inputs."""
-    Df, _ = get_df_impl(device)
+    Df, Ser = get_df_impl(device)
+    y = np.array([0, 1, 2])
 
     def run_invalid(DMatrixT: Type) -> None:
         df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
-        y = np.array([0, 1, 2])
 
         Xy = DMatrixT(df, y, enable_categorical=True)
         booster = train({"device": device}, Xy, num_boost_round=4)
@@ -335,8 +402,26 @@ def run_cat_invalid(device: Literal["cpu", "cuda"]) -> None:
     for dm in (DMatrix, QuantileDMatrix):
         run_invalid(dm)
 
+    df = Df({"b": [2, 1, 3], "c": ["cdef", "abc", "def"]}, dtype="category")
+    Xy = DMatrix(df, y, enable_categorical=True)
+    booster = train({"device": device}, Xy, num_boost_round=4)
+    df["c"] = Ser(asarray(device, [0, 1, 1]), dtype="category")
 
-def run_cat_thread_safety(device: Literal["cpu", "cuda"]) -> None:
+    msg = "index type must match between the training and test set"
+
+    with pytest.raises(ValueError, match=msg):
+        booster.inplace_predict(df)
+
+    with pytest.raises(ValueError, match=msg):
+        DMatrix(df, enable_categorical=True, feature_types=booster.get_categories())
+
+    with pytest.raises(ValueError, match=msg):
+        QuantileDMatrix(
+            df, enable_categorical=True, feature_types=booster.get_categories()
+        )
+
+
+def run_cat_thread_safety(device: Device) -> None:
     """Basic tests for thread safety."""
     X, y = make_categorical(2048, 16, 112, onehot=False, cat_ratio=0.5, device=device)
     Xy = QuantileDMatrix(X, y, enable_categorical=True)
@@ -370,44 +455,33 @@ def _make_dm(DMatrixT: Type[U], ref: DMatrix, *args: Any, **kwargs: Any) -> U:
 
 
 def _run_predt(
-    device: str,
+    device: Device,
     DMatrixT: Type,
     pred_contribs: bool,
     pred_interactions: bool,
     pred_leaf: bool,
 ) -> None:
-    Df, _ = get_df_impl(device)
+    enc, reenc, encoded, y = _basic_example(device)
 
-    df = Df({"c": ["cdef", "abc", "def"]}, dtype="category")
-    y = np.array([0, 1, 2])
-
-    codes = df.c.cat.codes
-    encoded = np.array([codes.iloc[2], codes.iloc[1]])  # used with the next df
-
-    Xy = DMatrixT(df, y, enable_categorical=True)
+    Xy = DMatrixT(enc, y, enable_categorical=True)
     booster = train({"device": device}, Xy, num_boost_round=4)
 
-    df = Df({"c": ["def", "abc"]}, dtype="category")
-    codes = df.c.cat.codes
-
-    # Contribution
-    predt0 = booster.predict(
-        _make_dm(DMatrixT, ref=Xy, data=df),
+    predt_0 = booster.predict(
+        _make_dm(DMatrixT, ref=Xy, data=reenc),
         pred_contribs=pred_contribs,
         pred_interactions=pred_interactions,
         pred_leaf=pred_leaf,
     )
-    df = Df({"c": encoded})
-    predt1 = booster.predict(
+    predt_1 = booster.predict(
         _make_dm(DMatrixT, ref=Xy, data=encoded.reshape(2, 1), feature_names=["c"]),
         pred_contribs=pred_contribs,
         pred_interactions=pred_interactions,
         pred_leaf=pred_leaf,
     )
-    assert_allclose(device, predt0, predt1)
+    assert_allclose(device, predt_0, predt_1)
 
 
-def run_cat_shap(device: Literal["cpu", "cuda"]) -> None:
+def run_cat_shap(device: Device) -> None:
     """Basic tests for SHAP values."""
 
     for dm in (DMatrix, QuantileDMatrix):
@@ -421,7 +495,7 @@ def run_cat_shap(device: Literal["cpu", "cuda"]) -> None:
         )
 
 
-def run_cat_leaf(device: Literal["cpu", "cuda"]) -> None:
+def run_cat_leaf(device: Device) -> None:
     """Basic tests for leaf prediction."""
     # QuantileDMatrix is not supported by leaf.
     _run_predt(
@@ -429,16 +503,70 @@ def run_cat_leaf(device: Literal["cpu", "cuda"]) -> None:
     )
 
 
+# pylint: disable=too-many-locals
+@memory.cache
+def make_recoded(device: Device, *, n_features: int = 4096) -> Tuple:
+    """Synthesize a test dataset with changed encoding."""
+    Df, _ = get_df_impl(device)
+
+    import pandas as pd
+
+    # Test large column numbers. XGBoost makes some specializations for slim datasets,
+    # make sure we cover all the cases.
+    n_samples = 1024
+
+    # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
+    old_cats = ["a", "b", "c", "d"]
+    new_cats = ["b", "a", "c", "d"]
+    mapping = {0: 1, 1: 0}
+
+    rng = np.random.default_rng(2025)
+
+    col_numeric = rng.uniform(0, 1, size=(n_samples, n_features // 2))
+    col_categorical = rng.integers(
+        low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
+    )
+
+    df = {}  # avoid fragmentation warning from pandas
+    for c in range(n_features):
+        if c % 2 == 0:
+            col = col_numeric[:, c // 2]
+        else:
+            codes = col_categorical[:, c // 2]
+            col = pd.Categorical.from_codes(
+                categories=old_cats,
+                codes=codes,
+            )
+        df[f"f{c}"] = col
+
+    enc = Df(df)
+    y = rng.normal(size=n_samples)
+
+    reenc = enc.copy()
+    for c in range(n_features):
+        if c % 2 == 0:
+            continue
+
+        name = f"f{c}"
+        codes_ser = reenc[name].cat.codes
+        if hasattr(codes_ser, "to_pandas"):  # cudf
+            codes_ser = codes_ser.to_pandas()
+        new_codes = codes_ser.replace(mapping)
+        reenc[name] = pd.Categorical.from_codes(categories=new_cats, codes=new_codes)
+    reenc = Df(reenc)
+    assert (reenc.iloc[:, 1].cat.codes != enc.iloc[:, 1].cat.codes).any()
+    return enc, reenc, y, col_numeric, col_categorical
+
+
 def run_specified_cat(  # pylint: disable=too-many-locals
-    device: Literal["cpu", "cuda"],
+    device: Device,
 ) -> None:
     """Run with manually specified category encoding."""
     import pandas as pd
 
-    # Same between old and new, wiht 0 ("a") and 1 ("b") exchanged their position.
+    # Same between old and new, with 0 ("a") and 1 ("b") exchanged their position.
     old_cats = ["a", "b", "c", "d"]
     new_cats = ["b", "a", "c", "d"]
-    mapping = {0: 1, 1: 0}
 
     col0 = np.arange(0, 9)
     col1 = pd.Categorical.from_codes(
@@ -468,57 +596,23 @@ def run_specified_cat(  # pylint: disable=too-many-locals
         predt2 = booster.inplace_predict(df1)
         assert_allclose(device, predt0, predt2)
 
-    # Test large column numbers. XGBoost makes some specializations for slim datasets,
-    # make sure we cover all the cases.
-    n_features = 4096
-    n_samples = 1024
+    enc, reenc, y, col_numeric, col_categorical = make_recoded(device)
 
-    col_numeric = rng.uniform(0, 1, size=(n_samples, n_features // 2))
-    col_categorical = rng.integers(
-        low=0, high=4, size=(n_samples, n_features // 2), dtype=np.int32
-    )
-
-    df = {}  # avoid fragmentation warning from pandas
-    for c in range(n_features):
-        if c % 2 == 0:
-            col = col_numeric[:, c // 2]
-        else:
-            codes = col_categorical[:, c // 2]
-            col = pd.Categorical.from_codes(
-                categories=old_cats,
-                codes=codes,
-            )
-        df[f"f{c}"] = col
-
-    df = Df(df)
-    y = rng.normal(size=n_samples)
-
-    Xy = DMatrix(df, y, enable_categorical=True)
+    Xy = DMatrix(enc, y, enable_categorical=True)
     booster = train({"device": device}, Xy)
 
     predt0 = booster.predict(Xy)
-    predt1 = booster.inplace_predict(df)
+    predt1 = booster.inplace_predict(enc)
     assert_allclose(device, predt0, predt1)
 
-    for c in range(n_features):
-        if c % 2 == 0:
-            continue
-
-        name = f"f{c}"
-        codes_ser = df[name].cat.codes
-        if hasattr(codes_ser, "to_pandas"):  # cudf
-            codes_ser = codes_ser.to_pandas()
-        new_codes = codes_ser.replace(mapping)
-        df[name] = pd.Categorical.from_codes(categories=new_cats, codes=new_codes)
-
-    df = Df(df)
-    Xy = DMatrix(df, y, enable_categorical=True)
+    Xy = DMatrix(reenc, y, enable_categorical=True)
     predt2 = booster.predict(Xy)
     assert_allclose(device, predt0, predt2)
 
-    array = np.empty(shape=(n_samples, n_features))
-    array[:, np.arange(0, n_features) % 2 == 0] = col_numeric
-    array[:, np.arange(0, n_features) % 2 != 0] = col_categorical
+    array = np.empty(shape=(reenc.shape[0], reenc.shape[1]))
+
+    array[:, enc.dtypes == "category"] = col_categorical
+    array[:, enc.dtypes != "category"] = col_numeric
 
     if device == "cuda":
         import cupy as cp
@@ -527,3 +621,210 @@ def run_specified_cat(  # pylint: disable=too-many-locals
 
     predt3 = booster.inplace_predict(array)
     assert_allclose(device, predt0, predt3)
+
+
+def run_validation(device: Device) -> None:
+    """Check the validation dataset is using the correct encoding."""
+    enc, reenc, y, _, _ = make_recoded(device)
+
+    Xy = DMatrix(enc, y, enable_categorical=True)
+    Xy_valid = DMatrix(reenc, y, enable_categorical=True)
+
+    evals_result: EvalsLog = {}
+    train(
+        {"device": device},
+        Xy,
+        evals=[(Xy, "Train"), (Xy_valid, "Valid")],
+        evals_result=evals_result,
+    )
+
+    # Evaluation dataset should have the exact same performance as the training dataset.
+    assert_allclose(
+        device, evals_result["Train"]["rmse"], evals_result["Valid"]["rmse"]
+    )
+
+
+def run_recode_dmatrix(device: Device) -> None:
+    """Test re-coding inpput for DMatrix."""
+    import pandas as pd
+
+    Df, _ = get_df_impl(device)
+
+    # String index
+    old_cats = ["a", "b", "c", "d"]
+    new_cats = ["b", "a", "c", "d"]
+
+    col0 = np.arange(0, 9)
+    col1 = pd.Categorical.from_codes(
+        # b, b, c, d, a, c, c, d, a
+        categories=old_cats,
+        codes=[1, 1, 2, 3, 0, 2, 2, 3, 0],
+    )
+    df = Df({"f0": col0, "f1": col1})
+
+    Xy = DMatrix(df, enable_categorical=True)
+    cats_0 = Xy.get_categories(export_to_arrow=True)
+    assert Xy.feature_types == ["int", "c"]
+
+    col1 = pd.Categorical.from_codes(
+        # b, b, c, d, a, c, c, d, a
+        categories=new_cats,
+        codes=[0, 0, 2, 3, 1, 2, 2, 3, 1],
+    )
+    df = Df({"f0": col0, "f1": col1})
+    Xy = DMatrix(df, enable_categorical=True, feature_types=cats_0)
+    # feature_types is still correct
+    assert Xy.feature_names == ["f0", "f1"]
+    assert Xy.feature_types == ["int", "c"]
+    cats_1 = Xy.get_categories(export_to_arrow=True)
+    assert cats_0.to_arrow() == cats_1.to_arrow()
+
+    # Numeric index
+    col0 = pd.Categorical.from_codes(
+        categories=[5, 6, 7, 8],
+        codes=[0, 0, 2, 3, 1, 2, 2, 3, 1],
+    )
+    Df, _ = get_df_impl(device)
+    df = Df({"cat": col0})
+    for DMatrixT in (DMatrix, QuantileDMatrix):
+        Xy = DMatrixT(df, enable_categorical=True)
+        cats_0 = Xy.get_categories(export_to_arrow=True)
+        assert cats_0 is not None
+
+        Xy = DMatrixT(df, enable_categorical=True, feature_types=cats_0)
+        cats_1 = Xy.get_categories(export_to_arrow=True)
+        assert cats_1 is not None
+
+        assert cats_0.to_arrow() == cats_1.to_arrow()
+
+    # Recode
+    for DMatrixT in (DMatrix, QuantileDMatrix):
+        enc, reenc, y, _, _ = make_recoded(device)
+        Xy_0 = DMatrixT(enc, y, enable_categorical=True)
+        cats_0 = Xy_0.get_categories(export_to_arrow=True)
+
+        assert cats_0 is not None
+
+        Xy_1 = DMatrixT(reenc, y, feature_types=cats_0, enable_categorical=True)
+        cats_1 = Xy_1.get_categories(export_to_arrow=True)
+        assert cats_1 is not None
+
+        assert cats_0.to_arrow() == cats_1.to_arrow()
+        assert predictor_equal(Xy_0, Xy_1)
+
+
+def run_training_continuation(device: Device) -> None:
+    """Test re-coding for training continuation."""
+    enc, reenc, y, _, _ = make_recoded(device)
+
+    def check(Xy_0: DMatrix, Xy_1: DMatrix) -> None:
+        params = {"device": device}
+
+        r = 2
+        evals_result_0: EvalsLog = {}
+        booster_0 = train(
+            params,
+            Xy_0,
+            evals=[(Xy_1, "Valid")],
+            num_boost_round=r,
+            evals_result=evals_result_0,
+        )
+        evals_result_1: EvalsLog = {}
+        booster_1 = train(
+            params,
+            Xy_1,
+            evals=[(Xy_1, "Valid")],
+            xgb_model=booster_0,
+            num_boost_round=r,
+            evals_result=evals_result_1,
+        )
+        assert get_basescore(booster_0) == get_basescore(booster_1)
+
+        evals_result_2: EvalsLog = {}
+        booster_2 = train(
+            params,
+            Xy_0,
+            evals=[(Xy_1, "Valid")],
+            num_boost_round=r * 2,
+            evals_result=evals_result_2,
+        )
+        # Check evaluation results
+        eval_concat = evals_result_0["Valid"]["rmse"] + evals_result_1["Valid"]["rmse"]
+        eval_full = evals_result_2["Valid"]["rmse"]
+        np.testing.assert_allclose(eval_full, eval_concat)
+
+        # Test inference
+        for a, b in itertools.product([enc, reenc], [enc, reenc]):
+            predt_0 = booster_1.inplace_predict(a)
+            predt_1 = booster_2.inplace_predict(b)
+            assert_allclose(device, predt_0, predt_1, rtol=1e-5)
+
+        # With DMatrix
+        for a, b in itertools.product([Xy_0, Xy_1], [Xy_0, Xy_1]):
+            predt_0 = booster_1.predict(a)
+            predt_1 = booster_2.predict(b)
+            assert_allclose(device, predt_0, predt_1, rtol=1e-5)
+
+    for Train, Valid in itertools.product(
+        [DMatrix, QuantileDMatrix], [DMatrix, QuantileDMatrix]
+    ):
+        Xy_0 = Train(enc, y, enable_categorical=True)
+        if Valid is QuantileDMatrix:
+            Xy_1 = Valid(
+                reenc,
+                y,
+                enable_categorical=True,
+                feature_types=Xy_0.get_categories(),
+                ref=Xy_0,
+            )
+        else:
+            Xy_1 = Valid(
+                reenc, y, enable_categorical=True, feature_types=Xy_0.get_categories()
+            )
+        check(Xy_0, Xy_1)
+
+
+def run_update(device: Device) -> None:
+    """Test with individual updaters."""
+    enc, reenc, y, _, _ = make_recoded(device)
+    Xy = DMatrix(enc, y, enable_categorical=True)
+    booster_0 = train({"device": device}, Xy, num_boost_round=4)
+    model_0 = booster_0.save_raw()
+    cats_0 = booster_0.get_categories()
+
+    Xy_1 = DMatrix(reenc, y, feature_types=cats_0, enable_categorical=True)
+
+    booster_1 = train(
+        {
+            "device": device,
+            "updater": "prune",
+            "process_type": "update",
+        },
+        Xy_1,
+        num_boost_round=4,
+        xgb_model=booster_0,
+    )
+    model_1 = booster_1.save_raw()
+
+    assert model_0 == model_1  # also compares the cat container inside
+
+
+def run_recode_dmatrix_predict(device: Device) -> None:
+    """Run prediction with re-coded DMatrix."""
+    enc, reenc, y, _, _ = make_recoded(device)
+
+    for DMatrixT in (DMatrix, QuantileDMatrix):
+        Xy = DMatrix(enc, y, enable_categorical=True)
+        booster = train({"device": device}, Xy, num_boost_round=4)
+        cats_0 = booster.get_categories()
+
+        Xy_1 = _make_dm(DMatrixT, Xy, reenc, y, feature_types=cats_0)
+        Xy_2 = _make_dm(DMatrixT, Xy, reenc, y)
+
+        predt_0 = booster.predict(Xy)
+        predt_1 = booster.predict(Xy_1)
+        predt_2 = booster.predict(Xy_2)
+        predt_3 = booster.inplace_predict(enc)
+
+        for predt in (predt_1, predt_2, predt_3):
+            assert_allclose(device, predt_0, predt)

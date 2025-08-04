@@ -240,10 +240,27 @@ class TestBoosterIO:
             with pytest.warns(UserWarning, match="UBJSON"):
                 booster.save_model(path_no)
 
-            booster_1 = xgb.Booster(model_file=path_no)
+            with pytest.warns(UserWarning, match="Using UBJSON"):
+                booster_1 = xgb.Booster(model_file=path_no)
             r0 = booster.save_raw(raw_format="json")
             r1 = booster_1.save_raw(raw_format="json")
             assert r0 == r1
+
+            booster.save_model(path_json)
+            rename(path_json, path_no)
+            with pytest.warns(UserWarning, match="Using JSON"):
+                xgb.Booster(model_file=path_no)
+
+    def test_invalid_format(self) -> None:
+        X, y, w = tm.make_regression(64, 16, False)
+        booster = xgb.train({}, xgb.QuantileDMatrix(X, y, weight=w), num_boost_round=3)
+        with pytest.raises(ValueError, match="Unknown model format"):
+            booster.save_raw(raw_format="deprecated")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.deprecated")
+            with pytest.warns(UserWarning, match="Saving model in the UBJSON format"):
+                booster.save_model(path)
 
 
 def save_load_model(model_path: str) -> None:

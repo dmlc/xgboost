@@ -51,6 +51,7 @@ from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import col, countDistinct, pandas_udf, rand, struct
 from pyspark.sql.types import (
     ArrayType,
+    BooleanType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -122,7 +123,6 @@ _pyspark_specific_params = [
     "qid_col",
     "repartition_random_shuffle",
     "pred_contrib_col",
-    "use_gpu",
     "launch_tracker_on_driver",
     "coll_cfg",
 ]
@@ -142,7 +142,6 @@ _pyspark_param_alias_map = {
 _inverse_pyspark_param_alias_map = {v: k for k, v in _pyspark_param_alias_map.items()}
 
 _unsupported_xgb_params = [
-    "gpu_id",  # we have "device" pyspark param instead.
     "enable_categorical",  # Use feature_types param to specify categorical feature instead
     "n_jobs",  # Do not allow user to set it, will use `spark.task.cpus` value instead.
     "nthread",  # Ditto
@@ -217,16 +216,6 @@ class _SparkXGBParams(
             "on GPU instances. Currently, only one GPU per task is supported."
         ),
         TypeConverters.toString,
-    )
-    use_gpu = Param(
-        Params._dummy(),
-        "use_gpu",
-        (
-            "Deprecated, use `device` instead. A boolean variable. Set use_gpu=true "
-            "if the executors are running on GPU instances. Currently, only one GPU per"
-            " task is supported."
-        ),
-        TypeConverters.toBoolean,
     )
     force_repartition = Param(
         Params._dummy(),
@@ -503,14 +492,10 @@ class _SparkXGBParams(
     def _run_on_gpu(self) -> bool:
         """If train or transform on the gpu according to the parameters"""
 
-        return (
-            use_cuda(self.getOrDefault(self.device))
-            or self.getOrDefault(self.use_gpu)
-            or self.getOrDefault(self.getParam("tree_method")) == "gpu_hist"
-        )
+        return use_cuda(self.getOrDefault(self.device))
 
     def _col_is_defined_not_empty(self, param: "Param[str]") -> bool:
-        return self.isDefined(param) and self.getOrDefault(param) != ""
+        return self.isDefined(param) and self.getOrDefault(param) not in (None, "")
 
 
 def _validate_and_convert_feature_col_as_float_col_list(
@@ -630,7 +615,6 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         self._setDefault(
             num_workers=1,
             device="cpu",
-            use_gpu=False,
             force_repartition=False,
             repartition_random_shuffle=False,
             feature_names=None,
@@ -843,6 +827,11 @@ class _SparkXGBEstimator(Estimator, _SparkXGBParams, MLReadable, MLWritable):
         num_workers = self.getOrDefault(self.num_workers)
         sc = _get_spark_session().sparkContext
         max_concurrent_tasks = _get_max_num_concurrent_tasks(sc)
+
+        if feature_prop.has_validation_col:
+            dtype = dataset.schema[alias.valid].dataType
+            if not isinstance(dtype, BooleanType):
+                raise TypeError("The validation indicator must be boolean type.")
 
         if num_workers > max_concurrent_tasks:
             get_logger(self.__class__.__name__).warning(

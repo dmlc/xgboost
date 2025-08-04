@@ -32,6 +32,7 @@
 #include <cstdint>                 // for int64_t
 #include <cub/util_allocator.cuh>  // for CachingDeviceAllocator
 #include <cub/util_device.cuh>     // for CurrentDevice
+#include <functional>              // for function
 #include <memory>                  // for unique_ptr
 
 #include "common.h"         // for safe_cuda, HumanMemUnit

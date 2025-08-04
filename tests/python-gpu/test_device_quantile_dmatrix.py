@@ -12,6 +12,7 @@ from xgboost.testing.quantile_dmatrix import (
     check_categorical_strings,
     check_ref_quantile_cut,
 )
+from xgboost.testing.utils import predictor_equal
 
 sys.path.append("tests/python")
 import test_quantile_dmatrix as tqd
@@ -70,7 +71,7 @@ class TestQuantileDMatrix:
         )
         # query cuts from GIDX/Ellpack
         qXy = xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin, ref=Xy)
-        tm.predictor_equal(Xy, qXy)
+        predictor_equal(Xy, qXy)
         with pytest.raises(ValueError, match="Inconsistent"):
             # max_bin changed.
             xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin - 1, ref=Xy)
@@ -92,7 +93,7 @@ class TestQuantileDMatrix:
         )
         # query cuts from GIDX/Ellpack
         qXy = xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin, ref=Xy)
-        tm.predictor_equal(Xy, qXy)
+        predictor_equal(Xy, qXy)
         with pytest.raises(ValueError, match="Inconsistent"):
             # max_bin changed.
             xgb.QuantileDMatrix(X[0], y[0], weight=w[0], max_bin=max_bin - 1, ref=Xy)
@@ -247,7 +248,7 @@ class TestQuantileDMatrix:
         from_dm = xgb.QuantileDMatrix(X, weight=w, ref=Xy)
         from_qdm = xgb.QuantileDMatrix(X, weight=w, ref=Xy_qdm)
 
-        assert tm.predictor_equal(from_qdm, from_dm)
+        assert predictor_equal(from_qdm, from_dm)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_check_inf(self) -> None:

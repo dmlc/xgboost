@@ -32,8 +32,10 @@
 
 namespace xgboost {
 enum class TreeMethod : int {
-  kAuto = 0, kApprox = 1, kExact = 2, kHist = 3,
-  kGPUHist = 5
+  kAuto = 0,
+  kApprox = 1,
+  kExact = 2,
+  kHist = 3,
 };
 
 // boosting process types
@@ -71,7 +73,6 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .add_enum("approx",    TreeMethod::kApprox)
         .add_enum("exact",     TreeMethod::kExact)
         .add_enum("hist",      TreeMethod::kHist)
-        .add_enum("gpu_hist",  TreeMethod::kGPUHist)
         .describe("Choice of tree construction method.");
   }
 };
@@ -184,14 +185,7 @@ class GBTree : public GradientBooster {
   void DoBoost(DMatrix* p_fmat, linalg::Matrix<GradientPair>* in_gpair, PredictionCacheEntry* predt,
                ObjFunction const* obj) override;
 
-  [[nodiscard]] bool UseGPU() const override { return tparam_.tree_method == TreeMethod::kGPUHist; }
-
   [[nodiscard]] GBTreeTrainParam const& GetTrainParam() const { return tparam_; }
-
-  void Load(dmlc::Stream* fi) override { model_.Load(fi); }
-  void Save(dmlc::Stream* fo) const override {
-    model_.Save(fo);
-  }
 
   void LoadConfig(Json const& in) override;
   void SaveConfig(Json* p_out) const override;
@@ -286,6 +280,8 @@ class GBTree : public GradientBooster {
       }
     }
   }
+
+  [[nodiscard]] CatContainer const* Cats() const override { return this->model_.Cats(); }
 
   void PredictLeaf(DMatrix* p_fmat,
                    HostDeviceVector<bst_float>* out_preds,

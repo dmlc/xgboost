@@ -67,6 +67,7 @@ def test_sklearn_demo() -> None:
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.timeout(60)
 def test_sklearn_parallel_demo() -> None:
     script = os.path.join(PYTHON_DEMO_DIR, "sklearn_parallel.py")
     cmd = ["python", script]
@@ -244,7 +245,7 @@ def test_cli_binary_classification() -> None:
         pytest.skip("CLI executable not found.")
     with tm.DirectoryExcursion(cls_dir, cleanup=True):
         subprocess.check_call(["./runexp.sh"])
-        os.remove("0002.model")
+        os.remove("0002.ubj")
 
 
 # year prediction is not tested due to data size being too large.
