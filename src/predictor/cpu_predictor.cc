@@ -407,7 +407,7 @@ void PredictBatchByBlockOfRowsKernel(DataView const &batch, gbm::GBTreeModel con
   auto const n_blocks = common::DivRoundUp(n_samples, kBlockOfRowsSize);
 
   /* Precalculate depth for each tree.
-   * This values are required only for ArrayLyout optimization,
+   * These values are required only for the ArrayLayout optimization,
    * so we don't need them if kBlockOfRowsSize == 1
    */
   std::vector<int> tree_depth;
