@@ -253,8 +253,8 @@ struct CatAccessor {
  * @brief No-op accessor used to handle numeric data.
  */
 struct NoOpAccessor {
-  XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const&) {}
-  NoOpAccessor() = default;
+  constexpr explicit NoOpAccessor(enc::MappingView const&) {}
+  constexpr NoOpAccessor() = default;
   template <typename T, typename Fidx>
   [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
     return fvalue;
