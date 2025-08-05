@@ -188,9 +188,15 @@ struct ExternalDataInfo {
  */
 template <bool get_value = true, typename Fn>
 decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
+  auto has_type = [&] {
+    if (type_error) {
+      *type_error = false;
+    }
+  };
   CHECK(proxy->Adapter().has_value());
   auto const& x = proxy->Adapter();
   if (x.type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
+    has_type();
     if constexpr (get_value) {
       auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x)->Value();
       return fn(value);
@@ -198,10 +204,8 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
       auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x);
       return fn(value);
     }
-    if (type_error) {
-      *type_error = false;
-    }
   } else if (x.type() == typeid(std::shared_ptr<ArrayAdapter>)) {
+    has_type();
     if constexpr (get_value) {
       auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(x)->Value();
       return fn(value);
@@ -209,10 +213,8 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
       auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(x);
       return fn(value);
     }
-    if (type_error) {
-      *type_error = false;
-    }
   } else if (x.type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
+    has_type();
     auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(x);
     if constexpr (get_value) {
       auto value = adapter->Value();
@@ -224,10 +226,8 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
     } else {
       return fn(adapter);
     }
-    if (type_error) {
-      *type_error = false;
-    }
   } else if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
+    has_type();
     if constexpr (get_value) {
       auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x)->Value();
       return fn(value);
