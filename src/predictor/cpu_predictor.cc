@@ -99,7 +99,7 @@ void PredValueByOneTree(RegTree::FVec const &p_feats, MultiTargetTree const &tre
 namespace {
 void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
                        bst_tree_t const tree_end, std::size_t const predict_offset,
-                       std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
+                       std::vector<RegTree::FVec> const &fvec_tloc, std::size_t const fvec_offset,
                        std::size_t const block_size, linalg::MatrixView<float> out_predt) {
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
     auto const &tree = *model.trees.at(tree_id);
@@ -110,13 +110,13 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
       if (has_categorical) {
         for (std::size_t i = 0; i < block_size; ++i) {
           auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
-          multi::PredValueByOneTree<true>(thread_temp[offset + i], *tree.GetMultiTargetTree(), cats,
-                                          t_predts);
+          multi::PredValueByOneTree<true>(fvec_tloc[fvec_offset + i], *tree.GetMultiTargetTree(),
+                                          cats, t_predts);
         }
       } else {
         for (std::size_t i = 0; i < block_size; ++i) {
           auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
-          multi::PredValueByOneTree<false>(thread_temp[offset + i], *tree.GetMultiTargetTree(),
+          multi::PredValueByOneTree<false>(fvec_tloc[fvec_offset + i], *tree.GetMultiTargetTree(),
                                            cats, t_predts);
         }
       }
@@ -125,12 +125,12 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
       if (has_categorical) {
         for (std::size_t i = 0; i < block_size; ++i) {
           out_predt(predict_offset + i, gid) +=
-              scalar::PredValueByOneTree<true>(thread_temp[offset + i], tree, cats);
+              scalar::PredValueByOneTree<true>(fvec_tloc[fvec_offset + i], tree, cats);
         }
       } else {
         for (std::size_t i = 0; i < block_size; ++i) {
           out_predt(predict_offset + i, gid) +=
-              scalar::PredValueByOneTree<false>(thread_temp[offset + i], tree, cats);
+              scalar::PredValueByOneTree<false>(fvec_tloc[fvec_offset + i], tree, cats);
         }
       }
     }
