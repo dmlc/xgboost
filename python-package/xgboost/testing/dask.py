@@ -342,6 +342,10 @@ def run_recode(client: Client, device: Device) -> None:
     results = dxgb.train(client, {"device": device}, Xy, evals=[(Xy_valid, "Valid")])
 
     # Training continuation
+    Xy = dxgb.DaskQuantileDMatrix(client, denc, dy, enable_categorical=True)
+    Xy_valid = dxgb.DaskQuantileDMatrix(
+        client, dreenc, dy, enable_categorical=True, ref=Xy
+    )
     results_1 = dxgb.train(
         client,
         {"device": device},
