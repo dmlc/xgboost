@@ -28,7 +28,7 @@ from .._typing import FeatureNames, FeatureTypes
 from ..compat import concat, import_cupy
 from ..core import Booster, DataIter, DMatrix, QuantileDMatrix
 from ..data import is_on_cuda
-from ..sklearn import _pick_ref_categories, get_ref_categories
+from ..sklearn import get_model_categories, pick_ref_categories
 from ..training import _RefError
 
 LOGGER = logging.getLogger("[xgboost.dask]")
@@ -279,6 +279,19 @@ def _get_worker_parts(list_of_parts: _DataParts) -> Dict[str, List[Any]]:
     return result
 
 
+def _extract_data(
+    parts: _DataParts,
+    model: Optional[Booster],
+    feature_types: Optional[FeatureTypes],
+    xy_cats: Optional[Categories],
+) -> Tuple[Dict[str, List[Any]], Optional[Union[FeatureTypes, Categories]]]:
+    unzipped_dict = _get_worker_parts(parts)
+    X = unzipped_dict["data"][0]
+    _, model_cats = get_model_categories(X, model, feature_types)
+    model_cats = pick_ref_categories(X, model_cats, xy_cats)
+    return unzipped_dict, model_cats
+
+
 def _get_is_cuda(parts: Optional[_DataParts]) -> bool:
     if parts is not None:
         is_cuda = is_on_cuda(parts[0].get("data"))
@@ -298,7 +311,12 @@ def _make_empty(is_cuda: bool) -> np.ndarray:
     return empty
 
 
-def _create_quantile_dmatrix(  # pylint: disable=too-many-locals
+def _warn_empty() -> None:
+    worker = distributed.get_worker()
+    LOGGER.warning("Worker %s has an empty DMatrix.", worker.address)
+
+
+def _create_quantile_dmatrix(
     *,
     feature_names: Optional[FeatureNames],
     feature_types: Optional[FeatureTypes],
@@ -313,10 +331,9 @@ def _create_quantile_dmatrix(  # pylint: disable=too-many-locals
     model: Optional[Booster],
     Xy_cats: Optional[Categories],
 ) -> QuantileDMatrix:
-    worker = distributed.get_worker()
-    is_cuda = _get_is_cuda(parts)
     if parts is None:
-        LOGGER.warning("Worker %s has an empty DMatrix.", worker.address)
+        is_cuda = _get_is_cuda(parts)
+        _warn_empty()
         return QuantileDMatrix(
             _make_empty(is_cuda),
             feature_names=feature_names,
@@ -327,20 +344,15 @@ def _create_quantile_dmatrix(  # pylint: disable=too-many-locals
             max_quantile_batches=max_quantile_batches,
         )
 
-    unzipped_dict = _get_worker_parts(parts)
+    unzipped_dict, model_cats = _extract_data(parts, model, feature_types, Xy_cats)
 
-    X = unzipped_dict["data"][0]
-    _, model_cats = get_ref_categories(X, model, feature_types)
-    model_cats = _pick_ref_categories(X, model_cats, Xy_cats)
-
-    it = DaskPartitionIter(
-        **unzipped_dict,
-        feature_types=model_cats,
-        feature_names=feature_names,
-        feature_weights=feature_weights,
-    )
     return QuantileDMatrix(
-        it,
+        DaskPartitionIter(
+            **unzipped_dict,
+            feature_types=model_cats,
+            feature_names=feature_names,
+            feature_weights=feature_weights,
+        ),
         missing=missing,
         nthread=nthread,
         max_bin=max_bin,
@@ -369,19 +381,16 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     A DMatrix object.
 
     """
-    worker = distributed.get_worker()
-    is_cuda = _get_is_cuda(parts)
 
     if parts is None:
-        msg = f"Worker {worker.address} has an empty DMatrix."
-        LOGGER.warning(msg)
-        Xy = DMatrix(
+        is_cuda = _get_is_cuda(parts)
+        _warn_empty()
+        return DMatrix(
             _make_empty(is_cuda),
             feature_names=feature_names,
             feature_types=feature_types,
             enable_categorical=enable_categorical,
         )
-        return Xy
 
     T = TypeVar("T")
 
@@ -390,17 +399,14 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
             return None
         return concat(data)
 
-    unzipped_dict = _get_worker_parts(parts)
-    X = unzipped_dict["data"][0]
-    _, model_cats = get_ref_categories(X, model, feature_types)
-    model_cats = _pick_ref_categories(X, model_cats, Xy_cats)
+    unzipped_dict, model_cats = _extract_data(parts, model, feature_types, Xy_cats)
 
     concated_dict: Dict[str, Any] = {}
     for key, value in unzipped_dict.items():
         v = concat_or_none(value)
         concated_dict[key] = v
 
-    Xy = DMatrix(
+    return DMatrix(
         **concated_dict,
         missing=missing,
         feature_names=feature_names,
@@ -409,7 +415,6 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
         enable_categorical=enable_categorical,
         feature_weights=feature_weights,
     )
-    return Xy
 
 
 def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:

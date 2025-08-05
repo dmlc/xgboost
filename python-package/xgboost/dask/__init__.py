@@ -785,6 +785,7 @@ async def _train_async(
                 evals_id=evals_id,
                 evals_name=evals_name,
                 n_threads=n_threads,
+                # We need the model for reference categories.
                 model=xgb_model,
             )
 

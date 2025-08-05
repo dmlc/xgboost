@@ -98,30 +98,6 @@ def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     return tree_method in ("hist", None, "auto") and not_sycl
 
 
-def get_ref_categories(
-    X: ArrayLike,
-    model: Optional[Union[Booster, str]],
-    feature_types: Optional[FeatureTypes],
-) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
-    """Extract the optional reference categories from the booster."""
-    # Skip if it's not a dataframe as there's no new encoding to be recoded.
-    #
-    # This function helps override the `feature_types` parameter. The `feature_types`
-    # from user is not useful when input is a dataframe as the real feature type should
-    # be encoded into the DF.
-    if model is None or not is_dataframe(X):
-        return model, feature_types
-
-    if isinstance(model, str):
-        model = Booster(model_file=model)
-
-    categories = model.get_categories()
-    if not categories.empty():
-        return model, categories
-    # Convert empty into None.
-    return model, feature_types
-
-
 class _SklObjWProto(Protocol):
     def __call__(
         self,
@@ -639,13 +615,56 @@ Parameters
     return adddoc
 
 
-def _pick_ref_categories(
+def get_model_categories(
+    X: ArrayLike,
+    model: Optional[Union[Booster, str]],
+    feature_types: Optional[FeatureTypes],
+) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
+    """Extract the optional reference categories from the booster. Used for training
+    continuation. The result should be passed to the :py:func:`pick_ref_categories`.
+
+    """
+    # Skip if it's not a dataframe as there's no new encoding to be recoded.
+    #
+    # This function helps override the `feature_types` parameter. The `feature_types`
+    # from user is not useful when input is a dataframe as the real feature type should
+    # be encoded into the DF.
+    if model is None or not is_dataframe(X):
+        return model, feature_types
+
+    if isinstance(model, str):
+        model = Booster(model_file=model)
+
+    categories = model.get_categories()
+    if not categories.empty():
+        # override the `feature_types`.
+        return model, categories
+    # Convert empty into None.
+    return model, feature_types
+
+
+def pick_ref_categories(
     X: Any,
     model_cats: Optional[Union[FeatureTypes, Categories]],
     Xy_cats: Optional[Categories],
 ) -> Optional[Union[FeatureTypes, Categories]]:
-    # Use the reference categories from the model. If none, then use the reference
-    # categories from the training DMatrix.
+    """Use the reference categories from the model. If none, then use the reference
+    categories from the training DMatrix.
+
+    Parameters
+    ----------
+    X :
+        Input feature matrix.
+
+    model_cats :
+        Optional categories stored in the previous model (training continuation). This
+        should come from the :py:func:`get_model_categories`.
+
+    Xy_cats :
+        Optional categories from the training DMatrix. Used for re-coding the validation
+        dataset.
+
+    """
     categories: Optional[Categories] = None
     if not isinstance(model_cats, Categories) and is_dataframe(X):
         categories = Xy_cats
@@ -735,7 +754,7 @@ def _wrap_evaluation_matrices(
                 evals.append(train_dmatrix)
                 continue
 
-            feature_types = _pick_ref_categories(valid_X, feature_types, Xy_cats)
+            feature_types = pick_ref_categories(valid_X, feature_types, Xy_cats)
             m = create_dmatrix(
                 data=valid_X,
                 label=valid_y,
@@ -870,7 +889,8 @@ class XGBModel(XGBModelBase):
         if isinstance(self.feature_types, Categories):
             raise TypeError(
                 "If you are training with a prior model (training continuation), "
-                "XGBoost can automatically reuse the categories from that model."
+                "The scikit-learn interface can automatically reuse the categories from"
+                " that model."
             )
         self.feature_weights = feature_weights
         self.max_cat_to_onehot = max_cat_to_onehot
@@ -1311,7 +1331,7 @@ class XGBModel(XGBModelBase):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
-            model, feature_types = get_ref_categories(X, model, self.feature_types)
+            model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
@@ -1753,7 +1773,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
-            model, feature_types = get_ref_categories(X, model, self.feature_types)
+            model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
@@ -2255,7 +2275,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
-            model, feature_types = get_ref_categories(X, model, self.feature_types)
+            model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
