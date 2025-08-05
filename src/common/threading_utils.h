@@ -258,7 +258,7 @@ void ParallelFor1d(bst_idx_t n, std::int32_t n_threads, Fn&& fn) {
   common::ParallelFor(n_blocks, n_threads, [&](auto block_id) {
     auto const block_beg = block_id * kBlockOfRowsSize;
     auto const block_size = std::min(static_cast<std::size_t>(n - block_beg), kBlockOfRowsSize);
-    fn(common::Range1d{block_beg, block_size});
+    fn(common::Range1d{block_beg, block_beg + block_size});
   });
 }
 
