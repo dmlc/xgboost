@@ -22,6 +22,7 @@
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
 #include "../data/proxy_dmatrix.h"
+#include "../data/proxy_dmatrix.cuh"
 #include "../gbm/gbtree_model.h"
 #include "predict_fn.h"
 #include "xgboost/data.h"
@@ -1155,28 +1156,18 @@ class GPUPredictor : public xgboost::Predictor {
         enc::DeviceColumnsView{}, 0, &out_preds->predictions);
   }
 
-  bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model, float missing,
-                      PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
-                      bst_tree_t tree_end) const override {
+  [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const& model,
+                                    float missing, PredictionCacheEntry* out_preds,
+                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
-    auto x = proxy->Adapter();
-    if (x.type() == typeid(std::shared_ptr<data::CupyAdapter>)) {
-      this->DispatchedInplacePredict<data::CupyAdapter>(x, p_m, model, missing, out_preds,
-                                                        tree_begin, tree_end);
-    } else if (x.type() == typeid(std::shared_ptr<data::CudfAdapter>)) {
-      auto m = std::any_cast<std::shared_ptr<data::CudfAdapter>>(x);
-      if (m->HasCategorical()) {
-        this->DispatchedInplacePredict<data::CudfAdapter>(x, p_m, model, missing, out_preds,
-                                                          tree_begin, tree_end);
-      } else {
-        this->DispatchedInplacePredict<data::CudfAdapter>(x, p_m, model, missing, out_preds,
-                                                          tree_begin, tree_end);
-      }
-    } else {
-      return false;
-    }
-    return true;
+    bool type_error = false;
+    data::cuda_impl::Dispatch<false>(proxy, [&](auto x) {
+      using AdapterT = typename decltype(x)::element_type;
+      this->DispatchedInplacePredict<AdapterT>(x, p_m, model, missing, out_preds, tree_begin,
+                                               tree_end);
+    }, &type_error);
+    return !type_error;
   }
 
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,

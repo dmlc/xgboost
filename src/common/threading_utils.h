@@ -17,6 +17,7 @@
 #include <utility>      // for forward
 #include <vector>       // for vector
 
+#include "common.h"  // for DivRoundUp
 #include "xgboost/logging.h"
 #include "xgboost/string_view.h"  // for StringView
 
@@ -40,23 +41,20 @@ namespace xgboost::common {
 // Inspired by tbb::blocked_range
 class Range1d {
  public:
-  Range1d(size_t begin, size_t end): begin_(begin), end_(end) {
-    CHECK_LT(begin, end);
-  }
+  Range1d(std::size_t begin, std::size_t end) : begin_{begin}, end_{end} { CHECK_LT(begin, end); }
 
-  size_t begin() const {  // NOLINT
+  [[nodiscard]] std::size_t begin() const {  // NOLINT
     return begin_;
   }
-
-  size_t end() const {  // NOLINT
+  [[nodiscard]] std::size_t end() const {  // NOLINT
     return end_;
   }
+  [[nodiscard]] std::size_t Size() const { return this->end() - this->begin(); }
 
  private:
-  size_t begin_;
-  size_t end_;
+  std::size_t begin_;
+  std::size_t end_;
 };
-
 
 // Split 2d space to balanced blocks
 // Implementation of the class is inspired by tbb::blocked_range2d
@@ -141,7 +139,7 @@ class BlockedSpace2d {
 
 // Wrapper to implement nested parallelism with simple omp parallel for
 template <typename Func>
-void ParallelFor2d(const BlockedSpace2d& space, int n_threads, Func&& func) {
+void ParallelFor2d(const BlockedSpace2d& space, std::int32_t n_threads, Func&& func) {
   static_assert(std::is_void_v<std::invoke_result_t<Func, std::size_t, Range1d>>);
   std::size_t n_blocks_in_space = space.Size();
   CHECK_GE(n_threads, 1);
@@ -251,6 +249,17 @@ void ParallelFor(Index size, std::int32_t n_threads, Sched sched, Func&& fn) {
 template <typename Index, typename Func>
 void ParallelFor(Index size, std::int32_t n_threads, Func&& fn) {
   ParallelFor(size, n_threads, Sched::Static(), std::forward<Func>(fn));
+}
+
+template <std::size_t kBlockOfRowsSize, typename Index, typename Func>
+void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
+  static_assert(std::is_void_v<std::invoke_result_t<Func, common::Range1d>>);
+  auto const n_blocks = DivRoundUp(size, kBlockOfRowsSize);
+  common::ParallelFor(n_blocks, n_threads, [&](auto block_id) {
+    auto const block_beg = block_id * kBlockOfRowsSize;
+    auto const block_size = std::min(static_cast<std::size_t>(size - block_beg), kBlockOfRowsSize);
+    fn(common::Range1d{block_beg, block_beg + block_size});
+  });
 }
 
 inline std::int32_t OmpGetThreadLimit() {

@@ -128,6 +128,7 @@ void GHistIndexMatrix::PushAdapterBatchColumns(Context const *ctx, Batch const &
 
 INSTANTIATION_PUSH(data::CSRArrayAdapterBatch)
 INSTANTIATION_PUSH(data::ArrayAdapterBatch)
+INSTANTIATION_PUSH(data::DenseAdapterBatch)
 INSTANTIATION_PUSH(data::SparsePageAdapterBatch)
 INSTANTIATION_PUSH(data::ColumnarAdapterBatch)
 INSTANTIATION_PUSH(data::EncColumnarAdapterBatch)
