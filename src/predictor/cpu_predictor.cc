@@ -407,9 +407,13 @@ bool ShouldUseBlock(DMatrix *p_fmat) {
  */
 class ColumnSplitHelper {
  public:
-  ColumnSplitHelper(std::int32_t n_threads, gbm::GBTreeModel const &model, uint32_t tree_begin,
-                    uint32_t tree_end)
+  ColumnSplitHelper(std::int32_t n_threads, gbm::GBTreeModel const &model, bst_tree_t tree_begin,
+                    bst_tree_t tree_end)
       : n_threads_{n_threads}, model_{model}, tree_begin_{tree_begin}, tree_end_{tree_end} {
+    CHECK(!model.learner_model_param->IsVectorLeaf())
+        << "Predict DMatrix with column split" << MTNotImplemented();
+    CHECK(!model.Cats()->HasCategorical()) << "The re-coder doesn't support column split yet.";
+
     auto const n_trees = tree_end_ - tree_begin_;
     tree_sizes_.resize(n_trees);
     tree_offsets_.resize(n_trees);
@@ -422,6 +426,7 @@ class ColumnSplitHelper {
     for (decltype(tree_begin) i = 1; i < n_trees; i++) {
       tree_offsets_[i] = tree_offsets_[i - 1] + tree_sizes_[i - 1];
     }
+    // Add the size of the last tree since this is exclusive_scan
     bits_per_row_ = tree_offsets_.back() + tree_sizes_.back();
 
     InitThreadTemp(n_threads_ * kBlockOfRowsSize, &feat_vecs_);
@@ -434,10 +439,14 @@ class ColumnSplitHelper {
   ColumnSplitHelper &operator=(ColumnSplitHelper &&) noexcept = delete;
 
   void PredictDMatrix(Context const *ctx, DMatrix *p_fmat, std::vector<bst_float> *out_preds) {
+
     CHECK(xgboost::collective::IsDistributed())
         << "column-split prediction is only supported for distributed training";
     if (this->model_.Cats()->HasCategorical()) {
       LOG(FATAL) << "Categorical feature is not yet supported with column-split.";
+    }
+    if (!p_fmat->PageExists<SparsePage>()) {
+      LOG(FATAL) << "Predict with `QuantileDMatrix` is not supported with column-split.";
     }
 
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
@@ -563,7 +572,7 @@ class ColumnSplitHelper {
   void PredictAllTrees(std::vector<bst_float> *out_preds, std::size_t batch_offset,
                        std::size_t predict_offset, std::size_t num_group, std::size_t block_size) {
     auto &preds = *out_preds;
-    for (size_t tree_id = tree_begin_; tree_id < tree_end_; ++tree_id) {
+    for (auto tree_id = tree_begin_; tree_id < tree_end_; ++tree_id) {
       auto const gid = model_.tree_info[tree_id];
       for (size_t i = 0; i < block_size; ++i) {
         auto const result = PredictOneTree<predict_leaf>(tree_id, batch_offset + i);
@@ -616,8 +625,8 @@ class ColumnSplitHelper {
 
   std::int32_t const n_threads_;
   gbm::GBTreeModel const &model_;
-  uint32_t const tree_begin_;
-  uint32_t const tree_end_;
+  bst_tree_t const tree_begin_;
+  bst_tree_t const tree_end_;
 
   std::vector<std::size_t> tree_sizes_{};
   std::vector<std::size_t> tree_offsets_{};
@@ -667,6 +676,16 @@ class ColumnSplitHelper {
   BitVector missing_bits_{};
 };
 
+auto MakeOutPredt(Context const *ctx, DMatrix *p_fmat, std::vector<float> *out_preds,
+                  gbm::GBTreeModel const &model) {
+  // Create a writable view on the output prediction vector.
+  bst_idx_t n_groups = model.learner_model_param->OutputLength();
+  bst_idx_t n_samples = p_fmat->Info().num_row_;
+  CHECK_EQ(out_preds->size(), n_samples * n_groups);
+  auto out_predt = linalg::MakeTensorView(ctx, *out_preds, n_samples, n_groups);
+  return out_predt;
+}
+
 class CPUPredictor : public Predictor {
  protected:
   void PredictDMatrix(DMatrix *p_fmat, std::vector<float> *out_preds, gbm::GBTreeModel const &model,
@@ -688,11 +707,7 @@ class CPUPredictor : public Predictor {
     std::vector<RegTree::FVec> feat_vecs;
     InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &feat_vecs);
 
-    // Create a writable view on the output prediction vector.
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
-    bst_idx_t n_samples = p_fmat->Info().num_row_;
-    CHECK_EQ(out_preds->size(), n_samples * n_groups);
-    auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
+    auto out_predt = MakeOutPredt(this->ctx_, p_fmat, out_preds, model);
 
     // Dispatching function for various configuration.
     auto launch = [&](auto &&acc) {
