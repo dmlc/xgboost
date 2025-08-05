@@ -197,11 +197,11 @@ Internally, XGBoost attempts to extract the categories from dataframe inputs. Fo
 inference (predict), the re-coding happens on the fly and there's no data copy (baring
 from some internal transformations performed by the dataframe itself). For training
 continuation however, re-coding requires some extra steps if you are using the native
-interface. The sklearn interface handles training continuation automatically. Lastly,
-please note that using the re-coder with the native interface is still experimental. It's
-ready for testing, but we want to observe the feature usage for a period of time and might
-make some breaking changes if needed. Following is a snippet of using the native
-interface. No extra step is required for using the scikit-learn interface.
+interface. The sklearn interface and the Dask interface can handle training continuation
+automatically. Lastly, please note that using the re-coder with the native interface is
+still experimental. It's ready for testing, but we want to observe the feature usage for a
+period of time and might make some breaking changes if needed. Following is a snippet of
+using the native interface:
 
 .. code-block:: python
 
@@ -223,6 +223,12 @@ interface. No extra step is required for using the scikit-learn interface.
     X_new, y_new, feature_types=categories, enable_categorical=True, ref=Xy
   )
   booster_1 = xgboost.train({}, Xy_new, xgb_model=booster)
+
+
+No extra step is required for using the scikit-learn interface as long as inputs are
+dataframes. During training continuation, XGBoost will either extract the categories from
+the previous model, or use the categories from the new training dataset if the input model
+doesn't have the information.
 
 *************
 Miscellaneous
