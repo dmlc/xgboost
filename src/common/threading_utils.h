@@ -251,13 +251,13 @@ void ParallelFor(Index size, std::int32_t n_threads, Func&& fn) {
   ParallelFor(size, n_threads, Sched::Static(), std::forward<Func>(fn));
 }
 
-template <std::size_t kBlockOfRowsSize, typename Fn>
-void ParallelFor1d(bst_idx_t n, std::int32_t n_threads, Fn&& fn) {
-  static_assert(std::is_void_v<std::invoke_result_t<Fn, common::Range1d>>);
-  auto const n_blocks = DivRoundUp(n, kBlockOfRowsSize);
+template <std::size_t kBlockOfRowsSize, typename Index, typename Func>
+void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
+  static_assert(std::is_void_v<std::invoke_result_t<Func, common::Range1d>>);
+  auto const n_blocks = DivRoundUp(size, kBlockOfRowsSize);
   common::ParallelFor(n_blocks, n_threads, [&](auto block_id) {
     auto const block_beg = block_id * kBlockOfRowsSize;
-    auto const block_size = std::min(static_cast<std::size_t>(n - block_beg), kBlockOfRowsSize);
+    auto const block_size = std::min(static_cast<std::size_t>(size - block_beg), kBlockOfRowsSize);
     fn(common::Range1d{block_beg, block_beg + block_size});
   });
 }
