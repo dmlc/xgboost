@@ -821,74 +821,58 @@ class CPUPredictor : public Predictor {
     this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin, tree_end);
   }
 
-  template <typename Adapter>
-  void DispatchedInplacePredict(std::any const &x, std::shared_ptr<DMatrix> p_m,
-                                gbm::GBTreeModel const &model, float missing,
-                                PredictionCacheEntry *out_preds, bst_tree_t tree_begin,
-                                bst_tree_t tree_end) const {
-    auto const n_threads = this->ctx_->Threads();
-    auto m = std::any_cast<std::shared_ptr<Adapter>>(x);
-    CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
-        << "Number of columns in data must equal to trained model.";
-    CHECK(p_m);
-    CHECK_EQ(p_m->Info().num_row_, m->NumRows());
-    CHECK_EQ(p_m->Info().num_col_, m->NumColumns());
-    this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
-
-    bool blocked = ShouldUseBlock(p_m.get());
-
-    auto &predictions = out_preds->predictions.HostVector();
-    std::vector<RegTree::FVec> thread_temp;
-    InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &thread_temp);
-    bst_idx_t n_groups = model.learner_model_param->OutputLength();
-    auto out_predt = linalg::MakeTensorView(ctx_, predictions, m->NumRows(), n_groups);
-
-    auto launch = [&](auto &&acc) {
-      auto view = AdapterView{m.get(), missing, acc};
-      if (blocked) {
-        PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(view, model, tree_begin, tree_end,
-                                                          &thread_temp, n_threads, out_predt);
-      } else {
-        PredictBatchByBlockOfRowsKernel<1>(view, model, tree_begin, tree_end, &thread_temp,
-                                           n_threads, out_predt);
-      }
-    };
-
-    if constexpr (std::is_same_v<Adapter, data::ColumnarAdapter>) {
-      // Make specialization for DataFrame where we need encoding.
-      if (model.Cats()->HasCategorical() && !m->Cats().Empty()) {
-        auto [acc, mapping] = MakeCatAccessor(ctx_, m->Cats(), model.Cats());
-        return launch(acc);
-      }
-    }
-    launch(NoOpAccessor{});
-  }
-
-  bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model, float missing,
-                      PredictionCacheEntry *out_preds, bst_tree_t tree_begin,
-                      bst_tree_t tree_end) const override {
+  [[nodiscard]] bool InplacePredict(std::shared_ptr<DMatrix> p_m, gbm::GBTreeModel const &model,
+                                    float missing, PredictionCacheEntry *out_preds,
+                                    bst_tree_t tree_begin, bst_tree_t tree_end) const override {
     auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
     CHECK(!p_m->Info().IsColumnSplit())
         << "Inplace predict support for column-wise data split is not yet implemented.";
-    auto const &x = proxy->Adapter();
+    bool type_error = false;
+    data::HostAdapterDispatch<false>(
+        proxy,
+        [&](auto x) {
+          using AdapterT = typename decltype(x)::element_type;
 
-    if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
-      this->DispatchedInplacePredict<data::DenseAdapter>(x, p_m, model, missing, out_preds,
-                                                         tree_begin, tree_end);
-    } else if (x.type() == typeid(std::shared_ptr<data::ArrayAdapter>)) {
-      this->DispatchedInplacePredict<data::ArrayAdapter>(x, p_m, model, missing, out_preds,
-                                                         tree_begin, tree_end);
-    } else if (x.type() == typeid(std::shared_ptr<data::CSRArrayAdapter>)) {
-      this->DispatchedInplacePredict<data::CSRArrayAdapter>(x, p_m, model, missing, out_preds,
-                                                            tree_begin, tree_end);
-    } else if (x.type() == typeid(std::shared_ptr<data::ColumnarAdapter>)) {
-      this->DispatchedInplacePredict<data::ColumnarAdapter>(x, p_m, model, missing, out_preds,
-                                                            tree_begin, tree_end);
-    } else {
-      return false;
-    }
-    return true;
+          auto const n_threads = this->ctx_->Threads();
+
+          CHECK_EQ(x->NumColumns(), model.learner_model_param->num_feature)
+              << "Number of columns in data must equal to trained model.";
+          CHECK(p_m);
+          CHECK_EQ(p_m->Info().num_row_, x->NumRows());
+          CHECK_EQ(p_m->Info().num_col_, x->NumColumns());
+          this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
+
+          bool blocked = ShouldUseBlock(p_m.get());
+
+          auto &predictions = out_preds->predictions.HostVector();
+          std::vector<RegTree::FVec> thread_temp;
+          InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &thread_temp);
+          bst_idx_t n_groups = model.learner_model_param->OutputLength();
+          auto out_predt = linalg::MakeTensorView(ctx_, predictions, x->NumRows(), n_groups);
+
+          auto launch = [&](auto &&acc) {
+            auto view = AdapterView{x.get(), missing, acc};
+            if (blocked) {
+              PredictBatchByBlockOfRowsKernel<kBlockOfRowsSize>(view, model, tree_begin, tree_end,
+                                                                &thread_temp, n_threads, out_predt);
+            } else {
+              PredictBatchByBlockOfRowsKernel<1>(view, model, tree_begin, tree_end, &thread_temp,
+                                                 n_threads, out_predt);
+            }
+          };
+
+          if constexpr (std::is_same_v<AdapterT, data::ColumnarAdapter>) {
+            // Make specialization for DataFrame where we need encoding.
+            if (model.Cats()->HasCategorical() && !x->Cats().Empty()) {
+              auto [acc, mapping] = MakeCatAccessor(ctx_, x->Cats(), model.Cats());
+              return launch(acc);
+            }
+          }
+          launch(NoOpAccessor{});
+        },
+        &type_error);
+    return !type_error;
   }
 
   void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<float> *out_preds,

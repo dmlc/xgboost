@@ -189,30 +189,31 @@ struct ExternalDataInfo {
 template <bool get_value = true, typename Fn>
 decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
   CHECK(proxy->Adapter().has_value());
-  if (proxy->Adapter().type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
+  auto const& x = proxy->Adapter();
+  if (x.type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
+      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter());
+      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x);
       return fn(value);
     }
     if (type_error) {
       *type_error = false;
     }
-  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ArrayAdapter>)) {
+  } else if (x.type() == typeid(std::shared_ptr<ArrayAdapter>)) {
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter())->Value();
+      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter());
+      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(x);
       return fn(value);
     }
     if (type_error) {
       *type_error = false;
     }
-  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
-    auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter());
+  } else if (x.type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
+    auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(x);
     if constexpr (get_value) {
       auto value = adapter->Value();
       if (adapter->HasRefCategorical()) {
@@ -226,11 +227,19 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
     if (type_error) {
       *type_error = false;
     }
+  } else if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
+    if constexpr (get_value) {
+      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x)->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x);
+      fn(value);
+    }
   } else {
     if (type_error) {
       *type_error = true;
     } else {
-      LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
+      LOG(FATAL) << "Unknown type: " << x.type().name();
     }
   }
 
