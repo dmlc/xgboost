@@ -660,15 +660,6 @@ class ColumnSplitHelper {
   BitVector missing_bits_{};
 };
 
-auto MakeOutPredt(Context const *ctx, DMatrix *p_fmat, std::vector<float> *out_preds,
-                  gbm::GBTreeModel const &model) {
-  // Create a writable view on the output prediction vector.
-  bst_idx_t n_groups = model.learner_model_param->OutputLength();
-  bst_idx_t n_samples = p_fmat->Info().num_row_;
-  CHECK_EQ(out_preds->size(), n_samples * n_groups);
-  auto out_predt = linalg::MakeTensorView(ctx, *out_preds, n_samples, n_groups);
-  return out_predt;
-}
 class CPUPredictor : public Predictor {
  protected:
   void PredictDMatrix(DMatrix *p_fmat, std::vector<float> *out_preds, gbm::GBTreeModel const &model,
@@ -690,7 +681,11 @@ class CPUPredictor : public Predictor {
     std::vector<RegTree::FVec> feat_vecs;
     InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &feat_vecs);
 
-    auto out_predt = MakeOutPredt(this->ctx_, p_fmat, out_preds, model);
+    // Create a writable view on the output prediction vector.
+    bst_idx_t n_groups = model.learner_model_param->OutputLength();
+    bst_idx_t n_samples = p_fmat->Info().num_row_;
+    CHECK_EQ(out_preds->size(), n_samples * n_groups);
+    auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
 
     // Dispatching function for various configuration.
     auto launch = [&](auto &&acc) {
