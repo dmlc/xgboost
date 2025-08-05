@@ -331,8 +331,8 @@ def _create_quantile_dmatrix(
     model: Optional[Booster],
     Xy_cats: Optional[Categories],
 ) -> QuantileDMatrix:
+    is_cuda = _get_is_cuda(parts)
     if parts is None:
-        is_cuda = _get_is_cuda(parts)
         _warn_empty()
         return QuantileDMatrix(
             _make_empty(is_cuda),
@@ -381,9 +381,8 @@ def _create_dmatrix(  # pylint: disable=too-many-locals
     A DMatrix object.
 
     """
-
+    is_cuda = _get_is_cuda(parts)
     if parts is None:
-        is_cuda = _get_is_cuda(parts)
         _warn_empty()
         return DMatrix(
             _make_empty(is_cuda),
