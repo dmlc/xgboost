@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
-from distributed import Client, get_worker
+from distributed import Client, get_worker, wait
 from packaging.version import parse as parse_version
 from sklearn.datasets import make_classification
 
@@ -322,10 +322,13 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     return X, y
 
 
-def run_recode(client: "Client", device: Device) -> None:
+def run_recode(client: Client, device: Device) -> None:
     """Run re-coding test with the Dask interface."""
     enc, reenc, y, _, _ = make_recoded(device, n_features=96)
     denc, dreenc, dy = dd.from_pandas(enc), dd.from_pandas(reenc), da.from_array(y)
+    wait([denc, dreenc, dy])
+    client.rebalance([denc, dreenc, dy])
+
     if device == "cuda":
         denc = denc.to_backend("cudf")
         dreenc = dreenc.to_backend("cudf")
