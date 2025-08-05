@@ -290,7 +290,7 @@ constexpr std::int32_t kBlockThreads = 1024;
 constexpr std::int32_t kItemsPerThread = 8;
 constexpr std::int32_t ItemsPerTile() { return kBlockThreads * kItemsPerThread; }
 template <auto Ker>
-using DeduceKernelT = std::remove_reference_t<decltype(Ker)>;
+using DeduceKernelT = std::decay_t<decltype(Ker)>;
 }  // namespace
 
 // Use auto deduction guide to workaround compiler error.
