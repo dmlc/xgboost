@@ -14,7 +14,7 @@
 #include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
 #include "batch_utils.h"            // for RegenGHist
 #include "gradient_index.h"         // for GHistIndexMatrix
-#include "proxy_dmatrix.h"          // for DataIterProxy
+#include "proxy_dmatrix.h"          // for DataIterProxy, DispatchAny
 #include "quantile_dmatrix.h"       // for GetCutsFromRef
 #include "quantile_dmatrix.h"       // for GetDataShape, MakeSketches
 #include "simple_batch_iterator.h"  // for SimpleBatchIteratorImpl
@@ -82,7 +82,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
   std::size_t prev_sum = 0;
   std::size_t i = 0;
   while (iter.Next()) {
-    HostAdapterDispatch(proxy, [&](auto const& batch) {
+    cpu_impl::DispatchAny(proxy, [&](auto const& batch) {
       proxy->Info().num_nonzero_ = ext_info.batch_nnz[i];
       this->ghist_->PushAdapterBatch(ctx, rbegin, prev_sum, batch, missing, h_ft, p.sparse_thresh,
                                      Info().num_row_);
@@ -104,7 +104,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
    */
   bst_idx_t accumulated_rows = 0;
   while (iter.Next()) {
-    HostAdapterDispatch(proxy, [&](auto const& batch) {
+    cpu_impl::DispatchAny(proxy, [&](auto const& batch) {
       this->ghist_->PushAdapterBatchColumns(ctx, batch, missing, accumulated_rows);
     });
     accumulated_rows += BatchSamples(proxy);

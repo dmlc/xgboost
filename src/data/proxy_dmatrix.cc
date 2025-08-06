@@ -80,7 +80,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
     common::AssertGPUSupport();
 #endif
   } else {
-    p_fmat = data::HostAdapterDispatch<false>(
+    p_fmat = data::cpu_impl::DispatchAny<false>(
         proxy.get(),
         [&](auto const &adapter) {
           auto p_fmat =
@@ -104,7 +104,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
     common::AssertGPUSupport();
 #endif
   }
-  return HostAdapterDispatch<false>(proxy, [&](auto const &adapter) {
+  return cpu_impl::DispatchAny<false>(proxy, [&](auto const &adapter) {
     using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
       return adapter->HasRefCategorical();

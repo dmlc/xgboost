@@ -173,6 +173,7 @@ struct ExternalDataInfo {
   }
 };
 
+namespace cpu_impl {
 /**
  * @brief Dispatch function call based on input type.
  *
@@ -187,7 +188,7 @@ struct ExternalDataInfo {
  * @return The return value of the function being dispatched.
  */
 template <bool get_value = true, typename Fn>
-decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
+decltype(auto) DispatchAny(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
   auto has_type = [&] {
     if (type_error) {
       *type_error = false;
@@ -252,6 +253,27 @@ decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_
 }
 
 /**
+ * @brief Get categories for the current batch.
+ *
+ * @param ref_if_avail Use the reference categories if present.
+ *
+ * @return A host view to the categories
+ */
+[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
+  return DispatchAny<false>(proxy, [](auto const& adapter) -> decltype(auto) {
+    using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
+    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
+      if (adapter->HasRefCategorical()) {
+        return adapter->RefCats();
+      }
+      return adapter->Cats();
+    }
+    return enc::HostColumnsView{};
+  });
+}
+}  // namespace cpu_impl
+
+/**
  * @brief Create a `SimpleDMatrix` instance from a `DMatrixProxy`.
  *
  *    This is used for enabling inplace-predict fallback.
@@ -274,7 +296,7 @@ namespace cuda_impl {
 [[nodiscard]] inline bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_samples =
-      HostAdapterDispatch(proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
+      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
   if (type_error) {
     n_samples = cuda_impl::BatchSamples(proxy);
   }
@@ -287,7 +309,7 @@ namespace cuda_impl {
 [[nodiscard]] inline bst_feature_t BatchColumns(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_features =
-      HostAdapterDispatch(proxy, [](auto const& value) { return value.NumCols(); }, &type_error);
+      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumCols(); }, &type_error);
   if (type_error) {
     n_features = cuda_impl::BatchColumns(proxy);
   }
@@ -295,25 +317,7 @@ namespace cuda_impl {
 }
 
 namespace cpu_impl {
-/**
- * @brief Get categories for the current batch.
- *
- * @param ref_if_avail Use the reference categories if present.
- *
- * @return A host view to the categories
- */
-[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
-  return HostAdapterDispatch<false>(proxy, [](auto const& adapter) -> decltype(auto) {
-    using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
-    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-      if (adapter->HasRefCategorical()) {
-        return adapter->RefCats();
-      }
-      return adapter->Cats();
-    }
-    return enc::HostColumnsView{};
-  });
-}
+
 }  // namespace cpu_impl
 [[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy);
 }  // namespace xgboost::data

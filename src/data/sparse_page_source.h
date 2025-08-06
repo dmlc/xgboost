@@ -459,7 +459,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     if (!this->ReadCache()) {
       bool type_error{false};
       CHECK(proxy_);
-      HostAdapterDispatch(
+      cpu_impl::DispatchAny(
           proxy_,
           [&](auto const& adapter_batch) {
             page_->Push(adapter_batch, this->missing_, this->nthreads_);
