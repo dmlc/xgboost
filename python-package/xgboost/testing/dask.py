@@ -328,7 +328,7 @@ def run_recode(client: Client, device: Device) -> None:
     denc, dreenc, dy = (
         dd.from_pandas(enc, npartitions=8),
         dd.from_pandas(reenc, npartitions=8),
-        da.from_array(y, chunks=(y.shape[0] // 8)),
+        da.from_array(y, chunks=(y.shape[0] // 8,)),
     )
     wait([denc, dreenc, dy])
     client.rebalance([denc, dreenc, dy])

@@ -65,7 +65,7 @@ void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
       DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
-  cpu_impl::GetDataShape(ctx, proxy, iter, missing, &ext_info);
+  cpu_impl::GetDataShape(ctx, proxy, &iter, missing, &ext_info);
   ext_info.SetInfo(ctx, true, &this->info_);
 
   /**

@@ -85,7 +85,7 @@ void SyncFeatureType(Context const* ctx, std::vector<FeatureType>* p_h_ft) {
 }
 
 void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
-                  DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter, float missing,
+                  DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter, float missing,
                   ExternalDataInfo* p_info) {
   auto& info = *p_info;
 
@@ -140,8 +140,8 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
     info.nnz += info.batch_nnz.back();
     info.accumulated_rows += batch_size;
     info.n_batches++;
-  } while (iter.Next());
-  iter.Reset();
+  } while (iter->Next());
+  iter->Reset();
 
   std::partial_sum(info.base_rowids.cbegin(), info.base_rowids.cend(), info.base_rowids.begin());
 }

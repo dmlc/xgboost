@@ -42,8 +42,8 @@ class DataIterProxy {
       : iter_{iter}, reset_{reset}, next_{next} {}
   DataIterProxy(DataIterProxy&& that) = default;
   DataIterProxy& operator=(DataIterProxy&& that) = default;
-  DataIterProxy(DataIterProxy const& that) = default;
-  DataIterProxy& operator=(DataIterProxy const& that) = default;
+  DataIterProxy(DataIterProxy const& that) = delete;
+  DataIterProxy& operator=(DataIterProxy const& that) = delete;
 
   [[nodiscard]] bool Next() {
     xgboost_NVTX_FN_RANGE();
