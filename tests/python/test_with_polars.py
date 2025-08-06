@@ -9,8 +9,15 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
+from xgboost.compat import is_dataframe
 
 pl = pytest.importorskip("polars")
+
+
+def test_type_check() -> None:
+    df = pl.DataFrame({"a": [1, 2, 3], "b": [3, 4, 5]})
+    assert is_dataframe(df)
+    assert is_dataframe(df["a"])
 
 
 @pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
@@ -147,20 +154,22 @@ def test_categorical() -> None:
         xgb.DMatrix(df)
 
     data = xgb.DMatrix(df, enable_categorical=True)
-    categories = data.get_categories()
-    assert categories is not None
-    assert categories["f0"] is None
-    assert categories["f1"].to_pylist() == cats[:4]
+    categories = data.get_categories(export_to_arrow=True)
+    assert dict(categories.to_arrow())["f0"] is None
+    f1 = dict(categories.to_arrow())["f1"]
+    assert f1 is not None
+    assert f1.to_pylist() == cats[:4]
 
     df = pl.DataFrame(
         {"f0": [1, 3, 2, 4, 4], "f1": cats},
         schema=[("f0", pl.Int64()), ("f1", pl.Enum(cats[:4]))],
     )
     data = xgb.DMatrix(df, enable_categorical=True)
-    categories = data.get_categories()
-    assert categories is not None
-    assert categories["f0"] is None
-    assert categories["f1"].to_pylist() == cats[:4]
+    categories = data.get_categories(export_to_arrow=True)
+    assert dict(categories.to_arrow())["f0"] is None
+    f1 = dict(categories.to_arrow())["f1"]
+    assert f1 is not None
+    assert f1.to_pylist() == cats[:4]
 
     rng = np.random.default_rng(2025)
     y = rng.normal(size=(df.shape[0]))

@@ -4,7 +4,18 @@
 import copy
 import os
 import weakref
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 import numpy as np
 
@@ -15,7 +26,7 @@ from .callback import (
     EvaluationMonitor,
     TrainingCallback,
 )
-from .compat import SKLEARN_INSTALLED, DataFrame, XGBStratifiedKFold
+from .compat import SKLEARN_INSTALLED, XGBStratifiedKFold
 from .core import (
     Booster,
     DMatrix,
@@ -25,6 +36,9 @@ from .core import (
     _deprecate_positional_args,
     _RefMixIn,
 )
+
+if TYPE_CHECKING:
+    from pandas import DataFrame as PdDataFrame
 
 _CVFolds = Sequence["CVPack"]
 
@@ -435,7 +449,7 @@ def cv(
     callbacks: Optional[Sequence[TrainingCallback]] = None,
     shuffle: bool = True,
     custom_metric: Optional[Metric] = None,
-) -> Union[Dict[str, float], DataFrame]:
+) -> Union[Dict[str, float], "PdDataFrame"]:
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 

@@ -16,7 +16,6 @@
 #include "../common/cuda_rt_utils.h"        // for SupportsPageableMem, SupportsAts
 #include "../common/device_compression.h"   // for SnappyDecomprMgr
 #include "../common/hist_util.h"            // for HistogramCuts
-#include "../common/numa_topo.h"            // for GetNumaNumNodes, GetNumaMemBind
 #include "../common/ref_resource_view.h"    // for RefResourceView
 #include "../data/batch_utils.h"            // for AutoHostRatio
 #include "ellpack_page.h"                   // for EllpackPage
@@ -168,6 +167,11 @@ class EllpackHostCacheStream {
   [[nodiscard]] bool Write(EllpackPage const& page);
 };
 
+namespace detail {
+// Not a member of `EllpackFormatPolicy`. Hide the impl without requiring template specialization.
+void EllpackFormatCheckNuma(StringView msg);
+}  // namespace detail
+
 template <typename S>
 class EllpackFormatPolicy {
   std::shared_ptr<common::HistogramCuts const> cuts_{nullptr};
@@ -195,16 +199,14 @@ class EllpackFormatPolicy {
       LOG(WARNING) << "`use_rmm` is set to false." << msg;
     }
     std::int32_t major{0}, minor{0};
-    curt::DrVersion(&major, &minor);
+    curt::GetDrVersionGlobal(&major, &minor);
     if ((major < 12 || (major == 12 && minor < 7)) && curt::SupportsAts()) {
       // Use ATS, but with an old kernel driver.
       LOG(WARNING) << "Using an old kernel driver with supported CTK<12.7."
                    << "The latest version of CTK supported by the current driver: " << major << "."
                    << minor << "." << msg;
     }
-    if (common::GetNumaNumNodes() > 1 && !common::GetNumaMemBind()) {
-      LOG(WARNING) << "Running on a NUMA system without membind." << msg;
-    }
+    detail::EllpackFormatCheckNuma(msg);
   }
   // For testing with the HMM flag.
   explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}

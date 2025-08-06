@@ -1,15 +1,22 @@
 /**
- * Copyright 2021-2023 XGBoost contributors
+ * Copyright 2021-2025, XGBoost contributors
  */
-#include <any>  // for any, any_cast
+#include <any>     // for any_cast
+#include <memory>  // for shared_ptr
 
-#include "device_adapter.cuh"
+#include "device_adapter.cuh"  // for MakeEncColumnarBatch
 #include "proxy_dmatrix.h"
 
 namespace xgboost::data::cuda_impl {
 template <bool get_value = true, typename Fn>
-decltype(auto) Dispatch(DMatrixProxy const* proxy, Fn fn) {
+decltype(auto) Dispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
+  auto has_type = [&] {
+    if (type_error) {
+      *type_error = false;
+    }
+  };
   if (proxy->Adapter().type() == typeid(std::shared_ptr<CupyAdapter>)) {
+    has_type();
     if constexpr (get_value) {
       auto value = std::any_cast<std::shared_ptr<CupyAdapter>>(proxy->Adapter())->Value();
       return fn(value);
@@ -18,22 +25,32 @@ decltype(auto) Dispatch(DMatrixProxy const* proxy, Fn fn) {
       return fn(value);
     }
   } else if (proxy->Adapter().type() == typeid(std::shared_ptr<CudfAdapter>)) {
+    has_type();
+    auto adapter = std::any_cast<std::shared_ptr<CudfAdapter>>(proxy->Adapter());
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(proxy->Adapter())->Value();
+      auto value = adapter->Value();
+      if (adapter->HasRefCategorical()) {
+        auto [batch, mapping] = MakeEncColumnarBatch(proxy->Ctx(), adapter.get());
+        return fn(batch);
+      }
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(proxy->Adapter());
-      return fn(value);
+      return fn(adapter);
     }
   } else {
-    LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
-    if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(proxy->Adapter())->Value();
-      return fn(value);
+    if (type_error) {
+      *type_error = true;
     } else {
-      auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(proxy->Adapter());
-      return fn(value);
+      LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
     }
+  }
+
+  if constexpr (get_value) {
+    auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(proxy->Adapter())->Value();
+    return fn(value);
+  } else {
+    auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(proxy->Adapter());
+    return fn(value);
   }
 }
 }  // namespace xgboost::data::cuda_impl

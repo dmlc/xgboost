@@ -21,7 +21,7 @@
 #include "../common/hist_util.h"         // for HistogramCuts
 #include "../common/io.h"                // for FileExtension, LoadSequentialFile, MemoryBuf...
 #include "../common/threading_utils.h"   // for OmpGetNumThreads, ParallelFor
-#include "../data/adapter.h"             // for ArrayAdapter, DenseAdapter, RecordBatchesIte...
+#include "../data/adapter.h"             // for ArrayAdapter, DenseAdapter
 #include "../data/batch_utils.h"         // for MatchingPageBytes, CachePageRatio
 #include "../data/cat_container.h"       // for CatContainer
 #include "../data/ellpack_page.h"        // for EllpackPage
@@ -125,6 +125,11 @@ XGB_DLL int XGBuildInfo(char const **out) {
   info["USE_FEDERATED"] = Boolean{true};
 #else
   info["USE_FEDERATED"] = Boolean{false};
+#endif
+
+#if defined(XGBOOST_GIT_HASH)
+  char const *git_hash = XGBOOST_GIT_HASH;
+  info["GIT_HASH"] = String{git_hash};
 #endif
 
   XGBBuildInfoDevice(&info);
@@ -417,52 +422,45 @@ XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle *out) {
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
-                                                    char const *c_interface_str) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
+namespace {
+[[nodiscard]] xgboost::data::DMatrixProxy *GetDMatrixProxy(DMatrixHandle handle) {
   auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
   CHECK(p_m);
   auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
   CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetCUDAArray(c_interface_str);
+  return m;
+}
+}  // namespace
+
+XGB_DLL int XGProxyDMatrixSetDataCudaArrayInterface(DMatrixHandle handle, char const *data) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetCudaArray(data);
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle, char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataCudaColumnar(DMatrixHandle handle, char const *data) {
   API_BEGIN();
   CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetCUDAArray(c_interface_str);
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetCudaColumnar(data);
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataColumnar(DMatrixHandle handle, char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataColumnar(DMatrixHandle handle, char const *data) {
   API_BEGIN();
   CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetColumnarData(c_interface_str);
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetColumnar(data);
   API_END();
 }
 
-XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle, char const *c_interface_str) {
+XGB_DLL int XGProxyDMatrixSetDataDense(DMatrixHandle handle, char const *data) {
   API_BEGIN();
   CHECK_HANDLE();
-  xgboost_CHECK_C_ARG_PTR(c_interface_str);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetArrayData(c_interface_str);
+  xgboost_CHECK_C_ARG_PTR(data);
+  GetDMatrixProxy(handle)->SetArray(data);
   API_END();
 }
 
@@ -473,11 +471,7 @@ XGB_DLL int XGProxyDMatrixSetDataCSR(DMatrixHandle handle, char const *indptr, c
   xgboost_CHECK_C_ARG_PTR(indptr);
   xgboost_CHECK_C_ARG_PTR(indices);
   xgboost_CHECK_C_ARG_PTR(data);
-  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
-  CHECK(p_m);
-  auto m = static_cast<xgboost::data::DMatrixProxy *>(p_m->get());
-  CHECK(m) << "Current DMatrix type does not support set data.";
-  m->SetCSRData(indptr, indices, data, ncol, true);
+  GetDMatrixProxy(handle)->SetCsr(indptr, indices, data, ncol, true);
   API_END();
 }
 
@@ -705,15 +699,15 @@ template <typename FidxT>
 void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
                        std::string *p_out_storage, char const **out) {
   auto &ret_str = *p_out_storage;
-  if (cats.Empty()) {
-    ret_str.clear();
-    *out = nullptr;
-    return;
-  }
+  ret_str.clear();
 
   // We can directly use the storage in the cat container instead of allocating temporary storage.
   Json jout{Array{}};
   for (decltype(n_features) f_idx = 0; f_idx < n_features; ++f_idx) {
+    if (cats.Empty()) {
+      get<Array>(jout).emplace_back();
+      continue;
+    }
     auto const &col = cats[f_idx];
     if (std::visit([](auto &&arg) { return arg.empty(); }, col)) {
       get<Array>(jout).emplace_back();
@@ -744,24 +738,103 @@ void GetCategoriesImpl(enc::HostColumnsView const &cats, FidxT n_features,
 
   *out = ret_str.c_str();
 }
+
+CatContainer *CopyCatContainer(Context const *ctx, CatContainer const *cats,
+                               bst_feature_t n_features) {
+  CatContainer *new_cats = new CatContainer{};
+  new_cats->Copy(ctx, *cats);
+  CHECK_EQ(new_cats->Empty(), cats->Empty());
+  if (!new_cats->Empty()) {
+    CHECK_EQ(new_cats->NumFeatures(), n_features);
+    CHECK_EQ(new_cats->NumFeatures(), cats->NumFeatures());
+  }
+  return new_cats;
+}
 }  // anonymous namespace
 
+typedef  void * CategoriesHandle;  // NOLINT
+
 /**
- * Experimental (3.1), hidden.
+ * Fetching categories is experimental (3.1), C functions are hidden at the moment.
+ *
+ * No actual container method is exposed through the C API. It's just an opaque handle at
+ * the moment. This way we get to reuse the methods and the context from the DMatrix and
+ * Booster.
  */
-XGB_DLL int XGBDMatrixGetCategories(DMatrixHandle handle, char const **out) {
+/**
+ * @brief Create an opaque handle to the internal container.
+ *
+ * @param handle An instance of the data matrix.
+ * @param out    Created handle to the category container. Set to NULL if there's no category.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGDMatrixGetCategories(DMatrixHandle handle, char const * /*config*/,
+                                   CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
+
   auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
-  auto const cats = p_fmat->Cats()->HostView();
-  auto n_features = p_fmat->Info().num_col_;
-
-  auto &ret_str = p_fmat->GetThreadLocal().ret_str;
+  auto const cats = p_fmat->Cats();
   xgboost_CHECK_C_ARG_PTR(out);
-
-  GetCategoriesImpl(cats, n_features, &ret_str, out);
+  if (cats->Empty()) {
+    out = nullptr;
+  } else {
+    auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, p_fmat->Info().num_col_);
+    *out = new_cats;
+  }
 
   API_END()
+}
+/**
+ * @brief Create an opaque handle to the internal container and export it to arrow.
+ *
+ * @param handle     An instance of the data matrix.
+ * @param out        Created handle to the category container
+ * @param export_out JSON encoded array of categories, with length equal to the number of features.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGDMatrixGetCategoriesExportToArrow(DMatrixHandle handle, char const * /*config*/,
+                                                CategoriesHandle *out, char const **export_out) {
+  API_BEGIN();
+  CHECK_HANDLE()
+
+  auto const p_fmat = *static_cast<std::shared_ptr<DMatrix> *>(handle);
+  auto const cats = p_fmat->Cats();
+  auto n_features = p_fmat->Info().num_col_;
+
+  xgboost_CHECK_C_ARG_PTR(out);
+  xgboost_CHECK_C_ARG_PTR(export_out);
+
+  if (cats->Empty()) {
+    *out = nullptr;
+    *export_out = nullptr;
+  } else {
+    // Create a new container
+    auto new_cats = CopyCatContainer(p_fmat->Ctx(), cats, n_features);
+    *out = new_cats;
+    // Export to arrow
+    auto &ret_str = p_fmat->GetThreadLocal().ret_str;
+    GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
+  }
+
+  API_END();
+}
+/**
+ * @brief Free the opaque handle.
+ *
+ * @param handle An instance of the category container.
+ *
+ * @return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGBCategoriesFree(CategoriesHandle handle) {
+  API_BEGIN();
+  xgboost_CHECK_C_ARG_PTR(handle);
+  auto p_cats = static_cast<CatContainer *>(handle);
+  CHECK(p_cats);
+  delete p_cats;
+  API_END();
 }
 
 XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field, void const *data,
@@ -1330,7 +1403,7 @@ void InplacePredictImpl(std::shared_ptr<DMatrix> p_m, char const *c_json_config,
   *out_shape = dmlc::BeginPtr(shape);
 }
 
-XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_interface,
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *data,
                                       char const *c_json_config, DMatrixHandle m,
                                       xgboost::bst_ulong const **out_shape,
                                       xgboost::bst_ulong *out_dim, const float **out_result) {
@@ -1344,8 +1417,8 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, char const *array_in
   }
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
-  xgboost_CHECK_C_ARG_PTR(array_interface);
-  proxy->SetArrayData(array_interface);
+  xgboost_CHECK_C_ARG_PTR(data);
+  proxy->SetArray(data);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
@@ -1366,7 +1439,7 @@ XGB_DLL int XGBoosterPredictFromColumnar(BoosterHandle handle, char const *array
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
   xgboost_CHECK_C_ARG_PTR(array_interface);
-  proxy->SetColumnarData(array_interface);
+  proxy->SetColumnar(array_interface);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
@@ -1388,7 +1461,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr, ch
   auto proxy = dynamic_cast<data::DMatrixProxy *>(p_m.get());
   CHECK(proxy) << "Invalid input type for inplace predict.";
   xgboost_CHECK_C_ARG_PTR(indptr);
-  proxy->SetCSRData(indptr, indices, data, cols, true);
+  proxy->SetCsr(indptr, indices, data, cols, true);
   auto *learner = static_cast<xgboost::Learner *>(handle);
   InplacePredictImpl(p_m, c_json_config, learner, out_shape, out_dim, out_result);
   API_END();
@@ -1686,17 +1759,52 @@ XGB_DLL int XGBoosterDumpModelExWithFeatures(BoosterHandle handle,
 /**
  * Experimental (3.1), hidden.
  */
-XGB_DLL int XGBoosterGetCategories(BoosterHandle handle, char const **out) {
+/**
+ * See @ref XGDMatrixGetCategories
+ */
+XGB_DLL int XGBoosterGetCategories(DMatrixHandle handle, char const * /*config*/,
+                                   CategoriesHandle *out) {
   API_BEGIN()
   CHECK_HANDLE()
+
   auto *bst = static_cast<Learner *>(handle);
-  auto const cats = bst->Cats()->HostView();
+  auto const cats = bst->Cats();
+  xgboost_CHECK_C_ARG_PTR(out);
+  if (cats->Empty()) {
+    out = nullptr;
+  } else {
+    auto new_cats = CopyCatContainer(bst->Ctx(), cats, bst->GetNumFeature());
+    *out = new_cats;
+  }
+
+  API_END()
+}
+/**
+ * See @ref XGDMatrixGetCategoriesExportToArrow
+ */
+XGB_DLL int XGBoosterGetCategoriesExportToArrow(BoosterHandle handle, char const * /*config*/,
+                                                CategoriesHandle *out, char const **export_out) {
+  API_BEGIN()
+  CHECK_HANDLE()
+
+  auto *bst = static_cast<Learner *>(handle);
+  auto const cats = bst->Cats();
   auto n_features = bst->GetNumFeature();
 
-  auto &ret_str = bst->GetThreadLocal().ret_str;
   xgboost_CHECK_C_ARG_PTR(out);
+  xgboost_CHECK_C_ARG_PTR(export_out);
 
-  GetCategoriesImpl(cats, n_features, &ret_str, out);
+  if (cats->Empty()) {
+    *out = nullptr;
+    *export_out = nullptr;
+  } else {
+    // Create a new container
+    auto new_cats = CopyCatContainer(bst->Ctx(), cats, n_features);
+    *out = new_cats;
+    // Export to arrow
+    auto &ret_str = bst->GetThreadLocal().ret_str;
+    GetCategoriesImpl(new_cats->HostView(), n_features, &ret_str, export_out);
+  }
 
   API_END()
 }

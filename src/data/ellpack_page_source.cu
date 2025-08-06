@@ -10,10 +10,11 @@
 
 #include "../common/common.h"                // for HumanMemUnit, safe_cuda
 #include "../common/cuda_dr_utils.h"         // for CUDA_HW_DECOM_AVAILABLE
-#include "../common/cuda_rt_utils.h"         // for SetDevice
+#include "../common/cuda_rt_utils.h"         // for SetDevice, GetDrVersionGlobal
 #include "../common/cuda_stream_pool.cuh"    // for StreamPool
 #include "../common/device_compression.cuh"  // for CompressSnappy, MakeSnappyDecomprMgr
 #include "../common/device_helpers.cuh"      // for CUDAStreamView, DefaultStream
+#include "../common/numa_topo.h"             // for NumaMemCanCross, GetNumaMemBind
 #include "../common/ref_resource_view.cuh"   // for MakeFixedVecWithCudaMalloc
 #include "../common/resource.cuh"            // for PrivateCudaMmapConstStream
 #include "../common/transform_iterator.h"    // for MakeIndexTransformIter
@@ -52,7 +53,12 @@ EllpackMemCache::EllpackMemCache(EllpackCacheInfo cinfo, std::int32_t n_workers)
       streams{std::make_unique<curt::StreamPool>(n_workers)},
       pool{[] {
 #if defined(__linux__)
-        return std::make_shared<dc::HostPinnedMemPool>();
+        std::int32_t major = -1, minor = -1;
+        curt::GetDrVersionGlobal(&major, &minor);
+        if (major >= 12 && minor >= 5 || major > 12) {
+          return std::make_shared<dc::HostPinnedMemPool>();
+        }
+        return std::shared_ptr<dc::HostPinnedMemPool>{nullptr};
 #else
         return std::shared_ptr<dc::HostPinnedMemPool>{nullptr};
 #endif
@@ -596,4 +602,26 @@ template void
 ExtEllpackPageSourceImpl<EllpackCacheStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
 template void
 ExtEllpackPageSourceImpl<EllpackMmapStreamPolicy<EllpackPage, EllpackFormatPolicy>>::Fetch();
+
+namespace detail {
+void EllpackFormatCheckNuma(StringView msg) {
+#if defined(__linux__)
+  bool can_cross = common::NumaMemCanCross();
+  std::uint32_t numa = 0;
+  auto incorrect = [&numa] {
+    std::uint32_t cpu = 0;
+    return common::GetCpuNuma(&cpu, &numa) && static_cast<std::int32_t>(numa) != curt::GetNumaId();
+  };
+
+  if (can_cross && !common::GetNumaMemBind()) {
+    LOG(WARNING) << "Running on a NUMA system without membind." << msg;
+  } else if (can_cross && incorrect()) {
+    LOG(WARNING) << "Incorrect NUMA CPU bind, CPU node:" << numa
+                 << ", GPU node:" << curt::GetNumaId() << "." << msg;
+  }
+#else
+  (void)msg;
+#endif
+}
+}  // namespace detail
 }  // namespace xgboost::data

@@ -5,8 +5,9 @@
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
 
-#include <future>
-#include <thread>
+#include <filesystem>  // for path
+#include <future>      // for future, async
+#include <thread>      // for sleep_for
 
 #include "../../../src/common/io.h"
 #include "../../../src/data/batch_utils.h"  // for MatchingPageBytes

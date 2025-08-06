@@ -90,12 +90,24 @@ void CompareJSON(Json l, Json r) {
     CompareIntArray<I16Array>(l, r);
     break;
   }
+  case Value::ValueKind::kU16Array: {
+    CompareIntArray<U16Array>(l, r);
+    break;
+  }
   case Value::ValueKind::kI32Array: {
     CompareIntArray<I32Array>(l, r);
     break;
   }
+  case Value::ValueKind::kU32Array: {
+    CompareIntArray<U32Array>(l, r);
+    break;
+  }
   case Value::ValueKind::kI64Array: {
     CompareIntArray<I64Array>(l, r);
+    break;
+  }
+  case Value::ValueKind::kU64Array: {
+    CompareIntArray<U64Array>(l, r);
     break;
   }
   case Value::ValueKind::kBoolean: {

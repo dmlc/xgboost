@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  */
 #include <array>                            // std::array
 #include <cstddef>                          // std::size_t
@@ -10,7 +10,6 @@
 #include "../common/quantile_loss_utils.h"  // QuantileLossParam
 #include "../common/stats.h"                // Quantile,WeightedQuantile
 #include "adaptive.h"                       // UpdateTreeLeaf
-#include "dmlc/parameter.h"                 // DMLC_DECLARE_PARAMETER
 #include "init_estimation.h"                // CheckInitInputs
 #include "xgboost/base.h"                   // GradientPair,XGBOOST_DEVICE,bst_target_t
 #include "xgboost/data.h"                   // MetaInfo
@@ -18,7 +17,6 @@
 #include "xgboost/json.h"                   // Json,String,ToJson,FromJson
 #include "xgboost/linalg.h"                 // Tensor,MakeTensorView,MakeVec
 #include "xgboost/objective.h"              // ObjFunction
-#include "xgboost/parameter.h"              // XGBoostParameter
 
 #if defined(XGBOOST_USE_CUDA)
 

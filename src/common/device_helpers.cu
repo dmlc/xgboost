@@ -16,7 +16,7 @@ namespace {
 // Host NUMA allocation requires driver that supports CTK >= 12.5 to be stable
 [[nodiscard]] bool CheckVmAlloc() {
   std::int32_t major{0}, minor{0};
-  xgboost::cudr::GetDrVersionGlobal(&major, &minor);
+  xgboost::curt::GetDrVersionGlobal(&major, &minor);
 
   bool vm_flag = true;
   if (IsSupportedDrVer(major, minor)) {

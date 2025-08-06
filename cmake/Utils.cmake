@@ -43,6 +43,20 @@ function(set_default_configuration_release)
     endif()
 endfunction()
 
+if(BUILD_WITH_GIT_HASH)
+  execute_process(COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${xgboost_SOURCE_DIR}
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    OUTPUT_VARIABLE XGBOOST_GIT_HASH
+    ERROR_VARIABLE XGBOOST_GIT_ERROR
+    RESULT_VARIABLE GIT_COMMAND_RESULT)
+
+  if(NOT GIT_COMMAND_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to retrieve the git hash:\n${XGBOOST_GIT_ERROR}")
+  endif()
+  message(STATUS "Git hash: ${XGBOOST_GIT_HASH}")
+endif()
+
 # Generate CMAKE_CUDA_ARCHITECTURES form a list of architectures
 # Also generates PTX for the most recent architecture for forwards compatibility
 function(compute_cmake_cuda_archs archs)
@@ -98,13 +112,11 @@ function(xgboost_set_cuda_flags target)
   if(USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
-  else()
-    target_compile_options(${target} PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
 
   if(USE_NVTX)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
+    target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
 
   # Use CCCL we find before CUDA Toolkit to make sure we get newer headers as intended
@@ -239,6 +251,9 @@ macro(xgboost_target_defs target)
 
   if(USE_NVCOMP)
     target_compile_definitions(objxgboost PUBLIC -DXGBOOST_USE_NVCOMP=1)
+  endif()
+  if(BUILD_WITH_GIT_HASH)
+    target_compile_definitions(objxgboost PUBLIC -DXGBOOST_GIT_HASH="${XGBOOST_GIT_HASH}")
   endif()
 endmacro()
 

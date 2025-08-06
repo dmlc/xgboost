@@ -1,6 +1,7 @@
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-lines, too-many-locals
 """Core XGBoost Library."""
+
 import copy
 import ctypes
 import json
@@ -38,6 +39,7 @@ import numpy as np
 import scipy.sparse
 
 from ._data_utils import (
+    Categories,
     TransformedDf,
     array_interface,
     cuda_array_interface,
@@ -47,6 +49,7 @@ from ._data_utils import (
 from ._typing import (
     _T,
     ArrayLike,
+    ArrowCatList,
     BoosterParam,
     CFloatPtr,
     CNumeric,
@@ -67,17 +70,16 @@ from ._typing import (
     c_bst_ulong,
 )
 from .compat import (
-    PANDAS_INSTALLED,
-    DataFrame,
     import_polars,
     import_pyarrow,
+    is_pandas_available,
     is_pyarrow_available,
     py_str,
 )
 from .libpath import find_lib_path, is_sphinx_build
 
 if TYPE_CHECKING:
-    import pyarrow as pa
+    from pandas import DataFrame as PdDataFrame
 
 
 class XGBoostError(ValueError):
@@ -346,7 +348,7 @@ def _check_distributed_params(kwargs: Dict[str, Any]) -> None:
 def _validate_feature_info(
     feature_info: Sequence[str], n_features: int, is_column_split: bool, name: str
 ) -> List[str]:
-    if isinstance(feature_info, str) or not isinstance(feature_info, Sequence):
+    if not isinstance(feature_info, (str, Sequence, Categories)):
         raise TypeError(
             f"Expecting a sequence of strings for {name}, got: {type(feature_info)}"
         )
@@ -781,27 +783,26 @@ _deprecate_positional_args = require_keyword_args(False)
 
 def _get_categories(
     cfn: Callable[[ctypes.c_char_p], int],
-    feature_names: Optional[FeatureNames],
+    feature_names: FeatureNames,
     n_features: int,
-) -> Optional[Dict[str, "pa.DictionaryArray"]]:
+) -> ArrowCatList:
     if not is_pyarrow_available():
-        raise ImportError("`pyarrow` is required for exporting categories.")
+        raise ImportError(
+            "`pyarrow` is required for exporting categories to arrow arrays."
+        )
 
-    if TYPE_CHECKING:
-        import pyarrow as pa
-    else:
+    if not TYPE_CHECKING:
         pa = import_pyarrow()
+    else:
+        import pyarrow as pa
 
-    fnames = feature_names
-    if fnames is None:
-        fnames = [str(i) for i in range(n_features)]
-
-    results: Dict[str, "pa.DictionaryArray"] = {}
+    results: ArrowCatList = []
 
     ret = ctypes.c_char_p()
     _check_call(cfn(ret))
     if ret.value is None:
-        return None
+        results = [(feature_names[i], None) for i in range(n_features)]
+        return results
 
     retstr = ret.value.decode()  # pylint: disable=no-member
     jcats = json.loads(retstr)
@@ -811,19 +812,19 @@ def _get_categories(
         f_jcats = jcats[fidx]
         if f_jcats is None:
             # Numeric data
-            results[fnames[fidx]] = None
+            results.append((feature_names[fidx], None))
             continue
 
         if "offsets" not in f_jcats:
             values = from_array_interface(f_jcats)
             pa_values = pa.Array.from_pandas(values)
-            results[fnames[fidx]] = pa_values
+            results.append((feature_names[fidx], pa_values))
             continue
 
         joffsets = f_jcats["offsets"]
         jvalues = f_jcats["values"]
-        offsets = from_array_interface(joffsets, True)
-        values = from_array_interface(jvalues, True)
+        offsets = from_array_interface(joffsets)
+        values = from_array_interface(jvalues)
         pa_offsets = pa.array(offsets).buffers()
         pa_values = pa.array(values).buffers()
         assert (
@@ -832,7 +833,7 @@ def _get_categories(
         pa_dict = pa.StringArray.from_buffers(
             len(offsets) - 1, pa_offsets[1], pa_values[1]
         )
-        results[fnames[fidx]] = pa_dict
+        results.append((feature_names[fidx], pa_dict))
 
     return results
 
@@ -865,7 +866,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         missing: Optional[float] = None,
         silent: bool = False,
         feature_names: Optional[FeatureNames] = None,
-        feature_types: Optional[FeatureTypes] = None,
+        feature_types: Optional[Union[FeatureTypes, Categories]] = None,
         nthread: Optional[int] = None,
         group: Optional[ArrayLike] = None,
         qid: Optional[ArrayLike] = None,
@@ -908,27 +909,34 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         feature_types :
 
             Set types for features. If `data` is a DataFrame type and passing
-            `enable_categorical=True`, the types will be deduced automatically
-            from the column types.
+            `enable_categorical=True`, the types will be deduced automatically from the
+            column types.
 
-            Otherwise, one can pass a list-like input with the same length as number
-            of columns in `data`, with the following possible values:
+            Otherwise, one can pass a list-like input with the same length as number of
+            columns in `data`, with the following possible values:
 
             - "c", which represents categorical columns.
             - "q", which represents numeric columns.
             - "int", which represents integer columns.
             - "i", which represents boolean columns.
 
-            Note that, while categorical types are treated differently from
-            the rest for model fitting purposes, the other types do not influence
-            the generated model, but have effects in other functionalities such as
-            feature importances.
+            Note that, while categorical types are treated differently from the rest for
+            model fitting purposes, the other types do not influence the generated
+            model, but have effects in other functionalities such as feature
+            importances.
 
             For categorical features, the input is assumed to be preprocessed and
             encoded by the users. The encoding can be done via
             :py:class:`sklearn.preprocessing.OrdinalEncoder` or pandas dataframe
             `.cat.codes` method. This is useful when users want to specify categorical
             features without having to construct a dataframe as input.
+
+            .. versionadded:: 3.1.0
+
+            Alternatively, user can pass a :py:class:`~xgboost.core.Categories` object
+            returned from previous training as a reference for re-coding. One can obtain
+            the reference with the :py:meth:`.get_categories` from the previous training
+            DMatrix or the Booster. This feature is experimental.
 
         nthread :
             Number of threads to use for loading data when parallelization is
@@ -953,9 +961,9 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
             :doc:`/tutorials/categorical` for more info.
 
             If passing `True` and `data` is a data frame (from supported libraries such
-            as Pandas, Modin or cuDF), The DMatrix recognizes categorical columns and
-            automatically set the `feature_types` parameter. If `data` is not a data
-            frame, this argument is ignored.
+            as Pandas, Modin, polars, and cuDF), The DMatrix recognizes categorical
+            columns and automatically set the `feature_types` parameter. If `data` is
+            not a data frame, this argument is ignored.
 
             If passing `False` and `data` is a data frame with categorical columns, it
             will result in an error.
@@ -1346,21 +1354,44 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
         assert data.dtype == np.float32
         return indptr, data
 
-    def get_categories(self) -> Optional[Dict[str, "pa.DictionaryArray"]]:
-        """Get the categories in the dataset using `pyarrow`. Returns `None` if there's
-        no categorical features.
+    def get_categories(self, export_to_arrow: bool = False) -> Categories:
+        """Get the categories in the dataset.
+
+        .. versionadded:: 3.1.0
 
         .. warning::
 
             This function is still working in progress.
 
-        .. versionadded:: 3.1.0
+        Parameters
+        ----------
+        export_to_arrow :
+            The returned container will contain a list to ``pyarrow`` arrays for the
+            categories. See the :py:meth:`~Categories.to_arrow` for more info.
 
         """
-        return _get_categories(
-            lambda ret: _LIB.XGBDMatrixGetCategories(self.handle, ctypes.byref(ret)),
-            self.feature_names,
-            self.num_col(),
+        fnames = self.feature_names
+        n_features = self.num_col()
+        if fnames is None:
+            fnames = [str(i) for i in range(n_features)]
+
+        hdl = ctypes.c_void_p()
+        if export_to_arrow:
+            arrow_arrays = _get_categories(
+                lambda ret: _LIB.XGDMatrixGetCategoriesExportToArrow(
+                    self.handle, None, ctypes.byref(hdl), ctypes.byref(ret)
+                ),
+                fnames,
+                n_features,
+            )
+        else:
+            arrow_arrays = None
+            _check_call(
+                _LIB.XGDMatrixGetCategories(self.handle, None, ctypes.byref(hdl))
+            )
+
+        return Categories(
+            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
         )
 
     def num_row(self) -> int:
@@ -1660,12 +1691,12 @@ class QuantileDMatrix(DMatrix, _RefMixIn):
 
     max_quantile_batches :
         For GPU-based inputs from an iterator, XGBoost handles incoming batches with
-        multiple growing substreams. This parameter sets the maximum number of batches
-        before XGBoost can cut the sub-stream and create a new one. This can help bound
+        multiple growing sub-streams. This parameter sets the maximum number of batches
+        before XGBoost can cut a sub-stream and create a new one. This can help bound
         the memory usage. By default, XGBoost grows a sub-stream exponentially until
         batches are exhausted. This option is only used for the training dataset and the
-        default is None (unbounded). Lastly, if the `data` is a single batch instead of an
-        iterator, this parameter has no effect.
+        default is None (unbounded). Lastly, if the `data` is a single batch instead of
+        an iterator, this parameter has no effect.
 
         .. versionadded:: 3.0.0
 
@@ -2323,21 +2354,31 @@ class Booster:
     def feature_names(self, features: Optional[FeatureNames]) -> None:
         self._set_feature_info(features, "feature_name")
 
-    def get_categories(self) -> Optional[Dict[str, "pa.DictionaryArray"]]:
-        """Get the categories in the dataset using `pyarrow`. Returns `None` if there's
-        no categorical features.
+    def get_categories(self, export_to_arrow: bool = False) -> Categories:
+        """Same method as :py:meth:`DMatrix.get_categories`."""
 
-        .. warning::
+        fnames = self.feature_names
+        n_features = self.num_features()
+        if fnames is None:
+            fnames = [str(i) for i in range(n_features)]
 
-            This function is still working in progress.
+        hdl = ctypes.c_void_p()
+        if export_to_arrow:
+            arrow_arrays = _get_categories(
+                lambda ret: _LIB.XGBoosterGetCategoriesExportToArrow(
+                    self.handle, None, ctypes.byref(hdl), ctypes.byref(ret)
+                ),
+                fnames,
+                n_features,
+            )
+        else:
+            arrow_arrays = None
+            _check_call(
+                _LIB.XGBoosterGetCategories(self.handle, None, ctypes.byref(hdl))
+            )
 
-        .. versionadded:: 3.1.0
-
-        """
-        return _get_categories(
-            lambda ret: _LIB.XGBoosterGetCategories(self.handle, ctypes.byref(ret)),
-            self.feature_names,
-            self.num_features(),
+        return Categories(
+            (hdl, lambda: _check_call(_LIB.XGBCategoriesFree(hdl))), arrow_arrays
         )
 
     def set_param(
@@ -3165,7 +3206,8 @@ class Booster:
         """Get feature importance of each feature.
         For tree model Importance type can be defined as:
 
-        * 'weight': the number of times a feature is used to split the data across all trees.
+        * 'weight': the number of times a feature is used to split the data across all
+           trees.
         * 'gain': the average gain across all splits the feature is used in.
         * 'cover': the average coverage across all splits the feature is used in.
         * 'total_gain': the total gain across all splits the feature is used in.
@@ -3225,7 +3267,7 @@ class Booster:
         return results
 
     # pylint: disable=too-many-statements
-    def trees_to_dataframe(self, fmap: PathLike = "") -> DataFrame:
+    def trees_to_dataframe(self, fmap: PathLike = "") -> "PdDataFrame":
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
         This feature is only defined when the decision tree model is chosen as base
@@ -3238,8 +3280,10 @@ class Booster:
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
+        from pandas import DataFrame
+
         fmap = os.fspath(os.path.expanduser(fmap))
-        if not PANDAS_INSTALLED:
+        if not is_pandas_available():
             raise ImportError(
                 (
                     "pandas must be available to use this method."
@@ -3390,7 +3434,7 @@ class Booster:
         fmap: PathLike = "",
         bins: Optional[int] = None,
         as_pandas: bool = True,
-    ) -> Union[np.ndarray, DataFrame]:
+    ) -> Union[np.ndarray, "PdDataFrame"]:
         """Get split value histogram of a feature
 
         Parameters
@@ -3446,9 +3490,11 @@ class Booster:
                     "Split value historgam doesn't support categorical split."
                 )
 
-        if as_pandas and PANDAS_INSTALLED:
+        if as_pandas and is_pandas_available():
+            from pandas import DataFrame
+
             return DataFrame(nph_stacked, columns=["SplitValue", "Count"])
-        if as_pandas and not PANDAS_INSTALLED:
+        if as_pandas and not is_pandas_available():
             warnings.warn(
                 "Returning histogram as ndarray"
                 " (as_pandas == True, but pandas is not installed).",

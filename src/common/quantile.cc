@@ -110,10 +110,14 @@ void HostSketchContainer::PushAdapterBatch(Batch const &batch, size_t base_rowid
       data::_type const &batch, size_t base_rowid, MetaInfo const &info, float missing);
 
 INSTANTIATE(ArrayAdapterBatch)
+INSTANTIATE(DenseAdapterBatch)
 INSTANTIATE(CSRArrayAdapterBatch)
 INSTANTIATE(CSCArrayAdapterBatch)
 INSTANTIATE(SparsePageAdapterBatch)
 INSTANTIATE(ColumnarAdapterBatch)
+INSTANTIATE(EncColumnarAdapterBatch)
+
+#undef INSTANTIATE
 
 namespace {
 /**

@@ -14,8 +14,8 @@ from sklearn.model_selection import train_test_split
 import xgboost as xgb
 import xgboost.federated
 from xgboost import testing as tm
-from xgboost.training import TrainingCallback
 
+from .._typing import EvalsLog
 from ..collective import _Args as CollArgs
 
 SERVER_KEY = "server-key.pem"
@@ -80,7 +80,7 @@ def run_worker(
         num_round = 20
 
         # Run training, all the features in training API is available.
-        results: TrainingCallback.EvalsLog = {}
+        results: EvalsLog = {}
         bst = xgb.train(
             param,
             dtrain,

@@ -188,4 +188,34 @@ void GetNumaNodeCpus(std::int32_t node_id, std::vector<std::int32_t> *p_cpus) {
 #endif  // defined(__linux__)
   return -1;
 }
+
+void GetNumaHasNormalMemoryNodes(std::vector<std::int32_t> *p_nodes) {
+#if defined(__linux__)
+  fs::path has_nm{"/sys/devices/system/node/has_normal_memory"};
+  p_nodes->clear();
+  if (!fs::exists(has_nm)) {
+    return;
+  }
+  ReadCpuList(has_nm, p_nodes);
+#endif  // defined(__linux__)
+}
+
+void GetNumaHasCpuNodes(std::vector<std::int32_t> *p_nodes) {
+#if defined(__linux__)
+  fs::path has_cpu{"/sys/devices/system/node/has_cpu"};
+  p_nodes->clear();
+  if (!fs::exists(has_cpu)) {
+    return;
+  }
+  ReadCpuList(has_cpu, p_nodes);
+#endif  // defined(__linux__)
+}
+
+[[nodiscard]] bool GetCpuNuma(unsigned int* cpu, unsigned int* numa) {
+#ifdef SYS_getcpu
+  return syscall(SYS_getcpu, cpu, numa, NULL) == 0;
+#else
+  return false;
+#endif
+}
 }  // namespace xgboost::common

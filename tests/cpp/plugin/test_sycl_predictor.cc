@@ -58,7 +58,7 @@ TEST(SyclPredictor, InplacePredict) {
     auto array_interface = GetArrayInterface(&data, kRows, kCols);
     std::string arr_str;
     Json::Dump(array_interface, &arr_str);
-    x->SetArrayData(arr_str.data());
+    x->SetArray(arr_str.data());
     TestInplacePrediction(&ctx, x, kRows, kCols);
   }
 }

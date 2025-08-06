@@ -30,7 +30,8 @@
 #include "../common/numeric.h"                // for Iota, RunLengthEncode
 #include "../common/threading_utils.h"        // for ParallelFor
 #include "../common/version.h"                // for Version
-#include "../data/adapter.h"                  // for COOTuple, FileAdapter, IsValidFunctor
+#include "../data/adapter.h"                  // for FileAdapter
+#include "../data/entry.h"                    // for COOTuple, IsValidFunctor
 #include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
 #include "../data/iterative_dmatrix.h"        // for IterativeDMatrix
 #include "./sparse_page_dmatrix.h"            // for SparsePageDMatrix
@@ -875,8 +876,8 @@ bool MetaInfo::ShouldHaveLabels() const {
 
 void MetaInfo::Cats(std::shared_ptr<CatContainer> cats) {
   this->cats_ = std::move(cats);
-  CHECK_LT(cats_->NumFeatures(),
-           static_cast<decltype(cats->NumFeatures())>(std::numeric_limits<bst_cat_t>::max()));
+  CHECK_LT(cats_->NumCatsTotal(),
+           static_cast<decltype(cats->NumCatsTotal())>(std::numeric_limits<bst_cat_t>::max()));
 }
 
 using DMatrixThreadLocal =
@@ -930,6 +931,11 @@ DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_s
   }
 
   int partid = 0, npart = 1;
+
+  static std::once_flag warning_flag;
+  std::call_once(warning_flag, []() {
+    LOG(WARNING) << "Text file input has been deprecated since 3.1";
+  });
 
   fname = data::ValidateFileFormat(fname);
   std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
@@ -1105,7 +1111,7 @@ void SparsePage::Push(const SparsePage &batch) {
 }
 
 template <typename AdapterBatchT>
-uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
+bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32_t nthread) {
   constexpr bool kIsRowMajor = AdapterBatchT::kIsRowMajor;
   // Allow threading only for row-major case as column-major requires O(nthread*batch_size) memory
   nthread = kIsRowMajor ? nthread : 1;
@@ -1273,6 +1279,7 @@ INSTANTIATE_PUSH(CSRArrayAdapterBatch)
 INSTANTIATE_PUSH(CSCArrayAdapterBatch)
 INSTANTIATE_PUSH(FileAdapterBatch)
 INSTANTIATE_PUSH(ColumnarAdapterBatch)
+INSTANTIATE_PUSH(EncColumnarAdapterBatch)
 
 #undef INSTANTIATE_PUSH
 
