@@ -176,13 +176,13 @@ struct ExternalDataInfo {
 
 namespace cpu_impl {
 /**
- * @brief Dispatch function call based on input type.
+ * @brief Dispatch function call based on the input type.
  *
- * @tparam get_value Whether the funciton Fn accept an adapter batch or the adapter itself.
+ * @tparam get_value Whether the funciton Fn accepts an adapter batch or the adapter itself.
  * @tparam AddPtrT   The type of the adapter pointer. Use std::add_pointer_t for raw pointer.
  * @tparam Fn        The type of the function to be dispatched.
  *
- * @param x     Any any object that contains a pointer to an adapter.
+ * @param x     Any any object that contains a (shared) pointer to an adapter.
  * @param fn    The function to be dispatched.
  * @param type_error[out] Set to ture if it's not null and the input data is not recognized by
  *                        the host.
@@ -261,8 +261,6 @@ decltype(auto) DispatchAny(DMatrixProxy const* proxy, Fn&& fn, bool* type_error 
 
 /**
  * @brief Get categories for the current batch.
- *
- * @param ref_if_avail Use the reference categories if present.
  *
  * @return A host view to the categories
  */

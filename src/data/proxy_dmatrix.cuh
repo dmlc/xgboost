@@ -8,6 +8,7 @@
 #include "proxy_dmatrix.h"
 
 namespace xgboost::data::cuda_impl {
+// See the cpu impl for parameter documentation.
 template <bool get_value = true, template <typename A> typename AddPtrT = std::shared_ptr,
           typename Fn>
 decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_error = nullptr) {

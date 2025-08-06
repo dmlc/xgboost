@@ -139,9 +139,9 @@ sklearn interface :py:class:`~xgboost.XGBRegressor` has the same parameter.
 
 .. _cat-recode:
 
-****************
-Data Consistency
-****************
+********************************
+Auto-recoding (Data Consistency)
+********************************
 
 .. versionchanged:: 3.1
 
@@ -150,7 +150,7 @@ Data Consistency
 
 XGBoost accepts parameters to indicate which feature is considered categorical, either
 through the ``dtypes`` of a dataframe or through the ``feature_types`` parameter. However,
-aside from the Python interface, XGBoost doesn't store the information about how
+except for the Python interface, XGBoost doesn't store the information about how
 categories are encoded in the first place. For instance, given an encoding schema that
 maps music genres to integer codes:
 
@@ -163,10 +163,11 @@ the input and hence cannot store it in the model. The mapping usually happens in
 users' data engineering pipeline. To ensure the correct result from XGBoost, users need to
 keep the pipeline for transforming data consistent across training and testing data.
 
-Starting with 3.1, the *Python* interface can remember the encoding when the input is a
-dataframe (`pandas`, `cuDF`, `polars`, `pyarrow`, `modin`). The feature support focuses on
-basic usage. It has some restrictions on what inputs can be. Firstly, category names must
-have one of the following types:
+Starting with 3.1, the *Python* interface can remember the encoding and perform recoding
+during inference and training continuation when the input is a dataframe (`pandas`,
+`cuDF`, `polars`, `pyarrow`, `modin`). The feature support focuses on basic usage. It has
+some restrictions on the types of inputs that can be accepted. Firstly, category names
+must have one of the following types:
 
 - string
 - integer, from 8-bit to 64-bit, both signed and unsigned are supported.
@@ -178,7 +179,7 @@ training set are unsigned integers whereas the test dataset has signed integer c
 you have categories that are not one of the supported types, you need to perform the
 re-coding using a pre-processing data transformer like the
 :py:class:`sklearn.preprocessing.OrdinalEncoder`. See
-:ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using ordinal
+:ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using an ordinal
 encoder. To clarify, the type here refers to the type of the name of categories (called
 ``Index`` in pandas):
 
@@ -193,15 +194,15 @@ encoder. To clarify, the type here refers to the type of the name of categories 
   # floating point type, both 32-bit and 64-bit are supported.
   {-1.0: 0, 1.0: 1, 3.0: 2, 7.0: 3}
 
-Internally, XGBoost attempts to extract the categories from dataframe inputs. For
+Internally, XGBoost attempts to extract the categories from the dataframe inputs. For
 inference (predict), the re-coding happens on the fly and there's no data copy (baring
 from some internal transformations performed by the dataframe itself). For training
 continuation however, re-coding requires some extra steps if you are using the native
 interface. The sklearn interface and the Dask interface can handle training continuation
 automatically. Lastly, please note that using the re-coder with the native interface is
 still experimental. It's ready for testing, but we want to observe the feature usage for a
-period of time and might make some breaking changes if needed. Following is a snippet of
-using the native interface:
+period of time and might make some breaking changes if needed. The following is a snippet
+of using the native interface:
 
 .. code-block:: python
 
@@ -225,9 +226,9 @@ using the native interface:
   booster_1 = xgboost.train({}, Xy_new, xgb_model=booster)
 
 
-No extra step is required for using the scikit-learn interface as long as inputs are
+No extra step is required for using the scikit-learn interface as long as the inputs are
 dataframes. During training continuation, XGBoost will either extract the categories from
-the previous model, or use the categories from the new training dataset if the input model
+the previous model or use the categories from the new training dataset if the input model
 doesn't have the information.
 
 *************
