@@ -244,22 +244,12 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   uint64_t inferred_num_columns = 0;
   uint64_t total_batch_size = 0;
 
-  auto push_page = [&]() {
-    bool type_error = false;
-    auto n_columns = cpu_impl::DispatchAny(
-        &ctx, p_adapter,
-        [&](auto const& batch) { return sparse_page_->Push(batch, missing, ctx.Threads()); },
-        &type_error);
-    if (type_error) {
-      return sparse_page_->Push(p_adapter->Value(), missing, ctx.Threads());
-    }
-    return n_columns;
-  };
-
   p_adapter->BeforeFirst();
   // Iterate over batches of input data
   while (p_adapter->Next()) {
-    bst_idx_t batch_max_columns = push_page();
+    bst_idx_t batch_max_columns = cpu_impl::DispatchAny(&ctx, p_adapter, [&](auto const& batch) {
+      return sparse_page_->Push(batch, missing, ctx.Threads());
+    });
     auto& batch = p_adapter->Value();
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
@@ -381,9 +371,6 @@ INSTANTIATE_SDCTOR(CSRArrayAdapter)
 INSTANTIATE_SDCTOR(CSCArrayAdapter)
 INSTANTIATE_SDCTOR(FileAdapter)
 INSTANTIATE_SDCTOR(ColumnarAdapter)
-namespace {
-using IterAdapterT = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
-}
 INSTANTIATE_SDCTOR(IterAdapterT)
 
 #undef INSTANTIATE_SDCTOR

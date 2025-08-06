@@ -173,6 +173,8 @@ struct ExternalDataInfo {
   }
 };
 
+using IterAdapterT = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
+
 namespace cpu_impl {
 template <bool get_value = true, typename Fn>
 decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_error = nullptr) {
@@ -182,14 +184,14 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_err
     }
   };
   CHECK(x.has_value());
-  if (x.type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
+  if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
     has_type();
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x)->Value();
+      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x);
-      return fn(value);
+      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x);
+      fn(value);
     }
   } else if (x.type() == typeid(std::shared_ptr<ArrayAdapter>)) {
     has_type();
@@ -198,6 +200,24 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_err
       return fn(value);
     } else {
       auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(x);
+      return fn(value);
+    }
+  } else if (x.type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
+    has_type();
+    if constexpr (get_value) {
+      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x)->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x);
+      return fn(value);
+    }
+  } else if (x.type() == typeid(std::shared_ptr<CSCArrayAdapter>)) {
+    has_type();
+    if constexpr (get_value) {
+      auto value = std::any_cast<std::shared_ptr<CSCArrayAdapter>>(x)->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<std::shared_ptr<CSCArrayAdapter>>(x);
       return fn(value);
     }
   } else if (x.type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
@@ -213,14 +233,23 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_err
     } else {
       return fn(adapter);
     }
-  } else if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
+  } else if (x.type() == typeid(std::shared_ptr<FileAdapter>)) {
     has_type();
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x)->Value();
+      auto value = std::any_cast<std::shared_ptr<FileAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x);
-      fn(value);
+      auto value = std::any_cast<std::shared_ptr<FileAdapter>>(x);
+      return fn(value);
+    }
+  } else if (x.type() == typeid(std::any_cast<std::shared_ptr<IterAdapterT>>(x))) {
+    has_type();
+    if constexpr (get_value) {
+      auto value = std::any_cast<std::shared_ptr<IterAdapterT>>(x)->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<std::shared_ptr<IterAdapterT>>(x);
+      return fn(value);
     }
   } else {
     if (type_error) {
@@ -320,9 +349,7 @@ namespace cuda_impl {
   return n_features;
 }
 
-namespace cpu_impl {
-
-}  // namespace cpu_impl
+namespace cpu_impl {}  // namespace cpu_impl
 [[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy);
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_PROXY_DMATRIX_H_
