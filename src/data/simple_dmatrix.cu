@@ -2,7 +2,6 @@
  * Copyright 2019-2025, XGBoost Contributors
  */
 
-#include <any>      // for any
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for make_shared
 
