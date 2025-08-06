@@ -10,7 +10,6 @@
 #include <limits>
 #include <numeric>  // for accumulate
 #include <type_traits>
-#include <utility>  // for move
 #include <vector>
 
 #include "../collective/allgather.h"
@@ -233,8 +232,6 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
                              DataSplitMode data_split_mode) {
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(nthread)}});
-  auto p_adapter = std::make_shared<AdapterT>(std::move(*adapter));
-
   std::vector<uint64_t> qids;
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
   uint64_t last_group_id = default_max;
@@ -245,15 +242,16 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   uint64_t inferred_num_columns = 0;
   uint64_t total_batch_size = 0;
 
-  p_adapter->BeforeFirst();
+  adapter->BeforeFirst();
   // Iterate over batches of input data
-  while (p_adapter->Next()) {
+  while (adapter->Next()) {
     bool type_error = false;
     auto push = [&](auto const& batch) {
       return sparse_page_->Push(batch, missing, ctx.Threads());
     };
-    bst_idx_t batch_max_columns = cpu_impl::DispatchAny(&ctx, p_adapter, push, &type_error);
-    auto& batch = p_adapter->Value();
+    bst_idx_t batch_max_columns =
+        cpu_impl::DispatchAny<true, std::add_pointer_t>(&ctx, adapter, push, &type_error);
+    auto& batch = adapter->Value();
     if (type_error) {
       // Not supported by the dispatch function.
       batch_max_columns = push(batch);
@@ -299,17 +297,17 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
 
   // Deal with empty rows/columns if necessary
-  if (p_adapter->NumColumns() == kAdapterUnknownSize) {
+  if (adapter->NumColumns() == kAdapterUnknownSize) {
     info_.num_col_ = inferred_num_columns;
   } else {
-    info_.num_col_ = p_adapter->NumColumns();
+    info_.num_col_ = adapter->NumColumns();
   }
 
   if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-    if (p_adapter->HasRefCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(p_adapter->RefCats(), true));
-    } else if (p_adapter->HasCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(p_adapter->Cats(), false));
+    if (adapter->HasRefCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(adapter->RefCats(), true));
+    } else if (adapter->HasCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(adapter->Cats(), false));
     }
   }
 
@@ -317,7 +315,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   this->ReindexFeatures(&ctx, data_split_mode);
   this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
-  if (p_adapter->NumRows() == kAdapterUnknownSize) {
+  if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT =
         IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
     // If AdapterT is either IteratorAdapter or FileAdapter type, use the total batch size to
@@ -336,10 +334,10 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
     if (offset_vec.empty()) {
       offset_vec.emplace_back(0);
     }
-    while (offset_vec.size() - 1 < p_adapter->NumRows()) {
+    while (offset_vec.size() - 1 < adapter->NumRows()) {
       offset_vec.emplace_back(offset_vec.back());
     }
-    info_.num_row_ = p_adapter->NumRows();
+    info_.num_row_ = adapter->NumRows();
   }
   info_.num_nonzero_ = data_vec.size();
 
@@ -349,7 +347,6 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
 
   this->fmat_ctx_ = ctx;
-  std::swap(*p_adapter, *adapter);
 }
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {

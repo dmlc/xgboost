@@ -5,7 +5,6 @@
 #include <any>      // for any
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for make_shared
-#include <utility>  // for move
 
 #include "../common/cuda_rt_utils.h"  // for CurrentDevice, SetDevice
 #include "cat_container.h"            // for CatContainer
@@ -23,45 +22,42 @@ namespace xgboost::data {
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthread,
                              DataSplitMode data_split_mode) {
-  auto p_adapter = std::make_shared<AdapterT>(std::move(*adapter));
-
   CHECK(data_split_mode != DataSplitMode::kCol)
       << "Column-wise data split is currently not supported by the GPU.";
-  auto device = (!p_adapter->Device().IsCUDA() || p_adapter->NumRows() == 0)
+  auto device = (!adapter->Device().IsCUDA() || adapter->NumRows() == 0)
                     ? DeviceOrd::CUDA(curt::CurrentDevice())
-                    : p_adapter->Device();
+                    : adapter->Device();
   CHECK(device.IsCUDA());
   curt::SetDevice(device.ordinal);
 
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(nthread)}, {"device", device.Name()}});
 
-  CHECK(p_adapter->NumRows() != kAdapterUnknownSize);
-  CHECK(p_adapter->NumColumns() != kAdapterUnknownSize);
+  CHECK(adapter->NumRows() != kAdapterUnknownSize);
+  CHECK(adapter->NumColumns() != kAdapterUnknownSize);
 
-  p_adapter->BeforeFirst();
-  p_adapter->Next();
+  adapter->BeforeFirst();
+  adapter->Next();
 
   // Enforce single batch
-  CHECK(!p_adapter->Next());
+  CHECK(!adapter->Next());
 
-  cuda_impl::DispatchAny(&ctx, p_adapter, [&](auto const& batch) {
+  cuda_impl::DispatchAny<true, std::add_pointer_t>(&ctx, adapter, [&](auto const& batch) {
     info_.num_nonzero_ = CopyToSparsePage(&ctx, batch, device, missing, sparse_page_.get());
   });
-  info_.num_col_ = p_adapter->NumColumns();
-  info_.num_row_ = p_adapter->NumRows();
+  info_.num_col_ = adapter->NumColumns();
+  info_.num_row_ = adapter->NumRows();
 
   if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
     if (adapter->HasRefCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(&ctx, p_adapter->RefCats(), true));
-    } else if (p_adapter->HasCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(&ctx, p_adapter->Cats(), false));
+      info_.Cats(std::make_shared<CatContainer>(&ctx, adapter->RefCats(), true));
+    } else if (adapter->HasCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(&ctx, adapter->Cats(), false));
     }
   }
   this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
   this->fmat_ctx_ = ctx;
-  std::swap(*p_adapter, *adapter);
 }
 
 template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing, std::int32_t nthread,

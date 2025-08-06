@@ -8,29 +8,30 @@
 #include "proxy_dmatrix.h"
 
 namespace xgboost::data::cuda_impl {
-template <bool get_value = true, typename Fn>
+template <bool get_value = true, template <typename A> typename AddPtrT = std::shared_ptr,
+          typename Fn>
 decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_error = nullptr) {
   auto has_type = [&] {
     if (type_error) {
       *type_error = false;
     }
   };
-  if (x.type() == typeid(std::shared_ptr<CupyAdapter>)) {
+  if (x.type() == typeid(AddPtrT<CupyAdapter>)) {
     has_type();
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CupyAdapter>>(x)->Value();
+      auto value = std::any_cast<AddPtrT<CupyAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<CupyAdapter>>(x);
+      auto value = std::any_cast<AddPtrT<CupyAdapter>>(x);
       return fn(value);
     }
-  } else if (x.type() == typeid(std::shared_ptr<CudfAdapter>)) {
+  } else if (x.type() == typeid(AddPtrT<CudfAdapter>)) {
     has_type();
-    auto adapter = std::any_cast<std::shared_ptr<CudfAdapter>>(x);
+    auto adapter = std::any_cast<AddPtrT<CudfAdapter>>(x);
     if constexpr (get_value) {
       auto value = adapter->Value();
       if (adapter->HasRefCategorical()) {
-        auto [batch, mapping] = MakeEncColumnarBatch(ctx, adapter.get());
+        auto [batch, mapping] = MakeEncColumnarBatch(ctx, adapter);
         return fn(batch);
       }
       return fn(value);
@@ -47,10 +48,10 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_e
 
   // Dummy return value
   if constexpr (get_value) {
-    auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(x)->Value();
+    auto value = std::any_cast<AddPtrT<CudfAdapter>>(x)->Value();
     return fn(value);
   } else {
-    auto value = std::any_cast<std::shared_ptr<CudfAdapter>>(x);
+    auto value = std::any_cast<AddPtrT<CudfAdapter>>(x);
     return fn(value);
   }
 }

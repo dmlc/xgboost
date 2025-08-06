@@ -175,8 +175,23 @@ struct ExternalDataInfo {
 };
 
 namespace cpu_impl {
-template <bool get_value = true, typename Fn>
-decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_error = nullptr) {
+/**
+ * @brief Dispatch function call based on input type.
+ *
+ * @tparam get_value Whether the funciton Fn accept an adapter batch or the adapter itself.
+ * @tparam AddPtrT   The type of the adapter pointer. Use std::add_pointer_t for raw pointer.
+ * @tparam Fn        The type of the function to be dispatched.
+ *
+ * @param x     Any any object that contains a pointer to an adapter.
+ * @param fn    The function to be dispatched.
+ * @param type_error[out] Set to ture if it's not null and the input data is not recognized by
+ *                        the host.
+ *
+ * @return The return value of the function being dispatched.
+ */
+template <bool get_value = true, template <typename A> typename AddPtrT = std::shared_ptr,
+          typename Fn>
+decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_error = nullptr) {
   // CSC, FileAdapter, and IteratorAdapter are not supported.
   auto has_type = [&] {
     if (type_error) {
@@ -184,40 +199,40 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_err
     }
   };
   CHECK(x.has_value());
-  if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
+  if (x.type() == typeid(AddPtrT<data::DenseAdapter>)) {
     has_type();
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x)->Value();
+      auto value = std::any_cast<AddPtrT<DenseAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<DenseAdapter>>(x);
+      auto value = std::any_cast<AddPtrT<DenseAdapter>>(x);
       fn(value);
     }
-  } else if (x.type() == typeid(std::shared_ptr<ArrayAdapter>)) {
+  } else if (x.type() == typeid(AddPtrT<ArrayAdapter>)) {
     has_type();
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(x)->Value();
+      auto value = std::any_cast<AddPtrT<ArrayAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(x);
+      auto value = std::any_cast<AddPtrT<ArrayAdapter>>(x);
       return fn(value);
     }
-  } else if (x.type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
+  } else if (x.type() == typeid(AddPtrT<CSRArrayAdapter>)) {
     has_type();
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x)->Value();
+      auto value = std::any_cast<AddPtrT<CSRArrayAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x);
+      auto value = std::any_cast<AddPtrT<CSRArrayAdapter>>(x);
       return fn(value);
     }
-  } else if (x.type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
+  } else if (x.type() == typeid(AddPtrT<ColumnarAdapter>)) {
     has_type();
-    auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(x);
+    auto adapter = std::any_cast<AddPtrT<ColumnarAdapter>>(x);
     if constexpr (get_value) {
       auto value = adapter->Value();
       if (adapter->HasRefCategorical()) {
-        auto [batch, mapping] = MakeEncColumnarBatch(ctx, adapter.get());
+        auto [batch, mapping] = MakeEncColumnarBatch(ctx, adapter);
         return fn(batch);
       }
       return fn(value);
@@ -233,26 +248,12 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_err
   }
 
   if constexpr (get_value) {
-    return std::invoke_result_t<Fn,
-                                decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value())>();
+    return std::invoke_result_t<Fn, decltype(std::declval<AddPtrT<ArrayAdapter>>()->Value())>();
   } else {
-    return std::invoke_result_t<Fn, decltype(std::declval<std::shared_ptr<ArrayAdapter>>())>();
+    return std::invoke_result_t<Fn, decltype(std::declval<AddPtrT<ArrayAdapter>>())>();
   }
 }
 
-/**
- * @brief Dispatch function call based on input type.
- *
- * @tparam get_value Whether the funciton Fn accept an adapter batch or the adapter itself.
- * @tparam Fn        The type of the function to be dispatched.
- *
- * @param proxy The proxy object holding the reference to the input.
- * @param fn    The function to be dispatched.
- * @param type_error[out] Set to ture if it's not null and the input data is not recognized by
- *                        the host.
- *
- * @return The return value of the function being dispatched.
- */
 template <bool get_value = true, typename Fn>
 decltype(auto) DispatchAny(DMatrixProxy const* proxy, Fn&& fn, bool* type_error = nullptr) {
   return DispatchAny<get_value>(proxy->Ctx(), proxy->Adapter(), std::forward<Fn>(fn), type_error);
