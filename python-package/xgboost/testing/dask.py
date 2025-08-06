@@ -21,7 +21,7 @@ from ..dask import _DASK_VERSION, _get_rabit_args
 from .data import make_batches
 from .data import make_categorical as make_cat_local
 from .ordinal import make_recoded
-from .utils import Device
+from .utils import Device, assert_allclose
 
 
 def check_init_estimation_clf(
@@ -373,3 +373,11 @@ def run_recode(client: Client, device: Device) -> None:
     np.testing.assert_allclose(
         results_1["history"]["Valid"]["rmse"], results_2["history"]["Valid"]["rmse"]
     )
+
+    predt_0 = dxgb.inplace_predict(client, results, denc).compute()
+    predt_1 = dxgb.inplace_predict(client, results, dreenc).compute()
+    assert_allclose(device, predt_0, predt_1)
+
+    predt_0 = dxgb.predict(client, results, Xy).compute()
+    predt_1 = dxgb.predict(client, results, Xy_valid).compute()
+    assert_allclose(device, predt_0, predt_1)
