@@ -2,12 +2,14 @@
  * Copyright 2019-2025, XGBoost Contributors
  */
 
+#include <any>      // for any
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for make_shared
 
 #include "../common/cuda_rt_utils.h"  // for CurrentDevice, SetDevice
 #include "cat_container.h"            // for CatContainer
 #include "device_adapter.cuh"
+#include "proxy_dmatrix.cuh"  // for DispatchAny
 #include "simple_dmatrix.cuh"
 #include "simple_dmatrix.h"
 #include "xgboost/context.h"  // for Context
@@ -40,19 +42,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   // Enforce single batch
   CHECK(!adapter->Next());
 
-  auto copy_page = [&] {
-    if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
-      if (adapter->HasRefCategorical()) {
-        auto [batch, mapping] = MakeEncColumnarBatch(&ctx, adapter);
-        info_.num_nonzero_ = CopyToSparsePage(&ctx, batch, device, missing, sparse_page_.get());
-        return;
-      }
-    }
-    info_.num_nonzero_ =
-        CopyToSparsePage(&ctx, adapter->Value(), device, missing, sparse_page_.get());
-  };
-
-  copy_page();
+  cuda_impl::DispatchAny(&ctx, *adapter, [&](auto const& batch) {
+    info_.num_nonzero_ = CopyToSparsePage(&ctx, batch, device, missing, sparse_page_.get());
+  });
   info_.num_col_ = adapter->NumColumns();
   info_.num_row_ = adapter->NumRows();
 
