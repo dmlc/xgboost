@@ -6,6 +6,7 @@
 
 #include <memory>       // for shared_ptr
 #include <type_traits>  // for is_same_v
+#include <utility>      // for move
 
 #include "../common/type.h"   // for GetValueT
 #include "adapter.h"          // for ColumnarAdapter

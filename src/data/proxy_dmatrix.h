@@ -9,6 +9,7 @@
 #include <cstdint>      // for uint32_t, int32_t
 #include <memory>       // for shared_ptr
 #include <type_traits>  // for invoke_result_t, declval
+#include <utility>      // for forward
 #include <vector>       // for vector
 
 #include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
@@ -178,6 +179,7 @@ using IterAdapterT = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XG
 namespace cpu_impl {
 template <bool get_value = true, typename Fn>
 decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_error = nullptr) {
+  // CSC, FileAdapter, and IteratorAdapter are not supported.
   auto has_type = [&] {
     if (type_error) {
       *type_error = false;
@@ -211,15 +213,6 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_err
       auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(x);
       return fn(value);
     }
-  } else if (x.type() == typeid(std::shared_ptr<CSCArrayAdapter>)) {
-    has_type();
-    if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CSCArrayAdapter>>(x)->Value();
-      return fn(value);
-    } else {
-      auto value = std::any_cast<std::shared_ptr<CSCArrayAdapter>>(x);
-      return fn(value);
-    }
   } else if (x.type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
     has_type();
     auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(x);
@@ -232,24 +225,6 @@ decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_err
       return fn(value);
     } else {
       return fn(adapter);
-    }
-  } else if (x.type() == typeid(std::shared_ptr<FileAdapter>)) {
-    has_type();
-    if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<FileAdapter>>(x)->Value();
-      return fn(value);
-    } else {
-      auto value = std::any_cast<std::shared_ptr<FileAdapter>>(x);
-      return fn(value);
-    }
-  } else if (x.type() == typeid(std::any_cast<std::shared_ptr<IterAdapterT>>(x))) {
-    has_type();
-    if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<IterAdapterT>>(x)->Value();
-      return fn(value);
-    } else {
-      auto value = std::any_cast<std::shared_ptr<IterAdapterT>>(x);
-      return fn(value);
     }
   } else {
     if (type_error) {

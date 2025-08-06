@@ -10,6 +10,7 @@
 #include <limits>
 #include <numeric>  // for accumulate
 #include <type_traits>
+#include <utility>  // for move
 #include <vector>
 
 #include "../collective/allgather.h"
@@ -247,10 +248,17 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   p_adapter->BeforeFirst();
   // Iterate over batches of input data
   while (p_adapter->Next()) {
-    bst_idx_t batch_max_columns = cpu_impl::DispatchAny(&ctx, p_adapter, [&](auto const& batch) {
+    bool type_error = false;
+    auto push = [&](auto const& batch) {
       return sparse_page_->Push(batch, missing, ctx.Threads());
-    });
+    };
+    bst_idx_t batch_max_columns = cpu_impl::DispatchAny(&ctx, p_adapter, push, &type_error);
     auto& batch = p_adapter->Value();
+    if (type_error) {
+      // Not supported by the dispatch function.
+      batch_max_columns = push(batch);
+    }
+
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
     // Append meta information if available

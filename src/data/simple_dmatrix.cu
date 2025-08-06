@@ -5,6 +5,7 @@
 #include <any>      // for any
 #include <cstdint>  // for int32_t, int8_t
 #include <memory>   // for make_shared
+#include <utility>  // for move
 
 #include "../common/cuda_rt_utils.h"  // for CurrentDevice, SetDevice
 #include "cat_container.h"            // for CatContainer
