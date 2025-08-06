@@ -21,6 +21,7 @@
 #include "cat_container.h"  // for CatContainer
 #include "ellpack_page.h"   // for EllpackPage
 #include "gradient_index.h"
+#include "proxy_dmatrix.h"  // for DispatchAny
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
 
@@ -231,6 +232,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
                              DataSplitMode data_split_mode) {
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(nthread)}});
+  auto p_adapter = std::make_shared<AdapterT>(std::move(*adapter));
 
   std::vector<uint64_t> qids;
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
@@ -238,25 +240,27 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   bst_uint group_size = 0;
   auto& offset_vec = sparse_page_->offset.HostVector();
   auto& data_vec = sparse_page_->data.HostVector();
+  // batch_size is either number of rows or cols, depending on data layout
   uint64_t inferred_num_columns = 0;
   uint64_t total_batch_size = 0;
-  // batch_size is either number of rows or cols, depending on data layout
 
-  auto push_page = [&](auto const& batch) {
-    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-      if (adapter->HasRefCategorical()) {
-        auto [enc_batch, mapping] = MakeEncColumnarBatch(&ctx, adapter);
-        return sparse_page_->Push(enc_batch, missing, ctx.Threads());
-      }
+  auto push_page = [&]() {
+    bool type_error = false;
+    auto n_columns = cpu_impl::DispatchAny(
+        &ctx, p_adapter,
+        [&](auto const& batch) { return sparse_page_->Push(batch, missing, ctx.Threads()); },
+        &type_error);
+    if (type_error) {
+      return sparse_page_->Push(p_adapter->Value(), missing, ctx.Threads());
     }
-    return sparse_page_->Push(batch, missing, ctx.Threads());
+    return n_columns;
   };
 
-  adapter->BeforeFirst();
+  p_adapter->BeforeFirst();
   // Iterate over batches of input data
-  while (adapter->Next()) {
-    auto& batch = adapter->Value();
-    bst_idx_t batch_max_columns = push_page(batch);
+  while (p_adapter->Next()) {
+    bst_idx_t batch_max_columns = push_page();
+    auto& batch = p_adapter->Value();
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
     // Append meta information if available
@@ -297,17 +301,17 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
 
   // Deal with empty rows/columns if necessary
-  if (adapter->NumColumns() == kAdapterUnknownSize) {
+  if (p_adapter->NumColumns() == kAdapterUnknownSize) {
     info_.num_col_ = inferred_num_columns;
   } else {
-    info_.num_col_ = adapter->NumColumns();
+    info_.num_col_ = p_adapter->NumColumns();
   }
 
   if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-    if (adapter->HasRefCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(adapter->RefCats(), true));
-    } else if (adapter->HasCategorical()) {
-      info_.Cats(std::make_shared<CatContainer>(adapter->Cats(), false));
+    if (p_adapter->HasRefCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(p_adapter->RefCats(), true));
+    } else if (p_adapter->HasCategorical()) {
+      info_.Cats(std::make_shared<CatContainer>(p_adapter->Cats(), false));
     }
   }
 
@@ -315,7 +319,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   this->ReindexFeatures(&ctx, data_split_mode);
   this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
-  if (adapter->NumRows() == kAdapterUnknownSize) {
+  if (p_adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT =
         IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
     // If AdapterT is either IteratorAdapter or FileAdapter type, use the total batch size to
@@ -334,10 +338,10 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
     if (offset_vec.empty()) {
       offset_vec.emplace_back(0);
     }
-    while (offset_vec.size() - 1 < adapter->NumRows()) {
+    while (offset_vec.size() - 1 < p_adapter->NumRows()) {
       offset_vec.emplace_back(offset_vec.back());
     }
-    info_.num_row_ = adapter->NumRows();
+    info_.num_row_ = p_adapter->NumRows();
   }
   info_.num_nonzero_ = data_vec.size();
 

@@ -9,7 +9,7 @@
 
 namespace xgboost::data::cuda_impl {
 template <bool get_value = true, typename Fn>
-decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn fn, bool* type_error = nullptr) {
+decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_error = nullptr) {
   auto has_type = [&] {
     if (type_error) {
       *type_error = false;
