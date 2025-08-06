@@ -325,7 +325,11 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
 def run_recode(client: Client, device: Device) -> None:
     """Run re-coding test with the Dask interface."""
     enc, reenc, y, _, _ = make_recoded(device, n_features=96)
-    denc, dreenc, dy = dd.from_pandas(enc), dd.from_pandas(reenc), da.from_array(y)
+    denc, dreenc, dy = (
+        dd.from_pandas(enc, npartitions=8),
+        dd.from_pandas(reenc, npartitions=8),
+        da.from_array(y, chunks=(y.shape[0] // 8)),
+    )
     wait([denc, dreenc, dy])
     client.rebalance([denc, dreenc, dy])
 
