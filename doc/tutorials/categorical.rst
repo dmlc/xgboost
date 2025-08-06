@@ -166,14 +166,14 @@ keep the pipeline for transforming data consistent across training and testing d
 Starting with 3.1, the *Python* interface can remember the encoding and perform recoding
 during inference and training continuation when the input is a dataframe (`pandas`,
 `cuDF`, `polars`, `pyarrow`, `modin`). The feature support focuses on basic usage. It has
-some restrictions on the types of inputs that can be accepted. Firstly, category names
+some restrictions on the types of inputs that can be accepted. First, category names
 must have one of the following types:
 
 - string
 - integer, from 8-bit to 64-bit, both signed and unsigned are supported.
 - 32-bit or 64-bit floating point
 
-Other category types are not supported. Secondly, the input types must be strictly
+Other category types are not supported. Second, the input types must be strictly
 consistent. For example, XGBoost will raise an error if the categorical columns in the
 training set are unsigned integers whereas the test dataset has signed integer columns. If
 you have categories that are not one of the supported types, you need to perform the
@@ -196,10 +196,10 @@ encoder. To clarify, the type here refers to the type of the name of categories 
 
 Internally, XGBoost attempts to extract the categories from the dataframe inputs. For
 inference (predict), the re-coding happens on the fly and there's no data copy (baring
-from some internal transformations performed by the dataframe itself). For training
+some internal transformations performed by the dataframe itself). For training
 continuation however, re-coding requires some extra steps if you are using the native
 interface. The sklearn interface and the Dask interface can handle training continuation
-automatically. Lastly, please note that using the re-coder with the native interface is
+automatically. Last, please note that using the re-coder with the native interface is
 still experimental. It's ready for testing, but we want to observe the feature usage for a
 period of time and might make some breaking changes if needed. The following is a snippet
 of using the native interface:
