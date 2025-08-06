@@ -909,6 +909,7 @@ class XGBModel(XGBModelBase):
             tags["non_deterministic"] = True
 
         tags["categorical"] = self.enable_categorical
+        tags["string"] = self.enable_categorical
         return tags
 
     @staticmethod
