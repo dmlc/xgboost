@@ -61,6 +61,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, std::int32_t nthr
   this->info_.SynchronizeNumberOfColumns(&ctx, data_split_mode);
 
   this->fmat_ctx_ = ctx;
+  std::swap(*p_adapter, *adapter);
 }
 
 template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing, std::int32_t nthread,

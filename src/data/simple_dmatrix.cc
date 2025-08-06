@@ -349,6 +349,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
 
   this->fmat_ctx_ = ctx;
+  std::swap(*p_adapter, *adapter);
 }
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
