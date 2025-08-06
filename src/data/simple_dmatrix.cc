@@ -379,6 +379,9 @@ INSTANTIATE_SDCTOR(CSRArrayAdapter)
 INSTANTIATE_SDCTOR(CSCArrayAdapter)
 INSTANTIATE_SDCTOR(FileAdapter)
 INSTANTIATE_SDCTOR(ColumnarAdapter)
+namespace {
+using IterAdapterT = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
+}
 INSTANTIATE_SDCTOR(IterAdapterT)
 
 #undef INSTANTIATE_SDCTOR
