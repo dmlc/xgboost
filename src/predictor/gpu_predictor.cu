@@ -6,7 +6,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
 
-#include <any>  // for any, any_cast
 #include <memory>
 
 #include "../collective/allreduce.h"
@@ -21,10 +20,11 @@
 #include "../data/cat_container.cuh"  // for EncPolicy
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
-#include "../data/proxy_dmatrix.h"
 #include "../data/proxy_dmatrix.cuh"  // for DispatchAny
+#include "../data/proxy_dmatrix.h"
 #include "../gbm/gbtree_model.h"
 #include "predict_fn.h"
+#include "utils.h"  // for CheckProxyDMatrix
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/predictor.h"
@@ -650,13 +650,11 @@ void ExtractPaths(Context const* ctx,
 }
 
 namespace {
-template <size_t kBlockThreads>
-size_t SharedMemoryBytes(size_t cols, size_t max_shared_memory_bytes) {
-  // No way max_shared_memory_bytes that is equal to 0.
-  CHECK_GT(max_shared_memory_bytes, 0);
-  size_t shared_memory_bytes =
-      static_cast<size_t>(sizeof(float) * cols * kBlockThreads);
-  if (shared_memory_bytes > max_shared_memory_bytes) {
+template <std::size_t kBlockThreads>
+[[nodiscard]] std::size_t SharedMemoryBytes(std::size_t n_features, std::size_t max_shmem_bytes) {
+  CHECK_GT(max_shmem_bytes, 0);
+  size_t shared_memory_bytes = static_cast<size_t>(sizeof(float) * n_features * kBlockThreads);
+  if (shared_memory_bytes > max_shmem_bytes) {
     shared_memory_bytes = 0;
   }
   return shared_memory_bytes;
@@ -930,7 +928,7 @@ void LaunchPredictKernel(Context const* ctx, bool is_dense, enc::DeviceColumnsVi
   }
 }
 
-// provide configuration for launching the predict kernel.
+// Provide configuration for launching the predict kernel.
 template <std::uint32_t kBlockThreads = 128, bool kUseShared = true>
 class LaunchConfig {
  private:
@@ -944,8 +942,8 @@ class LaunchConfig {
   void LaunchImpl(K&& kernel, Args&&... args) const&& {
     CHECK_NE(this->n_samples_, NotSet());
     auto grid = static_cast<uint32_t>(common::DivRoundUp(this->n_samples_, kBlockThreads));
-    dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes_, ctx_->CUDACtx()->Stream()}(
-        kernel, std::forward<Args>(args)...);
+    dh::LaunchKernel{grid, kBlockThreads, this->shared_memory_bytes_,  // NOLINT
+                     this->ctx_->CUDACtx()->Stream()}(kernel, std::forward<Args>(args)...);
   }
 
   [[nodiscard]] LaunchConfig Grid(bst_idx_t n_samples) const {
@@ -957,15 +955,12 @@ class LaunchConfig {
 
   [[nodiscard]] static std::size_t ConfigureDevice(DeviceOrd const& device) {
     thread_local std::unordered_map<std::int32_t, std::size_t> max_shared;
-    if (device.IsCUDA()) {
-      auto it = max_shared.find(device.ordinal);
-      if (it == max_shared.cend()) {
-        max_shared[device.ordinal] = dh::MaxSharedMemory(device.ordinal);
-        it = max_shared.find(device.ordinal);
-      }
-      return it->second;
+    auto it = max_shared.find(device.ordinal);
+    if (it == max_shared.cend()) {
+      max_shared[device.ordinal] = dh::MaxSharedMemory(device.ordinal);
+      it = max_shared.find(device.ordinal);
     }
-    return 0;
+    return it->second;
   }
 
  public:
@@ -1113,27 +1108,16 @@ class GPUPredictor : public xgboost::Predictor {
   };
 
   template <typename Adapter>
-  void DispatchedInplacePredict(std::any const& x, std::shared_ptr<DMatrix> p_m,
+  void DispatchedInplacePredict(std::shared_ptr<Adapter> m, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel& model, float missing,
                                 PredictionCacheEntry* out_preds, bst_tree_t tree_begin,
                                 bst_tree_t tree_end) const {
-    auto m = std::any_cast<std::shared_ptr<Adapter>>(x);
-    CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
-        << "Number of columns in data must equal to trained model.";
     CHECK_EQ(dh::CurrentDevice(), m->Device().ordinal)
         << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
         << "but data is on: " << m->Device().Name();
-    if (p_m) {
-      p_m->Info().num_row_ = m->NumRows();
-      this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
-    } else {
-      MetaInfo info;
-      info.num_row_ = m->NumRows();
-      this->InitOutPredictions(info, &(out_preds->predictions), model);
-    }
+    this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
     out_preds->predictions.SetDevice(m->Device());
-    using BatchT =
-        std::remove_cv_t<std::remove_reference_t<decltype(std::declval<Adapter>().Value())>>;
+    using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
 
     auto n_samples = m->NumRows();
     auto n_features = model.learner_model_param->num_feature;
@@ -1162,11 +1146,13 @@ class GPUPredictor : public xgboost::Predictor {
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
     bool type_error = false;
-    data::cuda_impl::DispatchAny<false>(proxy, [&](auto x) {
-      using AdapterT = typename decltype(x)::element_type;
-      this->DispatchedInplacePredict<AdapterT>(x, p_m, model, missing, out_preds, tree_begin,
-                                               tree_end);
-    }, &type_error);
+    data::cuda_impl::DispatchAny<false>(
+        proxy,
+        [&](auto x) {
+          CheckProxyDMatrix(x, proxy, model.learner_model_param);
+          this->DispatchedInplacePredict(x, p_m, model, missing, out_preds, tree_begin, tree_end);
+        },
+        &type_error);
     return !type_error;
   }
 
@@ -1174,7 +1160,7 @@ class GPUPredictor : public xgboost::Predictor {
                            const gbm::GBTreeModel& model, bst_tree_t tree_end,
                            std::vector<bst_float> const* tree_weights, bool approximate, int,
                            unsigned) const override {
-    std::string not_implemented{
+    StringView not_implemented{
         "contribution is not implemented in the GPU predictor, use CPU instead."};
     if (approximate) {
       LOG(FATAL) << "Approximated " << not_implemented;
