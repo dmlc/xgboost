@@ -2,7 +2,7 @@
 ===========
 
 [![Build Status](https://badge.buildkite.com/aca47f40a32735c00a8550540c5eeff6a4c1d246a580cae9b0.svg?branch=master)](https://buildkite.com/xgboost/xgboost-ci)
-[![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost-CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
+[![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost%20CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
 [![GitHub license](https://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![CRAN Status Badge](https://www.r-pkg.org/badges/version/xgboost)](https://cran.r-project.org/web/packages/xgboost)
@@ -51,6 +51,7 @@ Become a sponsor and get a logo here. See details at [Sponsoring the XGBoost Pro
 <a href="https://www.nvidia.com/en-us/" target="_blank"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/master/images/sponsors/nvidia.jpg" alt="NVIDIA" width="72" height="72"></a>
 <a href="https://www.comet.com/site/?utm_source=xgboost&utm_medium=github&utm_content=readme" target="_blank"><img src="https://cdn.comet.ml/img/notebook_logo.png" height="72"></a>
 <a href="https://opencollective.com/guest-f5ebfc79" target="_blank"><img src="https://images.opencollective.com/guest-f5ebfc79/avatar/256.png" height="72"></a>
+<a href="https://databento.com/?utm_source=xgboost&utm_medium=sponsor&utm_content=display"><img src="https://raw.githubusercontent.com/xgboost-ai/xgboost-ai.github.io/refs/heads/master/images/sponsors/databento.png" height="72"></a>
 
 ### Backers
 [[Become a backer](https://opencollective.com/xgboost#backer)]

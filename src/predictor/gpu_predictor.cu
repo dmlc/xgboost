@@ -22,7 +22,7 @@
 #include "../data/device_adapter.cuh"
 #include "../data/ellpack_page.cuh"
 #include "../data/proxy_dmatrix.h"
-#include "../data/proxy_dmatrix.cuh"
+#include "../data/proxy_dmatrix.cuh"  // for DispatchAny
 #include "../gbm/gbtree_model.h"
 #include "predict_fn.h"
 #include "xgboost/data.h"
@@ -1162,7 +1162,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto proxy = dynamic_cast<data::DMatrixProxy*>(p_m.get());
     CHECK(proxy) << error::InplacePredictProxy();
     bool type_error = false;
-    data::cuda_impl::Dispatch<false>(proxy, [&](auto x) {
+    data::cuda_impl::DispatchAny<false>(proxy, [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;
       this->DispatchedInplacePredict<AdapterT>(x, p_m, model, missing, out_preds, tree_begin,
                                                tree_end);

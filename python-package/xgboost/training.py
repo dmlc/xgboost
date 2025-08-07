@@ -42,6 +42,11 @@ if TYPE_CHECKING:
 
 _CVFolds = Sequence["CVPack"]
 
+_RefError = (
+    "Training dataset should be used as a reference when constructing the "
+    "`QuantileDMatrix` for evaluation.",
+)
+
 
 @_deprecate_positional_args
 def train(
@@ -172,10 +177,7 @@ def train(
             and va.ref is not weakref.ref(dtrain)
             and va is not dtrain
         ):
-            raise ValueError(
-                "Training dataset should be used as a reference when constructing "
-                "the `QuantileDMatrix` for evaluation."
-            )
+            raise ValueError(_RefError)
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
     start_iteration = 0

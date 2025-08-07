@@ -683,7 +683,11 @@ class Categories:
 def get_ref_categories(
     feature_types: Optional[Union[FeatureTypes, Categories]],
 ) -> Tuple[Optional[FeatureTypes], Optional[Categories]]:
-    """Get the optional reference categories from the input."""
+    """Get the optional reference categories from the `feature_types`. This is used by
+    various `DMatrix` where the `feature_types` is reused for specifying the reference
+    categories.
+
+    """
     if isinstance(feature_types, Categories):
         ref_categories = feature_types
         feature_types = None

@@ -37,7 +37,8 @@ class Config:
         See `dmlc_timeout` in :py:meth:`init`. This is only used for communicators, not
         the tracker. They are different parameters since the timeout for tracker limits
         only the time for starting and finalizing the communication group, whereas the
-        timeout for communicators limits the time used for collective operations.
+        timeout for communicators limits the time used for collective operations, like
+        :py:meth:`allreduce`.
 
     tracker_host_ip : See :py:class:`~xgboost.tracker.RabitTracker`.
 
@@ -94,7 +95,8 @@ def init(**args: _ArgVals) -> None:
           - federated_client_cert: Client certificate file path. Only needed for the SSL
             mode.
 
-        Use upper case for environment variables, use lower case for runtime configuration.
+        Use upper case for environment variables, use lower case for runtime
+        configuration.
 
     """
     _check_call(_LIB.XGCommunicatorInit(make_jcargs(**args)))
@@ -122,17 +124,17 @@ def get_world_size() -> int:
 
     Returns
     -------
-    n : int
+    n :
         Total number of process.
     """
     ret = _LIB.XGCommunicatorGetWorldSize()
     return ret
 
 
-def is_distributed() -> int:
+def is_distributed() -> bool:
     """If the collective communicator is distributed."""
     is_dist = _LIB.XGCommunicatorIsDistributed()
-    return is_dist
+    return bool(is_dist)
 
 
 def communicator_print(msg: Any) -> None:
@@ -160,8 +162,8 @@ def get_processor_name() -> str:
 
     Returns
     -------
-    name : str
-        the name of processor(host)
+    name :
+        The name of processor(host)
     """
     name_str = ctypes.c_char_p()
     _check_call(_LIB.XGCommunicatorGetProcessorName(ctypes.byref(name_str)))

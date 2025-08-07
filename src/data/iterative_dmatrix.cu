@@ -1,15 +1,15 @@
 /**
  * Copyright 2020-2025, XGBoost contributors
  */
-#include <memory>     // for shared_ptr
-#include <utility>    // for move
+#include <memory>   // for shared_ptr
+#include <utility>  // for move
 
 #include "batch_utils.h"  // for RegenGHist, CheckParam
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"
 #include "iterative_dmatrix.h"
-#include "proxy_dmatrix.cuh"
-#include "proxy_dmatrix.h"  // for BatchSamples, BatchColumns
+#include "proxy_dmatrix.cuh"  // for DispatchAny
+#include "proxy_dmatrix.h"    // for BatchSamples, BatchColumns
 #include "simple_batch_iterator.h"
 
 namespace xgboost::data {
@@ -68,14 +68,14 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     auto rows = BatchSamples(proxy);
     dh::device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
-    cuda_impl::Dispatch(proxy, [=](auto const& value) {
+    cuda_impl::DispatchAny(proxy, [=](auto const& value) {
       return GetRowCounts(ctx, value, row_counts_span, dh::GetDevice(ctx), missing);
     });
     auto is_dense = this->IsDense();
 
     proxy->Info().feature_types.SetDevice(dh::GetDevice(ctx));
     auto d_feature_types = proxy->Info().feature_types.ConstDeviceSpan();
-    auto new_impl = cuda_impl::Dispatch(proxy, [&](auto const& value) {
+    auto new_impl = cuda_impl::DispatchAny(proxy, [&](auto const& value) {
       return EllpackPageImpl{
           &fmat_ctx_,          value, missing, is_dense, row_counts_span, d_feature_types,
           ext_info.row_stride, rows,  cuts};

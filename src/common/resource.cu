@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include "device_helpers.cuh"  // for CurrentDevice
 #include "resource.cuh"
@@ -18,14 +18,26 @@ CudaMmapResource::CudaMmapResource(StringView path, std::size_t offset, std::siz
               }},
       n_{length} {
   auto device = dh::CurrentDevice();
+#if (CUDA_VERSION / 1000) >= 13
+  cudaMemLocation loc;
+  loc.type = cudaMemLocationTypeDevice;
+  loc.id = device;
+#else
+  auto loc = device;
+#endif  // (CUDA_VERSION / 1000) >= 13
   dh::safe_cuda(
-      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetReadMostly, device));
-  dh::safe_cuda(cudaMemAdvise(handle_->base_ptr, handle_->base_size,
-                              cudaMemAdviseSetPreferredLocation, device));
+      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetReadMostly, loc));
   dh::safe_cuda(
-      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetAccessedBy, device));
+      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetPreferredLocation, loc));
+  dh::safe_cuda(
+      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetAccessedBy, loc));
+#if (CUDA_VERSION / 1000) >= 13
+  dh::safe_cuda(
+      cudaMemPrefetchAsync(handle_->base_ptr, handle_->base_size, loc, 0, dh::DefaultStream()));
+#else
   dh::safe_cuda(
       cudaMemPrefetchAsync(handle_->base_ptr, handle_->base_size, device, dh::DefaultStream()));
+#endif  // (CUDA_VERSION / 1000) >= 13
 }
 
 [[nodiscard]] void* CudaMmapResource::Data() {

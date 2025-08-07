@@ -185,7 +185,7 @@ class EvaluateSplitAgent {
                                                   bool missing_left, bst_bin_t it,
                                                   GradientPairInt64 const &left_sum,
                                                   GradientPairInt64 const &right_sum,
-                                                  DeviceSplitCandidate *__restrict__ best_split) {
+                                                  DeviceSplitCandidate *best_split) {
     auto gain = thread_active
                     ? evaluator.CalcSplitGain(param, nidx, fidx, rounding.ToFloatingPoint(left_sum),
                                               rounding.ToFloatingPoint(right_sum))
@@ -210,7 +210,7 @@ class EvaluateSplitAgent {
   /**
    * \brief Partition-based split for categorical feature.
    */
-  __device__ __forceinline__ void Partition(DeviceSplitCandidate *__restrict__ best_split,
+  __device__ __forceinline__ void Partition(DeviceSplitCandidate *best_split,
                                             common::Span<bst_feature_t> sorted_idx,
                                             std::size_t node_offset,
                                             GPUTrainingParam const &param) {

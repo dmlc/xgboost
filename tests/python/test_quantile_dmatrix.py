@@ -399,5 +399,11 @@ class TestQuantileDMatrix:
     def test_cv_error(self) -> None:
         X, y = make_sparse_regression(8, 2, sparsity=0.2, as_dense=False)
         Xy = xgb.QuantileDMatrix(X, y)
-        with pytest.raises(ValueError, match=""):
-            cv = xgb.cv({}, Xy, 10, nfold=10, early_stopping_rounds=10)
+        with pytest.raises(ValueError):
+            xgb.cv({}, Xy, 10, nfold=10, early_stopping_rounds=10)
+
+
+def test_feature_types() -> None:
+    it = IteratorForTest(*make_batches(32, 8, 4, False), cache=None)
+    with pytest.raises(ValueError, match="specified as batch argument"):
+        xgb.QuantileDMatrix(it, feature_types=["q"] * 8)
