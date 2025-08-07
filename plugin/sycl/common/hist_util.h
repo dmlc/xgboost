@@ -162,7 +162,7 @@ class GHistBuilder {
                           GHistRowT<MemoryType::on_device>* HistCollection,
                           bool isDense,
                           GHistRowT<MemoryType::on_device>* hist_buffer,
-                          const tree::DeviceProperties& device_prop,
+                          const DeviceProperties& device_prop,
                           ::sycl::event event,
                           bool force_atomic_use = false);
 
