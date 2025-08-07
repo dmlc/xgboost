@@ -23,8 +23,14 @@ CuDriverApi::CuDriverApi(std::int32_t cu_major, std::int32_t cu_minor, std::int3
   // similar to dlopen, but without the need to release a handle.
   auto safe_load = [](xgboost::StringView name, auto **fnptr) {
     cudaDriverEntryPointQueryResult status;
+#if (CUDA_VERSION / 1000) >= 13
+    dh::safe_cuda(cudaGetDriverEntryPointByVersion(name.c_str(), reinterpret_cast<void **>(fnptr),
+                                                   12080, cudaEnablePerThreadDefaultStream,
+                                                   &status));
+#else
     dh::safe_cuda(cudaGetDriverEntryPoint(name.c_str(), reinterpret_cast<void **>(fnptr),
                                           cudaEnablePerThreadDefaultStream, &status));
+#endif  // (CUDA_VERSION / 1000) >= 13
     CHECK(status == cudaDriverEntryPointSuccess) << name;
     CHECK(*fnptr);
   };

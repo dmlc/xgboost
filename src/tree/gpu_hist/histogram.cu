@@ -289,22 +289,12 @@ namespace {
 constexpr std::int32_t kBlockThreads = 1024;
 constexpr std::int32_t kItemsPerThread = 8;
 constexpr std::int32_t ItemsPerTile() { return kBlockThreads * kItemsPerThread; }
+template <auto Ker>
+using DeduceKernelT = std::decay_t<decltype(Ker)>;
 }  // namespace
 
 // Use auto deduction guide to workaround compiler error.
-template <typename Accessor,
-          auto GlobalCompr =
-              SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>,
-          auto Global =
-              SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>,
-          auto SharedCompr =
-              SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>,
-          auto Shared =
-              SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>,
-          auto GlobalDense =
-              SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>,
-          auto SharedDense =
-              SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>>
+template <typename Accessor>
 struct HistogramKernel {
   enum KernelType : std::size_t {
     kGlobalCompr = 0,
@@ -314,21 +304,35 @@ struct HistogramKernel {
     kGlobalDense = 4,
     kSharedDense = 5,
   };
-  // Kernel for working with dense Ellpack using the global memory.
-  decltype(GlobalCompr) global_compr_kernel{
+  // Kernel for working with compressed sparse Ellpack using the global memory.
+  using GlobalCompr = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>>;
+  GlobalCompr global_compr_kernel{
       SharedMemHistKernel<Accessor, true, false, false, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the global memory.
-  decltype(Global) global_kernel{
+  using Global = DeduceKernelT<
+      SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>>;
+  Global global_kernel{
       SharedMemHistKernel<Accessor, false, false, false, kBlockThreads, kItemsPerThread>};
-  // Kernel for working with dense Ellpack using the shared memory.
-  decltype(SharedCompr) shared_compr_kernel{
+  // Kernel for working with compressed sparse Ellpack using the shared memory.
+  using SharedCompr = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>>;
+  SharedCompr shared_compr_kernel{
       SharedMemHistKernel<Accessor, true, false, true, kBlockThreads, kItemsPerThread>};
   // Kernel for working with sparse Ellpack using the shared memory.
-  decltype(Shared) shared_kernel{
+  using Shared = DeduceKernelT<
+      SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>>;
+  Shared shared_kernel{
       SharedMemHistKernel<Accessor, false, false, true, kBlockThreads, kItemsPerThread>};
-  decltype(GlobalDense) global_dense_kernel{
+  // Kernel for working with compressed dense ellpack using the global memory
+  using GlobalDense = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>>;
+  GlobalDense global_dense_kernel{
       SharedMemHistKernel<Accessor, true, true, false, kBlockThreads, kItemsPerThread>};
-  decltype(SharedDense) shared_dense_kernel{
+  // Kernel for working with compressed dense ellpack using the shared memory
+  using SharedDense = DeduceKernelT<
+      SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>>;
+  SharedDense shared_dense_kernel{
       SharedMemHistKernel<Accessor, true, true, true, kBlockThreads, kItemsPerThread>};
 
   bool shared{false};

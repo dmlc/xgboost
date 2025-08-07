@@ -1,5 +1,5 @@
 /**
- * Copyright 2024, XGBoost Contributors
+ * Copyright 2024-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>  // for Context
@@ -28,8 +28,16 @@ TEST(CudaHostMalloc, Managed) {
   std::vector<float, common::cuda_impl::ManagedAllocator<float>> vec;
   vec.resize(10);
 #if defined(__linux__)
+#if (CUDA_VERSION / 1000) >= 13
+  cudaMemLocation loc;
+  loc.type = cudaMemLocationTypeDevice;
+  loc.id = 0;
+  dh::safe_cuda(
+      cudaMemPrefetchAsync(vec.data(), vec.size() * sizeof(float), loc, 0, dh::DefaultStream()));
+#else
   dh::safe_cuda(
       cudaMemPrefetchAsync(vec.data(), vec.size() * sizeof(float), 0, dh::DefaultStream()));
+#endif  // (CUDA_VERSION / 1000) >= 13
 #endif
   dh::DefaultStream().Sync();
 }
