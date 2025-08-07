@@ -820,23 +820,16 @@ class CPUPredictor : public Predictor {
           CHECK_EQ(p_m->Info().num_col_, x->NumColumns());
           this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
 
-          bool blocked = ShouldUseBlock(p_m.get());
-
           auto &predictions = out_preds->predictions.HostVector();
           std::vector<RegTree::FVec> thread_temp;
-          InitThreadTemp(n_threads * (blocked ? kBlockOfRowsSize : 1), &thread_temp);
+          InitThreadTemp(n_threads * kBlockOfRowsSize, &thread_temp);
           bst_idx_t n_groups = model.learner_model_param->OutputLength();
           auto out_predt = linalg::MakeTensorView(ctx_, predictions, x->NumRows(), n_groups);
 
           auto launch = [&](auto &&acc) {
             auto view = AdapterView{x.get(), missing, acc};
-            if (blocked) {
-              PredictBatchByBlockKernel<kBlockOfRowsSize>(view, model, tree_begin, tree_end,
-                                                          &thread_temp, n_threads, out_predt);
-            } else {
-              PredictBatchByBlockKernel<1>(view, model, tree_begin, tree_end, &thread_temp,
-                                           n_threads, out_predt);
-            }
+            PredictBatchByBlockKernel<kBlockOfRowsSize>(view, model, tree_begin, tree_end,
+                                                        &thread_temp, n_threads, out_predt);
           };
 
           if constexpr (std::is_same_v<AdapterT, data::ColumnarAdapter>) {
