@@ -1691,7 +1691,16 @@ def _proxy_transform(
 
 def is_on_cuda(data: Any) -> bool:
     """Whether the data is a CUDA-based data structure."""
-    return any(p(data) for p in (_is_cudf_df, _is_cudf_ser, _is_cupy_alike, _is_dlpack))
+    return any(
+        p(data)
+        for p in (
+            _is_cudf_df,
+            _is_cudf_ser,
+            _is_cudf_pandas,
+            _is_cupy_alike,
+            _is_dlpack,
+        )
+    )
 
 
 def dispatch_proxy_set_data(

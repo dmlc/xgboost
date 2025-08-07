@@ -9,6 +9,7 @@
 #include "../collective/communicator-inl.h"  // for IsDistributed
 #include "../common/error_msg.h"             // for InconsistentCategories
 #include "../common/threading_utils.h"       // for ParallelFor
+#include "proxy_dmatrix.h"                   // for DispatchAny
 #include "cat_container.h"                   // for CatContainer
 #include "gradient_index.h"                  // for GHistIndexMatrix
 #include "xgboost/collective/result.h"       // for SafeColl
@@ -84,13 +85,13 @@ void SyncFeatureType(Context const* ctx, std::vector<FeatureType>* p_h_ft) {
 }
 
 void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
-                  DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter, float missing,
+                  DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>* iter, float missing,
                   ExternalDataInfo* p_info) {
   auto& info = *p_info;
 
   auto const is_valid = data::IsValidFunctor{missing};
   auto nnz_cnt = [&]() {
-    return HostAdapterDispatch(proxy, [&](auto const& value) {
+    return DispatchAny(proxy, [&](auto const& value) {
       bst_idx_t n_threads = ctx->Threads();
       bst_idx_t n_features = info.column_sizes.size();
       linalg::Tensor<bst_idx_t, 2> column_sizes_tloc({n_threads, n_features}, DeviceOrd::CPU());
@@ -139,8 +140,8 @@ void GetDataShape(Context const* ctx, DMatrixProxy* proxy,
     info.nnz += info.batch_nnz.back();
     info.accumulated_rows += batch_size;
     info.n_batches++;
-  } while (iter.Next());
-  iter.Reset();
+  } while (iter->Next());
+  iter->Reset();
 
   std::partial_sum(info.base_rowids.cbegin(), info.base_rowids.cend(), info.base_rowids.begin());
 }
@@ -165,7 +166,7 @@ void MakeSketches(Context const* ctx,
         p_sketch = std::make_unique<common::HostSketchContainer>(
             ctx, p.max_bin, h_ft, ext_info.column_sizes, !proxy->Info().group_ptr_.empty());
       }
-      HostAdapterDispatch(proxy, [&](auto const& batch) {
+      DispatchAny(proxy, [&](auto const& batch) {
         proxy->Info().num_nonzero_ = ext_info.batch_nnz[i];
         // We don't need base row idx here as Info is from proxy and the number of rows in
         // it is consistent with data batch.

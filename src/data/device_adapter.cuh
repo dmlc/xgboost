@@ -148,6 +148,10 @@ inline auto MakeEncColumnarBatch(Context const* ctx, CudfAdapter const* adapter)
                     std::move(mapping)};
 }
 
+inline auto MakeEncColumnarBatch(Context const* ctx, std::shared_ptr<CudfAdapter> const& adapter) {
+  return MakeEncColumnarBatch(ctx, adapter.get());
+}
+
 class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
  public:
   explicit CupyAdapter(StringView cuda_interface_str) {

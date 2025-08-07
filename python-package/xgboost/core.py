@@ -1361,12 +1361,12 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         .. warning::
 
-            This function is still working in progress.
+            This function is experimental.
 
         Parameters
         ----------
         export_to_arrow :
-            The returned container will contain a list to ``pyarrow`` arrays for the
+            The returned container will contain a list of ``pyarrow`` arrays for the
             categories. See the :py:meth:`~Categories.to_arrow` for more info.
 
         """

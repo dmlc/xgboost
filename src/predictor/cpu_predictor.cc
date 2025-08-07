@@ -806,7 +806,7 @@ class CPUPredictor : public Predictor {
     CHECK(!p_m->Info().IsColumnSplit())
         << "Inplace predict support for column-wise data split is not yet implemented.";
     bool type_error = false;
-    data::HostAdapterDispatch<false>(
+    data::cpu_impl::DispatchAny<false>(
         proxy,
         [&](auto x) {
           using AdapterT = typename decltype(x)::element_type;

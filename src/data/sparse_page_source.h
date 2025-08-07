@@ -459,7 +459,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     if (!this->ReadCache()) {
       bool type_error{false};
       CHECK(proxy_);
-      HostAdapterDispatch(
+      cpu_impl::DispatchAny(
           proxy_,
           [&](auto const& adapter_batch) {
             page_->Push(adapter_batch, this->missing_, this->nthreads_);
@@ -481,7 +481,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
                    DMatrixProxy* proxy, float missing, int nthreads, bst_feature_t n_features,
                    bst_idx_t n_batches, std::shared_ptr<Cache> cache)
       : SparsePageSourceImpl(missing, nthreads, n_features, cache),
-        iter_{iter},
+        iter_{std::move(iter)},
         proxy_{proxy},
         n_batches_{n_batches} {
     if (!cache_info_->written) {

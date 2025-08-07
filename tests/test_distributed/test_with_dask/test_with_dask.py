@@ -36,6 +36,7 @@ from xgboost.testing.dask import (
     check_uneven_nan,
     get_rabit_args,
     make_categorical,
+    run_recode,
 )
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
@@ -312,6 +313,10 @@ def test_categorical(client: "Client") -> None:
     )
     reg.fit(X, y)
     assert reg.get_booster().feature_types == ft
+
+
+def test_recode(client: "Client") -> None:
+    run_recode(client, "cpu")
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
@@ -1716,9 +1721,14 @@ class TestWithDask:
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:
+                    from xgboost.dask.data import _dmatrix_from_list_of_parts
+
                     with dxgb.CommunicatorContext(**rabit_args):
-                        local_dtrain = dxgb._dmatrix_from_list_of_parts(
-                            **data_ref, nthread=7
+                        local_dtrain = _dmatrix_from_list_of_parts(
+                            **data_ref,
+                            nthread=7,
+                            model=None,
+                            Xy_cats=None,
                         )
                         total = np.array([local_dtrain.num_row()])
                         total = xgb.collective.allreduce(total, xgb.collective.Op.SUM)

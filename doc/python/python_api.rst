@@ -206,6 +206,14 @@ Collective
 
 .. autofunction:: xgboost.collective.init
 
+.. autofunction:: xgboost.collective.finalize
+
+.. autofunction:: xgboost.collective.get_rank
+
+.. autofunction:: xgboost.collective.get_world_size
+
+.. autoclass:: xgboost.collective.CommunicatorContext
+
 .. automodule:: xgboost.tracker
 
 .. autoclass:: xgboost.tracker.RabitTracker

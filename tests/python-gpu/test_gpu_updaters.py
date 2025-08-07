@@ -279,18 +279,20 @@ class TestGPUUpdaters:
         tm.make_dataset_strategy(),
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
-    def test_external_memory(self, param, num_rounds, dataset):
-        if dataset.name.endswith("-l1"):
-            return
+    def test_external_memory(
+        self, param: Dict[str, Any], num_rounds: int, dataset: tm.TestDataset
+    ) -> None:
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
-        param["tree_method"] = "hist"
-        param["device"] = "cuda"
-        param = dataset.set_params(param)
-        m = dataset.get_external_dmat()
-        external_result = train_result(param, m, num_rounds)
-        del m
-        assert tm.non_increasing(external_result["train"][dataset.metric])
+
+        with xgb.config_context(use_rmm=True):
+            param["tree_method"] = "hist"
+            param["device"] = "cuda"
+            param = dataset.set_params(param)
+            m = dataset.get_external_dmat()
+            external_result = train_result(param, m, num_rounds)
+            del m
+            assert tm.non_increasing(external_result["train"][dataset.metric])
 
     def test_empty_dmatrix_prediction(self):
         # FIXME(trivialfis): This should be done with all updaters

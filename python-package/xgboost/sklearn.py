@@ -89,32 +89,13 @@ def _check_rf_callback(
     if early_stopping_rounds is not None or callbacks is not None:
         raise NotImplementedError(
             "`early_stopping_rounds` and `callbacks` are not implemented for"
-            " random forest."
+            " the sklearn random forest estimator interface."
         )
 
 
 def _can_use_qdm(tree_method: Optional[str], device: Optional[str]) -> bool:
     not_sycl = (device is None) or (not device.startswith("sycl"))
     return tree_method in ("hist", None, "auto") and not_sycl
-
-
-def get_ref_categories(
-    X: ArrayLike,
-    model: Optional[Union[Booster, str]],
-    feature_types: Optional[FeatureTypes],
-) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
-    """Configure the reference categories."""
-    if model is None or not is_dataframe(X):
-        return model, feature_types
-
-    if isinstance(model, str):
-        model = Booster(model_file=model)
-
-    categories = model.get_categories()
-    if not categories.empty():
-        return model, categories
-
-    return model, feature_types
 
 
 class _SklObjWProto(Protocol):
@@ -417,7 +398,7 @@ __model_doc = f"""
         .. versionadded:: 1.7.0
 
         Used for specifying feature types without constructing a dataframe. See
-        :py:class:`DMatrix` for details.
+        the :py:class:`DMatrix` for details.
 
     feature_weights : Optional[ArrayLike]
 
@@ -634,6 +615,65 @@ Parameters
     return adddoc
 
 
+def get_model_categories(
+    X: ArrayLike,
+    model: Optional[Union[Booster, str]],
+    feature_types: Optional[FeatureTypes],
+) -> Tuple[Optional[Union[Booster, str]], Optional[Union[FeatureTypes, Categories]]]:
+    """Extract the optional reference categories from the booster. Used for training
+    continuation. The result should be passed to the :py:func:`pick_ref_categories`.
+
+    """
+    # Skip if it's not a dataframe as there's no new encoding to be recoded.
+    #
+    # This function helps override the `feature_types` parameter. The `feature_types`
+    # from user is not useful when input is a dataframe as the real feature type should
+    # be encoded into the DF.
+    if model is None or not is_dataframe(X):
+        return model, feature_types
+
+    if isinstance(model, str):
+        model = Booster(model_file=model)
+
+    categories = model.get_categories()
+    if not categories.empty():
+        # override the `feature_types`.
+        return model, categories
+    # Convert empty into None.
+    return model, feature_types
+
+
+def pick_ref_categories(
+    X: Any,
+    model_cats: Optional[Union[FeatureTypes, Categories]],
+    Xy_cats: Optional[Categories],
+) -> Optional[Union[FeatureTypes, Categories]]:
+    """Use the reference categories from the model. If none, then use the reference
+    categories from the training DMatrix.
+
+    Parameters
+    ----------
+    X :
+        Input feature matrix.
+
+    model_cats :
+        Optional categories stored in the previous model (training continuation). This
+        should come from the :py:func:`get_model_categories`.
+
+    Xy_cats :
+        Optional categories from the training DMatrix. Used for re-coding the validation
+        dataset.
+
+    """
+    categories: Optional[Categories] = None
+    if not isinstance(model_cats, Categories) and is_dataframe(X):
+        categories = Xy_cats
+    if categories is not None and not categories.empty():
+        model_cats = categories
+
+    return model_cats
+
+
 def _wrap_evaluation_matrices(
     *,
     missing: float,
@@ -653,8 +693,11 @@ def _wrap_evaluation_matrices(
     enable_categorical: bool,
     feature_types: Optional[Union[FeatureTypes, Categories]],
 ) -> Tuple[Any, List[Tuple[Any, str]]]:
-    """Convert array_like evaluation matrices into DMatrix.  Perform validation on the
-    way."""
+    """Convert array_like evaluation matrices into DMatrix. Perform sanity checks on the
+    way.
+
+    """
+    # Feature_types contains the optional reference categories from the booster object.
     train_dmatrix = create_dmatrix(
         data=X,
         label=y,
@@ -697,7 +740,7 @@ def _wrap_evaluation_matrices(
 
         evals = []
         for i, (valid_X, valid_y) in enumerate(eval_set):
-            # Skip the duplicated entry.
+            # Skip the entry if it's the training DMatrix.
             if all(
                 (
                     valid_X is X,
@@ -709,28 +752,23 @@ def _wrap_evaluation_matrices(
                 )
             ):
                 evals.append(train_dmatrix)
-            else:
-                categories = None
-                if not isinstance(feature_types, Categories) and is_dataframe(X):
-                    # No reference categories from a previous model, use the one in the
-                    # training DMatrix.
-                    categories = Xy_cats
-                if categories is not None and not categories.empty():
-                    feature_types = categories
+                continue
 
-                m = create_dmatrix(
-                    data=valid_X,
-                    label=valid_y,
-                    weight=sample_weight_eval_set[i],
-                    group=eval_group[i],
-                    qid=eval_qid[i],
-                    base_margin=base_margin_eval_set[i],
-                    missing=missing,
-                    enable_categorical=enable_categorical,
-                    feature_types=feature_types,
-                    ref=train_dmatrix,
-                )
-                evals.append(m)
+            feature_types = pick_ref_categories(valid_X, feature_types, Xy_cats)
+            m = create_dmatrix(
+                data=valid_X,
+                label=valid_y,
+                weight=sample_weight_eval_set[i],
+                group=eval_group[i],
+                qid=eval_qid[i],
+                base_margin=base_margin_eval_set[i],
+                missing=missing,
+                enable_categorical=enable_categorical,
+                feature_types=feature_types,
+                ref=train_dmatrix,
+            )
+            evals.append(m)
+
         nevals = len(evals)
         eval_names = [f"validation_{i}" for i in range(nevals)]
         evals = list(zip(evals, eval_names))
@@ -851,7 +889,8 @@ class XGBModel(XGBModelBase):
         if isinstance(self.feature_types, Categories):
             raise TypeError(
                 "If you are training with a prior model (training continuation), "
-                "XGBoost can automatically reuse the categories from that model."
+                "The scikit-learn interface can automatically reuse the categories from"
+                " that model."
             )
         self.feature_weights = feature_weights
         self.max_cat_to_onehot = max_cat_to_onehot
@@ -870,6 +909,7 @@ class XGBModel(XGBModelBase):
             tags["non_deterministic"] = True
 
         tags["categorical"] = self.enable_categorical
+        tags["string"] = self.enable_categorical
         return tags
 
     @staticmethod
@@ -1292,7 +1332,7 @@ class XGBModel(XGBModelBase):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
-            model, feature_types = get_ref_categories(X, model, self.feature_types)
+            model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
@@ -1734,7 +1774,7 @@ class XGBClassifier(XGBClassifierBase, XGBModel):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
-            model, feature_types = get_ref_categories(X, model, self.feature_types)
+            model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(
@@ -2236,7 +2276,7 @@ class XGBRanker(XGBRankerMixIn, XGBModel):
             model, metric, params, feature_weights = self._configure_fit(
                 xgb_model, params, feature_weights
             )
-            model, feature_types = get_ref_categories(X, model, self.feature_types)
+            model, feature_types = get_model_categories(X, model, self.feature_types)
 
             evals_result: EvalsLog = {}
             train_dmatrix, evals = _wrap_evaluation_matrices(

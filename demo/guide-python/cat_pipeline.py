@@ -6,6 +6,11 @@ The script showcases how to keep the categorical data encoding consistent across
 training and inference. There are many ways to attain the same goal, this script can be
 used as a starting point.
 
+.. versionchanged:: 3.1
+
+    Start with 3.1, users don't need this for most of the cases. See :ref:`cat-recode`
+    for more info.
+
 See Also
 --------
 - :doc:`Tutorial </tutorials/categorical>`

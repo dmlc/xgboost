@@ -6,6 +6,7 @@
 
 #include <memory>       // for shared_ptr
 #include <type_traits>  // for is_same_v
+#include <utility>      // for move
 
 #include "../common/type.h"   // for GetValueT
 #include "adapter.h"          // for ColumnarAdapter
@@ -21,17 +22,17 @@
 namespace xgboost::data {
 void DMatrixProxy::SetColumnar(StringView data) {
   std::shared_ptr<ColumnarAdapter> adapter{new ColumnarAdapter{data}};
-  this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
+  this->batch_ = std::move(adapter);
   this->ctx_.Init(Args{{"device", "cpu"}});
 }
 
 void DMatrixProxy::SetArray(StringView data) {
   std::shared_ptr<ArrayAdapter> adapter{new ArrayAdapter{data}};
-  this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
+  this->batch_ = std::move(adapter);
   this->ctx_.Init(Args{{"device", "cpu"}});
 }
 
@@ -40,9 +41,9 @@ void DMatrixProxy::SetCsr(char const *c_indptr, char const *c_indices, char cons
   CHECK(on_host) << "Not implemented on device.";
   std::shared_ptr<CSRArrayAdapter> adapter{new CSRArrayAdapter(
       StringView{c_indptr}, StringView{c_indices}, StringView{c_values}, n_features)};
-  this->batch_ = adapter;
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
+  this->batch_ = std::move(adapter);
   this->ctx_.Init(Args{{"device", "cpu"}});
 }
 
@@ -80,7 +81,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
     common::AssertGPUSupport();
 #endif
   } else {
-    p_fmat = data::HostAdapterDispatch<false>(
+    p_fmat = data::cpu_impl::DispatchAny<false>(
         proxy.get(),
         [&](auto const &adapter) {
           auto p_fmat =
@@ -104,7 +105,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const *ctx,
     common::AssertGPUSupport();
 #endif
   }
-  return HostAdapterDispatch<false>(proxy, [&](auto const &adapter) {
+  return cpu_impl::DispatchAny<false>(proxy, [&](auto const &adapter) {
     using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
       return adapter->HasRefCategorical();

@@ -484,6 +484,11 @@ inline auto MakeEncColumnarBatch(Context const* ctx, ColumnarAdapter const* adap
   return std::tuple{EncColumnarAdapterBatch{adapter->Columns(), acc}, std::move(mapping)};
 }
 
+inline auto MakeEncColumnarBatch(Context const* ctx,
+                                 std::shared_ptr<ColumnarAdapter> const& adapter) {
+  return MakeEncColumnarBatch(ctx, adapter.get());
+}
+
 class FileAdapterBatch {
  public:
   class Line {
