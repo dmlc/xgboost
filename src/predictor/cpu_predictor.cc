@@ -417,21 +417,29 @@ void LaunchPredict(Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &
                 [](DMatrix const *p_fmat) { return p_fmat->Cats()->NeedRecode(); });
 }
 
-struct ThreadTmp {
-  static std::size_t constexpr kBlockOfRowsSize = BlockPolicy::kBlockOfRowsSize;
-
+/**
+ * @brief Thread-local buffer for the feature matrix.
+ */
+class ThreadTmp {
  private:
   std::vector<RegTree::FVec> feat_vecs_;
 
  public:
+  /**
+   * @param blocked Whether block-based parallelism is used.
+   */
   ThreadTmp(std::int32_t n_threads, bool blocked) {
-    std::size_t n = n_threads * (blocked ? kBlockOfRowsSize : 1);
+    std::size_t n = n_threads * (blocked ? BlockPolicy::kBlockOfRowsSize : 1);
     std::size_t prev_thread_temp_size = feat_vecs_.size();
     if (prev_thread_temp_size < n) {
       feat_vecs_.resize(n, RegTree::FVec{});
     }
   }
-
+  /**
+   * @brief Get a thread local buffer.
+   *
+   * @param n The size of the thread local block.
+   */
   template <std::size_t kBlockSize>
   common::Span<RegTree::FVec> ThreadBuffer(std::size_t n) {
     std::int32_t thread_idx = omp_get_thread_num();
@@ -895,7 +903,7 @@ class CPUPredictor : public Predictor {
     auto &predictions = out_preds->predictions.HostVector();
 
     auto const n_threads = this->ctx_->Threads();
-    ThreadTmp feat_vecs{n_threads, true};  // always use blcok as we don't know the nnz.
+    ThreadTmp feat_vecs{n_threads, true};  // always use block as we don't know the nnz.
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
 
     auto kernel = [&](auto &&view) {
