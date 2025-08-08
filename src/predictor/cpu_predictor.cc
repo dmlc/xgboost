@@ -889,8 +889,8 @@ class CPUPredictor : public Predictor {
 
     auto kernel = [&](auto &&view) {
       auto out_predt = linalg::MakeTensorView(ctx_, predictions, view.Size(), n_groups);
-      PredictBatchByBlockKernel<kBlockOfRowsSize>(view, model, tree_begin, tree_end, &feat_vecs,
-                                                  n_threads, out_predt);
+      PredictBatchByBlockKernel<BlockPolicy::kBlockOfRowsSize>(view, model, tree_begin, tree_end,
+                                                               &feat_vecs, n_threads, out_predt);
     };
     auto dispatch = [&](auto x) {
       using AdapterT = typename decltype(x)::element_type;
@@ -1054,10 +1054,6 @@ class CPUPredictor : public Predictor {
       }
     }
   }
-
- private:
-  static std::size_t constexpr kBlockOfRowsSize = BlockPolicy::kBlockOfRowsSize;
-  static_assert(kBlockOfRowsSize > 1);
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")
