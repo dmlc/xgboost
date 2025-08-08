@@ -819,8 +819,8 @@ class CPUPredictor : public Predictor {
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       ThreadTmp feat_vecs{n_threads, policy.Blocked()};
       using Policy = common::GetValueT<decltype(policy)>;
-      constexpr auto kBlockOfRowsSize = Policy::kBlockOfRowsSize;
       policy.ForEachBatch([&](auto &&batch) {
+        constexpr auto kBlockOfRowsSize = Policy::kBlockOfRowsSize;
         PredictBatchByBlockKernel<kBlockOfRowsSize>(batch, model, tree_begin, tree_end, &feat_vecs,
                                                     n_threads, out_predt);
       });
