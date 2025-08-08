@@ -155,6 +155,7 @@ struct DataToFeatVec {
     feats.HasMissing(n_valid != feats.Size());
   }
 
+  // Fill the data into the feature vector.
   void FVecFill(common::Range1d const &block, bst_feature_t n_features,
                 common::Span<RegTree::FVec> s_feats_vec) const {
     auto feats_vec = s_feats_vec.data();
@@ -166,6 +167,7 @@ struct DataToFeatVec {
       this->Fill(block.begin() + i, &feats);
     }
   }
+  // Clear the feature vector.
   static void FVecDrop(common::Span<RegTree::FVec> s_feats) {
     auto p_feats = s_feats.data();
     for (size_t i = 0, n = s_feats.size(); i < n; ++i) {
@@ -936,7 +938,7 @@ class CPUPredictor : public Predictor {
     // number of valid trees
     ntree_limit = GetTreeLimit(model.trees, ntree_limit);
     const MetaInfo &info = p_fmat->Info();
-    std::vector<bst_float> &preds = out_preds->HostVector();
+    std::vector<float> &preds = out_preds->HostVector();
     preds.resize(info.num_row_ * ntree_limit);
 
     if (p_fmat->Info().IsColumnSplit()) {
@@ -945,7 +947,7 @@ class CPUPredictor : public Predictor {
       return;
     }
 
-    const int n_features = model.learner_model_param->num_feature;
+    auto n_features = model.learner_model_param->num_feature;
     ThreadTmp feat_vecs{n_threads, false};
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
