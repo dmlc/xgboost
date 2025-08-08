@@ -462,8 +462,11 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
       info{CalcNumSymbols(
           ctx,
           [&] {
+            if (page.Size() == 0) {
+              return static_cast<typename decltype(page.row_ptr)::value_type>(0);
+            }
             auto it = common::MakeIndexTransformIter(
-                [&](bst_idx_t i) { return page.row_ptr[i + 1] - page.row_ptr[i]; });
+                [&](bst_idx_t i) { return page.row_ptr.at(i + 1) - page.row_ptr[i]; });
             return *std::max_element(it, it + page.Size());
           }(),
           page.IsDense(), cuts_)} {
