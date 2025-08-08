@@ -541,6 +541,8 @@ class ColumnSplitHelper {
         << "Predict DMatrix with column split" << MTNotImplemented();
     CHECK(!model.Cats()->HasCategorical())
         << "Categorical feature is not yet supported with column-split.";
+    CHECK(xgboost::collective::IsDistributed())
+        << "column-split prediction is only supported for distributed training";
 
     auto const n_trees = tree_end_ - tree_begin_;
     tree_sizes_.resize(n_trees);
@@ -565,15 +567,9 @@ class ColumnSplitHelper {
   ColumnSplitHelper &operator=(ColumnSplitHelper &&) noexcept = delete;
 
   void PredictDMatrix(Context const *ctx, DMatrix *p_fmat, std::vector<bst_float> *out_preds) {
-    CHECK(xgboost::collective::IsDistributed())
-        << "column-split prediction is only supported for distributed training";
-    if (this->model_.Cats()->HasCategorical()) {
-      LOG(FATAL) << "Categorical feature is not yet supported with column-split.";
-    }
     if (!p_fmat->PageExists<SparsePage>()) {
       LOG(FATAL) << "Predict with `QuantileDMatrix` is not supported with column-split.";
     }
-
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
                p_fmat->Info().num_row_ * model_.learner_model_param->num_output_group);
@@ -583,9 +579,6 @@ class ColumnSplitHelper {
   }
 
   void PredictLeaf(Context const *ctx, DMatrix *p_fmat, std::vector<bst_float> *out_preds) {
-    CHECK(xgboost::collective::IsDistributed())
-        << "column-split prediction is only supported for distributed training";
-
     for (auto const &batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(), p_fmat->Info().num_row_ * (tree_end_ - tree_begin_));
       PredictBatchKernel<kBlockOfRowsSize, true>(
@@ -799,10 +792,6 @@ class CPUPredictor : public Predictor {
   void PredictDMatrix(DMatrix *p_fmat, std::vector<float> *out_preds, gbm::GBTreeModel const &model,
                       bst_tree_t tree_begin, bst_tree_t tree_end) const {
     if (p_fmat->Info().IsColumnSplit()) {
-      CHECK(!model.learner_model_param->IsVectorLeaf())
-          << "Predict DMatrix with column split" << MTNotImplemented();
-      CHECK(!model.Cats()->HasCategorical()) << "The re-coder doesn't support column split yet.";
-
       ColumnSplitHelper helper(this->ctx_->Threads(), model, tree_begin, tree_end);
       helper.PredictDMatrix(ctx_, p_fmat, out_preds);
       return;
