@@ -326,8 +326,8 @@ struct EncAccessorPolicy {
   EncAccessorPolicy &operator=(EncAccessorPolicy &&that) = default;
   EncAccessorPolicy(EncAccessorPolicy &&that) = default;
 
-  auto MakeAccessor(Context const *ctx, enc::HostColumnsView new_enc,
-                    gbm::GBTreeModel const &model) {
+  [[nodiscard]] auto MakeAccessor(Context const *ctx, enc::HostColumnsView new_enc,
+                                  gbm::GBTreeModel const &model) {
     auto [acc, _mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
     this->mapping_ = std::move(_mapping);
     return acc;
@@ -336,7 +336,7 @@ struct EncAccessorPolicy {
 
 struct NullEncAccessorPolicy {
   template <typename... Args>
-  auto MakeAccessor(Args &&...) const {
+  [[nodiscard]] auto MakeAccessor(Args &&...) const {
     return NoOpAccessor{};
   }
 };
@@ -344,12 +344,12 @@ struct NullEncAccessorPolicy {
 // Block-based parallel.
 struct BlockPolicy {
   constexpr static std::size_t kBlockOfRowsSize = 64;
-  constexpr bool Blocked() { return true; }
+  [[nodiscard]] constexpr bool Blocked() { return true; }
 };
 
 struct NullBlockPolicy {
   constexpr static std::size_t kBlockOfRowsSize = 1;
-  constexpr bool Blocked() { return false; }
+  [[nodiscard]] constexpr bool Blocked() { return false; }
 };
 
 /**
@@ -363,6 +363,11 @@ struct LaunchConfig : public Args... {
 
   LaunchConfig(Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &model)
       : ctx{ctx}, p_fmat{p_fmat}, model{model} {}
+
+  LaunchConfig(LaunchConfig const &that) = delete;
+  LaunchConfig &operator=(LaunchConfig const &that) = delete;
+  LaunchConfig(LaunchConfig &&that) = default;
+  LaunchConfig &operator=(LaunchConfig &&that) = default;
 
   // Helper for running prediction with DMatrix inputs.
   template <typename Fn>
@@ -383,8 +388,11 @@ struct LaunchConfig : public Args... {
 };
 
 /**
+ * @brief Dispatch for the prediction function.
+ *
+ * @tparam Fn         A function that accepts a @ref LaunchConfig object.
  * @tparam NeedRecode Given a DMatrix input, returns whether we need to recode the categorical
- *         features.
+ *                    features.
  */
 template <typename Fn, typename NeedRecode>
 void LaunchPredict(
@@ -810,9 +818,9 @@ class CPUPredictor : public Predictor {
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       ThreadTmp feat_vecs{n_threads, policy.Blocked()};
+      using Policy = common::GetValueT<decltype(policy)>;
+      constexpr auto kBlockOfRowsSize = Policy::kBlockOfRowsSize;
       policy.ForEachBatch([&](auto &&batch) {
-        using Policy = common::GetValueT<decltype(policy)>;
-        constexpr auto kBlockOfRowsSize = Policy::kBlockOfRowsSize;
         PredictBatchByBlockKernel<kBlockOfRowsSize>(batch, model, tree_begin, tree_end, &feat_vecs,
                                                     n_threads, out_predt);
       });
