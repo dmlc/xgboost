@@ -310,6 +310,7 @@ class AdapterView : public DataToFeatVec<AdapterView<Adapter, EncAccessor>> {
   bst_idx_t const static base_rowid = 0;  // NOLINT
 };
 
+// Ordinal re-coder.
 struct EncAccessorPolicy {
  private:
   std::vector<int32_t> mapping_;
@@ -338,6 +339,7 @@ struct NullEncAccessorPolicy {
   }
 };
 
+// Block-based parallel.
 struct BlockPolicy {
   constexpr static std::size_t kBlockOfRowsSize = 64;
   constexpr bool Blocked() { return true; }
@@ -348,6 +350,9 @@ struct NullBlockPolicy {
   constexpr bool Blocked() { return false; }
 };
 
+/**
+ * @brief Policy class, requires a block policy and an accessor policy.
+ */
 template <typename... Args>
 struct LaunchConfig : public Args... {
   Context const *ctx;
@@ -357,10 +362,10 @@ struct LaunchConfig : public Args... {
   LaunchConfig(Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &model)
       : ctx{ctx}, p_fmat{p_fmat}, model{model} {}
 
+  // Helper for running prediction with DMatrix inputs.
   template <typename Fn>
   void ForEachBatch(Fn &&fn) {
     auto acc = this->MakeAccessor(ctx, p_fmat->Cats()->HostView(), model);
-    using Acc = common::GetValueT<decltype(acc)>;
 
     if (!p_fmat->PageExists<SparsePage>()) {
       auto ft = p_fmat->Info().feature_types.ConstHostVector();
@@ -375,6 +380,10 @@ struct LaunchConfig : public Args... {
   }
 };
 
+/**
+ * @tparam NeedRecode Given a DMatrix input, returns whether we need to recode the categorical
+ *         features.
+ */
 template <typename Fn, typename NeedRecode>
 void LaunchPredict(
     Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &model, Fn &&fn,
