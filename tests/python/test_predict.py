@@ -1,7 +1,7 @@
 """Tests for running inplace prediction."""
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Union
+from typing import List, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import np_dtypes, pd_dtypes
-from xgboost.testing.shared import validate_leaf_output
+from xgboost.testing.predict import run_predict_leaf
 
 
 def run_threaded_predict(X, rows, predict_func):
@@ -30,60 +30,9 @@ def run_threaded_predict(X, rows, predict_func):
         assert f.result()
 
 
-def run_predict_leaf(device: str) -> np.ndarray:
-    rows = 100
-    cols = 4
-    classes = 5
-    num_parallel_tree = 4
-    num_boost_round = 10
-    rng = np.random.RandomState(1994)
-    X = rng.randn(rows, cols)
-    y = rng.randint(low=0, high=classes, size=rows)
-    m = xgb.DMatrix(X, y)
-    booster = xgb.train(
-        {
-            "num_parallel_tree": num_parallel_tree,
-            "num_class": classes,
-            "tree_method": "hist",
-        },
-        m,
-        num_boost_round=num_boost_round,
-    )
-
-    booster.set_param({"device": device})
-    empty = xgb.DMatrix(np.ones(shape=(0, cols)))
-    empty_leaf = booster.predict(empty, pred_leaf=True)
-    assert empty_leaf.shape[0] == 0
-
-    leaf = booster.predict(m, pred_leaf=True, strict_shape=True)
-    assert leaf.shape[0] == rows
-    assert leaf.shape[1] == num_boost_round
-    assert leaf.shape[2] == classes
-    assert leaf.shape[3] == num_parallel_tree
-
-    validate_leaf_output(leaf, num_parallel_tree)
-
-    n_iters = np.int32(2)
-    sliced = booster.predict(
-        m,
-        pred_leaf=True,
-        iteration_range=(0, n_iters),
-        strict_shape=True,
-    )
-    first = sliced[0, ...]
-
-    assert np.prod(first.shape) == classes * num_parallel_tree * n_iters
-
-    # When there's only 1 tree, the output is a 1 dim vector
-    booster = xgb.train({"tree_method": "hist"}, num_boost_round=1, dtrain=m)
-    booster.set_param({"device": device})
-    assert booster.predict(m, pred_leaf=True).shape == (rows,)
-
-    return leaf
-
-
-def test_predict_leaf() -> None:
-    run_predict_leaf("cpu")
+@pytest.mark.parametrize("DMatrixT", [xgb.DMatrix, xgb.QuantileDMatrix])
+def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
+    run_predict_leaf("cpu", DMatrixT)
 
 
 def test_predict_shape():

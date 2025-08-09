@@ -158,6 +158,7 @@ struct ExternalDataInfo {
 
     CHECK_GE(this->n_features, 1) << "Data must has at least 1 column.";
     CHECK_EQ(this->base_rowids.size(), this->n_batches + 1);
+    CHECK_LE(this->row_stride, this->n_features);
   }
 
   void SetInfo(Context const* ctx, bool sync, MetaInfo* p_info) {
