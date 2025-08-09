@@ -178,13 +178,13 @@ struct DataToFeatVec {
 
 template <typename EncAccessor>
 class SparsePageView : public DataToFeatVec<SparsePageView<EncAccessor>> {
-  EncAccessor const& acc_;
+  EncAccessor const &acc_;
   HostSparsePageView const view_;
 
  public:
   bst_idx_t const base_rowid;
 
-  SparsePageView(HostSparsePageView const p, bst_idx_t base_rowid, EncAccessor const& acc)
+  SparsePageView(HostSparsePageView const p, bst_idx_t base_rowid, EncAccessor const &acc)
       : acc_{acc}, view_{p}, base_rowid{base_rowid} {}
   [[nodiscard]] std::size_t Size() const { return view_.Size(); }
 
@@ -216,7 +216,7 @@ class GHistIndexMatrixView : public DataToFeatVec<GHistIndexMatrixView<EncAccess
   bst_idx_t const base_rowid;
 
  public:
-  GHistIndexMatrixView(GHistIndexMatrix const &_page, EncAccessor const& acc,
+  GHistIndexMatrixView(GHistIndexMatrix const &_page, EncAccessor const &acc,
                        common::Span<FeatureType const> ft)
       : page_{_page},
         acc_{acc},
@@ -393,9 +393,8 @@ struct LaunchConfig : public Args... {
  *                    features.
  */
 template <typename Fn, typename NeedRecode>
-void LaunchPredict(
-    Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &model, Fn &&fn,
-    NeedRecode&& need_recode) {
+void LaunchPredict(Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &model, Fn &&fn,
+                   NeedRecode &&need_recode) {
   bool blocked = ShouldUseBlock(p_fmat);
 
   if (blocked) {
@@ -818,9 +817,9 @@ class CPUPredictor : public Predictor {
   void PredictContributionKernel(DataView batch, const MetaInfo &info,
                                  const gbm::GBTreeModel &model,
                                  const std::vector<bst_float> *tree_weights,
-                                 std::vector<std::vector<float>> *mean_values, ThreadTmp<1> *feat_vecs,
-                                 std::vector<bst_float> *contribs, bst_tree_t ntree_limit,
-                                 bool approximate, int condition,
+                                 std::vector<std::vector<float>> *mean_values,
+                                 ThreadTmp<1> *feat_vecs, std::vector<bst_float> *contribs,
+                                 bst_tree_t ntree_limit, bool approximate, int condition,
                                  unsigned condition_feature) const {
     const int num_feature = model.learner_model_param->num_feature;
     const int ngroup = model.learner_model_param->num_output_group;
