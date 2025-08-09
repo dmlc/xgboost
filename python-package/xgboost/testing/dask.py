@@ -325,13 +325,14 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
 def run_recode(client: Client, device: Device) -> None:
     """Run re-coding test with the Dask interface."""
     enc, reenc, y, _, _ = make_recoded(device, n_features=96)
+    workers = get_client_workers(client)
     denc, dreenc, dy = (
-        dd.from_pandas(enc, npartitions=8),
-        dd.from_pandas(reenc, npartitions=8),
-        da.from_array(y, chunks=(y.shape[0] // 8,)),
+        dd.from_pandas(enc, npartitions=8).persist(workers=workers),
+        dd.from_pandas(reenc, npartitions=8).persist(workers=workers),
+        da.from_array(y, chunks=(y.shape[0] // 8,)).persist(workers=workers),
     )
+
     wait([denc, dreenc, dy])
-    client.rebalance([denc, dreenc, dy])
 
     if device == "cuda":
         denc = denc.to_backend("cudf")
