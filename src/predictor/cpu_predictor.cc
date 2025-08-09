@@ -328,8 +328,8 @@ struct EncAccessorPolicy {
 
   [[nodiscard]] auto MakeAccessor(Context const *ctx, enc::HostColumnsView new_enc,
                                   gbm::GBTreeModel const &model) {
-    auto [acc, _mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
-    this->mapping_ = std::move(_mapping);
+    auto [acc, mapping] = MakeCatAccessor(ctx, new_enc, model.Cats());
+    this->mapping_ = std::move(mapping);
     return acc;
   }
 };
@@ -344,12 +344,10 @@ struct NullEncAccessorPolicy {
 // Block-based parallel.
 struct BlockPolicy {
   constexpr static std::size_t kBlockOfRowsSize = 64;
-  [[nodiscard]] constexpr bool Blocked() { return true; }
 };
 
 struct NullBlockPolicy {
   constexpr static std::size_t kBlockOfRowsSize = 1;
-  [[nodiscard]] constexpr bool Blocked() { return false; }
 };
 
 /**
@@ -428,6 +426,7 @@ void LaunchPredict(Context const *ctx, DMatrix *p_fmat, gbm::GBTreeModel const &
 /**
  * @brief Thread-local buffer for the feature matrix.
  */
+template <std::size_t kBlockOfRowsSize>
 class ThreadTmp {
  private:
   std::vector<RegTree::FVec> feat_vecs_;
@@ -436,8 +435,8 @@ class ThreadTmp {
   /**
    * @param blocked Whether block-based parallelism is used.
    */
-  ThreadTmp(std::int32_t n_threads, bool blocked) {
-    std::size_t n = n_threads * (blocked ? BlockPolicy::kBlockOfRowsSize : 1);
+  explicit ThreadTmp(std::int32_t n_threads) {
+    std::size_t n = n_threads * kBlockOfRowsSize;
     std::size_t prev_thread_temp_size = feat_vecs_.size();
     if (prev_thread_temp_size < n) {
       feat_vecs_.resize(n, RegTree::FVec{});
@@ -448,10 +447,9 @@ class ThreadTmp {
    *
    * @param n The size of the thread local block.
    */
-  template <std::size_t kBlockSize>
   common::Span<RegTree::FVec> ThreadBuffer(std::size_t n) {
     std::int32_t thread_idx = omp_get_thread_num();
-    auto const fvec_offset = thread_idx * kBlockSize;
+    auto const fvec_offset = thread_idx * kBlockOfRowsSize;
     auto fvec_tloc = common::Span{feat_vecs_}.subspan(fvec_offset, n);
     return fvec_tloc;
   }
@@ -459,15 +457,16 @@ class ThreadTmp {
 
 template <std::size_t kBlockOfRowsSize, typename DataView>
 void PredictBatchByBlockKernel(DataView const &batch, gbm::GBTreeModel const &model,
-                               bst_tree_t tree_begin, bst_tree_t tree_end, ThreadTmp *p_fvec,
-                               std::int32_t n_threads, linalg::TensorView<float, 2> out_predt) {
+                               bst_tree_t tree_begin, bst_tree_t tree_end,
+                               ThreadTmp<kBlockOfRowsSize> *p_fvec, std::int32_t n_threads,
+                               linalg::TensorView<float, 2> out_predt) {
   auto &fvec = *p_fvec;
   // Parallel over local batches
   auto const n_samples = batch.Size();
   auto const n_features = model.learner_model_param->num_feature;
 
   common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads, [&](auto &&block) {
-    auto fvec_tloc = fvec.template ThreadBuffer<kBlockOfRowsSize>(block.Size());
+    auto fvec_tloc = fvec.ThreadBuffer(block.Size());
 
     batch.FVecFill(block, n_features, fvec_tloc);
     PredictBlockByAllTrees(model, tree_begin, tree_end, block.begin() + batch.base_rowid, fvec_tloc,
@@ -536,7 +535,7 @@ class ColumnSplitHelper {
         model_{model},
         tree_begin_{tree_begin},
         tree_end_{tree_end},
-        feat_vecs_{n_threads_, true} {
+        feat_vecs_{n_threads} {
     CHECK(!model.learner_model_param->IsVectorLeaf())
         << "Predict DMatrix with column split" << MTNotImplemented();
     CHECK(!model.Cats()->HasCategorical())
@@ -715,7 +714,7 @@ class ColumnSplitHelper {
     InitBitVectors(n_samples);
 
     common::ParallelFor1d<kBlockOfRowsSize>(n_samples, n_threads_, [&](auto &&block) {
-      auto fvec_tloc = feat_vecs_.template ThreadBuffer<block_of_rows_size>(block.Size());
+      auto fvec_tloc = feat_vecs_.ThreadBuffer(block.Size());
 
       batch.FVecFill(block, n_features, fvec_tloc);
       MaskAllTrees(block.begin(), fvec_tloc, block.Size());
@@ -742,7 +741,7 @@ class ColumnSplitHelper {
   std::vector<std::size_t> tree_sizes_{};
   std::vector<std::size_t> tree_offsets_{};
   std::size_t bits_per_row_{};
-  ThreadTmp feat_vecs_;
+  ThreadTmp<kBlockOfRowsSize> feat_vecs_;
 
   std::size_t n_rows_;
   /**
@@ -806,12 +805,11 @@ class CPUPredictor : public Predictor {
     auto out_predt = linalg::MakeTensorView(ctx_, *out_preds, n_samples, n_groups);
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
-      ThreadTmp feat_vecs{n_threads, policy.Blocked()};
       using Policy = common::GetValueT<decltype(policy)>;
+      ThreadTmp<Policy::kBlockOfRowsSize> feat_vecs{n_threads};
       policy.ForEachBatch([&](auto &&batch) {
-        constexpr auto kBlockOfRowsSize = Policy::kBlockOfRowsSize;
-        PredictBatchByBlockKernel<kBlockOfRowsSize>(batch, model, tree_begin, tree_end, &feat_vecs,
-                                                    n_threads, out_predt);
+        PredictBatchByBlockKernel<Policy::kBlockOfRowsSize>(batch, model, tree_begin, tree_end,
+                                                            &feat_vecs, n_threads, out_predt);
       });
     });
   }
@@ -820,7 +818,7 @@ class CPUPredictor : public Predictor {
   void PredictContributionKernel(DataView batch, const MetaInfo &info,
                                  const gbm::GBTreeModel &model,
                                  const std::vector<bst_float> *tree_weights,
-                                 std::vector<std::vector<float>> *mean_values, ThreadTmp *feat_vecs,
+                                 std::vector<std::vector<float>> *mean_values, ThreadTmp<1> *feat_vecs,
                                  std::vector<bst_float> *contribs, bst_tree_t ntree_limit,
                                  bool approximate, int condition,
                                  unsigned condition_feature) const {
@@ -836,7 +834,7 @@ class CPUPredictor : public Predictor {
     // parallel over local batch
     common::ParallelFor(batch.Size(), this->ctx_->Threads(), [&](auto i) {
       auto row_idx = batch.base_rowid + i;
-      RegTree::FVec &feats = feat_vecs->template ThreadBuffer<1>(1).front();
+      RegTree::FVec &feats = feat_vecs->ThreadBuffer(1).front();
       if (feats.Size() == 0) {
         feats.Init(num_feature);
       }
@@ -900,7 +898,8 @@ class CPUPredictor : public Predictor {
     auto &predictions = out_preds->predictions.HostVector();
 
     auto const n_threads = this->ctx_->Threads();
-    ThreadTmp feat_vecs{n_threads, true};  // always use block as we don't know the nnz.
+    // Always use block as we don't know the nnz.
+    ThreadTmp<BlockPolicy::kBlockOfRowsSize> feat_vecs{n_threads};
     bst_idx_t n_groups = model.learner_model_param->OutputLength();
 
     auto kernel = [&](auto &&view) {
@@ -953,13 +952,13 @@ class CPUPredictor : public Predictor {
     }
 
     auto n_features = model.learner_model_param->num_feature;
-    ThreadTmp feat_vecs{n_threads, false};
+    ThreadTmp<1> feat_vecs{n_threads};
 
     LaunchPredict(this->ctx_, p_fmat, model, [&](auto &&policy) {
       policy.ForEachBatch([&](auto &&batch) {
         common::ParallelFor1d<1>(batch.Size(), n_threads, [&](auto &&block) {
           auto ridx = static_cast<bst_idx_t>(batch.base_rowid + block.begin());
-          auto fvec_tloc = feat_vecs.template ThreadBuffer<1>(block.Size());
+          auto fvec_tloc = feat_vecs.ThreadBuffer(block.Size());
           batch.FVecFill(block, n_features, fvec_tloc);
 
           for (bst_tree_t j = 0; j < ntree_limit; ++j) {
@@ -989,7 +988,7 @@ class CPUPredictor : public Predictor {
     CHECK(!p_fmat->Info().IsColumnSplit())
         << "Predict contribution support for column-wise data split is not yet implemented.";
     auto const n_threads = this->ctx_->Threads();
-    ThreadTmp feat_vecs{n_threads, false};
+    ThreadTmp<1> feat_vecs{n_threads};
     const MetaInfo &info = p_fmat->Info();
     // number of valid trees
     ntree_limit = GetTreeLimit(model.trees, ntree_limit);
