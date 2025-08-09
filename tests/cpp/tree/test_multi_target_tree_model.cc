@@ -1,8 +1,8 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/context.h>     // for Context
+#include <xgboost/context.h>  // for Context
 #include <xgboost/multi_target_tree_model.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
@@ -74,5 +74,15 @@ TEST(MultiTargetTree, DumpDot) {
     auto str = tree.DumpModel(fmap, false, "dot");
     ASSERT_NE(str.find("leaf=[1, 2, ..., 4]"), std::string::npos);
   }
+}
+
+TEST(MultiTargetTree, View) {
+  auto tree = MakeTreeForTest();
+  Context ctx;
+  auto v = tree->GetMultiTargetTree()->View(&ctx);
+  ASSERT_EQ(v.NumTargets(), 3);
+  ASSERT_EQ(v.Size(), 3);
+  ASSERT_EQ(v.LeftChild(0), 1);
+  ASSERT_EQ(v.RightChild(0), 2);
 }
 }  // namespace xgboost

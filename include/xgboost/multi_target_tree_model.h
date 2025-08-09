@@ -9,7 +9,7 @@
 #include <xgboost/base.h>                // for bst_node_t, bst_target_t, bst_feature_t
 #include <xgboost/context.h>             // for Context
 #include <xgboost/host_device_vector.h>  // for HostDeviceVector
-#include <xgboost/linalg.h>              // for VectorView
+#include <xgboost/linalg.h>              // for VectorView, MatrixView
 #include <xgboost/model.h>               // for Model
 #include <xgboost/span.h>                // for Span
 
@@ -20,11 +20,49 @@
 namespace xgboost {
 struct TreeParam;
 /**
+ * @brief A view to the @MultiTargetTree suitable for both host and device..
+ */
+struct MultiTargetTreeView {
+  static bst_node_t constexpr InvalidNodeId() { return -1; }
+
+  common::Span<bst_node_t const> left;
+  common::Span<bst_node_t const> right;
+  common::Span<bst_node_t const> parent;
+  common::Span<bst_feature_t const> split_index;
+  common::Span<std::uint8_t const> default_left;
+  common::Span<float const> split_conds;
+  linalg::MatrixView<float const> weights;
+
+  [[nodiscard]] XGBOOST_DEVICE bool IsLeaf(bst_node_t nidx) const {
+    return left[nidx] == InvalidNodeId();
+  }
+
+  [[nodiscard]] XGBOOST_DEVICE bst_node_t LeftChild(bst_node_t nidx) const { return left[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE bst_node_t RightChild(bst_node_t nidx) const { return right[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE bst_feature_t SplitIndex(bst_node_t nidx) const {
+    return split_index[nidx];
+  }
+  [[nodiscard]] XGBOOST_DEVICE float SplitCond(bst_node_t nidx) const { return split_conds[nidx]; }
+  [[nodiscard]] XGBOOST_DEVICE bool DefaultLeft(bst_node_t nidx) const {
+    return default_left[nidx];
+  }
+  [[nodiscard]] XGBOOST_DEVICE bst_node_t DefaultChild(bst_node_t nidx) const {
+    return this->DefaultLeft(nidx) ? this->LeftChild(nidx) : this->RightChild(nidx);
+  }
+  [[nodiscard]] XGBOOST_DEVICE linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {
+    return this->weights.Slice(nidx, linalg::All());
+  }
+
+  [[nodiscard]] bst_target_t NumTargets() const { return this->weights.Shape(1); }
+  [[nodiscard]] bst_node_t Size() const { return this->left.size(); }
+};
+
+/**
  * @brief Tree structure for multi-target model.
  */
 class MultiTargetTree : public Model {
  public:
-  static bst_node_t constexpr InvalidNodeId() { return -1; }
+  static bst_node_t constexpr InvalidNodeId() { return MultiTargetTreeView::InvalidNodeId(); }
 
  private:
   TreeParam const* param_;
@@ -37,13 +75,13 @@ class MultiTargetTree : public Model {
   HostDeviceVector<float> weights_;
 
   [[nodiscard]] linalg::VectorView<float const> NodeWeight(bst_node_t nidx) const {
-    auto beg = nidx * this->NumTarget();
-    auto v = this->weights_.ConstHostSpan().subspan(beg, this->NumTarget());
+    auto beg = nidx * this->NumTargets();
+    auto v = this->weights_.ConstHostSpan().subspan(beg, this->NumTargets());
     return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
   }
   [[nodiscard]] linalg::VectorView<float> NodeWeight(bst_node_t nidx) {
-    auto beg = nidx * this->NumTarget();
-    auto v = this->weights_.HostSpan().subspan(beg, this->NumTarget());
+    auto beg = nidx * this->NumTargets();
+    auto v = this->weights_.HostSpan().subspan(beg, this->NumTargets());
     return linalg::MakeTensorView(DeviceOrd::CPU(), v, v.size());
   }
 
@@ -92,7 +130,7 @@ class MultiTargetTree : public Model {
     return this->DefaultLeft(nidx) ? this->LeftChild(nidx) : this->RightChild(nidx);
   }
 
-  [[nodiscard]] bst_target_t NumTarget() const;
+  [[nodiscard]] bst_target_t NumTargets() const;
 
   [[nodiscard]] std::size_t Size() const;
 
@@ -109,9 +147,17 @@ class MultiTargetTree : public Model {
     CHECK(IsLeaf(nidx));
     return this->NodeWeight(nidx);
   }
+  /**
+   * @brief Get a view to the tree.
+   *
+   *   This method is NOT thread-safe.
+   */
+  [[nodiscard]] MultiTargetTreeView View(Context const* ctx) const;
 
   void LoadModel(Json const& in) override;
   void SaveModel(Json* out) const override;
+
+  [[nodiscard]] std::size_t MemCostBytes() const;
 };
 }  // namespace xgboost
 #endif  // XGBOOST_MULTI_TARGET_TREE_MODEL_H_
