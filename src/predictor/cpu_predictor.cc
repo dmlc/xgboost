@@ -460,7 +460,6 @@ struct LaunchConfig : public Args... {
       }
     } else {
       for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
-        // bool any_missing = !page.IsDense();
         fn(SparsePageView{page.GetView(), page.base_rowid, acc});
       }
     }

@@ -279,7 +279,6 @@ TEST(CpuPredictor, SparseColumnSplit) {
 
 TEST(CpuPredictor, Multi) {
   Context ctx;
-  ctx.nthread = 1;
   TestVectorLeafPrediction(&ctx);
 }
 

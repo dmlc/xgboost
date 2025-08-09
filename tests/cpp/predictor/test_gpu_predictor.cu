@@ -351,6 +351,11 @@ TEST(GPUPredictor, PredictLeafBasic) {
   }
 }
 
+TEST(GPUPredictor, Multi) {
+  auto ctx = MakeCUDACtx(0);
+  TestVectorLeafPrediction(&ctx);
+}
+
 TEST(GPUPredictor, Sparse) {
   auto ctx = MakeCUDACtx(0);
   TestSparsePrediction(&ctx, 0.2);
