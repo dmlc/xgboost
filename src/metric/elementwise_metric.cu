@@ -81,7 +81,7 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
     std::size_t constexpr kBlockSize = 2048;
     common::ParallelFor1d<kBlockSize>(size, n_threads, [&](auto&& block) {
       double sum_score = 0, sum_weight = 0;
-      for (std::size_t i = block.begin(); i < block.end(); ++i) {
+      for (std::size_t i = block.begin(), n = block.end(); i < n; ++i) {
         auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
 
         auto [v, wt] = loss(i, sample_id, target_id);
