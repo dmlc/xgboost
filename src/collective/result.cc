@@ -83,7 +83,7 @@ void SafeColl(Result const& rc, char const* file, std::int32_t line) {
     LOG(FATAL) << ("[" + name.string() + ":" + std::to_string(line) + "|" + logger.HumanDate() +
                    "]:\n")
                << rc.Report();
-    // Return just in case if this funciton is deep in ctypes callbacks.
+    // Return just in case if this function is deep in ctypes callbacks.
     return;
   }
   LOG(FATAL) << rc.Report();
