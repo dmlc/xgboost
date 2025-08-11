@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.69)
 
-AC_INIT([xgboost],[3.0.3],[],[xgboost],[])
+AC_INIT([xgboost],[3.0.4],[],[xgboost],[])
 
 : ${R_HOME=`R RHOME`}
 if test -z "${R_HOME}"; then
