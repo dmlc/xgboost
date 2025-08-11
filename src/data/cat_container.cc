@@ -10,7 +10,6 @@
 #include <vector>     // for vector
 
 #include "../collective/allreduce.h"         // for Allreduce
-#include "../collective/broadcast.h"         // for Broadcast
 #include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize
 #include "../common/error_msg.h"             // for NoFloatCat
 #include "../encoder/types.h"                // for Overloaded
