@@ -98,13 +98,11 @@ function(xgboost_set_cuda_flags target)
   if(USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
-  else()
-    target_compile_options(${target} PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
 
   if(USE_NVTX)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
+    target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
 
   # Use CCCL we find before CUDA Toolkit to make sure we get newer headers as intended
