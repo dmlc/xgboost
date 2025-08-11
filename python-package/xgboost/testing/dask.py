@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 """Tests for dask shared by different test modules."""
 
 from typing import Any, List, Literal, Tuple, Type, cast
@@ -6,7 +7,7 @@ import numpy as np
 import pandas as pd
 from dask import array as da
 from dask import dataframe as dd
-from distributed import Client, get_worker, wait
+from distributed import Client, get_worker
 from packaging.version import parse as parse_version
 from sklearn.datasets import make_classification
 

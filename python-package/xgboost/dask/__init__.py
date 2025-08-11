@@ -122,7 +122,7 @@ from ..sklearn import (
 from ..tracker import RabitTracker
 from ..training import train as worker_train
 from .data import _get_dmatrices, no_group_split
-from .utils import get_address_from_user, get_n_threads, _DASK_2025_3_0, _DASK_2024_12_1
+from .utils import _DASK_2024_12_1, _DASK_2025_3_0, get_address_from_user, get_n_threads
 
 _DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
 _DataT: TypeAlias = Union[da.Array, dd.DataFrame]  # do not use series as predictor
