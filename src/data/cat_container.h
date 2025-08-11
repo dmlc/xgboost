@@ -162,7 +162,7 @@ class CatContainer {
    *        this method returns True.
    */
   [[nodiscard]] bool Empty() const;
-  [[nodiscard]] bool NeedRecode() const { return !this->Empty() && !this->is_ref_; }
+  [[nodiscard]] bool NeedRecode() const { return this->HasCategorical() && !this->is_ref_; }
 
   [[nodiscard]] std::size_t NumFeatures() const;
   /**

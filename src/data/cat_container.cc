@@ -306,7 +306,7 @@ void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty) {
   std::vector<std::int32_t> workers(collective::GetWorldSize(), 0);
   workers[rank] = is_empty;
   collective::SafeColl(collective::Allreduce(ctx, &workers, collective::Op::kSum));
-  if (!cats->Empty() &&
+  if (cats->HasCategorical() &&
       std::any_of(workers.cbegin(), workers.cend(), [](auto v) { return v == 1; })) {
     LOG(FATAL)
         << "A worker cannot have empty input when a dataframe with categorical features is used. "
