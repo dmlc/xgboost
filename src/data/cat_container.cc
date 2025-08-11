@@ -309,7 +309,7 @@ void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty) {
   if (!cats->Empty() &&
       std::any_of(workers.cbegin(), workers.cend(), [](auto v) { return v == 1; })) {
     LOG(FATAL)
-        << "A worker cannot have empty input when a dataframe with categorical features is used. "
+        << "A worker cannot have empty input when a dataset with categorical features is used. "
            "XGBoost cannot infer the categories if the input is empty.";
   }
 }
