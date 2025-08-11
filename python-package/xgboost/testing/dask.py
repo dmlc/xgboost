@@ -1,6 +1,6 @@
 """Tests for dask shared by different test modules."""
 
-from typing import Any, List, Literal, Tuple, cast
+from typing import Any, List, Literal, Tuple, Type, cast
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,8 @@ from xgboost.testing.updater import get_basescore
 
 from .. import dask as dxgb
 from .._typing import EvalsLog
-from ..dask import _DASK_VERSION, _get_rabit_args
+from ..dask import _get_rabit_args
+from ..dask.utils import _DASK_VERSION
 from .data import make_batches
 from .data import make_categorical as make_cat_local
 from .ordinal import make_recoded
@@ -324,60 +325,77 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
 
 def run_recode(client: Client, device: Device) -> None:
     """Run re-coding test with the Dask interface."""
-    enc, reenc, y, _, _ = make_recoded(device, n_features=96)
-    denc, dreenc, dy = (
-        dd.from_pandas(enc, npartitions=8),
-        dd.from_pandas(reenc, npartitions=8),
-        da.from_array(y, chunks=(y.shape[0] // 8,)),
-    )
-    wait([denc, dreenc, dy])
-    client.rebalance([denc, dreenc, dy])
 
-    if device == "cuda":
-        denc = denc.to_backend("cudf")
-        dreenc = dreenc.to_backend("cudf")
-        dy = dy.to_backend("cupy")
+    def create_dmatrix(
+        DMatrixT: Type[dxgb.DaskDMatrix], *args: Any, **kwargs: Any
+    ) -> dxgb.DaskDMatrix:
+        if DMatrixT is dxgb.DaskQuantileDMatrix:
+            ref = kwargs.pop("ref", None)
+            return DMatrixT(*args, ref=ref, **kwargs)
 
-    Xy = dxgb.DaskQuantileDMatrix(client, denc, dy, enable_categorical=True)
-    Xy_valid = dxgb.DaskQuantileDMatrix(
-        client, dreenc, dy, enable_categorical=True, ref=Xy
-    )
-    # Base model
-    results = dxgb.train(client, {"device": device}, Xy, evals=[(Xy_valid, "Valid")])
+        kwargs.pop("ref", None)
+        return DMatrixT(*args, **kwargs)
 
-    # Training continuation
-    Xy = dxgb.DaskQuantileDMatrix(client, denc, dy, enable_categorical=True)
-    Xy_valid = dxgb.DaskQuantileDMatrix(
-        client, dreenc, dy, enable_categorical=True, ref=Xy
-    )
-    results_1 = dxgb.train(
-        client,
-        {"device": device},
-        Xy,
-        evals=[(Xy_valid, "Valid")],
-        xgb_model=results["booster"],
-    )
+    def run(DMatrixT: Type[dxgb.DaskDMatrix]) -> None:
+        enc, reenc, y, _, _ = make_recoded(device, n_features=96)
+        to = get_client_workers(client)
 
-    # Reversed training continuation
-    Xy = dxgb.DaskQuantileDMatrix(client, dreenc, dy, enable_categorical=True)
-    Xy_valid = dxgb.DaskQuantileDMatrix(
-        client, denc, dy, enable_categorical=True, ref=Xy
-    )
-    results_2 = dxgb.train(
-        client,
-        {"device": device},
-        Xy,
-        evals=[(Xy_valid, "Valid")],
-        xgb_model=results["booster"],
-    )
-    np.testing.assert_allclose(
-        results_1["history"]["Valid"]["rmse"], results_2["history"]["Valid"]["rmse"]
-    )
+        denc, dreenc, dy = (
+            dd.from_pandas(enc, npartitions=8).persist(workers=to),
+            dd.from_pandas(reenc, npartitions=8).persist(workers=to),
+            da.from_array(y, chunks=(y.shape[0] // 8,)).persist(workers=to),
+        )
 
-    predt_0 = dxgb.inplace_predict(client, results, denc).compute()
-    predt_1 = dxgb.inplace_predict(client, results, dreenc).compute()
-    assert_allclose(device, predt_0, predt_1)
+        if device == "cuda":
+            denc = denc.to_backend("cudf")
+            dreenc = dreenc.to_backend("cudf")
+            dy = dy.to_backend("cupy")
 
-    predt_0 = dxgb.predict(client, results, Xy).compute()
-    predt_1 = dxgb.predict(client, results, Xy_valid).compute()
-    assert_allclose(device, predt_0, predt_1)
+        Xy = create_dmatrix(DMatrixT, client, denc, dy, enable_categorical=True)
+        Xy_valid = create_dmatrix(
+            DMatrixT, client, dreenc, dy, enable_categorical=True, ref=Xy
+        )
+        # Base model
+        results = dxgb.train(
+            client, {"device": device}, Xy, evals=[(Xy_valid, "Valid")]
+        )
+
+        # Training continuation
+        Xy = create_dmatrix(DMatrixT, client, denc, dy, enable_categorical=True)
+        Xy_valid = create_dmatrix(
+            DMatrixT, client, dreenc, dy, enable_categorical=True, ref=Xy
+        )
+        results_1 = dxgb.train(
+            client,
+            {"device": device},
+            Xy,
+            evals=[(Xy_valid, "Valid")],
+            xgb_model=results["booster"],
+        )
+
+        # Reversed training continuation
+        Xy = create_dmatrix(DMatrixT, client, dreenc, dy, enable_categorical=True)
+        Xy_valid = create_dmatrix(
+            DMatrixT, client, denc, dy, enable_categorical=True, ref=Xy
+        )
+        results_2 = dxgb.train(
+            client,
+            {"device": device},
+            Xy,
+            evals=[(Xy_valid, "Valid")],
+            xgb_model=results["booster"],
+        )
+        np.testing.assert_allclose(
+            results_1["history"]["Valid"]["rmse"], results_2["history"]["Valid"]["rmse"]
+        )
+
+        predt_0 = dxgb.inplace_predict(client, results, denc).compute()
+        predt_1 = dxgb.inplace_predict(client, results, dreenc).compute()
+        assert_allclose(device, predt_0, predt_1)
+
+        predt_0 = dxgb.predict(client, results, Xy).compute()
+        predt_1 = dxgb.predict(client, results, Xy_valid).compute()
+        assert_allclose(device, predt_0, predt_1)
+
+    for DMatrixT in [dxgb.DaskDMatrix, dxgb.DaskQuantileDMatrix]:
+        run(DMatrixT)

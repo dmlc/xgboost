@@ -55,7 +55,7 @@ Optional dask configuration
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import cache, partial, update_wrapper
+from functools import partial, update_wrapper
 from threading import Thread
 from typing import (
     Any,
@@ -85,8 +85,6 @@ from dask import bag as db
 from dask import dataframe as dd
 from dask.delayed import Delayed
 from distributed import Future
-from packaging.version import Version
-from packaging.version import parse as parse_version
 
 from .. import collective, config
 from .._data_utils import Categories
@@ -124,7 +122,7 @@ from ..sklearn import (
 from ..tracker import RabitTracker
 from ..training import train as worker_train
 from .data import _get_dmatrices, no_group_split
-from .utils import get_address_from_user, get_n_threads
+from .utils import get_address_from_user, get_n_threads, _DASK_2025_3_0, _DASK_2024_12_1
 
 _DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
 _DataT: TypeAlias = Union[da.Array, dd.DataFrame]  # do not use series as predictor
@@ -172,21 +170,6 @@ __all__ = [
 
 
 LOGGER = logging.getLogger("[xgboost.dask]")
-
-
-@cache
-def _DASK_VERSION() -> Version:
-    return parse_version(dask.__version__)
-
-
-@cache
-def _DASK_2024_12_1() -> bool:
-    return _DASK_VERSION() >= parse_version("2024.12.1")
-
-
-@cache
-def _DASK_2025_3_0() -> bool:
-    return _DASK_VERSION() >= parse_version("2025.3.0")
 
 
 def _try_start_tracker(

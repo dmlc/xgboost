@@ -83,8 +83,9 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   iter.Reset();
 
   ext_info_.SetInfo(&ctx, true, &this->info_);
-
   fmat_ctx_ = ctx;
+
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
 }
 
 SparsePageDMatrix::~SparsePageDMatrix() {

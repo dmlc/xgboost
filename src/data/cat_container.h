@@ -263,6 +263,8 @@ struct NoOpAccessor {
   [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const& e) const { return e.fvalue; }
 };
 
+void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty);
+
 namespace cpu_impl {
 inline auto MakeCatAccessor(Context const* ctx, enc::HostColumnsView const& new_enc,
                             CatContainer const* orig_cats) {

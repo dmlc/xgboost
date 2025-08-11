@@ -49,6 +49,8 @@ ExtMemQuantileDMatrix::ExtMemQuantileDMatrix(DataIterHandle iter_handle, DMatrix
   }
   this->batch_ = p;
   this->fmat_ctx_ = ctx;
+
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
 }
 
 ExtMemQuantileDMatrix::~ExtMemQuantileDMatrix() {

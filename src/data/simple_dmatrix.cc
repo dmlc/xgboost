@@ -341,6 +341,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
   }
   info_.num_nonzero_ = data_vec.size();
 
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
+
   // Sort the index for row partitioners used by variuos tree methods.
   if (!sparse_page_->IsIndicesSorted(ctx.Threads())) {
     sparse_page_->SortIndices(ctx.Threads());
