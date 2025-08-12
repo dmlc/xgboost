@@ -251,6 +251,17 @@ void ParallelFor(Index size, std::int32_t n_threads, Func&& fn) {
   ParallelFor(size, n_threads, Sched::Static(), std::forward<Func>(fn));
 }
 
+/**
+ * @brief 1-d block-based parallel for loop.
+ *
+ * @tparam kBlockOfRowsSize The size of the block.
+ * @tparam Index The type of the index.
+ * @tparam Func The type of the function.
+ *
+ * @param size The size of the range.
+ * @param n_threads The number of threads.
+ * @param fn The function to execute. The function should take a Range1d as an argument.
+ */
 template <std::size_t kBlockOfRowsSize, typename Index, typename Func>
 void ParallelFor1d(Index size, std::int32_t n_threads, Func&& fn) {
   static_assert(std::is_void_v<std::invoke_result_t<Func, common::Range1d>>);
