@@ -324,6 +324,7 @@ def make_categorical(  # pylint: disable=too-many-locals, too-many-arguments
     return X, y
 
 
+# pylint: disable=too-many-locals
 def run_recode(client: Client, device: Device) -> None:
     """Run re-coding test with the Dask interface."""
 

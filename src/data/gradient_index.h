@@ -20,7 +20,7 @@
 #include "../common/ref_resource_view.h"  // for RefResourceView
 #include "../common/threading_utils.h"
 #include "../common/transform_iterator.h"  // for MakeIndexTransformIter
-#include "adapter.h"
+#include "entry.h"                         // for IsValidFunctor
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
