@@ -9,9 +9,11 @@
 #include <utility>    // for move
 #include <vector>     // for vector
 
-#include "../common/error_msg.h"  // for NoFloatCat
-#include "../encoder/types.h"     // for Overloaded
-#include "xgboost/json.h"         // for Json
+#include "../collective/allreduce.h"         // for Allreduce
+#include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize
+#include "../common/error_msg.h"             // for NoFloatCat
+#include "../encoder/types.h"                // for Overloaded
+#include "xgboost/json.h"                    // for Json
 
 namespace xgboost {
 CatContainer::CatContainer(enc::HostColumnsView const& df, bool is_ref) : CatContainer{} {
@@ -293,4 +295,22 @@ void CatContainer::Sort(Context const* ctx) {
   enc::SortNames(enc::Policy<EncErrorPolicy>{}, view, this->sorted_idx_.HostSpan());
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty) {
+  CHECK(cats);
+  if (!collective::IsDistributed()) {
+    return;
+  }
+
+  auto rank = collective::GetRank();
+  std::vector<std::int32_t> workers(collective::GetWorldSize(), 0);
+  workers[rank] = is_empty;
+  collective::SafeColl(collective::Allreduce(ctx, &workers, collective::Op::kSum));
+  if (cats->HasCategorical() &&
+      std::any_of(workers.cbegin(), workers.cend(), [](auto v) { return v == 1; })) {
+    LOG(FATAL)
+        << "A worker cannot have empty input when a dataframe with categorical features is used. "
+           "XGBoost cannot infer the categories if the input is empty.";
+  }
+}
 }  // namespace xgboost

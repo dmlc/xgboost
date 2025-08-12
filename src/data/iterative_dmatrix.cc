@@ -9,10 +9,11 @@
 #include <utility>    // for move
 #include <vector>     // for vector
 
-#include "../common/categorical.h"  // common::IsCat
+#include "../common/categorical.h"  // for IsCat
 #include "../common/hist_util.h"    // for HistogramCuts
 #include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
 #include "batch_utils.h"            // for RegenGHist
+#include "cat_container.h"          // for SyncCategories
 #include "gradient_index.h"         // for GHistIndexMatrix
 #include "proxy_dmatrix.h"          // for DataIterProxy, DispatchAny
 #include "quantile_dmatrix.h"       // for GetCutsFromRef
@@ -49,6 +50,8 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
 
   this->fmat_ctx_ = ctx;
   this->batch_ = p;
+
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
 
   LOG(INFO) << "Finished constructing the `IterativeDMatrix`: (" << this->Info().num_row_ << ", "
             << this->Info().num_col_ << ", " << this->info_.num_nonzero_ << ").";
