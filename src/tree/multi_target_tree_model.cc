@@ -164,16 +164,20 @@ void LoadModelImpl(Json const& in, HostDeviceVector<float>* p_weights,
 MultiTargetTreeView MultiTargetTree::View(Context const* ctx) const {
   auto n_leaves = this->weights_.Size() / this->NumTargets();
   CHECK_GE(this->NumTargets(), 2);
+  CHECK_EQ(this->left_.Size(), this->right_.Size());
+  CHECK_EQ(this->left_.Size(), this->parent_.Size());
 
   auto device = ctx->Device();
+
   if (device.IsCPU()) {
-    return MultiTargetTreeView{
-        this->left_.ConstHostSpan(),
-        this->right_.ConstHostSpan(),
-        this->parent_.ConstHostSpan(),
-        this->split_index_.ConstHostSpan(),
-        this->default_left_.ConstHostSpan(),
-        this->split_conds_.ConstHostSpan(),
+    return {
+        this->left_.ConstHostPointer(),
+        this->right_.ConstHostPointer(),
+        this->parent_.ConstHostPointer(),
+        this->left_.Size(),
+        this->split_index_.ConstHostPointer(),
+        this->default_left_.ConstHostPointer(),
+        this->split_conds_.ConstHostPointer(),
         linalg::MakeTensorView(ctx, this->weights_.ConstHostSpan(), n_leaves, this->NumTargets())};
   }
 
@@ -185,14 +189,15 @@ MultiTargetTreeView MultiTargetTree::View(Context const* ctx) const {
   this->split_conds_.SetDevice(device);
   this->weights_.SetDevice(device);
 
-  return {this->left_.ConstDeviceSpan(),
-          this->right_.ConstDeviceSpan(),
-          this->parent_.ConstDeviceSpan(),
-          this->split_index_.ConstDeviceSpan(),
-          this->default_left_.ConstDeviceSpan(),
-          this->split_conds_.ConstDeviceSpan(),
-          linalg::MakeTensorView(ctx, this->weights_.ConstDeviceSpan(),
-                                 n_leaves, this->NumTargets())};
+  return {
+      this->left_.ConstDevicePointer(),
+      this->right_.ConstDevicePointer(),
+      this->parent_.ConstDevicePointer(),
+      this->left_.Size(),
+      this->split_index_.ConstDevicePointer(),
+      this->default_left_.ConstDevicePointer(),
+      this->split_conds_.ConstDevicePointer(),
+      linalg::MakeTensorView(ctx, this->weights_.ConstDeviceSpan(), n_leaves, this->NumTargets())};
 }
 
 void MultiTargetTree::LoadModel(Json const& in) {

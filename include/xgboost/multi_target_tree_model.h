@@ -25,12 +25,16 @@ struct TreeParam;
 struct MultiTargetTreeView {
   static bst_node_t constexpr InvalidNodeId() { return -1; }
 
-  common::Span<bst_node_t const> left;
-  common::Span<bst_node_t const> right;
-  common::Span<bst_node_t const> parent;
-  common::Span<bst_feature_t const> split_index;
-  common::Span<std::uint8_t const> default_left;
-  common::Span<float const> split_conds;
+  bst_node_t const* left;
+  bst_node_t const* right;
+  bst_node_t const* parent;
+  // The number of nodes
+  std::size_t n{0};
+
+  bst_feature_t const* split_index;
+  std::uint8_t const* default_left;
+  float const* split_conds;
+
   linalg::MatrixView<float const> weights;
 
   [[nodiscard]] XGBOOST_DEVICE bool IsLeaf(bst_node_t nidx) const {
@@ -54,7 +58,7 @@ struct MultiTargetTreeView {
   }
 
   [[nodiscard]] bst_target_t NumTargets() const { return this->weights.Shape(1); }
-  [[nodiscard]] bst_node_t Size() const { return this->left.size(); }
+  [[nodiscard]] bst_node_t Size() const { return this->n; }
 };
 
 /**
