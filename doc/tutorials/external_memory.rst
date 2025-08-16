@@ -269,9 +269,9 @@ which has about 350GB/s bandwidth for host to device transfer. When choosing the
 for training XGBoost models, one should pay extra attention to the C2C bandwidth.
 
 Here we provide a simple example as a starting point for training with external memory. We
-used this example for one of the benchmarks. To train a model with `2 ^ 29` samples, `512`
-features (total 1TB given f32) on a GH200 (Grace with a H200 connected with C2C)
-system. One can start with:
+used this example for one of the benchmarks. To train a model with `2 ^ 29` 32-bit
+floating point samples, `512` features (total 1TB) on a GH200 (a H200 GPU connected to a
+Grace CPU by a chip-to-chip link) system. One can start with:
 - Evenly divide the data into 128 batches with 8GB per batch.
 - Define a custom iterator as previously described.
 - Set the `max_quantile_batches` parameter of the
