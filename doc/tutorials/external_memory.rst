@@ -268,12 +268,16 @@ bandwidths. During initial development of the feature, we used the LPDDR5 480G v
 which has about 350GB/s bandwidth for host to device transfer. When choosing the variant
 for training XGBoost models, one should pay extra attention to the C2C bandwidth.
 
-To provide a starting point. To train a model with `2 ^ 29` samples, `512` features (total
-1TB given f32) on a GH200 system. One can start with:
+Here we provide a simple example as a starting point for training with external memory. We
+used this example for one of the benchmarks. To train a model with `2 ^ 29` samples, `512`
+features (total 1TB given f32) on a GH200 (Grace with a H200 connected with C2C)
+system. One can start with:
 - Evenly divide the data into 128 batches with 8GB per batch.
-- Set the `max_quantile_batches` to 32 (256GB per sub-stream for quantization).
-- Load the data with the :py:class:`~xgboost.ExtMemQuantileDMatrix`.
-- Start training.
+- Define a custom iterator as previously described.
+- Set the `max_quantile_batches` parameter of the
+  :py:class:`~xgboost.ExtMemQuantileDMatrix` to 32 (256GB per sub-stream for
+  quantization). Load the data.
+- Start training with ``device=cuda``.
 
 To run experiments on these platforms, the open source `NVIDIA Linux driver
 <https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/>`__
