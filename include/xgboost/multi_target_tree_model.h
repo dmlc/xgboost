@@ -20,7 +20,7 @@
 namespace xgboost {
 struct TreeParam;
 /**
- * @brief A view to the @MultiTargetTree suitable for both host and device..
+ * @brief A view to the @MultiTargetTree suitable for both host and device.
  */
 struct MultiTargetTreeView {
   static bst_node_t constexpr InvalidNodeId() { return -1; }
