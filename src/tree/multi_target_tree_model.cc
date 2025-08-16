@@ -162,42 +162,35 @@ void LoadModelImpl(Json const& in, HostDeviceVector<float>* p_weights,
 }
 
 MultiTargetTreeView MultiTargetTree::View(Context const* ctx) const {
-  auto n_leaves = this->weights_.Size() / this->NumTargets();
   CHECK_GE(this->NumTargets(), 2);
   CHECK_EQ(this->left_.Size(), this->right_.Size());
   CHECK_EQ(this->left_.Size(), this->parent_.Size());
 
   auto device = ctx->Device();
+  auto n = this->left_.Size();
 
-  if (device.IsCPU()) {
-    return {
-        this->left_.ConstHostPointer(),
-        this->right_.ConstHostPointer(),
-        this->parent_.ConstHostPointer(),
-        this->left_.Size(),
-        this->split_index_.ConstHostPointer(),
-        this->default_left_.ConstHostPointer(),
-        this->split_conds_.ConstHostPointer(),
-        linalg::MakeTensorView(ctx, this->weights_.ConstHostSpan(), n_leaves, this->NumTargets())};
-  }
+  // Data copies between host and device can introduce race.
+  std::lock_guard guard{this->tree_view_lock_};
 
-  this->left_.SetDevice(device);
-  this->right_.SetDevice(device);
-  this->parent_.SetDevice(device);
-  this->split_index_.SetDevice(device);
-  this->default_left_.SetDevice(device);
-  this->split_conds_.SetDevice(device);
-  this->weights_.SetDevice(device);
+  auto make_ten = [&](common::Span<float const> weights) {
+    auto n_targets = this->NumTargets();
+    auto n_leaves = this->weights_.Size() / this->NumTargets();
+    CHECK_GE(n_leaves, 1);
+    return linalg::MakeTensorView(ctx, weights, n_leaves, n_targets);
+  };
 
-  return {
-      this->left_.ConstDevicePointer(),
-      this->right_.ConstDevicePointer(),
-      this->parent_.ConstDevicePointer(),
-      this->left_.Size(),
-      this->split_index_.ConstDevicePointer(),
-      this->default_left_.ConstDevicePointer(),
-      this->split_conds_.ConstDevicePointer(),
-      linalg::MakeTensorView(ctx, this->weights_.ConstDeviceSpan(), n_leaves, this->NumTargets())};
+  auto make_tr = [&](auto const&... args) -> MultiTargetTreeView {
+    if (device.IsCPU()) {
+      return {(args.ConstHostPointer())..., n, make_ten(this->weights_.ConstHostSpan())};
+    }
+
+    (args.SetDevice(device), ...);
+    this->weights_.SetDevice(device);
+    return {(args.ConstDevicePointer())..., n, make_ten(this->weights_.ConstDeviceSpan())};
+  };
+
+  return make_tr(this->left_, this->right_, this->parent_, this->split_index_, this->default_left_,
+                 this->split_conds_);
 }
 
 void MultiTargetTree::LoadModel(Json const& in) {

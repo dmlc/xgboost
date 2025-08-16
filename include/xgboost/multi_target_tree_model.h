@@ -15,6 +15,7 @@
 
 #include <cstddef>  // for size_t
 #include <cstdint>  // for uint8_t
+#include <mutex>    // for mutex
 #include <vector>   // for vector
 
 namespace xgboost {
@@ -28,12 +29,13 @@ struct MultiTargetTreeView {
   bst_node_t const* left;
   bst_node_t const* right;
   bst_node_t const* parent;
-  // The number of nodes
-  std::size_t n{0};
 
   bst_feature_t const* split_index;
   std::uint8_t const* default_left;
   float const* split_conds;
+
+  // The number of nodes
+  std::size_t n{0};
 
   linalg::MatrixView<float const> weights;
 
@@ -78,6 +80,8 @@ class MultiTargetTree : public Model {
   HostDeviceVector<float> split_conds_;
   HostDeviceVector<float> weights_;
 
+  mutable std::mutex tree_view_lock_;
+
   [[nodiscard]] linalg::VectorView<float const> NodeWeight(bst_node_t nidx) const {
     auto beg = nidx * this->NumTargets();
     auto v = this->weights_.ConstHostSpan().subspan(beg, this->NumTargets());
@@ -93,8 +97,8 @@ class MultiTargetTree : public Model {
   explicit MultiTargetTree(TreeParam const* param);
   MultiTargetTree(MultiTargetTree const& that);
   MultiTargetTree& operator=(MultiTargetTree const& that) = delete;
-  MultiTargetTree(MultiTargetTree&& that) = default;
-  MultiTargetTree& operator=(MultiTargetTree&& that) = default;
+  MultiTargetTree(MultiTargetTree&& that) = delete;
+  MultiTargetTree& operator=(MultiTargetTree&& that) = delete;
 
   /**
    * @brief Set the weight for a leaf.

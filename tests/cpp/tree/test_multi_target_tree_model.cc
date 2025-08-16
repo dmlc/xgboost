@@ -6,6 +6,8 @@
 #include <xgboost/multi_target_tree_model.h>
 #include <xgboost/tree_model.h>  // for RegTree
 
+#include "../helpers.h"
+
 namespace xgboost {
 namespace {
 auto MakeTreeForTest() {
@@ -78,11 +80,26 @@ TEST(MultiTargetTree, DumpDot) {
 
 TEST(MultiTargetTree, View) {
   auto tree = MakeTreeForTest();
-  Context ctx;
-  auto v = tree->GetMultiTargetTree()->View(&ctx);
-  ASSERT_EQ(v.NumTargets(), 3);
-  ASSERT_EQ(v.Size(), 3);
-  ASSERT_EQ(v.LeftChild(0), 1);
-  ASSERT_EQ(v.RightChild(0), 2);
+
+  auto test = [&tree](Context const* ctx) {
+    auto v = tree->GetMultiTargetTree()->View(ctx);
+    ASSERT_EQ(v.NumTargets(), 3);
+    ASSERT_EQ(v.Size(), 3);
+    if (ctx->IsCPU()) {
+      ASSERT_EQ(v.LeftChild(0), 1);
+      ASSERT_EQ(v.RightChild(0), 2);
+    }
+  };
+
+  {
+    Context ctx;
+    test(&ctx);
+  }
+#if defined(XGBOOST_USE_CUDA)
+  {
+    auto ctx = MakeCUDACtx(0);
+    test(&ctx);
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
 }
 }  // namespace xgboost
