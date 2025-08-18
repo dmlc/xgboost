@@ -23,7 +23,7 @@ mvn --no-transfer-progress install -Pdocs
 # Build Scaladocs
 mvn --no-transfer-progress scala:doc -Pdocs
 # Build Javadocs
-mvn --no-transfer-progress javadoc:javadoc -Pdocs -Dcheckstyle.skip
+mvn --no-transfer-progress javadoc:javadoc -Pdocs
 
 # Package JVM docs in a tarball
 mkdir -p tmp/scaladocs
