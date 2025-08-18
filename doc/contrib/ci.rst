@@ -15,15 +15,28 @@ project.
 Tips for testing
 ****************
 
-====================================
+=======
+R tests
+=======
+
+------------------------------------
 Running R tests with ``noLD`` option
-====================================
+------------------------------------
+
 You can run R tests using a custom-built R with compilation flag
 ``--disable-long-double``. See `this page <https://blog.r-hub.io/2019/05/21/nold/>`_ for more
 details about noLD. This is a requirement for keeping XGBoost on CRAN (the R package index).
 Unlike other tests, this test must be invoked manually. Simply add a review comment
 ``/gha run r-nold-test`` to a pull request to kick off the test.
 (Ordinary comment won't work. It needs to be a review comment.)
+
+---------------------------------
+Using container images from r-hub
+---------------------------------
+
+The r-hub project `provides <https://github.com/r-hub/containers>`__ a list of container
+`images <https://r-hub.github.io/containers/>`__ for reproducing CRAN environments.
+
 
 ===============================
 Making changes to CI containers
