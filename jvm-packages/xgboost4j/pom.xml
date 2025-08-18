@@ -68,7 +68,6 @@
             <artifactId>maven-javadoc-plugin</artifactId>
             <version>3.11.3</version>
             <configuration>
-              <charset>UTF-8</charset>
               <show>protected</show>
               <nohelp>true</nohelp>
             </configuration>
