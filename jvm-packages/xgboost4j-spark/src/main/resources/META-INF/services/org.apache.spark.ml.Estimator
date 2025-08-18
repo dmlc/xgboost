@@ -1,0 +1,3 @@
+ml.dmlc.xgboost4j.scala.spark.XGBoostClassifier
+ml.dmlc.xgboost4j.scala.spark.XGBoostRanker
+ml.dmlc.xgboost4j.scala.spark.XGBoostRegressor

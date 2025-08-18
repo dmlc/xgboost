@@ -31,7 +31,7 @@ import org.apache.spark.ml.param.{Param, ParamMap}
 import org.apache.spark.ml.util.{DefaultParamsWritable, MLReader, MLWritable, MLWriter}
 import org.apache.spark.ml.xgboost.{SparkUtils, XGBProbabilisticClassifierParams}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql._
+import org.apache.spark.sql.{Column, DataFrame, Dataset, Row, SparkSession}
 import org.apache.spark.sql.functions.{array, col, udf}
 import org.apache.spark.sql.types._
 
