@@ -42,12 +42,6 @@ jobs:
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.r }}
-      - name: Cache R packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-${{ matrix.r }}-8-${{ hashFiles('R-package/DESCRIPTION') }}
-          restore-keys: ${{ runner.os }}-r-${{ matrix.r }}-8-${{ hashFiles('R-package/DESCRIPTION') }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -70,13 +64,12 @@ jobs:
     name: Test R package on Debian
     runs-on: ubuntu-latest
     container:
-      image: rhub/debian-gcc-release
+      image: rhub/ubuntu-release # rhub uses ubuntu for debian tests.
     steps:
       - name: Install system dependencies
         run: |
           # Must run before checkout to have the latest git installed.
-          # No need to add pandoc, the container has it figured out.
-          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 -y
+          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 pandoc -y
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
@@ -90,8 +83,9 @@ jobs:
       - name: Test R
         shell: bash -l {0}
         run: |
-          python3 ops/script/test_r_package.py --r=/usr/bin/R --build-tool=autotools --task=check
+          python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --build-tool=autotools --task=check
       - uses: dorny/paths-filter@v3
+        # Run the document check if there are changes in the R package.
         id: changes
         with:
           filters: |
@@ -100,4 +94,12 @@ jobs:
       - name: Run document check
         if: steps.changes.outputs.r_package == 'true'
         run: |
-          python3 ops/script/test_r_package.py --r=/usr/bin/R --task=doc
+          python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --task=doc
+      - name: Run lintr
+        run: |
+          # Prevent the linter from checking generated R scripts.
+          if [ -d ./xgboost.Rcheck ] ; then
+            rm -rf ./xgboost.Rcheck
+          fi
+          MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
+          Rscript ops/script/lint_r.R $(pwd)
