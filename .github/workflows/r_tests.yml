@@ -97,6 +97,7 @@ jobs:
           python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --task=doc
       - name: Run lintr
         run: |
+          # Prevent the linter from checking generated R scripts.
           if [ -d ./xgboost.Rcheck ] ; then
             rm -rf ./xgboost.Rcheck
           fi
