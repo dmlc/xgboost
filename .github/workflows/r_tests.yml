@@ -75,8 +75,7 @@ jobs:
       - name: Install system dependencies
         run: |
           # Must run before checkout to have the latest git installed.
-          # No need to add pandoc, the container has it figured out.
-          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 -y
+          apt update && apt install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libglpk-dev libxml2-dev libharfbuzz-dev libfribidi-dev git librsvg2-dev librsvg2-2 pandoc -y
       - name: Trust git cloning project sources
         run: |
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
@@ -101,4 +100,4 @@ jobs:
       - name: Run document check
         if: steps.changes.outputs.r_package == 'true'
         run: |
-          python3 ops/script/test_r_package.py --r=/usr/bin/R --task=doc
+          python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --task=doc
