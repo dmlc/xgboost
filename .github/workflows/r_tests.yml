@@ -97,5 +97,8 @@ jobs:
           python3 ops/script/test_r_package.py --r=/opt/R/release/bin/R --task=doc
       - name: Run lintr
         run: |
+          if [ -d ./xgboost.Rcheck ] ; then
+            rm -rf ./xgboost.Rcheck
+          fi
           MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
           Rscript ops/script/lint_r.R $(pwd)
