@@ -78,15 +78,10 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
     // - sqrt(avg_t0) + sqrt(avg_t1) + ... sqrt(avg_tm)  // distributed
 
     auto size = info.labels.Size() * num_preds;
-    auto const kBlockSize = 2048;
-    auto n_blocks = size / kBlockSize + 1;
-
-    common::ParallelFor(n_blocks, n_threads, [&](auto block_idx) {
-      const size_t begin = block_idx * kBlockSize;
-      const size_t end = std::min(size, begin + kBlockSize);
-
+    std::size_t constexpr kBlockSize = 2048;
+    common::ParallelFor1d<kBlockSize>(size, n_threads, [&](auto&& block) {
       double sum_score = 0, sum_weight = 0;
-      for (std::size_t i = begin; i < end; ++i) {
+      for (std::size_t i = block.begin(), n = block.end(); i < n; ++i) {
         auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
 
         auto [v, wt] = loss(i, sample_id, target_id);
@@ -98,6 +93,7 @@ PackedReduceResult Reduce(Context const* ctx, MetaInfo const& info, Fn&& loss,
       score_tloc[t_idx] += sum_score;
       weight_tloc[t_idx] += sum_weight;
     });
+
     double residue_sum = std::accumulate(score_tloc.cbegin(), score_tloc.cend(), 0.0);
     double weights_sum = std::accumulate(weight_tloc.cbegin(), weight_tloc.cend(), 0.0);
     result = PackedReduceResult{residue_sum, weights_sum};
