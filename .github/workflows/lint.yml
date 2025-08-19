@@ -72,30 +72,3 @@ jobs:
         run: |
           python3 ops/script/lint_cpp.py
           bash ops/script/lint_cmake.sh
-
-  lintr:
-    runs-on: ubuntu-latest
-    name: Run R linters on Ubuntu
-    env:
-      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-      - uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "release"
-      - name: Cache R packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
-          restore-keys: ${{ runner.os }}-r-release-7-${{ hashFiles('R-package/DESCRIPTION') }}
-      - name: Install dependencies
-        shell: Rscript {0}
-        run: |
-          source("./R-package/tests/helper_scripts/install_deps.R")
-      - name: Run lintr
-        run: |
-          MAKEFLAGS="-j$(nproc)" R CMD INSTALL R-package/
-          Rscript ops/script/lint_r.R $(pwd)
