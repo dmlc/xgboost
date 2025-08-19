@@ -287,29 +287,6 @@
 
         <plugins>
             <plugin>
-                <groupId>org.scalastyle</groupId>
-                <artifactId>scalastyle-maven-plugin</artifactId>
-                <version>1.0.0</version>
-                <configuration>
-                    <verbose>false</verbose>
-                    <failOnViolation>true</failOnViolation>
-                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
-                    <sourceDirectory>${basedir}/src/main/scala</sourceDirectory>
-                    <testSourceDirectory>${basedir}/src/test/scala</testSourceDirectory>
-                    <configLocation>scalastyle-config.xml</configLocation>
-                    <outputEncoding>UTF-8</outputEncoding>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>checkstyle</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
                 <version>3.21.0</version>
@@ -320,6 +297,8 @@
                 <version>3.6.0</version>
                 <configuration>
                     <configLocation>checkstyle.xml</configLocation>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                    <suppressionsFileExpression>checkstyle.suppressions.file</suppressionsFileExpression>
                     <failOnViolation>true</failOnViolation>
                 </configuration>
                 <executions>
