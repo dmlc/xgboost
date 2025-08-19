@@ -73,7 +73,7 @@ void MakeSketches(Context const* ctx,
     /**
      * Get the data shape.
      */
-    // We use do while here as the first batch is fetched in ctor
+    // We use do while here as the first batch has been fetched in the ctor
     CHECK_LT(ctx->Ordinal(), curt::AllVisibleGPUs());
     auto device = dh::GetDevice(ctx);
     curt::SetDevice(device.ordinal);
