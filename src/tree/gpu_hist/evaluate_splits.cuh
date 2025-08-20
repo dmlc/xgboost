@@ -183,12 +183,11 @@ class GPUHistEvaluator {
       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator);
 
   // impl of evaluate splits, contains CUDA kernels so it's public
-  void LaunchEvaluateSplits(
-      bst_feature_t max_active_features,
-      common::Span<const EvaluateSplitInputs> d_inputs,
-      EvaluateSplitSharedInputs shared_inputs,
-      TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-      common::Span<DeviceSplitCandidate> out_splits);
+  void LaunchEvaluateSplits(Context const *ctx, bst_feature_t max_active_features,
+                            common::Span<const EvaluateSplitInputs> d_inputs,
+                            EvaluateSplitSharedInputs shared_inputs,
+                            TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                            common::Span<DeviceSplitCandidate> out_splits);
   /**
    * \brief Evaluate splits for left and right nodes.
    */
