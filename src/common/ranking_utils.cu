@@ -61,13 +61,13 @@ void CalcQueriesDCG(Context const* ctx, linalg::VectorView<float const> d_labels
 
   CHECK(out_dcg.Contiguous());
   std::size_t bytes;
-  cub::DeviceSegmentedReduce::Sum(nullptr, bytes, value_it, out_dcg.Values().data(),
-                                  d_group_ptr.size() - 1, d_group_ptr.data(),
-                                  d_group_ptr.data() + 1, ctx->CUDACtx()->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, bytes, value_it, out_dcg.Values().data(),
+                                                d_group_ptr.size() - 1, d_group_ptr.data(),
+                                                d_group_ptr.data() + 1, ctx->CUDACtx()->Stream()));
   dh::TemporaryArray<char> temp(bytes);
-  cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, value_it, out_dcg.Values().data(),
-                                  d_group_ptr.size() - 1, d_group_ptr.data(),
-                                  d_group_ptr.data() + 1, ctx->CUDACtx()->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(
+      temp.data().get(), bytes, value_it, out_dcg.Values().data(), d_group_ptr.size() - 1,
+      d_group_ptr.data(), d_group_ptr.data() + 1, ctx->CUDACtx()->Stream()));
 }
 
 void CalcQueriesInvIDCG(Context const* ctx, linalg::VectorView<float const> d_labels,

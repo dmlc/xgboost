@@ -382,13 +382,13 @@ void GPUHistEvaluator::LaunchEvaluateSplits(
                                         });
   size_t temp_storage_bytes = 0;
   auto num_segments = out_splits.size();
-  cub::DeviceSegmentedReduce::Sum(nullptr, temp_storage_bytes, feature_best_splits.data(),
-                                  out_splits.data(), num_segments, reduce_offset,
-                                  reduce_offset + 1);
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, temp_storage_bytes,
+                                                feature_best_splits.data(), out_splits.data(),
+                                                num_segments, reduce_offset, reduce_offset + 1));
   dh::TemporaryArray<int8_t> temp(temp_storage_bytes);
-  cub::DeviceSegmentedReduce::Sum(temp.data().get(), temp_storage_bytes, feature_best_splits.data(),
-                                  out_splits.data(), num_segments, reduce_offset,
-                                  reduce_offset + 1);
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(temp.data().get(), temp_storage_bytes,
+                                                feature_best_splits.data(), out_splits.data(),
+                                                num_segments, reduce_offset, reduce_offset + 1));
 }
 
 void GPUHistEvaluator::CopyToHost(const std::vector<bst_node_t> &nidx) {

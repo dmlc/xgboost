@@ -62,11 +62,12 @@ PackedReduceResult PreScore(Context const *ctx, MetaInfo const &info,
   thrust::fill_n(cuctx->CTP(), pre.data(), pre.size(), 0.0);
 
   std::size_t bytes;
-  cub::DeviceSegmentedReduce::Sum(nullptr, bytes, it, pre.data(), p_cache->Groups(), d_gptr.data(),
-                                  d_gptr.data() + 1, cuctx->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, bytes, it, pre.data(), p_cache->Groups(),
+                                                d_gptr.data(), d_gptr.data() + 1, cuctx->Stream()));
   dh::TemporaryArray<char> temp(bytes);
-  cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, it, pre.data(), p_cache->Groups(),
-                                  d_gptr.data(), d_gptr.data() + 1, cuctx->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, it, pre.data(),
+                                                p_cache->Groups(), d_gptr.data(), d_gptr.data() + 1,
+                                                cuctx->Stream()));
 
   auto w_it =
       dh::MakeTransformIterator<double>(thrust::make_counting_iterator(0ul),
@@ -166,11 +167,13 @@ PackedReduceResult MAPScore(Context const *ctx, MetaInfo const &info,
         });
 
     std::size_t bytes;
-    cub::DeviceSegmentedReduce::Sum(nullptr, bytes, val_it, map.data(), p_cache->Groups(),
-                                    d_group_ptr.data(), d_group_ptr.data() + 1, cuctx->Stream());
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, bytes, val_it, map.data(),
+                                                  p_cache->Groups(), d_group_ptr.data(),
+                                                  d_group_ptr.data() + 1, cuctx->Stream()));
     dh::TemporaryArray<char> temp(bytes);
-    cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, val_it, map.data(), p_cache->Groups(),
-                                    d_group_ptr.data(), d_group_ptr.data() + 1, cuctx->Stream());
+    dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(temp.data().get(), bytes, val_it, map.data(),
+                                                  p_cache->Groups(), d_group_ptr.data(),
+                                                  d_group_ptr.data() + 1, cuctx->Stream()));
   }
 
   PackedReduceResult result{0.0, 0.0};
