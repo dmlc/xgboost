@@ -5,9 +5,7 @@
 #ifndef XGBOOST_DATA_DEVICE_ADAPTER_H_
 #define XGBOOST_DATA_DEVICE_ADAPTER_H_
 
-#include <thrust/functional.h>                  // for maximum
-#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
-#include <thrust/logical.h>                     // for none_of
+#include <thrust/functional.h>                   // for maximum
 
 #include <cstddef>           // for size_t
 #include <cuda/std/variant>  // for variant
@@ -15,6 +13,7 @@
 #include <memory>            // for make_unique
 #include <string>            // for string
 
+#include "../common/algorithm.cuh"  // for AllOf
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "adapter.h"
@@ -229,25 +228,18 @@ bst_idx_t GetRowCounts(Context const* ctx, const AdapterBatchT batch,
 }
 
 /**
- * \brief Check there's no inf in data.
+ * @brief Check there's no inf in data.
  */
 template <typename AdapterBatchT>
 bool NoInfInData(Context const* ctx, AdapterBatchT const& batch, IsValidFunctor is_valid) {
-  auto counting = thrust::make_counting_iterator(0llu);
-  auto value_iter = dh::MakeTransformIterator<bool>(counting, [=] XGBOOST_DEVICE(std::size_t idx) {
-    auto v = batch.GetElement(idx).value;
+  auto it = dh::MakeIndexTransformIter(
+      [=] XGBOOST_DEVICE(std::size_t idx) { return batch.GetElement(idx).value; });
+  return common::AllOf(ctx->CUDACtx()->CTP(), it, it + batch.Size(), [=] XGBOOST_DEVICE(float v) {
     if (is_valid(v) && isinf(v)) {
       return false;
     }
     return true;
   });
-  // The default implementation in thrust optimizes any_of/none_of/all_of by using small
-  // intervals to early stop. But we expect all data to be valid here, using small
-  // intervals only decreases performance due to excessive kernel launch and stream
-  // synchronization.
-  auto valid = dh::Reduce(ctx->CUDACtx()->CTP(), value_iter, value_iter + batch.Size(), true,
-                          thrust::logical_and<>{});
-  return valid;
 }
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_DEVICE_ADAPTER_H_

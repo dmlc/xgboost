@@ -6,10 +6,10 @@
  */
 #include <dmlc/omp.h>
 
-#include <algorithm>
+#include <algorithm>  // for all_of
 #include <cmath>
-#include <cstdint>  // std::int32_t
-#include <vector>
+#include <cstdint>  // for  int32_t
+#include <vector>   // for vector
 
 #include "../common/common.h"
 #include "../common/linalg_op.h"
@@ -22,6 +22,7 @@
 #include "./regression_loss.h"
 #include "adaptive.h"
 #include "init_estimation.h"  // FitIntercept
+#include "regression_param.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/data.h"     // MetaInfo
@@ -34,11 +35,10 @@
 #include "xgboost/span.h"
 #include "xgboost/tree_model.h"  // RegTree
 
-#include "regression_param.h"
-
 #if defined(XGBOOST_USE_CUDA)
-#include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/device_helpers.cuh"
+#include "../common/algorithm.cuh"       // for AllOf
+#include "../common/cuda_context.cuh"    // for CUDAContext
+#include "../common/device_helpers.cuh"  // for MakeIndexTransformIter
 #include "../common/linalg_op.cuh"
 #endif  // defined(XGBOOST_USE_CUDA)
 
@@ -48,7 +48,7 @@
 
 namespace xgboost::obj {
 namespace {
-void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+void CheckRegInputs(MetaInfo const& info, HostDeviceVector<float> const& preds) {
   CheckInitInputs(info);
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 }
@@ -63,13 +63,12 @@ void ValidateLabel(Context const* ctx, MetaInfo const& info) {
       },
       [&] {
 #if defined(XGBOOST_USE_CUDA)
-        auto cuctx = ctx->CUDACtx();
-        auto it = dh::MakeTransformIterator<bool>(
-            thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
-              auto [m, n] = linalg::UnravelIndex(i, label.Shape());
-              return Loss::CheckLabel(label(m, n));
-            });
-        return dh::Reduce(cuctx->CTP(), it, it + label.Size(), true, thrust::logical_and<>{});
+        auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) -> float {
+          auto [m, n] = linalg::UnravelIndex(i, label.Shape());
+          return label(m, n);
+        });
+        return common::AllOf(ctx->CUDACtx()->CTP(), it, it + label.Size(),
+                             [] XGBOOST_DEVICE(float y) { return Loss::CheckLabel(y); });
 #else
         common::AssertGPUSupport();
         return false;
@@ -382,9 +381,7 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
 class PoissonRegression : public FitInterceptGlmLike {
  public:
   // declare functions
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
+  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -583,7 +580,7 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 class TweedieRegression : public FitInterceptGlmLike {
  public:
   // declare functions
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;

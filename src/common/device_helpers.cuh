@@ -567,6 +567,11 @@ XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIt
   return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }
 
+template <typename Fn>
+XGBOOST_DEVICE auto MakeIndexTransformIter(Fn &&fn) {
+  return thrust::make_transform_iterator(thrust::make_counting_iterator(0ul), std::forward<Fn>(fn));
+}
+
 template <typename It>
 size_t XGBOOST_DEVICE SegmentId(It first, It last, size_t idx) {
   size_t segment_id = thrust::upper_bound(thrust::seq, first, last, idx) - 1 - first;
