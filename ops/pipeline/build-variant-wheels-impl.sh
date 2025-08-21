@@ -17,7 +17,9 @@ source activate wheelnext
 set -xu
 
 python -m pip install -v \
-  git+https://github.com/wheelnext/pep_xxx_wheel_variants.git@f3b287090f8a6f510b0e1723896e1c7e638f6bff#subdirectory=pep_xxx_wheel_variants
-pip config set --site global.index-url https://variants-index.wheelnext.dev/
-variantlib make-variant -f python-package/dist/xgboost-*.whl \
-  -p "nvidia :: cuda :: 12" -o . --pyproject-toml python-package/pyproject.toml
+  git+https://github.com/wheelnext/pep_xxx_wheel_variants.git@25ea4b6d0060d2263d8ec674dd96feffbae78081#subdirectory=pep_xxx_wheel_variants
+python -m pip install "nvidia-variant-provider @ git+https://github.com/wheelnext/nvidia-variant-provider.git@efc215a95f211276587c8a63617dc6dca5f19363"
+variantlib make-variant --no-isolation -f python-package/dist/xgboost-*.whl \
+  -p "nvidia :: cuda_version_lower_bound :: 12.0" \
+  -p "nvidia :: cuda_version_upper_bound :: 12.9" \
+  -o . --pyproject-toml python-package/pyproject.toml
