@@ -11,7 +11,7 @@ from scipy import sparse
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.testing.data import np_dtypes, pd_dtypes
-from xgboost.testing.predict import run_predict_leaf
+from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 
 def run_threaded_predict(X, rows, predict_func):
@@ -72,6 +72,10 @@ def test_predict_shape():
     assert interaction.shape[1] == 1
     assert interaction.shape[2] == X.shape[1] + 1
     assert interaction.shape[3] == X.shape[1] + 1
+
+
+def test_base_margin_vs_base_score() -> None:
+    run_base_margin_vs_base_score("cpu")
 
 
 class TestInplacePredict:

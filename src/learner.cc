@@ -48,7 +48,7 @@
 #include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
 #include "xgboost/host_device_vector.h"   // for HostDeviceVector
 #include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
-#include "xgboost/linalg.h"               // for Tensor, TensorView
+#include "xgboost/linalg.h"               // for Vector, VectorView
 #include "xgboost/logging.h"              // for CHECK, LOG, CHECK_EQ
 #include "xgboost/metric.h"               // for Metric
 #include "xgboost/objective.h"            // for ObjFunction
@@ -78,7 +78,7 @@ T& UsePtr(T& ptr) {  // NOLINT
 /*! \brief training parameter for regression
  *
  * Should be deprecated, but still used for being compatible with binary IO.
- * Once it's gone, `LearnerModelParam` should handle transforming `base_margin`
+ * Once it's gone, `LearnerModelParam` should handle transforming `base_score`
  * with objective by itself.
  */
 struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy> {
@@ -237,10 +237,10 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
 }
 
 LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                                     linalg::Tensor<float, 1> base_margin, ObjInfo t,
+                                     linalg::Vector<float> base_score, ObjInfo t,
                                      MultiStrategy multi_strategy)
     : LearnerModelParam{user_param, t, multi_strategy} {
-  std::swap(base_score_, base_margin);
+  std::swap(base_score_, base_score);
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
   if (ctx->IsCUDA()) {
@@ -249,7 +249,7 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
   CHECK(std::as_const(base_score_).Data()->HostCanRead());
 }
 
-linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(DeviceOrd device) const {
+linalg::VectorView<float const> LearnerModelParam::BaseScore(DeviceOrd device) const {
   // multi-class is not yet supported.
   CHECK_EQ(base_score_.Size(), 1) << ModelNotFitted();
   if (!device.IsCUDA()) {
@@ -264,7 +264,7 @@ linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(DeviceOrd device
   return v;
 }
 
-linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(Context const* ctx) const {
+linalg::VectorView<float const> LearnerModelParam::BaseScore(Context const* ctx) const {
   return this->BaseScore(ctx->Device());
 }
 
@@ -353,45 +353,35 @@ class LearnerConfiguration : public Learner {
     this->ConfigureTargets();
 
     auto task = UsePtr(obj_)->Task();
-    linalg::Tensor<float, 1> base_score({1}, Ctx()->Device());
+    linalg::Vector<float> base_score({1}, Ctx()->Device());
     auto h_base_score = base_score.HostView();
 
-    // transform to margin
+    // Transform to margin. (apply the link function)
     h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
     CHECK(tparam_.GetInitialised());
     // move it to model param, which is shared with all other components.
     learner_model_param_ =
-        LearnerModelParam(Ctx(), mparam_, std::move(base_score), task, tparam_.multi_strategy);
+        LearnerModelParam{Ctx(), mparam_, std::move(base_score), task, tparam_.multi_strategy};
     CHECK(learner_model_param_.Initialized());
     CHECK_NE(learner_model_param_.BaseScore(Ctx()).Size(), 0);
   }
   /**
-   * \brief Calculate the `base_score` based on input data.
+   * @brief Calculate the `base_score` based on input data.
    *
-   * \param p_fmat The training DMatrix used to estimate the base score.
+   * @param p_fmat The training DMatrix used to estimate the base score.
    */
   void InitBaseScore(DMatrix const* p_fmat) {
-    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
-    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
-    // keep the stability, we initialize it in binary LoadModel instead of configuration.
-    // Under what condition should we omit the transformation:
-    //
-    // - base_score is loaded from old binary model.
-    //
-    // What are the other possible conditions:
-    //
-    // - model loaded from new binary or JSON.
-    // - model is created from scratch.
-    // - model is configured second time due to change of parameter
     if (!learner_model_param_.Initialized()) {
       this->ConfigureModelParamWithoutBaseScore();
     }
+
     if (mparam_.boost_from_average && !UsePtr(gbm_)->ModelFitted()) {
+      // The DMatrix can be null if a method that's not training is called.
       if (p_fmat) {
         auto const& info = p_fmat->Info();
         info.Validate(Ctx()->Device());
         // We estimate it from input data.
-        linalg::Tensor<float, 1> base_score;
+        linalg::Vector<float> base_score;
         this->InitEstimation(info, &base_score);
         CHECK_EQ(base_score.Size(), 1);
         mparam_.base_score = base_score(0);
