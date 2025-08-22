@@ -255,7 +255,7 @@ is the training data, and the next snippet is the test data:
     Levels: a c
 
 
-Now, we have ``a -> 1, c->2`` because ``b`` is missing, and the R factor encodes the data
+Now, we have ``a -> 1, c -> 2`` because ``b`` is missing, and the R factor encodes the data
 differently, resulting in invalid test-time encoding. XGBoost cannot remember the original
 encoding for the R package. You will have to encode the data explicitly during inference:
 
