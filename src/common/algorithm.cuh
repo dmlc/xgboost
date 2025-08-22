@@ -326,5 +326,25 @@ void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out
   InclusiveScan(ctx, d_in, d_out, cub::Sum{}, num_items);
 #endif
 }
+
+/**
+ * @brief Customized version of @ref thrust::all_of
+ *
+ * @ref thrust::all_of uses small intervals for early stop. But we often use this function
+ * to perform checks on data and in most cases need to walk through the entire dataset
+ * (like all data point is valid). This function uses @ref thrust::reduce to avoid
+ * excessive kernel launches and synchronizations.
+ */
+template <typename Policy, typename InputIt, typename Chk>
+[[nodiscard]] std::enable_if_t<
+    std::is_same_v<bool,
+                   std::invoke_result_t<Chk, typename std::iterator_traits<InputIt>::value_type>>,
+    bool>
+AllOf(Policy policy, InputIt first, InputIt second, Chk &&check) {
+  auto n = std::distance(first, second);
+  auto it =
+      dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) { return check(first[i]); });
+  return dh::Reduce(policy, it, it + n, true, thrust::logical_and<>{});
+}
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_ALGORITHM_CUH_
