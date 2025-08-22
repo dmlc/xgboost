@@ -231,7 +231,7 @@ dataframes. During training continuation, XGBoost will either extract the catego
 the previous model or use the categories from the new training dataset if the input model
 doesn't have the information.
 
-For R, the auto-recoding is not yet supported as of 3.0.4. To provide an example:
+For R, the auto-recoding is not yet supported as of 3.1. To provide an example:
 
 .. code-block:: R
 
