@@ -17,7 +17,7 @@ namespace xgboost::common {
  * @tparam scalar_compatible To help avoid breaking change for parameters that are used to be
  * scalars.
  */
-template <typename T, bool scalar_compatible>
+template <typename T>
 class ParamArray {
   std::vector<T> values_;
   std::string name_;
@@ -46,8 +46,6 @@ class ParamArray {
 
 // For parsing quantile parameters. Input can be a string to a single float or a list of
 // floats.
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& t);
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& t);
-std::istream& operator>>(std::istream& is, ParamArray<float, false>& t);
-std::istream& operator>>(std::istream& is, ParamArray<float, true>& t);
+std::ostream& operator<<(std::ostream& os, const ParamArray<float>& t);
+std::istream& operator>>(std::istream& is, ParamArray<float>& t);
 }  // namespace xgboost::common

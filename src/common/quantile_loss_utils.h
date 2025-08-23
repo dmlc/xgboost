@@ -13,7 +13,7 @@
 
 namespace xgboost::common {
 struct QuantileLossParam : public XGBoostParameter<QuantileLossParam> {
-  ParamArray<float, false> quantile_alpha{"quantile_alpha"};
+  ParamArray<float> quantile_alpha{"quantile_alpha"};
   DMLC_DECLARE_PARAMETER(QuantileLossParam) {
     DMLC_DECLARE_FIELD(quantile_alpha).describe("List of quantiles for quantile loss.");
   }

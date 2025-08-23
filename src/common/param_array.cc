@@ -16,13 +16,8 @@
 namespace xgboost::common {
 
 namespace {
-template <bool scalar_compatible>
-std::ostream& WriteStream(std::ostream& os, const ParamArray<float, scalar_compatible>& array) {
+std::ostream& WriteStream(std::ostream& os, const ParamArray<float>& array) {
   auto const& t = array.Get();
-  if (scalar_compatible && t.size() == 1) {
-    os << array.Get().front();
-    return os;
-  }
 
   F32Array arr{t.size()};
   for (std::size_t i = 0; i < t.size(); ++i) {
@@ -38,17 +33,12 @@ std::ostream& WriteStream(std::ostream& os, const ParamArray<float, scalar_compa
 }
 }  // namespace
 
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& array) {
-  return WriteStream(os, array);
-}
-
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& array) {
+std::ostream& operator<<(std::ostream& os, const ParamArray<float>& array) {
   return WriteStream(os, array);
 }
 
 namespace {
-template <bool scalar_compatible>
-std::istream& ReadStream(std::istream& is, ParamArray<float, scalar_compatible>& array) {
+std::istream& ReadStream(std::istream& is, ParamArray<float>& array) {
   auto& t = array.Get();
   t.clear();
   std::string str;
@@ -97,11 +87,7 @@ std::istream& ReadStream(std::istream& is, ParamArray<float, scalar_compatible>&
 }
 }  // namespace
 
-std::istream& operator>>(std::istream& is, ParamArray<float, false>& array) {
-  return ReadStream(is, array);
-}
-
-std::istream& operator>>(std::istream& is, ParamArray<float, true>& array) {
+std::istream& operator>>(std::istream& is, ParamArray<float>& array) {
   return ReadStream(is, array);
 }
 }  // namespace xgboost::common
