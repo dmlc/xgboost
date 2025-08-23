@@ -84,7 +84,7 @@ T& UsePtr(T& ptr) {  // NOLINT
  */
 struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy> {
   /** @brief Global bias/intercept. */
-  common::ParamArray<float> base_score{"base_score", ObjFunction::DefaultBaseScore()};
+  common::ParamArray<float, true> base_score{"base_score", ObjFunction::DefaultBaseScore()};
   /** @brief number of features  */
   bst_feature_t num_feature{0};
   /** @brief number of classes, if it is multi-class classification  */
