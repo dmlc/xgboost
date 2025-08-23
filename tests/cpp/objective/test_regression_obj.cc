@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost contributors
+ * Copyright 2017-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
@@ -9,12 +9,12 @@
 #include <numeric>  // for iota
 
 #include "../../../src/common/linalg_op.h"  // for begin, end
-#include "../../../src/objective/adaptive.h"
 #include "../../../src/tree/param.h"        // for TrainParam
 #include "../helpers.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/linalg.h"
+#include "xgboost/tree_model.h"  // for RegTree
 
 #include "test_regression_obj.h"
 
@@ -39,7 +39,8 @@ void TestLinearRegressionGPair(const Context* ctx) {
                    {},  // empty weight
                    {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
                    {1,   1,   1,   1,    1,    1,    1, 1});
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+
+  ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
 
 void TestSquaredLog(const Context* ctx) {

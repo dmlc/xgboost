@@ -3,7 +3,7 @@
 from typing import Type
 
 import numpy as np
-from scipy.special import logit
+from scipy.special import logit  # pylint: disable=no-name-in-module
 
 from ..core import DMatrix
 from ..training import train
@@ -68,6 +68,7 @@ def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
 
 
 def run_base_margin_vs_base_score(device: Device) -> None:
+    """Test for the relation between score and margin."""
     from sklearn.datasets import make_classification
 
     intercept = 0.5
