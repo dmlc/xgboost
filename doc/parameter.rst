@@ -419,7 +419,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``base_score``
 
-  - The initial prediction score of all instances, global bias
+  - The initial prediction score of all instances, global bias.
   - The parameter is automatically estimated for selected objectives before training. To
     disable the estimation, specify a real number argument.
   - If ``base_margin`` is supplied, ``base_score`` will not be added.

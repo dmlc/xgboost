@@ -3,10 +3,12 @@
 from typing import Type
 
 import numpy as np
+from scipy.special import logit  # pylint: disable=no-name-in-module
 
 from ..core import DMatrix
 from ..training import train
 from .shared import validate_leaf_output
+from .updater import get_basescore
 from .utils import Device
 
 
@@ -63,3 +65,32 @@ def run_predict_leaf(device: Device, DMatrixT: Type[DMatrix]) -> np.ndarray:
     assert booster.predict(m, pred_leaf=True).shape == (rows,)
 
     return leaf
+
+
+def run_base_margin_vs_base_score(device: Device) -> None:
+    """Test for the relation between score and margin."""
+    from sklearn.datasets import make_classification
+
+    intercept = 0.5
+
+    X, y = make_classification(random_state=2025)
+    booster = train(
+        {"base_score": intercept, "objective": "binary:logistic", "device": device},
+        dtrain=DMatrix(X, y),
+        num_boost_round=1,
+    )
+    np.testing.assert_allclose(get_basescore(booster), intercept)
+    predt_0 = booster.predict(DMatrix(X, y))
+
+    margin = np.full(y.shape, fill_value=logit(intercept), dtype=np.float32)
+    Xy = DMatrix(X, y, base_margin=margin)
+    # 0.2 is a dummy value
+    booster = train(
+        {"base_score": 0.2, "objective": "binary:logistic", "device": device},
+        dtrain=Xy,
+        num_boost_round=1,
+    )
+    np.testing.assert_allclose(get_basescore(booster), 0.2)
+    predt_1 = booster.predict(Xy)
+
+    np.testing.assert_allclose(predt_0, predt_1)

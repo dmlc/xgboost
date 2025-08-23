@@ -9,7 +9,7 @@ from hypothesis.extra.pandas import column, data_frames, range_indexes
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.predict import run_predict_leaf
+from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 sys.path.append("tests/python")
 
@@ -623,3 +623,7 @@ class TestGPUPredict:
             X = cp.array(orig, dtype=dtype)
             with pytest.raises(ValueError):
                 booster.inplace_predict(X)
+
+
+def test_base_margin_vs_base_score() -> None:
+    run_base_margin_vs_base_score("cuda")
