@@ -7,35 +7,47 @@
 #include <ostream>  // std::ostream
 #include <vector>   // for vector
 
+#include "xgboost/string_view.h"  // for StringView
+
 namespace xgboost::common {
-// A shim to enable ADL for parameter parsing. Alternatively, we can put the stream
-// operators in std namespace, which seems to be less ideal.
-template <typename T>
+/**
+ * @brief A shim to enable ADL for parameter parsing. Alternatively, we can put the stream
+ * operators in std namespace, which seems to be less ideal.
+ *
+ * @tparam scalar_compatible To help avoid breaking change for parameters that are used to be
+ * scalars.
+ */
+template <typename T, bool scalar_compatible>
 class ParamArray {
   std::vector<T> values_;
+  std::string name_;
 
  public:
   using size_type = typename decltype(values_)::size_type;              // NOLINT
   using const_reference = typename decltype(values_)::const_reference;  // NOLINT
 
  public:
+  ParamArray() = default;
   template <typename... Args>
-  explicit ParamArray(Args&&... args) : values_{std::forward<Args>(args)...} {}
-
+  explicit ParamArray(StringView name, Args&&... args)
+      : name_{name}, values_{std::forward<Args>(args)...} {}
   [[nodiscard]] std::vector<T>& Get() { return values_; }
   [[nodiscard]] std::vector<T> const& Get() const { return values_; }
   const_reference operator[](size_type i) const { return values_[i]; }
   [[nodiscard]] bool empty() const { return values_.empty(); }       // NOLINT
   [[nodiscard]] std::size_t size() const { return values_.size(); }  // NOLINT
-
+  [[nodiscard]] auto data() const { return values_.data(); }         // NOLINT
   ParamArray& operator=(std::vector<T> const& that) {
     this->values_ = that;
     return *this;
   }
+  [[nodiscard]] StringView Name() const { return this->name_; }
 };
 
 // For parsing quantile parameters. Input can be a string to a single float or a list of
 // floats.
-std::ostream& operator<<(std::ostream& os, const ParamArray<float>& t);
-std::istream& operator>>(std::istream& is, ParamArray<float>& t);
+std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& t);
+std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& t);
+std::istream& operator>>(std::istream& is, ParamArray<float, false>& t);
+std::istream& operator>>(std::istream& is, ParamArray<float, true>& t);
 }  // namespace xgboost::common

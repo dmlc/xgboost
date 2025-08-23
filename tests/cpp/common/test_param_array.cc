@@ -1,19 +1,21 @@
 /**
  * Copyright 2025, XGBoost contributors
  */
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <xgboost/base.h>  // for kRtEps
-#include <xgboost/json.h>
-#include <xgboost/string_view.h>
+#include <xgboost/base.h>         // for kRtEps
+#include <xgboost/json.h>         // for Json
+#include <xgboost/string_view.h>  // for StringView
 
 #include <sstream>  // for istringstream, ostringstream
 #include <string>   // for string
 
 #include "../../../src/common/param_array.h"
+#include "../helpers.h"
 
 namespace xgboost::common {
 TEST(ParamArray, Float) {
-  ParamArray<float> values;
+  ParamArray<float, false> values{"values"};
   {
     std::istringstream sin{"1.1"};
     sin >> values;
@@ -36,6 +38,23 @@ TEST(ParamArray, Float) {
     for (std::size_t i = 0; i < values.size(); ++i) {
       ASSERT_EQ(get<Number const>(jarr[i]), values[i]);
     }
+  }
+  {
+    ParamArray<float, true> values{"values"};
+    std::istringstream sin{"1.1"};
+    sin >> values;
+    ASSERT_EQ(values.size(), 1);
+    ASSERT_NEAR(values[0], 1.1, kRtEps);
+    std::ostringstream sout;
+    sout << values;
+    auto jarr = Json::Load(StringView{sout.str()});
+    ASSERT_TRUE(IsA<Number>(jarr));
+    ASSERT_EQ(get<Number>(jarr), 1.1);
+  }
+  {
+    ParamArray<float, true> values{"values"};
+    std::istringstream sin{"[\"foo\"]"};
+    ASSERT_THAT([&] { sin >> values; }, GMockThrow(R"(`Number`, `Integer`)"));
   }
 }
 }  // namespace xgboost::common

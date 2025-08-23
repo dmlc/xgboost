@@ -14,11 +14,12 @@
 #include "xgboost/string_view.h"   // for StringView
 
 namespace xgboost::common {
-std::ostream& operator<<(std::ostream& os, const ParamArray<float>& array) {
-  auto const& t = array.Get();
 
-  if (t.size() == 1) {
-    // fixme: add test,check quantile loss.
+namespace {
+template <bool scalar_compatible>
+std::ostream& WriteStream(std::ostream& os, const ParamArray<float, scalar_compatible>& array) {
+  auto const& t = array.Get();
+  if (scalar_compatible && t.size() == 1) {
     os << array.Get().front();
     return os;
   }
@@ -35,8 +36,19 @@ std::ostream& operator<<(std::ostream& os, const ParamArray<float>& array) {
   }
   return os;
 }
+}  // namespace
 
-std::istream& operator>>(std::istream& is, ParamArray<float>& array) {
+std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& array) {
+  return WriteStream(os, array);
+}
+
+std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& array) {
+  return WriteStream(os, array);
+}
+
+namespace {
+template <bool scalar_compatible>
+std::istream& ReadStream(std::istream& is, ParamArray<float, scalar_compatible>& array) {
   auto& t = array.Get();
   t.clear();
   std::string str;
@@ -74,7 +86,7 @@ std::istream& operator>>(std::istream& is, ParamArray<float>& array) {
 
   auto const& jvec = get<Array const>(jarr);
   for (auto v : jvec) {
-    TypeCheck<Number, Integer>(v, "alpha");
+    TypeCheck<Number, Integer>(v, array.Name());
     if (IsA<Number>(v)) {
       t.emplace_back(get<Number const>(v));
     } else {
@@ -82,5 +94,14 @@ std::istream& operator>>(std::istream& is, ParamArray<float>& array) {
     }
   }
   return is;
+}
+}  // namespace
+
+std::istream& operator>>(std::istream& is, ParamArray<float, false>& array) {
+  return ReadStream(is, array);
+}
+
+std::istream& operator>>(std::istream& is, ParamArray<float, true>& array) {
+  return ReadStream(is, array);
 }
 }  // namespace xgboost::common
