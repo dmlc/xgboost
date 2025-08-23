@@ -303,7 +303,7 @@ struct LearnerModelParam {
    * The value stored here is the value before applying the inverse link function, used
    * for initializing the prediction matrix/vector.
    */
-  linalg:: Vector<float> base_score_;
+  linalg::Vector<float> base_score_;
 
  public:
   /**
