@@ -11,7 +11,6 @@
 #include <dmlc/thread_local.h>            // for ThreadLocalStore
 
 #include <algorithm>                      // for equal, max, transform, sort, find_if, all_of
-#include <array>                          // for array
 #include <atomic>                         // for atomic
 #include <cctype>                         // for isalpha, isspace
 #include <cmath>                          // for isnan, isinf
