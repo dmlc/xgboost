@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/base.h>         // for kRtEps
 #include <xgboost/json.h>         // for Json
+#include <xgboost/parameter.h>    // for XGBoostParameter
 #include <xgboost/string_view.h>  // for StringView
 
 #include <sstream>  // for istringstream, ostringstream
@@ -59,5 +60,24 @@ TEST(ParamArray, Float) {
     std::istringstream sin{"[\"foo\"]"};
     ASSERT_THAT([&] { sin >> values; }, GMockThrow(R"(`Number`, `Integer`)"));
   }
+}
+
+namespace {
+struct TestParamArray : public XGBoostParameter<TestParamArray> {
+  ParamArray<float, false> test_key{"test_key", 0.2f};
+  DMLC_DECLARE_PARAMETER(TestParamArray) {
+    DMLC_DECLARE_FIELD(test_key).describe("test").set_default(
+        ParamArray<float, false>{"test_key", 0.2f});
+  }
+};
+
+DMLC_REGISTER_PARAMETER(TestParamArray);
+}  // namespace
+
+TEST(ParamArray, Update) {
+  TestParamArray param;
+  param.UpdateAllowUnknown(Args{{}});
+  ASSERT_EQ(param.test_key.size(), 1);
+  ASSERT_EQ(param.test_key.Name(), "test_key");
 }
 }  // namespace xgboost::common

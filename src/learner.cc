@@ -108,7 +108,6 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
   LearnerModelParamLegacy() = default;
 
-  // Skip other legacy fields.
   [[nodiscard]] Json ToJson() const {
     Json obj{Object{}};
     std::stringstream ss;
@@ -171,6 +170,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   }
   // Sanity checks
   void Validate(Context const* ctx) {
+    CHECK_GE(this->base_score.size(), 1);
     if (!collective::IsDistributed()) {
       return;
     }
