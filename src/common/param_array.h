@@ -3,8 +3,10 @@
  */
 #pragma once
 
-#include <istream>  // std::istream
-#include <ostream>  // std::ostream
+#include <istream>  // for istream
+#include <ostream>  // for ostream
+#include <string>   // for string
+#include <utility>  // for forward
 #include <vector>   // for vector
 
 #include "xgboost/string_view.h"  // for StringView

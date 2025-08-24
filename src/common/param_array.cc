@@ -3,6 +3,8 @@
  */
 #include "param_array.h"
 
+#include <cctype>   // for isspace
+#include <cstddef>  // for size_t
 #include <istream>  // for istream
 #include <ostream>  // for ostream
 #include <string>   // for string
@@ -17,7 +19,8 @@ namespace xgboost::common {
 
 namespace {
 template <bool scalar_compatible>
-std::ostream& WriteStream(std::ostream& os, const ParamArray<float, scalar_compatible>& array) {
+std::ostream& WriteStream(std::ostream& os,
+                          const ParamArray<float, scalar_compatible>& array) {  // NOLINT
   auto const& t = array.Get();
   if (scalar_compatible && t.size() == 1) {
     os << array.Get().front();
@@ -38,17 +41,17 @@ std::ostream& WriteStream(std::ostream& os, const ParamArray<float, scalar_compa
 }
 }  // namespace
 
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& array) {
+std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& array) {  // NOLINT
   return WriteStream(os, array);
 }
 
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& array) {
+std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& array) {  // NOLINT
   return WriteStream(os, array);
 }
 
 namespace {
 template <bool scalar_compatible>
-std::istream& ReadStream(std::istream& is, ParamArray<float, scalar_compatible>& array) {
+std::istream& ReadStream(std::istream& is, ParamArray<float, scalar_compatible>& array) {  // NOLINT
   auto& t = array.Get();
   t.clear();
   std::string str;
@@ -97,11 +100,11 @@ std::istream& ReadStream(std::istream& is, ParamArray<float, scalar_compatible>&
 }
 }  // namespace
 
-std::istream& operator>>(std::istream& is, ParamArray<float, false>& array) {
+std::istream& operator>>(std::istream& is, ParamArray<float, false>& array) {  // NOLINT
   return ReadStream(is, array);
 }
 
-std::istream& operator>>(std::istream& is, ParamArray<float, true>& array) {
+std::istream& operator>>(std::istream& is, ParamArray<float, true>& array) {  // NOLINT
   return ReadStream(is, array);
 }
 }  // namespace xgboost::common

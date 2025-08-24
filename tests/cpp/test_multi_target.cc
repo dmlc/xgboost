@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 by XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>                         // for Args, bst_target_t
@@ -16,7 +16,6 @@
 
 #include "../../src/common/linalg_op.h"           // for begin, cbegin, cend
 #include "../../src/common/stats.h"               // for Median
-#include "../../src/common/transform_iterator.h"  // for IndexTransformIter
 #include "helpers.h"                              // for RandomDataGenerator
 #include "xgboost/host_device_vector.h"           // for HostDeviceVector
 #include "xgboost/linalg.h"                       // for Tensor, All, TensorView, Vector
