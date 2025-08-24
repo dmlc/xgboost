@@ -54,8 +54,8 @@ class ParamArray {
   [[nodiscard]] StringView Name() const { return this->name_; }
 };
 
-// For parsing quantile parameters. Input can be a string to a single float or a list of
-// floats.
+// For parsing array-based parameters inside DMLC parameter. Input can be a string to a
+// single float or a list of floats.
 std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& t);
 std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& t);
 std::istream& operator>>(std::istream& is, ParamArray<float, false>& t);
