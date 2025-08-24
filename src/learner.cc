@@ -170,30 +170,19 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     }
     return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
   }
-  // sanity check
+  // Sanity checks
   void Validate(Context const* ctx) {
     if (!collective::IsDistributed()) {
       return;
     }
 
-    std::array<std::int32_t, 6> data;
-    std::size_t pos{0};
-    std::memcpy(data.data() + pos, base_score.data(), sizeof(base_score[0]));
-    pos += 1;
-    std::memcpy(data.data() + pos, &num_feature, sizeof(num_feature));
-    pos += 1;
-    std::memcpy(data.data() + pos, &num_class, sizeof(num_class));
-    pos += 1;
-    std::memcpy(data.data() + pos, &num_target, sizeof(num_target));
-    pos += 1;
-    std::memcpy(data.data() + pos, &major_version, sizeof(major_version));
-    pos += 1;
-    std::memcpy(data.data() + pos, &minor_version, sizeof(minor_version));
+    std::vector<char> data;
+    Json::Dump(this->ToJson(), &data, std::ios::binary);
+    std::vector<char> sync{data};
 
-    std::array<std::int32_t, 6> sync;
-    std::copy(data.cbegin(), data.cend(), sync.begin());
     auto rc = collective::Broadcast(ctx, linalg::MakeVec(sync.data(), sync.size()), 0);
     collective::SafeColl(rc);
+
     CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
         << "Different model parameter across workers.";
   }
