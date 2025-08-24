@@ -58,7 +58,10 @@ TEST(ParamArray, Float) {
   {
     ParamArray<float, true> values{"values"};
     std::istringstream sin{"[\"foo\"]"};
-    ASSERT_THAT([&] { sin >> values; }, GMockThrow(R"(`Number`, `Integer`)"));
+    ASSERT_THAT(
+        [&] { sin >> values; },
+        GMockThrow(
+            R"(Invalid type for: `values`, expecting one of the: {`Number`, `Integer`}, got: `String`)"));
   }
 }
 
