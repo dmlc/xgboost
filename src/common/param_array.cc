@@ -23,7 +23,7 @@ std::ostream& WriteStream(std::ostream& os,
                           const ParamArray<float, scalar_compatible>& array) {  // NOLINT
   auto const& t = array.Get();
   if (scalar_compatible && t.size() == 1) {
-    os << array.Get().front();
+    os << Json{Number{array.Get().front()}};
     return os;
   }
 
