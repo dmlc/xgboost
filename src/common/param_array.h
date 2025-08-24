@@ -21,8 +21,8 @@ namespace xgboost::common {
  */
 template <typename T, bool scalar_compatible>
 class ParamArray {
-  std::vector<T> values_;
   std::string name_;
+  std::vector<T> values_;
 
  public:
   using size_type = typename decltype(values_)::size_type;              // NOLINT
@@ -30,9 +30,17 @@ class ParamArray {
 
  public:
   ParamArray() = default;
+
+  ParamArray(ParamArray const& that) = default;
+  ParamArray& operator=(ParamArray const& that) = default;
+
+  ParamArray(ParamArray&& that) = default;
+  ParamArray& operator=(ParamArray&& that) = default;
+
   template <typename... Args>
   explicit ParamArray(StringView name, Args&&... args)
       : name_{name}, values_{std::forward<Args>(args)...} {}
+
   [[nodiscard]] std::vector<T>& Get() { return values_; }
   [[nodiscard]] std::vector<T> const& Get() const { return values_; }
   const_reference operator[](size_type i) const { return values_[i]; }
