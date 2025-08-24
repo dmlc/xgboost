@@ -11,7 +11,7 @@ jobs:
     name: Build docs for JVM packages
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - tag=doc-build-jvm-docs
 
     steps:
@@ -49,7 +49,7 @@ jobs:
     name: Build docs for the R package
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - tag=r-tests-build-docs
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
@@ -84,7 +84,7 @@ jobs:
     name: Trigger Read The Docs build.
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - tag=doc-trigger-rtd-build
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks

@@ -30,7 +30,7 @@ jobs:
         - arch: aarch64
           runner: linux-arm64-cpu
         - arch: x86_64
-          runner: linux-amd64-cpu
+          runner: new-linux-amd64-cpu
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
       - run: sudo systemctl restart docker
@@ -45,7 +45,7 @@ jobs:
     name: Build libxgboost4j.so with CUDA
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - tag=jvm-tests-build-jvm-gpu
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
@@ -99,7 +99,7 @@ jobs:
     name: Build and test JVM packages (Linux, Scala ${{ matrix.scala_version }})
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - tag=jvm-tests-build-test-jvm-packages-scala${{ matrix.scala_version }}
     strategy:
       fail-fast: false
@@ -179,7 +179,7 @@ jobs:
     needs: [build-jvm-gpu]
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-mgpu
+      - runner=new-linux-amd64-mgpu
       - tag=jvm-tests-test-jvm-packages-gpu-scala${{ matrix.scala_version }}
     strategy:
       fail-fast: false
@@ -209,7 +209,7 @@ jobs:
     needs: [build-jvm-gpu, build-test-jvm-packages, test-jvm-packages-gpu]
     runs-on:
       - runs-on
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - run-id=${{ github.run_id }}
       - tag=jvm-tests-deploy-jvm-packages-${{ matrix.variant.name }}-scala${{ matrix.scala_version }}
     strategy:

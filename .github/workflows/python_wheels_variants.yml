@@ -22,7 +22,7 @@ jobs:
     name: Build Python wheels using Wheel Variant prototype (WheelNext)
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - tag=python-wheels-variants
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks

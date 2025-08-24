@@ -18,7 +18,7 @@ jobs:
     name: Run clang-tidy
     runs-on:
       - runs-on=${{ github.run_id }}
-      - runner=linux-amd64-cpu
+      - runner=new-linux-amd64-cpu
       - tag=lint-clang-tidy
     steps:
       # Restart Docker daemon so that it recognizes the ephemeral disks
