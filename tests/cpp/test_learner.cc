@@ -27,7 +27,6 @@
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "../../src/common/random.h"                // for GlobalRandom
 #include "./collective/test_worker.h"               // for TestDistributedGlobal
-#include "dmlc/io.h"                                // for Stream
 #include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
