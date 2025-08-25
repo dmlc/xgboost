@@ -225,23 +225,6 @@ void ReshapeImpl(size_t (&out_shape)[D], I &&s, S &&...rest) {
   ReshapeImpl<dim + 1>(out_shape, std::forward<S>(rest)...);
 }
 
-template <typename Fn, typename Tup, size_t... I>
-LINALG_HD decltype(auto) constexpr Apply(Fn &&f, Tup &&t, std::index_sequence<I...>) {
-  return f(std::get<I>(t)...);
-}
-
-/**
- * C++ 17 style apply.
- *
- * \param f function to apply
- * \param t tuple of arguments
- */
-template <typename Fn, typename Tup>
-LINALG_HD decltype(auto) constexpr Apply(Fn &&f, Tup &&t) {
-  constexpr auto kSize = std::tuple_size<Tup>::value;
-  return Apply(std::forward<Fn>(f), std::forward<Tup>(t), std::make_index_sequence<kSize>{});
-}
-
 /**
  * C++ 17 conjunction
  */
