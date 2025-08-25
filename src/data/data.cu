@@ -57,8 +57,7 @@ void CopyTensorInfoImpl(CUDAContext const* ctx, Json arr_interface, linalg::Tens
   linalg::ElementWiseTransformDevice(
       t,
       [=] __device__(size_t i, T) {
-        return linalg::detail::Apply(TypedIndex<T, D>{array},
-                                     linalg::UnravelIndex<D>(i, array.shape));
+        return std::apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, array.shape));
       },
       ctx->Stream());
 }

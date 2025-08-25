@@ -50,7 +50,7 @@ void ElementWiseTransformDevice(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nu
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) { ptr[i] = fn(i, ptr[i]); });
   } else {
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
-      T& v = detail::Apply(t, UnravelIndex(i, t.Shape()));
+      T& v = std::apply(t, UnravelIndex(i, t.Shape()));
       v = fn(i, v);
     });
   }
@@ -67,7 +67,7 @@ template <typename T, std::int32_t kDim>
 struct IterOp {
   TensorView<T, kDim> v;
   XGBOOST_DEVICE T& operator()(std::size_t i) {
-    return detail::Apply(v, UnravelIndex(i, v.Shape()));
+    return std::apply(v, UnravelIndex(i, v.Shape()));
   }
 };
 }  // namespace detail
