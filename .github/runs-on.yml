@@ -6,11 +6,6 @@ images:
     arch: "x64"
     owner: "492475357299"  # XGBooost CI
     name: "xgboost-ci-runs-on-linux-amd64-*"
-  new-linux-amd64:
-    platform: "linux"
-    arch: "x64"
-    owner: "492475357299"  # XGBooost CI
-    name: "new-xgboost-ci-runs-on-linux-amd64-*"
   linux-arm64:
     platform: "linux"
     arch: "arm64"
@@ -27,25 +22,13 @@ runners:
     cpu: 16
     family: ["c7i-flex", "c7i", "c7a", "c5", "c5a"]
     image: linux-amd64
-  new-linux-amd64-cpu:
-    cpu: 16
-    family: ["c7i-flex", "c7i", "c7a", "c5", "c5a"]
-    image: new-linux-amd64
   linux-amd64-gpu:
     family: ["g4dn.xlarge"]
     image: linux-amd64
     spot: "false"
-  new-linux-amd64-gpu:
-    family: ["g4dn.xlarge"]
-    image: new-linux-amd64
-    spot: "false"
   linux-amd64-mgpu:
     family: ["g4dn.12xlarge"]
     image: linux-amd64
-    spot: "false"
-  new-linux-amd64-mgpu:
-    family: ["g4dn.12xlarge"]
-    image: new-linux-amd64
     spot: "false"
   linux-arm64-cpu:
     cpu: 16
