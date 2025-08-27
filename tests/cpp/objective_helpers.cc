@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  */
 #include "objective_helpers.h"
 
@@ -28,10 +28,18 @@ void MakeLabelForObjTest(std::shared_ptr<DMatrix> p_fmat, std::string const& obj
   }
 }
 
-std::shared_ptr<DMatrix> MakeFmatForObjTest(std::string const& obj, bst_idx_t n_samples,
-                                            bst_feature_t n_features) {
-  auto p_fmat = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
+[[nodiscard]] std::shared_ptr<DMatrix> MakeFmatForObjTest(std::string const& obj,
+                                                          bst_idx_t n_samples,
+                                                          bst_feature_t n_features,
+                                                          bst_target_t n_classes) {
+  std::shared_ptr<DMatrix> p_fmat;
+  if (obj.find("multi:") != std::string::npos) {
+    CHECK_GE(n_classes, 3);
+    p_fmat = RandomDataGenerator{n_samples, n_features, 0}.Classes(n_classes).GenerateDMatrix(true);
+  } else {
+    p_fmat = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
+  }
   MakeLabelForObjTest(p_fmat, obj);
   return p_fmat;
-};
+}
 }  // namespace xgboost
