@@ -40,5 +40,6 @@ void MakeLabelForObjTest(std::shared_ptr<DMatrix> p_fmat, std::string const& obj
 [[nodiscard]] std::shared_ptr<DMatrix> MakeFmatForObjTest(std::string const& obj,
                                                           bst_idx_t n_samples,
                                                           bst_feature_t n_features,
-                                                          bst_target_t n_classes);
+                                                          bst_target_t n_classes,
+                                                          bool make_label = true);
 }  // namespace xgboost

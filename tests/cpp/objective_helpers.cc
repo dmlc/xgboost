@@ -31,15 +31,18 @@ void MakeLabelForObjTest(std::shared_ptr<DMatrix> p_fmat, std::string const& obj
 [[nodiscard]] std::shared_ptr<DMatrix> MakeFmatForObjTest(std::string const& obj,
                                                           bst_idx_t n_samples,
                                                           bst_feature_t n_features,
-                                                          bst_target_t n_classes) {
+                                                          bst_target_t n_classes, bool make_label) {
   std::shared_ptr<DMatrix> p_fmat;
   if (obj.find("multi:") != std::string::npos) {
     CHECK_GE(n_classes, 3);
-    p_fmat = RandomDataGenerator{n_samples, n_features, 0}.Classes(n_classes).GenerateDMatrix(true);
+    p_fmat = RandomDataGenerator{n_samples, n_features, 0}.Classes(n_classes).GenerateDMatrix(
+        make_label);
   } else {
-    p_fmat = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
+    p_fmat = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(make_label);
   }
-  MakeLabelForObjTest(p_fmat, obj);
+  if (make_label) {
+    MakeLabelForObjTest(p_fmat, obj);
+  }
   return p_fmat;
 }
 }  // namespace xgboost
