@@ -57,17 +57,17 @@ void TestQuantileIntercept(const Context* ctx) {
 
   linalg::Vector<float> base_scores;
   obj->InitEstimation(info, &base_scores);
-  ASSERT_EQ(base_scores.Size(), 1) << "Vector is not yet supported.";
-  // mean([5.6, 7.8])
-  ASSERT_NEAR(base_scores(0), 6.7, kRtEps);
+  ASSERT_EQ(base_scores.Size(), 2);
+  ASSERT_NEAR(base_scores(0), 5.6, kRtEps);
+  ASSERT_NEAR(base_scores(1), 7.8, kRtEps);
 
   for (std::size_t i = 0; i < info.num_row_; ++i) {
     info.weights_.HostVector().emplace_back(info.num_row_ - i - 1.0);
   }
 
   obj->InitEstimation(info, &base_scores);
-  ASSERT_EQ(base_scores.Size(), 1) << "Vector is not yet supported.";
-  // mean([3, 5])
-  ASSERT_NEAR(base_scores(0), 4.0, kRtEps);
+  ASSERT_EQ(base_scores.Size(), 2);
+  ASSERT_NEAR(base_scores(0), 3.0, kRtEps);
+  ASSERT_NEAR(base_scores(1), 5.0, kRtEps);
 }
 }  // namespace xgboost

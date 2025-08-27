@@ -19,21 +19,34 @@ from .utils import Device
 
 
 @overload
-def get_basescore(model: xgb.XGBModel) -> float: ...
+def get_basescore(model: xgb.XGBModel) -> Union[float, List[float]]: ...
 
 
 @overload
-def get_basescore(model: xgb.Booster) -> float: ...
+def get_basescore(model: xgb.Booster) -> Union[float, List[float]]: ...
 
 
-def get_basescore(model: Union[xgb.XGBModel, xgb.Booster]) -> float:
+@overload
+def get_basescore(model: Dict) -> Union[float, List[float]]: ...
+
+
+def get_basescore(
+    model: Union[xgb.XGBModel, xgb.Booster, Dict],
+) -> Union[float, List[float]]:
     """Get base score from an XGBoost sklearn estimator."""
     if isinstance(model, xgb.XGBModel):
         model = model.get_booster()
 
-    base_score = float(
-        json.loads(model.save_config())["learner"]["learner_model_param"]["base_score"]
-    )
+    if isinstance(model, dict):
+        jintercept = model["learner"]["learner_model_param"]["base_score"]
+    else:
+        jintercept = json.loads(model.save_config())["learner"]["learner_model_param"][
+            "base_score"
+        ]
+    try:
+        base_score: Union[float, List[float]] = float(jintercept)
+    except ValueError:
+        base_score = [float(v) for v in jintercept[1:-1].split(",")]
     return base_score
 
 
@@ -53,17 +66,19 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
         base_score_0 = get_basescore(reg)
         score_0 = reg.evals_result()["validation_0"]["rmse"][0]
 
+        n_targets = 1 if y.ndim == 1 else y.shape[1]
+        intercept = np.full(shape=(n_targets,), fill_value=0.5, dtype=np.float32)
         reg = xgb.XGBRegressor(
             tree_method=tree_method,
             device=device,
             max_depth=1,
             n_estimators=1,
-            boost_from_average=0,
+            base_score=intercept,
         )
         reg.fit(X, y, eval_set=[(X, y)])
         base_score_1 = get_basescore(reg)
         score_1 = reg.evals_result()["validation_0"]["rmse"][0]
-        assert not np.isclose(base_score_0, base_score_1)
+        assert not np.isclose(base_score_0, base_score_1).any()
         assert score_0 < score_1  # should be better
 
     # pylint: disable=unbalanced-tuple-unpacking
@@ -81,17 +96,19 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
         base_score_0 = get_basescore(clf)
         score_0 = clf.evals_result()["validation_0"]["logloss"][0]
 
+        n_targets = 1 if y.ndim == 1 else y.shape[1]
+        intercept = np.full(shape=(n_targets,), fill_value=0.5, dtype=np.float32)
         clf = xgb.XGBClassifier(
             tree_method=tree_method,
             max_depth=1,
             n_estimators=1,
             device=device,
-            boost_from_average=0,
+            base_score=intercept,
         )
         clf.fit(X, y, eval_set=[(X, y)])
         base_score_1 = get_basescore(clf)
         score_1 = clf.evals_result()["validation_0"]["logloss"][0]
-        assert not np.isclose(base_score_0, base_score_1)
+        assert not np.isclose(base_score_0, base_score_1).any()
         assert score_0 < score_1  # should be better
 
     # pylint: disable=unbalanced-tuple-unpacking
@@ -114,9 +131,7 @@ def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> Non
     n_samples = 4096
     n_features = 8
     n_estimators = 8
-    # non-zero base score can cause floating point difference with GPU predictor.
-    # multi-class has small difference than single target in the prediction kernel
-    base_score = 0.0
+
     rng = np.random.RandomState(1994)
     # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_regression(
@@ -132,6 +147,9 @@ def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> Non
     Xy = xgb.QuantileDMatrix(X, y, weight=weight)
 
     alpha = np.array([0.1, 0.5])
+    # non-zero base score can cause floating point difference with GPU predictor.
+    # multi-class has small difference than single target in the prediction kernel
+    base_score = np.zeros(shape=alpha.shape, dtype=np.float32)
     evals_result: Dict[str, Dict] = {}
     booster_multi = xgb.train(
         {
@@ -171,7 +189,7 @@ def check_quantile_loss(tree_method: str, weighted: bool, device: Device) -> Non
                 "tree_method": tree_method,
                 "device": device,
                 "quantile_alpha": a,
-                "base_score": base_score,
+                "base_score": base_score[i],
             },
             Xy,
             num_boost_round=n_estimators,

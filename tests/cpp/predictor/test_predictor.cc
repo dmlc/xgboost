@@ -217,12 +217,17 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
   auto& h_pred_0 = predict_0.HostVector();
   auto& h_pred_1 = predict_1.HostVector();
 
+  Json config {Object{}};
+  learner->SaveConfig(&config);
+  auto base_score = GetBaseScore(config);
+
   ASSERT_EQ(h_pred.size(), rows * kClasses);
   ASSERT_EQ(h_pred.size(), h_pred_0.size());
   ASSERT_EQ(h_pred.size(), h_pred_1.size());
   for (size_t i = 0; i < h_pred.size(); ++i) {
     // Need to remove the global bias here.
-    ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - 0.5f, kRtEps);
+    auto j = i % kClasses;
+    ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - base_score.at(j), kRtEps);
   }
 
   learner->SetParam("device", "cpu");

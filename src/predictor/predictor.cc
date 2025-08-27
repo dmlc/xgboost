@@ -1,15 +1,15 @@
 /**
- * Copyright 2017-2024 by Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  */
 #include "xgboost/predictor.h"
 
-#include <dmlc/registry.h>               // for DMLC_REGISTRY_LINK_TAG
+#include <dmlc/registry.h>  // for DMLC_REGISTRY_LINK_TAG
 
-#include <cstdint>                       // for int32_t
-#include <string>                        // for string, to_string
+#include <cstdint>  // for int32_t
+#include <string>   // for string, to_string
 
 #include "../gbm/gbtree_model.h"         // for GBTreeModel
-#include "xgboost/base.h"                // for bst_float, Args, bst_group_t, bst_idx_t
+#include "xgboost/base.h"                // for Args, bst_group_t, bst_idx_t
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
@@ -43,25 +43,54 @@ void ValidateBaseMarginShape(linalg::Tensor<float, D> const& margin, bst_idx_t n
   CHECK_EQ(margin.Shape(1), n_groups) << expected;
 }
 
-void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<bst_float>* out_preds,
-                                   const gbm::GBTreeModel& model) const {
-  CHECK_NE(model.learner_model_param->num_output_group, 0);
-  auto n = static_cast<size_t>(model.learner_model_param->OutputLength() * info.num_row_);
+namespace cuda_impl {
+void InitOutPredictions(Context const* ctx, linalg::VectorView<float const> base_score,
+                        linalg::MatrixView<float> predt);
+}
 
-  const HostDeviceVector<bst_float>* base_margin = info.base_margin_.Data();
+void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>* out_preds,
+                                   gbm::GBTreeModel const& model) const {
+  CHECK_NE(model.learner_model_param->num_output_group, 0);
+
   if (ctx_->Device().IsCUDA()) {
     out_preds->SetDevice(ctx_->Device());
   }
+
+  // Cannot rely on the Resize to fill as it might skip if the size is already correct.
+  auto n = static_cast<size_t>(model.learner_model_param->OutputLength() * info.num_row_);
+  out_preds->Resize(n);
+
+  HostDeviceVector<float> const* base_margin = info.base_margin_.Data();
   if (!base_margin->Empty()) {
-    out_preds->Resize(n);
     ValidateBaseMarginShape(info.base_margin_, info.num_row_,
                             model.learner_model_param->OutputLength());
     out_preds->Copy(*base_margin);
-  } else {
-    // cannot rely on the Resize to fill as it might skip if the size is already correct.
-    out_preds->Resize(n);
+    return;
+  }
+
+  if (model.learner_model_param->BaseScore(this->ctx_->Device()).Size() == 1) {
     auto base_score = model.learner_model_param->BaseScore(DeviceOrd::CPU())(0);
     out_preds->Fill(base_score);
+    return;
+  }
+
+  // Handle multi-output models where base_score is a vector.
+  auto base_score = model.learner_model_param->BaseScore(this->ctx_->Device());
+  auto predt = linalg::MakeTensorView(this->ctx_, out_preds, info.num_row_,
+                                      model.learner_model_param->OutputLength());
+
+  if (this->ctx_->IsCUDA()) {
+#if defined(XGBOOST_USE_CUDA)
+    cuda_impl::InitOutPredictions(this->ctx_, base_score, predt);
+#else
+    common::AssertGPUSupport();
+#endif
+  } else {
+    common::ParallelFor(info.num_row_, this->ctx_->Threads(), [&](auto i) {
+      for (std::size_t j = 0, m = predt.Shape(1); j < m; ++j) {
+        predt(i, j) = base_score(j);
+      }
+    });
   }
 }
 }  // namespace xgboost

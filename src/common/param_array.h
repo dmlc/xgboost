@@ -27,6 +27,7 @@ class ParamArray {
  public:
   using size_type = typename decltype(values_)::size_type;              // NOLINT
   using const_reference = typename decltype(values_)::const_reference;  // NOLINT
+  using reference = typename decltype(values_)::reference;              // NOLINT
 
  public:
   ParamArray() = default;
@@ -44,6 +45,7 @@ class ParamArray {
   [[nodiscard]] std::vector<T>& Get() { return values_; }
   [[nodiscard]] std::vector<T> const& Get() const { return values_; }
   const_reference operator[](size_type i) const { return values_[i]; }
+  reference operator[](size_type i) { return values_[i]; }
   [[nodiscard]] bool empty() const { return values_.empty(); }       // NOLINT
   [[nodiscard]] std::size_t size() const { return values_.size(); }  // NOLINT
   [[nodiscard]] auto data() const { return values_.data(); }         // NOLINT
@@ -52,6 +54,12 @@ class ParamArray {
     return *this;
   }
   [[nodiscard]] StringView Name() const { return this->name_; }
+  [[nodiscard]] auto cbegin() const { return this->values_.cbegin(); }  // NOLINT
+  [[nodiscard]] auto cend() const { return this->values_.cend(); }      // NOLINT
+  [[nodiscard]] auto begin() { return this->values_.begin(); }          // NOLINT
+  [[nodiscard]] auto end() { return this->values_.end(); }              // NOLINT
+
+  void Resize(size_type n, T const& init) { this->values_.resize(n, init); }  // NOLINT
 };
 
 // For parsing array-based parameters inside DMLC parameter. Input can be a string to a

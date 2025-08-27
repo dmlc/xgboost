@@ -8,6 +8,7 @@
 #include <cstdlib>  // for size_t
 #include <tuple>    // for apply
 
+#include "cuda_context.cuh"
 #include "device_helpers.cuh"  // for LaunchN
 #include "linalg_op.h"
 #include "xgboost/context.h"  // for Context
@@ -40,6 +41,11 @@ template <typename T, std::int32_t D, typename Fn>
 void ElementWiseKernel(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
   dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   cuda_impl::ElementWiseImpl<T, D>{}(t, fn, s);
+}
+
+inline void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
+  thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), x.Size(),
+                     [=] XGBOOST_DEVICE(std::size_t i) mutable { x(i) = x(i) * mul; });
 }
 }  // namespace cuda_impl
 

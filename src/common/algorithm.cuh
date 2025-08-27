@@ -8,6 +8,7 @@
 #include <thrust/iterator/counting_iterator.h>   // for make_counting_iterator
 #include <thrust/sort.h>                         // for stable_sort_by_key
 #include <thrust/tuple.h>                        // for tuple, get
+#include <thrust/iterator/transform_iterator.h>  // for make_transform_iterator
 
 #include <cstddef>      // size_t
 #include <cstdint>      // int32_t
@@ -344,6 +345,9 @@ void SegmentedSum(dh::CUDAStreamView stream, Args &&...args) {
   dh::CachingDeviceUVector<char> tmp(n_bytes);
   dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(tmp.data(), n_bytes, args..., stream));
 }
+
+void SmallHistogram(Context const *ctx, linalg::MatrixView<float const> indices,
+                    HostDeviceVector<float> const &weights, linalg::VectorView<float> bins);
 
 /**
  * @brief Customized version of @ref thrust::all_of

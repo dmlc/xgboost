@@ -81,10 +81,9 @@ class TestL1MultiTarget : public ::testing::Test {
 
     Json config{Object{}};
     learner->SaveConfig(&config);
-    auto base_score =
-        std::stod(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+    auto base_score = GetBaseScore(config);
 
-    std::vector<float> base_scores;
+    std::vector<float> split_scores;
     for (bst_target_t t{0}; t < p_fmat->Info().labels.Shape(1); ++t) {
       auto t_Xy = weight ? single_w_[t] : single_[t];
       std::unique_ptr<Learner> sl{Learner::Create({t_Xy})};
@@ -100,11 +99,9 @@ class TestL1MultiTarget : public ::testing::Test {
       linalg::Vector<float> out;
       common::Median(sl->Ctx(), t_Xy->Info().labels, t_Xy->Info().weights_, &out);
       ASSERT_FLOAT_EQ(s_base_score, out(0));
-      base_scores.push_back(s_base_score);
+      split_scores.push_back(s_base_score);
     }
-    auto mean = std::accumulate(base_scores.cbegin(), base_scores.cend(), .0f) /
-                static_cast<float>(base_scores.size());
-    ASSERT_FLOAT_EQ(mean, base_score);
+    ASSERT_EQ(split_scores, base_score);
   }
 
   void RunTest(Context const* ctx, std::string const& tree_method) {

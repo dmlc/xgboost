@@ -60,13 +60,13 @@ XGBOOST_DEVICE constexpr bool CloseTo(T a, U b) {
  * \param end end iterator of input
  */
 template <typename Iterator>
-XGBOOST_DEVICE inline void Softmax(Iterator start, Iterator end) {
+XGBOOST_DEVICE void Softmax(Iterator start, Iterator end) {
   static_assert(
       std::is_same_v<
           float, typename std::remove_reference_t<decltype(std::declval<Iterator>().operator*())>>,
-      "Values should be of type bst_float");
-  bst_float wmax = *start;
-  for (Iterator i = start+1; i != end; ++i) {
+      "Values should be of type float");
+  float wmax = *start;
+  for (Iterator i = start + 1; i != end; ++i) {
     wmax = fmaxf(*i, wmax);
   }
   double wsum = 0.0f;

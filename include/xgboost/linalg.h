@@ -567,6 +567,7 @@ auto MakeTensorView(Context const *ctx, Container &data, S &&...shape) {  // NOL
                                typename Container::value_type>;
   std::size_t in_shape[sizeof...(S)];
   detail::IndexToArr(in_shape, std::forward<S>(shape)...);
+  assert(data.size() >= static_cast<decltype(data.size())>((shape * ...)));
   return TensorView<T, sizeof...(S)>{data, in_shape, ctx->Device()};
 }
 
@@ -574,6 +575,7 @@ template <typename T, decltype(common::dynamic_extent) ext, typename... S>
 LINALG_HD auto MakeTensorView(DeviceOrd device, common::Span<T, ext> data, S &&...shape) {
   std::size_t in_shape[sizeof...(S)];
   detail::IndexToArr(in_shape, std::forward<S>(shape)...);
+  assert(data.size() >= static_cast<decltype(data.size())>((shape * ...)));
   return TensorView<T, sizeof...(S)>{data, in_shape, device};
 }
 

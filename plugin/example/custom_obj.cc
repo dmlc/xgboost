@@ -1,13 +1,14 @@
 /**
- * Copyright 2015-2023, XGBoost Contributors
+ * Copyright 2015-2025, XGBoost Contributors
  * \file custom_metric.cc
  * \brief This is an example to define plugin of xgboost.
  *  This plugin defines the additional metric function.
  */
 #include <xgboost/base.h>
-#include <xgboost/parameter.h>
-#include <xgboost/objective.h>
 #include <xgboost/json.h>
+#include <xgboost/linalg.h>  // for Vector
+#include <xgboost/objective.h>
+#include <xgboost/parameter.h>
 
 namespace xgboost::obj {
 // This is a helpful data structure to define parameters
@@ -62,9 +63,12 @@ class MyLogistic : public ObjFunction {
       pred = 1.0f / (1.0f + std::exp(-pred));
     }
   }
-  [[nodiscard]] float ProbToMargin(float base_score) const override {
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
     // transform probability to margin value
-    return -std::log(1.0f / base_score - 1.0f);
+    auto h_intercept = base_score->HostView();
+    for (std::size_t i = 0, n = h_intercept.Size(); i < n; ++i) {
+      h_intercept(i) = -std::log(1.0f / h_intercept(i) - 1.0f);
+    }
   }
 
   void SaveConfig(Json* p_out) const override {

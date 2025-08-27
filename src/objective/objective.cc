@@ -33,10 +33,16 @@ ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
   return pobj;
 }
 
-void ObjFunction::InitEstimation(MetaInfo const&, linalg::Tensor<float, 1>* base_score) const {
+void ObjFunction::InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const {
   CHECK(base_score);
-  base_score->Reshape(1);
-  (*base_score)(0) = DefaultBaseScore();
+  auto n_targets = this->Targets(info);
+  base_score->SetDevice(this->ctx_->Device());
+  base_score->Reshape(n_targets);
+  if (n_targets == 1) {
+    base_score->Data()->Fill(DefaultBaseScore());
+  } else {
+    base_score->Data()->Fill(1.0 / static_cast<double>(n_targets));
+  }
 }
 }  // namespace xgboost
 
