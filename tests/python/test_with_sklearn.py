@@ -20,6 +20,7 @@ from xgboost.testing.with_skl import (
     run_boost_from_prediction_binary,
     run_boost_from_prediction_multi_clasas,
     run_housing_rf_regression,
+    run_intercept,
     run_recoding,
 )
 
@@ -879,7 +880,7 @@ def test_sklearn_get_default_params():
     assert cls.get_params()["base_score"] is None
     cls.fit(X[:4, ...], y[:4, ...])
     base_score = get_basescore(cls)
-    np.testing.assert_equal(base_score, 0.5)
+    np.testing.assert_equal(base_score, [0.5])
 
 
 def run_validation_weights(model):
@@ -1460,18 +1461,7 @@ def test_weighted_evaluation_metric():
 
 
 def test_intercept() -> None:
-    X, y, w = tm.make_regression(256, 3, use_cupy=False)
-    reg = xgb.XGBRegressor()
-    reg.fit(X, y, sample_weight=w)
-    result = reg.intercept_
-    assert result.dtype == np.float32
-    assert result[0] < 0.5
-
-    reg = xgb.XGBRegressor(booster="gblinear")
-    reg.fit(X, y, sample_weight=w)
-    result = reg.intercept_
-    assert result.dtype == np.float32
-    assert result[0] < 0.5
+    run_intercept("cpu")
 
 
 def test_fit_none() -> None:

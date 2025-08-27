@@ -27,7 +27,7 @@ test_that("Poisson regression is centered around mean", {
   )
   model_json <- xgb.save.raw(model, "json") |> rawToChar() |> jsonlite::fromJSON()
   expect_equal(
-    model_json$learner$learner_model_param$base_score |> as.numeric(),
+    get_basescore(model_json),
     mean(y),
     tolerance = 1e-4
   )
@@ -47,7 +47,7 @@ test_that("Poisson regression is centered around mean", {
   )
   model_json <- xgb.save.raw(model_weighted, "json") |> rawToChar() |> jsonlite::fromJSON()
   expect_equal(
-    model_json$learner$learner_model_param$base_score |> as.numeric(),
+    get_basescore(model_json),
     weighted.mean(y, w),
     tolerance = 1e-4
   )

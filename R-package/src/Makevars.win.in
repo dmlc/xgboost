@@ -127,6 +127,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/io.o \
     $(PKGROOT)/src/common/json.o \
     $(PKGROOT)/src/common/numeric.o \
+    $(PKGROOT)/src/common/optional_weight.o \
     $(PKGROOT)/src/common/pseudo_huber.o \
     $(PKGROOT)/src/common/quantile.o \
     $(PKGROOT)/src/common/random.o \

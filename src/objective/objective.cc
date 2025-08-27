@@ -1,7 +1,7 @@
-/*!
- * Copyright 2015-2022 by Contributors
- * \file objective.cc
- * \brief Registry of all objective functions.
+/**
+ * Copyright 2015-2025, XGBoost Contributors
+ *
+ * @brief Registry of all objective functions.
  */
 #include <dmlc/registry.h>
 #include <xgboost/context.h>
@@ -33,10 +33,12 @@ ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
   return pobj;
 }
 
-void ObjFunction::InitEstimation(MetaInfo const&, linalg::Tensor<float, 1>* base_score) const {
+void ObjFunction::InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const {
   CHECK(base_score);
-  base_score->Reshape(1);
-  (*base_score)(0) = DefaultBaseScore();
+  auto n_targets = this->Targets(info);
+  base_score->SetDevice(this->ctx_->Device());
+  base_score->Reshape(n_targets);
+  base_score->Data()->Fill(DefaultBaseScore());
 }
 }  // namespace xgboost
 

@@ -9,7 +9,7 @@ import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.core import Integer
 from xgboost.testing.basic_models import run_custom_objective
-from xgboost.testing.updater import ResetStrategy
+from xgboost.testing.updater import ResetStrategy, get_basescore
 
 
 class TestModels:
@@ -396,7 +396,9 @@ class TestModels:
         predt_0 = sliced_0.predict(dtrain, output_margin=True)
         predt_1 = sliced_1.predict(dtrain, output_margin=True)
 
-        merged = predt_0 + predt_1 - 0.5  # base score.
+        # base score.
+        intercept = np.broadcast_to(np.array(get_basescore(booster)), predt_0.shape)
+        merged = predt_0 + predt_1 - intercept
         single = booster[1:7].predict(dtrain, output_margin=True)
         np.testing.assert_allclose(merged, single, atol=1e-6)
 
@@ -406,7 +408,7 @@ class TestModels:
         predt_0 = sliced_0.predict(dtrain, output_margin=True)
         predt_1 = sliced_1.predict(dtrain, output_margin=True)
 
-        merged = predt_0 + predt_1 - 0.5
+        merged = predt_0 + predt_1 - intercept
         single = booster[1:7].predict(dtrain, output_margin=True)
         np.testing.assert_allclose(merged, single, atol=1e-6)
 

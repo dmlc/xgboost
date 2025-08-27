@@ -1104,8 +1104,9 @@ coef.xgb.Booster <- function(object, ...) {
   if (booster_type != "gblinear") {
     stop("Coefficients are not defined for Booster type ", booster_type)
   }
-  model_json <- jsonlite::fromJSON(rawToChar(xgb.save.raw(object, raw_format = "json")))
-  base_score <- model_json$learner$learner_model_param$base_score
+  model_json <- jsonlite::fromJSON(
+    rawToChar(xgb.save.raw(object, raw_format = "json"))
+  )
   num_feature <- as.numeric(model_json$learner$learner_model_param$num_feature)
 
   weights <- model_json$learner$gradient_booster$model$weights
@@ -1116,6 +1117,9 @@ coef.xgb.Booster <- function(object, ...) {
   sep <- num_feature * n_cols
   coefs <- weights[seq(1, sep)]
   intercepts <- weights[seq(sep + 1, length(weights))]
+  base_score <- jsonlite::fromJSON(
+    model_json$learner$learner_model_param$base_score
+  )
   intercepts <- intercepts + as.numeric(base_score)
 
   if (add_names) {

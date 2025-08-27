@@ -105,7 +105,6 @@ class QuantileRegression : public ObjFunction {
     base_score->SetDevice(ctx_->Device());
     base_score->Reshape(n_targets);
 
-    double sw{0};
     if (ctx_->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
       alpha_.SetDevice(ctx_->Device());
@@ -125,7 +124,6 @@ class QuantileRegression : public ObjFunction {
       if (info.weights_.Empty()) {
         common::SegmentedQuantile(ctx_, d_alpha.data(), seg_it, seg_it + d_alpha.size() + 1, val_it,
                                   val_it + n, base_score->Data());
-        sw = info.num_row_;
       } else {
         info.weights_.SetDevice(ctx_->Device());
         auto d_weights = info.weights_.ConstDeviceSpan();
@@ -137,8 +135,6 @@ class QuantileRegression : public ObjFunction {
         common::SegmentedWeightedQuantile(ctx_, d_alpha.data(), seg_it, seg_it + d_alpha.size() + 1,
                                           val_it, val_it + n, weight_it, weight_it + n,
                                           base_score->Data());
-        sw = dh::Reduce(ctx_->CUDACtx()->CTP(), dh::tcbegin(d_weights), dh::tcend(d_weights), 0.0,
-                        thrust::plus<double>{});
       }
 #else
       common::AssertGPUSupport();
@@ -146,11 +142,6 @@ class QuantileRegression : public ObjFunction {
     } else {
       auto quantiles = base_score->HostView();
       auto h_weights = info.weights_.ConstHostVector();
-      if (info.weights_.Empty()) {
-        sw = info.num_row_;
-      } else {
-        sw = std::accumulate(std::cbegin(h_weights), std::cend(h_weights), 0.0);
-      }
       for (bst_target_t t{0}; t < n_targets; ++t) {
         auto alpha = param_.quantile_alpha[t];
         auto h_labels = info.labels.HostView();
@@ -165,20 +156,13 @@ class QuantileRegression : public ObjFunction {
       }
     }
 
-    // For multiple quantiles, we should extend the base score to a vector instead of
-    // computing the average. For now, this is a workaround.
-    linalg::Vector<float> temp;
-    common::Mean(ctx_, *base_score, &temp);
-    double meanq = temp(0) * sw;
-
-    std::array<double, 2> dat{meanq, sw};
-    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
-    collective::SafeColl(rc);
-
-    std::tie(meanq, sw) = std::tuple_cat(dat);
-    meanq /= (sw + kRtEps);
-    base_score->Reshape(1);
-    base_score->Data()->Fill(meanq);
+    // Global mean. There's no strong preference on whether weighted mean should be used
+    // with weighted quantiles. The proper way to do this might be using an approximated
+    // quantile algorithm with stream inputs, but it's also much more expensive.
+    auto intercept = base_score->View(this->ctx_->Device());
+    collective::SafeColl(collective::GlobalSum(ctx_, info, intercept));
+    double n_workers = info.IsColumnSplit() ? 1.0 : collective::GetWorldSize();
+    linalg::VecScaDiv(ctx_, intercept, n_workers);
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

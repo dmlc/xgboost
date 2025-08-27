@@ -305,6 +305,9 @@ struct LearnerModelParam {
    */
   linalg::Vector<float> base_score_;
 
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
+                    MultiStrategy multi_strategy);
+
  public:
   /**
    * @brief The number of features.
@@ -324,12 +327,9 @@ struct LearnerModelParam {
   MultiStrategy multi_strategy{MultiStrategy::kOneOutputPerTree};
 
   LearnerModelParam() = default;
-  // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
-  // this one as an immutable copy.
   LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
                     linalg::Vector<float> base_score, ObjInfo t, MultiStrategy multi_strategy);
-  LearnerModelParam(LearnerModelParamLegacy const& user_param, ObjInfo t,
-                    MultiStrategy multi_strategy);
+  // This ctor is only used by tests.
   LearnerModelParam(bst_feature_t n_features, linalg::Vector<float> base_score,
                     std::uint32_t n_groups, bst_target_t n_targets, MultiStrategy multi_strategy)
       : base_score_{std::move(base_score)},

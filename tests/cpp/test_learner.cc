@@ -469,7 +469,8 @@ class InitBaseScore : public ::testing::Test {
     Json config{Object{}};
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+    ASSERT_EQ(base_score.size(), 1);
+    ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
 
     // already initialized
     auto Xy1 = RandomDataGenerator{100, Cols(), 0}.Seed(321).GenerateDMatrix(true);
@@ -498,8 +499,9 @@ class InitBaseScore : public ::testing::Test {
     learner->SaveConfig(&config);
 
     auto base_score = GetBaseScore(config);
+    ASSERT_EQ(base_score.size(), 1);
     // no change
-    ASSERT_FLOAT_EQ(base_score, 1.3);
+    ASSERT_FLOAT_EQ(base_score[0], 1.3);
 
     HostDeviceVector<float> predt;
     learner->Predict(Xy_, false, &predt, 0, 0);
@@ -510,8 +512,9 @@ class InitBaseScore : public ::testing::Test {
     learner->UpdateOneIter(0, Xy_);
     learner->SaveConfig(&config);
     base_score = GetBaseScore(config);
+    ASSERT_EQ(base_score.size(), 1);
     // no change
-    ASSERT_FLOAT_EQ(base_score, 1.3);
+    ASSERT_FLOAT_EQ(base_score[0], 1.3);
 
     auto from_avg = std::stoi(
         get<String const>(config["learner"]["learner_model_param"]["boost_from_average"]));
@@ -534,7 +537,9 @@ class InitBaseScore : public ::testing::Test {
     Json model{Object{}};
     learner->SaveModel(&model);
     auto base_score = GetBaseScore(model);
-    ASSERT_EQ(base_score, ObjFunction::DefaultBaseScore());
+    ASSERT_EQ(base_score.size(), 1);
+    ASSERT_FALSE(std::isnan(base_score[0]));
+    ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
 
     learner.reset(Learner::Create({Xy_}));
     learner->LoadModel(model);
@@ -542,12 +547,14 @@ class InitBaseScore : public ::testing::Test {
     learner->Configure();
     learner->SaveConfig(&config);
     base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score, ObjFunction::DefaultBaseScore());
+    ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
 
     learner->UpdateOneIter(0, Xy_);
     learner->SaveConfig(&config);
     base_score = GetBaseScore(config);
-    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+    ASSERT_EQ(base_score.size(), 1);
+    ASSERT_FALSE(std::isnan(base_score[0]));
+    ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
   }
 
   void TestInitWithPredt() {
@@ -564,13 +571,16 @@ class InitBaseScore : public ::testing::Test {
     Json config(Object{});
     learner->SaveConfig(&config);
     auto base_score = GetBaseScore(config);
-    ASSERT_EQ(base_score, ObjFunction::DefaultBaseScore());
+    ASSERT_EQ(base_score.size(), 1);
+    ASSERT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
 
     // since prediction is not used for trianing, the train procedure still runs estimation
     learner->UpdateOneIter(0, Xy_);
     learner->SaveConfig(&config);
     base_score = GetBaseScore(config);
-    ASSERT_NE(base_score, ObjFunction::DefaultBaseScore());
+    ASSERT_EQ(base_score.size(), 1);
+    ASSERT_FALSE(std::isnan(base_score[0]));
+    ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
   }
 
   void TestUpdateProcess() {
@@ -584,6 +594,8 @@ class InitBaseScore : public ::testing::Test {
     Json model{Object{}};
     learner->SaveModel(&model);
     auto base_score = GetBaseScore(model);
+    ASSERT_EQ(base_score.size(), 1);
+    ASSERT_FALSE(std::isnan(base_score[0]));
 
     auto Xy1 = RandomDataGenerator{100, Cols(), 0}.Seed(321).GenerateDMatrix(true);
     learner.reset(Learner::Create({Xy1}));
@@ -595,6 +607,8 @@ class InitBaseScore : public ::testing::Test {
     Json config(Object{});
     learner->SaveConfig(&config);
     auto base_score1 = GetBaseScore(config);
+    ASSERT_EQ(base_score1.size(), 1);
+    ASSERT_FALSE(std::isnan(base_score1[0]));
     ASSERT_EQ(base_score, base_score1);
   }
 };
@@ -610,7 +624,8 @@ TEST_F(InitBaseScore, InitWithPredict) { this->TestInitWithPredt(); }
 TEST_F(InitBaseScore, UpdateProcess) { this->TestUpdateProcess(); }
 
 class TestColumnSplit : public ::testing::TestWithParam<std::string> {
-  void TestBaseScore(std::string objective, float expected_base_score, Json expected_model) {
+  void TestBaseScore(std::string objective, std::vector<float> const& expected_base_score,
+                     Json expected_model) {
     auto const world_size = collective::GetWorldSize();
     auto n_threads = collective::GetWorkerLocalThreads(world_size);
     auto const rank = collective::GetRank();

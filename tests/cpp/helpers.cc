@@ -202,8 +202,14 @@ double GetMultiMetricEval(xgboost::Metric* metric,
 }
 
 namespace xgboost {
-float GetBaseScore(Json const &config) {
-  return std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+[[nodiscard]] std::vector<float> GetBaseScore(Json const& config) {
+  auto str = get<String const>(config["learner"]["learner_model_param"]["base_score"]);
+  auto jintercept = Json::Load(str);
+  auto const& array = get<Array const>(jintercept);
+  std::vector<float> results;
+  std::transform(array.begin(), array.end(), std::back_inserter(results),
+                 [](Json v) { return get<Number>(v); });
+  return results;
 }
 
 SimpleLCG::StateType SimpleLCG::operator()() {

@@ -83,7 +83,7 @@ class ObjFunction : public Configurable {
    *
    * @return transformed value
    */
-  [[nodiscard]] virtual float ProbToMargin(float base_score) const { return base_score; }
+  virtual void ProbToMargin(linalg::Vector<float>* /*base_score*/) const {}
   /**
    * @brief Obtain the initial estimation of prediction (intercept).
    *
