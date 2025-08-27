@@ -1,19 +1,20 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_CUH_
 #define XGBOOST_COMMON_ALGORITHM_CUH_
 
-#include <thrust/copy.h>       // copy
-#include <thrust/sort.h>       // stable_sort_by_key
-#include <thrust/tuple.h>      // tuple,get
+#include <thrust/copy.h>                         // for copy
+#include <thrust/iterator/counting_iterator.h>   // for make_counting_iterator
+#include <thrust/sort.h>                         // for stable_sort_by_key
+#include <thrust/tuple.h>                        // for tuple, get
 
-#include <cstddef>             // size_t
-#include <cstdint>             // int32_t
-#include <cub/cub.cuh>         // DispatchSegmentedRadixSort,NullType,DoubleBuffer
-#include <iterator>            // distance
-#include <limits>              // numeric_limits
-#include <type_traits>         // conditional_t,remove_const_t
+#include <cstddef>      // size_t
+#include <cstdint>      // int32_t
+#include <cub/cub.cuh>  // DispatchSegmentedRadixSort,NullType,DoubleBuffer
+#include <iterator>     // distance
+#include <limits>       // numeric_limits
+#include <type_traits>  // conditional_t,remove_const_t
 
 #include "common.h"            // safe_cuda
 #include "cuda_context.cuh"    // CUDAContext
@@ -21,6 +22,7 @@
 #include "device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"      // XGBOOST_DEVICE
 #include "xgboost/context.h"   // Context
+#include "xgboost/linalg.h"    // for VectorView
 #include "xgboost/logging.h"   // CHECK
 #include "xgboost/span.h"      // Span,byte
 
@@ -325,6 +327,24 @@ void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out
 #else
   InclusiveScan(ctx, d_in, d_out, cub::Sum{}, num_items);
 #endif
+}
+
+template <typename... Args>
+void RunLengthEncode(dh::CUDAStreamView stream, Args &&...args) {
+  std::size_t n_bytes = 0;
+  dh::safe_cuda(
+      cub::DeviceRunLengthEncode::Encode(nullptr, n_bytes, std::forward<Args>(args)..., stream));
+  dh::CachingDeviceUVector<char> tmp(n_bytes);
+  dh::safe_cuda(
+      cub::DeviceRunLengthEncode::Encode(tmp.data(), n_bytes, std::forward<Args>(args)..., stream));
+}
+
+template <typename... Args>
+void SegmentedSum(dh::CUDAStreamView stream, Args &&...args) {
+  std::size_t n_bytes = 0;
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, args..., stream));
+  dh::CachingDeviceUVector<char> tmp(n_bytes);
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(tmp.data(), n_bytes, args..., stream));
 }
 
 /**
