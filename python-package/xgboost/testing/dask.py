@@ -348,11 +348,6 @@ def run_recode(client: Client, device: Device) -> None:
             da.from_array(y, chunks=(y.shape[0] // 8,)).persist(workers=to),
         )
 
-        if device == "cuda":
-            denc = denc.to_backend("cudf")
-            dreenc = dreenc.to_backend("cudf")
-            dy = dy.to_backend("cupy")
-
         Xy = create_dmatrix(DMatrixT, client, denc, dy, enable_categorical=True)
         Xy_valid = create_dmatrix(
             DMatrixT, client, dreenc, dy, enable_categorical=True, ref=Xy

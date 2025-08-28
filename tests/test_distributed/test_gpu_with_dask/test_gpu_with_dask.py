@@ -43,6 +43,7 @@ pytestmark = [
 
 try:
     import cudf
+    import dask
     import dask.dataframe as dd
     from dask import __version__ as dask_version
     from dask import array as da
@@ -596,7 +597,13 @@ def test_categorical(local_cuda_client: Client) -> None:
 
 @pytest.mark.skipif(**tm.no_dask_cudf())
 def test_recode(local_cuda_client: Client) -> None:
-    run_recode(local_cuda_client, "cuda")
+    with dask.config.set(
+        {
+            "array.backend": "cupy",
+            "dataframe.backend": "cudf",
+        }
+    ):
+        run_recode(local_cuda_client, "cuda")
 
 
 @pytest.mark.skipif(**tm.no_cupy())
