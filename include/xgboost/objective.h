@@ -27,7 +27,7 @@ struct Context;
 /** @brief The interface of objective function */
 class ObjFunction : public Configurable {
  protected:
-  Context const* ctx_;
+  Context const* ctx_{nullptr};
 
  public:
   static constexpr float DefaultBaseScore() { return 0.5f; }
