@@ -319,11 +319,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
       if (restart) {
         this->param_.prefetch_copy = true;
       }
-      ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, this] {
+      auto p = this->param_;
+      ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, p, this] {
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
-          std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{
-              self->CreatePageFormat(self->param_)};
+          std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{self->CreatePageFormat(p)};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
           std::unique_ptr<typename FormatStreamPolicy::ReaderT> fi{
