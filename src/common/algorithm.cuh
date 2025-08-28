@@ -332,11 +332,9 @@ void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out
 template <typename... Args>
 void RunLengthEncode(dh::CUDAStreamView stream, Args &&...args) {
   std::size_t n_bytes = 0;
-  dh::safe_cuda(
-      cub::DeviceRunLengthEncode::Encode(nullptr, n_bytes, std::forward<Args>(args)..., stream));
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(nullptr, n_bytes, args..., stream));
   dh::CachingDeviceUVector<char> tmp(n_bytes);
-  dh::safe_cuda(
-      cub::DeviceRunLengthEncode::Encode(tmp.data(), n_bytes, std::forward<Args>(args)..., stream));
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(tmp.data(), n_bytes, args..., stream));
 }
 
 template <typename... Args>
