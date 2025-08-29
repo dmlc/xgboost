@@ -162,12 +162,12 @@ template <typename T, std::int32_t kDim>
 
 template <typename T>
 [[nodiscard]] Result GlobalSum(Context const* ctx, MetaInfo const& info,
-                               linalg::VectorView<T> values, double sum_weight) {
+                               linalg::VectorView<T> values, double* sum_weight) {
   if (info.IsColumnSplit()) {
     return Success();
   }
   auto status = Success() << [&] {
-    return Allreduce(ctx, &sum_weight, collective::Op::kSum);
+    return Allreduce(ctx, sum_weight, collective::Op::kSum);
   } << [&] {
     return Allreduce(ctx, values, collective::Op::kSum);
   };

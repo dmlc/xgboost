@@ -744,11 +744,11 @@ class MeanAbsoluteError : public ObjFunction {
     CheckInitInputs(info);
     base_score->Reshape(this->Targets(info));
 
-    double w{0.0};
+    double sum_weight{0.0};
     if (info.weights_.Empty()) {
-      w = static_cast<double>(info.num_row_);
+      sum_weight = static_cast<double>(info.num_row_);
     } else {
-      w = common::Reduce(ctx_, info.weights_);
+      sum_weight = common::Reduce(ctx_, info.weights_);
     }
 
     if (info.num_row_ == 0) {
@@ -760,18 +760,18 @@ class MeanAbsoluteError : public ObjFunction {
 
     auto intercept = base_score->View(this->ctx_->Device());
     // weighted avg
-    linalg::VecScaMul(this->ctx_, intercept, w);
-    auto rc = collective::GlobalSum(ctx_, info, intercept, w);
+    linalg::VecScaMul(this->ctx_, intercept, sum_weight);
+    auto rc = collective::GlobalSum(ctx_, info, intercept, &sum_weight);
     collective::SafeColl(rc);
 
-    if (common::CloseTo(w, 0.0)) {
+    if (common::CloseTo(sum_weight, 0.0)) {
       // Mostly for handling empty dataset test.
       LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
       *base_score = linalg::Zeros<float>(ctx_, base_score->Shape(0));
       return;
     }
 
-    linalg::VecScaDiv(this->ctx_, intercept, w);
+    linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

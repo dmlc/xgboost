@@ -224,7 +224,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
 #endif  // for defined(XGBOOST_USE_CUDA)
     }
 
-    auto status = collective::GlobalSum(this->ctx_, info, intercept, sum_weight);
+    auto status = collective::GlobalSum(this->ctx_, info, intercept, &sum_weight);
     collective::SafeColl(status);
     CHECK_GE(sum_weight, kRtEps);
     linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
