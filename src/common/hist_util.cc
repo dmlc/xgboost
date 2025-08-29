@@ -1,5 +1,6 @@
 /**
  * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2024 FUJITSU LIMITED
  * \file hist_util.cc
  */
 #include "hist_util.h"
@@ -15,19 +16,32 @@
 #include "xgboost/context.h"  // for Context
 #include "xgboost/data.h"     // for SparsePage, SortedCSCPage
 
+#ifdef __linux__
+#include <sys/prctl.h>
+#define PR_SVE_GET_VL 51
+#endif
+
+#ifndef PR_SVE_VL_LEN_MASK
+#define PR_SVE_VL_LEN_MASK 0xffff
+#endif
+
+#ifdef XGBOOST_SVE_COMPILER_SUPPORT
+#include <arm_sve.h>  // to leverage sve intrinsics
+#endif
+
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
-  #include <xmmintrin.h>
-  #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
+#include <xmmintrin.h>
+#define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char *>(addr), _MM_HINT_T0)
 #elif defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
-  #define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char*>(addr), 0, 3)
+#define PREFETCH_READ_T0(addr) __builtin_prefetch(reinterpret_cast<const char *>(addr), 0, 3)
 #else  // no SW pre-fetching available; PREFETCH_READ_T0 is no-op
-  #define PREFETCH_READ_T0(addr) do {} while (0)
+#define PREFETCH_READ_T0(addr) \
+  do {                         \
+  } while (0)
 #endif  // defined(XGBOOST_MM_PREFETCH_PRESENT)
 
 namespace xgboost::common {
-HistogramCuts::HistogramCuts() {
-  cut_ptrs_.HostVector().emplace_back(0);
-}
+HistogramCuts::HistogramCuts() { cut_ptrs_.HostVector().emplace_back(0); }
 
 HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins, bool use_sorted,
                               Span<float const> hessian) {
@@ -53,10 +67,7 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
     }
     container.MakeCuts(ctx, m->Info(), &out);
   } else {
-    SortedSketchContainer container{ctx,
-                                    max_bins,
-                                    m->Info().feature_types.ConstHostSpan(),
-                                    reduced,
+    SortedSketchContainer container{ctx, max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
                                     HostSketchContainer::UseGroup(info)};
     for (auto const &page : m->GetBatches<SortedCSCPage>(ctx)) {
       container.PushColPage(page, info, hessian);
@@ -96,9 +107,9 @@ void CopyHist(GHistRow dst, const GHistRow src, size_t begin, size_t end) {
  */
 void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2, size_t begin,
                      size_t end) {
-  double* pdst = reinterpret_cast<double*>(dst.data());
-  const double* psrc1 = reinterpret_cast<const double*>(src1.data());
-  const double* psrc2 = reinterpret_cast<const double*>(src2.data());
+  double *pdst = reinterpret_cast<double *>(dst.data());
+  const double *psrc1 = reinterpret_cast<const double *>(src1.data());
+  const double *psrc2 = reinterpret_cast<const double *>(src2.data());
 
   for (size_t i = 2 * begin; i < 2 * end; ++i) {
     pdst[i] = psrc1[i] - psrc2[i];
@@ -112,13 +123,10 @@ struct Prefetch {
 
  private:
   static constexpr size_t kNoPrefetchSize =
-      kPrefetchOffset + kCacheLineSize /
-      sizeof(decltype(GHistIndexMatrix::row_ptr)::value_type);
+      kPrefetchOffset + kCacheLineSize / sizeof(decltype(GHistIndexMatrix::row_ptr)::value_type);
 
  public:
-  static size_t NoPrefetchSize(size_t rows) {
-    return std::min(rows, kNoPrefetchSize);
-  }
+  static size_t NoPrefetchSize(size_t rows) { return std::min(rows, kNoPrefetchSize); }
 
   template <typename T>
   static constexpr size_t GetPrefetchStep() {
@@ -134,9 +142,7 @@ struct RuntimeFlags {
   const BinTypeSize bin_type_size;
 };
 
-template <bool _any_missing,
-          bool _first_page = false,
-          bool _read_by_column = false,
+template <bool _any_missing, bool _first_page = false, bool _read_by_column = false,
           typename BinIdxTypeName = uint8_t>
 class GHistBuildingManager {
  public:
@@ -170,7 +176,7 @@ class GHistBuildingManager {
    *  and forward the call there.
    */
   template <typename Fn>
-  static void DispatchAndExecute(const RuntimeFlags& flags, Fn&& fn) {
+  static void DispatchAndExecute(const RuntimeFlags &flags, Fn &&fn) {
     if (flags.first_page != kFirstPage) {
       SetFirstPage<true>::Type::DispatchAndExecute(flags, std::forward<Fn>(fn));
     } else if (flags.read_by_column != kReadByColumn) {
@@ -185,6 +191,118 @@ class GHistBuildingManager {
     }
   }
 };
+
+#ifdef XGBOOST_SVE_COMPILER_SUPPORT
+template <typename BinIdxType>
+__attribute__((target("arch=armv8-a+sve")))
+inline svuint32_t load_index_vec(svbool_t pg, BinIdxType *d) {
+    std::cout << "Missing template for type " << typeid(BinIdxType).name() << std::endl;
+    assert(0);
+    return svindex_u32(0, 2);  // dummy
+}
+
+template <>
+__attribute__((target("arch=armv8-a+sve")))
+inline svuint32_t load_index_vec(svbool_t pg, const uint32_t *d) {
+    return svld1(pg, d);
+}
+
+template <>
+__attribute__((target("arch=armv8-a+sve")))
+inline svuint32_t load_index_vec(svbool_t pg, const uint16_t *d) {
+    return svld1uh_u32(pg, d);
+}
+
+template <>
+__attribute__((target("arch=armv8-a+sve")))
+inline svuint32_t load_index_vec(svbool_t pg, const uint8_t *d) {
+    return svld1ub_u32(pg, d);
+}
+
+template <typename BinIdxType>
+__attribute__((target("arch=armv8-a+sve")))
+inline void UpdateHistogramWithSVE(size_t row_size, const BinIdxType *gr_index_local,
+                                   const std::uint32_t *offsets, double *hist_data,
+                                   const float *p_gpair, size_t idx_gh, const uint32_t two,
+                                   bool kAnyMissing) {
+  // Load the gradient and hessian values from p_gpair into SVE vector registers
+  svfloat64_t grad = svdup_n_f64(p_gpair[idx_gh]);
+  svfloat64_t hess = svdup_n_f64(p_gpair[idx_gh + 1]);
+
+  for (size_t j = 0; j < row_size; j += svcntw()) {
+    // Create a predicate (mask) for 32-bit & 64-bit elements, active only for valid elements
+    svbool_t pg32 = svwhilelt_b32(j, row_size);
+    svbool_t pg64_lower = svwhilelt_b64(j, row_size);
+    svbool_t pg64_upper = svwhilelt_b64(j+svcntd(), row_size);
+
+    // Load the gradient index values and offsets for the current chunk of the row
+    svuint32_t gr_index_vec = load_index_vec(pg32, &gr_index_local[j]);
+    svuint32_t idx_bin_vec;
+    if (kAnyMissing) {
+      idx_bin_vec = svmul_n_u32_x(pg32, gr_index_vec, two);
+    } else {
+      svuint32_t offsets_vec = svld1(pg32, &offsets[j]);
+      svuint32_t temp = svadd_u32_m(pg32, gr_index_vec, offsets_vec);
+      idx_bin_vec = svmul_n_u32_x(pg32, temp, two);
+    }
+
+    // Unpack 32-bit index binary vector into 64-bit vectors from lower & upper half respectively
+    svuint64_t idx_bin_vec0_0 = svunpklo_u64(idx_bin_vec);
+    svuint64_t idx_bin_vec0_1 = svunpkhi_u64(idx_bin_vec);
+
+    // Increment the indices by 1 for hessian.
+    svuint64_t idx_bin_vec1_0 = svadd_n_u64_m(pg64_lower, idx_bin_vec0_0, 1);
+    svuint64_t idx_bin_vec1_1 = svadd_n_u64_m(pg64_upper, idx_bin_vec0_1, 1);
+
+    // Gather the histogram data corresponding to the computed indices
+    svfloat64_t hist0_vec0 = svld1_gather_index(pg64_lower, hist_data, idx_bin_vec0_0);
+    svfloat64_t hist0_vec1 = svld1_gather_index(pg64_upper, hist_data, idx_bin_vec0_1);
+    svfloat64_t hist1_vec0 = svld1_gather_index(pg64_lower, hist_data, idx_bin_vec1_0);
+    svfloat64_t hist1_vec1 = svld1_gather_index(pg64_upper, hist_data, idx_bin_vec1_1);
+
+    // Accumulate the gradient and hessian values into the histogram
+    hist0_vec0 = svadd_f64_m(pg64_lower, hist0_vec0, grad);
+    hist0_vec1 = svadd_f64_m(pg64_upper, hist0_vec1, grad);
+    hist1_vec0 = svadd_f64_m(pg64_lower, hist1_vec0, hess);
+    hist1_vec1 = svadd_f64_m(pg64_upper, hist1_vec1, hess);
+
+    // Store the updated histogram data back into memory
+    svst1_scatter_index(pg64_lower, hist_data, idx_bin_vec0_0, hist0_vec0);
+    svst1_scatter_index(pg64_upper, hist_data, idx_bin_vec0_1, hist0_vec1);
+    svst1_scatter_index(pg64_lower, hist_data, idx_bin_vec1_0, hist1_vec0);
+    svst1_scatter_index(pg64_upper, hist_data, idx_bin_vec1_1, hist1_vec1);
+  }
+}
+#endif
+
+// Returns true if SVE ISA is available on the current CPU (with caching)
+#ifdef __linux__
+int check_sve_hw_support() {
+    static int cached_sve_support = -1;
+    if (cached_sve_support == -1) {
+        int ret = prctl(PR_SVE_GET_VL);
+        if (ret == -1) {
+            cached_sve_support = 0;
+        } else {
+            cached_sve_support = 1;
+        }
+    }
+    return cached_sve_support;
+}
+
+int check_vector_length() {
+  int ret = prctl(PR_SVE_GET_VL);
+  if (ret < 0) {
+    return 0;
+  } else {
+    // Mask out the SVE vector length bits
+    return (ret & PR_SVE_VL_LEN_MASK) * 8;  // bytes * 8 = bit length(vector length)
+  }
+}
+
+static int sve_enabled = check_sve_hw_support();
+static int vector_length = check_vector_length();
+#endif
 
 template <bool do_prefetch, class BuildingManager>
 void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t const> row_indices,
@@ -223,24 +341,20 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
                           // 2 FP values: gradient and hessian.
                           // So we need to multiply each row-index/bin-index by 2
                           // to work with gradient pairs as a singe row FP array
-
   for (std::size_t i = 0; i < size; ++i) {
-    const size_t icol_start =
-        kAnyMissing ? get_row_ptr(rid[i]) : get_rid(rid[i]) * n_features;
-    const size_t icol_end =
-        kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
+    const size_t icol_start = kAnyMissing ? get_row_ptr(rid[i]) : get_rid(rid[i]) * n_features;
+    const size_t icol_end = kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
 
     const size_t row_size = icol_end - icol_start;
     const size_t idx_gh = two * rid[i];
 
     if (do_prefetch) {
       const size_t icol_start_prefetch =
-          kAnyMissing
-              ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset])
-              : get_rid(rid[i + Prefetch::kPrefetchOffset]) * n_features;
-      const size_t icol_end_prefetch =
-          kAnyMissing ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset] + 1)
-                      : icol_start_prefetch + n_features;
+          kAnyMissing ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset])
+                      : get_rid(rid[i + Prefetch::kPrefetchOffset]) * n_features;
+      const size_t icol_end_prefetch = kAnyMissing
+                                           ? get_row_ptr(rid[i + Prefetch::kPrefetchOffset] + 1)
+                                           : icol_start_prefetch + n_features;
 
       PREFETCH_READ_T0(p_gpair + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prefetch; j < icol_end_prefetch;
@@ -250,15 +364,24 @@ void RowsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
     }
     const BinIdxType *gr_index_local = gradient_index + icol_start;
 
-    // The trick with pgh_t buffer helps the compiler to generate faster binary.
-    const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
-    for (size_t j = 0; j < row_size; ++j) {
-      const uint32_t idx_bin =
-          two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
-      auto hist_local = hist_data + idx_bin;
-      *(hist_local) += pgh_t[0];
-      *(hist_local + 1) += pgh_t[1];
+    #ifdef XGBOOST_SVE_COMPILER_SUPPORT
+      if (sve_enabled && vector_length > 128) {
+        UpdateHistogramWithSVE(row_size, gr_index_local, offsets, hist_data, p_gpair, idx_gh, two,
+                        kAnyMissing);
+      } else {
+    #endif
+        // The trick with pgh_t buffer helps the compiler to generate faster binary.
+        const float pgh_t[] = {p_gpair[idx_gh], p_gpair[idx_gh + 1]};
+        for (size_t j = 0; j < row_size; ++j) {
+          const uint32_t idx_bin =
+              two * (static_cast<uint32_t>(gr_index_local[j]) + (kAnyMissing ? 0 : offsets[j]));
+          auto hist_local = hist_data + idx_bin;
+          *(hist_local) += pgh_t[0];
+          *(hist_local + 1) += pgh_t[1];
+        }
+    #ifdef XGBOOST_SVE_COMPILER_SUPPORT
     }
+    #endif
   }
 }
 
@@ -279,7 +402,9 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
   auto get_row_ptr = [&](bst_idx_t ridx) {
     return kFirstPage ? row_ptr[ridx] : row_ptr[ridx - base_rowid];
   };
-  auto get_rid = [&](bst_idx_t ridx) { return kFirstPage ? ridx : (ridx - base_rowid); };
+  auto get_rid = [&](bst_idx_t ridx) {
+    return kFirstPage ? ridx : (ridx - base_rowid);
+  };
 
   const size_t n_features = gmat.cut.Ptrs().size() - 1;
   const size_t n_columns = n_features;
@@ -292,10 +417,8 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
     const uint32_t offset = kAnyMissing ? 0 : offsets[cid];
     for (size_t i = 0; i < size; ++i) {
       const size_t row_id = rid[i];
-      const size_t icol_start =
-          kAnyMissing ? get_row_ptr(row_id) : get_rid(row_id) * n_features;
-      const size_t icol_end =
-        kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
+      const size_t icol_start = kAnyMissing ? get_row_ptr(row_id) : get_rid(row_id) * n_features;
+      const size_t icol_end = kAnyMissing ? get_row_ptr(rid[i] + 1) : icol_start + n_features;
 
       if (cid < icol_end - icol_start) {
         const BinIdxType *gr_index_local = gradient_index + icol_start;
@@ -305,7 +428,7 @@ void ColsWiseBuildHistKernel(Span<GradientPair const> gpair, Span<bst_idx_t cons
         const size_t idx_gh = two * row_id;
         // The trick with pgh_t buffer helps the compiler to generate faster binary.
         const float pgh_t[] = {pgh[idx_gh], pgh[idx_gh + 1]};
-        *(hist_local)     += pgh_t[0];
+        *(hist_local) += pgh_t[0];
         *(hist_local + 1) += pgh_t[1];
       }
     }
