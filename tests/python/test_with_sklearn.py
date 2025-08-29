@@ -1487,7 +1487,7 @@ def test_intercept() -> None:
         n_redundant=0
     )
 
-    clf = xgb.XGBClassifier(booster="gblinear", objective="multi:softprob")
+    clf = xgb.XGBClassifier(booster="gbtree", objective="multi:softprob")
     clf.fit(X, y)
     result = clf.intercept_
     assert isinstance(result, np.ndarray)
