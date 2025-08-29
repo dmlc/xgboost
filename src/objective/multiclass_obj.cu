@@ -22,9 +22,9 @@
 
 #if defined(XGBOOST_USE_CUDA)
 
-#include "../common/algorithm.cuh"       // for AllOf
-#include "../common/cuda_context.cuh"    // for CUDAContext
-#include "../common/linalg_op.cuh"       // for tcbegin
+#include "../common/algorithm.cuh"     // for AllOf
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/linalg_op.cuh"     // for tcbegin
 
 #endif  // defined(XGBOOST_USE_CUDA)
 
@@ -230,37 +230,39 @@ class SoftmaxMultiClassObj : public ObjFunction {
     linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
   }
 
-//   void ProbToMargin(linalg::Vector<float>* base_score) const override {
-//     double sum_proba = 0;
-//     bool ge_zero = true;
-//     auto intercept = base_score->View(this->ctx_->Device());
+  //   void ProbToMargin(linalg::Vector<float>* base_score) const override {
+  //     double sum_proba = 0;
+  //     bool ge_zero = true;
+  //     auto intercept = base_score->View(this->ctx_->Device());
 
-//     if (this->ctx_->IsCPU()) {
-//       sum_proba = std::accumulate(linalg::cbegin(intercept), linalg::cend(intercept), sum_proba,
-//                                   std::plus{});
-//       ge_zero = std::all_of(linalg::cbegin(intercept), linalg::cend(intercept),
-//                             [](float v) { return v >= 0; });
-//     } else {
-// #if defined(XGBOOST_USE_CUDA)
-//       sum_proba = dh::Reduce(this->ctx_->CUDACtx()->CTP(), linalg::tcbegin(intercept),
-//                              linalg::tcend(intercept), sum_proba, cuda::std::plus{});
-//       ge_zero =
-//           common::AllOf(this->ctx_->CUDACtx()->CTP(), linalg::tcbegin(intercept),
-//                         linalg::tcend(intercept), [] XGBOOST_DEVICE(float v) { return v >= 0; });
-// #else
-//       common::AssertGPUSupport();
-// #endif
-//     }
-//     if (!(common::CloseTo(sum_proba, 1.0) && ge_zero)) {
-//       std::stringstream ss;
-//       ss << "`base_score` must be valid probability for multi-class classification. Elements "
-//             "should sum to 1 and each element should be greater or equal to 0. Got: ";
-//       Json out{F32Array{}};
-//       linalg::SaveVector(*base_score, &out);
-//       ss << out;
-//       LOG(FATAL) << ss.str();
-//     }
-//   }
+  //     if (this->ctx_->IsCPU()) {
+  //       sum_proba = std::accumulate(linalg::cbegin(intercept), linalg::cend(intercept),
+  //       sum_proba,
+  //                                   std::plus{});
+  //       ge_zero = std::all_of(linalg::cbegin(intercept), linalg::cend(intercept),
+  //                             [](float v) { return v >= 0; });
+  //     } else {
+  // #if defined(XGBOOST_USE_CUDA)
+  //       sum_proba = dh::Reduce(this->ctx_->CUDACtx()->CTP(), linalg::tcbegin(intercept),
+  //                              linalg::tcend(intercept), sum_proba, cuda::std::plus{});
+  //       ge_zero =
+  //           common::AllOf(this->ctx_->CUDACtx()->CTP(), linalg::tcbegin(intercept),
+  //                         linalg::tcend(intercept), [] XGBOOST_DEVICE(float v) { return v >= 0;
+  //                         });
+  // #else
+  //       common::AssertGPUSupport();
+  // #endif
+  //     }
+  //     if (!(common::CloseTo(sum_proba, 1.0) && ge_zero)) {
+  //       std::stringstream ss;
+  //       ss << "`base_score` must be valid probability for multi-class classification. Elements "
+  //             "should sum to 1 and each element should be greater or equal to 0. Got: ";
+  //       Json out{F32Array{}};
+  //       linalg::SaveVector(*base_score, &out);
+  //       ss << out;
+  //       LOG(FATAL) << ss.str();
+  //     }
+  //   }
 
  private:
   // output probability

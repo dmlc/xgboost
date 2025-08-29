@@ -137,8 +137,8 @@ class RegLossObj : public FitInterceptGlmLike {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
   }
 
-  void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,
-                   std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) override {
+  void GetGradient(const HostDeviceVector<float>& preds, const MetaInfo& info, std::int32_t iter,
+                   linalg::Matrix<GradientPair>* out_gpair) override {
     CheckRegInputs(info, preds);
     if (iter == 0) {
       ValidateLabel<Loss>(this->ctx_, info);
