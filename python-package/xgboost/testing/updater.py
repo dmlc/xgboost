@@ -714,15 +714,12 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
     config_0 = json.loads(booster_0.save_config())
     config_1 = json.loads(booster_1.save_config())
 
-    def get_score(config: Dict) -> float:
-        return float(config["learner"]["learner_model_param"]["base_score"])
-
-    assert get_score(config_0) == get_score(config_1)
+    assert get_basescore(config_0) == get_basescore(config_1)
 
     raw_booster = booster_1.save_raw(raw_format="ubj")
     booster_2 = xgb.Booster(model_file=raw_booster)
     config_2 = json.loads(booster_2.save_config())
-    assert get_score(config_1) == get_score(config_2)
+    assert get_basescore(config_1) == get_basescore(config_2)
 
     booster_0 = xgb.train(
         {
@@ -735,7 +732,9 @@ def run_adaptive(tree_method: str, weighted: bool, device: Device) -> None:
         num_boost_round=1,
     )
     config_0 = json.loads(booster_0.save_config())
-    np.testing.assert_allclose(get_score(config_0), get_score(config_1) + 1)
+    np.testing.assert_allclose(
+        get_basescore(config_0), np.asarray(get_basescore(config_1)) + 1
+    )
 
     evals_result: Dict[str, Dict[str, list]] = {}
     xgb.train(
