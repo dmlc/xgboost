@@ -19,15 +19,15 @@ from .utils import Device
 
 
 @overload
-def get_basescore(model: xgb.XGBModel) -> Union[float, List[float]]: ...
+def get_basescore(model: xgb.XGBModel) -> List[float]: ...
 
 
 @overload
-def get_basescore(model: xgb.Booster) -> Union[float, List[float]]: ...
+def get_basescore(model: xgb.Booster) -> List[float]: ...
 
 
 @overload
-def get_basescore(model: Dict) -> Union[float, List[float]]: ...
+def get_basescore(model: Dict) -> List[float]: ...
 
 
 def get_basescore(
@@ -43,10 +43,7 @@ def get_basescore(
         jintercept = json.loads(model.save_config())["learner"]["learner_model_param"][
             "base_score"
         ]
-    try:
-        base_score: Union[float, List[float]] = float(jintercept)
-    except ValueError:
-        base_score = [float(v) for v in jintercept[1:-1].split(",")]
+    base_score = [float(v) for v in jintercept[1:-1].split(",")]
     return base_score
 
 

@@ -204,9 +204,6 @@ namespace xgboost {
 [[nodiscard]] std::vector<float> GetBaseScore(Json const& config) {
   auto str = get<String const>(config["learner"]["learner_model_param"]["base_score"]);
   auto jintercept = Json::Load(str);
-  if (IsA<Number>(jintercept)) {
-    return {get<Number>(jintercept)};
-  }
   auto const& array = get<Array const>(jintercept);
   std::vector<float> results;
   std::transform(array.begin(), array.end(), std::back_inserter(results),

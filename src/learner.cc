@@ -83,7 +83,7 @@ T& UsePtr(T& ptr) {  // NOLINT
  */
 struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy> {
   /** @brief Global bias/intercept. */
-  common::ParamArray<float, true> base_score{"base_score"};
+  common::ParamArray<float> base_score{"base_score"};
   /** @brief number of features  */
   bst_feature_t num_feature{0};
   /** @brief number of classes, if it is multi-class classification, 0 otherwise.  */
@@ -216,7 +216,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
     DMLC_DECLARE_FIELD(base_score)
         .describe("Global bias of the model.")
-        .set_default(common::ParamArray<float, true>{"base_score"});
+        .set_default(common::ParamArray<float>{"base_score"});
     DMLC_DECLARE_FIELD(num_feature)
         .set_default(0)
         .describe(

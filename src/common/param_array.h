@@ -15,11 +15,8 @@ namespace xgboost::common {
 /**
  * @brief A shim to enable ADL for parameter parsing. Alternatively, we can put the stream
  * operators in std namespace, which seems to be less ideal.
- *
- * @tparam scalar_compatible To help avoid breaking change for parameters that are used to be
- * scalars.
  */
-template <typename T, bool scalar_compatible>
+template <typename T>
 class ParamArray {
   std::string name_;
   std::vector<T> values_;
@@ -64,8 +61,6 @@ class ParamArray {
 
 // For parsing array-based parameters inside DMLC parameter. Input can be a string to a
 // single float or a list of floats.
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, false>& t);
-std::ostream& operator<<(std::ostream& os, const ParamArray<float, true>& t);
-std::istream& operator>>(std::istream& is, ParamArray<float, false>& t);
-std::istream& operator>>(std::istream& is, ParamArray<float, true>& t);
+std::ostream& operator<<(std::ostream& os, const ParamArray<float>& t);
+std::istream& operator>>(std::istream& is, ParamArray<float>& t);
 }  // namespace xgboost::common
