@@ -198,7 +198,9 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     collective::SafeColl(rc);
 
     CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
-        << "Different model parameter across workers.";
+        << "Different model parameter across workers:\n\t"
+        << Json::Load(StringView{data.data(), data.size()}, std::ios::binary) << "\nv.s.\n\t"
+        << Json::Load(StringView{sync.data(), sync.size()}, std::ios::binary);
   }
 
   void ValidateLength() const {
