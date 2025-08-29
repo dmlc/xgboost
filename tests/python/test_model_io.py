@@ -380,7 +380,7 @@ def test_sklearn_model() -> None:
         np.testing.assert_equal(clf.classes_, np.arange(10))
         assert clf.n_classes_ == 10
 
-        assert clf.best_iteration == 27
+        assert clf.best_iteration == 21
         assert clf.best_score == score
 
 

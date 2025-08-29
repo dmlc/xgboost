@@ -219,7 +219,7 @@ void TestGammaRegressionBasic(const Context* ctx) {
     << "Expected error when label < 0 for GammaRegression";
 
   // test ProbToMargin
-  CheckProbaToMargin(obj, 0.1, -2.30);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
   CheckProbaToMargin(obj, 0.5f, -0.69f);
   CheckProbaToMargin(obj, 0.9f, -0.10f);
 
