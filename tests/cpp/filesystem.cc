@@ -4,23 +4,28 @@
 #include "filesystem.h"
 
 #include <filesystem>  // for path, temp_directory_path
-#include <random>      // for uniform_int_distribution
 
 #if !defined(xgboost_IS_WIN)
+
 #include "../../src/common/error_msg.h"
+
 #else
+
+#include <random>  // for uniform_int_distribution
+
 #include "xgboost/string_view.h"  // for StringView
-#endif                            // !defined(xgboost_IS_WIN)
+
+#endif  // !defined(xgboost_IS_WIN)
 
 namespace xgboost::common {
-TemporaryDirectory::TemporaryDirectory() {
+TemporaryDirectory::TemporaryDirectory(std::string prefix) : prefix_{std::move(prefix)} {
   namespace fs = std::filesystem;
 
   auto tmp = fs::temp_directory_path();
 
 #if defined(xgboost_IS_WIN)
   std::default_random_engine rng;
-  auto make_name = [&rng] {
+  auto make_name = [&rng, this] {
     constexpr std::size_t kPathMax = 6;
     constexpr StringView kAlphabet{"abcdefghijklmnopqrstuvwxyz"};
     std::uniform_int_distribution dist{0, 25};
@@ -32,7 +37,7 @@ TemporaryDirectory::TemporaryDirectory() {
     }
     auto res = std::string{path};
     CHECK_EQ(res.size(), kPathMax);
-    return "xgboost-tmpdir-" + std::string{path};
+    return this->prefix_ + "tmpdir." + std::string{path};
   };
   auto dirname = tmp / make_name();
   std::int32_t retry = 0;
@@ -43,18 +48,19 @@ TemporaryDirectory::TemporaryDirectory() {
     LOG(FATAL) << "Failed to create temporary directory.";
   }
   this->path_ = dirname.string();
+  CHECK(fs::create_directory(this->path_));
 #else
-  auto dirtemplate = (tmp / "/xgboost-tmpdir-XXXXXX").string();
-  std::vector<char> dirtemplate_buf(dirtemplate.begin(), dirtemplate.end());
+  auto dirtemplate = (tmp / (this->prefix_ + "tmpdir.XXXXXX")).string();
+  std::cout << dirtemplate << std::endl;
   // https://man7.org/linux/man-pages/man3/mkdtemp.3.html
-  char* tmpdir = mkdtemp(dirtemplate_buf.data());
+  char* tmpdir = mkdtemp(dirtemplate.data());
   if (!tmpdir) {
     LOG(FATAL) << error::SystemError().message();
   }
   this->path_ = tmpdir;
 #endif
-  LOG(DEBUG) << "TmpDir:" << this->path_;
-  CHECK(fs::create_directory(this->path_));
+  LOG(INFO) << "TmpDir:" << this->path_;
+  CHECK(fs::exists(this->path_));
 }
 
 TemporaryDirectory::~TemporaryDirectory() noexcept(false) {

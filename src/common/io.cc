@@ -199,8 +199,8 @@ struct MmapFileImpl {
         delta{delta},
         path{std::move(path)} {}
 #else
-  MMAPFile(std::int32_t fd, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
-           std::string path)
+  MmapFileImpl(std::int32_t fd, std::byte* base_ptr, std::size_t base_size, std::size_t delta,
+               std::string path)
       : fd{fd}, base_ptr{base_ptr}, base_size{base_size}, delta{delta}, path{std::move(path)} {}
 #endif  // defined(xgboost_IS_WIN)
 
@@ -254,7 +254,8 @@ MMAPFile* detail::OpenMmap(std::string path, std::size_t offset, std::size_t len
   int prot{PROT_READ};
   ptr = reinterpret_cast<std::byte*>(mmap(nullptr, view_size, prot, MAP_PRIVATE, fd, view_start));
   CHECK_NE(ptr, MAP_FAILED) << "Failed to map: " << path << ". " << error::SystemError().message();
-  auto handle = new MMAPFile{fd, ptr, view_size, offset - view_start, std::move(path)};
+  auto handle = new MMAPFile{
+      std::make_unique<MmapFileImpl>(fd, ptr, view_size, offset - view_start, std::move(path))};
 #elif defined(xgboost_IS_WIN)
   LARGE_INTEGER file_size;
   CHECK_NE(GetFileSizeEx(fd, &file_size), 0) << error::SystemError().message();
@@ -300,7 +301,7 @@ void detail::CloseMmap(MMAPFile* handle) {
   }
 #else
   if (handle->p_impl->base_ptr) {
-    CHECK_NE(munmap(handle->base_ptr, handle->p_impl->base_size), -1)
+    CHECK_NE(munmap(handle->p_impl->base_ptr, handle->p_impl->base_size), -1)
         << "Failed to call munmap: `" << handle->p_impl->path << "`. "
         << error::SystemError().message();
   }
@@ -317,7 +318,7 @@ MmapResource::MmapResource(StringView path, std::size_t offset, std::size_t leng
       handle_{detail::OpenMmap(std::string{path}, offset, length), detail::CloseMmap},
       n_{length} {
 #if defined(__unix__) || defined(__APPLE__)
-  madvise(handle_->base_ptr, handle_->base_size, MADV_WILLNEED);
+  madvise(handle_->p_impl->base_ptr, handle_->p_impl->base_size, MADV_WILLNEED);
 #endif  // defined(__unix__) || defined(__APPLE__)
 }
 

@@ -9,9 +9,10 @@
 namespace xgboost::common {
 class TemporaryDirectory {
   std::filesystem::path path_;
+  std::string prefix_;
 
  public:
-  TemporaryDirectory();
+  explicit TemporaryDirectory(std::string prefix = "xgboost-");
   ~TemporaryDirectory() noexcept(false);
 
   [[nodiscard]] std::filesystem::path const& Path() const { return this->path_; }
