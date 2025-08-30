@@ -94,12 +94,12 @@ class TestL1MultiTarget : public ::testing::Test {
       sl->UpdateOneIter(0, t_Xy);
       Json s_config{Object{}};
       sl->SaveConfig(&s_config);
-      auto s_base_score =
-          std::stod(get<String const>(s_config["learner"]["learner_model_param"]["base_score"]));
+      auto s_base_score = GetBaseScore(s_config);
+      ASSERT_EQ(s_base_score.size(), 1);
       linalg::Vector<float> out;
       common::Median(sl->Ctx(), t_Xy->Info().labels, t_Xy->Info().weights_, &out);
-      ASSERT_FLOAT_EQ(s_base_score, out(0));
-      split_scores.push_back(s_base_score);
+      ASSERT_FLOAT_EQ(s_base_score[0], out(0));
+      split_scores.push_back(s_base_score[0]);
     }
     ASSERT_EQ(split_scores, base_score);
   }
