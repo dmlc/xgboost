@@ -3,6 +3,8 @@
  */
 #include "filesystem.h"
 
+#include <xgboost/windefs.h>
+
 #include <filesystem>  // for path, temp_directory_path
 
 #if !defined(xgboost_IS_WIN)
@@ -51,7 +53,6 @@ TemporaryDirectory::TemporaryDirectory(std::string prefix) : prefix_{std::move(p
   CHECK(fs::create_directory(this->path_));
 #else
   auto dirtemplate = (tmp / (this->prefix_ + "tmpdir.XXXXXX")).string();
-  std::cout << dirtemplate << std::endl;
   // https://man7.org/linux/man-pages/man3/mkdtemp.3.html
   char* tmpdir = mkdtemp(dirtemplate.data());
   if (!tmpdir) {
