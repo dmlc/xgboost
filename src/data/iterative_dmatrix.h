@@ -1,8 +1,7 @@
 /**
- * Copyright 2020-2024, XGBoost Contributors
- * \file iterative_dmatrix.h
+ * Copyright 2020-2025, XGBoost Contributors
  *
- * \brief Implementation of the higher-level `QuantileDMatrix`.
+ * @brief Implementation of the higher-level `QuantileDMatrix`.
  */
 #ifndef XGBOOST_DATA_ITERATIVE_DMATRIX_H_
 #define XGBOOST_DATA_ITERATIVE_DMATRIX_H_
@@ -18,7 +17,9 @@
 namespace xgboost {
 namespace common {
 class HistogramCuts;
-}
+class AlignedFileWriteStream;
+class AlignedResourceReadStream;
+}  // namespace common
 
 namespace data {
 /**
@@ -35,13 +36,17 @@ class IterativeDMatrix : public QuantileDMatrix {
   BatchParam batch_;
 
   DMatrixHandle proxy_;
-  DataIterResetCallback *reset_;
-  XGDMatrixCallbackNext *next_;
 
   void InitFromCUDA(Context const *ctx, BatchParam const &p, std::int64_t max_quantile_blocks,
-                    DataIterHandle iter_handle, float missing, std::shared_ptr<DMatrix> ref);
-  void InitFromCPU(Context const *ctx, BatchParam const &p, DataIterHandle iter_handle,
+                    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> &&iter,
+                    float missing, std::shared_ptr<DMatrix> ref);
+  void InitFromCPU(Context const *ctx, BatchParam const &p,
+                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> &&iter,
                    float missing, std::shared_ptr<DMatrix> ref);
+
+  explicit IterativeDMatrix(std::shared_ptr<EllpackPage> ellpack) : ellpack_{std::move(ellpack)} {
+    this->fmat_ctx_.UpdateAllowUnknown(Args{{"device", DeviceSym::CUDA()}});
+  }
 
  public:
   explicit IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
@@ -55,13 +60,15 @@ class IterativeDMatrix : public QuantileDMatrix {
 
   ~IterativeDMatrix() override = default;
 
-  bool EllpackExists() const override { return static_cast<bool>(ellpack_); }
-  bool GHistIndexExists() const override { return static_cast<bool>(ghist_); }
+  [[nodiscard]] bool EllpackExists() const override { return static_cast<bool>(ellpack_); }
+  [[nodiscard]] bool GHistIndexExists() const override { return static_cast<bool>(ghist_); }
 
   BatchSet<GHistIndexMatrix> GetGradientIndex(Context const *ctx, BatchParam const &param) override;
-
   BatchSet<EllpackPage> GetEllpackBatches(Context const *ctx, const BatchParam &param) override;
   BatchSet<ExtSparsePage> GetExtBatches(Context const *ctx, BatchParam const &param) override;
+
+  void Save(common::AlignedFileWriteStream *fo) const;
+  [[nodiscard]] IterativeDMatrix *Load(common::AlignedResourceReadStream *fi);
 };
 }  // namespace data
 }  // namespace xgboost

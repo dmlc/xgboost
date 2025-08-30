@@ -3,6 +3,9 @@
  */
 #include <gtest/gtest.h>
 
+#include <memory>  // for dynamic_pointer_cast
+
+#include "../../../src/common/io.h"  // for AlignedFileWriteStream
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/ellpack_page.h"
@@ -190,5 +193,14 @@ TEST(IterativeDeviceDMatrix, Ref) {
   Context ctx{MakeCUDACtx(0)};
   TestRefDMatrix<EllpackPage, CudaArrayIterForTest>(
       &ctx, [](EllpackPage const& page) { return page.Impl()->Cuts(); });
+}
+
+TEST(IterativeDeviceDMatrix, IO) {
+  std::size_t n_samples = 2048, n_features = 128;
+  auto p_fmat = RandomDataGenerator{n_samples, n_features, 0.0}.GenerateQuantileDMatrix(true);
+  auto qdm = std::dynamic_pointer_cast<IterativeDMatrix>(p_fmat);
+  ASSERT_TRUE(qdm);
+  auto fo = std::make_unique<common::AlignedFileWriteStream>("data.qdm", "wb");
+  qdm->Save(fo.get());
 }
 }  // namespace xgboost::data
