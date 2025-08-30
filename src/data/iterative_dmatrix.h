@@ -6,7 +6,8 @@
 #ifndef XGBOOST_DATA_ITERATIVE_DMATRIX_H_
 #define XGBOOST_DATA_ITERATIVE_DMATRIX_H_
 
-#include <memory>  // for shared_ptr
+#include <memory>   // for shared_ptr
+#include <utility>  // for move
 
 #include "quantile_dmatrix.h"     // for QuantileDMatrix
 #include "xgboost/base.h"         // for bst_bin_t

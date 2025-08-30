@@ -57,9 +57,10 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
             << this->Info().num_col_ << ", " << this->info_.num_nonzero_ << ").";
 }
 
-void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
-                                   DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&& iter, float missing,
-                                   std::shared_ptr<DMatrix> ref) {
+void IterativeDMatrix::InitFromCPU(
+    Context const* ctx, BatchParam const& p,
+    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&& iter, float missing,
+    std::shared_ptr<DMatrix> ref) {
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
 
