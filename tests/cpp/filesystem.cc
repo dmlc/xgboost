@@ -61,7 +61,7 @@ TemporaryDirectory::TemporaryDirectory(std::string prefix) : prefix_{std::move(p
   }
   this->path_ = tmpdir;
 #endif
-  LOG(INFO) << "TmpDir:" << this->path_;
+  LOG(DEBUG) << "TmpDir:" << this->path_;
   CHECK(fs::exists(this->path_));
 }
 
