@@ -9,7 +9,9 @@
 
 #if !defined(xgboost_IS_WIN)
 
-#include "../../src/common/error_msg.h"
+#include <cstdlib>  // for mkdtemp
+
+#include "../../src/common/error_msg.h"  // for SystemError
 
 #else
 
@@ -30,6 +32,7 @@ TemporaryDirectory::TemporaryDirectory(std::string prefix) : prefix_{std::move(p
   auto make_name = [&rng, this] {
     constexpr std::size_t kPathMax = 6;
     constexpr StringView kAlphabet{"abcdefghijklmnopqrstuvwxyz"};
+    static_assert(kAlphabet.size() == 26);
     std::uniform_int_distribution dist{0, 25};
     char path[kPathMax + 1];
     std::memset(path, 0, sizeof(path));
@@ -61,7 +64,7 @@ TemporaryDirectory::TemporaryDirectory(std::string prefix) : prefix_{std::move(p
   }
   this->path_ = tmpdir;
 #endif
-  LOG(INFO) << "TmpDir:" << this->path_;
+  LOG(DEBUG) << "TmpDir:" << this->path_;
   CHECK(fs::exists(this->path_));
 }
 
