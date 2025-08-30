@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <filesystem>  // for path
 #include <limits>      // for numeric_limits
+#include <random>      // for mt19937
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"
@@ -599,6 +600,19 @@ int NumpyArrayIterForTest::Next() {
   XGProxyDMatrixSetDataDense(proxy_, batches_[iter_].c_str());
   iter_++;
   return 1;
+}
+
+[[nodiscard]] std::vector<float> GenerateRandomCategoricalSingleColumn(std::size_t n,
+                                                                       std::size_t n_categories) {
+  std::vector<float> x(n);
+  std::mt19937 rng(0);
+  std::uniform_int_distribution<size_t> dist(0, n_categories - 1);
+  std::generate(x.begin(), x.end(), [&]() { return static_cast<float>(dist(rng)); });
+  // Make sure each category is present
+  for (size_t i = 0; i < n_categories; i++) {
+    x[i] = static_cast<decltype(x)::value_type>(i);
+  }
+  return x;
 }
 
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::size_t num_rows,
