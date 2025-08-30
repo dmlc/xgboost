@@ -45,6 +45,7 @@ TemporaryDirectory::TemporaryDirectory(std::string prefix) : prefix_{std::move(p
   std::int32_t retry = 0;
   while (fs::exists(dirname) && retry < 64) {
     dirname = tmp / make_name();
+    ++retry;
   }
   if (retry >= 64) {
     LOG(FATAL) << "Failed to create temporary directory.";
