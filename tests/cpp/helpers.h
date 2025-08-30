@@ -14,6 +14,7 @@
 #include <xgboost/model.h>    // for Configurable
 
 #include <cstdint>  // std::int32_t
+#include <random>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -25,7 +26,7 @@
 #include "../../src/common/cuda_rt_utils.h"         // for AllVisibleGPUs
 #endif  // defined(__CUDACC__)
 
-#include "filesystem.h"  // dmlc::TemporaryDirectory
+#include "filesystem.h"  // for TemporaryDirectory
 #include "xgboost/linalg.h"
 
 #if defined(__CUDACC__)
@@ -372,7 +373,7 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
 [[nodiscard]] std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
     HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
-    const dmlc::TemporaryDirectory& tempdir, bst_idx_t n_batches = 4);
+    const common::TemporaryDirectory& tempdir, bst_idx_t n_batches = 4);
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(std::string name, Args kwargs, size_t kRows,
                                                   size_t kCols,

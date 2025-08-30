@@ -21,7 +21,7 @@ template <typename S> void TestSparsePageRawFormat() {
   auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
   ASSERT_TRUE(m->SingleColBlock());
   common::TemporaryDirectory tmpdir;
-  std::string path = tmpdir.Path() / "sparse.page";
+  std::string path = tmpdir.Str() + "/sparse.page";
   S orig;
   std::size_t n_bytes{0};
   {

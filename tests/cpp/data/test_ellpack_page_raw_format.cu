@@ -44,7 +44,7 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
 
     auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
     common::TemporaryDirectory tmpdir;
-    std::string path = tmpdir.Path() / "ellpack.page";
+    std::string path = tmpdir.Str() + "/ellpack.page";
 
     std::shared_ptr<common::HistogramCuts const> cuts;
     for (auto const &page : m->GetBatches<EllpackPage>(&ctx, param)) {

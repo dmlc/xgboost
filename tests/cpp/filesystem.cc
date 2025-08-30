@@ -3,7 +3,8 @@
  */
 #include "filesystem.h"
 
-#include <filesystem>
+#include <filesystem>  // for path, temp_directory_path
+#include <random>      // for uniform_int_distribution
 
 #if !defined(xgboost_IS_WIN)
 #include "../../src/common/error_msg.h"
@@ -52,7 +53,7 @@ TemporaryDirectory::TemporaryDirectory() {
   }
   this->path_ = tmpdir;
 #endif
-  LOG(INFO) << "TmpDir:" << this->path_;
+  LOG(DEBUG) << "TmpDir:" << this->path_;
   CHECK(fs::create_directory(this->path_));
 }
 

@@ -117,7 +117,7 @@ TEST(DMatrix, Uri) {
 
   common::TemporaryDirectory tmpdir;
   auto const path = tmpdir.Path() / "small.csv";
-  CreateTestCSV(path, kRows, kCols);
+  CreateTestCSV(path.string(), kRows, kCols);
 
   std::unique_ptr<DMatrix> dmat;
   // FIXME(trivialfis): Enable the following test by restricting csv parser in dmlc-core.

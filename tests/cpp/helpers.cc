@@ -613,11 +613,11 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
 [[nodiscard]] std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
     HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
-    const dmlc::TemporaryDirectory& tempdir, bst_idx_t n_batches) {
+    const common::TemporaryDirectory& tempdir, bst_idx_t n_batches) {
   Context ctx;
   auto iter = NumpyArrayIterForTest{&ctx, x, n_samples / n_batches, n_features, n_batches};
 
-  auto prefix = std::filesystem::path{tempdir.path} / "temp";
+  auto prefix = tempdir.Path() / "temp";
   auto config = ExtMemConfig{
       prefix.string(),
       false,

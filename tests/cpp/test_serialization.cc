@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2023, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
@@ -130,7 +130,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   int32_t constexpr kIters = 2;
 
   common::TemporaryDirectory tempdir;
-  std::string const fname = tempdir.Path() / "model";
+  std::string const fname = tempdir.Str() + "/model";
 
   std::vector<std::string> dumped_0;
   std::string model_at_kiter;
