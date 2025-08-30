@@ -8,7 +8,7 @@
 #include <numeric>  // for iota
 
 #include "../../../src/common/io.h"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../filesystem.h"  // TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost::common {
@@ -58,8 +58,8 @@ TEST(IO, FixedSizeStream) {
 TEST(IO, LoadSequentialFile) {
   EXPECT_THROW(LoadSequentialFile("non-exist"), dmlc::Error);
 
-  dmlc::TemporaryDirectory tempdir;
-  std::ofstream fout(tempdir.path + "test_file");
+  common::TemporaryDirectory tempdir;
+  std::ofstream fout(tempdir.Path() / "test_file");
   std::string content;
 
   // Generate a JSON file.
@@ -77,7 +77,7 @@ TEST(IO, LoadSequentialFile) {
   std::vector<char> str;
   Json::Dump(out, &str);
 
-  std::string tmpfile = tempdir.path + "/model.json";
+  std::string tmpfile = tempdir.Path() / "model.json";
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(tmpfile.c_str(), "w"));
     fo->Write(str.data(), str.size());

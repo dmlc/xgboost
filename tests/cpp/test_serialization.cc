@@ -12,7 +12,7 @@
 
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
-#include "filesystem.h"  // dmlc::TemporaryDirectory
+#include "filesystem.h"  // for TemporaryDirectory
 #include "helpers.h"
 
 namespace xgboost {
@@ -129,8 +129,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 
   int32_t constexpr kIters = 2;
 
-  dmlc::TemporaryDirectory tempdir;
-  std::string const fname = tempdir.path + "/model";
+  common::TemporaryDirectory tempdir;
+  std::string const fname = tempdir.Path() / "model";
 
   std::vector<std::string> dumped_0;
   std::string model_at_kiter;

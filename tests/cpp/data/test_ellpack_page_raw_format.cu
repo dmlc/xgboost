@@ -9,7 +9,7 @@
 #include "../../../src/data/ellpack_page_source.h"      // for EllpackFormatStreamPolicy
 #include "../../../src/tree/param.h"                    // for TrainParam
 #include "../../../src/data/batch_utils.h"              // for AutoHostRatio
-#include "../filesystem.h"                              // dmlc::TemporaryDirectory
+#include "../filesystem.h"                              // for TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost::data {
@@ -43,8 +43,8 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
     param.prefetch_copy = prefetch_copy;
 
     auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
-    dmlc::TemporaryDirectory tmpdir;
-    std::string path = tmpdir.path + "/ellpack.page";
+    common::TemporaryDirectory tmpdir;
+    std::string path = tmpdir.Path() / "ellpack.page";
 
     std::shared_ptr<common::HistogramCuts const> cuts;
     for (auto const &page : m->GetBatches<EllpackPage>(&ctx, param)) {

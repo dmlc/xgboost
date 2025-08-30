@@ -19,8 +19,8 @@ TEST(GHistIndexPageRawFormat, IO) {
   Context ctx;
 
   auto m = RandomDataGenerator{100, 14, 0.5}.GenerateDMatrix();
-  dmlc::TemporaryDirectory tmpdir;
-  std::string path = tmpdir.path + "/ghistindex.page";
+  common::TemporaryDirectory tmpdir;
+  std::string path = tmpdir.Path() / "ghistindex.page";
   auto batch = BatchParam{256, 0.5};
 
   common::HistogramCuts cuts;
