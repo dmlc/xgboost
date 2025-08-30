@@ -195,12 +195,11 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t, DataIterHandle,
+void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t,
+                                    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>,
                                     float, std::shared_ptr<DMatrix>) {
   // silent the warning about unused variables.
   (void)(proxy_);
-  (void)(reset_);
-  (void)(next_);
   common::AssertGPUSupport();
 }
 
