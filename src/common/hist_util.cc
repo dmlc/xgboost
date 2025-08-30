@@ -32,20 +32,20 @@ HistogramCuts::HistogramCuts() {
 
 void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
   auto const &ptrs = this->Ptrs();
-  CHECK_EQ(Span{ptrs}.size_bytes(), fo->Write(ptrs.data(), Span{ptrs}.size_bytes()));
+  CHECK_LE(Span{ptrs}.size_bytes(), WriteVec(fo, ptrs));
   auto const &vals = this->Values();
-  CHECK_EQ(Span{vals}.size_bytes(), fo->Write(vals.data(), Span{vals}.size_bytes()));
+  CHECK_LE(Span{vals}.size_bytes(), WriteVec(fo, vals));
   auto const &mins = this->MinValues();
-  CHECK_EQ(Span{mins}.size_bytes(), fo->Write(mins.data(), Span{mins}.size_bytes()));
-  CHECK_EQ(fo->Write(has_categorical_), has_categorical_);
-  CHECK_EQ(fo->Write(max_cat_), max_cat_);
+  CHECK_LE(Span{mins}.size_bytes(), WriteVec(fo, mins));
+  CHECK_GE(fo->Write(has_categorical_), sizeof(has_categorical_));
+  CHECK_GE(fo->Write(max_cat_), sizeof(max_cat_));
 }
 
 [[nodiscard]] HistogramCuts *HistogramCuts::Load(common::AlignedResourceReadStream *fi) {
   auto p_cuts = new HistogramCuts;
-  CHECK(fi->Read(&p_cuts->cut_ptrs_.HostVector()));
-  CHECK(fi->Read(&p_cuts->cut_values_.HostVector()));
-  CHECK(fi->Read(&p_cuts->min_vals_.HostVector()));
+  CHECK(ReadVec(fi, &p_cuts->cut_ptrs_.HostVector()));
+  CHECK(ReadVec(fi, &p_cuts->cut_values_.HostVector()));
+  CHECK(ReadVec(fi, &p_cuts->min_vals_.HostVector()));
   CHECK(fi->Read(&p_cuts->has_categorical_));
   CHECK(fi->Read(&p_cuts->max_cat_));
   return p_cuts;

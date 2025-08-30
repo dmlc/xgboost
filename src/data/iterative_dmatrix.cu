@@ -144,6 +144,7 @@ BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
 
 void IterativeDMatrix::Save(common::AlignedFileWriteStream* fo) const {
   CHECK(fo);
+  CHECK(this->ellpack_) << "Not implemented";
   // Save cuts
   auto const& p_cuts = this->ellpack_->Impl()->CutsShared();
   p_cuts->Save(fo);
@@ -151,7 +152,7 @@ void IterativeDMatrix::Save(common::AlignedFileWriteStream* fo) const {
   auto fmt =
       std::make_unique<EllpackPageRawFormat>(p_cuts, this->Ctx()->Device(), BatchParam{}, false);
   auto n_bytes = fmt->Write(*this->ellpack_, fo);
-  CHECK_EQ(n_bytes, this->ellpack_->Impl()->MemCostBytes());
+  CHECK_GE(n_bytes, this->ellpack_->Impl()->MemCostBytes());
 }
 
 IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream* fi) {
@@ -159,8 +160,8 @@ IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream* fi) 
   // Load cuts
   std::shared_ptr<common::HistogramCuts> p_cuts{common::HistogramCuts::Load(fi)};
   // Load ellpack
-  auto fmt =
-      std::make_unique<EllpackPageRawFormat>(p_cuts, this->Ctx()->Device(), BatchParam{}, false);
+  auto fmt = std::make_unique<EllpackPageRawFormat>(p_cuts, DeviceOrd::CUDA(dh::CurrentDevice()),
+                                                    BatchParam{}, false);
   auto ellpack = std::make_shared<EllpackPage>();
   CHECK(fmt->Read(ellpack.get(), fi));
   return new IterativeDMatrix{std::move(ellpack)};

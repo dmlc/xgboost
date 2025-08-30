@@ -302,8 +302,8 @@ class EllpackPageImpl {
   /**
    * @brief Get an accessor backed by the device storage.
    */
-  [[nodiscard]] EllpackAccessor GetDeviceEllpack(
-      Context const* ctx, common::Span<FeatureType const> feature_types = {}) const;
+  EllpackAccessor GetDeviceEllpack(Context const* ctx,
+                                   common::Span<FeatureType const> feature_types = {}) const;
   /**
    * @brief Get an accessor backed by the host storage.
    *
@@ -311,9 +311,9 @@ class EllpackPageImpl {
    *
    * @return An accessor variant.
    */
-  [[nodiscard]] EllpackAccessor GetHostEllpack(
-      Context const* ctx, std::vector<common::CompressedByteT>* h_gidx_buffer,
-      common::Span<FeatureType const> feature_types = {}) const;
+  EllpackAccessor GetHostEllpack(Context const* ctx,
+                                 std::vector<common::CompressedByteT>* h_gidx_buffer,
+                                 common::Span<FeatureType const> feature_types = {}) const;
   /**
    * @brief Vistor pattern.
    *

@@ -20,7 +20,6 @@
 
 #include <algorithm>     // for copy, transform
 #include <cctype>        // for tolower
-#include <cerrno>        // for errno
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t, uint32_t
 #include <cstdio>        // for fread, fseek
