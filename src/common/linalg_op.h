@@ -110,6 +110,34 @@ auto end(TensorView<T, kDim>& v) {  // NOLINT
   return begin(v) + v.Size();
 }
 
+namespace cuda_impl {
+void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
+}  // namespace cuda_impl
+
+// vector-scalar multiplication
+inline void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
+  CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
+  if (x.Device().IsCUDA()) {
+#if defined(XGBOOST_USE_CUDA)
+    cuda_impl::VecScaMul(ctx, x, mul);
+#else
+    common::AssertGPUSupport();
+#endif
+  } else {
+    constexpr std::size_t kBlockSize = 2048;
+    common::ParallelFor1d<kBlockSize>(x.Size(), ctx->Threads(), [&](auto&& block) {
+      for (auto i = block.begin(); i < block.end(); ++i) {
+        x(i) *= mul;
+      }
+    });
+  }
+}
+
+// vector-scalar division
+inline void VecScaDiv(Context const* ctx, linalg::VectorView<float> x, double div) {
+  return VecScaMul(ctx, x, 1.0 / div);
+}
+
 template <typename T, std::enable_if_t<std::is_floating_point_v<T>>* = nullptr>
 void SaveVector(linalg::Vector<T> const& in, Json* p_out) {
   ::xgboost::SaveVector(in.Data()->HostVector(), p_out);

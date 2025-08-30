@@ -38,8 +38,9 @@ auto MakeModel(std::string tree_method, std::string device, std::string objectiv
   return model;
 }
 
-void VerifyObjective(std::size_t rows, std::size_t cols, float expected_base_score,
-                     Json expected_model, std::string const &tree_method, std::string device,
+void VerifyObjective(std::size_t rows, std::size_t cols,
+                     std::vector<float> const &expected_base_score, Json expected_model,
+                     std::string const &tree_method, std::string device,
                      std::string const &objective) {
   auto rank = collective::GetRank();
   std::shared_ptr<DMatrix> dmat =

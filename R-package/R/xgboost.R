@@ -1596,6 +1596,7 @@ NULL
 #' @importFrom stats sd
 #' @importFrom stats variable.names
 #' @importFrom utils head
+#' @importFrom utils hasName
 #' @importFrom graphics barplot
 #' @importFrom graphics lines
 #' @importFrom graphics points

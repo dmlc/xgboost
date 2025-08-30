@@ -335,7 +335,7 @@ __model_doc = f"""
     scale_pos_weight : {Optional[float]}
         Balancing of positive and negative weights.
 
-    base_score : {Optional[float]}
+    base_score : {Optional[Union[float, List[float]]]}
 
         The initial prediction score of all instances, global bias.
 
@@ -826,7 +826,7 @@ class XGBModel(XGBModelBase):
         reg_alpha: Optional[float] = None,
         reg_lambda: Optional[float] = None,
         scale_pos_weight: Optional[float] = None,
-        base_score: Optional[float] = None,
+        base_score: Optional[Union[float, List[float]]] = None,
         random_state: Optional[
             Union[np.random.RandomState, np.random.Generator, int]
         ] = None,
@@ -1148,7 +1148,9 @@ class XGBModel(XGBModelBase):
 
         self.objective = config["learner"]["objective"]["name"]
         self.booster = config["learner"]["gradient_booster"]["name"]
-        self.base_score = config["learner"]["learner_model_param"]["base_score"]
+        self.base_score = json.loads(
+            config["learner"]["learner_model_param"]["base_score"]
+        )
         self.feature_types = booster.feature_types
 
         if is_classifier(self):
@@ -1650,8 +1652,10 @@ class XGBModel(XGBModelBase):
         b = self.get_booster()
         if booster_config != "gblinear":  # gbtree, dart
             config = json.loads(b.save_config())
-            intercept = config["learner"]["learner_model_param"]["base_score"]
-            return np.array([float(intercept)], dtype=np.float32)
+            intercept = json.loads(
+                config["learner"]["learner_model_param"]["base_score"]
+            )
+            return np.array(intercept, dtype=np.float32)
 
         return np.array(
             json.loads(b.get_dump(dump_format="json")[0])["bias"], dtype=np.float32

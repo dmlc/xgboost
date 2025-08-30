@@ -9,7 +9,8 @@
 #include <cassert>  // for assert
 #include <limits>
 
-#include "../common/common.h"  // for AssertGPUSupport
+#include "../collective/aggregator.h"  // for GlobalSum
+#include "../common/common.h"          // for AssertGPUSupport
 #include "../common/linalg_op.h"
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // for MakeOptionalWeights
@@ -185,6 +186,83 @@ class SoftmaxMultiClassObj : public ObjFunction {
   }
 
   void LoadConfig(Json const& in) override { FromJson(in["softmax_multiclass_param"], &param_); }
+
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    // fixme: distributed
+    std::int64_t n_classes = this->param_.num_class;
+    ValidateLabel(this->ctx_, info, n_classes);
+
+    *base_score = linalg::Zeros<float>(this->ctx_, n_classes);
+
+    std::size_t n = info.labels.Size();
+    double sum_weight = 0;
+
+    auto labels = info.labels.View(ctx_->Device());
+    auto weights = common::MakeOptionalWeights(this->ctx_, info.weights_);
+    auto intercept = base_score->View(ctx_->Device());
+    CHECK_EQ(intercept.Size(), n_classes);
+    CHECK_EQ(n, info.num_row_);
+
+    if (ctx_->IsCPU()) {
+      for (std::size_t i = 0; i < n; ++i) {
+        auto y = labels(i);
+        auto w = weights[i];
+        intercept(static_cast<std::size_t>(y)) += w;
+        sum_weight += w;
+      }
+    } else {
+#if defined(XGBOOST_USE_CUDA)
+      auto cuctx = ctx_->CUDACtx();
+      // We can't use the cub histogram function due to weights.
+      common::SmallHistogram(ctx_, labels, info.weights_, intercept);
+      // Sum the sample weights
+      auto w_it =
+          dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) { return weights[i]; });
+      sum_weight = dh::Reduce(cuctx->CTP(), w_it, w_it + n, 0.0, cuda::std::plus{});
+#else
+      common::AssertGPUSupport();
+#endif  // for defined(XGBOOST_USE_CUDA)
+    }
+
+    auto status = collective::GlobalSum(this->ctx_, info, intercept, &sum_weight);
+    collective::SafeColl(status);
+    CHECK_GE(sum_weight, kRtEps);
+    linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
+  }
+
+  //   void ProbToMargin(linalg::Vector<float>* base_score) const override {
+  //     double sum_proba = 0;
+  //     bool ge_zero = true;
+  //     auto intercept = base_score->View(this->ctx_->Device());
+
+  //     if (this->ctx_->IsCPU()) {
+  //       sum_proba = std::accumulate(linalg::cbegin(intercept), linalg::cend(intercept),
+  //       sum_proba,
+  //                                   std::plus{});
+  //       ge_zero = std::all_of(linalg::cbegin(intercept), linalg::cend(intercept),
+  //                             [](float v) { return v >= 0; });
+  //     } else {
+  // #if defined(XGBOOST_USE_CUDA)
+  //       sum_proba = dh::Reduce(this->ctx_->CUDACtx()->CTP(), linalg::tcbegin(intercept),
+  //                              linalg::tcend(intercept), sum_proba, cuda::std::plus{});
+  //       ge_zero =
+  //           common::AllOf(this->ctx_->CUDACtx()->CTP(), linalg::tcbegin(intercept),
+  //                         linalg::tcend(intercept), [] XGBOOST_DEVICE(float v) { return v >= 0;
+  //                         });
+  // #else
+  //       common::AssertGPUSupport();
+  // #endif
+  //     }
+  //     if (!(common::CloseTo(sum_proba, 1.0) && ge_zero)) {
+  //       std::stringstream ss;
+  //       ss << "`base_score` must be valid probability for multi-class classification. Elements "
+  //             "should sum to 1 and each element should be greater or equal to 0. Got: ";
+  //       Json out{F32Array{}};
+  //       linalg::SaveVector(*base_score, &out);
+  //       ss << out;
+  //       LOG(FATAL) << ss.str();
+  //     }
+  //   }
 
  private:
   // output probability

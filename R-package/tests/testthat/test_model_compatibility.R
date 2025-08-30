@@ -43,7 +43,10 @@ run_booster_check <- function(booster, model_file) {
       get_num_tree(booster), metadata$kForests * n_rounds * metadata$kClasses
     )
     testthat::expect_equal(
-      as.numeric(config$learner$learner_model_param$base_score), 0.5
+      as.numeric(
+        jsonlite::fromJSON(config$learner$learner_model_param$base_score)
+      ),
+      c(0.5, 0.5, 0.5)
     )
     testthat::expect_equal(
       config$learner$learner_train_param$objective, "multi:softmax"

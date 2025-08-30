@@ -120,7 +120,7 @@ def plot_importance(
 
     if show_values is True:
         for x, y in zip(values, ylocs):
-            ax.text(x + 1, y, values_format.format(v=x), va="center")
+            ax.text(x + 1, float(y), values_format.format(v=x), va="center")
 
     ax.set_yticks(ylocs)
     ax.set_yticklabels(labels)

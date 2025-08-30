@@ -1462,6 +1462,8 @@ def test_weighted_evaluation_metric():
 
 
 def test_intercept() -> None:
+    from sklearn.datasets import make_classification
+
     X, y, w = tm.make_regression(256, 3, use_cupy=False)
     reg = xgb.XGBRegressor()
     reg.fit(X, y, sample_weight=w)
@@ -1472,8 +1474,26 @@ def test_intercept() -> None:
     reg = xgb.XGBRegressor(booster="gblinear")
     reg.fit(X, y, sample_weight=w)
     result = reg.intercept_
+    assert isinstance(result, np.ndarray)
     assert result.dtype == np.float32
     assert result[0] < 0.5
+
+    X, y = make_classification(
+        random_state=1994,
+        n_samples=128,
+        n_features=16,
+        n_classes=4,
+        n_informative=16,
+        n_redundant=0
+    )
+
+    clf = xgb.XGBClassifier(booster="gbtree", objective="multi:softprob")
+    clf.fit(X, y)
+    result = clf.intercept_
+    assert isinstance(result, np.ndarray)
+    assert len(result) == 4
+    assert (result >= 0.0).all()
+    np.testing.assert_allclose(sum(result), 1.0)
 
 
 def test_fit_none() -> None:
