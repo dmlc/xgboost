@@ -18,7 +18,7 @@ void VerifyLoadUri() {
   size_t const kCols = 8 + rank;
 
   common::TemporaryDirectory tmpdir;
-  auto path = tmpdir.Path() / ("/small" + std::to_string(rank) + ".csv");
+  auto path = tmpdir.Path() / ("small" + std::to_string(rank) + ".csv");
   CreateTestCSV(path.string(), kRows, kCols);
 
   std::unique_ptr<DMatrix> dmat;
