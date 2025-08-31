@@ -4,7 +4,6 @@
 #pragma once
 
 #include <cerrno>        // errno, EINTR, EBADF
-#include <climits>       // HOST_NAME_MAX
 #include <cstddef>       // std::size_t
 #include <cstdint>       // std::int32_t, std::uint16_t
 #include <cstring>       // memset
@@ -53,10 +52,6 @@ using ssize_t = int;
 #include "xgboost/collective/result.h"  // for Result
 #include "xgboost/logging.h"            // LOG
 #include "xgboost/string_view.h"        // StringView
-
-#if !defined(HOST_NAME_MAX)
-#define HOST_NAME_MAX 256  // macos
-#endif
 
 namespace xgboost {
 
@@ -301,7 +296,7 @@ class TCPSocket {
     };
 
 #if defined(_WIN32)
-    WSAPROTOCOL_INFOA info;
+    WSAPROTOCOL_INFOW info;
     socklen_t len = sizeof(info);
     xgboost_CHECK_SYS_CALL(
         getsockopt(handle_, SOL_SOCKET, SO_PROTOCOL_INFO, reinterpret_cast<char *>(&info), &len),

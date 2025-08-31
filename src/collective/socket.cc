@@ -1,10 +1,11 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include "xgboost/collective/socket.h"
 
 #include <algorithm>     // for max
 #include <array>         // for array
+#include <climits>       // HOST_NAME_MAX
 #include <cstddef>       // for size_t
 #include <cstdint>       // for int32_t
 #include <cstring>       // for memcpy, memset
@@ -17,6 +18,10 @@
 #if defined(__unix__) || defined(__APPLE__)
 #include <netdb.h>  // getaddrinfo, freeaddrinfo
 #endif              // defined(__unix__) || defined(__APPLE__)
+
+#if !defined(HOST_NAME_MAX)
+#define HOST_NAME_MAX 256  // macos
+#endif
 
 namespace xgboost::collective {
 SockAddress MakeSockAddress(StringView host, in_port_t port) {
