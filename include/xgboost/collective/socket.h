@@ -3,6 +3,15 @@
  */
 #pragma once
 
+#include <cerrno>        // errno, EINTR, EBADF
+#include <climits>       // HOST_NAME_MAX
+#include <cstddef>       // std::size_t
+#include <cstdint>       // std::int32_t, std::uint16_t
+#include <cstring>       // memset
+#include <string>        // std::string
+#include <system_error>  // std::error_code, std::system_category
+#include <utility>       // std::swap
+
 #if defined(__linux__)
 #include <sys/ioctl.h>  // for TIOCOUTQ, FIONREAD
 #endif                  // defined(__linux__)
@@ -36,18 +45,9 @@ using ssize_t = int;
 
 #if defined(__sun) || defined(sun)
 #include <sys/sockio.h>
-#endif  // defined(__sun) || defined(sun)
+#endif                            // defined(__sun) || defined(sun)
 
-#endif  // defined(_WIN32)
-
-#include <cerrno>        // errno, EINTR, EBADF
-#include <climits>       // HOST_NAME_MAX
-#include <cstddef>       // std::size_t
-#include <cstdint>       // std::int32_t, std::uint16_t
-#include <cstring>       // memset
-#include <string>        // std::string
-#include <system_error>  // std::error_code, std::system_category
-#include <utility>       // std::swap
+#endif                            // defined(_WIN32)
 
 #include "xgboost/base.h"               // XGBOOST_EXPECT
 #include "xgboost/collective/result.h"  // for Result
