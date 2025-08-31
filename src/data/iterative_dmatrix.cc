@@ -27,10 +27,10 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
                                    std::shared_ptr<DMatrix> ref, DataIterResetCallback* reset,
                                    XGDMatrixCallbackNext* next, float missing, int nthread,
                                    bst_bin_t max_bin, std::int64_t max_quantile_blocks)
-    : proxy_{proxy}, reset_{reset}, next_{next} {
-  // fetch the first batch
+    : proxy_{proxy} {
+  // The external iterator, fetch the first batch
   auto iter =
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
+      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
   iter.Reset();
   bool valid = iter.Next();
   CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
@@ -43,9 +43,9 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
 
   if (ctx.IsCUDA()) {
-    this->InitFromCUDA(&ctx, p, max_quantile_blocks, iter_handle, missing, ref);
+    this->InitFromCUDA(&ctx, p, max_quantile_blocks, std::move(iter), missing, ref);
   } else {
-    this->InitFromCPU(&ctx, p, iter_handle, missing, ref);
+    this->InitFromCPU(&ctx, p, std::move(iter), missing, ref);
   }
 
   this->fmat_ctx_ = ctx;
@@ -57,15 +57,13 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
             << this->Info().num_col_ << ", " << this->info_.num_nonzero_ << ").";
 }
 
-void IterativeDMatrix::InitFromCPU(Context const* ctx, BatchParam const& p,
-                                   DataIterHandle iter_handle, float missing,
-                                   std::shared_ptr<DMatrix> ref) {
+void IterativeDMatrix::InitFromCPU(
+    Context const* ctx, BatchParam const& p,
+    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&& iter, float missing,
+    std::shared_ptr<DMatrix> ref) {
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
 
-  // The external iterator
-  auto iter =
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
   common::HistogramCuts cuts;
   ExternalDataInfo ext_info;
   cpu_impl::GetDataShape(ctx, proxy, &iter, missing, &ext_info);
@@ -197,20 +195,27 @@ BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t,
-                                           DataIterHandle, float, std::shared_ptr<DMatrix>) {
+void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t,
+                                    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&&,
+                                    float, std::shared_ptr<DMatrix>) {
   // silent the warning about unused variables.
   (void)(proxy_);
-  (void)(reset_);
-  (void)(next_);
   common::AssertGPUSupport();
 }
 
-inline BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const*,
-                                                                 BatchParam const&) {
+BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const*, BatchParam const&) {
   common::AssertGPUSupport();
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
+}
+
+void IterativeDMatrix::Save(common::AlignedFileWriteStream*) const {
+  LOG(FATAL) << "Not implemented";
+}
+
+IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream*) {
+  LOG(FATAL) << "Not implemented";
+  return nullptr;
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost::data

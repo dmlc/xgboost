@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2023, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
@@ -12,7 +12,7 @@
 
 #include "../../src/common/io.h"
 #include "../../src/common/random.h"
-#include "filesystem.h"  // dmlc::TemporaryDirectory
+#include "filesystem.h"  // for TemporaryDirectory
 #include "helpers.h"
 
 namespace xgboost {
@@ -129,8 +129,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 
   int32_t constexpr kIters = 2;
 
-  dmlc::TemporaryDirectory tempdir;
-  std::string const fname = tempdir.path + "/model";
+  common::TemporaryDirectory tempdir;
+  std::string const fname = tempdir.Str() + "/model";
 
   std::vector<std::string> dumped_0;
   std::string model_at_kiter;

@@ -1,11 +1,11 @@
 /**
- * Copyright 2023-2024, XGBoost contributors
+ * Copyright 2023-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 
 #include "../../../../src/collective/communicator-inl.h"
-#include "../../filesystem.h"
+#include "../../filesystem.h"  // for test_federated_data
 #include "../../helpers.h"
 #include "test_worker.h"
 
@@ -17,12 +17,12 @@ void VerifyLoadUri() {
   size_t constexpr kRows{16};
   size_t const kCols = 8 + rank;
 
-  dmlc::TemporaryDirectory tmpdir;
-  std::string path = tmpdir.path + "/small" + std::to_string(rank) + ".csv";
-  CreateTestCSV(path, kRows, kCols);
+  common::TemporaryDirectory tmpdir;
+  auto path = tmpdir.Path() / ("small" + std::to_string(rank) + ".csv");
+  CreateTestCSV(path.string(), kRows, kCols);
 
   std::unique_ptr<DMatrix> dmat;
-  std::string uri = path + "?format=csv";
+  std::string uri = path.string() + "?format=csv";
   dmat.reset(DMatrix::Load(uri, false, DataSplitMode::kCol));
 
   ASSERT_EQ(dmat->Info().num_col_, 8 * collective::GetWorldSize() + 1);

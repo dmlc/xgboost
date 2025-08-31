@@ -1,7 +1,11 @@
+/**
+ * Copyright 2020-2025, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <algorithm>
 
 #include "helpers.h"
+#include "filesystem.h"  // for TemporaryDirectory
 #include "../../src/data/array_interface.h"
 namespace xgboost {
 
@@ -71,8 +75,8 @@ TEST(RandomDataGenerator, GenerateArrayInterfaceBatch) {
 TEST(RandomDataGenerator, SparseDMatrix) {
   bst_idx_t constexpr kCols{100}, kBatches{13};
   bst_idx_t n_samples{kBatches * 128};
-  dmlc::TemporaryDirectory tmpdir;
-  auto prefix = tmpdir.path + "/cache";
+  common::TemporaryDirectory tmpdir;
+  auto prefix = tmpdir.Str() + "/cache";
   auto p_ext_fmat =
       RandomDataGenerator{n_samples, kCols, 0.0}.Batches(kBatches).GenerateSparsePageDMatrix(prefix,
                                                                                              true);

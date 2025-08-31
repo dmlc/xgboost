@@ -18,6 +18,7 @@ CudaMmapResource::CudaMmapResource(StringView path, std::size_t offset, std::siz
               }},
       n_{length} {
   auto device = dh::CurrentDevice();
+  auto ptr = handle_->BasePtr();
 #if (CUDA_VERSION / 1000) >= 13
   cudaMemLocation loc;
   loc.type = cudaMemLocationTypeDevice;
@@ -25,18 +26,13 @@ CudaMmapResource::CudaMmapResource(StringView path, std::size_t offset, std::siz
 #else
   auto loc = device;
 #endif  // (CUDA_VERSION / 1000) >= 13
-  dh::safe_cuda(
-      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetReadMostly, loc));
-  dh::safe_cuda(
-      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetPreferredLocation, loc));
-  dh::safe_cuda(
-      cudaMemAdvise(handle_->base_ptr, handle_->base_size, cudaMemAdviseSetAccessedBy, loc));
+  dh::safe_cuda(cudaMemAdvise(ptr.data(), ptr.size(), cudaMemAdviseSetReadMostly, loc));
+  dh::safe_cuda(cudaMemAdvise(ptr.data(), ptr.size(), cudaMemAdviseSetPreferredLocation, loc));
+  dh::safe_cuda(cudaMemAdvise(ptr.data(), ptr.size(), cudaMemAdviseSetAccessedBy, loc));
 #if (CUDA_VERSION / 1000) >= 13
-  dh::safe_cuda(
-      cudaMemPrefetchAsync(handle_->base_ptr, handle_->base_size, loc, 0, dh::DefaultStream()));
+  dh::safe_cuda(cudaMemPrefetchAsync(ptr.data(), ptr.size(), loc, 0, dh::DefaultStream()));
 #else
-  dh::safe_cuda(
-      cudaMemPrefetchAsync(handle_->base_ptr, handle_->base_size, device, dh::DefaultStream()));
+  dh::safe_cuda(cudaMemPrefetchAsync(ptr.data(), ptr.size(), device, dh::DefaultStream()));
 #endif  // (CUDA_VERSION / 1000) >= 13
 }
 

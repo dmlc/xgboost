@@ -166,13 +166,13 @@ TEST(Learner, JsonModelIO) {
     Json out { Object() };
     learner->SaveModel(&out);
 
-    dmlc::TemporaryDirectory tmpdir;
+    common::TemporaryDirectory tmpdir;
 
-    std::ofstream fout (tmpdir.path + "/model.json");
+    std::ofstream fout (tmpdir.Path() / "model.json");
     fout << out;
     fout.close();
 
-    auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
+    auto loaded_str = common::LoadSequentialFile(tmpdir.Str() + "/model.json");
     Json loaded = Json::Load(StringView{loaded_str.data(), loaded_str.size()});
 
     learner->LoadModel(loaded);

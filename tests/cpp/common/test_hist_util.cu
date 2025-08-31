@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/device_vector.h>
@@ -24,7 +24,7 @@
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../data/test_array_interface.h"
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../filesystem.h"  // for TemporaryDirectory
 #include "../helpers.h"
 #include "test_hist_util.h"
 
@@ -334,7 +334,7 @@ TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
   int num_columns =5;
   for (auto num_rows : sizes) {
     HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
-    dmlc::TemporaryDirectory temp;
+    common::TemporaryDirectory temp;
     auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(&ctx, dmat.get(), num_bins);
@@ -349,7 +349,7 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
   auto bin_sizes = {2, 16, 256, 512};
   auto sizes = {100, 1000, 1500};
   int num_columns = 5;
-  dmlc::TemporaryDirectory temp;
+  common::TemporaryDirectory temp;
   for (auto num_rows : sizes) {
     HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
     auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, temp);
