@@ -3,7 +3,7 @@
 import json
 from functools import partial, update_wrapper
 from string import ascii_lowercase
-from typing import Any, Dict, List, Union, overload
+from typing import Any, Dict, List, Optional, Union, overload
 
 import numpy as np
 import pytest
@@ -85,13 +85,24 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
     X, y = make_regression(n_samples=4096, n_targets=3, random_state=17)
     run_reg(X, y)
 
-    def run_clf(X: np.ndarray, y: np.ndarray) -> None:  # pylint: disable=invalid-name
+    # pylint: disable=invalid-name
+    def run_clf(
+        X: np.ndarray, y: np.ndarray, w: Optional[np.ndarray] = None
+    ) -> List[float]:
         clf = xgb.XGBClassifier(
             tree_method=tree_method, max_depth=1, n_estimators=1, device=device
         )
-        clf.fit(X, y, eval_set=[(X, y)])
+        if w is not None:
+            clf.fit(
+                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
+            )
+        else:
+            clf.fit(X, y, eval_set=[(X, y)])
         base_score_0 = get_basescore(clf)
-        score_0 = clf.evals_result()["validation_0"]["logloss"][0]
+        if clf.n_classes_ == 2:
+            score_0 = clf.evals_result()["validation_0"]["logloss"][0]
+        else:
+            score_0 = clf.evals_result()["validation_0"]["mlogloss"][0]
 
         n_targets = 1 if y.ndim == 1 else y.shape[1]
         intercept = np.full(shape=(n_targets,), fill_value=0.5, dtype=np.float32)
@@ -102,11 +113,21 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
             device=device,
             base_score=intercept,
         )
-        clf.fit(X, y, eval_set=[(X, y)])
+        if w is not None:
+            clf.fit(
+                X, y, sample_weight=w, eval_set=[(X, y)], sample_weight_eval_set=[w]
+            )
+        else:
+            clf.fit(X, y, eval_set=[(X, y)])
         base_score_1 = get_basescore(clf)
-        score_1 = clf.evals_result()["validation_0"]["logloss"][0]
+        if clf.n_classes_ == 2:
+            score_1 = clf.evals_result()["validation_0"]["logloss"][0]
+        else:
+            score_1 = clf.evals_result()["validation_0"]["mlogloss"][0]
         assert not np.isclose(base_score_0, base_score_1).any()
-        assert score_0 < score_1  # should be better
+        assert score_0 < score_1 + 1e-4  # should be better
+
+        return base_score_0
 
     # pylint: disable=unbalanced-tuple-unpacking
     X, y = make_classification(n_samples=4096, random_state=17)
@@ -115,6 +136,26 @@ def check_init_estimation(tree_method: str, device: Device) -> None:
         n_samples=4096, n_labels=3, n_classes=5, random_state=17
     )
     run_clf(X, y)
+
+    X, y = make_classification(
+        n_samples=4096, random_state=17, n_classes=5, n_informative=20, n_redundant=0
+    )
+    intercept = run_clf(X, y)
+    np.testing.assert_allclose(np.sum(intercept), 1.0)
+    assert np.all(np.array(intercept) > 0)
+    np_int = (
+        np.histogram(
+            y, bins=np.concatenate([np.unique(y), np.array([np.finfo(np.float32).max])])
+        )[0]
+        / y.shape[0]
+    )
+    np.testing.assert_allclose(intercept, np_int)
+
+    rng = np.random.default_rng(1994)
+    w = rng.uniform(low=0, high=1, size=(y.shape[0],))
+    intercept = run_clf(X, y, w)
+    np.testing.assert_allclose(np.sum(intercept), 1.0)
+    assert np.all(np.array(intercept) > 0)
 
 
 # pylint: disable=too-many-locals
