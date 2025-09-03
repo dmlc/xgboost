@@ -188,7 +188,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
   void LoadConfig(Json const& in) override { FromJson(in["softmax_multiclass_param"], &param_); }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
-    // fixme: distributed
     std::int64_t n_classes = this->param_.num_class;
     ValidateLabel(this->ctx_, info, n_classes);
 
@@ -201,22 +200,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     auto intercept = base_score->View(ctx_->Device());
     CHECK_EQ(intercept.Size(), n_classes);
     CHECK_EQ(n, info.num_row_);
-
-    if (ctx_->IsCPU()) {
-      for (std::size_t i = 0; i < n; ++i) {
-        auto y = labels(i);
-        auto w = weights[i];
-        intercept(static_cast<std::size_t>(y)) += w;
-      }
-    } else {
-#if defined(XGBOOST_USE_CUDA)
-      // We can't use the cub histogram function due to weights.
-      common::SmallHistogram(ctx_, labels, info.weights_, intercept);
-#else
-      common::AssertGPUSupport();
-#endif  // for defined(XGBOOST_USE_CUDA)
-    }
-
+    linalg::SmallHistogram(ctx_, labels, weights, intercept);
     auto sum_weight = common::SumOptionalWeights(this->ctx_, weights, n);
     auto status = collective::GlobalSum(this->ctx_, info, intercept, &sum_weight);
     collective::SafeColl(status);

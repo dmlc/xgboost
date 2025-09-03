@@ -154,7 +154,7 @@ class Model:
         self.learner_model_shape: ParamT = model["learner"]["learner_model_param"]
         self.num_output_group = int(self.learner_model_shape["num_class"])
         self.num_feature = int(self.learner_model_shape["num_feature"])
-        self.base_score: list[float] = json.loads(
+        self.base_score: List[float] = json.loads(
             self.learner_model_shape["base_score"]
         )
         # A field encoding which output group a tree belongs

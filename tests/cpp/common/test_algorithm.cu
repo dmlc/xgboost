@@ -12,8 +12,6 @@
 #include "../../../src/common/algorithm.cuh"
 #include "../../../src/common/device_helpers.cuh"
 #include "../helpers.h"      // MakeCUDACtx
-#include "thrust/random.h"   // for default_random_engine
-#include "thrust/shuffle.h"  // for shuffle
 
 namespace xgboost::common {
 void TestSegmentedArgSort() {
@@ -113,32 +111,5 @@ TEST(Algorithm, AllOf) {
   TestAllOf(1);
   TestAllOf(2);
   TestAllOf(4096);
-}
-
-TEST(Algorithm, SmallHistogram) {
-  auto ctx = MakeCUDACtx(0);
-  // Generate random data with 4 bins and 32 elements for each bin.
-  std::size_t cnt = 32, n_bins = 4;
-  dh::device_vector<float> values(cnt * n_bins);
-  for (std::size_t i = 0; i < n_bins; ++i) {
-    thrust::fill_n(ctx.CUDACtx()->CTP(), values.begin() + i * cnt, cnt, i);
-  }
-  thrust::default_random_engine rng;
-  rng.seed(2025);
-  thrust::shuffle(ctx.CUDACtx()->CTP(), values.begin(), values.end(), rng);
-
-  linalg::MatrixView<float> indices =
-      linalg::MakeTensorView(&ctx, dh::ToSpan(values), values.size(), 1);
-  dh::CachingDeviceUVector<float> bins(n_bins);
-  HostDeviceVector<float> weights;
-  SmallHistogram(&ctx, indices, weights,
-                 linalg::MakeTensorView(&ctx, dh::ToSpan(bins), bins.size()));
-
-  std::vector<float> h_bins(n_bins);
-  dh::safe_cuda(cudaMemcpyAsync(h_bins.data(), bins.data(), dh::ToSpan(bins).size_bytes(),
-                                cudaMemcpyDefault, ctx.CUDACtx()->Stream()));
-  for (std::size_t i = 0; i < n_bins; ++i) {
-    ASSERT_EQ(h_bins[i], cnt);
-  }
 }
 }  // namespace xgboost::common

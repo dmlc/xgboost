@@ -22,6 +22,10 @@
 
 #endif  // !defined(XGBOOST_USE_CUDA)
 
+namespace xgboost::common {
+struct OptionalWeights;
+}
+
 namespace xgboost::linalg {
 template <typename T, int32_t D, typename Fn>
 void ElementWiseTransformHost(linalg::TensorView<T, D> t, int32_t n_threads, Fn&& fn) {
@@ -147,5 +151,8 @@ template <typename T, std::enable_if_t<std::is_floating_point_v<T>>* = nullptr>
 void LoadVector(Json const& in, linalg::Vector<T>* out) {
   ::xgboost::LoadVector(in, &out->Data()->HostVector());
 }
+
+void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
+                    common::OptionalWeights const& weights, linalg::VectorView<float> bins);
 }  // namespace xgboost::linalg
 #endif  // XGBOOST_COMMON_LINALG_OP_H_
