@@ -10,7 +10,7 @@ from scipy import sparse
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.data import np_dtypes, pd_dtypes
+from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
 from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 
@@ -36,9 +36,7 @@ def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def test_predict_shape():
-    from sklearn.datasets import fetch_california_housing
-
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     reg = xgb.XGBRegressor(n_estimators=1)
     reg.fit(X, y)
     predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)
