@@ -3,13 +3,25 @@
  */
 #include "linalg_op.h"
 
-#include "optional_weight.h"
+#include <cstddef>  // for size_t
+
+#include "optional_weight.h"  // for OptionalWeights
 #include "xgboost/context.h"  // for Context
+
+#if !defined(XGBOOST_USE_CUDA)
+#include "common.h"  // for AssertGPUSupport
+#endif
 
 namespace xgboost::linalg {
 namespace cuda_impl {
 void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
                     common::OptionalWeights const& weights, linalg::VectorView<float> bins);
+#if !defined(XGBOOST_USE_CUDA)
+void SmallHistogram(Context const*, linalg::MatrixView<float const>, common::OptionalWeights const&,
+                    linalg::VectorView<float>) {
+  common::AssertGPUSupport();
+}
+#endif
 }  // namespace cuda_impl
 
 void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
