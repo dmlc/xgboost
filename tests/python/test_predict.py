@@ -36,7 +36,7 @@ def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def test_predict_shape():
-    X, y = get_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     reg = xgb.XGBRegressor(n_estimators=1)
     reg.fit(X, y)
     predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)

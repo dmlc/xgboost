@@ -520,7 +520,7 @@ def test_regression_with_custom_objective():
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
-    X, y = get_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor(objective=tm.ls_obj).fit(
