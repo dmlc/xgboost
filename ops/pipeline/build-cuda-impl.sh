@@ -11,6 +11,13 @@ else
   cmake_args=''
 fi
 
+if [[ "${USE_FEDERATED:-}" == 1 ]]
+then
+  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=ON"
+else
+  cmake_args="${cmake_args} -DPLUGIN_FEDERATED=OFF"
+fi
+
 if [[ "${USE_RMM:-}" == 1 ]]
 then
   cmake_prefix_path='/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake'
@@ -30,7 +37,6 @@ cmake .. \
   -DUSE_CUDA=ON \
   -DUSE_OPENMP=ON \
   -DHIDE_CXX_SYMBOLS=ON \
-  -DPLUGIN_FEDERATED=ON \
   -DUSE_NCCL=ON \
   -DUSE_NCCL_LIB_PATH=ON \
   -DNCCL_INCLUDE_DIR=/usr/include \
