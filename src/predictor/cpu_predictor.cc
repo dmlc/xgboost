@@ -199,7 +199,7 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begi
   /*
    * We use transforming trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
-   */ 
+   */
   const bool use_array_tree_layout = block_size > 1;
   if (use_array_tree_layout) {
     // Recheck if the current block has missing values.
@@ -926,7 +926,7 @@ class CPUPredictor : public Predictor {
     CHECK_EQ(p_m->Info().num_col_, m->NumColumns());
     this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
 
-    bool blocked = ShouldUseBlock(p_m.get());
+    bool blocked = true;
 
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
