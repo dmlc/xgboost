@@ -6,12 +6,12 @@
 #include <thrust/sequence.h>  // sequence
 #include <thrust/sort.h>      // is_sorted
 
-#include <algorithm>  // is_sorted
-#include <cstddef>    // size_t
+#include <algorithm>          // is_sorted
+#include <cstddef>            // size_t
 
 #include "../../../src/common/algorithm.cuh"
 #include "../../../src/common/device_helpers.cuh"
-#include "../helpers.h"      // MakeCUDACtx
+#include "../helpers.h"  // MakeCUDACtx
 
 namespace xgboost::common {
 void TestSegmentedArgSort() {

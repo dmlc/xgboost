@@ -7,9 +7,8 @@
 #include <xgboost/context.h>
 #include <xgboost/objective.h>
 
-#include <sstream>
-
-#include "xgboost/host_device_vector.h"
+#include <sstream>  // for stringstream
+#include <string>   // for string
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
@@ -36,9 +35,7 @@ ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
 void ObjFunction::InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const {
   CHECK(base_score);
   auto n_targets = this->Targets(info);
-  base_score->SetDevice(this->ctx_->Device());
-  base_score->Reshape(n_targets);
-  base_score->Data()->Fill(DefaultBaseScore());
+  *base_score = linalg::Constant(this->ctx_, DefaultBaseScore(), n_targets);
 }
 }  // namespace xgboost
 
