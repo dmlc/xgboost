@@ -245,11 +245,11 @@ def get_california_housing() -> Tuple[np.ndarray, np.ndarray]:
 
     The real one can be obtained via:
 
-    .. code-block:;
+    .. code-block::
 
         import sklearn.datasets
 
-        X, y = datasets.fetch_california_housing(return_X_y=True)
+        X, y = sklearn.datasets.fetch_california_housing(return_X_y=True)
 
     """
     n_samples = 20640
