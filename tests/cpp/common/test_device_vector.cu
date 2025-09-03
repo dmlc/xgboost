@@ -113,8 +113,10 @@ TEST(TestVirtualMem, Version) {
   PinnedMemory pinned;
 #if defined(xgboost_IS_WIN)
   ASSERT_FALSE(pinned.IsVm());
-#else  // defined(xgboost_IS_WIN)
-  if (major == 12 && minor >= 5 || major > 12) {
+#else   // defined(xgboost_IS_WIN)
+  if (major > 12) {
+    ASSERT_TRUE(pinned.IsVm());
+  } else if (major == 12 && minor >= 5 || major > 12) {
     ASSERT_TRUE(pinned.IsVm());
   } else {
     ASSERT_FALSE(pinned.IsVm());
