@@ -110,7 +110,7 @@ class EvaluateSplitAgent {
     return gpair;
   }
 
-  __device__ __forceinline__ void Numerical(DeviceSplitCandidate *__restrict__ best_split) {
+  __device__ __forceinline__ void Numerical(DeviceSplitCandidate *best_split) {
     for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
       GradientPairInt64 bin = thread_active ? LoadGpair(node_histogram + scan_begin + threadIdx.x)
@@ -147,7 +147,7 @@ class EvaluateSplitAgent {
     }
   }
 
-  __device__ __forceinline__ void OneHot(DeviceSplitCandidate *__restrict__ best_split) {
+  __device__ __forceinline__ void OneHot(DeviceSplitCandidate *best_split) {
     for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += kBlockSize) {
       bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
