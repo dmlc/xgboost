@@ -36,7 +36,7 @@ class ArrayTreeLayout {
   using DefaultLeftType =
         typename std::conditional_t<any_missing,
                                    std::array<uint8_t, kNodesCount>,
-                                   struct Empty>;
+                                   Empty>;
   using IsCatType =
         typename std::conditional_t<has_categorical,
                                    std::array<uint8_t, kNodesCount>,
