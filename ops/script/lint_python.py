@@ -131,6 +131,7 @@ class LintersPaths:
         "demo/guide-python/sklearn_examples.py",
         "demo/guide-python/continuation.py",
         "demo/guide-python/callbacks.py",
+        "demo/guide-python/update_process.py",
         "demo/guide-python/cat_in_the_dat.py",
         "demo/guide-python/categorical.py",
         "demo/guide-python/cat_pipeline.py",

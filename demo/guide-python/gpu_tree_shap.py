@@ -5,16 +5,24 @@ Use GPU to speedup SHAP value computation
 Demonstrates using GPU acceleration to compute SHAP values for feature importance.
 
 """
+from urllib.error import HTTPError
+
 import shap
-from sklearn.datasets import fetch_california_housing
+from sklearn.datasets import fetch_california_housing, make_regression
 
 import xgboost as xgb
 
 # Fetch dataset using sklearn
-data = fetch_california_housing()
-print(data.DESCR)
-X = data.data
-y = data.target
+try:
+    _data = fetch_california_housing(return_X_y=True)
+    X = _data.data
+    y = _data.target
+    feature_names = _data.feature_names
+    print(_data.DESCR)
+except HTTPError:
+    # Use a synthetic dataset instead if we couldn't
+    X, y = make_regression(n_samples=20640, n_features=8, random_state=1234)
+    feature_names = [f"f{i}" for i in range(8)]
 
 num_round = 500
 
@@ -26,7 +34,7 @@ param = {
 }
 
 # GPU accelerated training
-dtrain = xgb.DMatrix(X, label=y, feature_names=data.feature_names)
+dtrain = xgb.DMatrix(X, label=y, feature_names=feature_names)
 model = xgb.train(param, dtrain, num_round)
 
 # Compute shap values using GPU with xgboost
@@ -47,9 +55,9 @@ shap.force_plot(
     explainer.expected_value,
     shap_values[0, :],
     X[0, :],
-    feature_names=data.feature_names,
+    feature_names=feature_names,
     matplotlib=True,
 )
 
 # Show a summary of feature importance
-shap.summary_plot(shap_values, X, plot_type="bar", feature_names=data.feature_names)
+shap.summary_plot(shap_values, X, plot_type="bar", feature_names=feature_names)
