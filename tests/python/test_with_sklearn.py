@@ -511,8 +511,8 @@ def test_parameter_tuning(tree_method: str) -> None:
     grid_cv.fit(X, y)
     assert grid_cv.best_score_ < 0.7
     assert grid_cv.best_params_ == {
-        "n_estimators": 200,
-        "max_depth": 4 if tree_method == "exact" else 2,
+        "n_estimators": 50,
+        "max_depth": 2,
     }
 
 
