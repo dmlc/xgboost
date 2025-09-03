@@ -24,6 +24,9 @@ namespace xgboost {
 class GHistIndexMatrix;
 
 namespace common {
+class AlignedFileWriteStream;
+class AlignedResourceReadStream;
+
 /*!
  * \brief A single row in global histogram index.
  *  Directly represent the global index in the histogram entry.
@@ -175,6 +178,9 @@ class HistogramCuts {
     this->min_vals_.SetDevice(d);
     this->min_vals_.ConstDevicePointer();
   }
+
+  void Save(common::AlignedFileWriteStream* fo) const;
+  [[nodiscard]] static HistogramCuts* Load(common::AlignedResourceReadStream* fi);
 };
 
 /**

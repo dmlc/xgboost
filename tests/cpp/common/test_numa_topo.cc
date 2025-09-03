@@ -8,7 +8,7 @@
 #include <vector>      // for vector
 
 #include "../../../src/common/numa_topo.h"
-#include "../filesystem.h"
+#include "../filesystem.h"  // for TemporaryDirectory
 
 namespace xgboost::common {
 namespace {
@@ -16,8 +16,8 @@ namespace fs = std::filesystem;
 }
 
 TEST(Numa, CpuListParser) {
-  dmlc::TemporaryDirectory tmpdir;
-  auto path = fs::path{tmpdir.path} / "cpulist";
+  common::TemporaryDirectory tmpdir;
+  auto path = tmpdir.Path() / "cpulist";
   std::vector<std::int32_t> cpus;
 
   auto write = [&](auto const& cpulist) {
@@ -104,7 +104,7 @@ TEST(Numa, CpuListParser) {
     check_4cpu_case();
   }
   {
-    auto path = fs::path{tmpdir.path} / "foo";
+    auto path = tmpdir.Path() / "foo";
     testing::internal::CaptureStderr();
     ReadCpuList(path, &cpus);
     std::string output = testing::internal::GetCapturedStderr();

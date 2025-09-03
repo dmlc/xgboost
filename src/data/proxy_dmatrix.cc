@@ -25,7 +25,7 @@ void DMatrixProxy::SetColumnar(StringView data) {
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
   this->batch_ = std::move(adapter);
-  this->ctx_.Init(Args{{"device", "cpu"}});
+  this->ctx_.Init(Args{{"device", DeviceSym::CPU()}});
 }
 
 void DMatrixProxy::SetArray(StringView data) {
@@ -33,7 +33,7 @@ void DMatrixProxy::SetArray(StringView data) {
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
   this->batch_ = std::move(adapter);
-  this->ctx_.Init(Args{{"device", "cpu"}});
+  this->ctx_.Init(Args{{"device", DeviceSym::CPU()}});
 }
 
 void DMatrixProxy::SetCsr(char const *c_indptr, char const *c_indices, char const *c_values,
@@ -44,7 +44,7 @@ void DMatrixProxy::SetCsr(char const *c_indptr, char const *c_indices, char cons
   this->Info().num_col_ = adapter->NumColumns();
   this->Info().num_row_ = adapter->NumRows();
   this->batch_ = std::move(adapter);
-  this->ctx_.Init(Args{{"device", "cpu"}});
+  this->ctx_.Init(Args{{"device", DeviceSym::CPU()}});
 }
 
 #if !defined(XGBOOST_USE_CUDA)

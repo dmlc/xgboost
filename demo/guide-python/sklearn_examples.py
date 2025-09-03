@@ -11,9 +11,15 @@ Created on 1 Apr 2015
 """
 
 import pickle
+from urllib.error import HTTPError
 
 import numpy as np
-from sklearn.datasets import fetch_california_housing, load_digits, load_iris
+from sklearn.datasets import (
+    fetch_california_housing,
+    load_digits,
+    load_iris,
+    make_regression,
+)
 from sklearn.metrics import confusion_matrix, mean_squared_error
 from sklearn.model_selection import GridSearchCV, KFold, train_test_split
 
@@ -44,7 +50,13 @@ for train_index, test_index in kf.split(X):
     print(confusion_matrix(actuals, predictions))
 
 print("California Housing: regression")
-X, y = fetch_california_housing(return_X_y=True)
+
+try:
+    X, y = fetch_california_housing(return_X_y=True)
+except HTTPError:
+    # Use a synthetic dataset instead if we couldn't
+    X, y = make_regression(n_samples=20640, n_features=8, random_state=1234)
+
 kf = KFold(n_splits=2, shuffle=True, random_state=rng)
 for train_index, test_index in kf.split(X):
     xgb_model = xgb.XGBRegressor(n_jobs=1).fit(X[train_index], y[train_index])

@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 import xgboost as xgb
+from xgboost.testing.data import get_california_housing
 
 try:
     import shap
@@ -16,9 +17,7 @@ pytestmark = pytest.mark.skipif(shap is None, reason="Requires shap package")
 # xgboost removed ntree_limit in 2.0, which breaks the SHAP package.
 @pytest.mark.xfail
 def test_with_shap() -> None:
-    from sklearn.datasets import fetch_california_housing
-
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     dtrain = xgb.DMatrix(X, label=y)
     model = xgb.train({"learning_rate": 0.01}, dtrain, 10)
     explainer = shap.TreeExplainer(model)

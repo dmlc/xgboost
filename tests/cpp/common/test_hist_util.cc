@@ -262,7 +262,7 @@ TEST(HistUtil, DenseCutsExternalMemory) {
   Context ctx;
   for (auto num_rows : sizes) {
     HostDeviceVector<float> x{GenerateRandom(num_rows, num_columns)};
-    dmlc::TemporaryDirectory tmpdir;
+    common::TemporaryDirectory tmpdir;
     auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, tmpdir);
     for (auto num_bins : bin_sizes) {
       HistogramCuts cuts = SketchOnDMatrix(&ctx, dmat.get(), num_bins);

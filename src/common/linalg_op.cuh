@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
@@ -32,7 +32,7 @@ template <typename T>
 struct ElementWiseImpl<T, 1> {
   template <typename Fn>
   void operator()(TensorView<T, 1> t, Fn&& fn, cudaStream_t s) {
-    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) { fn(i); });
+    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) mutable { fn(i); });
   }
 };
 

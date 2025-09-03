@@ -1,13 +1,12 @@
 /**
- * Copyright 2019-2023 by XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
-#include <fstream>
 #include <memory>
 #include <vector>
 
-#include "../filesystem.h"  // dmlc::TemporaryDirectory
+#include "../filesystem.h"  // TemporaryDirectory
 #include "../helpers.h"
 #include "xgboost/data.h"
 
@@ -116,15 +115,15 @@ TEST(DMatrix, Uri) {
   auto constexpr kRows {16};
   auto constexpr kCols {8};
 
-  dmlc::TemporaryDirectory tmpdir;
-  auto const path = tmpdir.path + "/small.csv";
-  CreateTestCSV(path, kRows, kCols);
+  common::TemporaryDirectory tmpdir;
+  auto const path = tmpdir.Path() / "small.csv";
+  CreateTestCSV(path.string(), kRows, kCols);
 
   std::unique_ptr<DMatrix> dmat;
   // FIXME(trivialfis): Enable the following test by restricting csv parser in dmlc-core.
   // EXPECT_THROW(dmat.reset(DMatrix::Load(path, false, true)), dmlc::Error);
 
-  std::string uri = path + "?format=csv";
+  std::string uri = path.string() + "?format=csv";
   dmat.reset(DMatrix::Load(uri, false));
 
   ASSERT_EQ(dmat->Info().num_col_, kCols);
