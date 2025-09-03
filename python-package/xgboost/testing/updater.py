@@ -47,6 +47,7 @@ def get_basescore(
     return base_score
 
 
+# pylint: disable=too-many-statements
 def check_init_estimation(tree_method: str, device: Device) -> None:
     """Test for init estimation."""
     from sklearn.datasets import (
