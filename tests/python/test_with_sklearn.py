@@ -12,6 +12,7 @@ from sklearn.utils.estimator_checks import parametrize_with_checks
 
 import xgboost as xgb
 from xgboost import testing as tm
+from xgboost.testing.data import get_california_housing
 from xgboost.testing.ranking import run_ranking_categorical, run_ranking_qid_df
 from xgboost.testing.shared import get_feature_weights, validate_data_initialization
 from xgboost.testing.updater import get_basescore
@@ -464,11 +465,10 @@ def test_num_parallel_tree():
 
 
 def test_regression():
-    from sklearn.datasets import fetch_california_housing
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor().fit(X[train_index], y[train_index])
@@ -501,10 +501,9 @@ def test_rf_regression():
 
 @pytest.mark.parametrize("tree_method", ["exact", "hist", "approx"])
 def test_parameter_tuning(tree_method: str) -> None:
-    from sklearn.datasets import fetch_california_housing
     from sklearn.model_selection import GridSearchCV
 
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     reg = xgb.XGBRegressor(learning_rate=0.1, tree_method=tree_method)
     grid_cv = GridSearchCV(
         reg, {"max_depth": [2, 4], "n_estimators": [50, 200]}, cv=2, verbose=1
@@ -518,11 +517,10 @@ def test_parameter_tuning(tree_method: str) -> None:
 
 
 def test_regression_with_custom_objective():
-    from sklearn.datasets import fetch_california_housing
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBRegressor(objective=tm.ls_obj).fit(
