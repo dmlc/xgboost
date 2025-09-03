@@ -27,7 +27,7 @@ def get_basescore(model: xgb.Booster) -> List[float]: ...
 
 
 @overload
-def get_basescore(model: Dict) -> List[float]: ...
+def get_basescore(model: Dict[str, Any]) -> List[float]: ...
 
 
 def get_basescore(
@@ -43,8 +43,7 @@ def get_basescore(
         jintercept = json.loads(model.save_config())["learner"]["learner_model_param"][
             "base_score"
         ]
-    base_score = [float(v) for v in jintercept[1:-1].split(",")]
-    return base_score
+    return json.loads(jintercept)
 
 
 # pylint: disable=too-many-statements

@@ -32,7 +32,6 @@ void SmallHistogram(Context const* ctx, linalg::MatrixView<float const> indices,
                           num_runs.begin(), indices.Size());
   thrust::inclusive_scan(cuctx->CTP(), counts_out.begin(), counts_out.end(), counts_out.begin());
 
-  // auto d_weights = MakeOptionalWeights(ctx, weights);
   auto val_it = thrust::make_transform_iterator(
       thrust::make_counting_iterator(0ul),
       [=] XGBOOST_DEVICE(std::size_t i) { return d_weights[d_sorted_idx[i]]; });
