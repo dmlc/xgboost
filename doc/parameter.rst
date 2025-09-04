@@ -419,8 +419,12 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``base_score``
 
-  - The initial prediction score of all instances, also known as the global bias, or the
-    intercept.
+  The initial prediction score of all instances, also known as the global bias, or the intercept.
+
+  .. versionchanged:: 3.1.0
+
+    XGBoost is updated to use vector-valued intercept by default.
+
   - The parameter is automatically estimated for selected objectives before training. To
     disable the estimation, specify a real number argument, e.g. ``base_score = 0.5``.
   - If ``base_margin`` is supplied, ``base_score`` will not be used.
