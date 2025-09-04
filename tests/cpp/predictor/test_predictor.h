@@ -47,7 +47,7 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
                                      std::shared_ptr<DMatrix> p_hist) {
   constexpr size_t kClasses { 3 };
 
-  LearnerModelParam mparam{MakeMP(cols, .5, kClasses)};
+  LearnerModelParam mparam{MakeMP(cols, .5, kClasses, ctx->Device())};
   auto cuda_ctx = MakeCUDACtx(0);
 
   std::unique_ptr<Predictor> predictor =

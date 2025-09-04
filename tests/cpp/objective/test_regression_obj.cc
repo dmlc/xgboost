@@ -1,10 +1,13 @@
 /**
  * Copyright 2017-2025, XGBoost contributors
  */
+#include "test_regression_obj.h"
+
 #include <gtest/gtest.h>
 #include <xgboost/context.h>
 #include <xgboost/json.h>
 #include <xgboost/objective.h>
+#include <xgboost/tree_model.h>  // for RegTree
 
 #include <numeric>  // for iota
 
@@ -16,9 +19,15 @@
 #include "xgboost/linalg.h"
 #include "xgboost/tree_model.h"  // for RegTree
 
-#include "test_regression_obj.h"
-
 namespace xgboost {
+namespace {
+void CheckProbaToMargin(std::unique_ptr<ObjFunction> const& obj, float in, float expect,
+                        float abs_error = 1e-2f) {
+  linalg::Vector<float> t{{in}, {1}, obj->Ctx()->Device()};
+  obj->ProbToMargin(&t);
+  ASSERT_NEAR(t(0), expect, abs_error);
+}
+}  // namespace
 
 void TestLinearRegressionGPair(const Context* ctx) {
   std::string obj_name = "reg:squarederror";
@@ -95,11 +104,10 @@ void TestLogisticRegressionBasic(const Context* ctx) {
     << "Expected error when label not in range [0,1f] for LogisticRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.197f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), 2.197f, 0.01f);
-  EXPECT_ANY_THROW((void)obj->ProbToMargin(10))
-      << "Expected error when base_score not in range [0,1f] for LogisticRegression";
+  CheckProbaToMargin(obj, 0.1f, -2.197f);
+  CheckProbaToMargin(obj, 0.5f, 0);
+  CheckProbaToMargin(obj, 0.9f, 2.197f);
+  ASSERT_THAT([&] { CheckProbaToMargin(obj, 10, 0); }, GMockThrow("base_score must be in (0,1)"));
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -162,9 +170,9 @@ void TestPoissonRegressionBasic(const Context* ctx) {
     << "Expected error when label < 0 for PoissonRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -211,9 +219,9 @@ void TestGammaRegressionBasic(const Context* ctx) {
     << "Expected error when label < 0 for GammaRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -259,9 +267,9 @@ void TestTweedieRegressionBasic(const Context* ctx) {
     << "Expected error when label < 0 for TweedieRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};

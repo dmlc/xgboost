@@ -160,6 +160,20 @@ template <typename T, std::int32_t kDim>
   return GlobalSum(ctx, info.IsColumnSplit(), values);
 }
 
+template <typename T>
+[[nodiscard]] Result GlobalSum(Context const* ctx, MetaInfo const& info,
+                               linalg::VectorView<T> values, double* sum_weight) {
+  if (info.IsColumnSplit()) {
+    return Success();
+  }
+  auto status = Success() << [&] {
+    return Allreduce(ctx, sum_weight, collective::Op::kSum);
+  } << [&] {
+    return Allreduce(ctx, values, collective::Op::kSum);
+  };
+  return status;
+}
+
 /**
  * @brief Find the global ratio of the given two values across all workers.
  *

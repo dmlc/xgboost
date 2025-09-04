@@ -81,9 +81,9 @@ class ObjFunction : public Configurable {
    *   gradient boosting. The method converts objective-based valid outputs like
    *   probability back to raw model outputs.
    *
-   * @return transformed value
+   * @param [in,out] base_score The intercept to transform.
    */
-  [[nodiscard]] virtual float ProbToMargin(float base_score) const { return base_score; }
+  virtual void ProbToMargin(linalg::Vector<float>* /*base_score*/) const {}
   /**
    * @brief Obtain the initial estimation of prediction (intercept).
    *

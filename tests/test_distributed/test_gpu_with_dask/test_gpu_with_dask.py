@@ -310,7 +310,10 @@ class TestDistributedGPU:
         Xy_valid = dxgb.DaskQuantileDMatrix(
             client, X_valid, y_valid, ref=Xy, enable_categorical=True
         )
-        with pytest.raises(ValueError, match="empty"):
+        # The error is from a worker. Dask cannot prioritize which worker's error to
+        # propagate, it could be the emtpy DMatrix error or the collective communication
+        # error. As a result, the test doesn't match the error message.
+        with pytest.raises(ValueError):
             dxgb.train(
                 client,
                 {"tree_method": "hist", "device": "cuda", "debug_synchronize": True},

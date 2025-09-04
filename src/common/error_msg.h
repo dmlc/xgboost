@@ -141,5 +141,7 @@ constexpr StringView CacheHostRatioInvalid() {
 }
 
 [[nodiscard]] std::error_code SystemError();
+
+void InvalidIntercept(std::int32_t n_classes, bst_target_t n_targets, std::size_t intercept_len);
 }  // namespace xgboost::error
 #endif  // XGBOOST_COMMON_ERROR_MSG_H_

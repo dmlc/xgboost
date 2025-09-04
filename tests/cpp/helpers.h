@@ -110,8 +110,7 @@ double GetMultiMetricEval(xgboost::Metric* metric,
                           xgboost::DataSplitMode data_split_Mode = xgboost::DataSplitMode::kRow);
 
 namespace xgboost {
-
-float GetBaseScore(Json const &config);
+[[nodiscard]] std::vector<float> GetBaseScore(Json const& config);
 
 /*!
  * \brief Linear congruential generator.

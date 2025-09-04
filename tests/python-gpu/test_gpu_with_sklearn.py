@@ -14,6 +14,7 @@ from xgboost.testing.with_skl import (
     run_boost_from_prediction_binary,
     run_boost_from_prediction_multi_clasas,
     run_housing_rf_regression,
+    run_intercept,
     run_recoding,
 )
 
@@ -321,3 +322,7 @@ def test_device_ordinal() -> None:
 @pytest.mark.skipif(**tm.no_cudf())
 def test_recoding() -> None:
     run_recoding("cuda")
+
+
+def test_intercept() -> None:
+    run_intercept("cuda")

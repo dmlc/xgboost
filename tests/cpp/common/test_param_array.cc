@@ -16,7 +16,7 @@
 
 namespace xgboost::common {
 TEST(ParamArray, Float) {
-  ParamArray<float, false> values{"values"};
+  ParamArray<float> values{"values"};
   {
     std::istringstream sin{"1.1"};
     sin >> values;
@@ -44,19 +44,7 @@ TEST(ParamArray, Float) {
     }
   }
   {
-    ParamArray<float, true> values{"values"};
-    std::istringstream sin{"1.1"};
-    sin >> values;
-    ASSERT_EQ(values.size(), 1);
-    ASSERT_NEAR(values[0], 1.1, kRtEps);
-    std::ostringstream sout;
-    sout << values;
-    auto jarr = Json::Load(StringView{sout.str()});
-    ASSERT_TRUE(IsA<Number>(jarr));
-    ASSERT_NEAR(get<Number>(jarr), 1.1, kRtEps);
-  }
-  {
-    ParamArray<float, true> values{"values"};
+    ParamArray<float> values{"values"};
     std::istringstream sin{"[\"foo\"]"};
     ASSERT_THAT(
         [&] { sin >> values; },
@@ -67,10 +55,9 @@ TEST(ParamArray, Float) {
 
 namespace {
 struct TestParamArray : public XGBoostParameter<TestParamArray> {
-  ParamArray<float, false> test_key{"test_key", 0.2f};
+  ParamArray<float> test_key{"test_key", 0.2f};
   DMLC_DECLARE_PARAMETER(TestParamArray) {
-    DMLC_DECLARE_FIELD(test_key).describe("test").set_default(
-        ParamArray<float, false>{"test_key", 0.2f});
+    DMLC_DECLARE_FIELD(test_key).describe("test").set_default(ParamArray<float>{"test_key", 0.2f});
   }
 };
 
