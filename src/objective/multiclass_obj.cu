@@ -9,7 +9,8 @@
 #include <cassert>  // for assert
 #include <limits>
 
-#include "../common/common.h"  // for AssertGPUSupport
+#include "../collective/aggregator.h"  // for GlobalSum
+#include "../common/common.h"          // for AssertGPUSupport
 #include "../common/linalg_op.h"
 #include "../common/math.h"
 #include "../common/optional_weight.h"  // for MakeOptionalWeights
@@ -41,7 +42,7 @@ DMLC_REGISTRY_FILE_TAG(multiclass_obj_gpu);
 namespace {
 void ValidateLabel(Context const* ctx, MetaInfo const& info, std::int64_t n_classes) {
   auto label = info.labels.View(ctx->Device());
-  CHECK_EQ(label.Shape(1), 1) << "multi-class-multi-label is not yet supported.";
+  CHECK_LE(label.Shape(1), 1) << "multi-class-multi-label is not yet supported.";
   auto check = [=] XGBOOST_DEVICE(float y) -> bool {
     return y >= 0 && y < n_classes && std::floor(y) == y;
   };
@@ -185,6 +186,27 @@ class SoftmaxMultiClassObj : public ObjFunction {
   }
 
   void LoadConfig(Json const& in) override { FromJson(in["softmax_multiclass_param"], &param_); }
+
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    std::int64_t n_classes = this->param_.num_class;
+    ValidateLabel(this->ctx_, info, n_classes);
+
+    *base_score = linalg::Zeros<float>(this->ctx_, n_classes);
+
+    std::size_t n = info.labels.Size();
+
+    auto labels = info.labels.View(ctx_->Device());
+    auto weights = common::MakeOptionalWeights(this->ctx_, info.weights_);
+    auto intercept = base_score->View(ctx_->Device());
+    CHECK_EQ(intercept.Size(), n_classes);
+    CHECK_EQ(n, info.num_row_);
+    linalg::SmallHistogram(ctx_, labels, weights, intercept);
+    auto sum_weight = common::SumOptionalWeights(this->ctx_, weights, n);
+    auto status = collective::GlobalSum(this->ctx_, info, intercept, &sum_weight);
+    collective::SafeColl(status);
+    CHECK_GE(sum_weight, kRtEps);
+    linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
+  }
 
  private:
   // output probability

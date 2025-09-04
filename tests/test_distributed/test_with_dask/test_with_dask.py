@@ -45,6 +45,7 @@ from xgboost.testing.shared import (
     validate_data_initialization,
     validate_leaf_output,
 )
+from xgboost.testing.updater import get_basescore
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
@@ -1528,9 +1529,6 @@ class TestWithDask:
         self.run_updater_test(client, params, num_rounds, dataset, "approx")
 
     def test_adaptive(self) -> None:
-        def get_score(config: Dict) -> float:
-            return float(config["learner"]["learner_model_param"]["base_score"])
-
         def local_test(rabit_args: Dict[str, Union[int, str]], worker_id: int) -> bool:
             with dxgb.CommunicatorContext(**rabit_args):
                 if worker_id == 0:
@@ -1551,8 +1549,8 @@ class TestWithDask:
                     num_boost_round=1,
                 )
                 config = json.loads(booster.save_config())
-                base_score = get_score(config)
-                assert base_score == 250.0
+                base_score = get_basescore(config)
+                assert base_score == [250.0]
                 return True
 
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:

@@ -217,12 +217,17 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
   auto& h_pred_0 = predict_0.HostVector();
   auto& h_pred_1 = predict_1.HostVector();
 
+  Json config {Object{}};
+  learner->SaveConfig(&config);
+  auto base_score = GetBaseScore(config);
+
   ASSERT_EQ(h_pred.size(), rows * kClasses);
   ASSERT_EQ(h_pred.size(), h_pred_0.size());
   ASSERT_EQ(h_pred.size(), h_pred_1.size());
   for (size_t i = 0; i < h_pred.size(); ++i) {
     // Need to remove the global bias here.
-    ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - 0.5f, kRtEps);
+    auto j = i % kClasses;
+    ASSERT_NEAR(h_pred[i], h_pred_0[i] + h_pred_1[i] - base_score.at(j), kRtEps);
   }
 
   learner->SetParam("device", "cpu");
@@ -349,7 +354,7 @@ void TestCategoricalPrediction(bool use_gpu, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1, ctx.Device())};
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;
   float left_weight = 1.3f;
@@ -392,7 +397,7 @@ void TestCategoricalPredictLeaf(Context const *ctx, bool is_column_split) {
   size_t constexpr kCols = 10;
   PredictionCacheEntry out_predictions;
 
-  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1, ctx->Device())};
 
   uint32_t split_ind = 3;
   bst_cat_t split_cat = 4;

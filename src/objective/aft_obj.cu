@@ -1,24 +1,29 @@
 /**
- * Copyright 2019-2023, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  * \file aft_obj.cu
  * \brief Definition of AFT loss for survival analysis.
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <vector>
-#include <limits>
-#include <memory>
-#include <utility>
+#include <cmath>    // for log
+#include <cstddef>  // for size_t
 
+
+#include "../common/survival_util.h"
+#include "../common/transform.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
-#include "xgboost/parameter.h"
-#include "xgboost/span.h"
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
+#include "xgboost/span.h"
 
-#include "../common/transform.h"
-#include "../common/survival_util.h"
+#if defined(XGBOOST_USE_CUDA)
+#include "../common/linalg_op.cuh"  // for ElementWiseKernel
+#elif defined(XGBOOST_USE_SYCL)
+#include "../../plugin/sycl/common/linalg_op.h"
+#else
+#include "../common/linalg_op.h"  // for ElementWiseKernel
+#endif
 
 using AFTParam = xgboost::common::AFTParam;
 using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType;
@@ -116,8 +121,11 @@ class AFTObj : public ObjFunction {
     // do nothing here, since the AFT metric expects untransformed prediction score
   }
 
-  bst_float ProbToMargin(bst_float base_score) const override {
-    return std::log(base_score);
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    auto intercept = base_score->View(this->ctx_->Device());
+    linalg::ElementWiseKernel(ctx_, intercept, [=] XGBOOST_DEVICE(std::size_t i) mutable {
+      intercept(i) = std::log(intercept(i));
+    });
   }
 
   const char* DefaultEvalMetric() const override {

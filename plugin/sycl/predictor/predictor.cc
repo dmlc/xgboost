@@ -202,38 +202,6 @@ float GetLeafWeight(const Node* nodes, const float* fval_buff) {
 
 class Predictor : public xgboost::Predictor {
  public:
-  void InitOutPredictions(const MetaInfo& info,
-                          HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const override {
-    device_model.SetDevice(ctx_->Device());
-    CHECK_NE(model.learner_model_param->num_output_group, 0);
-    size_t n = model.learner_model_param->num_output_group * info.num_row_;
-    size_t base_margin_size = info.base_margin_.Data()->Size();
-    out_preds->Resize(n);
-    if (base_margin_size == n) {
-      CHECK_EQ(out_preds->Size(), n);
-      out_preds->Copy(*(info.base_margin_.Data()));
-    } else {
-      auto base_score = model.learner_model_param->BaseScore(ctx_)(0);
-      if (base_margin_size > 0) {
-        std::ostringstream oss;
-        oss << "Ignoring the base margin, since it has incorrect length. "
-            << "The base margin must be an array of length ";
-        if (model.learner_model_param->num_output_group > 1) {
-          oss << "[num_class] * [number of data points], i.e. "
-              << model.learner_model_param->num_output_group << " * " << info.num_row_
-              << " = " << n << ". ";
-        } else {
-          oss << "[number of data points], i.e. " << info.num_row_ << ". ";
-        }
-        oss << "Instead, all data points will use "
-            << "base_score = " << base_score;
-        LOG(WARNING) << oss.str();
-      }
-      out_preds->Fill(base_score);
-    }
-  }
-
   explicit Predictor(Context const* context) :
       xgboost::Predictor::Predictor{context},
       cpu_predictor(xgboost::Predictor::Create("cpu_predictor", context)),

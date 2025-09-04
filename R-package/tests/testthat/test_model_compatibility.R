@@ -42,9 +42,7 @@ run_booster_check <- function(booster, model_file) {
     testthat::expect_equal(
       get_num_tree(booster), metadata$kForests * n_rounds * metadata$kClasses
     )
-    testthat::expect_equal(
-      as.numeric(config$learner$learner_model_param$base_score), 0.5
-    )
+    testthat::expect_equal(get_basescore(config), c(0.5, 0.5, 0.5))  # nolint
     testthat::expect_equal(
       config$learner$learner_train_param$objective, "multi:softmax"
     )
@@ -81,9 +79,7 @@ run_booster_check <- function(booster, model_file) {
   } else {
     testthat::expect_true(is_model("reg"))
     testthat::expect_equal(get_num_tree(booster), metadata$kForests * n_rounds)
-    testthat::expect_equal(
-      as.numeric(config$learner$learner_model_param$base_score), 0.5
-    )
+    testthat::expect_equal(get_basescore(config), 0.5)  # nolint
     testthat::expect_equal(
       config$learner$learner_train_param$objective, "reg:squarederror"
     )

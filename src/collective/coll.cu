@@ -1,5 +1,5 @@
 /**
- * Copyright 2023-2024, XGBoost Contributors
+ * Copyright 2023-2025, XGBoost Contributors
  */
 #if defined(XGBOOST_USE_NCCL)
 #include <chrono>       // for chrono, chrono_literals
@@ -13,9 +13,9 @@
 #include <type_traits>  // for invoke_result_t, is_same_v, enable_if_t
 #include <utility>      // for move
 
-#include "../common/cleanup.h"           // for Cleanup
 #include "../common/device_helpers.cuh"  // for CUDAStreamView, CUDAEvent, device_vector
 #include "../common/threadpool.h"        // for ThreadPool
+#include "../common/utils.h"             // for MakeCleanup
 #include "../data/array_interface.h"     // for ArrayInterfaceHandler
 #include "allgather.h"                   // for AllgatherVOffset
 #include "coll.cuh"                      // for NCCLColl

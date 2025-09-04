@@ -8,6 +8,7 @@
 #include <cstdlib>  // for size_t
 #include <tuple>    // for apply
 
+#include "cuda_context.cuh"
 #include "device_helpers.cuh"  // for LaunchN
 #include "linalg_op.h"
 #include "xgboost/context.h"  // for Context
@@ -41,6 +42,8 @@ void ElementWiseKernel(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
   dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   cuda_impl::ElementWiseImpl<T, D>{}(t, fn, s);
 }
+
+void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
 }  // namespace cuda_impl
 
 template <typename T, int32_t D, typename Fn>

@@ -74,4 +74,17 @@ void CheckOldNccl(std::int32_t major, std::int32_t minor, std::int32_t patch) {
   auto err = std::error_code{errsv, std::system_category()};
   return err;
 }
+
+void InvalidIntercept(std::int32_t n_classes, bst_target_t n_targets, std::size_t intercept_len) {
+  std::stringstream ss;
+  ss << "Invalid `base_score`, it should match the number of outputs for multi-class/target "
+     << "models. `base_score` len: " << intercept_len;
+  if (n_classes > 1) {
+    ss << ", `n_classes`: " << n_classes;
+  }
+  if (n_targets > 1) {
+    ss << ", `n_targets`: " << n_targets;
+  }
+  LOG(FATAL) << ss.str();
+}
 }  // namespace xgboost::error
