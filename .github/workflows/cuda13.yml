@@ -38,6 +38,7 @@ jobs:
             build/testxgboost ./xgboost python-package/dist/*.whl
   test-cpp-cuda13:
     name: Google Test (C++) with CUDA 13
+    needs: [build-cuda13]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-gpu
@@ -62,6 +63,7 @@ jobs:
           bash ops/pipeline/test-cpp-cuda13.sh
   test-python-cuda13:
     name: Run Python tests with CUDA 13
+    needs: [build-cuda13]
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=linux-amd64-gpu
