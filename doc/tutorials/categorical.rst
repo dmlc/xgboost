@@ -231,6 +231,44 @@ dataframes. During training continuation, XGBoost will either extract the catego
 the previous model or use the categories from the new training dataset if the input model
 doesn't have the information.
 
+For R, the auto-recoding is not yet supported as of 3.1. To provide an example:
+
+.. code-block:: R
+
+    > f0 = factor(c("a", "b", "c"))
+    > as.numeric(f0)
+    [1] 1 2 3
+    > f0
+    [1] a b c
+    Levels: a b c
+
+In the above snippet, we have the mapping: ``a -> 1, b -> 2, c -> 3``. Assuming the above
+is the training data, and the next snippet is the test data:
+
+.. code-block:: R
+
+    > f1 = factor(c("a", "c"))
+    > as.numeric(f1)
+    [1] 1 2
+    > f1
+    [1] a c
+    Levels: a c
+
+
+Now, we have ``a -> 1, c -> 2`` because ``b`` is missing, and the R factor encodes the data
+differently, resulting in invalid test-time encoding. XGBoost cannot remember the original
+encoding for the R package. You will have to encode the data explicitly during inference:
+
+.. code-block:: R
+
+    > f1 = factor(c("a", "c"), levels = c("a", "b", "c"))
+    > f1
+    [1] a c
+    Levels: a b c
+    > as.numeric(f1)
+      [1] 1 3
+
+
 *************
 Miscellaneous
 *************

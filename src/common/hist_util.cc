@@ -1,5 +1,5 @@
 /**
- * Copyright 2017-2023 by XGBoost Contributors
+ * Copyright 2017-2025, XGBoost Contributors
  * \file hist_util.cc
  */
 #include "hist_util.h"
@@ -10,6 +10,7 @@
 
 #include "../data/adapter.h"         // for SparsePageAdapterBatch
 #include "../data/gradient_index.h"  // for GHistIndexMatrix
+#include "io.h"                      // for AlignedResourceReadStream, AlignedFileWriteStream
 #include "quantile.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // for Context
@@ -27,6 +28,27 @@
 namespace xgboost::common {
 HistogramCuts::HistogramCuts() {
   cut_ptrs_.HostVector().emplace_back(0);
+}
+
+void HistogramCuts::Save(common::AlignedFileWriteStream *fo) const {
+  auto const &ptrs = this->Ptrs();
+  CHECK_LE(Span{ptrs}.size_bytes(), WriteVec(fo, ptrs));
+  auto const &vals = this->Values();
+  CHECK_LE(Span{vals}.size_bytes(), WriteVec(fo, vals));
+  auto const &mins = this->MinValues();
+  CHECK_LE(Span{mins}.size_bytes(), WriteVec(fo, mins));
+  CHECK_GE(fo->Write(has_categorical_), sizeof(has_categorical_));
+  CHECK_GE(fo->Write(max_cat_), sizeof(max_cat_));
+}
+
+[[nodiscard]] HistogramCuts *HistogramCuts::Load(common::AlignedResourceReadStream *fi) {
+  auto p_cuts = new HistogramCuts;
+  CHECK(ReadVec(fi, &p_cuts->cut_ptrs_.HostVector()));
+  CHECK(ReadVec(fi, &p_cuts->cut_values_.HostVector()));
+  CHECK(ReadVec(fi, &p_cuts->min_vals_.HostVector()));
+  CHECK(fi->Read(&p_cuts->has_categorical_));
+  CHECK(fi->Read(&p_cuts->max_cat_));
+  return p_cuts;
 }
 
 HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins, bool use_sorted,

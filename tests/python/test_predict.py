@@ -10,8 +10,8 @@ from scipy import sparse
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.data import np_dtypes, pd_dtypes
-from xgboost.testing.predict import run_predict_leaf
+from xgboost.testing.data import get_california_housing, np_dtypes, pd_dtypes
+from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 
 def run_threaded_predict(X, rows, predict_func):
@@ -36,9 +36,7 @@ def test_predict_leaf(DMatrixT: Type[xgb.DMatrix]) -> None:
 
 
 def test_predict_shape():
-    from sklearn.datasets import fetch_california_housing
-
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     reg = xgb.XGBRegressor(n_estimators=1)
     reg.fit(X, y)
     predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)
@@ -72,6 +70,10 @@ def test_predict_shape():
     assert interaction.shape[1] == 1
     assert interaction.shape[2] == X.shape[1] + 1
     assert interaction.shape[3] == X.shape[1] + 1
+
+
+def test_base_margin_vs_base_score() -> None:
+    run_base_margin_vs_base_score("cpu")
 
 
 class TestInplacePredict:

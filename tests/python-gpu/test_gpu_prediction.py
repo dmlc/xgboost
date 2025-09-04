@@ -9,7 +9,7 @@ from hypothesis.extra.pandas import column, data_frames, range_indexes
 
 import xgboost as xgb
 from xgboost import testing as tm
-from xgboost.testing.predict import run_predict_leaf
+from xgboost.testing.predict import run_base_margin_vs_base_score, run_predict_leaf
 
 sys.path.append("tests/python")
 
@@ -362,6 +362,7 @@ class TestGPUPredict:
         strategies.integers(1, 10), tm.make_dataset_strategy(), shap_parameter_strategy
     )
     @settings(deadline=None, max_examples=10, print_blob=True)
+    @pytest.mark.timeout(90)
     def test_shap_interactions(
         self, num_rounds: int, dataset: tm.TestDataset, param: dict
     ) -> None:
@@ -623,3 +624,7 @@ class TestGPUPredict:
             X = cp.array(orig, dtype=dtype)
             with pytest.raises(ValueError):
                 booster.inplace_predict(X)
+
+
+def test_base_margin_vs_base_score() -> None:
+    run_base_margin_vs_base_score("cuda")

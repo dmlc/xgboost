@@ -8,6 +8,7 @@ import pytest
 
 from ..core import DMatrix
 from ..sklearn import XGBClassifier, XGBRegressor, XGBRFRegressor
+from .data import get_california_housing
 from .ordinal import make_recoded
 from .utils import Device
 
@@ -114,11 +115,10 @@ def run_boost_from_prediction_multi_clasas(
 
 def run_housing_rf_regression(tree_method: str, device: Device) -> None:
     """Testwith the cali housing dataset."""
-    from sklearn.datasets import fetch_california_housing
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     rng = np.random.RandomState(1994)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):

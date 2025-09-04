@@ -1,10 +1,11 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 
 #include <thrust/iterator/counting_iterator.h>  // thrust::make_counting_iterator
 
 #include <cstddef>  // size_t
+#include <tuple>    // for apply
 
 #include "../collective/aggregator.h"  // for GlobalSum
 #include "cuda_context.cuh"            // CUDAContext
@@ -26,9 +27,8 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
   dh::LaunchN(d_segments.size(), ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) { d_segments[i] = t.Shape(0) * i; });
   auto val_it = dh::MakeTransformIterator<float>(
-      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(size_t i) {
-        return linalg::detail::Apply(t, linalg::UnravelIndex(i, t.Shape()));
-      });
+      thrust::make_counting_iterator(0ul),
+      [=] XGBOOST_DEVICE(size_t i) { return std::apply(t, linalg::UnravelIndex(i, t.Shape())); });
 
   out->SetDevice(ctx->Device());
   out->Reshape(t.Shape(1));
@@ -55,9 +55,10 @@ void Mean(Context const* ctx, linalg::VectorView<float const> v, linalg::VectorV
   std::size_t bytes;
   CHECK_EQ(out.Size(), 1);
   auto s = ctx->CUDACtx()->Stream();
-  cub::DeviceReduce::Sum(nullptr, bytes, it, out.Values().data(), v.Size(), s);
+  dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, bytes, it, out.Values().data(), v.Size(), s));
   dh::TemporaryArray<char> temp{bytes};
-  cub::DeviceReduce::Sum(temp.data().get(), bytes, it, out.Values().data(), v.Size(), s);
+  dh::safe_cuda(
+      cub::DeviceReduce::Sum(temp.data().get(), bytes, it, out.Values().data(), v.Size(), s));
 }
 
 void SampleMean(Context const* ctx, bool is_column_split, linalg::MatrixView<float const> d_v,

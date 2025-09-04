@@ -38,6 +38,7 @@ from xgboost.testing.dask import (
     make_categorical,
     run_recode,
 )
+from xgboost.testing.data import get_california_housing
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
@@ -1629,9 +1630,7 @@ class TestWithDask:
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_objective(self, client: "Client") -> None:
-        from sklearn.datasets import fetch_california_housing
-
-        X, y = fetch_california_housing(return_X_y=True)
+        X, y = get_california_housing()
         X, y = da.from_array(X), da.from_array(y)
         rounds = 20
 

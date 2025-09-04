@@ -137,3 +137,57 @@ We have:
    E[c_i] &= g^{-1}(F(x_i) + g(\gamma_i))
 
 As you can see, we can use the ``base_margin`` for modeling with offset similar to GLMs
+
+*******
+Example
+*******
+
+The following example shows the relationship between ``base_score`` and ``base_margin``
+using binary logistic with a `logit` link function:
+
+.. code-block:: python
+
+    import numpy as np
+    from scipy.special import logit
+    from sklearn.datasets import make_classification
+    from xgboost import train, DMatrix
+
+    X, y = make_classification(random_state=2025)
+
+The intercept is a valid probability (0.5). It's used as the initial estimation of the
+probability of obtaining a positive sample.
+
+.. code-block:: python
+
+    intercept = 0.5
+
+First we use the intercept to train a model:
+
+.. code-block:: python
+
+    booster = train(
+        {"base_score": intercept, "objective": "binary:logistic"},
+        dtrain=DMatrix(X, y),
+        num_boost_round=1,
+    )
+    predt_0 = booster.predict(DMatrix(X, y))
+
+Apply :py:func:`~scipy.special.logit` to obtain the "margin":
+
+.. code-block:: python
+
+    margin = np.full(y.shape, fill_value=logit(intercept), dtype=np.float32)
+    Xy = DMatrix(X, y, base_margin=margin)
+    # 0.2 is a dummy value to show that `base_margin` overrides `base_score`.
+    booster = train(
+        {"base_score": 0.2, "objective": "binary:logistic"},
+        dtrain=Xy,
+        num_boost_round=1,
+    )
+    predt_1 = booster.predict(Xy)
+
+Compare the results:
+
+.. code-block:: python
+
+    np.testing.assert_allclose(predt_0, predt_1)

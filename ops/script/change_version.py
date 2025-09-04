@@ -152,9 +152,9 @@ source tree.
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--major", type=int)
-    parser.add_argument("--minor", type=int)
-    parser.add_argument("--patch", type=int)
+    parser.add_argument("--major", type=int, required=True)
+    parser.add_argument("--minor", type=int, required=True)
+    parser.add_argument("--patch", type=int, required=True)
     parser.add_argument("--rc", type=int, default=0)
     parser.add_argument("--is-rc", action="store_true")
     parser.add_argument("--is-dev", action="store_true")

@@ -11,7 +11,6 @@
 #include <dmlc/thread_local.h>            // for ThreadLocalStore
 
 #include <algorithm>                      // for equal, max, transform, sort, find_if, all_of
-#include <array>                          // for array
 #include <atomic>                         // for atomic
 #include <cctype>                         // for isalpha, isspace
 #include <cmath>                          // for isnan, isinf
@@ -34,6 +33,7 @@
 #include "collective/aggregator.h"        // for ApplyWithLabels
 #include "collective/communicator-inl.h"  // for Allreduce, Broadcast, GetRank, IsDistributed
 #include "common/api_entry.h"             // for XGBAPIThreadLocalEntry
+#include "common/param_array.h"           // for ParamArray
 #include "common/charconv.h"              // for to_chars, to_chars_result, NumericLimits, from_...
 #include "common/error_msg.h"             // for MaxFeatureSize, WarnOldSerialization, ...
 #include "common/io.h"                    // for PeekableInStream, ReadAll, FixedSizeStream, Mem...
@@ -48,7 +48,7 @@
 #include "xgboost/global_config.h"        // for GlobalConfiguration, GlobalConfigThreadLocalStore
 #include "xgboost/host_device_vector.h"   // for HostDeviceVector
 #include "xgboost/json.h"                 // for Json, get, Object, String, IsA, Array, ToJson
-#include "xgboost/linalg.h"               // for Tensor, TensorView
+#include "xgboost/linalg.h"               // for Vector, VectorView
 #include "xgboost/logging.h"              // for CHECK, LOG, CHECK_EQ
 #include "xgboost/metric.h"               // for Metric
 #include "xgboost/objective.h"            // for ObjFunction
@@ -78,25 +78,25 @@ T& UsePtr(T& ptr) {  // NOLINT
 /*! \brief training parameter for regression
  *
  * Should be deprecated, but still used for being compatible with binary IO.
- * Once it's gone, `LearnerModelParam` should handle transforming `base_margin`
+ * Once it's gone, `LearnerModelParam` should handle transforming `base_score`
  * with objective by itself.
  */
 struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy> {
-  /* \brief global bias */
-  float base_score{ObjFunction::DefaultBaseScore()};
-  /* \brief number of features  */
+  /** @brief Global bias/intercept. */
+  common::ParamArray<float, true> base_score{"base_score", ObjFunction::DefaultBaseScore()};
+  /** @brief number of features  */
   bst_feature_t num_feature{0};
-  /* \brief number of classes, if it is multi-class classification  */
+  /** @brief number of classes, if it is multi-class classification  */
   std::int32_t num_class{0};
-  /*! \brief the version of XGBoost. */
+  /**! @brief the version of XGBoost. */
   std::int32_t major_version{std::get<0>(Version::Self())};
   std::int32_t minor_version{std::get<1>(Version::Self())};
   /**
-   * \brief Number of target variables.
+   * @brief Number of target variables.
    */
   bst_target_t num_target{1};
   /**
-   * \brief Whether we should calculate the base score from training data.
+   * @brief Whether we should calculate the base score from training data.
    *
    *   This is a private parameter as we can't expose it as boolean due to binary model
    *   format. Exposing it as integer creates inconsistency with other parameters.
@@ -108,17 +108,15 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 
   LearnerModelParamLegacy() = default;
 
-  // Skip other legacy fields.
   [[nodiscard]] Json ToJson() const {
     Json obj{Object{}};
-    char floats[NumericLimits<float>::kToCharsSize];
-    auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
-    CHECK(ret.ec == std::errc{});
-    obj["base_score"] = std::string{floats, static_cast<size_t>(std::distance(floats, ret.ptr))};
+    std::stringstream ss;
+    ss << base_score;
+    obj["base_score"] = ss.str();
 
     char integers[NumericLimits<int64_t>::kToCharsSize];
-    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
-                   static_cast<int64_t>(num_feature));
+    auto ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                        static_cast<int64_t>(num_feature));
     CHECK(ret.ec == std::errc());
     obj["num_feature"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
@@ -152,11 +150,9 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     if (bse_it != j_param.cend()) {
       m["boost_from_average"] = get<String const>(bse_it->second);
     }
-
-    this->Init(m);
-
     std::string str = get<String const>(j_param.at("base_score"));
-    from_chars(str.c_str(), str.c_str() + str.size(), base_score);
+    m["base_score"] = str;
+    this->Init(m);
   }
 
   template <typename Container>
@@ -172,39 +168,27 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     }
     return dmlc::Parameter<LearnerModelParamLegacy>::UpdateAllowUnknown(kwargs);
   }
-  // sanity check
+  // Sanity checks
   void Validate(Context const* ctx) {
+    CHECK_GE(this->base_score.size(), 1);
     if (!collective::IsDistributed()) {
       return;
     }
 
-    std::array<std::int32_t, 6> data;
-    std::size_t pos{0};
-    std::memcpy(data.data() + pos, &base_score, sizeof(base_score));
-    pos += 1;
-    std::memcpy(data.data() + pos, &num_feature, sizeof(num_feature));
-    pos += 1;
-    std::memcpy(data.data() + pos, &num_class, sizeof(num_class));
-    pos += 1;
-    std::memcpy(data.data() + pos, &num_target, sizeof(num_target));
-    pos += 1;
-    std::memcpy(data.data() + pos, &major_version, sizeof(major_version));
-    pos += 1;
-    std::memcpy(data.data() + pos, &minor_version, sizeof(minor_version));
+    std::vector<char> data;
+    Json::Dump(this->ToJson(), &data, std::ios::binary);
+    std::vector<char> sync{data};
 
-    std::array<std::int32_t, 6> sync;
-    std::copy(data.cbegin(), data.cend(), sync.begin());
     auto rc = collective::Broadcast(ctx, linalg::MakeVec(sync.data(), sync.size()), 0);
     collective::SafeColl(rc);
+
     CHECK(std::equal(data.cbegin(), data.cend(), sync.cbegin()))
         << "Different model parameter across workers.";
   }
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
-    DMLC_DECLARE_FIELD(base_score)
-        .set_default(ObjFunction::DefaultBaseScore())
-        .describe("Global bias of the model.");
+    DMLC_DECLARE_FIELD(base_score).describe("Global bias of the model.");
     DMLC_DECLARE_FIELD(num_feature)
         .set_default(0)
         .describe(
@@ -237,10 +221,10 @@ LearnerModelParam::LearnerModelParam(LearnerModelParamLegacy const& user_param, 
 }
 
 LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy const& user_param,
-                                     linalg::Tensor<float, 1> base_margin, ObjInfo t,
+                                     linalg::Vector<float> base_score, ObjInfo t,
                                      MultiStrategy multi_strategy)
     : LearnerModelParam{user_param, t, multi_strategy} {
-  std::swap(base_score_, base_margin);
+  std::swap(base_score_, base_score);
   // Make sure read access everywhere for thread-safe prediction.
   std::as_const(base_score_).HostView();
   if (ctx->IsCUDA()) {
@@ -249,7 +233,7 @@ LearnerModelParam::LearnerModelParam(Context const* ctx, LearnerModelParamLegacy
   CHECK(std::as_const(base_score_).Data()->HostCanRead());
 }
 
-linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(DeviceOrd device) const {
+linalg::VectorView<float const> LearnerModelParam::BaseScore(DeviceOrd device) const {
   // multi-class is not yet supported.
   CHECK_EQ(base_score_.Size(), 1) << ModelNotFitted();
   if (!device.IsCUDA()) {
@@ -264,7 +248,7 @@ linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(DeviceOrd device
   return v;
 }
 
-linalg::TensorView<float const, 1> LearnerModelParam::BaseScore(Context const* ctx) const {
+linalg::VectorView<float const> LearnerModelParam::BaseScore(Context const* ctx) const {
   return this->BaseScore(ctx->Device());
 }
 
@@ -353,56 +337,47 @@ class LearnerConfiguration : public Learner {
     this->ConfigureTargets();
 
     auto task = UsePtr(obj_)->Task();
-    linalg::Tensor<float, 1> base_score({1}, Ctx()->Device());
+    linalg::Vector<float> base_score({1}, Ctx()->Device());
     auto h_base_score = base_score.HostView();
 
-    // transform to margin
-    h_base_score(0) = obj_->ProbToMargin(mparam_.base_score);
+    // Transform to margin. (apply the link function)
+    CHECK(!this->mparam_.base_score.empty());
+    h_base_score(0) = obj_->ProbToMargin(mparam_.base_score[0]);
     CHECK(tparam_.GetInitialised());
     // move it to model param, which is shared with all other components.
     learner_model_param_ =
-        LearnerModelParam(Ctx(), mparam_, std::move(base_score), task, tparam_.multi_strategy);
+        LearnerModelParam{Ctx(), mparam_, std::move(base_score), task, tparam_.multi_strategy};
     CHECK(learner_model_param_.Initialized());
     CHECK_NE(learner_model_param_.BaseScore(Ctx()).Size(), 0);
   }
   /**
-   * \brief Calculate the `base_score` based on input data.
+   * @brief Calculate the `base_score` based on input data.
    *
-   * \param p_fmat The training DMatrix used to estimate the base score.
+   * @param p_fmat The training DMatrix used to estimate the base score.
    */
   void InitBaseScore(DMatrix const* p_fmat) {
-    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
-    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
-    // keep the stability, we initialize it in binary LoadModel instead of configuration.
-    // Under what condition should we omit the transformation:
-    //
-    // - base_score is loaded from old binary model.
-    //
-    // What are the other possible conditions:
-    //
-    // - model loaded from new binary or JSON.
-    // - model is created from scratch.
-    // - model is configured second time due to change of parameter
     if (!learner_model_param_.Initialized()) {
       this->ConfigureModelParamWithoutBaseScore();
     }
+
     if (mparam_.boost_from_average && !UsePtr(gbm_)->ModelFitted()) {
+      // The DMatrix can be null if a method that's not training is called.
       if (p_fmat) {
         auto const& info = p_fmat->Info();
         info.Validate(Ctx()->Device());
         // We estimate it from input data.
-        linalg::Tensor<float, 1> base_score;
+        linalg::Vector<float> base_score;
         this->InitEstimation(info, &base_score);
         CHECK_EQ(base_score.Size(), 1);
-        mparam_.base_score = base_score(0);
-        CHECK(!std::isnan(mparam_.base_score));
+        mparam_.base_score = base_score.Data()->ConstHostVector();
+        CHECK(!std::isnan(mparam_.base_score[0]));
       }
       // Update the shared model parameter
       this->ConfigureModelParamWithoutBaseScore();
       mparam_.Validate(&ctx_);
     }
-    CHECK(!std::isnan(mparam_.base_score));
-    CHECK(!std::isinf(mparam_.base_score));
+    CHECK(!mparam_.base_score.empty() && !std::isnan(mparam_.base_score[0]));
+    CHECK(!std::isinf(mparam_.base_score[0]));
   }
 
  public:

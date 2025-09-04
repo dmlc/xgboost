@@ -274,9 +274,7 @@ floating point samples, `512` features (total 1TB) on a GH200 (a H200 GPU connec
 Grace CPU by a chip-to-chip link) system. One can start with:
 - Evenly divide the data into 128 batches with 8GB per batch.
 - Define a custom iterator as previously described.
-- Set the `max_quantile_batches` parameter of the
-  :py:class:`~xgboost.ExtMemQuantileDMatrix` to 32 (256GB per sub-stream for
-  quantization). Load the data.
+- Set the `max_quantile_batches` parameter of the :py:class:`~xgboost.ExtMemQuantileDMatrix` to 32 (256GB per sub-stream for quantization). Load the data.
 - Start training with ``device=cuda``.
 
 To run experiments on these platforms, the open source `NVIDIA Linux driver

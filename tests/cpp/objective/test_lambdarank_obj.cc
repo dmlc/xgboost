@@ -120,7 +120,7 @@ void TestNDCGGPair(Context const* ctx) {
     obj->GetGradient(predts, info, 0, &gpairs);
     ASSERT_EQ(gpairs.Size(), 0);
   }
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+  ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
 
 TEST(LambdaRank, NDCGGPair) {

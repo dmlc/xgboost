@@ -27,7 +27,6 @@
 #include "../../src/common/linalg_op.h"             // for ElementWiseTransformHost, begin, end
 #include "../../src/common/random.h"                // for GlobalRandom
 #include "./collective/test_worker.h"               // for TestDistributedGlobal
-#include "dmlc/io.h"                                // for Stream
 #include "dmlc/omp.h"                               // for omp_get_max_threads
 #include "filesystem.h"                             // for TemporaryDirectory
 #include "helpers.h"                                // for GetBaseScore, RandomDataGenerator
@@ -167,13 +166,13 @@ TEST(Learner, JsonModelIO) {
     Json out { Object() };
     learner->SaveModel(&out);
 
-    dmlc::TemporaryDirectory tmpdir;
+    common::TemporaryDirectory tmpdir;
 
-    std::ofstream fout (tmpdir.path + "/model.json");
+    std::ofstream fout (tmpdir.Path() / "model.json");
     fout << out;
     fout.close();
 
-    auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
+    auto loaded_str = common::LoadSequentialFile(tmpdir.Str() + "/model.json");
     Json loaded = Json::Load(StringView{loaded_str.data(), loaded_str.size()});
 
     learner->LoadModel(loaded);
@@ -616,7 +615,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
     auto n_threads = collective::GetWorkerLocalThreads(world_size);
     auto const rank = collective::GetRank();
 
-    auto p_fmat = MakeFmatForObjTest(objective, 10, 10);
+    std::shared_ptr<DMatrix> p_fmat = MakeFmatForObjTest(objective, 10, 10, 3);
     std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
     std::unique_ptr<Learner> learner{Learner::Create({sliced})};
     learner->SetParams(Args{{"nthread", std::to_string(n_threads)},
@@ -641,7 +640,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
 
  public:
   void Run(std::string objective) {
-    auto p_fmat = MakeFmatForObjTest(objective, 10, 10);
+    std::shared_ptr<DMatrix> p_fmat = MakeFmatForObjTest(objective, 10, 10, 3);
     std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
     learner->SetParam("tree_method", "approx");
     learner->SetParam("objective", objective);
@@ -664,9 +663,7 @@ class TestColumnSplit : public ::testing::TestWithParam<std::string> {
       this->TestBaseScore(objective, args...);
     };
     auto score = GetBaseScore(config);
-    collective::TestDistributedGlobal(kWorldSize, [&] {
-      call(score, model);
-    });
+    collective::TestDistributedGlobal(kWorldSize, [&] { call(score, model); });
   }
 };
 
@@ -701,7 +698,7 @@ void VerifyColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Arg
                                Json const& expected_model) {
   auto const world_size = collective::GetWorldSize();
   auto const rank = collective::GetRank();
-  auto p_fmat = MakeFmatForObjTest("", 10, 10);
+  auto p_fmat = MakeFmatForObjTest("", 10, 10, 0);
   std::shared_ptr<DMatrix> sliced{p_fmat->SliceCol(world_size, rank)};
   std::string device = "cpu";
   if (use_gpu) {
@@ -713,7 +710,7 @@ void VerifyColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Arg
 
 void TestColumnSplitWithArgs(std::string const& tree_method, bool use_gpu, Args const& args,
                              bool federated) {
-  auto p_fmat = MakeFmatForObjTest("", 10, 10);
+  auto p_fmat = MakeFmatForObjTest("", 10, 10, 0);
   std::string device = use_gpu ? "cuda:0" : "cpu";
   auto model = GetModelWithArgs(p_fmat, tree_method, device, args);
 

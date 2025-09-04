@@ -63,11 +63,11 @@ void MinBias(Context const* ctx, std::shared_ptr<ltr::RankingCache> p_cache,
                                                     return std::abs(t_plus(i));
                                                   });
   std::size_t bytes;
-  cub::DeviceSegmentedReduce::Min(nullptr, bytes, val_it, d_min.data(), 2, key_it, key_it + 1,
-                                  cuctx->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Min(nullptr, bytes, val_it, d_min.data(), 2, key_it,
+                                                key_it + 1, cuctx->Stream()));
   dh::TemporaryArray<char> temp(bytes);
-  cub::DeviceSegmentedReduce::Min(temp.data().get(), bytes, val_it, d_min.data(), 2, key_it,
-                                  key_it + 1, cuctx->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Min(temp.data().get(), bytes, val_it, d_min.data(), 2,
+                                                key_it, key_it + 1, cuctx->Stream()));
 }
 
 /**
@@ -225,13 +225,13 @@ void CalcGrad(Context const* ctx, MetaInfo const& info, std::shared_ptr<ltr::Ran
   CHECK_EQ(n_groups * sizeof(GradCostNorm), d_max_lambdas.size_bytes());
   // Reduce by group.
   std::size_t bytes;
-  cub::DeviceSegmentedReduce::Reduce(nullptr, bytes, val_it, d_max_lambdas.data(), n_groups,
-                                     d_threads_group_ptr.data(), d_threads_group_ptr.data() + 1,
-                                     reduction_op, init, ctx->CUDACtx()->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Reduce(
+      nullptr, bytes, val_it, d_max_lambdas.data(), n_groups, d_threads_group_ptr.data(),
+      d_threads_group_ptr.data() + 1, reduction_op, init, ctx->CUDACtx()->Stream()));
   dh::TemporaryArray<char> temp(bytes);
-  cub::DeviceSegmentedReduce::Reduce(
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Reduce(
       temp.data().get(), bytes, val_it, d_max_lambdas.data(), n_groups, d_threads_group_ptr.data(),
-      d_threads_group_ptr.data() + 1, reduction_op, init, ctx->CUDACtx()->Stream());
+      d_threads_group_ptr.data() + 1, reduction_op, init, ctx->CUDACtx()->Stream()));
 
   dh::TemporaryArray<double> min_bias(2);
   auto d_min_bias = dh::ToSpan(min_bias);
@@ -590,11 +590,13 @@ void LambdaRankUpdatePositionBias(Context const* ctx, linalg::VectorView<double 
 
   auto init = thrust::make_tuple(0.0, 0.0);
   std::size_t bytes;
-  cub::DeviceSegmentedReduce::Reduce(nullptr, bytes, val_it, out_it, k, key_it, key_it + 1,
-                                     ReduceOp{}, init, ctx->CUDACtx()->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Reduce(nullptr, bytes, val_it, out_it, k, key_it,
+                                                   key_it + 1, ReduceOp{}, init,
+                                                   ctx->CUDACtx()->Stream()));
   dh::TemporaryArray<char> temp(bytes);
-  cub::DeviceSegmentedReduce::Reduce(temp.data().get(), bytes, val_it, out_it, k, key_it,
-                                     key_it + 1, ReduceOp{}, init, ctx->CUDACtx()->Stream());
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Reduce(temp.data().get(), bytes, val_it, out_it, k,
+                                                   key_it, key_it + 1, ReduceOp{}, init,
+                                                   ctx->CUDACtx()->Stream()));
 
   thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), li.Size(),
                      [=] XGBOOST_DEVICE(std::size_t i) mutable {
