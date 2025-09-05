@@ -55,7 +55,7 @@ Optional dask configuration
 import logging
 from collections import defaultdict
 from contextlib import contextmanager
-from functools import cache, partial, update_wrapper
+from functools import partial, update_wrapper
 from threading import Thread
 from typing import (
     Any,
@@ -85,10 +85,9 @@ from dask import bag as db
 from dask import dataframe as dd
 from dask.delayed import Delayed
 from distributed import Future
-from packaging.version import Version
-from packaging.version import parse as parse_version
 
 from .. import collective, config
+from .._data_utils import Categories
 from .._typing import FeatureNames, FeatureTypes, IterationRange
 from ..callback import TrainingCallback
 from ..collective import Config as CollConfig
@@ -122,8 +121,8 @@ from ..sklearn import (
 )
 from ..tracker import RabitTracker
 from ..training import train as worker_train
-from .data import _create_dmatrix, _create_quantile_dmatrix, no_group_split
-from .utils import get_address_from_user, get_n_threads
+from .data import _get_dmatrices, no_group_split
+from .utils import _DASK_2024_12_1, _DASK_2025_3_0, get_address_from_user, get_n_threads
 
 _DaskCollection: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]
 _DataT: TypeAlias = Union[da.Array, dd.DataFrame]  # do not use series as predictor
@@ -171,21 +170,6 @@ __all__ = [
 
 
 LOGGER = logging.getLogger("[xgboost.dask]")
-
-
-@cache
-def _DASK_VERSION() -> Version:
-    return parse_version(dask.__version__)
-
-
-@cache
-def _DASK_2024_12_1() -> bool:
-    return _DASK_VERSION() >= parse_version("2024.12.1")
-
-
-@cache
-def _DASK_2025_3_0() -> bool:
-    return _DASK_VERSION() >= parse_version("2025.3.0")
 
 
 def _try_start_tracker(
@@ -331,6 +315,10 @@ class DaskDMatrix:
 
         self.feature_names = feature_names
         self.feature_types = feature_types
+        if isinstance(feature_types, Categories):
+            raise TypeError(
+                "The Dask interface can handle categories from DataFrame automatically."
+            )
         self.missing = missing if missing is not None else numpy.nan
         self.enable_categorical = enable_categorical
 
@@ -652,12 +640,6 @@ class DaskQuantileDMatrix(DaskDMatrix):
         return args
 
 
-def _dmatrix_from_list_of_parts(is_quantile: bool, **kwargs: Any) -> DMatrix:
-    if is_quantile:
-        return _create_quantile_dmatrix(**kwargs)
-    return _create_dmatrix(**kwargs)
-
-
 async def _get_rabit_args(
     client: "distributed.Client",
     n_workers: int,
@@ -735,37 +717,6 @@ async def _check_workers_are_alive(
         raise RuntimeError(f"Missing required workers: {missing_workers}")
 
 
-def _get_dmatrices(
-    train_ref: dict,
-    train_id: int,
-    *refs: dict,
-    evals_id: Sequence[int],
-    evals_name: Sequence[str],
-    n_threads: int,
-) -> Tuple[DMatrix, List[Tuple[DMatrix, str]]]:
-    # Create training DMatrix
-    Xy = _dmatrix_from_list_of_parts(**train_ref, nthread=n_threads)
-    # Create evaluation DMatrices
-    evals: List[Tuple[DMatrix, str]] = []
-    for i, ref in enumerate(refs):
-        # Same DMatrix as the training
-        if evals_id[i] == train_id:
-            evals.append((Xy, evals_name[i]))
-            continue
-        if ref.get("ref", None) is not None:
-            if ref["ref"] != train_id:
-                raise ValueError(
-                    "The training DMatrix should be used as a reference to evaluation"
-                    " `QuantileDMatrix`."
-                )
-            del ref["ref"]
-            eval_Xy = _dmatrix_from_list_of_parts(**ref, nthread=n_threads, ref=Xy)
-        else:
-            eval_Xy = _dmatrix_from_list_of_parts(**ref, nthread=n_threads)
-        evals.append((eval_Xy, evals_name[i]))
-    return Xy, evals
-
-
 async def _train_async(
     *,
     client: "distributed.Client",
@@ -817,6 +768,8 @@ async def _train_async(
                 evals_id=evals_id,
                 evals_name=evals_name,
                 n_threads=n_threads,
+                # We need the model for reference categories.
+                model=xgb_model,
             )
 
             booster = worker_train(
@@ -1934,7 +1887,7 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
     def __init__(
         self,
         *,
-        objective: str = "rank:pairwise",
+        objective: str = "rank:ndcg",
         allow_group_split: bool = False,
         coll_cfg: Optional[CollConfig] = None,
         **kwargs: Any,
@@ -2051,8 +2004,8 @@ class DaskXGBRanker(XGBRankerMixIn, DaskScikitLearnBase):
         ) -> TypeGuard[Optional[dd.Series]]:
             if not isinstance(qid, dd.Series) and qid is not None:
                 raise TypeError(
-                    f"When `allow_group_split` is set to False, {name} is required to be"
-                    " a series."
+                    f"When `allow_group_split` is set to False, {name} is required to "
+                    "be a series."
                 )
             return True
 

@@ -1,19 +1,20 @@
 /**
- * Copyright 2022-2024, XGBoost Contributors
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_ALGORITHM_CUH_
 #define XGBOOST_COMMON_ALGORITHM_CUH_
 
-#include <thrust/copy.h>       // copy
-#include <thrust/sort.h>       // stable_sort_by_key
-#include <thrust/tuple.h>      // tuple,get
+#include <thrust/copy.h>                         // for copy
+#include <thrust/iterator/counting_iterator.h>   // for make_counting_iterator
+#include <thrust/sort.h>                         // for stable_sort_by_key
+#include <thrust/tuple.h>                        // for tuple, get
 
-#include <cstddef>             // size_t
-#include <cstdint>             // int32_t
-#include <cub/cub.cuh>         // DispatchSegmentedRadixSort,NullType,DoubleBuffer
-#include <iterator>            // distance
-#include <limits>              // numeric_limits
-#include <type_traits>         // conditional_t,remove_const_t
+#include <cstddef>      // size_t
+#include <cstdint>      // int32_t
+#include <cub/cub.cuh>  // DispatchSegmentedRadixSort,NullType,DoubleBuffer
+#include <iterator>     // distance
+#include <limits>       // numeric_limits
+#include <type_traits>  // conditional_t,remove_const_t
 
 #include "common.h"            // safe_cuda
 #include "cuda_context.cuh"    // CUDAContext
@@ -21,6 +22,7 @@
 #include "device_vector.cuh"   // for device_vector
 #include "xgboost/base.h"      // XGBOOST_DEVICE
 #include "xgboost/context.h"   // Context
+#include "xgboost/linalg.h"    // for VectorView
 #include "xgboost/logging.h"   // CHECK
 #include "xgboost/span.h"      // Span,byte
 
@@ -325,6 +327,42 @@ void InclusiveSum(Context const *ctx, InputIteratorT d_in, OutputIteratorT d_out
 #else
   InclusiveScan(ctx, d_in, d_out, cub::Sum{}, num_items);
 #endif
+}
+
+template <typename... Args>
+void RunLengthEncode(dh::CUDAStreamView stream, Args &&...args) {
+  std::size_t n_bytes = 0;
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(nullptr, n_bytes, args..., stream));
+  dh::CachingDeviceUVector<char> tmp(n_bytes);
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(tmp.data(), n_bytes, args..., stream));
+}
+
+template <typename... Args>
+void SegmentedSum(dh::CUDAStreamView stream, Args &&...args) {
+  std::size_t n_bytes = 0;
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(nullptr, n_bytes, args..., stream));
+  dh::CachingDeviceUVector<char> tmp(n_bytes);
+  dh::safe_cuda(cub::DeviceSegmentedReduce::Sum(tmp.data(), n_bytes, args..., stream));
+}
+
+/**
+ * @brief Customized version of @ref thrust::all_of
+ *
+ * @ref thrust::all_of uses small intervals for early stop. But we often use this function
+ * to perform checks on data and in most cases need to walk through the entire dataset
+ * (like all data point is valid). This function uses @ref thrust::reduce to avoid
+ * excessive kernel launches and synchronizations.
+ */
+template <typename Policy, typename InputIt, typename Chk>
+[[nodiscard]] std::enable_if_t<
+    std::is_same_v<bool,
+                   std::invoke_result_t<Chk, typename std::iterator_traits<InputIt>::value_type>>,
+    bool>
+AllOf(Policy policy, InputIt first, InputIt second, Chk &&check) {
+  auto n = std::distance(first, second);
+  auto it =
+      dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) { return check(first[i]); });
+  return dh::Reduce(policy, it, it + n, true, thrust::logical_and<>{});
 }
 }  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_ALGORITHM_CUH_

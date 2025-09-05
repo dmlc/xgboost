@@ -464,7 +464,16 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
     return;
   }
 
-  this->Other().resize(this->Current().size() + that.size());
+  std::size_t new_size = this->Current().size() + that.size();
+  try {
+    this->Other().resize(new_size);
+  } catch (dmlc::Error const &) {
+    // Retry
+    this->Other().clear();
+    this->Other().shrink_to_fit();
+    this->Other().resize(new_size);
+  }
+
   CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
 
   MergeImpl(ctx, this->Data(), this->ColumnsPtr(), that, d_that_columns_ptr,

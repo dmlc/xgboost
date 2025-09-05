@@ -851,9 +851,10 @@ class Dart : public GBTree {
         auto base_score = model_.learner_model_param->BaseScore(DeviceOrd::CPU());
         auto& h_predts = predts.predictions.HostVector();
         auto& h_out_predts = p_out_preds->predictions.HostVector();
+        CHECK_EQ(base_score.Size(), n_groups);
         common::ParallelFor(n_rows, ctx_->Threads(), [&](auto ridx) {
           const size_t offset = ridx * n_groups + group;
-          h_out_predts[offset] += (h_predts[offset] - base_score(0)) * w;
+          h_out_predts[offset] += (h_predts[offset] - base_score(group)) * w;
         });
       }
     }

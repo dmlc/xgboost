@@ -36,13 +36,16 @@ from xgboost.testing.dask import (
     check_uneven_nan,
     get_rabit_args,
     make_categorical,
+    run_recode,
 )
+from xgboost.testing.data import get_california_housing
 from xgboost.testing.params import hist_cache_strategy, hist_parameter_strategy
 from xgboost.testing.shared import (
     get_feature_weights,
     validate_data_initialization,
     validate_leaf_output,
 )
+from xgboost.testing.updater import get_basescore
 
 dask.config.set({"distributed.scheduler.allowed-failures": False})
 
@@ -312,6 +315,10 @@ def test_categorical(client: "Client") -> None:
     )
     reg.fit(X, y)
     assert reg.get_booster().feature_types == ft
+
+
+def test_recode(client: "Client") -> None:
+    run_recode(client, "cpu")
 
 
 def test_dask_predict_shape_infer(client: "Client") -> None:
@@ -1522,9 +1529,6 @@ class TestWithDask:
         self.run_updater_test(client, params, num_rounds, dataset, "approx")
 
     def test_adaptive(self) -> None:
-        def get_score(config: Dict) -> float:
-            return float(config["learner"]["learner_model_param"]["base_score"])
-
         def local_test(rabit_args: Dict[str, Union[int, str]], worker_id: int) -> bool:
             with dxgb.CommunicatorContext(**rabit_args):
                 if worker_id == 0:
@@ -1545,8 +1549,8 @@ class TestWithDask:
                     num_boost_round=1,
                 )
                 config = json.loads(booster.save_config())
-                base_score = get_score(config)
-                assert base_score == 250.0
+                base_score = get_basescore(config)
+                assert base_score == [250.0]
                 return True
 
         with LocalCluster(n_workers=2, dashboard_address=":0") as cluster:
@@ -1624,9 +1628,7 @@ class TestWithDask:
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_custom_objective(self, client: "Client") -> None:
-        from sklearn.datasets import fetch_california_housing
-
-        X, y = fetch_california_housing(return_X_y=True)
+        X, y = get_california_housing()
         X, y = da.from_array(X), da.from_array(y)
         rounds = 20
 
@@ -1716,9 +1718,14 @@ class TestWithDask:
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr: str, data_ref: Dict) -> None:
+                    from xgboost.dask.data import _dmatrix_from_list_of_parts
+
                     with dxgb.CommunicatorContext(**rabit_args):
-                        local_dtrain = dxgb._dmatrix_from_list_of_parts(
-                            **data_ref, nthread=7
+                        local_dtrain = _dmatrix_from_list_of_parts(
+                            **data_ref,
+                            nthread=7,
+                            model=None,
+                            Xy_cats=None,
                         )
                         total = np.array([local_dtrain.num_row()])
                         total = xgb.collective.allreduce(total, xgb.collective.Op.SUM)

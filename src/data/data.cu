@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  *
  * \file data.cu
  * \brief Handles setting metainfo from array interface.
@@ -7,6 +7,7 @@
 #include <thrust/gather.h>   // for gather
 #include <thrust/logical.h>  // for none_of
 
+#include "../common/algorithm.cuh"  // for RunLengthEncode
 #include "../common/cuda_context.cuh"
 #include "../common/device_helpers.cuh"
 #include "../common/linalg_op.cuh"
@@ -57,8 +58,7 @@ void CopyTensorInfoImpl(CUDAContext const* ctx, Json arr_interface, linalg::Tens
   linalg::ElementWiseTransformDevice(
       t,
       [=] __device__(size_t i, T) {
-        return linalg::detail::Apply(TypedIndex<T, D>{array},
-                                     linalg::UnravelIndex<D>(i, array.shape));
+        return std::apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, array.shape));
       },
       ctx->Stream());
 }
@@ -103,17 +103,13 @@ void CopyQidImpl(Context const* ctx, ArrayInterface<1> array_interface,
   dh::safe_cuda(cudaMemcpy(&non_dec, flag.data().get(), sizeof(bool),
                            cudaMemcpyDeviceToHost));
   CHECK(non_dec) << "`qid` must be sorted in increasing order along with data.";
-  size_t bytes = 0;
+
   dh::caching_device_vector<uint32_t> out(array_interface.Shape<0>());
   dh::caching_device_vector<uint32_t> cnt(array_interface.Shape<0>());
   HostDeviceVector<int> d_num_runs_out(1, 0, d);
-  cub::DeviceRunLengthEncode::Encode(nullptr, bytes, it, out.begin(), cnt.begin(),
-                                     d_num_runs_out.DevicePointer(), array_interface.Shape<0>(),
-                                     cuctx->Stream());
-  dh::CachingDeviceUVector<char> tmp(bytes);
-  cub::DeviceRunLengthEncode::Encode(tmp.data(), bytes, it, out.begin(), cnt.begin(),
-                                     d_num_runs_out.DevicePointer(), array_interface.Shape<0>(),
-                                     cuctx->Stream());
+
+  common::RunLengthEncode(cuctx->Stream(), it, out.begin(), cnt.begin(),
+                          d_num_runs_out.DevicePointer(), array_interface.Shape<0>());
 
   auto h_num_runs_out = d_num_runs_out.HostSpan()[0];
   group_ptr_.clear();

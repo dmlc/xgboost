@@ -83,8 +83,9 @@ SparsePageDMatrix::SparsePageDMatrix(DataIterHandle iter_handle, DMatrixHandle p
   iter.Reset();
 
   ext_info_.SetInfo(&ctx, true, &this->info_);
-
   fmat_ctx_ = ctx;
+
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
 }
 
 SparsePageDMatrix::~SparsePageDMatrix() {
@@ -114,8 +115,8 @@ void SparsePageDMatrix::InitializeSparsePage(Context const *ctx) {
   // During initialization, the n_batches is 0.
   CHECK_EQ(this->ext_info_.n_batches, static_cast<decltype(this->ext_info_.n_batches)>(0));
   sparse_page_source_ = std::make_shared<SparsePageSource>(
-      iter, proxy, this->missing_, ctx->Threads(), this->info_.num_col_, this->ext_info_.n_batches,
-      cache_info_.at(id));
+      std::move(iter), proxy, this->missing_, ctx->Threads(), this->info_.num_col_,
+      this->ext_info_.n_batches, cache_info_.at(id));
 }
 
 BatchSet<SparsePage> SparsePageDMatrix::GetRowBatchesImpl(Context const *ctx) {

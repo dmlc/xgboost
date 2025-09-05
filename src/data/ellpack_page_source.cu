@@ -22,7 +22,7 @@
 #include "ellpack_page.cuh"                  // for EllpackPageImpl
 #include "ellpack_page.h"                    // for EllpackPage
 #include "ellpack_page_source.h"
-#include "proxy_dmatrix.cuh"  // for Dispatch
+#include "proxy_dmatrix.cuh"  // for DispatchAny
 #include "xgboost/base.h"     // for bst_idx_t
 
 namespace xgboost::data {
@@ -559,7 +559,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
   if (!this->ReadCache()) {
     auto iter = this->source_->Iter();
     CHECK_EQ(this->Iter(), iter);
-    cuda_impl::Dispatch(proxy_, [this](auto const& value) {
+    cuda_impl::DispatchAny(proxy_, [this](auto const& value) {
       CHECK(this->proxy_->Ctx()->IsCUDA()) << "All batches must use the same device type.";
       proxy_->Info().feature_types.SetDevice(dh::GetDevice(this->ctx_));
       auto d_feature_types = proxy_->Info().feature_types.ConstDeviceSpan();
@@ -587,7 +587,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
     LOG(DEBUG) << "Generated an Ellpack page with size: "
                << common::HumanMemUnit(this->page_->Impl()->MemCostBytes())
                << " from an batch with estimated size: "
-               << cuda_impl::Dispatch<false>(proxy_, [](auto const& adapter) {
+               << cuda_impl::DispatchAny<false>(proxy_, [](auto const& adapter) {
                     return common::HumanMemUnit(adapter->SizeBytes());
                   });
     this->page_->SetBaseRowId(this->ext_info_.base_rowids.at(iter));

@@ -6,10 +6,10 @@
  */
 #include <dmlc/omp.h>
 
-#include <algorithm>
+#include <algorithm>  // for all_of
 #include <cmath>
-#include <cstdint>  // std::int32_t
-#include <vector>
+#include <cstdint>  // for  int32_t
+#include <vector>   // for vector
 
 #include "../common/common.h"
 #include "../common/linalg_op.h"
@@ -19,9 +19,11 @@
 #include "../common/stats.h"
 #include "../common/threading_utils.h"
 #include "../common/transform.h"
+#include "../common/utils.h"  // for NoOp
 #include "./regression_loss.h"
 #include "adaptive.h"
 #include "init_estimation.h"  // FitIntercept
+#include "regression_param.h"
 #include "xgboost/base.h"
 #include "xgboost/context.h"  // Context
 #include "xgboost/data.h"     // MetaInfo
@@ -34,11 +36,10 @@
 #include "xgboost/span.h"
 #include "xgboost/tree_model.h"  // RegTree
 
-#include "regression_param.h"
-
 #if defined(XGBOOST_USE_CUDA)
-#include "../common/cuda_context.cuh"  // for CUDAContext
-#include "../common/device_helpers.cuh"
+#include "../common/algorithm.cuh"       // for AllOf
+#include "../common/cuda_context.cuh"    // for CUDAContext
+#include "../common/device_helpers.cuh"  // for MakeIndexTransformIter
 #include "../common/linalg_op.cuh"
 #endif  // defined(XGBOOST_USE_CUDA)
 
@@ -48,7 +49,7 @@
 
 namespace xgboost::obj {
 namespace {
-void CheckRegInputs(MetaInfo const& info, HostDeviceVector<bst_float> const& preds) {
+void CheckRegInputs(MetaInfo const& info, HostDeviceVector<float> const& preds) {
   CheckInitInputs(info);
   CHECK_EQ(info.labels.Size(), preds.Size()) << "Invalid shape of labels.";
 }
@@ -63,13 +64,12 @@ void ValidateLabel(Context const* ctx, MetaInfo const& info) {
       },
       [&] {
 #if defined(XGBOOST_USE_CUDA)
-        auto cuctx = ctx->CUDACtx();
-        auto it = dh::MakeTransformIterator<bool>(
-            thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) -> bool {
-              auto [m, n] = linalg::UnravelIndex(i, label.Shape());
-              return Loss::CheckLabel(label(m, n));
-            });
-        return dh::Reduce(cuctx->CTP(), it, it + label.Size(), true, thrust::logical_and<>{});
+        auto it = dh::MakeIndexTransformIter([=] XGBOOST_DEVICE(std::size_t i) -> float {
+          auto [m, n] = linalg::UnravelIndex(i, label.Shape());
+          return label(m, n);
+        });
+        return common::AllOf(ctx->CUDACtx()->CTP(), it, it + label.Size(),
+                             [] XGBOOST_DEVICE(float y) { return Loss::CheckLabel(y); });
 #else
         common::AssertGPUSupport();
         return false;
@@ -87,6 +87,31 @@ void ValidateLabel(Context const* ctx, MetaInfo const& info) {
   if (!valid) {
     LOG(FATAL) << Loss::LabelErrorMsg();
   }
+  if (!info.weights_.Empty()) {
+    CHECK_EQ(info.weights_.Size(), info.num_row_)
+        << "Number of weights should be equal to the number of data points.";
+  }
+}
+
+template <typename Fn, typename Chk = common::NoOp<bool>, typename Err = common::NoOp<StringView>>
+void ProbToMarginImpl(Context const* ctx, linalg::Vector<float>* base_score, Fn&& fn,
+                      Chk check = common::NoOp{true}, Err error = common::NoOp<StringView>{{}}) {
+  auto intercept = base_score->View(ctx->Device());
+  bool is_valid = ctx->DispatchDevice(
+      [&] { return std::all_of(linalg::cbegin(intercept), linalg::cend(intercept), check); },
+      [&] {
+#if defined(XGBOOST_USE_CUDA)
+        return common::AllOf(ctx->CUDACtx()->CTP(), linalg::tcbegin(intercept),
+                             linalg::tcend(intercept), check);
+#else
+        common::AssertGPUSupport();
+        return false;
+#endif  // defined(XGBOOST_USE_CUDA)
+      });
+  CHECK(is_valid) << error();
+  linalg::ElementWiseKernel(ctx, intercept, [=] XGBOOST_DEVICE(std::size_t i) mutable {
+    intercept(i) = fn(intercept(i));
+  });
 }
 }  // anonymous namespace
 
@@ -112,8 +137,8 @@ class RegLossObj : public FitInterceptGlmLike {
     return std::max(static_cast<std::size_t>(1), info.labels.Shape(1));
   }
 
-  void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,
-                   std::int32_t iter, linalg::Matrix<GradientPair>* out_gpair) override {
+  void GetGradient(const HostDeviceVector<float>& preds, const MetaInfo& info, std::int32_t iter,
+                   linalg::Matrix<GradientPair>* out_gpair) override {
     CheckRegInputs(info, preds);
     if (iter == 0) {
       ValidateLabel<Loss>(this->ctx_, info);
@@ -194,8 +219,10 @@ class RegLossObj : public FitInterceptGlmLike {
     }
   }
 
-  [[nodiscard]] float ProbToMargin(float base_score) const override {
-    return Loss::ProbToMargin(base_score);
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    ProbToMarginImpl(
+        this->ctx_, base_score, [] XGBOOST_DEVICE(float v) { return Loss::ProbToMargin(v); },
+        [] XGBOOST_DEVICE(float v) { return Loss::CheckIntercept(v); }, Loss::InterceptErrorMsg);
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -382,9 +409,7 @@ struct PoissonRegressionParam : public XGBoostParameter<PoissonRegressionParam> 
 class PoissonRegression : public FitInterceptGlmLike {
  public:
   // declare functions
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
+  void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
 
   [[nodiscard]] ObjInfo Task() const override { return ObjInfo::kRegression; }
 
@@ -443,8 +468,8 @@ class PoissonRegression : public FitInterceptGlmLike {
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
     PredTransform(io_preds);
   }
-  [[nodiscard]] float ProbToMargin(bst_float base_score) const override {
-    return std::log(base_score);
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    ProbToMarginImpl(this->ctx_, base_score, [] XGBOOST_DEVICE(float v) { return std::log(v); });
   }
   [[nodiscard]] const char* DefaultEvalMetric() const override {
     return "poisson-nloglik";
@@ -550,8 +575,8 @@ class CoxRegression : public FitIntercept {
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
     PredTransform(io_preds);
   }
-  [[nodiscard]] float ProbToMargin(bst_float base_score) const override {
-    return std::log(base_score);
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    ProbToMarginImpl(this->ctx_, base_score, [] XGBOOST_DEVICE(float v) { return std::log(v); });
   }
   [[nodiscard]] const char* DefaultEvalMetric() const override {
     return "cox-nloglik";
@@ -583,7 +608,7 @@ struct TweedieRegressionParam : public XGBoostParameter<TweedieRegressionParam> 
 class TweedieRegression : public FitInterceptGlmLike {
  public:
   // declare functions
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
+  void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
     std::ostringstream os;
     os << "tweedie-nloglik@" << param_.tweedie_variance_power;
@@ -650,9 +675,8 @@ class TweedieRegression : public FitInterceptGlmLike {
         io_preds->Device())
         .Eval(io_preds);
   }
-
-  [[nodiscard]] float ProbToMargin(bst_float base_score) const override {
-    return std::log(base_score);
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    ProbToMarginImpl(this->ctx_, base_score, [] XGBOOST_DEVICE(float v) { return std::log(v); });
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override {
@@ -716,46 +740,38 @@ class MeanAbsoluteError : public ObjFunction {
         });
   }
 
-  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_margin) const override {
+  void InitEstimation(MetaInfo const& info, linalg::Tensor<float, 1>* base_score) const override {
     CheckInitInputs(info);
-    base_margin->Reshape(this->Targets(info));
+    base_score->Reshape(this->Targets(info));
 
-    double w{0.0};
+    double sum_weight{0.0};
     if (info.weights_.Empty()) {
-      w = static_cast<double>(info.num_row_);
+      sum_weight = static_cast<double>(info.num_row_);
     } else {
-      w = common::Reduce(ctx_, info.weights_);
+      sum_weight = common::Reduce(ctx_, info.weights_);
     }
 
     if (info.num_row_ == 0) {
-      auto out = base_margin->HostView();
-      out(0) = 0;
+      auto out = base_score->HostView();
+      std::fill(linalg::begin(out), linalg::end(out), 0.0f);
     } else {
-      linalg::Vector<float> temp;
-      common::Median(ctx_, info.labels, info.weights_, &temp);
-      common::Mean(ctx_, temp, base_margin);
+      common::Median(ctx_, info.labels, info.weights_, base_score);
     }
-    CHECK_EQ(base_margin->Size(), 1);
-    auto out = base_margin->HostView();
-    // weighted avg
-    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
-                   [w](float v) { return v * w; });
 
-    auto rc = collective::Success() << [&] {
-      return collective::GlobalSum(ctx_, info, out);
-    } << [&] {
-      return collective::GlobalSum(ctx_, info, linalg::MakeVec(&w, 1));
-    };
+    auto intercept = base_score->View(this->ctx_->Device());
+    // weighted avg
+    linalg::VecScaMul(this->ctx_, intercept, sum_weight);
+    auto rc = collective::GlobalSum(ctx_, info, intercept, &sum_weight);
     collective::SafeColl(rc);
 
-    if (common::CloseTo(w, 0.0)) {
+    if (common::CloseTo(sum_weight, 0.0)) {
       // Mostly for handling empty dataset test.
       LOG(WARNING) << "Sum of weights is close to 0.0, skipping base score estimation.";
-      out(0) = ObjFunction::DefaultBaseScore();
+      *base_score = linalg::Zeros<float>(ctx_, base_score->Shape(0));
       return;
     }
-    std::transform(linalg::cbegin(out), linalg::cend(out), linalg::begin(out),
-                   [w](float v) { return v / w; });
+
+    linalg::VecScaDiv(this->ctx_, intercept, sum_weight);
   }
 
   void UpdateTreeLeaf(HostDeviceVector<bst_node_t> const& position, MetaInfo const& info,

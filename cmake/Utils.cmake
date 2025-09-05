@@ -69,7 +69,9 @@ function(compute_cmake_cuda_archs archs)
 
   # Set up defaults based on CUDA varsion
   if(NOT CMAKE_CUDA_ARCHITECTURES)
-    if(CUDA_VERSION VERSION_GREATER_EQUAL "12.8")
+    if(CUDA_VERSION VERSION_GREATER_EQUAL "13.0")
+      set(CMAKE_CUDA_ARCHITECTURES 75 80 90 100 120)
+    elseif(CUDA_VERSION VERSION_GREATER_EQUAL "12.8")
       set(CMAKE_CUDA_ARCHITECTURES 50 60 70 80 90 100 120)
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "11.8")
       set(CMAKE_CUDA_ARCHITECTURES 50 60 70 80 90)
@@ -112,13 +114,11 @@ function(xgboost_set_cuda_flags target)
   if(USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
-  else()
-    target_compile_options(${target} PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
 
   if(USE_NVTX)
     target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
+    target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
   endif()
 
   # Use CCCL we find before CUDA Toolkit to make sure we get newer headers as intended

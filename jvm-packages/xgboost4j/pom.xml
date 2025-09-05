@@ -64,13 +64,13 @@
     <build>
       <plugins>
           <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-javadoc-plugin</artifactId>
-              <version>3.11.1</version>
-              <configuration>
-                  <show>protected</show>
-                  <nohelp>true</nohelp>
-              </configuration>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.11.3</version>
+            <configuration>
+              <show>protected</show>
+              <nohelp>true</nohelp>
+            </configuration>
           </plugin>
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>

@@ -17,7 +17,7 @@
 #include "../common/quantile.cuh"       // for SketchContainer
 #include "cat_container.h"              // for CatContainer
 #include "ellpack_page.cuh"             // for EllpackPage
-#include "proxy_dmatrix.cuh"            // for Dispatch
+#include "proxy_dmatrix.cuh"            // for DispatchAny
 #include "proxy_dmatrix.h"              // for DataIterProxy
 #include "quantile_dmatrix.h"           // for GetCutsFromRef
 
@@ -73,7 +73,7 @@ void MakeSketches(Context const* ctx,
     /**
      * Get the data shape.
      */
-    // We use do while here as the first batch is fetched in ctor
+    // We use do while here as the first batch has been fetched in the ctor
     CHECK_LT(ctx->Ordinal(), curt::AllVisibleGPUs());
     auto device = dh::GetDevice(ctx);
     curt::SetDevice(device.ordinal);
@@ -115,7 +115,7 @@ void MakeSketches(Context const* ctx,
         lazy_init_sketch();  // Add a new level.
       }
       proxy->Info().weights_.SetDevice(dh::GetDevice(ctx));
-      Dispatch(proxy, [&](auto const& value) {
+      DispatchAny(proxy, [&](auto const& value) {
         common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing,
                                     sketches.back().first.get());
         sketches.back().second++;
@@ -129,7 +129,7 @@ void MakeSketches(Context const* ctx,
     dh::device_vector<size_t> row_counts(batch_rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
     ext_info.row_stride =
-        std::max(ext_info.row_stride, Dispatch(proxy, [=](auto const& value) {
+        std::max(ext_info.row_stride, DispatchAny(proxy, [=](auto const& value) {
                    return GetRowCounts(ctx, value, row_counts_span, dh::GetDevice(ctx), missing);
                  }));
     ext_info.nnz += thrust::reduce(ctx->CUDACtx()->CTP(), row_counts.begin(), row_counts.end());

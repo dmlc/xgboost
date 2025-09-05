@@ -40,7 +40,7 @@ namespace cuda_impl {
 std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
                                                 std::shared_ptr<DMatrixProxy> proxy,
                                                 float missing) {
-  return Dispatch<false>(proxy.get(), [&](auto const& adapter) {
+  return DispatchAny<false>(proxy.get(), [&](auto const& adapter) {
     auto p_fmat = std::shared_ptr<DMatrix>{DMatrix::Create(adapter.get(), missing, ctx->Threads())};
     CHECK_EQ(p_fmat->Info().num_row_, adapter->NumRows());
     return p_fmat;
@@ -48,15 +48,15 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 }
 
 [[nodiscard]] bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
-  return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumRows(); });
+  return cuda_impl::DispatchAny(proxy, [](auto const& value) { return value.NumRows(); });
 }
 
 [[nodiscard]] bst_idx_t BatchColumns(DMatrixProxy const* proxy) {
-  return cuda_impl::Dispatch(proxy, [](auto const& value) { return value.NumCols(); });
+  return cuda_impl::DispatchAny(proxy, [](auto const& value) { return value.NumCols(); });
 }
 
 [[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy) {
-  return Dispatch<false>(proxy, [&](auto const& adapter) {
+  return DispatchAny<false>(proxy, [&](auto const& adapter) {
     using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
       return adapter->HasRefCategorical();
@@ -66,7 +66,7 @@ std::shared_ptr<DMatrix> CreateDMatrixFromProxy(Context const* ctx,
 }
 
 [[nodiscard]] enc::DeviceColumnsView BatchCats(DMatrixProxy const* proxy) {
-  return Dispatch<false>(proxy, [&](auto const& adapter) {
+  return DispatchAny<false>(proxy, [&](auto const& adapter) {
     using AdapterT = typename common::GetValueT<decltype(adapter)>::element_type;
     if constexpr (std::is_same_v<AdapterT, CudfAdapter>) {
       if (adapter->HasRefCategorical()) {

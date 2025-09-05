@@ -1,5 +1,5 @@
 /**
- * Copyright 2021-2023, XGBoost Contributors
+ * Copyright 2021-2025, XGBoost Contributors
  */
 #ifndef XGBOOST_COMMON_LINALG_OP_CUH_
 #define XGBOOST_COMMON_LINALG_OP_CUH_
@@ -8,6 +8,7 @@
 #include <cstdlib>  // for size_t
 #include <tuple>    // for apply
 
+#include "cuda_context.cuh"
 #include "device_helpers.cuh"  // for LaunchN
 #include "linalg_op.h"
 #include "xgboost/context.h"  // for Context
@@ -32,7 +33,7 @@ template <typename T>
 struct ElementWiseImpl<T, 1> {
   template <typename Fn>
   void operator()(TensorView<T, 1> t, Fn&& fn, cudaStream_t s) {
-    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) { fn(i); });
+    dh::LaunchN(t.Size(), s, [=] __device__(std::size_t i) mutable { fn(i); });
   }
 };
 
@@ -41,6 +42,8 @@ void ElementWiseKernel(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nullptr) {
   dh::safe_cuda(cudaSetDevice(t.Device().ordinal));
   cuda_impl::ElementWiseImpl<T, D>{}(t, fn, s);
 }
+
+void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul);
 }  // namespace cuda_impl
 
 template <typename T, int32_t D, typename Fn>
@@ -50,7 +53,7 @@ void ElementWiseTransformDevice(TensorView<T, D> t, Fn&& fn, cudaStream_t s = nu
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) { ptr[i] = fn(i, ptr[i]); });
   } else {
     dh::LaunchN(t.Size(), s, [=] __device__(size_t i) mutable {
-      T& v = detail::Apply(t, UnravelIndex(i, t.Shape()));
+      T& v = std::apply(t, UnravelIndex(i, t.Shape()));
       v = fn(i, v);
     });
   }
@@ -67,7 +70,7 @@ template <typename T, std::int32_t kDim>
 struct IterOp {
   TensorView<T, kDim> v;
   XGBOOST_DEVICE T& operator()(std::size_t i) {
-    return detail::Apply(v, UnravelIndex(i, v.Shape()));
+    return std::apply(v, UnravelIndex(i, v.Shape()));
   }
 };
 }  // namespace detail

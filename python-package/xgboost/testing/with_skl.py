@@ -8,8 +8,9 @@ import pytest
 
 from ..core import DMatrix
 from ..sklearn import XGBClassifier, XGBRegressor, XGBRFRegressor
+from .data import get_california_housing, make_batches
 from .ordinal import make_recoded
-from .utils import Device
+from .utils import Device, assert_allclose
 
 
 def run_boost_from_prediction_binary(
@@ -114,11 +115,10 @@ def run_boost_from_prediction_multi_clasas(
 
 def run_housing_rf_regression(tree_method: str, device: Device) -> None:
     """Testwith the cali housing dataset."""
-    from sklearn.datasets import fetch_california_housing
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
-    X, y = fetch_california_housing(return_X_y=True)
+    X, y = get_california_housing()
     rng = np.random.RandomState(1994)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
@@ -164,3 +164,68 @@ def run_recoding(device: Device) -> None:
 
     np.testing.assert_allclose(reg.predict(reenc), reg.predict(enc))
     np.testing.assert_allclose(reg.apply(reenc), reg.apply(enc))
+
+
+def run_intercept(device: Device) -> None:
+    """Tests for the intercept."""
+    from sklearn.datasets import make_classification, make_multilabel_classification
+
+    X, y, w = [v[0] for v in make_batches(256, 3, 1, use_cupy=False)]
+    reg = XGBRegressor(device=device)
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert result.dtype == np.float32
+    assert result[0] < 0.5
+
+    reg = XGBRegressor(booster="gblinear", device=device)
+    reg.fit(X, y, sample_weight=w)
+    result = reg.intercept_
+    assert isinstance(result, np.ndarray)
+    assert result.dtype == np.float32
+    assert result[0] < 0.5
+
+    n_classes = 4
+    X, y = make_classification(
+        random_state=1994,
+        n_samples=128,
+        n_features=16,
+        n_classes=n_classes,
+        n_informative=16,
+        n_redundant=0,
+    )
+
+    clf = XGBClassifier(booster="gbtree", objective="multi:softprob", device=device)
+    clf.fit(X, y)
+    result = clf.intercept_
+    assert isinstance(result, np.ndarray)
+    assert len(result) == 4
+    assert (result >= 0.0).all()
+    np.testing.assert_allclose(sum(result), 1.0)
+
+    # Tests for user input
+    # Multi-class
+    intercept = np.ones(shape=(n_classes), dtype=np.float32) / n_classes
+    if device == "cuda":
+        import cupy as cp
+
+        intercept = cp.array(intercept)
+
+    clf = XGBClassifier(objective="multi:softprob", base_score=intercept)
+    clf.fit(X, y)
+    assert_allclose(device, intercept, clf.intercept_)
+
+    X, y = make_multilabel_classification(  # pylint: disable=unbalanced-tuple-unpacking
+        random_state=1994, n_samples=128, n_features=16, n_classes=n_classes
+    )
+
+    # Multi-label
+    intercept = np.ones(shape=(n_classes), dtype=np.float32) / 2
+    if device == "cuda":
+        import cupy as cp
+
+        intercept = cp.array(intercept)
+
+    clf = XGBClassifier(base_score=intercept)
+    clf.fit(X, y)
+    assert_allclose(device, intercept, clf.intercept_)
+    assert clf.objective == "binary:logistic"

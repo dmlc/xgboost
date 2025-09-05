@@ -1,9 +1,8 @@
-/*!
- * Copyright 2018-2023 XGBoost contributors
+/**
+ * Copyright 2018-2025, XGBoost contributors
  */
 #include <xgboost/objective.h>
 #include <xgboost/context.h>
-#include "../../src/common/common.h"
 #include "../helpers.h"
 #include "test_multiclass_obj.h"
 
@@ -32,7 +31,7 @@ void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
 		   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f}, // grad
 		   {0.36f, 0.16f, 0.44f, 0.45f, 0.16f, 0.37f});	 // hess
 
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+  ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
 
 void TestSoftmaxMultiClassBasic(const Context* ctx) {

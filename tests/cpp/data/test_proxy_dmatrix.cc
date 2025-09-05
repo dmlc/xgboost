@@ -21,10 +21,11 @@ TEST(ProxyDMatrix, HostData) {
       RandomDataGenerator(kRows, kCols, 0.5).Device(FstCU()).GenerateArrayInterface(&storage);
 
   proxy.SetArray(data.c_str());
+  using cpu_impl::DispatchAny;
 
-  auto n_samples = HostAdapterDispatch(&proxy, [](auto const &value) { return value.Size(); });
+  auto n_samples = DispatchAny(&proxy, [](auto const &value) { return value.Size(); });
   ASSERT_EQ(n_samples, kRows);
-  auto n_features = HostAdapterDispatch(&proxy, [](auto const &value) { return value.NumCols(); });
+  auto n_features = DispatchAny(&proxy, [](auto const &value) { return value.NumCols(); });
   ASSERT_EQ(n_features, kCols);
 }
 }  // namespace xgboost::data

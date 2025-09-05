@@ -1361,12 +1361,12 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes,too-many-public-m
 
         .. warning::
 
-            This function is still working in progress.
+            This function is experimental.
 
         Parameters
         ----------
         export_to_arrow :
-            The returned container will contain a list to ``pyarrow`` arrays for the
+            The returned container will contain a list of ``pyarrow`` arrays for the
             categories. See the :py:meth:`~Categories.to_arrow` for more info.
 
         """
@@ -2401,6 +2401,8 @@ class Booster:
             params = [(params, value)]
         for key, val in cast(Iterable[Tuple[str, str]], params):
             if isinstance(val, np.ndarray):
+                val = val.tolist()
+            elif hasattr(val, "__cuda_array_interface__") and hasattr(val, "tolist"):
                 val = val.tolist()
             if val is not None:
                 _check_call(

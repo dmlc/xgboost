@@ -87,7 +87,7 @@ def custom_rmse_model(plot_result: bool, strategy: str) -> None:
 
     def rmse(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, float]:
         y = dtrain.get_label().reshape(predt.shape)
-        v = np.sqrt(np.sum(np.power(y - predt, 2)))
+        v = np.sqrt(np.mean(np.power(y - predt, 2)))
         return "PyRMSE", v
 
     X, y = gen_circle()
@@ -113,6 +113,10 @@ def custom_rmse_model(plot_result: bool, strategy: str) -> None:
     y_predt = booster.inplace_predict(X)
     if plot_result:
         plot_predt(y, y_predt, "multi")
+
+    np.testing.assert_allclose(
+        results["Train"]["rmse"], results["Train"]["PyRMSE"], rtol=1e-2
+    )
 
 
 if __name__ == "__main__":

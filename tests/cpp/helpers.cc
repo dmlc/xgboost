@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <filesystem>  // for path
 #include <limits>      // for numeric_limits
+#include <random>      // for mt19937
 
 #include "../../src/collective/communicator-inl.h"  // for GetRank
 #include "../../src/data/adapter.h"
@@ -201,8 +202,14 @@ double GetMultiMetricEval(xgboost::Metric* metric,
 }
 
 namespace xgboost {
-float GetBaseScore(Json const &config) {
-  return std::stof(get<String const>(config["learner"]["learner_model_param"]["base_score"]));
+[[nodiscard]] std::vector<float> GetBaseScore(Json const& config) {
+  auto str = get<String const>(config["learner"]["learner_model_param"]["base_score"]);
+  auto jintercept = Json::Load(str);
+  auto const& array = get<Array const>(jintercept);
+  std::vector<float> results;
+  std::transform(array.begin(), array.end(), std::back_inserter(results),
+                 [](Json v) { return get<Number>(v); });
+  return results;
 }
 
 SimpleLCG::StateType SimpleLCG::operator()() {
@@ -601,6 +608,19 @@ int NumpyArrayIterForTest::Next() {
   return 1;
 }
 
+[[nodiscard]] std::vector<float> GenerateRandomCategoricalSingleColumn(std::size_t n,
+                                                                       std::size_t n_categories) {
+  std::vector<float> x(n);
+  std::mt19937 rng(0);
+  std::uniform_int_distribution<size_t> dist(0, n_categories - 1);
+  std::generate(x.begin(), x.end(), [&]() { return static_cast<float>(dist(rng)); });
+  // Make sure each category is present
+  for (size_t i = 0; i < n_categories; i++) {
+    x[i] = static_cast<decltype(x)::value_type>(i);
+  }
+  return x;
+}
+
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::size_t num_rows,
                                             bst_feature_t num_columns) {
   data::DenseAdapter adapter(x.data(), num_rows, num_columns);
@@ -613,11 +633,11 @@ std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float>& x, std::si
 
 [[nodiscard]] std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
     HostDeviceVector<float> const& x, bst_idx_t n_samples, bst_feature_t n_features,
-    const dmlc::TemporaryDirectory& tempdir, bst_idx_t n_batches) {
+    const common::TemporaryDirectory& tempdir, bst_idx_t n_batches) {
   Context ctx;
   auto iter = NumpyArrayIterForTest{&ctx, x, n_samples / n_batches, n_features, n_batches};
 
-  auto prefix = std::filesystem::path{tempdir.path} / "temp";
+  auto prefix = tempdir.Path() / "temp";
   auto config = ExtMemConfig{
       prefix.string(),
       false,

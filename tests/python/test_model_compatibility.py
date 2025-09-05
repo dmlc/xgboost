@@ -11,6 +11,7 @@ import pytest
 
 import xgboost
 from xgboost import testing as tm
+from xgboost.testing.updater import get_basescore
 
 
 def run_model_param_check(name: str, config: Dict[str, Any]) -> None:
@@ -32,7 +33,9 @@ def run_booster_check(booster: xgboost.Booster, name: str) -> None:
     n_rounds = get_n_rounds(name)
     if name.find("cls") != -1:
         assert len(booster.get_dump()) == gm.kForests * n_rounds * gm.kClasses
-        assert float(config["learner"]["learner_model_param"]["base_score"]) == 0.5
+        base_score = get_basescore(config)
+        assert isinstance(base_score, list)
+        assert all(v == 0.5 for v in base_score)
         assert config["learner"]["learner_train_param"]["objective"] == "multi:softmax"
     elif name.find("logitraw") != -1:
         assert len(booster.get_dump()) == gm.kForests * n_rounds
@@ -57,7 +60,7 @@ def run_booster_check(booster: xgboost.Booster, name: str) -> None:
     else:
         assert name.find("reg") != -1
         assert len(booster.get_dump()) == gm.kForests * n_rounds
-        assert float(config["learner"]["learner_model_param"]["base_score"]) == 0.5
+        assert get_basescore(config) == [0.5]
         assert (
             config["learner"]["learner_train_param"]["objective"] == "reg:squarederror"
         )

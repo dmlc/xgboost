@@ -13,7 +13,7 @@
 #include "../../../src/data/batch_utils.h"  // for MatchingPageBytes
 #include "../../../src/data/sparse_page_dmatrix.h"
 #include "../../../src/tree/param.h"  // for TrainParam
-#include "../filesystem.h"            // dmlc::TemporaryDirectory
+#include "../filesystem.h"            // for TemporaryDirectory
 #include "../helpers.h"
 
 using namespace xgboost;  // NOLINT
@@ -147,10 +147,10 @@ INSTANTIATE_TEST_SUITE_P(SparsePageDMatrix, TestGradientIndexExt, testing::Bool(
 
 // Test GHistIndexMatrix can avoid loading sparse page after the initialization.
 TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
-  dmlc::TemporaryDirectory tmpdir;
+  common::TemporaryDirectory tmpdir;
   std::size_t n_batches = 6;
   auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(n_batches).GenerateSparsePageDMatrix(
-      tmpdir.path + "/", true);
+      tmpdir.Str() + "/", true);
   Context ctx;
   bst_bin_t n_bins{256};
   double sparse_thresh{0.8};
@@ -229,9 +229,9 @@ TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
 }
 
 TEST(SparsePageDMatrix, MetaInfo) {
-  dmlc::TemporaryDirectory tmpdir;
+  common::TemporaryDirectory tmpdir;
   auto dmat = RandomDataGenerator{256, 5, 0.0}.Batches(4).GenerateSparsePageDMatrix(
-      tmpdir.path + "/", true);
+      tmpdir.Str() + "/", true);
 
   // Test the metadata that was parsed
   EXPECT_EQ(dmat->Info().num_row_, 256ul);
@@ -253,7 +253,7 @@ TEST(SparsePageDMatrix, RowAccess) {
 }
 
 TEST(SparsePageDMatrix, ColAccess) {
-  dmlc::TemporaryDirectory tempdir;
+  common::TemporaryDirectory tempdir;
   Context ctx;
 
   auto nan = std::numeric_limits<float>::quiet_NaN();
@@ -348,8 +348,8 @@ auto TestSparsePageDMatrixDeterminism(std::int32_t n_threads) {
   std::vector<size_t> sparse_rptr;
   std::vector<bst_feature_t> sparse_cids;
 
-  dmlc::TemporaryDirectory tmpdir;
-  auto prefix = (std::filesystem::path{tmpdir.path} / "temp").string();
+  common::TemporaryDirectory tmpdir;
+  auto prefix = (tmpdir.Path() / "temp").string();
   auto dmat = RandomDataGenerator{4096, 64, 0.0}.Batches(4).GenerateSparsePageDMatrix(prefix, true);
 
   auto config = ExtMemConfig{prefix,

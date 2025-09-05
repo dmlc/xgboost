@@ -213,7 +213,7 @@ def test_unbiased() -> None:
         lambdarank_pair_method="topk",
         objective="rank:ndcg",
         callbacks=[Position()],
-        boost_from_average=0,
+        base_score=0.5,
     )
     ltr.fit(x, c, qid=q, eval_set=[(x, c)], eval_qid=[q])
 

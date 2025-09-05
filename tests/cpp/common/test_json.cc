@@ -1,5 +1,5 @@
 /**
- * Copyright 2019-2024, XGBoost Contributors
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@
 #include "../../../src/common/io.h"
 #include "../../../src/common/json_utils.h"
 #include "../../../src/common/threading_utils.h"  // for ParallelFor
-#include "../filesystem.h"                        // dmlc::TemporaryDirectory
+#include "../filesystem.h"                        // for TemporaryDirectory
 #include "../helpers.h"
 #include "dmlc/logging.h"
 #include "xgboost/json.h"
@@ -422,8 +422,8 @@ TEST(Json, LoadDump) {
   std::string ori_buffer = GetModelStr();
   Json origin{Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
 
-  dmlc::TemporaryDirectory tempdir;
-  auto const& path = tempdir.path + "test_model_dump";
+  common::TemporaryDirectory tempdir;
+  auto const& path = tempdir.Path() / "test_model_dump";
 
   std::string out;
   Json::Dump(origin, &out);
@@ -432,7 +432,7 @@ TEST(Json, LoadDump) {
   ASSERT_TRUE(fout);
   fout << out << std::flush;
 
-  std::vector<char> new_buffer = common::LoadSequentialFile(path);
+  std::vector<char> new_buffer = common::LoadSequentialFile(path.string());
 
   Json load_back{Json::Load(StringView(new_buffer.data(), new_buffer.size()))};
   ASSERT_EQ(load_back, origin);

@@ -91,7 +91,7 @@ void SyncFeatureType(Context const *ctx, std::vector<FeatureType> *p_h_ft);
  * @brief Fetch the external data shape.
  */
 void GetDataShape(Context const *ctx, DMatrixProxy *proxy,
-                  DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> iter, float missing,
+                  DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext> *iter, float missing,
                   ExternalDataInfo *p_info);
 
 /**

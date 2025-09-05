@@ -162,7 +162,7 @@ class CatContainer {
    *        this method returns True.
    */
   [[nodiscard]] bool Empty() const;
-  [[nodiscard]] bool NeedRecode() const { return !this->Empty() && !this->is_ref_; }
+  [[nodiscard]] bool NeedRecode() const { return this->HasCategorical() && !this->is_ref_; }
 
   [[nodiscard]] std::size_t NumFeatures() const;
   /**
@@ -253,8 +253,8 @@ struct CatAccessor {
  * @brief No-op accessor used to handle numeric data.
  */
 struct NoOpAccessor {
-  XGBOOST_DEVICE explicit NoOpAccessor(enc::MappingView const&) {}
-  NoOpAccessor() = default;
+  constexpr explicit NoOpAccessor(enc::MappingView const&) {}
+  constexpr NoOpAccessor() = default;
   template <typename T, typename Fidx>
   [[nodiscard]] XGBOOST_DEVICE T operator()(T fvalue, Fidx) const {
     return fvalue;
@@ -262,6 +262,8 @@ struct NoOpAccessor {
   [[nodiscard]] XGBOOST_DEVICE float operator()(data::COOTuple const& e) const { return e.value; }
   [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const& e) const { return e.fvalue; }
 };
+
+void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty);
 
 namespace cpu_impl {
 inline auto MakeCatAccessor(Context const* ctx, enc::HostColumnsView const& new_enc,

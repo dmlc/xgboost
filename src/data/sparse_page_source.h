@@ -319,11 +319,11 @@ class SparsePageSourceImpl : public BatchIteratorImpl<S>, public FormatStreamPol
       if (restart) {
         this->param_.prefetch_copy = true;
       }
-      ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, this] {
+      auto p = this->param_;
+      ring_->at(fetch_it) = this->workers_.Submit([fetch_it, self, p, this] {
         auto page = std::make_shared<S>();
         this->exce_.Run([&] {
-          std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{
-              self->CreatePageFormat(self->param_)};
+          std::unique_ptr<typename FormatStreamPolicy::FormatT> fmt{self->CreatePageFormat(p)};
           auto name = self->cache_info_->ShardName();
           auto [offset, length] = self->cache_info_->View(fetch_it);
           std::unique_ptr<typename FormatStreamPolicy::ReaderT> fi{
@@ -459,7 +459,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
     if (!this->ReadCache()) {
       bool type_error{false};
       CHECK(proxy_);
-      HostAdapterDispatch(
+      cpu_impl::DispatchAny(
           proxy_,
           [&](auto const& adapter_batch) {
             page_->Push(adapter_batch, this->missing_, this->nthreads_);
@@ -481,7 +481,7 @@ class SparsePageSource : public SparsePageSourceImpl<SparsePage> {
                    DMatrixProxy* proxy, float missing, int nthreads, bst_feature_t n_features,
                    bst_idx_t n_batches, std::shared_ptr<Cache> cache)
       : SparsePageSourceImpl(missing, nthreads, n_features, cache),
-        iter_{iter},
+        iter_{std::move(iter)},
         proxy_{proxy},
         n_batches_{n_batches} {
     if (!cache_info_->written) {

@@ -127,7 +127,9 @@ OBJECTS= \
     $(PKGROOT)/src/common/host_device_vector.o \
     $(PKGROOT)/src/common/io.o \
     $(PKGROOT)/src/common/json.o \
+    $(PKGROOT)/src/common/linalg_op.o \
     $(PKGROOT)/src/common/numeric.o \
+    $(PKGROOT)/src/common/optional_weight.o \
     $(PKGROOT)/src/common/pseudo_huber.o \
     $(PKGROOT)/src/common/quantile.o \
     $(PKGROOT)/src/common/random.o \
@@ -135,6 +137,7 @@ OBJECTS= \
     $(PKGROOT)/src/common/survival_util.o \
     $(PKGROOT)/src/common/threading_utils.o \
     $(PKGROOT)/src/common/ranking_utils.o \
+    $(PKGROOT)/src/common/param_array.o \
     $(PKGROOT)/src/common/quantile_loss_utils.o \
     $(PKGROOT)/src/common/timer.o \
     $(PKGROOT)/src/common/version.o \

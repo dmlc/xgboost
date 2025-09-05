@@ -1,33 +1,28 @@
 /**
  * Copyright 2020-2025, XGBoost contributors
  */
-#include <memory>     // for shared_ptr
-#include <utility>    // for move
+#include <memory>   // for shared_ptr
+#include <utility>  // for move
 
 #include "batch_utils.h"  // for RegenGHist, CheckParam
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"
+#include "ellpack_page_raw_format.h"  // for EllpackPageRawFormat
 #include "iterative_dmatrix.h"
-#include "proxy_dmatrix.cuh"
-#include "proxy_dmatrix.h"  // for BatchSamples, BatchColumns
+#include "proxy_dmatrix.cuh"  // for DispatchAny
+#include "proxy_dmatrix.h"    // for BatchSamples, BatchColumns
 #include "simple_batch_iterator.h"
 
 namespace xgboost::data {
-void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
-                                    std::int64_t max_quantile_blocks, DataIterHandle iter_handle,
-                                    float missing, std::shared_ptr<DMatrix> ref) {
+void IterativeDMatrix::InitFromCUDA(
+    Context const* ctx, BatchParam const& p, std::int64_t max_quantile_blocks,
+    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&& iter, float missing,
+    std::shared_ptr<DMatrix> ref) {
   // A handle passed to external iterator.
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
 
-  // The external iterator
-  auto iter =
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
-
-  dh::XGBCachingDeviceAllocator<char> alloc;
-
   // Sketch for all batches.
-
   std::int32_t current_device{dh::CurrentDevice()};
   auto get_ctx = [&]() {
     Context d_ctx = (ctx->IsCUDA()) ? *ctx : Context{}.MakeCUDA(current_device);
@@ -68,14 +63,14 @@ void IterativeDMatrix::InitFromCUDA(Context const* ctx, BatchParam const& p,
     auto rows = BatchSamples(proxy);
     dh::device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(), row_counts.size());
-    cuda_impl::Dispatch(proxy, [=](auto const& value) {
+    cuda_impl::DispatchAny(proxy, [=](auto const& value) {
       return GetRowCounts(ctx, value, row_counts_span, dh::GetDevice(ctx), missing);
     });
     auto is_dense = this->IsDense();
 
     proxy->Info().feature_types.SetDevice(dh::GetDevice(ctx));
     auto d_feature_types = proxy->Info().feature_types.ConstDeviceSpan();
-    auto new_impl = cuda_impl::Dispatch(proxy, [&](auto const& value) {
+    auto new_impl = cuda_impl::DispatchAny(proxy, [&](auto const& value) {
       return EllpackPageImpl{
           &fmat_ctx_,          value, missing, is_dense, row_counts_span, d_feature_types,
           ext_info.row_stride, rows,  cuts};
@@ -145,5 +140,30 @@ BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
   CHECK(ellpack_);
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
   return BatchSet<EllpackPage>(begin_iter);
+}
+
+void IterativeDMatrix::Save(common::AlignedFileWriteStream* fo) const {
+  CHECK(fo);
+  CHECK(this->ellpack_) << "Not implemented";
+  // Save cuts
+  auto const& p_cuts = this->ellpack_->Impl()->CutsShared();
+  p_cuts->Save(fo);
+  // Save ellpack
+  auto fmt =
+      std::make_unique<EllpackPageRawFormat>(p_cuts, this->Ctx()->Device(), BatchParam{}, false);
+  auto n_bytes = fmt->Write(*this->ellpack_, fo);
+  CHECK_GE(n_bytes, this->ellpack_->Impl()->MemCostBytes());
+}
+
+IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream* fi) {
+  CHECK(fi);
+  // Load cuts
+  std::shared_ptr<common::HistogramCuts> p_cuts{common::HistogramCuts::Load(fi)};
+  // Load ellpack
+  auto fmt = std::make_unique<EllpackPageRawFormat>(p_cuts, DeviceOrd::CUDA(dh::CurrentDevice()),
+                                                    BatchParam{}, false);
+  auto ellpack = std::make_shared<EllpackPage>();
+  CHECK(fmt->Read(ellpack.get(), fi));
+  return new IterativeDMatrix{std::move(ellpack)};
 }
 }  // namespace xgboost::data

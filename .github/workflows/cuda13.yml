@@ -1,0 +1,89 @@
+name: XGBoost CI (CUDA 13)
+
+on: [push, pull_request]
+
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
+jobs:
+  build-cuda13:
+    name: Build CUDA 13
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=cuda13-build-cuda13
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-cuda13.sh
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda13 \
+            build/testxgboost ./xgboost python-package/dist/*.whl
+  test-cpp-cuda13:
+    name: Google Test (C++) with CUDA 13
+    needs: [build-cuda13]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-gpu
+      - tag=cuda13-test-cpp-cuda13
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Unstash gtest
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda13 \
+            --dest-dir build \
+            testxgboost
+          chmod +x build/testxgboost
+      - run: |
+          bash ops/pipeline/test-cpp-cuda13.sh
+  test-python-cuda13:
+    name: Run Python tests with CUDA 13
+    needs: [build-cuda13]
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-gpu
+      - tag=cuda13-test-python-cuda13
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Unstash Python wheel
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda13 \
+            --dest-dir wheelhouse \
+            *.whl xgboost
+          mv -v wheelhouse/xgboost .
+          chmod +x ./xgboost
+      - name: Run Python tests
+        run: bash ops/pipeline/test-python-wheel-cuda13.sh

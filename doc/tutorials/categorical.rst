@@ -137,38 +137,147 @@ feature it's specified as ``"c"``.  The Dask module in XGBoost has the same inte
 :class:`dask.Array <dask.Array>` can also be used for categorical data. Lastly, the
 sklearn interface :py:class:`~xgboost.XGBRegressor` has the same parameter.
 
-****************
-Data Consistency
-****************
+.. _cat-recode:
 
-XGBoost accepts parameters to indicate which feature is considered categorical, either through the ``dtypes`` of a dataframe or through the ``feature_types`` parameter. However, XGBoost by itself doesn't store information on how categories are encoded in the first place. For instance, given an encoding schema that maps music genres to integer codes:
+********************************
+Auto-recoding (Data Consistency)
+********************************
+
+.. versionchanged:: 3.1
+
+  Starting with XGBoost 3.1, the *Python* interface can perform automatic re-coding for
+  new inputs.
+
+XGBoost accepts parameters to indicate which feature is considered categorical, either
+through the ``dtypes`` of a dataframe or through the ``feature_types`` parameter. However,
+except for the Python interface, XGBoost doesn't store the information about how
+categories are encoded in the first place. For instance, given an encoding schema that
+maps music genres to integer codes:
 
 .. code-block:: python
 
   {"acoustic": 0, "indie": 1, "blues": 2, "country": 3}
 
-XGBoost doesn't know this mapping from the input and hence cannot store it in the model. The mapping usually happens in the users' data engineering pipeline with column transformers like :py:class:`sklearn.preprocessing.OrdinalEncoder`. To make sure correct result from XGBoost, users need to keep the pipeline for transforming data consistent across training and testing data. One should watch out for errors like:
+Aside from the Python interface (R/Java/C, etc), XGBoost doesn't know this mapping from
+the input and hence cannot store it in the model. The mapping usually happens in the
+users' data engineering pipeline. To ensure the correct result from XGBoost, users need to
+keep the pipeline for transforming data consistent across training and testing data.
+
+Starting with 3.1, the *Python* interface can remember the encoding and perform recoding
+during inference and training continuation when the input is a dataframe (`pandas`,
+`cuDF`, `polars`, `pyarrow`, `modin`). The feature support focuses on basic usage. It has
+some restrictions on the types of inputs that can be accepted. First, category names
+must have one of the following types:
+
+- string
+- integer, from 8-bit to 64-bit, both signed and unsigned are supported.
+- 32-bit or 64-bit floating point
+
+Other category types are not supported. Second, the input types must be strictly
+consistent. For example, XGBoost will raise an error if the categorical columns in the
+training set are unsigned integers whereas the test dataset has signed integer columns. If
+you have categories that are not one of the supported types, you need to perform the
+re-coding using a pre-processing data transformer like the
+:py:class:`sklearn.preprocessing.OrdinalEncoder`. See
+:ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using an ordinal
+encoder. To clarify, the type here refers to the type of the name of categories (called
+``Index`` in pandas):
 
 .. code-block:: python
 
-  X_train["genre"] = X_train["genre"].astype("category")
-  reg = xgb.XGBRegressor(enable_categorical=True).fit(X_train, y_train)
+  # string type
+  {"acoustic": 0, "indie": 1, "blues": 2, "country": 3}
+  # integer type
+  {-1: 0, 1: 1, 3: 2, 7: 3}
+  # depending on the dataframe implementation, it can be signed or unsigned.
+  {5: 0, 1: 1, 3: 2, 7: 3}
+  # floating point type, both 32-bit and 64-bit are supported.
+  {-1.0: 0, 1.0: 1, 3.0: 2, 7.0: 3}
 
-  # invalid encoding
-  X_test["genre"] = X_test["genre"].astype("category")
-  reg.predict(X_test)
+Internally, XGBoost attempts to extract the categories from the dataframe inputs. For
+inference (predict), the re-coding happens on the fly and there's no data copy (baring
+some internal transformations performed by the dataframe itself). For training
+continuation however, re-coding requires some extra steps if you are using the native
+interface. The sklearn interface and the Dask interface can handle training continuation
+automatically. Last, please note that using the re-coder with the native interface is
+still experimental. It's ready for testing, but we want to observe the feature usage for a
+period of time and might make some breaking changes if needed. The following is a snippet
+of using the native interface:
 
-In the above snippet, training data and test data are encoded separately, resulting in two different encoding schemas and invalid prediction result. See :ref:`sphx_glr_python_examples_cat_pipeline.py` for a worked example using ordinal encoder.
+.. code-block:: python
+
+  import pandas as pd
+
+  X = pd.DataFrame()
+  Xy = xgboost.QuantileDMatrix(X, y, enable_categorical=True)
+  booster = xgboost.train({}, Xy)
+
+  # XGBoost can handle re-coding for inference without user intervention
+  X_new = pd.DataFrame()
+  booster.inplace_predict(X_new)
+
+  # Get categories saved in the model for training continuation
+  categories = booster.get_categories()
+  # Use saved categories as a reference for re-coding.
+  # Training continuation requires a re-coded DMatrix, pass the categories as feature_types
+  Xy_new = xgboost.QuantileDMatrix(
+    X_new, y_new, feature_types=categories, enable_categorical=True, ref=Xy
+  )
+  booster_1 = xgboost.train({}, Xy_new, xgb_model=booster)
+
+
+No extra step is required for using the scikit-learn interface as long as the inputs are
+dataframes. During training continuation, XGBoost will either extract the categories from
+the previous model or use the categories from the new training dataset if the input model
+doesn't have the information.
+
+For R, the auto-recoding is not yet supported as of 3.1. To provide an example:
+
+.. code-block:: R
+
+    > f0 = factor(c("a", "b", "c"))
+    > as.numeric(f0)
+    [1] 1 2 3
+    > f0
+    [1] a b c
+    Levels: a b c
+
+In the above snippet, we have the mapping: ``a -> 1, b -> 2, c -> 3``. Assuming the above
+is the training data, and the next snippet is the test data:
+
+.. code-block:: R
+
+    > f1 = factor(c("a", "c"))
+    > as.numeric(f1)
+    [1] 1 2
+    > f1
+    [1] a c
+    Levels: a c
+
+
+Now, we have ``a -> 1, c -> 2`` because ``b`` is missing, and the R factor encodes the data
+differently, resulting in invalid test-time encoding. XGBoost cannot remember the original
+encoding for the R package. You will have to encode the data explicitly during inference:
+
+.. code-block:: R
+
+    > f1 = factor(c("a", "c"), levels = c("a", "b", "c"))
+    > f1
+    [1] a c
+    Levels: a b c
+    > as.numeric(f1)
+      [1] 1 3
+
 
 *************
 Miscellaneous
 *************
 
-By default, XGBoost assumes input categories are integers starting from 0 till the number
-of categories :math:`[0, n\_categories)`. However, user might provide inputs with invalid
-values due to mistakes or missing values in training dataset. It can be negative value,
-integer values that can not be accurately represented by 32-bit floating point, or values
-that are larger than actual number of unique categories.  During training this is
+By default, XGBoost assumes input category codes are integers starting from 0 till the
+number of categories :math:`[0, n\_categories)`. However, user might provide inputs with
+invalid values due to mistakes or missing values in training dataset. It can be negative
+value, integer values that can not be accurately represented by 32-bit floating point, or
+values that are larger than actual number of unique categories.  During training this is
 validated but for prediction it's treated as the same as not-chosen category for
 performance reasons.
 

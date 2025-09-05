@@ -419,13 +419,18 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``base_score``
 
-  - The initial prediction score of all instances, global bias
-  - The parameter is automatically estimated for selected objectives before training. To
-    disable the estimation, specify a real number argument.
-  - If ``base_margin`` is supplied, ``base_score`` will not be added.
-  - For sufficient number of iterations, changing this value will not have too much effect.
+  The initial prediction score of all instances, also known as the global bias, or the intercept.
 
-  See :doc:`/tutorials/intercept` for more info.
+  .. versionchanged:: 3.1.0
+
+    XGBoost is updated to use vector-valued intercept by default.
+
+  - The parameter is automatically estimated for selected objectives before training. To
+    disable the estimation, specify a real number argument, e.g. ``base_score = 0.5``.
+  - If ``base_margin`` is supplied, ``base_score`` will not be used.
+  - If we train the model with a sufficient number of iterations, changing this value does not offer significant benefit.
+
+  See :doc:`/tutorials/intercept` for more information, including different use cases.
 
 * ``eval_metric`` [default according to objective]
 

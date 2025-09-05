@@ -16,10 +16,9 @@
 #include <tuple>        // for apply, make_tuple
 #include <type_traits>  // for is_floating_point
 #include <utility>      // for pair, swap
-#include <vector>       // for vector
 
 #include "../common/error_msg.h"         // for GroupWeight, LabelScoreSize
-#include "../common/linalg_op.h"         // for begin, cbegin, cend
+#include "../common/linalg_op.h"         // for begin, cbegin, cend, SaveVector
 #include "../common/optional_weight.h"   // for MakeOptionalWeights, OptionalWeights
 #include "../common/ranking_utils.h"     // for RankingCache, LambdaRankParam, MAPCache, NDCGC...
 #include "../common/threading_utils.h"   // for ParallelFor, Sched
@@ -257,18 +256,11 @@ class LambdaRankObj : public FitIntercept {
     out["name"] = String(Loss::Name());
     out["lambdarank_param"] = ToJson(param_);
 
-    auto save_bias = [](linalg::Vector<double> const& in, Json out) {
-      auto& out_array = get<F32Array>(out);
-      out_array.resize(in.Size());
-      auto h_in = in.HostView();
-      std::copy(linalg::cbegin(h_in), linalg::cend(h_in), out_array.begin());
-    };
-
     if (param_.lambdarank_unbiased) {
       out["ti+"] = F32Array();
-      save_bias(ti_plus_, out["ti+"]);
+      linalg::SaveVector(ti_plus_, &out["ti+"]);
       out["tj-"] = F32Array();
-      save_bias(tj_minus_, out["tj-"]);
+      linalg::SaveVector(tj_minus_, &out["tj-"]);
     }
   }
   void LoadConfig(Json const& in) override {
@@ -278,24 +270,8 @@ class LambdaRankObj : public FitIntercept {
     }
 
     if (param_.lambdarank_unbiased) {
-      auto load_bias = [](Json in, linalg::Vector<double>* out) {
-        if (IsA<F32Array>(in)) {
-          // JSON
-          auto const& array = get<F32Array>(in);
-          out->Reshape(array.size());
-          auto h_out = out->HostView();
-          std::copy(array.cbegin(), array.cend(), linalg::begin(h_out));
-        } else {
-          // UBJSON
-          auto const& array = get<Array>(in);
-          out->Reshape(array.size());
-          auto h_out = out->HostView();
-          std::transform(array.cbegin(), array.cend(), linalg::begin(h_out),
-                         [](Json const& v) { return get<Number const>(v); });
-        }
-      };
-      load_bias(in["ti+"], &ti_plus_);
-      load_bias(in["tj-"], &tj_minus_);
+      linalg::LoadVector(in["ti+"], &ti_plus_);
+      linalg::LoadVector(in["tj-"], &tj_minus_);
     }
   }
 

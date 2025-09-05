@@ -496,8 +496,8 @@ TEST(GpuHist, EvaluateSplits) {
                              FstCU()};
   dh::device_vector<EvaluateSplitInputs> inputs =
       std::vector<EvaluateSplitInputs>{input_left, input_right};
-  evaluator.LaunchEvaluateSplits(input_left.feature_set.size(), dh::ToSpan(inputs), shared_inputs,
-                                 evaluator.GetEvaluator(), dh::ToSpan(out_splits));
+  evaluator.LaunchEvaluateSplits(&ctx, input_left.feature_set.size(), dh::ToSpan(inputs),
+                                 shared_inputs, evaluator.GetEvaluator(), dh::ToSpan(out_splits));
 
   DeviceSplitCandidate result_left = out_splits[0];
   EXPECT_EQ(result_left.findex, 1);

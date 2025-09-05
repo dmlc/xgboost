@@ -129,6 +129,8 @@ class DenseAdapterBatch : public detail::NoMetaInfo {
   const Line GetLine(size_t idx) const {
     return Line(values_ + idx * num_features_, num_features_, idx);
   }
+  [[nodiscard]] std::size_t NumRows() const { return num_rows_; }
+  [[nodiscard]] std::size_t NumCols() const { return num_features_; }
   static constexpr bool kIsRowMajor = true;
 
  private:
@@ -145,8 +147,8 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
         num_columns_(num_features) {}
   const DenseAdapterBatch& Value() const override { return batch_; }
 
-  size_t NumRows() const { return num_rows_; }
-  size_t NumColumns() const { return num_columns_; }
+  [[nodiscard]] std::size_t NumRows() const { return num_rows_; }
+  [[nodiscard]] std::size_t NumColumns() const { return num_columns_; }
 
  private:
   DenseAdapterBatch batch_;
@@ -480,6 +482,11 @@ inline auto MakeEncColumnarBatch(Context const* ctx, ColumnarAdapter const* adap
   cats->Sort(ctx);
   auto [acc, mapping] = cpu_impl::MakeCatAccessor(ctx, adapter->Cats(), cats.get());
   return std::tuple{EncColumnarAdapterBatch{adapter->Columns(), acc}, std::move(mapping)};
+}
+
+inline auto MakeEncColumnarBatch(Context const* ctx,
+                                 std::shared_ptr<ColumnarAdapter> const& adapter) {
+  return MakeEncColumnarBatch(ctx, adapter.get());
 }
 
 class FileAdapterBatch {

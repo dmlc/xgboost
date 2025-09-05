@@ -21,6 +21,7 @@
 #include "cat_container.h"  // for CatContainer
 #include "ellpack_page.h"   // for EllpackPage
 #include "gradient_index.h"
+#include "proxy_dmatrix.h"  // for DispatchAny
 #include "xgboost/c_api.h"
 #include "xgboost/data.h"
 
@@ -231,32 +232,31 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
                              DataSplitMode data_split_mode) {
   Context ctx;
   ctx.Init(Args{{"nthread", std::to_string(nthread)}});
-
   std::vector<uint64_t> qids;
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
   uint64_t last_group_id = default_max;
   bst_uint group_size = 0;
   auto& offset_vec = sparse_page_->offset.HostVector();
   auto& data_vec = sparse_page_->data.HostVector();
+  // batch_size is either number of rows or cols, depending on data layout
   uint64_t inferred_num_columns = 0;
   uint64_t total_batch_size = 0;
-  // batch_size is either number of rows or cols, depending on data layout
-
-  auto push_page = [&](auto const& batch) {
-    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-      if (adapter->HasRefCategorical()) {
-        auto [enc_batch, mapping] = MakeEncColumnarBatch(&ctx, adapter);
-        return sparse_page_->Push(enc_batch, missing, ctx.Threads());
-      }
-    }
-    return sparse_page_->Push(batch, missing, ctx.Threads());
-  };
 
   adapter->BeforeFirst();
   // Iterate over batches of input data
   while (adapter->Next()) {
+    bool type_error = false;
+    auto push = [&](auto const& batch) {
+      return sparse_page_->Push(batch, missing, ctx.Threads());
+    };
+    bst_idx_t batch_max_columns =
+        cpu_impl::DispatchAny<true, std::add_pointer_t>(&ctx, adapter, push, &type_error);
     auto& batch = adapter->Value();
-    bst_idx_t batch_max_columns = push_page(batch);
+    if (type_error) {
+      // Not supported by the dispatch function.
+      batch_max_columns = push(batch);
+    }
+
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     total_batch_size += batch.Size();
     // Append meta information if available
@@ -340,6 +340,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread,
     info_.num_row_ = adapter->NumRows();
   }
   info_.num_nonzero_ = data_vec.size();
+
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
 
   // Sort the index for row partitioners used by variuos tree methods.
   if (!sparse_page_->IsIndicesSorted(ctx.Threads())) {

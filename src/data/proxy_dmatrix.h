@@ -9,6 +9,7 @@
 #include <cstdint>      // for uint32_t, int32_t
 #include <memory>       // for shared_ptr
 #include <type_traits>  // for invoke_result_t, declval
+#include <utility>      // for forward
 #include <vector>       // for vector
 
 #include "../common/nvtx_utils.h"  // for xgboost_NVTX_FN_RANGE
@@ -41,8 +42,8 @@ class DataIterProxy {
       : iter_{iter}, reset_{reset}, next_{next} {}
   DataIterProxy(DataIterProxy&& that) = default;
   DataIterProxy& operator=(DataIterProxy&& that) = default;
-  DataIterProxy(DataIterProxy const& that) = default;
-  DataIterProxy& operator=(DataIterProxy const& that) = default;
+  DataIterProxy(DataIterProxy const& that) = delete;
+  DataIterProxy& operator=(DataIterProxy const& that) = delete;
 
   [[nodiscard]] bool Next() {
     xgboost_NVTX_FN_RANGE();
@@ -157,6 +158,7 @@ struct ExternalDataInfo {
 
     CHECK_GE(this->n_features, 1) << "Data must has at least 1 column.";
     CHECK_EQ(this->base_rowids.size(), this->n_batches + 1);
+    CHECK_LE(this->row_stride, this->n_features);
   }
 
   void SetInfo(Context const* ctx, bool sync, MetaInfo* p_info) {
@@ -173,74 +175,109 @@ struct ExternalDataInfo {
   }
 };
 
+namespace cpu_impl {
 /**
- * @brief Dispatch function call based on input type.
+ * @brief Dispatch function call based on the input type.
  *
- * @tparam get_value Whether the funciton Fn accept an adapter batch or the adapter itself.
+ * @tparam get_value Whether the funciton Fn accepts an adapter batch or the adapter itself.
+ * @tparam AddPtrT   The type of the adapter pointer. Use std::add_pointer_t for raw pointer.
  * @tparam Fn        The type of the function to be dispatched.
  *
- * @param proxy The proxy object holding the reference to the input.
+ * @param x     Any any object that contains a (shared) pointer to an adapter.
  * @param fn    The function to be dispatched.
  * @param type_error[out] Set to ture if it's not null and the input data is not recognized by
  *                        the host.
  *
  * @return The return value of the function being dispatched.
  */
-template <bool get_value = true, typename Fn>
-decltype(auto) HostAdapterDispatch(DMatrixProxy const* proxy, Fn fn, bool* type_error = nullptr) {
-  CHECK(proxy->Adapter().has_value());
-  if (proxy->Adapter().type() == typeid(std::shared_ptr<CSRArrayAdapter>)) {
-    if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter())->Value();
-      return fn(value);
-    } else {
-      auto value = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter());
-      return fn(value);
-    }
+template <bool get_value = true, template <typename A> typename AddPtrT = std::shared_ptr,
+          typename Fn>
+decltype(auto) DispatchAny(Context const* ctx, std::any x, Fn&& fn, bool* type_error = nullptr) {
+  // CSC, FileAdapter, and IteratorAdapter are not supported.
+  auto has_type = [&] {
     if (type_error) {
       *type_error = false;
     }
-  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ArrayAdapter>)) {
+  };
+  CHECK(x.has_value());
+  if (x.type() == typeid(AddPtrT<data::DenseAdapter>)) {
+    has_type();
     if constexpr (get_value) {
-      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter())->Value();
+      auto value = std::any_cast<AddPtrT<DenseAdapter>>(x)->Value();
       return fn(value);
     } else {
-      auto value = std::any_cast<std::shared_ptr<ArrayAdapter>>(proxy->Adapter());
+      auto value = std::any_cast<AddPtrT<DenseAdapter>>(x);
+      fn(value);
+    }
+  } else if (x.type() == typeid(AddPtrT<ArrayAdapter>)) {
+    has_type();
+    if constexpr (get_value) {
+      auto value = std::any_cast<AddPtrT<ArrayAdapter>>(x)->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<AddPtrT<ArrayAdapter>>(x);
       return fn(value);
     }
-    if (type_error) {
-      *type_error = false;
+  } else if (x.type() == typeid(AddPtrT<CSRArrayAdapter>)) {
+    has_type();
+    if constexpr (get_value) {
+      auto value = std::any_cast<AddPtrT<CSRArrayAdapter>>(x)->Value();
+      return fn(value);
+    } else {
+      auto value = std::any_cast<AddPtrT<CSRArrayAdapter>>(x);
+      return fn(value);
     }
-  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<ColumnarAdapter>)) {
-    auto adapter = std::any_cast<std::shared_ptr<ColumnarAdapter>>(proxy->Adapter());
+  } else if (x.type() == typeid(AddPtrT<ColumnarAdapter>)) {
+    has_type();
+    auto adapter = std::any_cast<AddPtrT<ColumnarAdapter>>(x);
     if constexpr (get_value) {
       auto value = adapter->Value();
       if (adapter->HasRefCategorical()) {
-        auto [batch, mapping] = MakeEncColumnarBatch(proxy->Ctx(), adapter.get());
+        auto [batch, mapping] = MakeEncColumnarBatch(ctx, adapter);
         return fn(batch);
       }
       return fn(value);
     } else {
       return fn(adapter);
     }
-    if (type_error) {
-      *type_error = false;
-    }
   } else {
     if (type_error) {
       *type_error = true;
     } else {
-      LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
+      LOG(FATAL) << "Unknown type: " << x.type().name();
     }
   }
 
   if constexpr (get_value) {
-    return std::invoke_result_t<Fn,
-                                decltype(std::declval<std::shared_ptr<ArrayAdapter>>()->Value())>();
+    return std::invoke_result_t<Fn, decltype(std::declval<AddPtrT<ArrayAdapter>>()->Value())>();
   } else {
-    return std::invoke_result_t<Fn, decltype(std::declval<std::shared_ptr<ArrayAdapter>>())>();
+    return std::invoke_result_t<Fn, decltype(std::declval<AddPtrT<ArrayAdapter>>())>();
   }
 }
+
+template <bool get_value = true, typename Fn>
+decltype(auto) DispatchAny(DMatrixProxy const* proxy, Fn&& fn, bool* type_error = nullptr) {
+  return DispatchAny<get_value>(proxy->Ctx(), proxy->Adapter(), std::forward<Fn>(fn), type_error);
+}
+
+/**
+ * @brief Get categories for the current batch.
+ *
+ * @return A host view to the categories
+ */
+[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
+  return DispatchAny<false>(proxy, [](auto const& adapter) -> decltype(auto) {
+    using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
+    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
+      if (adapter->HasRefCategorical()) {
+        return adapter->RefCats();
+      }
+      return adapter->Cats();
+    }
+    return enc::HostColumnsView{};
+  });
+}
+}  // namespace cpu_impl
 
 /**
  * @brief Create a `SimpleDMatrix` instance from a `DMatrixProxy`.
@@ -265,7 +302,7 @@ namespace cuda_impl {
 [[nodiscard]] inline bst_idx_t BatchSamples(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_samples =
-      HostAdapterDispatch(proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
+      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumRows(); }, &type_error);
   if (type_error) {
     n_samples = cuda_impl::BatchSamples(proxy);
   }
@@ -278,34 +315,14 @@ namespace cuda_impl {
 [[nodiscard]] inline bst_feature_t BatchColumns(DMatrixProxy const* proxy) {
   bool type_error = false;
   auto n_features =
-      HostAdapterDispatch(proxy, [](auto const& value) { return value.NumCols(); }, &type_error);
+      cpu_impl::DispatchAny(proxy, [](auto const& value) { return value.NumCols(); }, &type_error);
   if (type_error) {
     n_features = cuda_impl::BatchColumns(proxy);
   }
   return n_features;
 }
 
-namespace cpu_impl {
-/**
- * @brief Get categories for the current batch.
- *
- * @param ref_if_avail Use the reference categories if present.
- *
- * @return A host view to the categories
- */
-[[nodiscard]] inline decltype(auto) BatchCats(DMatrixProxy const* proxy) {
-  return HostAdapterDispatch<false>(proxy, [](auto const& adapter) -> decltype(auto) {
-    using AdapterT = typename std::remove_reference_t<decltype(adapter)>::element_type;
-    if constexpr (std::is_same_v<AdapterT, ColumnarAdapter>) {
-      if (adapter->HasRefCategorical()) {
-        return adapter->RefCats();
-      }
-      return adapter->Cats();
-    }
-    return enc::HostColumnsView{};
-  });
-}
-}  // namespace cpu_impl
+namespace cpu_impl {}  // namespace cpu_impl
 [[nodiscard]] bool BatchCatsIsRef(DMatrixProxy const* proxy);
 }  // namespace xgboost::data
 #endif  // XGBOOST_DATA_PROXY_DMATRIX_H_

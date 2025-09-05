@@ -15,7 +15,7 @@ from packaging.version import parse as parse_version
 import xgboost as xgb
 from xgboost import testing as tm
 from xgboost.collective import CommunicatorContext
-from xgboost.testing.dask import get_rabit_args, make_categorical
+from xgboost.testing.dask import get_rabit_args, make_categorical, run_recode
 from xgboost.testing.params import hist_parameter_strategy
 
 from ..test_with_dask.test_with_dask import (
@@ -43,6 +43,7 @@ pytestmark = [
 
 try:
     import cudf
+    import dask
     import dask.dataframe as dd
     from dask import __version__ as dask_version
     from dask import array as da
@@ -251,15 +252,6 @@ class TestDistributedGPU:
         run_with_dask_dataframe(dxgb.DaskDMatrix, local_cuda_client)
         run_with_dask_dataframe(dxgb.DaskQuantileDMatrix, local_cuda_client)
 
-    @pytest.mark.skipif(**tm.no_dask_cudf())
-    def test_categorical(self, local_cuda_client: Client) -> None:
-        X, y = make_categorical(local_cuda_client, 10000, 30, 13)
-        X = X.to_backend("cudf")
-
-        X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, onehot=True)
-        X_onehot = X_onehot.to_backend("cudf")
-        run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
-
     @given(
         params=hist_parameter_strategy,
         num_rounds=strategies.integers(1, 20),
@@ -310,6 +302,7 @@ class TestDistributedGPU:
 
     def test_empty_quantile_dmatrix(self, local_cuda_client: Client) -> None:
         client = local_cuda_client
+
         X, y = make_categorical(client, 1, 30, 13)
         X_valid, y_valid = make_categorical(client, 10000, 30, 13)
 
@@ -317,17 +310,17 @@ class TestDistributedGPU:
         Xy_valid = dxgb.DaskQuantileDMatrix(
             client, X_valid, y_valid, ref=Xy, enable_categorical=True
         )
-        result = dxgb.train(
-            client,
-            {"tree_method": "hist", "device": "cuda", "debug_synchronize": True},
-            Xy,
-            num_boost_round=10,
-            evals=[(Xy_valid, "Valid")],
-        )
-        predt = dxgb.inplace_predict(client, result["booster"], X).compute()
-        np.testing.assert_allclose(y.compute(), predt)
-        rmse = result["history"]["Valid"]["rmse"][-1]
-        assert rmse < 32.0
+        # The error is from a worker. Dask cannot prioritize which worker's error to
+        # propagate, it could be the emtpy DMatrix error or the collective communication
+        # error. As a result, the test doesn't match the error message.
+        with pytest.raises(ValueError):
+            dxgb.train(
+                client,
+                {"tree_method": "hist", "device": "cuda", "debug_synchronize": True},
+                Xy,
+                num_boost_round=10,
+                evals=[(Xy_valid, "Valid")],
+            )
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_dask_array(self, local_cuda_client: Client) -> None:
@@ -509,7 +502,11 @@ class TestDistributedGPU:
 
         def worker_fn(worker_addr: str, data_ref: Dict) -> None:
             with dxgb.CommunicatorContext(**rabit_args):
-                local_dtrain = dxgb._dmatrix_from_list_of_parts(**data_ref, nthread=7)
+                from xgboost.dask.data import _dmatrix_from_list_of_parts
+
+                local_dtrain = _dmatrix_from_list_of_parts(
+                    **data_ref, nthread=7, model=None, Xy_cats=None
+                )
                 fw_rows = local_dtrain.get_float_info("feature_weights").shape[0]
                 assert fw_rows == local_dtrain.num_col()
 
@@ -589,6 +586,27 @@ class TestDistributedGPU:
 
         for rn, drn in zip(ranker_names, dranker_names):
             assert rn == drn
+
+
+@pytest.mark.skipif(**tm.no_dask_cudf())
+def test_categorical(local_cuda_client: Client) -> None:
+    X, y = make_categorical(local_cuda_client, 10000, 30, 13)
+    X = X.to_backend("cudf")
+
+    X_onehot, _ = make_categorical(local_cuda_client, 10000, 30, 13, onehot=True)
+    X_onehot = X_onehot.to_backend("cudf")
+    run_categorical(local_cuda_client, "hist", "cuda", X, X_onehot, y)
+
+
+@pytest.mark.skipif(**tm.no_dask_cudf())
+def test_recode(local_cuda_client: Client) -> None:
+    with dask.config.set(
+        {
+            "array.backend": "cupy",
+            "dataframe.backend": "cudf",
+        }
+    ):
+        run_recode(local_cuda_client, "cuda")
 
 
 @pytest.mark.skipif(**tm.no_cupy())
