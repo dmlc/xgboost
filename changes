@@ -1,0 +1,253 @@
+diff --git a/src/common/column_matrix.cc b/src/common/column_matrix.cc
+index 21271cbda..7a7cfe107 100644
+--- a/src/common/column_matrix.cc
++++ b/src/common/column_matrix.cc
+@@ -74,7 +74,7 @@ void ColumnMatrix::InitStorage(GHistIndexMatrix const& gmat, double sparse_thres
+ 
+   any_missing_ = !gmat.IsDense();
+ 
+-  missing_ = MissingIndicator{0, false};
++  missing_ = MissingIndicator{feature_offsets_, type_, any_missing_};
+ }
+ 
+ // IO procedures for external memory.
+@@ -95,6 +95,9 @@ bool ColumnMatrix::Read(AlignedResourceReadStream* fi, uint32_t const* index_bas
+   if (!common::ReadVec(fi, &missing_.storage)) {
+     return false;
+   }
++  if (!common::ReadVec(fi, &missing_.feature_offsets_expand)) {
++    return false;
++  }
+   missing_.InitView();
+ 
+   index_base_ = index_base;
+@@ -115,6 +118,7 @@ std::size_t ColumnMatrix::Write(AlignedFileWriteStream* fo) const {
+   bytes += common::WriteVec(fo, row_ind_);
+   bytes += common::WriteVec(fo, feature_offsets_);
+   bytes += common::WriteVec(fo, missing_.storage);
++  bytes += common::WriteVec(fo, missing_.feature_offsets_expand);
+ 
+   bytes += fo->Write(bins_type_size_);
+   bytes += fo->Write(any_missing_);
+diff --git a/src/common/column_matrix.h b/src/common/column_matrix.h
+index c65c63dad..dc9d34068 100644
+--- a/src/common/column_matrix.h
++++ b/src/common/column_matrix.h
+@@ -114,18 +114,18 @@ class DenseColumnIter : public Column<BinIdxT> {
+  private:
+   using Base = Column<BinIdxT>;
+   /* flags for missing values in dense columns */
+-  Span<uint8_t> missing_flags_;
++  LBitField32 missing_flags_;
+   size_t feature_offset_;
+ 
+  public:
+   explicit DenseColumnIter(common::Span<const BinIdxT> index, bst_bin_t index_base,
+-                           Span<uint8_t> missing_flags, size_t feature_offset)
++                           LBitField32 missing_flags, size_t feature_offset)
+       : Base{index, index_base}, missing_flags_{missing_flags}, feature_offset_{feature_offset} {}
+   DenseColumnIter(DenseColumnIter const&) = delete;
+   DenseColumnIter(DenseColumnIter&&) = default;
+ 
+   [[nodiscard]] bool IsMissing(size_t ridx) const {
+-    return missing_flags_[feature_offset_ + ridx];
++    return missing_flags_.Check(feature_offset_ + ridx);
+   }
+ 
+   bst_bin_t operator[](size_t ridx) const {
+@@ -145,46 +145,79 @@ class DenseColumnIter : public Column<BinIdxT> {
+  *    in a column is below the threshold it's classified as dense column.
+  */
+ class ColumnMatrix {
+-  /**
+-   * @brief A bit set for indicating whether an element in a dense column is missing.
+-   */
++/**
++ * @brief A bit set for indicating whether an element in a dense column is missing.
++ */
+   struct MissingIndicator {
+-    Span<uint8_t> missing;
+-    RefResourceView<uint8_t> storage;
++    using BitFieldT = LBitField32;
++    using T = typename BitFieldT::value_type;
++
++    BitFieldT missing;
++    RefResourceView<T> storage;
++    RefResourceView<std::size_t> feature_offsets_expand;
++    static_assert(std::is_same_v<T, std::uint32_t>);
+ 
+     template <typename U>
+-    [[nodiscard]] std::enable_if_t<!std::is_signed_v<U>, U> static InitValue(uint8_t init) {
++    [[nodiscard]] std::enable_if_t<!std::is_signed_v<U>, U> static InitValue(bool init) {
+       return init ? ~U{0} : U{0};
+     }
+ 
++    void InitOffsetsExpand(const RefResourceView<std::size_t>& feature_offsets,
++                           const RefResourceView<ColumnType>& type) {
++      if (feature_offsets_expand.size() != feature_offsets.size()) {
++        feature_offsets_expand = common::MakeFixedVecWithMalloc(feature_offsets.size(), std::size_t{0});
++      }
++
++      for (size_t fid = 1; fid < feature_offsets.size(); ++fid) {
++        if (type[fid - 1] == ColumnType::kDenseColumn) {
++          size_t n_rows = feature_offsets[fid] - feature_offsets[fid - 1];
++          size_t n_rows_expand = DivRoundUp(n_rows, BitFieldT::kValueSize) * BitFieldT::kValueSize;
++          feature_offsets_expand[fid] = feature_offsets_expand[fid - 1] + n_rows_expand;
++        } else {
++          feature_offsets_expand[fid] = feature_offsets_expand[fid - 1];
++        }
++      }
++    }
++
+     MissingIndicator() = default;
+     /**
+      * @param n_elements Size of the bit set
+      * @param init       Initialize the indicator to true or false.
+      */
+-    MissingIndicator(std::size_t n_elements, bool init) {
+-      storage = common::MakeFixedVecWithMalloc(n_elements, static_cast<uint8_t>(init));
++    MissingIndicator(const RefResourceView<std::size_t>& feature_offsets,
++                     const RefResourceView<ColumnType>& type, bool init) {
++      InitOffsetsExpand(feature_offsets, type);
++      size_t n_elements = feature_offsets_expand.back();
++      auto m_size = missing.ComputeStorageSize(n_elements);
++      storage = common::MakeFixedVecWithMalloc(m_size, InitValue<T>(init));
+       this->InitView();
+     }
+     /** @brief Set the i^th element to be a valid element (instead of missing). */
+-    void SetValid(size_t i) { missing[i] = 0; }
++    void SetValid(typename LBitField32::index_type i, std::size_t fid) {
++      missing.Clear(feature_offsets_expand[fid] + i);
++    }
+     /** @brief assign the storage to the view. */
+     void InitView() {
+-      missing = Span{storage.data(), static_cast<size_t>(storage.size())};
++      missing = LBitField32{Span{storage.data(), static_cast<size_t>(storage.size())}};
+     }
+ 
+-    void GrowTo(std::size_t n_elements, bool init) {
++    void GrowTo(const RefResourceView<std::size_t>& feature_offsets, 
++                const RefResourceView<ColumnType>& type, bool init) {
++      InitOffsetsExpand(feature_offsets, type);
++      size_t n_elements = feature_offsets_expand.back();
++
+       CHECK(storage.Resource()->Type() == ResourceHandler::kMalloc)
+           << "[Internal Error]: Cannot grow the vector when external memory is used.";
+-      CHECK_GE(n_elements, storage.size());
+-      if (n_elements == storage.size()) {
++      auto m_size = missing.ComputeStorageSize(n_elements);
++      CHECK_GE(m_size, storage.size());
++      if (m_size == storage.size()) {
+         return;
+       }
+       // grow the storage
+       auto resource = std::dynamic_pointer_cast<common::MallocResource>(storage.Resource());
+       CHECK(resource);
+-      resource->Resize(n_elements * sizeof(uint8_t), InitValue<std::byte>(init));
+-      storage = RefResourceView<uint8_t>{resource->DataAs<uint8_t>(), n_elements, resource};
++      resource->Resize(m_size * sizeof(T), InitValue<std::byte>(init));
++      storage = RefResourceView<T>{resource->DataAs<T>(), m_size, resource};
+ 
+       this->InitView();
+     }
+@@ -197,7 +230,7 @@ class ColumnMatrix {
+     ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+     if (type_[fid] == kDenseColumn) {
+       begin[rid] = bin_id - index_base_[fid];
+-      missing_.SetValid(feature_offsets_[fid] + rid);
++      missing_.SetValid(rid, fid);
+     } else {
+       begin[num_nonzeros_[fid]] = bin_id - index_base_[fid];
+       row_ind_[feature_offsets_[fid] + num_nonzeros_[fid]] = rid;
+@@ -210,7 +243,7 @@ class ColumnMatrix {
+     ColumnBinT* begin = &local_index[feature_offsets_[fid]];
+     if (type_[fid] == kDenseColumn) {
+       begin[rid] = bin_id - index_base_[fid];
+-      missing_.SetValid(feature_offsets_[fid] + rid);
++      missing_.SetValid(rid, fid);
+     } else {
+       begin[nnz] = bin_id - index_base_[fid];
+       row_ind_[feature_offsets_[fid] + nnz] = rid;
+@@ -320,7 +353,8 @@ class ColumnMatrix {
+         reinterpret_cast<const BinIdxType*>(&index_[feature_offset * bins_type_size_]),
+         column_size};
+     return DenseColumnIter<BinIdxType, any_missing>{
+-        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_.missing, feature_offset};
++        bin_index, static_cast<bst_bin_t>(index_base_[fidx]), missing_.missing,
++                                          missing_.feature_offsets_expand[fidx]};
+   }
+ 
+   // all columns are dense column and has no missing value
+@@ -328,7 +362,7 @@ class ColumnMatrix {
+   template <typename RowBinIdxT>
+   void SetIndexNoMissing(bst_idx_t base_rowid, RowBinIdxT const* row_index, const size_t n_samples,
+                          const size_t n_features, int32_t n_threads) {
+-    missing_.GrowTo(feature_offsets_[n_features], false);
++    missing_.GrowTo(feature_offsets_, type_, false);
+ 
+     DispatchBinType(bins_type_size_, [&](auto t) {
+       using ColumnBinT = decltype(t);
+@@ -355,7 +389,7 @@ class ColumnMatrix {
+                             float missing, int n_threads) {
+     auto n_features = gmat.Features();
+ 
+-    missing_.GrowTo(feature_offsets_[n_features], true);
++    missing_.GrowTo(feature_offsets_, type_, true);
+     auto const* row_index = gmat.index.data<std::uint32_t>() + gmat.row_ptr[base_rowid];
+     if (num_nonzeros_.empty()) {
+       num_nonzeros_ = common::MakeFixedVecWithMalloc(n_features, std::size_t{0});
+@@ -375,6 +409,11 @@ class ColumnMatrix {
+       std::vector<size_t> n_elements((n_threads + 1) * n_features, 0);
+       std::vector<size_t> k_offsets(n_threads + 1, 0);
+       size_t block_size = DivRoundUp(batch_size, n_threads);
++      block_size = DivRoundUp(block_size, MissingIndicator::BitFieldT::kValueSize) *
++                                          MissingIndicator::BitFieldT::kValueSize;
++      size_t shift = MissingIndicator::BitFieldT::kValueSize -
++                     (base_rowid % MissingIndicator::BitFieldT::kValueSize);
++      if (shift == MissingIndicator::BitFieldT::kValueSize) shift = 0;
+ 
+       // Parallel row processing for thread-local counting.
+       #pragma omp parallel num_threads(n_threads)
+@@ -382,7 +421,8 @@ class ColumnMatrix {
+         exc.Run([&, is_valid]() {
+           int tid = omp_get_thread_num();
+           size_t begin = block_size * tid;
+-          size_t end = std::min(begin + block_size, batch_size);
++          size_t end = std::min(begin + shift + block_size, batch_size);
++          if (tid > 0) begin += shift;
+           for (size_t rid = begin; rid < end; ++rid) {
+             const auto& line = batch.GetLine(rid);
+             for (size_t i = 0; i < line.Size(); ++i) {
+@@ -418,7 +458,9 @@ class ColumnMatrix {
+         exc.Run([&, is_valid, base_rowid, row_index]() {
+           int tid = omp_get_thread_num();
+           size_t begin = block_size * tid;
+-          size_t end = std::min(begin + block_size, batch_size);
++          size_t end = std::min(begin + shift + block_size, batch_size);
++          if (tid > 0) begin += shift;
++
+           size_t k = 0;
+           for (size_t rid = begin; rid < end; ++rid) {
+             const auto& line = batch.GetLine(rid);
+@@ -447,7 +489,7 @@ class ColumnMatrix {
+   void SetIndexMixedColumns(const GHistIndexMatrix& gmat) {
+     auto n_features = gmat.Features();
+ 
+-    missing_ = MissingIndicator{feature_offsets_[n_features], true};
++    missing_ = MissingIndicator{feature_offsets_, type_, true};
+     num_nonzeros_ = common::MakeFixedVecWithMalloc(n_features, std::size_t{0});
+ 
+     DispatchBinType(bins_type_size_, [&](auto t) {
+diff --git a/tests/cpp/common/test_column_matrix.cc b/tests/cpp/common/test_column_matrix.cc
+index 645b8c7f0..38f64f297 100644
+--- a/tests/cpp/common/test_column_matrix.cc
++++ b/tests/cpp/common/test_column_matrix.cc
+@@ -136,7 +136,7 @@ TEST(ColumnMatrix, GrowMissing) {
+     auto const& column_matrix = page.Transpose();
+     auto const& missing = column_matrix.Missing();
+     auto n = NumpyArrayIterForTest::Rows() * NumpyArrayIterForTest::Cols();
+-    auto expected = n;
++    auto expected = std::remove_reference_t<decltype(missing)>::BitFieldT::ComputeStorageSize(n);
+     auto got = missing.storage.size();
+     ASSERT_EQ(expected, got);
+     DispatchBinType(column_matrix.GetTypeSize(), [&](auto dtype) {

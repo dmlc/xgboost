@@ -239,16 +239,14 @@ class ArrayTreeLayout {
    * the node index for the right child at the next level is always 2*nidx+1.
    * This greatly improves data locality.
    * 
-   * @param thread_temp buffer holding the feature values
-   * 
-   * @param offset offset of the current data block
+   * @param fvec_tloc buffer holding the feature values
    * 
    * @param block_size size of the current block (1 < block_size <= 64)
    * 
    * @param p_nidx pointer to the vector of node indexes in the original tree,
    *               corresponding to the level next after kNumDeepLevels
    */
-  void inline Process(std::vector<RegTree::FVec> const &thread_temp, std::size_t const offset,
+  void inline Process(common::Span<RegTree::FVec> fvec_tloc,
                       std::size_t const block_size, bst_node_t* p_nidx) {
     for (int depth = 0; depth < kNumDeepLevels; ++depth) {
       std::size_t first_node = (1u << depth) - 1;
@@ -256,7 +254,7 @@ class ArrayTreeLayout {
       for (std::size_t i = 0; i < block_size; ++i) {
         bst_node_t idx = p_nidx[i];
 
-        const auto& feat = thread_temp[offset + i];
+        const auto& feat = fvec_tloc[i];
         bst_feature_t split = split_index_[first_node + idx];
         auto fvalue = feat.GetFvalue(split);
         if constexpr (any_missing) {
@@ -276,22 +274,21 @@ class ArrayTreeLayout {
 
 template <class TreeType, bool has_categorical, bool any_missing, int num_deep_levels = 1>
 void inline ProcessArrayTree(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats,
-                             std::vector<RegTree::FVec> const &thread_temp,
-                             std::size_t const offset, std::size_t const block_size,
+                             common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                              bst_node_t* p_nidx, int tree_depth) {
   constexpr int kMaxNumDeepLevels =
     ArrayTreeLayout<TreeType, has_categorical, any_missing, 0>::kMaxNumDeepLevels;
 
   if constexpr (num_deep_levels == kMaxNumDeepLevels) {
     ArrayTreeLayout<TreeType, has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
-    buffer.Process(thread_temp, offset, block_size, p_nidx);
+    buffer.Process(fvec_tloc, block_size, p_nidx);
   } else {
     if (tree_depth <= num_deep_levels) {
       ArrayTreeLayout<TreeType, has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
-      buffer.Process(thread_temp, offset, block_size, p_nidx);
+      buffer.Process(fvec_tloc, block_size, p_nidx);
     } else {
       ProcessArrayTree<TreeType, has_categorical, any_missing, num_deep_levels + 1>
-        (tree, cats, thread_temp, offset, block_size, p_nidx, tree_depth);
+        (tree, cats, fvec_tloc, block_size, p_nidx, tree_depth);
     }
   }
 }

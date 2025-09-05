@@ -1,0 +1,39 @@
+diff --git a/plugin/sycl/common/hist_util.cc b/plugin/sycl/common/hist_util.cc
+index 8f572e54c..7706b0474 100644
+--- a/plugin/sycl/common/hist_util.cc
++++ b/plugin/sycl/common/hist_util.cc
+@@ -270,7 +270,7 @@ template<typename FPType, typename BinIdxType>
+   bool use_atomic = (size < nbins) || (gmat.max_num_bins == gmat.nbins / n_columns);
+ 
+   // force_atomic_use flag is used only for testing
+-  use_atomic = use_atomic || force_atomic_use;
++  use_atomic = true; // use_atomic || force_atomic_use;
+   if (!use_atomic) {
+     if (isDense) {
+       return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair, row_indices,
+diff --git a/plugin/sycl/tree/hist_updater.cc b/plugin/sycl/tree/hist_updater.cc
+index 7009543da..8ea26fbd7 100644
+--- a/plugin/sycl/tree/hist_updater.cc
++++ b/plugin/sycl/tree/hist_updater.cc
+@@ -87,16 +87,17 @@ void HistUpdater<GradientSumT>::BuildLocalHistograms(
+     const HostDeviceVector<GradientPair>& gpair) {
+   builder_monitor_.Start("BuildLocalHistograms");
+   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
+-  ::sycl::event event;
++  // ::sycl::event event;
++  std::vector<::sycl::event> events(n_nodes);
+ 
+   for (size_t i = 0; i < n_nodes; i++) {
+     const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
+ 
+     if (row_set_collection_[nid].Size() > 0) {
+-      event = BuildHist(gpair, row_set_collection_[nid], gmat, &(hist_[nid]),
+-                        &(hist_buffer_.GetDeviceBuffer()), event);
++      events[nid] = BuildHist(gpair, row_set_collection_[nid], gmat, &(hist_[nid]),
++                              &(hist_buffer_.GetDeviceBuffer()), events[nid]);
+     } else {
+-      common::InitHist(qu_, &(hist_[nid]), hist_[nid].Size(), &event);
++      common::InitHist(qu_, &(hist_[nid]), hist_[nid].Size(), &events[nid]);
+     }
+   }
+   qu_->wait_and_throw();

@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"/export/users/drazdobu/xgboost/_build/cmake_install.cmake",
+		"/export/users/drazdobu/xgboost/_build/dmlc-core/cmake_install.cmake",
+		"/export/users/drazdobu/xgboost/_build/dmlc-core/test/unittest/cmake_install.cmake",
+		"/export/users/drazdobu/xgboost/_build/src/cmake_install.cmake",
+		"/export/users/drazdobu/xgboost/_build/plugin/cmake_install.cmake",
+		"/export/users/drazdobu/xgboost/_build/tests/cpp/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

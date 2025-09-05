@@ -1,0 +1,41 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_aft_obj.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_aft_obj.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_ghist_builder.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_ghist_builder.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_gradient_index.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_gradient_index.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_hinge.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_hinge.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_hist_updater.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_hist_updater.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_host_device_vector.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_host_device_vector.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_lambdarank_obj.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_lambdarank_obj.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_multiclass_obj.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_multiclass_obj.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_partition_builder.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_partition_builder.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_prediction_cache.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_prediction_cache.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_predictor.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_predictor.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_quantile_hist_builder.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_quantile_hist_builder.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_quantile_obj.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_quantile_obj.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_regression_obj.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_regression_obj.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_row_set_collection.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_row_set_collection.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_split_evaluator.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_split_evaluator.cc.o.d"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_transform_range.cc.o"
+  "CMakeFiles/plugin_sycl_test.dir/plugin/test_sycl_transform_range.cc.o.d"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/plugin_sycl_test.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()
