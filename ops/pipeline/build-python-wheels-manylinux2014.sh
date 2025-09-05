@@ -29,7 +29,7 @@ PYTHON_BIN="/opt/python/cp310-cp310/bin/python"
 echo "--- Build binary wheel for ${WHEEL_TAG}"
 set -x
 
-python3 ops/script/pypi_variants.py --use-cpu-suffix=0 --require-nccl-dep=na
+python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=na
 python3 ops/docker_run.py \
   --image-uri "${IMAGE_URI}" \
   -- bash -c \

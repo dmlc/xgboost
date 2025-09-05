@@ -12,6 +12,7 @@ NCCL_WHL = """    \"nvidia-nccl-{0} ; platform_system == 'Linux' and platform_ma
 
 NAME = "{{ name }}"
 NCCL = "{{ nccl }}"
+CUDA_VARIANTS = ["cu12", "cu13"]
 
 
 def copyfile(src: str, dst: str) -> None:
@@ -21,11 +22,21 @@ def copyfile(src: str, dst: str) -> None:
         fd.write(content)
 
 
-def make_pyproject(*, use_cpu_suffix: int, require_nccl_dep: str) -> None:
-    if use_cpu_suffix == 1 and require_nccl_dep != "na":
+def make_pyproject(*, use_suffix: str, require_nccl_dep: str) -> None:
+    if use_suffix == "cpu" and require_nccl_dep != "na":
         raise ValueError(
             "xgboost-cpu cannot require NCCL dependency. "
-            "If --use-cpu-suffix=1, you must set --require-nccl-dep='na'."
+            "When setting --use-suffix='cpu', you must also set --require-nccl-dep='na'."
+        )
+    if (
+        use_suffix in CUDA_VARIANTS
+        and require_nccl_dep in CUDA_VARIANTS
+        and use_suffix != require_nccl_dep
+    ):
+        raise ValueError(
+            "Inconsistent choices for --use-suffix and --require-nccl-dep. "
+            "When --use-suffix is set to one of {{{0}}}, --require-nccl-dep must be "
+            "set to identical value as --use-suffix.".format(",".join(CUDA_VARIANTS))
         )
 
     with open(IN_PATH) as fd:
@@ -34,8 +45,10 @@ def make_pyproject(*, use_cpu_suffix: int, require_nccl_dep: str) -> None:
     readme_dft = os.path.join(PY_PACKAGE, "README.dft.rst")
     readme_cpu = os.path.join(PY_PACKAGE, "README.cpu.rst")
     readme = os.path.join(PY_PACKAGE, "README.rst")
-    pyproject = pyproject.replace(NAME, "xgboost-cpu" if use_cpu_suffix else "xgboost")
-    copyfile(readme_cpu if use_cpu_suffix else readme_dft, readme)
+    pyproject = pyproject.replace(
+        NAME, f"xgboost-{use_suffix}" if use_suffix != "na" else "xgboost"
+    )
+    copyfile(readme_cpu if use_suffix == "cpu" else readme_dft, readme)
     pyproject = pyproject.replace(
         NCCL, NCCL_WHL.format(require_nccl_dep) if require_nccl_dep != "na" else ""
     )
@@ -50,21 +63,21 @@ def make_pyproject(*, use_cpu_suffix: int, require_nccl_dep: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--use-cpu-suffix",
-        type=int,
-        choices=[0, 1],
-        required=True,
-        help="Whether to rename the package name to xgboost-cpu",
+        "--use-suffix",
+        type=str,
+        choices=["na", "cpu"] + CUDA_VARIANTS,
+        default="na",
+        help="When using this option, rename the package name to xgboost-[suffix]. Set to 'na' to disable",
     )
     parser.add_argument(
         "--require-nccl-dep",
         type=str,
-        choices=["na", "cu12", "cu13"],
+        choices=["na"] + CUDA_VARIANTS,
         required=True,
         help="Which NCCL dependency to use; select 'na' to remove NCCL dependency",
     )
     args = parser.parse_args()
     make_pyproject(
-        use_cpu_suffix=args.use_cpu_suffix,
+        use_suffix=args.use_suffix,
         require_nccl_dep=args.require_nccl_dep,
     )
