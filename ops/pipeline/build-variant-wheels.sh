@@ -10,6 +10,9 @@ then
 fi
 
 image_repo='xgb-ci.gpu_build_rockylinux8'
+export USE_RMM=0
+export USE_FEDERATED=0
+export USE_DLOPEN_NCCL=1
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
@@ -27,13 +30,12 @@ then
 else
   export BUILD_ONLY_SM75=0
 fi
-export USE_RMM=0
 
 set -x
 
 python3 ops/docker_run.py \
   --image-uri ${BUILD_IMAGE_URI} \
-  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM' \
+  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM -e USE_FEDERATED -e USE_DLOPEN_NCCL' \
   -- ops/pipeline/build-cuda-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"

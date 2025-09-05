@@ -19,7 +19,7 @@ IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.${WHEEL_TAG}:${IMAGE_TAG}
 echo "--- Build CPU code targeting ARM64"
 set -x
 
-python3 ops/script/pypi_variants.py --use-cpu-suffix=0 --require-nccl-dep=0
+python3 ops/script/pypi_variants.py --use-suffix=na --require-nccl-dep=na
 python3 ops/docker_run.py \
   --image-uri ${IMAGE_URI} \
   -- ops/pipeline/build-python-wheels-arm64-impl.sh
