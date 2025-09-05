@@ -145,8 +145,6 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
     """Download all Python binary wheels for the specified branch."""
     full_platforms = [
         "win_amd64",
-        "manylinux2014_x86_64",
-        "manylinux2014_aarch64",
         "manylinux_2_28_x86_64",
         "manylinux_2_28_aarch64",
         "macosx_10_15_x86_64",
@@ -155,8 +153,6 @@ def download_python_wheels(branch: str, commit_hash: str, outdir: Path) -> None:
     minimal_platforms = [
         "win_amd64",
         "win_arm64",
-        "manylinux2014_x86_64",
-        "manylinux2014_aarch64",
         "manylinux_2_28_x86_64",
         "manylinux_2_28_aarch64",
     ]
