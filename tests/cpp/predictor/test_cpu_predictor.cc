@@ -72,27 +72,27 @@ TEST(CpuPredictor, ArrayTreeLayout) {
 
   {
     constexpr int kDepth = 1;
-    predictor::ArrayTreeLayout<RegTree, false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 2;
-    predictor::ArrayTreeLayout<RegTree, false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 3;
-    predictor::ArrayTreeLayout<RegTree, false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 4;
-    predictor::ArrayTreeLayout<RegTree, false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
   {
     constexpr int kDepth = 5;
-    predictor::ArrayTreeLayout<RegTree, false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
     CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
   }
 }

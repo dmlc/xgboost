@@ -74,7 +74,7 @@ void PredValueByOneTree(const RegTree& tree,
                         bst_node_t* p_nidx, int depth, int gid) {
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<RegTree, has_categorical, any_missing>
+    ProcessArrayTree<has_categorical, any_missing>
         (tree, cats, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
@@ -131,8 +131,8 @@ void PredValueByOneTree(const RegTree& tree,
   const auto& mt_tree = *(tree.GetMultiTargetTree());
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<MultiTargetTree, has_categorical, any_missing>
-        (mt_tree, cats, fvec_tloc, block_size, p_nidx, depth);
+    ProcessArrayTree<has_categorical, any_missing>
+        (tree, cats, fvec_tloc, block_size, p_nidx, depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;

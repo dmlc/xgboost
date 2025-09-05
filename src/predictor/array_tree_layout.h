@@ -18,15 +18,13 @@ namespace xgboost::predictor {
 /**
  * @brief The class holds the array-based representation of the top levels of a single tree.
  * 
- * @tparam TreeType The type of the origianl tree (RegTree or MultiTargetTree)
- *
  * @tparam has_categorical if the tree has categorical features
  *
  * @tparam any_missing if the class is able to process missing values
  * 
  * @tparam kNumDeepLevels number of tree leveles being unrolled into array-based structure
  */
-template <class TreeType, bool has_categorical, bool any_missing, int kNumDeepLevels>
+template <bool has_categorical, bool any_missing, int kNumDeepLevels>
 class ArrayTreeLayout {
  private:
   /* Number of nodes in the array based representation of the top levels of the tree
@@ -61,70 +59,8 @@ class ArrayTreeLayout {
    */
   std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
-  static bool IsLeaf(const RegTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<RegTree, TreeType>);
-    return tree[nidx].IsLeaf();
-  }
-
-  static bool IsLeaf(const MultiTargetTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
-    return tree.IsLeaf(nidx);
-  }
-
-  static uint8_t DefaultLeft(const RegTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<RegTree, TreeType>);
-    return tree[nidx].DefaultLeft();
-  }
-
-  static uint8_t DefaultLeft(const MultiTargetTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
-    return tree.DefaultLeft(nidx);
-  }
-
-  static bst_feature_t SplitIndex(const RegTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<RegTree, TreeType>);
-    return tree[nidx].SplitIndex();
-  }
-
-  static bst_feature_t SplitIndex(const MultiTargetTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
-    return tree.SplitIndex(nidx);
-  }
-
-  static float SplitCond(const RegTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<RegTree, TreeType>);
-    return tree[nidx].SplitCond();
-  }
-
-  static float SplitCond(const MultiTargetTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
-    return tree.SplitCond(nidx);
-  }
-
-  static bst_node_t LeftChild(const RegTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<RegTree, TreeType>);
-    return tree[nidx].LeftChild();
-  }
-
-  static bst_node_t LeftChild(const MultiTargetTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
-    return tree.LeftChild(nidx);
-  }
-
-  static bst_node_t RightChild(const RegTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<RegTree, TreeType>);
-    return tree[nidx].LeftChild() + 1;
-  }
-
-  static bst_node_t RightChild(const MultiTargetTree& tree, bst_node_t nidx) {
-    static_assert(std::is_same_v<MultiTargetTree, TreeType>);
-    return tree.RightChild(nidx);
-  }
-
  /**
  * @brief Traverse the top levels of original tree and fill internal arrays
- * 
- * @tparam TreeType The type of the origianl tree (RegTree or MultiTargetTree)
  *
  * @tparam depth the tree level being processing
  *
@@ -138,7 +74,7 @@ class ArrayTreeLayout {
  * 
  */
   template <int depth = 0>
-  void inline Populate(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats,
+  void inline Populate(const RegTree& tree, RegTree::CategoricalSplitMatrix const &cats,
                        bst_node_t nidx_array = 0, bst_node_t nidx = 0) {
     if constexpr (depth == kNumDeepLevels + 1) {
       return;
@@ -148,7 +84,7 @@ class ArrayTreeLayout {
          */
         nidx_in_tree_[nidx_array - kNodesCount] = nidx;
     } else {
-      if (IsLeaf(tree, nidx)) {
+      if (tree.IsLeaf(nidx)) {
         split_index_[nidx_array]  = 0;
 
         /* 
@@ -163,7 +99,7 @@ class ArrayTreeLayout {
 
         Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, nidx);
       } else {
-        if constexpr (any_missing) default_left_[nidx_array] = DefaultLeft(tree, nidx);
+        if constexpr (any_missing) default_left_[nidx_array] = tree.DefaultLeft(nidx);
         if constexpr (has_categorical) {
           is_cat_[nidx_array] = common::IsCat(cats.split_type, nidx);
           if (is_cat_[nidx_array]) {
@@ -172,8 +108,8 @@ class ArrayTreeLayout {
           }
         }
 
-        split_index_[nidx_array]  = SplitIndex(tree, nidx);
-        split_cond_[nidx_array]   = SplitCond(tree, nidx);
+        split_index_[nidx_array]  = tree.SplitIndex(nidx);
+        split_cond_[nidx_array]   = tree.SplitCond(nidx);
 
         /*
          * LeftChild is used to determine if a node is a leaf, so it is always a valid value.
@@ -183,8 +119,8 @@ class ArrayTreeLayout {
          * However, in an array layout, an invalid RightChild, even if unreachable, can lead to memory corruption.
          * A check should be added to prevent this.
          */
-        Populate<depth + 1>(tree, cats, 2 * nidx_array + 1, LeftChild(tree, nidx));
-        bst_node_t right_child = RightChild(tree, nidx);
+        Populate<depth + 1>(tree, cats, 2 * nidx_array + 1, tree.LeftChild(nidx));
+        bst_node_t right_child = tree.RightChild(nidx);
         if (right_child != RegTree::kInvalidNodeId) {
           Populate<depth + 1>(tree, cats, 2 * nidx_array + 2, right_child);
         }
@@ -211,7 +147,7 @@ class ArrayTreeLayout {
   constexpr static int kMaxNumDeepLevels = 6;
   static_assert(kNumDeepLevels <= kMaxNumDeepLevels);
 
-  ArrayTreeLayout(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats) {
+  ArrayTreeLayout(const RegTree& tree, RegTree::CategoricalSplitMatrix const &cats) {
     Populate(tree, cats);
   }
 
@@ -273,22 +209,22 @@ class ArrayTreeLayout {
   }
 };
 
-template <class TreeType, bool has_categorical, bool any_missing, int num_deep_levels = 1>
-void inline ProcessArrayTree(const TreeType& tree, RegTree::CategoricalSplitMatrix const &cats,
+template <bool has_categorical, bool any_missing, int num_deep_levels = 1>
+void inline ProcessArrayTree(const RegTree& tree, RegTree::CategoricalSplitMatrix const &cats,
                              common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                              bst_node_t* p_nidx, int tree_depth) {
   constexpr int kMaxNumDeepLevels =
-    ArrayTreeLayout<TreeType, has_categorical, any_missing, 0>::kMaxNumDeepLevels;
+    ArrayTreeLayout<has_categorical, any_missing, 0>::kMaxNumDeepLevels;
 
   if constexpr (num_deep_levels == kMaxNumDeepLevels) {
-    ArrayTreeLayout<TreeType, has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
+    ArrayTreeLayout<has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
     buffer.Process(fvec_tloc, block_size, p_nidx);
   } else {
     if (tree_depth <= num_deep_levels) {
-      ArrayTreeLayout<TreeType, has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
+      ArrayTreeLayout<has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
       buffer.Process(fvec_tloc, block_size, p_nidx);
     } else {
-      ProcessArrayTree<TreeType, has_categorical, any_missing, num_deep_levels + 1>
+      ProcessArrayTree<has_categorical, any_missing, num_deep_levels + 1>
         (tree, cats, fvec_tloc, block_size, p_nidx, tree_depth);
     }
   }
