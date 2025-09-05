@@ -8,6 +8,7 @@
 
 #include <limits>
 #include <vector>
+#include <array>
 
 #include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
 #include "xgboost/tree_model.h"     // for RegTree, MTNotImplemented, RTreeNodeStat
