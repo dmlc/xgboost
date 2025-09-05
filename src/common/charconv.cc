@@ -592,7 +592,7 @@ class RyuPrinter {
     //   result[index + olength - i] = (char) ('0' + c);
     // }
     // result[index] = '0' + output % 10;
-    uint32_t i = 0;
+    int32_t i = 0;
     while (output >= Tens(4)) {
       const uint32_t c = output % Tens(4);
       output /= Tens(4);
