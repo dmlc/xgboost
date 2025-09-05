@@ -196,12 +196,12 @@ The learning to rank implementation has been significantly updated in 2.0 with a
 
     params = {
         # 1.7 only supports sampling, while 2.0 and later use top-k as the default.
-	# See above sections for the trade-off.
+        # See above sections for the trade-off.
         "lambdarank_pair_method": "mean",
         # 1.7 uses the ranknet loss while later versions use the NDCG weighted loss
         "objective": "rank:pairwise",
-	# 1.7 doesn't have this normalization.
-	"lambdarank_score_normalization": False,
+        # 1.7 doesn't have this normalization.
+        "lambdarank_score_normalization": False,
         "base_score": 0.5,
         # The default tree method has been changed from approx to hist.
         "tree_method": "approx",
