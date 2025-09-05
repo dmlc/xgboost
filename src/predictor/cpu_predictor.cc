@@ -158,7 +158,6 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
   if constexpr (use_array_tree_layout) nidx.resize(block_size, 0);
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
     auto const &tree = *model.trees.at(tree_id);
-    auto const &cats = tree.GetCategoriesMatrix();
     bool has_categorical = tree.HasCategoricalSplit();
 
     int depth = use_array_tree_layout ? tree_depth[tree_id - tree_begin] : 0;
