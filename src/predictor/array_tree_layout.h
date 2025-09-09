@@ -6,22 +6,22 @@
 #ifndef XGBOOST_PREDICTOR_ARRAY_TREE_LAYOUT_H_
 #define XGBOOST_PREDICTOR_ARRAY_TREE_LAYOUT_H_
 
-#include <limits>
-#include <vector>
 #include <array>
+#include <limits>
+#include <type_traits>  // for conditional_t
 
-#include "predict_fn.h"             // for GetNextNode, GetNextNodeMulti
-#include "xgboost/tree_model.h"     // for RegTree, MTNotImplemented, RTreeNodeStat
+#include "../common/categorical.h"  // for IsCat
+#include "xgboost/tree_model.h"     // for RegTree
 
 namespace xgboost::predictor {
 
 /**
  * @brief The class holds the array-based representation of the top levels of a single tree.
- * 
+ *
  * @tparam has_categorical if the tree has categorical features
  *
  * @tparam any_missing if the class is able to process missing values
- * 
+ *
  * @tparam kNumDeepLevels number of tree leveles being unrolled into array-based structure
  */
 template <bool has_categorical, bool any_missing, int kNumDeepLevels>
@@ -33,17 +33,12 @@ class ArrayTreeLayout {
 
   struct Empty {};
   using DefaultLeftType =
-        typename std::conditional_t<any_missing,
-                                   std::array<uint8_t, kNodesCount>,
-                                   Empty>;
+      typename std::conditional_t<any_missing, std::array<uint8_t, kNodesCount>, Empty>;
   using IsCatType =
-        typename std::conditional_t<has_categorical,
-                                   std::array<uint8_t, kNodesCount>,
-                                   struct Empty>;
+      typename std::conditional_t<has_categorical, std::array<uint8_t, kNodesCount>, Empty>;
   using CatSegmentType =
-        typename std::conditional_t<has_categorical,
-                                   std::array<common::Span<uint32_t const>, kNodesCount>,
-                                   struct Empty>;
+      typename std::conditional_t<has_categorical,
+                                  std::array<common::Span<uint32_t const>, kNodesCount>, Empty>;
 
   DefaultLeftType default_left_;
   IsCatType is_cat_;
@@ -65,13 +60,13 @@ class ArrayTreeLayout {
  * @tparam depth the tree level being processing
  *
  * @param tree the original tree
- * 
+ *
  * @param cats matrix of categorical splits
- * 
+ *
  * @param nidx_array node idx in the array layout
- * 
+ *
  * @param nidx node idx in the original tree
- * 
+ *
  */
   template <int depth = 0>
   void inline Populate(const RegTree& tree, RegTree::CategoricalSplitMatrix const &cats,
@@ -80,14 +75,14 @@ class ArrayTreeLayout {
       return;
     } else if constexpr (depth == kNumDeepLevels) {
         /* We store the node index in the original tree to ensure continued processing
-         * for nodes that are not eligible for array layout optimization. 
+         * for nodes that are not eligible for array layout optimization.
          */
         nidx_in_tree_[nidx_array - kNodesCount] = nidx;
     } else {
       if (tree.IsLeaf(nidx)) {
         split_index_[nidx_array]  = 0;
 
-        /* 
+        /*
          * If the tree is not fully populated, we can reduce transfer costs.
          * The values for the unpopulated parts of the tree are set to ensure
          * that any move will always proceed in the "right" direction.
@@ -175,11 +170,11 @@ class ArrayTreeLayout {
    * the node index for the left child at the next level is always 2*nidx, and
    * the node index for the right child at the next level is always 2*nidx+1.
    * This greatly improves data locality.
-   * 
+   *
    * @param fvec_tloc buffer holding the feature values
-   * 
+   *
    * @param block_size size of the current block (1 < block_size <= 64)
-   * 
+   *
    * @param p_nidx pointer to the vector of node indexes in the original tree,
    *               corresponding to the level next after kNumDeepLevels
    */
