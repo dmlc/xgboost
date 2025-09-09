@@ -69,8 +69,8 @@ class ArrayTreeLayout {
  *
  */
   template <int depth = 0>
-  void inline Populate(const RegTree& tree, RegTree::CategoricalSplitMatrix const &cats,
-                       bst_node_t nidx_array = 0, bst_node_t nidx = 0) {
+  void Populate(const RegTree& tree, RegTree::CategoricalSplitMatrix const& cats,
+                bst_node_t nidx_array = 0, bst_node_t nidx = 0) {
     if constexpr (depth == kNumDeepLevels + 1) {
       return;
     } else if constexpr (depth == kNumDeepLevels) {
@@ -123,7 +123,7 @@ class ArrayTreeLayout {
     }
   }
 
-  bool inline GetDecision(float fvalue, bst_node_t nidx) const {
+  bool GetDecision(float fvalue, bst_node_t nidx) const {
     if constexpr (has_categorical) {
       if (is_cat_[nidx]) {
        return common::Decision(cat_segment_[nidx], fvalue);
@@ -178,8 +178,8 @@ class ArrayTreeLayout {
    * @param p_nidx pointer to the vector of node indexes in the original tree,
    *               corresponding to the level next after kNumDeepLevels
    */
-  void inline Process(common::Span<RegTree::FVec> fvec_tloc,
-                      std::size_t const block_size, bst_node_t* p_nidx) {
+  void Process(common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+               bst_node_t* p_nidx) {
     for (int depth = 0; depth < kNumDeepLevels; ++depth) {
       std::size_t first_node = (1u << depth) - 1;
 
@@ -205,9 +205,9 @@ class ArrayTreeLayout {
 };
 
 template <bool has_categorical, bool any_missing, int num_deep_levels = 1>
-void inline ProcessArrayTree(const RegTree& tree, RegTree::CategoricalSplitMatrix const &cats,
-                             common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
-                             bst_node_t* p_nidx, int tree_depth) {
+void ProcessArrayTree(const RegTree& tree, RegTree::CategoricalSplitMatrix const& cats,
+                      common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+                      bst_node_t* p_nidx, int tree_depth) {
   constexpr int kMaxNumDeepLevels =
     ArrayTreeLayout<has_categorical, any_missing, 0>::kMaxNumDeepLevels;
 
