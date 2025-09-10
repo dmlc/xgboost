@@ -9,8 +9,8 @@ class TestSYCLTrainingContinuation:
     def run_training_continuation(self, use_json):
         kRows = 64
         kCols = 32
-        X = np.random.randn(kRows, kCols)
-        y = np.random.randn(kRows)
+        X = rng.randn(kRows, kCols)
+        y = rng.randn(kRows)
         dtrain = xgb.DMatrix(X, y)
         params = {
             "device": "sycl",
