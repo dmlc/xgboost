@@ -46,7 +46,7 @@ jobs:
       - name: Build XGBoost Python wheel for Win-ARM64
         run: |
           # Patch to rename pkg to xgboost-cpu
-          python ops/script/pypi_variants.py --use-cpu-suffix=1 --require-nccl-dep=0
+          python ops/script/pypi_variants.py --use-suffix=cpu --require-nccl-dep=na
           cd python-package
           mkdir -p wheelhouse
           pip wheel --no-deps -v . --wheel-dir wheelhouse/

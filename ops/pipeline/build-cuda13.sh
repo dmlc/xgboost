@@ -12,6 +12,8 @@ fi
 IMAGE_REPO="xgb-ci.gpu_build_cuda13_rockylinux8"
 export USE_RMM=0
 export USE_FEDERATED=0
+# nvidia-nccl-cu13 is not yet available on PyPI
+export USE_DLOPEN_NCCL=0
 
 source ops/pipeline/classify-git-branch.sh
 source ops/pipeline/get-docker-registry-details.sh
@@ -34,11 +36,11 @@ set -x
 
 # Remove nvidia-nccl-cu12 from the list of Python deps
 # nvidia-nccl-cu13 is not yet available on PyPI
-python3 ops/script/pypi_variants.py --use-cpu-suffix=0 --require-nccl-dep=0
+python3 ops/script/pypi_variants.py --use-suffix=cu13 --require-nccl-dep=na
 
 python3 ops/docker_run.py \
   --image-uri ${BUILD_IMAGE_URI} \
-  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM -e USE_FEDERATED' \
+  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM -e USE_FEDERATED -e USE_DLOPEN_NCCL' \
   -- ops/pipeline/build-cuda-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"
