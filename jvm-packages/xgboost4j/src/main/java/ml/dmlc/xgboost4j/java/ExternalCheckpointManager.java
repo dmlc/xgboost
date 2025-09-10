@@ -27,8 +27,9 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
 /**
- * This class contains the methods that are required for managing the state of the training process.
- * The training state is stored in a distributed file system, that consists of UBJ (Universal Binary JSON) model files.
+ * This class contains the methods that are required for managing the state of the training
+ * process. The training state is stored in a distributed file system, that consists of
+ * UBJ (Universal Binary JSON) model files.
  * The class provides methods for saving, loading and cleaning up checkpoints.
  */
 public class ExternalCheckpointManager {
@@ -39,7 +40,8 @@ public class ExternalCheckpointManager {
   private FileSystem fs;
 
   /**
-   * This constructor creates a new Expternal Checkpoint Manager at the specified path in the specified file system.
+   * This constructor creates a new Expternal Checkpoint Manager at the specified path in the
+   * specified file system.
    *
    * @param checkpointPath The directory path where checkpoints will be stored.
    * @param fs The file system to use for storing checkpoints.
@@ -79,15 +81,17 @@ public class ExternalCheckpointManager {
 
   /**
    * This method cleans all the directories and files that are present in the checkpoint path.
-   * @throws IOException exception that is thrown when there is an error deleting the checkpoint path.
+   * @throws IOException exception that is thrown when there is an error deleting the
+   * checkpoint path.
    */
   public void cleanPath() throws IOException {
     fs.delete(checkpointPath, true);
   }
 
   /**
-   * Read the checkpoint from the checkpoint path. Once the checkpoint path is read, we get the latest version of the
-   * checkpoint from all the checkpoint versions and lead it into the booster for the purpose of making predictions.
+   * Read the checkpoint from the checkpoint path. Once the checkpoint path is read, we get
+   * the latest version of the checkpoint from all the checkpoint versions and lead it
+   * into the booster for the purpose of making predictions.
    *
    * @return The booster object that is used for making predictions.
    * @throws IOException Any expection that occurs when reading the checkpoint path.
@@ -108,10 +112,12 @@ public class ExternalCheckpointManager {
   }
 
   /**
-   * This method updates the booster checkpoint to the the latest or current version and deleted all the previous
-   * versions of the checkpoint.
-   * @param boosterToCheckpoint The booster object that is to be checkpointed and saved as a model file.
-   * @throws IOException Any exception that occurs when writing the model file to the checkpoint path.
+   * This method updates the booster checkpoint to the the latest or current
+   * version and deleted all the previous versions of the checkpoint.
+   * @param boosterToCheckpoint The booster object that is to be checkpointed and
+   *                            saved as a model file.
+   * @throws IOException Any exception that occurs when writing the model file to the
+   * checkpoint path.
    * @throws XGBoostError Any exception that occurs when saving the model from the booster.
    */
   public void updateCheckpoint(Booster boosterToCheckpoint) throws IOException, XGBoostError {
@@ -161,7 +167,6 @@ public class ExternalCheckpointManager {
    * @return A list of integer rounds that need checkpointing.
    * @throws IOException Any exception that occurs when getting the list of rounds.
    */
-  Get a list of iterations that need checkpointing.
   public List<Integer> getCheckpointRounds(
       int firstRound, int checkpointInterval, int numOfRounds)
       throws IOException {
