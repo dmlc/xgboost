@@ -74,21 +74,21 @@ void PredValueByOneTree(const RegTree& tree,
                         bst_node_t* p_nidx, int depth, int gid) {
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>
-        (tree, cats, fvec_tloc, block_size, p_nidx, depth);
+    ProcessArrayTree<has_categorical, any_missing>(tree, cats, fvec_tloc, block_size, p_nidx,
+                                                   depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
     /*
-     * if array_tree_layout was used,
-     * we start processing from pre-calculated nidx.
+     * If array_tree_layout was used, we start processing from the nidx calculated using
+     * the array tree.
      */
     if constexpr (use_array_tree_layout) {
       nidx = p_nidx[i];
       p_nidx[i] = 0;
     }
     out_predt(predict_offset + i, gid) +=
-      PredValueByOneTree<has_categorical>(fvec_tloc[i], tree, cats, nidx);
+        PredValueByOneTree<has_categorical>(fvec_tloc[i], tree, cats, nidx);
   }
 }
 }  // namespace scalar
@@ -122,17 +122,14 @@ void PredValueByOneTree(RegTree::FVec const &p_feats, MultiTargetTree const &tre
 }
 
 template <bool has_categorical, bool any_missing, bool use_array_tree_layout>
-void PredValueByOneTree(const RegTree& tree,
-                        std::size_t const predict_offset,
-                        common::Span<RegTree::FVec> fvec_tloc,
-                        std::size_t const block_size,
-                        linalg::MatrixView<float> out_predt,
-                        bst_node_t* p_nidx, int depth) {
-  const auto& mt_tree = *(tree.GetMultiTargetTree());
+void PredValueByOneTree(const RegTree &tree, std::size_t const predict_offset,
+                        common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+                        linalg::MatrixView<float> out_predt, bst_node_t *p_nidx, bst_node_t depth) {
+  const auto &mt_tree = *(tree.GetMultiTargetTree());
   auto const &cats = tree.GetCategoriesMatrix();
   if constexpr (use_array_tree_layout) {
-    ProcessArrayTree<has_categorical, any_missing>
-        (tree, cats, fvec_tloc, block_size, p_nidx, depth);
+    ProcessArrayTree<has_categorical, any_missing>(tree, cats, fvec_tloc, block_size, p_nidx,
+                                                   depth);
   }
   for (std::size_t i = 0; i < block_size; ++i) {
     bst_node_t nidx = 0;
@@ -141,8 +138,7 @@ void PredValueByOneTree(const RegTree& tree,
       p_nidx[i] = 0;
     }
     auto t_predts = out_predt.Slice(predict_offset + i, linalg::All());
-    PredValueByOneTree<has_categorical>(fvec_tloc[i], mt_tree, cats,
-                                        t_predts, nidx);
+    PredValueByOneTree<has_categorical>(fvec_tloc[i], mt_tree, cats, t_predts, nidx);
   }
 }
 }  // namespace multi
@@ -155,7 +151,9 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
                             linalg::MatrixView<float> out_predt,
                             const std::vector<int>& tree_depth) {
   std::vector<bst_node_t> nidx;
-  if constexpr (use_array_tree_layout) nidx.resize(block_size, 0);
+  if constexpr (use_array_tree_layout) {
+    nidx.resize(block_size, 0);
+  }
   for (bst_tree_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
     auto const &tree = *model.trees.at(tree_id);
     bool has_categorical = tree.HasCategoricalSplit();
@@ -183,13 +181,13 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
 }
 
 // Dispatch between template implementations
-void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
-                            bst_tree_t const tree_end, std::size_t const predict_offset,
-                            common::Span<RegTree::FVec> fvec_tloc,
-                            std::size_t const block_size, linalg::MatrixView<float> out_predt,
-                            const std::vector<int>& tree_depth, bool any_missing) {
+void DispatchArrayLayout(gbm::GBTreeModel const &model, bst_tree_t const tree_begin,
+                         bst_tree_t const tree_end, std::size_t const predict_offset,
+                         common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
+                         linalg::MatrixView<float> out_predt, const std::vector<int> &tree_depth,
+                         bool any_missing) {
   /*
-   * We use transforming trees to array layout for each block of data to avoid memory overheads.
+   * We transform trees to array layout for each block of data to avoid memory overheads.
    * It makes the array layout inefficient for block_size == 1
    */
   const bool use_array_tree_layout = block_size > 1;
@@ -199,7 +197,9 @@ void PredictBlockByAllTrees(gbm::GBTreeModel const &model, bst_tree_t const tree
       any_missing = false;
       for (std::size_t i = 0; i < block_size; ++i) {
         any_missing |= fvec_tloc[i].HasMissing();
-        if (any_missing) break;
+        if (any_missing) {
+          break;
+        }
       }
     }
     if (any_missing) {
@@ -556,7 +556,7 @@ void PredictBatchByBlockKernel(DataView const &batch, gbm::GBTreeModel const &mo
     tree_depth.resize(tree_end - tree_begin);
     common::ParallelFor(tree_end - tree_begin, n_threads, [&](auto i) {
       bst_tree_t tree_id = tree_begin + i;
-      tree_depth[i] = model.trees.at(tree_id)->MaxDepth(0);
+      tree_depth[i] = model.trees.at(tree_id)->MaxDepth();
     });
   }
 
@@ -564,8 +564,8 @@ void PredictBatchByBlockKernel(DataView const &batch, gbm::GBTreeModel const &mo
     auto fvec_tloc = fvec.ThreadBuffer(block.Size());
 
     batch.FVecFill(block, n_features, fvec_tloc);
-    PredictBlockByAllTrees(model, tree_begin, tree_end, block.begin() + batch.base_rowid,
-                           fvec_tloc, block.Size(), out_predt, tree_depth, any_missing);
+    DispatchArrayLayout(model, tree_begin, tree_end, block.begin() + batch.base_rowid, fvec_tloc,
+                        block.Size(), out_predt, tree_depth, any_missing);
     batch.FVecDrop(fvec_tloc);
   });
 }

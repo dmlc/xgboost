@@ -52,6 +52,7 @@ class ArrayTreeLayout {
    *  The number of sub-trees packed into this array is equal to the number of nodes at tree level kNumDeepLevels,
    *  which is calculated as (1u << kNumDeepLevels) == kNodesCount + 1.
    */
+  // Mapping from array node index to the RegTree node index.
   std::array<bst_node_t, kNodesCount + 1> nidx_in_tree_;
 
  /**
@@ -60,13 +61,9 @@ class ArrayTreeLayout {
  * @tparam depth the tree level being processing
  *
  * @param tree the original tree
- *
  * @param cats matrix of categorical splits
- *
  * @param nidx_array node idx in the array layout
- *
  * @param nidx node idx in the original tree
- *
  */
   template <int depth = 0>
   void Populate(const RegTree& tree, RegTree::CategoricalSplitMatrix const& cats,
@@ -163,20 +160,18 @@ class ArrayTreeLayout {
   }
 
   /**
-   * @brief
-   * Traverse the top levels of the tree for the entire block_size.
-   * In the array layout, it is organized to guarantee that
-   * if a node at the current level has index nidx, then
-   * the node index for the left child at the next level is always 2*nidx, and
-   * the node index for the right child at the next level is always 2*nidx+1.
+   * @brief Traverse the top levels of the tree for the entire block_size.
+   *
+   * In the array layout, it is organized to guarantee that if a node at the current level
+   * has index nidx, then the node index for the left child at the next level is always
+   * 2*nidx, and the node index for the right child at the next level is always 2*nidx+1.
    * This greatly improves data locality.
    *
    * @param fvec_tloc buffer holding the feature values
-   *
    * @param block_size size of the current block (1 < block_size <= 64)
-   *
-   * @param p_nidx pointer to the vector of node indexes in the original tree,
-   *               corresponding to the level next after kNumDeepLevels
+   * @param p_nidx Pointer to the vector of node indexes in the original tree with size
+   *               equals to the block size. (One node per sample). The value corresponds
+   *               to the level next after kNumDeepLevels
    */
   void Process(common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                bst_node_t* p_nidx) {
@@ -198,6 +193,7 @@ class ArrayTreeLayout {
         }
       }
     }
+    // Remap to the original index.
     for (std::size_t i = 0; i < block_size; ++i) {
       p_nidx[i] = nidx_in_tree_[p_nidx[i]];
     }
@@ -209,8 +205,9 @@ void ProcessArrayTree(const RegTree& tree, RegTree::CategoricalSplitMatrix const
                       common::Span<RegTree::FVec> fvec_tloc, std::size_t const block_size,
                       bst_node_t* p_nidx, int tree_depth) {
   constexpr int kMaxNumDeepLevels =
-    ArrayTreeLayout<has_categorical, any_missing, 0>::kMaxNumDeepLevels;
+      ArrayTreeLayout<has_categorical, any_missing, 0>::kMaxNumDeepLevels;
 
+  // Fill the array tree, then output predicted node idx.
   if constexpr (num_deep_levels == kMaxNumDeepLevels) {
     ArrayTreeLayout<has_categorical, any_missing, num_deep_levels> buffer(tree, cats);
     buffer.Process(fvec_tloc, block_size, p_nidx);
