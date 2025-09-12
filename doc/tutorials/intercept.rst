@@ -10,7 +10,7 @@ automatically based on targets upon training. The behavior can be controlled by 
 estimation:
 
 .. tabs::
-    .. code-tab:: python
+    .. code-tab:: py
 
         import xgboost as xgb
 
@@ -41,7 +41,7 @@ and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targe
 ``(n_samples, n_classes)``.
 
 .. tabs::
-    .. code-tab:: python
+    .. code-tab:: py
 
         import xgboost as xgb
         from sklearn.datasets import make_classification
@@ -191,7 +191,7 @@ The following example shows the relationship between ``base_score`` and ``base_m
 using binary logistic with a `logit` link function:
 
 .. tabs::
-    .. code-tab:: python
+    .. code-tab:: py
 
         import numpy as np
         from scipy.special import logit
@@ -213,7 +213,7 @@ The intercept is a valid probability (0.5). It's used as the initial estimation 
 probability of obtaining a positive sample.
 
 .. tabs::
-    .. code-tab:: python
+    .. code-tab:: py
 
         intercept = 0.5
 
@@ -224,7 +224,7 @@ probability of obtaining a positive sample.
 First we use the intercept to train a model:
 
 .. tabs::
-    .. code-tab:: python
+    .. code-tab:: py
 
         booster = train(
             {"base_score": intercept, "objective": "binary:logistic"},
@@ -247,7 +247,7 @@ First we use the intercept to train a model:
 Apply :py:func:`~scipy.special.logit` to obtain the "margin":
 
 .. tabs::
-    .. code-tab:: python
+    .. code-tab:: py
 
         # Apply logit function to obtain the "margin"
         margin = np.full(y.shape, fill_value=logit(intercept), dtype=np.float32)
@@ -280,7 +280,7 @@ Apply :py:func:`~scipy.special.logit` to obtain the "margin":
 Compare the results:
 
 .. tabs::
-    .. code-tab:: python
+    .. code-tab:: py
 
         np.testing.assert_allclose(predt_0, predt_1)
 
