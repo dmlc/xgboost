@@ -122,31 +122,6 @@ jobs:
             --prefix cache/${{ github.run_id }}/build-python-wheels-arm64 \
             ./xgboost python-package/dist/*.whl
 
-  build-python-wheels-manylinux2014:
-    name: Build manylinux2014_${{ matrix.arch }} wheel
-    runs-on:
-      - runs-on
-      - runner=${{ matrix.runner }}
-      - run-id=${{ github.run_id }}
-      - tag=main-build-python-wheels-manylinux2014-${{ matrix.arch }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - arch: aarch64
-          runner: linux-arm64-cpu
-        - arch: x86_64
-          runner: linux-amd64-cpu
-    steps:
-      # Restart Docker daemon so that it recognizes the ephemeral disks
-      - run: sudo systemctl restart docker
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - name: Log into Docker registry (AWS ECR)
-        run: bash ops/pipeline/login-docker-registry.sh
-      - run: bash ops/pipeline/build-python-wheels-manylinux2014.sh ${{ matrix.arch }}
-
   build-python-wheels-cpu:
     name: Build CPU wheel for ${{ matrix.manylinux_target }}_${{ matrix.arch }}
     runs-on:

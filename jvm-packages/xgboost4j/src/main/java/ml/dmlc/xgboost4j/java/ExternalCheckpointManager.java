@@ -26,6 +26,12 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
+/**
+ * This class contains the methods that are required for managing the state of the training
+ * process. The training state is stored in a distributed file system, that consists of
+ * UBJ (Universal Binary JSON) model files.
+ * The class provides methods for saving, loading and cleaning up checkpoints.
+ */
 public class ExternalCheckpointManager {
 
   private Log logger = LogFactory.getLog("ExternalCheckpointManager");
@@ -33,6 +39,14 @@ public class ExternalCheckpointManager {
   private Path checkpointPath;  // directory for checkpoints
   private FileSystem fs;
 
+  /**
+   * This constructor creates a new Expternal Checkpoint Manager at the specified path in the
+   * specified file system.
+   *
+   * @param checkpointPath The directory path where checkpoints will be stored.
+   * @param fs The file system to use for storing checkpoints.
+   * @throws XGBoostError the error that is thrown is the checkpoint path is null or empty.
+   */
   public ExternalCheckpointManager(String checkpointPath, FileSystem fs) throws XGBoostError {
     if (checkpointPath == null || checkpointPath.isEmpty()) {
       throw new XGBoostError("cannot create ExternalCheckpointManager with null or" +
@@ -65,10 +79,24 @@ public class ExternalCheckpointManager {
         .max(Comparator.comparing(Integer::valueOf)).get();
   }
 
+  /**
+   * This method cleans all the directories and files that are present in the checkpoint path.
+   * @throws IOException exception that is thrown when there is an error deleting the
+   * checkpoint path.
+   */
   public void cleanPath() throws IOException {
     fs.delete(checkpointPath, true);
   }
 
+  /**
+   * Read the checkpoint from the checkpoint path. Once the checkpoint path is read, we get
+   * the latest version of the checkpoint from all the checkpoint versions and lead it
+   * into the booster for the purpose of making predictions.
+   *
+   * @return The booster object that is used for making predictions.
+   * @throws IOException Any expection that occurs when reading the checkpoint path.
+   * @throws XGBoostError Any exception that occurs when loading the model into the booster.
+   */
   public Booster loadCheckpointAsBooster() throws IOException, XGBoostError {
     List<Integer> versions = getExistingVersions();
     if (versions.size() > 0) {
@@ -83,6 +111,15 @@ public class ExternalCheckpointManager {
     }
   }
 
+  /**
+   * This method updates the booster checkpoint to the the latest or current
+   * version and deleted all the previous versions of the checkpoint.
+   * @param boosterToCheckpoint The booster object that is to be checkpointed and
+   *                            saved as a model file.
+   * @throws IOException Any exception that occurs when writing the model file to the
+   * checkpoint path.
+   * @throws XGBoostError Any exception that occurs when saving the model from the booster.
+   */
   public void updateCheckpoint(Booster boosterToCheckpoint) throws IOException, XGBoostError {
     List<String> prevModelPaths = getExistingVersions().stream()
         .map(this::getPath).collect(Collectors.toList());
@@ -105,6 +142,13 @@ public class ExternalCheckpointManager {
     }
   }
 
+  /**
+   * This method cleans up all the checkpoint versions that are higher than the current round.
+   * This is useful when multiple training instances are running and we want to make sure that
+   * only the checkpoints from the current training instance are retained.
+   * @param currentRound The current round of training.
+   * @throws IOException Any exception that occurs when deleting the checkpoint files.
+   */
   public void cleanUpHigherVersions(int currentRound) throws IOException {
     getExistingVersions().stream().filter(v -> v > currentRound).forEach(v -> {
       try {
@@ -114,7 +158,15 @@ public class ExternalCheckpointManager {
       }
     });
   }
-  // Get a list of iterations that need checkpointing.
+
+  /**
+   * Get a list of iterations that need checkpointing.
+   * @param firstRound The first round of training.
+   * @param checkpointInterval The interval at which checkpoints are to be saved.
+   * @param numOfRounds The number of rounds to be trained.
+   * @return A list of integer rounds that need checkpointing.
+   * @throws IOException Any exception that occurs when getting the list of rounds.
+   */
   public List<Integer> getCheckpointRounds(
       int firstRound, int checkpointInterval, int numOfRounds)
       throws IOException {

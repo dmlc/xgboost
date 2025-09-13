@@ -7,6 +7,7 @@
 #include "../../../src/collective/communicator-inl.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/proxy_dmatrix.h"
+#include "../../../src/predictor/array_tree_layout.h"
 #include "../../../src/gbm/gbtree.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../collective/test_worker.h"  // for TestDistributedGlobal
@@ -20,6 +21,80 @@ TEST(CpuPredictor, Basic) {
   size_t constexpr kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   TestBasic(dmat.get(), &ctx);
+}
+
+
+template <typename ArrayLayoutT>
+void CheckArrayLayout(const RegTree& tree, ArrayLayoutT buffer, int max_depth, int depth, size_t nid, size_t nid_array) {
+  const auto& split_idx = buffer.SplitIndex();
+  const auto& split_cond = buffer.SplitCond();
+  const auto& default_left = buffer.DefaultLeft();
+  const auto& nidx_in_tree = buffer.NidxInTree();
+  const auto& nodes = tree.GetNodes();
+
+  if (depth == max_depth) {
+    ASSERT_EQ(nidx_in_tree[nid_array - (1u << max_depth) + 1], nid);
+    return;
+  }
+
+  if (nodes[nid].IsLeaf()) {
+    ASSERT_EQ(default_left[nid_array], 0);
+    ASSERT_TRUE(std::isnan(split_cond[nid_array]));
+
+    CheckArrayLayout(tree, buffer, max_depth, depth + 1, nid, 2 * nid_array + 2);
+  } else {
+    ASSERT_EQ(nodes[nid].SplitIndex(), split_idx[nid_array]);
+    ASSERT_EQ(nodes[nid].SplitCond(), split_cond[nid_array]);
+    ASSERT_EQ(nodes[nid].DefaultLeft(), default_left[nid_array]);
+
+    if (nodes[nid].LeftChild() != RegTree::kInvalidNodeId) {
+      CheckArrayLayout(tree, buffer, max_depth, depth + 1, nodes[nid].LeftChild(), 2 * nid_array + 1);
+    }
+    if (nodes[nid].RightChild() != RegTree::kInvalidNodeId) {
+      CheckArrayLayout(tree, buffer, max_depth, depth + 1, nodes[nid].RightChild(), 2 * nid_array + 2);
+    }
+  }
+}
+
+TEST(CpuPredictor, ArrayTreeLayout) {
+  Context ctx;
+
+  RegTree tree;
+  size_t n_nodes = 15; // 2^4 - 1
+  for (size_t nid = 0; nid < n_nodes; ++nid) {
+    // Some place-holders
+    size_t split_index = nid + 1;
+    bst_float split_cond = nid + 2;
+    bool default_left = nid % 2 == 0;
+
+    tree.ExpandNode(nid, split_index, split_cond, default_left, 0, 0, 0, 0, 0, 0, 0);
+  }
+
+  {
+    constexpr int kDepth = 1;
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
+  }
+  {
+    constexpr int kDepth = 2;
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
+  }
+  {
+    constexpr int kDepth = 3;
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
+  }
+  {
+    constexpr int kDepth = 4;
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
+  }
+  {
+    constexpr int kDepth = 5;
+    predictor::ArrayTreeLayout<false, true, kDepth> buffer(tree, tree.GetCategoriesMatrix());
+    CheckArrayLayout(tree, buffer, kDepth, 0, 0, 0);
+  }
 }
 
 namespace {

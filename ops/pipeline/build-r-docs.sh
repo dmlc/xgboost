@@ -10,7 +10,8 @@ fi
 
 source ops/pipeline/get-docker-registry-details.sh
 
-IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.cpu_build_r_doc:main
+source ops/pipeline/get-image-tag.sh
+IMAGE_URI=${DOCKER_REGISTRY_URL}/xgb-ci.cpu_build_r_doc:${IMAGE_TAG}
 
 echo "--- Build R package doc"
 set -x
