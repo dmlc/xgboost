@@ -51,7 +51,7 @@ and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targe
         clf = xgb.XGBClassifier()
         clf.fit(X, y)
         # Request for raw prediction
-        m = reg.predict(X, output_margin=True)
+        m = clf.predict(X, output_margin=True)
 
         clf_1 = xgb.XGBClassifier()
         # Feed the prediction into the next model
