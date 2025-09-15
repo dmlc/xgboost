@@ -235,7 +235,7 @@ void MakePairs(Context const* ctx, std::int32_t iter,
   } else {
     CHECK_EQ(g_rank.size(), g_label.Size());
 
-    std::uint32_t seed = iter * (static_cast<std::uint32_t>(group_ptr.size()) - 1) + g;
+    std::uint32_t seed = (iter + 1) * (static_cast<std::uint32_t>(group_ptr.size()) - 1) + g;
     std::minstd_rand rnd(seed);
     // sort label according to the rank list
     auto it = common::MakeIndexTransformIter(
