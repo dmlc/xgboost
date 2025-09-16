@@ -55,6 +55,7 @@ and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targe
 
         clf_1 = xgb.XGBClassifier()
         # Feed the prediction into the next model
+        # Using base margin overrides the base score, see below sections.
         clf_1.fit(X, y, base_margin=m)
         clf_1.predict(X, base_margin=m)
 
@@ -196,7 +197,8 @@ using binary logistic with a `logit` link function:
         import numpy as np
         from scipy.special import logit
         from sklearn.datasets import make_classification
-        from xgboost import train, DMatrix
+
+        import xgboost as xgb
 
         X, y = make_classification(random_state=2025)
 
@@ -226,12 +228,12 @@ First we use the intercept to train a model:
 .. tabs::
     .. code-tab:: py
 
-        booster = train(
+        booster = xgb.train(
             {"base_score": intercept, "objective": "binary:logistic"},
-            dtrain=DMatrix(X, y),
+            dtrain=xgb.DMatrix(X, y),
             num_boost_round=1,
         )
-        predt_0 = booster.predict(DMatrix(X, y))
+        predt_0 = booster.predict(xgb.DMatrix(X, y))
 
     .. code-tab:: r R
 
@@ -251,10 +253,10 @@ Apply :py:func:`~scipy.special.logit` to obtain the "margin":
 
         # Apply logit function to obtain the "margin"
         margin = np.full(y.shape, fill_value=logit(intercept), dtype=np.float32)
-        Xy = DMatrix(X, y, base_margin=margin)
+        Xy = xgb.DMatrix(X, y, base_margin=margin)
         # Second model with base_margin
         # 0.2 is a dummy value to show that `base_margin` overrides `base_score`.
-        booster = train(
+        booster = xgb.train(
             {"base_score": 0.2, "objective": "binary:logistic"},
             dtrain=Xy,
             num_boost_round=1,
