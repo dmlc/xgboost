@@ -77,6 +77,7 @@ and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targe
         m <- predict(model_1, agaricus.train$data, type = "raw")
 
         # Feed the prediction into the next model using base_margin
+        # Using base margin overrides the base score, see below sections.
         model_2 <- xgboost(
           x = agaricus.train$data,
           y = factor(agaricus.train$label),
