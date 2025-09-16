@@ -72,27 +72,28 @@ void ExtendPath(PathElement* unique_path, std::uint32_t unique_depth, float zero
 
 // undo a previous extension of the decision path
 void UnwindPath(PathElement* unique_path, std::uint32_t unique_depth, std::uint32_t path_index) {
+  int depth = static_cast<int>(unique_depth);
   const float one_fraction = unique_path[path_index].one_fraction;
   const float zero_fraction = unique_path[path_index].zero_fraction;
-  float next_one_portion = unique_path[unique_depth].pweight;
+  float next_one_portion = unique_path[depth].pweight;
 
-  for (int i = unique_depth - 1; i >= 0; --i) {
+  for (int i = depth - 1; i >= 0; --i) {
     if (one_fraction != 0) {
       const float tmp = unique_path[i].pweight;
       unique_path[i].pweight =
-          next_one_portion * (unique_depth + 1) / static_cast<float>((i + 1) * one_fraction);
-      next_one_portion = tmp - unique_path[i].pweight * zero_fraction * (unique_depth - i) /
-                                   static_cast<float>(unique_depth + 1);
+          next_one_portion * (depth + 1) / static_cast<float>((i + 1) * one_fraction);
+      next_one_portion = tmp - unique_path[i].pweight * zero_fraction * (depth - i) /
+                                   static_cast<float>(depth + 1);
     } else {
-      unique_path[i].pweight = (unique_path[i].pweight * (unique_depth + 1)) /
-                               static_cast<float>(zero_fraction * (unique_depth - i));
+      unique_path[i].pweight = (unique_path[i].pweight * (depth + 1)) /
+                               static_cast<float>(zero_fraction * (depth - i));
     }
   }
 
-  for (auto i = path_index; i < unique_depth; ++i) {
+  for (std::uint32_t i = path_index; i < unique_depth; ++i) {
     unique_path[i].feature_index = unique_path[i + 1].feature_index;
     unique_path[i].zero_fraction = unique_path[i + 1].zero_fraction;
-    unique_path[i].one_fraction = unique_path[i + 1].one_fraction;
+    unique_path[i].one_fraction  = unique_path[i + 1].one_fraction;
   }
 }
 
