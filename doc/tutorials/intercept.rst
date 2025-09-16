@@ -9,12 +9,28 @@ automatically based on targets upon training. The behavior can be controlled by 
 ``base_score`` to a constant value. The following snippet disables the automatic
 estimation:
 
-.. code-block:: python
+.. tabs::
+    .. code-tab:: py
 
-    import xgboost as xgb
+        import xgboost as xgb
 
-    reg = xgb.XGBRegressor()
-    reg.set_params(base_score=0.5)
+        clf = xgb.XGBClassifier(n_estimators=10)
+        clf.set_params(base_score=0.5)
+
+    .. code-tab:: r R
+
+        library(xgboost)
+
+        # Load built-in dataset
+        data(agaricus.train, package = "xgboost")
+
+        # Set base_score parameter directly
+        model <- xgboost(
+          x = agaricus.train$data,
+          y = factor(agaricus.train$label),
+          base_score = 0.5,
+          nrounds = 10
+        )
 
 In addition, here 0.5 represents the value after applying the inverse link function. See
 the end of the document for a description.
@@ -24,22 +40,53 @@ Other than the ``base_score``, users can also provide global bias via the data f
 and multi-class, the ``base_margin`` is a matrix with size ``(n_samples, n_targets)`` or
 ``(n_samples, n_classes)``.
 
-.. code-block:: python
+.. tabs::
+    .. code-tab:: py
 
-    import xgboost as xgb
-    from sklearn.datasets import make_regression
+        import xgboost as xgb
+        from sklearn.datasets import make_classification
 
-    X, y = make_regression()
+        X, y = make_classification()
 
-    reg = xgb.XGBRegressor()
-    reg.fit(X, y)
-    # Request for raw prediction
-    m = reg.predict(X, output_margin=True)
+        clf = xgb.XGBClassifier()
+        clf.fit(X, y)
+        # Request for raw prediction
+        m = clf.predict(X, output_margin=True)
 
-    reg_1 = xgb.XGBRegressor()
-    # Feed the prediction into the next model
-    reg_1.fit(X, y, base_margin=m)
-    reg_1.predict(X, base_margin=m)
+        clf_1 = xgb.XGBClassifier()
+        # Feed the prediction into the next model
+        # Using base margin overrides the base score, see below sections.
+        clf_1.fit(X, y, base_margin=m)
+        clf_1.predict(X, base_margin=m)
+
+    .. code-tab:: r R
+
+        library(xgboost)
+
+        # Load built-in dataset
+        data(agaricus.train, package = "xgboost")
+
+        # Train first model
+        model_1 <- xgboost(
+          x = agaricus.train$data,
+          y = factor(agaricus.train$label),
+          nrounds = 10
+        )
+
+        # Request for raw prediction
+        m <- predict(model_1, agaricus.train$data, type = "raw")
+
+        # Feed the prediction into the next model using base_margin
+        # Using base margin overrides the base score, see below sections.
+        model_2 <- xgboost(
+          x = agaricus.train$data,
+          y = factor(agaricus.train$label),
+          base_margin = m,
+          nrounds = 10
+        )
+
+        # Make predictions with base_margin
+        pred <- predict(model_2, agaricus.train$data, base_margin = m)
 
 
 It specifies the bias for each sample and can be used for stacking an XGBoost model on top
@@ -145,49 +192,101 @@ Example
 The following example shows the relationship between ``base_score`` and ``base_margin``
 using binary logistic with a `logit` link function:
 
-.. code-block:: python
+.. tabs::
+    .. code-tab:: py
 
-    import numpy as np
-    from scipy.special import logit
-    from sklearn.datasets import make_classification
-    from xgboost import train, DMatrix
+        import numpy as np
+        from scipy.special import logit
+        from sklearn.datasets import make_classification
 
-    X, y = make_classification(random_state=2025)
+        import xgboost as xgb
+
+        X, y = make_classification(random_state=2025)
+
+    .. code-tab:: r R
+
+        library(xgboost)
+
+        # Load built-in dataset
+        data(agaricus.train, package = "xgboost")
+        X <- agaricus.train$data
+        y <- agaricus.train$label
 
 The intercept is a valid probability (0.5). It's used as the initial estimation of the
 probability of obtaining a positive sample.
 
-.. code-block:: python
+.. tabs::
+    .. code-tab:: py
 
-    intercept = 0.5
+        intercept = 0.5
+
+    .. code-tab:: r R
+
+        intercept <- 0.5
 
 First we use the intercept to train a model:
 
-.. code-block:: python
+.. tabs::
+    .. code-tab:: py
 
-    booster = train(
-        {"base_score": intercept, "objective": "binary:logistic"},
-        dtrain=DMatrix(X, y),
-        num_boost_round=1,
-    )
-    predt_0 = booster.predict(DMatrix(X, y))
+        booster = xgb.train(
+            {"base_score": intercept, "objective": "binary:logistic"},
+            dtrain=xgb.DMatrix(X, y),
+            num_boost_round=1,
+        )
+        predt_0 = booster.predict(xgb.DMatrix(X, y))
+
+    .. code-tab:: r R
+
+        # First model with base_score
+        model_0 <- xgboost(
+          x = X, y = factor(y),
+          base_score = intercept,
+          objective = "binary:logistic",
+          nrounds = 1
+        )
+        predt_0 <- predict(model_0, X)
 
 Apply :py:func:`~scipy.special.logit` to obtain the "margin":
 
-.. code-block:: python
+.. tabs::
+    .. code-tab:: py
 
-    margin = np.full(y.shape, fill_value=logit(intercept), dtype=np.float32)
-    Xy = DMatrix(X, y, base_margin=margin)
-    # 0.2 is a dummy value to show that `base_margin` overrides `base_score`.
-    booster = train(
-        {"base_score": 0.2, "objective": "binary:logistic"},
-        dtrain=Xy,
-        num_boost_round=1,
-    )
-    predt_1 = booster.predict(Xy)
+        # Apply logit function to obtain the "margin"
+        margin = np.full(y.shape, fill_value=logit(intercept), dtype=np.float32)
+        Xy = xgb.DMatrix(X, y, base_margin=margin)
+        # Second model with base_margin
+        # 0.2 is a dummy value to show that `base_margin` overrides `base_score`.
+        booster = xgb.train(
+            {"base_score": 0.2, "objective": "binary:logistic"},
+            dtrain=Xy,
+            num_boost_round=1,
+        )
+        predt_1 = booster.predict(Xy)
+
+    .. code-tab:: r R
+
+        # Apply logit function to obtain the "margin"
+        logit_intercept <- log(intercept / (1 - intercept))
+        margin <- rep(logit_intercept, length(y))
+        # Second model with base_margin
+        # 0.2 is a dummy value to show that `base_margin` overrides `base_score`
+        model_1 <- xgboost(
+          x = X, y = factor(y),
+          base_margin = margin,
+          base_score = 0.2,
+          objective = "binary:logistic",
+          nrounds = 1
+        )
+        predt_1 <- predict(model_1, X, base_margin = margin)
 
 Compare the results:
 
-.. code-block:: python
+.. tabs::
+    .. code-tab:: py
 
-    np.testing.assert_allclose(predt_0, predt_1)
+        np.testing.assert_allclose(predt_0, predt_1)
+
+    .. code-tab:: r R
+
+        all.equal(predt_0, predt_1, tolerance = 1e-6)
