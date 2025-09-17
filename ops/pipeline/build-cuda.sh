@@ -17,7 +17,6 @@ fi
 image_repo="$1"
 rmm_flag="$2"
 export USE_FEDERATED=1
-export USE_DLOPEN_NCCL=1
 
 # Validate RMM flag
 case "${rmm_flag}" in
@@ -54,7 +53,7 @@ set -x
 
 python3 ops/docker_run.py \
   --image-uri ${BUILD_IMAGE_URI} \
-  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM -e USE_FEDERATED -e USE_DLOPEN_NCCL' \
+  --run-args='-e BUILD_ONLY_SM75 -e USE_RMM -e USE_FEDERATED' \
   -- ops/pipeline/build-cuda-impl.sh
 
 echo "--- Audit binary wheel to ensure it's compliant with ${WHEEL_TAG} standard"

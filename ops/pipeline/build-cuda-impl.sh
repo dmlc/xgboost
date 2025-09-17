@@ -18,13 +18,6 @@ else
   cmake_args="${cmake_args} -DPLUGIN_FEDERATED=OFF"
 fi
 
-if [[ "${USE_DLOPEN_NCCL:-1}" == 1 ]]
-then
-  cmake_args="${cmake_args} -DUSE_DLOPEN_NCCL=ON"
-else
-  cmake_args="${cmake_args} -DUSE_DLOPEN_NCCL=OFF"
-fi
-
 if [[ "${USE_RMM:-0}" == 1 ]]
 then
   cmake_prefix_path='/opt/grpc;/opt/rmm;/opt/rmm/lib64/rapids/cmake'
@@ -47,6 +40,7 @@ cmake .. \
   -DUSE_NCCL=ON \
   -DUSE_NCCL_LIB_PATH=ON \
   -DNCCL_INCLUDE_DIR=/usr/include \
+  -DUSE_DLOPEN_NCCL=ON \
   -DGOOGLE_TEST=ON \
   -DUSE_DMLC_GTEST=ON \
   -DENABLE_ALL_WARNINGS=ON \
