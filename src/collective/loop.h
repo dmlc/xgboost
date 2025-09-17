@@ -84,9 +84,12 @@ class Loop {
 
   explicit Loop(std::chrono::seconds timeout);
 
-  ~Loop() noexcept(false) {
-    // The worker will be joined in the stop function.
-    this->Stop();
-  }
+~Loop() noexcept {
+    try {
+        this->Stop();
+    } catch (...) {
+        // Log or swallow exception, but do not propagate
+    }
+ }
 };
 }  // namespace xgboost::collective
