@@ -1,385 +1,581 @@
-/*!
- * Copyright 2017-2022 by XGBoost Contributors
+/**
+ * Copyright 2017-2025, XGBoost Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
-#include "./updater_quantile_hist.h"
+#include <algorithm>  // for max, copy, transform
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t, int32_t
+#include <memory>     // for allocator, unique_ptr, make_unique, shared_ptr
+#include <ostream>    // for operator<<, basic_ostream, char_traits
+#include <utility>    // for move
+#include <vector>     // for vector
 
-#include <rabit/rabit.h>
+#include "../collective/aggregator.h"        // for GlobalSum
+#include "../collective/communicator-inl.h"  // for IsDistributed
+#include "../common/hist_util.h"             // for HistogramCuts, GHistRow
+#include "../common/linalg_op.h"             // for begin, cbegin, cend
+#include "../common/random.h"                // for ColumnSampler
+#include "../common/threading_utils.h"       // for ParallelFor
+#include "../common/timer.h"                 // for Monitor
+#include "../data/gradient_index.h"          // for GHistIndexMatrix
+#include "common_row_partitioner.h"          // for CommonRowPartitioner
+#include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
+#include "driver.h"                          // for Driver
+#include "hist/evaluate_splits.h"            // for HistEvaluator, HistMultiEvaluator, UpdatePre...
+#include "hist/expand_entry.h"               // for MultiExpandEntry, CPUExpandEntry
+#include "hist/hist_cache.h"                 // for BoundedHistCollection
+#include "hist/histogram.h"                  // for MultiHistogramBuilder
+#include "hist/hist_param.h"                 // for HistMakerTrainParam
+#include "hist/sampler.h"                    // for SampleGradient
+#include "param.h"                           // for TrainParam, GradStats
+#include "xgboost/base.h"                    // for Args, GradientPairPrecise, GradientPair, Gra...
+#include "xgboost/context.h"                 // for Context
+#include "xgboost/data.h"                    // for BatchSet, DMatrix, BatchIterator, MetaInfo
+#include "xgboost/host_device_vector.h"      // for HostDeviceVector
+#include "xgboost/json.h"                    // for Object, Json, FromJson, ToJson, get
+#include "xgboost/linalg.h"                  // for MatrixView, TensorView, All, Matrix, Empty
+#include "xgboost/logging.h"                 // for LogCheck_EQ, CHECK_EQ, CHECK, LogCheck_GE
+#include "xgboost/span.h"                    // for Span, operator!=, SpanIterator
+#include "xgboost/string_view.h"             // for operator<<
+#include "xgboost/task.h"                    // for ObjInfo
+#include "xgboost/tree_model.h"              // for RegTree, MTNotImplemented, RTreeNodeStat
+#include "xgboost/tree_updater.h"            // for TreeUpdater, TreeUpdaterReg, XGBOOST_REGISTE...
 
-#include <algorithm>
-#include <memory>
-#include <numeric>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "../common/column_matrix.h"
-#include "../common/hist_util.h"
-#include "../common/random.h"
-#include "../common/threading_utils.h"
-#include "constraints.h"
-#include "hist/evaluate_splits.h"
-#include "param.h"
-#include "xgboost/logging.h"
-#include "xgboost/tree_updater.h"
-
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_quantile_hist);
 
-void QuantileHistMaker::Configure(const Args &args) {
-  param_.UpdateAllowUnknown(args);
-}
+BatchParam HistBatch(TrainParam const *param) { return {param->max_bin, param->sparse_threshold}; }
 
-void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair, DMatrix *dmat,
-                               common::Span<HostDeviceVector<bst_node_t>> out_position,
-                               const std::vector<RegTree *> &trees) {
-  // rescale learning rate according to size of trees
-  float lr = param_.learning_rate;
-  param_.learning_rate = lr / trees.size();
+template <typename ExpandEntry, typename Updater>
+void UpdateTree(common::Monitor *monitor, linalg::MatrixView<GradientPair const> gpair,
+                Updater *updater, DMatrix *p_fmat, TrainParam const *param,
+                HostDeviceVector<bst_node_t> *p_out_position, RegTree *p_tree) {
+  monitor->Start(__func__);
+  updater->InitData(p_fmat, p_tree);
 
-  // build tree
-  const size_t n_trees = trees.size();
-  if (!pimpl_) {
-    pimpl_.reset(new Builder(n_trees, param_, dmat, task_, ctx_));
-  }
-
-  size_t t_idx{0};
-  for (auto p_tree : trees) {
-    auto &t_row_position = out_position[t_idx];
-    this->pimpl_->UpdateTree(gpair, dmat, p_tree, &t_row_position);
-    ++t_idx;
-  }
-
-  param_.learning_rate = lr;
-}
-
-bool QuantileHistMaker::UpdatePredictionCache(const DMatrix *data,
-                                              linalg::VectorView<float> out_preds) {
-  if (pimpl_) {
-    return pimpl_->UpdatePredictionCache(data, out_preds);
-  } else {
-    return false;
-  }
-}
-
-CPUExpandEntry QuantileHistMaker::Builder::InitRoot(
-    DMatrix *p_fmat, RegTree *p_tree, const std::vector<GradientPair> &gpair_h) {
-  CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0), 0.0f);
-
-  size_t page_id = 0;
-  auto space = ConstructHistSpace(partitioner_, {node});
-  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-    std::vector<CPUExpandEntry> nodes_to_build{node};
-    std::vector<CPUExpandEntry> nodes_to_sub;
-    this->histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
-                                        partitioner_.at(page_id).Partitions(), nodes_to_build,
-                                        nodes_to_sub, gpair_h);
-    ++page_id;
-  }
-
-  {
-    GradientPairPrecise grad_stat;
-    if (p_fmat->IsDense()) {
-      /**
-       * Specialized code for dense data: For dense data (with no missing value), the sum
-       * of gradient histogram is equal to snode[nid]
-       */
-      auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_)).begin());
-      std::vector<uint32_t> const &row_ptr = gmat.cut.Ptrs();
-      CHECK_GE(row_ptr.size(), 2);
-      uint32_t const ibegin = row_ptr[0];
-      uint32_t const iend = row_ptr[1];
-      auto hist = this->histogram_builder_->Histogram()[RegTree::kRoot];
-      auto begin = hist.data();
-      for (uint32_t i = ibegin; i < iend; ++i) {
-        GradientPairPrecise const &et = begin[i];
-        grad_stat.Add(et.GetGrad(), et.GetHess());
-      }
-    } else {
-      for (auto const &grad : gpair_h) {
-        grad_stat.Add(grad.GetGrad(), grad.GetHess());
-      }
-      rabit::Allreduce<rabit::op::Sum, double>(reinterpret_cast<double *>(&grad_stat), 2);
-    }
-
-    auto weight = evaluator_->InitRoot(GradStats{grad_stat});
-    p_tree->Stat(RegTree::kRoot).sum_hess = grad_stat.GetHess();
-    p_tree->Stat(RegTree::kRoot).base_weight = weight;
-    (*p_tree)[RegTree::kRoot].SetLeaf(param_.learning_rate * weight);
-
-    std::vector<CPUExpandEntry> entries{node};
-    monitor_->Start("EvaluateSplits");
-    auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-      evaluator_->EvaluateSplits(histogram_builder_->Histogram(), gmat.cut, ft, *p_tree, &entries);
-      break;
-    }
-    monitor_->Stop("EvaluateSplits");
-    node = entries.front();
-  }
-
-  return node;
-}
-
-void QuantileHistMaker::Builder::BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
-                                                std::vector<CPUExpandEntry> const &valid_candidates,
-                                                std::vector<GradientPair> const &gpair) {
-  std::vector<CPUExpandEntry> nodes_to_build(valid_candidates.size());
-  std::vector<CPUExpandEntry> nodes_to_sub(valid_candidates.size());
-
-  size_t n_idx = 0;
-  for (auto const &c : valid_candidates) {
-    auto left_nidx = (*p_tree)[c.nid].LeftChild();
-    auto right_nidx = (*p_tree)[c.nid].RightChild();
-    auto fewer_right = c.split.right_sum.GetHess() < c.split.left_sum.GetHess();
-
-    auto build_nidx = left_nidx;
-    auto subtract_nidx = right_nidx;
-    if (fewer_right) {
-      std::swap(build_nidx, subtract_nidx);
-    }
-    nodes_to_build[n_idx] = CPUExpandEntry{build_nidx, p_tree->GetDepth(build_nidx), {}};
-    nodes_to_sub[n_idx] = CPUExpandEntry{subtract_nidx, p_tree->GetDepth(subtract_nidx), {}};
-    n_idx++;
-  }
-
-  size_t page_id{0};
-  auto space = ConstructHistSpace(partitioner_, nodes_to_build);
-  for (auto const &gidx : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-    histogram_builder_->BuildHist(page_id, space, gidx, p_tree,
-                                  partitioner_.at(page_id).Partitions(), nodes_to_build,
-                                  nodes_to_sub, gpair);
-    ++page_id;
-  }
-}
-
-void QuantileHistMaker::Builder::LeafPartition(RegTree const &tree,
-                                               common::Span<GradientPair const> gpair,
-                                               std::vector<bst_node_t> *p_out_position) {
-  monitor_->Start(__func__);
-  if (!task_.UpdateTreeLeaf()) {
-    return;
-  }
-  for (auto const &part : partitioner_) {
-    part.LeafPartition(ctx_, tree, gpair, p_out_position);
-  }
-  monitor_->Stop(__func__);
-}
-
-void QuantileHistMaker::Builder::ExpandTree(DMatrix *p_fmat, RegTree *p_tree,
-                                            const std::vector<GradientPair> &gpair_h,
-                                            HostDeviceVector<bst_node_t> *p_out_position) {
-  monitor_->Start(__func__);
-
-  Driver<CPUExpandEntry> driver(param_);
-  driver.Push(this->InitRoot(p_fmat, p_tree, gpair_h));
+  Driver<ExpandEntry> driver{*param};
   auto const &tree = *p_tree;
+  driver.Push(updater->InitRoot(p_fmat, gpair, p_tree));
   auto expand_set = driver.Pop();
 
+  /**
+   * Note for update position
+   * Root:
+   *   Not applied: No need to update position as initialization has got all the rows ordered.
+   *   Applied: Update position is run on applied nodes so the rows are partitioned.
+   * Non-root:
+   *   Not applied: That node is root of the subtree, same rule as root.
+   *   Applied: Ditto
+   */
   while (!expand_set.empty()) {
     // candidates that can be further splited.
-    std::vector<CPUExpandEntry> valid_candidates;
+    std::vector<ExpandEntry> valid_candidates;
     // candidaates that can be applied.
-    std::vector<CPUExpandEntry> applied;
-    int32_t depth = expand_set.front().depth + 1;
-    for (auto const& candidate : expand_set) {
-      evaluator_->ApplyTreeSplit(candidate, p_tree);
+    std::vector<ExpandEntry> applied;
+    for (auto const &candidate : expand_set) {
+      updater->ApplyTreeSplit(candidate, p_tree);
+      CHECK_GT(p_tree->LeftChild(candidate.nid), candidate.nid);
       applied.push_back(candidate);
       if (driver.IsChildValid(candidate)) {
         valid_candidates.emplace_back(candidate);
       }
     }
 
-    monitor_->Start("UpdatePosition");
-    size_t page_id{0};
-    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-      partitioner_.at(page_id).UpdatePosition(ctx_, page, applied, p_tree);
-      ++page_id;
-    }
-    monitor_->Stop("UpdatePosition");
+    updater->UpdatePosition(p_fmat, p_tree, applied);
 
-    std::vector<CPUExpandEntry> best_splits;
+    std::vector<ExpandEntry> best_splits;
     if (!valid_candidates.empty()) {
-      this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair_h);
+      updater->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair);
       for (auto const &candidate : valid_candidates) {
-        int left_child_nidx = tree[candidate.nid].LeftChild();
-        int right_child_nidx = tree[candidate.nid].RightChild();
-        CPUExpandEntry l_best{left_child_nidx, depth, 0.0};
-        CPUExpandEntry r_best{right_child_nidx, depth, 0.0};
+        auto left_child_nidx = tree.LeftChild(candidate.nid);
+        auto right_child_nidx = tree.RightChild(candidate.nid);
+        ExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
+        ExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
         best_splits.push_back(l_best);
         best_splits.push_back(r_best);
       }
-      auto const &histograms = histogram_builder_->Histogram();
-      auto ft = p_fmat->Info().feature_types.ConstHostSpan();
-      for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
-        evaluator_->EvaluateSplits(histograms, gmat.cut, ft, *p_tree, &best_splits);
-        break;
-      }
+      updater->EvaluateSplits(p_fmat, p_tree, &best_splits);
     }
     driver.Push(best_splits.begin(), best_splits.end());
     expand_set = driver.Pop();
   }
 
   auto &h_out_position = p_out_position->HostVector();
-  this->LeafPartition(tree, gpair_h, &h_out_position);
-  monitor_->Stop(__func__);
+  updater->LeafPartition(tree, gpair, &h_out_position);
+  monitor->Stop(__func__);
 }
 
-void QuantileHistMaker::Builder::UpdateTree(HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
-                                            RegTree *p_tree,
-                                            HostDeviceVector<bst_node_t> *p_out_position) {
-  monitor_->Start(__func__);
+/**
+ * \brief Updater for building multi-target trees. The implementation simply iterates over
+ *        each target.
+ */
+class MultiTargetHistBuilder {
+ private:
+  common::Monitor *monitor_{nullptr};
+  TrainParam const *param_{nullptr};
+  HistMakerTrainParam const *hist_param_{nullptr};
+  std::shared_ptr<common::ColumnSampler> col_sampler_;
+  std::unique_ptr<HistMultiEvaluator> evaluator_;
+  // Histogram builder for each target.
+  std::unique_ptr<MultiHistogramBuilder> histogram_builder_;
+  Context const *ctx_{nullptr};
+  // Partitioner for each data batch.
+  std::vector<CommonRowPartitioner> partitioner_;
+  // Pointer to last updated tree, used for update prediction cache.
+  RegTree const *p_last_tree_{nullptr};
+  DMatrix const *p_last_fmat_{nullptr};
 
-  std::vector<GradientPair> *gpair_ptr = &(gpair->HostVector());
-  // in case 'num_parallel_trees != 1' no posibility to change initial gpair
-  if (GetNumberOfTrees() != 1) {
-    gpair_local_.resize(gpair_ptr->size());
-    gpair_local_ = *gpair_ptr;
-    gpair_ptr = &gpair_local_;
-  }
+  ObjInfo const *task_{nullptr};
 
-  this->InitData(p_fmat, *p_tree, gpair_ptr);
-
-  ExpandTree(p_fmat, p_tree, *gpair_ptr, p_out_position);
-  monitor_->Stop(__func__);
-}
-
-bool QuantileHistMaker::Builder::UpdatePredictionCache(DMatrix const *data,
-                                                       linalg::VectorView<float> out_preds) const {
-  // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
-  // conjunction with Update().
-  if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
-    return false;
-  }
-  monitor_->Start(__func__);
-  CHECK_EQ(out_preds.Size(), data->Info().num_row_);
-  UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
-  monitor_->Stop(__func__);
-  return true;
-}
-
-void QuantileHistMaker::Builder::InitSampling(const DMatrix &fmat,
-                                              std::vector<GradientPair> *gpair) {
-  monitor_->Start(__func__);
-  const auto &info = fmat.Info();
-  auto& rnd = common::GlobalRandom();
-  std::vector<GradientPair>& gpair_ref = *gpair;
-
-#if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-  std::bernoulli_distribution coin_flip(param_.subsample);
-  for (size_t i = 0; i < info.num_row_; ++i) {
-    if (!(gpair_ref[i].GetHess() >= 0.0f && coin_flip(rnd)) || gpair_ref[i].GetGrad() == 0.0f) {
-      gpair_ref[i] = GradientPair(0);
+ public:
+  void UpdatePosition(DMatrix *p_fmat, RegTree const *p_tree,
+                      std::vector<MultiExpandEntry> const &applied) {
+    monitor_->Start(__func__);
+    std::size_t page_id{0};
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(this->param_))) {
+      this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied, p_tree);
+      page_id++;
     }
+    monitor_->Stop(__func__);
   }
-#else
-  uint64_t initial_seed = rnd();
 
-  auto n_threads = static_cast<size_t>(ctx_->Threads());
-  const size_t discard_size = info.num_row_ / n_threads;
-  std::bernoulli_distribution coin_flip(param_.subsample);
-
-  dmlc::OMPException exc;
-  #pragma omp parallel num_threads(n_threads)
-  {
-    exc.Run([&]() {
-      const size_t tid = omp_get_thread_num();
-      const size_t ibegin = tid * discard_size;
-      const size_t iend = (tid == (n_threads - 1)) ? info.num_row_ : ibegin + discard_size;
-      RandomReplace::MakeIf([&](size_t i, RandomReplace::EngineT& eng) {
-        return !(gpair_ref[i].GetHess() >= 0.0f && coin_flip(eng));
-      }, GradientPair(0), initial_seed, ibegin, iend, &gpair_ref);
-    });
+  void ApplyTreeSplit(MultiExpandEntry const &candidate, RegTree *p_tree) {
+    this->evaluator_->ApplyTreeSplit(candidate, p_tree);
   }
-  exc.Rethrow();
-#endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-  monitor_->Stop(__func__);
-}
-size_t QuantileHistMaker::Builder::GetNumberOfTrees() { return n_trees_; }
 
-void QuantileHistMaker::Builder::InitData(DMatrix *fmat, const RegTree &tree,
-                                          std::vector<GradientPair> *gpair) {
-  monitor_->Start(__func__);
-  const auto& info = fmat->Info();
+  void InitData(DMatrix *p_fmat, RegTree const *p_tree) {
+    monitor_->Start(__func__);
 
-  {
-    size_t page_id{0};
-    int32_t n_total_bins{0};
+    p_last_fmat_ = p_fmat;
+    bst_bin_t n_total_bins = 0;
     partitioner_.clear();
-    for (auto const &page : fmat->GetBatches<GHistIndexMatrix>(HistBatch(param_))) {
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
       if (n_total_bins == 0) {
         n_total_bins = page.cut.TotalBins();
       } else {
         CHECK_EQ(n_total_bins, page.cut.TotalBins());
       }
-      partitioner_.emplace_back(page.Size(), page.base_rowid, this->ctx_->Threads());
-      ++page_id;
+      partitioner_.emplace_back(ctx_, page.Size(), page.base_rowid, p_fmat->Info().IsColumnSplit());
     }
-    histogram_builder_->Reset(n_total_bins, HistBatch(param_), ctx_->Threads(), page_id,
-                              rabit::IsDistributed());
 
-    if (param_.subsample < 1.0f) {
-      CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
-          << "Only uniform sampling is supported, "
-          << "gradient-based sampling is only support by GPU Hist.";
-      InitSampling(*fmat, gpair);
-    }
+    bst_target_t n_targets = p_tree->NumTargets();
+    histogram_builder_ = std::make_unique<MultiHistogramBuilder>();
+    histogram_builder_->Reset(ctx_, n_total_bins, n_targets, HistBatch(param_),
+                              collective::IsDistributed(), p_fmat->Info().IsColumnSplit(),
+                              hist_param_);
+
+    evaluator_ = std::make_unique<HistMultiEvaluator>(ctx_, p_fmat->Info(), param_, col_sampler_);
+    p_last_tree_ = p_tree;
+    monitor_->Stop(__func__);
   }
 
-  // store a pointer to the tree
-  p_last_tree_ = &tree;
-  evaluator_.reset(
-      new HistEvaluator<CPUExpandEntry>{param_, info, this->ctx_->Threads(), column_sampler_});
+  MultiExpandEntry InitRoot(DMatrix *p_fmat, linalg::MatrixView<GradientPair const> gpair,
+                            RegTree *p_tree) {
+    monitor_->Start(__func__);
+    MultiExpandEntry best;
+    best.nid = RegTree::kRoot;
+    best.depth = 0;
 
-  monitor_->Stop(__func__);
-}
-
-void HistRowPartitioner::FindSplitConditions(const std::vector<CPUExpandEntry> &nodes,
-                                             const RegTree &tree, const GHistIndexMatrix &gmat,
-                                             std::vector<int32_t> *split_conditions) {
-  const size_t n_nodes = nodes.size();
-  split_conditions->resize(n_nodes);
-
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    const int32_t nid = nodes[i].nid;
-    const bst_uint fid = tree[nid].SplitIndex();
-    const bst_float split_pt = tree[nid].SplitCond();
-    const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
-    const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
-    bst_bin_t split_cond = -1;
-    // convert floating-point split_pt into corresponding bin_id
-    // split_cond = -1 indicates that split_pt is less than all known cut points
-    CHECK_LT(upper_bound, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-    for (auto bound = lower_bound; bound < upper_bound; ++bound) {
-      if (split_pt == gmat.cut.Values()[bound]) {
-        split_cond = static_cast<int32_t>(bound);
+    auto n_targets = p_tree->NumTargets();
+    linalg::Matrix<GradientPairPrecise> root_sum_tloc =
+        linalg::Empty<GradientPairPrecise>(ctx_, ctx_->Threads(), n_targets);
+    CHECK_EQ(root_sum_tloc.Shape(1), gpair.Shape(1));
+    auto h_root_sum_tloc = root_sum_tloc.HostView();
+    common::ParallelFor(gpair.Shape(0), ctx_->Threads(), [&](auto i) {
+      for (bst_target_t t{0}; t < n_targets; ++t) {
+        h_root_sum_tloc(omp_get_thread_num(), t) += GradientPairPrecise{gpair(i, t)};
+      }
+    });
+    // Aggregate to the first row.
+    auto root_sum = h_root_sum_tloc.Slice(0, linalg::All());
+    for (std::int32_t tidx{1}; tidx < ctx_->Threads(); ++tidx) {
+      for (bst_target_t t{0}; t < n_targets; ++t) {
+        root_sum(t) += h_root_sum_tloc(tidx, t);
       }
     }
-    (*split_conditions)[i] = split_cond;
-  }
-}
+    CHECK(root_sum.CContiguous());
+    auto rc = collective::GlobalSum(
+        ctx_, p_fmat->Info(),
+        linalg::MakeVec(reinterpret_cast<double *>(root_sum.Values().data()), root_sum.Size() * 2));
+    collective::SafeColl(rc);
 
-void HistRowPartitioner::AddSplitsToRowSet(const std::vector<CPUExpandEntry> &nodes,
-                                           RegTree const *p_tree) {
-  const size_t n_nodes = nodes.size();
-  for (unsigned int i = 0; i < n_nodes; ++i) {
-    const int32_t nid = nodes[i].nid;
-    const size_t n_left = partition_builder_.GetNLeftElems(i);
-    const size_t n_right = partition_builder_.GetNRightElems(i);
-    CHECK_EQ((*p_tree)[nid].LeftChild() + 1, (*p_tree)[nid].RightChild());
-    row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(), (*p_tree)[nid].RightChild(),
-                                 n_left, n_right);
+    histogram_builder_->BuildRootHist(p_fmat, p_tree, partitioner_, gpair, best, HistBatch(param_));
+
+    auto weight = evaluator_->InitRoot(root_sum);
+    auto weight_t = weight.HostView();
+    std::transform(linalg::cbegin(weight_t), linalg::cend(weight_t), linalg::begin(weight_t),
+                   [&](float w) { return w * param_->learning_rate; });
+
+    p_tree->SetLeaf(RegTree::kRoot, weight_t);
+    std::vector<BoundedHistCollection const *> hists;
+    std::vector<MultiExpandEntry> nodes{{RegTree::kRoot, 0}};
+    for (bst_target_t t{0}; t < p_tree->NumTargets(); ++t) {
+      hists.push_back(&(*histogram_builder_).Histogram(t));
+    }
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
+      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, &nodes);
+      break;
+    }
+    monitor_->Stop(__func__);
+
+    return nodes.front();
   }
-}
+
+  void BuildHistogram(DMatrix *p_fmat, RegTree const *p_tree,
+                      std::vector<MultiExpandEntry> const &valid_candidates,
+                      linalg::MatrixView<GradientPair const> gpair) {
+    monitor_->Start(__func__);
+    histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree, partitioner_, valid_candidates,
+                                           gpair, HistBatch(param_));
+    monitor_->Stop(__func__);
+  }
+
+  void EvaluateSplits(DMatrix *p_fmat, RegTree const *p_tree,
+                      std::vector<MultiExpandEntry> *best_splits) {
+    monitor_->Start(__func__);
+    std::vector<BoundedHistCollection const *> hists;
+    for (bst_target_t t{0}; t < p_tree->NumTargets(); ++t) {
+      hists.push_back(&(*histogram_builder_).Histogram(t));
+    }
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
+      evaluator_->EvaluateSplits(*p_tree, hists, gmat.cut, best_splits);
+      break;
+    }
+    monitor_->Stop(__func__);
+  }
+
+  void LeafPartition(RegTree const &tree, linalg::MatrixView<GradientPair const> gpair,
+                     std::vector<bst_node_t> *p_out_position) {
+    monitor_->Start(__func__);
+    if (!task_->UpdateTreeLeaf()) {
+      monitor_->Stop(__func__);
+      return;
+    }
+    p_out_position->resize(gpair.Shape(0));
+    for (auto const &part : partitioner_) {
+      part.LeafPartition(ctx_, tree, gpair,
+                         common::Span{p_out_position->data(), p_out_position->size()});
+    }
+    monitor_->Stop(__func__);
+  }
+
+ public:
+  explicit MultiTargetHistBuilder(Context const *ctx, MetaInfo const &info, TrainParam const *param,
+                                  HistMakerTrainParam const *hist_param,
+                                  std::shared_ptr<common::ColumnSampler> column_sampler,
+                                  ObjInfo const *task, common::Monitor *monitor)
+      : monitor_{monitor},
+        param_{param},
+        hist_param_{hist_param},
+        col_sampler_{std::move(column_sampler)},
+        evaluator_{std::make_unique<HistMultiEvaluator>(ctx, info, param, col_sampler_)},
+        ctx_{ctx},
+        task_{task} {
+    monitor_->Init(__func__);
+  }
+
+  bool UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
+    // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
+    // conjunction with Update().
+    if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
+      return false;
+    }
+    monitor_->Start(__func__);
+    CHECK_EQ(out_preds.Size(), data->Info().num_row_ * p_last_tree_->NumTargets());
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
+    monitor_->Stop(__func__);
+    return true;
+  }
+};
+
+/**
+ * @brief Tree updater for single-target trees.
+ */
+class HistUpdater {
+ private:
+  common::Monitor *monitor_;
+  TrainParam const *param_;
+  HistMakerTrainParam const *hist_param_{nullptr};
+  std::shared_ptr<common::ColumnSampler> col_sampler_;
+  std::unique_ptr<HistEvaluator> evaluator_;
+  std::vector<CommonRowPartitioner> partitioner_;
+
+  // back pointers to tree and data matrix
+  const RegTree *p_last_tree_{nullptr};
+  DMatrix const *const p_last_fmat_{nullptr};
+
+  std::unique_ptr<MultiHistogramBuilder> histogram_builder_;
+  ObjInfo const *task_{nullptr};
+  // Context for number of threads
+  Context const *ctx_{nullptr};
+
+ public:
+  explicit HistUpdater(Context const *ctx, std::shared_ptr<common::ColumnSampler> column_sampler,
+                       TrainParam const *param, HistMakerTrainParam const *hist_param,
+                       DMatrix const *fmat, ObjInfo const *task, common::Monitor *monitor)
+      : monitor_{monitor},
+        param_{param},
+        hist_param_{hist_param},
+        col_sampler_{std::move(column_sampler)},
+        evaluator_{std::make_unique<HistEvaluator>(ctx, param, fmat->Info(), col_sampler_)},
+        p_last_fmat_(fmat),
+        histogram_builder_{new MultiHistogramBuilder},
+        task_{task},
+        ctx_{ctx} {
+    monitor_->Init(__func__);
+  }
+
+  bool UpdatePredictionCache(DMatrix const *data, linalg::MatrixView<float> out_preds) const {
+    // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
+    // conjunction with Update().
+    if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
+      return false;
+    }
+    monitor_->Start(__func__);
+    CHECK_EQ(out_preds.Size(), data->Info().num_row_);
+    UpdatePredictionCacheImpl(ctx_, p_last_tree_, partitioner_, out_preds);
+    monitor_->Stop(__func__);
+    return true;
+  }
+
+ public:
+  // initialize temp data structure
+  void InitData(DMatrix *fmat, RegTree const *p_tree) {
+    monitor_->Start(__func__);
+    bst_bin_t n_total_bins{0};
+    size_t page_idx = 0;
+    for (auto const &page : fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
+      if (n_total_bins == 0) {
+        n_total_bins = page.cut.TotalBins();
+      } else {
+        CHECK_EQ(n_total_bins, page.cut.TotalBins());
+      }
+      if (page_idx < partitioner_.size()) {
+        partitioner_[page_idx].Reset(this->ctx_, page.Size(), page.base_rowid,
+                                     fmat->Info().IsColumnSplit());
+      } else {
+        partitioner_.emplace_back(this->ctx_, page.Size(), page.base_rowid,
+                                  fmat->Info().IsColumnSplit());
+      }
+      page_idx++;
+    }
+    histogram_builder_->Reset(ctx_, n_total_bins, 1, HistBatch(param_), collective::IsDistributed(),
+                              fmat->Info().IsColumnSplit(), hist_param_);
+    evaluator_ = std::make_unique<HistEvaluator>(ctx_, this->param_, fmat->Info(), col_sampler_);
+    p_last_tree_ = p_tree;
+    monitor_->Stop(__func__);
+  }
+
+  void EvaluateSplits(DMatrix *p_fmat, RegTree const *p_tree,
+                      std::vector<CPUExpandEntry> *best_splits) {
+    monitor_->Start(__func__);
+    auto const &histograms = histogram_builder_->Histogram(0);
+    auto ft = p_fmat->Info().feature_types.ConstHostSpan();
+    for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
+      evaluator_->EvaluateSplits(histograms, gmat.cut, ft, *p_tree, best_splits);
+      break;
+    }
+    monitor_->Stop(__func__);
+  }
+
+  void ApplyTreeSplit(CPUExpandEntry const &candidate, RegTree *p_tree) {
+    this->evaluator_->ApplyTreeSplit(candidate, p_tree);
+  }
+
+  CPUExpandEntry InitRoot(DMatrix *p_fmat, linalg::MatrixView<GradientPair const> gpair,
+                          RegTree *p_tree) {
+    monitor_->Start(__func__);
+    CPUExpandEntry node(RegTree::kRoot, p_tree->GetDepth(0));
+
+    this->histogram_builder_->BuildRootHist(p_fmat, p_tree, partitioner_, gpair, node,
+                                            HistBatch(param_));
+
+    {
+      GradientPairPrecise grad_stat;
+      if (p_fmat->IsDense() && !collective::IsDistributed()) {
+        /**
+         * Specialized code for dense data: For dense data (with no missing value), the sum
+         * of gradient histogram is equal to snode[nid]
+         */
+        auto const &gmat = *(p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_)).begin());
+        std::vector<std::uint32_t> const &row_ptr = gmat.cut.Ptrs();
+        CHECK_GE(row_ptr.size(), 2);
+        std::uint32_t const ibegin = row_ptr[0];
+        std::uint32_t const iend = row_ptr[1];
+        auto hist = this->histogram_builder_->Histogram(0)[RegTree::kRoot];
+        auto begin = hist.data();
+        for (std::uint32_t i = ibegin; i < iend; ++i) {
+          GradientPairPrecise const &et = begin[i];
+          grad_stat.Add(et.GetGrad(), et.GetHess());
+        }
+      } else {
+        auto gpair_h = gpair.Slice(linalg::All(), 0).Values();
+        for (auto const &grad : gpair_h) {
+          grad_stat.Add(grad.GetGrad(), grad.GetHess());
+        }
+        auto rc = collective::GlobalSum(ctx_, p_fmat->Info(),
+                                        linalg::MakeVec(reinterpret_cast<double *>(&grad_stat), 2));
+        collective::SafeColl(rc);
+      }
+
+      auto weight = evaluator_->InitRoot(GradStats{grad_stat});
+      p_tree->Stat(RegTree::kRoot).sum_hess = grad_stat.GetHess();
+      p_tree->Stat(RegTree::kRoot).base_weight = weight;
+      (*p_tree)[RegTree::kRoot].SetLeaf(param_->learning_rate * weight);
+
+      std::vector<CPUExpandEntry> entries{node};
+      monitor_->Start("EvaluateSplits");
+      auto ft = p_fmat->Info().feature_types.ConstHostSpan();
+      for (auto const &gmat : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
+        evaluator_->EvaluateSplits(histogram_builder_->Histogram(0), gmat.cut, ft, *p_tree,
+                                   &entries);
+        break;
+      }
+      monitor_->Stop("EvaluateSplits");
+      node = entries.front();
+    }
+
+    monitor_->Stop(__func__);
+    return node;
+  }
+
+  void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
+                      std::vector<CPUExpandEntry> const &valid_candidates,
+                      linalg::MatrixView<GradientPair const> gpair) {
+    monitor_->Start(__func__);
+    this->histogram_builder_->BuildHistLeftRight(ctx_, p_fmat, p_tree, partitioner_,
+                                                 valid_candidates, gpair, HistBatch(param_));
+    monitor_->Stop(__func__);
+  }
+
+  void UpdatePosition(DMatrix *p_fmat, RegTree const *p_tree,
+                      std::vector<CPUExpandEntry> const &applied) {
+    monitor_->Start(__func__);
+    std::size_t page_id{0};
+    for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(ctx_, HistBatch(param_))) {
+      this->partitioner_.at(page_id).UpdatePosition(this->ctx_, page, applied, p_tree);
+      page_id++;
+    }
+    monitor_->Stop(__func__);
+  }
+
+  void LeafPartition(RegTree const &tree, linalg::MatrixView<GradientPair const> gpair,
+                     std::vector<bst_node_t> *p_out_position) {
+    monitor_->Start(__func__);
+    if (!task_->UpdateTreeLeaf()) {
+      monitor_->Stop(__func__);
+      return;
+    }
+    p_out_position->resize(gpair.Shape(0));
+    for (auto const &part : partitioner_) {
+      part.LeafPartition(ctx_, tree, gpair,
+                         common::Span{p_out_position->data(), p_out_position->size()});
+    }
+    monitor_->Stop(__func__);
+  }
+};
+
+/*! \brief construct a tree using quantized feature values */
+class QuantileHistMaker : public TreeUpdater {
+  std::unique_ptr<HistUpdater> p_impl_{nullptr};
+  std::unique_ptr<MultiTargetHistBuilder> p_mtimpl_{nullptr};
+  std::shared_ptr<common::ColumnSampler> column_sampler_;
+
+  common::Monitor monitor_;
+  ObjInfo const *task_{nullptr};
+  HistMakerTrainParam hist_param_;
+
+ public:
+  explicit QuantileHistMaker(Context const *ctx, ObjInfo const *task)
+      : TreeUpdater{ctx}, task_{task} {}
+
+  void Configure(Args const &args) override { hist_param_.UpdateAllowUnknown(args); }
+  void LoadConfig(Json const &in) override {
+    auto const &config = get<Object const>(in);
+    FromJson(config.at("hist_train_param"), &hist_param_);
+  }
+  void SaveConfig(Json *p_out) const override {
+    auto &out = *p_out;
+    out["hist_train_param"] = ToJson(hist_param_);
+  }
+
+  [[nodiscard]] char const *Name() const override { return "grow_quantile_histmaker"; }
+
+  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *p_fmat,
+              common::Span<HostDeviceVector<bst_node_t>> out_position,
+              const std::vector<RegTree *> &trees) override {
+    if (!column_sampler_) {
+      column_sampler_ = common::MakeColumnSampler(ctx_);
+    }
+
+    if (trees.front()->IsMultiTarget()) {
+      CHECK(hist_param_.GetInitialised());
+      CHECK(param->monotone_constraints.empty()) << "monotone constraint" << MTNotImplemented();
+      if (!p_mtimpl_) {
+        this->p_mtimpl_ = std::make_unique<MultiTargetHistBuilder>(
+            ctx_, p_fmat->Info(), param, &hist_param_, column_sampler_, task_, &monitor_);
+      }
+    } else {
+      CHECK(hist_param_.GetInitialised());
+      if (!p_impl_) {
+        p_impl_ = std::make_unique<HistUpdater>(ctx_, column_sampler_, param, &hist_param_, p_fmat,
+                                                task_, &monitor_);
+      }
+    }
+
+    bst_target_t n_targets = trees.front()->NumTargets();
+    auto h_gpair = gpair->HostView();
+
+    linalg::Matrix<GradientPair> sample_out;
+    auto h_sample_out = h_gpair;
+    auto need_copy = [&] {
+      return trees.size() > 1 || n_targets > 1;
+    };
+    if (need_copy()) {
+      // allocate buffer
+      sample_out = decltype(sample_out){h_gpair.Shape(), ctx_->Device(), linalg::Order::kF};
+      h_sample_out = sample_out.HostView();
+    }
+
+    for (auto tree_it = trees.begin(); tree_it != trees.end(); ++tree_it) {
+      if (need_copy()) {
+        // Copy gradient into buffer for sampling. This converts C-order to F-order.
+        std::copy(linalg::cbegin(h_gpair), linalg::cend(h_gpair), linalg::begin(h_sample_out));
+      }
+      error::NoPageConcat(this->hist_param_.extmem_single_page);
+      SampleGradient(ctx_, *param, h_sample_out);
+      auto *h_out_position = &out_position[tree_it - trees.begin()];
+      if ((*tree_it)->IsMultiTarget()) {
+        UpdateTree<MultiExpandEntry>(&monitor_, h_sample_out, p_mtimpl_.get(), p_fmat, param,
+                                     h_out_position, *tree_it);
+      } else {
+        UpdateTree<CPUExpandEntry>(&monitor_, h_sample_out, p_impl_.get(), p_fmat, param,
+                                   h_out_position, *tree_it);
+      }
+
+      hist_param_.CheckTreesSynchronized(ctx_, *tree_it);
+    }
+  }
+
+  bool UpdatePredictionCache(const DMatrix *data, linalg::MatrixView<float> out_preds) override {
+    if (out_preds.Shape(1) > 1) {
+      CHECK(p_mtimpl_);
+      return p_mtimpl_->UpdatePredictionCache(data, out_preds);
+    } else {
+      CHECK(p_impl_);
+      return p_impl_->UpdatePredictionCache(data, out_preds);
+    }
+  }
+
+  [[nodiscard]] bool HasNodePosition() const override { return true; }
+};
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
     .describe("Grow tree using quantized histogram.")
-    .set_body([](GenericParameter const *ctx, ObjInfo task) {
-      return new QuantileHistMaker(ctx, task);
+    .set_body([](Context const *ctx, ObjInfo const *task) {
+      return new QuantileHistMaker{ctx, task};
     });
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

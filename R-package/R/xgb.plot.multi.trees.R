@@ -1,17 +1,10 @@
-#' Project all trees on one tree and plot it
+#' Project all trees on one tree
 #'
 #' Visualization of the ensemble of trees as a single collective unit.
 #'
-#' @param model produced by the \code{xgb.train} function.
-#' @param feature_names names of each feature as a \code{character} vector.
-#' @param features_keep number of features to keep in each position of the multi trees.
-#' @param plot_width width in pixels of the graph to produce
-#' @param plot_height height in pixels of the graph to produce
-#' @param render a logical flag for whether the graph should be rendered (see Value).
-#' @param ... currently not used
-#'
+#' Note that this function does not work with models that were fitted to
+#' categorical data.
 #' @details
-#'
 #' This function tries to capture the complexity of a gradient boosted tree model
 #' in a cohesive way by compressing an ensemble of trees into a single tree-graph representation.
 #' The goal is to improve the interpretability of a model generally seen as black box.
@@ -24,49 +17,58 @@
 #' Moreover, the trees tend to reuse the same features.
 #'
 #' The function projects each tree onto one, and keeps for each position the
-#' \code{features_keep} first features (based on the Gain per feature measure).
+#' `features_keep` first features (based on the Gain per feature measure).
 #'
 #' This function is inspired by this blog post:
-#' \url{https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/}
+#' <https://wellecks.wordpress.com/2015/02/21/peering-into-the-black-box-visualizing-lambdamart/>
 #'
-#' @return
-#'
-#' When \code{render = TRUE}:
-#' returns a rendered graph object which is an \code{htmlwidget} of class \code{grViz}.
-#' Similar to ggplot objects, it needs to be printed to see it when not running from command line.
-#'
-#' When \code{render = FALSE}:
-#' silently returns a graph object which is of DiagrammeR's class \code{dgr_graph}.
-#' This could be useful if one wants to modify some of the graph attributes
-#' before rendering the graph with \code{\link[DiagrammeR]{render_graph}}.
+#' @inheritParams xgb.plot.tree
+#' @param features_keep Number of features to keep in each position of the multi trees,
+#'   by default 5.
+#' @param render Should the graph be rendered or not? The default is `TRUE`.
+#' @inherit xgb.plot.tree return
 #'
 #' @examples
 #'
-#' data(agaricus.train, package='xgboost')
+#' data(agaricus.train, package = "xgboost")
 #'
-#' bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 15,
-#'                eta = 1, nthread = 2, nrounds = 30, objective = "binary:logistic",
-#'                min_child_weight = 50, verbose = 0)
+#' ## Keep the number of threads to 2 for examples
+#' nthread <- 2
+#' data.table::setDTthreads(nthread)
 #'
-#' p <- xgb.plot.multi.trees(model = bst, features_keep = 3)
+#' model <- xgboost(
+#'   agaricus.train$data, factor(agaricus.train$label),
+#'   nrounds = 30,
+#'   verbosity = 0L,
+#'   nthreads = nthread,
+#'   max_depth = 15,
+#'   learning_rate = 1,
+#'   min_child_weight = 50
+#' )
+#'
+#' p <- xgb.plot.multi.trees(model, features_keep = 3)
 #' print(p)
 #'
-#' \dontrun{
 #' # Below is an example of how to save this plot to a file.
-#' # Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
-#' library(DiagrammeR)
-#' gr <- xgb.plot.multi.trees(model=bst, features_keep = 3, render=FALSE)
-#' export_graph(gr, 'tree.pdf', width=1500, height=600)
+#' if (require("DiagrammeR") && require("DiagrammeRsvg") && require("rsvg")) {
+#'   fname <- file.path(tempdir(), "tree.pdf")
+#'   gr <- xgb.plot.multi.trees(model, features_keep = 3, render = FALSE)
+#'   export_graph(gr, fname, width = 1500, height = 600)
 #' }
-#'
 #' @export
-xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5, plot_width = NULL, plot_height = NULL,
-                                 render = TRUE, ...){
+xgb.plot.multi.trees <- function(model, features_keep = 5, plot_width = NULL, plot_height = NULL,
+                                 render = TRUE, ...) {
+  check.deprecation(deprecated_multitrees_params, match.call(), ...)
   if (!requireNamespace("DiagrammeR", quietly = TRUE)) {
     stop("DiagrammeR is required for xgb.plot.multi.trees")
   }
-  check.deprecation(...)
-  tree.matrix <- xgb.model.dt.tree(feature_names = feature_names, model = model)
+  if (xgb.has_categ_features(model)) {
+    stop(
+      "Cannot use 'xgb.plot.multi.trees' for models with categorical features.",
+      " Try 'xgb.plot.tree' instead."
+    )
+  }
+  tree.matrix <- xgb.model.dt.tree(model = model)
 
   # first number of the path represents the tree, then the following numbers are related to the path to follow
   # root init
@@ -93,13 +95,13 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
     data.table::set(tree.matrix, j = nm, value = sub("^\\d+-", "", tree.matrix[[nm]]))
 
   nodes.dt <- tree.matrix[
-        , .(Quality = sum(Quality))
+        , .(Gain = sum(Gain))
         , by = .(abs.node.position, Feature)
       ][, .(Text = paste0(
               paste0(
-                Feature[1:min(length(Feature), features_keep)],
+                Feature[seq_len(min(length(Feature), features_keep))],
                 " (",
-                format(Quality[1:min(length(Quality), features_keep)], digits = 5),
+                format(Gain[seq_len(min(length(Gain), features_keep))], digits = 5),
                 ")"
               ),
               collapse = "\n"
@@ -110,11 +112,10 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
 
   edges.dt <- data.table::rbindlist(
     l = list(
-      tree.matrix[Feature != "Leaf", .(abs.node.position, Yes)],
-      tree.matrix[Feature != "Leaf", .(abs.node.position, No)]
+      tree.matrix[Feature != "Leaf", .(From = abs.node.position, To = Yes)],
+      tree.matrix[Feature != "Leaf", .(From = abs.node.position, To = No)]
     )
   )
-  data.table::setnames(edges.dt, c("From", "To"))
   edges.dt <- edges.dt[, .N, .(From, To)]
   edges.dt[, N := NULL]
 

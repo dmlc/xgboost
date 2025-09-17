@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+
 fo = open(sys.argv[2], 'w')
 
 for l in open(sys.argv[1]):

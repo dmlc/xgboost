@@ -55,7 +55,7 @@ message(sprintf("Creating '%s' from '%s'", OUT_DEF_FILE, IN_DLL_FILE))
 }
 
 # use objdump to dump all the symbols
-OBJDUMP_FILE <- "objdump-out.txt"
+OBJDUMP_FILE <- file.path(tempdir(), "objdump-out.txt")
 .pipe_shell_command_to_stdout(
     command = "objdump"
     , args = c("-p", IN_DLL_FILE)
@@ -79,9 +79,9 @@ end_of_table <- empty_lines[empty_lines > start_index][1L]
 
 # Read the contents of the table
 exported_symbols <- objdump_results[(start_index + 1L):end_of_table]
-exported_symbols <- gsub("\t", "", exported_symbols)
+exported_symbols <- gsub("\t", "", exported_symbols, fixed = TRUE)
 exported_symbols <- gsub(".*\\] ", "", exported_symbols)
-exported_symbols <- gsub(" ", "", exported_symbols)
+exported_symbols <- gsub(" ", "", exported_symbols, fixed = TRUE)
 
 # Write R.def file
 writeLines(

@@ -1,20 +1,26 @@
-# pylint: disable= invalid-name,  unused-import
+# pylint: disable=invalid-name,unused-import
 """For compatibility and optional dependencies."""
+import functools
 import importlib.util
 import logging
 import sys
 import types
-from typing import Any, Dict, List, Optional, Sequence, Type, cast
+from typing import TYPE_CHECKING, Any, Sequence, TypeGuard, cast
 
 import numpy as np
 
-from ._typing import _T
+from ._typing import _T, DataType
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyarrow as pa
 
 assert sys.version_info[0] == 3, "Python 2 is no longer supported."
 
 
-def py_str(x: bytes) -> str:
+def py_str(x: bytes | None) -> str:
     """convert c string back to python string"""
+    assert x is not None  # ctypes might return None
     return x.decode("utf-8")  # type: ignore
 
 
@@ -29,33 +35,24 @@ def lazy_isinstance(instance: Any, module: str, name: str) -> bool:
     return is_same_module and has_same_name
 
 
-# pandas
-try:
-    from pandas import DataFrame, MultiIndex, Series
-    from pandas import concat as pandas_concat
-
-    PANDAS_INSTALLED = True
-except ImportError:
-
-    MultiIndex = object
-    DataFrame = object
-    Series = object
-    pandas_concat = None
-    PANDAS_INSTALLED = False
-
 # sklearn
 try:
+    from sklearn import __version__ as _sklearn_version
     from sklearn.base import BaseEstimator as XGBModelBase
     from sklearn.base import ClassifierMixin as XGBClassifierBase
     from sklearn.base import RegressorMixin as XGBRegressorBase
-    from sklearn.preprocessing import LabelEncoder
 
     try:
-        from sklearn.model_selection import KFold as XGBKFold
         from sklearn.model_selection import StratifiedKFold as XGBStratifiedKFold
     except ImportError:
-        from sklearn.cross_validation import KFold as XGBKFold
         from sklearn.cross_validation import StratifiedKFold as XGBStratifiedKFold
+
+    # sklearn.utils Tags types can be imported unconditionally once
+    # xgboost's minimum scikit-learn version is 1.6 or higher
+    try:
+        from sklearn.utils import Tags as _sklearn_Tags
+    except ImportError:
+        _sklearn_Tags = object
 
     SKLEARN_INSTALLED = True
 
@@ -63,38 +60,100 @@ except ImportError:
     SKLEARN_INSTALLED = False
 
     # used for compatibility without sklearn
-    XGBModelBase = object
-    XGBClassifierBase = object
-    XGBRegressorBase = object
-    LabelEncoder = object
+    class XGBModelBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.BaseEstimator."""
 
-    XGBKFold = None
+    class XGBClassifierBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.ClassifierMixin."""
+
+    class XGBRegressorBase:  # type: ignore[no-redef]
+        """Dummy class for sklearn.base.RegressorMixin."""
+
     XGBStratifiedKFold = None
 
+    _sklearn_Tags = object
+    _sklearn_version = object
 
-class XGBoostLabelEncoder(LabelEncoder):
-    """Label encoder with JSON serialization methods."""
 
-    def to_json(self) -> Dict:
-        """Returns a JSON compatible dictionary"""
-        meta = {}
-        for k, v in self.__dict__.items():
-            if isinstance(v, np.ndarray):
-                meta[k] = v.tolist()
-            else:
-                meta[k] = v
-        return meta
+_logger = logging.getLogger(__name__)
 
-    def from_json(self, doc: Dict) -> None:
-        # pylint: disable=attribute-defined-outside-init
-        """Load the encoder back from a JSON compatible dict."""
-        meta = {}
-        for k, v in doc.items():
-            if k == "classes_":
-                self.classes_ = np.array(v)
-                continue
-            meta[k] = v
-        self.__dict__.update(meta)
+
+@functools.cache
+def is_cudf_available() -> bool:
+    """Check cuDF package available or not"""
+    if importlib.util.find_spec("cudf") is None:
+        return False
+    try:
+        import cudf
+
+        return True
+    except ImportError:
+        _logger.exception("Importing cuDF failed, use DMatrix instead of QDM")
+        return False
+
+
+@functools.cache
+def is_cupy_available() -> bool:
+    """Check cupy package available or not"""
+    if importlib.util.find_spec("cupy") is None:
+        return False
+    try:
+        import cupy
+
+        return True
+    except ImportError:
+        return False
+
+
+@functools.cache
+def import_cupy() -> types.ModuleType:
+    """Import cupy."""
+    if not is_cupy_available():
+        raise ImportError("`cupy` is required for handling CUDA buffer.")
+
+    import cupy
+
+    return cupy
+
+
+@functools.cache
+def is_pyarrow_available() -> bool:
+    """Check pyarrow package available or not"""
+    if importlib.util.find_spec("pyarrow") is None:
+        return False
+    return True
+
+
+@functools.cache
+def import_pyarrow() -> types.ModuleType:
+    """Import pyarrow with memory cache."""
+    import pyarrow as pa
+
+    return pa
+
+
+@functools.cache
+def import_pandas() -> types.ModuleType:
+    """Import pandas with memory cache."""
+    import pandas as pd
+
+    return pd
+
+
+@functools.cache
+def import_polars() -> types.ModuleType:
+    """Import polars with memory cache."""
+    import polars as pl
+
+    return pl
+
+
+@functools.cache
+def is_pandas_available() -> bool:
+    """Check the pandas package is available or not."""
+    if importlib.util.find_spec("pandas") is None:
+        return False
+    return True
 
 
 try:
@@ -103,6 +162,84 @@ try:
 except ImportError:
     scipy_sparse = False
     scipy_csr = object
+
+
+def _is_polars_lazyframe(data: DataType) -> bool:
+    return lazy_isinstance(data, "polars.lazyframe.frame", "LazyFrame")
+
+
+def _is_polars_series(data: DataType) -> bool:
+    return lazy_isinstance(data, "polars.series.series", "Series")
+
+
+def _is_polars(data: DataType) -> bool:
+    lf = _is_polars_lazyframe(data)
+    df = lazy_isinstance(data, "polars.dataframe.frame", "DataFrame")
+    return lf or df
+
+
+def _is_arrow(data: DataType) -> TypeGuard["pa.Table"]:
+    return lazy_isinstance(data, "pyarrow.lib", "Table")
+
+
+def _is_cudf_df(data: DataType) -> bool:
+    return lazy_isinstance(data, "cudf.core.dataframe", "DataFrame")
+
+
+def _is_cudf_ser(data: DataType) -> bool:
+    return lazy_isinstance(data, "cudf.core.series", "Series")
+
+
+def _is_cudf_pandas(data: DataType) -> bool:
+    """Must go before both pandas and cudf checks."""
+    return (_is_pandas_df(data) or _is_pandas_series(data)) and lazy_isinstance(
+        type(data), "cudf.pandas.fast_slow_proxy", "_FastSlowProxyMeta"
+    )
+
+
+def _is_pandas_df(data: DataType) -> TypeGuard["pd.DataFrame"]:
+    return lazy_isinstance(data, "pandas.core.frame", "DataFrame")
+
+
+def _is_pandas_series(data: DataType) -> TypeGuard["pd.Series"]:
+    return lazy_isinstance(data, "pandas.core.series", "Series")
+
+
+def _is_modin_df(data: DataType) -> bool:
+    return lazy_isinstance(data, "modin.pandas.dataframe", "DataFrame")
+
+
+def _is_modin_series(data: DataType) -> bool:
+    return lazy_isinstance(data, "modin.pandas.series", "Series")
+
+
+def is_dataframe(data: DataType) -> bool:
+    """Whether the input is a dataframe. Currently supported dataframes:
+
+    - pandas
+    - cudf
+    - cudf.pandas
+    - polars
+    - pyarrow
+    - modin
+
+
+    """
+    return any(
+        p(data)
+        for p in (
+            _is_polars,
+            _is_polars_series,
+            _is_arrow,
+            _is_cudf_df,
+            _is_cudf_ser,
+            _is_cudf_pandas,
+            _is_pandas_df,
+            _is_pandas_series,
+            _is_modin_df,
+            _is_modin_series,
+        )
+    )
 
 
 def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statements
@@ -117,16 +254,20 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
         # other sparse format will be converted to CSR.
         return scipy_sparse.vstack(value, format="csr")
-    if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
-        return pandas_concat(value, axis=0)
+    if _is_pandas_df(value[0]) or _is_pandas_series(value[0]):
+        from pandas import concat as pd_concat
+
+        return pd_concat(value, axis=0)
     if lazy_isinstance(value[0], "cudf.core.dataframe", "DataFrame") or lazy_isinstance(
         value[0], "cudf.core.series", "Series"
     ):
-        from cudf import concat as CUDF_concat  # pylint: disable=import-error
+        from cudf import concat as CUDF_concat
 
         return CUDF_concat(value, axis=0)
-    if lazy_isinstance(value[0], "cupy._core.core", "ndarray"):
-        import cupy  # pylint: disable=import-error
+    from .data import _is_cupy_alike
+
+    if _is_cupy_alike(value[0]):
+        import cupy
 
         # pylint: disable=c-extension-no-member,no-member
         d = cupy.cuda.runtime.getDevice()
@@ -135,66 +276,4 @@ def concat(value: Sequence[_T]) -> _T:  # pylint: disable=too-many-return-statem
             d_v = arr.device.id
             assert d_v == d, "Concatenating arrays on different devices."
         return cupy.concatenate(value, axis=0)
-    raise TypeError("Unknown type.")
-
-
-# Modified from tensorflow with added caching.  There's a `LazyLoader` in
-# `importlib.utils`, except it's unclear from its document on how to use it.  This one
-# seems to be easy to understand and works out of box.
-
-# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
-# file except in compliance with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software distributed under
-# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the specific language governing
-# permissions and limitations under the License.
-class LazyLoader(types.ModuleType):
-    """Lazily import a module, mainly to avoid pulling in large dependencies."""
-
-    def __init__(
-        self,
-        local_name: str,
-        parent_module_globals: Dict,
-        name: str,
-        warning: Optional[str] = None,
-    ) -> None:
-        self._local_name = local_name
-        self._parent_module_globals = parent_module_globals
-        self._warning = warning
-        self.module: Optional[types.ModuleType] = None
-
-        super().__init__(name)
-
-    def _load(self) -> types.ModuleType:
-        """Load the module and insert it into the parent's globals."""
-        # Import the target module and insert it into the parent's namespace
-        module = importlib.import_module(self.__name__)
-        self._parent_module_globals[self._local_name] = module
-
-        # Emit a warning if one was specified
-        if self._warning:
-            logging.warning(self._warning)
-            # Make sure to only warn once.
-        self._warning = None
-
-        # Update this object's dict so that if someone keeps a reference to the
-        #   LazyLoader, lookups are efficient (__getattr__ is only called on lookups
-        #   that fail).
-        self.__dict__.update(module.__dict__)
-
-        return module
-
-    def __getattr__(self, item: str) -> Any:
-        if not self.module:
-            self.module = self._load()
-        return getattr(self.module, item)
-
-    def __dir__(self) -> List[str]:
-        if not self.module:
-            self.module = self._load()
-        return dir(self.module)
+    raise TypeError(f"Unknown type: {type(value[0])}")

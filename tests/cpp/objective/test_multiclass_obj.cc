@@ -1,18 +1,17 @@
-/*!
- * Copyright 2018-2019 XGBoost contributors
+/**
+ * Copyright 2018-2025, XGBoost contributors
  */
 #include <xgboost/objective.h>
-#include <xgboost/generic_parameters.h>
-#include "../../src/common/common.h"
+#include <xgboost/context.h>
 #include "../helpers.h"
+#include "test_multiclass_obj.h"
 
 namespace xgboost {
 
-TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestSoftmaxMultiClassObjGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args {{"num_class", "3"}};
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softmax", &lparam)
+    ObjFunction::Create("multi:softmax", ctx)
   };
 
   obj->Configure(args);
@@ -32,15 +31,14 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassObjGPair)) {
 		   {0.24f, -0.91f, 0.66f, -0.33f, 0.09f, 0.24f}, // grad
 		   {0.36f, 0.16f, 0.44f, 0.45f, 0.16f, 0.37f});	 // hess
 
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+  ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
 
-TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
-  auto lparam = CreateEmptyGenericParam(GPUIDX);
+void TestSoftmaxMultiClassBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args{
-    std::pair<std::string, std::string>("num_class", "3")};
+      std::pair<std::string, std::string>("num_class", "3")};
 
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("multi:softmax", &lparam) };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("multi:softmax", ctx)};
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softmax");
 
@@ -56,13 +54,12 @@ TEST(Objective, DeclareUnifiedTest(SoftmaxMultiClassBasic)) {
   }
 }
 
-TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestSoftprobMultiClassBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args {
     std::pair<std::string, std::string>("num_class", "3")};
 
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("multi:softprob", &lparam)
+    ObjFunction::Create("multi:softprob", ctx)
   };
   obj->Configure(args);
   CheckConfigReload(obj, "multi:softprob");
@@ -77,4 +74,5 @@ TEST(Objective, DeclareUnifiedTest(SoftprobMultiClassBasic)) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
   }
 }
+
 }  // namespace xgboost

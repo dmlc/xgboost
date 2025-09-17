@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014-2022 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,12 +16,14 @@
 
 package ml.dmlc.xgboost4j.scala
 
-import com.esotericsoftware.kryo.io.{Output, Input}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import ml.dmlc.xgboost4j.java.{Booster => JBooster}
-import ml.dmlc.xgboost4j.java.XGBoostError
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
+
+import ml.dmlc.xgboost4j.java.{Booster => JBooster}
+import ml.dmlc.xgboost4j.java.XGBoostError
 
 /**
   * Booster for xgboost, this is a model API that support interactive build of a XGBoost Model
@@ -106,27 +108,41 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     booster.update(dtrain.jDMatrix, iter)
   }
 
+  @throws(classOf[XGBoostError])
+  @deprecated
+  def update(dtrain: DMatrix, obj: ObjectiveTrait): Unit = {
+    booster.update(dtrain.jDMatrix, obj)
+  }
+
   /**
    * update with customize obj func
    *
    * @param dtrain training data
+   * @param iter   The current training iteration
    * @param obj    customized objective class
    */
   @throws(classOf[XGBoostError])
-  def update(dtrain: DMatrix, obj: ObjectiveTrait): Unit = {
-    booster.update(dtrain.jDMatrix, obj)
+  def update(dtrain: DMatrix, iter: Int, obj: ObjectiveTrait): Unit = {
+    booster.update(dtrain.jDMatrix, iter, obj)
+  }
+
+  @throws(classOf[XGBoostError])
+  @deprecated
+  def boost(dtrain: DMatrix, grad: Array[Float], hess: Array[Float]): Unit = {
+    booster.boost(dtrain.jDMatrix, grad, hess)
   }
 
   /**
    * update with give grad and hess
    *
    * @param dtrain training data
+   * @param iter   The current training iteration
    * @param grad   first order of gradient
    * @param hess   seconde order of gradient
    */
   @throws(classOf[XGBoostError])
-  def boost(dtrain: DMatrix, grad: Array[Float], hess: Array[Float]): Unit = {
-    booster.boost(dtrain.jDMatrix, grad, hess)
+  def boost(dtrain: DMatrix, iter: Int, grad: Array[Float], hess: Array[Float]): Unit = {
+    booster.boost(dtrain.jDMatrix, iter, grad, hess)
   }
 
   /**
@@ -312,7 +328,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   @throws(classOf[XGBoostError])
   def getNumFeature: Long = booster.getNumFeature
 
-  def getVersion: Int = booster.getVersion
+  def getNumBoostedRound: Long = booster.getNumBoostedRound
 
   /**
     * Save model into a raw byte array.  Available options are "json", "ubj" and "deprecated".
@@ -323,8 +339,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   }
 
   /**
-    * Save model into a raw byte array. Currently it's using the deprecated format as
-   *  default, which will be changed into `ubj` in future releases.
+    * Save model into a raw byte array in the UBJSON ("ubj") format.
     */
   @throws(classOf[XGBoostError])
   def toByteArray: Array[Byte] = {
@@ -350,4 +365,8 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
   override def read(kryo: Kryo, input: Input): Unit = {
     booster = kryo.readObject(input, classOf[JBooster])
   }
+
+  // a flag to indicate if the device is set for the GPU transform
+  var deviceIsSet = false
+
 }

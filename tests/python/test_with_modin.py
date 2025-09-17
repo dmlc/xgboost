@@ -1,9 +1,11 @@
-# -*- coding: utf-8 -*-
 import numpy as np
-import xgboost as xgb
-import testing as tm
+import pandas as pd
 import pytest
-from test_dmatrix import set_base_margin_info
+
+import xgboost as xgb
+from xgboost import testing as tm
+from xgboost.compat import is_dataframe
+from xgboost.testing.data import run_base_margin_info
 
 try:
     import modin.pandas as md
@@ -14,13 +16,15 @@ except ImportError:
 pytestmark = pytest.mark.skipif(**tm.no_modin())
 
 
-dpath = 'demo/data/'
-rng = np.random.RandomState(1994)
+def test_type_check() -> None:
+    df = md.DataFrame([[1, 2.0], [2, 3.0]], columns=["a", "b"])
+    assert is_dataframe(df)
+    assert is_dataframe(df.a)
 
 
 class TestModin:
     @pytest.mark.xfail
-    def test_modin(self):
+    def test_modin(self) -> None:
         df = md.DataFrame([[1, 2., True], [2, 3., False]],
                           columns=['a', 'b', 'c'])
         dm = xgb.DMatrix(df, label=md.Series([1, 2]))
@@ -71,11 +75,15 @@ class TestModin:
                                                      enable_categorical=False)
         exp = np.array([[1., 1., 0., 0.],
                         [2., 0., 1., 0.],
-                        [3., 0., 0., 1.]])
-        np.testing.assert_array_equal(result, exp)
+                        [3., 0., 0., 1.]]).T
+        np.testing.assert_array_equal(result.columns, exp)
         dm = xgb.DMatrix(dummies)
         assert dm.feature_names == ['B', 'A_X', 'A_Y', 'A_Z']
-        assert dm.feature_types == ['int', 'int', 'int', 'int']
+        if int(pd.__version__[0]) >= 2:
+            assert dm.feature_types == ["int", "i", "i", "i"]
+        else:
+            assert dm.feature_types == ["int", "int", "int", "int"]
+
         assert dm.num_row() == 3
         assert dm.num_col() == 4
 
@@ -112,20 +120,23 @@ class TestModin:
 
     def test_modin_label(self):
         # label must be a single column
-        df = md.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})
+        df = md.DataFrame({"A": ["X", "Y", "Z"], "B": [1, 2, 3]})
         with pytest.raises(ValueError):
-            xgb.data._transform_pandas_df(df, False, None, None, 'label', 'float')
+            xgb.data._transform_pandas_df(df, False, None, None, "label")
 
         # label must be supported dtype
-        df = md.DataFrame({'A': np.array(['a', 'b', 'c'], dtype=object)})
+        df = md.DataFrame({"A": np.array(["a", "b", "c"], dtype=object)})
         with pytest.raises(ValueError):
-            xgb.data._transform_pandas_df(df, False, None, None, 'label', 'float')
+            xgb.data._transform_pandas_df(df, False, None, None, "label")
 
-        df = md.DataFrame({'A': np.array([1, 2, 3], dtype=int)})
-        result, _, _ = xgb.data._transform_pandas_df(df, False, None, None,
-                                                     'label', 'float')
-        np.testing.assert_array_equal(result, np.array([[1.], [2.], [3.]],
-                                                       dtype=float))
+        df = md.DataFrame({"A": np.array([1, 2, 3], dtype=int)})
+        result, _, _ = xgb.data._transform_pandas_df(
+            df, False, None, None, "label"
+        )
+        np.testing.assert_array_equal(
+            np.stack(result.columns, axis=1),
+            np.array([[1.0], [2.0], [3.0]], dtype=float),
+        )
         dm = xgb.DMatrix(np.random.randn(3, 2), label=df)
         assert dm.num_row() == 3
         assert dm.num_col() == 2
@@ -146,4 +157,4 @@ class TestModin:
         np.testing.assert_array_equal(data.get_weight(), w)
 
     def test_base_margin(self):
-        set_base_margin_info(md.DataFrame, xgb.DMatrix, "hist")
+        run_base_margin_info(md.DataFrame, xgb.DMatrix, "cpu")

@@ -1,7 +1,8 @@
-/*!
- * Copyright 2017 XGBoost contributors
+/**
+ * Copyright 2017-2024 by XGBoost contributors
  */
 #ifndef XGBOOST_USE_CUDA
+#ifndef XGBOOST_USE_SYCL
 
 // dummy implementation of HostDeviceVector in case CUDA is not used
 
@@ -33,19 +34,19 @@ struct HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, int)
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, DeviceOrd)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, int)
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, DeviceOrd)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int)
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, DeviceOrd)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
@@ -81,7 +82,7 @@ template <typename T>
 size_t HostDeviceVector<T>::Size() const { return impl_->Vec().size(); }
 
 template <typename T>
-int HostDeviceVector<T>::DeviceIdx() const { return -1; }
+DeviceOrd HostDeviceVector<T>::Device() const { return DeviceOrd::CPU(); }
 
 template <typename T>
 T* HostDeviceVector<T>::DevicePointer() { return nullptr; }
@@ -112,6 +113,11 @@ const std::vector<T>& HostDeviceVector<T>::ConstHostVector() const {
 template <typename T>
 void HostDeviceVector<T>::Resize(size_t new_size, T v) {
   impl_->Vec().resize(new_size, v);
+}
+
+template <typename T>
+void HostDeviceVector<T>::Resize(size_t new_size) {
+  impl_->Vec().resize(new_size, T{});
 }
 
 template <typename T>
@@ -166,19 +172,20 @@ bool HostDeviceVector<T>::DeviceCanWrite() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(int) const {}
+void HostDeviceVector<T>::SetDevice(DeviceOrd) const {}
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<double>;
 template class HostDeviceVector<GradientPair>;
+template class HostDeviceVector<GradientPairPrecise>;
 template class HostDeviceVector<int32_t>;   // bst_node_t
 template class HostDeviceVector<uint8_t>;
+template class HostDeviceVector<int8_t>;
 template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<uint64_t>;  // bst_row_t
+template class HostDeviceVector<bst_idx_t>;
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
-template class HostDeviceVector<RegTree::Segment>;
 
 #if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 /*
@@ -196,4 +203,5 @@ template class HostDeviceVector<std::size_t>;
 
 }  // namespace xgboost
 
+#endif  // XGBOOST_USE_SYCL
 #endif  // XGBOOST_USE_CUDA

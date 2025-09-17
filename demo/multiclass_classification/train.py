@@ -3,6 +3,7 @@
 from __future__ import division
 
 import numpy as np
+
 import xgboost as xgb
 
 # label need to be 0 to num_class -1

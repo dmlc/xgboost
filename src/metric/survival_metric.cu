@@ -1,28 +1,26 @@
-/*!
- * Copyright 2019-2020 by Contributors
+/**
+ * Copyright 2019-2024, Contributors
  * \file survival_metric.cu
  * \brief Metrics for survival analysis
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <rabit/rabit.h>
 #include <dmlc/registry.h>
 
+#include <array>
 #include <memory>
+#include <numeric>  // for accumulate
 #include <vector>
 
+#include "../common/survival_util.h"
+#include "../common/threading_utils.h"
+#include "metric_common.h"  // MetricNoCache
+#include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/metric.h"
-#include "xgboost/host_device_vector.h"
-
-#include "metric_common.h"
-#include "../common/math.h"
-#include "../common/survival_util.h"
-#include  "../common/threading_utils.h"
 
 #if defined(XGBOOST_USE_CUDA)
-#include <thrust/execution_policy.h>  // thrust::cuda::par
-#include "../common/device_helpers.cuh"
+#include "../common/cuda_context.cuh"  // for CUDAContext
 #endif  // XGBOOST_USE_CUDA
 
 using AFTParam = xgboost::common::AFTParam;
@@ -30,8 +28,7 @@ using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType
 template <typename Distribution>
 using AFTLoss = xgboost::common::AFTLoss<Distribution>;
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(survival_metric);
 
@@ -43,12 +40,11 @@ class ElementWiseSurvivalMetricsReduction {
     policy_ = policy;
   }
 
-  PackedReduceResult
-  CpuReduceMetrics(const HostDeviceVector<bst_float> &weights,
-                   const HostDeviceVector<bst_float> &labels_lower_bound,
-                   const HostDeviceVector<bst_float> &labels_upper_bound,
-                   const HostDeviceVector<bst_float> &preds,
-                   int32_t n_threads) const {
+  [[nodiscard]] PackedReduceResult CpuReduceMetrics(
+      const HostDeviceVector<bst_float>& weights,
+      const HostDeviceVector<bst_float>& labels_lower_bound,
+      const HostDeviceVector<bst_float>& labels_upper_bound,
+      const HostDeviceVector<bst_float>& preds, int32_t n_threads) const {
     size_t ndata = labels_lower_bound.Size();
     CHECK_EQ(ndata, labels_upper_bound.Size());
 
@@ -81,11 +77,11 @@ class ElementWiseSurvivalMetricsReduction {
 
 #if defined(XGBOOST_USE_CUDA)
 
-  PackedReduceResult DeviceReduceMetrics(
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels_lower_bound,
-      const HostDeviceVector<bst_float>& labels_upper_bound,
-      const HostDeviceVector<bst_float>& preds) {
+  PackedReduceResult DeviceReduceMetrics(Context const* ctx,
+                                         const HostDeviceVector<bst_float>& weights,
+                                         const HostDeviceVector<bst_float>& labels_lower_bound,
+                                         const HostDeviceVector<bst_float>& labels_upper_bound,
+                                         const HostDeviceVector<bst_float>& preds) {
     size_t ndata = labels_lower_bound.Size();
     CHECK_EQ(ndata, labels_upper_bound.Size());
 
@@ -101,48 +97,42 @@ class ElementWiseSurvivalMetricsReduction {
 
     auto d_policy = policy_;
 
-    dh::XGBCachingDeviceAllocator<char> alloc;
     PackedReduceResult result = thrust::transform_reduce(
-      thrust::cuda::par(alloc),
-      begin, end,
-      [=] XGBOOST_DEVICE(size_t idx) {
-        double weight = is_null_weight ? 1.0 : static_cast<double>(s_weights[idx]);
-        double residue = d_policy.EvalRow(
-            static_cast<double>(s_label_lower_bound[idx]),
-            static_cast<double>(s_label_upper_bound[idx]),
-            static_cast<double>(s_preds[idx]));
-        residue *= weight;
-        return PackedReduceResult{residue, weight};
-      },
-      PackedReduceResult(),
-      thrust::plus<PackedReduceResult>());
+        ctx->CUDACtx()->CTP(), begin, end,
+        [=] XGBOOST_DEVICE(size_t idx) {
+          double weight = is_null_weight ? 1.0 : static_cast<double>(s_weights[idx]);
+          double residue = d_policy.EvalRow(static_cast<double>(s_label_lower_bound[idx]),
+                                            static_cast<double>(s_label_upper_bound[idx]),
+                                            static_cast<double>(s_preds[idx]));
+          residue *= weight;
+          return PackedReduceResult{residue, weight};
+        },
+        PackedReduceResult(), thrust::plus<PackedReduceResult>());
 
     return result;
   }
 
 #endif  // XGBOOST_USE_CUDA
 
-  PackedReduceResult Reduce(
-      const GenericParameter &ctx,
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels_lower_bound,
-      const HostDeviceVector<bst_float>& labels_upper_bound,
-      const HostDeviceVector<bst_float>& preds) {
+  PackedReduceResult Reduce(Context const* ctx, const HostDeviceVector<bst_float>& weights,
+                            const HostDeviceVector<bst_float>& labels_lower_bound,
+                            const HostDeviceVector<bst_float>& labels_upper_bound,
+                            const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
 
-    if (ctx.gpu_id < 0) {
-      result = CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound,
-                                preds, ctx.Threads());
+    if (ctx->IsCPU()) {
+      result =
+          CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound, preds, ctx->Threads());
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      preds.SetDevice(ctx.gpu_id);
-      labels_lower_bound.SetDevice(ctx.gpu_id);
-      labels_upper_bound.SetDevice(ctx.gpu_id);
-      weights.SetDevice(ctx.gpu_id);
+      preds.SetDevice(ctx->Device());
+      labels_lower_bound.SetDevice(ctx->Device());
+      labels_upper_bound.SetDevice(ctx->Device());
+      weights.SetDevice(ctx->Device());
 
-      dh::safe_cuda(cudaSetDevice(ctx.gpu_id));
-      result = DeviceReduceMetrics(weights, labels_lower_bound, labels_upper_bound, preds);
+      dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+      result = DeviceReduceMetrics(ctx, weights, labels_lower_bound, labels_upper_bound, preds);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
@@ -155,7 +145,7 @@ class ElementWiseSurvivalMetricsReduction {
 struct EvalIntervalRegressionAccuracy {
   void Configure(const Args&) {}
 
-  const char* Name() const {
+  [[nodiscard]] const char* Name() const {
     return "interval-regression-accuracy";
   }
 
@@ -177,7 +167,7 @@ struct EvalAFTNLogLik {
     param_.UpdateAllowUnknown(args);
   }
 
-  const char* Name() const {
+  [[nodiscard]] const char* Name() const {
     return "aft-nloglik";
   }
 
@@ -194,31 +184,31 @@ struct EvalAFTNLogLik {
   AFTParam param_;
 };
 
-template <typename Policy> struct EvalEWiseSurvivalBase : public Metric {
-  explicit EvalEWiseSurvivalBase(GenericParameter const *ctx) {
-    tparam_ = ctx;
-  }
+template <typename Policy>
+struct EvalEWiseSurvivalBase : public MetricNoCache {
+  explicit EvalEWiseSurvivalBase(Context const* ctx) { ctx_ = ctx; }
   EvalEWiseSurvivalBase() = default;
 
   void Configure(const Args& args) override {
     policy_.Configure(args);
     reducer_.Configure(policy_);
-    CHECK(tparam_);
+    CHECK(ctx_);
   }
 
   double Eval(const HostDeviceVector<float>& preds, const MetaInfo& info) override {
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
-    CHECK(tparam_);
-    auto result = reducer_.Reduce(*tparam_, info.weights_, info.labels_lower_bound_,
+    CHECK(ctx_);
+    auto result = reducer_.Reduce(ctx_, info.weights_, info.labels_lower_bound_,
                                   info.labels_upper_bound_, preds);
 
-    double dat[2]{result.Residue(), result.Weights()};
-    rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    std::array<double, 2> dat{result.Residue(), result.Weights()};
+    auto rc = collective::GlobalSum(ctx_, info, linalg::MakeVec(dat.data(), dat.size()));
+    collective::SafeColl(rc);
     return Policy::GetFinal(dat[0], dat[1]);
   }
 
-  const char* Name() const override {
+  [[nodiscard]] const char* Name() const override {
     return policy_.Name();
   }
 
@@ -230,8 +220,8 @@ template <typename Policy> struct EvalEWiseSurvivalBase : public Metric {
 
 // This class exists because we want to perform dispatch according to the distribution type at
 // configuration time, not at prediction time.
-struct AFTNLogLikDispatcher : public Metric {
-  const char* Name() const override {
+struct AFTNLogLikDispatcher : public MetricNoCache {
+  [[nodiscard]] const char* Name() const override {
     return "aft-nloglik";
   }
 
@@ -244,17 +234,13 @@ struct AFTNLogLikDispatcher : public Metric {
     param_.UpdateAllowUnknown(args);
     switch (param_.aft_loss_distribution) {
     case common::ProbabilityDistributionType::kNormal:
-      metric_.reset(
-          new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(
-              tparam_));
+      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(ctx_));
       break;
     case common::ProbabilityDistributionType::kLogistic:
-      metric_.reset(new EvalEWiseSurvivalBase<
-                    EvalAFTNLogLik<common::LogisticDistribution>>(tparam_));
+      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>(ctx_));
       break;
     case common::ProbabilityDistributionType::kExtreme:
-      metric_.reset(new EvalEWiseSurvivalBase<
-                    EvalAFTNLogLik<common::ExtremeDistribution>>(tparam_));
+      metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>(ctx_));
       break;
     default:
       LOG(FATAL) << "Unknown probability distribution";
@@ -274,7 +260,7 @@ struct AFTNLogLikDispatcher : public Metric {
 
  private:
   AFTParam param_;
-  std::unique_ptr<Metric> metric_;
+  std::unique_ptr<MetricNoCache> metric_;
 };
 
 XGBOOST_REGISTER_METRIC(AFTNLogLik, "aft-nloglik")
@@ -287,5 +273,4 @@ XGBOOST_REGISTER_METRIC(IntervalRegressionAccuracy, "interval-regression-accurac
       return new EvalEWiseSurvivalBase<EvalIntervalRegressionAccuracy>();
     });
 
-}  // namespace metric
-}  // namespace xgboost
+}  // namespace xgboost::metric

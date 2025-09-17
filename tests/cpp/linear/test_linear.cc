@@ -17,28 +17,24 @@ TEST(Linear, Shotgun) {
 
   auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  LearnerModelParam mparam;
-  mparam.num_feature = kCols;
-  mparam.num_output_group = 1;
-  mparam.base_score = 0.5;
+  auto ctx = MakeCUDACtx(GPUIDX);
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   {
-    auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-        xgboost::LinearUpdater::Create("shotgun", &lparam));
+    auto updater =
+        std::unique_ptr<xgboost::LinearUpdater>(xgboost::LinearUpdater::Create("shotgun", &ctx));
     updater->Configure({{"eta", "1."}});
-    xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
-        p_fmat->Info().num_row_, xgboost::GradientPair(-5, 1.0));
+    linalg::Matrix<xgboost::GradientPair> gpair{
+        linalg::Constant(&ctx, xgboost::GradientPair(-5, 1.0), p_fmat->Info().num_row_, 1)};
     xgboost::gbm::GBLinearModel model{&mparam};
     model.LazyInitModel();
     updater->Update(&gpair, p_fmat.get(), &model, gpair.Size());
 
     ASSERT_EQ(model.Bias()[0], 5.0f);
-
   }
   {
     auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-        xgboost::LinearUpdater::Create("shotgun", &lparam));
+        xgboost::LinearUpdater::Create("shotgun", &ctx));
     EXPECT_ANY_THROW(updater->Configure({{"feature_selector", "random"}}));
   }
 }
@@ -53,17 +49,14 @@ TEST(Linear, coordinate) {
 
   auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
-  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  LearnerModelParam mparam;
-  mparam.num_feature = kCols;
-  mparam.num_output_group = 1;
-  mparam.base_score = 0.5;
+  auto ctx = MakeCUDACtx(GPUIDX);
+  LearnerModelParam mparam{MakeMP(kCols, .5, 1)};
 
   auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-      xgboost::LinearUpdater::Create("coord_descent", &lparam));
+      xgboost::LinearUpdater::Create("coord_descent", &ctx));
   updater->Configure({{"eta", "1."}});
-  xgboost::HostDeviceVector<xgboost::GradientPair> gpair(
-      p_fmat->Info().num_row_, xgboost::GradientPair(-5, 1.0));
+  linalg::Matrix<xgboost::GradientPair> gpair{
+      linalg::Constant(&ctx, xgboost::GradientPair(-5, 1.0), p_fmat->Info().num_row_, 1)};
   xgboost::gbm::GBLinearModel model{&mparam};
   model.LazyInitModel();
   updater->Update(&gpair, p_fmat.get(), &model, gpair.Size());

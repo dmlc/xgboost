@@ -1,4 +1,4 @@
-'''
+"""
 Demo for creating customized multi-class objective function
 ===========================================================
 
@@ -6,22 +6,26 @@ This demo is only applicable after (excluding) XGBoost 1.0.0, as before this ver
 XGBoost returns transformed prediction for multi-class objective function.  More details
 in comments.
 
-See :doc:`/tutorials/custom_metric_obj` for detailed tutorial and notes.
+See :doc:`/tutorials/custom_metric_obj` and :doc:`/tutorials/advanced_custom_obj` for
+detailed tutorial and notes.
 
-'''
+"""
+
+import argparse
+from typing import Dict, Tuple
 
 import numpy as np
-import xgboost as xgb
 from matplotlib import pyplot as plt
-import argparse
+
+import xgboost as xgb
 
 np.random.seed(1994)
 
 kRows = 100
 kCols = 10
-kClasses = 4                    # number of classes
+kClasses = 4  # number of classes
 
-kRounds = 10                    # number of boosting rounds.
+kRounds = 10  # number of boosting rounds.
 
 # Generate some random data for demo.
 X = np.random.randn(kRows, kCols)
@@ -30,17 +34,19 @@ y = np.random.randint(0, 4, size=kRows)
 m = xgb.DMatrix(X, y)
 
 
-def softmax(x):
-    '''Softmax function with x as input vector.'''
+def softmax(x: np.ndarray) -> np.ndarray:
+    """Softmax function with x as input vector."""
     e = np.exp(x)
     return e / np.sum(e)
 
 
-def softprob_obj(predt: np.ndarray, data: xgb.DMatrix):
-    '''Loss function.  Computing the gradient and approximated hessian (diagonal).
+def softprob_obj(predt: np.ndarray, data: xgb.DMatrix) -> Tuple[np.ndarray, np.ndarray]:
+    """Loss function. Computing the gradient and upper bound on the
+    Hessian with a diagonal structure for XGBoost (note that this is
+    not the true Hessian).
     Reimplements the `multi:softprob` inside XGBoost.
 
-    '''
+    """
     labels = data.get_label()
     if data.get_weight().size == 0:
         # Use 1 as weight if we don't have custom weight.
@@ -59,7 +65,7 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix):
 
     eps = 1e-6
 
-    # compute the gradient and hessian, slow iterations in Python, only
+    # compute the gradient and hessian upper bound, slow iterations in Python, only
     # suitable for demo.  Also the one in native XGBoost core is more robust to
     # numeric overflow as we don't do anything to mitigate the `exp` in
     # `softmax` here.
@@ -74,17 +80,15 @@ def softprob_obj(predt: np.ndarray, data: xgb.DMatrix):
             grad[r, c] = g
             hess[r, c] = h
 
-    # Right now (XGBoost 1.0.0), reshaping is necessary
-    grad = grad.reshape((kRows * kClasses, 1))
-    hess = hess.reshape((kRows * kClasses, 1))
+    # After 2.1.0, pass the gradient as it is.
     return grad, hess
 
 
-def predict(booster: xgb.Booster, X):
-    '''A customized prediction function that converts raw prediction to
+def predict(booster: xgb.Booster, X: xgb.DMatrix) -> np.ndarray:
+    """A customized prediction function that converts raw prediction to
     target class.
 
-    '''
+    """
     # Output margin means we want to obtain the raw prediction obtained from
     # tree leaf weight.
     predt = booster.predict(X, output_margin=True)
@@ -98,14 +102,14 @@ def predict(booster: xgb.Booster, X):
     return out
 
 
-def merror(predt: np.ndarray, dtrain: xgb.DMatrix):
+def merror(predt: np.ndarray, dtrain: xgb.DMatrix) -> Tuple[str, np.float64]:
     y = dtrain.get_label()
-    # Like custom objective, the predt is untransformed leaf weight when custom objective
-    # is provided.
+    # Like custom objective, the predt is untransformed leaf weight when custom
+    # objective is provided.
 
-    # With the use of `custom_metric` parameter in train function, custom metric receives
-    # raw input only when custom objective is also being used.  Otherwise custom metric
-    # will receive transformed prediction.
+    # With the use of `custom_metric` parameter in train function, custom metric
+    # receives raw input only when custom objective is also being used.  Otherwise
+    # custom metric will receive transformed prediction.
     assert predt.shape == (kRows, kClasses)
     out = np.zeros(kRows)
     for r in range(predt.shape[0]):
@@ -116,68 +120,91 @@ def merror(predt: np.ndarray, dtrain: xgb.DMatrix):
 
     errors = np.zeros(kRows)
     errors[y != out] = 1.0
-    return 'PyMError', np.sum(errors) / kRows
+    return "PyMError", np.sum(errors) / kRows
 
 
-def plot_history(custom_results, native_results):
-    fig, axs = plt.subplots(2, 1)
+def plot_history(
+    custom_results: Dict[str, Dict], native_results: Dict[str, Dict]
+) -> None:
+    axs: np.ndarray
+    fig, axs = plt.subplots(2, 1)  # type: ignore
     ax0 = axs[0]
     ax1 = axs[1]
 
-    pymerror = custom_results['train']['PyMError']
-    merror = native_results['train']['merror']
+    pymerror = custom_results["train"]["PyMError"]
+    merror = native_results["train"]["merror"]
 
     x = np.arange(0, kRounds, 1)
-    ax0.plot(x, pymerror, label='Custom objective')
+    ax0.plot(x, pymerror, label="Custom objective")
     ax0.legend()
-    ax1.plot(x, merror, label='multi:softmax')
+    ax1.plot(x, merror, label="multi:softmax")
     ax1.legend()
 
     plt.show()
 
 
-def main(args):
-    custom_results = {}
+def main(args: argparse.Namespace) -> None:
+    # Since 3.1, XGBoost can estimate the base_score automatically for built-in
+    # multi-class objectives.
+    #
+    # We explicitly specify it here to disable the automatic estimation to have a proper
+    # comparison between the custom implementation and the built-in implementation.
+    intercept = np.full(shape=(kClasses,), fill_value=1 / kClasses)
+
+    custom_results: Dict[str, Dict] = {}
     # Use our custom objective function
-    booster_custom = xgb.train({'num_class': kClasses,
-                                'disable_default_eval_metric': True},
-                               m,
-                               num_boost_round=kRounds,
-                               obj=softprob_obj,
-                               custom_metric=merror,
-                               evals_result=custom_results,
-                               evals=[(m, 'train')])
+    booster_custom = xgb.train(
+        {
+            "num_class": kClasses,
+            "base_score": intercept,
+            "disable_default_eval_metric": True,
+        },
+        m,
+        num_boost_round=kRounds,
+        obj=softprob_obj,
+        custom_metric=merror,
+        evals_result=custom_results,
+        evals=[(m, "train")],
+    )
 
     predt_custom = predict(booster_custom, m)
 
-    native_results = {}
+    native_results: Dict[str, Dict] = {}
     # Use the same objective function defined in XGBoost.
-    booster_native = xgb.train({'num_class': kClasses,
-                                "objective": "multi:softmax",
-                                'eval_metric': 'merror'},
-                               m,
-                               num_boost_round=kRounds,
-                               evals_result=native_results,
-                               evals=[(m, 'train')])
+    booster_native = xgb.train(
+        {
+            "num_class": kClasses,
+            "base_score": intercept,
+            "objective": "multi:softmax",
+            "eval_metric": "merror",
+        },
+        m,
+        num_boost_round=kRounds,
+        evals_result=native_results,
+        evals=[(m, "train")],
+    )
     predt_native = booster_native.predict(m)
 
     # We are reimplementing the loss function in XGBoost, so it should
     # be the same for normal cases.
     assert np.all(predt_custom == predt_native)
-    np.testing.assert_allclose(custom_results['train']['PyMError'],
-                               native_results['train']['merror'])
+    np.testing.assert_allclose(
+        custom_results["train"]["PyMError"], native_results["train"]["merror"]
+    )
 
     if args.plot != 0:
         plot_history(custom_results, native_results)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Arguments for custom softmax objective function demo.')
+        description="Arguments for custom softmax objective function demo."
+    )
     parser.add_argument(
-        '--plot',
+        "--plot",
         type=int,
         default=1,
-        help='Set to 0 to disable plotting the evaluation history.')
+        help="Set to 0 to disable plotting the evaluation history.",
+    )
     args = parser.parse_args()
     main(args)

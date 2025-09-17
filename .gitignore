@@ -15,6 +15,7 @@
 *.Rcheck
 *.rds
 *.tar.gz
+*.tar.bz2
 *conf
 *buffer
 *.model
@@ -27,12 +28,13 @@
 *vali
 *sdf
 Release
-*exe*
+*exe
 *exp
 ipch
 *.filters
 *.user
 *log
+rmm_log.txt
 Debug
 *suo
 .Rhistory
@@ -48,10 +50,14 @@ Debug
 *.Rproj
 ./xgboost.mpi
 ./xgboost.mock
+*.bak
 #.Rbuildignore
 R-package.Rproj
+R-package/build/*
 *.cache*
 .mypy_cache/
+doxygen
+
 # java
 java/xgboost4j/target
 java/xgboost4j/tmp
@@ -60,13 +66,15 @@ java/xgboost4j-demo/data/
 java/xgboost4j-demo/tmp/
 java/xgboost4j-demo/model/
 nb-configuration*
+
 # Eclipse
 .project
 .cproject
 .classpath
 .pydevproject
 .settings/
-build
+/build
+/build-gpu
 /xgboost
 *.data
 build_plugin
@@ -81,6 +89,7 @@ target
 *.gcov
 *.gcda
 *.gcno
+*.ubj
 build_tests
 /tests/cpp/xgboost_test
 
@@ -94,11 +103,15 @@ metastore_db
 
 # files from R-package source install
 **/config.status
+R-package/config.h
 R-package/src/Makevars
 *.lib
 
-# Visual Studio Code
-/.vscode/
+# Visual Studio
+.vs/
+CMakeSettings.json
+*.ilk
+*.pdb
 
 # IntelliJ/CLion
 .idea
@@ -132,5 +145,23 @@ credentials.csv
 .metals
 .bloop
 
-# hypothesis python tests
+# python tests
+*.bin
+demo/**/*.txt
+*.dmatrix
 .hypothesis
+__MACOSX/
+model*.json
+/tests/python/models/models/
+
+# R tests
+*.htm
+*.html
+*.libsvm
+*.rds
+Rplots.pdf
+*.zip
+
+# nsys
+*.nsys-rep
+rmm_log.dev*

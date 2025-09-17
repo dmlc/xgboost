@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014 by Contributors
+/**
+ * Copyright 2014-2023 by XGBoost Contributors
  * \file metric.h
  * \brief interface of evaluation metric function supported in xgboost.
  * \author Tianqi Chen, Kailong Chen
@@ -8,25 +8,27 @@
 #define XGBOOST_METRIC_H_
 
 #include <dmlc/registry.h>
-#include <xgboost/model.h>
-#include <xgboost/generic_parameters.h>
-#include <xgboost/data.h>
 #include <xgboost/base.h>
+#include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
 
-#include <vector>
-#include <string>
 #include <functional>
+#include <memory>  // shared_ptr
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace xgboost {
+struct Context;
+
 /*!
  * \brief interface of evaluation metric used to evaluate model performance.
  *  This has nothing to do with training, but merely act as evaluation purpose.
  */
 class Metric : public Configurable {
  protected:
-  GenericParameter const* tparam_;
+  Context const* ctx_{nullptr};
 
  public:
   /*!
@@ -53,12 +55,15 @@ class Metric : public Configurable {
     out["name"] = String(this->Name());
   }
 
-  /*!
-   * \brief evaluate a specific metric
-   * \param preds prediction
-   * \param info information, including label etc.
+  /**
+   * \brief Evaluate a metric with DMatrix as input.
+   *
+   * \param preds Prediction
+   * \param p_fmat DMatrix that contains related information like labels.
    */
-  virtual double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) = 0;
+  virtual double Evaluate(HostDeviceVector<bst_float> const& preds,
+                          std::shared_ptr<DMatrix> p_fmat) = 0;
+
   /*! \return name of metric */
   virtual const char* Name() const = 0;
   /*! \brief virtual destructor */
@@ -68,10 +73,10 @@ class Metric : public Configurable {
    * \param name name of the metric.
    *        name can be in form metric[@]param and the name will be matched in the
    *        registry.
-   * \param tparam A global generic parameter
+   * \param ctx A global context
    * \return the created metric.
    */
-  static Metric* Create(const std::string& name, GenericParameter const* tparam);
+  static Metric* Create(const std::string& name, Context const* ctx);
 };
 
 /*!

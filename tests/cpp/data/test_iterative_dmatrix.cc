@@ -1,27 +1,34 @@
-/*!
- * Copyright 2022 XGBoost contributors
+/**
+ * Copyright 2022-2024, XGBoost contributors
  */
 #include "test_iterative_dmatrix.h"
 
 #include <gtest/gtest.h>
 
+#include <limits>  // for numeric_limits
+#include <memory>
+
 #include "../../../src/data/gradient_index.h"
 #include "../../../src/data/iterative_dmatrix.h"
 #include "../helpers.h"
+#include "xgboost/data.h"  // DMatrix
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 TEST(IterativeDMatrix, Ref) {
+  Context ctx;
   TestRefDMatrix<GHistIndexMatrix, NumpyArrayIterForTest>(
-      [&](GHistIndexMatrix const& page) { return page.cut; });
+      &ctx, [&](GHistIndexMatrix const& page) { return page.cut; });
 }
 
 TEST(IterativeDMatrix, IsDense) {
-  int n_bins = 16;
+  bst_bin_t n_bins = 16;
   auto test = [n_bins](float sparsity) {
     NumpyArrayIterForTest iter(sparsity);
+    auto n_threads = 0;
     IterativeDMatrix m(&iter, iter.Proxy(), nullptr, Reset, Next,
-                       std::numeric_limits<float>::quiet_NaN(), 0, n_bins);
+                       std::numeric_limits<float>::quiet_NaN(), n_threads, n_bins,
+                       std::numeric_limits<std::int64_t>::max());
+    ASSERT_EQ(m.Ctx()->Threads(), AllThreadsForTest());
     if (sparsity == 0.0) {
       ASSERT_TRUE(m.IsDense());
     } else {
@@ -32,5 +39,4 @@ TEST(IterativeDMatrix, IsDense) {
   test(0.1);
   test(1.0);
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

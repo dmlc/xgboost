@@ -3,14 +3,13 @@
 Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 """
 
-from . import rabit  # noqa
 from . import tracker  # noqa
-from . import dask
+from . import collective
 from .core import (
     Booster,
     DataIter,
-    DeviceQuantileDMatrix,
     DMatrix,
+    ExtMemQuantileDMatrix,
     QuantileDMatrix,
     _py_version,
     build_info,
@@ -39,8 +38,8 @@ __version__ = _py_version()
 __all__ = [
     # core
     "DMatrix",
-    "DeviceQuantileDMatrix",
     "QuantileDMatrix",
+    "ExtMemQuantileDMatrix",
     "Booster",
     "DataIter",
     "train",
@@ -61,6 +60,6 @@ __all__ = [
     "XGBRanker",
     "XGBRFClassifier",
     "XGBRFRegressor",
-    # dask
-    "dask",
+    # collective
+    "collective",
 ]

@@ -1,17 +1,14 @@
-/*!
- * Copyright 2015-2018 by Contributors
+/**
+ * Copyright 2015-2024, XGBoost Contributors
  * \file logging.cc
  * \brief Implementation of loggers.
  * \author Tianqi Chen
  */
-#include <rabit/rabit.h>
-
-#include <iostream>
-#include <map>
-
-#include "xgboost/parameter.h"
 #include "xgboost/logging.h"
-#include "xgboost/json.h"
+
+#include <string>  // for string
+
+#include "collective/communicator-inl.h"
 
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 // Override logging mechanism for non-R interfaces
@@ -32,7 +29,7 @@ ConsoleLogger::~ConsoleLogger() {
 
 TrackerLogger::~TrackerLogger() {
   log_stream_ << '\n';
-  rabit::TrackerPrint(log_stream_.str());
+  collective::Print(log_stream_.str());
 }
 
 }  // namespace xgboost

@@ -1,18 +1,16 @@
-/*!
- * Copyright 2019-2021 XGBoost contributors
+/**
+ * Copyright 2019-2024, XGBoost contributors
  */
 #ifndef XGBOOST_DATA_SIMPLE_BATCH_ITERATOR_H_
 #define XGBOOST_DATA_SIMPLE_BATCH_ITERATOR_H_
 
-#include <memory>
-#include <utility>
+#include <memory>   // for shared_ptr
+#include <utility>  // for move
 
-#include "xgboost/data.h"
+#include "xgboost/data.h"  // for BatchIteratorImpl
 
-namespace xgboost {
-namespace data {
-
-template<typename T>
+namespace xgboost::data {
+template <typename T>
 class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
  public:
   explicit SimpleBatchIteratorImpl(std::shared_ptr<T const> page) : page_(std::move(page)) {}
@@ -20,7 +18,7 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
     CHECK(page_ != nullptr);
     return *page_;
   }
-  SimpleBatchIteratorImpl &operator++() override {
+  SimpleBatchIteratorImpl& operator++() override {
     page_ = nullptr;
     return *this;
   }
@@ -31,7 +29,5 @@ class SimpleBatchIteratorImpl : public BatchIteratorImpl<T> {
  private:
   std::shared_ptr<T const> page_{nullptr};
 };
-
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data
 #endif  // XGBOOST_DATA_SIMPLE_BATCH_ITERATOR_H_

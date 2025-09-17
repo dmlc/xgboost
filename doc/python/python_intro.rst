@@ -32,24 +32,9 @@ To verify your installation, run the following in Python:
 
 Data Interface
 --------------
-The XGBoost python module is able to load data from many different types of data format,
-including:
+The XGBoost Python module is able to load data from many different types of data format including both CPU and GPU data structures. For a comprehensive list of supported data types, please reference the :doc:`/python/data_input`. For a detailed description of text input formats, please visit :doc:`/tutorials/input_format`.
 
-- NumPy 2D array
-- SciPy 2D sparse array
-- Pandas data frame
-- cuDF DataFrame
-- cupy 2D array
-- dlpack
-- datatable
-- XGBoost binary buffer file.
-- LIBSVM text format file
-- Comma-separated values (CSV) file
-- Arrow table.
-
-(See :doc:`/tutorials/input_format` for detailed description of text input format.)
-
-The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
+The input data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object. For the sklearn estimator interface, a :py:class:`DMatrix` or a :py:class:`QuantileDMatrix` is created depending on the chosen algorithm and the input, see the sklearn API reference for details. We will illustrate some of the basic input types using the ``DMatrix`` here.
 
 * To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
 
@@ -74,11 +59,12 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
     label = pandas.DataFrame(np.random.randint(2, size=4))
     dtrain = xgb.DMatrix(data, label=label)
 
-* Saving :py:class:`DMatrix <xgboost.DMatrix>` into a XGBoost binary file will make loading faster:
+* Saving :py:class:`DMatrix <xgboost.DMatrix>` into a XGBoost binary file:
 
   .. code-block:: python
 
-    dtrain = xgb.DMatrix('train.svm.txt')
+    data = np.random.rand(5, 10)  # 5 entities, each contains 10 features
+    label = np.random.randint(2, size=5)  # binary target
     dtrain.save_binary('train.buffer')
 
 * Missing values can be replaced by a default value in the :py:class:`DMatrix <xgboost.DMatrix>` constructor:
@@ -93,33 +79,6 @@ The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
     w = np.random.rand(5, 1)
     dtrain = xgb.DMatrix(data, label=label, missing=np.NaN, weight=w)
-
-When performing ranking tasks, the number of weights should be equal
-to number of groups.
-
-* To load a LIBSVM text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    dtrain = xgb.DMatrix('train.svm.txt')
-    dtest = xgb.DMatrix('test.svm.buffer')
-
-  The parser in XGBoost has limited functionality. When using Python interface, it's
-  recommended to use sklearn ``load_svmlight_file`` or other similar utilites than
-  XGBoost's builtin parser.
-
-* To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
-
-  .. code-block:: python
-
-    # label_column specifies the index of the column containing the true label
-    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
-    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
-
-  The parser in XGBoost has limited functionality. When using Python interface, it's
-  recommended to use pandas ``read_csv`` or other similar utilites than XGBoost's builtin
-  parser.
-
 
 Setting Parameters
 ------------------
@@ -159,11 +118,11 @@ Training a model requires a parameter list and data set.
   num_round = 10
   bst = xgb.train(param, dtrain, num_round, evallist)
 
-After training, the model can be saved.
+After training, the model can be saved into ``JSON`` or ``UBJSON``:
 
 .. code-block:: python
 
-  bst.save_model('0001.model')
+  bst.save_model('model.ubj')
 
 The model and its feature map can also be dumped to a text file.
 
@@ -179,10 +138,10 @@ A saved model can be loaded as follows:
 .. code-block:: python
 
   bst = xgb.Booster({'nthread': 4})  # init model
-  bst.load_model('model.bin')  # load data
+  bst.load_model('model.ubj')  # load model data
 
-Methods including `update` and `boost` from `xgboost.Booster` are designed for
-internal usage only.  The wrapper function `xgboost.train` does some
+Methods including `update` and `boost` from :py:class:`xgboost.Booster` are designed for
+internal usage only.  The wrapper function :py:class:`xgboost.train` does some
 pre-configuration including setting up caches and some other parameters.
 
 Early Stopping
@@ -245,12 +204,13 @@ Scikit-Learn interface
 ----------------------
 
 XGBoost provides an easy to use scikit-learn interface for some pre-defined models
-including regression, classification and ranking.
+including regression, classification and ranking. See :doc:`/python/sklearn_estimator`
+for more info.
 
 .. code-block:: python
 
-  # Use "gpu_hist" for training the model.
-  reg = xgb.XGBRegressor(tree_method="gpu_hist")
+  # Use "hist" for training the model.
+  reg = xgb.XGBRegressor(tree_method="hist", device="cuda")
   # Fit the model using predictor X and response y.
   reg.fit(X, y)
   # Save model into JSON format.

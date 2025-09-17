@@ -6,9 +6,43 @@
     <parent>
         <groupId>ml.dmlc</groupId>
         <artifactId>xgboost-jvm_2.12</artifactId>
-        <version>2.0.0-SNAPSHOT</version>
+        <version>3.1.0-SNAPSHOT</version>
     </parent>
+    <name>xgboost4j-spark-gpu</name>
+    <groupId>ml.dmlc</groupId>
     <artifactId>xgboost4j-spark-gpu_2.12</artifactId>
+    <version>3.1.0-SNAPSHOT</version>
+    <description>JVM Package for XGBoost</description>
+    <url>https://github.com/dmlc/xgboost/tree/master/jvm-packages</url>
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Bobby Wang</name>
+            <email>wbo4958@gmail.com</email>
+        </developer>
+        <developer>
+            <name>Jiaming Yuan</name>
+            <email>jm.yuan@outlook.com</email>
+        </developer>
+        <developer>
+            <name>Hyunsu Cho</name>
+            <email>chohyu01@cs.washington.edu</email>
+        </developer>
+        <developer>
+            <name>CodingCat</name>
+            <email>codingcat@apache.org</email>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:git:/github.com/dmlc/xgboost.git</connection>
+        <developerConnection>scm:git:ssh://github.com/dmlc/xgboost.git</developerConnection>
+        <url>https://github.com/dmlc/xgboost</url>
+    </scm>
     <build>
         <plugins>
             <plugin>
@@ -18,44 +52,84 @@
                     <skipAssembly>false</skipAssembly>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <configuration>
+                  <createDependencyReducedPom>true</createDependencyReducedPom>
+                  <useDependencyReducedPomInJar>true</useDependencyReducedPomInJar>
+                  <shadedArtifactAttached>false</shadedArtifactAttached>
+                  <artifactSet>
+                    <includes>
+                      <include>ml.dmlc:xgboost4j_${scala.binary.version}</include>
+                      <include>ml.dmlc:xgboost4j-spark_${scala.binary.version}</include>
+                    </includes>
+                  </artifactSet>
+                </configuration>
+                <executions>
+                  <execution>
+                    <phase>package</phase>
+                    <goals>
+                      <goal>shade</goal>
+                    </goals>
+                  </execution>
+                </executions>
+              </plugin>
         </plugins>
     </build>
     <dependencies>
         <dependency>
             <groupId>ml.dmlc</groupId>
-            <artifactId>xgboost4j-gpu_${scala.binary.version}</artifactId>
-            <version>2.0.0-SNAPSHOT</version>
+            <artifactId>xgboost4j_2.12</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ml.dmlc</groupId>
+            <artifactId>xgboost4j-spark_2.12</artifactId>
+            <version>${project.version}</version>
+            <exclusions>
+              <exclusion>
+                  <groupId>ml.dmlc</groupId>
+                  <artifactId>xgboost4j_2.12</artifactId>
+              </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-core_${scala.binary.version}</artifactId>
-            <version>${spark.version}</version>
+            <version>${spark.version.gpu}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_${scala.binary.version}</artifactId>
-            <version>${spark.version}</version>
+            <version>${spark.version.gpu}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-mllib_${scala.binary.version}</artifactId>
-            <version>${spark.version}</version>
+            <version>${spark.version.gpu}</version>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-          <groupId>ai.rapids</groupId>
-          <artifactId>cudf</artifactId>
-          <version>${cudf.version}</version>
-          <classifier>${cudf.classifier}</classifier>
-          <scope>provided</scope>
         </dependency>
         <dependency>
           <groupId>com.nvidia</groupId>
           <artifactId>rapids-4-spark_${scala.binary.version}</artifactId>
           <version>${spark.rapids.version}</version>
+          <classifier>${spark.rapids.classifier}</classifier>
           <scope>provided</scope>
+        </dependency>
+        <dependency>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-databind</artifactId>
+          <version>${fasterxml.jackson.version}</version>
+          <scope>provided</scope>
+        </dependency>
+        <dependency>
+          <groupId>junit</groupId>
+          <artifactId>junit</artifactId>
+          <version>${junit.version}</version>
+          <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

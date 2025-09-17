@@ -1,33 +1,39 @@
 /*!
- * Copyright 2022 XGBoost contributors
+ * Copyright 2022-2023 XGBoost contributors
  */
 syntax = "proto3";
 
-package xgboost.federated;
+package xgboost.collective.federated;
 
 service Federated {
   rpc Allgather(AllgatherRequest) returns (AllgatherReply) {}
+  rpc AllgatherV(AllgatherVRequest) returns (AllgatherVReply) {}
   rpc Allreduce(AllreduceRequest) returns (AllreduceReply) {}
   rpc Broadcast(BroadcastRequest) returns (BroadcastReply) {}
 }
 
 enum DataType {
-  CHAR = 0;
-  UCHAR = 1;
-  INT = 2;
-  UINT = 3;
-  LONG = 4;
-  ULONG = 5;
-  FLOAT = 6;
-  DOUBLE = 7;
-  LONGLONG = 8;
-  ULONGLONG = 9;
+  HALF = 0;
+  FLOAT = 1;
+  DOUBLE = 2;
+  LONG_DOUBLE = 3;
+  INT8 = 4;
+  INT16 = 5;
+  INT32 = 6;
+  INT64 = 7;
+  UINT8 = 8;
+  UINT16 = 9;
+  UINT32 = 10;
+  UINT64 = 11;
 }
 
 enum ReduceOperation {
   MAX = 0;
   MIN = 1;
   SUM = 2;
+  BITWISE_AND = 3;
+  BITWISE_OR = 4;
+  BITWISE_XOR = 5;
 }
 
 message AllgatherRequest {
@@ -38,6 +44,17 @@ message AllgatherRequest {
 }
 
 message AllgatherReply {
+  bytes receive_buffer = 1;
+}
+
+message AllgatherVRequest {
+  // An incrementing counter that is unique to each round to operations.
+  uint64 sequence_number = 1;
+  int32 rank = 2;
+  bytes send_buffer = 3;
+}
+
+message AllgatherVReply {
   bytes receive_buffer = 1;
 }
 

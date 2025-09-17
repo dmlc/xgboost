@@ -1,139 +1,49 @@
-/*!
- * Copyright 2017-2019 XGBoost contributors
- *
- * \brief Utilities for CUDA.
+/**
+ * Copyright 2024-2025, XGBoost contributors
  */
-#ifdef XGBOOST_USE_NCCL
-#include <nccl.h>
-#endif  // #ifdef XGBOOST_USE_NCCL
-#include <sstream>
-
+#include "../common/cuda_dr_utils.h"  // for GetVersionFromSmi
 #include "device_helpers.cuh"
+#include "device_vector.cuh"  // for GrowOnlyVirtualMemVec
+#include "xgboost/windefs.h"  // for xgboost_IS_WIN
 
 namespace dh {
-
-constexpr std::size_t kUuidLength =
-    sizeof(std::declval<cudaDeviceProp>().uuid) / sizeof(uint64_t);
-
-void GetCudaUUID(int device_ord, xgboost::common::Span<uint64_t, kUuidLength> uuid) {
-  cudaDeviceProp prob;
-  safe_cuda(cudaGetDeviceProperties(&prob, device_ord));
-  std::memcpy(uuid.data(), static_cast<void *>(&(prob.uuid)), sizeof(prob.uuid));
+namespace {
+[[nodiscard]] bool IsSupportedDrVer(std::int32_t major, std::int32_t minor) {
+  return major > 12 || (major == 12 && minor >= 5);
 }
 
-std::string PrintUUID(xgboost::common::Span<uint64_t, kUuidLength> uuid) {
-  std::stringstream ss;
-  for (auto v : uuid) {
-    ss << std::hex << v;
+// Check whether cuda virtual memory can be used.
+// Host NUMA allocation requires driver that supports CTK >= 12.5 to be stable
+[[nodiscard]] bool CheckVmAlloc() {
+  std::int32_t major{0}, minor{0};
+  xgboost::curt::GetDrVersionGlobal(&major, &minor);
+
+  bool vm_flag = true;
+  if (IsSupportedDrVer(major, minor)) {
+    // The result from the driver api is not reliable. The system driver might not match
+    // the CUDA driver in some obscure cases.
+    //
+    // https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html
+    // Ver                 Linux       Win
+    // CUDA 12.5 Update 1  >=555.42.06 >=555.85
+    // CUDA 12.5 GA        >=555.42.02 >=555.85
+    vm_flag = xgboost::cudr::GetVersionFromSmiGlobal(&major, &minor) && major >= 555;
+  } else {
+    vm_flag = false;
   }
-  return ss.str();
+  return vm_flag;
 }
+}  // namespace
 
-#ifdef XGBOOST_USE_NCCL
-void NcclAllReducer::DoInit(int _device_ordinal) {
-  int32_t const rank = rabit::GetRank();
-  int32_t const world = rabit::GetWorldSize();
-  if (world == 1) {
-    return;
-  }
-
-  std::vector<uint64_t> uuids(world * kUuidLength, 0);
-  auto s_uuid = xgboost::common::Span<uint64_t>{uuids.data(), uuids.size()};
-  auto s_this_uuid = s_uuid.subspan(rank * kUuidLength, kUuidLength);
-  GetCudaUUID(_device_ordinal, s_this_uuid);
-
-  // No allgather yet.
-  rabit::Allreduce<rabit::op::Sum, uint64_t>(uuids.data(), uuids.size());
-
-  std::vector<xgboost::common::Span<uint64_t, kUuidLength>> converted(world);;
-  size_t j = 0;
-  for (size_t i = 0; i < uuids.size(); i += kUuidLength) {
-    converted[j] =
-        xgboost::common::Span<uint64_t, kUuidLength>{uuids.data() + i, kUuidLength};
-    j++;
-  }
-
-  auto iter = std::unique(converted.begin(), converted.end());
-  auto n_uniques = std::distance(converted.begin(), iter);
-
-  CHECK_EQ(n_uniques, world)
-      << "Multiple processes within communication group running on same CUDA "
-      << "device is not supported. " << PrintUUID(s_this_uuid) << "\n";
-
-
-  id_ = GetUniqueId();
-  dh::safe_nccl(ncclCommInitRank(&comm_, rabit::GetWorldSize(), id_, rank));
-  safe_cuda(cudaStreamCreate(&stream_));
-}
-
-void NcclAllReducer::DoAllGather(void const *data, size_t length_bytes,
-                                 std::vector<size_t> *segments,
-                                 dh::caching_device_vector<char> *recvbuf) {
-  int32_t world = rabit::GetWorldSize();
-  segments->clear();
-  segments->resize(world, 0);
-  segments->at(rabit::GetRank()) = length_bytes;
-  rabit::Allreduce<rabit::op::Max>(segments->data(), segments->size());
-  auto total_bytes = std::accumulate(segments->cbegin(), segments->cend(), 0);
-  recvbuf->resize(total_bytes);
-
-  size_t offset = 0;
-  safe_nccl(ncclGroupStart());
-  for (int32_t i = 0; i < world; ++i) {
-    size_t as_bytes = segments->at(i);
-    safe_nccl(
-        ncclBroadcast(data, recvbuf->data().get() + offset,
-                      as_bytes, ncclChar, i, comm_, stream_));
-    offset += as_bytes;
-  }
-  safe_nccl(ncclGroupEnd());
-}
-
-NcclAllReducer::~NcclAllReducer() {
-  if (initialised_) {
-    dh::safe_cuda(cudaStreamDestroy(stream_));
-    ncclCommDestroy(comm_);
-  }
-  if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-    LOG(CONSOLE) << "======== NCCL Statistics========";
-    LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
-    LOG(CONSOLE) << "AllReduce total MiB communicated: " << allreduce_bytes_/1048576;
-  }
-}
+PinnedMemory::PinnedMemory() {
+#if defined(xgboost_IS_WIN)
+  this->impl_.emplace<detail::GrowOnlyPinnedMemoryImpl>();
 #else
-void RabitAllReducer::DoInit(int _device_ordinal) {
-#if !defined(XGBOOST_USE_FEDERATED)
-  if (rabit::IsDistributed()) {
-    LOG(CONSOLE) << "XGBoost is not compiled with NCCL, falling back to Rabit.";
+  if (CheckVmAlloc()) {
+    this->impl_.emplace<detail::GrowOnlyVirtualMemVec>(CU_MEM_LOCATION_TYPE_HOST_NUMA);
+  } else {
+    this->impl_.emplace<detail::GrowOnlyPinnedMemoryImpl>();
   }
 #endif
 }
-
-void RabitAllReducer::DoAllGather(void const *data, size_t length_bytes,
-                                  std::vector<size_t> *segments,
-                                  dh::caching_device_vector<char> *recvbuf) {
-  size_t world = rabit::GetWorldSize();
-  segments->clear();
-  segments->resize(world, 0);
-  segments->at(rabit::GetRank()) = length_bytes;
-  rabit::Allreduce<rabit::op::Max>(segments->data(), segments->size());
-  auto total_bytes = std::accumulate(segments->cbegin(), segments->cend(), 0UL);
-  recvbuf->resize(total_bytes);
-
-  sendrecvbuf_.reserve(total_bytes);
-  auto rank = rabit::GetRank();
-  size_t offset = 0;
-  for (int32_t i = 0; i < world; ++i) {
-    size_t as_bytes = segments->at(i);
-    if (i == rank) {
-      safe_cuda(
-          cudaMemcpy(sendrecvbuf_.data() + offset, data, segments->at(rank), cudaMemcpyDefault));
-    }
-    rabit::Broadcast(sendrecvbuf_.data() + offset, as_bytes, i);
-    offset += as_bytes;
-  }
-  safe_cuda(cudaMemcpy(recvbuf->data().get(), sendrecvbuf_.data(), total_bytes, cudaMemcpyDefault));
-}
-#endif  // XGBOOST_USE_NCCL
-
 }  // namespace dh

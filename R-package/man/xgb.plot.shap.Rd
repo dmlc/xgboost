@@ -2,7 +2,7 @@
 % Please edit documentation in R/xgb.plot.shap.R
 \name{xgb.plot.shap}
 \alias{xgb.plot.shap}
-\title{SHAP contribution dependency plots}
+\title{SHAP dependence plots}
 \usage{
 xgb.plot.shap(
   data,
@@ -33,87 +33,92 @@ xgb.plot.shap(
 )
 }
 \arguments{
-\item{data}{data as a \code{matrix} or \code{dgCMatrix}.}
+\item{data}{The data to explain as a \code{matrix}, \code{dgCMatrix}, or \code{data.frame}.}
 
-\item{shap_contrib}{a matrix of SHAP contributions that was computed earlier for the above
-\code{data}. When it is NULL, it is computed internally using \code{model} and \code{data}.}
+\item{shap_contrib}{Matrix of SHAP contributions of \code{data}.
+The default (\code{NULL}) computes it from \code{model} and \code{data}.}
 
-\item{features}{a vector of either column indices or of feature names to plot. When it is NULL,
-feature importance is calculated, and \code{top_n} high ranked features are taken.}
+\item{features}{Vector of column indices or feature names to plot. When \code{NULL}
+(default), the \code{top_n} most important features are selected by \code{\link[=xgb.importance]{xgb.importance()}}.}
 
-\item{top_n}{when \code{features} is NULL, top_n [1, 100] most important features in a model are taken.}
+\item{top_n}{How many of the most important features (<= 100) should be selected?
+By default 1 for SHAP dependence and 10 for SHAP summary.
+Only used when \code{features = NULL}.}
 
-\item{model}{an \code{xgb.Booster} model. It has to be provided when either \code{shap_contrib}
-or \code{features} is missing.}
+\item{model}{An \code{xgb.Booster} model. Only required when \code{shap_contrib = NULL} or
+\code{features = NULL}.}
 
-\item{trees}{passed to \code{\link{xgb.importance}} when \code{features = NULL}.}
+\item{trees}{Passed to \code{\link[=xgb.importance]{xgb.importance()}} when \code{features = NULL}.}
 
-\item{target_class}{is only relevant for multiclass models. When it is set to a 0-based class index,
-only SHAP contributions for that specific class are used.
-If it is not set, SHAP importances are averaged over all classes.}
+\item{target_class}{Only relevant for multiclass models. The default (\code{NULL})
+averages the SHAP values over all classes. Pass a (0-based) class index
+to show only SHAP values of that class.}
 
-\item{approxcontrib}{passed to \code{\link{predict.xgb.Booster}} when \code{shap_contrib = NULL}.}
+\item{approxcontrib}{Passed to \code{\link[=predict.xgb.Booster]{predict.xgb.Booster()}} when \code{shap_contrib = NULL}.}
 
-\item{subsample}{a random fraction of data points to use for plotting. When it is NULL,
-it is set so that up to 100K data points are used.}
+\item{subsample}{Fraction of data points randomly picked for plotting.
+The default (\code{NULL}) will use up to 100k data points.}
 
-\item{n_col}{a number of columns in a grid of plots.}
+\item{n_col}{Number of columns in a grid of plots.}
 
-\item{col}{color of the scatterplot markers.}
+\item{col}{Color of the scatterplot markers.}
 
-\item{pch}{scatterplot marker.}
+\item{pch}{Scatterplot marker.}
 
-\item{discrete_n_uniq}{a maximal number of unique values in a feature to consider it as discrete.}
+\item{discrete_n_uniq}{Maximal number of unique feature values to consider the
+feature as discrete.}
 
-\item{discrete_jitter}{an \code{amount} parameter of jitter added to discrete features' positions.}
+\item{discrete_jitter}{Jitter amount added to the values of discrete features.}
 
-\item{ylab}{a y-axis label in 1D plots.}
+\item{ylab}{The y-axis label in 1D plots.}
 
-\item{plot_NA}{whether the contributions of cases with missing values should also be plotted.}
+\item{plot_NA}{Should contributions of cases with missing values be plotted?
+Default is \code{TRUE}.}
 
-\item{col_NA}{a color of marker for missing value contributions.}
+\item{col_NA}{Color of marker for missing value contributions.}
 
-\item{pch_NA}{a marker type for NA values.}
+\item{pch_NA}{Marker type for \code{NA} values.}
 
-\item{pos_NA}{a relative position of the x-location where NA values are shown:
+\item{pos_NA}{Relative position of the x-location where \code{NA} values are shown:
 \code{min(x) + (max(x) - min(x)) * pos_NA}.}
 
-\item{plot_loess}{whether to plot loess-smoothed curves. The smoothing is only done for features with
-more than 5 distinct values.}
+\item{plot_loess}{Should loess-smoothed curves be plotted? (Default is \code{TRUE}).
+The smoothing is only done for features with more than 5 distinct values.}
 
-\item{col_loess}{a color to use for the loess curves.}
+\item{col_loess}{Color of loess curves.}
 
-\item{span_loess}{the \code{span} parameter in \code{\link[stats]{loess}}'s call.}
+\item{span_loess}{The \code{span} parameter of \code{\link[stats:loess]{stats::loess()}}.}
 
-\item{which}{whether to do univariate or bivariate plotting. NOTE: only 1D is implemented so far.}
+\item{which}{Whether to do univariate or bivariate plotting. Currently, only "1d" is implemented.}
 
-\item{plot}{whether a plot should be drawn. If FALSE, only a list of matrices is returned.}
+\item{plot}{Should the plot be drawn? (Default is \code{TRUE}).
+If \code{FALSE}, only a list of matrices is returned.}
 
-\item{...}{other parameters passed to \code{plot}.}
+\item{...}{Other parameters passed to \code{\link[graphics:plot.default]{graphics::plot()}}.}
 }
 \value{
-In addition to producing plots (when \code{plot=TRUE}), it silently returns a list of two matrices:
+In addition to producing plots (when \code{plot = TRUE}), it silently returns a list of two matrices:
 \itemize{
- \item \code{data} the values of selected features;
- \item \code{shap_contrib} the contributions of selected features.
+\item \code{data}: Feature value matrix.
+\item \code{shap_contrib}: Corresponding SHAP value matrix.
 }
 }
 \description{
-Visualizing the SHAP feature contribution to prediction dependencies on feature value.
+Visualizes SHAP values against feature values to gain an impression of feature effects.
 }
 \details{
 These scatterplots represent how SHAP feature contributions depend of feature values.
-The similarity to partial dependency plots is that they also give an idea for how feature values
-affect predictions. However, in partial dependency plots, we usually see marginal dependencies
-of model prediction on feature value, while SHAP contribution dependency plots display the estimated
-contributions of a feature to model prediction for each individual case.
+The similarity to partial dependence plots is that they also give an idea for how feature values
+affect predictions. However, in partial dependence plots, we see marginal dependencies
+of model prediction on feature value, while SHAP dependence plots display the estimated
+contributions of a feature to the prediction for each individual case.
 
-When \code{plot_loess = TRUE} is set, feature values are rounded to 3 significant digits and
-weighted LOESS is computed and plotted, where weights are the numbers of data points
+When \code{plot_loess = TRUE}, feature values are rounded to three significant digits and
+weighted LOESS is computed and plotted, where the weights are the numbers of data points
 at each rounded value.
 
-Note: SHAP contributions are shown on the scale of model margin. E.g., for a logistic binomial objective,
-the margin is prediction before a sigmoidal transform into probability-like values.
+Note: SHAP contributions are on the scale of the model margin.
+E.g., for a logistic binomial objective, the margin is on log-odds scale.
 Also, since SHAP stands for "SHapley Additive exPlanation" (model prediction = sum of SHAP
 contributions for all features + bias), depending on the objective used, transforming SHAP
 contributions for a feature from the marginal to the prediction space is not necessarily
@@ -121,40 +126,94 @@ a meaningful thing to do.
 }
 \examples{
 
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = "xgboost")
+data(agaricus.test, package = "xgboost")
 
-bst <- xgboost(agaricus.train$data, agaricus.train$label, nrounds = 50,
-               eta = 0.1, max_depth = 3, subsample = .5,
-               method = "hist", objective = "binary:logistic", nthread = 2, verbose = 0)
-
-xgb.plot.shap(agaricus.test$data, model = bst, features = "odor=none")
-contr <- predict(bst, agaricus.test$data, predcontrib = TRUE)
-xgb.plot.shap(agaricus.test$data, contr, model = bst, top_n = 12, n_col = 3)
-xgb.ggplot.shap.summary(agaricus.test$data, contr, model = bst, top_n = 12)  # Summary plot
-
-# multiclass example - plots for each class separately:
-nclass <- 3
+## Keep the number of threads to 1 for examples
+nthread <- 1
+data.table::setDTthreads(nthread)
 nrounds <- 20
+
+model_binary <- xgboost(
+  agaricus.train$data, factor(agaricus.train$label),
+  nrounds = nrounds,
+  verbosity = 0L,
+  learning_rate = 0.1,
+  max_depth = 3L,
+  subsample = 0.5,
+  nthreads = nthread
+)
+
+xgb.plot.shap(agaricus.test$data, model = model_binary, features = "odor=none")
+
+contr <- predict(model_binary, agaricus.test$data, type = "contrib")
+xgb.plot.shap(agaricus.test$data, contr, model = model_binary, top_n = 12, n_col = 3)
+
+# Summary plot
+xgb.ggplot.shap.summary(agaricus.test$data, contr, model = model_binary, top_n = 12)
+
+# Multiclass example - plots for each class separately:
 x <- as.matrix(iris[, -5])
 set.seed(123)
 is.na(x[sample(nrow(x) * 4, 30)]) <- TRUE # introduce some missing values
-mbst <- xgboost(data = x, label = as.numeric(iris$Species) - 1, nrounds = nrounds,
-                max_depth = 2, eta = 0.3, subsample = .5, nthread = 2,
-                objective = "multi:softprob", num_class = nclass, verbose = 0)
-trees0 <- seq(from=0, by=nclass, length.out=nrounds)
+
+model_multiclass <- xgboost(
+  x, iris$Species,
+  nrounds = nrounds,
+  verbosity = 0,
+  max_depth = 2,
+  subsample = 0.5,
+  nthreads = nthread
+)
+nclass <- 3
+trees0 <- seq(from = 1, by = nclass, length.out = nrounds)
 col <- rgb(0, 0, 1, 0.5)
-xgb.plot.shap(x, model = mbst, trees = trees0, target_class = 0, top_n = 4,
-              n_col = 2, col = col, pch = 16, pch_NA = 17)
-xgb.plot.shap(x, model = mbst, trees = trees0 + 1, target_class = 1, top_n = 4,
-              n_col = 2, col = col, pch = 16, pch_NA = 17)
-xgb.plot.shap(x, model = mbst, trees = trees0 + 2, target_class = 2, top_n = 4,
-              n_col = 2, col = col, pch = 16, pch_NA = 17)
-xgb.ggplot.shap.summary(x, model = mbst, target_class = 0, top_n = 4)  # Summary plot
+
+xgb.plot.shap(
+  x,
+  model = model_multiclass,
+  trees = trees0,
+  target_class = 0,
+  top_n = 4,
+  n_col = 2,
+  col = col,
+  pch = 16,
+  pch_NA = 17
+)
+
+xgb.plot.shap(
+  x,
+  model = model_multiclass,
+  trees = trees0 + 1,
+  target_class = 1,
+  top_n = 4,
+  n_col = 2,
+  col = col,
+  pch = 16,
+  pch_NA = 17
+)
+
+xgb.plot.shap(
+  x,
+  model = model_multiclass,
+  trees = trees0 + 2,
+  target_class = 2,
+  top_n = 4,
+  n_col = 2,
+  col = col,
+  pch = 16,
+  pch_NA = 17
+)
+
+# Summary plot
+xgb.ggplot.shap.summary(x, model = model_multiclass, target_class = 0, top_n = 4)
 
 }
 \references{
-Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions", NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
-
-Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles", \url{https://arxiv.org/abs/1706.06060}
+\enumerate{
+\item Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions",
+NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
+\item Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles",
+\url{https://arxiv.org/abs/1706.06060}
+}
 }

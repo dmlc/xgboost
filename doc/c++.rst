@@ -8,5 +8,5 @@ As a result it's changing quite often and we don't maintain its stability.  Alon
 plugin system (see ``plugin/example`` in XGBoost's source tree), users can utilize some
 existing c++ headers for gaining more access to the internal of XGBoost.
 
-* `C++ interface documentation (latest master branch) <https://xgboost.readthedocs.io/en/latest/dev/files.html>`_
+* `C++ interface documentation (latest master branch) <./dev/files.html>`_
 * `C++ interface documentation (last stable release) <https://xgboost.readthedocs.io/en/stable/dev/files.html>`_

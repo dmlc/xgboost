@@ -1,0 +1,20 @@
+name: win64_env
+channels:
+- conda-forge
+dependencies:
+- python=3.10
+- numpy
+- scipy
+- matplotlib
+- scikit-learn
+- pandas
+- pytest
+- boto3
+- hypothesis
+- jsonschema
+- cupy>=13.2
+- python-graphviz
+- pip
+- py-ubjson
+- loky>=3.5.1
+- pyarrow

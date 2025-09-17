@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@ package ml.dmlc.xgboost4j.scala.example
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
+import org.apache.commons.logging.{Log, LogFactory}
+
 import ml.dmlc.xgboost4j.java.XGBoostError
-import ml.dmlc.xgboost4j.scala.{XGBoost, DMatrix, EvalTrait, ObjectiveTrait}
-import org.apache.commons.logging.{LogFactory, Log}
+import ml.dmlc.xgboost4j.scala.{DMatrix, EvalTrait, ObjectiveTrait, XGBoost}
 
 /**
  * an example user define objective and eval
@@ -138,8 +139,8 @@ object CustomObjective {
   }
 
   def main(args: Array[String]): Unit = {
-    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
-    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm")
     val params = new mutable.HashMap[String, Any]()
     params += "eta" -> 1.0
     params += "max_depth" -> 2
@@ -150,7 +151,7 @@ object CustomObjective {
 
     val round = 2
     // train a model
-    val booster = XGBoost.train(trainMat, params.toMap, round, watches.toMap)
+    XGBoost.train(trainMat, params.toMap, round, watches.toMap)
     XGBoost.train(trainMat, params.toMap, round, watches.toMap,
       obj = new LogRegObj, eval = new EvalError)
   }

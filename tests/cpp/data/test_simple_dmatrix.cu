@@ -1,5 +1,4 @@
 // Copyright by Contributors
-#include <dmlc/filesystem.h>
 #include <xgboost/data.h>
 #include "../../../src/data/simple_dmatrix.h"
 
@@ -190,8 +189,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     auto& mask = column_bitfields[0];
     mask.resize(8);
 
-    for (size_t j = 0; j < mask.size(); ++j) {
-      mask[j] = ~0;
+    for (auto && j : mask) {
+      j = ~0;
     }
     // the 2^th entry of first column is invalid
     // [0 0 0 0 0 1 0 0]
@@ -202,8 +201,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     auto& mask = column_bitfields[1];
     mask.resize(8);
 
-    for (size_t j = 0; j < mask.size(); ++j) {
-      mask[j] = ~0;
+    for (auto && j : mask) {
+      j = ~0;
     }
     // the 19^th entry of second column is invalid
     // [~0~], [~0~], [0 0 0 0 1 0 0 0]
@@ -361,8 +360,6 @@ TEST(SimpleDMatrix, FromCupySparse){
   auto& batch = *dmat.GetBatches<SparsePage>().begin();
   auto page = batch.GetView();
 
-  auto inst0 = page[0];
-  auto inst1 = page[1];
   EXPECT_EQ(page[0].size(), 1);
   EXPECT_EQ(page[1].size(), 1);
   EXPECT_EQ(page[0][0].fvalue, 0.0f);

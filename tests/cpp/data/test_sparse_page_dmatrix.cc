@@ -1,53 +1,53 @@
-// Copyright by Contributors
-#include <dmlc/filesystem.h>
+/**
+ * Copyright 2016-2025, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
-#include <thread>
-#include <future>
+#include <xgboost/host_device_vector.h>  // for HostDeviceVector
+
+#include <filesystem>  // for path
+#include <future>      // for future, async
+#include <thread>      // for sleep_for
+
 #include "../../../src/common/io.h"
-#include "../../../src/data/adapter.h"
-#include "../../../src/data/simple_dmatrix.h"
+#include "../../../src/data/batch_utils.h"  // for MatchingPageBytes
 #include "../../../src/data/sparse_page_dmatrix.h"
-#include "../../../src/data/file_iterator.h"
+#include "../../../src/tree/param.h"  // for TrainParam
+#include "../filesystem.h"            // for TemporaryDirectory
 #include "../helpers.h"
 
 using namespace xgboost;  // NOLINT
-
 template <typename Page>
-void TestSparseDMatrixLoadFile() {
-  dmlc::TemporaryDirectory tmpdir;
-  auto opath = tmpdir.path + "/1-based.svm";
-  CreateBigTestData(opath, 3 * 64, false);
-  opath += "?indexing_mode=1";
-  data::FileIterator iter{opath, 0, 1, "libsvm"};
-  data::SparsePageDMatrix m{&iter,
-                            iter.Proxy(),
-                            data::fileiter::Reset,
-                            data::fileiter::Next,
-                            std::numeric_limits<float>::quiet_NaN(),
-                            1,
-                            tmpdir.path + "cache"};
-  ASSERT_EQ(m.Info().num_col_, 5);
-  ASSERT_EQ(m.Info().num_row_, 64);
+void TestSparseDMatrixLoad(Context const *ctx) {
+  auto m = RandomDataGenerator{1024, 5, 0.0}.Batches(4).GenerateSparsePageDMatrix("temp", true);
 
-  std::unique_ptr<dmlc::Parser<uint32_t>> parser(
-      dmlc::Parser<uint32_t>::Create(opath.c_str(), 0, 1, "auto"));
-  auto adapter = data::FileAdapter{parser.get()};
+  auto n_threads = 0;
+  auto config = ExtMemConfig{"temp",
+                             false,
+                             ::xgboost::cuda_impl::AutoHostRatio(),
+                             cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(),
+                             n_threads};
+  ASSERT_EQ(AllThreadsForTest(), m->Ctx()->Threads());
+  ASSERT_EQ(m->Info().num_col_, 5);
+  ASSERT_EQ(m->Info().num_row_, 1024);
 
-  data::SimpleDMatrix simple{&adapter, std::numeric_limits<float>::quiet_NaN(),
-                             1};
+  auto simple = RandomDataGenerator{1024, 5, 0.0}.GenerateDMatrix(true);
   Page out;
-  for (auto const& page : m.GetBatches<Page>()) {
-    if (std::is_same<Page, SparsePage>::value) {
+  for (auto const &page : m->GetBatches<Page>(ctx)) {
+    if (std::is_same_v<Page, SparsePage>) {
       out.Push(page);
     } else {
       out.PushCSC(page);
     }
   }
-  ASSERT_EQ(m.Info().num_col_, simple.Info().num_col_);
-  ASSERT_EQ(m.Info().num_row_, simple.Info().num_row_);
+  ASSERT_EQ(m->Info().num_col_, simple->Info().num_col_);
+  ASSERT_EQ(m->Info().num_row_, simple->Info().num_row_);
+  if (std::is_same_v<Page, SortedCSCPage>) {
+    out.SortRows(ctx->Threads());
+  }
 
-  for (auto const& page : simple.GetBatches<Page>()) {
+  for (auto const &page : simple->GetBatches<Page>(ctx)) {
     ASSERT_EQ(page.offset.HostVector(), out.offset.HostVector());
     for (size_t i = 0; i < page.data.Size(); ++i) {
       ASSERT_EQ(page.data.HostVector()[i].fvalue, out.data.HostVector()[i].fvalue);
@@ -55,17 +55,21 @@ void TestSparseDMatrixLoadFile() {
   }
 }
 
-TEST(SparsePageDMatrix, LoadFile) {
-  TestSparseDMatrixLoadFile<SparsePage>();
-  TestSparseDMatrixLoadFile<CSCPage>();
-  TestSparseDMatrixLoadFile<SortedCSCPage>();
+TEST(SparsePageDMatrix, Load) {
+  Context ctx;
+  TestSparseDMatrixLoad<SparsePage>(&ctx);
+  TestSparseDMatrixLoad<CSCPage>(&ctx);
+  TestSparseDMatrixLoad<SortedCSCPage>(&ctx);
 }
 
 // allow caller to retain pages so they can process multiple pages at the same time.
 template <typename Page>
 void TestRetainPage() {
-  auto m = CreateSparsePageDMatrix(10000);
-  auto batches = m->GetBatches<Page>();
+  std::size_t n_batches = 4;
+  auto p_fmat = RandomDataGenerator{1024, 128, 0.5f}.Batches(n_batches).GenerateSparsePageDMatrix(
+      "cache", true);
+  Context ctx;
+  auto batches = p_fmat->GetBatches<Page>(&ctx);
   auto begin = batches.begin();
   auto end = batches.end();
 
@@ -74,14 +78,14 @@ void TestRetainPage() {
   for (auto it = begin; it != end; ++it) {
     iterators.push_back(it.Page());
     pages.emplace_back(Page{});
-    if (std::is_same<Page, SparsePage>::value) {
+    if (std::is_same_v<Page, SparsePage>) {
       pages.back().Push(*it);
     } else {
       pages.back().PushCSC(*it);
     }
     ASSERT_EQ(pages.back().Size(), (*it).Size());
   }
-  ASSERT_GE(iterators.size(), 2);
+  ASSERT_GE(iterators.size(), n_batches);
 
   for (size_t i = 0; i < iterators.size(); ++i) {
     ASSERT_EQ((*iterators[i]).Size(), pages.at(i).Size());
@@ -89,8 +93,8 @@ void TestRetainPage() {
   }
 
   // make sure it's const and the caller can not modify the content of page.
-  for (auto& page : m->GetBatches<Page>()) {
-    static_assert(std::is_const<std::remove_reference_t<decltype(page)>>::value, "");
+  for (auto &page : p_fmat->GetBatches<Page>({&ctx})) {
+    static_assert(std::is_const_v<std::remove_reference_t<decltype(page)>>);
   }
 }
 
@@ -100,46 +104,168 @@ TEST(SparsePageDMatrix, RetainSparsePage) {
   TestRetainPage<SortedCSCPage>();
 }
 
-TEST(SparsePageDMatrix, MetaInfo) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  size_t constexpr kEntries = 24;
-  CreateBigTestData(tmp_file, kEntries);
+class TestGradientIndexExt : public ::testing::TestWithParam<bool> {
+ protected:
+  void Run(bool is_dense) {
+    constexpr bst_idx_t kRows = 64;
+    constexpr size_t kCols = 2;
+    float sparsity = is_dense ? 0.0 : 0.4;
+    bst_bin_t n_bins = 16;
+    Context ctx;
+    auto p_ext_fmat =
+        RandomDataGenerator{kRows, kCols, sparsity}.Batches(4).GenerateSparsePageDMatrix("temp",
+                                                                                         true);
 
-  xgboost::DMatrix *dmat = xgboost::DMatrix::Load(
-      tmp_file + "#" + tmp_file + ".cache", false, false);
+    auto cuts = common::SketchOnDMatrix(&ctx, p_ext_fmat.get(), n_bins, false, {});
+    std::vector<std::unique_ptr<GHistIndexMatrix>> pages;
+    for (auto const &page : p_ext_fmat->GetBatches<SparsePage>()) {
+      pages.emplace_back(std::make_unique<GHistIndexMatrix>(
+          page, common::Span<FeatureType const>{}, cuts, n_bins, is_dense, 0.8, ctx.Threads()));
+    }
+    std::int32_t k = 0;
+    for (auto const &page : p_ext_fmat->GetBatches<GHistIndexMatrix>(
+             &ctx, BatchParam{n_bins, tree::TrainParam::DftSparseThreshold()})) {
+      auto const &from_sparse = pages[k];
+      ASSERT_TRUE(std::equal(page.index.begin(), page.index.end(), from_sparse->index.begin()));
+      if (is_dense) {
+        ASSERT_TRUE(std::equal(page.index.Offset(), page.index.Offset() + kCols,
+                               from_sparse->index.Offset()));
+      } else {
+        ASSERT_FALSE(page.index.Offset());
+        ASSERT_FALSE(from_sparse->index.Offset());
+      }
+      ASSERT_TRUE(
+          std::equal(page.row_ptr.cbegin(), page.row_ptr.cend(), from_sparse->row_ptr.cbegin()));
+      ++k;
+    }
+  }
+};
+
+TEST_P(TestGradientIndexExt, Basic) { this->Run(this->GetParam()); }
+
+INSTANTIATE_TEST_SUITE_P(SparsePageDMatrix, TestGradientIndexExt, testing::Bool());
+
+// Test GHistIndexMatrix can avoid loading sparse page after the initialization.
+TEST(SparsePageDMatrix, GHistIndexSkipSparsePage) {
+  common::TemporaryDirectory tmpdir;
+  std::size_t n_batches = 6;
+  auto Xy = RandomDataGenerator{180, 12, 0.0}.Batches(n_batches).GenerateSparsePageDMatrix(
+      tmpdir.Str() + "/", true);
+  Context ctx;
+  bst_bin_t n_bins{256};
+  double sparse_thresh{0.8};
+  BatchParam batch_param{n_bins, sparse_thresh};
+
+  auto check_ghist = [&] {
+    std::int32_t k = 0;
+    for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
+      ASSERT_EQ(page.Size(), 30);
+      ASSERT_EQ(k, page.base_rowid);
+      k += page.Size();
+    }
+  };
+  check_ghist();
+
+  auto casted = std::dynamic_pointer_cast<data::SparsePageDMatrix>(Xy);
+  CHECK(casted);
+  // Make the number of fetches don't change (no new fetch)
+  auto n_init_fetches = casted->SparsePageFetchCount();
+
+  std::vector<float> hess(Xy->Info().num_row_, 1.0f);
+  // Run multiple iterations to make sure fetches are consistent after reset.
+  for (std::int32_t i = 0; i < 4; ++i) {
+    auto n_fetches = casted->SparsePageFetchCount();
+    check_ghist();
+    ASSERT_EQ(casted->SparsePageFetchCount(), n_fetches);
+    if (i == 0) {
+      ASSERT_EQ(n_fetches, n_init_fetches);
+    }
+    // Make sure other page types don't interfere the GHist. This way, we can reuse the
+    // DMatrix for multiple purposes.
+    for ([[maybe_unused]] auto const &page : Xy->GetBatches<SparsePage>(&ctx)) {
+    }
+    for ([[maybe_unused]] auto const &page : Xy->GetBatches<SortedCSCPage>(&ctx)) {
+    }
+    for ([[maybe_unused]] auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param)) {
+    }
+    // Approx tree method pages
+    {
+      BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, false};
+      for ([[maybe_unused]] auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, regen)) {
+      }
+    }
+    {
+      BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, true};
+      for ([[maybe_unused]] auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, regen)) {
+      }
+    }
+    // Restore the batch parameter by passing it in again through check_ghist
+    check_ghist();
+  }
+
+  // half the pages
+  {
+    auto it = Xy->GetBatches<SparsePage>(&ctx).begin();
+    for (std::size_t i = 0; i < n_batches / 2; ++i) {
+      ++it;
+    }
+    check_ghist();
+  }
+  {
+    auto it = Xy->GetBatches<GHistIndexMatrix>(&ctx, batch_param).begin();
+    for (std::size_t i = 0; i < n_batches / 2; ++i) {
+      ++it;
+    }
+    check_ghist();
+  }
+  {
+    BatchParam regen{n_bins, common::Span{hess.data(), hess.size()}, true};
+    auto it = Xy->GetBatches<GHistIndexMatrix>(&ctx, regen).begin();
+    for (std::size_t i = 0; i < n_batches / 2; ++i) {
+      ++it;
+    }
+    check_ghist();
+  }
+}
+
+TEST(SparsePageDMatrix, MetaInfo) {
+  common::TemporaryDirectory tmpdir;
+  auto dmat = RandomDataGenerator{256, 5, 0.0}.Batches(4).GenerateSparsePageDMatrix(
+      tmpdir.Str() + "/", true);
 
   // Test the metadata that was parsed
-  EXPECT_EQ(dmat->Info().num_row_, 8ul);
+  EXPECT_EQ(dmat->Info().num_row_, 256ul);
   EXPECT_EQ(dmat->Info().num_col_, 5ul);
-  EXPECT_EQ(dmat->Info().num_nonzero_, kEntries);
+  EXPECT_EQ(dmat->Info().num_nonzero_, dmat->Info().num_col_ * dmat->Info().num_row_);
   EXPECT_EQ(dmat->Info().labels.Size(), dmat->Info().num_row_);
-
-  delete dmat;
 }
 
 TEST(SparsePageDMatrix, RowAccess) {
-  std::unique_ptr<xgboost::DMatrix> dmat = xgboost::CreateSparsePageDMatrix(24);
+  auto dmat = RandomDataGenerator{12, 6, 0.8f}.Batches(2).GenerateSparsePageDMatrix("temp", false);
 
   // Test the data read into the first row
   auto &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
   auto page = batch.GetView();
   auto first_row = page[0];
-  ASSERT_EQ(first_row.size(), 3ul);
-  EXPECT_EQ(first_row[2].index, 2u);
-  EXPECT_NEAR(first_row[2].fvalue, 0.986566, 1e-4);
+  ASSERT_EQ(first_row.size(), 1ul);
+  EXPECT_EQ(first_row[0].index, 5u);
+  EXPECT_NEAR(first_row[0].fvalue, 0.1805125, 1e-4);
 }
 
 TEST(SparsePageDMatrix, ColAccess) {
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
-  CreateSimpleTestData(tmp_file);
-  xgboost::DMatrix *dmat =
-      xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, false);
+  common::TemporaryDirectory tempdir;
+  Context ctx;
+
+  auto nan = std::numeric_limits<float>::quiet_NaN();
+  HostDeviceVector<float> x{
+      0, 10,  20,  nan, nan,  // row-0
+      0, nan, nan, 30,  40    // row-1
+  };
+  auto dmat = GetExternalMemoryDMatrixFromData(x, 2, 5, tempdir, 2);
 
   // Loop over the batches and assert the data is as expected
   size_t iter = 0;
-  for (auto const &col_batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
+  for (auto const &col_batch : dmat->GetBatches<xgboost::SortedCSCPage>(&ctx)) {
     auto col_page = col_batch.GetView();
     ASSERT_EQ(col_page.Size(), dmat->Info().num_col_);
     if (iter == 1) {
@@ -151,33 +277,31 @@ TEST(SparsePageDMatrix, ColAccess) {
       ASSERT_EQ(col_page[1][0].fvalue, 10.0f);
       ASSERT_EQ(col_page[1].size(), 1);
     }
-    CHECK_LE(col_batch.base_rowid, dmat->Info().num_row_);
+    ASSERT_LE(col_batch.base_rowid, dmat->Info().num_row_);
     ++iter;
   }
 
   // Loop over the batches and assert the data is as expected
   iter = 0;
-  for (auto const &col_batch : dmat->GetBatches<xgboost::CSCPage>()) {
+  for (auto const &col_batch : dmat->GetBatches<xgboost::CSCPage>(&ctx)) {
     auto col_page = col_batch.GetView();
-    EXPECT_EQ(col_page.Size(), dmat->Info().num_col_);
+    ASSERT_EQ(col_page.Size(), dmat->Info().num_col_);
     if (iter == 0) {
-      EXPECT_EQ(col_page[1][0].fvalue, 10.0f);
-      EXPECT_EQ(col_page[1].size(), 1);
+      ASSERT_EQ(col_page[1][0].fvalue, 10.0f);
+      ASSERT_EQ(col_page[1].size(), 1);
     } else {
-      EXPECT_EQ(col_page[3][0].fvalue, 30.f);
-      EXPECT_EQ(col_page[3].size(), 1);
+      ASSERT_EQ(col_page[3][0].fvalue, 30.f);
+      ASSERT_EQ(col_page[3].size(), 1);
     }
     iter++;
   }
-  delete dmat;
 }
 
 TEST(SparsePageDMatrix, ThreadSafetyException) {
-  size_t constexpr kEntriesPerCol = 3;
-  size_t constexpr kEntries = 64 * kEntriesPerCol * 2;
+  Context ctx;
 
-  std::unique_ptr<xgboost::DMatrix> dmat =
-      xgboost::CreateSparsePageDMatrix(kEntries);
+  auto dmat =
+      RandomDataGenerator{4096, 12, 0.0f}.Batches(8).GenerateSparsePageDMatrix("temp", true);
 
   int threads = 1000;
 
@@ -209,39 +333,38 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
 // Multi-batches access
 TEST(SparsePageDMatrix, ColAccessBatches) {
-  size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
-  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
   // Create multiple sparse pages
-  std::unique_ptr<xgboost::DMatrix> dmat{xgboost::CreateSparsePageDMatrix(kEntries)};
-  auto n_threads = omp_get_max_threads();
-  omp_set_num_threads(16);
-  for (auto const &page : dmat->GetBatches<xgboost::CSCPage>()) {
+  auto dmat =
+      RandomDataGenerator{1024, 32, 0.4f}.Batches(3).GenerateSparsePageDMatrix("temp", true);
+  ASSERT_EQ(dmat->Ctx()->Threads(), AllThreadsForTest());
+  Context ctx;
+  for (auto const &page : dmat->GetBatches<xgboost::CSCPage>(&ctx)) {
     ASSERT_EQ(dmat->Info().num_col_, page.Size());
   }
-  omp_set_num_threads(n_threads);
 }
 
-auto TestSparsePageDMatrixDeterminism(int32_t threads) {
-  omp_set_num_threads(threads);
+auto TestSparsePageDMatrixDeterminism(std::int32_t n_threads) {
   std::vector<float> sparse_data;
   std::vector<size_t> sparse_rptr;
   std::vector<bst_feature_t> sparse_cids;
-  dmlc::TemporaryDirectory tempdir;
-  std::string filename = tempdir.path + "/simple.libsvm";
-  CreateBigTestData(filename, 1 << 16);
 
-  data::FileIterator iter(filename, 0, 1, "auto");
-  std::unique_ptr<DMatrix> sparse{new data::SparsePageDMatrix{
-      &iter, iter.Proxy(), data::fileiter::Reset, data::fileiter::Next,
-      std::numeric_limits<float>::quiet_NaN(), 1, filename}};
+  common::TemporaryDirectory tmpdir;
+  auto prefix = (tmpdir.Path() / "temp").string();
+  auto dmat = RandomDataGenerator{4096, 64, 0.0}.Batches(4).GenerateSparsePageDMatrix(prefix, true);
 
-  DMatrixToCSR(sparse.get(), &sparse_data, &sparse_rptr, &sparse_cids);
+  auto config = ExtMemConfig{prefix,
+                             false,
+                             ::xgboost::cuda_impl::AutoHostRatio(),
+                             cuda_impl::MatchingPageBytes(),
+                             std::numeric_limits<float>::quiet_NaN(),
+                             n_threads};
+  CHECK(dmat->Ctx()->Threads() == n_threads || dmat->Ctx()->Threads() == AllThreadsForTest());
+
+  DMatrixToCSR(dmat.get(), &sparse_data, &sparse_rptr, &sparse_cids);
 
   auto cache_name =
-      data::MakeId(filename,
-                   dynamic_cast<data::SparsePageDMatrix *>(sparse.get())) +
-      ".row.page";
-  std::string cache = common::LoadSequentialFile(cache_name);
+      data::MakeId(prefix, dynamic_cast<data::SparsePageDMatrix *>(dmat.get())) + ".row.page";
+  auto cache = common::LoadSequentialFile(cache_name);
   return cache;
 }
 
@@ -249,7 +372,7 @@ TEST(SparsePageDMatrix, Determinism) {
 #if defined(_MSC_VER)
   return;
 #endif  // defined(_MSC_VER)
-  std::vector<std::string> caches;
+  std::vector<std::vector<char>> caches;
   for (size_t i = 1; i < 18; i += 2) {
     caches.emplace_back(TestSparsePageDMatrixDeterminism(i));
   }

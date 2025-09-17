@@ -19,9 +19,10 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.nio.file.{Files, Path}
 
 import org.apache.spark.network.util.JavaUtils
-import org.scalatest.{BeforeAndAfterAll, FunSuite}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.funsuite.AnyFunSuite
 
-trait TmpFolderPerSuite extends BeforeAndAfterAll { self: FunSuite =>
+trait TmpFolderPerSuite extends BeforeAndAfterAll { self: AnyFunSuite =>
   protected var tempDir: Path = _
 
   override def beforeAll(): Unit = {

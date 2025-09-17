@@ -1,35 +1,5 @@
-/*!
- * Copyright 2018-2022 by XGBoost Contributors
- * \brief This converts all tests from CPU to GPU.
+/**
+ * Copyright 2023 XGBoost contributors
  */
+// Dummy file to keep the CUDA tests.
 #include "test_transform_range.cc"
-
-namespace xgboost {
-namespace common {
-
-TEST(Transform, MGPU_SpecifiedGpuId) {  // NOLINT
-  if (AllVisibleGPUs() < 2) {
-    LOG(WARNING) << "Not testing in multi-gpu environment.";
-    return;
-  }
-  // Use 1 GPU, Numbering of GPU starts from 1
-  auto device = 1;
-  auto const size {256};
-  std::vector<bst_float> h_in(size);
-  std::vector<bst_float> h_out(size);
-  std::iota(h_in.begin(), h_in.end(), 0);
-  std::vector<bst_float> h_sol(size);
-  std::iota(h_sol.begin(), h_sol.end(), 0);
-
-  const HostDeviceVector<bst_float> in_vec {h_in, device};
-  HostDeviceVector<bst_float> out_vec {h_out, device};
-
-  ASSERT_NO_THROW(Transform<>::Init(TestTransformRange<bst_float>{}, Range{0, size},
-                                    common::OmpGetNumThreads(0), device)
-                      .Eval(&out_vec, &in_vec));
-  std::vector<bst_float> res = out_vec.HostVector();
-  ASSERT_TRUE(std::equal(h_sol.begin(), h_sol.end(), res.begin()));
-}
-
-}  // namespace common
-}  // namespace xgboost

@@ -1,5 +1,5 @@
-/*!
- * Copyright 2019 XGBoost contributors
+/**
+ * Copyright 2019-2023, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include "../../../src/common/bitfield.h"
@@ -14,7 +14,7 @@ TEST(BitField, Check) {
                 static_cast<typename common::Span<LBitField64::value_type>::index_type>(
                     storage.size())});
     size_t true_bit = 190;
-    for (size_t i = true_bit + 1; i < bits.Size(); ++i) {
+    for (size_t i = true_bit + 1; i < bits.Capacity(); ++i) {
       ASSERT_FALSE(bits.Check(i));
     }
     ASSERT_TRUE(bits.Check(true_bit));
@@ -34,7 +34,7 @@ TEST(BitField, Check) {
       ASSERT_FALSE(bits.Check(i));
     }
     ASSERT_TRUE(bits.Check(true_bit));
-    for (size_t i = true_bit + 1; i < bits.Size(); ++i) {
+    for (size_t i = true_bit + 1; i < bits.Capacity(); ++i) {
       ASSERT_FALSE(bits.Check(i));
     }
   }
@@ -95,6 +95,31 @@ TEST(BitField, Clear) {
   }
   {
     TestBitFieldClear<RBitField8>(19);
+  }
+}
+
+TEST(BitField, CTZ) {
+  {
+    auto cnt = TrailingZeroBits(0);
+    ASSERT_EQ(cnt, sizeof(std::uint32_t) * 8);
+  }
+  {
+    auto cnt = TrailingZeroBits(0b00011100);
+    ASSERT_EQ(cnt, 2);
+    cnt = detail::TrailingZeroBitsImpl(0b00011100);
+    ASSERT_EQ(cnt, 2);
+  }
+  {
+    auto cnt = TrailingZeroBits(0b00011101);
+    ASSERT_EQ(cnt, 0);
+    cnt = detail::TrailingZeroBitsImpl(0b00011101);
+    ASSERT_EQ(cnt, 0);
+  }
+  {
+    auto cnt = TrailingZeroBits(0b1000000000000000);
+    ASSERT_EQ(cnt, 15);
+    cnt = detail::TrailingZeroBitsImpl(0b1000000000000000);
+    ASSERT_EQ(cnt, 15);
   }
 }
 }  // namespace xgboost

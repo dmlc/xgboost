@@ -1,9 +1,10 @@
-import pickle
-import numpy as np
-import xgboost as xgb
-import os
 import json
+import os
+import pickle
 
+import numpy as np
+
+import xgboost as xgb
 
 kRows = 100
 kCols = 10
@@ -21,25 +22,25 @@ class TestPickling:
         dtrain = xgb.DMatrix(X, y)
         bst = xgb.train(xgb_params, dtrain)
 
-        dump_0 = bst.get_dump(dump_format='json')
+        dump_0 = bst.get_dump(dump_format="json")
         assert dump_0
         config_0 = bst.save_config()
 
-        filename = 'model.pkl'
+        filename = "model.pkl"
 
-        with open(filename, 'wb') as fd:
+        with open(filename, "wb") as fd:
             pickle.dump(bst, fd)
 
-        with open(filename, 'rb') as fd:
+        with open(filename, "rb") as fd:
             bst = pickle.load(fd)
 
-        with open(filename, 'wb') as fd:
+        with open(filename, "wb") as fd:
             pickle.dump(bst, fd)
 
-        with open(filename, 'rb') as fd:
+        with open(filename, "rb") as fd:
             bst = pickle.load(fd)
 
-        assert bst.get_dump(dump_format='json') == dump_0
+        assert bst.get_dump(dump_format="json") == dump_0
 
         if os.path.exists(filename):
             os.remove(filename)
@@ -50,11 +51,8 @@ class TestPickling:
 
     def test_model_pickling_json(self):
         def check(config):
-            updater = config["learner"]["gradient_booster"]["updater"]
-            if params["tree_method"] == "exact":
-                subsample = updater["grow_colmaker"]["train_param"]["subsample"]
-            else:
-                subsample = updater["grow_quantile_histmaker"]["train_param"]["subsample"]
+            tree_param = config["learner"]["gradient_booster"]["tree_train_param"]
+            subsample = tree_param["subsample"]
             assert float(subsample) == 0.5
 
         params = {"nthread": 8, "tree_method": "hist", "subsample": 0.5}

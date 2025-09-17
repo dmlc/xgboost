@@ -1,19 +1,21 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #pragma once
 
 #include <algorithm>
+#include <cstdint>  // std::int32_t
 #include <limits>
-#include <vector>
+#include <vector>   // std::vector
 
-#include "rabit/rabit.h"
-#include "xgboost/generic_parameters.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/tree_model.h"
+#include "../collective/aggregator.h"
+#include "xgboost/base.h"                // bst_node_t
+#include "xgboost/context.h"             // Context
+#include "xgboost/data.h"                // MetaInfo
+#include "xgboost/host_device_vector.h"  // HostDeviceVector
+#include "xgboost/tree_model.h"          // RegTree
 
-namespace xgboost {
-namespace obj {
+namespace xgboost::obj {
 namespace detail {
 inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing,
                             std::vector<bst_node_t>* p_nidx, std::vector<size_t>* p_nptr) {
@@ -31,14 +33,14 @@ inline void FillMissingLeaf(std::vector<bst_node_t> const& maybe_missing,
   }
 }
 
-inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_node_t> const nidx,
-                             RegTree* p_tree) {
+inline void UpdateLeafValues(Context const* ctx, std::vector<float>* p_quantiles,
+                             std::vector<bst_node_t> const& nidx, MetaInfo const& info,
+                             float learning_rate, RegTree* p_tree) {
   auto& tree = *p_tree;
   auto& quantiles = *p_quantiles;
   auto const& h_node_idx = nidx;
 
-  size_t n_leaf{h_node_idx.size()};
-  rabit::Allreduce<rabit::op::Max>(&n_leaf, 1);
+  bst_idx_t n_leaf = collective::GlobalMax(ctx, info, static_cast<bst_idx_t>(h_node_idx.size()));
   CHECK(quantiles.empty() || quantiles.size() == n_leaf);
   if (quantiles.empty()) {
     quantiles.resize(n_leaf, std::numeric_limits<float>::quiet_NaN());
@@ -48,12 +50,16 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
   std::vector<int32_t> n_valids(quantiles.size());
   std::transform(quantiles.cbegin(), quantiles.cend(), n_valids.begin(),
                  [](float q) { return static_cast<int32_t>(!std::isnan(q)); });
-  rabit::Allreduce<rabit::op::Sum>(n_valids.data(), n_valids.size());
+  auto rc = collective::GlobalSum(ctx, info, linalg::MakeVec(n_valids.data(), n_valids.size()));
+  collective::SafeColl(rc);
+
   // convert to 0 for all reduce
   std::replace_if(
       quantiles.begin(), quantiles.end(), [](float q) { return std::isnan(q); }, 0.f);
   // use the mean value
-  rabit::Allreduce<rabit::op::Sum>(quantiles.data(), quantiles.size());
+  rc = collective::GlobalSum(ctx, info, linalg::MakeVec(quantiles.data(), quantiles.size()));
+  collective::SafeColl(rc);
+
   for (size_t i = 0; i < n_leaf; ++i) {
     if (n_valids[i] > 0) {
       quantiles[i] /= static_cast<float>(n_valids[i]);
@@ -67,17 +73,38 @@ inline void UpdateLeafValues(std::vector<float>* p_quantiles, std::vector<bst_no
     auto nidx = h_node_idx[i];
     auto q = quantiles[i];
     CHECK(tree[nidx].IsLeaf());
-    tree[nidx].SetLeaf(q);
+    tree[nidx].SetLeaf(q * learning_rate);
   }
 }
 
+inline std::size_t IdxY(MetaInfo const& info, bst_group_t group_idx) {
+  std::size_t y_idx{0};
+  if (info.labels.Shape(1) > 1) {
+    y_idx = group_idx;
+  }
+  CHECK_LE(y_idx, info.labels.Shape(1));
+  return y_idx;
+}
+
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                          RegTree* p_tree);
+                          std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                          HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 
 void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                        RegTree* p_tree);
+                        std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                        HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree);
 }  // namespace detail
-}  // namespace obj
-}  // namespace xgboost
+
+inline void UpdateTreeLeaf(Context const* ctx, HostDeviceVector<bst_node_t> const& position,
+                           std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                           HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
+  if (ctx->IsCUDA()) {
+    position.SetDevice(ctx->Device());
+    detail::UpdateTreeLeafDevice(ctx, position.ConstDeviceSpan(), group_idx, info, learning_rate,
+                                 predt, alpha, p_tree);
+  } else {
+    detail::UpdateTreeLeafHost(ctx, position.ConstHostVector(), group_idx, info, learning_rate,
+                               predt, alpha, p_tree);
+  }
+}
+}  // namespace xgboost::obj

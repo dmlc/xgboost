@@ -1,66 +1,100 @@
+/**
+ * Copyright 2023 by XGBoost Contributors
+ */
 #include <gtest/gtest.h>
-#include "../../../src/common/ranking_utils.cuh"
-#include "../../../src/common/device_helpers.cuh"
+#include <xgboost/base.h>                          // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
+#include <xgboost/context.h>                       // for Context
+#include <xgboost/linalg.h>                        // for MakeTensorView, Vector
 
-namespace xgboost {
-namespace common {
+#include <cstddef>                                 // for size_t
+#include <memory>                                  // for shared_ptr
+#include <numeric>                                 // for iota
+#include <vector>                                  // for vector
 
-TEST(SegmentedTrapezoidThreads, Basic) {
-  size_t constexpr kElements = 24, kGroups = 3;
-  dh::device_vector<size_t> offset_ptr(kGroups + 1, 0);
-  offset_ptr[0] = 0;
-  offset_ptr[1] = 8;
-  offset_ptr[2] = 16;
-  offset_ptr[kGroups] = kElements;
+#include "../../../src/common/algorithm.cuh"       // for SegmentedSequence
+#include "../../../src/common/cuda_context.cuh"    // for CUDAContext
+#include "../../../src/common/device_helpers.cuh"  // for device_vector, ToSpan
+#include "../../../src/common/ranking_utils.cuh"   // for CalcQueriesInvIDCG
+#include "../../../src/common/ranking_utils.h"     // for LambdaRankParam, RankingCache
+#include "../helpers.h"                            // for EmptyDMatrix
+#include "test_ranking_utils.h"                    // for TestNDCGCache
+#include "xgboost/data.h"                          // for MetaInfo
+#include "xgboost/host_device_vector.h"            // for HostDeviceVector
 
-  size_t h = 1;
-  dh::device_vector<size_t> thread_ptr(kGroups + 1, 0);
-  size_t total = SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
-  ASSERT_EQ(total, kElements - kGroups);
+namespace xgboost::ltr {
+void TestCalcQueriesInvIDCG() {
+  auto ctx = MakeCUDACtx(0);
+  std::size_t n_groups = 5, n_samples_per_group = 32;
 
-  h = 2;
-  SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
-  std::vector<size_t> h_thread_ptr(thread_ptr.size());
-  thrust::copy(thread_ptr.cbegin(), thread_ptr.cend(), h_thread_ptr.begin());
-  for (size_t i = 1; i < h_thread_ptr.size(); ++i) {
-    ASSERT_EQ(h_thread_ptr[i] - h_thread_ptr[i - 1], 13);
-  }
+  dh::device_vector<float> scores(n_samples_per_group * n_groups);
+  dh::device_vector<bst_group_t> group_ptr(n_groups + 1);
+  auto d_group_ptr = dh::ToSpan(group_ptr);
+  dh::LaunchN(d_group_ptr.size(), ctx.CUDACtx()->Stream(),
+              [=] XGBOOST_DEVICE(std::size_t i) { d_group_ptr[i] = i * n_samples_per_group; });
 
-  h = 7;
-  SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
-  thrust::copy(thread_ptr.cbegin(), thread_ptr.cend(), h_thread_ptr.begin());
-  for (size_t i = 1; i < h_thread_ptr.size(); ++i) {
-    ASSERT_EQ(h_thread_ptr[i] - h_thread_ptr[i - 1], 28);
+  auto d_scores = dh::ToSpan(scores);
+  common::SegmentedSequence(&ctx, d_group_ptr, d_scores);
+
+  linalg::Vector<double> inv_IDCG({n_groups}, ctx.Device());
+
+  ltr::LambdaRankParam p;
+  p.UpdateAllowUnknown(Args{{"ndcg_exp_gain", "false"}});
+
+  cuda_impl::CalcQueriesInvIDCG(&ctx, linalg::MakeTensorView(&ctx, d_scores, d_scores.size()),
+                                dh::ToSpan(group_ptr), inv_IDCG.View(ctx.Device()), p);
+  for (std::size_t i = 0; i < n_groups; ++i) {
+    double inv_idcg = inv_IDCG(i);
+    ASSERT_NEAR(inv_idcg, 0.00551782, kRtEps);
   }
 }
 
-TEST(SegmentedTrapezoidThreads, Unravel) {
-  size_t i = 0, j = 0;
-  size_t constexpr kN = 8;
+TEST(RankingUtils, CalcQueriesInvIDCG) { TestCalcQueriesInvIDCG(); }
 
-  UnravelTrapeziodIdx(6, kN, &i, &j);
-  ASSERT_EQ(i, 0);
-  ASSERT_EQ(j, 7);
+namespace {
+void TestRankingCache(Context const* ctx) {
+  auto p_fmat = EmptyDMatrix();
+  MetaInfo& info = p_fmat->Info();
 
-  UnravelTrapeziodIdx(12, kN, &i, &j);
-  ASSERT_EQ(i, 1);
-  ASSERT_EQ(j, 7);
+  info.num_row_ = 16;
+  info.labels.Reshape(info.num_row_);
+  auto& h_label = info.labels.Data()->HostVector();
+  for (std::size_t i = 0; i < h_label.size(); ++i) {
+    h_label[i] = i % 2;
+  }
 
-  UnravelTrapeziodIdx(15, kN, &i, &j);
-  ASSERT_EQ(i, 2);
-  ASSERT_EQ(j, 5);
+  LambdaRankParam param;
+  param.UpdateAllowUnknown(Args{});
 
-  UnravelTrapeziodIdx(21, kN, &i, &j);
-  ASSERT_EQ(i, 3);
-  ASSERT_EQ(j, 7);
+  RankingCache cache{ctx, info, param};
 
-  UnravelTrapeziodIdx(25, kN, &i, &j);
-  ASSERT_EQ(i, 5);
-  ASSERT_EQ(j, 6);
+  HostDeviceVector<float> predt(info.num_row_, 0);
+  auto& h_predt = predt.HostVector();
+  std::iota(h_predt.begin(), h_predt.end(), 0.0f);
+  predt.SetDevice(ctx->Device());
 
-  UnravelTrapeziodIdx(27, kN, &i, &j);
-  ASSERT_EQ(i, 6);
-  ASSERT_EQ(j, 7);
+  auto rank_idx =
+      cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+
+  std::vector<std::size_t> h_rank_idx(rank_idx.size());
+  dh::CopyDeviceSpanToVector(&h_rank_idx, rank_idx);
+  for (std::size_t i = 0; i < rank_idx.size(); ++i) {
+    ASSERT_EQ(h_rank_idx[i], h_rank_idx.size() - i - 1);
+  }
 }
-}  // namespace common
-}  // namespace xgboost
+}  // namespace
+
+TEST(RankingCache, InitFromGPU) {
+  auto ctx = MakeCUDACtx(0);
+  TestRankingCache(&ctx);
+}
+
+TEST(NDCGCache, InitFromGPU) {
+  auto ctx = MakeCUDACtx(0);
+  TestNDCGCache(&ctx);
+}
+
+TEST(MAPCache, InitFromGPU) {
+  auto ctx = MakeCUDACtx(0);
+  TestMAPCache(&ctx);
+}
+}  // namespace xgboost::ltr

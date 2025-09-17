@@ -31,7 +31,7 @@ trait ObjectiveTrait extends IObjective {
    */
   def getGradient(predicts: Array[Array[Float]], dtrain: DMatrix): List[Array[Float]]
 
-  private[scala] def getGradient(predicts: Array[Array[Float]], dtrain: JDMatrix):
+  def getGradient(predicts: Array[Array[Float]], dtrain: JDMatrix):
     java.util.List[Array[Float]] = {
     getGradient(predicts, new DMatrix(dtrain)).asJava
   }

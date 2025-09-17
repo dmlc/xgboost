@@ -4,3 +4,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 README.md
+^doc$
+^Meta$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

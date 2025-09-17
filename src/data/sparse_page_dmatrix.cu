@@ -1,49 +1,81 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2024, XGBoost contributors
  */
-#include "sparse_page_source.h"
+#include <memory>   // for shared_ptr
+#include <utility>  // for move
+#include <variant>  // for visit
+#include <vector>   // for vector
+
 #include "../common/hist_util.cuh"
+#include "../common/hist_util.h"  // for HistogramCuts
+#include "batch_utils.h"          // for CheckEmpty, RegenGHist, CachePageRatio
 #include "ellpack_page.cuh"
 #include "sparse_page_dmatrix.h"
+#include "xgboost/context.h"  // for Context
+#include "xgboost/data.h"     // for BatchParam
 
-namespace xgboost {
-namespace data {
-BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& param) {
-  CHECK_GE(param.gpu_id, 0);
-  CHECK_GE(param.max_bin, 2);
-  if (!(batch_param_ != BatchParam{})) {
-    CHECK(param != BatchParam{}) << "Batch parameter is not initialized.";
+namespace xgboost::data {
+BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
+                                                           const BatchParam& param) {
+  CHECK(ctx->IsCUDA());
+  if (param.Initialized()) {
+    CHECK_GE(param.max_bin, 2);
   }
-  auto id = MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
-  size_t row_stride = 0;
-  this->InitializeSparsePage();
-  if (!cache_info_.at(id)->written || RegenGHist(batch_param_, param)) {
+  detail::CheckEmpty(batch_param_, param);
+  auto id = MakeCache(this, ".ellpack.page", on_host_, cache_prefix_, &cache_info_);
+
+  if (!cache_info_.at(id)->written || detail::RegenGHist(batch_param_, param)) {
+    this->InitializeSparsePage(ctx);
     // reinitialize the cache
     cache_info_.erase(id);
-    MakeCache(this, ".ellpack.page", cache_prefix_, &cache_info_);
-    std::unique_ptr<common::HistogramCuts> cuts;
-    cuts.reset(new common::HistogramCuts{
-        common::DeviceSketch(param.gpu_id, this, param.max_bin, 0)});
-    this->InitializeSparsePage();  // reset after use.
+    id = MakeCache(this, ".ellpack.page", on_host_, cache_prefix_, &cache_info_);
+    LOG(INFO) << "Generating new a Ellpack page.";
+    std::shared_ptr<common::HistogramCuts> cuts;
+    if (!param.hess.empty()) {
+      cuts = std::make_shared<common::HistogramCuts>(
+          common::DeviceSketchWithHessian(ctx, this, param.max_bin, param.hess));
+    } else {
+      cuts =
+          std::make_shared<common::HistogramCuts>(common::DeviceSketch(ctx, this, param.max_bin));
+    }
+    this->InitializeSparsePage(ctx);  // reset after use.
 
-    row_stride = GetRowStride(this);
-    this->InitializeSparsePage();  // reset after use.
-    CHECK_NE(row_stride, 0);
+    std::vector<bst_idx_t> base_rowids, nnz;
+    if (this->ext_info_.row_stride == 0) {
+      this->ext_info_.row_stride = GetRowStride(this);
+    }
+
+    this->InitializeSparsePage(ctx);  // reset after use.
     batch_param_ = param;
 
-    auto ft = this->info_.feature_types.ConstDeviceSpan();
-    ellpack_page_source_.reset();  // release resources.
-    ellpack_page_source_.reset(new EllpackPageSource(
-        this->missing_, this->ctx_.Threads(), this->Info().num_col_,
-        this->n_batches_, cache_info_.at(id), param, std::move(cuts),
-        this->IsDense(), row_stride, ft, sparse_page_source_));
+    auto ft = this->Info().feature_types.ConstDeviceSpan();
+    if (on_host_ && std::get_if<EllpackHostPtr>(&ellpack_page_source_) == nullptr) {
+      ellpack_page_source_.emplace<EllpackHostPtr>(nullptr);
+    }
+
+    auto cinfo = EllpackCacheInfo{param, this->cache_host_ratio_, this->missing_};
+    CalcCacheMapping(ctx, this->IsDense(), cuts, min_cache_page_bytes_, this->ext_info_, true,
+                     &cinfo);
+    CHECK_EQ(cinfo.cache_mapping.size(), this->ext_info_.n_batches)
+        << "Page concatenation is only supported by the `ExtMemQuantileDMatrix`.";
+    std::visit(
+        [&](auto&& ptr) {
+          ptr.reset();  // make sure resource is released before making new ones.
+          using SourceT = typename std::remove_reference_t<decltype(ptr)>::element_type;
+          ptr = std::make_shared<SourceT>(ctx, this->Info().num_col_, this->ext_info_.n_batches,
+                                          cache_info_.at(id), std::move(cuts), this->IsDense(),
+                                          this->ext_info_.row_stride, ft, this->sparse_page_source_,
+                                          cinfo);
+        },
+        ellpack_page_source_);
   } else {
     CHECK(sparse_page_source_);
-    ellpack_page_source_->Reset();
+    std::visit([&](auto&& ptr) { ptr->Reset(param); }, this->ellpack_page_source_);
   }
 
-  auto begin_iter = BatchIterator<EllpackPage>(ellpack_page_source_);
-  return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
+  auto batch_set =
+      std::visit([this](auto&& ptr) { return BatchSet{BatchIterator<EllpackPage>{ptr}}; },
+                 this->ellpack_page_source_);
+  return batch_set;
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

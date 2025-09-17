@@ -49,11 +49,12 @@
 #ifndef XGBOOST_HOST_DEVICE_VECTOR_H_
 #define XGBOOST_HOST_DEVICE_VECTOR_H_
 
-#include <initializer_list>
-#include <vector>
-#include <type_traits>
+#include <xgboost/context.h>  // for DeviceOrd
+#include <xgboost/span.h>     // for Span
 
-#include "span.h"
+#include <initializer_list>
+#include <type_traits>
+#include <vector>
 
 namespace xgboost {
 
@@ -84,12 +85,12 @@ enum GPUAccess {
 
 template <typename T>
 class HostDeviceVector {
-  static_assert(std::is_standard_layout<T>::value, "HostDeviceVector admits only POD types");
+  static_assert(std::is_standard_layout_v<T>, "HostDeviceVector admits only POD types");
 
  public:
-  explicit HostDeviceVector(size_t size = 0, T v = T(), int device = -1);
-  HostDeviceVector(std::initializer_list<T> init, int device = -1);
-  explicit HostDeviceVector(const std::vector<T>& init, int device = -1);
+  explicit HostDeviceVector(size_t size = 0, T v = T(), DeviceOrd device = DeviceOrd::CPU());
+  HostDeviceVector(std::initializer_list<T> init, DeviceOrd device = DeviceOrd::CPU());
+  explicit HostDeviceVector(const std::vector<T>& init, DeviceOrd device = DeviceOrd::CPU());
   ~HostDeviceVector();
 
   HostDeviceVector(const HostDeviceVector<T>&) = delete;
@@ -98,9 +99,10 @@ class HostDeviceVector {
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&) = delete;
   HostDeviceVector<T>& operator=(HostDeviceVector<T>&&);
 
-  bool Empty() const { return Size() == 0; }
-  size_t Size() const;
-  int DeviceIdx() const;
+  [[nodiscard]] bool Empty() const { return Size() == 0; }
+  [[nodiscard]] std::size_t Size() const;
+  [[nodiscard]] std::size_t SizeBytes() const { return this->Size() * sizeof(T); }
+  [[nodiscard]] DeviceOrd Device() const;
   common::Span<T> DeviceSpan();
   common::Span<const T> ConstDeviceSpan() const;
   common::Span<const T> DeviceSpan() const { return ConstDeviceSpan(); }
@@ -126,15 +128,17 @@ class HostDeviceVector {
   const std::vector<T>& ConstHostVector() const;
   const std::vector<T>& HostVector() const {return ConstHostVector(); }
 
-  bool HostCanRead() const;
-  bool HostCanWrite() const;
-  bool DeviceCanRead() const;
-  bool DeviceCanWrite() const;
-  GPUAccess DeviceAccess() const;
+  [[nodiscard]] bool HostCanRead() const;
+  [[nodiscard]] bool HostCanWrite() const;
+  [[nodiscard]] bool DeviceCanRead() const;
+  [[nodiscard]] bool DeviceCanWrite() const;
+  [[nodiscard]] GPUAccess DeviceAccess() const;
 
-  void SetDevice(int device) const;
+  void SetDevice(DeviceOrd device) const;
 
-  void Resize(size_t new_size, T v = T());
+  void Resize(std::size_t new_size);
+  /** @brief Resize and initialize the data if the new size is larger than the old size. */
+  void Resize(std::size_t new_size, T v);
 
   using value_type = T;  // NOLINT
 

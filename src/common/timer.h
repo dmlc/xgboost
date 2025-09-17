@@ -1,18 +1,15 @@
-/*!
- * Copyright by Contributors 2017-2019
+/**
+ * Copyright 2017-2024, XGBoost Contributors
  */
 #pragma once
 #include <xgboost/logging.h>
+
 #include <chrono>
-#include <iostream>
 #include <map>
 #include <string>
 #include <utility>
-#include <vector>
 
-namespace xgboost {
-namespace common {
-
+namespace xgboost::common {
 struct Timer {
   using ClockT = std::chrono::high_resolution_clock;
   using TimePointT = std::chrono::high_resolution_clock::time_point;
@@ -29,6 +26,7 @@ struct Timer {
   void Start() { start = ClockT::now(); }
   void Stop() { elapsed += ClockT::now() - start; }
   double ElapsedSeconds() const { return SecondsT(elapsed).count(); }
+  SecondsT Duration() const { return ClockT::now() - start; }
   void PrintElapsed(std::string label) {
     char buffer[255];
     snprintf(buffer, sizeof(buffer), "%s:\t %fs", label.c_str(),
@@ -81,5 +79,4 @@ struct Monitor {
   void Start(const std::string &name);
   void Stop(const std::string &name);
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common

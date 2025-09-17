@@ -53,9 +53,9 @@ namespace parameter {  \
 template <>  \
 class FieldEntry<EnumClass> : public FieldEntry<int> {  \
  public:  \
-  FieldEntry<EnumClass>() {  \
+  FieldEntry() {  \
     static_assert(  \
-      std::is_same<int, typename std::underlying_type<EnumClass>::type>::value,  \
+      std::is_same_v<int, typename std::underlying_type_t<EnumClass>>,  \
       "enum class must be backed by int");  \
     is_enum_ = true;  \
   }  \

@@ -1,10 +1,11 @@
-/*!
- * Copyright 2021 by Contributors
+/**
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
-#include "../helpers.h"
+
 #include "../../../src/data/array_interface.h"
+#include "../helpers.h"
 
 namespace xgboost {
 
@@ -22,22 +23,19 @@ TEST(ArrayInterface, Stream) {
   HostDeviceVector<float> storage;
   auto arr_str = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
 
-  cudaStream_t stream;
-  cudaStreamCreate(&stream);
+  dh::CUDAStream stream;
 
-  auto j_arr =Json::Load(StringView{arr_str});
-  j_arr["stream"] = Integer(reinterpret_cast<int64_t>(stream));
+  auto j_arr = Json::Load(StringView{arr_str});
+  j_arr["stream"] = Integer(reinterpret_cast<int64_t>(stream.Handle()));
   Json::Dump(j_arr, &arr_str);
 
   dh::caching_device_vector<uint64_t> out(1, 0);
-  uint64_t dur = 1e9;
-  dh::LaunchKernel{1, 1, 0, stream}(SleepForTest, out.data().get(), dur);
+  std::uint64_t dur = 1e9;
+  dh::LaunchKernel{1, 1, 0, stream.View()}(SleepForTest, out.data().get(), dur);
   ArrayInterface<2> arr(arr_str);
 
   auto t = out[0];
   CHECK_GE(t, dur);
-
-  cudaStreamDestroy(stream);
 }
 
 TEST(ArrayInterface, Ptr) {

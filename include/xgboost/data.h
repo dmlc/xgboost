@@ -1,5 +1,5 @@
-/*!
- * Copyright (c) 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2025, XGBoost Contributors
  * \file data.h
  * \brief The input data structure of xgboost.
  * \author Tianqi Chen
@@ -8,19 +8,18 @@
 #define XGBOOST_DATA_H_
 
 #include <dmlc/base.h>
-#include <dmlc/data.h>
-#include <dmlc/serializer.h>
+#include <dmlc/io.h>          // for Stream
+#include <dmlc/serializer.h>  // for Handler
 #include <xgboost/base.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
 #include <xgboost/span.h>
 #include <xgboost/string_view.h>
 
 #include <algorithm>
+#include <cstdint>  // for int32_t, uint8_t
 #include <limits>
 #include <memory>
-#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,6 +27,7 @@
 namespace xgboost {
 // forward declare dmatrix.
 class DMatrix;
+struct Context;
 
 /*! \brief data type accepted by xgboost interface */
 enum class DataType : uint8_t {
@@ -40,22 +40,29 @@ enum class DataType : uint8_t {
 
 enum class FeatureType : uint8_t { kNumerical = 0, kCategorical = 1 };
 
-/*!
- * \brief Meta information about dataset, always sit in memory.
+enum class DataSplitMode : int { kRow = 0, kCol = 1 };
+
+// Forward declaration of the container used by the meta info.
+class CatContainer;
+
+/**
+ * @brief Meta information about dataset, always sit in memory.
  */
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 12;
+  static constexpr uint64_t kNumField = 13;
 
   /*! \brief number of rows in the data */
-  uint64_t num_row_{0};  // NOLINT
+  bst_idx_t num_row_{0};  // NOLINT
   /*! \brief number of columns in the data */
   uint64_t num_col_{0};  // NOLINT
   /*! \brief number of nonzero entries in the data */
   uint64_t num_nonzero_{0};  // NOLINT
   /*! \brief label of each instance */
   linalg::Tensor<float, 2> labels;
+  /*! \brief data split mode */
+  DataSplitMode data_split_mode{DataSplitMode::kRow};
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
@@ -68,7 +75,7 @@ class MetaInfo {
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from.
    */
-  linalg::Tensor<float, 2> base_margin_;  // NOLINT
+  linalg::Matrix<float> base_margin_;  // NOLINT
   /*!
    * \brief lower bound of the label, to be used for survival analysis (censored regression)
    */
@@ -96,18 +103,31 @@ class MetaInfo {
    */
   HostDeviceVector<float> feature_weights;
 
-  /*! \brief default constructor */
-  MetaInfo()  = default;
+  MetaInfo();
   MetaInfo(MetaInfo&& that) = default;
+  MetaInfo(MetaInfo const& that) = delete;
   MetaInfo& operator=(MetaInfo&& that) = default;
   MetaInfo& operator=(MetaInfo const& that) = delete;
 
-  /*!
-   * \brief Validate all metainfo.
+  /**
+   * @brief Validate all metainfo.
    */
-  void Validate(int32_t device) const;
+  void Validate(DeviceOrd device) const;
+  /**
+   * @brief Slice the meta info.
+   *
+   * The device of ridxs is specified by the ctx object.
+   *
+   * @param ridxs Index of selected rows.
+   * @param nnz   The number of non-missing values.
+   */
+  MetaInfo Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs, bst_idx_t nnz) const;
 
-  MetaInfo Slice(common::Span<int32_t const> ridxs) const;
+  MetaInfo Copy() const;
+  /**
+   * @brief Whether the matrix is dense.
+   */
+  bool IsDense() const { return num_col_ * num_row_ == num_nonzero_; }
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -117,18 +137,7 @@ class MetaInfo {
     return weights_.Size() != 0 ?  weights_.HostVector()[i] : 1.0f;
   }
   /*! \brief get sorted indexes (argsort) of labels by absolute value (used by cox loss) */
-  inline const std::vector<size_t>& LabelAbsSort() const {
-    if (label_order_cache_.size() == labels.Size()) {
-      return label_order_cache_;
-    }
-    label_order_cache_.resize(labels.Size());
-    std::iota(label_order_cache_.begin(), label_order_cache_.end(), 0);
-    const auto& l = labels.Data()->HostVector();
-    XGBOOST_PARALLEL_STABLE_SORT(label_order_cache_.begin(), label_order_cache_.end(),
-              [&l](size_t i1, size_t i2) {return std::abs(l[i1]) < std::abs(l[i2]);});
-
-    return label_order_cache_;
-  }
+  const std::vector<size_t>& LabelAbsSort(Context const* ctx) const;
   /*! \brief clear all the information */
   void Clear();
   /*!
@@ -142,14 +151,6 @@ class MetaInfo {
    */
   void SaveBinary(dmlc::Stream* fo) const;
   /*!
-   * \brief Set information in the meta info.
-   * \param key The key of the information.
-   * \param dptr The data pointer of the source array.
-   * \param dtype The type of the source data.
-   * \param num Number of elements in the source array.
-   */
-  void SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype, size_t num);
-  /*!
    * \brief Set information in the meta info with array interface.
    * \param key The key of the information.
    * \param interface_str String representation of json format array interface.
@@ -162,25 +163,71 @@ class MetaInfo {
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
   void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;
 
-  /*
-   * \brief Extend with other MetaInfo.
+  /**
+   * @brief Extend with other MetaInfo.
    *
-   * \param that The other MetaInfo object.
+   * @param that The other MetaInfo object.
    *
-   * \param accumulate_rows Whether rows need to be accumulated in this function.  If
+   * @param accumulate_rows Whether rows need to be accumulated in this function.  If
    *                        client code knows number of rows in advance, set this
    *                        parameter to false.
-   * \param check_column Whether the extend method should check the consistency of
+   * @param check_column Whether the extend method should check the consistency of
    *                     columns.
    */
   void Extend(MetaInfo const& that, bool accumulate_rows, bool check_column);
+  /**
+   * @brief Synchronize the number of columns across all workers.
+   *
+   * Normally we just need to find the maximum number of columns across all workers, but
+   * in vertical federated learning, since each worker loads its own list of columns,
+   * we need to sum them.
+   */
+  void SynchronizeNumberOfColumns(Context const* ctx, DataSplitMode split_mode);
+
+  /** @brief Whether the data is split row-wise. */
+  [[nodiscard]] bool IsRowSplit() const { return data_split_mode == DataSplitMode::kRow; }
+  /** @brief Whether the data is split column-wise. */
+  [[nodiscard]] bool IsColumnSplit() const { return data_split_mode == DataSplitMode::kCol; }
+  /** @brief Whether this is a learning to rank data. */
+  [[nodiscard]] bool IsRanking() const { return !group_ptr_.empty(); }
+
+  /**
+   * @brief A convenient method to check if we are doing vertical federated learning, which requires
+   * some special processing.
+   */
+  [[nodiscard]] bool IsVerticalFederated() const;
+
+  /*!
+   * \brief A convenient method to check if the MetaInfo should contain labels.
+   *
+   * Normally we assume labels are available everywhere. The only exception is in vertical federated
+   * learning where labels are only available on worker 0.
+   */
+  bool ShouldHaveLabels() const;
+  /**
+   * @brief Flag for whether the DMatrix has categorical features.
+   */
+  bool HasCategorical() const { return has_categorical_; }
+  /**
+   * @brief Getters for categories.
+   */
+  [[nodiscard]] CatContainer const* Cats() const;
+  [[nodiscard]] CatContainer* Cats();
+  [[nodiscard]] std::shared_ptr<CatContainer const>  CatsShared() const;
+  /**
+   * @brief Setter for categories.
+   */
+  void Cats(std::shared_ptr<CatContainer> cats);
 
  private:
-  void SetInfoFromHost(Context const& ctx, StringView key, Json arr);
-  void SetInfoFromCUDA(Context const& ctx, StringView key, Json arr);
+  void SetInfoFromHost(Context const* ctx, StringView key, Json arr);
+  void SetInfoFromCUDA(Context const* ctx, StringView key, Json arr);
 
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;
+  bool has_categorical_{false};
+
+  std::shared_ptr<CatContainer> cats_;
 };
 
 /*! \brief Element from a sparse vector */
@@ -209,60 +256,96 @@ struct Entry {
   }
 };
 
-/*!
- * \brief Parameters for constructing batches.
+/**
+ * @brief Parameters for constructing histogram index batches.
  */
 struct BatchParam {
-  /*! \brief The GPU device to use. */
-  int gpu_id {-1};
-  /*! \brief Maximum number of bins per feature for histograms. */
+  /**
+   * @brief Maximum number of bins per feature for histograms.
+   */
   bst_bin_t max_bin{0};
-  /*! \brief Hessian, used for sketching with future approx implementation. */
-  common::Span<float> hess;
-  /*! \brief Whether should DMatrix regenerate the batch.  Only used for GHistIndex. */
-  bool regen {false};
-  /*! \brief Parameter used to generate column matrix for hist. */
+  /**
+   * @brief Hessian, used for sketching with future approx implementation.
+   */
+  common::Span<float const> hess;
+  /**
+   * @brief Whether should we force DMatrix to regenerate the batch.  Only used for
+   *        GHistIndex.
+   */
+  bool regen{false};
+  /**
+   * @brief Forbid regenerating the gradient index. Used for internal validation.
+   */
+  bool forbid_regen{false};
+  /**
+   * @brief Parameter used to generate column matrix for hist.
+   */
   double sparse_thresh{std::numeric_limits<double>::quiet_NaN()};
-
+  /**
+   * @brief Used for GPU external memory. Whether to copy the data into device.
+   *
+   * This affects only the current round of iteration.
+   */
+  bool prefetch_copy{true};
+  /**
+   * @brief The number of batches to pre-fetch for external memory.
+   */
+  std::int32_t n_prefetch_batches{3};
+  /**
+   * @brief Exact or others that don't need histogram.
+   */
   BatchParam() = default;
-  // GPU Hist
-  BatchParam(int32_t device, bst_bin_t max_bin)
-      : gpu_id{device}, max_bin{max_bin} {}
-  // Hist
+  /**
+   * @brief Used by the hist tree method.
+   */
   BatchParam(bst_bin_t max_bin, double sparse_thresh)
       : max_bin{max_bin}, sparse_thresh{sparse_thresh} {}
-  // Approx
   /**
-   * \brief Get batch with sketch weighted by hessian.  The batch will be regenerated if
-   *        the span is changed, so caller should keep the span for each iteration.
+   * @brief Used by the approx tree method.
+   *
+   *   Get batch with sketch weighted by hessian.  The batch will be regenerated if the
+   *   span is changed, so caller should keep the span for each iteration.
    */
-  BatchParam(bst_bin_t max_bin, common::Span<float> hessian, bool regenerate)
+  BatchParam(bst_bin_t max_bin, common::Span<float const> hessian, bool regenerate)
       : max_bin{max_bin}, hess{hessian}, regen{regenerate} {}
 
-  bool operator!=(BatchParam const& other) const {
-    if (hess.empty() && other.hess.empty()) {
-      return gpu_id != other.gpu_id || max_bin != other.max_bin;
-    }
-    return gpu_id != other.gpu_id || max_bin != other.max_bin || hess.data() != other.hess.data();
+  [[nodiscard]] bool ParamNotEqual(BatchParam const& other) const {
+    // Check non-floating parameters.
+    bool cond = max_bin != other.max_bin;
+    // Check sparse thresh.
+    bool l_nan = std::isnan(sparse_thresh);
+    bool r_nan = std::isnan(other.sparse_thresh);
+    bool st_chg = (l_nan != r_nan) || (!l_nan && !r_nan && (sparse_thresh != other.sparse_thresh));
+    cond |= st_chg;
+
+    return cond;
   }
-  bool operator==(BatchParam const& other) const {
-    return !(*this != other);
+  [[nodiscard]] bool Initialized() const { return max_bin != 0; }
+  /**
+   * @brief Make a copy of self for DMatrix to describe how its existing index was generated.
+   */
+  [[nodiscard]] BatchParam MakeCache() const {
+    auto p = *this;
+    // These parameters have nothing to do with how the gradient index was generated in the
+    // first place.
+    p.regen = false;
+    p.forbid_regen = false;
+    return p;
   }
 };
 
 struct HostSparsePageView {
   using Inst = common::Span<Entry const>;
 
-  common::Span<bst_row_t const> offset;
+  common::Span<bst_idx_t const> offset;
   common::Span<Entry const> data;
 
-  Inst operator[](size_t i) const {
+  [[nodiscard]] Inst operator[](std::size_t i) const {
     auto size = *(offset.data() + i + 1) - *(offset.data() + i);
-    return {data.data() + *(offset.data() + i),
-            static_cast<Inst::index_type>(size)};
+    return {data.data() + *(offset.data() + i), static_cast<Inst::index_type>(size)};
   }
 
-  size_t Size() const { return offset.size() == 0 ? 0 : offset.size() - 1; }
+  [[nodiscard]] size_t Size() const { return offset.size() == 0 ? 0 : offset.size() - 1; }
 };
 
 /*!
@@ -271,7 +354,7 @@ struct HostSparsePageView {
 class SparsePage {
  public:
   // Offset for each row.
-  HostDeviceVector<bst_row_t> offset;
+  HostDeviceVector<bst_idx_t> offset;
   /*! \brief the data of the segments */
   HostDeviceVector<Entry> data;
 
@@ -280,23 +363,28 @@ class SparsePage {
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
 
-  HostSparsePageView GetView() const {
+  [[nodiscard]] HostSparsePageView GetView() const {
     return {offset.ConstHostSpan(), data.ConstHostSpan()};
   }
-
 
   /*! \brief constructor */
   SparsePage() {
     this->Clear();
   }
 
+  SparsePage(SparsePage const& that) = delete;
+  SparsePage(SparsePage&& that) = default;
+  SparsePage& operator=(SparsePage const& that) = delete;
+  SparsePage& operator=(SparsePage&& that) = default;
+  virtual ~SparsePage() = default;
+
   /*! \return Number of instances in the page. */
-  inline size_t Size() const {
+  [[nodiscard]] size_t Size() const {
     return offset.Size() == 0 ? 0 : offset.Size() - 1;
   }
 
   /*! \return estimation of memory cost of this page */
-  inline size_t MemCostBytes() const {
+  [[nodiscard]] size_t MemCostBytes() const {
     return offset.Size() * sizeof(size_t) + data.Size() * sizeof(Entry);
   }
 
@@ -314,7 +402,7 @@ class SparsePage {
     base_rowid = row_id;
   }
 
-  SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
+  [[nodiscard]] SparsePage GetTranspose(int num_columns, int32_t n_threads) const;
 
   /**
    * \brief Sort the column index.
@@ -323,7 +411,11 @@ class SparsePage {
   /**
    * \brief Check wether the column index is sorted.
    */
-  bool IsIndicesSorted(int32_t n_threads) const;
+  [[nodiscard]] bool IsIndicesSorted(int32_t n_threads) const;
+  /**
+   * \brief Reindex the column index with an offset.
+   */
+  void Reindex(uint64_t feature_offset, int32_t n_threads);
 
   void SortRows(int32_t n_threads);
 
@@ -338,7 +430,7 @@ class SparsePage {
    * \return  The maximum number of columns encountered in this input batch. Useful when pushing many adapter batches to work out the total number of columns.
    */
   template <typename AdapterBatchT>
-  uint64_t Push(const AdapterBatchT& batch, float missing, int nthread);
+  bst_idx_t Push(AdapterBatchT const& batch, float missing, std::int32_t nthread);
 
   /*!
    * \brief Push a sparse page
@@ -358,55 +450,23 @@ class CSCPage: public SparsePage {
   explicit CSCPage(SparsePage page) : SparsePage(std::move(page)) {}
 };
 
+/**
+ * \brief Sparse page for exporting DMatrix. Same as SparsePage, just a different type to
+ *        prevent being used internally.
+ */
+class ExtSparsePage {
+ public:
+  std::shared_ptr<SparsePage const> page;
+  explicit ExtSparsePage(std::shared_ptr<SparsePage const> p) : page{std::move(p)} {}
+};
+
 class SortedCSCPage : public SparsePage {
  public:
   SortedCSCPage() : SparsePage() {}
   explicit SortedCSCPage(SparsePage page) : SparsePage(std::move(page)) {}
 };
 
-class EllpackPageImpl;
-/*!
- * \brief A page stored in ELLPACK format.
- *
- * This class uses the PImpl idiom (https://en.cppreference.com/w/cpp/language/pimpl) to avoid
- * including CUDA-specific implementation details in the header.
- */
-class EllpackPage {
- public:
-  /*!
-   * \brief Default constructor.
-   *
-   * This is used in the external memory case. An empty ELLPACK page is constructed with its content
-   * set later by the reader.
-   */
-  EllpackPage();
-
-  /*!
-   * \brief Constructor from an existing DMatrix.
-   *
-   * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
-   * in CSR format.
-   */
-  explicit EllpackPage(DMatrix* dmat, const BatchParam& param);
-
-  /*! \brief Destructor. */
-  ~EllpackPage();
-
-  EllpackPage(EllpackPage&& that);
-
-  /*! \return Number of instances in the page. */
-  size_t Size() const;
-
-  /*! \brief Set the base row id for this page. */
-  void SetBaseRowId(size_t row_id);
-
-  const EllpackPageImpl* Impl() const { return impl_.get(); }
-  EllpackPageImpl* Impl() { return impl_.get(); }
-
- private:
-  std::unique_ptr<EllpackPageImpl> impl_;
-};
-
+class EllpackPage;
 class GHistIndexMatrix;
 
 template<typename T>
@@ -416,7 +476,7 @@ class BatchIteratorImpl {
   virtual ~BatchIteratorImpl() = default;
   virtual const T& operator*() const = 0;
   virtual BatchIteratorImpl& operator++() = 0;
-  virtual bool AtEnd() const = 0;
+  [[nodiscard]] virtual bool AtEnd() const = 0;
   virtual std::shared_ptr<T const> Page() const = 0;
 };
 
@@ -438,17 +498,14 @@ class BatchIterator {
     return *(*impl_);
   }
 
-  bool operator!=(const BatchIterator&) const {
-    CHECK(impl_ != nullptr);
-    return !impl_->AtEnd();
-  }
+  [[nodiscard]] bool operator!=(const BatchIterator&) const { return !this->AtEnd(); }
 
-  bool AtEnd() const {
+  [[nodiscard]] bool AtEnd() const {
     CHECK(impl_ != nullptr);
     return impl_->AtEnd();
   }
 
-  std::shared_ptr<T const> Page() const {
+  [[nodiscard]] std::shared_ptr<T const> Page() const {
     return impl_->Page();
   }
 
@@ -469,154 +526,219 @@ class BatchSet {
 
 struct XGBAPIThreadLocalEntry;
 
-/*!
- * \brief Internal data structured used by XGBoost during training.
+// Configuration for external memoroy DMatrix.
+struct ExtMemConfig {
+  // Cache prefix, not used if the cache is in the host memory. (on_host is true)
+  std::string cache;
+  // Whether the ellpack page is stored in the host memory.
+  bool on_host;
+  // Host cache/Total cache for the GPU impl.
+  float cache_host_ratio;
+  // Minimum number of of bytes for each ellpack page in cache. Only used for in-host
+  // ExtMemQdm.
+  std::int64_t min_cache_page_bytes;
+  // Missing value.
+  float missing;
+  // The number of CPU threads.
+  std::int32_t n_threads{0};
+  // The ratio of the cache that can be compressed. Used for testing.
+  float hw_decomp_ratio{std::numeric_limits<float>::quiet_NaN()};
+  // Fallback to using nvcomp. Used for testing.
+  bool allow_decomp_fallback{false};
+
+  ExtMemConfig() = delete;
+  ExtMemConfig(std::string cache, bool on_host, float h_ratio, std::int64_t min_cache,
+               float missing, std::int32_t n_threads)
+      : cache{std::move(cache)},
+        on_host{on_host},
+        cache_host_ratio{h_ratio},
+        min_cache_page_bytes{min_cache},
+        missing{missing},
+        n_threads{n_threads} {}
+
+  ExtMemConfig& SetParamsForTest(float _hw_decomp_ratio, bool _allow_decomp_fallback) {
+    this->hw_decomp_ratio = _hw_decomp_ratio;
+    this->allow_decomp_fallback = _allow_decomp_fallback;
+    return *this;
+  }
+};
+
+/**
+ * @brief Internal data structured used by XGBoost to hold all external data.
+ *
+ *    There are multiple variants of the DMatrix class and can be accessed through the
+ *    @ref Create() methods. The DMatrix itself holds the predictor `X`, and other data
+ *    including labels and sample weights are stored in the @ref MetaInfo class.
  */
 class DMatrix {
  public:
   /*! \brief default constructor */
   DMatrix()  = default;
-  /*! \brief meta information of the dataset */
-  virtual MetaInfo& Info() = 0;
-  virtual void SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
-    auto const& ctx = *this->Ctx();
-    this->Info().SetInfo(ctx, key, dptr, dtype, num);
-  }
+  /** @brief meta information of the dataset */
+  [[nodiscard]] virtual MetaInfo& Info() = 0;
   virtual void SetInfo(const char* key, std::string const& interface_str) {
     auto const& ctx = *this->Ctx();
     this->Info().SetInfo(ctx, key, StringView{interface_str});
   }
-  /*! \brief meta information of the dataset */
-  virtual const MetaInfo& Info() const = 0;
+  /** @brief meta information of the dataset */
+  [[nodiscard]] virtual const MetaInfo& Info() const = 0;
 
   /*! \brief Get thread local memory for returning data from DMatrix. */
-  XGBAPIThreadLocalEntry& GetThreadLocal() const;
+  [[nodiscard]] XGBAPIThreadLocalEntry& GetThreadLocal() const;
   /**
-   * \brief Get the context object of this DMatrix.  The context is created during construction of
+   * @brief Get the context object of this DMatrix.  The context is created during construction of
    *        DMatrix with user specified `nthread` parameter.
    */
-  virtual Context const* Ctx() const = 0;
+  [[nodiscard]] virtual Context const* Ctx() const = 0;
 
   /**
-   * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
+   * @brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
   template <typename T>
   BatchSet<T> GetBatches();
   template <typename T>
-  BatchSet<T> GetBatches(const BatchParam& param);
+  BatchSet<T> GetBatches(Context const* ctx);
   template <typename T>
-  bool PageExists() const;
-
-  // the following are column meta data, should be able to answer them fast.
-  /*! \return Whether the data columns single column block. */
-  virtual bool SingleColBlock() const = 0;
-  /*! \brief virtual destructor */
-  virtual ~DMatrix();
-
-  /*! \brief Whether the matrix is dense. */
-  bool IsDense() const {
-    return Info().num_nonzero_ == Info().num_row_ * Info().num_col_;
-  }
-
-  /*!
-   * \brief Load DMatrix from URI.
-   * \param uri The URI of input.
-   * \param silent Whether print information during loading.
-   * \param load_row_split Flag to read in part of rows, divided among the workers in distributed mode.
-   * \param file_format The format type of the file, used for dmlc::Parser::Create.
-   *   By default "auto" will be able to load in both local binary file.
-   * \param page_size Page size for external memory.
-   * \return The created DMatrix.
-   */
-  static DMatrix* Load(const std::string& uri,
-                       bool silent,
-                       bool load_row_split,
-                       const std::string& file_format = "auto");
+  BatchSet<T> GetBatches(Context const* ctx, const BatchParam& param);
+  template <typename T>
+  [[nodiscard]] bool PageExists() const;
 
   /**
-   * \brief Creates a new DMatrix from an external data adapter.
+   * @return Whether the contains a single batch.
    *
-   * \tparam  AdapterT  Type of the adapter.
-   * \param [in,out]  adapter       View onto an external data.
-   * \param           missing       Values to count as missing.
-   * \param           nthread       Number of threads for construction.
-   * \param           cache_prefix  (Optional) The cache prefix for external memory.
-   * \param           page_size     (Optional) Size of the page.
+   * The naming is legacy.
+   */
+  [[nodiscard]] bool SingleColBlock() const { return this->NumBatches() == 1; }
+  [[nodiscard]] virtual std::int32_t NumBatches() const { return 1; }
+
+  virtual ~DMatrix();
+
+  /**
+   * @brief Whether the matrix is dense.
+   */
+  [[nodiscard]] bool IsDense() const { return this->Info().IsDense(); }
+
+  /**
+   * @brief Load DMatrix from URI.
    *
-   * \return  a Created DMatrix.
+   * @param uri The URI of input.
+   * @param silent Whether print information during loading.
+   * @param data_split_mode Indicate how the data was split beforehand.
+   * @return The created DMatrix.
+   */
+  static DMatrix* Load(const std::string& uri, bool silent = true,
+                       DataSplitMode data_split_mode = DataSplitMode::kRow);
+
+  /**
+   * @brief Creates a new DMatrix from an external data adapter.
+   *
+   * @tparam  AdapterT  Type of the adapter.
+   * @param [in,out]  adapter         View onto an external data.
+   * @param           missing         Values to count as missing.
+   * @param           nthread         Number of threads for construction.
+   * @param           cache_prefix    (Optional) The cache prefix for external memory.
+   * @param           data_split_mode (Optional) Data split mode.
+   *
+   * @return  a Created DMatrix.
    */
   template <typename AdapterT>
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix = "");
+                         const std::string& cache_prefix = "",
+                         DataSplitMode data_split_mode = DataSplitMode::kRow);
 
   /**
-   * \brief Create a new Quantile based DMatrix used for histogram based algorithm.
+   * @brief Create a new Quantile based DMatrix used for histogram based algorithm.
    *
-   * \tparam DataIterHandle         External iterator type, defined in C API.
-   * \tparam DMatrixHandle          DMatrix handle, defined in C API.
-   * \tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
-   * \tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
+   * @tparam DataIterHandle         External iterator type, defined in C API.
+   * @tparam DMatrixHandle          DMatrix handle, defined in C API.
+   * @tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
+   * @tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
    *
-   * \param iter    External data iterator
-   * \param proxy   A hanlde to ProxyDMatrix
-   * \param ref     Reference Quantile DMatrix.
-   * \param reset   Callback for reset
-   * \param next    Callback for next
-   * \param missing Value that should be treated as missing.
-   * \param nthread number of threads used for initialization.
-   * \param max_bin Maximum number of bins.
+   * @param iter    External data iterator
+   * @param proxy   A hanlde to ProxyDMatrix
+   * @param ref     Reference Quantile DMatrix.
+   * @param reset   Callback for reset
+   * @param next    Callback for next
+   * @param missing Value that should be treated as missing.
+   * @param nthread number of threads used for initialization.
+   * @param max_bin Maximum number of bins.
    *
-   * \return A created quantile based DMatrix.
+   * @return A created quantile based DMatrix.
    */
   template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
             typename XGDMatrixCallbackNext>
   static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
                          DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
-                         int nthread, bst_bin_t max_bin);
+                         std::int32_t nthread, bst_bin_t max_bin, std::int64_t max_quantile_blocks);
 
   /**
-   * \brief Create an external memory DMatrix with callbacks.
+   * @brief Create an external memory DMatrix with callbacks.
    *
-   * \tparam DataIterHandle         External iterator type, defined in C API.
-   * \tparam DMatrixHandle          DMatrix handle, defined in C API.
-   * \tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
-   * \tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
+   * @tparam DataIterHandle         External iterator type, defined in C API.
+   * @tparam DMatrixHandle          DMatrix handle, defined in C API.
+   * @tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
+   * @tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
    *
-   * \param iter    External data iterator
-   * \param proxy   A hanlde to ProxyDMatrix
-   * \param reset   Callback for reset
-   * \param next    Callback for next
-   * \param missing Value that should be treated as missing.
-   * \param nthread number of threads used for initialization.
-   * \param cache   Prefix of cache file path.
+   * @param iter    External data iterator
+   * @param proxy   A hanlde to ProxyDMatrix
+   * @param reset   Callback for reset
+   * @param next    Callback for next
+   * @param config  Configuration for the cache.
    *
-   * \return A created external memory DMatrix.
+   * @return A created external memory DMatrix.
    */
-  template <typename DataIterHandle, typename DMatrixHandle,
-            typename DataIterResetCallback, typename XGDMatrixCallbackNext>
-  static DMatrix *Create(DataIterHandle iter, DMatrixHandle proxy,
-                         DataIterResetCallback *reset,
-                         XGDMatrixCallbackNext *next, float missing,
-                         int32_t nthread, std::string cache);
+  template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
+            typename XGDMatrixCallbackNext>
+  static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback* reset,
+                         XGDMatrixCallbackNext* next, ExtMemConfig const& config);
+
+  /**
+   * @brief Create an external memory quantile DMatrix with callbacks.
+   *
+   *     Parameters are a combination of the external memory DMatrix and the quantile DMatrix.
+   *
+   * @return A created external memory quantile DMatrix.
+   */
+  template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
+            typename XGDMatrixCallbackNext>
+  static DMatrix* Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
+                         DataIterResetCallback* reset, XGDMatrixCallbackNext* next,
+                         bst_bin_t max_bin, std::int64_t max_quantile_blocks,
+                         ExtMemConfig const& config);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
-  /*! \brief Number of rows per page in external memory.  Approximately 100MB per page for
-   *  dataset with 100 features. */
-  static const size_t kPageSize = 32UL << 12UL;
+
+  /**
+   * @brief Slice a DMatrix by columns.
+   *
+   * @param num_slices Total number of slices
+   * @param slice_id Index of the current slice
+   * @return DMatrix containing the slice of columns
+   */
+  virtual DMatrix* SliceCol(int num_slices, int slice_id) = 0;
+  /**
+   * @brief Accessor for the string representation of the categories.
+   */
+  [[nodiscard]] CatContainer const* Cats() const { return this->CatsShared().get(); }
+  [[nodiscard]] std::shared_ptr<CatContainer const> CatsShared() const {
+    return this->Info().CatsShared();
+  }
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
-  virtual BatchSet<CSCPage> GetColumnBatches() = 0;
-  virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
-  virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
-  virtual BatchSet<GHistIndexMatrix> GetGradientIndex(const BatchParam& param) = 0;
+  virtual BatchSet<CSCPage> GetColumnBatches(Context const* ctx) = 0;
+  virtual BatchSet<SortedCSCPage> GetSortedColumnBatches(Context const* ctx) = 0;
+  virtual BatchSet<EllpackPage> GetEllpackBatches(Context const* ctx, BatchParam const& param) = 0;
+  virtual BatchSet<GHistIndexMatrix> GetGradientIndex(Context const* ctx,
+                                                      BatchParam const& param) = 0;
+  virtual BatchSet<ExtSparsePage> GetExtBatches(Context const* ctx, BatchParam const& param) = 0;
 
-  virtual bool EllpackExists() const = 0;
-  virtual bool GHistIndexExists() const = 0;
-  virtual bool SparsePageExists() const = 0;
+  [[nodiscard]] virtual bool EllpackExists() const = 0;
+  [[nodiscard]] virtual bool GHistIndexExists() const = 0;
+  [[nodiscard]] virtual bool SparsePageExists() const = 0;
 };
 
-template<>
+template <>
 inline BatchSet<SparsePage> DMatrix::GetBatches() {
   return GetRowBatches();
 }
@@ -631,31 +753,43 @@ inline bool DMatrix::PageExists<GHistIndexMatrix>() const {
   return this->GHistIndexExists();
 }
 
-template<>
+template <>
 inline bool DMatrix::PageExists<SparsePage>() const {
   return this->SparsePageExists();
 }
 
-template<>
-inline BatchSet<CSCPage> DMatrix::GetBatches() {
-  return GetColumnBatches();
+template <>
+inline BatchSet<SparsePage> DMatrix::GetBatches(Context const*) {
+  return GetRowBatches();
 }
 
-template<>
-inline BatchSet<SortedCSCPage> DMatrix::GetBatches() {
-  return GetSortedColumnBatches();
+template <>
+inline BatchSet<CSCPage> DMatrix::GetBatches(Context const* ctx) {
+  return GetColumnBatches(ctx);
 }
 
-template<>
-inline BatchSet<EllpackPage> DMatrix::GetBatches(const BatchParam& param) {
-  return GetEllpackBatches(param);
+template <>
+inline BatchSet<SortedCSCPage> DMatrix::GetBatches(Context const* ctx) {
+  return GetSortedColumnBatches(ctx);
 }
 
-template<>
-inline BatchSet<GHistIndexMatrix> DMatrix::GetBatches(const BatchParam& param) {
-  return GetGradientIndex(param);
+template <>
+inline BatchSet<EllpackPage> DMatrix::GetBatches(Context const* ctx, BatchParam const& param) {
+  return GetEllpackBatches(ctx, param);
+}
+
+template <>
+inline BatchSet<GHistIndexMatrix> DMatrix::GetBatches(Context const* ctx, BatchParam const& param) {
+  return GetGradientIndex(ctx, param);
+}
+
+template <>
+inline BatchSet<ExtSparsePage> DMatrix::GetBatches(Context const* ctx, BatchParam const& param) {
+  return GetExtBatches(ctx, param);
 }
 }  // namespace xgboost
+
+DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);

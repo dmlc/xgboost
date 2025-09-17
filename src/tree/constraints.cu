@@ -1,20 +1,20 @@
-/*!
- * Copyright 2019 XGBoost contributors
+/**
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 
-#include <algorithm>
-#include <string>
 #include <set>
+#include <string>
 
-#include "xgboost/logging.h"
-#include "xgboost/span.h"
+#include "../common/cuda_context.cuh"  // for CUDAContext
+#include "../common/device_helpers.cuh"
 #include "constraints.cuh"
 #include "param.h"
-#include "../common/device_helpers.cuh"
+#include "xgboost/logging.h"
+#include "xgboost/span.h"
 
 namespace xgboost {
 
@@ -131,35 +131,36 @@ FeatureInteractionConstraintDevice::FeatureInteractionConstraintDevice(
   this->Configure(param, n_features);
 }
 
-void FeatureInteractionConstraintDevice::Reset() {
+void FeatureInteractionConstraintDevice::Reset(Context const* ctx) {
   for (auto& node : node_constraints_storage_) {
-    thrust::fill(node.begin(), node.end(), 0);
+    thrust::fill(ctx->CUDACtx()->CTP(), node.begin(), node.end(), 0);
   }
 }
 
 __global__ void ClearBuffersKernel(
     LBitField64 result_buffer_output, LBitField64 result_buffer_input) {
   auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid < result_buffer_output.Size()) {
+  if (tid < result_buffer_output.Capacity()) {
     result_buffer_output.Clear(tid);
   }
-  if (tid < result_buffer_input.Size()) {
+  if (tid < result_buffer_input.Capacity()) {
     result_buffer_input.Clear(tid);
   }
 }
 
 void FeatureInteractionConstraintDevice::ClearBuffers() {
-  CHECK_EQ(output_buffer_bits_.Size(), input_buffer_bits_.Size());
-  CHECK_LE(feature_buffer_.Size(), output_buffer_bits_.Size());
+  CHECK_EQ(output_buffer_bits_.Capacity(), input_buffer_bits_.Capacity());
+  CHECK_LE(feature_buffer_.Capacity(), output_buffer_bits_.Capacity());
   uint32_t constexpr kBlockThreads = 256;
   auto const n_grids = static_cast<uint32_t>(
-      common::DivRoundUp(input_buffer_bits_.Size(), kBlockThreads));
+      common::DivRoundUp(input_buffer_bits_.Capacity(), kBlockThreads));
   dh::LaunchKernel {n_grids, kBlockThreads} (
       ClearBuffersKernel,
       output_buffer_bits_, input_buffer_bits_);
 }
 
-common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(int32_t node_id) {
+common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(Context const* ctx,
+                                                                          bst_node_t node_id) {
   if (!has_constraint_) { return {}; }
   CHECK_LT(node_id, s_node_constraints_.size());
 
@@ -171,10 +172,7 @@ common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(int32_
   LBitField64 node_constraints = s_node_constraints_[node_id];
 
   thrust::device_ptr<bst_feature_t> const out_end = thrust::copy_if(
-      thrust::device,
-      begin, end,
-      p_result_buffer,
-      [=]__device__(int32_t pos) {
+      ctx->CUDACtx()->CTP(), begin, end, p_result_buffer, [=] __device__(int32_t pos) {
         bool res = node_constraints.Check(pos);
         return res;
       });
@@ -207,11 +205,11 @@ common::Span<bst_feature_t> FeatureInteractionConstraintDevice::Query(
   ClearBuffers();
 
   LBitField64 node_constraints = s_node_constraints_[nid];
-  CHECK_EQ(input_buffer_bits_.Size(), output_buffer_bits_.Size());
+  CHECK_EQ(input_buffer_bits_.Capacity(), output_buffer_bits_.Capacity());
 
   uint32_t constexpr kBlockThreads = 256;
   auto n_grids = static_cast<uint32_t>(
-      common::DivRoundUp(output_buffer_bits_.Size(), kBlockThreads));
+      common::DivRoundUp(output_buffer_bits_.Capacity(), kBlockThreads));
   dh::LaunchKernel {n_grids, kBlockThreads} (
       SetInputBufferKernel,
       feature_list, input_buffer_bits_);
@@ -274,15 +272,11 @@ __global__ void InteractionConstraintSplitKernel(LBitField64 feature,
                                                  LBitField64 left,
                                                  LBitField64 right) {
   auto tid = threadIdx.x + blockDim.x * blockIdx.x;
-  if (tid > node.Size()) {
+  if (tid > node.Capacity()) {
     return;
   }
   // enable constraints from feature
   node |= feature;
-  // clear the buffer after use
-  if (tid < feature.Size()) {
-    feature.Clear(tid);
-  }
 
   // enable constraints from parent
   left  |= node;
@@ -304,7 +298,7 @@ void FeatureInteractionConstraintDevice::Split(
       << " Split node: " << node_id << " and its left child: "
       << left_id << " cannot be the same.";
   CHECK_NE(node_id, right_id)
-      << " Split node: " << node_id << " and its left child: "
+      << " Split node: " << node_id << " and its right child: "
       << right_id << " cannot be the same.";
   CHECK_LT(right_id, s_node_constraints_.size());
   CHECK_NE(s_node_constraints_.size(), 0);
@@ -323,13 +317,16 @@ void FeatureInteractionConstraintDevice::Split(
       s_sets_, s_sets_ptr_);
 
   uint32_t constexpr kBlockThreads = 256;
-  auto n_grids = static_cast<uint32_t>(common::DivRoundUp(node.Size(), kBlockThreads));
+  auto n_grids = static_cast<uint32_t>(common::DivRoundUp(node.Capacity(), kBlockThreads));
 
   dh::LaunchKernel {n_grids, kBlockThreads} (
       InteractionConstraintSplitKernel,
       feature_buffer_,
       feature_id,
       node, left, right);
+
+  // clear the buffer after use
+  thrust::fill_n(dh::CachingThrustPolicy(), feature_buffer_.Data(), feature_buffer_.NumValues(), 0);
 }
 
 }  // namespace xgboost

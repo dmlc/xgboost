@@ -1,16 +1,18 @@
-/*!
- * Copyright 2019 XGBoost contributors
+/**
+ * Copyright 2019-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
-#include <cinttypes>
-#include <string>
-#include <bitset>
+
+#include <cstdint>
 #include <set>
+#include <string>
+
+#include "../../../src/common/device_helpers.cuh"
 #include "../../../src/tree/constraints.cuh"
 #include "../../../src/tree/param.h"
-#include "../../../src/common/device_helpers.cuh"
+#include "../helpers.h"  // MakeCUDACtx
 
 namespace xgboost {
 namespace {
@@ -36,9 +38,7 @@ std::string GetConstraintsStr() {
 }
 
 tree::TrainParam GetParameter() {
-  std::vector<std::pair<std::string, std::string>> args{
-    {"interaction_constraints", GetConstraintsStr()}
-  };
+  Args args{{"interaction_constraints", GetConstraintsStr()}};
   tree::TrainParam param;
   param.Init(args);
   return param;
@@ -53,7 +53,7 @@ void CompareBitField(LBitField64 d_field, std::set<uint32_t> positions) {
   LBitField64 h_field{ {h_field_storage.data(),
                         h_field_storage.data() + h_field_storage.size()} };
 
-  for (size_t i = 0; i < h_field.Size(); ++i) {
+  for (size_t i = 0; i < h_field.Capacity(); ++i) {
     if (positions.find(i) != positions.cend()) {
       ASSERT_TRUE(h_field.Check(i));
     } else {
@@ -82,7 +82,7 @@ TEST(GPUFeatureInteractionConstraint, Init) {
         {h_node_storage.data(), h_node_storage.data() +  h_node_storage.size()}
       };
       // no feature is attached to node.
-      for (size_t i = 0; i < h_node.Size(); ++i) {
+      for (size_t i = 0; i < h_node.Capacity(); ++i) {
         ASSERT_FALSE(h_node.Check(i));
       }
     }
@@ -154,18 +154,19 @@ TEST(GPUFeatureInteractionConstraint, Split) {
 }
 
 TEST(GPUFeatureInteractionConstraint, QueryNode) {
+  auto ctx = MakeCUDACtx(0);
   tree::TrainParam param = GetParameter();
   bst_feature_t constexpr kFeatures = 6;
   FConstraintWrapper constraints(param, kFeatures);
 
   {
-    auto span = constraints.QueryNode(0);
+    auto span = constraints.QueryNode(&ctx, 0);
     ASSERT_EQ(span.size(), 0);
   }
 
   {
     constraints.Split(/*node_id=*/ 0, /*feature_id=*/ 1, 1, 2);
-    auto span = constraints.QueryNode(0);
+    auto span = constraints.QueryNode(&ctx, 0);
     std::vector<bst_feature_t> h_result (span.size());
     thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
                  thrust::device_ptr<bst_feature_t>(span.data() + span.size()),
@@ -177,7 +178,7 @@ TEST(GPUFeatureInteractionConstraint, QueryNode) {
 
   {
     constraints.Split(1, /*feature_id=*/0, 3, 4);
-    auto span = constraints.QueryNode(1);
+    auto span = constraints.QueryNode(&ctx, 1);
     std::vector<bst_feature_t> h_result (span.size());
     thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
                  thrust::device_ptr<bst_feature_t>(span.data() + span.size()),
@@ -188,7 +189,7 @@ TEST(GPUFeatureInteractionConstraint, QueryNode) {
     ASSERT_EQ(h_result[2], 2);
 
     // same as parent
-    span = constraints.QueryNode(3);
+    span = constraints.QueryNode(&ctx, 3);
     h_result.resize(span.size());
     thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
                  thrust::device_ptr<bst_feature_t>(span.data() + span.size()),
@@ -204,7 +205,7 @@ TEST(GPUFeatureInteractionConstraint, QueryNode) {
     large_param.interaction_constraints = R"([[1, 139], [244, 0], [139, 221]])";
     FConstraintWrapper large_features(large_param, 256);
     large_features.Split(0, 139, 1, 2);
-    auto span = large_features.QueryNode(0);
+    auto span = large_features.QueryNode(&ctx, 0);
     std::vector<bst_feature_t> h_result (span.size());
     thrust::copy(thrust::device_ptr<bst_feature_t>(span.data()),
                  thrust::device_ptr<bst_feature_t>(span.data() + span.size()),

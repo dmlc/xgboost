@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm_2.12</artifactId>
-    <version>2.0.0-SNAPSHOT</version>
+    <version>3.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>
@@ -18,6 +18,18 @@
         </license>
     </licenses>
     <developers>
+        <developer>
+            <name>Bobby Wang</name>
+            <email>wbo4958@gmail.com</email>
+        </developer>
+        <developer>
+            <name>Jiaming Yuan</name>
+            <email>jm.yuan@outlook.com</email>
+        </developer>
+        <developer>
+            <name>Hyunsu Cho</name>
+            <email>chohyu01@cs.washington.edu</email>
+        </developer>
         <developer>
             <name>CodingCat</name>
             <email>codingcat@apache.org</email>
@@ -33,18 +45,44 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <flink.version>1.7.2</flink.version>
-        <spark.version>3.0.1</spark.version>
-        <scala.version>2.12.8</scala.version>
+        <flink.version>1.20.0</flink.version>
+        <junit.version>4.13.2</junit.version>
+        <spark.version>3.5.3</spark.version>
+        <spark.version.gpu>3.5.1</spark.version.gpu>
+        <fasterxml.jackson.version>2.15.0</fasterxml.jackson.version>
+        <scala.version>2.12.18</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
-        <hadoop.version>2.7.3</hadoop.version>
+        <hadoop.version>3.4.1</hadoop.version>
         <maven.wagon.http.retryHandler.count>5</maven.wagon.http.retryHandler.count>
         <log.capi.invocation>OFF</log.capi.invocation>
         <use.cuda>OFF</use.cuda>
-        <cudf.version>21.08.2</cudf.version>
-        <spark.rapids.version>21.08.0</spark.rapids.version>
-        <cudf.classifier>cuda11</cudf.classifier>
-    </properties>
+        <use.openmp>ON</use.openmp>
+        <use.debug>OFF</use.debug>
+        <use.nvtx>OFF</use.nvtx>
+        <plugin.rmm>OFF</plugin.rmm>
+        <cudf.version>24.10.0</cudf.version>
+        <spark.rapids.version>24.10.0</spark.rapids.version>
+        <spark.rapids.classifier>cuda12</spark.rapids.classifier>
+        <scalatest.version>3.2.19</scalatest.version>
+        <scala-collection-compat.version>2.12.0</scala-collection-compat.version>
+        <skip.native.build>false</skip.native.build>
+
+        <!-- SPARK-36796 for JDK-17 test-->
+        <extraJavaTestArgs>
+          -XX:+IgnoreUnrecognizedVMOptions
+          --add-opens=java.base/java.lang=ALL-UNNAMED
+          --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
+          --add-opens=java.base/java.io=ALL-UNNAMED
+          --add-opens=java.base/java.net=ALL-UNNAMED
+          --add-opens=java.base/java.nio=ALL-UNNAMED
+          --add-opens=java.base/java.util=ALL-UNNAMED
+          --add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+          --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+          --add-opens=java.base/sun.nio.cs=ALL-UNNAMED
+          --add-opens=java.base/sun.security.action=ALL-UNNAMED
+          --add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+        </extraJavaTestArgs>
+      </properties>
     <repositories>
         <repository>
             <id>central_maven</id>
@@ -70,37 +108,42 @@
             </modules>
         </profile>
 
-        <!-- gpu profile with both cpu and gpu test suites -->
         <profile>
             <id>gpu</id>
-            <activation>
-                <property>
-                    <name>use.cuda</name>
-                    <value>ON</value>
-                </property>
-            </activation>
+            <properties>
+               <use.cuda>ON</use.cuda>
+            </properties>
             <modules>
-                <module>xgboost4j-gpu</module>
+                <module>xgboost4j</module>
+                <module>xgboost4j-spark</module>
                 <module>xgboost4j-spark-gpu</module>
             </modules>
         </profile>
 
         <profile>
-            <id>release</id>
+            <id>docs</id>
+            <properties>
+               <use.cuda>ON</use.cuda>
+               <skipTests>true</skipTests>
+               <maven.test.skip>true</maven.test.skip>
+               <skip.native.build>true</skip.native.build>
+            </properties>
             <modules>
                 <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
                 <module>xgboost4j-spark</module>
-                <module>xgboost4j-flink</module>
-                <module>xgboost4j-gpu</module>
                 <module>xgboost4j-spark-gpu</module>
+                <module>xgboost4j-flink</module>
             </modules>
+        </profile>
+
+        <profile>
+            <id>release</id>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-jar-plugin</artifactId>
-                        <version>3.0.2</version>
+                        <version>3.4.2</version>
                         <executions>
                             <execution>
                                 <id>empty-javadoc-jar</id>
@@ -118,7 +161,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-release-plugin</artifactId>
-                        <version>2.5.3</version>
+                        <version>3.1.1</version>
                         <configuration>
                             <autoVersionSubmodules>true</autoVersionSubmodules>
                             <useReleaseProfile>false</useReleaseProfile>
@@ -129,7 +172,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.5</version>
+                        <version>3.2.7</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -143,7 +186,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>2.2.1</version>
+                        <version>3.3.1</version>
                         <executions>
                             <execution>
                                 <id>attach-sources</id>
@@ -154,107 +197,12 @@
                         </executions>
                     </plugin>
                     <plugin>
-                        <groupId>org.sonatype.plugins</groupId>
-                        <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.7</version>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.7.0</version>
                         <extensions>true</extensions>
                         <configuration>
-                            <serverId>ossrh</serverId>
-                            <nexusUrl>https://oss.sonatype.org/</nexusUrl>
-                            <autoReleaseAfterClose>false</autoReleaseAfterClose>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <skipTests>true</skipTests>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>assembly</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <version>2.6</version>
-                        <configuration>
-                            <descriptorRefs>
-                                <descriptorRef>jar-with-dependencies</descriptorRef>
-                            </descriptorRefs>
-                            <skipAssembly>true</skipAssembly>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>make-assembly</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>single</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>release-to-github</id>
-            <distributionManagement>
-                <repository>
-                    <id>github.repo</id>
-                    <name>Temporary Staging Repository</name>
-                    <url>file://${project.build.directory}/mvn-repo</url>
-                </repository>
-            </distributionManagement>
-            <properties>
-                <github.global.server>github</github.global.server>
-            </properties>
-            <modules>
-                <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
-                <module>xgboost4j-spark</module>
-                <module>xgboost4j-flink</module>
-                <module>xgboost4j-gpu</module>
-                <module>xgboost4j-spark-gpu</module>
-            </modules>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.github.github</groupId>
-                        <artifactId>site-maven-plugin</artifactId>
-                        <version>0.12</version>
-                        <configuration>
-                            <message>Maven artifacts for ${project.version}</message>
-                            <noJekyll>true</noJekyll>
-                            <outputDirectory>${project.build.directory}/mvn-repo</outputDirectory>
-                            <branch>refs/heads/maven-repo</branch>
-                            <excludes>
-                                <exclude>*-with-dependencies.jar</exclude>
-                            </excludes>
-                            <repositoryName>xgboost</repositoryName>
-                            <repositoryOwner>CodingCat</repositoryOwner>
-                            <merge>true</merge>
-                        </configuration>
-                        <executions>
-                            <!-- run site-maven-plugin's 'site' target as part of the build's normal 'deploy' phase -->
-                            <execution>
-                                <goals>
-                                    <goal>site</goal>
-                                </goals>
-                                <phase>deploy</phase>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-deploy-plugin</artifactId>
-                        <version>2.8.2</version>
-                        <configuration>
-                            <altDeploymentRepository>internal.repo::default::file://${project.build.directory}/mvn-repo</altDeploymentRepository>
+                            <publishingServerId>central</publishingServerId>
                         </configuration>
                     </plugin>
                     <plugin>
@@ -289,14 +237,6 @@
                     <url>https://s3.amazonaws.com/xgboost-maven-repo/release</url>
                 </repository>
             </repositories>
-            <modules>
-                <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
-                <module>xgboost4j-spark</module>
-                <module>xgboost4j-flink</module>
-                <module>xgboost4j-gpu</module>
-                <module>xgboost4j-spark-gpu</module>
-            </modules>
             <build>
                 <plugins>
                     <plugin>
@@ -329,7 +269,10 @@
             <plugin>
               <groupId>org.scalatest</groupId>
               <artifactId>scalatest-maven-plugin</artifactId>
-              <version>1.0</version>
+              <version>2.2.0</version>
+              <configuration>
+                <argLine>-ea -Xmx4g -Xss4m ${extraJavaTestArgs}</argLine>
+              </configuration>
               <executions>
                 <execution>
                   <id>test</id>
@@ -344,39 +287,18 @@
 
         <plugins>
             <plugin>
-                <groupId>org.scalastyle</groupId>
-                <artifactId>scalastyle-maven-plugin</artifactId>
-                <version>1.0.0</version>
-                <configuration>
-                    <verbose>false</verbose>
-                    <failOnViolation>true</failOnViolation>
-                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
-                    <sourceDirectory>${basedir}/src/main/scala</sourceDirectory>
-                    <testSourceDirectory>${basedir}/src/test/scala</testSourceDirectory>
-                    <configLocation>scalastyle-config.xml</configLocation>
-                    <outputEncoding>UTF-8</outputEncoding>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>checkstyle</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
-                <version>3.0</version>
+                <version>3.21.0</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>3.1.2</version>
+                <version>3.6.0</version>
                 <configuration>
                     <configLocation>checkstyle.xml</configLocation>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                    <suppressionsFileExpression>checkstyle.suppressions.file</suppressionsFileExpression>
                     <failOnViolation>true</failOnViolation>
                 </configuration>
                 <executions>
@@ -392,7 +314,7 @@
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.2.2</version>
+                <version>4.9.2</version>
                 <executions>
                     <execution>
                         <id>compile</id>
@@ -427,7 +349,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.19.1</version>
+                <version>3.5.2</version>
                 <configuration>
                     <skipTests>false</skipTests>
                     <useSystemClassLoader>false</useSystemClassLoader>
@@ -436,13 +358,26 @@
             <plugin>
                 <groupId>org.scalatest</groupId>
                 <artifactId>scalatest-maven-plugin</artifactId>
+                      <configuration>
+                        <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+                        <junitxml>.</junitxml>
+                        <filereports>XGBoostTestSuite.txt</filereports>
+                      </configuration>
+                      <executions>
+                        <execution>
+                          <id>test</id>
+                          <goals>
+                            <goal>test</goal>
+                          </goals>
+                        </execution>
+                      </executions>
             </plugin>
         </plugins>
         <extensions>
             <extension>
-                <groupId>org.kuali.maven.wagons</groupId>
+                <groupId>com.github.seahen</groupId>
                 <artifactId>maven-s3-wagon</artifactId>
-                <version>1.2.1</version>
+                <version>1.3.3</version>
             </extension>
         </extensions>
     </build>
@@ -450,12 +385,12 @@
         <plugins>
             <plugin>
                 <artifactId>maven-project-info-reports-plugin</artifactId>
-                <version>2.2</version>
+                <version>3.8.0</version>
             </plugin>
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
-                <version>3.2.1</version>
+                <version>4.9.2</version>
                 <configuration>
                     <jvmArgs>
                         <jvmArg>-Xms64m</jvmArg>
@@ -469,39 +404,23 @@
         <dependency>
             <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
-            <version>4.0.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-compiler</artifactId>
-            <version>${scala.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-reflect</artifactId>
-            <version>${scala.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-library</artifactId>
-            <version>${scala.version}</version>
+            <version>5.6.2</version>
         </dependency>
         <dependency>
             <groupId>commons-logging</groupId>
             <artifactId>commons-logging</artifactId>
-            <version>1.2</version>
+            <version>1.3.4</version>
         </dependency>
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.binary.version}</artifactId>
-            <version>3.0.8</version>
+            <version>${scalatest.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.scalactic</groupId>
             <artifactId>scalactic_${scala.binary.version}</artifactId>
-            <version>3.0.8</version>
+            <version>${scalatest.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

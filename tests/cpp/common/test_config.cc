@@ -1,11 +1,13 @@
-/*!
- * Copyright 2019 by Contributors
+/**
+ * Copyright 2019-2025, XGBoost Contributors
  */
+#include <gtest/gtest.h>
+
 #include <fstream>
 #include <string>
-#include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
+
 #include "../../../src/common/config.h"
+#include "../filesystem.h"  // for TemporaryDirectory
 #include "../helpers.h"
 
 namespace xgboost {
@@ -13,8 +15,8 @@ namespace common {
 
 TEST(ConfigParser, NormalizeConfigEOL) {
   // Test whether strings with NL are loaded correctly.
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/my.conf";
+  common::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.Str() + "/my.conf";
   /* Old Mac OS uses \r for line ending */
   {
     std::string const input = "foo\rbar\rdog\r";
@@ -63,8 +65,8 @@ TEST(ConfigParser, TrimWhitespace) {
 
 TEST(ConfigParser, ParseKeyValuePair) {
   // Create dummy configuration file
-  dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/my.conf";
+  common::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.Str() + "/my.conf";
   {
     std::ofstream fp(tmp_file);
     fp << "";

@@ -16,7 +16,7 @@ def config_doc(
     extra_note: Optional[str] = None,
     parameters: Optional[str] = None,
     returns: Optional[str] = None,
-    see_also: Optional[str] = None
+    see_also: Optional[str] = None,
 ) -> Callable[[_F], _F]:
     """Decorator to format docstring for config functions.
 

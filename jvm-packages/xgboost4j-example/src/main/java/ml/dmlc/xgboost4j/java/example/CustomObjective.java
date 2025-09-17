@@ -45,7 +45,7 @@ public class CustomObjective {
     /**
      * simple sigmoid func
      *
-     * @param input
+     * @param input Sigmod(x)
      * @return Note: this func is not concern about numerical stability, only used as example
      */
     public float sigmoid(float input) {
@@ -139,9 +139,9 @@ public class CustomObjective {
 
   public static void main(String[] args) throws XGBoostError {
     //load train mat (svmlight format)
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm");
     //load valid mat (svmlight format)
-    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test?format=libsvm");
 
     HashMap<String, Object> params = new HashMap<String, Object>();
     params.put("eta", 1.0);

@@ -1,19 +1,23 @@
+# pylint: disable=protected-access
 """Utilities for processing spark partitions."""
 from collections import defaultdict, namedtuple
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
-from xgboost.compat import concat
 
-from xgboost import DataIter, DeviceQuantileDMatrix, DMatrix
+from .._typing import ArrayLike
+from ..compat import concat
+from ..core import DataIter, DMatrix, QuantileDMatrix
+from ..sklearn import XGBModel
+from .utils import get_logger
 
 
 def stack_series(series: pd.Series) -> np.ndarray:
     """Stack a series of arrays."""
     array = series.to_numpy(copy=False)
-    array = np.stack(array)
+    array = np.stack(array)  # type: ignore
     return array
 
 
@@ -65,40 +69,44 @@ def cache_partitions(
 class PartIter(DataIter):
     """Iterator for creating Quantile DMatrix from partitions."""
 
-    def __init__(self, data: Dict[str, List], device_id: Optional[int]) -> None:
+    def __init__(
+        self, data: Dict[str, List], device_id: Optional[int], **kwargs: Any
+    ) -> None:
         self._iter = 0
         self._device_id = device_id
         self._data = data
+        self._kwargs = kwargs
 
-        super().__init__()
+        super().__init__(release_data=True)
 
     def _fetch(self, data: Optional[Sequence[pd.DataFrame]]) -> Optional[pd.DataFrame]:
         if not data:
             return None
 
         if self._device_id is not None:
-            import cudf  # pylint: disable=import-error
-            import cupy as cp  # pylint: disable=import-error
+            import cudf
+            import cupy as cp
 
             # We must set the device after import cudf, which will change the device id to 0
             # See https://github.com/rapidsai/cudf/issues/11386
-            cp.cuda.runtime.setDevice(self._device_id)
+            cp.cuda.runtime.setDevice(self._device_id)  # pylint: disable=I1101
             return cudf.DataFrame(data[self._iter])
 
         return data[self._iter]
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         if self._iter == len(self._data[alias.data]):
-            return 0
+            return False
         input_data(
             data=self._fetch(self._data[alias.data]),
             label=self._fetch(self._data.get(alias.label, None)),
             weight=self._fetch(self._data.get(alias.weight, None)),
             base_margin=self._fetch(self._data.get(alias.margin, None)),
             qid=self._fetch(self._data.get(alias.qid, None)),
+            **self._kwargs,
         )
         self._iter += 1
-        return 1
+        return True
 
     def reset(self) -> None:
         self._iter = 0
@@ -147,23 +155,53 @@ def _read_csr_matrix_from_unwrapped_spark_vec(part: pd.DataFrame) -> csr_matrix:
     )
 
 
-def create_dmatrix_from_partitions(
+def make_qdm(
+    data: Dict[str, List[np.ndarray]],
+    dev_ordinal: Optional[int],
+    meta: Dict[str, Any],
+    ref: Optional[DMatrix],
+    params: Dict[str, Any],
+) -> DMatrix:
+    """Handle empty partition for QuantileDMatrix."""
+    if not data:
+        return QuantileDMatrix(np.empty((0, 0)), ref=ref)
+    it = PartIter(data, dev_ordinal, **meta)
+    m = QuantileDMatrix(it, **params, ref=ref)
+    return m
+
+
+def create_dmatrix_from_partitions(  # pylint: disable=too-many-arguments
+    *,
     iterator: Iterator[pd.DataFrame],
     feature_cols: Optional[Sequence[str]],
-    gpu_id: Optional[int],
+    dev_ordinal: Optional[int],
+    use_qdm: bool,
     kwargs: Dict[str, Any],  # use dict to make sure this parameter is passed.
     enable_sparse_data_optim: bool,
+    has_validation_col: bool,
 ) -> Tuple[DMatrix, Optional[DMatrix]]:
-    """Create DMatrix from spark data partitions. This is not particularly efficient as
-    we need to convert the pandas series format to numpy then concatenate all the data.
+    """Create DMatrix from spark data partitions.
 
     Parameters
     ----------
     iterator :
         Pyspark partition iterator.
+    feature_cols:
+        A sequence of feature names, used only when rapids plugin is enabled.
+    dev_ordinal:
+        Device ordinal, used when GPU is enabled.
+    use_qdm :
+        Whether QuantileDMatrix should be used instead of DMatrix.
     kwargs :
         Metainfo for DMatrix.
+    enable_sparse_data_optim :
+        Whether sparse data should be unwrapped
+    has_validation:
+        Whether there's validation data.
 
+    Returns
+    -------
+    Training DMatrix and an optional validation DMatrix.
     """
     # pylint: disable=too-many-locals, too-many-statements
     train_data: Dict[str, List[np.ndarray]] = defaultdict(list)
@@ -173,13 +211,28 @@ def create_dmatrix_from_partitions(
 
     def append_m(part: pd.DataFrame, name: str, is_valid: bool) -> None:
         nonlocal n_features
-        if name in part.columns:
-            array = part[name]
-            if name == alias.data:
-                array = stack_series(array)
+        if name == alias.data or name in part.columns:
+            if (
+                name == alias.data
+                and feature_cols is not None
+                and part[feature_cols].shape[0] > 0  # guard against empty partition
+            ):
+                array: Optional[np.ndarray] = part[feature_cols]
+            elif part[name].shape[0] > 0:
+                array = part[name]
+                if name == alias.data:
+                    # For the array/vector typed case.
+                    array = stack_series(array)
+            else:
+                array = None
+
+            if name == alias.data and array is not None:
                 if n_features == 0:
                     n_features = array.shape[1]
                 assert n_features == array.shape[1]
+
+            if array is None:
+                return
 
             if is_valid:
                 valid_data[name].append(array)
@@ -203,27 +256,15 @@ def create_dmatrix_from_partitions(
             else:
                 train_data[name].append(array)
 
-    def append_dqm(part: pd.DataFrame, name: str, is_valid: bool) -> None:
-        """Preprocessing for DeviceQuantileDMatrix"""
-        nonlocal n_features
-        if name == alias.data or name in part.columns:
-            if name == alias.data:
-                cname = feature_cols
-            else:
-                cname = name
-
-            array = part[cname]
-            if name == alias.data:
-                if n_features == 0:
-                    n_features = array.shape[1]
-                assert n_features == array.shape[1]
-
-            if is_valid:
-                valid_data[name].append(array)
-            else:
-                train_data[name].append(array)
-
     def make(values: Dict[str, List[np.ndarray]], kwargs: Dict[str, Any]) -> DMatrix:
+        if len(values) == 0:
+            get_logger("XGBoostPySpark").warning(
+                "Detected an empty partition in the training data. Consider to enable"
+                " repartition_random_shuffle"
+            )
+            # We must construct an empty DMatrix to bypass the AllReduce
+            return DMatrix(data=np.empty((0, 0)), **kwargs)
+
         data = concat_or_none(values[alias.data])
         label = concat_or_none(values.get(alias.label, None))
         weight = concat_or_none(values.get(alias.weight, None))
@@ -233,24 +274,91 @@ def create_dmatrix_from_partitions(
             data=data, label=label, weight=weight, base_margin=margin, qid=qid, **kwargs
         )
 
-    is_dmatrix = feature_cols is None
-    if is_dmatrix:
-        if enable_sparse_data_optim:
-            append_fn = append_m_sparse
-            assert "missing" in kwargs and kwargs["missing"] == 0.0
-        else:
-            append_fn = append_m
+    if enable_sparse_data_optim:
+        append_fn = append_m_sparse
+        assert "missing" in kwargs and kwargs["missing"] == 0.0
+    else:
+        append_fn = append_m
+
+    def split_params() -> Tuple[Dict[str, Any], Dict[str, Union[int, float, bool]]]:
+        # FIXME(jiamingy): we really need a better way to bridge distributed frameworks
+        # to XGBoost native interface and prevent scattering parameters like this.
+
+        # parameters that are not related to data.
+        non_data_keys = (
+            "max_bin",
+            "missing",
+            "silent",
+            "nthread",
+            "enable_categorical",
+        )
+        non_data_params = {}
+        meta = {}
+        for k, v in kwargs.items():
+            if k in non_data_keys:
+                non_data_params[k] = v
+            else:
+                meta[k] = v
+        return meta, non_data_params
+
+    meta, params = split_params()
+
+    if feature_cols is not None and use_qdm:
+        cache_partitions(iterator, append_fn)
+        dtrain: DMatrix = make_qdm(train_data, dev_ordinal, meta, None, params)
+    elif feature_cols is not None and not use_qdm:
         cache_partitions(iterator, append_fn)
         dtrain = make(train_data, kwargs)
+    elif feature_cols is None and use_qdm:
+        cache_partitions(iterator, append_fn)
+        dtrain = make_qdm(train_data, dev_ordinal, meta, None, params)
     else:
-        cache_partitions(iterator, append_dqm)
-        it = PartIter(train_data, gpu_id)
-        dtrain = DeviceQuantileDMatrix(it, **kwargs)
+        cache_partitions(iterator, append_fn)
+        dtrain = make(train_data, kwargs)
 
-    dvalid = make(valid_data, kwargs) if len(valid_data) != 0 else None
+    # Using has_validation_col here to indicate if there is validation col
+    # instead of getting it from iterator, since the iterator may be empty
+    # in some special case. That is to say, we must ensure every worker
+    # construct DMatrix even there is no data since we need to ensure every
+    # worker do the AllReduce when constructing DMatrix, or else it may hang
+    # forever.
+    if has_validation_col:
+        if use_qdm:
+            dvalid: Optional[DMatrix] = make_qdm(
+                valid_data, dev_ordinal, meta, dtrain, params
+            )
+        else:
+            dvalid = make(valid_data, kwargs) if has_validation_col else None
+    else:
+        dvalid = None
 
-    assert dtrain.num_col() == n_features
     if dvalid is not None:
         assert dvalid.num_col() == dtrain.num_col()
 
     return dtrain, dvalid
+
+
+def pred_contribs(
+    model: XGBModel,
+    data: ArrayLike,
+    base_margin: Optional[ArrayLike] = None,
+    strict_shape: bool = False,
+) -> np.ndarray:
+    """Predict contributions with data with the full model."""
+    iteration_range = model._get_iteration_range(None)
+    data_dmatrix = DMatrix(
+        data,
+        base_margin=base_margin,
+        missing=model.missing,
+        nthread=model.n_jobs,
+        feature_types=model.feature_types,
+        feature_weights=model.feature_weights,
+        enable_categorical=model.enable_categorical,
+    )
+    return model.get_booster().predict(
+        data_dmatrix,
+        pred_contribs=True,
+        validate_features=False,
+        iteration_range=iteration_range,
+        strict_shape=strict_shape,
+    )

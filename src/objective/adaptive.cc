@@ -1,36 +1,50 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2025, XGBoost Contributors
  */
 #include "adaptive.h"
 
-#include <limits>
-#include <vector>
+#include <algorithm>  // std::transform,std::find_if,std::copy,std::unique
+#include <cmath>      // std::isnan
+#include <cstddef>    // std::size_t
+#include <iterator>   // std::distance
+#include <vector>     // std::vector
 
-#include "../common/common.h"
-#include "../common/numeric.h"
-#include "../common/stats.h"
-#include "../common/threading_utils.h"
-#include "xgboost/tree_model.h"
+#include "../common/algorithm.h"           // ArgSort
+#include "../common/numeric.h"             // RunLengthEncode
+#include "../common/stats.h"               // Quantile,WeightedQuantile
+#include "../common/threading_utils.h"     // ParallelFor
+#include "../common/transform_iterator.h"  // MakeIndexTransformIter
+#include "../tree/sample_position.h"       // for SamplePosition
+#include "xgboost/base.h"                  // bst_node_t
+#include "xgboost/context.h"               // Context
+#include "xgboost/data.h"                  // MetaInfo
+#include "xgboost/host_device_vector.h"    // HostDeviceVector
+#include "xgboost/linalg.h"                // MakeTensorView
+#include "xgboost/span.h"                  // Span
+#include "xgboost/tree_model.h"            // RegTree
 
-namespace xgboost {
-namespace obj {
-namespace detail {
-void EncodeTreeLeafHost(RegTree const& tree, std::vector<bst_node_t> const& position,
-                        std::vector<size_t>* p_nptr, std::vector<bst_node_t>* p_nidx,
-                        std::vector<size_t>* p_ridx) {
+#if !defined(XGBOOST_USE_CUDA)
+#include "../common/common.h"  // AssertGPUSupport
+#endif                         // !defined(XGBOOST_USE_CUDA)
+
+namespace xgboost::obj::detail {
+void EncodeTreeLeafHost(Context const* ctx, RegTree const& tree,
+                        std::vector<bst_node_t> const& position, std::vector<size_t>* p_nptr,
+                        std::vector<bst_node_t>* p_nidx, std::vector<size_t>* p_ridx) {
   auto& nptr = *p_nptr;
   auto& nidx = *p_nidx;
   auto& ridx = *p_ridx;
-  ridx = common::ArgSort<size_t>(position);
+  ridx = common::ArgSort<size_t>(ctx, position.cbegin(), position.cend());
   std::vector<bst_node_t> sorted_pos(position);
   // permutation
   for (size_t i = 0; i < position.size(); ++i) {
     sorted_pos[i] = position[ridx[i]];
   }
   // find the first non-sampled row
-  size_t begin_pos =
-      std::distance(sorted_pos.cbegin(), std::find_if(sorted_pos.cbegin(), sorted_pos.cend(),
-                                                      [](bst_node_t nidx) { return nidx >= 0; }));
+  size_t begin_pos = std::distance(
+      sorted_pos.cbegin(),
+      std::find_if(sorted_pos.cbegin(), sorted_pos.cend(),
+                   [](bst_node_t nidx) { return tree::SamplePosition::IsValid(nidx); }));
   CHECK_LE(begin_pos, sorted_pos.size());
 
   std::vector<bst_node_t> leaf;
@@ -65,18 +79,18 @@ void EncodeTreeLeafHost(RegTree const& tree, std::vector<bst_node_t> const& posi
 }
 
 void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& position,
-                        MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                        RegTree* p_tree) {
+                        std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                        HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
   auto& tree = *p_tree;
 
   std::vector<bst_node_t> nidx;
   std::vector<size_t> nptr;
   std::vector<size_t> ridx;
-  EncodeTreeLeafHost(*p_tree, position, &nptr, &nidx, &ridx);
+  EncodeTreeLeafHost(ctx, *p_tree, position, &nptr, &nidx, &ridx);
   size_t n_leaf = nidx.size();
   if (nptr.empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, nidx, p_tree);
+    UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
     return;
   }
 
@@ -87,41 +101,70 @@ void UpdateTreeLeafHost(Context const* ctx, std::vector<bst_node_t> const& posit
   auto const& h_node_idx = nidx;
   auto const& h_node_ptr = nptr;
   CHECK_LE(h_node_ptr.back(), info.num_row_);
-  // loop over each leaf
-  common::ParallelFor(quantiles.size(), ctx->Threads(), [&](size_t k) {
-    auto nidx = h_node_idx[k];
-    CHECK(tree[nidx].IsLeaf());
-    CHECK_LT(k + 1, h_node_ptr.size());
-    size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
-    auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
-    // multi-target not yet supported.
-    auto h_labels = info.labels.HostView().Slice(linalg::All(), 0);
-    auto const& h_predt = predt.ConstHostVector();
-    auto h_weights = linalg::MakeVec(&info.weights_);
+  auto h_predt = linalg::MakeTensorView(ctx, predt.ConstHostSpan(), info.num_row_,
+                                        predt.Size() / info.num_row_);
 
-    auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
-      auto row_idx = h_row_set[i];
-      return h_labels(row_idx) - h_predt[row_idx];
-    });
-    auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
-      auto row_idx = h_row_set[i];
-      return h_weights(row_idx);
-    });
+  // A heuristic to use parallel sort. If we use multiple threads here, the sorting is
+  // performed using a single thread as openmp cannot allocate new threads inside a
+  // parallel region.
+  std::int32_t n_threads;
+  if constexpr (kHasParallelStableSort) {
+    CHECK_GE(h_node_ptr.size(), 1);
+    auto it = common::MakeIndexTransformIter(
+        [&](std::size_t i) { return h_node_ptr[i + 1] - h_node_ptr[i]; });
+    n_threads = std::any_of(it, it + h_node_ptr.size() - 1,
+                            [](auto n) {
+                              constexpr std::size_t kNeedParallelSort = 1ul << 19;
+                              return n > kNeedParallelSort;
+                            })
+                    ? 1
+                    : ctx->Threads();
+  } else {
+    n_threads = ctx->Threads();
+  }
 
-    float q{0};
-    if (info.weights_.Empty()) {
-      q = common::Quantile(alpha, iter, iter + h_row_set.size());
-    } else {
-      q = common::WeightedQuantile(alpha, iter, iter + h_row_set.size(), w_it);
-    }
-    if (std::isnan(q)) {
-      CHECK(h_row_set.empty());
-    }
-    quantiles.at(k) = q;
-  });
+  collective::ApplyWithLabels(
+      ctx, info, static_cast<void*>(quantiles.data()), quantiles.size() * sizeof(float), [&] {
+        // loop over each leaf
+        common::ParallelFor(quantiles.size(), n_threads, [&](size_t k) {
+          auto nidx = h_node_idx[k];
+          CHECK(tree[nidx].IsLeaf());
+          CHECK_LT(k + 1, h_node_ptr.size());
+          size_t n = h_node_ptr[k + 1] - h_node_ptr[k];
+          auto h_row_set = common::Span<size_t const>{ridx}.subspan(h_node_ptr[k], n);
 
-  UpdateLeafValues(&quantiles, nidx, p_tree);
+          auto h_labels = info.labels.HostView().Slice(linalg::All(), IdxY(info, group_idx));
+          auto h_weights = linalg::MakeVec(&info.weights_);
+
+          auto iter = common::MakeIndexTransformIter([&](size_t i) -> float {
+            auto row_idx = h_row_set[i];
+            return h_labels(row_idx) - h_predt(row_idx, group_idx);
+          });
+          auto w_it = common::MakeIndexTransformIter([&](size_t i) -> float {
+            auto row_idx = h_row_set[i];
+            return h_weights(row_idx);
+          });
+
+          float q{0};
+          if (info.weights_.Empty()) {
+            q = common::Quantile(ctx, alpha, iter, iter + h_row_set.size());
+          } else {
+            q = common::WeightedQuantile(ctx, alpha, iter, iter + h_row_set.size(), w_it);
+          }
+          if (std::isnan(q)) {
+            CHECK(h_row_set.empty());
+          }
+          quantiles.at(k) = q;
+        });
+      });
+
+  UpdateLeafValues(ctx, &quantiles, nidx, info, learning_rate, p_tree);
 }
-}  // namespace detail
-}  // namespace obj
-}  // namespace xgboost
+
+#if !defined(XGBOOST_USE_CUDA)
+void UpdateTreeLeafDevice(Context const*, common::Span<bst_node_t const>, std::int32_t,
+                          MetaInfo const&, float, HostDeviceVector<float> const&, float, RegTree*) {
+  common::AssertGPUSupport();
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
+}  // namespace xgboost::obj::detail

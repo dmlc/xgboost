@@ -1,10 +1,12 @@
-/*!
- * Copyright 2020-2021 by XGBoost Contributors
+/**
+ * Copyright 2020-2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 #include "../helpers.h"
 #include "../../../src/data/array_interface.h"
+#include "dmlc/logging.h"
+#include "xgboost/json.h"
 
 namespace xgboost {
 TEST(ArrayInterface, Initialize) {
@@ -12,15 +14,15 @@ TEST(ArrayInterface, Initialize) {
   HostDeviceVector<float> storage;
   auto array = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
   auto arr_interface = ArrayInterface<2>(StringView{array});
-  ASSERT_EQ(arr_interface.Shape(0), kRows);
-  ASSERT_EQ(arr_interface.Shape(1), kCols);
+  ASSERT_EQ(arr_interface.Shape<0>(), kRows);
+  ASSERT_EQ(arr_interface.Shape<1>(), kCols);
   ASSERT_EQ(arr_interface.data, storage.ConstHostPointer());
   ASSERT_EQ(arr_interface.ElementSize(), 4);
   ASSERT_EQ(arr_interface.type, ArrayInterfaceHandler::kF4);
 
   HostDeviceVector<size_t> u64_storage(storage.Size());
   std::string u64_arr_str{ArrayInterfaceStr(linalg::TensorView<size_t const, 2>{
-      u64_storage.ConstHostSpan(), {kRows, kCols}, GenericParameter::kCpuId})};
+      u64_storage.ConstHostSpan(), {kRows, kCols}, DeviceOrd::CPU()})};
   std::copy(storage.ConstHostVector().cbegin(), storage.ConstHostVector().cend(),
             u64_storage.HostSpan().begin());
   auto u64_arr = ArrayInterface<2>{u64_arr_str};
@@ -33,9 +35,8 @@ TEST(ArrayInterface, Error) {
   Json column { Object() };
   std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
-  std::vector<Json> j_data {
-    Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
-        Json(Boolean(false))};
+  std::vector<Json> j_data{Json(Integer(reinterpret_cast<Integer::Int>(nullptr))),
+                           Json(Boolean(false))};
 
   auto const& column_obj = get<Object>(column);
   std::string typestr{"<f4"};
@@ -45,6 +46,10 @@ TEST(ArrayInterface, Error) {
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n), dmlc::Error);
   column["version"] = 3;
   // missing data
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
+               dmlc::Error);
+  // null data
+  column["data"] = Null{};
   EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n),
                dmlc::Error);
   column["data"] = j_data;
@@ -63,6 +68,19 @@ TEST(ArrayInterface, Error) {
       Json(Boolean(false))};
   column["data"] = j_data;
   EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(column_obj, n));
+  // null data in mask
+  column["mask"] = Object{};
+  column["mask"]["data"] = Null{};
+  common::Span<RBitField8::value_type> s_mask;
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractMask(column_obj, &s_mask), dmlc::Error);
+
+  get<Object>(column).erase("mask");
+  // misaligned.
+  j_data = {Json(Integer(reinterpret_cast<Integer::Int>(
+                reinterpret_cast<char const*>(storage.ConstHostPointer()) + 1))),
+            Json(Boolean(false))};
+  column["data"] = j_data;
+  EXPECT_THROW({ ArrayInterface<1> arr{column}; }, dmlc::Error);
 }
 
 TEST(ArrayInterface, GetElement) {
@@ -88,7 +106,7 @@ TEST(ArrayInterface, TrivialDim) {
   {
     ArrayInterface<1> arr_i{interface_str};
     ASSERT_EQ(arr_i.n, kRows);
-    ASSERT_EQ(arr_i.Shape(0), kRows);
+    ASSERT_EQ(arr_i.Shape<0>(), kRows);
   }
 
   std::swap(kRows, kCols);
@@ -96,18 +114,18 @@ TEST(ArrayInterface, TrivialDim) {
   {
     ArrayInterface<1> arr_i{interface_str};
     ASSERT_EQ(arr_i.n, kCols);
-    ASSERT_EQ(arr_i.Shape(0), kCols);
+    ASSERT_EQ(arr_i.Shape<0>(), kCols);
   }
 }
 
 TEST(ArrayInterface, ToDType) {
-  static_assert(ToDType<float>::kType == ArrayInterfaceHandler::kF4, "");
-  static_assert(ToDType<double>::kType == ArrayInterfaceHandler::kF8, "");
+  static_assert(ToDType<float>::kType == ArrayInterfaceHandler::kF4);
+  static_assert(ToDType<double>::kType == ArrayInterfaceHandler::kF8);
 
-  static_assert(ToDType<uint32_t>::kType == ArrayInterfaceHandler::kU4, "");
-  static_assert(ToDType<uint64_t>::kType == ArrayInterfaceHandler::kU8, "");
+  static_assert(ToDType<uint32_t>::kType == ArrayInterfaceHandler::kU4);
+  static_assert(ToDType<uint64_t>::kType == ArrayInterfaceHandler::kU8);
 
-  static_assert(ToDType<int32_t>::kType == ArrayInterfaceHandler::kI4, "");
-  static_assert(ToDType<int64_t>::kType == ArrayInterfaceHandler::kI8, "");
+  static_assert(ToDType<int32_t>::kType == ArrayInterfaceHandler::kI4);
+  static_assert(ToDType<int64_t>::kType == ArrayInterfaceHandler::kI8);
 }
 }  // namespace xgboost

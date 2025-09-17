@@ -1,26 +1,25 @@
-/*!
- * Copyright 2019 by Contributors
+/**
+ * Copyright 2019-2023, XGBoost Contributors
  * \file bitfield.h
  */
 #ifndef XGBOOST_COMMON_BITFIELD_H_
 #define XGBOOST_COMMON_BITFIELD_H_
 
-#include <algorithm>
-#include <bitset>
-#include <cinttypes>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
+#include <algorithm>    // for min
+#include <bitset>       // for bitset
+#include <cstdint>      // for uint32_t, uint64_t, uint8_t
+#include <ostream>      // for ostream
+#include <type_traits>  // for conditional_t, is_signed_v, add_const_t
 
 #if defined(__CUDACC__)
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>
+
 #include "device_helpers.cuh"
 #endif  // defined(__CUDACC__)
 
-#include "xgboost/span.h"
 #include "common.h"
+#include "xgboost/span.h"  // for Span
 
 namespace xgboost {
 
@@ -50,14 +49,17 @@ __forceinline__ __device__ BitFieldAtomicType AtomicAnd(BitFieldAtomicType* addr
 }
 #endif  // defined(__CUDACC__)
 
-/*!
- * \brief A non-owning type with auxiliary methods defined for manipulating bits.
+/**
+ * @brief A non-owning type with auxiliary methods defined for manipulating bits.
  *
- * \tparam Direction Whether the bits start from left or from right.
+ * @tparam VT        Underlying value type, must be an unsigned integer.
+ * @tparam Direction Whether the bits start from left or from right.
+ * @tparam IsConst   Whether the view is const.
  */
 template <typename VT, typename Direction, bool IsConst = false>
 struct BitFieldContainer {
   using value_type = std::conditional_t<IsConst, VT const, VT>;  // NOLINT
+  using size_type = size_t;                                      // NOLINT
   using index_type = size_t;                                     // NOLINT
   using pointer = value_type*;                                   // NOLINT
 
@@ -70,8 +72,9 @@ struct BitFieldContainer {
   };
 
  private:
-  common::Span<value_type> bits_;
-  static_assert(!std::is_signed<VT>::value, "Must use unsiged type as underlying storage.");
+  value_type* bits_{nullptr};
+  size_type n_values_{0};
+  static_assert(!std::is_signed_v<VT>, "Must use an unsiged type as the underlying storage.");
 
  public:
   XGBOOST_DEVICE static Pos ToBitPos(index_type pos) {
@@ -86,13 +89,15 @@ struct BitFieldContainer {
 
  public:
   BitFieldContainer() = default;
-  XGBOOST_DEVICE explicit BitFieldContainer(common::Span<value_type> bits) : bits_{bits} {}
-  XGBOOST_DEVICE BitFieldContainer(BitFieldContainer const& other) : bits_{other.bits_} {}
+  XGBOOST_DEVICE explicit BitFieldContainer(common::Span<value_type> bits)
+      : bits_{bits.data()}, n_values_{bits.size()} {}
+  BitFieldContainer(BitFieldContainer const& other) = default;
+  BitFieldContainer(BitFieldContainer&& other) = default;
   BitFieldContainer &operator=(BitFieldContainer const &that) = default;
   BitFieldContainer &operator=(BitFieldContainer &&that) = default;
 
-  XGBOOST_DEVICE common::Span<value_type>       Bits()       { return bits_; }
-  XGBOOST_DEVICE common::Span<value_type const> Bits() const { return bits_; }
+  XGBOOST_DEVICE auto Bits() { return common::Span<value_type>{bits_, NumValues()}; }
+  XGBOOST_DEVICE auto Bits() const { return common::Span<value_type const>{bits_, NumValues()}; }
 
   /*\brief Compute the size of needed memory allocation.  The returned value is in terms
    *       of number of elements with `BitFieldContainer::value_type'.
@@ -103,17 +108,19 @@ struct BitFieldContainer {
 #if defined(__CUDA_ARCH__)
   __device__ BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-    size_t min_size = min(bits_.size(), rhs.bits_.size());
+    std::size_t min_size = std::min(this->Capacity(), rhs.Capacity());
     if (tid < min_size) {
-      bits_[tid] |= rhs.bits_[tid];
+      if (this->Check(tid) || rhs.Check(tid)) {
+        this->Set(tid);
+      }
     }
     return *this;
   }
 #else
   BitFieldContainer& operator|=(BitFieldContainer const& rhs) {
-    size_t min_size = std::min(bits_.size(), rhs.bits_.size());
+    size_t min_size = std::min(NumValues(), rhs.NumValues());
     for (size_t i = 0; i < min_size; ++i) {
-      bits_[i] |= rhs.bits_[i];
+      Data()[i] |= rhs.Data()[i];
     }
     return *this;
   }
@@ -121,75 +128,89 @@ struct BitFieldContainer {
 
 #if defined(__CUDA_ARCH__)
   __device__ BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
-    size_t min_size = min(bits_.size(), rhs.bits_.size());
     auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+    std::size_t min_size = std::min(this->Capacity(), rhs.Capacity());
     if (tid < min_size) {
-      bits_[tid] &= rhs.bits_[tid];
+      if (this->Check(tid) && rhs.Check(tid)) {
+        this->Set(tid);
+      } else {
+        this->Clear(tid);
+      }
     }
     return *this;
   }
 #else
   BitFieldContainer& operator&=(BitFieldContainer const& rhs) {
-    size_t min_size = std::min(bits_.size(), rhs.bits_.size());
+    std::size_t min_size = std::min(NumValues(), rhs.NumValues());
     for (size_t i = 0; i < min_size; ++i) {
-      bits_[i] &= rhs.bits_[i];
+      Data()[i] &= rhs.Data()[i];
     }
     return *this;
   }
 #endif  // defined(__CUDA_ARCH__)
 
 #if defined(__CUDA_ARCH__)
-  __device__ auto Set(index_type pos) {
+  __device__ auto Set(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
     atomicOr(reinterpret_cast<Type *>(&value), set_bit);
   }
-  __device__ void Clear(index_type pos) {
+  __device__ void Clear(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type clear_bit = ~(kOne << pos_v.bit_pos);
     using Type = typename dh::detail::AtomicDispatcher<sizeof(value_type)>::Type;
     atomicAnd(reinterpret_cast<Type *>(&value), clear_bit);
   }
 #else
-  void Set(index_type pos) {
+  void Set(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type set_bit = kOne << pos_v.bit_pos;
     value |= set_bit;
   }
-  void Clear(index_type pos) {
+  void Clear(index_type pos) noexcept(true) {
     Pos pos_v = Direction::Shift(ToBitPos(pos));
-    value_type& value = bits_[pos_v.int_pos];
+    value_type& value = Data()[pos_v.int_pos];
     value_type clear_bit = ~(kOne << pos_v.bit_pos);
     value &= clear_bit;
   }
 #endif  // defined(__CUDA_ARCH__)
 
-  XGBOOST_DEVICE bool Check(Pos pos_v) const {
+  XGBOOST_DEVICE bool Check(Pos pos_v) const noexcept(true) {
     pos_v = Direction::Shift(pos_v);
-    SPAN_LT(pos_v.int_pos, bits_.size());
-    value_type const value = bits_[pos_v.int_pos];
+    assert(pos_v.int_pos < NumValues());
+    value_type const value = Data()[pos_v.int_pos];
     value_type const test_bit = kOne << pos_v.bit_pos;
     value_type result = test_bit & value;
     return static_cast<bool>(result);
   }
-  XGBOOST_DEVICE bool Check(index_type pos) const {
+  [[nodiscard]] XGBOOST_DEVICE bool Check(index_type pos) const noexcept(true) {
     Pos pos_v = ToBitPos(pos);
     return Check(pos_v);
   }
+  /**
+   * @brief Returns the total number of bits that can be viewed. This is equal to or
+   *        larger than the acutal number of valid bits.
+   */
+  [[nodiscard]] XGBOOST_DEVICE size_type Capacity() const noexcept(true) {
+    return kValueSize * NumValues();
+  }
+  /**
+   * @brief Number of storage unit used in this bit field.
+   */
+  [[nodiscard]] XGBOOST_DEVICE size_type NumValues() const noexcept(true) { return n_values_; }
 
-  XGBOOST_DEVICE size_t Size() const { return kValueSize * bits_.size(); }
+  XGBOOST_DEVICE pointer Data() const noexcept(true) { return bits_; }
 
-  XGBOOST_DEVICE pointer Data() const { return bits_.data(); }
-
-  inline friend std::ostream &
-  operator<<(std::ostream &os, BitFieldContainer<VT, Direction, IsConst> field) {
-    os << "Bits " << "storage size: " << field.bits_.size() << "\n";
-    for (typename common::Span<value_type>::index_type i = 0; i < field.bits_.size(); ++i) {
-      std::bitset<BitFieldContainer<VT, Direction, IsConst>::kValueSize> bset(field.bits_[i]);
+  inline friend std::ostream& operator<<(std::ostream& os,
+                                         BitFieldContainer<VT, Direction, IsConst> field) {
+    os << "Bits "
+       << "storage size: " << field.NumValues() << "\n";
+    for (typename common::Span<value_type>::index_type i = 0; i < field.NumValues(); ++i) {
+      std::bitset<BitFieldContainer<VT, Direction, IsConst>::kValueSize> bset(field.Data()[i]);
       os << bset << "\n";
     }
     return os;
@@ -224,11 +245,39 @@ struct RBitsPolicy : public BitFieldContainer<VT, RBitsPolicy<VT>> {
 
 // Format: <Const><Direction>BitField<size of underlying type in bits>, underlying type
 // must be unsigned.
-using LBitField64 = BitFieldContainer<uint64_t, LBitsPolicy<uint64_t>>;
-using RBitField8 = BitFieldContainer<uint8_t, RBitsPolicy<unsigned char>>;
+using LBitField64 = BitFieldContainer<std::uint64_t, LBitsPolicy<std::uint64_t>>;
+using RBitField8 = BitFieldContainer<std::uint8_t, RBitsPolicy<unsigned char>>;
 
-using LBitField32 = BitFieldContainer<uint32_t, LBitsPolicy<uint32_t>>;
-using CLBitField32 = BitFieldContainer<uint32_t, LBitsPolicy<uint32_t, true>, true>;
+using LBitField32 = BitFieldContainer<std::uint32_t, LBitsPolicy<std::uint32_t>>;
+using CLBitField32 = BitFieldContainer<std::uint32_t, LBitsPolicy<std::uint32_t, true>, true>;
+using RBitField32 = BitFieldContainer<std::uint32_t, RBitsPolicy<std::uint32_t>>;
+
+namespace detail {
+inline std::uint32_t TrailingZeroBitsImpl(std::uint32_t value) {
+  auto n = sizeof(value) * 8;
+  std::uint32_t cnt{0};
+  for (decltype(n) i = 0; i < n; i++) {
+    if ((value >> i) & 1) {
+      break;
+    }
+    cnt++;
+  }
+  return cnt;
+}
+}  // namespace detail
+
+inline std::uint32_t TrailingZeroBits(std::uint32_t value) {
+  if (value == 0) {
+    return sizeof(value) * 8;
+  }
+#if defined(__GNUC__)
+  return __builtin_ctz(value);
+#elif defined(_MSC_VER) && defined(_M_X64)
+  return _tzcnt_u32(value);
+#else
+  return detail::TrailingZeroBitsImpl(value);
+#endif  //  __GNUC__
+}
 }       // namespace xgboost
 
 #endif  // XGBOOST_COMMON_BITFIELD_H_

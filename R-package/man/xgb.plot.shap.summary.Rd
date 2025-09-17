@@ -3,7 +3,7 @@
 \name{xgb.ggplot.shap.summary}
 \alias{xgb.ggplot.shap.summary}
 \alias{xgb.plot.shap.summary}
-\title{SHAP contribution dependency summary plot}
+\title{SHAP summary plot}
 \usage{
 xgb.ggplot.shap.summary(
   data,
@@ -30,49 +30,53 @@ xgb.plot.shap.summary(
 )
 }
 \arguments{
-\item{data}{data as a \code{matrix} or \code{dgCMatrix}.}
+\item{data}{The data to explain as a \code{matrix}, \code{dgCMatrix}, or \code{data.frame}.}
 
-\item{shap_contrib}{a matrix of SHAP contributions that was computed earlier for the above
-\code{data}. When it is NULL, it is computed internally using \code{model} and \code{data}.}
+\item{shap_contrib}{Matrix of SHAP contributions of \code{data}.
+The default (\code{NULL}) computes it from \code{model} and \code{data}.}
 
-\item{features}{a vector of either column indices or of feature names to plot. When it is NULL,
-feature importance is calculated, and \code{top_n} high ranked features are taken.}
+\item{features}{Vector of column indices or feature names to plot. When \code{NULL}
+(default), the \code{top_n} most important features are selected by \code{\link[=xgb.importance]{xgb.importance()}}.}
 
-\item{top_n}{when \code{features} is NULL, top_n [1, 100] most important features in a model are taken.}
+\item{top_n}{How many of the most important features (<= 100) should be selected?
+By default 1 for SHAP dependence and 10 for SHAP summary.
+Only used when \code{features = NULL}.}
 
-\item{model}{an \code{xgb.Booster} model. It has to be provided when either \code{shap_contrib}
-or \code{features} is missing.}
+\item{model}{An \code{xgb.Booster} model. Only required when \code{shap_contrib = NULL} or
+\code{features = NULL}.}
 
-\item{trees}{passed to \code{\link{xgb.importance}} when \code{features = NULL}.}
+\item{trees}{Passed to \code{\link[=xgb.importance]{xgb.importance()}} when \code{features = NULL}.}
 
-\item{target_class}{is only relevant for multiclass models. When it is set to a 0-based class index,
-only SHAP contributions for that specific class are used.
-If it is not set, SHAP importances are averaged over all classes.}
+\item{target_class}{Only relevant for multiclass models. The default (\code{NULL})
+averages the SHAP values over all classes. Pass a (0-based) class index
+to show only SHAP values of that class.}
 
-\item{approxcontrib}{passed to \code{\link{predict.xgb.Booster}} when \code{shap_contrib = NULL}.}
+\item{approxcontrib}{Passed to \code{\link[=predict.xgb.Booster]{predict.xgb.Booster()}} when \code{shap_contrib = NULL}.}
 
-\item{subsample}{a random fraction of data points to use for plotting. When it is NULL,
-it is set so that up to 100K data points are used.}
+\item{subsample}{Fraction of data points randomly picked for plotting.
+The default (\code{NULL}) will use up to 100k data points.}
 }
 \value{
 A \code{ggplot2} object.
 }
 \description{
-Compare SHAP contributions of different features.
+Visualizes SHAP contributions of different features.
 }
 \details{
-A point plot (each point representing one sample from \code{data}) is
+A point plot (each point representing one observation from \code{data}) is
 produced for each feature, with the points plotted on the SHAP value axis.
-Each point (observation) is coloured based on its feature value. The plot
-hence allows us to see which features have a negative / positive contribution
+Each point (observation) is coloured based on its feature value.
+
+The plot allows to see which features have a negative / positive contribution
 on the model prediction, and whether the contribution is different for larger
-or smaller values of the feature. We effectively try to replicate the
-\code{summary_plot} function from https://github.com/slundberg/shap.
+or smaller values of the feature. Inspired by the summary plot of
+\url{https://github.com/shap/shap}.
 }
 \examples{
-# See \code{\link{xgb.plot.shap}}.
+# See examples in xgb.plot.shap()
+
 }
 \seealso{
-\code{\link{xgb.plot.shap}}, \code{\link{xgb.ggplot.shap.summary}},
-  \url{https://github.com/slundberg/shap}
+\code{\link[=xgb.plot.shap]{xgb.plot.shap()}}, \code{\link[=xgb.ggplot.shap.summary]{xgb.ggplot.shap.summary()}},
+and the Python library \url{https://github.com/shap/shap}.
 }

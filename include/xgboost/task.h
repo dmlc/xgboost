@@ -1,12 +1,12 @@
-/*!
- * Copyright 2021-2022 by XGBoost Contributors
+/**
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_TASK_H_
 #define XGBOOST_TASK_H_
 
 #include <xgboost/base.h>
 
-#include <cinttypes>
+#include <cstdint>  // for uint8_t
 
 namespace xgboost {
 /*!
@@ -23,7 +23,7 @@ namespace xgboost {
  */
 struct ObjInfo {
   // What kind of problem are we trying to solve
-  enum Task : uint8_t {
+  enum Task : std::uint8_t {
     kRegression = 0,
     kBinary = 1,
     kClassification = 2,

@@ -1,29 +1,41 @@
-/*!
- * Copyright 2017-2022 by XGBoost Contributors
+/**
+ * Copyright 2017-2025, XGBoost Contributors
  * \brief Data type for fast histogram aggregation.
  */
 #ifndef XGBOOST_DATA_GRADIENT_INDEX_H_
 #define XGBOOST_DATA_GRADIENT_INDEX_H_
 
-#include <algorithm>  // std::min
-#include <memory>
-#include <vector>
+#include <algorithm>  // for min
+#include <atomic>     // for atomic
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t
+#include <limits>     // for numeric_limits
+#include <memory>     // for make_unique
+#include <vector>     // for vector
 
 #include "../common/categorical.h"
+#include "../common/error_msg.h"  // for InfInData
 #include "../common/hist_util.h"
 #include "../common/numeric.h"
+#include "../common/ref_resource_view.h"  // for RefResourceView
 #include "../common/threading_utils.h"
-#include "adapter.h"
-#include "proxy_dmatrix.h"
+#include "../common/transform_iterator.h"  // for MakeIndexTransformIter
+#include "entry.h"                         // for IsValidFunctor
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
 namespace xgboost {
 namespace common {
 class ColumnMatrix;
+class AlignedFileWriteStream;
 }  // namespace common
-/*!
- * \brief preprocessed global index matrix, in CSR format
+
+float GetFvalueImpl(std::vector<std::uint32_t> const& ptrs, std::vector<float> const& values,
+                    std::vector<float> const& mins, bst_idx_t ridx, bst_feature_t fidx,
+                    bst_idx_t base_rowid, std::unique_ptr<common::ColumnMatrix> const& columns_);
+
+/**
+ * @brief preprocessed global index matrix, in CSR format.
  *
  *  Transform floating values to integer index in histogram This is a global histogram
  *  index for CPU histogram.  On GPU ellpack page is used.
@@ -31,13 +43,14 @@ class ColumnMatrix;
 class GHistIndexMatrix {
   // Get the size of each row
   template <typename AdapterBatchT>
-  auto GetRowCounts(AdapterBatchT const& batch, float missing, int32_t n_threads) {
+  static auto GetRowCounts(AdapterBatchT const& batch, float missing, int32_t n_threads) {
     std::vector<size_t> valid_counts(batch.Size(), 0);
+    auto is_valid = data::IsValidFunctor{missing};
     common::ParallelFor(batch.Size(), n_threads, [&](size_t i) {
       auto line = batch.GetLine(i);
       for (size_t j = 0; j < line.Size(); ++j) {
         data::COOTuple elem = line.GetElement(j);
-        if (data::IsValidFunctor {missing}(elem)) {
+        if (is_valid(elem)) {
           valid_counts[i]++;
         }
       }
@@ -46,10 +59,10 @@ class GHistIndexMatrix {
   }
 
   /**
-   * \brief Push a page into index matrix, the function is only necessary because hist has
-   *        partial support for external memory.
+   * @brief Push a sparse page into the index matrix.
    */
-  void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft, int32_t n_threads);
+  void PushBatch(SparsePage const& batch, common::Span<FeatureType const> ft,
+                 std::int32_t n_threads);
 
   template <typename Batch, typename BinIdxType, typename GetOffset, typename IsValid>
   void SetIndexData(common::Span<BinIdxType> index_data_span, size_t rbegin,
@@ -59,6 +72,7 @@ class GHistIndexMatrix {
     BinIdxType* index_data = index_data_span.data();
     auto const& ptrs = cut.Ptrs();
     auto const& values = cut.Values();
+    std::atomic<bool> valid{true};
     common::ParallelFor(batch_size, batch_threads, [&](size_t i) {
       auto line = batch.GetLine(i);
       size_t ibegin = row_ptr[rbegin + i];  // index of first entry for current block
@@ -67,9 +81,12 @@ class GHistIndexMatrix {
       for (size_t j = 0; j < line.Size(); ++j) {
         data::COOTuple elem = line.GetElement(j);
         if (is_valid(elem)) {
+          if (XGBOOST_EXPECT((std::isinf(elem.value)), false)) {
+            valid = false;
+          }
           bst_bin_t bin_idx{-1};
           if (common::IsCat(ft, elem.column_idx)) {
-            bin_idx = cut.SearchCatBin(elem.value, elem.column_idx);
+            bin_idx = cut.SearchCatBin(elem.value, elem.column_idx, ptrs, values);
           } else {
             bin_idx = cut.SearchBin(elem.value, elem.column_idx, ptrs, values);
           }
@@ -77,6 +94,19 @@ class GHistIndexMatrix {
           ++hit_count_tloc_[tid * nbins + bin_idx];
           ++k;
         }
+      }
+    });
+
+    CHECK(valid) << error::InfInData();
+  }
+
+  // Gather hit_count from all threads
+  void GatherHitCount(int32_t n_threads, bst_bin_t n_bins_total) {
+    CHECK_EQ(hit_count.size(), n_bins_total);
+    common::ParallelFor(n_bins_total, n_threads, [&](bst_omp_uint idx) {
+      for (int32_t tid = 0; tid < n_threads; ++tid) {
+        hit_count[idx] += hit_count_tloc_[tid * n_bins_total + idx];
+        hit_count_tloc_[tid * n_bins_total + idx] = 0;  // reset for next batch
       }
     });
   }
@@ -95,72 +125,90 @@ class GHistIndexMatrix {
     if (isDense_) {
       index.SetBinOffset(cut.Ptrs());
     }
-    uint32_t const* offsets = index.Offset();
     if (isDense_) {
-      // Inside the lambda functions, bin_idx is the index for cut value across all
-      // features. By subtracting it with starting pointer of each feature, we can reduce
-      // it to smaller value and compress it to smaller types.
       common::DispatchBinType(index.GetBinTypeSize(), [&](auto dtype) {
         using T = decltype(dtype);
         common::Span<T> index_data_span = {index.data<T>(), index.Size()};
-        SetIndexData(
-            index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
-            [offsets](auto bin_idx, auto fidx) { return static_cast<T>(bin_idx - offsets[fidx]); });
+        SetIndexData(index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
+                     index.MakeCompressor<T>());
       });
     } else {
-      /* For sparse DMatrix we have to store index of feature for each bin
-         in index field to chose right offset. So offset is nullptr and index is
-         not reduced */
       common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
+      // no compression
       SetIndexData(index_data_span, rbegin, ft, batch_threads, batch, is_valid, n_bins_total,
                    [](auto idx, auto) { return idx; });
     }
-
-    common::ParallelFor(n_bins_total, n_threads, [&](bst_omp_uint idx) {
-      for (int32_t tid = 0; tid < n_threads; ++tid) {
-        hit_count[idx] += hit_count_tloc_[tid * n_bins_total + idx];
-        hit_count_tloc_[tid * n_bins_total + idx] = 0;  // reset for next batch
-      }
-    });
+    this->GatherHitCount(n_threads, n_bins_total);
   }
 
+  // The function is only created to avoid using the column matrix in the header.
+  void ResizeColumns(double sparse_thresh);
+
  public:
-  /*! \brief row pointer to rows by element position */
-  std::vector<size_t> row_ptr;
-  /*! \brief The index data */
+  /** @brief row pointer to rows by element position */
+  common::RefResourceView<std::size_t> row_ptr;
+  /** @brief data storage for index. */
+  common::RefResourceView<std::uint8_t> data;
+  /** @brief The histogram index. */
   common::Index index;
-  /*! \brief hit count of each index */
-  std::vector<size_t> hit_count;
-  /*! \brief The corresponding cuts */
+  /** @brief hit count of each index, used for constructing the ColumnMatrix */
+  common::RefResourceView<std::size_t> hit_count;
+  /** @brief The corresponding cuts */
   common::HistogramCuts cut;
-  /*! \brief max_bin for each feature. */
-  size_t max_num_bins;
-  /*! \brief base row index for current page (used by external memory) */
-  size_t base_rowid{0};
+  /** @brief max_bin for each feature. */
+  bst_bin_t max_numeric_bins_per_feat;
+  /** @brief base row index for current page (used by external memory) */
+  bst_idx_t base_rowid{0};
+
+  [[nodiscard]] bst_bin_t MaxNumBinPerFeat() const {
+    return std::max(static_cast<bst_bin_t>(cut.MaxCategory() + 1), max_numeric_bins_per_feat);
+  }
 
   ~GHistIndexMatrix();
   /**
-   * \brief Constrcutor for SimpleDMatrix.
+   * @brief Constrcutor for SimpleDMatrix.
    */
-  GHistIndexMatrix(DMatrix* x, bst_bin_t max_bins_per_feat, double sparse_thresh,
-                   bool sorted_sketch, int32_t n_threads, common::Span<float> hess = {});
+  GHistIndexMatrix(Context const* ctx, DMatrix* x, bst_bin_t max_bins_per_feat,
+                   double sparse_thresh, bool sorted_sketch, common::Span<float const> hess = {});
   /**
-   * \brief Constructor for Iterative DMatrix. Initialize basic information and prepare
+   * @brief Constructor for Quantile DMatrix. Initialize basic information and prepare
    *        for push batch.
    */
-  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts, bst_bin_t max_bin_per_feat);
+  GHistIndexMatrix(MetaInfo const& info, common::HistogramCuts&& cuts,
+                   bst_bin_t max_bin_per_feat);
+
   /**
-   * \brief Constructor for external memory.
+   * @brief Constructor for the external memory Quantile DMatrix. Initialize basic
+   *        information and prepare for push batch.
+   */
+  GHistIndexMatrix(bst_idx_t n_samples, bst_idx_t base_rowid, common::HistogramCuts&& cuts,
+                   bst_bin_t max_bin_per_feat, bool is_dense);
+
+  /**
+   * @brief Constructor fro Quantile DMatrix where we might copy an existing ellpack page
+   *        to host gradient index.
+   */
+  GHistIndexMatrix(Context const* ctx, MetaInfo const& info, EllpackPage const& page,
+                   BatchParam const& p);
+
+  /**
+   * @brief Constructor for external memory.
    */
   GHistIndexMatrix(SparsePage const& page, common::Span<FeatureType const> ft,
-                   common::HistogramCuts const& cuts, int32_t max_bins_per_feat, bool is_dense,
-                   double sparse_thresh, int32_t n_threads);
+                   common::HistogramCuts cuts, bst_bin_t max_bins_per_feat, bool is_dense,
+                   double sparse_thresh, std::int32_t n_threads);
   GHistIndexMatrix();  // also for ext mem, empty ctor so that we can read the cache back.
 
+  /**
+   * @brief Push a single batch into the gradient index.
+   *
+   * @param n_samples_total The total number of rows for all batches, create a column
+   *        matrix once all batches are pushed.
+   */
   template <typename Batch>
-  void PushAdapterBatch(Context const* ctx, size_t rbegin, size_t prev_sum, Batch const& batch,
-                        float missing, common::Span<FeatureType const> ft, double sparse_thresh,
-                        size_t n_samples_total) {
+  void PushAdapterBatch(Context const* ctx, std::size_t rbegin, std::size_t prev_sum,
+                        Batch const& batch, float missing, common::Span<FeatureType const> ft,
+                        double sparse_thresh, bst_idx_t n_samples_total) {
     auto n_bins_total = cut.TotalBins();
     hit_count_tloc_.clear();
     hit_count_tloc_.resize(ctx->Threads() * n_bins_total, 0);
@@ -176,8 +224,7 @@ class GHistIndexMatrix {
 
     if (rbegin + batch.Size() == n_samples_total) {
       // finished
-      CHECK(!std::isnan(sparse_thresh));
-      this->columns_ = std::make_unique<common::ColumnMatrix>(*this, sparse_thresh);
+      this->ResizeColumns(sparse_thresh);
     }
   }
 
@@ -199,24 +246,47 @@ class GHistIndexMatrix {
     }
   }
 
-  bool IsDense() const {
-    return isDense_;
-  }
+  [[nodiscard]] bool IsDense() const { return isDense_; }
   void SetDense(bool is_dense) { isDense_ = is_dense; }
+  [[nodiscard]] bst_idx_t BaseRowId() const { return base_rowid; }
   /**
-   * \brief Get the local row index.
+   * @brief Get the local row index from the global row index.
    */
-  size_t RowIdx(size_t ridx) const { return row_ptr[ridx - base_rowid]; }
+  [[nodiscard]] bst_idx_t RowIdx(bst_idx_t gridx) const {
+    return row_ptr[gridx - this->base_rowid];
+  }
 
-  bst_row_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
-  bst_feature_t Features() const { return cut.Ptrs().size() - 1; }
+  [[nodiscard]] bst_idx_t Size() const { return row_ptr.empty() ? 0 : row_ptr.size() - 1; }
+  [[nodiscard]] bst_feature_t Features() const { return cut.NumFeatures(); }
 
-  bool ReadColumnPage(dmlc::SeekStream* fi);
-  size_t WriteColumnPage(dmlc::Stream* fo) const;
+  [[nodiscard]] bool ReadColumnPage(common::AlignedResourceReadStream* fi);
+  [[nodiscard]] std::size_t WriteColumnPage(common::AlignedFileWriteStream* fo) const;
 
-  common::ColumnMatrix const& Transpose() const;
+  [[nodiscard]] common::ColumnMatrix const& Transpose() const;
 
-  float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
+  [[nodiscard]] bst_bin_t GetGindex(size_t ridx, size_t fidx) const;
+
+  [[nodiscard]] float GetFvalue(size_t ridx, size_t fidx, bool is_cat) const;
+  [[nodiscard]] float GetFvalue(std::vector<std::uint32_t> const& ptrs,
+                                std::vector<float> const& values, std::vector<float> const& mins,
+                                bst_idx_t ridx, bst_feature_t fidx, bool is_cat) const {
+    if (is_cat) {
+      auto gidx = GetGindex(ridx, fidx);
+      if (gidx == -1) {
+        return std::numeric_limits<float>::quiet_NaN();
+      }
+      return values[gidx];
+    }
+    if (this->IsDense()) {
+      auto begin = RowIdx(ridx);
+      auto bin_idx = this->index[begin + fidx];
+      return common::HistogramCuts::NumericBinValue(ptrs, values, mins, fidx, bin_idx);
+    }
+    return GetFvalueImpl(ptrs, values, mins, ridx, fidx, this->base_rowid, this->columns_);
+  }
+
+  [[nodiscard]] common::HistogramCuts& Cuts() { return cut; }
+  [[nodiscard]] common::HistogramCuts const& Cuts() const { return cut; }
 
  private:
   std::unique_ptr<common::ColumnMatrix> columns_;
@@ -225,26 +295,50 @@ class GHistIndexMatrix {
 };
 
 /**
- * \brief Should we regenerate the gradient index?
+ * \brief Helper for recovering feature index from row-based storage of histogram
+ *        bin. (`GHistIndexMatrix`).
  *
- * \param old Parameter stored in DMatrix.
- * \param p   New parameter passed in by caller.
+ * \param assign A callback function that takes bin index, index into the whole batch, row
+ *               index and feature index
  */
-inline bool RegenGHist(BatchParam old, BatchParam p) {
-  // parameter is renewed or caller requests a regen
-  if (p == BatchParam{}) {
-    // empty parameter is passed in, don't regenerate so that we can use gindex in
-    // predictor, which doesn't have any training parameter.
-    return false;
-  }
+template <typename Fn>
+void AssignColumnBinIndex(GHistIndexMatrix const& page, Fn&& assign) {
+  auto const batch_size = page.Size();
+  auto const& ptrs = page.cut.Ptrs();
+  std::size_t k{0};
 
-  // Avoid comparing nan values.
-  bool l_nan = std::isnan(old.sparse_thresh);
-  bool r_nan = std::isnan(p.sparse_thresh);
-  // regenerate if parameter is changed.
-  bool st_chg = (l_nan != r_nan) || (!l_nan && !r_nan && (old.sparse_thresh != p.sparse_thresh));
-  bool param_chg = old.gpu_id != p.gpu_id || old.max_bin != p.max_bin;
-  return p.regen || param_chg || st_chg;
+  auto dense = page.IsDense();
+
+  common::DispatchBinType(page.index.GetBinTypeSize(), [&](auto t) {
+    using BinT = decltype(t);
+    auto const& index = page.index;
+    for (std::size_t ridx = 0; ridx < batch_size; ++ridx) {
+      auto r_beg = page.row_ptr[ridx];
+      auto r_end = page.row_ptr[ridx + 1];
+      bst_feature_t fidx{0};
+      if (dense) {
+        // compressed, use the operator to obtain the true value.
+        for (std::size_t j = r_beg; j < r_end; ++j) {
+          bst_feature_t fidx = j - r_beg;
+          std::uint32_t bin_idx = index[k];
+          assign(bin_idx, k, ridx, fidx);
+          ++k;
+        }
+      } else {
+        // not compressed
+        auto const* row_index = index.data<BinT>() + page.row_ptr[page.base_rowid];
+        for (std::size_t j = r_beg; j < r_end; ++j) {
+          std::uint32_t bin_idx = row_index[k];
+          // find the feature index for current bin.
+          while (bin_idx >= ptrs[fidx + 1]) {
+            fidx++;
+          }
+          assign(bin_idx, k, ridx, fidx);
+          ++k;
+        }
+      }
+    }
+  });
 }
-}      // namespace xgboost
+}  // namespace xgboost
 #endif  // XGBOOST_DATA_GRADIENT_INDEX_H_

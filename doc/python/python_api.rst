@@ -14,6 +14,8 @@ Global Configuration
 
 .. autofunction:: xgboost.get_config
 
+.. autofunction:: xgboost.build_info
+
 Core Data Structure
 -------------------
 .. automodule:: xgboost.core
@@ -23,15 +25,25 @@ Core Data Structure
     :show-inheritance:
 
 .. autoclass:: xgboost.QuantileDMatrix
+    :members:
+    :inherited-members:
     :show-inheritance:
 
-.. autoclass:: xgboost.DeviceQuantileDMatrix
+.. autoclass:: xgboost.ExtMemQuantileDMatrix
+    :members:
+    :inherited-members:
     :show-inheritance:
 
 .. autoclass:: xgboost.Booster
     :members:
     :show-inheritance:
+    :special-members: __getitem__
 
+.. autoclass:: xgboost.DataIter
+    :members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.core.Categories
 
 Learning API
 ------------
@@ -44,6 +56,7 @@ Learning API
 
 Scikit-Learn API
 ----------------
+
 .. automodule:: xgboost.sklearn
 .. autoclass:: xgboost.XGBRegressor
     :members:
@@ -86,22 +99,18 @@ Callback API
 
 .. autoclass:: xgboost.callback.EvaluationMonitor
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. autoclass:: xgboost.callback.EarlyStopping
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. autoclass:: xgboost.callback.LearningRateScheduler
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. autoclass:: xgboost.callback.TrainingCheckPoint
     :members:
-    :inherited-members:
     :show-inheritance:
 
 .. _dask_api:
@@ -115,7 +124,7 @@ Dask API
     :inherited-members:
     :show-inheritance:
 
-.. autoclass:: xgboost.dask.DaskDeviceQuantileDMatrix
+.. autoclass:: xgboost.dask.DaskQuantileDMatrix
     :members:
     :inherited-members:
     :show-inheritance:
@@ -176,3 +185,35 @@ PySpark API
     :members:
     :inherited-members:
     :show-inheritance:
+
+.. autoclass:: xgboost.spark.SparkXGBRanker
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: xgboost.spark.SparkXGBRankerModel
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+
+Collective
+----------
+
+.. automodule:: xgboost.collective
+
+.. autoclass:: xgboost.collective.Config
+
+.. autofunction:: xgboost.collective.init
+
+.. autofunction:: xgboost.collective.finalize
+
+.. autofunction:: xgboost.collective.get_rank
+
+.. autofunction:: xgboost.collective.get_world_size
+
+.. autoclass:: xgboost.collective.CommunicatorContext
+
+.. automodule:: xgboost.tracker
+
+.. autoclass:: xgboost.tracker.RabitTracker

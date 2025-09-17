@@ -1,34 +1,36 @@
-if (PLUGIN_DENSE_PARSER)
-  target_sources(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc)
-endif (PLUGIN_DENSE_PARSER)
-
-if (PLUGIN_UPDATER_ONEAPI)
-  add_library(oneapi_plugin OBJECT
-    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc
-    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/predictor_oneapi.cc)
-  target_include_directories(oneapi_plugin
+if(PLUGIN_SYCL)
+  set(CMAKE_CXX_COMPILER "icpx")
+  file(GLOB_RECURSE SYCL_SOURCES "sycl/*.cc")
+    list(APPEND SYCL_SOURCES
+    ${xgboost_SOURCE_DIR}/src/objective/regression_obj.cc
+    ${xgboost_SOURCE_DIR}/src/objective/hinge.cc
+    ${xgboost_SOURCE_DIR}/src/objective/quantile_obj.cc
+    ${xgboost_SOURCE_DIR}/src/objective/multiclass_obj.cc)
+  add_library(plugin_sycl OBJECT ${SYCL_SOURCES})
+  target_include_directories(plugin_sycl
     PRIVATE
     ${xgboost_SOURCE_DIR}/include
     ${xgboost_SOURCE_DIR}/dmlc-core/include
     ${xgboost_SOURCE_DIR}/rabit/include)
-  target_compile_definitions(oneapi_plugin PUBLIC -DXGBOOST_USE_ONEAPI=1)
-  target_link_libraries(oneapi_plugin PUBLIC -fsycl)
-  set_target_properties(oneapi_plugin PROPERTIES
-    COMPILE_FLAGS -fsycl
-    CXX_STANDARD 14
+    target_compile_definitions(plugin_sycl PUBLIC -DXGBOOST_USE_SYCL=1)
+    target_link_libraries(plugin_sycl PUBLIC -fsycl)
+    set_target_properties(plugin_sycl PROPERTIES
+    COMPILE_FLAGS "-fsycl -fno-sycl-id-queries-fit-in-int"
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON)
-  if (USE_OPENMP)
+  if(USE_OPENMP)
     find_package(OpenMP REQUIRED)
-    target_link_libraries(oneapi_plugin PUBLIC OpenMP::OpenMP_CXX)
-  endif (USE_OPENMP)
-  # Get compilation and link flags of oneapi_plugin and propagate to objxgboost
-  target_link_libraries(objxgboost PUBLIC oneapi_plugin)
-  # Add all objects of oneapi_plugin to objxgboost
-  target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:oneapi_plugin>)
-endif (PLUGIN_UPDATER_ONEAPI)
+    set_target_properties(plugin_sycl PROPERTIES
+    COMPILE_FLAGS "-fsycl -fno-sycl-id-queries-fit-in-int -qopenmp")
+  endif()
+  # Get compilation and link flags of plugin_sycl and propagate to objxgboost
+  target_link_libraries(objxgboost PUBLIC plugin_sycl)
+  # Add all objects of plugin_sycl to objxgboost
+  target_sources(objxgboost INTERFACE $<TARGET_OBJECTS:plugin_sycl>)
+endif()
 
 # Add the Federate Learning plugin if enabled.
-if (PLUGIN_FEDERATED)
+if(PLUGIN_FEDERATED)
   add_subdirectory(federated)
-endif (PLUGIN_FEDERATED)
+endif()

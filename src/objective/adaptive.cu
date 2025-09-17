@@ -1,38 +1,42 @@
-/*!
- * Copyright 2022 by XGBoost Contributors
+/**
+ * Copyright 2022-2024, XGBoost Contributors
  */
 #include <thrust/sort.h>
 
-#include <cub/cub.cuh>
+#include <cstdint>      // std::int32_t
+#include <cub/cub.cuh>  // NOLINT
 
+#include "../collective/aggregator.h"
+#include "../common/cuda_context.cuh"  // CUDAContext
 #include "../common/device_helpers.cuh"
 #include "../common/stats.cuh"
+#include "../tree/sample_position.h"  // for SamplePosition
 #include "adaptive.h"
+#include "xgboost/context.h"
 
-namespace xgboost {
-namespace obj {
-namespace detail {
+namespace xgboost::obj::detail {
 void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
                           dh::device_vector<size_t>* p_ridx, HostDeviceVector<size_t>* p_nptr,
                           HostDeviceVector<bst_node_t>* p_nidx, RegTree const& tree) {
   // copy position to buffer
-  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
+  auto cuctx = ctx->CUDACtx();
   size_t n_samples = position.size();
-  dh::XGBDeviceAllocator<char> alloc;
   dh::device_vector<bst_node_t> sorted_position(position.size());
   dh::safe_cuda(cudaMemcpyAsync(sorted_position.data().get(), position.data(),
-                                position.size_bytes(), cudaMemcpyDeviceToDevice));
+                                position.size_bytes(), cudaMemcpyDeviceToDevice, cuctx->Stream()));
 
   p_ridx->resize(position.size());
-  dh::Iota(dh::ToSpan(*p_ridx));
+  dh::Iota(dh::ToSpan(*p_ridx), cuctx->Stream());
   // sort row index according to node index
-  thrust::stable_sort_by_key(thrust::cuda::par(alloc), sorted_position.begin(),
+  thrust::stable_sort_by_key(cuctx->TP(), sorted_position.begin(),
                              sorted_position.begin() + n_samples, p_ridx->begin());
-  dh::XGBCachingDeviceAllocator<char> caching;
-  size_t beg_pos =
-      thrust::find_if(thrust::cuda::par(caching), sorted_position.cbegin(), sorted_position.cend(),
-                      [] XGBOOST_DEVICE(bst_node_t nidx) { return nidx >= 0; }) -
-      sorted_position.cbegin();
+  // Find the first one that's not sampled (nidx not been negated).
+  size_t beg_pos = thrust::find_if(cuctx->CTP(), sorted_position.cbegin(), sorted_position.cend(),
+                                   [] XGBOOST_DEVICE(bst_node_t nidx) {
+                                     return tree::SamplePosition::IsValid(nidx);
+                                   }) -
+                   sorted_position.cbegin();
   if (beg_pos == sorted_position.size()) {
     auto& leaf = p_nidx->HostVector();
     tree.WalkTree([&](bst_node_t nidx) {
@@ -55,18 +59,22 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   size_t nbytes{0};
   auto begin_it = sorted_position.begin() + beg_pos;
-  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(nullptr, nbytes, begin_it,
-                                                   unique_out.data().get(), counts_out.data().get(),
-                                                   d_num_runs_out.data(), n_samples - beg_pos));
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(
+      nullptr, nbytes, begin_it, unique_out.data().get(), counts_out.data().get(),
+      d_num_runs_out.data(), n_samples - beg_pos, ctx->CUDACtx()->Stream()));
   dh::TemporaryArray<char> temp(nbytes);
-  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(temp.data().get(), nbytes, begin_it,
-                                                   unique_out.data().get(), counts_out.data().get(),
-                                                   d_num_runs_out.data(), n_samples - beg_pos));
+  dh::safe_cuda(cub::DeviceRunLengthEncode::Encode(
+      temp.data().get(), nbytes, begin_it, unique_out.data().get(), counts_out.data().get(),
+      d_num_runs_out.data(), n_samples - beg_pos, ctx->CUDACtx()->Stream()));
 
   dh::PinnedMemory pinned_pool;
   auto pinned = pinned_pool.GetSpan<char>(sizeof(size_t) + sizeof(bst_node_t));
   dh::CUDAStream copy_stream;
   size_t* h_num_runs = reinterpret_cast<size_t*>(pinned.subspan(0, sizeof(size_t)).data());
+
+  dh::CUDAEvent e;
+  e.Record(cuctx->Stream());
+  copy_stream.View().Wait(e);
   // flag for whether there's ignored position
   bst_node_t* h_first_unique =
       reinterpret_cast<bst_node_t*>(pinned.subspan(sizeof(size_t), sizeof(bst_node_t)).data());
@@ -80,11 +88,11 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
    */
   auto& nidx = *p_nidx;
   auto& nptr = *p_nptr;
-  nidx.SetDevice(ctx->gpu_id);
+  nidx.SetDevice(ctx->Device());
   nidx.Resize(n_leaf);
   auto d_node_idx = nidx.DeviceSpan();
 
-  nptr.SetDevice(ctx->gpu_id);
+  nptr.SetDevice(ctx->Device());
   nptr.Resize(n_leaf + 1, 0);
   auto d_node_ptr = nptr.DeviceSpan();
 
@@ -101,7 +109,7 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
       d_node_ptr[0] = beg_pos;
     }
   });
-  thrust::inclusive_scan(thrust::cuda::par(caching), dh::tbegin(d_node_ptr), dh::tend(d_node_ptr),
+  thrust::inclusive_scan(cuctx->CTP(), dh::tbegin(d_node_ptr), dh::tend(d_node_ptr),
                          dh::tbegin(d_node_ptr));
   copy_stream.View().Sync();
   CHECK_GT(*h_num_runs, 0);
@@ -134,9 +142,9 @@ void EncodeTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 }
 
 void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> position,
-                          MetaInfo const& info, HostDeviceVector<float> const& predt, float alpha,
-                          RegTree* p_tree) {
-  dh::safe_cuda(cudaSetDevice(ctx->gpu_id));
+                          std::int32_t group_idx, MetaInfo const& info, float learning_rate,
+                          HostDeviceVector<float> const& predt, float alpha, RegTree* p_tree) {
+  dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
   dh::device_vector<size_t> ridx;
   HostDeviceVector<size_t> nptr;
   HostDeviceVector<bst_node_t> nidx;
@@ -145,38 +153,43 @@ void UpdateTreeLeafDevice(Context const* ctx, common::Span<bst_node_t const> pos
 
   if (nptr.Empty()) {
     std::vector<float> quantiles;
-    UpdateLeafValues(&quantiles, nidx.ConstHostVector(), p_tree);
+    UpdateLeafValues(ctx, &quantiles, nidx.ConstHostVector(), info, learning_rate, p_tree);
   }
+
+  predt.SetDevice(ctx->Device());
+  auto d_predt = linalg::MakeTensorView(ctx, predt.ConstDeviceSpan(), info.num_row_,
+                                        predt.Size() / info.num_row_);
+  CHECK_LT(group_idx, d_predt.Shape(1));
+  auto t_predt = d_predt.Slice(linalg::All(), group_idx);
 
   HostDeviceVector<float> quantiles;
-  predt.SetDevice(ctx->gpu_id);
-  auto d_predt = predt.ConstDeviceSpan();
-  auto d_labels = info.labels.View(ctx->gpu_id);
-
-  auto d_row_index = dh::ToSpan(ridx);
-  auto seg_beg = nptr.DevicePointer();
-  auto seg_end = seg_beg + nptr.Size();
-  auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
-                                                  [=] XGBOOST_DEVICE(size_t i) {
-                                                    auto predt = d_predt[d_row_index[i]];
-                                                    auto y = d_labels(d_row_index[i]);
-                                                    return y - predt;
-                                                  });
-  auto val_end = val_beg + d_labels.Size();
-  CHECK_EQ(nidx.Size() + 1, nptr.Size());
-  if (info.weights_.Empty()) {
-    common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
-  } else {
-    info.weights_.SetDevice(ctx->gpu_id);
-    auto d_weights = info.weights_.ConstDeviceSpan();
-    CHECK_EQ(d_weights.size(), d_row_index.size());
-    auto w_it = thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
-    common::SegmentedWeightedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, w_it,
-                                      w_it + d_weights.size(), &quantiles);
-  }
-
-  UpdateLeafValues(&quantiles.HostVector(), nidx.ConstHostVector(), p_tree);
+  collective::ApplyWithLabels(ctx, info, &quantiles, [&] {
+    auto d_labels = info.labels.View(ctx->Device()).Slice(linalg::All(), IdxY(info, group_idx));
+    auto d_row_index = dh::ToSpan(ridx);
+    auto seg_beg = nptr.DevicePointer();
+    auto seg_end = seg_beg + nptr.Size();
+    auto val_beg = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
+                                                    [=] XGBOOST_DEVICE(size_t i) {
+                                                      float p = t_predt(d_row_index[i]);
+                                                      auto y = d_labels(d_row_index[i]);
+                                                      return y - p;
+                                                    });
+    CHECK_EQ(d_labels.Shape(0), position.size());
+    auto val_end = val_beg + d_labels.Shape(0);
+    CHECK_EQ(nidx.Size() + 1, nptr.Size());
+    if (info.weights_.Empty()) {
+      common::SegmentedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, &quantiles);
+    } else {
+      info.weights_.SetDevice(ctx->Device());
+      auto d_weights = info.weights_.ConstDeviceSpan();
+      CHECK_EQ(d_weights.size(), d_row_index.size());
+      auto w_it =
+          thrust::make_permutation_iterator(dh::tcbegin(d_weights), dh::tcbegin(d_row_index));
+      common::SegmentedWeightedQuantile(ctx, alpha, seg_beg, seg_end, val_beg, val_end, w_it,
+                                        w_it + d_weights.size(), &quantiles);
+    }
+  });
+  UpdateLeafValues(ctx, &quantiles.HostVector(), nidx.ConstHostVector(), info, learning_rate,
+                   p_tree);
 }
-}  // namespace detail
-}  // namespace obj
-}  // namespace xgboost
+}  // namespace xgboost::obj::detail

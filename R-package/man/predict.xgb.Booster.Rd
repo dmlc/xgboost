@@ -2,113 +2,196 @@
 % Please edit documentation in R/xgb.Booster.R
 \name{predict.xgb.Booster}
 \alias{predict.xgb.Booster}
-\alias{predict.xgb.Booster.handle}
-\title{Predict method for eXtreme Gradient Boosting model}
+\title{Predict method for XGBoost model}
 \usage{
 \method{predict}{xgb.Booster}(
   object,
   newdata,
   missing = NA,
   outputmargin = FALSE,
-  ntreelimit = NULL,
   predleaf = FALSE,
   predcontrib = FALSE,
   approxcontrib = FALSE,
   predinteraction = FALSE,
-  reshape = FALSE,
   training = FALSE,
   iterationrange = NULL,
   strict_shape = FALSE,
+  avoid_transpose = FALSE,
+  validate_features = FALSE,
+  base_margin = NULL,
   ...
 )
-
-\method{predict}{xgb.Booster.handle}(object, ...)
 }
 \arguments{
-\item{object}{Object of class \code{xgb.Booster} or \code{xgb.Booster.handle}}
+\item{object}{Object of class \code{xgb.Booster}.}
 
-\item{newdata}{takes \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
-       local data file or \code{xgb.DMatrix}.
+\item{newdata}{Takes \code{data.frame}, \code{matrix}, \code{dgCMatrix}, \code{dgRMatrix}, \code{dsparseVector},
+local data file, or \code{xgb.DMatrix}.
 
-       For single-row predictions on sparse data, it's recommended to use CSR format. If passing
-       a sparse vector, it will take it as a row vector.}
+For single-row predictions on sparse data, it is recommended to use CSR format. If passing
+a sparse vector, it will take it as a row vector.
 
-\item{missing}{Missing is only used when input is dense matrix. Pick a float value that represents
-missing values in data (e.g., sometimes 0 or some other extreme value is used).}
+Note that, for repeated predictions on the same data, one might want to create a DMatrix to
+pass here instead of passing R types like matrices or data frames, as predictions will be
+faster on DMatrix.
 
-\item{outputmargin}{whether the prediction should be returned in the for of original untransformed
-sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
-logistic regression would result in predictions for log-odds instead of probabilities.}
+If \code{newdata} is a \code{data.frame}, be aware that:
+\itemize{
+\item Columns will be converted to numeric if they aren't already, which could potentially make
+the operation slower than in an equivalent \code{matrix} object.
+\item The order of the columns must match with that of the data from which the model was fitted
+(i.e. columns will not be referenced by their names, just by their order in the data),
+unless passing \code{validate_features = TRUE} (which is not the default).
+\item If the model was fitted to data with categorical columns, these columns must be of
+\code{factor} type here, and must use the same encoding (i.e. have the same levels).
+\item If \code{newdata} contains any \code{factor} columns, they will be converted to base-0
+encoding (same as during DMatrix creation) - hence, one should not pass a \code{factor}
+under a column which during training had a different type.
+\item Any columns with type other than \code{factor} will be interpreted as numeric.
+}}
 
-\item{ntreelimit}{Deprecated, use \code{iterationrange} instead.}
+\item{missing}{Float value that represents missing values in data
+(e.g., 0 or some other extreme value).
 
-\item{predleaf}{whether predict leaf index.}
+This parameter is not used when \code{newdata} is an \code{xgb.DMatrix} - in such cases,
+should pass this as an argument to the DMatrix constructor instead.}
 
-\item{predcontrib}{whether to return feature contributions to individual predictions (see Details).}
+\item{outputmargin}{Whether the prediction should be returned in the form of
+original untransformed sum of predictions from boosting iterations' results.
+E.g., setting \code{outputmargin = TRUE} for logistic regression would return log-odds
+instead of probabilities.}
 
-\item{approxcontrib}{whether to use a fast approximation for feature contributions (see Details).}
+\item{predleaf}{Whether to predict per-tree leaf indices.}
 
-\item{predinteraction}{whether to return contributions of feature interactions to individual predictions (see Details).}
+\item{predcontrib}{Whether to return feature contributions to individual predictions (see Details).}
 
-\item{reshape}{whether to reshape the vector of predictions to a matrix form when there are several
-prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
-or predinteraction flags is TRUE.}
+\item{approxcontrib}{Whether to use a fast approximation for feature contributions (see Details).}
 
-\item{training}{whether is the prediction result used for training.  For dart booster,
+\item{predinteraction}{Whether to return contributions of feature interactions to individual predictions (see Details).}
+
+\item{training}{Whether the prediction result is used for training. For dart booster,
 training predicting will perform dropout.}
 
-\item{iterationrange}{Specifies which layer of trees are used in prediction.  For
-example, if a random forest is trained with 100 rounds.  Specifying
-`iterationrange=(1, 21)`, then only the forests built during [1, 21) (half open set)
-rounds are used in this prediction.  It's 1-based index just like R vector.  When set
-to \code{c(1, 1)} XGBoost will use all trees.}
+\item{iterationrange}{Sequence of rounds/iterations from the model to use for prediction, specified by passing
+a two-dimensional vector with the start and end numbers in the sequence (same format as R's \code{seq} - i.e.
+base-1 indexing, and inclusive of both ends).
 
-\item{strict_shape}{Default is \code{FALSE}. When it's set to \code{TRUE}, output
-type and shape of prediction are invariant to model type.}
+For example, passing \code{c(1,20)} will predict using the first twenty iterations, while passing \code{c(1,1)} will
+predict using only the first one.
 
-\item{...}{Parameters passed to \code{predict.xgb.Booster}}
+If passing \code{NULL}, will either stop at the best iteration if the model used early stopping, or use all
+of the iterations (rounds) otherwise.
+
+If passing "all", will use all of the rounds regardless of whether the model had early stopping or not.
+
+Not applicable to \code{gblinear} booster.}
+
+\item{strict_shape}{Whether to always return an array with the same dimensions for the given prediction mode
+regardless of the model type - meaning that, for example, both a multi-class and a binary classification
+model would generate output arrays with the same number of dimensions, with the 'class' dimension having
+size equal to '1' for the binary model.
+
+If passing \code{FALSE} (the default), dimensions will be simplified according to the model type, so that a
+binary classification model for example would not have a redundant dimension for 'class'.
+
+See documentation for the return type for the exact shape of the output arrays for each prediction mode.}
+
+\item{avoid_transpose}{Whether to output the resulting predictions in the same memory layout in which they
+are generated by the core XGBoost library, without transposing them to match the expected output shape.
+
+Internally, XGBoost uses row-major order for the predictions it generates, while R arrays use column-major
+order, hence the result needs to be transposed in order to have the expected shape when represented as
+an R array or matrix, which might be a slow operation.
+
+If passing \code{TRUE}, then the result will have dimensions in reverse order - for example, rows
+will be the last dimensions instead of the first dimension.}
+
+\item{validate_features}{When \code{TRUE}, validate that the Booster's and newdata's
+feature_names match (only applicable when both \code{object} and \code{newdata} have feature names).
+
+If the column names differ and \code{newdata} is not an \code{xgb.DMatrix}, will try to reorder
+the columns in \code{newdata} to match with the booster's.
+
+If the booster has feature types and \code{newdata} is either an \code{xgb.DMatrix} or
+\code{data.frame}, will additionally verify that categorical columns are of the
+correct type in \code{newdata}, throwing an error if they do not match.
+
+If passing \code{FALSE}, it is assumed that the feature names and types are the same,
+and come in the same order as in the training data.
+
+Note that this check might add some sizable latency to the predictions, so it's
+recommended to disable it for performance-sensitive applications.}
+
+\item{base_margin}{Base margin used for boosting from existing model (raw score that gets added to
+all observations independently of the trees in the model).
+
+If supplied, should be either a vector with length equal to the number of rows in \code{newdata}
+(for objectives which produces a single score per observation), or a matrix with number of
+rows matching to the number rows in \code{newdata} and number of columns matching to the number
+of scores estimated by the model (e.g. number of classes for multi-class classification).
+
+Note that, if \code{newdata} is an \code{xgb.DMatrix} object, this argument will
+be ignored as it needs to be added to the DMatrix instead (e.g. by passing it as
+an argument in its constructor, or by calling \code{\link[=setinfo.xgb.DMatrix]{setinfo.xgb.DMatrix()}}.}
+
+\item{...}{Not used.}
 }
 \value{
-The return type is different depending whether \code{strict_shape} is set to \code{TRUE}.  By default,
-for regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
-For multiclass classification, either a \code{num_class * nrows(newdata)} vector or
-a \code{(nrows(newdata), num_class)} dimension matrix is returned, depending on
-the \code{reshape} value.
+A numeric vector or array, with corresponding dimensions depending on the prediction mode and on
+parameter \code{strict_shape} as follows:
 
-When \code{predleaf = TRUE}, the output is a matrix object with the
-number of columns corresponding to the number of trees.
+If passing \code{strict_shape=FALSE}:\itemize{
+\item For regression or binary classification: a vector of length \code{nrows}.
+\item For multi-class and multi-target objectives: a matrix of dimensions \verb{[nrows, ngroups]}.
 
-When \code{predcontrib = TRUE} and it is not a multiclass setting, the output is a matrix object with
-\code{num_features + 1} columns. The last "+ 1" column in a matrix corresponds to bias.
-For a multiclass case, a list of \code{num_class} elements is returned, where each element is
-such a matrix. The contribution values are on the scale of untransformed margin
-(e.g., for binary classification would mean that the contributions are log-odds deviations from bias).
+Note that objective variant \code{multi:softmax} defaults towards predicting most likely class (a vector
+\code{nrows}) instead of per-class probabilities.
+\item For \code{predleaf}: a matrix with one column per tree.
 
-When \code{predinteraction = TRUE} and it is not a multiclass setting, the output is a 3d array with
-dimensions \code{c(nrow, num_features + 1, num_features + 1)}. The off-diagonal (in the last two dimensions)
-elements represent different features interaction contributions. The array is symmetric WRT the last
-two dimensions. The "+ 1" columns corresponds to bias. Summing this array along the last dimension should
-produce practically the same result as predict with \code{predcontrib = TRUE}.
-For a multiclass case, a list of \code{num_class} elements is returned, where each element is
-such an array.
+For multi-class / multi-target, they will be arranged so that columns in the output will have
+the leafs from one group followed by leafs of the other group (e.g. order will be \code{group1:feat1},
+\code{group1:feat2}, ..., \code{group2:feat1}, \code{group2:feat2}, ...).
 
-When \code{strict_shape} is set to \code{TRUE}, the output is always an array.  For
-normal prediction, the output is a 2-dimension array \code{(num_class, nrow(newdata))}.
+If there is more than one parallel tree (e.g. random forests), the parallel trees will be the
+last grouping in the resulting order, which will still be 2D.
+\item For \code{predcontrib}: when not multi-class / multi-target, a matrix with dimensions
+\verb{[nrows, nfeats+1]}. The last "+ 1" column corresponds to the baseline value.
 
-For \code{predcontrib = TRUE}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
-For \code{predinteraction = TRUE}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
-For \code{predleaf = TRUE}, output is \code{(n_trees_in_forest, num_class, n_iterations, nrow(newdata))}
+For multi-class and multi-target objectives, will be an array with dimensions \verb{[nrows, ngroups, nfeats+1]}.
+
+The contribution values are on the scale of untransformed margin (e.g., for binary classification,
+the values are log-odds deviations from the baseline).
+\item For \code{predinteraction}: when not multi-class / multi-target, the output is a 3D array of
+dimensions \verb{[nrows, nfeats+1, nfeats+1]}. The off-diagonal (in the last two dimensions)
+elements represent different feature interaction contributions. The array is symmetric w.r.t. the last
+two dimensions. The "+ 1" columns corresponds to the baselines. Summing this array along the last
+dimension should produce practically the same result as \code{predcontrib = TRUE}.
+
+For multi-class and multi-target, will be a 4D array with dimensions \verb{[nrows, ngroups, nfeats+1, nfeats+1]}
+}
+
+If passing \code{strict_shape=TRUE}, the result is always a matrix (if 2D) or array (if 3D or higher):
+\itemize{
+\item For normal predictions, the dimension is \verb{[nrows, ngroups]}.
+\item For \code{predcontrib=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1]}.
+\item For \code{predinteraction=TRUE}, the dimension is \verb{[nrows, ngroups, nfeats+1, nfeats+1]}.
+\item For \code{predleaf=TRUE}, the dimension is \verb{[nrows, niter, ngroups, num_parallel_tree]}.
+}
+
+If passing \code{avoid_transpose=TRUE}, then the dimensions in all cases will be in reverse order - for
+example, for \code{predinteraction}, they will be \verb{[nfeats+1, nfeats+1, ngroups, nrows]}
+instead of \verb{[nrows, ngroups, nfeats+1, nfeats+1]}.
 }
 \description{
-Predicted values based on either xgboost model or model handle object.
+Predict values on data based on XGBoost model.
 }
 \details{
-Note that \code{iterationrange} would currently do nothing for predictions from gblinear,
-since gblinear doesn't keep its boosting history.
+Note that \code{iterationrange} would currently do nothing for predictions from "gblinear",
+since "gblinear" doesn't keep its boosting history.
 
 One possible practical applications of the \code{predleaf} option is to use the model
 as a generator of new features which capture non-linearity and interactions,
-e.g., as implemented in \code{\link{xgb.create.features}}.
+e.g., as implemented in \code{\link[=xgb.create.features]{xgb.create.features()}}.
 
 Setting \code{predcontrib = TRUE} allows to calculate contributions of each feature to
 individual predictions. For "gblinear" booster, feature contributions are simply linear terms
@@ -122,21 +205,38 @@ With \code{predinteraction = TRUE}, SHAP values of contributions of interaction 
 are computed. Note that this operation might be rather expensive in terms of compute and memory.
 Since it quadratically depends on the number of features, it is recommended to perform selection
 of the most important features first. See below about the format of the returned results.
+
+The \code{predict()} method uses as many threads as defined in \code{xgb.Booster} object (all by default).
+If you want to change their number, assign a new number to \code{nthread} using \code{\link[=xgb.model.parameters<-]{xgb.model.parameters<-()}}.
+Note that converting a matrix to \code{\link[=xgb.DMatrix]{xgb.DMatrix()}} uses multiple threads too.
 }
 \examples{
 ## binary classification:
 
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = "xgboost")
+data(agaricus.test, package = "xgboost")
+
+## Keep the number of threads to 2 for examples
+nthread <- 2
+data.table::setDTthreads(nthread)
+
 train <- agaricus.train
 test <- agaricus.test
 
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 0.5, nthread = 2, nrounds = 5, objective = "binary:logistic")
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
+  nrounds = 5,
+  params = xgb.params(
+    max_depth = 2,
+    nthread = nthread,
+    objective = "binary:logistic"
+  )
+)
+
 # use all trees by default
 pred <- predict(bst, test$data)
 # use only the 1st tree
-pred1 <- predict(bst, test$data, iterationrange = c(1, 2))
+pred1 <- predict(bst, test$data, iterationrange = c(1, 1))
 
 # Predicting tree leafs:
 # the result is an nsamples X ntrees matrix
@@ -151,7 +251,7 @@ str(pred_contr)
 summary(rowSums(pred_contr) - qlogis(pred))
 # for the 1st record, let's inspect its features that had non-zero contribution to prediction:
 contr1 <- pred_contr[1,]
-contr1 <- contr1[-length(contr1)]    # drop BIAS
+contr1 <- contr1[-length(contr1)]    # drop intercept
 contr1 <- contr1[contr1 != 0]        # drop non-contributing features
 contr1 <- contr1[order(abs(contr1))] # order by contribution magnitude
 old_mar <- par("mar")
@@ -164,39 +264,61 @@ par(mar = old_mar)
 
 lb <- as.numeric(iris$Species) - 1
 num_class <- 3
+
 set.seed(11)
-bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
-               max_depth = 4, eta = 0.5, nthread = 2, nrounds = 10, subsample = 0.5,
-               objective = "multi:softprob", num_class = num_class)
+
+bst <- xgb.train(
+  data = xgb.DMatrix(as.matrix(iris[, -5], nthread = 1), label = lb),
+  nrounds = 10,
+  params = xgb.params(
+    max_depth = 4,
+    nthread = 2,
+    subsample = 0.5,
+    objective = "multi:softprob",
+    num_class = num_class
+  )
+)
+
 # predict for softmax returns num_class probability numbers per case:
 pred <- predict(bst, as.matrix(iris[, -5]))
 str(pred)
-# reshape it to a num_class-columns matrix
-pred <- matrix(pred, ncol=num_class, byrow=TRUE)
 # convert the probabilities to softmax labels
 pred_labels <- max.col(pred) - 1
 # the following should result in the same error as seen in the last iteration
-sum(pred_labels != lb)/length(lb)
+sum(pred_labels != lb) / length(lb)
 
-# compare that to the predictions from softmax:
+# compare with predictions from softmax:
 set.seed(11)
-bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
-               max_depth = 4, eta = 0.5, nthread = 2, nrounds = 10, subsample = 0.5,
-               objective = "multi:softmax", num_class = num_class)
+
+bst <- xgb.train(
+  data = xgb.DMatrix(as.matrix(iris[, -5], nthread = 1), label = lb),
+  nrounds = 10,
+  params = xgb.params(
+    max_depth = 4,
+    nthread = 2,
+    subsample = 0.5,
+    objective = "multi:softmax",
+    num_class = num_class
+  )
+)
+
 pred <- predict(bst, as.matrix(iris[, -5]))
 str(pred)
 all.equal(pred, pred_labels)
 # prediction from using only 5 iterations should result
 # in the same error as seen in iteration 5:
-pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=c(1, 6))
-sum(pred5 != lb)/length(lb)
+pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange = c(1, 5))
+sum(pred5 != lb) / length(lb)
 
 }
 \references{
-Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions", NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
-
-Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles", \url{https://arxiv.org/abs/1706.06060}
+\enumerate{
+\item Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions",
+NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}
+\item Scott M. Lundberg, Su-In Lee, "Consistent feature attribution for tree ensembles",
+\url{https://arxiv.org/abs/1706.06060}
+}
 }
 \seealso{
-\code{\link{xgb.train}}.
+\code{\link[=xgb.train]{xgb.train()}}
 }

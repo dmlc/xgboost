@@ -1,210 +1,269 @@
-# This is a basic workflow to help you get started with Actions
+name: XGBoost CI
 
-name: XGBoost-CI
-
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
 on: [push, pull_request]
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+permissions:
+  contents: read  # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BRANCH_NAME: >-
+    ${{ github.event.pull_request.number && 'PR-' }}${{ github.event.pull_request.number || github.ref_name }}
+
 jobs:
-  gtest-cpu:
-    name: Test Google C++ test (CPU)
-    runs-on: ${{ matrix.os }}
+  build-cpu:
+    name: Build CPU
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cpu
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-cpu.sh
+      - name: Stash CLI executable
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cpu \
+            ./xgboost
+
+  build-cuda:
+    name: Build CUDA + manylinux_2_28_x86_64 wheel
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 disable-rmm
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda \
+            build/testxgboost ./xgboost python-package/dist/*.whl
+
+  build-cuda-with-rmm:
+    name: Build CUDA with RMM
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda-with-rmm
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-cuda.sh xgb-ci.gpu_build_rockylinux8 enable-rmm
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-cuda-with-rmm \
+            build/testxgboost
+
+  build-cuda-with-rmm-dev:
+    name: Build CUDA with RMM (dev)
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-cuda-with-rmm-dev
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-cuda.sh \
+            xgb-ci.gpu_build_rockylinux8_dev_ver enable-rmm
+
+  build-python-wheels-arm64:
+    name: Build manylinux_2_28_aarch64 wheel
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-arm64-cpu
+      - tag=build-python-wheels-arm64
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-python-wheels-arm64.sh
+      - name: Stash files
+        run: |
+          python3 ops/pipeline/manage-artifacts.py upload \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/build-python-wheels-arm64 \
+            ./xgboost python-package/dist/*.whl
+
+  build-python-wheels-cpu:
+    name: Build CPU wheel for ${{ matrix.manylinux_target }}_${{ matrix.arch }}
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-build-python-wheels-cpu-${{ matrix.manylinux_target }}-${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-10.15]
+        include:
+        - manylinux_target: manylinux2014
+          arch: aarch64
+          runner: linux-arm64-cpu
+        - manylinux_target: manylinux2014
+          arch: x86_64
+          runner: linux-amd64-cpu
+        - manylinux_target: manylinux_2_28
+          arch: aarch64
+          runner: linux-arm64-cpu
+        - manylinux_target: manylinux_2_28
+          arch: x86_64
+          runner: linux-amd64-cpu
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - name: Install system packages
-      run: |
-        brew install ninja libomp
-    - name: Build gtest binary
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_DENSE_PARSER=ON -GNinja
-        ninja -v
-    - name: Run gtest binary
-      run: |
-        cd build
-        ./testxgboost
-        ctest -R TestXGBoostCLI --extra-verbose
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: |
+          bash ops/pipeline/build-python-wheels-cpu.sh \
+            ${{ matrix.manylinux_target }} ${{ matrix.arch }}
 
-  gtest-cpu-nonomp:
-    name: Test Google C++ unittest (CPU Non-OMP)
-    runs-on: ${{ matrix.os }}
+  build-gpu-rpkg:
+    name: Build GPU-enabled R package
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=linux-amd64-cpu
+      - tag=main-build-gpu-rpkg
+    steps:
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - run: bash ops/pipeline/build-gpu-rpkg.sh
+
+  test-cpp-gpu:
+    name: >-
+      Run Google Tests with GPUs
+      (Suite ${{ matrix.suite }}, Runner ${{ matrix.runner }})
+    needs: [build-cuda, build-cuda-with-rmm]
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-test-cpp-gpu-${{ matrix.suite }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        include:
+          - suite: gpu
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda
+          - suite: gpu-rmm
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda-with-rmm
+          - suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: build-cuda
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends ninja-build
-    - name: Build and install XGBoost
-      shell: bash -l {0}
-      run: |
-        mkdir build
-        cd build
-        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF
-        ninja -v
-    - name: Run gtest binary
-      run: |
-        cd build
-        ctest --extra-verbose
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Unstash gtest
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir build \
+            testxgboost
+          chmod +x build/testxgboost
+      - run: bash ops/pipeline/test-cpp-gpu.sh ${{ matrix.suite }}
 
-  c-api-demo:
-    name: Test installing XGBoost lib + building the C API demo
-    runs-on: ${{ matrix.os }}
+  test-python-wheel:
+    name: Run Python tests (${{ matrix.description }})
+    needs: [build-cuda, build-python-wheels-arm64]
+    runs-on:
+      - runs-on
+      - runner=${{ matrix.runner }}
+      - run-id=${{ github.run_id }}
+      - tag=main-test-python-wheel-${{ matrix.description }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.8"]
+        include:
+          - description: single-gpu
+            image_repo: xgb-ci.gpu
+            suite: gpu
+            runner: linux-amd64-gpu
+            artifact_from: build-cuda
+          - description: multiple-gpu
+            image_repo: xgb-ci.gpu
+            suite: mgpu
+            runner: linux-amd64-mgpu
+            artifact_from: build-cuda
+          - description: cpu-amd64
+            image_repo: xgb-ci.cpu
+            suite: cpu
+            runner: linux-amd64-cpu
+            artifact_from: build-cuda
+          - description: cpu-arm64
+            image_repo: xgb-ci.manylinux_2_28_aarch64
+            suite: cpu-arm64
+            runner: linux-arm64-cpu
+            artifact_from: build-python-wheels-arm64
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends ninja-build
-    - uses: conda-incubator/setup-miniconda@v2
-      with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
-        activate-environment: test
-    - name: Display Conda env
-      shell: bash -l {0}
-      run: |
-        conda info
-        conda list
-    - name: Build and install XGBoost static library
-      shell: bash -l {0}
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
-        ninja -v install
-        cd -
-    - name: Build and run C API demo with static
-      shell: bash -l {0}
-      run: |
-        pushd .
-        cd demo/c-api/
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        ninja -v
-        ctest
-        cd ..
-        rm -rf ./build
-        popd
-    - name: Build and install XGBoost shared library
-      shell: bash -l {0}
-      run: |
-        cd build
-        cmake .. -DBUILD_STATIC_LIB=OFF -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
-        ninja -v install
-        cd -
-    - name: Build and run C API demo with shared
-      shell: bash -l {0}
-      run: |
-        pushd .
-        cd demo/c-api/
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
-        ninja -v
-        ctest
-        popd
-        ./tests/ci_build/verify_link.sh ./demo/c-api/build/basic/api-demo
-        ./tests/ci_build/verify_link.sh ./demo/c-api/build/external-memory/external-memory-demo
-
-  lint:
-    runs-on: ubuntu-latest
-    name: Code linting for C++
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-        architecture: 'x64'
-    - name: Install Python packages
-      run: |
-        python -m pip install wheel setuptools cpplint pylint
-    - name: Run lint
-      run: |
-        LINT_LANG=cpp make lint
-
-  doxygen:
-    runs-on: ubuntu-latest
-    name: Generate C/C++ API doc using Doxygen
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-        architecture: 'x64'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends doxygen graphviz ninja-build
-        python -m pip install wheel setuptools
-        python -m pip install awscli
-    - name: Run Doxygen
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DBUILD_C_DOC=ON -GNinja
-        ninja -v doc_doxygen
-    - name: Extract branch name
-      shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      id: extract_branch
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-    - name: Publish
-      run: |
-        cd build/
-        tar cvjf ${{ steps.extract_branch.outputs.branch }}.tar.bz2 doc_doxygen/
-        python -m awscli s3 cp ./${{ steps.extract_branch.outputs.branch }}.tar.bz2 s3://xgboost-docs/doxygen/ --acl public-read
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
-
-  sphinx:
-    runs-on: ubuntu-latest
-    name: Build docs using Sphinx
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: actions/setup-python@v2
-      with:
-        python-version: "3.8"
-        architecture: 'x64'
-    - name: Install system packages
-      run: |
-        sudo apt-get install -y --no-install-recommends graphviz
-        python -m pip install wheel setuptools
-        python -m pip install -r doc/requirements.txt
-    - name: Extract branch name
-      shell: bash
-      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      id: extract_branch
-      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
-    - name: Run Sphinx
-      run: |
-        make -C doc html
-      env:
-        SPHINX_GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+      # Restart Docker daemon so that it recognizes the ephemeral disks
+      - run: sudo systemctl restart docker
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+      - name: Log into Docker registry (AWS ECR)
+        run: bash ops/pipeline/login-docker-registry.sh
+      - name: Unstash Python wheel
+        run: |
+          python3 ops/pipeline/manage-artifacts.py download \
+            --s3-bucket ${{ env.RUNS_ON_S3_BUCKET_CACHE }} \
+            --prefix cache/${{ github.run_id }}/${{ matrix.artifact_from }} \
+            --dest-dir wheelhouse \
+            *.whl xgboost
+          mv -v wheelhouse/xgboost .
+          chmod +x ./xgboost
+      - name: Run Python tests, ${{ matrix.description }}
+        run: bash ops/pipeline/test-python-wheel.sh ${{ matrix.suite }} ${{ matrix.image_repo }}

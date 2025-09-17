@@ -1,5 +1,5 @@
-/*!
- * Copyright 2014-2022 by XGBoost Contributors
+/**
+ * Copyright 2014-2024, XGBoost Contributors
  * \file quantile.h
  * \brief util to compute quantiles
  * \author Tianqi Chen
@@ -7,7 +7,6 @@
 #ifndef XGBOOST_COMMON_QUANTILE_H_
 #define XGBOOST_COMMON_QUANTILE_H_
 
-#include <dmlc/base.h>
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
 
@@ -20,11 +19,12 @@
 
 #include "categorical.h"
 #include "common.h"
+#include "error_msg.h"        // GroupWeight
+#include "optional_weight.h"  // OptionalWeights
 #include "threading_utils.h"
 #include "timer.h"
 
-namespace xgboost {
-namespace common {
+namespace xgboost::common {
 /*!
  * \brief experimental wsummary
  * \tparam DType type of data content
@@ -35,13 +35,13 @@ struct WQSummary {
   /*! \brief an entry in the sketch summary */
   struct Entry {
     /*! \brief minimum rank */
-    RType rmin;
+    RType rmin{};
     /*! \brief maximum rank */
-    RType rmax;
+    RType rmax{};
     /*! \brief maximum weight */
-    RType wmin;
+    RType wmin{};
     /*! \brief the value of data */
-    DType value;
+    DType value{};
     // constructor
     XGBOOST_DEVICE Entry() {}  // NOLINT
     // constructor
@@ -351,19 +351,6 @@ struct WQSummary {
       }
       prev_rmax = data[i].rmax;
     }
-  }
-  // check consistency of the summary
-  inline bool Check(const char *msg) const {
-    const float tol = 10.0f;
-    for (size_t i = 0; i < this->size; ++i) {
-      if (data[i].rmin + data[i].wmin > data[i].rmax + tol ||
-          data[i].rmin < -1e-6f || data[i].rmax < -1e-6f) {
-        LOG(INFO) << "---------- WQSummary::Check did not pass ----------";
-        this->Print();
-        return false;
-      }
-    }
-    return true;
   }
 };
 
@@ -708,13 +695,18 @@ inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
     return group_weights;
   }
 
-  size_t n_samples = info.num_row_;
   auto const &group_ptr = info.group_ptr_;
-  std::vector<float> results(n_samples);
   CHECK_GE(group_ptr.size(), 2);
-  CHECK_EQ(group_ptr.back(), n_samples);
+
+  auto n_groups = group_ptr.size() - 1;
+  CHECK_EQ(info.weights_.Size(), n_groups) << error::GroupWeight();
+
+  bst_idx_t n_samples = info.num_row_;
+  std::vector<float> results(n_samples);
+  CHECK_EQ(group_ptr.back(), n_samples)
+      << error::GroupSize() << " the number of rows from the data.";
   size_t cur_group = 0;
-  for (size_t i = 0; i < n_samples; ++i) {
+  for (bst_idx_t i = 0; i < n_samples; ++i) {
     results[i] = group_weights[cur_group];
     if (i == group_ptr[cur_group + 1]) {
       cur_group++;
@@ -727,9 +719,9 @@ inline std::vector<float> UnrollGroupWeights(MetaInfo const &info) {
 class HistogramCuts;
 
 template <typename Batch, typename IsValid>
-std::vector<bst_row_t> CalcColumnSize(Batch const &batch, bst_feature_t const n_columns,
+std::vector<bst_idx_t> CalcColumnSize(Batch const &batch, bst_feature_t const n_columns,
                                       size_t const n_threads, IsValid &&is_valid) {
-  std::vector<std::vector<bst_row_t>> column_sizes_tloc(n_threads);
+  std::vector<std::vector<bst_idx_t>> column_sizes_tloc(n_threads);
   for (auto &column : column_sizes_tloc) {
     column.resize(n_columns, 0);
   }
@@ -767,7 +759,7 @@ std::vector<bst_feature_t> LoadBalance(Batch const &batch, size_t nnz, bst_featu
   size_t const entries_per_thread = DivRoundUp(total_entries, nthreads);
 
   // Need to calculate the size for each batch.
-  std::vector<bst_row_t> entries_per_columns = CalcColumnSize(batch, n_columns, nthreads, is_valid);
+  std::vector<bst_idx_t> entries_per_columns = CalcColumnSize(batch, n_columns, nthreads, is_valid);
   std::vector<bst_feature_t> cols_ptr(nthreads + 1, 0);
   size_t count{0};
   size_t current_thread{1};
@@ -799,8 +791,8 @@ class SketchContainerImpl {
   std::vector<std::set<float>> categories_;
   std::vector<FeatureType> const feature_types_;
 
-  std::vector<bst_row_t> columns_size_;
-  int32_t max_bins_;
+  std::vector<bst_idx_t> columns_size_;
+  bst_bin_t max_bins_;
   bool use_group_ind_{false};
   int32_t n_threads_;
   bool has_categorical_{false};
@@ -810,12 +802,11 @@ class SketchContainerImpl {
   /* \brief Initialize necessary info.
    *
    * \param columns_size Size of each column.
-   * \param max_bins maximum number of bins for each feature.
+   * \param max_bin maximum number of bins for each feature.
    * \param use_group whether is assigned to group to data instance.
    */
-  SketchContainerImpl(std::vector<bst_row_t> columns_size, int32_t max_bins,
-                      common::Span<FeatureType const> feature_types, bool use_group,
-                      int32_t n_threads);
+  SketchContainerImpl(Context const *ctx, std::vector<bst_idx_t> columns_size, bst_bin_t max_bin,
+                      common::Span<FeatureType const> feature_types, bool use_group);
 
   static bool UseGroup(MetaInfo const &info) {
     size_t const num_groups =
@@ -836,12 +827,14 @@ class SketchContainerImpl {
     return group_ind;
   }
   // Gather sketches from all workers.
-  void GatherSketchInfo(std::vector<typename WQSketch::SummaryContainer> const &reduced,
-                        std::vector<bst_row_t> *p_worker_segments,
-                        std::vector<bst_row_t> *p_sketches_scan,
+  void GatherSketchInfo(Context const *ctx, MetaInfo const &info,
+                        std::vector<typename WQSketch::SummaryContainer> const &reduced,
+                        std::vector<bst_idx_t> *p_worker_segments,
+                        std::vector<bst_idx_t> *p_sketches_scan,
                         std::vector<typename WQSketch::Entry> *p_global_sketches);
   // Merge sketches from all workers.
-  void AllReduce(std::vector<typename WQSketch::SummaryContainer> *p_reduced,
+  void AllReduce(Context const *ctx, MetaInfo const &info,
+                 std::vector<typename WQSketch::SummaryContainer> *p_reduced,
                  std::vector<int32_t> *p_num_cuts);
 
   template <typename Batch, typename IsValid>
@@ -895,7 +888,11 @@ class SketchContainerImpl {
   /* \brief Push a CSR matrix. */
   void PushRowPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian = {});
 
-  void MakeCuts(HistogramCuts* cuts);
+  void MakeCuts(Context const *ctx, MetaInfo const &info, HistogramCuts *cuts);
+
+ private:
+  // Merge all categories from other workers.
+  void AllreduceCategories(Context const* ctx, MetaInfo const& info);
 };
 
 class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, float>> {
@@ -903,8 +900,8 @@ class HostSketchContainer : public SketchContainerImpl<WQuantileSketch<float, fl
   using WQSketch = WQuantileSketch<float, float>;
 
  public:
-  HostSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                      std::vector<size_t> columns_size, bool use_group, int32_t n_threads);
+  HostSketchContainer(Context const *ctx, bst_bin_t max_bins, common::Span<FeatureType const> ft,
+                      std::vector<bst_idx_t> columns_size, bool use_group);
 
   template <typename Batch>
   void PushAdapterBatch(Batch const &batch, size_t base_rowid, MetaInfo const &info, float missing);
@@ -999,10 +996,10 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
   using Super = SketchContainerImpl<WXQuantileSketch<float, float>>;
 
  public:
-  explicit SortedSketchContainer(int32_t max_bins, common::Span<FeatureType const> ft,
-                                 std::vector<size_t> columns_size, bool use_group,
-                                 int32_t n_threads)
-      : SketchContainerImpl{columns_size, max_bins, ft, use_group, n_threads} {
+  explicit SortedSketchContainer(Context const *ctx, int32_t max_bins,
+                                 common::Span<FeatureType const> ft,
+                                 std::vector<bst_idx_t> columns_size, bool use_group)
+      : SketchContainerImpl{ctx, columns_size, max_bins, ft, use_group} {
     monitor_.Init(__func__);
     sketches_.resize(columns_size.size());
     size_t i = 0;
@@ -1019,6 +1016,5 @@ class SortedSketchContainer : public SketchContainerImpl<WXQuantileSketch<float,
    */
   void PushColPage(SparsePage const &page, MetaInfo const &info, Span<float const> hessian);
 };
-}  // namespace common
-}  // namespace xgboost
+}  // namespace xgboost::common
 #endif  // XGBOOST_COMMON_QUANTILE_H_

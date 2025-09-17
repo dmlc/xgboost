@@ -1,13 +1,13 @@
 /*! Copyright 2019-2021 by XGBoost Contributors */
 
 #include <gtest/gtest.h>
+#include <thrust/device_vector.h>
+#include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/json.h>
-#include <xgboost/generic_parameters.h>
-#include <thrust/device_vector.h>
-#include "test_array_interface.h"
-#include "../../../src/common/device_helpers.cuh"
 
+#include "../../../src/common/device_helpers.cuh"
+#include "test_array_interface.h"
 #include "test_metainfo.h"
 
 namespace xgboost {
@@ -65,7 +65,7 @@ TEST(MetaInfo, FromInterface) {
   }
 
   info.SetInfo(ctx, "base_margin", str.c_str());
-  auto const h_base_margin = info.base_margin_.View(GenericParameter::kCpuId);
+  auto const h_base_margin = info.base_margin_.View(DeviceOrd::CPU());
   ASSERT_EQ(h_base_margin.Size(), d_data.size());
   for (size_t i = 0; i < d_data.size(); ++i) {
     ASSERT_EQ(h_base_margin(i), d_data[i]);
@@ -83,7 +83,7 @@ TEST(MetaInfo, FromInterface) {
 }
 
 TEST(MetaInfo, GPUStridedData) {
-  TestMetaInfoStridedData(0);
+  TestMetaInfoStridedData(DeviceOrd::CUDA(0));
 }
 
 TEST(MetaInfo, Group) {

@@ -1,7 +1,11 @@
+/**
+ * Copyright 2020-2025, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <algorithm>
 
 #include "helpers.h"
+#include "filesystem.h"  // for TemporaryDirectory
 #include "../../src/data/array_interface.h"
 namespace xgboost {
 
@@ -11,7 +15,7 @@ TEST(RandomDataGenerator, DMatrix) {
   auto p_dmatrix = RandomDataGenerator{kRows, kCols, kSparsity}.GenerateDMatrix();
 
   HostDeviceVector<float> csr_value;
-  HostDeviceVector<bst_row_t> csr_rptr;
+  HostDeviceVector<std::size_t> csr_rptr;
   HostDeviceVector<bst_feature_t> csr_cidx;
   RandomDataGenerator{kRows, kCols, kSparsity}.GenerateCSR(&csr_value, &csr_rptr, &csr_cidx);
 
@@ -66,5 +70,31 @@ TEST(RandomDataGenerator, GenerateArrayInterfaceBatch) {
   auto j_array = Json::Load({array.c_str(), array.size()});
   CHECK_EQ(get<Integer>(j_array["shape"][0]), kRows);
   CHECK_EQ(get<Integer>(j_array["shape"][1]), kCols);
+}
+
+TEST(RandomDataGenerator, SparseDMatrix) {
+  bst_idx_t constexpr kCols{100}, kBatches{13};
+  bst_idx_t n_samples{kBatches * 128};
+  common::TemporaryDirectory tmpdir;
+  auto prefix = tmpdir.Str() + "/cache";
+  auto p_ext_fmat =
+      RandomDataGenerator{n_samples, kCols, 0.0}.Batches(kBatches).GenerateSparsePageDMatrix(prefix,
+                                                                                             true);
+
+  auto p_fmat = RandomDataGenerator{n_samples, kCols, 0.0}.GenerateDMatrix(true);
+
+  SparsePage concat;
+  std::int32_t n_batches{0};
+  for (auto const& page : p_ext_fmat->GetBatches<SparsePage>()) {
+    concat.Push(page);
+    ++n_batches;
+  }
+  ASSERT_EQ(n_batches, kBatches);
+  ASSERT_EQ(concat.Size(), n_samples);
+
+  for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
+    ASSERT_EQ(page.data.ConstHostVector(), concat.data.ConstHostVector());
+    ASSERT_EQ(page.offset.ConstHostVector(), concat.offset.ConstHostVector());
+  }
 }
 }  // namespace xgboost

@@ -23,8 +23,11 @@ Here are guidelines for contributing to various aspect of the XGBoost project:
   Community Guideline <community>
   donate
   coding_guide
+  consistency
+  python_packaging
   unit_tests
   Docs and Examples <docs>
+  featuremap
   git_guide
   release
   ci

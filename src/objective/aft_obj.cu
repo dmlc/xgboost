@@ -1,24 +1,29 @@
-/*!
- * Copyright 2019-2022 by Contributors
+/**
+ * Copyright 2019-2025, XGBoost Contributors
  * \file aft_obj.cu
  * \brief Definition of AFT loss for survival analysis.
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <vector>
-#include <limits>
-#include <memory>
-#include <utility>
+#include <cmath>    // for log
+#include <cstddef>  // for size_t
 
+
+#include "../common/survival_util.h"
+#include "../common/transform.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
-#include "xgboost/parameter.h"
-#include "xgboost/span.h"
 #include "xgboost/logging.h"
 #include "xgboost/objective.h"
+#include "xgboost/span.h"
 
-#include "../common/transform.h"
-#include "../common/survival_util.h"
+#if defined(XGBOOST_USE_CUDA)
+#include "../common/linalg_op.cuh"  // for ElementWiseKernel
+#elif defined(XGBOOST_USE_SYCL)
+#include "../../plugin/sycl/common/linalg_op.h"
+#else
+#include "../common/linalg_op.h"  // for ElementWiseKernel
+#endif
 
 using AFTParam = xgboost::common::AFTParam;
 using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType;
@@ -41,11 +46,9 @@ class AFTObj : public ObjFunction {
   ObjInfo Task() const override { return ObjInfo::kSurvival; }
 
   template <typename Distribution>
-  void GetGradientImpl(const HostDeviceVector<bst_float> &preds,
-                       const MetaInfo &info,
-                       HostDeviceVector<GradientPair> *out_gpair,
-                       size_t ndata, int device, bool is_null_weight,
-                       float aft_loss_distribution_scale) {
+  void GetGradientImpl(const HostDeviceVector<bst_float>& preds, const MetaInfo& info,
+                       linalg::Matrix<GradientPair>* out_gpair, size_t ndata, DeviceOrd device,
+                       bool is_null_weight, float aft_loss_distribution_scale) {
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
         common::Span<GradientPair> _out_gpair,
@@ -66,17 +69,18 @@ class AFTObj : public ObjFunction {
       _out_gpair[_idx] = GradientPair(grad * w, hess * w);
     },
     common::Range{0, static_cast<int64_t>(ndata)}, this->ctx_->Threads(), device).Eval(
-        out_gpair, &preds, &info.labels_lower_bound_, &info.labels_upper_bound_,
+        out_gpair->Data(), &preds, &info.labels_lower_bound_, &info.labels_upper_bound_,
         &info.weights_);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds, const MetaInfo& info, int /*iter*/,
-                   HostDeviceVector<GradientPair>* out_gpair) override {
+                   linalg::Matrix<GradientPair>* out_gpair) override {
     const size_t ndata = preds.Size();
     CHECK_EQ(info.labels_lower_bound_.Size(), ndata);
     CHECK_EQ(info.labels_upper_bound_.Size(), ndata);
-    out_gpair->Resize(ndata);
-    const int device = ctx_->gpu_id;
+    out_gpair->SetDevice(ctx_->Device());
+    out_gpair->Reshape(ndata, 1);
+    const auto device = ctx_->Device();
     const float aft_loss_distribution_scale = param_.aft_loss_distribution_scale;
     const bool is_null_weight = info.weights_.Size() == 0;
     if (!is_null_weight) {
@@ -109,7 +113,7 @@ class AFTObj : public ObjFunction {
           _preds[_idx] = exp(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
-        io_preds->DeviceIdx())
+        io_preds->Device())
         .Eval(io_preds);
   }
 
@@ -117,8 +121,11 @@ class AFTObj : public ObjFunction {
     // do nothing here, since the AFT metric expects untransformed prediction score
   }
 
-  bst_float ProbToMargin(bst_float base_score) const override {
-    return std::log(base_score);
+  void ProbToMargin(linalg::Vector<float>* base_score) const override {
+    auto intercept = base_score->View(this->ctx_->Device());
+    linalg::ElementWiseKernel(ctx_, intercept, [=] XGBOOST_DEVICE(std::size_t i) mutable {
+      intercept(i) = std::log(intercept(i));
+    });
   }
 
   const char* DefaultEvalMetric() const override {
@@ -133,6 +140,12 @@ class AFTObj : public ObjFunction {
 
   void LoadConfig(Json const& in) override {
     FromJson(in["aft_loss_param"], &param_);
+  }
+  Json DefaultMetricConfig() const override {
+    Json config{Object{}};
+    config["name"] = String{this->DefaultEvalMetric()};
+    config["aft_loss_param"] = ToJson(param_);
+    return config;
   }
 
  private:

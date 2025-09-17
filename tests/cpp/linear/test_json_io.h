@@ -12,19 +12,19 @@
 
 namespace xgboost {
 inline void TestUpdaterJsonIO(std::string updater_str) {
-  auto runtime = xgboost::CreateEmptyGenericParam(GPUIDX);
+  Context ctx{MakeCUDACtx(GPUIDX)};
   Json config_0 {Object() };
 
   {
-    auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-        xgboost::LinearUpdater::Create(updater_str, &runtime));
+    auto updater =
+        std::unique_ptr<xgboost::LinearUpdater>(xgboost::LinearUpdater::Create(updater_str, &ctx));
     updater->Configure({{"eta", std::to_string(3.14)}});
     updater->SaveConfig(&config_0);
   }
 
   {
-    auto updater = std::unique_ptr<xgboost::LinearUpdater>(
-        xgboost::LinearUpdater::Create(updater_str, &runtime));
+    auto updater =
+        std::unique_ptr<xgboost::LinearUpdater>(xgboost::LinearUpdater::Create(updater_str, &ctx));
     updater->LoadConfig(config_0);
     Json config_1 { Object() };
     updater->SaveConfig(&config_1);

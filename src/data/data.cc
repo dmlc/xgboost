@@ -1,37 +1,62 @@
-/*!
- * Copyright 2015-2022 by XGBoost Contributors
+/**
+ * Copyright 2015-2025, XGBoost Contributors
  * \file data.cc
  */
-#include <dmlc/registry.h>
-#include <array>
-#include <cstring>
-
-#include "dmlc/io.h"
 #include "xgboost/data.h"
-#include "xgboost/c_api.h"
-#include "xgboost/host_device_vector.h"
-#include "xgboost/logging.h"
-#include "xgboost/version_config.h"
-#include "xgboost/learner.h"
-#include "xgboost/string_view.h"
 
-#include "sparse_page_writer.h"
-#include "simple_dmatrix.h"
+#include <dmlc/registry.h>  // for DMLC_REGISTRY_ENABLE, DMLC_REGISTRY_LINK_TAG
 
-#include "../common/io.h"
-#include "../common/linalg_op.h"
-#include "../common/math.h"
-#include "../common/numeric.h"
-#include "../common/version.h"
-#include "../common/group_data.h"
-#include "../common/threading_utils.h"
-#include "../data/adapter.h"
-#include "../data/iterative_dmatrix.h"
-#include "file_iterator.h"
+#include <algorithm>    // for copy, max, none_of, min
+#include <atomic>       // for atomic
+#include <cmath>        // for abs
+#include <cstdint>      // for uint64_t, int32_t, uint8_t, uint32_t
+#include <cstring>      // for size_t, strcmp, memcpy
+#include <iostream>     // for operator<<, basic_ostream, basic_ostream::op...
+#include <map>          // for map, operator!=
+#include <numeric>      // for accumulate, partial_sum
+#include <tuple>        // for get, apply
+#include <type_traits>  // for remove_pointer_t, remove_reference
 
-#include "validation.h"
-#include "./sparse_page_source.h"
-#include "./sparse_page_dmatrix.h"
+#include "../collective/allgather.h"          // for AllgatherStrings
+#include "../collective/allreduce.h"          // for Allreduce
+#include "../collective/communicator-inl.h"   // for GetRank, IsFederated
+#include "../common/algorithm.h"              // for StableSort
+#include "../common/api_entry.h"              // for XGBAPIThreadLocalEntry
+#include "../common/error_msg.h"              // for GroupSize, GroupWeight, InfInData
+#include "../common/group_data.h"             // for ParallelGroupBuilder
+#include "../common/io.h"                     // for PeekableInStream
+#include "../common/linalg_op.h"              // for ElementWiseTransformHost
+#include "../common/math.h"                   // for CheckNAN
+#include "../common/numeric.h"                // for Iota, RunLengthEncode
+#include "../common/threading_utils.h"        // for ParallelFor
+#include "../common/version.h"                // for Version
+#include "../data/adapter.h"                  // for FileAdapter
+#include "../data/entry.h"                    // for COOTuple, IsValidFunctor
+#include "../data/extmem_quantile_dmatrix.h"  // for ExtMemQuantileDMatrix
+#include "../data/iterative_dmatrix.h"        // for IterativeDMatrix
+#include "./sparse_page_dmatrix.h"            // for SparsePageDMatrix
+#include "array_interface.h"                  // for ArrayInterfaceHandler, ArrayInterface, Dispa...
+#include "cat_container.h"                    // for CatContainer
+#include "dmlc/base.h"                        // for BeginPtr
+#include "dmlc/common.h"                      // for OMPException
+#include "dmlc/data.h"                        // for Parser
+#include "dmlc/endian.h"                      // for ByteSwap, DMLC_IO_NO_ENDIAN_SWAP
+#include "dmlc/io.h"                          // for Stream
+#include "dmlc/thread_local.h"                // for ThreadLocalStore
+#include "ellpack_page.h"                     // for EllpackPage
+#include "file_iterator.h"                    // for ValidateFileFormat, FileIterator, Next, Reset
+#include "gradient_index.h"                   // for GHistIndexMatrix
+#include "simple_dmatrix.h"                   // for SimpleDMatrix
+#include "sparse_page_writer.h"               // for SparsePageFormatReg
+#include "validation.h"                       // for LabelsCheck, WeightsCheck, ValidateQueryGroup
+#include "xgboost/base.h"                     // for bst_group_t, bst_idx_t, bst_float, bst_ulong
+#include "xgboost/context.h"                  // for Context
+#include "xgboost/host_device_vector.h"       // for HostDeviceVector
+#include "xgboost/learner.h"                  // for HostDeviceVector
+#include "xgboost/linalg.h"                   // for Tensor, Stack, TensorView, Vector, ArrayInte...
+#include "xgboost/logging.h"                  // for Error, LogCheck_EQ, CHECK, CHECK_EQ, LOG
+#include "xgboost/span.h"                     // for Span, operator!=, SpanIterator
+#include "xgboost/string_view.h"              // for operator==, operator<<, StringView
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::SparsePage>);
@@ -175,6 +200,8 @@ namespace xgboost {
 
 uint64_t constexpr MetaInfo::kNumField;
 
+MetaInfo::MetaInfo() : cats_{std::make_shared<CatContainer>()} {}
+
 // implementation of inline functions
 void MetaInfo::Clear() {
   num_row_ = num_col_ = num_nonzero_ = 0;
@@ -201,6 +228,7 @@ void MetaInfo::Clear() {
  * | feature_names      | kStr     | False     | ${size}     |           1 | ${feature_names}       |
  * | feature_types      | kStr     | False     | ${size}     |           1 | ${feature_types}       |
  * | feature_weights    | kFloat32 | False     | ${size}     |           1 | ${feature_weights}     |
+ * | cats               | kStr     | False     | ${size}     |           1 | ${cats}     |
  *
  * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
@@ -226,20 +254,33 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
-  SaveVectorField(fo, u8"feature_names", DataType::kStr,
-                  {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_types", DataType::kStr,
-                  {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
+  SaveVectorField(fo, u8"feature_names", DataType::kStr, {feature_names.size(), 1}, feature_names);
+  ++field_cnt;
+  SaveVectorField(fo, u8"feature_types", DataType::kStr, {feature_type_names.size(), 1},
+                  feature_type_names);
+  ++field_cnt;
   SaveVectorField(fo, u8"feature_weights", DataType::kFloat32, {feature_weights.Size(), 1},
                   feature_weights);
+  ++field_cnt;
+
+  Json jcats{Object{}};
+  this->cats_->Save(&jcats);
+  std::vector<char> values;
+  Json::Dump(jcats, &values, std::ios::binary);
+  SaveVectorField(fo, u8"cats", DataType::kStr, {values.size(), 1}, values);
   ++field_cnt;
 
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
 }
 
-void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<FeatureType>* types) {
+/**
+ * @brief Load feature type info from names, returns whether there's categorical features.
+ */
+[[nodiscard]] bool LoadFeatureType(std::vector<std::string> const& type_names,
+                                   std::vector<FeatureType>* types) {
   types->clear();
-  for (auto const &elem : type_names) {
+  bool has_cat{false};
+  for (auto const& elem : type_names) {
     if (elem == "int") {
       types->emplace_back(FeatureType::kNumerical);
     } else if (elem == "float") {
@@ -250,15 +291,31 @@ void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<Feat
       types->emplace_back(FeatureType::kNumerical);
     } else if (elem == "c") {
       types->emplace_back(FeatureType::kCategorical);
+      has_cat = true;
     } else {
       LOG(FATAL) << "All feature_types must be one of {int, float, i, q, c}.";
     }
   }
+  return has_cat;
+}
+
+const std::vector<size_t>& MetaInfo::LabelAbsSort(Context const* ctx) const {
+  if (label_order_cache_.size() == labels.Size()) {
+    return label_order_cache_;
+  }
+  label_order_cache_.resize(labels.Size());
+  common::Iota(ctx, label_order_cache_.begin(), label_order_cache_.end(), 0);
+  const auto& l = labels.Data()->HostVector();
+  common::StableSort(ctx, label_order_cache_.begin(), label_order_cache_.end(),
+                     [&l](size_t i1, size_t i2) { return std::abs(l[i1]) < std::abs(l[i2]); });
+
+  return label_order_cache_;
 }
 
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   auto version = Version::Load(fi);
   auto major = std::get<0>(version);
+  auto minor = std::get<1>(version);
   // MetaInfo is saved in `SparsePageSource'.  So the version in MetaInfo represents the
   // version of DMatrix.
   std::stringstream msg;
@@ -266,11 +323,8 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
       << " is no longer supported. "
       << "Please process and save your data in current version: "
       << Version::String(Version::Self()) << " again.";
-  CHECK_GE(major, 1) << msg.str();
-  if (major == 1) {
-    auto minor = std::get<1>(version);
-    CHECK_GE(minor, 6) << msg.str();
-  }
+  CHECK_GE(major, 3) << msg.str();
+  CHECK_GE(minor, 1) << msg.str();
 
   const uint64_t expected_num_field = kNumField;
   uint64_t num_field { 0 };
@@ -304,11 +358,19 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
   LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
   LoadVectorField(fi, u8"feature_weights", DataType::kFloat32, &feature_weights);
-  LoadFeatureType(feature_type_names, &feature_types.HostVector());
+
+  this->has_categorical_ = LoadFeatureType(feature_type_names, &feature_types.HostVector());
+
+  std::vector<char> values;
+  LoadVectorField(fi, u8"cats", DataType::kStr, &values);
+  auto jcats = Json::Load(StringView{values.data(), values.size()}, std::ios::binary);
+  this->cats_->Load(jcats);
 }
 
+namespace {
 template <typename T>
-std::vector<T> Gather(const std::vector<T> &in, common::Span<int const> ridxs, size_t stride = 1) {
+std::vector<T> Gather(const std::vector<T>& in, common::Span<bst_idx_t const> ridxs,
+                      size_t stride = 1) {
   if (in.empty()) {
     return {};
   }
@@ -317,20 +379,60 @@ std::vector<T> Gather(const std::vector<T> &in, common::Span<int const> ridxs, s
   for (auto i = 0ull; i < size; i++) {
     auto ridx = ridxs[i];
     for (size_t j = 0; j < stride; ++j) {
-      out[i * stride +j] = in[ridx * stride + j];
+      out[i * stride + j] = in[ridx * stride + j];
     }
   }
   return out;
 }
+}  // namespace
 
-MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
+namespace cuda_impl {
+void SliceMetaInfo(Context const* ctx, MetaInfo const& info, common::Span<bst_idx_t const> ridx,
+                   MetaInfo* p_out);
+#if !defined(XGBOOST_USE_CUDA)
+void SliceMetaInfo(Context const*, MetaInfo const&, common::Span<bst_idx_t const>, MetaInfo*) {
+  common::AssertGPUSupport();
+}
+#endif
+}  // namespace cuda_impl
+
+MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs,
+                         bst_idx_t nnz) const {
+  /**
+   * Shape
+   */
   MetaInfo out;
   out.num_row_ = ridxs.size();
   out.num_col_ = this->num_col_;
+  out.num_nonzero_ = nnz;
+
+  /**
+   * Feature Info
+   */
+  out.feature_weights.SetDevice(ctx->Device());
+  out.feature_weights.Resize(this->feature_weights.Size());
+  out.feature_weights.Copy(this->feature_weights);
+
+  out.feature_names = this->feature_names;
+
+  out.feature_types.SetDevice(ctx->Device());
+  out.feature_types.Resize(this->feature_types.Size());
+  out.feature_types.Copy(this->feature_types);
+
+  out.feature_type_names = this->feature_type_names;
+
+  /**
+   * Sample Info
+   */
+  if (ctx->IsCUDA()) {
+    cuda_impl::SliceMetaInfo(ctx, *this, ridxs, &out);
+    return out;
+  }
+
   // Groups is maintained by a higher level Python function.  We should aim at deprecating
   // the slice function.
   if (this->labels.Size() != this->num_row_) {
-    auto t_labels = this->labels.View(this->labels.Data()->DeviceIdx());
+    auto t_labels = this->labels.View(this->labels.Data()->Device());
     out.labels.Reshape(ridxs.size(), labels.Shape(1));
     out.labels.Data()->HostVector() =
         Gather(this->labels.Data()->HostVector(), ridxs, t_labels.Stride(0));
@@ -342,13 +444,11 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
     });
   }
 
-  out.labels_upper_bound_.HostVector() =
-      Gather(this->labels_upper_bound_.HostVector(), ridxs);
-  out.labels_lower_bound_.HostVector() =
-      Gather(this->labels_lower_bound_.HostVector(), ridxs);
+  out.labels_upper_bound_.HostVector() = Gather(this->labels_upper_bound_.HostVector(), ridxs);
+  out.labels_lower_bound_.HostVector() = Gather(this->labels_lower_bound_.HostVector(), ridxs);
   // weights
   if (this->weights_.Size() + 1 == this->group_ptr_.size()) {
-    auto& h_weights =  out.weights_.HostVector();
+    auto& h_weights = out.weights_.HostVector();
     // Assuming all groups are available.
     out.weights_.HostVector() = h_weights;
   } else {
@@ -358,7 +458,7 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
         << "Incorrect size of base margin vector.";
-    auto t_margin = this->base_margin_.View(this->base_margin_.Data()->DeviceIdx());
+    auto t_margin = this->base_margin_.View(this->base_margin_.Data()->Device());
     out.base_margin_.Reshape(ridxs.size(), t_margin.Shape(1));
     out.base_margin_.Data()->HostVector() =
         Gather(this->base_margin_.Data()->HostVector(), ridxs, t_margin.Stride(0));
@@ -370,26 +470,25 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
     });
   }
 
-  out.feature_weights.Resize(this->feature_weights.Size());
-  out.feature_weights.Copy(this->feature_weights);
+  return out;
+}
 
-  out.feature_names = this->feature_names;
-  out.feature_types.Resize(this->feature_types.Size());
-  out.feature_types.Copy(this->feature_types);
-  out.feature_type_names = this->feature_type_names;
-
+MetaInfo MetaInfo::Copy() const {
+  MetaInfo out;
+  out.Extend(*this, /*accumulate_rows=*/true, /*check_column=*/false);
   return out;
 }
 
 namespace {
 template <int32_t D, typename T>
-void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
+void CopyTensorInfoImpl(Context const* ctx, Json arr_interface, linalg::Tensor<T, D>* p_out) {
   ArrayInterface<D> array{arr_interface};
   if (array.n == 0) {
     p_out->Reshape(array.shape);
     return;
   }
-  CHECK(array.valid.Size() == 0) << "Meta info like label or weight can not have missing value.";
+  CHECK_EQ(array.valid.Capacity(), 0)
+      << "Meta info like label or weight can not have missing value.";
   if (array.is_contiguous && array.type == ToDType<T>::kType) {
     // Handle contigious
     p_out->ModifyInplace([&](HostDeviceVector<T>* data, common::Span<size_t, D> shape) {
@@ -402,10 +501,13 @@ void CopyTensorInfoImpl(Context const& ctx, Json arr_interface, linalg::Tensor<T
     return;
   }
   p_out->Reshape(array.shape);
-  auto t = p_out->View(Context::kCpuId);
-  CHECK(t.CContiguous());
-  linalg::ElementWiseTransformHost(t, ctx.Threads(), [&](auto i, auto) {
-    return linalg::detail::Apply(TypedIndex<T, D>{array}, linalg::UnravelIndex<D>(i, t.Shape()));
+  auto t_out = p_out->View(DeviceOrd::CPU());
+  CHECK(t_out.CContiguous());
+  auto const shape = t_out.Shape();
+  DispatchDType(array, DeviceOrd::CPU(), [&](auto&& in) {
+    linalg::ElementWiseTransformHost(t_out, ctx->Threads(), [&](auto i, auto) {
+      return std::apply(in, linalg::UnravelIndex<D>(i, shape));
+    });
   });
 }
 }  // namespace
@@ -419,21 +521,21 @@ void MetaInfo::SetInfo(Context const& ctx, StringView key, StringView interface_
                               << ", must have at least 1 column even if it's empty.";
     auto const& first = get<Object const>(array.front());
     auto ptr = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(first);
-    is_cuda = ArrayInterfaceHandler::IsCudaPtr(ptr);
+    is_cuda = first.find("stream") != first.cend() || ArrayInterfaceHandler::IsCudaPtr(ptr);
   } else {
     auto const& first = get<Object const>(j_interface);
     auto ptr = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(first);
-    is_cuda = ArrayInterfaceHandler::IsCudaPtr(ptr);
+    is_cuda = first.find("stream") != first.cend() || ArrayInterfaceHandler::IsCudaPtr(ptr);
   }
 
   if (is_cuda) {
-    this->SetInfoFromCUDA(ctx, key, j_interface);
+    this->SetInfoFromCUDA(&ctx, key, j_interface);
   } else {
-    this->SetInfoFromHost(ctx, key, j_interface);
+    this->SetInfoFromHost(&ctx, key, j_interface);
   }
 }
 
-void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
+void MetaInfo::SetInfoFromHost(Context const* ctx, StringView key, Json arr) {
   // multi-dim float info
   if (key == "base_margin") {
     CopyTensorInfoImpl(ctx, arr, &this->base_margin_);
@@ -452,7 +554,9 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
   } else if (key == "label") {
     CopyTensorInfoImpl(ctx, arr, &this->labels);
     if (this->num_row_ != 0 && this->labels.Shape(0) != this->num_row_) {
-      CHECK_EQ(this->labels.Size() % this->num_row_, 0) << "Incorrect size for labels.";
+      CHECK_EQ(this->labels.Size() % this->num_row_, 0)
+          << "Incorrect size for labels: (" << this->labels.Shape(0) << "," << this->labels.Shape(1)
+          << ") v.s. " << this->num_row_;
       size_t n_targets = this->labels.Size() / this->num_row_;
       this->labels.Reshape(this->num_row_, n_targets);
     }
@@ -463,7 +567,7 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
   }
   // uint info
   if (key == "group") {
-    linalg::Tensor<bst_group_t, 1> t;
+    linalg::Vector<bst_group_t> t;
     CopyTensorInfoImpl(ctx, arr, &t);
     auto const& h_groups = t.Data()->HostVector();
     group_ptr_.clear();
@@ -488,6 +592,7 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
     data::ValidateQueryGroup(group_ptr_);
     return;
   }
+
   // float info
   linalg::Tensor<float, 1> t;
   CopyTensorInfoImpl<1>(ctx, arr, &t);
@@ -509,45 +614,6 @@ void MetaInfo::SetInfoFromHost(Context const& ctx, StringView key, Json arr) {
     CHECK(valid) << "Feature weight must be greater than 0.";
   } else {
     LOG(FATAL) << "Unknown key for MetaInfo: " << key;
-  }
-}
-
-void MetaInfo::SetInfo(Context const& ctx, const char* key, const void* dptr, DataType dtype,
-                       size_t num) {
-  auto proc = [&](auto cast_d_ptr) {
-    using T = std::remove_pointer_t<decltype(cast_d_ptr)>;
-    auto t = linalg::TensorView<T, 1>(common::Span<T>{cast_d_ptr, num}, {num}, Context::kCpuId);
-    CHECK(t.CContiguous());
-    Json interface {
-      linalg::ArrayInterface(t)
-    };
-    assert(ArrayInterface<1>{interface}.is_contiguous);
-    return interface;
-  };
-  // Legacy code using XGBoost dtype, which is a small subset of array interface types.
-  switch (dtype) {
-    case xgboost::DataType::kFloat32: {
-      auto cast_ptr = reinterpret_cast<const float*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kDouble: {
-      auto cast_ptr = reinterpret_cast<const double*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt32: {
-      auto cast_ptr = reinterpret_cast<const uint32_t*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    case xgboost::DataType::kUInt64: {
-      auto cast_ptr = reinterpret_cast<const uint64_t*>(dptr);
-      this->SetInfoFromHost(ctx, key, proc(cast_ptr));
-      break;
-    }
-    default:
-      LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);
   }
 }
 
@@ -587,31 +653,49 @@ void MetaInfo::GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
-  if (size != 0 && this->num_col_ != 0) {
-    CHECK_EQ(size, this->num_col_)
-        << "Length of " << key << " must be equal to number of columns.";
+  bool is_col_split = this->IsColumnSplit();
+
+  if (size != 0 && this->num_col_ != 0 && !is_col_split) {
+    CHECK_EQ(size, this->num_col_) << "Length of " << key << " must be equal to number of columns.";
+    CHECK(info);
   }
-  if (!std::strcmp(key, "feature_type")) {
-    feature_type_names.clear();
+
+  // Gather column info when data is split by columns
+  auto gather_columns = [is_col_split, key, n_columns = this->num_col_](auto const& inputs) {
+    if (is_col_split) {
+      std::remove_const_t<std::remove_reference_t<decltype(inputs)>> result;
+      auto rc = collective::AllgatherStrings(inputs, &result);
+      collective::SafeColl(rc);
+      CHECK_EQ(result.size(), n_columns)
+          << "Length of " << key << " must be equal to number of columns.";
+      return result;
+    }
+    return inputs;
+  };
+
+  if (StringView{key} == "feature_type") {  // NOLINT
+    this->feature_type_names.clear();
+    std::copy(info, info + size, std::back_inserter(feature_type_names));
+    feature_type_names = gather_columns(feature_type_names);
     auto& h_feature_types = feature_types.HostVector();
-    for (size_t i = 0; i < size; ++i) {
-      auto elem = info[i];
-      feature_type_names.emplace_back(elem);
-    }
-    LoadFeatureType(feature_type_names, &h_feature_types);
-  } else if (!std::strcmp(key, "feature_name")) {
+    this->has_categorical_ = LoadFeatureType(feature_type_names, &h_feature_types);
+  } else if (StringView{key} == "feature_name") {  // NOLINT
     feature_names.clear();
-    for (size_t i = 0; i < size; ++i) {
-      feature_names.emplace_back(info[i]);
+    if (is_col_split) {
+      auto const rank = collective::GetRank();
+      std::transform(info, info + size, std::back_inserter(feature_names),
+                     [rank](char const* elem) { return std::to_string(rank) + "." + elem; });
+    } else {
+      std::copy(info, info + size, std::back_inserter(feature_names));
     }
+    feature_names = gather_columns(feature_names);
   } else {
     LOG(FATAL) << "Unknown feature info name: " << key;
   }
 }
 
-void MetaInfo::GetFeatureInfo(const char *field,
-                              std::vector<std::string> *out_str_vecs) const {
-  auto &str_vecs = *out_str_vecs;
+void MetaInfo::GetFeatureInfo(const char* field, std::vector<std::string>* out_str_vecs) const {
+  auto& str_vecs = *out_str_vecs;
   if (!std::strcmp(field, "feature_type")) {
     str_vecs.resize(feature_type_names.size());
     std::copy(feature_type_names.cbegin(), feature_type_names.cend(), str_vecs.begin());
@@ -624,6 +708,9 @@ void MetaInfo::GetFeatureInfo(const char *field,
 }
 
 void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_column) {
+  /**
+   * shape
+   */
   if (accumulate_rows) {
     this->num_row_ += that.num_row_;
   }
@@ -637,19 +724,25 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
   this->num_col_ = that.num_col_;
 
+  /**
+   * info with n_samples
+   */
   linalg::Stack(&this->labels, that.labels);
 
-  this->weights_.SetDevice(that.weights_.DeviceIdx());
+  this->weights_.SetDevice(that.weights_.Device());
   this->weights_.Extend(that.weights_);
 
-  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.DeviceIdx());
+  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.Device());
   this->labels_lower_bound_.Extend(that.labels_lower_bound_);
 
-  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.DeviceIdx());
+  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.Device());
   this->labels_upper_bound_.Extend(that.labels_upper_bound_);
 
   linalg::Stack(&this->base_margin_, that.base_margin_);
 
+  /**
+   * group
+   */
   if (this->group_ptr_.size() == 0) {
     this->group_ptr_ = that.group_ptr_;
   } else {
@@ -662,81 +755,130 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
                             group_ptr.end());
   }
 
+  /**
+   * info with n_features
+   */
   if (!that.feature_names.empty()) {
     this->feature_names = that.feature_names;
   }
+
+  if (!this->feature_types.Empty()) {
+    data::CheckFeatureTypes(this->feature_types, that.feature_types);
+  }
+
   if (!that.feature_type_names.empty()) {
     this->feature_type_names = that.feature_type_names;
-    auto &h_feature_types = feature_types.HostVector();
-    LoadFeatureType(this->feature_type_names, &h_feature_types);
+    auto& h_feature_types = feature_types.HostVector();
+    this->has_categorical_ = LoadFeatureType(this->feature_type_names, &h_feature_types);
+  } else if (!that.feature_types.Empty()) {
+    // FIXME(jiamingy): https://github.com/dmlc/xgboost/pull/9171/files#r1440188612
+    this->feature_types.Resize(that.feature_types.Size());
+    this->feature_types.Copy(that.feature_types);
+    auto const& ft = this->feature_types.ConstHostVector();
+    this->has_categorical_ = std::any_of(ft.cbegin(), ft.cend(), common::IsCatOp{});
   }
+
   if (!that.feature_weights.Empty()) {
     this->feature_weights.Resize(that.feature_weights.Size());
-    this->feature_weights.SetDevice(that.feature_weights.DeviceIdx());
+    this->feature_weights.SetDevice(that.feature_weights.Device());
     this->feature_weights.Copy(that.feature_weights);
   }
 }
 
-void MetaInfo::Validate(int32_t device) const {
+void MetaInfo::SynchronizeNumberOfColumns(Context const* ctx, DataSplitMode split_mode) {
+  this->data_split_mode = split_mode;
+  auto op = IsColumnSplit() ? collective::Op::kSum : collective::Op::kMax;
+  auto rc = collective::Allreduce(ctx, linalg::MakeVec(&num_col_, 1), op);
+  collective::SafeColl(rc);
+}
+
+namespace {
+template <typename T>
+void CheckDevice(DeviceOrd device, HostDeviceVector<T> const& v) {
+  bool valid = v.Device().IsCPU() || device.IsCPU() || v.Device() == device;
+  if (!valid) {
+    LOG(FATAL) << "Invalid device ordinal. Data is associated with a different device ordinal than "
+                  "the booster. The device ordinal of the data is: "
+               << v.Device() << "; the device ordinal of the Booster is: " << device;
+  }
+}
+
+template <typename T, std::int32_t D>
+void CheckDevice(DeviceOrd device, linalg::Tensor<T, D> const& v) {
+  CheckDevice(device, *v.Data());
+}
+}  // anonymous namespace
+
+void MetaInfo::Validate(DeviceOrd device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
-    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
-        << "Size of weights must equal to number of groups when ranking "
-           "group is used.";
+    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1) << error::GroupWeight();
     return;
   }
   if (group_ptr_.size() != 0) {
     CHECK_EQ(group_ptr_.back(), num_row_)
-        << "Invalid group structure.  Number of rows obtained from groups "
-           "doesn't equal to actual number of rows given by data.";
+        << error::GroupSize() << "the actual number of rows given by data.";
   }
-  auto check_device = [device](HostDeviceVector<float> const& v) {
-    CHECK(v.DeviceIdx() == Context::kCpuId || device == Context::kCpuId || v.DeviceIdx() == device)
-        << "Data is resided on a different device than `gpu_id`. "
-        << "Device that data is on: " << v.DeviceIdx() << ", "
-        << "`gpu_id` for XGBoost: " << device;
-  };
 
   if (weights_.Size() != 0) {
     CHECK_EQ(weights_.Size(), num_row_)
         << "Size of weights must equal to number of rows.";
-    check_device(weights_);
+    CheckDevice(device, weights_);
     return;
   }
   if (labels.Size() != 0) {
     CHECK_EQ(labels.Shape(0), num_row_) << "Size of labels must equal to number of rows.";
-    check_device(*labels.Data());
+    CheckDevice(device, labels);
     return;
   }
   if (labels_lower_bound_.Size() != 0) {
     CHECK_EQ(labels_lower_bound_.Size(), num_row_)
         << "Size of label_lower_bound must equal to number of rows.";
-    check_device(labels_lower_bound_);
+    CheckDevice(device, labels_lower_bound_);
     return;
   }
   if (feature_weights.Size() != 0) {
     CHECK_EQ(feature_weights.Size(), num_col_)
         << "Size of feature_weights must equal to number of columns.";
-    check_device(feature_weights);
+    CheckDevice(device, feature_weights);
   }
   if (labels_upper_bound_.Size() != 0) {
     CHECK_EQ(labels_upper_bound_.Size(), num_row_)
         << "Size of label_upper_bound must equal to number of rows.";
-    check_device(labels_upper_bound_);
+    CheckDevice(device, labels_upper_bound_);
     return;
   }
   CHECK_LE(num_nonzero_, num_col_ * num_row_);
   if (base_margin_.Size() != 0) {
     CHECK_EQ(base_margin_.Size() % num_row_, 0)
         << "Size of base margin must be a multiple of number of rows.";
-    check_device(*base_margin_.Data());
+    CheckDevice(device, base_margin_);
   }
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-void MetaInfo::SetInfoFromCUDA(Context const& ctx, StringView key, Json arr) {
-  common::AssertGPUSupport();
-}
+void MetaInfo::SetInfoFromCUDA(Context const*, StringView, Json) { common::AssertGPUSupport(); }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+bool MetaInfo::IsVerticalFederated() const {
+  return collective::IsFederated() && IsColumnSplit();
+}
+
+bool MetaInfo::ShouldHaveLabels() const {
+  return !IsVerticalFederated() || collective::GetRank() == 0;
+}
+
+[[nodiscard]] CatContainer const* MetaInfo::Cats() const { return this->cats_.get(); }
+[[nodiscard]] CatContainer* MetaInfo::Cats() { return this->cats_.get(); }
+
+[[nodiscard]] std::shared_ptr<CatContainer const> MetaInfo::CatsShared() const {
+  return this->cats_;
+}
+
+void MetaInfo::Cats(std::shared_ptr<CatContainer> cats) {
+  this->cats_ = std::move(cats);
+  CHECK_LT(cats_->NumCatsTotal(),
+           static_cast<decltype(cats->NumCatsTotal())>(std::numeric_limits<bst_cat_t>::max()));
+}
 
 using DMatrixThreadLocal =
     dmlc::ThreadLocalStore<std::map<DMatrix const *, XGBAPIThreadLocalEntry>>;
@@ -752,10 +894,10 @@ DMatrix::~DMatrix() {
   }
 }
 
-DMatrix *TryLoadBinary(std::string fname, bool silent) {
-  int magic;
-  std::unique_ptr<dmlc::Stream> fi(
-      dmlc::Stream::Create(fname.c_str(), "r", true));
+namespace {
+DMatrix* TryLoadBinary(std::string fname, bool silent) {
+  std::int32_t magic;
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
   if (fi != nullptr) {
     common::PeekableInStream is(fi.get());
     if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
@@ -763,11 +905,10 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
         dmlc::ByteSwap(&magic, sizeof(magic), 1);
       }
       if (magic == data::SimpleDMatrix::kMagic) {
-        DMatrix *dmat = new data::SimpleDMatrix(&is);
+        DMatrix* dmat = new data::SimpleDMatrix(&is);
         if (!silent) {
-          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_
-                       << " matrix with " << dmat->Info().num_nonzero_
-                       << " entries loaded from " << fname;
+          LOG(INFO) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+                    << dmat->Info().num_nonzero_ << " entries loaded from " << fname;
         }
         return dmat;
       }
@@ -775,178 +916,106 @@ DMatrix *TryLoadBinary(std::string fname, bool silent) {
   }
   return nullptr;
 }
+}  // namespace
 
-DMatrix* DMatrix::Load(const std::string& uri, bool silent, bool load_row_split,
-                       const std::string& file_format) {
-  std::string fname, cache_file;
-  size_t dlm_pos = uri.find('#');
-  if (dlm_pos != std::string::npos) {
-    cache_file = uri.substr(dlm_pos + 1, uri.length());
-    fname = uri.substr(0, dlm_pos);
-    CHECK_EQ(cache_file.find('#'), std::string::npos)
-        << "Only one `#` is allowed in file path for cache file specification.";
-    if (load_row_split) {
-      std::ostringstream os;
-      std::vector<std::string> cache_shards = common::Split(cache_file, ':');
-      for (size_t i = 0; i < cache_shards.size(); ++i) {
-        size_t pos = cache_shards[i].rfind('.');
-        if (pos == std::string::npos) {
-          os << cache_shards[i]
-             << ".r" << rabit::GetRank()
-             << "-" <<  rabit::GetWorldSize();
-        } else {
-          os << cache_shards[i].substr(0, pos)
-             << ".r" << rabit::GetRank()
-             << "-" <<  rabit::GetWorldSize()
-             << cache_shards[i].substr(pos, cache_shards[i].length());
-        }
-        if (i + 1 != cache_shards.size()) {
-          os << ':';
-        }
-      }
-      cache_file = os.str();
-    }
-  } else {
-    fname = uri;
-  }
+DMatrix* DMatrix::Load(const std::string& uri, bool silent, DataSplitMode data_split_mode) {
+  auto dlm_pos = uri.find('#');
+  CHECK(dlm_pos == std::string::npos)
+      << "External memory training with text input has been removed.";
+  std::string fname = uri;
 
   // legacy handling of binary data loading
-  if (file_format == "auto") {
-    DMatrix* loaded = TryLoadBinary(fname, silent);
-    if (loaded) {
-      return loaded;
-    }
+  DMatrix* loaded = TryLoadBinary(fname, silent);
+  if (loaded) {
+    return loaded;
   }
 
   int partid = 0, npart = 1;
-  if (load_row_split) {
-    partid = rabit::GetRank();
-    npart = rabit::GetWorldSize();
-  } else {
-    // test option to load in part
-    npart = 1;
-  }
 
-  if (npart != 1) {
-    LOG(CONSOLE) << "Load part of data " << partid << " of " << npart << " parts";
-  }
+  static std::once_flag warning_flag;
+  std::call_once(warning_flag, []() {
+    LOG(WARNING) << "Text file input has been deprecated since 3.1";
+  });
 
-  DMatrix* dmat {nullptr};
-  try {
-    if (cache_file.empty()) {
-      std::unique_ptr<dmlc::Parser<uint32_t>> parser(
-          dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
-      data::FileAdapter adapter(parser.get());
-      dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1, cache_file);
-    } else {
-      data::FileIterator iter{fname, static_cast<uint32_t>(partid), static_cast<uint32_t>(npart),
-                              file_format};
-      dmat = new data::SparsePageDMatrix{&iter,
-                                         iter.Proxy(),
-                                         data::fileiter::Reset,
-                                         data::fileiter::Next,
-                                         std::numeric_limits<float>::quiet_NaN(),
-                                         1,
-                                         cache_file};
-    }
-  } catch (dmlc::Error& e) {
-    std::vector<std::string> splited = common::Split(fname, '#');
-    std::vector<std::string> args = common::Split(splited.front(), '?');
-    std::string format {file_format};
-    if (args.size() == 1 && file_format == "auto") {
-      auto extension = common::Split(args.front(), '.').back();
-      if (extension == "csv" || extension == "libsvm") {
-        format = extension;
-      }
-      if (format == extension) {
-        LOG(WARNING)
-            << "No format parameter is provided in input uri, but found file extension: "
-            << format << " .  "
-            << "Consider providing a uri parameter: filename?format=" << format;
-      } else {
-        LOG(WARNING)
-            << "No format parameter is provided in input uri.  "
-            << "Choosing default parser in dmlc-core.  "
-            << "Consider providing a uri parameter like: filename?format=csv";
-      }
-    }
-    LOG(FATAL) << "Encountered parser error:\n" << e.what();
-  }
-
-  /* sync up number of features after matrix loaded.
-   * partitioned data will fail the train/val validation check
-   * since partitioned data not knowing the real number of features. */
-  rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
-  return dmat;
+  fname = data::ValidateFileFormat(fname);
+  std::unique_ptr<dmlc::Parser<std::uint32_t>> parser(
+      dmlc::Parser<std::uint32_t>::Create(fname.c_str(), partid, npart, "auto"));
+  data::FileAdapter adapter(parser.get());
+  return DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), Context{}.Threads(), "",
+                         data_split_mode);
 }
 
 template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
           typename XGDMatrixCallbackNext>
 DMatrix* DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
                          DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing,
-                         int nthread, bst_bin_t max_bin) {
-  return new data::IterativeDMatrix(iter, proxy, ref, reset, next, missing, nthread, max_bin);
+                         int nthread, bst_bin_t max_bin, std::int64_t max_quantile_blocks) {
+  return new data::IterativeDMatrix(iter, proxy, ref, reset, next, missing, nthread, max_bin,
+                                    max_quantile_blocks);
 }
 
-template <typename DataIterHandle, typename DMatrixHandle,
-          typename DataIterResetCallback, typename XGDMatrixCallbackNext>
-DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
-                         DataIterResetCallback *reset,
-                         XGDMatrixCallbackNext *next, float missing,
-                         int32_t n_threads,
-                         std::string cache) {
-  return new data::SparsePageDMatrix(iter, proxy, reset, next, missing, n_threads,
-                                     cache);
+template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
+          typename XGDMatrixCallbackNext>
+DMatrix* DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback* reset,
+                         XGDMatrixCallbackNext* next, ExtMemConfig const& config) {
+  return new data::SparsePageDMatrix{iter, proxy, reset, next, config};
 }
+
+template <typename DataIterHandle, typename DMatrixHandle, typename DataIterResetCallback,
+          typename XGDMatrixCallbackNext>
+DMatrix* DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
+                         DataIterResetCallback* reset, XGDMatrixCallbackNext* next,
+                         bst_bin_t max_bin, std::int64_t max_quantile_blocks,
+                         ExtMemConfig const& config) {
+  return new data::ExtMemQuantileDMatrix{
+      iter, proxy, ref, reset, next, max_bin, max_quantile_blocks, config};
+}
+
+template DMatrix*
+DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback, XGDMatrixCallbackNext>(
+    DataIterHandle iter, DMatrixHandle proxy, std::shared_ptr<DMatrix> ref,
+    DataIterResetCallback* reset, XGDMatrixCallbackNext* next, float missing, int nthread,
+    int max_bin, std::int64_t max_quantile_blocks);
 
 template DMatrix* DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback,
                                   XGDMatrixCallbackNext>(DataIterHandle iter, DMatrixHandle proxy,
-                                                         std::shared_ptr<DMatrix> ref,
                                                          DataIterResetCallback* reset,
-                                                         XGDMatrixCallbackNext* next, float missing,
-                                                         int nthread, int max_bin);
+                                                         XGDMatrixCallbackNext* next,
+                                                         ExtMemConfig const&);
 
-template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
-                                  DataIterResetCallback, XGDMatrixCallbackNext>(
-    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
-    XGDMatrixCallbackNext *next, float missing, int32_t n_threads, std::string);
+template DMatrix*
+DMatrix::Create<DataIterHandle, DMatrixHandle, DataIterResetCallback, XGDMatrixCallbackNext>(
+    DataIterHandle, DMatrixHandle, std::shared_ptr<DMatrix>, DataIterResetCallback*,
+    XGDMatrixCallbackNext*, bst_bin_t, std::int64_t, ExtMemConfig const&);
 
 template <typename AdapterT>
-DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&) {
-  return new data::SimpleDMatrix(adapter, missing, nthread);
+DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread, const std::string&,
+                         DataSplitMode data_split_mode) {
+  return new data::SimpleDMatrix(adapter, missing, nthread, data_split_mode);
 }
 
-template DMatrix* DMatrix::Create<data::DenseAdapter>(
-    data::DenseAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix);
-template DMatrix* DMatrix::Create<data::ArrayAdapter>(
-    data::ArrayAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix);
-template DMatrix* DMatrix::Create<data::CSRAdapter>(
-    data::CSRAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix);
-template DMatrix* DMatrix::Create<data::CSCAdapter>(
-    data::CSCAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix);
-template DMatrix* DMatrix::Create<data::DataTableAdapter>(
-    data::DataTableAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix);
-template DMatrix* DMatrix::Create<data::FileAdapter>(
-    data::FileAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix);
-template DMatrix* DMatrix::Create<data::CSRArrayAdapter>(
-    data::CSRArrayAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix);
-template DMatrix *
-DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
-                                      XGBoostBatchCSR> *adapter,
-                float missing, int nthread, const std::string &cache_prefix);
-template DMatrix* DMatrix::Create<data::RecordBatchesIterAdapter>(
-    data::RecordBatchesIterAdapter* adapter, float missing, int nthread, const std::string&);
+// Instantiate the factory function for various adapters
+#define INSTANTIATION_CREATE(_AdapterT)                               \
+  template DMatrix* DMatrix::Create<data::_AdapterT>(                 \
+      data::_AdapterT * adapter, float missing, std::int32_t nthread, \
+      const std::string& cache_prefix, DataSplitMode data_split_mode);
+
+INSTANTIATION_CREATE(DenseAdapter)
+INSTANTIATION_CREATE(ArrayAdapter)
+INSTANTIATION_CREATE(FileAdapter)
+INSTANTIATION_CREATE(CSRArrayAdapter)
+INSTANTIATION_CREATE(CSCArrayAdapter)
+INSTANTIATION_CREATE(ColumnarAdapter)
+
+#undef INSTANTIATION_CREATE
+
+template DMatrix* DMatrix::Create(
+    data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>* adapter,
+    float missing, int nthread, std::string const& cache_prefix, DataSplitMode data_split_mode);
 
 SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
   SparsePage transpose;
-  common::ParallelGroupBuilder<Entry, bst_row_t> builder(&transpose.offset.HostVector(),
+  common::ParallelGroupBuilder<Entry, bst_idx_t> builder(&transpose.offset.HostVector(),
                                                          &transpose.data.HostVector());
   builder.InitBudget(num_columns, n_threads);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
@@ -981,6 +1050,8 @@ SparsePage SparsePage::GetTranspose(int num_columns, int32_t n_threads) const {
 bool SparsePage::IsIndicesSorted(int32_t n_threads) const {
   auto& h_offset = this->offset.HostVector();
   auto& h_data = this->data.HostVector();
+  n_threads = std::max(std::min(static_cast<std::size_t>(n_threads), this->Size()),
+                       static_cast<std::size_t>(1));
   std::vector<int32_t> is_sorted_tloc(n_threads, 0);
   common::ParallelFor(this->Size(), n_threads, [&](auto i) {
     auto beg = h_offset[i];
@@ -1001,6 +1072,13 @@ void SparsePage::SortIndices(int32_t n_threads) {
     auto beg = h_offset[i];
     auto end = h_offset[i + 1];
     std::sort(h_data.begin() + beg, h_data.begin() + end, Entry::CmpIndex);
+  });
+}
+
+void SparsePage::Reindex(uint64_t feature_offset, int32_t n_threads) {
+  auto& h_data = this->data.HostVector();
+  common::ParallelFor(h_data.size(), n_threads, [&](auto i) {
+    h_data[i].index += feature_offset;
   });
 }
 
@@ -1033,7 +1111,7 @@ void SparsePage::Push(const SparsePage &batch) {
 }
 
 template <typename AdapterBatchT>
-uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
+bst_idx_t SparsePage::Push(AdapterBatchT const& batch, float missing, std::int32_t nthread) {
   constexpr bool kIsRowMajor = AdapterBatchT::kIsRowMajor;
   // Allow threading only for row-major case as column-major requires O(nthread*batch_size) memory
   nthread = kIsRowMajor ? nthread : 1;
@@ -1100,7 +1178,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     });
   }
   exec.Rethrow();
-  CHECK(valid) << "Input data contains `inf` or `nan`";
+  CHECK(valid) << error::InfInData();
   for (const auto & max : max_columns_vector) {
     max_columns = std::max(max_columns, max[0]);
   }
@@ -1108,7 +1186,6 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   builder.InitStorage();
 
   // Second pass over batch, placing elements in correct position
-
   auto is_valid = data::IsValidFunctor{missing};
 #pragma omp parallel num_threads(nthread)
   {
@@ -1134,7 +1211,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
 void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<xgboost::Entry>& self_data = data.HostVector();
-  std::vector<bst_row_t>& self_offset = offset.HostVector();
+  std::vector<bst_idx_t>& self_offset = offset.HostVector();
 
   auto const& other_data = batch.data.ConstHostVector();
   auto const& other_offset = batch.offset.ConstHostVector();
@@ -1153,7 +1230,7 @@ void SparsePage::PushCSC(const SparsePage &batch) {
     return;
   }
 
-  std::vector<bst_row_t> offset(other_offset.size());
+  std::vector<bst_idx_t> offset(other_offset.size());
   offset[0] = 0;
 
   std::vector<xgboost::Entry> data(self_data.size() + other_data.size());
@@ -1192,23 +1269,21 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   self_offset = std::move(offset);
 }
 
-template uint64_t
-SparsePage::Push(const data::DenseAdapterBatch& batch, float missing, int nthread);
-template uint64_t
-SparsePage::Push(const data::ArrayAdapterBatch& batch, float missing, int nthread);
-template uint64_t
-SparsePage::Push(const data::CSRAdapterBatch& batch, float missing, int nthread);
-template uint64_t
-SparsePage::Push(const data::CSRArrayAdapterBatch& batch, float missing, int nthread);
-template uint64_t
-SparsePage::Push(const data::CSCAdapterBatch& batch, float missing, int nthread);
-template uint64_t
-SparsePage::Push(const data::DataTableAdapterBatch& batch, float missing, int nthread);
-template uint64_t
-SparsePage::Push(const data::FileAdapterBatch& batch, float missing, int nthread);
+#define INSTANTIATE_PUSH(__BATCH_T)                                                    \
+  template std::uint64_t SparsePage::Push(const data::__BATCH_T& batch, float missing, \
+                                          std::int32_t nthread);
+
+INSTANTIATE_PUSH(DenseAdapterBatch)
+INSTANTIATE_PUSH(ArrayAdapterBatch)
+INSTANTIATE_PUSH(CSRArrayAdapterBatch)
+INSTANTIATE_PUSH(CSCArrayAdapterBatch)
+INSTANTIATE_PUSH(FileAdapterBatch)
+INSTANTIATE_PUSH(ColumnarAdapterBatch)
+INSTANTIATE_PUSH(EncColumnarAdapterBatch)
+
+#undef INSTANTIATE_PUSH
 
 namespace data {
-
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
 DMLC_REGISTRY_LINK_TAG(gradient_index_format);

@@ -2,7 +2,7 @@
 C API Tutorial
 ##############
 
-In this tutorial, we are going to install XGBoost library & configure the CMakeLists.txt file of our C/C++ application to link XGBoost library with our application. Later on, we will see some useful tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset.
+In this tutorial, we are going to install XGBoost library & configure the CMakeLists.txt file of our C/C++ application to link XGBoost library with our application. Later on, we will see some useful tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset. For API reference, please visit :doc:`/c`
 
 .. contents::
   :backlinks: none
@@ -26,14 +26,12 @@ Run the following commands on your terminal. The below commands will install the
     # clone the XGBoost repository & its submodules
     git clone --recursive https://github.com/dmlc/xgboost
     cd xgboost
-    mkdir build
-    cd build
     # Activate the Conda environment, into which we'll install XGBoost
     conda activate [env_name]
     # Build the compiled version of XGBoost inside the build folder
-    cmake .. -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
+    cmake -B build -S . -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
     # install XGBoost in your conda environment (usually under [your home directory]/miniconda3)
-    make install
+    cmake --build build --target install
 
 *********************************************************************
 Configure CMakeList.txt file of your application to link with XGBoost
@@ -45,7 +43,7 @@ Use ``find_package()`` and ``target_link_libraries()`` in your application's CMa
 
 .. code-block:: cmake
 
-    cmake_minimum_required(VERSION 3.13)
+    cmake_minimum_required(VERSION 3.18)
     project(your_project_name LANGUAGES C CXX VERSION your_project_version)
     find_package(xgboost REQUIRED)
     add_executable(your_project_name /path/to/project_file.c)
@@ -55,17 +53,15 @@ To ensure that CMake can locate the XGBoost library, supply ``-DCMAKE_PREFIX_PAT
 
 .. code-block:: bash
 
-  # Nagivate to the build directory for your application
-  cd build
   # Activate the Conda environment where we previously installed XGBoost
   conda activate [env_name]
   # Invoke CMake with CMAKE_PREFIX_PATH
-  cmake .. -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+  cmake -B build -S . -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
   # Build your application
-  make
+  cmake --build build
 
 ************************
-Usefull Tips To Remember
+Useful Tips To Remember
 ************************
 
 Below are some useful tips while using C API:
@@ -104,8 +100,8 @@ b. In a C++ application: modify the macro ``safe_xgboost`` to throw an exception
   #define safe_xgboost(call) {  \
     int err = (call); \
     if (err != 0) { \
-      throw new Exception(std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
-                          ": error in " + #call + ":" + XGBGetLastError()));  \
+      throw std::runtime_error(std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
+                          ": error in " + #call + ":" + XGBGetLastError());  \
     } \
   }
 
@@ -134,7 +130,7 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
       // do something with booster
 
       //free the memory
-      XGBoosterFree(booster)
+      XGBoosterFree(booster);
 
       DMatrixHandle DMatrixHandle_param;
 
@@ -151,28 +147,28 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
    Example if we our training data is in ``dense matrix`` format then your prediction dataset should also be a ``dense matrix`` or if training in ``libsvm`` format then dataset for prediction should also be in ``libsvm`` format.
 
 
-4. Always use strings for setting values to the parameters in booster handle object. The paramter value can be of any data type (e.g. int, char, float, double, etc), but they should always be encoded as strings.
+4. Always use strings for setting values to the parameters in booster handle object. The parameter value can be of any data type (e.g. int, char, float, double, etc), but they should always be encoded as strings.
 
 .. code-block:: c
 
     BoosterHandle booster;
-    XGBoosterSetParam(booster, "paramter_name", "0.1");
+    XGBoosterSetParam(booster, "parameter_name", "0.1");
 
 
 **************************************************************
 Sample examples along with Code snippet to use C API functions
 **************************************************************
 
-1. If the dataset is available in a file, it can be loaded into a ``DMatrix`` object using the `XGDMatrixCreateFromFile <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a357c3654a1a4dcc05e6b5c50acd17105>`_
+1. If the dataset is available in a file, it can be loaded into a ``DMatrix`` object using the :cpp:func:`XGDMatrixCreateFromFile`
 
 .. code-block:: c
 
   DMatrixHandle data; // handle to DMatrix
-  // Load the dat from file & store it in data variable of DMatrixHandle datatype
+  // Load the data from file & store it in data variable of DMatrixHandle datatype
   safe_xgboost(XGDMatrixCreateFromFile("/path/to/file/filename", silent, &data));
 
 
-2. You can also create a ``DMatrix`` object from a 2D Matrix using the `XGDMatrixCreateFromMat function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a079f830cb972df70c7f50fb91678d62f>`_
+2. You can also create a ``DMatrix`` object from a 2D Matrix using the :cpp:func:`XGDMatrixCreateFromMat`
 
 .. code-block:: c
 
@@ -180,7 +176,7 @@ Sample examples along with Code snippet to use C API functions
   const int data1[] = { 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
 
   // 2D matrix
-  const int ROWS = 5, COLS = 3;
+  const int ROWS = 6, COLS = 3;
   const int data2[ROWS][COLS] = { {1, 2, 3}, {2, 4, 6}, {3, -1, 9}, {4, 8, -1}, {2, 5, 1}, {0, 1, 5} };
   DMatrixHandle dmatrix1, dmatrix2;
   // Pass the matrix, no of rows & columns contained in the matrix variable
@@ -191,7 +187,7 @@ Sample examples along with Code snippet to use C API functions
   safe_xgboost(XGDMatrixCreateFromMat(data2, ROWS, COLS, -1, &dmatrix2));
 
 
-3. Create a Booster object for training & testing on dataset using `XGBoosterCreate <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ad9fe6f8c8c4901db1c7581a96a21f9ae>`_
+3. Create a Booster object for training & testing on dataset using :cpp:func:`XGBoosterCreate`
 
 .. code-block:: c
 
@@ -202,7 +198,7 @@ Sample examples along with Code snippet to use C API functions
   safe_xgboost(XGBoosterCreate(eval_dmats, eval_dmats_size, &booster));
 
 
-4. For each ``DMatrix`` object, set the labels using `XGDMatrixSetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aef75cda93db3ae9af89e465ae7e9cbe3>`_. Later you can access the label using `XGDMatrixGetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ab0ee317539a1fb1ce2b5f249e8c768f6>`_.
+4. For each ``DMatrix`` object, set the labels using :cpp:func:`XGDMatrixSetFloatInfo`. Later you can access the label using :cpp:func:`XGDMatrixGetFloatInfo`.
 
 .. code-block:: c
 
@@ -235,7 +231,7 @@ Sample examples along with Code snippet to use C API functions
   }
 
 
-5. Set the parameters for the ``Booster`` object according to the requirement using `XGBoosterSetParam <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af7378865b0c999d2d08a5b16483b8bcb>`_ . Check out the full list of parameters available `here <https://xgboost.readthedocs.io/en/latest/parameter.html>`_ .
+5. Set the parameters for the ``Booster`` object according to the requirement using :cpp:func:`XGBoosterSetParam` . Check out the full list of parameters available :doc:`here </parameter>` .
 
 .. code-block :: c
 
@@ -247,7 +243,7 @@ Sample examples along with Code snippet to use C API functions
     safe_xgboost(XGBoosterSetParam(booster, "eta", "0.1"));
 
 
-6. Train & evaluate the model using `XGBoosterUpdateOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a13594d68b27327db290ec5e0a0ac92ae>`_ and `XGBoosterEvalOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a201b53edb9cc52e9def1ccea951d18fe>`_ respectively.
+6. Train & evaluate the model using :cpp:func:`XGBoosterUpdateOneIter` and :cpp:func:`XGBoosterEvalOneIter` respectively.
 
 .. code-block:: c
 
@@ -264,32 +260,31 @@ Sample examples along with Code snippet to use C API functions
       printf("%s\n", eval_result);
     }
 
-.. note:: For customized loss function, use `XGBoosterBoostOneIter function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#afd4a42c38cfb16d2cf2a9cf5daba4e83>`_ instead and manually specify the gradient and 2nd order gradient.
+.. note:: For customized loss function, use :cpp:func:`XGBoosterBoostOneIter` instead and manually specify the gradient and 2nd order gradient.
 
 
-7.  Predict the result on a test set using `XGBoosterPredict <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#adc14afaedd5f1add105d18942a4de33c>`_
+7.  Predict the result on a test set using :cpp:func:`XGBoosterPredictFromDMatrix`
 
 .. code-block:: c
 
-    bst_ulong output_length;
-
-    const float *output_result;
-    safe_xgboost(XGBoosterPredict(booster, test, 0, 0, &output_length, &output_result));
+    char const config[] =
+        "{\"training\": false, \"type\": 0, "
+        "\"iteration_begin\": 0, \"iteration_end\": 0, \"strict_shape\": false}";
+    /* Shape of output prediction */
+    uint64_t const* out_shape;
+    /* Dimension of output prediction */
+    uint64_t out_dim;
+    /* Pointer to a thread local contiguous array, assigned in prediction function. */
+    float const* out_result = NULL;
+    safe_xgboost(
+        XGBoosterPredictFromDMatrix(booster, dmatrix, config, &out_shape, &out_dim, &out_result));
 
     for (unsigned int i = 0; i < output_length; i++){
       printf("prediction[%i] = %f \n", i, output_result[i]);
     }
 
 
-8. Free all the internal structure used in your code using `XGDMatrixFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af06a15433b01e3b8297930a38155e05d>`_ and `XGBoosterFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a5d816936b005a103f0deabf287a6a5da>`_. This step is important to prevent memory leak.
-
-.. code-block:: c
-
-  safe_xgboost(XGDMatrixFree(dmatrix));
-  safe_xgboost(XGBoosterFree(booster));
-
-
-9. Get the number of features in your dataset using `XGBoosterGetNumFeature <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aa2c22f65cf2770c0e2e56cc7929a14af>`_.
+8. Get the number of features in your dataset using :cpp:func:`XGBoosterGetNumFeature`.
 
 .. code-block:: c
 
@@ -304,12 +299,22 @@ Sample examples along with Code snippet to use C API functions
     printf("num_feature: %lu\n", (unsigned long)(num_of_features));
 
 
-10. Load the model using `XGBoosterLoadModel function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a054571e6364f9a1cbf6b6b4fd2f156d6>`_
+
+9. Save the model using :cpp:func:`XGBoosterSaveModel`
 
 .. code-block:: c
 
     BoosterHandle booster;
-    const char *model_path = "/path/of/model";
+    const char *model_path = "/path/of/model.json";
+    safe_xgboost(XGBoosterSaveModel(booster, model_path));
+
+
+10. Load the model using :cpp:func:`XGBoosterLoadModel`
+
+.. code-block:: c
+
+    BoosterHandle booster;
+    const char *model_path = "/path/of/model.json";
 
     // create booster handle first
     safe_xgboost(XGBoosterCreate(NULL, 0, &booster));
@@ -320,3 +325,11 @@ Sample examples along with Code snippet to use C API functions
     safe_xgboost(XGBoosterLoadModel(booster, model_path));
 
     // predict the model here
+
+
+11. Free all the internal structure used in your code using :cpp:func:`XGDMatrixFree` and :cpp:func:`XGBoosterFree`. This step is important to prevent memory leak.
+
+.. code-block:: c
+
+  safe_xgboost(XGDMatrixFree(dmatrix));
+  safe_xgboost(XGBoosterFree(booster));

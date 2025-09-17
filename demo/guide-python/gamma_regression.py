@@ -2,8 +2,9 @@
 Demo for gamma regression
 =========================
 """
-import xgboost as xgb
 import numpy as np
+
+import xgboost as xgb
 
 #  this script demonstrates how to fit gamma regression model (with log link function)
 #  in xgboost, before running the demo you need to generate the autoclaims dataset

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2022 by XGBoost Contributors
+ * Copyright 2022-2023 by XGBoost Contributors
  *
  * \brief Some components of GPU Hist evaluator, this file only exist to reduce nvcc
  *        compilation time.
@@ -7,22 +7,20 @@
 #include <thrust/logical.h>  // thrust::any_of
 #include <thrust/sort.h>     // thrust::stable_sort
 
+#include "../../common/cuda_context.cuh"  // for CUDAContext
 #include "../../common/device_helpers.cuh"
 #include "../../common/hist_util.h"  // common::HistogramCuts
 #include "evaluate_splits.cuh"
 #include "xgboost/data.h"
 
-namespace xgboost {
-namespace tree {
-void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts,
-                                           common::Span<FeatureType const> ft,
-                                           bst_feature_t n_features, TrainParam const &param,
-                                           int32_t device) {
+namespace xgboost::tree {
+void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cuts,
+                             common::Span<FeatureType const> ft, bst_feature_t n_features,
+                             TrainParam const &param, bool is_column_split) {
   param_ = param;
-  tree_evaluator_ = TreeEvaluator{param, n_features, device};
+  tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device()};
   has_categoricals_ = cuts.HasCategorical();
   if (cuts.HasCategorical()) {
-    dh::XGBCachingDeviceAllocator<char> alloc;
     auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
     auto beg = thrust::make_counting_iterator<size_t>(1ul);
     auto end = thrust::make_counting_iterator<size_t>(ptrs.size());
@@ -31,7 +29,7 @@ void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts,
     // onehot-encoding-based splits.
     // For some reason, any_of adds 1.5 minutes to compilation time for CUDA 11.x.
     need_sort_histogram_ =
-        thrust::any_of(thrust::cuda::par(alloc), beg, end, [=] XGBOOST_DEVICE(size_t i) {
+        thrust::any_of(ctx->CUDACtx()->CTP(), beg, end, [=] XGBOOST_DEVICE(size_t i) {
           auto idx = i - 1;
           if (common::IsCat(ft, idx)) {
             auto n_bins = ptrs[i] - ptrs[idx];
@@ -46,8 +44,8 @@ void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts,
     CHECK_NE(node_categorical_storage_size_, 0);
     split_cats_.resize(node_categorical_storage_size_);
     h_split_cats_.resize(node_categorical_storage_size_);
-    dh::safe_cuda(
-        cudaMemsetAsync(split_cats_.data().get(), '\0', split_cats_.size() * sizeof(CatST)));
+    dh::safe_cuda(cudaMemsetAsync(split_cats_.data().get(), '\0',
+                                  split_cats_.size() * sizeof(CatST), ctx->CUDACtx()->Stream()));
 
     cat_sorted_idx_.resize(cuts.cut_values_.Size() * 2);  // evaluate 2 nodes at a time.
     sort_input_.resize(cat_sorted_idx_.size());
@@ -56,15 +54,15 @@ void GPUHistEvaluator::Reset(common::HistogramCuts const &cuts,
      * cache feature index binary search result
      */
     feature_idx_.resize(cat_sorted_idx_.size());
-    auto d_fidxes = dh::ToSpan(feature_idx_);
     auto it = thrust::make_counting_iterator(0ul);
-    auto values = cuts.cut_values_.ConstDeviceSpan();
-    thrust::transform(thrust::cuda::par(alloc), it, it + feature_idx_.size(), feature_idx_.begin(),
+    thrust::transform(ctx->CUDACtx()->CTP(), it, it + feature_idx_.size(), feature_idx_.begin(),
                       [=] XGBOOST_DEVICE(size_t i) {
                         auto fidx = dh::SegmentId(ptrs, i);
                         return fidx;
                       });
   }
+  is_column_split_ = is_column_split;
+  device_ = ctx->Device();
 }
 
 common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
@@ -72,7 +70,7 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   auto sorted_idx = this->SortedIdx(d_inputs.size(), shared_inputs.feature_values.size());
-  dh::Iota(sorted_idx);
+  dh::Iota(sorted_idx, dh::DefaultStream());
   auto data = this->SortInput(d_inputs.size(), shared_inputs.feature_values.size());
   auto it = thrust::make_counting_iterator(0u);
   auto d_feature_idx = dh::ToSpan(feature_idx_);
@@ -83,8 +81,9 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                       auto j = i % total_bins;
                       auto fidx = d_feature_idx[j];
                       if (common::IsCat(shared_inputs.feature_types, fidx)) {
-                        auto lw = evaluator.CalcWeightCat(shared_inputs.param,
-                                                          input.gradient_histogram[j]);
+                        auto grad =
+                            shared_inputs.rounding.ToFloatingPoint(input.gradient_histogram[j]);
+                        auto lw = evaluator.CalcWeightCat(shared_inputs.param, grad);
                         return thrust::make_tuple(i, lw);
                       }
                       return thrust::make_tuple(i, 0.0f);
@@ -125,6 +124,4 @@ common::Span<bst_feature_t const> GPUHistEvaluator::SortHistogram(
                              });
   return dh::ToSpan(cat_sorted_idx_);
 }
-
-}  // namespace tree
-}  // namespace xgboost
+}  // namespace xgboost::tree

@@ -83,20 +83,22 @@ Some other examples:
 - ``(0,-1)``: No constraint on the first predictor and a decreasing constraint on the second.
 
 
-**Note for the 'hist' tree construction algorithm**.
-If ``tree_method`` is set to either ``hist``, ``approx`` or ``gpu_hist``, enabling
-monotonic constraints may produce unnecessarily shallow trees. This is because the
-``hist`` method reduces the number of candidate splits to be considered at each
-split. Monotonic constraints may wipe out all available split candidates, in which case no
-split is made. To reduce the effect, you may want to increase the ``max_bin`` parameter to
-consider more split candidates.
+.. note::
+
+   **Note for the 'hist' tree construction algorithm**.  If ``tree_method`` is set to
+   either ``hist`` or ``approx``, enabling monotonic constraints may produce unnecessarily
+   shallow trees. This is because the ``hist`` method reduces the number of candidate
+   splits to be considered at each split. Monotonic constraints may wipe out all available
+   split candidates, in which case no split is made. To reduce the effect, you may want to
+   increase the ``max_bin`` parameter to consider more split candidates.
 
 
 *******************
 Using feature names
 *******************
 
-XGBoost's Python package supports using feature names instead of feature index for
+XGBoost's Python and R packages support using feature names instead of feature indices for
 specifying the constraints. Given a data frame with columns ``["f0", "f1", "f2"]``, the
-monotonic constraint can be specified as ``{"f0": 1, "f2": -1}``, and ``"f1"`` will
+monotonic constraint can be specified as ``{"f0": 1, "f2": -1}`` (Python) or as
+``list(f0=1, f2=-1)`` (R, when using 'xgboost()', but not 'xgb.train'), and ``"f1"`` will
 default to ``0`` (no constraint).

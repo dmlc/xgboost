@@ -4,26 +4,34 @@
 \alias{print.xgb.Booster}
 \title{Print xgb.Booster}
 \usage{
-\method{print}{xgb.Booster}(x, verbose = FALSE, ...)
+\method{print}{xgb.Booster}(x, ...)
 }
 \arguments{
-\item{x}{an xgb.Booster object}
+\item{x}{An \code{xgb.Booster} object.}
 
-\item{verbose}{whether to print detailed data (e.g., attribute values)}
-
-\item{...}{not currently used}
+\item{...}{Not used.}
+}
+\value{
+The same \code{x} object, returned invisibly
 }
 \description{
-Print information about xgb.Booster.
+Print information about \code{xgb.Booster}.
 }
 \examples{
-data(agaricus.train, package='xgboost')
+data(agaricus.train, package = "xgboost")
 train <- agaricus.train
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
-attr(bst, 'myattr') <- 'memo'
+
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
+  nrounds = 2,
+  params = xgb.params(
+    max_depth = 2,
+    nthread = 2,
+    objective = "binary:logistic"
+  )
+)
+
+attr(bst, "myattr") <- "memo"
 
 print(bst)
-print(bst, verbose=TRUE)
-
 }

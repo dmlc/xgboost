@@ -36,5 +36,3 @@ The register macros available to plugin writers are:
 And from dmlc-core:
 
  - DMLC_REGISTER_PARAMETER - Register a set of parameter for a specific usecase
- - DMLC_REGISTER_DATA_PARSER - Register a data parser where the data can be
-   represented by a URL. This is used by DMatrix.

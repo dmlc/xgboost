@@ -21,6 +21,10 @@
 #include "device_helpers.cuh"
 #endif  // defined (__CUDACC__)
 
+#if defined (SYCL_LANGUAGE_VERSION)
+#include "../plugin/sycl/common/transform.h"
+#endif  // defined (SYCL_LANGUAGE_VERSION)
+
 namespace xgboost {
 namespace common {
 
@@ -60,8 +64,8 @@ class Transform {
   template <typename Functor>
   struct Evaluator {
    public:
-    Evaluator(Functor func, Range range, int32_t n_threads, int32_t device_idx)
-        : func_(func), range_{std::move(range)}, n_threads_{n_threads}, device_{device_idx} {}
+    Evaluator(Functor func, Range range, int32_t n_threads, DeviceOrd device)
+        : func_(func), range_{std::move(range)}, n_threads_{n_threads}, device_{device} {}
 
     /*!
      * \brief Evaluate the functor with input pointers to HostDeviceVector.
@@ -71,10 +75,10 @@ class Transform {
      */
     template <typename... HDV>
     void Eval(HDV... vectors) const {
-      bool on_device = device_ >= 0;
-
-      if (on_device) {
+      if (device_.IsCUDA()) {
         LaunchCUDA(func_, vectors...);
+      } else if (device_.IsSycl()) {
+        LaunchSycl(func_, vectors...);
       } else {
         LaunchCPU(func_, vectors...);
       }
@@ -116,11 +120,11 @@ class Transform {
     }
     // Recursive unpack for Shard.
     template <typename T>
-    void UnpackShard(int device, const HostDeviceVector<T> *vector) const {
+    void UnpackShard(DeviceOrd device, const HostDeviceVector<T> *vector) const {
       vector->SetDevice(device);
     }
     template <typename Head, typename... Rest>
-    void UnpackShard(int device,
+    void UnpackShard(DeviceOrd device,
                      const HostDeviceVector<Head> *_vector,
                      const HostDeviceVector<Rest> *... _vectors) const {
       _vector->SetDevice(device);
@@ -128,7 +132,7 @@ class Transform {
     }
 
 #if defined(__CUDACC__)
-    template <typename std::enable_if<CompiledWithCuda>::type* = nullptr,
+    template <typename std::enable_if_t<CompiledWithCuda>* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
       UnpackShard(device_, _vectors...);
@@ -140,7 +144,7 @@ class Transform {
       // granularity is used in data vector.
       size_t shard_size = range_size;
       Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
-      dh::safe_cuda(cudaSetDevice(device_));
+      dh::safe_cuda(cudaSetDevice(device_.ordinal));
       const int kGrids =
           static_cast<int>(DivRoundUp(*(range_.end()), kBlockThreads));
       if (kGrids == 0) {
@@ -151,15 +155,30 @@ class Transform {
     }
 #else
     /*! \brief Dummy function defined when compiling for CPU.  */
-    template <typename std::enable_if<!CompiledWithCuda>::type* = nullptr,
-              typename... HDV>
-    void LaunchCUDA(Functor _func, HDV*...) const {
+    template <typename std::enable_if_t<!CompiledWithCuda> * = nullptr, typename... HDV>
+    void LaunchCUDA(Functor _func, HDV *...) const {
       // Remove unused parameter compiler warning.
       (void) _func;
 
       LOG(FATAL) << "Not part of device code. WITH_CUDA: " << WITH_CUDA();
     }
 #endif  // defined(__CUDACC__)
+
+#if defined (SYCL_LANGUAGE_VERSION)
+    template <typename... HDV>
+    void LaunchSycl(Functor _func, HDV*... _vectors) const {
+      UnpackShard(device_, _vectors...);
+
+      size_t range_size = *range_.end() - *range_.begin();
+      Range shard_range {0, static_cast<Range::DifferenceType>(range_size)};
+      sycl::common::LaunchSyclKernel(device_, _func, shard_range, UnpackHDVOnDevice(_vectors)...);
+    }
+#else
+    template <typename... HDV>
+    void LaunchSycl(Functor _func, HDV *... _vectors) const {
+      LaunchCPU(_func, _vectors...);
+    }
+#endif  // defined(SYCL_LANGUAGE_VERSION)
 
     template <typename... HDV>
     void LaunchCPU(Functor func, HDV *...vectors) const {
@@ -174,7 +193,7 @@ class Transform {
     /*! \brief Range object specifying parallel threads index range. */
     Range range_;
     int32_t n_threads_;
-    int32_t device_;
+    DeviceOrd device_;
   };
 
  public:
@@ -192,8 +211,8 @@ class Transform {
    */
   template <typename Functor>
   static Evaluator<Functor> Init(Functor func, Range const range, int32_t n_threads,
-                                 int32_t device_idx) {
-    return Evaluator<Functor>{func, std::move(range), n_threads, device_idx};
+                                 DeviceOrd device) {
+    return Evaluator<Functor>{func, std::move(range), n_threads, device};
   }
 };
 

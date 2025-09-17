@@ -98,7 +98,7 @@ Collect the lower bound numbers in one array (let's call it ``y_lower_bound``) a
   # 4-by-2 Data matrix
   X = np.array([[1, -1], [-1, 1], [0, 1], [1, 0]])
   dtrain = xgb.DMatrix(X)
-  
+
   # Associate ranged labels with the data matrix.
   # This example shows each kind of censored labels.
   #                         uncensored    right     left  interval
@@ -109,7 +109,7 @@ Collect the lower bound numbers in one array (let's call it ``y_lower_bound``) a
 
 .. code-block:: r
   :caption: R
-  
+
   library(xgboost)
 
   # 4-by-2 Data matrix
@@ -165,4 +165,4 @@ Currently, you can choose from three probability distributions for ``aft_loss_di
 ``extreme``               :math:`e^z e^{-\exp{z}}`
 ========================= ===========================================
 
-Note that it is not yet possible to set the ranged label using the scikit-learn interface (e.g. :class:`xgboost.XGBRegressor`). For now, you should use :class:`xgboost.train` with :class:`xgboost.DMatrix`.
+Note that it is not yet possible to set the ranged label using the scikit-learn interface (e.g. :class:`xgboost.XGBRegressor`). For now, you should use :class:`xgboost.train` with :class:`xgboost.DMatrix`. For a collection of Python examples, see :doc:`/python/survival-examples/index`

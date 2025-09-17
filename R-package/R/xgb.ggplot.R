@@ -1,10 +1,9 @@
 # ggplot backend for the xgboost plotting facilities
 
-
 #' @rdname xgb.plot.importance
 #' @export
 xgb.ggplot.importance <- function(importance_matrix = NULL, top_n = NULL, measure = NULL,
-                                  rel_to_first = FALSE, n_clusters = c(1:10), ...) {
+                                  rel_to_first = FALSE, n_clusters = seq_len(10), ...) {
 
   importance_matrix <- xgb.plot.importance(importance_matrix, top_n = top_n, measure = measure,
                                            rel_to_first = rel_to_first, plot = FALSE, ...)
@@ -103,6 +102,27 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
 #' @export
 xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, top_n = 10, model = NULL,
                                     trees = NULL, target_class = NULL, approxcontrib = FALSE, subsample = NULL) {
+  if (inherits(data, "xgb.DMatrix")) {
+    stop(
+      "'xgb.ggplot.shap.summary' is not compatible with 'xgb.DMatrix' objects. Try passing a matrix or data.frame."
+    )
+  }
+  cols_categ <- NULL
+  if (!is.null(model)) {
+    ftypes <- getinfo(model, "feature_type")
+    if (NROW(ftypes)) {
+      if (length(ftypes) != ncol(data)) {
+        stop(sprintf("'data' has incorrect number of columns (expected: %d, got: %d).", length(ftypes), ncol(data)))
+      }
+      cols_categ <- colnames(data)[ftypes == "c"]
+    }
+  } else if (inherits(data, "data.frame")) {
+    cols_categ <- names(data)[sapply(data, function(x) is.factor(x) || is.character(x))]
+  }
+  if (NROW(cols_categ)) {
+    warning("Categorical features are ignored in 'xgb.ggplot.shap.summary'.")
+  }
+
   data_list <- xgb.shap.data(
     data = data,
     shap_contrib = shap_contrib,
@@ -115,6 +135,10 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
     subsample = subsample,
     max_observations = 10000  # 10,000 samples per feature.
   )
+  if (NROW(cols_categ)) {
+    data_list <- lapply(data_list, function(x) x[, !(colnames(x) %in% cols_categ), drop = FALSE])
+  }
+
   p_data <- prepare.ggplot.shap.data(data_list, normalize = TRUE)
   # Reverse factor levels so that the first level is at the top of the plot
   p_data[, "feature" := factor(feature, rev(levels(feature)))]
@@ -127,21 +151,20 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
   p
 }
 
-#' Combine and melt feature values and SHAP contributions for sample
-#' observations.
+#' Combine feature values and SHAP values
 #'
-#' Conforms to data format required for ggplot functions.
+#' Internal function used to combine and melt feature values and SHAP contributions
+#' as required for ggplot functions related to SHAP.
 #'
-#' Internal utility function.
-#'
-#' @param data_list List containing 'data' and 'shap_contrib' returned by
-#'   \code{xgb.shap.data()}.
-#' @param normalize Whether to standardize feature values to have mean 0 and
-#'   standard deviation 1 (useful for comparing multiple features on the same
-#'   plot). Default \code{FALSE}.
-#'
-#' @return A data.table containing the observation ID, the feature name, the
+#' @param data_list The result of `xgb.shap.data()`.
+#' @param normalize Whether to standardize feature values to mean 0 and
+#'   standard deviation 1. This is useful for comparing multiple features on the same
+#'   plot. Default is `FALSE`. Note that it cannot be used when the data contains
+#'   categorical features.
+#' @return A `data.table` containing the observation ID, the feature name, the
 #'   feature value (normalized if specified), and the SHAP contribution value.
+#' @noRd
+#' @keywords internal
 prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
   data <- data_list[["data"]]
   shap_contrib <- data_list[["shap_contrib"]]
@@ -162,14 +185,15 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
   p_data
 }
 
-#' Scale feature value to have mean 0, standard deviation 1
+#' Scale feature values
 #'
-#' This is used to compare multiple features on the same plot.
-#' Internal utility function
+#' Internal function that scales feature values to mean 0 and standard deviation 1.
+#' Useful to compare multiple features on the same plot.
 #'
-#' @param x Numeric vector
-#'
-#' @return Numeric vector with mean 0 and sd 1.
+#' @param x Numeric vector.
+#' @return Numeric vector with mean 0 and standard deviation 1.
+#' @noRd
+#' @keywords internal
 normalize <- function(x) {
   loc <- mean(x, na.rm = TRUE)
   scale <- stats::sd(x, na.rm = TRUE)
@@ -181,7 +205,7 @@ normalize <- function(x) {
 # ... the plots
 # cols number of columns
 # internal utility function
-multiplot <- function(..., cols = 1) {
+multiplot <- function(..., cols) {
   plots <- list(...)
   num_plots <- length(plots)
 

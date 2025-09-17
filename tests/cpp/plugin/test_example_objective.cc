@@ -4,12 +4,10 @@
 #include "../helpers.h"
 
 namespace xgboost {
-
 TEST(Plugin, ExampleObjective) {
-  xgboost::GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
-  auto * obj = xgboost::ObjFunction::Create("mylogistic", &tparam);
+  xgboost::Context ctx = MakeCUDACtx(GPUIDX);
+  auto* obj = xgboost::ObjFunction::Create("mylogistic", &ctx);
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"logloss"});
   delete obj;
 }
-
 }  // namespace xgboost

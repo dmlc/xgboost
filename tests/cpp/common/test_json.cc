@@ -1,17 +1,22 @@
-/*!
- * Copyright (c) by Contributors 2019-2022
+/**
+ * Copyright 2019-2025, XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
-#include <fstream>
-#include <map>
 
-#include "xgboost/json.h"
-#include "xgboost/logging.h"
-#include "xgboost/json_io.h"
-#include "../helpers.h"
+#include <fstream>
+#include <limits>  // for numeric_limits
+#include <map>
+#include <numeric>  // for iota
+
 #include "../../../src/common/io.h"
-#include "../../../src/common/charconv.h"
+#include "../../../src/common/json_utils.h"
+#include "../../../src/common/threading_utils.h"  // for ParallelFor
+#include "../filesystem.h"                        // for TemporaryDirectory
+#include "../helpers.h"
+#include "dmlc/logging.h"
+#include "xgboost/json.h"
+#include "xgboost/json_io.h"
+#include "xgboost/logging.h"
 
 namespace xgboost {
 
@@ -26,7 +31,6 @@ std::string GetModelStr() {
   "train_parameter": {
     "debug_verbose": "0",
     "disable_default_eval_metric": "0",
-    "dsplit": "auto",
     "nthread": "0",
     "seed": "0",
     "seed_per_iteration": "0",
@@ -39,7 +43,6 @@ std::string GetModelStr() {
     "num_class": "0",
     "num_feature": "10",
     "objective": "reg:linear",
-    "predictor": "gpu_predictor",
     "tree_method": "gpu_hist",
     "updater": "grow_gpu_hist"
   },
@@ -417,10 +420,10 @@ TEST(Json, AssigningString) {
 
 TEST(Json, LoadDump) {
   std::string ori_buffer = GetModelStr();
-  Json origin {Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
+  Json origin{Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
 
-  dmlc::TemporaryDirectory tempdir;
-  auto const& path = tempdir.path + "test_model_dump";
+  common::TemporaryDirectory tempdir;
+  auto const& path = tempdir.Path() / "test_model_dump";
 
   std::string out;
   Json::Dump(origin, &out);
@@ -429,9 +432,9 @@ TEST(Json, LoadDump) {
   ASSERT_TRUE(fout);
   fout << out << std::flush;
 
-  std::string new_buffer = common::LoadSequentialFile(path);
+  std::vector<char> new_buffer = common::LoadSequentialFile(path.string());
 
-  Json load_back {Json::Load(StringView(new_buffer.c_str(), new_buffer.size()))};
+  Json load_back{Json::Load(StringView(new_buffer.data(), new_buffer.size()))};
   ASSERT_EQ(load_back, origin);
 }
 
@@ -498,8 +501,7 @@ TEST(Json, WrongCasts) {
     ASSERT_ANY_THROW(get<Number>(json));
   }
   {
-    Json json = Json{ Object{std::map<std::string, Json>{
-          {"key", Json{String{"value"}}}} } };
+    Json json = Json{Object{{{"key", Json{String{"value"}}}}}};
     ASSERT_ANY_THROW(get<Number>(json));
   }
 }
@@ -590,7 +592,7 @@ TEST(Json, DISABLED_RoundTripExhaustive) {
     }
   };
   int64_t int32_max = static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
-  GenericParameter ctx;
+  Context ctx;
   common::ParallelFor(int32_max, ctx.Threads(), [&](auto i) { test(static_cast<uint32_t>(i)); });
 }
 
@@ -598,8 +600,12 @@ TEST(Json, TypedArray) {
   size_t n = 16;
   F32Array f32{n};
   std::iota(f32.GetArray().begin(), f32.GetArray().end(), -8);
+  I8Array i8{n};
+  std::iota(i8.GetArray().begin(), i8.GetArray().end(), 0);
   U8Array u8{n};
   std::iota(u8.GetArray().begin(), u8.GetArray().end(), 0);
+  I32Array i16{n};
+  std::iota(i16.GetArray().begin(), i16.GetArray().end(), -8);
   I32Array i32{n};
   std::iota(i32.GetArray().begin(), i32.GetArray().end(), -8);
   I64Array i64{n};
@@ -608,8 +614,12 @@ TEST(Json, TypedArray) {
   Json json{Object{}};
   json["u8"] = std::move(u8);
   ASSERT_TRUE(IsA<U8Array>(json["u8"]));
+  json["i8"] = std::move(i8);
+  ASSERT_TRUE(IsA<I8Array>(json["i8"]));
   json["f32"] = std::move(f32);
   ASSERT_TRUE(IsA<F32Array>(json["f32"]));
+  json["i16"] = std::move(i16);
+  ASSERT_TRUE(IsA<I32Array>(json["i16"]));
   json["i32"] = std::move(i32);
   ASSERT_TRUE(IsA<I32Array>(json["i32"]));
   json["i64"] = std::move(i64);
@@ -636,6 +646,46 @@ TEST(Json, TypedArray) {
     for (int32_t i = -8; i < 8; ++i) {
       ASSERT_EQ(arr[i + 8], i);
     }
+
+    ASSERT_TRUE(IsA<I8Array>(loaded["i8"])) << loaded["i8"].GetValue().TypeStr();
+    auto const& i8_arr = get<I8Array>(loaded["i8"]);
+    for (decltype(n) i = 0; i < n; ++i) {
+      ASSERT_EQ(i8_arr[i], i);
+    }
+  }
+
+  {
+    Json f64{Object{}};
+    auto array = F64Array();
+    auto& vec = array.GetArray();
+    // Construct test data
+    vec.resize(18);
+    std::iota(vec.begin(), vec.end(), 0.0);
+    // special values
+    vec.push_back(std::numeric_limits<double>::epsilon());
+    vec.push_back(std::numeric_limits<double>::max());
+    vec.push_back(std::numeric_limits<double>::min());
+    vec.push_back(std::numeric_limits<double>::denorm_min());
+    vec.push_back(std::numeric_limits<double>::quiet_NaN());
+
+    static_assert(
+        std::is_same_v<double, typename std::remove_reference_t<decltype(vec)>::value_type>);
+
+    f64["f64"] = std::move(array);
+    ASSERT_TRUE(IsA<F64Array>(f64["f64"]));
+    std::vector<char> out;
+    Json::Dump(f64, &out, std::ios::binary);
+
+    auto loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+    ASSERT_TRUE(IsA<F64Array>(loaded["f64"]));
+    auto const& result = get<F64Array const>(loaded["f64"]);
+
+    auto& vec1 = get<F64Array const>(f64["f64"]);
+    ASSERT_EQ(result.size(), vec1.size());
+    for (std::size_t i = 0; i < vec1.size() - 1; ++i) {
+      ASSERT_EQ(result[i], vec1[i]);
+    }
+    ASSERT_TRUE(std::isnan(result.back()));
   }
 }
 
@@ -651,7 +701,7 @@ TEST(UBJson, Basic) {
     }
 
     auto data = common::LoadSequentialFile("test.ubj");
-    UBJReader reader{StringView{data}};
+    UBJReader reader{StringView{data.data(), data.size()}};
     json = reader.Load();
     return json;
   };
@@ -675,5 +725,55 @@ TEST(UBJson, Basic) {
     ASSERT_FLOAT_EQ(3.14, get<Number>(get<Array>(ret["test"])[1]));
     ASSERT_FLOAT_EQ(2.71, get<Number>(get<Array>(ret["test"])[0]));
   }
+  {
+    // boolean
+    Json boolean{Object{}};
+    boolean["foo"] = Boolean{false};
+    std::vector<char> out;
+    Json::Dump(boolean, &out, std::ios::binary);
+    auto loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+
+    ASSERT_EQ(boolean, loaded);
+
+    boolean["foo"] = Boolean{true};
+    Json::Dump(boolean, &out, std::ios::binary);
+    loaded = Json::Load(StringView{out.data(), out.size()}, std::ios::binary);
+    ASSERT_EQ(boolean, loaded);
+  }
+}
+
+
+TEST(Json, TypeCheck) {
+  Json config{Object{}};
+  config["foo"] = String{"bar"};
+  auto test = [&]() { TypeCheck<Number, Integer, Array, I32Array>(config["foo"], "foo"); };
+  ASSERT_THROW({ test(); }, dmlc::Error);
+  try {
+    test();
+  } catch (dmlc::Error const& e) {
+    auto err = std::string{e.what()};
+    ASSERT_NE(err.find("Number"), std::string::npos);
+    ASSERT_NE(err.find("I32Array"), std::string::npos);
+    ASSERT_NE(err.find("foo"), std::string::npos);
+  }
+}
+
+TEST(Json, Dump) {
+  auto str = GetModelStr();
+  auto jobj = Json::Load(str);
+  std::string result_s = Json::Dump(jobj);
+
+  std::vector<char> result_v = Json::Dump<std::vector<char>>(jobj);
+  ASSERT_EQ(result_s.size(), result_v.size());
+  for (std::size_t i = 0; i < result_s.size(); ++i) {
+    ASSERT_EQ(result_s[i], result_v[i]);
+  }
+}
+
+TEST(Json, NonNullTerminated) {
+  // garbage at the end, not terminated by \0
+  std::vector<char> str{'{', '"', 'a', '"', ':', '"', 'b', '"', '}', 'c', 'c'};
+  auto jobj = Json::Load(StringView{str.data(), str.size()});
+  ASSERT_EQ(get<String const>(jobj["a"]), "b");
 }
 }  // namespace xgboost

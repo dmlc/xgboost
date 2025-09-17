@@ -1,23 +1,39 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2025, XGBoost contributors
  */
+#include "test_regression_obj.h"
+
 #include <gtest/gtest.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/context.h>
 #include <xgboost/json.h>
 #include <xgboost/objective.h>
+#include <xgboost/tree_model.h>  // for RegTree
 
-#include "../../../src/objective/adaptive.h"
+#include <numeric>  // for iota
+
+#include "../../../src/common/linalg_op.h"  // for begin, end
+#include "../../../src/tree/param.h"        // for TrainParam
 #include "../helpers.h"
+#include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/linalg.h"
+#include "xgboost/tree_model.h"  // for RegTree
 
 namespace xgboost {
+namespace {
+void CheckProbaToMargin(std::unique_ptr<ObjFunction> const& obj, float in, float expect,
+                        float abs_error = 1e-2f) {
+  linalg::Vector<float> t{{in}, {1}, obj->Ctx()->Device()};
+  obj->ProbToMargin(&t);
+  ASSERT_NEAR(t(0), expect, abs_error);
+}
+}  // namespace
 
-TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
-  GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
+void TestLinearRegressionGPair(const Context* ctx) {
+  std::string obj_name = "reg:squarederror";
+
   std::vector<std::pair<std::string, std::string>> args;
-
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:squarederror", &tparam)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -32,16 +48,17 @@ TEST(Objective, DeclareUnifiedTest(LinearRegressionGPair)) {
                    {},  // empty weight
                    {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
                    {1,   1,   1,   1,    1,    1,    1, 1});
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+
+  ASSERT_NO_THROW({ [[maybe_unused]] auto _ = obj->DefaultEvalMetric(); });
 }
 
-TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
-  GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
+void TestSquaredLog(const Context* ctx) {
+  std::string obj_name = "reg:squaredlogerror";
   std::vector<std::pair<std::string, std::string>> args;
 
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:squaredlogerror", &tparam) };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
   obj->Configure(args);
-  CheckConfigReload(obj, "reg:squaredlogerror");
+  CheckConfigReload(obj, obj_name);
 
   CheckObjFunction(obj,
                    {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
@@ -58,42 +75,13 @@ TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
 }
 
-TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
-  GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
-  Args args;
-
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:pseudohubererror", &tparam)};
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:pseudohubererror");
-
-  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
-                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
-  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
-                   {},                                                           // empty weights
-                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
-                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
-  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
-
-  obj->Configure({{"huber_slope", "0.1"}});
-  CheckConfigReload(obj, "reg:pseudohubererror");
-  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
-                   {-0.099388f, -0.099228f, -0.098639f, -0.089443f, 0.098639f},  // out_grad
-                   {0.0013467f, 0.001908f, 0.004443f, 0.089443f, 0.004443f});    // out_hess
-}
-
-TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
-  GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
+void TestLogisticRegressionGPair(const Context* ctx) {
+  std::string obj_name = "reg:logistic";
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:logistic", &tparam) };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
   obj->Configure(args);
-  CheckConfigReload(obj, "reg:logistic");
+  CheckConfigReload(obj, obj_name);
 
   CheckObjFunction(obj,
                    {   0,  0.1f,  0.9f,    1,    0,   0.1f,  0.9f,      1}, // preds
@@ -103,26 +91,23 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f}); // out_hess
 }
 
-TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestLogisticRegressionBasic(const Context* ctx) {
+  std::string obj_name = "reg:logistic";
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:logistic", &lparam)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
   obj->Configure(args);
-  CheckConfigReload(obj, "reg:logistic");
+  CheckConfigReload(obj, obj_name);
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {10}, {1}, {0}, {0}))
     << "Expected error when label not in range [0,1f] for LogisticRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.197f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), 2.197f, 0.01f);
-  EXPECT_ANY_THROW(obj->ProbToMargin(10))
-    << "Expected error when base_score not in range [0,1f] for LogisticRegression";
+  CheckProbaToMargin(obj, 0.1f, -2.197f);
+  CheckProbaToMargin(obj, 0.5f, 0);
+  CheckProbaToMargin(obj, 0.9f, 2.197f);
+  ASSERT_THAT([&] { CheckProbaToMargin(obj, 10, 0); }, GMockThrow("base_score must be in (0,1)"));
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -134,12 +119,10 @@ TEST(Objective, DeclareUnifiedTest(LogisticRegressionBasic)) {
   }
 }
 
-TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestsLogisticRawGPair(const Context* ctx) {
+  std::string obj_name = "binary:logitraw";
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction>  obj {
-    ObjFunction::Create("binary:logitraw", &lparam)
-  };
+  std::unique_ptr<ObjFunction>  obj {ObjFunction::Create(obj_name, ctx)};
   obj->Configure(args);
 
   CheckObjFunction(obj,
@@ -150,14 +133,13 @@ TEST(Objective, DeclareUnifiedTest(LogisticRawGPair)) {
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
 }
 
-TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestPoissonRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("count:poisson", &lparam)
+    ObjFunction::Create("count:poisson", ctx)
   };
 
-  args.emplace_back(std::make_pair("max_delta_step", "0.1f"));
+  args.emplace_back("max_delta_step", "0.1f");
   obj->Configure(args);
 
   CheckObjFunction(obj,
@@ -174,11 +156,10 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionGPair)) {
                    {1.10f, 1.22f, 2.71f, 3.00f, 1.10f, 1.22f, 2.71f, 3.00f});
 }
 
-TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestPoissonRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("count:poisson", &lparam)
+    ObjFunction::Create("count:poisson", ctx)
   };
 
   obj->Configure(args);
@@ -189,9 +170,9 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
     << "Expected error when label < 0 for PoissonRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -203,11 +184,10 @@ TEST(Objective, DeclareUnifiedTest(PoissonRegressionBasic)) {
   }
 }
 
-TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestGammaRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:gamma", &lparam)
+    ObjFunction::Create("reg:gamma", ctx)
   };
 
   obj->Configure(args);
@@ -225,12 +205,9 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
                    {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
 }
 
-TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestGammaRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:gamma", &lparam)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx)};
 
   obj->Configure(args);
   CheckConfigReload(obj, "reg:gamma");
@@ -242,9 +219,9 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
     << "Expected error when label < 0 for GammaRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -256,14 +233,11 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
   }
 }
 
-TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestTweedieRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:tweedie", &lparam)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx)};
 
-  args.emplace_back(std::make_pair("tweedie_variance_power", "1.1f"));
+  args.emplace_back("tweedie_variance_power", "1.1f");
   obj->Configure(args);
 
   CheckObjFunction(obj,
@@ -281,65 +255,9 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"tweedie-nloglik@1.1"});
 }
 
-#if defined(__CUDACC__)
-TEST(Objective, CPU_vs_CUDA) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
-
-  ObjFunction * obj =
-      ObjFunction::Create("reg:squarederror", &lparam);
-  HostDeviceVector<GradientPair> cpu_out_preds;
-  HostDeviceVector<GradientPair> cuda_out_preds;
-
-  constexpr size_t kRows = 400;
-  constexpr size_t kCols = 100;
-  auto pdmat = RandomDataGenerator(kRows, kCols, 0).Seed(0).GenerateDMatrix();
-  HostDeviceVector<float> preds;
-  preds.Resize(kRows);
-  auto& h_preds = preds.HostVector();
-  for (size_t i = 0; i < h_preds.size(); ++i) {
-    h_preds[i] = static_cast<float>(i);
-  }
-  auto& info = pdmat->Info();
-
-  info.labels.Reshape(kRows);
-  auto& h_labels = info.labels.Data()->HostVector();
-  for (size_t i = 0; i < h_labels.size(); ++i) {
-    h_labels[i] = 1 / (float)(i+1);
-  }
-
-  {
-    // CPU
-    lparam.gpu_id = -1;
-    obj->GetGradient(preds, info, 0, &cpu_out_preds);
-  }
-  {
-    // CUDA
-    lparam.gpu_id = 0;
-    obj->GetGradient(preds, info, 0, &cuda_out_preds);
-  }
-
-  auto& h_cpu_out = cpu_out_preds.HostVector();
-  auto& h_cuda_out = cuda_out_preds.HostVector();
-
-  float sgrad = 0;
-  float shess = 0;
-  for (size_t i = 0; i < kRows; ++i) {
-    sgrad += std::pow(h_cpu_out[i].GetGrad() - h_cuda_out[i].GetGrad(), 2);
-    shess += std::pow(h_cpu_out[i].GetHess() - h_cuda_out[i].GetHess(), 2);
-  }
-  ASSERT_NEAR(sgrad, 0.0f, kRtEps);
-  ASSERT_NEAR(shess, 0.0f, kRtEps);
-
-  delete obj;
-}
-#endif
-
-TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestTweedieRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:tweedie", &lparam)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:tweedie", ctx)};
 
   obj->Configure(args);
   CheckConfigReload(obj, "reg:tweedie");
@@ -349,9 +267,9 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
     << "Expected error when label < 0 for TweedieRegression";
 
   // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.30f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), -0.69f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), -0.10f, 0.01f);
+  CheckProbaToMargin(obj, 0.1f, -2.30f);
+  CheckProbaToMargin(obj, 0.5f, -0.69f);
+  CheckProbaToMargin(obj, 0.9f, -0.10f);
 
   // test PredTransform
   HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
@@ -363,14 +281,9 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionBasic)) {
   }
 }
 
-// CoxRegression not implemented in GPU code, no need for testing.
-#if !defined(__CUDACC__)
-TEST(Objective, CoxRegressionGPair) {
-  GenericParameter lparam = CreateEmptyGenericParam(GPUIDX);
+void TestCoxRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("survival:cox", &lparam)
-  };
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};
 
   obj->Configure(args);
   CheckObjFunction(obj,
@@ -380,11 +293,9 @@ TEST(Objective, CoxRegressionGPair) {
                    { 0,    0,    0, -0.799f, -0.788f, -0.590f, 0.910f,  1.006f},
                    { 0,    0,    0,  0.160f,  0.186f,  0.348f, 0.610f,  0.639f});
 }
-#endif
 
-TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
+void TestAbsoluteError(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
   obj->Configure({});
   CheckConfigReload(obj, "reg:absoluteerror");
 
@@ -417,77 +328,97 @@ TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
     h_predt[i] = labels[i] + i;
   }
 
-  obj->UpdateTreeLeaf(position, info, predt, &tree);
-  ASSERT_EQ(tree[1].LeafValue(), -1);
-  ASSERT_EQ(tree[2].LeafValue(), -4);
+  tree::TrainParam param;
+  param.Init(Args{});
+  auto lr = param.learning_rate;
+
+  obj->UpdateTreeLeaf(position, info, param.learning_rate, predt, 0, &tree);
+  ASSERT_EQ(tree[1].LeafValue(), -1.0f * lr);
+  ASSERT_EQ(tree[2].LeafValue(), -4.0f * lr);
 }
 
-TEST(Objective, DeclareUnifiedTest(AbsoluteErrorLeaf)) {
-  Context ctx = CreateEmptyGenericParam(GPUIDX);
-  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", &ctx)};
+void TestAbsoluteErrorLeaf(const Context* ctx) {
+  bst_target_t constexpr kTargets = 3, kRows = 16;
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
   obj->Configure({});
 
   MetaInfo info;
-  info.labels.Reshape(16, 1);
-  info.num_row_ = info.labels.Size();
-  CHECK_EQ(info.num_row_, 16);
-  auto h_labels = info.labels.HostView().Values();
-  std::iota(h_labels.begin(), h_labels.end(), 0);
-  HostDeviceVector<float> predt(h_labels.size());
-  auto& h_predt = predt.HostVector();
-  for (size_t i = 0; i < h_predt.size(); ++i) {
-    h_predt[i] = h_labels[i] + i;
-  }
+  info.num_row_ = kRows;
+  info.labels.Reshape(16, kTargets);
+  HostDeviceVector<float> predt(info.labels.Size());
 
-  HostDeviceVector<bst_node_t> position(info.labels.Size(), 0);
-  auto& h_position = position.HostVector();
-  for (int32_t i = 0; i < 3; ++i) {
-    h_position[i] = ~i;  // negation for sampled nodes.
-  }
-  for (size_t i = 3; i < 8; ++i) {
-    h_position[i] = 3;
-  }
-  // empty leaf for node 4
-  for (size_t i = 8; i < 13; ++i) {
-    h_position[i] = 5;
-  }
-  for (size_t i = 13; i < h_labels.size(); ++i) {
-    h_position[i] = 6;
-  }
+  for (bst_target_t t{0}; t < kTargets; ++t) {
+    auto h_labels = info.labels.HostView().Slice(linalg::All(), t);
+    std::iota(linalg::begin(h_labels), linalg::end(h_labels), 0);
 
-  RegTree tree;
-  tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
-  ASSERT_EQ(tree.GetNumLeaves(), 4);
+    auto h_predt =
+        linalg::MakeTensorView(ctx, predt.HostSpan(), kRows, kTargets).Slice(linalg::All(), t);
+    for (size_t i = 0; i < h_predt.Size(); ++i) {
+      h_predt(i) = h_labels(i) + i;
+    }
 
-  auto empty_leaf = tree[4].LeafValue();
-  obj->UpdateTreeLeaf(position, info, predt, &tree);
-  ASSERT_EQ(tree[3].LeafValue(), -5);
-  ASSERT_EQ(tree[4].LeafValue(), empty_leaf);
-  ASSERT_EQ(tree[5].LeafValue(), -10);
-  ASSERT_EQ(tree[6].LeafValue(), -14);
+    HostDeviceVector<bst_node_t> position(h_labels.Size(), 0);
+    auto& h_position = position.HostVector();
+    for (int32_t i = 0; i < 3; ++i) {
+      h_position[i] = ~i;  // negation for sampled nodes.
+    }
+    for (size_t i = 3; i < 8; ++i) {
+      h_position[i] = 3;
+    }
+    // empty leaf for node 4
+    for (size_t i = 8; i < 13; ++i) {
+      h_position[i] = 5;
+    }
+    for (size_t i = 13; i < h_labels.Size(); ++i) {
+      h_position[i] = 6;
+    }
+
+    RegTree tree;
+    tree.ExpandNode(0, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    tree.ExpandNode(1, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    tree.ExpandNode(2, /*split_index=*/1, 2, true, 0.0f, 2.f, 3.f, 4.f, 2.f, 1.f, 1.f);
+    ASSERT_EQ(tree.GetNumLeaves(), 4);
+
+    auto empty_leaf = tree[4].LeafValue();
+
+    tree::TrainParam param;
+    param.Init(Args{});
+    auto lr = param.learning_rate;
+
+    obj->UpdateTreeLeaf(position, info, lr, predt, t, &tree);
+    ASSERT_EQ(tree[3].LeafValue(), -5.0f * lr);
+    ASSERT_EQ(tree[4].LeafValue(), empty_leaf * lr);
+    ASSERT_EQ(tree[5].LeafValue(), -10.0f * lr);
+    ASSERT_EQ(tree[6].LeafValue(), -14.0f * lr);
+  }
 }
 
-TEST(Adaptive, DeclareUnifiedTest(MissingLeaf)) {
-  std::vector<bst_node_t> missing{1, 3};
+void TestPseudoHuber(const Context* ctx) {
+  Args args;
 
-  std::vector<bst_node_t> h_nidx = {2, 4, 5};
-  std::vector<size_t> h_nptr = {0, 4, 8, 16};
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:pseudohubererror", ctx)};
+  obj->Configure(args);
+  CheckConfigReload(obj, "reg:pseudohubererror");
 
-  obj::detail::FillMissingLeaf(missing, &h_nidx, &h_nptr);
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
+                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {},                                                           // empty weights
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f},  // out_grad
+                   {0.410660f, 0.476140f, 0.630510f, 0.9428660f, 0.630510f});    // out_hess
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
 
-  ASSERT_EQ(h_nidx[0], missing[0]);
-  ASSERT_EQ(h_nidx[2], missing[1]);
-  ASSERT_EQ(h_nidx[1], 2);
-  ASSERT_EQ(h_nidx[3], 4);
-  ASSERT_EQ(h_nidx[4], 5);
-
-  ASSERT_EQ(h_nptr[0], 0);
-  ASSERT_EQ(h_nptr[1], 0);  // empty
-  ASSERT_EQ(h_nptr[2], 4);
-  ASSERT_EQ(h_nptr[3], 4);  // empty
-  ASSERT_EQ(h_nptr[4], 8);
-  ASSERT_EQ(h_nptr[5], 16);
+  obj->Configure({{"huber_slope", "0.1"}});
+  CheckConfigReload(obj, "reg:pseudohubererror");
+  CheckObjFunction(obj, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},                          // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // labels
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},                               // weights
+                   {-0.099388f, -0.099228f, -0.098639f, -0.089443f, 0.098639f},  // out_grad
+                   {0.0013467f, 0.001908f, 0.004443f, 0.089443f, 0.004443f});    // out_hess
 }
+
 }  // namespace xgboost

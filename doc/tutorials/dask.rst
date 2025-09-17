@@ -11,6 +11,10 @@ algorithms.  For an overview of GPU based training and internal workings, see `A
 Official Dask API for XGBoost
 <https://medium.com/rapids-ai/a-new-official-dask-api-for-xgboost-e8b10f3d1eb7>`_.
 
+.. note::
+
+  The integration is not tested with Windows.
+
 **Contents**
 
 .. contents::
@@ -23,7 +27,7 @@ Requirements
 
 Dask can be installed using either pip or conda (see the dask `installation
 documentation <https://docs.dask.org/en/latest/install.html>`_ for more information).  For
-accelerating XGBoost with GPUs, `dask-cuda <https://github.com/rapidsai/dask-cuda>`_ is
+accelerating XGBoost with GPUs, `dask-cuda <https://github.com/rapidsai/dask-cuda>`__ is
 recommended for creating GPU clusters.
 
 
@@ -39,7 +43,8 @@ on a dask cluster:
 
 .. code-block:: python
 
-    import xgboost as xgb
+    from xgboost import dask as dxgb
+
     import dask.array as da
     import dask.distributed
 
@@ -53,9 +58,11 @@ on a dask cluster:
         X = da.random.random(size=(num_obs, num_features), chunks=(1000, num_features))
         y = da.random.random(size=(num_obs, 1), chunks=(1000, 1))
 
-        dtrain = xgb.dask.DaskDMatrix(client, X, y)
+        dtrain = dxgb.DaskDMatrix(client, X, y)
+        # or
+        # dtrain = dxgb.DaskQuantileDMatrix(client, X, y)
 
-        output = xgb.dask.train(
+        output = dxgb.train(
             client,
             {"verbosity": 2, "tree_method": "hist", "objective": "reg:squarederror"},
             dtrain,
@@ -66,7 +73,7 @@ on a dask cluster:
 Here we first create a cluster in single-node mode with
 :py:class:`distributed.LocalCluster`, then connect a :py:class:`distributed.Client` to
 this cluster, setting up an environment for later computation.  Notice that the cluster
-construction is guared by ``__name__ == "__main__"``, which is necessary otherwise there
+construction is guarded by ``__name__ == "__main__"``, which is necessary otherwise there
 might be obscure errors.
 
 We then create a :py:class:`xgboost.dask.DaskDMatrix` object and pass it to
@@ -85,25 +92,27 @@ returns a model and the computation history as a Python dictionary:
 
 .. code-block:: python
 
-  {'booster': Booster,
-   'history': dict}
+  {
+    "booster": Booster,
+    "history": dict,
+  }
 
 For prediction, pass the ``output`` returned by ``train`` into :py:func:`xgboost.dask.predict`:
 
 .. code-block:: python
 
-  prediction = xgb.dask.predict(client, output, dtrain)
+  prediction = dxgb.predict(client, output, dtrain)
   # Or equivalently, pass ``output['booster']``:
-  prediction = xgb.dask.predict(client, output['booster'], dtrain)
+  prediction = dxgb.predict(client, output['booster'], dtrain)
 
 Eliminating the construction of DaskDMatrix is also possible, this can make the
 computation a bit faster when meta information like ``base_margin`` is not needed:
 
 .. code-block:: python
 
-  prediction = xgb.dask.predict(client, output, X)
+  prediction = dxgb.predict(client, output, X)
   # Use inplace version.
-  prediction = xgb.dask.inplace_predict(client, output, X)
+  prediction = dxgb.inplace_predict(client, output, X)
 
 Here ``prediction`` is a dask ``Array`` object containing predictions from model if input
 is a ``DaskDMatrix`` or ``da.Array``.  When putting dask collection directly into the
@@ -132,26 +141,26 @@ both memory usage and prediction time.
 .. code-block:: python
 
   # dtrain is the DaskDMatrix defined above.
-  prediction = xgb.dask.predict(client, booster, dtrain)
+  prediction = dxgb.predict(client, booster, dtrain)
 
 or equivalently:
 
 .. code-block:: python
 
   # where X is a dask DataFrame or dask Array.
-  prediction = xgb.dask.predict(client, booster, X)
+  prediction = dxgb.predict(client, booster, X)
 
 Also for inplace prediction:
 
 .. code-block:: python
 
-  booster.set_param({'predictor': 'gpu_predictor'})
-  # where X is a dask DataFrame or dask Array containing cupy or cuDF backed data.
-  prediction = xgb.dask.inplace_predict(client, booster, X)
+  # where X is a dask DataFrame or dask Array backed by cupy or cuDF.
+  booster.set_param({"device": "cuda"})
+  prediction = dxgb.inplace_predict(client, booster, X)
 
 When input is ``da.Array`` object, output is always ``da.Array``.  However, if the input
 type is ``dd.DataFrame``, output can be ``dd.Series``, ``dd.DataFrame`` or ``da.Array``,
-depending on output shape.  For example, when shap based prediction is used, the return
+depending on output shape.  For example, when SHAP-based prediction is used, the return
 value can have 3 or 4 dimensions , in such cases an ``Array`` is always returned.
 
 The performance of running prediction, either using ``predict`` or ``inplace_predict``, is
@@ -172,7 +181,7 @@ One simple optimization for running consecutive predictions is using
     futures = []
     for X in dataset:
         # Here we pass in a future instead of concrete booster
-        shap_f = xgb.dask.predict(client, booster_f, X, pred_contribs=True)
+        shap_f = dxgb.predict(client, booster_f, X, pred_contribs=True)
         futures.append(shap_f)
 
     results = client.gather(futures)
@@ -184,15 +193,15 @@ Scikit-Learn wrapper object:
 
 .. code-block:: python
 
-    cls = xgb.dask.DaskXGBClassifier()
+    cls = dxgb.DaskXGBClassifier()
     cls.fit(X, y)
 
     booster = cls.get_booster()
 
 
-**********************
-Scikit-Learn interface
-**********************
+********************************
+Scikit-Learn Estimator Interface
+********************************
 
 As mentioned previously, there's another interface that mimics the scikit-learn estimators
 with higher level of of abstraction.  The interface is easier to use compared to the
@@ -205,12 +214,12 @@ collection.
 .. code-block:: python
 
     from distributed import LocalCluster, Client
-    import xgboost as xgb
+    from xgboost import dask as dxgb
 
 
     def main(client: Client) -> None:
         X, y = load_data()
-        clf = xgb.dask.DaskXGBClassifier(n_estimators=100, tree_method="hist")
+        clf = dxgb.DaskXGBClassifier(n_estimators=100, tree_method="hist")
         clf.client = client  # assign the client
         clf.fit(X, y, eval_set=[(X, y)])
         proba = clf.predict_proba(X)
@@ -222,49 +231,54 @@ collection.
                 main(client)
 
 
+****************
+GPU acceleration
+****************
+
+For most of the use cases with GPUs, the `Dask-CUDA <https://docs.rapids.ai/api/dask-cuda/stable/quickstart.html>`__ project should be used to create the cluster, which automatically configures the correct device ordinal for worker processes. As a result, users should NOT specify the ordinal (good: ``device=cuda``, bad: ``device=cuda:1``). See :ref:`sphx_glr_python_dask-examples_gpu_training.py` and :ref:`sphx_glr_python_dask-examples_sklearn_gpu_training.py` for worked examples.
+
 ***************************
 Working with other clusters
 ***************************
 
-``LocalCluster`` is mostly used for testing.  In real world applications some other
-clusters might be preferred.  Examples are like ``LocalCUDACluster`` for single node
-multi-GPU instance, manually launched cluster by using command line utilities like
-``dask-worker`` from ``distributed`` for not yet automated environments.  Some special
-clusters like ``KubeCluster`` from ``dask-kubernetes`` package are also possible.  The
-dask API in xgboost is orthogonal to the cluster type and can be used with any of them.  A
-typical testing workflow with ``KubeCluster`` looks like this:
+Using Dask's ``LocalCluster`` is convenient for getting started quickly on a local machine. Once you're ready to scale your work, though, there are a number of ways to deploy Dask on a distributed cluster. You can use `Dask-CUDA <https://docs.rapids.ai/api/dask-cuda/stable/quickstart.html>`_, for example, for GPUs and you can use Dask Cloud Provider to `deploy Dask clusters in the cloud <https://docs.dask.org/en/stable/deploying.html#cloud>`_. See the `Dask documentation for a more comprehensive list <https://docs.dask.org/en/stable/deploying.html>`__.
+
+In the example below, a ``KubeCluster`` is used for `deploying Dask on Kubernetes <https://docs.dask.org/en/stable/deploying-kubernetes.html>`_:
 
 .. code-block:: python
 
-  from dask_kubernetes import KubeCluster  # Need to install the ``dask-kubernetes`` package
-  from dask.distributed import Client
-  import xgboost as xgb
-  import dask
-  import dask.array as da
+  from dask_kubernetes.operator import KubeCluster  # Need to install the ``dask-kubernetes`` package
+  from dask_kubernetes.operator.kubecluster.kubecluster import CreateMode
 
-  dask.config.set({"kubernetes.scheduler-service-type": "LoadBalancer",
-                   "kubernetes.scheduler-service-wait-timeout": 360,
-                   "distributed.comm.timeouts.connect": 360})
+  from dask.distributed import Client
+  from xgboost import dask as dxgb
+  import dask.array as da
 
 
   def main():
-      '''Connect to a remote kube cluster with GPU nodes and run training on it.'''
+    '''Connect to a remote kube cluster with GPU nodes and run training on it.'''
       m = 1000
       n = 10
       kWorkers = 2                # assuming you have 2 GPU nodes on that cluster.
-      # You need to work out the worker-spec youself.  See document in dask_kubernetes for
+      # You need to work out the worker-spec yourself.  See document in dask_kubernetes for
       # its usage.  Here we just want to show that XGBoost works on various clusters.
-      cluster = KubeCluster.from_yaml('worker-spec.yaml', deploy_mode='remote')
-      cluster.scale(kWorkers)     # scale to use all GPUs
 
-      with Client(cluster) as client:
-          X = da.random.random(size=(m, n), chunks=100)
-          y = da.random.random(size=(m, ), chunks=100)
+      # See notes below for why we use pre-allocated cluster.
+      with KubeCluster(
+          name="xgboost-test",
+          image="my-image-name:latest",
+          n_workers=kWorkers,
+          create_mode=CreateMode.CONNECT_ONLY,
+          shutdown_on_close=False,
+      ) as cluster:
+          with Client(cluster) as client:
+              X = da.random.random(size=(m, n), chunks=100)
+              y = X.sum(axis=1)
 
-          regressor = xgb.dask.DaskXGBRegressor(n_estimators=10, missing=0.0)
-          regressor.client = client
-          regressor.set_params(tree_method='gpu_hist')
-          regressor.fit(X, y, eval_set=[(X, y)])
+              regressor = dxgb.DaskXGBRegressor(n_estimators=10, missing=0.0)
+              regressor.client = client
+              regressor.set_params(tree_method='hist', device="cuda")
+              regressor.fit(X, y, eval_set=[(X, y)])
 
 
   if __name__ == '__main__':
@@ -273,10 +287,44 @@ typical testing workflow with ``KubeCluster`` looks like this:
       main()
 
 
-However, these clusters might have their subtle differences like network configuration, or
+Different cluster classes might have subtle differences like network configuration, or
 specific cluster implementation might contains bugs that we are not aware of.  Open an
 issue if such case is found and there's no documentation on how to resolve it in that
 cluster implementation.
+
+An interesting aspect of the Kubernetes cluster is that the pods may become available
+after the Dask workflow has begun, which can cause issues with distributed XGBoost since
+XGBoost expects the nodes used by input data to remain unchanged during training. To use
+Kubernetes clusters, it is necessary to wait for all the pods to be online before
+submitting XGBoost tasks. One can either create a wait function in Python or simply
+pre-allocate a cluster with k8s tools (like ``kubectl``) before running dask workflows. To
+pre-allocate a cluster, we can first generate the cluster spec using dask kubernetes:
+
+.. code-block:: python
+
+    import json
+
+    from dask_kubernetes.operator import make_cluster_spec
+
+    spec = make_cluster_spec(name="xgboost-test", image="my-image-name:latest", n_workers=16)
+    with open("cluster-spec.json", "w") as fd:
+        json.dump(spec, fd, indent=2)
+
+.. code-block:: sh
+
+    kubectl apply -f ./cluster-spec.json
+
+
+Check whether the pods are available:
+
+.. code-block:: sh
+
+    kubectl get pods
+
+Once all pods have been initialized, the Dask XGBoost workflow can be run, as in the
+previous example. It is important to ensure that the cluster sets the parameter
+``create_mode=CreateMode.CONNECT_ONLY`` and optionally ``shutdown_on_close=False`` if you
+do not want to shut down the cluster after a single job.
 
 *******
 Threads
@@ -295,7 +343,7 @@ threads in each process for training.  But if ``nthread`` parameter is set:
 
 .. code-block:: python
 
-    output = xgb.dask.train(
+    output = dxgb.train(
         client,
         {"verbosity": 1, "nthread": 8, "tree_method": "hist"},
         dtrain,
@@ -311,15 +359,18 @@ Working with asyncio
 
 .. versionadded:: 1.2.0
 
-XGBoost's dask interface supports the new ``asyncio`` in Python and can be integrated into
-asynchronous workflows.  For using dask with asynchronous operations, please refer to
-`this dask example <https://examples.dask.org/applications/async-await.html>`_ and document in
-`distributed <https://distributed.dask.org/en/latest/asynchronous.html>`_. To use XGBoost's
-dask interface asynchronously, the ``client`` which is passed as an argument for training and
-prediction must be operating in asynchronous mode by specifying ``asynchronous=True`` when the
-``client`` is created (example below). All functions (including ``DaskDMatrix``) provided
-by the functional interface will then return coroutines which can then be awaited to retrieve
-their result.
+XGBoost's dask interface supports the new :py:mod:`asyncio` in Python and can be
+integrated into asynchronous workflows.  For using dask with asynchronous operations,
+please refer to `this dask example
+<https://examples.dask.org/applications/async-await.html>`_ and document in `distributed
+<https://distributed.dask.org/en/latest/asynchronous.html>`_. To use XGBoost's Dask
+interface asynchronously, the ``client`` which is passed as an argument for training and
+prediction must be operating in asynchronous mode by specifying ``asynchronous=True`` when
+the ``client`` is created (example below). All functions (including ``DaskDMatrix``)
+provided by the functional interface will then return coroutines which can then be awaited
+to retrieve their result. Please note that XGBoost is a compute-bounded application, where
+parallelism is more important than concurrency. The support for `asyncio` is more about
+compatibility instead of performance gain.
 
 Functional interface:
 
@@ -327,12 +378,12 @@ Functional interface:
 
     async with dask.distributed.Client(scheduler_address, asynchronous=True) as client:
         X, y = generate_array()
-        m = await xgb.dask.DaskDMatrix(client, X, y)
-        output = await xgb.dask.train(client, {}, dtrain=m)
+        m = await dxgb.DaskDMatrix(client, X, y)
+        output = await dxgb.train(client, {}, dtrain=m)
 
-        with_m = await xgb.dask.predict(client, output, m)
-        with_X = await xgb.dask.predict(client, output, X)
-        inplace = await xgb.dask.inplace_predict(client, output, X)
+        with_m = await dxgb.predict(client, output, m)
+        with_X = await dxgb.predict(client, output, X)
+        inplace = await dxgb.inplace_predict(client, output, X)
 
         # Use ``client.compute`` instead of the ``compute`` method from dask collection
         print(await client.compute(with_m))
@@ -346,7 +397,7 @@ actual computation will return a coroutine and hence require awaiting:
 
     async with dask.distributed.Client(scheduler_address, asynchronous=True) as client:
         X, y = generate_array()
-        regressor = await xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
+        regressor = await dxgb.DaskXGBRegressor(verbosity=1, n_estimators=2)
         regressor.set_params(tree_method='hist')  # trivial method, synchronous operation
         regressor.client = client  #  accessing attribute, synchronous operation
         regressor = await regressor.fit(X, y, eval_set=[(X, y)])
@@ -368,7 +419,7 @@ To enable early stopping, pass one or more validation sets containing ``DaskDMat
 .. code-block:: python
 
     import dask.array as da
-    import xgboost as xgb
+    from xgboost import dask as dxgb
 
     num_rows = 1e6
     num_features = 100
@@ -395,19 +446,19 @@ To enable early stopping, pass one or more validation sets containing ``DaskDMat
         chunks=(rows_per_chunk, 1)
     )
 
-    dtrain = xgb.dask.DaskDMatrix(
+    dtrain = dxgb.DaskDMatrix(
         client=client,
         data=data,
         label=labels
     )
 
-    dvalid = xgb.dask.DaskDMatrix(
+    dvalid = dxgb.DaskDMatrix(
         client=client,
         data=X_eval,
         label=y_eval
     )
 
-    result = xgb.dask.train(
+    result = dxgb.train(
         client=client,
         params={
             "objective": "reg:squarederror",
@@ -418,7 +469,7 @@ To enable early stopping, pass one or more validation sets containing ``DaskDMat
         early_stopping_rounds=3
     )
 
-When validation sets are provided to ``xgb.dask.train()`` in this way, the model object returned by ``xgb.dask.train()`` contains a history of evaluation metrics for each validation set, across all boosting rounds.
+When validation sets are provided to :py:func:`xgboost.dask.train` in this way, the model object returned by :py:func:`xgboost.dask.train` contains a history of evaluation metrics for each validation set, across all boosting rounds.
 
 .. code-block:: python
 
@@ -460,7 +511,7 @@ interface, including callback functions, custom evaluation metric and objective:
         save_best=True,
     )
 
-    booster = xgb.dask.train(
+    booster = dxgb.train(
         client,
         params={
             "objective": "binary:logistic",
@@ -474,6 +525,54 @@ interface, including callback functions, custom evaluation metric and objective:
         callbacks=[early_stop],
     )
 
+**********************
+Hyper-parameter tuning
+**********************
+
+See https://github.com/coiled/dask-xgboost-nyctaxi for a set of examples of using XGBoost
+with dask and optuna.
+
+
+.. _ltr-dask:
+
+****************
+Learning to Rank
+****************
+
+  .. versionadded:: 3.0.0
+
+  .. note::
+
+     Position debiasing is not yet supported.
+
+There are two operation modes in the Dask learning to rank for performance reasons. The
+difference is whether a distributed global sort is needed. Please see :ref:`ltr-dist` for
+how ranking works with distributed training in general. Below we will discuss some of the
+Dask-specific features.
+
+First, if you use the :py:class:`~xgboost.dask.DaskQuantileDMatrix` interface or the
+:py:class:`~xgboost.dask.DaskXGBRanker` with ``allow_group_split`` set to ``True``,
+XGBoost will try to sort and group the samples for each worker based on the query ID. This
+mode tries to skip the global sort and sort only worker-local data, and hence no
+inter-worker data shuffle. Please note that even worker-local sort is costly, particularly
+in terms of memory usage as there's no spilling when
+:py:meth:`~pandas.DataFrame.sort_values` is used, and we need to concatenate the
+data. XGBoost first checks whether the QID is already sorted before actually performing
+the sorting operation. One can choose this if the query groups are relatively consecutive,
+meaning most of the samples within a query group are close to each other and are likely to
+be resided to the same worker. Don't use this if you have performed a random shuffle on
+your data.
+
+If the input data is random, then there's no way we can guarantee most of data within the
+same group being in the same worker. For large query groups, this might not be an
+issue. But for small query groups, it's possible that each worker gets only one or two
+samples from their group for all groups, which can lead to disastrous performance. In that
+case, we can partition the data according to query group, which is the default behavior of
+the :py:class:`~xgboost.dask.DaskXGBRanker` unless the ``allow_group_split`` is set to
+``True``. This mode performs a sort and a groupby on the entire dataset in addition to an
+encoding operation for the query group IDs. Along with partition fragmentation, this
+option can lead to slow performance. See
+:ref:`sphx_glr_python_dask-examples_dask_learning_to_rank.py` for a worked example.
 
 .. _tracker-ip:
 
@@ -481,27 +580,116 @@ interface, including callback functions, custom evaluation metric and objective:
 Troubleshooting
 ***************
 
-.. versionadded:: 1.6.0
 
-In some environments XGBoost might fail to resolve the IP address of the scheduler, a
-symptom is user receiving ``OSError: [Errno 99] Cannot assign requested address`` error
-during training.  A quick workaround is to specify the address explicitly.  To do that
-dask config is used:
+- In some environments XGBoost might fail to resolve the IP address of the scheduler, a
+  symptom is user receiving ``OSError: [Errno 99] Cannot assign requested address`` error
+  during training.  A quick workaround is to specify the address explicitly.  To do that
+  the collective :py:class:`~xgboost.collective.Config` is used:
+
+  .. versionadded:: 3.0.0
 
 .. code-block:: python
 
     import dask
     from distributed import Client
     from xgboost import dask as dxgb
+    from xgboost.collective import Config
+
     # let xgboost know the scheduler address
-    dask.config.set({"xgboost.scheduler_address": "192.0.0.100"})
+    coll_cfg = Config(retry=1, timeout=20, tracker_host_ip="10.23.170.98", tracker_port=0)
 
     with Client(scheduler_file="sched.json") as client:
-        reg = dxgb.DaskXGBRegressor()
+        reg = dxgb.DaskXGBRegressor(coll_cfg=coll_cfg)
 
-    # or we can specify the port too
-    with dask.config.set({"xgboost.scheduler_address": "192.0.0.100:12345"}):
-        reg = dxgb.DaskXGBRegressor()
+- Please note that XGBoost requires a different port than dask. By default, on a unix-like
+  system XGBoost uses the port 0 to find available ports, which may fail if a user is
+  running in a restricted docker environment. In this case, please open additional ports
+  in the container and specify it as in the above snippet.
+
+- If you encounter a NCCL system error while training with GPU enabled, which usually
+  includes the error message `NCCL failure: unhandled system error`, you can specify its
+  network configuration using one of the environment variables listed in the `NCCL
+  document <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html>`__ such as
+  the ``NCCL_SOCKET_IFNAME``. In addition, you can use ``NCCL_DEBUG`` to obtain debug
+  logs.
+
+- If NCCL fails to initialize in a container environment, it might be caused by limited
+  system shared memory. With docker, one can try the flag: `--shm-size=4g`.
+
+- MIG (Multi-Instance GPU) is not yet supported by NCCL. You will receive an error message
+  that includes `Multiple processes within a communication group ...` upon initialization.
+
+.. _nccl-load:
+
+- Starting from version 2.1.0, to reduce the size of the binary wheel, the XGBoost package
+  (installed using pip) loads NCCL from the environment instead of bundling it
+  directly. This means that if you encounter an error message like
+  "Failed to load nccl ...", it indicates that NCCL is not installed or properly
+  configured in your environment.
+
+  To resolve this issue, you can install NCCL using pip:
+
+  .. code-block:: sh
+
+    pip install nvidia-nccl-cu12 # (or with any compatible CUDA version)
+
+  The default conda installation of XGBoost should not encounter this error. If you are
+  using a customized XGBoost, please make sure one of the followings is true:
+
+  + XGBoost is NOT compiled with the `USE_DLOPEN_NCCL` flag.
+  + The `dmlc_nccl_path` parameter is set to full NCCL path when initializing the collective.
+
+  Here are some additional tips for troubleshooting NCCL dependency issues:
+
+  + Check the NCCL installation path and verify that it's installed correctly. We try to
+    find NCCL by using ``from nvidia.nccl import lib`` in Python when XGBoost is installed
+    using pip.
+  + Ensure that you have the correct CUDA version installed. NCCL requires a compatible
+    CUDA version to function properly.
+  + If you are not using distributed training with XGBoost and yet see this error, please
+    open an issue on GitHub.
+  + If you continue to encounter NCCL dependency issues, please open an issue on GitHub.
+
+************
+IPv6 Support
+************
+
+.. versionadded:: 1.7.0
+
+XGBoost has initial IPv6 support for the dask interface on Linux. Due to most of the
+cluster support for IPv6 is partial (dual stack instead of IPv6 only), we require
+additional user configuration similar to :ref:`tracker-ip` to help XGBoost obtain the
+correct address information:
+
+.. code-block:: python
+
+    import dask
+    from distributed import Client
+    from xgboost import dask as dxgb
+    # let xgboost know the scheduler address, use the same bracket format as dask.
+    with dask.config.set({"xgboost.scheduler_address": "[fd20:b6f:f759:9800::]"}):
+        with Client("[fd20:b6f:f759:9800::]") as client:
+            reg = dxgb.DaskXGBRegressor(tree_method="hist")
+
+
+When GPU is used, XGBoost employs `NCCL <https://developer.nvidia.com/nccl>`_ as the
+underlying communication framework, which may require some additional configuration via
+environment variable depending on the setting of the cluster. Please note that IPv6
+support is Unix only.
+
+
+******************************
+Logging the evaluation results
+******************************
+
+By default, the Dask interface prints evaluation results in the scheduler process. This
+makes it difficult for a user to monitor training progress. We can define custom
+evaluation monitors using callback functions. See
+:ref:`sphx_glr_python_dask-examples_forward_logging.py` for a worked example on how to
+forward the logs to the client process. In the example, there are two potential solutions
+using Dask builtin methods, including :py:meth:`distributed.Client.forward_logging` and
+:py:func:`distributed.print`. Both of them have some caveats but can be a good starting
+point for developing more sophisticated methods like writing to files.
 
 
 *****************************************************************************
@@ -524,11 +712,74 @@ computations, one can explicitly wait for results of input data before construct
 Also dask's `diagnostics dashboard <https://distributed.dask.org/en/latest/web.html>`_ can be used to
 monitor what operations are currently being performed.
 
+*******************
+Reproducible Result
+*******************
+
+In a single node mode, we can always expect the same training result between runs as along
+as the underlying platforms are the same. However, it's difficult to obtain reproducible
+result in a distributed environment, since the tasks might get different machine
+allocation or have different amount of available resources during different
+sessions. There are heuristics and guidelines on how to achieve it but no proven method
+for guaranteeing such deterministic behavior. The Dask interface in XGBoost tries to
+provide reproducible result with best effort. This section highlights some known criteria
+and try to share some insights into the issue.
+
+There are primarily two different tasks for XGBoost the carry out, training and
+inference. Inference is reproducible given the same software and hardware along with the
+same run-time configurations. The remaining of this section will focus on training.
+
+Many of the challenges come from the fact that we are using approximation algorithms, The
+sketching algorithm used to find histogram bins is an approximation to the exact quantile
+algorithm, the `AUC` metric in a distributed environment is an approximation to the exact
+`AUC` score, and floating-point number is an approximation to real number. Floating-point
+is an issue as its summation is not associative, meaning :math:`(a + b) + c` does not
+necessarily equal to :math:`a + (b + c)`, even though this property holds true for real
+number. As a result, whenever we change the order of a summation, the result can
+differ. This imposes the requirement that, in order to have reproducible output from
+XGBoost, the entire pipeline needs to be reproducible.
+
+- The software stack is the same for each runs. This goes without saying. XGBoost might
+  generate different outputs between different versions. This is expected as we might
+  change the default value of hyper-parameter, or the parallel strategy that generates
+  different floating-point result. We guarantee the correctness the algorithms, but there
+  are lots of wiggle room for the final output. The situation is similar for many
+  dependencies, for instance, the random number generator might differ from platform to
+  platform.
+
+- The hardware stack is the same for each runs. This includes the number of workers, and
+  the amount of available resources on each worker. XGBoost can generate different results
+  using different number of workers. This is caused by the approximation issue mentioned
+  previously.
+
+- Similar to the hardware constraint, the network topology is also a factor in final
+  output. If we change topology the workers might be ordered differently, leading to
+  different ordering of floating-point operations.
+
+- The random seed used in various place of the pipeline.
+
+- The partitioning of data needs to be reproducible. This is related to the available
+  resources on each worker. Dask might partition the data differently for each run
+  according to its own scheduling policy. For instance, if there are some additional tasks
+  in the cluster while you are running the second training session for XGBoost, some of
+  the workers might have constrained memory and Dask may not push the training data for
+  XGBoost to that worker. This change in data partitioning can lead to different output
+  models. If you are using a shared Dask cluster, then the result is likely to vary
+  between runs.
+
+- The operations performed on dataframes need to be reproducible. There are some
+  operations like `DataFrame.merge` not being deterministic on parallel hardwares like GPU
+  where the order of the index might differ from run to run.
+
+It's expected to have different results when training the model in a distributed
+environment than training the model using a single node due to aforementioned criteria.
+
+
 ************
 Memory Usage
 ************
 
-Here are some pratices on reducing memory usage with dask and xgboost.
+Here are some practices on reducing memory usage with dask and xgboost.
 
 - In a distributed work flow, data is best loaded by dask collections directly instead of
   loaded by client process.  When loading with client process is unavoidable, use
@@ -536,7 +787,7 @@ Here are some pratices on reducing memory usage with dask and xgboost.
   nice summary.
 
 - When using GPU input, like dataframe loaded by ``dask_cudf``, you can try
-  :py:class:`xgboost.dask.DaskDeviceQuantileDMatrix` as a drop in replacement for ``DaskDMatrix``
+  :py:class:`xgboost.dask.DaskQuantileDMatrix` as a drop in replacement for ``DaskDMatrix``
   to reduce overall memory usage.  See
   :ref:`sphx_glr_python_dask-examples_gpu_training.py` for an example.
 

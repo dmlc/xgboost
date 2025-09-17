@@ -3,7 +3,7 @@ Introduction to Boosted Trees
 #############################
 XGBoost stands for "Extreme Gradient Boosting", where the term "Gradient Boosting" originates from the paper *Greedy Function Approximation: A Gradient Boosting Machine*, by Friedman.
 
-The **gradient boosted trees** has been around for a while, and there are a lot of materials on the topic.
+The term **gradient boosted trees** has been around for a while, and there are a lot of materials on the topic.
 This tutorial will explain boosted trees in a self-contained and principled way using the elements of supervised learning.
 We think this explanation is cleaner, more formal, and motivates the model formulation used in XGBoost.
 
@@ -119,13 +119,16 @@ Let the following be the objective function (remember it always needs to contain
 
 .. math::
 
-  \text{obj} = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\omega(f_i)
+  \text{obj} = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{k=1}^t\omega(f_k)
+
+in which :math:`t` is the number of trees in our ensemble.
+(Each training step will add one new tree, so that at step :math:`t` the ensemble contains :math:`K=t` trees).
 
 Additive Training
 =================
 
 The first question we want to ask: what are the **parameters** of trees?
-You can find that what we need to learn are those functions :math:`f_i`, each containing the structure
+You can find that what we need to learn are those functions :math:`f_k`, each containing the structure
 of the tree and the leaf scores. Learning tree structure is much harder than traditional optimization problem where you can simply take the gradient.
 It is intractable to learn all the trees at once.
 Instead, we use an additive strategy: fix what we have learned, and add one new tree at a time.
@@ -143,14 +146,14 @@ It remains to ask: which tree do we want at each step?  A natural thing is to ad
 
 .. math::
 
-  \text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{i=1}^t\omega(f_i) \\
+  \text{obj}^{(t)} & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t)}) + \sum_{k=1}^t\omega(f_k) \\
             & = \sum_{i=1}^n l(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)) + \omega(f_t) + \mathrm{constant}
 
 If we consider using mean squared error (MSE) as our loss function, the objective becomes
 
 .. math::
 
-  \text{obj}^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{i=1}^t\omega(f_i) \\
+  \text{obj}^{(t)} & = \sum_{i=1}^n (y_i - (\hat{y}_i^{(t-1)} + f_t(x_i)))^2 + \sum_{k=1}^t\omega(f_k) \\
             & = \sum_{i=1}^n [2(\hat{y}_i^{(t-1)} - y_i)f_t(x_i) + f_t(x_i)^2] + \omega(f_t) + \mathrm{constant}
 
 The form of MSE is friendly, with a first order term (usually called the residual) and a quadratic term.

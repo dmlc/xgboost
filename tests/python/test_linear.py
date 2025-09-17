@@ -1,6 +1,12 @@
-import testing as tm
-from hypothesis import strategies, given, settings, note
+from typing import Dict
+
+from hypothesis import given, note, settings, strategies
+
 import xgboost as xgb
+from xgboost import testing as tm
+
+pytestmark = tm.timeout(20)
+
 
 parameter_strategy = strategies.fixed_dictionaries({
     'booster': strategies.just('gblinear'),
@@ -16,17 +22,27 @@ coord_strategy = strategies.fixed_dictionaries({
 })
 
 
-def train_result(param, dmat, num_rounds):
-    result = {}
-    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
-              evals_result=result)
+def train_result(param: dict, dmat: xgb.DMatrix, num_rounds: int) -> Dict[str, Dict]:
+    result: Dict[str, Dict] = {}
+    xgb.train(
+        param,
+        dmat,
+        num_rounds,
+        evals=[(dmat, "train")],
+        verbose_eval=False,
+        evals_result=result,
+    )
     return result
 
 
 class TestLinear:
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy, coord_strategy)
-    @settings(deadline=None, print_blob=True)
+    @given(
+        parameter_strategy,
+        strategies.integers(10, 50),
+        tm.make_dataset_strategy(),
+        coord_strategy
+    )
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_coordinate(self, param, num_rounds, dataset, coord_param):
         param['updater'] = 'coord_descent'
         param.update(coord_param)
@@ -41,12 +57,12 @@ class TestLinear:
     @given(
         parameter_strategy,
         strategies.integers(10, 50),
-        tm.dataset_strategy,
+        tm.make_dataset_strategy(),
         coord_strategy,
         strategies.floats(1e-5, 0.8),
         strategies.floats(1e-5, 0.8)
     )
-    @settings(deadline=None, print_blob=True)
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_coordinate_regularised(self, param, num_rounds, dataset, coord_param, alpha, lambd):
         param['updater'] = 'coord_descent'
         param['alpha'] = alpha
@@ -57,9 +73,10 @@ class TestLinear:
         note(result)
         assert tm.non_increasing([result[0], result[-1]])
 
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy)
-    @settings(deadline=None, print_blob=True)
+    @given(
+        parameter_strategy, strategies.integers(10, 50), tm.make_dataset_strategy()
+    )
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shotgun(self, param, num_rounds, dataset):
         param['updater'] = 'shotgun'
         param = dataset.set_params(param)
@@ -73,10 +90,14 @@ class TestLinear:
             sampled_result = result
         assert tm.non_increasing(sampled_result)
 
-    @given(parameter_strategy, strategies.integers(10, 50),
-           tm.dataset_strategy, strategies.floats(1e-5, 1.0),
-           strategies.floats(1e-5, 1.0))
-    @settings(deadline=None, print_blob=True)
+    @given(
+        parameter_strategy,
+        strategies.integers(10, 50),
+        tm.make_dataset_strategy(),
+        strategies.floats(1e-5, 1.0),
+        strategies.floats(1e-5, 1.0)
+    )
+    @settings(deadline=None, max_examples=20, print_blob=True)
     def test_shotgun_regularised(self, param, num_rounds, dataset, alpha, lambd):
         param['updater'] = 'shotgun'
         param['alpha'] = alpha

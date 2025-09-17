@@ -1,23 +1,21 @@
-/*!
- * Copyright 2018 XGBoost contributors
+/**
+ * Copyright 2018-2024, XGBoost contributors
  */
+#include <thrust/system/cuda/error.h>
+#include <thrust/system_error.h>
+
 #include "common.h"
 
-namespace xgboost {
-namespace common {
-
-int AllVisibleGPUs() {
-  int n_visgpus = 0;
-  try {
-    // When compiled with CUDA but running on CPU only device,
-    // cudaGetDeviceCount will fail.
-    dh::safe_cuda(cudaGetDeviceCount(&n_visgpus));
-  } catch (const dmlc::Error &) {
-    cudaGetLastError();  // reset error.
-    return 0;
+namespace dh {
+void ThrowOnCudaError(cudaError_t code, const char *file, int line) {
+  if (code != cudaSuccess) {
+    std::string f;
+    if (file != nullptr) {
+      f = file;
+    }
+    LOG(FATAL) << thrust::system_error(code, thrust::cuda_category(),
+                                       f + ": " + std::to_string(line))
+                      .what();
   }
-  return n_visgpus;
 }
-
-}  // namespace common
-}  // namespace xgboost
+}  // namespace dh

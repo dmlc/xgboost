@@ -6,7 +6,6 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-#include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
 
@@ -19,6 +18,7 @@
 namespace xgboost {
 
 class Json;
+struct Context;
 
 namespace gbm {
 class GBLinearModel;
@@ -29,7 +29,7 @@ class GBLinearModel;
  */
 class LinearUpdater : public Configurable {
  protected:
-  GenericParameter const* ctx_;
+  Context const* ctx_;
 
  public:
   /*! \brief virtual destructor */
@@ -49,15 +49,14 @@ class LinearUpdater : public Configurable {
    * \param model               Model to be updated.
    * \param sum_instance_weight The sum instance weights, used to normalise l1/l2 penalty.
    */
-  virtual void Update(HostDeviceVector<GradientPair>* in_gpair, DMatrix* data,
-                      gbm::GBLinearModel* model,
-                      double sum_instance_weight) = 0;
+  virtual void Update(linalg::Matrix<GradientPair>* in_gpair, DMatrix* data,
+                      gbm::GBLinearModel* model, double sum_instance_weight) = 0;
 
   /*!
    * \brief Create a linear updater given name
    * \param name Name of the linear updater.
    */
-  static LinearUpdater* Create(const std::string& name, GenericParameter const*);
+  static LinearUpdater* Create(const std::string& name, Context const*);
 };
 
 /*!

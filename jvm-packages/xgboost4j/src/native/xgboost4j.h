@@ -26,26 +26,26 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixCreateFromDataIter
- * Signature: (Ljava/util/Iterator;Ljava/lang/String;[J)I
+ * Signature: (Ljava/util/Iterator;Ljava/lang/String;F[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromDataIter
-  (JNIEnv *, jclass, jobject, jstring, jlongArray);
+  (JNIEnv *, jclass, jobject, jstring, jfloat, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromCSREx
- * Signature: ([J[I[FI[J)I
+ * Method:    XGDMatrixCreateFromCSR
+ * Signature: ([J[I[FIFI[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSREx
-  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jlongArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSR
+  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jfloat, jint, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixCreateFromCSCEx
- * Signature: ([J[I[FI[J)I
+ * Method:    XGDMatrixCreateFromCSC
+ * Signature: ([J[I[FIFI[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSCEx
-  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jlongArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromCSC
+  (JNIEnv *, jclass, jlongArray, jintArray, jfloatArray, jint, jfloat, jint, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -121,10 +121,34 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetUIntIn
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixSetStrFeatureInfo
+ * Signature: (JLjava/lang/String;[Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetStrFeatureInfo
+  (JNIEnv *, jclass, jlong, jstring, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixGetStrFeatureInfo
+ * Signature: (JLjava/lang/String;[J[[Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetStrFeatureInfo
+  (JNIEnv *, jclass, jlong, jstring, jlongArray, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGDMatrixNumRow
  * Signature: (J[J)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixNumRow
+  (JNIEnv *, jclass, jlong, jlongArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixNumNonMissing
+ * Signature: (J[J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixNumNonMissing
   (JNIEnv *, jclass, jlong, jlongArray);
 
 /*
@@ -161,11 +185,11 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterUpdateOne
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterBoostOneIter
- * Signature: (JJ[F[F)I
+ * Method:    XGBoosterTrainOneIter
+ * Signature: (JJI[F[F)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterBoostOneIter
-  (JNIEnv *, jclass, jlong, jlong, jfloatArray, jfloatArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterTrainOneIter
+  (JNIEnv *, jclass, jlong, jlong, jint, jfloatArray, jfloatArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -182,6 +206,14 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterEvalOneIt
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredict
   (JNIEnv *, jclass, jlong, jlong, jint, jint, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterPredictFromDense
+ * Signature: (J[FJJFIII[F[[F)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterPredictFromDense
+  (JNIEnv *, jclass, jlong, jfloatArray, jlong, jlong, jfloat, jint, jint, jint, jfloatArray, jobjectArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -257,22 +289,6 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetAttr
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterLoadRabitCheckpoint
- * Signature: (J[I)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterLoadRabitCheckpoint
-  (JNIEnv *, jclass, jlong, jintArray);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGBoosterSaveRabitCheckpoint
- * Signature: (J)I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSaveRabitCheckpoint
-  (JNIEnv *, jclass, jlong);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterGetNumFeature
  * Signature: (J[J)I
  */
@@ -281,58 +297,98 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumFea
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitInit
- * Signature: ([Ljava/lang/String;)I
+ * Method:    XGBoosterGetNumBoostedRound
+ * Signature: (J[I)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitInit
-  (JNIEnv *, jclass, jobjectArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumBoostedRound
+  (JNIEnv *, jclass, jlong, jintArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitFinalize
- * Signature: ()I
- */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitFinalize
-  (JNIEnv *, jclass);
-
-/*
- * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitTrackerPrint
+ * Method:    CommunicatorInit
  * Signature: (Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitTrackerPrint
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorInit
   (JNIEnv *, jclass, jstring);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitGetRank
+ * Method:    CommunicatorFinalize
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorFinalize
+  (JNIEnv *, jclass);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    CommunicatorPrint
+ * Signature: (Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorPrint
+  (JNIEnv *, jclass, jstring);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    CommunicatorGetRank
  * Signature: ([I)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitGetRank
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorGetRank
   (JNIEnv *, jclass, jintArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitGetWorldSize
+ * Method:    CommunicatorGetWorldSize
  * Signature: ([I)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitGetWorldSize
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorGetWorldSize
   (JNIEnv *, jclass, jintArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitVersionNumber
- * Signature: ([I)I
+ * Method:    TrackerCreate
+ * Signature: (Ljava/lang/String;IIIJ[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitVersionNumber
-  (JNIEnv *, jclass, jintArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_TrackerCreate
+  (JNIEnv *, jclass, jstring, jint, jint, jint, jlong, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    RabitAllreduce
+ * Method:    TrackerRun
+ * Signature: (J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_TrackerRun
+  (JNIEnv *, jclass, jlong);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    TrackerWaitFor
+ * Signature: (JJ)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_TrackerWaitFor
+  (JNIEnv *, jclass, jlong, jlong);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    TrackerWorkerArgs
+ * Signature: (JJ[Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_TrackerWorkerArgs
+  (JNIEnv *, jclass, jlong, jlong, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    TrackerFree
+ * Signature: (J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_TrackerFree
+  (JNIEnv *, jclass, jlong);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    CommunicatorAllreduce
  * Signature: (Ljava/nio/ByteBuffer;III)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitAllreduce
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_CommunicatorAllreduce
   (JNIEnv *, jclass, jobject, jint, jint, jint);
 
 /*
@@ -345,11 +401,19 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetInfoFr
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDeviceQuantileDMatrixCreateFromCallback
- * Signature: (Ljava/util/Iterator;FII[J)I
+ * Method:    XGQuantileDMatrixCreateFromCallback
+ * Signature: (Ljava/util/Iterator;[JLjava/lang/String;[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDeviceQuantileDMatrixCreateFromCallback
-  (JNIEnv *, jclass, jobject, jfloat, jint, jint, jlongArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGQuantileDMatrixCreateFromCallback
+  (JNIEnv *, jclass, jobject, jlongArray, jstring, jlongArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGExtMemQuantileDMatrixCreateFromCallback
+ * Signature: (Ljava/util/Iterator;[JLjava/lang/String;[J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGExtMemQuantileDMatrixCreateFromCallback
+  (JNIEnv *, jclass, jobject, jlongArray, jstring, jlongArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
@@ -361,19 +425,43 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFro
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixSetStrFeatureInfo
+ * Method:    XGBoosterSetStrFeatureInfo
  * Signature: (JLjava/lang/String;[Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetStrFeatureInfo
-    (JNIEnv *, jclass, jlong, jstring, jobjectArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSetStrFeatureInfo
+  (JNIEnv *, jclass, jlong, jstring, jobjectArray);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
- * Method:    XGDMatrixGetStrFeatureInfo
- * Signature: (JLjava/lang/String;[J[[Ljava/lang/String;)I
+ * Method:    XGBoosterGetStrFeatureInfo
+ * Signature: (JLjava/lang/String;[Ljava/lang/String;)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetStrFeatureInfo
-    (JNIEnv *, jclass, jlong, jstring, jlongArray, jobjectArray);
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetStrFeatureInfo
+  (JNIEnv *, jclass, jlong, jstring, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixGetQuantileCut
+ * Signature: (J[[J[[F)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixGetQuantileCut
+  (JNIEnv *, jclass, jlong, jobjectArray, jobjectArray);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBSetGlobalConfig
+ * Signature: (Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBSetGlobalConfig
+  (JNIEnv *, jclass, jstring);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBGetGlobalConfig
+ * Signature: ([Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBGetGlobalConfig
+  (JNIEnv *, jclass, jobjectArray);
 
 #ifdef __cplusplus
 }

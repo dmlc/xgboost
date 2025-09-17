@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2014,2021 by Contributors
+ Copyright (c) 2014-2024 by Contributors
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ package ml.dmlc.xgboost4j.java;
 
 import java.io.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -29,6 +31,11 @@ import org.apache.hadoop.fs.FileSystem;
  */
 public class XGBoost {
   private static final Log logger = LogFactory.getLog(XGBoost.class);
+
+  public static final String[] MAXIMIZ_METRICES = {
+    "auc", "aucpr", "pre", "pre@", "map", "ndcg",
+    "auc@", "aucpr@", "map@", "ndcg@",
+  };
 
   /**
    * load model from modelPath
@@ -126,7 +133,7 @@ public class XGBoost {
           int earlyStoppingRound) throws XGBoostError {
     return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
   }
-
+  // save checkpoint if iter is in checkpointIterations
   private static void saveCheckpoint(
           Booster booster,
           int iter,
@@ -158,11 +165,10 @@ public class XGBoost {
     //collect eval matrixs
     String[] evalNames;
     DMatrix[] evalMats;
-    float bestScore;
+    float bestScore = 1;
     int bestIteration;
     List<String> names = new ArrayList<String>();
     List<DMatrix> mats = new ArrayList<DMatrix>();
-    Set<Integer> checkpointIterations = new HashSet<>();
     ExternalCheckpointManager ecm = null;
     if (checkpointPath != null) {
       ecm = new ExternalCheckpointManager(checkpointPath, fs);
@@ -175,11 +181,7 @@ public class XGBoost {
 
     evalNames = names.toArray(new String[names.size()]);
     evalMats = mats.toArray(new DMatrix[mats.size()]);
-    if (isMaximizeEvaluation(params)) {
-      bestScore = -Float.MAX_VALUE;
-    } else {
-      bestScore = Float.MAX_VALUE;
-    }
+
     bestIteration = 0;
     metrics = metrics == null ? new float[evalNames.length][numRounds] : metrics;
 
@@ -198,29 +200,32 @@ public class XGBoost {
     if (booster == null) {
       // Start training on a new booster
       booster = new Booster(params, allMats);
-      booster.loadRabitCheckpoint();
+      booster.setFeatureNames(dtrain.getFeatureNames());
+      booster.setFeatureTypes(dtrain.getFeatureTypes());
     } else {
       // Start training on an existing booster
       booster.setParams(params);
     }
 
+    Set<Integer> checkpointIterations = new HashSet<>();
     if (ecm != null) {
-      checkpointIterations = new HashSet<>(ecm.getCheckpointRounds(checkpointInterval, numRounds));
+      checkpointIterations = new HashSet<>(
+          ecm.getCheckpointRounds(booster.getNumBoostedRound(), checkpointInterval, numRounds));
     }
 
-    // begin to train
-    for (int iter = booster.getVersion() / 2; iter < numRounds; iter++) {
-      if (booster.getVersion() % 2 == 0) {
-        if (obj != null) {
-          booster.update(dtrain, obj);
-        } else {
-          booster.update(dtrain, iter);
-        }
-        saveCheckpoint(booster, iter, checkpointIterations, ecm);
-        booster.saveRabitCheckpoint();
-      }
+    boolean initial_best_score_flag = false;
+    boolean max_direction = false;
 
-      //evaluation
+    // begin to train
+    for (int iter = 0; iter < numRounds; iter++) {
+      if (obj != null) {
+        booster.update(dtrain, iter, obj);
+      } else {
+        booster.update(dtrain, iter);
+      }
+      saveCheckpoint(booster, iter, checkpointIterations, ecm);
+
+      // evaluation
       if (evalMats.length > 0) {
         float[] metricsOut = new float[evalMats.length];
         String evalInfo;
@@ -229,6 +234,18 @@ public class XGBoost {
         } else {
           evalInfo = booster.evalSet(evalMats, evalNames, iter, metricsOut);
         }
+
+        if (!initial_best_score_flag) {
+          if (isMaximizeEvaluation(evalInfo, evalNames, params)) {
+            max_direction = true;
+            bestScore = -Float.MAX_VALUE;
+          } else {
+            max_direction = false;
+            bestScore = Float.MAX_VALUE;
+          }
+          initial_best_score_flag = true;
+        }
+
         for (int i = 0; i < metricsOut.length; i++) {
           metrics[i][iter] = metricsOut[i];
         }
@@ -236,7 +253,7 @@ public class XGBoost {
         // If there is more than one evaluation datasets, the last one would be used
         // to determinate early stop.
         float score = metricsOut[metricsOut.length - 1];
-        if (isMaximizeEvaluation(params)) {
+        if (max_direction) {
           // Update best score if the current score is better (no update when equal)
           if (score > bestScore) {
             bestScore = score;
@@ -254,20 +271,17 @@ public class XGBoost {
         }
         if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
           if (shouldPrint(params, iter)) {
-            Rabit.trackerPrint(String.format(
+            Communicator.communicatorPrint(String.format(
                 "early stopping after %d rounds away from the best iteration",
                 earlyStoppingRounds
             ));
           }
           break;
         }
-        if (Rabit.getRank() == 0 && shouldPrint(params, iter)) {
-          if (shouldPrint(params, iter)){
-            Rabit.trackerPrint(evalInfo + '\n');
-          }
+        if (Communicator.getRank() == 0 && shouldPrint(params, iter)) {
+          Communicator.communicatorPrint(evalInfo + '\n');
         }
       }
-      booster.saveRabitCheckpoint();
     }
     return booster;
   }
@@ -358,16 +372,50 @@ public class XGBoost {
     return iter - bestIteration >= earlyStoppingRounds;
   }
 
-  private static boolean isMaximizeEvaluation(Map<String, Object> params) {
-    try {
-      String maximize = String.valueOf(params.get("maximize_evaluation_metrics"));
-      assert(maximize != null);
-      return Boolean.valueOf(maximize);
-    } catch (Exception ex) {
-      logger.error("maximize_evaluation_metrics has to be specified for enabling early stop," +
-              " allowed value: true/false", ex);
-      throw ex;
+  private static String getMetricNameFromlog(String evalInfo, String[] evalNames) {
+    String regexPattern = Pattern.quote(evalNames[0]) + "-(.*):";
+    Pattern pattern = Pattern.compile(regexPattern);
+    Matcher matcher = pattern.matcher(evalInfo);
+
+    String metricName = null;
+    if (matcher.find()) {
+      metricName = matcher.group(1);
+      logger.debug("Got the metric name: " + metricName);
     }
+    return metricName;
+  }
+
+  // visiable for testing
+  public static boolean isMaximizeEvaluation(String evalInfo,
+                                             String[] evalNames,
+                                             Map<String, Object> params) {
+
+    String metricName;
+
+    if (params.get("maximize_evaluation_metrics") != null) {
+      // user has forced the direction no matter what is the metric name.
+      String maximize = String.valueOf(params.get("maximize_evaluation_metrics"));
+      return Boolean.valueOf(maximize);
+    }
+
+    if (params.get("eval_metric") != null) {
+      // user has special metric name
+      metricName = String.valueOf(params.get("eval_metric"));
+    } else {
+      // infer the metric name from log
+      metricName = getMetricNameFromlog(evalInfo, evalNames);
+    }
+
+    assert metricName != null;
+
+    if (!"mape".equals(metricName)) {
+      for (String x : MAXIMIZ_METRICES) {
+        if (metricName.startsWith(x)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**

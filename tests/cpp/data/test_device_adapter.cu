@@ -1,9 +1,9 @@
-// Copyright (c) 2019 by Contributors
+/**
+ * Copyright 2019-2024, XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
 #include "../../../src/data/adapter.h"
-#include "../../../src/data/simple_dmatrix.h"
-#include "../../../src/common/timer.h"
 #include "../helpers.h"
 #include <thrust/device_vector.h>
 #include "../../../src/data/device_adapter.cuh"
@@ -51,3 +51,22 @@ void TestCudfAdapter()
 TEST(DeviceAdapter, CudfAdapter) {
   TestCudfAdapter();
 }
+
+namespace xgboost::data {
+TEST(DeviceAdapter, GetRowCounts) {
+  auto ctx = MakeCUDACtx(0);
+
+  for (bst_feature_t n_features : {1, 2, 4, 64, 128, 256}) {
+    HostDeviceVector<float> storage;
+    auto str_arr = RandomDataGenerator{8192, n_features, 0.0}
+                       .Device(ctx.Device())
+                       .GenerateArrayInterface(&storage);
+    auto adapter = CupyAdapter{str_arr};
+    HostDeviceVector<bst_idx_t> offset(adapter.NumRows() + 1, 0);
+    offset.SetDevice(ctx.Device());
+    auto rstride = GetRowCounts(&ctx, adapter.Value(), offset.DeviceSpan(), ctx.Device(),
+                                std::numeric_limits<float>::quiet_NaN());
+    ASSERT_EQ(rstride, n_features);
+  }
+}
+}  // namespace xgboost::data

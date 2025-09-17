@@ -1,0 +1,18 @@
+* text=auto
+
+*.c   text eol=lf
+*.h   text eol=lf
+*.cc  text eol=lf
+*.cuh text eol=lf
+*.cu  text eol=lf
+*.py  text eol=lf
+*.txt text eol=lf
+*.R   text eol=lf
+*.scala text eol=lf
+*.java  text eol=lf
+
+*.sh text eol=lf
+
+*.rst text eol=lf
+*.md  text eol=lf
+*.csv text eol=lf

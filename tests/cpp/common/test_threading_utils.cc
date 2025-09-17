@@ -1,13 +1,16 @@
-#include <cstddef>
+/**
+ * Copyright 2019-2024, XGBoost Contributors
+ */
+#include <dmlc/omp.h>  // for omp_in_parallel
 #include <gtest/gtest.h>
 
-#include "../../../src/common/column_matrix.h"
-#include "../../../src/common/threading_utils.h"
+#include <cstddef>  // for std::size_t
 
-namespace xgboost {
-namespace common {
+#include "../../../src/common/threading_utils.h"  // BlockedSpace2d,ParallelFor2d,ParallelFor
+#include "xgboost/context.h"                      // Context
 
-TEST(CreateBlockedSpace2d, Test) {
+namespace xgboost::common {
+TEST(ParallelFor2d, CreateBlockedSpace2d) {
   constexpr size_t kDim1 = 5;
   constexpr size_t kDim2 = 3;
   constexpr size_t kGrainSize = 1;
@@ -35,29 +38,24 @@ TEST(ParallelFor2d, Test) {
   std::vector<int> matrix(kDim1 * kDim2, 0);
   BlockedSpace2d space(
       kDim1, [&](size_t) { return kDim2; }, kGrainSize);
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"nthread", "4"}});
+  ASSERT_EQ(ctx.nthread, 4);
 
-  auto old = omp_get_max_threads();
-  omp_set_num_threads(4);
-
-  ParallelFor2d(space, omp_get_max_threads(), [&](size_t i, Range1d r) {
+  ParallelFor2d(space, ctx.Threads(), [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
-      matrix[i*kDim2 + j] += 1;
+      matrix[i * kDim2 + j] += 1;
     }
   });
 
   for (size_t i = 0; i < kDim1 * kDim2; i++) {
     ASSERT_EQ(matrix[i], 1);
   }
-
-  omp_set_num_threads(old);
 }
 
-TEST(ParallelFor2dNonUniform, Test) {
+TEST(ParallelFor2d, NonUniform) {
   constexpr size_t kDim1 = 5;
   constexpr size_t kGrainSize = 256;
-
-  auto old = omp_get_max_threads();
-  omp_set_num_threads(4);
 
   // here are quite non-uniform distribution in space
   // but ParallelFor2d should split them by blocks with max size = kGrainSize
@@ -72,7 +70,11 @@ TEST(ParallelFor2dNonUniform, Test) {
     working_space[i].resize(dim2[i], 0);
   }
 
-  ParallelFor2d(space, omp_get_max_threads(), [&](size_t i, Range1d r) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"nthread", "4"}});
+  ASSERT_EQ(ctx.nthread, 4);
+
+  ParallelFor2d(space, ctx.Threads(), [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       working_space[i][j] += 1;
     }
@@ -83,8 +85,30 @@ TEST(ParallelFor2dNonUniform, Test) {
       ASSERT_EQ(working_space[i][j], 1);
     }
   }
-
-  omp_set_num_threads(old);
 }
-}  // namespace common
-}  // namespace xgboost
+
+TEST(ParallelFor, Basic) {
+  Context ctx;
+  std::size_t n{16};
+  auto n_threads = ctx.Threads();
+  ParallelFor(n, n_threads, [&](auto i) {
+    ASSERT_EQ(ctx.Threads(), 1);
+    if (n_threads > 1) {
+      ASSERT_TRUE(omp_in_parallel());
+    }
+    ASSERT_LT(i, n);
+  });
+  ASSERT_FALSE(omp_in_parallel());
+  ParallelFor(n, 1, [&](auto) { ASSERT_FALSE(omp_in_parallel()); });
+}
+
+TEST(OmpGetNumThreads, Max) {
+#if defined(_OPENMP)
+  auto n_threads = OmpGetNumThreads(1 << 18);
+  ASSERT_LE(n_threads, std::thread::hardware_concurrency());  // le due to container
+  n_threads = OmpGetNumThreads(0);
+  ASSERT_GE(n_threads, 1);
+  ASSERT_LE(n_threads, std::thread::hardware_concurrency());
+#endif
+}
+}  // namespace xgboost::common

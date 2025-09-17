@@ -65,8 +65,11 @@ function(create_rlib_for_msvc)
 
   execute_process(COMMAND ${DLLTOOL_EXE}
     "--input-def" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
-    "--output-lib" "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
-endfunction(create_rlib_for_msvc)
+    "--output-lib" "${CMAKE_CURRENT_BINARY_DIR}/R.lib"
+    "--temp-prefix" "Rlibtemp"
+    COMMAND_ECHO STDOUT
+    COMMAND_ERROR_IS_FATAL ANY)
+endfunction()
 
 
 # detection for OSX

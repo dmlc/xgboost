@@ -1,18 +1,20 @@
-/*!
- * Copyright (c) 2015 by Contributors
+/**
+ * Copyright 2015-2025, XGBoost Contributors
  * \file base.h
- * \brief defines configuration macros of xgboost.
+ * \brief Defines configuration macros and basic types for xgboost.
  */
 #ifndef XGBOOST_BASE_H_
 #define XGBOOST_BASE_H_
 
-#include <dmlc/base.h>
-#include <dmlc/omp.h>
-#include <cmath>
-#include <iostream>
-#include <vector>
-#include <string>
-#include <utility>
+#include <dmlc/omp.h>  // for omp_uint, omp_ulong
+// Put the windefs here to guard as many files as possible.
+#include <xgboost/windefs.h>
+
+#include <cstdint>  // for int32_t, uint64_t, int16_t
+#include <ostream>  // for ostream
+#include <string>   // for string
+#include <utility>  // for pair
+#include <vector>   // for vector
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.
@@ -32,17 +34,10 @@
 #endif  // XGBOOST_LOG_WITH_TIME
 
 /*!
- * \brief Whether customize the logger outputs.
- */
-#ifndef XGBOOST_CUSTOMIZE_LOGGER
-#define XGBOOST_CUSTOMIZE_LOGGER XGBOOST_STRICT_R_MODE
-#endif  // XGBOOST_CUSTOMIZE_LOGGER
-
-/*!
  * \brief Whether to customize global PRNG.
  */
 #ifndef XGBOOST_CUSTOMIZE_GLOBAL_PRNG
-#define XGBOOST_CUSTOMIZE_GLOBAL_PRNG XGBOOST_STRICT_R_MODE
+#define XGBOOST_CUSTOMIZE_GLOBAL_PRNG 0
 #endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 
 /*!
@@ -53,21 +48,6 @@
 #else
 #define XGBOOST_ALIGNAS(X)
 #endif  // defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
-
-#if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
-    !defined(__CUDACC__) && !defined(__sun) && !defined(sun)
-#include <parallel/algorithm>
-#define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
-#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) \
-  __gnu_parallel::stable_sort((X), (Y), (Z))
-#elif defined(_MSC_VER) && (!__INTEL_COMPILER)
-#include <ppl.h>
-#define XGBOOST_PARALLEL_SORT(X, Y, Z) concurrency::parallel_sort((X), (Y), (Z))
-#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
-#else
-#define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
-#define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
-#endif  // GLIBC VERSION
 
 #if defined(__GNUC__)
 #define XGBOOST_EXPECT(cond, ret)  __builtin_expect((cond), (ret))
@@ -92,6 +72,14 @@
 #define XGBOOST_DEV_INLINE
 #endif  // defined(__CUDA__) || defined(__CUDACC__)
 
+
+// restrict
+#if defined(_MSC_VER)
+#define XGBOOST_RESTRICT __restrict
+#else
+#define XGBOOST_RESTRICT __restrict__
+#endif
+
 // These check are for Makefile.
 #if !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
 /* default logic for software pre-fetching */
@@ -106,34 +94,49 @@
 
 #endif  // !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined()
 
-/*! \brief namespace of xgboost*/
 namespace xgboost {
-
 /*! \brief unsigned integer type used for feature index. */
-using bst_uint = uint32_t;  // NOLINT
-/*! \brief integer type. */
-using bst_int = int32_t;    // NOLINT
+using bst_uint = std::uint32_t;  // NOLINT
 /*! \brief unsigned long integers */
-using bst_ulong = uint64_t;  // NOLINT
+using bst_ulong = std::uint64_t;  // NOLINT
 /*! \brief float type, used for storing statistics */
 using bst_float = float;  // NOLINT
 /*! \brief Categorical value type. */
-using bst_cat_t = int32_t;  // NOLINT
+using bst_cat_t = std::int32_t;  // NOLINT
 /*! \brief Type for data column (feature) index. */
-using bst_feature_t = uint32_t;  // NOLINT
-/*! \brief Type for histogram bin index. */
-using bst_bin_t = int32_t;  // NOLINT
-/*! \brief Type for data row index.
- *
- * Be careful `std::size_t' is implementation-defined.  Meaning that the binary
- * representation of DMatrix might not be portable across platform.  Booster model should
- * be portable as parameters are floating points.
+using bst_feature_t = std::uint32_t;  // NOLINT
+/**
+ * @brief Type for histogram bin index.  We sometimes use -1 to indicate invalid bin.
  */
-using bst_row_t = std::size_t;   // NOLINT
-/*! \brief Type for tree node index. */
-using bst_node_t = int32_t;      // NOLINT
-/*! \brief Type for ranking group index. */
-using bst_group_t = uint32_t;    // NOLINT
+using bst_bin_t = std::int32_t;  // NOLINT
+/**
+ * @brief Type for data row index (sample).
+ */
+using bst_idx_t = std::uint64_t;  // NOLINT
+/**
+ * \brief Type for tree node index.
+ */
+using bst_node_t = std::int32_t;      // NOLINT
+/**
+ * @brief Type for ranking group index.
+ */
+using bst_group_t = std::uint32_t;  // NOLINT
+/**
+ * @brief Type for indexing into output targets.
+ */
+using bst_target_t = std::uint32_t;  // NOLINT
+/**
+ * @brief Type for indexing boosted layers.
+ */
+using bst_layer_t = std::int32_t;  // NOLINT
+/**
+ * @brief Type for indexing trees.
+ */
+using bst_tree_t = std::int32_t;  // NOLINT
+/**
+ * @brief Ordinal of a CUDA device.
+ */
+using bst_d_ordinal_t = std::int16_t;  // NOLINT
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation
@@ -142,9 +145,9 @@ namespace detail {
 template <typename T>
 class GradientPairInternal {
   /*! \brief gradient statistics */
-  T grad_;
+  T grad_{0};
   /*! \brief second order gradient statistics */
-  T hess_;
+  T hess_{0};
 
   XGBOOST_DEVICE void SetGrad(T g) { grad_ = g; }
   XGBOOST_DEVICE void SetHess(T h) { hess_ = h; }
@@ -161,7 +164,7 @@ class GradientPairInternal {
     a += b;
   }
 
-  XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
+  GradientPairInternal() = default;
 
   XGBOOST_DEVICE GradientPairInternal(T grad, T hess) {
     SetGrad(grad);
@@ -169,7 +172,10 @@ class GradientPairInternal {
   }
 
   // Copy constructor if of same value type, marked as default to be trivially_copyable
-  GradientPairInternal(const GradientPairInternal<T> &g) = default;
+  GradientPairInternal(GradientPairInternal const &g) = default;
+  GradientPairInternal(GradientPairInternal &&g) = default;
+  GradientPairInternal &operator=(GradientPairInternal const &that) = default;
+  GradientPairInternal &operator=(GradientPairInternal &&that) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion
@@ -259,10 +265,61 @@ class GradientPairInternal {
 using GradientPair = detail::GradientPairInternal<float>;
 /*! \brief High precision gradient statistics pair */
 using GradientPairPrecise = detail::GradientPairInternal<double>;
-/*! \brief Fixed point representation for gradient pair. */
-using GradientPairInt32 = detail::GradientPairInternal<int>;
-/*! \brief Fixed point representation for high precision gradient pair. */
-using GradientPairInt64 = detail::GradientPairInternal<int64_t>;
+
+/*! \brief Fixed point representation for high precision gradient pair. Has a different interface so
+ * we don't accidentally use it in gain calculations.*/
+class GradientPairInt64 {
+  using T = int64_t;
+  T grad_ = 0;
+  T hess_ = 0;
+
+ public:
+  using ValueT = T;
+
+  XGBOOST_DEVICE GradientPairInt64(T grad, T hess) : grad_(grad), hess_(hess) {}
+  GradientPairInt64() = default;
+
+  // Copy constructor if of same value type, marked as default to be trivially_copyable
+  GradientPairInt64(GradientPairInt64 const &g) = default;
+  GradientPairInt64 &operator=(GradientPairInt64 const &g) = default;
+
+  [[nodiscard]] XGBOOST_DEVICE T GetQuantisedGrad() const { return grad_; }
+  [[nodiscard]] XGBOOST_DEVICE T GetQuantisedHess() const { return hess_; }
+
+  XGBOOST_DEVICE GradientPairInt64 &operator+=(const GradientPairInt64 &rhs) {
+    grad_ += rhs.grad_;
+    hess_ += rhs.hess_;
+    return *this;
+  }
+
+  XGBOOST_DEVICE GradientPairInt64 operator+(const GradientPairInt64 &rhs) const {
+    GradientPairInt64 g;
+    g.grad_ = grad_ + rhs.grad_;
+    g.hess_ = hess_ + rhs.hess_;
+    return g;
+  }
+
+  XGBOOST_DEVICE GradientPairInt64 &operator-=(const GradientPairInt64 &rhs) {
+    grad_ -= rhs.grad_;
+    hess_ -= rhs.hess_;
+    return *this;
+  }
+
+  XGBOOST_DEVICE GradientPairInt64 operator-(const GradientPairInt64 &rhs) const {
+    GradientPairInt64 g;
+    g.grad_ = grad_ - rhs.grad_;
+    g.hess_ = hess_ - rhs.hess_;
+    return g;
+  }
+
+  XGBOOST_DEVICE bool operator==(const GradientPairInt64 &rhs) const {
+    return grad_ == rhs.grad_ && hess_ == rhs.hess_;
+  }
+  friend std::ostream &operator<<(std::ostream &os, const GradientPairInt64 &g) {
+    os << g.GetQuantisedGrad() << "/" << g.GetQuantisedHess();
+    return os;
+  }
+};
 
 using Args = std::vector<std::pair<std::string, std::string> >;
 
@@ -274,18 +331,7 @@ using omp_ulong = dmlc::omp_ulong;  // NOLINT
 /*! \brief define unsigned int for openmp loop */
 using bst_omp_uint = dmlc::omp_uint;  // NOLINT
 /*! \brief Type used for representing version number in binary form.*/
-using XGBoostVersionT = int32_t;
-
-/*!
- * \brief define compatible keywords in g++
- *  Used to support g++-4.6 and g++4.7
- */
-#if DMLC_USE_CXX11 && defined(__GNUC__) && !defined(__clang_version__)
-#if __GNUC__ == 4 && __GNUC_MINOR__ < 8
-#define override
-#define final
-#endif  // __GNUC__ == 4 && __GNUC_MINOR__ < 8
-#endif  // DMLC_USE_CXX11 && defined(__GNUC__) && !defined(__clang_version__)
+using XGBoostVersionT = std::int32_t;
 }  // namespace xgboost
 
 #endif  // XGBOOST_BASE_H_

@@ -1,20 +1,15 @@
 #' Create new features from a previously learned model
 #'
-#' May improve the learning by adding new features to the training data based on the decision trees from a previously learned model.
-#'
-#' @param model decision tree boosting model learned on the original data
-#' @param data original data (usually provided as a \code{dgCMatrix} matrix)
-#' @param ... currently not used
-#'
-#' @return \code{dgCMatrix} matrix including both the original data and the new features.
+#' May improve the learning by adding new features to the training data based on the
+#' decision trees from a previously learned model.
 #'
 #' @details
 #' This is the function inspired from the paragraph 3.1 of the paper:
 #'
-#' \strong{Practical Lessons from Predicting Clicks on Ads at Facebook}
+#' **Practical Lessons from Predicting Clicks on Ads at Facebook**
 #'
-#' \emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers,
-#' Joaquin Quinonero Candela)}
+#' *(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers,
+#' Joaquin Quinonero Candela)*
 #'
 #' International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 #'
@@ -33,11 +28,11 @@
 #' where the first subtree has 3 leafs and the second 2 leafs. If an
 #' instance ends up in leaf 2 in the first subtree and leaf 1 in
 #' second subtree, the overall input to the linear classifier will
-#' be the binary vector \code{[0, 1, 0, 1, 0]}, where the first 3 entries
+#' be the binary vector `[0, 1, 0, 1, 0]`, where the first 3 entries
 #' correspond to the leaves of the first subtree and last 2 to
 #' those of the second subtree.
 #'
-#' [...]
+#' ...
 #'
 #' We can understand boosted decision tree
 #' based transformation as a supervised feature encoding that
@@ -45,16 +40,22 @@
 #' vector. A traversal from root node to a leaf node represents
 #' a rule on certain features."
 #'
-#' @examples
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
-#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
-#' dtest <- with(agaricus.test, xgb.DMatrix(data, label = label))
+#' @param model Decision tree boosting model learned on the original data.
+#' @param data Original data (usually provided as a `dgCMatrix` matrix).
 #'
-#' param <- list(max_depth=2, eta=1, silent=1, objective='binary:logistic')
+#' @return A `dgCMatrix` matrix including both the original data and the new features.
+#'
+#' @examples
+#' data(agaricus.train, package = "xgboost")
+#' data(agaricus.test, package = "xgboost")
+#'
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label, nthread = 2))
+#' dtest <- with(agaricus.test, xgb.DMatrix(data, label = label, nthread = 2))
+#'
+#' param <- list(max_depth = 2, learning_rate = 1, objective = 'binary:logistic', nthread = 1)
 #' nrounds = 4
 #'
-#' bst = xgb.train(params = param, data = dtrain, nrounds = nrounds, nthread = 2)
+#' bst <- xgb.train(params = param, data = dtrain, nrounds = nrounds)
 #'
 #' # Model accuracy without new features
 #' accuracy.before <- sum((predict(bst, agaricus.test$data) >= 0.5) == agaricus.test$label) /
@@ -65,10 +66,13 @@
 #' new.features.test <- xgb.create.features(model = bst, agaricus.test$data)
 #'
 #' # learning with new features
-#' new.dtrain <- xgb.DMatrix(data = new.features.train, label = agaricus.train$label)
-#' new.dtest <- xgb.DMatrix(data = new.features.test, label = agaricus.test$label)
-#' watchlist <- list(train = new.dtrain)
-#' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds, nthread = 2)
+#' new.dtrain <- xgb.DMatrix(
+#'   data = new.features.train, label = agaricus.train$label, nthread = 1
+#' )
+#' new.dtest <- xgb.DMatrix(
+#'   data = new.features.test, label = agaricus.test$label, nthread = 1
+#' )
+#' bst <- xgb.train(params = param, data = new.dtrain, nrounds = nrounds)
 #'
 #' # Model accuracy with new features
 #' accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) /
@@ -79,9 +83,8 @@
 #'           accuracy.after, "!\n"))
 #'
 #' @export
-xgb.create.features <- function(model, data, ...){
-  check.deprecation(...)
-  pred_with_leaf <- predict(model, data, predleaf = TRUE)
+xgb.create.features <- function(model, data) {
+  pred_with_leaf <- predict.xgb.Booster(model, data, predleaf = TRUE)
   cols <- lapply(as.data.frame(pred_with_leaf), factor)
   cbind(data, sparse.model.matrix(~ . -1, cols)) # nolint
 }

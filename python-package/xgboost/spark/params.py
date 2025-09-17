@@ -1,6 +1,7 @@
-# type: ignore
 """Xgboost pyspark integration submodule for params."""
-# pylint: disable=too-few-public-methods
+
+from typing import Dict
+
 from pyspark.ml.param import TypeConverters
 from pyspark.ml.param.shared import Param, Params
 
@@ -12,11 +13,11 @@ class HasArbitraryParamsDict(Params):
     input.
     """
 
-    arbitrary_params_dict = Param(
+    arbitrary_params_dict: "Param[Dict]" = Param(
         Params._dummy(),
         "arbitrary_params_dict",
         "arbitrary_params_dict This parameter holds all of the additional parameters which are "
-        "not exposed as the the XGBoost Spark estimator params but can be recognized by "
+        "not exposed as the XGBoost Spark estimator params but can be recognized by "
         "underlying XGBoost library. It is stored as a dictionary.",
     )
 
@@ -31,13 +32,14 @@ class HasBaseMarginCol(Params):
         Params._dummy(),
         "base_margin_col",
         "This stores the name for the column of the base margin",
+        typeConverter=TypeConverters.toString,
     )
 
 
 class HasFeaturesCols(Params):
     """
-    Mixin for param featuresCols: a list of feature column names.
-    This parameter is taken effect only when use_gpu is enabled.
+    Mixin for param features_cols: a list of feature column names.
+    This parameter is taken effect only when GPU is enabled.
     """
 
     features_cols = Param(
@@ -47,13 +49,12 @@ class HasFeaturesCols(Params):
         typeConverter=TypeConverters.toListString,
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._setDefault(features_cols=[])
 
 
 class HasEnableSparseDataOptim(Params):
-
     """
     This is a Params based class that is extended by _SparkXGBParams
     and holds the variable to store the boolean config of enabling sparse data optimization.
@@ -69,20 +70,35 @@ class HasEnableSparseDataOptim(Params):
         typeConverter=TypeConverters.toBoolean,
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._setDefault(enable_sparse_data_optim=False)
 
 
 class HasQueryIdCol(Params):
     """
-    Mixin for param featuresCols: a list of feature column names.
-    This parameter is taken effect only when use_gpu is enabled.
+    Mixin for param qid_col: query id column name.
     """
 
     qid_col = Param(
         Params._dummy(),
         "qid_col",
         "query id column name",
+        typeConverter=TypeConverters.toString,
+    )
+
+
+class HasContribPredictionCol(Params):
+    """
+    Mixin for param pred_contrib_col: contribution prediction column name.
+
+    Output is a 3-dim array, with (rows, groups, columns + 1) for classification case.
+    Else, it can be a 2 dimension for regression case.
+    """
+
+    pred_contrib_col: "Param[str]" = Param(
+        Params._dummy(),
+        "pred_contrib_col",
+        "feature contributions to individual predictions.",
         typeConverter=TypeConverters.toString,
     )

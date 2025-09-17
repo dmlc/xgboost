@@ -11,7 +11,7 @@ This is a instruction of new tree booster ``dart``.
 **************
 Original paper
 **************
-Rashmi Korlakai Vinayak, Ran Gilad-Bachrach. "DART: Dropouts meet Multiple Additive Regression Trees." `JMLR <http://www.jmlr.org/proceedings/papers/v38/korlakaivinayak15.pdf>`_.
+Rashmi Korlakai Vinayak, Ran Gilad-Bachrach. "DART: Dropouts meet Multiple Additive Regression Trees." [`PMLR <http://proceedings.mlr.press/v38/korlakaivinayak15.pdf>`_, `arXiv <https://arxiv.org/abs/1505.01866>`_].
 
 ********
 Features
@@ -96,8 +96,8 @@ Sample Script
 
   import xgboost as xgb
   # read in data
-  dtrain = xgb.DMatrix('demo/data/agaricus.txt.train')
-  dtest = xgb.DMatrix('demo/data/agaricus.txt.test')
+  dtrain = xgb.DMatrix('demo/data/agaricus.txt.train?format=libsvm')
+  dtest = xgb.DMatrix('demo/data/agaricus.txt.test?format=libsvm')
   # specify parameters via map
   param = {'booster': 'dart',
            'max_depth': 5, 'learning_rate': 0.1,

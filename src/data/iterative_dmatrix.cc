@@ -1,219 +1,221 @@
-/*!
- * Copyright 2022 XGBoost contributors
+/**
+ * Copyright 2022-2025, XGBoost contributors
  */
 #include "iterative_dmatrix.h"
 
-#include <rabit/rabit.h>
+#include <algorithm>  // for copy
+#include <cstddef>    // for size_t
+#include <memory>     // for shared_ptr
+#include <utility>    // for move
+#include <vector>     // for vector
 
-#include "../common/column_matrix.h"
-#include "../common/hist_util.h"
-#include "gradient_index.h"
-#include "proxy_dmatrix.h"
-#include "simple_batch_iterator.h"
+#include "../common/categorical.h"  // for IsCat
+#include "../common/hist_util.h"    // for HistogramCuts
+#include "../tree/param.h"          // FIXME(jiamingy): Find a better way to share this parameter.
+#include "batch_utils.h"            // for RegenGHist
+#include "cat_container.h"          // for SyncCategories
+#include "gradient_index.h"         // for GHistIndexMatrix
+#include "proxy_dmatrix.h"          // for DataIterProxy, DispatchAny
+#include "quantile_dmatrix.h"       // for GetCutsFromRef
+#include "quantile_dmatrix.h"       // for GetDataShape, MakeSketches
+#include "simple_batch_iterator.h"  // for SimpleBatchIteratorImpl
+#include "xgboost/data.h"           // for FeatureType, DMatrix
+#include "xgboost/logging.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
+IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle proxy,
+                                   std::shared_ptr<DMatrix> ref, DataIterResetCallback* reset,
+                                   XGDMatrixCallbackNext* next, float missing, int nthread,
+                                   bst_bin_t max_bin, std::int64_t max_quantile_blocks)
+    : proxy_{proxy} {
+  // The external iterator, fetch the first batch
+  auto iter =
+      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset, next};
+  iter.Reset();
+  bool valid = iter.Next();
+  CHECK(valid) << "Iterative DMatrix must have at least 1 batch.";
 
-void GetCutsFromRef(std::shared_ptr<DMatrix> ref_, bst_feature_t n_features, BatchParam p,
-                    common::HistogramCuts* p_cuts) {
-  CHECK(ref_);
-  CHECK(p_cuts);
-  auto csr = [&]() {
-    for (auto const& page : ref_->GetBatches<GHistIndexMatrix>(p)) {
-      *p_cuts = page.cut;
-      break;
-    }
-  };
-  auto ellpack = [&]() {
-    for (auto const& page : ref_->GetBatches<EllpackPage>(p)) {
-      GetCutsFromEllpack(page, p_cuts);
-      break;
-    }
-  };
+  auto pctx = MakeProxy(proxy_)->Ctx();
 
-  if (ref_->PageExists<GHistIndexMatrix>()) {
-    csr();
-  } else if (ref_->PageExists<EllpackPage>()) {
-    ellpack();
+  Context ctx;
+  ctx.Init(Args{{"nthread", std::to_string(nthread)}, {"device", pctx->DeviceName()}});
+  // hardcoded parameter.
+  BatchParam p{max_bin, tree::TrainParam::DftSparseThreshold()};
+
+  if (ctx.IsCUDA()) {
+    this->InitFromCUDA(&ctx, p, max_quantile_blocks, std::move(iter), missing, ref);
   } else {
-    if (p.gpu_id == Context::kCpuId) {
-      csr();
-    } else {
-      ellpack();
-    }
+    this->InitFromCPU(&ctx, p, std::move(iter), missing, ref);
   }
-  CHECK_EQ(ref_->Info().num_col_, n_features)
-      << "Invalid ref DMatrix, different number of features.";
+
+  this->fmat_ctx_ = ctx;
+  this->batch_ = p;
+
+  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
+
+  LOG(INFO) << "Finished constructing the `IterativeDMatrix`: (" << this->Info().num_row_ << ", "
+            << this->Info().num_col_ << ", " << this->info_.num_nonzero_ << ").";
 }
 
-void IterativeDMatrix::InitFromCPU(DataIterHandle iter_handle, float missing,
-                                   std::shared_ptr<DMatrix> ref) {
+void IterativeDMatrix::InitFromCPU(
+    Context const* ctx, BatchParam const& p,
+    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&& iter, float missing,
+    std::shared_ptr<DMatrix> ref) {
   DMatrixProxy* proxy = MakeProxy(proxy_);
   CHECK(proxy);
 
-  // The external iterator
-  auto iter =
-      DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>{iter_handle, reset_, next_};
   common::HistogramCuts cuts;
-
-  auto num_rows = [&]() {
-    return HostAdapterDispatch(proxy, [](auto const& value) { return value.Size(); });
-  };
-  auto num_cols = [&]() {
-    return HostAdapterDispatch(proxy, [](auto const& value) { return value.NumCols(); });
-  };
-
-  std::vector<size_t> column_sizes;
-  auto const is_valid = data::IsValidFunctor{missing};
-  auto nnz_cnt = [&]() {
-    return HostAdapterDispatch(proxy, [&](auto const& value) {
-      size_t n_threads = ctx_.Threads();
-      size_t n_features = column_sizes.size();
-      linalg::Tensor<size_t, 2> column_sizes_tloc({n_threads, n_features}, Context::kCpuId);
-      auto view = column_sizes_tloc.HostView();
-      common::ParallelFor(value.Size(), n_threads, common::Sched::Static(256), [&](auto i) {
-        auto const& line = value.GetLine(i);
-        for (size_t j = 0; j < line.Size(); ++j) {
-          data::COOTuple const& elem = line.GetElement(j);
-          if (is_valid(elem)) {
-            view(omp_get_thread_num(), elem.column_idx)++;
-          }
-        }
-      });
-      auto ptr = column_sizes_tloc.Data()->HostPointer();
-      auto result = std::accumulate(ptr, ptr + column_sizes_tloc.Size(), static_cast<size_t>(0));
-      for (size_t tidx = 0; tidx < n_threads; ++tidx) {
-        for (size_t fidx = 0; fidx < n_features; ++fidx) {
-          column_sizes[fidx] += view(tidx, fidx);
-        }
-      }
-      return result;
-    });
-  };
-
-  size_t n_features = 0;
-  size_t n_batches = 0;
-  size_t accumulated_rows{0};
-  size_t nnz{0};
-
-  /**
-   * CPU impl needs an additional loop for accumulating the column size.
-   */
-  std::unique_ptr<common::HostSketchContainer> p_sketch;
-  std::vector<size_t> batch_nnz;
-  do {
-    // We use do while here as the first batch is fetched in ctor
-    if (n_features == 0) {
-      n_features = num_cols();
-      rabit::Allreduce<rabit::op::Max>(&n_features, 1);
-      column_sizes.resize(n_features);
-      info_.num_col_ = n_features;
-    } else {
-      CHECK_EQ(n_features, num_cols()) << "Inconsistent number of columns.";
-    }
-
-    size_t batch_size = num_rows();
-    batch_nnz.push_back(nnz_cnt());
-    nnz += batch_nnz.back();
-    accumulated_rows += batch_size;
-    n_batches++;
-  } while (iter.Next());
-  iter.Reset();
-
-  // From here on Info() has the correct data shape
-  Info().num_row_ = accumulated_rows;
-  Info().num_nonzero_ = nnz;
-  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
-  CHECK(std::none_of(column_sizes.cbegin(), column_sizes.cend(), [&](auto f) {
-    return f > accumulated_rows;
-  })) << "Something went wrong during iteration.";
+  ExternalDataInfo ext_info;
+  cpu_impl::GetDataShape(ctx, proxy, &iter, missing, &ext_info);
+  ext_info.SetInfo(ctx, true, &this->info_);
 
   /**
    * Generate quantiles
    */
-  accumulated_rows = 0;
-  if (ref) {
-    GetCutsFromRef(ref, Info().num_col_, batch_param_, &cuts);
-  } else {
-    size_t i = 0;
-    while (iter.Next()) {
-      if (!p_sketch) {
-        p_sketch.reset(new common::HostSketchContainer{batch_param_.max_bin,
-                                                       proxy->Info().feature_types.ConstHostSpan(),
-                                                       column_sizes, false, ctx_.Threads()});
-      }
-      HostAdapterDispatch(proxy, [&](auto const& batch) {
-        proxy->Info().num_nonzero_ = batch_nnz[i];
-        // We don't need base row idx here as Info is from proxy and the number of rows in
-        // it is consistent with data batch.
-        p_sketch->PushAdapterBatch(batch, 0, proxy->Info(), missing);
-      });
-      accumulated_rows += num_rows();
-      ++i;
-    }
-    iter.Reset();
-    CHECK_EQ(accumulated_rows, Info().num_row_);
-
-    CHECK(p_sketch);
-    p_sketch->MakeCuts(&cuts);
-  }
+  std::vector<FeatureType> h_ft;
+  cpu_impl::MakeSketches(ctx, &iter, proxy, ref, missing, &cuts, p, this->info_, ext_info, &h_ft);
 
   /**
    * Generate gradient index.
    */
-  this->ghist_ = std::make_unique<GHistIndexMatrix>(Info(), std::move(cuts), batch_param_.max_bin);
-  size_t rbegin = 0;
-  size_t prev_sum = 0;
-  size_t i = 0;
+  this->ghist_ = std::make_unique<GHistIndexMatrix>(this->info_, std::move(cuts), p.max_bin);
+  std::size_t rbegin = 0;
+  std::size_t prev_sum = 0;
+  std::size_t i = 0;
   while (iter.Next()) {
-    HostAdapterDispatch(proxy, [&](auto const& batch) {
-      proxy->Info().num_nonzero_ = batch_nnz[i];
-      this->ghist_->PushAdapterBatch(&ctx_, rbegin, prev_sum, batch, missing,
-                                     proxy->Info().feature_types.ConstHostSpan(),
-                                     batch_param_.sparse_thresh, Info().num_row_);
+    cpu_impl::DispatchAny(proxy, [&](auto const& batch) {
+      proxy->Info().num_nonzero_ = ext_info.batch_nnz[i];
+      this->ghist_->PushAdapterBatch(ctx, rbegin, prev_sum, batch, missing, h_ft, p.sparse_thresh,
+                                     Info().num_row_);
     });
-    if (n_batches != 1) {
+    if (ext_info.n_batches != 1) {
       this->info_.Extend(std::move(proxy->Info()), false, true);
     }
-    size_t batch_size = num_rows();
+    auto batch_size = BatchSamples(proxy);
     prev_sum = this->ghist_->row_ptr[rbegin + batch_size];
     rbegin += batch_size;
     ++i;
   }
   iter.Reset();
   CHECK_EQ(rbegin, Info().num_row_);
+  CHECK_EQ(this->ghist_->Features(), Info().num_col_);
 
   /**
    * Generate column matrix
    */
-  accumulated_rows = 0;
+  bst_idx_t accumulated_rows = 0;
   while (iter.Next()) {
-    HostAdapterDispatch(proxy, [&](auto const& batch) {
-      this->ghist_->PushAdapterBatchColumns(&ctx_, batch, missing, accumulated_rows);
+    cpu_impl::DispatchAny(proxy, [&](auto const& batch) {
+      this->ghist_->PushAdapterBatchColumns(ctx, batch, missing, accumulated_rows);
     });
-    accumulated_rows += num_rows();
+    accumulated_rows += BatchSamples(proxy);
   }
   iter.Reset();
-  CHECK_EQ(accumulated_rows, Info().num_row_);
+  CHECK_EQ(accumulated_rows, this->info_.num_row_);
 
-  if (n_batches == 1) {
+  if (ext_info.n_batches == 1) {
     this->info_ = std::move(proxy->Info());
-    this->info_.num_nonzero_ = nnz;
+    ext_info.SetInfo(ctx, false, &this->info_);
     CHECK_EQ(proxy->Info().labels.Size(), 0);
   }
+
+  info_.feature_types.HostVector() = h_ft;
 }
 
-BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(BatchParam const& param) {
-  CheckParam(param);
-  CHECK(ghist_) << R"(`QuantileDMatrix` is not initialized with CPU data but used for CPU training.
-Possible solutions:
-- Use `DMatrix` instead.
-- Use CPU input for `QuantileDMatrix`.
-- Run training on GPU.
-)";
+BatchSet<GHistIndexMatrix> IterativeDMatrix::GetGradientIndex(Context const* ctx,
+                                                              BatchParam const& param) {
+  if (param.Initialized()) {
+    detail::CheckParam(this->batch_, param);
+    CHECK(!detail::RegenGHist(param, batch_)) << error::InconsistentMaxBin();
+  }
+  if (!ellpack_ && !ghist_) {
+    LOG(FATAL) << "`QuantileDMatrix` not initialized.";
+  }
+
+  if (!ghist_) {
+    if (!ctx->IsCUDA()) {
+      ghist_ = std::make_shared<GHistIndexMatrix>(ctx, Info(), *ellpack_, param);
+    } else if (!fmat_ctx_.IsCUDA()) {
+      ghist_ = std::make_shared<GHistIndexMatrix>(&fmat_ctx_, Info(), *ellpack_, param);
+    } else {
+      // Can happen when QDM is initialized on GPU, but a CPU version is queried by a different QDM
+      // for cut reference.
+      auto cpu_ctx = ctx->MakeCPU();
+      ghist_ = std::make_shared<GHistIndexMatrix>(&cpu_ctx, Info(), *ellpack_, param);
+    }
+  }
+
+  if (!std::isnan(param.sparse_thresh) &&
+      param.sparse_thresh != tree::TrainParam::DftSparseThreshold()) {
+    LOG(WARNING) << "`sparse_threshold` can not be changed when `QuantileDMatrix` is used instead "
+                    "of `DMatrix`.";
+  }
+
   auto begin_iter =
       BatchIterator<GHistIndexMatrix>(new SimpleBatchIteratorImpl<GHistIndexMatrix>(ghist_));
   return BatchSet<GHistIndexMatrix>(begin_iter);
 }
-}  // namespace data
-}  // namespace xgboost
+
+BatchSet<ExtSparsePage> IterativeDMatrix::GetExtBatches(Context const* ctx,
+                                                        BatchParam const& param) {
+  for (auto const& page : this->GetGradientIndex(ctx, param)) {
+    auto p_out = std::make_shared<SparsePage>();
+    p_out->data.Resize(this->Info().num_nonzero_);
+    p_out->offset.Resize(this->Info().num_row_ + 1);
+
+    auto& h_offset = p_out->offset.HostVector();
+    CHECK_EQ(page.row_ptr.size(), h_offset.size());
+    std::copy(page.row_ptr.cbegin(), page.row_ptr.cend(), h_offset.begin());
+
+    auto& h_data = p_out->data.HostVector();
+    auto const& vals = page.cut.Values();
+    auto const& mins = page.cut.MinValues();
+    auto const& ptrs = page.cut.Ptrs();
+    auto ft = Info().feature_types.ConstHostSpan();
+
+    AssignColumnBinIndex(page, [&](auto bin_idx, std::size_t idx, std::size_t, bst_feature_t fidx) {
+      float v;
+      if (common::IsCat(ft, fidx)) {
+        v = vals[bin_idx];
+      } else {
+        v = common::HistogramCuts::NumericBinValue(ptrs, vals, mins, fidx, bin_idx);
+      }
+      h_data[idx] = Entry{fidx, v};
+    });
+
+    auto p_ext_out = std::make_shared<ExtSparsePage>(p_out);
+    auto begin_iter =
+        BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(p_ext_out));
+    return BatchSet<ExtSparsePage>(begin_iter);
+  }
+  LOG(FATAL) << "Unreachable";
+  auto begin_iter =
+      BatchIterator<ExtSparsePage>(new SimpleBatchIteratorImpl<ExtSparsePage>(nullptr));
+  return BatchSet<ExtSparsePage>(begin_iter);
+}
+
+#if !defined(XGBOOST_USE_CUDA)
+void IterativeDMatrix::InitFromCUDA(Context const*, BatchParam const&, std::int64_t,
+                                    DataIterProxy<DataIterResetCallback, XGDMatrixCallbackNext>&&,
+                                    float, std::shared_ptr<DMatrix>) {
+  // silent the warning about unused variables.
+  (void)(proxy_);
+  common::AssertGPUSupport();
+}
+
+BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const*, BatchParam const&) {
+  common::AssertGPUSupport();
+  auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));
+  return BatchSet<EllpackPage>(BatchIterator<EllpackPage>(begin_iter));
+}
+
+void IterativeDMatrix::Save(common::AlignedFileWriteStream*) const {
+  LOG(FATAL) << "Not implemented";
+}
+
+IterativeDMatrix* IterativeDMatrix::Load(common::AlignedResourceReadStream*) {
+  LOG(FATAL) << "Not implemented";
+  return nullptr;
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
+}  // namespace xgboost::data

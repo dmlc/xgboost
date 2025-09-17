@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Helper utility function for customization."""
-import sys
 import os
 import subprocess
+import sys
 
 READTHEDOCS_BUILD = (os.environ.get('READTHEDOCS', None) is not None)
 

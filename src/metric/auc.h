@@ -1,25 +1,20 @@
-/*!
- * Copyright 2021 by XGBoost Contributors
+/**
+ * Copyright 2021-2024, XGBoost Contributors
  */
 #ifndef XGBOOST_METRIC_AUC_H_
 #define XGBOOST_METRIC_AUC_H_
-#include <array>
 #include <cmath>
-#include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
 
-#include "rabit/rabit.h"
+#include "../collective/communicator-inl.h"
 #include "xgboost/base.h"
-#include "xgboost/span.h"
 #include "xgboost/data.h"
 #include "xgboost/metric.h"
-#include "../common/common.h"
-#include "../common/threading_utils.h"
+#include "xgboost/span.h"
 
-namespace xgboost {
-namespace metric {
+namespace xgboost::metric {
 /***********
  * ROC AUC *
  ***********/
@@ -29,34 +24,35 @@ XGBOOST_DEVICE inline double TrapezoidArea(double x0, double x1, double y0, doub
 
 struct DeviceAUCCache;
 
-std::tuple<double, double, double>
-GPUBinaryROCAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
+std::tuple<double, double, double> GPUBinaryROCAUC(Context const *ctx,
+                                                   common::Span<float const> predts,
+                                                   MetaInfo const &info,
+                                                   std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassROCAUC(common::Span<float const> predts,
-                           MetaInfo const &info, int32_t device,
-                           std::shared_ptr<DeviceAUCCache> *cache,
-                           size_t n_classes);
+double GPUMultiClassROCAUC(Context const *ctx, common::Span<float const> predts,
+                           MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
+                           std::size_t n_classes);
 
-std::pair<double, uint32_t>
-GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
-              int32_t device, std::shared_ptr<DeviceAUCCache> *cache);
+std::pair<double, std::uint32_t> GPURankingAUC(Context const *ctx, common::Span<float const> predts,
+                                               MetaInfo const &info,
+                                               std::shared_ptr<DeviceAUCCache> *cache);
 
 /**********
  * PR AUC *
  **********/
-std::tuple<double, double, double>
-GPUBinaryPRAUC(common::Span<float const> predts, MetaInfo const &info,
-               int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
+std::tuple<double, double, double> GPUBinaryPRAUC(Context const *ctx,
+                                                  common::Span<float const> predts,
+                                                  MetaInfo const &info,
+                                                  std::shared_ptr<DeviceAUCCache> *p_cache);
 
-double GPUMultiClassPRAUC(common::Span<float const> predts,
-                          MetaInfo const &info, int32_t device,
-                          std::shared_ptr<DeviceAUCCache> *cache,
-                          size_t n_classes);
+double GPUMultiClassPRAUC(Context const *ctx, common::Span<float const> predts,
+                          MetaInfo const &info, std::shared_ptr<DeviceAUCCache> *p_cache,
+                          std::size_t n_classes);
 
-std::pair<double, uint32_t>
-GPURankingPRAUC(common::Span<float const> predts, MetaInfo const &info,
-                int32_t device, std::shared_ptr<DeviceAUCCache> *cache);
+std::pair<double, std::uint32_t> GPURankingPRAUC(Context const *ctx,
+                                                 common::Span<float const> predts,
+                                                 MetaInfo const &info,
+                                                 std::shared_ptr<DeviceAUCCache> *cache);
 
 namespace detail {
 XGBOOST_DEVICE inline double CalcH(double fp_a, double fp_b, double tp_a,
@@ -101,7 +97,7 @@ XGBOOST_DEVICE inline double CalcDeltaPRAUC(double fp_prev, double fp,
 
 inline void InvalidGroupAUC() {
   LOG(INFO) << "Invalid group with less than 3 samples is found on worker "
-            << rabit::GetRank() << ".  Calculating AUC value requires at "
+            << collective::GetRank() << ".  Calculating AUC value requires at "
             << "least 2 pairs of samples.";
 }
 
@@ -112,6 +108,5 @@ struct PRAUCLabelInvalid {
 inline void InvalidLabels() {
   LOG(FATAL) << "PR-AUC supports only binary relevance for learning to rank.";
 }
-}      // namespace metric
-}      // namespace xgboost
+}  // namespace xgboost::metric
 #endif  // XGBOOST_METRIC_AUC_H_

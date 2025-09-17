@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # make prediction
 import numpy as np
+
 import xgboost as xgb
 
 # path to where the data lies

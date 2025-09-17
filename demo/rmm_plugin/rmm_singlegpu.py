@@ -1,6 +1,12 @@
-import xgboost as xgb
+"""
+Using rmm on a single node device
+=================================
+"""
+
 import rmm
 from sklearn.datasets import make_classification
+
+import xgboost as xgb
 
 # Initialize RMM pool allocator
 rmm.reinitialize(pool_allocator=True)
@@ -15,7 +21,8 @@ params = {
     "eta": 0.01,
     "objective": "multi:softprob",
     "num_class": 3,
-    "tree_method": "gpu_hist",
+    "tree_method": "hist",
+    "device": "cuda",
 }
 # XGBoost will automatically use the RMM pool allocator
 bst = xgb.train(params, dtrain, num_boost_round=100, evals=[(dtrain, "train")])

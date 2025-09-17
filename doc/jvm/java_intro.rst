@@ -127,9 +127,9 @@ With parameters and data, you are able to train a booster model.
 
   .. code-block:: java
 
-    booster.saveModel("model.bin");
+    booster.saveModel("model.json");
 
-* Generaing model dump with feature map
+* Generating model dump with feature map
 
   .. code-block:: java
 
@@ -142,7 +142,7 @@ With parameters and data, you are able to train a booster model.
 
   .. code-block:: java
 
-    Booster booster = XGBoost.loadModel("model.bin");
+    Booster booster = XGBoost.loadModel("model.json");
 
 **********
 Prediction

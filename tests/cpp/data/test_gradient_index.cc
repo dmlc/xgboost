@@ -1,35 +1,57 @@
-/*!
- * Copyright 2021-2022 XGBoost contributors
+/**
+ * Copyright 2021-2024, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/data.h>
+#include <xgboost/data.h>                       // for BatchIterator, BatchSet, DMatrix, BatchParam
 
-#include "../../../src/common/column_matrix.h"
-#include "../../../src/data/gradient_index.h"
-#include "../helpers.h"
+#include <algorithm>                            // for sort, unique
+#include <cmath>                                // for isnan
+#include <cstddef>                              // for size_t
+#include <limits>                               // for numeric_limits
+#include <memory>                               // for shared_ptr, __shared_ptr_access, unique_ptr
+#include <string>                               // for string
+#include <tuple>                                // for make_tuple, tie, tuple
+#include <utility>                              // for move
+#include <vector>                               // for vector
 
-namespace xgboost {
-namespace data {
-TEST(GradientIndex, ExternalMemory) {
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(10000);
+#include "../../../src/common/categorical.h"    // for AsCat
+#include "../../../src/common/column_matrix.h"  // for ColumnMatrix
+#include "../../../src/common/hist_util.h"      // for Index, HistogramCuts, SketchOnDMatrix
+#include "../../../src/common/io.h"             // for MemoryBufferStream
+#include "../../../src/data/adapter.h"          // for SparsePageAdapterBatch
+#include "../../../src/data/gradient_index.h"   // for GHistIndexMatrix
+#include "../../../src/tree/param.h"            // for TrainParam
+#include "../helpers.h"                         // for GenerateRandomCategoricalSingleColumn...
+#include "xgboost/base.h"                       // for bst_bin_t
+#include "xgboost/context.h"                    // for Context
+#include "xgboost/host_device_vector.h"         // for HostDeviceVector
+
+namespace xgboost::data {
+TEST(GradientIndex, ExternalMemoryBaseRowID) {
+  Context ctx;
+  auto p_fmat = RandomDataGenerator{4096, 256, 0.5}
+                    .Device(ctx.Device())
+                    .Batches(8)
+                    .GenerateSparsePageDMatrix("cache", true);
+
   std::vector<size_t> base_rowids;
-  std::vector<float> hessian(dmat->Info().num_row_, 1);
-  for (auto const &page : dmat->GetBatches<GHistIndexMatrix>({64, hessian, true})) {
+  std::vector<float> hessian(p_fmat->Info().num_row_, 1);
+  for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, {64, hessian, true})) {
     base_rowids.push_back(page.base_rowid);
   }
-  size_t i = 0;
-  for (auto const &page : dmat->GetBatches<SparsePage>()) {
+
+  std::size_t i = 0;
+  for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
     ASSERT_EQ(base_rowids[i], page.base_rowid);
     ++i;
   }
 
-
   base_rowids.clear();
-  for (auto const &page : dmat->GetBatches<GHistIndexMatrix>({64, hessian, false})) {
+  for (auto const &page : p_fmat->GetBatches<GHistIndexMatrix>(&ctx, {64, hessian, false})) {
     base_rowids.push_back(page.base_rowid);
   }
   i = 0;
-  for (auto const &page : dmat->GetBatches<SparsePage>()) {
+  for (auto const &page : p_fmat->GetBatches<SparsePage>()) {
     ASSERT_EQ(base_rowids[i], page.base_rowid);
     ++i;
   }
@@ -40,12 +62,13 @@ TEST(GradientIndex, FromCategoricalBasic) {
   size_t max_bins = 8;
   auto x = GenerateRandomCategoricalSingleColumn(kRows, kCats);
   auto m = GetDMatrixFromData(x, kRows, 1);
+  Context ctx;
 
   auto &h_ft = m->Info().feature_types.HostVector();
   h_ft.resize(kCols, FeatureType::kCategorical);
 
   BatchParam p(max_bins, 0.8);
-  GHistIndexMatrix gidx(m.get(), max_bins, p.sparse_thresh, false, common::OmpGetNumThreads(0), {});
+  GHistIndexMatrix gidx(&ctx, m.get(), max_bins, p.sparse_thresh, false, {});
 
   auto x_copy = x;
   std::sort(x_copy.begin(), x_copy.end());
@@ -67,14 +90,39 @@ TEST(GradientIndex, FromCategoricalBasic) {
   }
 }
 
+TEST(GradientIndex, FromCategoricalLarge) {
+  size_t constexpr kRows = 1000, kCats = 512, kCols = 1;
+  bst_bin_t max_bins = 8;
+  auto x = GenerateRandomCategoricalSingleColumn(kRows, kCats);
+  auto m = GetDMatrixFromData(x, kRows, 1);
+  Context ctx;
+
+  auto &h_ft = m->Info().feature_types.HostVector();
+  h_ft.resize(kCols, FeatureType::kCategorical);
+
+  BatchParam p{max_bins, 0.8};
+  {
+    GHistIndexMatrix gidx{&ctx, m.get(), max_bins, p.sparse_thresh, false, {}};
+    ASSERT_TRUE(gidx.index.GetBinTypeSize() == common::kUint16BinsTypeSize);
+  }
+  {
+    for (auto const &page : m->GetBatches<GHistIndexMatrix>(&ctx, p)) {
+      common::HistogramCuts cut = page.cut;
+      GHistIndexMatrix gidx{m->Info(), std::move(cut), max_bins};
+      ASSERT_EQ(gidx.MaxNumBinPerFeat(), kCats);
+    }
+  }
+}
+
 TEST(GradientIndex, PushBatch) {
   size_t constexpr kRows = 64, kCols = 4;
   bst_bin_t max_bins = 64;
   float st = 0.5;
+  Context ctx;
 
   auto test = [&](float sparisty) {
     auto m = RandomDataGenerator{kRows, kCols, sparisty}.GenerateDMatrix(true);
-    auto cuts = common::SketchOnDMatrix(m.get(), max_bins, common::OmpGetNumThreads(0), false, {});
+    auto cuts = common::SketchOnDMatrix(&ctx, m.get(), max_bins, false, {});
     common::HistogramCuts copy_cuts = cuts;
 
     ASSERT_EQ(m->Info().num_row_, kRows);
@@ -87,7 +135,7 @@ TEST(GradientIndex, PushBatch) {
                             m->Info().num_row_);
       gmat.PushAdapterBatchColumns(m->Ctx(), batch, std::numeric_limits<float>::quiet_NaN(), 0);
     }
-    for (auto const &page : m->GetBatches<GHistIndexMatrix>(BatchParam{max_bins, st})) {
+    for (auto const &page : m->GetBatches<GHistIndexMatrix>(&ctx, BatchParam{max_bins, st})) {
       for (size_t i = 0; i < kRows; ++i) {
         for (size_t j = 0; j < kCols; ++j) {
           auto v0 = gmat.GetFvalue(i, j, false);
@@ -107,5 +155,83 @@ TEST(GradientIndex, PushBatch) {
   test(0.5f);
   test(0.9f);
 }
-}  // namespace data
-}  // namespace xgboost
+
+#if defined(XGBOOST_USE_CUDA)
+
+namespace {
+class GHistIndexMatrixTest : public testing::TestWithParam<std::tuple<float, float>> {
+ protected:
+  void Run(float density, double threshold) {
+    // Only testing with small sample size as the cuts might be different between host and
+    // device.
+    size_t n_samples{128}, n_features{13};
+    Context ctx;
+    auto Xy = RandomDataGenerator{n_samples, n_features, 1 - density}.GenerateDMatrix(true);
+    std::unique_ptr<GHistIndexMatrix> from_ellpack;
+    ASSERT_TRUE(Xy->SingleColBlock());
+    bst_bin_t constexpr kBins{17};
+    auto p = BatchParam{kBins, threshold};
+    auto gpu_ctx = MakeCUDACtx(0);
+    for (auto const &page : Xy->GetBatches<EllpackPage>(
+             &gpu_ctx, BatchParam{kBins, tree::TrainParam::DftSparseThreshold()})) {
+      from_ellpack = std::make_unique<GHistIndexMatrix>(&ctx, Xy->Info(), page, p);
+    }
+
+    for (auto const &from_sparse_page : Xy->GetBatches<GHistIndexMatrix>(&ctx, p)) {
+      ASSERT_EQ(from_sparse_page.IsDense(), from_ellpack->IsDense());
+      ASSERT_EQ(from_sparse_page.base_rowid, 0);
+      ASSERT_EQ(from_sparse_page.base_rowid, from_ellpack->base_rowid);
+      ASSERT_EQ(from_sparse_page.Size(), from_ellpack->Size());
+      ASSERT_EQ(from_sparse_page.index.Size(), from_ellpack->index.Size());
+
+      auto const &gidx_from_sparse = from_sparse_page.index;
+      auto const &gidx_from_ellpack = from_ellpack->index;
+
+      for (size_t i = 0; i < gidx_from_sparse.Size(); ++i) {
+        ASSERT_EQ(gidx_from_sparse[i], gidx_from_ellpack[i]);
+      }
+
+      auto const &columns_from_sparse = from_sparse_page.Transpose();
+      auto const &columns_from_ellpack = from_ellpack->Transpose();
+      ASSERT_EQ(columns_from_sparse.AnyMissing(), columns_from_ellpack.AnyMissing());
+      ASSERT_EQ(columns_from_sparse.GetTypeSize(), columns_from_ellpack.GetTypeSize());
+      ASSERT_EQ(columns_from_sparse.GetNumFeature(), columns_from_ellpack.GetNumFeature());
+      for (size_t i = 0; i < n_features; ++i) {
+        ASSERT_EQ(columns_from_sparse.GetColumnType(i), columns_from_ellpack.GetColumnType(i));
+      }
+
+      std::string from_sparse_buf;
+      {
+        common::AlignedMemWriteStream fo{&from_sparse_buf};
+        auto n_bytes = columns_from_sparse.Write(&fo);
+        ASSERT_EQ(fo.Tell(), n_bytes);
+      }
+      std::string from_ellpack_buf;
+      {
+        common::AlignedMemWriteStream fo{&from_ellpack_buf};
+        auto n_bytes = columns_from_sparse.Write(&fo);
+        ASSERT_EQ(fo.Tell(), n_bytes);
+      }
+      ASSERT_EQ(from_sparse_buf, from_ellpack_buf);
+    }
+  }
+};
+}  // anonymous namespace
+
+TEST_P(GHistIndexMatrixTest, FromEllpack) {
+  float sparsity;
+  double thresh;
+  std::tie(sparsity, thresh) = GetParam();
+  this->Run(sparsity, thresh);
+}
+
+INSTANTIATE_TEST_SUITE_P(GHistIndexMatrix, GHistIndexMatrixTest,
+                         testing::Values(std::make_tuple(1.f, .0),    // no missing
+                                         std::make_tuple(.2f, .8),    // sparse columns
+                                         std::make_tuple(.8f, .2),    // dense columns
+                                         std::make_tuple(1.f, .2),    // no missing
+                                         std::make_tuple(.5f, .6),    // sparse columns
+                                         std::make_tuple(.6f, .4)));  // dense columns
+
+#endif  // defined(XGBOOST_USE_CUDA)
+}  // namespace xgboost::data

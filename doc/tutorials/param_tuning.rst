@@ -31,17 +31,19 @@ There are in general two ways that you can control overfitting in XGBoost:
 
 * The first way is to directly control model complexity.
 
-  - This includes ``max_depth``, ``min_child_weight`` and ``gamma``.
+  - This includes ``max_depth``, ``min_child_weight``, ``gamma``, ``max_cat_threshold``
+    and other similar regularization parameters. See :doc:`/parameter` for a comprehensive
+    set of parameters.
+  - Set a constant ``base_score`` based on your own criteria. See
+    :doc:`/tutorials/intercept` for more info.
 
 * The second way is to add randomness to make training robust to noise.
 
-  - This includes ``subsample`` and ``colsample_bytree``.
-  - You can also reduce stepsize ``eta``. Remember to increase ``num_round`` when you do so.
+  - This includes ``subsample`` and ``colsample_bytree``, which may be used with boosting
+    RF ``num_parallel_tree``.
+  - You can also reduce stepsize ``eta``, possibly with a training callback. Remember to
+    increase ``num_round`` when you do so.
 
-***************************
-Faster training performance
-***************************
-There's a parameter called ``tree_method``, set it to ``hist`` or ``gpu_hist`` for faster computation.
 
 *************************
 Handle Imbalanced Dataset
@@ -58,3 +60,64 @@ This can affect the training of XGBoost model, and there are two ways to improve
 
   - In such a case, you cannot re-balance the dataset
   - Set parameter ``max_delta_step`` to a finite number (say 1) to help convergence
+
+
+*************************************************
+Use Hyper Parameter Optimization (HPO) Frameworks
+*************************************************
+Tuning models is a sophisticated task and there are advanced frameworks to help you. For
+examples, some meta estimators in scikit-learn like
+:py:class:`sklearn.model_selection.HalvingGridSearchCV` can help guide the search
+process. Optuna is another great option and there are many more based on different
+branches of statistics.
+
+**************
+Know Your Data
+**************
+It cannot be stressed enough the importance of understanding the data, sometimes that's
+all it takes to get a good model. Many solutions use a simple XGBoost tree model without
+much tuning and emphasize the data pre-processing step. XGBoost can help feature selection
+by providing both a global feature importance score and sample feature importance with
+SHAP value. Also, there are parameters specifically targeting categorical features, and
+tasks like survival and ranking. Feel free to explore them.
+
+*********************
+Reducing Memory Usage
+*********************
+
+If you are using a HPO library like :py:class:`sklearn.model_selection.GridSearchCV`,
+please control the number of threads it can use. It's best to let XGBoost to run in
+parallel instead of asking `GridSearchCV` to run multiple experiments at the same
+time. For instance, creating a fold of data for cross validation can consume a significant
+amount of memory:
+
+.. code-block:: python
+
+    # This creates a copy of dataset. X and X_train are both in memory at the same time.
+
+    # This happens for every thread at the same time if you run `GridSearchCV` with
+    # `n_jobs` larger than 1
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y)
+
+.. code-block:: python
+
+    df = pd.DataFrame()
+    # This creates a new copy of the dataframe, even if you specify the inplace parameter
+    new_df = df.drop(...)
+
+.. code-block:: python
+
+    array = np.array(...)
+    # This may or may not make a copy of the data, depending on the type of the data
+    array.astype(np.float32)
+
+.. code-block::
+
+    # np by default uses double, do you actually need it?
+    array = np.array(...)
+
+You can find some more specific memory reduction practices scattered through the documents
+For instances: :doc:`/tutorials/dask`, :doc:`/gpu/index`. However, before going into
+these, being conscious about making data copies is a good starting point. It usually
+consumes a lot more memory than people expect.

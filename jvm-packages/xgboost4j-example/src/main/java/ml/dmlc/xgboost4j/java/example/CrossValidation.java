@@ -30,7 +30,7 @@ import ml.dmlc.xgboost4j.java.XGBoostError;
 public class CrossValidation {
   public static void main(String[] args) throws IOException, XGBoostError {
     //load train mat
-    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train?format=libsvm");
 
     //set params
     HashMap<String, Object> params = new HashMap<String, Object>();

@@ -25,14 +25,37 @@ Global Configuration
 The following parameters can be set in the global scope, using :py:func:`xgboost.config_context()` (Python) or ``xgb.set.config()`` (R).
 
 * ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
-* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate GPU memory. This option is only applicable when XGBoost is built (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``.
+
+* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate cache GPU
+  memory. The primary memory is always allocated on the RMM pool when XGBoost is built
+  (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``. See
+  :doc:`/python/rmm-examples/index` for details.
+
+* ``nthread``: Set the global number of threads for OpenMP. Use this only when you need to
+  override some OpenMP-related environment variables like ``OMP_NUM_THREADS``. Otherwise,
+  the ``nthread`` parameter from the Booster and the DMatrix should be preferred as the
+  former sets the global variable and might cause conflicts with other libraries.
 
 ******************
 General Parameters
 ******************
-* ``booster`` [default= ``gbtree`` ]
+* ``booster`` [default= ``gbtree``]
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and ``dart`` use tree based models while ``gblinear`` uses linear functions.
+
+* ``device`` [default= ``cpu``]
+
+  .. versionadded:: 2.0.0
+
+  - Device for XGBoost to run. User can set it to one of the following values:
+
+    + ``cpu``: Use CPU.
+    + ``cuda``: Use a GPU (CUDA device).
+    + ``cuda:<ordinal>``: ``<ordinal>`` is an integer that specifies the ordinal of the GPU (which GPU do you want to use if you have more than one devices).
+    + ``gpu``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
+    + ``gpu:<ordinal>``: Default GPU device selection from the list of available and supported devices. Only ``cuda`` devices are supported currently.
+
+    For more information about GPU acceleration, see :doc:`/gpu/index`. In distributed environments, ordinal selection is handled by distributed frameworks instead of XGBoost. As a result, using ``cuda:<ordinal>`` will result in an error. Use ``cuda`` instead.
 
 * ``verbosity`` [default=1]
 
@@ -44,8 +67,7 @@ General Parameters
 * ``validate_parameters`` [default to ``false``, except for Python, R and CLI interface]
 
   - When set to True, XGBoost will perform validation of input parameters to check whether
-    a parameter is used or not.  The feature is still experimental.  It's expected to have
-    some false positives.
+    a parameter is used or not. A warning is emitted when there's unknown parameter.
 
 * ``nthread`` [default to maximum number of threads available if not set]
 
@@ -56,23 +78,19 @@ General Parameters
 
   - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
-* ``num_feature`` [set automatically by XGBoost, no need to be set by user]
-
-  - Feature dimension used in boosting, set to maximum dimension of the feature
-
 Parameters for Tree Booster
 ===========================
 * ``eta`` [default=0.3, alias: ``learning_rate``]
 
-  - Step size shrinkage used in update to prevents overfitting. After each boosting step, we can directly get the weights of new features, and ``eta`` shrinks the feature weights to make the boosting process more conservative.
+  - Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and ``eta`` shrinks the feature weights to make the boosting process more conservative.
   - range: [0,1]
 
 * ``gamma`` [default=0, alias: ``min_split_loss``]
 
-  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be.
+  - Minimum loss reduction required to make a further partition on a leaf node of the tree. The larger ``gamma`` is, the more conservative the algorithm will be. Note that a tree where no splits were made might still contain a single terminal node with a non-zero score.
   - range: [0,∞]
 
-* ``max_depth`` [default=6]
+* ``max_depth`` [default=6, type=int32]
 
   - Maximum depth of a tree. Increasing this value will make the model more complex and more likely to overfit. 0 indicates no limit on depth. Beware that XGBoost aggressively consumes memory when training a deep tree. ``exact`` tree method requires non-zero value.
   - range: [0,∞]
@@ -100,7 +118,7 @@ Parameters for Tree Booster
   - ``gradient_based``: the selection probability for each training instance is proportional to the
     *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
     ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
-    sampling method is only supported when ``tree_method`` is set to ``gpu_hist``; other tree
+    sampling method is only supported when ``tree_method`` is set to ``hist`` and the device is ``cuda``; other tree
     methods only support ``uniform`` sampling.
 
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
@@ -109,7 +127,7 @@ Parameters for Tree Booster
   - All ``colsample_by*`` parameters have a range of (0, 1], the default value of 1, and specify the fraction of columns to be subsampled.
   - ``colsample_bytree`` is the subsample ratio of columns when constructing each tree. Subsampling occurs once for every tree constructed.
   - ``colsample_bylevel`` is the subsample ratio of columns for each level. Subsampling occurs once for every new depth level reached in a tree. Columns are subsampled from the set of columns chosen for the current tree.
-  - ``colsample_bynode`` is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level.
+  - ``colsample_bynode`` is the subsample ratio of columns for each node (split). Subsampling occurs once every time a new split is evaluated. Columns are subsampled from the set of columns chosen for the current level. This is not supported by the exact tree method.
   - ``colsample_by*`` parameters work cumulatively. For instance,
     the combination ``{'colsample_bytree':0.5, 'colsample_bylevel':0.5,
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
@@ -122,34 +140,25 @@ Parameters for Tree Booster
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative.
+  - range: [0, :math:`\infty`]
 
 * ``alpha`` [default=0, alias: ``reg_alpha``]
 
   - L1 regularization term on weights. Increasing this value will make model more conservative.
+  - range: [0, :math:`\infty`]
 
 * ``tree_method`` string [default= ``auto``]
 
-  - The tree construction algorithm used in XGBoost. See description in the `reference paper <http://arxiv.org/abs/1603.02754>`_ and :doc:`treemethod`.
-  - XGBoost supports  ``approx``, ``hist`` and ``gpu_hist`` for distributed training.  Experimental support for external memory is available for ``approx`` and ``gpu_hist``.
+  - The tree construction algorithm used in XGBoost. See description in the `reference paper <https://arxiv.org/abs/1603.02754>`_ and :doc:`treemethod`.
 
-  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, ``gpu_hist``, this is a
-    combination of commonly used updaters.  For other updaters like ``refresh``, set the
-    parameter ``updater`` directly.
+  - Choices: ``auto``, ``exact``, ``approx``, ``hist``, this is a combination of commonly
+    used updaters.  For other updaters like ``refresh``, set the parameter ``updater``
+    directly.
 
-    - ``auto``: Use heuristic to choose the fastest method.
-
-      - For small dataset, exact greedy (``exact``) will be used.
-      - For larger dataset, approximate algorithm (``approx``) will be chosen.  It's
-        recommended to try ``hist`` and ``gpu_hist`` for higher performance with large
-        dataset.
-        (``gpu_hist``)has support for ``external memory``.
-
-      - Because old behavior is always use exact greedy in single machine, user will get a
-        message when approximate algorithm is chosen to notify this choice.
+    - ``auto``: Same as the ``hist`` tree method.
     - ``exact``: Exact greedy algorithm.  Enumerates all split candidates.
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
     - ``hist``: Faster histogram optimized approximate greedy algorithm.
-    - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
 
 * ``scale_pos_weight`` [default=1]
 
@@ -162,7 +171,8 @@ Parameters for Tree Booster
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
-    - ``grow_gpu_hist``: Grow tree with GPU.
+    - ``grow_gpu_hist``:  Enabled when ``tree_method`` is set to ``hist`` along with ``device=cuda``.
+    - ``grow_gpu_approx``: Enabled when ``tree_method`` is set to ``approx`` along with ``device=cuda``.
     - ``sync``: synchronizes trees in all distributed nodes.
     - ``refresh``: refreshes tree's statistics and/or leaf values based on the current data. Note that no random subsampling of data rows is performed.
     - ``prune``: prunes the splits where loss < min_split_loss (or gamma) and nodes that have depth greater than ``max_depth``.
@@ -182,33 +192,21 @@ Parameters for Tree Booster
 * ``grow_policy`` [default= ``depthwise``]
 
   - Controls a way new nodes are added to the tree.
-  - Currently supported only if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
+  - Currently supported only if ``tree_method`` is set to ``hist`` or ``approx``.
   - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
     - ``lossguide``: split at nodes with highest loss change.
 
-* ``max_leaves`` [default=0]
+* ``max_leaves`` [default=0, type=int32]
 
   - Maximum number of nodes to be added.  Not used by ``exact`` tree method.
 
-* ``max_bin``, [default=256]
+* ``max_bin``, [default=256, type=int32]
 
-  - Only used if ``tree_method`` is set to ``hist``, ``approx`` or ``gpu_hist``.
+  - Only used if ``tree_method`` is set to ``hist`` or ``approx``.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
-
-* ``predictor``, [default= ``auto``]
-
-  - The type of predictor algorithm to use. Provides the same results but allows the use of GPU or CPU.
-
-    - ``auto``: Configure predictor based on heuristics.
-    - ``cpu_predictor``: Multicore CPU prediction algorithm.
-    - ``gpu_predictor``: Prediction using GPU.  Used when ``tree_method`` is ``gpu_hist``.
-      When ``predictor`` is set to default value ``auto``, the ``gpu_hist`` tree method is
-      able to provide GPU based prediction without copying training data to GPU memory.
-      If ``gpu_predictor`` is explicitly specified, then all data is copied into GPU, only
-      recommended for performing prediction tasks.
 
 * ``num_parallel_tree``, [default=1]
 
@@ -225,6 +223,47 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See :doc:`/tutorials/feature_interaction_constraint` for more information.
 
+* ``multi_strategy``, [default = ``one_output_per_tree``]
+
+  .. versionadded:: 2.0.0
+
+  .. note:: This parameter is working-in-progress.
+
+  - The strategy used for training multi-target models, including multi-target regression
+    and multi-class classification. See :doc:`/tutorials/multioutput` for more information.
+
+    - ``one_output_per_tree``: One model for each target.
+    - ``multi_output_tree``:  Use multi-target trees.
+
+
+Parameters for Non-Exact Tree Methods
+=====================================
+
+* ``max_cached_hist_node``, [default = 65536]
+
+  Maximum number of cached nodes for histogram. This can be used with the ``hist`` and the
+  ``approx`` tree methods.
+
+  .. versionadded:: 2.0.0
+
+  - For most of the cases this parameter should not be set except for growing deep
+    trees. After 3.0, this parameter affects GPU algorithms as well.
+
+
+* ``extmem_single_page``, [default = ``false``]
+
+  This parameter is only used for the ``hist`` tree method with ``device=cuda`` and
+  ``subsample != 1.0``. Before 3.0, pages were always concatenated.
+
+  .. versionadded:: 3.0.0
+
+  Whether the GPU-based ``hist`` tree method should concatenate the training data into a
+  single batch instead of fetching data on-demand when external memory is used. For GPU
+  devices that don't support address translation services, external memory training is
+  expensive. This parameter can be used in combination with subsampling to reduce overall
+  memory usage without significant overhead. See :doc:`/tutorials/external_memory` for
+  more information.
+
 .. _cat-param:
 
 Parameters for Categorical Feature
@@ -233,24 +272,20 @@ Parameters for Categorical Feature
 These parameters are only used for training with categorical data. See
 :doc:`/tutorials/categorical` for more information.
 
+.. note:: These parameters are experimental. ``exact`` tree method is not yet supported.
+
+
 * ``max_cat_to_onehot``
 
-  .. versionadded:: 1.6
-
-  .. note:: This parameter is experimental. ``exact`` tree method is not supported yet.
+  .. versionadded:: 1.6.0
 
   - A threshold for deciding whether XGBoost should use one-hot encoding based split for
     categorical data.  When number of categories is lesser than the threshold then one-hot
     encoding is chosen, otherwise the categories will be partitioned into children nodes.
-    Only relevant for regression and binary classification. Also, ``exact`` tree method is
-    not supported
 
 * ``max_cat_threshold``
 
-  .. versionadded:: 2.0
-
-  .. note:: This parameter is experimental. ``exact`` and ``gpu_hist`` tree methods are
-            not supported yet.
+  .. versionadded:: 1.7.0
 
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
@@ -318,12 +353,17 @@ Parameters for Linear Booster (``booster=gblinear``)
 
   - L1 regularization term on weights. Increasing this value will make model more conservative. Normalised to number of training examples.
 
+* ``eta`` [default=0.5, alias: ``learning_rate``]
+
+  - Step size shrinkage used in update to prevent overfitting. After each boosting step, we can directly get the weights of new features, and ``eta`` shrinks the feature weights to make the boosting process more conservative.
+  - range: [0,1]
+
 * ``updater`` [default= ``shotgun``]
 
   - Choice of algorithm to fit linear model
 
     - ``shotgun``: Parallel coordinate descent algorithm based on shotgun algorithm. Uses 'hogwild' parallelism and therefore produces a nondeterministic solution on each run.
-    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution.
+    - ``coord_descent``: Ordinary coordinate descent algorithm. Also multithreaded but still produces a deterministic solution. When the ``device`` parameter is set to ``cuda`` or ``gpu``, a GPU variant would be used.
 
 * ``feature_selector`` [default= ``cyclic``]
 
@@ -348,9 +388,16 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``reg:squarederror``: regression with squared loss.
   - ``reg:squaredlogerror``: regression with squared log loss :math:`\frac{1}{2}[log(pred + 1) - log(label + 1)]^2`.  All input labels are required to be greater than -1.  Also, see metric ``rmsle`` for possible issue  with this objective.
-  - ``reg:logistic``: logistic regression.
+  - ``reg:logistic``: logistic regression, output probability
   - ``reg:pseudohubererror``: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
-  - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction.
+  - ``reg:absoluteerror``: Regression with L1 error. When tree model is used, leaf value is refreshed after tree construction. If used in distributed training, the leaf value is calculated as the mean value from all workers, which is not guaranteed to be optimal.
+
+    .. versionadded:: 1.7.0
+
+  - ``reg:quantileerror``: Quantile loss, also known as ``pinball loss``. See later sections for its parameter and :ref:`sphx_glr_python_examples_quantile_regression.py` for a worked example.
+
+    .. versionadded:: 2.0.0
+
   - ``binary:logistic``: logistic regression for binary classification, output probability
   - ``binary:logitraw``: logistic regression for binary classification, output score before logistic transformation
   - ``binary:hinge``: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
@@ -362,36 +409,46 @@ Specify the learning task and the corresponding learning objective. The objectiv
     Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function ``h(t) = h0(t) * HR``).
   - ``survival:aft``: Accelerated failure time model for censored survival time data.
     See :doc:`/tutorials/aft_survival_analysis` for details.
-  - ``aft_loss_distribution``: Probability Density Function used by ``survival:aft`` objective and ``aft-nloglik`` metric.
   - ``multi:softmax``: set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
   - ``multi:softprob``: same as softmax, but output a vector of ``ndata * nclass``, which can be further reshaped to ``ndata * nclass`` matrix. The result contains predicted probability of each data point belonging to each class.
-  - ``rank:pairwise``: Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized
-  - ``rank:ndcg``: Use LambdaMART to perform list-wise ranking where `Normalized Discounted Cumulative Gain (NDCG) <http://en.wikipedia.org/wiki/NDCG>`_ is maximized
-  - ``rank:map``: Use LambdaMART to perform list-wise ranking where `Mean Average Precision (MAP) <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_ is maximized
+  - ``rank:ndcg``: Use LambdaMART to perform pair-wise ranking where `Normalized Discounted Cumulative Gain (NDCG) <https://en.wikipedia.org/wiki/NDCG>`_ is maximized. This objective supports position debiasing for click data.
+  - ``rank:map``: Use LambdaMART to perform pair-wise ranking where `Mean Average Precision (MAP) <https://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_ is maximized
+  - ``rank:pairwise``: Use LambdaRank to perform pair-wise ranking using the `ranknet` objective.
   - ``reg:gamma``: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be `gamma-distributed <https://en.wikipedia.org/wiki/Gamma_distribution#Occurrence_and_applications>`_.
   - ``reg:tweedie``: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be `Tweedie-distributed <https://en.wikipedia.org/wiki/Tweedie_distribution#Occurrence_and_applications>`_.
 
-* ``base_score`` [default=0.5]
+* ``base_score``
 
-  - The initial prediction score of all instances, global bias
-  - For sufficient number of iterations, changing this value will not have too much effect.
+  The initial prediction score of all instances, also known as the global bias, or the intercept.
+
+  .. versionchanged:: 3.1.0
+
+    XGBoost is updated to use vector-valued intercept by default.
+
+  - The parameter is automatically estimated for selected objectives before training. To
+    disable the estimation, specify a real number argument, e.g. ``base_score = 0.5``.
+  - If ``base_margin`` is supplied, ``base_score`` will not be used.
+  - If we train the model with a sufficient number of iterations, changing this value does not offer significant benefit.
+
+  See :doc:`/tutorials/intercept` for more information, including different use cases.
 
 * ``eval_metric`` [default according to objective]
 
-  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and logloss for classification, mean average precision for ranking)
-  - User can add multiple evaluation metrics. Python users: remember to pass the metrics in as list of parameters pairs instead of map, so that latter ``eval_metric`` won't override previous one
+  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and logloss for classification, `mean average precision` for ``rank:map``, etc.)
+  - User can add multiple evaluation metrics. Python users: remember to pass the metrics in as list of parameters pairs instead of map, so that latter ``eval_metric`` won't override previous ones
+
   - The choices are listed below:
 
-    - ``rmse``: `root mean square error <http://en.wikipedia.org/wiki/Root_mean_square_error>`_
+    - ``rmse``: `root mean square error <https://en.wikipedia.org/wiki/Root_mean_square_error>`_
     - ``rmsle``: root mean square log error: :math:`\sqrt{\frac{1}{N}[log(pred + 1) - log(label + 1)]^2}`. Default metric of ``reg:squaredlogerror`` objective. This metric reduces errors generated by outliers in dataset.  But because ``log`` function is employed, ``rmsle`` might output ``nan`` when prediction value is less than -1.  See ``reg:squaredlogerror`` for other requirements.
     - ``mae``: `mean absolute error <https://en.wikipedia.org/wiki/Mean_absolute_error>`_
     - ``mape``: `mean absolute percentage error <https://en.wikipedia.org/wiki/Mean_absolute_percentage_error>`_
     - ``mphe``: `mean Pseudo Huber error <https://en.wikipedia.org/wiki/Huber_loss>`_. Default metric of ``reg:pseudohubererror`` objective.
-    - ``logloss``: `negative log-likelihood <http://en.wikipedia.org/wiki/Log-likelihood>`_
+    - ``logloss``: `negative log-likelihood <https://en.wikipedia.org/wiki/Log-likelihood>`_
     - ``error``: Binary classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``. For the predictions, the evaluation will regard the instances with prediction value larger than 0.5 as positive instances, and the others as negative instances.
     - ``error@t``: a different than 0.5 binary classification threshold value could be specified by providing a numerical value through 't'.
     - ``merror``: Multiclass classification error rate. It is calculated as ``#(wrong cases)/#(all cases)``.
-    - ``mlogloss``: `Multiclass logloss <http://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html>`_.
+    - ``mlogloss``: `Multiclass logloss <https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html>`_.
     - ``auc``: `Receiver Operating Characteristic Area under the Curve <https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve>`_.
       Available for classification and learning-to-rank tasks.
 
@@ -406,10 +463,20 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
       After XGBoost 1.6, both of the requirements and restrictions for using ``aucpr`` in classification problem are similar to ``auc``.  For ranking task, only binary relevance label :math:`y \in [0, 1]` is supported.  Different from ``map (mean average precision)``, ``aucpr`` calculates the *interpolated* area under precision recall curve using continuous interpolation.
 
-    - ``ndcg``: `Normalized Discounted Cumulative Gain <http://en.wikipedia.org/wiki/NDCG>`_
-    - ``map``: `Mean Average Precision <http://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_
-    - ``ndcg@n``, ``map@n``: 'n' can be assigned as an integer to cut off the top positions in the lists for evaluation.
-    - ``ndcg-``, ``map-``, ``ndcg@n-``, ``map@n-``: In XGBoost, NDCG and MAP will evaluate the score of a list without any positive samples as 1. By adding "-" in the evaluation metric XGBoost will evaluate these score as 0 to be consistent under some conditions.
+    - ``pre``: Precision at :math:`k`. Supports only learning to rank task.
+    - ``ndcg``: `Normalized Discounted Cumulative Gain <https://en.wikipedia.org/wiki/NDCG>`_
+    - ``map``: `Mean Average Precision <https://en.wikipedia.org/wiki/Mean_average_precision#Mean_average_precision>`_
+
+      The `average precision` is defined as:
+
+      .. math::
+
+         AP@l = \frac{1}{min{(l, N)}}\sum^l_{k=1}P@k \cdot I_{(k)}
+
+      where :math:`I_{(k)}` is an indicator function that equals to :math:`1` when the document at :math:`k` is relevant and :math:`0` otherwise. The :math:`P@k` is the precision at :math:`k`, and :math:`N` is the total number of relevant documents. Lastly, the `mean average precision` is defined as the weighted average across all queries.
+
+    - ``ndcg@n``, ``map@n``, ``pre@n``: :math:`n` can be assigned as an integer to cut off the top positions in the lists for evaluation.
+    - ``ndcg-``, ``map-``, ``ndcg@n-``, ``map@n-``: In XGBoost, the NDCG and MAP evaluate the score of a list without any positive samples as :math:`1`. By appending "-" to the evaluation metric name, we can ask XGBoost to evaluate these scores as :math:`0` to be consistent under some conditions.
     - ``poisson-nloglik``: negative log-likelihood for Poisson regression
     - ``gamma-nloglik``: negative log-likelihood for gamma regression
     - ``cox-nloglik``: negative partial log-likelihood for Cox proportional hazards regression
@@ -422,7 +489,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``seed`` [default=0]
 
-  - Random number seed.  This parameter is ignored in R package, use `set.seed()` instead.
+  - Random number seed.  In the R package, if not specified, instead of defaulting to seed 'zero', will take a random seed through R's own RNG engine.
 
 * ``seed_per_iteration`` [default= ``false``]
 
@@ -442,10 +509,77 @@ Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 
 * ``huber_slope`` : A parameter used for Pseudo-Huber loss to define the :math:`\delta` term. [default = 1.0]
 
+Parameter for using Quantile Loss (``reg:quantileerror``)
+=========================================================
+
+* ``quantile_alpha``: A scalar or a list of targeted quantiles.
+
+    .. versionadded:: 2.0.0
+
+Parameter for using AFT Survival Loss (``survival:aft``) and Negative Log Likelihood of AFT metric (``aft-nloglik``)
+====================================================================================================================
+
+* ``aft_loss_distribution``: Probability Density Function, ``normal``, ``logistic``, or ``extreme``.
+
+.. _ltr-param:
+
+Parameters for learning to rank (``rank:ndcg``, ``rank:map``, ``rank:pairwise``)
+================================================================================
+
+These are parameters specific to learning to rank task. See :doc:`Learning to Rank </tutorials/learning_to_rank>` for an in-depth explanation.
+
+* ``lambdarank_pair_method`` [default = ``topk``]
+
+  How to construct pairs for pair-wise learning.
+
+  - ``mean``: Sample ``lambdarank_num_pair_per_sample`` pairs for each document in the query list.
+  - ``topk``: Focus on top-``lambdarank_num_pair_per_sample`` documents. Construct :math:`|query|` pairs for each document at the top-``lambdarank_num_pair_per_sample`` ranked by the model.
+
+* ``lambdarank_num_pair_per_sample`` [range = :math:`[1, \infty]`]
+
+  It specifies the number of pairs sampled for each document when pair method is ``mean``, or the truncation level for queries when the pair method is ``topk``. For example, to train with ``ndcg@6``, set ``lambdarank_num_pair_per_sample`` to :math:`6` and ``lambdarank_pair_method`` to ``topk``.
+
+* ``lambdarank_normalization`` [default = ``true``]
+
+  .. versionadded:: 2.1.0
+
+  Whether to normalize the leaf value by lambda gradient. This can sometimes stagnate the training progress.
+
+  .. versionchanged:: 3.0.0
+
+  When the ``mean`` method is used, it's normalized by the ``lambdarank_num_pair_per_sample`` instead of gradient.
+
+* ``lambdarank_score_normalization`` [default = ``true``]
+
+  .. versionadded:: 3.0.0
+
+  Whether to normalize the delta metric by the difference of prediction scores. This can
+  sometimes stagnate the training progress. With pairwise ranking, we can normalize the
+  gradient using the difference between two samples in each pair to reduce influence from
+  the pairs that have large difference in ranking scores. This can help us regularize the
+  model to reduce bias and prevent overfitting. Similar to other regularization
+  techniques, this might prevent training from converging.
+
+  There was no normalization before 2.0. In 2.0 and later versions this is used by
+  default. In 3.0, we made this an option that users can disable.
+
+*  ``lambdarank_unbiased`` [default = ``false``]
+
+  Specify whether do we need to debias input click data.
+
+* ``lambdarank_bias_norm`` [default = 2.0]
+
+  :math:`L_p` normalization for position debiasing, default is :math:`L_2`. Only relevant when ``lambdarank_unbiased`` is set to true.
+
+* ``ndcg_exp_gain`` [default = ``true``]
+
+  Whether we should use exponential gain function for ``NDCG``. There are two forms of gain function for ``NDCG``, one is using relevance value directly while the other is using :math:`2^{rel} - 1` to emphasize on retrieving relevant documents. When ``ndcg_exp_gain`` is true (the default), relevance degree cannot be greater than 31.
+
 ***********************
 Command Line Parameters
 ***********************
-The following parameters are only used in the console version of XGBoost
+The following parameters are only used in the console version of XGBoost. The CLI has been
+deprecated and will be removed in future releases.
 
 * ``num_round``
 

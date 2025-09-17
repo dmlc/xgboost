@@ -87,7 +87,7 @@ inline to_chars_result to_chars(char *first, char *last, int64_t value) { // NOL
   if (value < 0) {
     *first = '-';
     std::advance(first, 1);
-    unsigned_value = uint64_t(~value) + uint64_t(1);
+    unsigned_value = static_cast<uint64_t>(~value) + static_cast<uint64_t>(1);
   }
   return detail::ToCharsUnsignedImpl(first, last, unsigned_value);
 }

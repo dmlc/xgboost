@@ -1,3 +1,6 @@
+/**
+ * Copyright 2019-2023, XGBoost Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
@@ -6,10 +9,10 @@
 #include <string>
 
 #include "../../../src/tree/constraints.h"
+#include "../../../src/tree/hist/evaluate_splits.h"
+#include "../helpers.h"
 
-namespace xgboost {
-namespace tree {
-
+namespace xgboost::tree {
 TEST(CPUFeatureInteractionConstraint, Empty) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
@@ -56,5 +59,36 @@ TEST(CPUFeatureInteractionConstraint, Basic) {
   ASSERT_FALSE(constraints.Query(1, 5));
 }
 
-}  // namespace tree
-}  // namespace xgboost
+TEST(CPUMonoConstraint, Basic) {
+  std::size_t kRows{64}, kCols{16};
+  Context ctx;
+
+  TrainParam param;
+  std::vector<std::int32_t> mono(kCols, 1);
+  I32Array arr;
+  for (std::size_t i = 0; i < kCols; ++i) {
+    arr.GetArray().push_back(mono[i]);
+  }
+  Json jarr{std::move(arr)};
+  std::string str_mono;
+  Json::Dump(jarr, &str_mono);
+  str_mono.front() = '(';
+  str_mono.back() = ')';
+
+  param.UpdateAllowUnknown(Args{{"monotone_constraints", str_mono}});
+
+  auto Xy = RandomDataGenerator{kRows, kCols, 0.0}.GenerateDMatrix(true);
+  auto sampler = std::make_shared<common::ColumnSampler>(1u);
+
+  HistEvaluator evalutor{&ctx, &param, Xy->Info(), sampler};
+  evalutor.InitRoot(GradStats{2.0, 2.0});
+
+  SplitEntry split;
+  split.Update(1.0f, 0, 3.0, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
+  CPUExpandEntry entry{0, 0, split};
+  RegTree tree{1, static_cast<bst_feature_t>(kCols)};
+  evalutor.ApplyTreeSplit(entry, &tree);
+
+  ASSERT_TRUE(evalutor.Evaluator().has_constraint);
+}
+}  // namespace xgboost::tree

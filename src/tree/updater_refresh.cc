@@ -1,52 +1,44 @@
-/*!
- * Copyright 2014-2022 by XGBoost Contributors
+/**
+ * Copyright 2014-2024, XGBoost Contributors
  * \file updater_refresh.cc
  * \brief refresh the statistics and leaf value on the tree on the dataset
  * \author Tianqi Chen
  */
-#include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
-#include <vector>
 #include <limits>
+#include <vector>
 
-#include "xgboost/json.h"
-#include "./param.h"
-#include "../common/io.h"
+#include "../collective/allreduce.h"
 #include "../common/threading_utils.h"
 #include "../predictor/predict_fn.h"
+#include "./param.h"
+#include "xgboost/json.h"
 
-namespace xgboost {
-namespace tree {
+namespace xgboost::tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_refresh);
 
-/*! \brief pruner that prunes a tree after growing finishs */
+/*! \brief pruner that prunes a tree after growing finishes */
 class TreeRefresher : public TreeUpdater {
  public:
-  explicit TreeRefresher(GenericParameter const *ctx) : TreeUpdater(ctx) {}
-  void Configure(const Args &args) override { param_.UpdateAllowUnknown(args); }
-  void LoadConfig(Json const& in) override {
-    auto const& config = get<Object const>(in);
-    FromJson(config.at("train_param"), &this->param_);
-  }
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["train_param"] = ToJson(param_);
-  }
-  char const* Name() const override {
-    return "refresh";
-  }
-  bool CanModifyTree() const override {
-    return true;
-  }
+  explicit TreeRefresher(Context const *ctx) : TreeUpdater(ctx) {}
+  void Configure(const Args &) override {}
+  void LoadConfig(Json const &) override {}
+  void SaveConfig(Json *) const override {}
+
+  [[nodiscard]] char const *Name() const override { return "refresh"; }
+  [[nodiscard]] bool CanModifyTree() const override { return true; }
   // update the tree, do pruning
-  void Update(HostDeviceVector<GradientPair> *gpair, DMatrix *p_fmat,
+  void Update(TrainParam const *param, linalg::Matrix<GradientPair> *gpair, DMatrix *p_fmat,
               common::Span<HostDeviceVector<bst_node_t>> /*out_position*/,
               const std::vector<RegTree *> &trees) override {
-    if (trees.size() == 0) return;
-    const std::vector<GradientPair> &gpair_h = gpair->ConstHostVector();
-    // thread temporal space
+    if (trees.size() == 0) {
+      return;
+    }
+    CHECK_EQ(gpair->Shape(1), 1) << MTNotImplemented();
+    const std::vector<GradientPair> &gpair_h = gpair->Data()->ConstHostVector();
+    // Thread local variables.
     std::vector<std::vector<GradStats> > stemp;
     std::vector<RegTree::FVec> fvec_temp;
     // setup temp space for each thread
@@ -60,17 +52,16 @@ class TreeRefresher : public TreeUpdater {
         int tid = omp_get_thread_num();
         int num_nodes = 0;
         for (auto tree : trees) {
-          num_nodes += tree->param.num_nodes;
+          num_nodes += tree->NumNodes();
         }
         stemp[tid].resize(num_nodes, GradStats());
         std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
-        fvec_temp[tid].Init(trees[0]->param.num_feature);
+        fvec_temp[tid].Init(trees[0]->NumFeatures());
       });
     }
     exc.Rethrow();
-    // if it is C++11, use lazy evaluation for Allreduce,
-    // to gain speedup in recovery
-    auto lazy_get_stats = [&]() {
+
+    auto get_stats = [&]() {
       const MetaInfo &info = p_fmat->Info();
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
@@ -87,9 +78,9 @@ class TreeRefresher : public TreeUpdater {
           for (auto tree : trees) {
             AddStats(*tree, feats, gpair_h, info, ridx,
                      dmlc::BeginPtr(stemp[tid]) + offset);
-            offset += tree->param.num_nodes;
+            offset += tree->NumNodes();
           }
-          feats.Drop(inst);
+          feats.Drop();
         });
       }
       // aggregate the statistics
@@ -100,18 +91,19 @@ class TreeRefresher : public TreeUpdater {
         }
       });
     };
-    rabit::Allreduce<rabit::op::Sum>(&dmlc::BeginPtr(stemp[0])->sum_grad, stemp[0].size() * 2,
-                                     lazy_get_stats);
-    // rescale learning rate according to size of trees
-    float lr = param_.learning_rate;
-    param_.learning_rate = lr / trees.size();
-    int offset = 0;
+    get_stats();
+    // Synchronize the aggregated result.
+    auto &sum_grad = stemp[0];
+    // x2 for gradient and hessian.
+    auto rc = collective::Allreduce(
+        ctx_, linalg::MakeVec(&sum_grad.data()->sum_grad, sum_grad.size() * 2),
+        collective::Op::kMax);
+    collective::SafeColl(rc);
+    bst_node_t offset = 0;
     for (auto tree : trees) {
-      this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, 0, tree);
-      offset += tree->param.num_nodes;
+      this->Refresh(param, dmlc::BeginPtr(sum_grad) + offset, 0, tree);
+      offset += tree->NumNodes();
     }
-    // set learning rate back
-    param_.learning_rate = lr;
   }
 
  private:
@@ -134,31 +126,27 @@ class TreeRefresher : public TreeUpdater {
       gstats[pid].Add(gpair[ridx]);
     }
   }
-  inline void Refresh(const GradStats *gstats,
-                      int nid, RegTree *p_tree) {
+  inline void Refresh(TrainParam const *param, const GradStats *gstats, int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
     tree.Stat(nid).base_weight =
-        static_cast<bst_float>(CalcWeight(param_, gstats[nid]));
+        static_cast<bst_float>(CalcWeight(*param, gstats[nid]));
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     if (tree[nid].IsLeaf()) {
-      if (param_.refresh_leaf) {
-        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param_.learning_rate);
+      if (param->refresh_leaf) {
+        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param->learning_rate);
       }
     } else {
-      tree.Stat(nid).loss_chg = static_cast<bst_float>(
-          xgboost::tree::CalcGain(param_, gstats[tree[nid].LeftChild()]) +
-          xgboost::tree::CalcGain(param_, gstats[tree[nid].RightChild()]) -
-          xgboost::tree::CalcGain(param_, gstats[nid]));
-      this->Refresh(gstats, tree[nid].LeftChild(), p_tree);
-      this->Refresh(gstats, tree[nid].RightChild(), p_tree);
+      tree.Stat(nid).loss_chg =
+          static_cast<bst_float>(xgboost::tree::CalcGain(*param, gstats[tree[nid].LeftChild()]) +
+                                 xgboost::tree::CalcGain(*param, gstats[tree[nid].RightChild()]) -
+                                 xgboost::tree::CalcGain(*param, gstats[nid]));
+      this->Refresh(param, gstats, tree[nid].LeftChild(), p_tree);
+      this->Refresh(param, gstats, tree[nid].RightChild(), p_tree);
     }
   }
-  // training parameter
-  TrainParam param_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(TreeRefresher, "refresh")
     .describe("Refresher that refreshes the weight and statistics according to data.")
-    .set_body([](GenericParameter const *ctx, ObjInfo) { return new TreeRefresher(ctx); });
-}  // namespace tree
-}  // namespace xgboost
+    .set_body([](Context const *ctx, auto) { return new TreeRefresher(ctx); });
+}  // namespace xgboost::tree

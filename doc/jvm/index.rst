@@ -23,8 +23,8 @@ Installation
   :local:
   :backlinks: none
 
-Checkout the :doc:`Installation Guide </install>` for how to install jvm package, or
-:doc:`Building from Source </build>` on how to build it form source.
+Checkout the :doc:`Installation Guide </install>` for how to install the jvm package, or
+:doc:`Building from Source </build>` on how to build it from the sources.
 
 ********
 Contents
@@ -37,7 +37,9 @@ Contents
   XGBoost4J-Spark Tutorial <xgboost4j_spark_tutorial>
   XGBoost4J-Spark-GPU Tutorial <xgboost4j_spark_gpu_tutorial>
   Code Examples <https://github.com/dmlc/xgboost/tree/master/jvm-packages/xgboost4j-example>
-  XGBoost4J Java API <javadocs/index>
-  XGBoost4J Scala API <scaladocs/xgboost4j/index>
-  XGBoost4J-Spark Scala API <scaladocs/xgboost4j-spark/index>
-  XGBoost4J-Flink Scala API <scaladocs/xgboost4j-flink/index>
+  API docs <api>
+  How to migrate to XGBoost-Spark jvm 3.x <xgboost_spark_migration>
+
+.. note::
+
+  Please note that the flink interface is still under construction.

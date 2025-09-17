@@ -1,26 +1,31 @@
-/*!
- * Copyright 2019-2021 by Contributors
+/**
+ * Copyright 2019-2024, XGBoost Contributors
  * \file array_interface.h
  * \brief View of __array_interface__
  */
 #ifndef XGBOOST_DATA_ARRAY_INTERFACE_H_
 #define XGBOOST_DATA_ARRAY_INTERFACE_H_
 
-#include <algorithm>
-#include <cinttypes>
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
+#include <algorithm>    // for all_of, transform, fill
+#include <cstddef>      // for size_t
+#include <cstdint>      // for int32_t, int64_t, ...
+#include <limits>       // for numeric_limits
+#include <map>          // for map
+#include <string>       // for string
+#include <type_traits>  // for alignment_of_v, remove_pointer_t, invoke_result_t
+#include <vector>       // for vector
 
-#include "../common/bitfield.h"
-#include "../common/common.h"
-#include "xgboost/base.h"
-#include "xgboost/data.h"
-#include "xgboost/json.h"
-#include "xgboost/linalg.h"
-#include "xgboost/logging.h"
-#include "xgboost/span.h"
+#include "../common/bitfield.h"   // for RBitField8
+#include "../common/error_msg.h"  // for NoF128
+#include "xgboost/json.h"         // for Json
+#include "xgboost/linalg.h"       // for CalcStride, TensorView
+#include "xgboost/logging.h"      // for CHECK
+#include "xgboost/span.h"         // for Span
+#include "xgboost/string_view.h"  // for StringView
+
+#if defined(XGBOOST_USE_CUDA)
+#include "cuda_fp16.h"  // for __half
+#endif
 
 namespace xgboost {
 // Common errors in parsing columnar format.
@@ -96,12 +101,27 @@ struct ArrayInterfaceErrors {
  */
 class ArrayInterfaceHandler {
  public:
-  enum Type : std::int8_t { kF4, kF8, kF16, kI1, kI2, kI4, kI8, kU1, kU2, kU4, kU8 };
+  enum Type : std::int8_t {
+    kF2 = 0,
+    kF4 = 1,
+    kF8 = 2,
+    kF16 = 3,
+    kI1 = 4,
+    kI2 = 5,
+    kI4 = 6,
+    kI8 = 7,
+    kU1 = 8,
+    kU2 = 9,
+    kU4 = 10,
+    kU8 = 11,
+  };
+
+  static std::string TypeStr(Type type);
 
   template <typename PtrType>
-  static PtrType GetPtrFromArrayData(std::map<std::string, Json> const &obj) {
+  static PtrType GetPtrFromArrayData(Object::Map const &obj) {
     auto data_it = obj.find("data");
-    if (data_it == obj.cend()) {
+    if (data_it == obj.cend() || IsA<Null>(data_it->second)) {
       LOG(FATAL) << "Empty data passed in.";
     }
     auto p_data = reinterpret_cast<PtrType>(
@@ -109,9 +129,9 @@ class ArrayInterfaceHandler {
     return p_data;
   }
 
-  static void Validate(std::map<std::string, Json> const &array) {
+  static void Validate(Object::Map const &array) {
     auto version_it = array.find("version");
-    if (version_it == array.cend()) {
+    if (version_it == array.cend() || IsA<Null>(version_it->second)) {
       LOG(FATAL) << "Missing `version' field for array interface";
     }
     if (get<Integer const>(version_it->second) > 3) {
@@ -119,28 +139,31 @@ class ArrayInterfaceHandler {
     }
 
     auto typestr_it = array.find("typestr");
-    if (typestr_it == array.cend()) {
+    if (typestr_it == array.cend() || IsA<Null>(typestr_it->second)) {
       LOG(FATAL) << "Missing `typestr' field for array interface";
     }
 
     auto typestr = get<String const>(typestr_it->second);
     CHECK(typestr.size() == 3 || typestr.size() == 4) << ArrayInterfaceErrors::TypestrFormat();
 
-    if (array.find("shape") == array.cend()) {
+    auto shape_it = array.find("shape");
+    if (shape_it == array.cend() || IsA<Null>(shape_it->second)) {
       LOG(FATAL) << "Missing `shape' field for array interface";
     }
-    if (array.find("data") == array.cend()) {
+    auto data_it = array.find("data");
+    if (data_it == array.cend() || IsA<Null>(data_it->second)) {
       LOG(FATAL) << "Missing `data' field for array interface";
     }
   }
 
   // Find null mask (validity mask) field
   // Mask object is also an array interface, but with different requirements.
-  static size_t ExtractMask(std::map<std::string, Json> const &column,
+  static size_t ExtractMask(Object::Map const &column,
                             common::Span<RBitField8::value_type> *p_out) {
     auto &s_mask = *p_out;
-    if (column.find("mask") != column.cend()) {
-      auto const &j_mask = get<Object const>(column.at("mask"));
+    auto const &mask_it = column.find("mask");
+    if (mask_it != column.cend() && !IsA<Null>(mask_it->second)) {
+      auto const &j_mask = get<Object const>(mask_it->second);
       Validate(j_mask);
 
       auto p_mask = GetPtrFromArrayData<RBitField8::value_type *>(j_mask);
@@ -173,8 +196,9 @@ class ArrayInterfaceHandler {
       // assume 1 byte alignment.
       size_t const span_size = RBitField8::ComputeStorageSize(n_bits);
 
-      if (j_mask.find("strides") != j_mask.cend()) {
-        auto strides = get<Array const>(column.at("strides"));
+      auto strides_it = j_mask.find("strides");
+      if (strides_it != j_mask.cend() && !IsA<Null>(strides_it->second)) {
+        auto strides = get<Array const>(strides_it->second);
         CHECK_EQ(strides.size(), 1) << ArrayInterfaceErrors::Dimension(1);
         CHECK_EQ(get<Integer>(strides.at(0)), type_length) << ArrayInterfaceErrors::Contiguous();
       }
@@ -208,7 +232,7 @@ class ArrayInterfaceHandler {
   }
 
   template <int32_t D>
-  static void ExtractShape(std::map<std::string, Json> const &array, size_t (&out_shape)[D]) {
+  static void ExtractShape(Object::Map const &array, size_t (&out_shape)[D]) {
     auto const &j_shape = get<Array const>(array.at("shape"));
     std::vector<size_t> shape_arr(j_shape.size(), 0);
     std::transform(j_shape.cbegin(), j_shape.cend(), shape_arr.begin(),
@@ -229,7 +253,7 @@ class ArrayInterfaceHandler {
    * \brief Extracts the optiona `strides' field and returns whether the array is c-contiguous.
    */
   template <int32_t D>
-  static bool ExtractStride(std::map<std::string, Json> const &array, size_t itemsize,
+  static bool ExtractStride(Object::Map const &array, size_t itemsize,
                             size_t (&shape)[D], size_t (&stride)[D]) {
     auto strides_it = array.find("strides");
     // No stride is provided
@@ -272,7 +296,7 @@ class ArrayInterfaceHandler {
     return std::equal(stride_tmp, stride_tmp + D, stride);
   }
 
-  static void *ExtractData(std::map<std::string, Json> const &array, size_t size) {
+  static void *ExtractData(Object::Map const &array, size_t size) {
     Validate(array);
     void *p_data = ArrayInterfaceHandler::GetPtrFromArrayData<void *>(array);
     if (!p_data) {
@@ -296,6 +320,12 @@ class ArrayInterfaceHandler {
 template <typename T, typename E = void>
 struct ToDType;
 // float
+#if defined(XGBOOST_USE_CUDA)
+template <>
+struct ToDType<__half> {
+  static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF2;
+};
+#endif  // defined(XGBOOST_USE_CUDA)
 template <>
 struct ToDType<float> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF4;
@@ -306,7 +336,7 @@ struct ToDType<double> {
 };
 template <typename T>
 struct ToDType<T,
-               std::enable_if_t<std::is_same<T, long double>::value && sizeof(long double) == 16>> {
+               std::enable_if_t<std::is_same_v<T, long double> && sizeof(long double) == 16>> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kF16;
 };
 // uint
@@ -344,11 +374,6 @@ struct ToDType<int64_t> {
   static constexpr ArrayInterfaceHandler::Type kType = ArrayInterfaceHandler::kI8;
 };
 
-#if !defined(XGBOOST_USE_CUDA)
-inline void ArrayInterfaceHandler::SyncCudaStream(int64_t stream) { common::AssertGPUSupport(); }
-inline bool ArrayInterfaceHandler::IsCudaPtr(void const *ptr) { return false; }
-#endif  // !defined(XGBOOST_USE_CUDA)
-
 /**
  * \brief A type erased view over __array_interface__ protocol defined by numpy
  *
@@ -366,7 +391,7 @@ inline bool ArrayInterfaceHandler::IsCudaPtr(void const *ptr) { return false; }
  *   numpy has the proper support even though it's in the __cuda_array_interface__
  *   protocol defined by numba.
  */
-template <int32_t D, bool allow_mask = (D == 1)>
+template <std::int32_t D, bool allow_mask = (D == 1)>
 class ArrayInterface {
   static_assert(D > 0, "Invalid dimension for array interface.");
 
@@ -378,18 +403,25 @@ class ArrayInterface {
    *   to a vector of size n_samples.  For for inputs like weights, this should be a 1
    *   dimension column vector even though user might provide a matrix.
    */
-  void Initialize(std::map<std::string, Json> const &array) {
+  void Initialize(Object::Map const &array) {
     ArrayInterfaceHandler::Validate(array);
 
     auto typestr = get<String const>(array.at("typestr"));
     this->AssignType(StringView{typestr});
     ArrayInterfaceHandler::ExtractShape(array, shape);
-    size_t itemsize = typestr[2] - '0';
+    std::size_t itemsize = typestr[2] - '0';
     is_contiguous = ArrayInterfaceHandler::ExtractStride(array, itemsize, shape, strides);
     n = linalg::detail::CalcSize(shape);
 
     data = ArrayInterfaceHandler::ExtractData(array, n);
     static_assert(allow_mask ? D == 1 : D >= 1, "Masked ndarray is not supported.");
+
+    auto alignment = this->ElementAlignment();
+    auto ptr = reinterpret_cast<uintptr_t>(this->data);
+    if (!std::all_of(this->shape, this->shape + D, [](auto v) { return v == 0; })) {
+      CHECK_EQ(ptr % alignment, 0) << "Input pointer misalignment.";
+    }
+
     if (allow_mask) {
       common::Span<RBitField8::value_type> s_mask;
       size_t n_bits = ArrayInterfaceHandler::ExtractMask(array, &s_mask);
@@ -401,7 +433,9 @@ class ArrayInterface {
                             << "XGBoost doesn't support internal broadcasting.";
       }
     } else {
-      CHECK(array.find("mask") == array.cend()) << "Masked array is not yet supported.";
+      auto mask_it = array.find("mask");
+      CHECK(mask_it == array.cend() || IsA<Null>(mask_it->second))
+          << "Masked array is not yet supported.";
     }
 
     auto stream_it = array.find("stream");
@@ -413,7 +447,7 @@ class ArrayInterface {
 
  public:
   ArrayInterface() = default;
-  explicit ArrayInterface(std::map<std::string, Json> const &array) { this->Initialize(array); }
+  explicit ArrayInterface(Object::Map const &array) { this->Initialize(array); }
 
   explicit ArrayInterface(Json const &array) {
     if (IsA<Object>(array)) {
@@ -430,14 +464,19 @@ class ArrayInterface {
 
   explicit ArrayInterface(std::string const &str) : ArrayInterface{StringView{str}} {}
 
-  explicit ArrayInterface(StringView str) : ArrayInterface<D>{Json::Load(str)} {}
+  explicit ArrayInterface(StringView str) : ArrayInterface{Json::Load(str)} {}
 
   void AssignType(StringView typestr) {
     using T = ArrayInterfaceHandler::Type;
     if (typestr.size() == 4 && typestr[1] == 'f' && typestr[2] == '1' && typestr[3] == '6') {
+      CHECK(sizeof(long double) == 16) << error::NoF128();
       type = T::kF16;
-      CHECK(sizeof(long double) == 16)
-          << "128-bit floating point is not supported on current platform.";
+    } else if (typestr[1] == 'f' && typestr[2] == '2') {
+#if defined(XGBOOST_USE_CUDA)
+      type = T::kF2;
+#else
+      LOG(FATAL) << "Half type is not supported.";
+#endif  // defined(XGBOOST_USE_CUDA)
     } else if (typestr[1] == 'f' && typestr[2] == '4') {
       type = T::kF4;
     } else if (typestr[1] == 'f' && typestr[2] == '8') {
@@ -464,13 +503,26 @@ class ArrayInterface {
     }
   }
 
-  XGBOOST_DEVICE size_t Shape(size_t i) const { return shape[i]; }
-  XGBOOST_DEVICE size_t Stride(size_t i) const { return strides[i]; }
+  template <std::size_t i>
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Shape() const {
+    static_assert(i < D);
+    return shape[i];
+  }
+  template <std::size_t i>
+  [[nodiscard]] XGBOOST_DEVICE std::size_t Stride() const {
+    static_assert(i < D);
+    return strides[i];
+  }
 
   template <typename Fn>
   XGBOOST_HOST_DEV_INLINE decltype(auto) DispatchCall(Fn func) const {
     using T = ArrayInterfaceHandler::Type;
     switch (type) {
+      case T::kF2: {
+#if defined(XGBOOST_USE_CUDA)
+        return func(reinterpret_cast<__half const *>(data));
+#endif  // defined(XGBOOST_USE_CUDA)
+      }
       case T::kF4:
         return func(reinterpret_cast<float const *>(data));
       case T::kF8:
@@ -506,35 +558,124 @@ class ArrayInterface {
     return func(reinterpret_cast<uint64_t const *>(data));
   }
 
-  XGBOOST_DEVICE size_t ElementSize() {
-    return this->DispatchCall(
-        [](auto *p_values) { return sizeof(std::remove_pointer_t<decltype(p_values)>); });
+  [[nodiscard]] XGBOOST_DEVICE std::size_t ElementSize() const {
+    return this->DispatchCall([](auto *typed_data_ptr) {
+      return sizeof(std::remove_pointer_t<decltype(typed_data_ptr)>);
+    });
+  }
+  [[nodiscard]] XGBOOST_DEVICE std::size_t ElementAlignment() const {
+    return this->DispatchCall([](auto *typed_data_ptr) {
+      return std::alignment_of_v<std::remove_pointer_t<decltype(typed_data_ptr)>>;
+    });
   }
 
   template <typename T = float, typename... Index>
-  XGBOOST_DEVICE T operator()(Index &&...index) const {
+  XGBOOST_HOST_DEV_INLINE T operator()(Index &&...index) const {
     static_assert(sizeof...(index) <= D, "Invalid index.");
     return this->DispatchCall([=](auto const *p_values) -> T {
-      size_t offset = linalg::detail::Offset<0ul>(strides, 0ul, index...);
+      std::size_t offset = linalg::detail::Offset<0ul>(strides, 0ul, index...);
+#if defined(XGBOOST_USE_CUDA)
+      // No operator defined for half -> size_t
+      using Type = std::conditional_t<
+          std::is_same_v<__half, std::remove_cv_t<std::remove_pointer_t<decltype(p_values)>>> &&
+              std::is_same_v<std::size_t, std::remove_cv_t<T>>,
+          unsigned long long, T>;  // NOLINT
+      return static_cast<T>(static_cast<Type>(p_values[offset]));
+#else
       return static_cast<T>(p_values[offset]);
+#endif  // defined(XGBOOST_USE_CUDA)
     });
   }
 
   // Used only by columnar format.
   RBitField8 valid;
   // Array stride
-  size_t strides[D]{0};
+  std::size_t strides[D]{0};
   // Array shape
-  size_t shape[D]{0};
+  std::size_t shape[D]{0};
   // Type earsed pointer referencing the data.
   void const *data{nullptr};
   // Total number of items
-  size_t n{0};
+  std::size_t n{0};
   // Whether the memory is c-contiguous
   bool is_contiguous{false};
   // RTTI, initialized to the f16 to avoid masking potential bugs in initialization.
   ArrayInterfaceHandler::Type type{ArrayInterfaceHandler::kF16};
 };
+
+template <typename Fn>
+auto DispatchDType(ArrayInterfaceHandler::Type dtype, Fn dispatch) {
+  switch (dtype) {
+    case ArrayInterfaceHandler::kF2: {
+#if defined(XGBOOST_USE_CUDA)
+      return dispatch(__half{});
+#else
+      LOG(FATAL) << "half type is only supported for CUDA input.";
+      break;
+#endif
+    }
+    case ArrayInterfaceHandler::kF4: {
+      return dispatch(float{});
+    }
+    case ArrayInterfaceHandler::kF8: {
+      return dispatch(double{});
+    }
+    case ArrayInterfaceHandler::kF16: {
+      using T = long double;
+      CHECK(sizeof(T) == 16) << error::NoF128();
+      // Avoid invalid type.
+      if constexpr (sizeof(T) == 16) {
+        return dispatch(T{});
+      } else {
+        return dispatch(double{});
+      }
+    }
+    case ArrayInterfaceHandler::kI1: {
+      return dispatch(std::int8_t{});
+    }
+    case ArrayInterfaceHandler::kI2: {
+      return dispatch(std::int16_t{});
+    }
+    case ArrayInterfaceHandler::kI4: {
+      return dispatch(std::int32_t{});
+    }
+    case ArrayInterfaceHandler::kI8: {
+      return dispatch(std::int64_t{});
+    }
+    case ArrayInterfaceHandler::kU1: {
+      return dispatch(std::uint8_t{});
+    }
+    case ArrayInterfaceHandler::kU2: {
+      return dispatch(std::uint16_t{});
+    }
+    case ArrayInterfaceHandler::kU4: {
+      return dispatch(std::uint32_t{});
+    }
+    case ArrayInterfaceHandler::kU8: {
+      return dispatch(std::uint64_t{});
+    }
+  }
+
+  return std::invoke_result_t<Fn, std::int8_t>();
+}
+
+template <std::int32_t D, typename Fn>
+void DispatchDType(ArrayInterface<D> const array, DeviceOrd device, Fn fn) {
+  // Only used for cuDF at the moment.
+  CHECK_EQ(array.valid.Capacity(), 0);
+  auto dispatch = [&](auto t) {
+    using T = std::remove_const_t<decltype(t)> const;
+    // Set the data size to max as we don't know the original size of a sliced array:
+    //
+    // Slicing an array A with shape (4, 2, 3) and stride (6, 3, 1) by [:, 1, :] results
+    // in an array B with shape (4, 3) and strides (6, 1). We can't calculate the original
+    // size 24 based on the slice.
+    fn(linalg::TensorView<T, D>{common::Span<T const>{static_cast<T *>(array.data),
+                                                      std::numeric_limits<std::size_t>::max()},
+                                array.shape, array.strides, device});
+  };
+  DispatchDType(array.type, dispatch);
+}
 
 /**
  * \brief Helper for type casting.

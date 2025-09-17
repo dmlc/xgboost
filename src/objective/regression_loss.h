@@ -1,39 +1,29 @@
-/*!
- * Copyright 2017-2022 XGBoost contributors
+/**
+ * Copyright 2017-2025, XGBoost contributors
  */
 #ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 
-#include <dmlc/omp.h>
-#include <xgboost/logging.h>
-#include <algorithm>
+#include <cmath>
 
-#include "xgboost/task.h"
 #include "../common/math.h"
+#include "xgboost/string_view.h"
+#include "xgboost/task.h"  // ObjInfo
 
-namespace xgboost {
-namespace obj {
-
-// common regressions
+namespace xgboost::obj {
 // linear regression
 struct LinearSquareLoss {
-  // duplication is necessary, as __device__ specifier
-  // cannot be made conditional on template parameter
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return x; }
   XGBOOST_DEVICE static bool CheckLabel(bst_float) { return true; }
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     return predt - label;
   }
-  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float, bst_float) {
-    return 1.0f;
-  }
-  template <typename T>
-  static T PredTransform(T x) { return x; }
-  template <typename T>
-  static T FirstOrderGradient(T predt, T label) { return predt - label; }
-  template <typename T>
-  static T SecondOrderGradient(T predt, T label) { return T(1.0f); }
-  static bst_float ProbToMargin(bst_float base_score) { return base_score; }
+  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float, bst_float) { return 1.0f; }
+
+  XGBOOST_DEVICE static float ProbToMargin(float base_score) { return base_score; }
+  constexpr static StringView InterceptErrorMsg() { return ""; }
+  XGBOOST_DEVICE static bool CheckIntercept(float) { return true; }
+
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
@@ -43,21 +33,22 @@ struct LinearSquareLoss {
 
 struct SquaredLogError {
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return x; }
-  XGBOOST_DEVICE static bool CheckLabel(bst_float label) {
-    return label > -1;
-  }
+  XGBOOST_DEVICE static bool CheckLabel(bst_float label) { return label > -1; }
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     predt = fmaxf(predt, -1 + 1e-6);  // ensure correct value for log1p
     return (std::log1p(predt) - std::log1p(label)) / (predt + 1);
   }
   XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
     predt = fmaxf(predt, -1 + 1e-6);
-    float res = (-std::log1p(predt) + std::log1p(label) + 1) /
-                std::pow(predt + 1, 2);
+    float res = (-std::log1p(predt) + std::log1p(label) + 1) / std::pow(predt + 1, 2);
     res = fmaxf(res, 1e-6f);
     return res;
   }
-  static bst_float ProbToMargin(bst_float base_score) { return base_score; }
+
+  XGBOOST_DEVICE static float ProbToMargin(float base_score) { return base_score; }
+  constexpr static StringView InterceptErrorMsg() { return ""; }
+  XGBOOST_DEVICE static bool CheckIntercept(float) { return true; }
+
   static const char* LabelErrorMsg() {
     return "label must be greater than -1 for rmsle so that log(label + 1) can be valid.";
   }
@@ -70,8 +61,6 @@ struct SquaredLogError {
 
 // logistic loss for probability regression task
 struct LogisticRegression {
-  // duplication is necessary, as __device__ specifier
-  // cannot be made conditional on template parameter
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
   XGBOOST_DEVICE static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
@@ -81,23 +70,18 @@ struct LogisticRegression {
     const float eps = 1e-16f;
     return fmaxf(predt * (1.0f - predt), eps);
   }
-  template <typename T>
-  static T PredTransform(T x) { return common::Sigmoid(x); }
-  template <typename T>
-  static T FirstOrderGradient(T predt, T label) { return predt - label; }
-  template <typename T>
-  static T SecondOrderGradient(T predt, T label) {
-    const T eps = T(1e-16f);
-    return std::max(predt * (T(1.0f) - predt), eps);
-  }
-  static bst_float ProbToMargin(bst_float base_score) {
-    CHECK(base_score > 0.0f && base_score < 1.0f)
-        << "base_score must be in (0,1) for logistic loss, got: " << base_score;
+
+  XGBOOST_DEVICE static float ProbToMargin(float base_score) {
     return -logf(1.0f / base_score - 1.0f);
   }
-  static const char* LabelErrorMsg() {
-    return "label must be in [0,1] for logistic regression";
+  constexpr static StringView InterceptErrorMsg() {
+    return "base_score must be in (0,1) for the logistic loss.";
   }
+  XGBOOST_DEVICE static bool CheckIntercept(float base_score) {
+    return base_score > 0.0f && base_score < 1.0f;
+  }
+
+  static const char* LabelErrorMsg() { return "label must be in [0,1] for logistic regression"; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
   static const char* Name() { return "reg:logistic"; }
@@ -114,8 +98,6 @@ struct LogisticClassification : public LogisticRegression {
 
 // logistic loss, but predict un-transformed margin
 struct LogisticRaw : public LogisticRegression {
-  // duplication is necessary, as __device__ specifier
-  // cannot be made conditional on template parameter
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return x; }
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     predt = common::Sigmoid(predt);
@@ -126,22 +108,11 @@ struct LogisticRaw : public LogisticRegression {
     predt = common::Sigmoid(predt);
     return fmaxf(predt * (1.0f - predt), eps);
   }
-  template <typename T>
-    static T PredTransform(T x) { return x; }
-  template <typename T>
-    static T FirstOrderGradient(T predt, T label) {
-    predt = common::Sigmoid(predt);
-    return predt - label;
-  }
-  template <typename T>
-    static T SecondOrderGradient(T predt, T label) {
-    const T eps = T(1e-16f);
-    predt = common::Sigmoid(predt);
-    return std::max(predt * (T(1.0f) - predt), eps);
-  }
-  static bst_float ProbToMargin(bst_float base_score) {
-    return base_score;
-  }
+
+  XGBOOST_DEVICE static float ProbToMargin(float base_score) { return base_score; }
+  constexpr static StringView InterceptErrorMsg() { return ""; }
+  XGBOOST_DEVICE static bool CheckIntercept(float) { return true; }
+
   static const char* DefaultEvalMetric() { return "logloss"; }
 
   static const char* Name() { return "binary:logitraw"; }
@@ -149,7 +120,26 @@ struct LogisticRaw : public LogisticRegression {
   static ObjInfo Info() { return ObjInfo::kRegression; }
 };
 
-}  // namespace obj
-}  // namespace xgboost
+// gamma deviance loss.
+class GammaDeviance {
+ public:
+  XGBOOST_DEVICE static float PredTransform(float x) { return std::exp(x); }
 
+  XGBOOST_DEVICE static float ProbToMargin(float x) { return std::log(x); }
+  constexpr static StringView InterceptErrorMsg() {
+    return "`base_score` must be greater than 0 for gamma regression";
+  }
+  XGBOOST_DEVICE static bool CheckIntercept(float base_score) { return base_score > 0; }
+
+  XGBOOST_DEVICE static float FirstOrderGradient(float p, float y) {
+    return 1.0f - y / p;
+  }
+  XGBOOST_DEVICE static float SecondOrderGradient(float p, float y) { return y / p; }
+  static ObjInfo Info() { return ObjInfo::kRegression; }
+  static const char* Name() { return "reg:gamma"; }
+  static const char* DefaultEvalMetric() { return "gamma-deviance"; }
+  XGBOOST_DEVICE static bool CheckLabel(float x) { return x > 0.0f; }
+  static const char* LabelErrorMsg() { return "label must be positive for gamma regression."; }
+};
+}  // namespace xgboost::obj
 #endif  // XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_

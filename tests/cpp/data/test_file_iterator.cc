@@ -1,46 +1,45 @@
-/*!
- * Copyright 2021 XGBoost contributors
+/**
+ * Copyright 2021-2025, XGBoost contributors
  */
 #include <gtest/gtest.h>
-#include <dmlc/filesystem.h>
 
+#include <any>  // for any_cast
 #include <memory>
 
+#include "../../../src/data/adapter.h"
 #include "../../../src/data/file_iterator.h"
 #include "../../../src/data/proxy_dmatrix.h"
-#include "../../../src/data/adapter.h"
+#include "../filesystem.h"  // for TemporaryDirectory
 #include "../helpers.h"
 
-namespace xgboost {
-namespace data {
+namespace xgboost::data {
 TEST(FileIterator, Basic) {
   auto check_n_features = [](FileIterator *iter) {
     size_t n_features = 0;
     iter->Reset();
     while (iter->Next()) {
       auto proxy = MakeProxy(iter->Proxy());
-      auto csr = dmlc::get<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter());
+      auto csr = std::any_cast<std::shared_ptr<CSRArrayAdapter>>(proxy->Adapter());
       n_features = std::max(n_features, csr->NumColumns());
     }
     ASSERT_EQ(n_features, 5);
   };
 
-  dmlc::TemporaryDirectory tmpdir;
+  common::TemporaryDirectory tmpdir;
   {
-    auto zpath = tmpdir.path + "/0-based.svm";
+    auto zpath = tmpdir.Str() + "/0-based.svm";
     CreateBigTestData(zpath, 3 * 64, true);
-    zpath += "?indexing_mode=0";
-    FileIterator iter{zpath, 0, 1, "libsvm"};
+    zpath += "?indexing_mode=0&format=libsvm";
+    FileIterator iter{zpath, 0, 1};
     check_n_features(&iter);
   }
 
   {
-    auto opath = tmpdir.path + "/1-based.svm";
+    auto opath = tmpdir.Str() + "/1-based.svm";
     CreateBigTestData(opath, 3 * 64, false);
-    opath += "?indexing_mode=1";
-    FileIterator iter{opath, 0, 1, "libsvm"};
+    opath += "?indexing_mode=1&format=libsvm";
+    FileIterator iter{opath, 0, 1};
     check_n_features(&iter);
   }
 }
-}  // namespace data
-}  // namespace xgboost
+}  // namespace xgboost::data

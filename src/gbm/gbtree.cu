@@ -1,25 +1,24 @@
-/*!
- * Copyright 2021 by Contributors
+/**
+ * Copyright 2021-2025, XGBoost Contributors
  */
-#include "xgboost/span.h"
-#include "xgboost/generic_parameters.h"
-#include "xgboost/linalg.h"
-#include "../common/device_helpers.cuh"
+#include <thrust/iterator/counting_iterator.h>  // for make_counting_iterator
 
-namespace xgboost {
-namespace gbm {
+#include "../common/cuda_context.cuh"
+#include "../common/device_helpers.cuh"  // for MakeTransformIterator
+#include "xgboost/base.h"                // for GradientPair
+#include "xgboost/linalg.h"              // for Matrix
 
-void GPUCopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
-                     bst_group_t n_groups, bst_group_t group_id,
-                     HostDeviceVector<GradientPair> *out_gpair) {
-  auto mat = linalg::TensorView<GradientPair const, 2>(
-      in_gpair->ConstDeviceSpan(),
-      {in_gpair->Size() / n_groups, static_cast<size_t>(n_groups)},
-      in_gpair->DeviceIdx());
-  auto v_in = mat.Slice(linalg::All(), group_id);
-  out_gpair->Resize(v_in.Size());
-  auto d_out = out_gpair->DeviceSpan();
-  dh::LaunchN(v_in.Size(), [=] __device__(size_t i) { d_out[i] = v_in(i); });
+namespace xgboost::gbm {
+void GPUCopyGradient(Context const *ctx, linalg::Matrix<GradientPair> const *in_gpair,
+                     bst_group_t group_id, linalg::Matrix<GradientPair> *out_gpair) {
+  auto v_in = in_gpair->View(ctx->Device()).Slice(linalg::All(), group_id);
+  out_gpair->SetDevice(ctx->Device());
+  out_gpair->Reshape(v_in.Size(), 1);
+  auto d_out = out_gpair->View(ctx->Device());
+  auto cuctx = ctx->CUDACtx();
+  auto it = dh::MakeTransformIterator<GradientPair>(
+      thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(std::size_t i) { return v_in(i); });
+  thrust::copy(cuctx->CTP(), it, it + v_in.Size(), d_out.Values().data());
 }
 
 void GPUDartPredictInc(common::Span<float> out_predts,
@@ -31,14 +30,14 @@ void GPUDartPredictInc(common::Span<float> out_predts,
   });
 }
 
-void GPUDartInplacePredictInc(common::Span<float> out_predts,
-                              common::Span<float> predts, float tree_w,
-                              size_t n_rows, float base_score,
-                              bst_group_t n_groups, bst_group_t group) {
+void GPUDartInplacePredictInc(common::Span<float> out_predts, common::Span<float> predts,
+                              float tree_w, size_t n_rows,
+                              linalg::TensorView<float const, 1> base_score, bst_group_t n_groups,
+                              bst_group_t group) {
+  CHECK_EQ(base_score.Size(), n_groups);
   dh::LaunchN(n_rows, [=] XGBOOST_DEVICE(size_t ridx) {
     const size_t offset = ridx * n_groups + group;
-    out_predts[offset] += (predts[offset] - base_score) * tree_w;
+    out_predts[offset] += (predts[offset] - base_score(group)) * tree_w;
   });
 }
-}  // namespace gbm
-}  // namespace xgboost
+}  // namespace xgboost::gbm

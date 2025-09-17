@@ -7,15 +7,22 @@ experiment.
 
 """
 
-import xgboost as xgb
-from sklearn.datasets import fetch_california_housing
+from urllib.error import HTTPError
+
 import numpy as np
+from sklearn.datasets import fetch_california_housing, make_regression
+
+import xgboost as xgb
 
 
-def main():
+def main() -> None:
     n_rounds = 32
 
-    X, y = fetch_california_housing(return_X_y=True)
+    try:
+        X, y = fetch_california_housing(return_X_y=True)
+    except HTTPError:
+        # Use a synthetic dataset instead if we couldn't
+        X, y = make_regression(n_samples=20640, n_features=8, random_state=1234)
 
     # Train a model first
     X_train = X[: X.shape[0] // 2]
@@ -23,7 +30,7 @@ def main():
     Xy = xgb.DMatrix(X_train, y_train)
     evals_result: xgb.callback.EvaluationMonitor.EvalsLog = {}
     booster = xgb.train(
-        {"tree_method": "gpu_hist", "max_depth": 6},
+        {"tree_method": "hist", "max_depth": 6, "device": "cuda"},
         Xy,
         num_boost_round=n_rounds,
         evals=[(Xy, "Train")],
@@ -32,8 +39,8 @@ def main():
     SHAP = booster.predict(Xy, pred_contribs=True)
 
     # Refresh the leaf value and tree statistic
-    X_refresh = X[X.shape[0] // 2:]
-    y_refresh = y[y.shape[0] // 2:]
+    X_refresh = X[X.shape[0] // 2 :]
+    y_refresh = y[y.shape[0] // 2 :]
     Xy_refresh = xgb.DMatrix(X_refresh, y_refresh)
     # The model will adapt to other half of the data by changing leaf value (no change in
     # split condition) with refresh_leaf set to True.
@@ -49,7 +56,7 @@ def main():
 
     # Refresh the model without changing the leaf value, but tree statistic including
     # cover and weight are refreshed.
-    refresh_result: xgb.callback.EvaluationMonitor.EvalsLog = {}
+    refresh_result = {}
     refreshed = xgb.train(
         {"process_type": "update", "updater": "refresh", "refresh_leaf": False},
         Xy_refresh,
@@ -86,7 +93,7 @@ def main():
     np.testing.assert_allclose(
         np.array(prune_result["Original"]["rmse"]),
         np.array(prune_result["Train"]["rmse"]),
-        atol=1e-5
+        atol=1e-5,
     )
 
 

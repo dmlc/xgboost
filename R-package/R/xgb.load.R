@@ -1,54 +1,67 @@
-#' Load xgboost model from binary file
+#' Load XGBoost model from binary file
 #'
-#' Load xgboost model from the binary model file.
+#' Load XGBoost model from binary model file.
 #'
-#' @param modelfile the name of the binary input file.
+#' @param modelfile The name of the binary input file.
 #'
 #' @details
-#' The input file is expected to contain a model saved in an xgboost model format
-#' using either \code{\link{xgb.save}} or \code{\link{cb.save.model}} in R, or using some
-#' appropriate methods from other xgboost interfaces. E.g., a model trained in Python and
-#' saved from there in xgboost format, could be loaded from R.
+#' The input file is expected to contain a model saved in an XGBoost model format
+#' using either [xgb.save()] in R, or using some
+#' appropriate methods from other XGBoost interfaces. E.g., a model trained in Python and
+#' saved from there in XGBoost format, could be loaded from R.
 #'
-#' Note: a model saved as an R-object, has to be loaded using corresponding R-methods,
-#' not \code{xgb.load}.
+#' Note: a model saved as an R object has to be loaded using corresponding R-methods,
+#' not by [xgb.load()].
 #'
 #' @return
-#' An object of \code{xgb.Booster} class.
+#' An object of `xgb.Booster` class.
 #'
-#' @seealso
-#' \code{\link{xgb.save}}, \code{\link{xgb.Booster.complete}}.
+#' @seealso [xgb.save()]
 #'
 #' @examples
-#' data(agaricus.train, package='xgboost')
-#' data(agaricus.test, package='xgboost')
+#' \dontshow{RhpcBLASctl::omp_set_num_threads(1)}
+#' data(agaricus.train, package = "xgboost")
+#' data(agaricus.test, package = "xgboost")
+#'
+#' ## Keep the number of threads to 1 for examples
+#' nthread <- 1
+#' data.table::setDTthreads(nthread)
+#'
 #' train <- agaricus.train
 #' test <- agaricus.test
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-#'                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
-#' xgb.save(bst, 'xgb.model')
-#' bst <- xgb.load('xgb.model')
-#' if (file.exists('xgb.model')) file.remove('xgb.model')
-#' pred <- predict(bst, test$data)
+#'
+#' bst <- xgb.train(
+#'   data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
+#'   nrounds = 2,
+#'   params = xgb.params(
+#'     max_depth = 2,
+#'     nthread = nthread,
+#'     objective = "binary:logistic"
+#'   )
+#' )
+#'
+#' fname <- file.path(tempdir(), "xgb.ubj")
+#' xgb.save(bst, fname)
+#' bst <- xgb.load(fname)
 #' @export
 xgb.load <- function(modelfile) {
   if (is.null(modelfile))
     stop("xgb.load: modelfile cannot be NULL")
 
-  handle <- xgb.Booster.handle(modelfile = modelfile)
+  bst <- xgb.Booster(
+    params = list(),
+    cachelist = list(),
+    modelfile = modelfile
+  )
+  bst <- bst$bst
   # re-use modelfile if it is raw so we do not need to serialize
   if (typeof(modelfile) == "raw") {
     warning(
       paste(
         "The support for loading raw booster with `xgb.load` will be ",
-        "discontinued in upcoming release. Use `xgb.load.raw` or",
-        " `xgb.unserialize` instead. "
+        "discontinued in upcoming release. Use `xgb.load.raw` instead. "
       )
     )
-    bst <- xgb.handleToBooster(handle, modelfile)
-  } else {
-    bst <- xgb.handleToBooster(handle, NULL)
   }
-  bst <- xgb.Booster.complete(bst, saveraw = TRUE)
   return(bst)
 }

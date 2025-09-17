@@ -30,8 +30,8 @@ require(xgboost)
 require(methods)
 require(data.table)
 require(magrittr)
-train <- fread('data/train.csv', header = T, stringsAsFactors = FALSE)
-test <- fread('data/test.csv', header=TRUE, stringsAsFactors = FALSE)
+train <- fread('data/train.csv', header = TRUE, stringsAsFactors = FALSE)
+test <- fread('data/test.csv', header = TRUE, stringsAsFactors = FALSE)
 ```
 > `magrittr` and `data.table` are here to make the code cleaner and much more rapid.
 
@@ -42,13 +42,13 @@ Let's explore the dataset.
 dim(train)
 
 # Training content
-train[1:6,1:5, with =FALSE]
+train[1:6, 1:5, with = FALSE]
 
 # Test dataset dimensions
 dim(test)
 
 # Test content
-test[1:6,1:5, with =FALSE]
+test[1:6, 1:5, with = FALSE]
 ```
 > We only display the 6 first rows and 5 first columns for convenience
 
@@ -86,7 +86,10 @@ For that purpose, we will:
 
 ```{r classToIntegers}
 # Convert from classes to numbers
-y <- train[, nameLastCol, with = FALSE][[1]] %>% gsub('Class_','',.) %>% {as.integer(.) -1}
+y <- train[, nameLastCol, with = FALSE][[1]] %>%
+    gsub('Class_', '', ., fixed = TRUE) %>%
+    as.integer %>%
+    subtract(., 1)
 
 # Display the first 5 levels
 y[1:5]
@@ -95,14 +98,14 @@ y[1:5]
 We remove label column from training dataset, otherwise **XGBoost** would use it to guess the labels!
 
 ```{r deleteCols, results='hide'}
-train[, nameLastCol:=NULL, with = FALSE]
+train[, nameLastCol := NULL, with = FALSE]
 ```
 
 `data.table` is an awesome implementation of data.frame, unfortunately it is not a format supported natively by **XGBoost**. We need to convert both datasets (training and test) in `numeric` Matrix format.
 
 ```{r convertToNumericMatrix}
-trainMatrix <- train[,lapply(.SD,as.numeric)] %>% as.matrix
-testMatrix <- test[,lapply(.SD,as.numeric)] %>% as.matrix
+trainMatrix <- train[, lapply(.SD, as.numeric)] %>% as.matrix
+testMatrix <- test[, lapply(.SD, as.numeric)] %>% as.matrix
 ```
 
 Model training
@@ -124,7 +127,7 @@ param <- list("objective" = "multi:softprob",
 cv.nrounds <- 5
 cv.nfold <- 3
 
-bst.cv = xgb.cv(param=param, data = trainMatrix, label = y,
+bst.cv <- xgb.cv(param = param, data = trainMatrix, label = y,
                 nfold = cv.nfold, nrounds = cv.nrounds)
 ```
 > As we can see the error rate is low on the test dataset (for a 5mn trained model).
@@ -132,8 +135,8 @@ bst.cv = xgb.cv(param=param, data = trainMatrix, label = y,
 Finally, we are ready to train the real model!!!
 
 ```{r modelTraining}
-nrounds = 50
-bst = xgboost(param=param, data = trainMatrix, label = y, nrounds=nrounds)
+nrounds <- 50
+bst <- xgboost(param = param, data = trainMatrix, label = y, nrounds = nrounds)
 ```
 
 Model understanding
@@ -186,7 +189,7 @@ names <- dimnames(trainMatrix)[[2]]
 importance_matrix <- xgb.importance(names, model = bst)
 
 # Nice graph
-xgb.plot.importance(importance_matrix[1:10,])
+xgb.plot.importance(importance_matrix[1:10, ])
 ```
 
 > To make it understandable we first extract the column names from the `Matrix`.

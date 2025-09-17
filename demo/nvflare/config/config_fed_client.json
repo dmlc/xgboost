@@ -13,7 +13,7 @@
           "server_cert_path": "server-cert.pem",
           "client_key_path": "client-key.pem",
           "client_cert_path": "client-cert.pem",
-          "use_gpus": "false"
+          "use_gpus": false
         }
       }
     }

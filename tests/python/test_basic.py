@@ -1,54 +1,58 @@
-# -*- coding: utf-8 -*-
-import numpy as np
-import os
-import xgboost as xgb
-import pytest
 import json
-from pathlib import Path
+import os
+import pathlib
 import tempfile
-import testing as tm
+from pathlib import Path
 
-dpath = 'demo/data/'
+import numpy as np
+import pytest
+
+import xgboost as xgb
+from xgboost import testing as tm
+from xgboost.core import _parse_version
+
+dpath = "demo/data/"
 rng = np.random.RandomState(1994)
 
 
 class TestBasic:
     def test_compat(self):
         from xgboost.compat import lazy_isinstance
+
         a = np.array([1, 2, 3])
-        assert lazy_isinstance(a, 'numpy', 'ndarray')
-        assert not lazy_isinstance(a, 'numpy', 'dataframe')
+        assert lazy_isinstance(a, "numpy", "ndarray")
+        assert not lazy_isinstance(a, "numpy", "dataframe")
 
     def test_basic(self):
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1,
-                 'objective': 'binary:logistic'}
+        dtrain, dtest = tm.load_agaricus(__file__)
+        param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
         # specify validations set to watch performance
-        watchlist = [(dtrain, 'train')]
+        watchlist = [(dtrain, "train")]
         num_round = 2
-        bst = xgb.train(param, dtrain, num_round, watchlist, verbose_eval=True)
+        bst = xgb.train(param, dtrain, num_round, evals=watchlist, verbose_eval=True)
 
         preds = bst.predict(dtrain)
         labels = dtrain.get_label()
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        err = sum(
+            1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]
+        ) / float(len(preds))
         # error must be smaller than 10%
         assert err < 0.1
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            dtest_path = os.path.join(tmpdir, 'dtest.dmatrix')
+            dtest_path = os.path.join(tmpdir, "dtest.dmatrix")
             # save dmatrix into binary buffer
             dtest.save_binary(dtest_path)
             # save model
-            model_path = os.path.join(tmpdir, 'model.booster')
+            model_path = os.path.join(tmpdir, "model.ubj")
             bst.save_model(model_path)
             # load model and data in
             bst2 = xgb.Booster(model_file=model_path)
@@ -58,18 +62,21 @@ class TestBasic:
             assert np.sum(np.abs(preds2 - preds)) == 0
 
     def test_metric_config(self):
-        # Make sure that the metric configuration happens in booster so the
-        # string `['error', 'auc']` doesn't get passed down to core.
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                 'objective': 'binary:logistic', 'eval_metric': ['error', 'auc']}
-        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        # Make sure that the metric configuration happens in booster so the string
+        # `['error', 'auc']` doesn't get passed down to core.
+        dtrain, dtest = tm.load_agaricus(__file__)
+        param = {
+            "max_depth": 2,
+            "eta": 1,
+            "objective": "binary:logistic",
+            "eval_metric": ["error", "auc"],
+        }
+        watchlist = [(dtest, "eval"), (dtrain, "train")]
         num_round = 2
-        booster = xgb.train(param, dtrain, num_round, watchlist)
+        booster = xgb.train(param, dtrain, num_round, evals=watchlist)
         predt_0 = booster.predict(dtrain)
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, 'model.json')
+            path = os.path.join(tmpdir, "model.json")
             booster.save_model(path)
 
             booster = xgb.Booster(params=param, model_file=path)
@@ -77,24 +84,24 @@ class TestBasic:
             np.testing.assert_allclose(predt_0, predt_1)
 
     def test_multiclass(self):
-        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'num_class': 2}
+        dtrain, dtest = tm.load_agaricus(__file__)
+        param = {"max_depth": 2, "eta": 1, "num_class": 2}
         # specify validations set to watch performance
-        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        watchlist = [(dtest, "eval"), (dtrain, "train")]
         num_round = 2
-        bst = xgb.train(param, dtrain, num_round, watchlist)
+        bst = xgb.train(param, dtrain, num_round, evals=watchlist)
         # this is prediction
         preds = bst.predict(dtest)
         labels = dtest.get_label()
-        err = sum(1 for i in range(len(preds))
-                  if preds[i] != labels[i]) / float(len(preds))
+        err = sum(1 for i in range(len(preds)) if preds[i] != labels[i]) / float(
+            len(preds)
+        )
         # error must be smaller than 10%
         assert err < 0.1
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            dtest_path = os.path.join(tmpdir, 'dtest.buffer')
-            model_path = os.path.join(tmpdir, 'xgb.model')
+            dtest_path = os.path.join(tmpdir, "dtest.buffer")
+            model_path = os.path.join(tmpdir, "model.ubj")
             # save dmatrix into binary buffer
             dtest.save_binary(dtest_path)
             # save model
@@ -109,33 +116,39 @@ class TestBasic:
     def test_dump(self):
         data = np.random.randn(100, 2)
         target = np.array([0, 1] * 50)
-        features = ['Feature1', 'Feature2']
+        features = ["Feature1", "Feature2"]
 
         dm = xgb.DMatrix(data, label=target, feature_names=features)
-        params = {'objective': 'binary:logistic',
-                  'eval_metric': 'logloss',
-                  'eta': 0.3,
-                  'max_depth': 1}
+        params = {
+            "objective": "binary:logistic",
+            "eval_metric": "logloss",
+            "eta": 0.3,
+            "max_depth": 1,
+        }
 
         bst = xgb.train(params, dm, num_boost_round=1)
 
         # number of feature importances should == number of features
         dump1 = bst.get_dump()
-        assert len(dump1) == 1, 'Expected only 1 tree to be dumped.'
-        len(dump1[0].splitlines()) == 3, 'Expected 1 root and 2 leaves - 3 lines in dump.'
+        assert len(dump1) == 1, "Expected only 1 tree to be dumped."
+        len(
+            dump1[0].splitlines()
+        ) == 3, "Expected 1 root and 2 leaves - 3 lines in dump."
 
         dump2 = bst.get_dump(with_stats=True)
-        assert dump2[0].count('\n') == 3, 'Expected 1 root and 2 leaves - 3 lines in dump.'
-        msg = 'Expected more info when with_stats=True is given.'
-        assert dump2[0].find('\n') > dump1[0].find('\n'), msg
+        assert (
+            dump2[0].count("\n") == 3
+        ), "Expected 1 root and 2 leaves - 3 lines in dump."
+        msg = "Expected more info when with_stats=True is given."
+        assert dump2[0].find("\n") > dump1[0].find("\n"), msg
 
         dump3 = bst.get_dump(dump_format="json")
         dump3j = json.loads(dump3[0])
-        assert dump3j['nodeid'] == 0, 'Expected the root node on top.'
+        assert dump3j["nodeid"] == 0, "Expected the root node on top."
 
         dump4 = bst.get_dump(dump_format="json", with_stats=True)
         dump4j = json.loads(dump4[0])
-        assert 'gain' in dump4j, "Expected 'gain' to be dumped in JSON."
+        assert "gain" in dump4j, "Expected 'gain' to be dumped in JSON."
 
         with pytest.raises(ValueError):
             bst.get_dump(fmap="foo")
@@ -164,18 +177,30 @@ class TestBasic:
 
     def test_load_file_invalid(self):
         with pytest.raises(xgb.core.XGBoostError):
-            xgb.Booster(model_file='incorrect_path')
+            xgb.Booster(model_file="incorrect_path")
 
         with pytest.raises(xgb.core.XGBoostError):
-            xgb.Booster(model_file=u'不正なパス')
+            xgb.Booster(model_file="不正なパス")
+
+    @pytest.mark.parametrize(
+        "path", ["모델.ubj", "がうる・ぐら.json"], ids=["path-0", "path-1"]
+    )
+    def test_unicode_path(self, tmpdir, path):
+        model_path = pathlib.Path(tmpdir) / path
+        dtrain, _ = tm.load_agaricus(__file__)
+        param = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
+        bst = xgb.train(param, dtrain, num_boost_round=2)
+        bst.save_model(model_path)
+
+        bst2 = xgb.Booster(model_file=model_path)
+        assert bst.get_dump(dump_format="text") == bst2.get_dump(dump_format="text")
 
     def test_dmatrix_numpy_init_omp(self):
-
         rows = [1000, 11326, 15000]
         cols = 50
         for row in rows:
             X = np.random.randn(row, cols)
-            y = np.random.randn(row).astype('f')
+            y = np.random.randn(row).astype("f")
             dm = xgb.DMatrix(X, y, nthread=0)
             np.testing.assert_array_equal(dm.get_label(), y)
             assert dm.num_row() == row
@@ -187,9 +212,8 @@ class TestBasic:
             assert dm.num_col() == cols
 
     def test_cv(self):
-        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
+        dm, _ = tm.load_agaricus(__file__)
+        params = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
 
         # return np.ndarray
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10, as_pandas=False)
@@ -197,20 +221,19 @@ class TestBasic:
         assert len(cv) == (4)
 
     def test_cv_no_shuffle(self):
-        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
+        dm, _ = tm.load_agaricus(__file__)
+        params = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
 
         # return np.ndarray
-        cv = xgb.cv(params, dm, num_boost_round=10, shuffle=False, nfold=10,
-                    as_pandas=False)
+        cv = xgb.cv(
+            params, dm, num_boost_round=10, shuffle=False, nfold=10, as_pandas=False
+        )
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
     def test_cv_explicit_fold_indices(self):
-        dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
-                  'binary:logistic'}
+        dm, _ = tm.load_agaricus(__file__)
+        params = {"max_depth": 2, "eta": 1, "objective": "binary:logistic"}
         folds = [
             # Train        Test
             ([1, 3], [5, 8]),
@@ -218,15 +241,12 @@ class TestBasic:
         ]
 
         # return np.ndarray
-        cv = xgb.cv(params, dm, num_boost_round=10, folds=folds,
-                    as_pandas=False)
+        cv = xgb.cv(params, dm, num_boost_round=10, folds=folds, as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
-    @pytest.mark.skipif(**tm.skip_s390x())
     def test_cv_explicit_fold_indices_labels(self):
-        params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
-                  'reg:squarederror'}
+        params = {"max_depth": 2, "eta": 1, "objective": "reg:squarederror"}
         N = 100
         F = 3
         dm = xgb.DMatrix(data=np.random.randn(N, F), label=np.arange(N))
@@ -242,9 +262,10 @@ class TestBasic:
                 super().__init__()
 
             def after_iteration(
-                self, model,
+                self,
+                model,
                 epoch: int,
-                evals_log: xgb.callback.TrainingCallback.EvalsLog
+                evals_log: xgb.callback.TrainingCallback.EvalsLog,
             ):
                 print([fold.dtest.get_label() for fold in model.cvfolds])
 
@@ -253,12 +274,18 @@ class TestBasic:
         # Run cross validation and capture standard out to test callback result
         with tm.captured_output() as (out, err):
             xgb.cv(
-                params, dm, num_boost_round=1, folds=folds, callbacks=[cb],
-                as_pandas=False
+                params,
+                dm,
+                num_boost_round=1,
+                folds=folds,
+                callbacks=[cb],
+                as_pandas=False,
             )
             output = out.getvalue().strip()
-        solution = ('[array([5., 8.], dtype=float32), array([23., 43., 11.],' +
-                    ' dtype=float32)]')
+        solution = (
+            "[array([5., 8.], dtype=float32), array([23., 43., 11.],"
+            + " dtype=float32)]"
+        )
         assert output == solution
 
 
@@ -267,8 +294,7 @@ class TestBasicPathLike:
 
     def test_DMatrix_init_from_path(self):
         """Initialization from the data path."""
-        dpath = Path('demo/data')
-        dtrain = xgb.DMatrix(dpath / 'agaricus.txt.train')
+        dtrain, _ = tm.load_agaricus(__file__)
         assert dtrain.num_row() == 6513
         assert dtrain.num_col() == 127
 
@@ -276,7 +302,7 @@ class TestBasicPathLike:
         """Saving to a binary file using pathlib from a DMatrix."""
         data = np.random.randn(100, 2)
         target = np.array([0, 1] * 50)
-        features = ['Feature1', 'Feature2']
+        features = ["Feature1", "Feature2"]
 
         dm = xgb.DMatrix(data, label=target, feature_names=features)
 
@@ -291,41 +317,13 @@ class TestBasicPathLike:
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file=Path("invalidpath"))
 
-    def test_Booster_save_and_load(self):
-        """Saving and loading model files from paths."""
-        save_path = Path("saveload.model")
 
-        data = np.random.randn(100, 2)
-        target = np.array([0, 1] * 50)
-        features = ['Feature1', 'Feature2']
-
-        dm = xgb.DMatrix(data, label=target, feature_names=features)
-        params = {'objective': 'binary:logistic',
-                  'eval_metric': 'logloss',
-                  'eta': 0.3,
-                  'max_depth': 1}
-
-        bst = xgb.train(params, dm, num_boost_round=1)
-
-        # save, assert exists
-        bst.save_model(save_path)
-        assert save_path.exists()
-
-        def dump_assertions(dump):
-            """Assertions for the expected dump from Booster"""
-            assert len(dump) == 1, 'Exepcted only 1 tree to be dumped.'
-            assert len(dump[0].splitlines()) == 3, 'Expected 1 root and 2 leaves - 3 lines.'
-
-        # load the model again using Path
-        bst2 = xgb.Booster(model_file=save_path)
-        dump2 = bst2.get_dump()
-        dump_assertions(dump2)
-
-        # load again using load_model
-        bst3 = xgb.Booster()
-        bst3.load_model(save_path)
-        dump3 = bst3.get_dump()
-        dump_assertions(dump3)
-
-        # remove file
-        Path.unlink(save_path)
+def test_parse_ver() -> None:
+    (major, minor, patch), post = _parse_version("2.1.0")
+    assert post == ""
+    (major, minor, patch), post = _parse_version("2.1.0-dev")
+    assert post == "dev"
+    (major, minor, patch), post = _parse_version("2.1.0rc1")
+    assert post == "rc1"
+    (major, minor, patch), post = _parse_version("2.1.0.post1")
+    assert post == "post1"

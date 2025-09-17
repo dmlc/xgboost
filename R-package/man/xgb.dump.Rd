@@ -2,51 +2,77 @@
 % Please edit documentation in R/xgb.dump.R
 \name{xgb.dump}
 \alias{xgb.dump}
-\title{Dump an xgboost model in text format.}
+\title{Dump an XGBoost model in text format.}
 \usage{
 xgb.dump(
   model,
   fname = NULL,
   fmap = "",
   with_stats = FALSE,
-  dump_format = c("text", "json"),
+  dump_format = c("text", "json", "dot"),
   ...
 )
 }
 \arguments{
-\item{model}{the model object.}
+\item{model}{The model object.}
 
-\item{fname}{the name of the text file where to save the model text dump.
-If not provided or set to \code{NULL}, the model is returned as a \code{character} vector.}
+\item{fname}{The name of the text file where to save the model text dump.
+If not provided or set to \code{NULL}, the model is returned as a character vector.}
 
-\item{fmap}{feature map file representing feature types.
-See demo/ for walkthrough example in R, and
-\url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt}
-for example Format.}
+\item{fmap}{Feature map file representing feature types. See demo/ for a walkthrough
+example in R, and \url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt}
+to see an example of the value.}
 
-\item{with_stats}{whether to dump some additional statistics about the splits.
+\item{with_stats}{Whether to dump some additional statistics about the splits.
 When this option is on, the model dump contains two additional values:
 gain is the approximate loss function gain we get in each split;
 cover is the sum of second order gradient in each node.}
 
-\item{dump_format}{either 'text' or 'json' format could be specified.}
+\item{dump_format}{Either 'text', 'json', or 'dot' (graphviz) format could be specified.
 
-\item{...}{currently not used}
+Format 'dot' for a single tree can be passed directly to packages that consume this format
+for graph visualization, such as function \code{DiagrammeR::grViz()}}
+
+\item{...}{Not used.
+
+Some arguments that were part of this function in previous XGBoost versions are currently
+deprecated or have been renamed. If a deprecated or renamed argument is passed, will throw
+a warning (by default) and use its current equivalent instead. This warning will become an
+error if using the \link[=xgboost-options]{'strict mode' option}.
+
+If some additional argument is passed that is neither a current function argument nor
+a deprecated or renamed argument, a warning or error will be thrown depending on the
+'strict mode' option.
+
+\bold{Important:} \code{...} will be removed in a future version, and all the current
+deprecation warnings will become errors. Please use only arguments that form part of
+the function signature.}
 }
 \value{
 If fname is not provided or set to \code{NULL} the function will return the model
-as a \code{character} vector. Otherwise it will return \code{TRUE}.
+as a character vector. Otherwise it will return \code{TRUE}.
 }
 \description{
-Dump an xgboost model in text format.
+Dump an XGBoost model in text format.
 }
 \examples{
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+\dontshow{RhpcBLASctl::omp_set_num_threads(1)}
+data(agaricus.train, package = "xgboost")
+data(agaricus.test, package = "xgboost")
+
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
+  nrounds = 2,
+  params = xgb.params(
+    max_depth = 2,
+    nthread = 2,
+    objective = "binary:logistic"
+  )
+)
+
 # save the model in file 'xgb.model.dump'
 dump_path = file.path(tempdir(), 'model.dump')
 xgb.dump(bst, dump_path, with_stats = TRUE)
@@ -55,6 +81,10 @@ xgb.dump(bst, dump_path, with_stats = TRUE)
 print(xgb.dump(bst, with_stats = TRUE))
 
 # print in JSON format:
-cat(xgb.dump(bst, with_stats = TRUE, dump_format='json'))
+cat(xgb.dump(bst, with_stats = TRUE, dump_format = "json"))
 
+# plot first tree leveraging the 'dot' format
+if (requireNamespace('DiagrammeR', quietly = TRUE)) {
+  DiagrammeR::grViz(xgb.dump(bst, dump_format = "dot")[[1L]])
+}
 }

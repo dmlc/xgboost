@@ -2,44 +2,68 @@
 % Please edit documentation in R/xgb.save.R
 \name{xgb.save}
 \alias{xgb.save}
-\title{Save xgboost model to binary file}
+\title{Save XGBoost model to binary file}
 \usage{
 xgb.save(model, fname)
 }
 \arguments{
-\item{model}{model object of \code{xgb.Booster} class.}
+\item{model}{Model object of \code{xgb.Booster} class.}
 
-\item{fname}{name of the file to write.}
+\item{fname}{Name of the file to write. Its extension determines the serialization format:
+\itemize{
+\item ".ubj": Use the universal binary JSON format (recommended).
+This format uses binary types for e.g. floating point numbers, thereby preventing any loss
+of precision when converting to a human-readable JSON text or similar.
+\item ".json": Use plain JSON, which is a human-readable format.
+\item ".deprecated": Use \strong{deprecated} binary format. This format will
+not be able to save attributes introduced after v1 of XGBoost, such as the "best_iteration"
+attribute that boosters might keep, nor feature names or user-specifiec attributes.
+\item If the format is not specified by passing one of the file extensions above, will
+default to UBJ.
+}}
 }
 \description{
-Save xgboost model to a file in binary format.
+Save XGBoost model to a file in binary or JSON format.
 }
 \details{
-This methods allows to save a model in an xgboost-internal binary format which is universal
-among the various xgboost interfaces. In R, the saved model file could be read-in later
-using either the \code{\link{xgb.load}} function or the \code{xgb_model} parameter
-of \code{\link{xgb.train}}.
+This methods allows to save a model in an XGBoost-internal binary or text format which is universal
+among the various xgboost interfaces. In R, the saved model file could be read later
+using either the \code{\link[=xgb.load]{xgb.load()}} function or the \code{xgb_model} parameter of \code{\link[=xgb.train]{xgb.train()}}.
 
-Note: a model can also be saved as an R-object (e.g., by using \code{\link[base]{readRDS}}
-or \code{\link[base]{save}}). However, it would then only be compatible with R, and
-corresponding R-methods would need to be used to load it. Moreover, persisting the model with
-\code{\link[base]{readRDS}} or \code{\link[base]{save}}) will cause compatibility problems in
-future versions of XGBoost. Consult \code{\link{a-compatibility-note-for-saveRDS-save}} to learn
-how to persist models in a future-proof way, i.e. to make the model accessible in future
+Note: a model can also be saved as an R object (e.g., by using \code{\link[=readRDS]{readRDS()}}
+or \code{\link[=save]{save()}}). However, it would then only be compatible with R, and
+corresponding R methods would need to be used to load it. Moreover, persisting the model with
+\code{\link[=readRDS]{readRDS()}} or \code{\link[=save]{save()}} might cause compatibility problems in
+future versions of XGBoost. Consult \link{a-compatibility-note-for-saveRDS-save} to learn
+how to persist models in a future-proof way, i.e., to make the model accessible in future
 releases of XGBoost.
 }
 \examples{
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+\dontshow{RhpcBLASctl::omp_set_num_threads(1)}
+data(agaricus.train, package = "xgboost")
+data(agaricus.test, package = "xgboost")
+
+## Keep the number of threads to 1 for examples
+nthread <- 1
+data.table::setDTthreads(nthread)
+
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-               eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
-xgb.save(bst, 'xgb.model')
-bst <- xgb.load('xgb.model')
-if (file.exists('xgb.model')) file.remove('xgb.model')
-pred <- predict(bst, test$data)
+
+bst <- xgb.train(
+  data = xgb.DMatrix(train$data, label = train$label, nthread = 1),
+  nrounds = 2,
+  params = xgb.params(
+    max_depth = 2,
+    nthread = nthread,
+    objective = "binary:logistic"
+  )
+)
+
+fname <- file.path(tempdir(), "xgb.ubj")
+xgb.save(bst, fname)
+bst <- xgb.load(fname)
 }
 \seealso{
-\code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.
+\code{\link[=xgb.load]{xgb.load()}}
 }

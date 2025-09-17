@@ -15,7 +15,7 @@ Overview
 XGBoost is designed to be an extensible library.  One way to extend it is by providing our
 own objective function for training and corresponding metric for performance monitoring.
 This document introduces implementing a customized elementwise evaluation metric and
-objective for XGBoost.  Although the introduction uses Python for demonstration, the
+objective for XGBoost. Although the introduction uses Python for demonstration, the
 concepts should be readily applicable to other language bindings.
 
 .. note::
@@ -23,24 +23,36 @@ concepts should be readily applicable to other language bindings.
    * The ranking task does not support customized functions.
    * Breaking change was made in XGBoost 1.6.
 
+See also the advanced usage example for more information about limitations and
+workarounds for more complex objetives: :doc:`/tutorials/advanced_custom_obj`
+
 In the following two sections, we will provide a step by step walk through of implementing
 the ``Squared Log Error (SLE)`` objective function:
 
 .. math::
-   \frac{1}{2}[log(pred + 1) - log(label + 1)]^2
+   \frac{1}{2}[\log(pred + 1) - \log(label + 1)]^2
 
 and its default metric ``Root Mean Squared Log Error(RMSLE)``:
 
 .. math::
-   \sqrt{\frac{1}{N}[log(pred + 1) - log(label + 1)]^2}
+   \sqrt{\frac{1}{N}[\log(pred + 1) - \log(label + 1)]^2}
 
 Although XGBoost has native support for said functions, using it for demonstration
 provides us the opportunity of comparing the result from our own implementation and the
 one from XGBoost internal for learning purposes.  After finishing this tutorial, we should
 be able to provide our own functions for rapid experiments.  And at the end, we will
-provide some notes on non-identy link function along with examples of using custom metric
-and objective with `scikit-learn` interface.
-with scikit-learn interface.
+provide some notes on non-identity link function along with examples of using custom metric
+and objective with the `scikit-learn` interface.
+
+If we compute the gradient of said objective function:
+
+.. math::
+   g = \frac{\partial{objective}}{\partial{pred}} = \frac{\log(pred + 1) - \log(label + 1)}{pred + 1}
+
+As well as the hessian (the second derivative of the objective):
+
+.. math::
+   h = \frac{\partial^2{objective}}{\partial{pred}^2} = \frac{ - \log(pred + 1) + \log(label + 1) + 1}{(pred + 1)^2}
 
 *****************************
 Customized Objective Function
@@ -114,11 +126,11 @@ monitor our model's performance.  As mentioned above, the default metric for ``S
         elements = np.power(np.log1p(y) - np.log1p(predt), 2)
         return 'PyRMSLE', float(np.sqrt(np.sum(elements) / len(y)))
 
-Since we are demonstrating in Python, the metric or objective need not be a function,
-any callable object should suffice.  Similar to the objective function, our metric also
-accepts ``predt`` and ``dtrain`` as inputs, but returns the name of the metric itself and a
-floating point value as the result.  After passing it into XGBoost as argument of ``feval``
-parameter:
+Since we are demonstrating in Python, the metric or objective need not be a function, any
+callable object should suffice.  Similar to the objective function, our metric also
+accepts ``predt`` and ``dtrain`` as inputs, but returns the name of the metric itself and
+a floating point value as the result.  After passing it into XGBoost as argument of
+``custom_metric`` parameter:
 
 .. code-block:: python
 
@@ -127,7 +139,7 @@ parameter:
               dtrain=dtrain,
               num_boost_round=10,
               obj=squared_log,
-              feval=rmsle,
+              custom_metric=rmsle,
               evals=[(dtrain, 'dtrain'), (dtest, 'dtest')],
               evals_result=results)
 
@@ -156,7 +168,7 @@ Reverse Link Function
 When using builtin objective, the raw prediction is transformed according to the objective
 function.  When a custom objective is provided XGBoost doesn't know its link function so the
 user is responsible for making the transformation for both objective and custom evaluation
-metric.  For objective with identiy link like ``squared error`` this is trivial, but for
+metric.  For objective with identity link like ``squared error`` this is trivial, but for
 other link functions like log link or inverse link the difference is significant.
 
 For the Python package, the behaviour of prediction can be controlled by the
@@ -164,7 +176,7 @@ For the Python package, the behaviour of prediction can be controlled by the
 parameter without a custom objective, the metric function will receive transformed
 prediction since the objective is defined by XGBoost. However, when the custom objective is
 also provided along with that metric, then both the objective and custom metric will
-recieve raw prediction.  The following example provides a comparison between two different
+receive raw prediction.  The following example provides a comparison between two different
 behavior with a multi-class classification model. Firstly we define 2 different Python
 metric functions implementing the same underlying metric for comparison,
 `merror_with_transform` is used when custom objective is also used, otherwise the simpler
@@ -262,13 +274,13 @@ available in XGBoost:
 We use ``multi:softmax`` to illustrate the differences of transformed prediction.  With
 ``softprob`` the output prediction array has shape ``(n_samples, n_classes)`` while for
 ``softmax`` it's ``(n_samples, )``. A demo for multi-class objective function is also
-available at :ref:`sphx_glr_python_examples_custom_softmax.py`.
+available at :ref:`sphx_glr_python_examples_custom_softmax.py`. Also, see
+:doc:`/tutorials/intercept` for some more explanation.
 
 
 **********************
 Scikit-Learn Interface
 **********************
-
 
 The scikit-learn interface of XGBoost has some utilities to improve the integration with
 standard scikit-learn functions.  For instance, after XGBoost 1.6.0 users can use the cost
@@ -292,6 +304,7 @@ access ``DMatrix``:
 
     def softprob_obj(labels: np.ndarray, predt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         rows = labels.shape[0]
+        classes = predt.shape[1]
         grad = np.zeros((rows, classes), dtype=float)
         hess = np.zeros((rows, classes), dtype=float)
         eps = 1e-6
