@@ -2,12 +2,9 @@
 Categorical Data
 ################
 
-.. note::
 
-   As of XGBoost 1.6, the feature is experimental and has limited features
-
-Starting from version 1.5, XGBoost has experimental support for categorical data available
-for public testing. For numerical data, the split condition is defined as :math:`value <
+Since version 1.5, XGBoost has support for categorical data.
+For numerical data, the split condition is defined as :math:`value <
 threshold`, while for categorical data the split is defined depending on whether
 partitioning or onehot encoding is used. For partition-based splits, the splits are
 specified as :math:`value \in categories`, where ``categories`` is the set of categories
